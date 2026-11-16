@@ -28,7 +28,7 @@
 材料实例 `FLDComponentInstance`是本局真实获得的一件材料：`{Id, Source, SourceLevel, bInstalled, bEverInstalled, Target}`，
 每个定义至多一件，库存与已安装合并去重。`ValidateBuild` 要求 id 已知且严格升序、来源合法（`OpeningPick` 为 1 级且整局至多一件，
 `LevelUp` 为 2..当前等级且每级至多 `LevelComponentDraws` 件：`bonus_component_levels` 上 2 件，其余 1 件）、已安装必有首次历史、
-库存实例没有目标、已安装件数不超过本级工坊容量（`LDProgression::WorkshopCapacity`）；已安装的按定义形状安装，
+库存实例没有目标、已安装件数不超过本级工坊容量（`LDProgression::WorkshopCapacity`），本体最多 4 件、冲刺最多 2 件（Q/W/E 没有单列上限）；已安装的按定义形状安装，
 带 `active_element` 绑定的（B18）绑定其列表内的主动与元素；安装所在的主动、宿主构件与 C12 复用的基础构件都必须仍然有效
 （已学会／已安装），否则构筑非法（`DataInvalid`），因为遗忘与卸下会在同一次提交里先回收它们（见下表 `ReplaceActive`/`ForgetActive`）。
 已安装实例按 id 排序进入 `FLDBuildProjectionInput::Components`，库存实例不进 Combat。死亡、复活与重连不改实例与首次历史。
@@ -37,12 +37,13 @@
   `opening.actives` 含开局主动的基础构件，排除已持有，目录顺序（`LDProgression::OpeningBaseOptions`；本人视图的
   `bOpeningBasePending`/`OpeningBaseOptions`）。倒计时与发育期均可选，活着或死亡都可以。
 - **工坊容量**：`WorkshopCapacity(等级)` = `workshop_capacity.base` + ⌊(等级 − 1) / `levels_per_slot`⌋；每件已安装实例占 1 格。
-  `ApplyInstallComponent` 在目标合法之后检查容量，满了为 `WorkshopFull` = 151，不改构筑；开局基础构件的“顺手安装”遇满则存入库存
+  本体最多 4 件，冲刺最多 2 件，Q/W/E 没有单列上限。`ApplyInstallComponent` 在目标合法之后检查全局与单列容量，
+  全局满为 `WorkshopFull` = 151，单列满为 `ComponentColumnFull` = 173，均不改构筑；开局基础构件的“顺手安装”遇满则存入库存
   （`StoredReason` = `WorkshopFull`）。拆下、遗忘回收与拆解卸下都会空出格子；升级只增加格子，从不让已有构筑超限。
 - **升级材料**：每次正常升级（2..MaxLevel）与 XP 同一提交给 `LevelComponentDraws` 件（`bonus_component_levels` 上 2 件），逐件抽取，后一件看到前一件已入库：按新等级所在 `progression.component_category_weights`
   档位的基础/改装/连接百分比抽类别，再在该类别尚未持有、且对当前构筑宿主合法的普通定义中按目录顺序等概率取一件。宿主合法：基础件总是合法，
   但 `Binding` 需主动的基础件须已学 `BindActives` 之一；改装/连接须 `bTargetSelf`、`bTargetDash`、`TargetActives`
-  与已学主动有交集或 `TargetComponents` 与已持有构件有交集，且 `ExtraBases` 非空时须已持有其一（与安装校验一致）。
+  中任一主动的目标模式与已学主动相同，或 `TargetComponents` 与已持有构件有交集，且 `ExtraBases` 非空时须已持有其一（与安装校验一致）。
   定义另列 `draw_requires_actives`（`DrawRequiresActives`，只用于普通池）时，还须已学其中之一才进入抽取；
   这只影响抽取，不影响安装校验。
   过滤后的空类别剔除、其余按原权重归一化；
@@ -82,7 +83,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换走 `ReplaceActive`）为 `SlotOccupied`，图纸保留 |
 | `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
 | `OpeningBase` = 10 | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；目标合法就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `InvalidTarget`；开局主动机会未处理为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
-| `InstallComponent` = 11 | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件：不在该定义的 `targets` 内、主动未学、宿主构件未安装、C12 所选基础构件未安装、C01 装在未绑火的 B18 上）；与已安装的同形态构件冲突（`LDWorkshop::Conflicts`：`Form` 相同的不同定义；基础构件全局，改装件/连接件同一目标）为 `TargetConflict` = 150；目标合法但已安装件数达到本级工坊容量为 `WorkshopFull` = 151。可带 `Replacing`（另一件已安装构件）：它与装在它上面的件在同一提交里先卸回库存，目标、形态与容量按卸下后的构筑判断，`Replacing` 另需通过卸下的 CommandGate；`LD_BUILD` 的退回列表写出它们。卸下宿主构件时，装在它上面的改装件/连接件一起卸回库存 |
+| `InstallComponent` = 11 | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件：不在该定义的 `targets` 内、主动未学、宿主构件未安装、C12 所选基础构件未安装、C01 装在未绑火的 B18 上）；与已安装的同形态构件冲突（`LDWorkshop::Conflicts`：`Form` 相同的不同定义；基础构件全局，改装件/连接件同一目标）为 `TargetConflict` = 150；目标合法但已安装件数达到本级工坊容量为 `WorkshopFull` = 151；本体超过 4 件或冲刺超过 2 件为 `ComponentColumnFull` = 173。可带 `Replacing`（另一件已安装构件）：它与装在它上面的件在同一提交里先卸回库存，目标、形态与容量按卸下后的构筑判断，`Replacing` 另需通过卸下的 CommandGate；`LD_BUILD` 的退回列表写出它们。卸下宿主构件时，装在它上面的改装件/连接件一起卸回库存 |
 | `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；装在它上面（或以它为 C12 基础）的改装件/连接件传递地一起卸回；时机同 `InstallComponent`（野外、死亡与 PK 中都可以） |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择或 `SkipActiveOffer` 放弃；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
@@ -180,7 +181,7 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 ## 检查入口
 
 `RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowth*` 覆盖：线编码与旧族/旧原因的拒绝（`DemoGrowthWire`）、请求窗口
-（`DemoGrowthRequests`）、等级/点数派生（含满级后的每 400 XP 点数）/机会/种子（`DemoGrowthProgression`）、
+（`DemoGrowthRequests`）、等级/点数派生（含满级后的每 240 XP 点数）/机会/种子（`DemoGrowthProgression`）、
 开局机会与开局点数及 3、6 级机会（`DemoGrowthOpening`）、候选池与开局池排除、合格不足与空池排队（`DemoGrowthOpeningPool`）、
 本人视图白名单（`DemoGrowthPrivacySchema`）、合法性矩阵与三种命令的原子 Apply（`DemoGrowthBuildRules`）、
 director 提交链（受理形状、倒计时学习与加点、重放/冲突/旧修订、交战后立即选择学习与加点、满槽与图纸、死亡时选择学到空槽与加点、

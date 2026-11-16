@@ -167,7 +167,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             FinalLine->AddChildToHorizontalBox(FinalHeading)->SetVerticalAlignment(VAlign_Center);
             FinalModRow=TrayRow(WidgetTree);
             FinalLine->AddChildToHorizontalBox(FinalModRow)->SetPadding(FMargin(8,0,0,0));AddRow(FinalLine);
-            for(int32 Index=0;Index<3;++Index)
+            for(int32 Index=0;Index<4;++Index)
             {
                 FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthFinal%d"),Index)),[this,Index](){if(IsFinalStage()){SelectFinalMod(Index);}else if(Index==0&&FinalDormant()){RebindFinalMod();}else{ReopenFinalStage(Index);}});
                 FinalModRow->AddChildToWrapBox(Card.Frame);FinalCards.Add(Card);
@@ -613,7 +613,8 @@ bool ULDChoicesPanel::HasAvailableOffer() const
 }
 bool ULDChoicesPanel::HasAvailableFinal() const
 {
-    return Usable()&&!ConfirmedOfferStillShown()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+    return Usable()&&!ConfirmedOfferStillShown()&&Latest.bFinalModPending
+        &&(Latest.FinalModOptions.Num()==3||Latest.FinalModOptions.Num()==4);
 }
 bool ULDChoicesPanel::OfferMotionActive() const
 {
@@ -948,6 +949,7 @@ void ULDChoicesPanel::RefreshFinalMod()
             GrowthTint(Card.Button,bDormant?LDHUDStyle::UIReplace*.35f:LDHUDStyle::SlotArmed);
             continue;
         }
+        if(!Latest.FinalModOptions.IsValidIndex(Index)){GrowthShown(Card.Frame,false);continue;}
         const FName Id=Latest.FinalModOptions[Index];
         TArray<FString> Names;
         for(const FLDFinalModSourceView& Source:Latest.FinalModSources)
@@ -2077,10 +2079,7 @@ void ULDChoicesPanel::UpdateStage()
     const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
     // A newly available choice takes priority over the previous choice's cosmetic flight.
     if(bShow&&OfferMotionActive()){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
-    // If the view advances while the stage remains visible, deal the new cards without an invisible hit area.
-    if(bShow&&bShow==bStageShown&&bFinalNext==bStageFinal&&Key!=StageShownFor)
-    {StageShownFor=Key;StageOpenedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIOfferDeal);return;}
-    if(bShow==bStageShown&&(!bShow||bFinalNext==bStageFinal)){return;}
+    if(bShow==bStageShown&&(!bShow||(bFinalNext==bStageFinal&&Key==StageShownFor))){return;}
     StageShownFor=bShow?Key:FGuid();
     // Every card goes back to its tray row first, in order; the stage then takes the ones it shows.
     const auto Move=[](UWidget* Widget,UPanelWidget* To){if(Widget&&To&&Widget->GetParent()!=To){Widget->RemoveFromParent();To->AddChild(Widget);}};
@@ -2107,7 +2106,9 @@ void ULDChoicesPanel::UpdateStage()
     }
     else
     {
-        for(FTrayCard& Card:FinalCards){OnStage(Card,StageCards,StageFinalGap,StageFinalWidth,StageFinalIcon);}
+        const bool bFourth=Latest.FinalModOptions.Num()==4;
+        for(int32 Index=0;Index<FinalCards.Num()&&Latest.FinalModOptions.IsValidIndex(Index);++Index)
+        {OnStage(FinalCards[Index],StageCards,bFourth?22.f:StageFinalGap,bFourth?270.f:StageFinalWidth,bFourth?170.f:StageFinalIcon);}
         // A column with several legal sources lists them in the dock; the 绑定来源 row itself is the board's columns.
         for(int32 Index=0;Index<FinalSourceCards.Num();++Index)
         {

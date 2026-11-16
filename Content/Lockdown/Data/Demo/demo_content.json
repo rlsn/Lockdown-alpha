@@ -1473,7 +1473,7 @@
       "unit": "cm"
     },
     "appear_at": {
-      "ms": 240000,
+      "ms": 173000,
       "unit": "ms"
     },
     "armor": {
@@ -1512,7 +1512,7 @@
     },
     "id": "monster_dean",
     "leave_at": {
-      "ms": 540000,
+      "ms": 390000,
       "unit": "ms"
     },
     "magic_resist": {
@@ -5315,7 +5315,9 @@
           "active_snark_bolt",
           "active_seethe",
           "active_quick_meeting",
+          "active_bail_out",
           "active_apology_slide",
+          "active_triple_combo",
           "active_calculus_drop",
           "active_flyer_trap",
           "active_open_mic",
@@ -5329,9 +5331,17 @@
         "bases": [
           "component_fist_fire",
           "component_tab_ledger",
-          "component_breach_fist",
+          "component_spiky_hide",
+          "component_punch_heal",
+          "component_dash_bump",
+          "component_third_punch",
+          "component_kick_down",
+          "component_hard_skin",
           "component_fist_water",
-          "component_fist_shock"
+          "component_fist_shock",
+          "component_dash_punch",
+          "component_held_shot",
+          "component_dirty_trick"
         ],
         "components": [
           "component_spiky_hide",
@@ -7567,9 +7577,9 @@
       "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance.",
       "status": "approved"
     },
-    "handler_revision": 8,
-    "projection_revision": 8,
-    "schema_version": 2
+    "handler_revision": 10,
+    "projection_revision": 9,
+    "schema_version": 3
   },
   "parameters": {
     "AI.CaptureReactionBudgetSec": {
@@ -7622,35 +7632,51 @@
       "unit": "ms"
     },
     "AIRDROP.ExpireSec": {
-      "ms": 40000,
+      "ms": 30000,
       "unit": "ms"
+    },
+    "AIRDROP.HealMaxHPRatio": {
+      "bp": 2000,
+      "unit": "ratio"
     },
     "AIRDROP.LandSec": [
       {
-        "ms": 45000,
+        "ms": 32000,
         "unit": "ms"
       },
       {
-        "ms": 125000,
+        "ms": 90000,
         "unit": "ms"
       },
       {
-        "ms": 225000,
+        "ms": 163000,
         "unit": "ms"
       },
       {
-        "ms": 305000,
+        "ms": 220000,
         "unit": "ms"
       },
       {
-        "ms": 405000,
+        "ms": 293000,
         "unit": "ms"
       },
       {
-        "ms": 485000,
+        "ms": 350000,
         "unit": "ms"
       }
     ],
+    "AIRDROP.ManaMaxMPRatio": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "AIRDROP.MoveSpeedRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "AIRDROP.MoveSpeedSec": {
+      "ms": 6000,
+      "unit": "ms"
+    },
     "AIRDROP.PickupRadiusCm": {
       "denominator": 1,
       "numerator": 150,
@@ -7675,7 +7701,7 @@
       "unit": "ratio"
     },
     "CAMP.GrowthStageSec": {
-      "ms": 60000,
+      "ms": 43000,
       "unit": "ms"
     },
     "CAMP.ResetArrivalRadiusCm": {
@@ -7689,7 +7715,7 @@
       "unit": "ms"
     },
     "CAMPMARK.RevealSec": {
-      "ms": 15000,
+      "ms": 11000,
       "unit": "ms"
     },
     "CAPTURE.GuardSec": {
@@ -7703,41 +7729,6 @@
     },
     "CAPTURE.SpraySec": {
       "ms": 3500,
-      "unit": "ms"
-    },
-    "CHARM.FirstWaveSec": {
-      "ms": 30000,
-      "unit": "ms"
-    },
-    "CHARM.HealMaxHPRatio": {
-      "bp": 2000,
-      "unit": "ratio"
-    },
-    "CHARM.LifetimeSec": {
-      "ms": 45000,
-      "unit": "ms"
-    },
-    "CHARM.ManaMaxMPRatio": {
-      "bp": 2500,
-      "unit": "ratio"
-    },
-    "CHARM.MoveSpeedRatio": {
-      "bp": 2000,
-      "unit": "ratio"
-    },
-    "CHARM.MoveSpeedSec": {
-      "ms": 6000,
-      "unit": "ms"
-    },
-    "CHARM.PerWave": 2,
-    "CHARM.PickupRadiusCm": {
-      "denominator": 1,
-      "numerator": 100,
-      "unit": "cm"
-    },
-    "CHARM.WaveCount": 7,
-    "CHARM.WaveIntervalSec": {
-      "ms": 90000,
       "unit": "ms"
     },
     "COMBAT.BreachMaxStacks": 5,
@@ -7805,6 +7796,54 @@
       "ms": 3000,
       "unit": "ms"
     },
+    "COMBAT.KeystoneAgilityADRatio": {
+      "bp": 1250,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneAgilityDamageBase": {
+      "p2": 1250,
+      "unit": "points"
+    },
+    "COMBAT.KeystoneAgilityEmpowerDurationSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "COMBAT.KeystoneBrainsManaRefundRatio": {
+      "bp": 1500,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystonePhysiqueHealToShieldRatio": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystonePhysiqueIntervalSec": {
+      "ms": 6000,
+      "unit": "ms"
+    },
+    "COMBAT.KeystonePhysiqueShieldDurationSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "COMBAT.KeystonePhysiqueShieldMaxHPRatio": {
+      "bp": 350,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneStrengthDamageRatio": {
+      "bp": 600,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneThickSkinGuardCapRatio": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneThickSkinGuardPoints": {
+      "p2": 600,
+      "unit": "points"
+    },
+    "COMBAT.KeystoneThickSkinIntervalSec": {
+      "ms": 8000,
+      "unit": "ms"
+    },
     "COMBAT.LifestealCap": {
       "bp": 3500,
       "unit": "ratio"
@@ -7860,8 +7899,9 @@
     "GROWTH.DismantleInputCount": 2,
     "GROWTH.EmptyComponentPoolPoints": 3,
     "GROWTH.FillGapPoints": 4,
+    "GROWTH.KeystoneThresholdPoints": 18,
     "GROWTH.MaxLevelPoints": 3,
-    "GROWTH.MaxLevelPointsXP": 400,
+    "GROWTH.MaxLevelPointsXP": 240,
     "GROWTH.NpcActivePoints": 5,
     "GROWTH.NpcActiveSkipPoints": 3,
     "GROWTH.OpeningPoints": 3,
@@ -7898,7 +7938,7 @@
       "unit": "ms"
     },
     "MATCH.FieldSegmentSec": {
-      "ms": 180000,
+      "ms": 130000,
       "unit": "ms"
     },
     "PK.ArenaRadiusCm": {
@@ -7976,7 +8016,7 @@
       "unit": "ms"
     },
     "REST.BuildSec": {
-      "ms": 120000,
+      "ms": 50000,
       "unit": "ms"
     },
     "REST.DrawSec": {
@@ -7988,7 +8028,7 @@
       "unit": "ms"
     },
     "REST.OpeningBuildSec": {
-      "ms": 180000,
+      "ms": 75000,
       "unit": "ms"
     },
     "REST.PKMaxSec": {
@@ -8027,11 +8067,11 @@
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
     "SHOWDOWN.ClosureStartsSec": {
-      "ms": 120000,
+      "ms": 75000,
       "unit": "ms"
     },
     "SHOWDOWN.DurationSec": {
-      "ms": 240000,
+      "ms": 150000,
       "unit": "ms"
     },
     "SHOWDOWN.FirstRespawnSec": {
@@ -8039,7 +8079,7 @@
       "unit": "ms"
     },
     "SHOWDOWN.RespawnCutoffSec": {
-      "ms": 150000,
+      "ms": 90000,
       "unit": "ms"
     },
     "SHOWDOWN.RespawnLimit": 2,
@@ -8304,8 +8344,8 @@
       "numerator": 1050,
       "unit": "cm"
     },
-    "XP.BaseToNext": 80,
-    "XP.IncreasePerLevel": 20
+    "XP.BaseToNext": 48,
+    "XP.IncreasePerLevel": 12
   },
   "policies": {
     "BasicSecondaryTriggers": "Disabled",
@@ -8380,43 +8420,45 @@
     "max_level": 16,
     "workshop_capacity": {
       "base": 5,
+      "body_column": 4,
+      "dash_column": 2,
       "levels_per_slot": 2
     },
     "xp_start": 0,
     "xp_thresholds": [
       0,
-      80,
+      48,
+      108,
       180,
-      300,
-      440,
-      600,
-      780,
-      980,
-      1200,
-      1440,
-      1700,
-      1980,
-      2280,
-      2600,
-      2940,
-      3300
+      264,
+      360,
+      468,
+      588,
+      720,
+      864,
+      1020,
+      1188,
+      1368,
+      1560,
+      1764,
+      1980
     ],
     "xp_to_next": [
-      80,
-      100,
+      48,
+      60,
+      72,
+      84,
+      96,
+      108,
       120,
-      140,
-      160,
+      132,
+      144,
+      156,
+      168,
       180,
-      200,
-      220,
-      240,
-      260,
-      280,
-      300,
-      320,
-      340,
-      360
+      192,
+      204,
+      216
     ]
   },
   "stats": [

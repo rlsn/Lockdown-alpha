@@ -29,9 +29,10 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 2
-HANDLER_REVISION = 8
-PROJECTION_REVISION = 8
+SCHEMA_VERSION = 3
+HANDLER_REVISION = 10
+PROJECTION_REVISION = 9
+NATIVE_IDS_SCHEMA_VERSION = 2
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -52,8 +53,6 @@ RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 
                                  [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
-# #198 field charms: heal, mana and move speed (native ELDCharmKind).
-CHARM_KINDS = 3
 # Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
 # #198 base components; no active may use them.
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
@@ -467,7 +466,7 @@ def rows_by_id(rows, path, key="id"):
 
 def validate_native_ids(root, value):
     keys(value, {"schema_version", "retired_ranges", *NATIVE_ENUMS}, IDS_SOURCE)
-    integer(value["schema_version"], IDS_SOURCE, SCHEMA_VERSION, SCHEMA_VERSION)
+    integer(value["schema_version"], IDS_SOURCE, NATIVE_IDS_SCHEMA_VERSION, NATIVE_IDS_SCHEMA_VERSION)
     require(exact_equal(value["retired_ranges"], RETIRED_RANGES),
             "RetiredId", IDS_SOURCE, "occupied legacy ranges must remain reserved")
     for section, enum_name in NATIVE_ENUMS.items():
@@ -1106,12 +1105,9 @@ def validate_numbers(data):
             "fog pulses must fall inside the fog")
     require(params["COMBAT.OverloadBreachStacks"] <= params["COMBAT.BreachMaxStacks"], "NumericDomain",
             "COMBAT.OverloadBreachStacks", "overload cannot apply more breach stacks than the breach cap")
-    # #198 charms: each wave draws PerWave distinct kinds of the three (heal, mana, move speed) onto distinct airdrop
-    # points, and a charm leaves before the next wave of its points could reuse them.
-    require(params["CHARM.PerWave"] <= CHARM_KINDS and p("CHARM.LifetimeSec") <= p("CHARM.WaveIntervalSec")
-            and p("CHARM.PickupRadiusCm") > 0 and p("CHARM.HealMaxHPRatio") > 0 and p("CHARM.ManaMaxMPRatio") > 0
-            and p("CHARM.MoveSpeedRatio") > 0,
-            "InvalidPolicy", "CHARM", "a wave draws distinct kinds, lives inside one interval and every effect is positive")
+    require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.ManaMaxMPRatio") > 0
+            and p("AIRDROP.MoveSpeedRatio") > 0 and p("AIRDROP.MoveSpeedSec") > 0,
+            "InvalidPolicy", "AIRDROP", "healing, mana and move-speed rewards must all be positive")
     # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
     require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
             "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")

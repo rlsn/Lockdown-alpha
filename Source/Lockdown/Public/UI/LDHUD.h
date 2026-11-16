@@ -281,7 +281,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
     // The recap of the death shown: a heading and one line per attacker.
     UPROPERTY() TObjectPtr<UTextBlock> DeathRecapHeading;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DeathRecapRows;
+    // One icon chain per recap row (LDRecapChain), rebuilt only when its row changes.
+    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DeathRecapRows;
+    TArray<LDHUD::FRecapChain> DeathRecapShown;
     // #198: the centre-screen rest return countdown ("5" .. "1", then "开淫！" as the field starts; LDHUD::RestReturnCountdown);
     // click-through.
     UPROPERTY() TObjectPtr<UTextBlock> ReturnCountdownText;

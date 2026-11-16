@@ -100,7 +100,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   投影失败记日志并标记不可用，不影响结果锁定；结果保留供返回同房间的 Lobby 按身份显示，不能作为新局状态。
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 31），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 33），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
 - 完整局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
@@ -138,8 +138,8 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs`）设为此刻，以 `MAX_int64` 开始喷漆归约器，
 并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息与 PK 中冻结，
 外卖、上热搜、画饼老板、营地刷新、营地成长阶段与营地标记都按 T 以 0 为起点计时（`GetFieldNowMs`、`FieldDueAuthorityMs`）；
-外层参数 §5 的地图事件（外卖固定落地表与 40 s 消失、老板 T=240 s 出现并在进入第三次休息的 `FreezeForRest` 中退场、营地标记在各段
-T+15 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/`AdvanceFieldMarkers`（RespawnsAndWorld）与
+外层参数 §5 的地图事件（外卖固定落地表与 30 s 消失、老板 T=173 s 出现并在 T=390 s 的第三段野外边界退场、营地标记在各段
+T+11 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/`AdvanceFieldMarkers`（RespawnsAndWorld）与
 `ALDCampDirector::AdvanceCamps`/`FreezeForRest` 驱动；标记由营地死亡（`ConsumeMemberDeath` 的 CampCleared）领取，奖励经
 `ALDGameMode::PayFieldReward` 进入 `ALDGrowthDirector::CommitFieldReward`，可重试的拒绝在之后每个 Transactions 由 `RetryFieldRewards` 重付；
 最终野外开始的边界由 `FLDCaptureReducer::ScheduleOpen` 定为开放时刻，同一边界的 Capture 阶段从 Development 切到 CaptureOpen。
@@ -225,10 +225,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 （`ULDHumanoidVisualComponent::ContenderTint(GraffitiPresentation)`）显示、无主时隐藏，同样无碰撞、不进导航和视线。
 换代、回 Lobby 或房间停止即移除；它不复制、不参与判定，只在 Demo 地图生成，缺数据时记 `LD_CAPTURE_MARKER_UNAVAILABLE`。
 公开地图事件同样由 `ALDGameState` 在本地画出（Host 发布后直接调用 `OnRep_PublicMatch`，加入者在复制时调用，两端同一路径）：
-当前外卖的 `ALDAirdropMarker`（`AIRDROP.PickupRadiusCm` 橙色圈，落地后加美术目录的箱子），以及每枚地上符咒一个
-`ALDCharmMarker`（`CHARM.PickupRadiusCm` 圈和约 110cm 高的悬浮方块，颜色取 `LDHUD::CharmColor`，与小地图圆点同色）。
-符咒标记按 `PublicMatch.Charms` 的序号增删，被领走、到期或进休息清空即移除，不读取领取者；
-缺数据时记 `LD_CHARM_MARKER_UNAVAILABLE` 并整代不画。符咒不进事件提示条。
+当前外卖的 `ALDAirdropMarker` 使用 `AIRDROP.PickupRadiusCm` 橙色圈，落地后显示美术目录的箱子；效果直接在权威领取流程中发放，不生成独立拾取物。
 普通离局在受理时刻向归约器提交 Left，不发奖、不判胜，结果行保留。
 `ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
 `RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，

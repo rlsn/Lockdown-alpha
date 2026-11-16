@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDResultBuild.h"
+#include "UI/LDRecapChain.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTween.h"
 #include "UI/LDTerms.h"
@@ -506,11 +507,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RecapBox=WidgetTree->ConstructWidget<UVerticalBox>();
             DeathRecapHeading=OneLine(TEXT(""),15,0);DeathRecapHeading->SetJustification(ETextJustify::Center);
             RecapBox->AddChildToVerticalBox(DeathRecapHeading)->SetHorizontalAlignment(HAlign_Center);
-            DeathRecapRows.Reset();
+            DeathRecapRows.Reset();DeathRecapShown.Reset();
             for(int32 Row=0;Row<LDHUD::DeathRecapAttackersMax;++Row)
             {
-                UTextBlock* Line=OneLine(TEXT(""),14,0);Line->SetColorAndOpacity(LDHUDStyle::TextSecondary);Line->SetJustification(ETextJustify::Center);
-                RecapBox->AddChildToVerticalBox(Line)->SetHorizontalAlignment(HAlign_Center);DeathRecapRows.Add(Line);
+                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();Line->SetVisibility(ESlateVisibility::Collapsed);
+                UVerticalBoxSlot* LineSlot=RecapBox->AddChildToVerticalBox(Line);LineSlot->SetHorizontalAlignment(HAlign_Center);LineSlot->SetPadding(FMargin(0,2));
+                DeathRecapRows.Add(Line);DeathRecapShown.AddDefaulted();
             }
             auto* RecapFit=WidgetTree->ConstructWidget<UScaleBox>();RecapFit->SetStretch(EStretch::ScaleToFit);RecapFit->SetStretchDirection(EStretchDirection::DownOnly);
             RecapFit->SetContent(RecapBox);
@@ -1261,10 +1263,19 @@ void ULDHUD::RefreshReadModel()
         // Until the recap of exactly this life arrives there is no recap section at all.
         const LDHUD::FDamageListView Recap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);
         HudSetText(DeathRecapHeading,Recap.Heading);HudSetShown(DeathRecapHeading,Recap.bAvailable,ESlateVisibility::HitTestInvisible);
+        // Each row is its icon chain (who triggered → what it consumed → what it produced), rebuilt only when it changes;
+        // new text takes the current text scale, later scale changes rescale it with the rest of the HUD.
+        const float Scale=AppliedScale>0?AppliedScale:1.f;
         for(int32 Row=0;Row<DeathRecapRows.Num();++Row)
         {
-            const bool bRow=Recap.bAvailable&&Recap.Rows.IsValidIndex(Row);
-            HudSetText(DeathRecapRows[Row],bRow?Recap.Rows[Row]:FString());HudSetShown(DeathRecapRows[Row],bRow,ESlateVisibility::HitTestInvisible);
+            const bool bRow=Recap.bAvailable&&Recap.Chains.IsValidIndex(Row);
+            const LDHUD::FRecapChain Chain=bRow?Recap.Chains[Row]:LDHUD::FRecapChain();
+            if(DeathRecapShown.IsValidIndex(Row)&&!(DeathRecapShown[Row]==Chain))
+            {
+                DeathRecapShown[Row]=Chain;
+                LDRecapChain::Fill(WidgetTree,DeathRecapRows[Row],Chain,FMath::RoundToFloat(20.f*Scale),FMath::RoundToInt(14.f*Scale));
+            }
+            HudSetShown(DeathRecapRows[Row],bRow,ESlateVisibility::HitTestInvisible);
         }
     }
 
@@ -1415,6 +1426,7 @@ void ULDHUD::RefreshReadModel()
             In.StepStartedAtMs=Public.Timeline.StepStartedAtMs;In.StepEndsAtMs=Public.Timeline.StepEndsAtMs;In.bClock=bClock;In.NowMs=NowMs;
             In.bDead=bDeathWait&&!bRestPhase;In.DeathTitle=Death.Title;In.DeathCountdown=Death.Countdown;
             In.DeathClock=Death.Clock;In.DeathProgress=Death.Progress;
+            if(In.bDead){In.DeathRecap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);}
             In.TrayDesired=ChoicesPanel?ChoicesPanel->TrayDesiredSize():FVector2D::ZeroVector;
             const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
             In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bOpeningBase?1:0)+Waiting.ComponentChoices+(Waiting.bFinalMod?1:0);
@@ -2145,9 +2157,13 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
     // The own claim only counts within this match; a previous match's serial never names this drop.
     Input.OwnAirdropClaimSerial=Own.Match==Public.PublicMatch.Generation?Own.Growth.AirdropClaimedSerial:0;
     Input.OwnFieldRewards=Own.Match==Public.PublicMatch.Generation?&Own.Growth.Progression.FieldRewards:nullptr;
+    if(const ALDPlayerController* Owner=Cast<ALDPlayerController>(GetOwningPlayer())){Input.OwnReactionAssists=&Owner->ReactionAssists;}
+    Input.OwnLife=Own.Match==Public.PublicMatch.Generation?Own.Life:0;
+    Input.Content=Content;
     Input.bClock=bClock;Input.NowMs=NowMs;Input.LocalSeconds=GetWorld()->GetRealTimeSeconds();
     HudCampNames(Content,Input.LowCampName,Input.HighCampName,Input.EliteCampName,Input.BossName);
     EventFeed.Observe(Input);
+    if(!EventFeed.AssistPrompt().IsEmpty()){ShowToast(EventFeed.AssistPrompt());}
     const TArray<LDHUD::FEventLine>& Lines=EventFeed.Lines();
     // One row per line, so the lines about the player (said with 你) stand out; each fades out over its last half second.
     for(int32 Row=0;Row<EventFeedRows.Num();++Row)

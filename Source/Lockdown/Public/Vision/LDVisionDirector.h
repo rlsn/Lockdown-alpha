@@ -243,6 +243,9 @@ public:
         double OccurredAtSeconds, FString& Error);
     ELDObservedResolve ResolveObservedUnit(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
         uint32 ObservationEpoch, ELDObservationPurpose Purpose, FLDAuthorityTargetSample& Out, FString* Diagnostic = nullptr) const;
+    // Rechecks the existing presentation permission, including PK shared sight; not an attack/order authorization.
+    ELDObservedResolve ResolvePresentedUnit(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
+        uint32 ObservationEpoch, FLDAuthorityTargetSample& Out, FString* Diagnostic = nullptr) const;
     bool EnumerateVisibleUnits(const ALDPlayerController& RegisteredCaller, ELDObservationPurpose Purpose,
         FLDWorldView& Out, FString& Error) const;
     bool FindObservedTermination(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,

@@ -200,23 +200,13 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
+    UPROPERTY() int64 AirdropHealMaxHPBp = 0;
+    UPROPERTY() int64 AirdropManaMaxMPBp = 0;
+    UPROPERTY() int64 AirdropMoveSpeedBp = 0;
+    UPROPERTY() int64 AirdropMoveSpeedMs = 0;
     // #198 outer §5 camp markers: in each timed field segment a High and an Elite camp are marked CampMarkRevealMs of
     // field progress after the segment starts (World/LDFieldMarkers.h).
     UPROPERTY() int64 CampMarkRevealMs = 0;
-    // #198 field charms: CharmWaveCount waves at field progress T = CharmFirstWave + n * CharmWaveInterval, each of
-    // CharmPerWave distinct kinds on distinct airdrop points, lasting CharmLifetimeMs of field progress. Heal restores
-    // CharmHealMaxHPBp of max HP, mana CharmManaMaxMPBp of max MP; move speed adds CharmMoveSpeedBp to the additive
-    // move-speed ratio for CharmMoveSpeedMs (a later pickup refreshes it). See World/LDCharms.h.
-    UPROPERTY() int64 CharmFirstWaveMs = 0;
-    UPROPERTY() int64 CharmWaveIntervalMs = 0;
-    UPROPERTY() int64 CharmWaveCount = 0;
-    UPROPERTY() int64 CharmPerWave = 0;
-    UPROPERTY() int64 CharmLifetimeMs = 0;
-    UPROPERTY() FLDDemoRational CharmPickupRadiusCm;
-    UPROPERTY() int64 CharmHealMaxHPBp = 0;
-    UPROPERTY() int64 CharmManaMaxMPBp = 0;
-    UPROPERTY() int64 CharmMoveSpeedBp = 0;
-    UPROPERTY() int64 CharmMoveSpeedMs = 0;
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
@@ -235,6 +225,18 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
     UPROPERTY() int64 LifestealCapBp = 0;
+    UPROPERTY() int64 KeystonePhysiqueHealToShieldBp = 0;
+    UPROPERTY() int64 KeystonePhysiqueShieldMaxHPBp = 0;
+    UPROPERTY() int64 KeystonePhysiqueShieldDurationMs = 0;
+    UPROPERTY() int64 KeystonePhysiqueIntervalMs = 0;
+    UPROPERTY() int64 KeystoneThickSkinGuardP2 = 0;
+    UPROPERTY() int64 KeystoneThickSkinGuardCapBp = 0;
+    UPROPERTY() int64 KeystoneThickSkinIntervalMs = 0;
+    UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
+    UPROPERTY() int64 KeystoneBrainsManaRefundBp = 0;
+    UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
+    UPROPERTY() int64 KeystoneAgilityADRatioBp = 0;
+    UPROPERTY() int64 KeystoneAgilityEmpowerDurationMs = 0;
     // #198 elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs
     // from their own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp; electrified lasts
     // ElectrifiedMs and, on later positive damage, discharges R to the nearest other enemy within DischargeRadiusCm at
@@ -272,6 +274,7 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PointsPerLevel = 0;
     UPROPERTY() int64 MaxLevelPointsXP = 0;
     UPROPERTY() int64 MaxLevelPoints = 0;
+    UPROPERTY() int64 KeystoneThresholdPoints = 0;
     // Points charged by the skill merchant and awarded for declining an active opportunity.
     UPROPERTY() int64 NpcActivePoints = 0;
     UPROPERTY() int64 ActiveSkipPoints = 0;
@@ -654,8 +657,9 @@ struct FLDDemoComponentDefinition
     UPROPERTY() ELDDemoComponentBinding Binding = ELDDemoComponentBinding::None;
     UPROPERTY() TArray<FString> BindActives;
     UPROPERTY() TArray<ELDDemoElement> BindElements;
-    // #198 F install targets of a mod or connector (a base component has none): learned actives (TargetActives), installed
-    // components (TargetComponents), the innate D (bTargetDash) or the holder itself (bTargetSelf). ExtraBases (C12): the
+    // #198 F install targets of a mod or connector (a base component has none): learned actives whose target mode matches
+    // any TargetActives entry, installed components (TargetComponents), the innate D (bTargetDash) or the holder itself
+    // (bTargetSelf). ExtraBases (C12): the
     // installed base component the install binds as its second parameter.
     UPROPERTY() TArray<FString> TargetActives;
     UPROPERTY() TArray<FString> TargetComponents;
@@ -831,6 +835,8 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() TArray<int32> BonusComponentLevels;
     UPROPERTY() int32 WorkshopCapacityBase = 0;
     UPROPERTY() int32 WorkshopCapacityLevelsPerSlot = 0;
+    UPROPERTY() int32 WorkshopBodyColumnCapacity = 0;
+    UPROPERTY() int32 WorkshopDashColumnCapacity = 0;
     // #198 B: one band per level range covering every level 2..MaxLevel exactly once, ascending.
     UPROPERTY() TArray<FLDDemoComponentCategoryWeights> ComponentCategoryWeights;
 };

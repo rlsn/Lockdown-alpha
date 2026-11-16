@@ -76,6 +76,7 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDDemoOpponentProbe;
+    friend struct FLDBuildPrimitivesAccess;
 #endif
     ALDGameMode* AuthorityMode() const;
     bool CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase, FString& Error) const;

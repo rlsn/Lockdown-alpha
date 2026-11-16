@@ -8,11 +8,11 @@
   "adapter": {"module": "BuildEvaluationLockdown", "id": "lockdown-demo"},
   "scenario": {
     "kind": "duel_site",
-    "parameters": {"site": "capture", "duel_timeout_ms": 45000, "supply_xp": {"subject": 1440, "opponent": 1440}}
+    "parameters": {"site": "capture", "duel_timeout_ms": 45000, "supply_xp": {"subject": 864, "opponent": 864}}
   },
   "sample_class": "diagnostic",
   "assumptions": [
-    "双方由 DEV 奖励事务在第一野外入口获得 1440 XP，达到 L10 与 30 点；不是自然成长速率。",
+    "双方由 DEV 奖励事务在第一野外入口获得 864 XP，达到 L10 与 30 点；不是自然成长速率。",
     "开局及其后两个主动候选被显式固定，不代表自然抽取概率；不安装构件。",
     "双方使用生产 AI 的中心点交战，不包含风筝、主动闪避或区域争夺。"
   ],

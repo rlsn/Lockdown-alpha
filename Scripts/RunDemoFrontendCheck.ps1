@@ -22,4 +22,8 @@ foreach($name in $images){
     $path=Join-Path $output $name
     if(-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -eq 0){throw "Missing real rendered screenshot: $path"}
 }
+$logErrors=@(Select-String -LiteralPath (Join-Path $output 'Frontend.log') -Pattern 'Fatal error|Assertion failed|Ensure condition failed|Log(Temp|LD\w+): Error:')
+if($logErrors.Count){throw "Rendered frontend logged an error: $($logErrors[0].Line). Evidence: $output"}
+$pythonErrors=@(Select-String -LiteralPath (Join-Path $output 'Frontend.log') -Pattern 'LogPython: Error:')
+if($pythonErrors.Count){Write-Warning "Unreal Python also logged $($pythonErrors.Count) error lines; inspect Frontend.log separately. Evidence: $output"}
 Write-Host "Rendered native frontend/settings fixture passed without changing display modes. Evidence: $output"

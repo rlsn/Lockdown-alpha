@@ -33,6 +33,8 @@ namespace LDAirdrop
 
     // A 64-bit mix (splitmix64 finaliser); the airdrop draws are pure functions of the server seed.
     LOCKDOWN_API uint64 Mix(uint64 Value);
+    // floor(MaxP2 * Bp / 10000) without overflow for non-negative inputs.
+    LOCKDOWN_API int64 ShareP2(int64 MaxP2, int64 Bp);
     // The point of drop Serial (1-based) among Count points: any point for the first drop, otherwise one of the
     // Count - 1 points other than Previous. INDEX_NONE when Count is not positive.
     LOCKDOWN_API int32 NextPoint(uint64 Seed, uint64 Serial, int32 Previous, int32 Count);

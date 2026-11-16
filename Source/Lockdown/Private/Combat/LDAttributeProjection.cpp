@@ -303,8 +303,8 @@ private:
             if (Definition->Kind != ELDDemoComponentKind::Base)
             {
                 // #198 F: a mod or connector carries its install target in the stored shape its definition accepts.
-                bBindingMatches = LDWorkshop::TargetShape(*Definition, Installed.TargetKind, Installed.TargetId, Installed.BoundActive,
-                    Installed.Element, Installed.BoundComponent);
+                bBindingMatches = LDWorkshop::TargetShape(Catalog.Get(), *Definition, Installed.TargetKind, Installed.TargetId,
+                    Installed.BoundActive, Installed.Element, Installed.BoundComponent);
             }
             else if (!Installed.TargetId.IsNone() || Installed.TargetKind != ELDComponentTargetKind::None || !Installed.BoundComponent.IsNone())
             {
@@ -657,6 +657,20 @@ private:
         }
         Out.LowHPBonus = LowHP;
         Out.ControlAmp = ControlAmp;
+        const int64 KeystoneThreshold = Content.Parameters.KeystoneThresholdPoints;
+        for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
+        {
+            if (Build.StatPoints[Index].Points < KeystoneThreshold) { continue; }
+            switch (Stats[Index]->GetNativeId())
+            {
+            case ELDDemoStatId::StatPhysique: Out.Keystones.bPhysique = true; break;
+            case ELDDemoStatId::StatThickSkin: Out.Keystones.bThickSkin = true; break;
+            case ELDDemoStatId::StatStrength: Out.Keystones.bStrength = true; break;
+            case ELDDemoStatId::StatBrains: Out.Keystones.bBrains = true; break;
+            case ELDDemoStatId::StatAgility: Out.Keystones.bAgility = true; break;
+            default: return Refuse(EError::Catalog, TEXT("StatPoints"), TEXT("A keystone references an unknown stat."));
+            }
+        }
         Out.InstalledComponents.Reset(Components.Num());
         for (int32 Index = 0; Index < Components.Num(); ++Index)
         {

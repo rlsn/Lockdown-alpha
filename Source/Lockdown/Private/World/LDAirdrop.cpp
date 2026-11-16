@@ -22,6 +22,12 @@ uint64 LDAirdrop::Mix(uint64 Value)
     return Value ^ (Value >> 31);
 }
 
+int64 LDAirdrop::ShareP2(int64 MaxP2, int64 Bp)
+{
+    if (MaxP2 <= 0 || Bp <= 0) { return 0; }
+    return MaxP2 / 10000 * Bp + MaxP2 % 10000 * Bp / 10000;
+}
+
 int32 LDAirdrop::NextPoint(uint64 Seed, uint64 Serial, int32 Previous, int32 Count)
 {
     if (Count <= 0) { return INDEX_NONE; }

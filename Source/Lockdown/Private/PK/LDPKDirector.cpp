@@ -7,6 +7,7 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDMatchTimeline.h"
 #include "Region/LDMapRegistry.h"
 #include "Engine/World.h"
 
@@ -244,7 +245,17 @@ bool ALDPKDirector::OnRestStep(const FLDRestStepNotice& Notice, const FLDGamepla
         Error = TEXT("A rest step of another match reached the PK.");
         return false;
     }
-    if (Notice.bBuildLocked) { return LockRoster(Notice, Error); }
+    if (Notice.bBuildLocked)
+    {
+        if (!LDMatchTimeline::IsPKRest(Notice.RestIndex))
+        {
+            ResetRest();
+            Publish();
+            Error.Reset();
+            return true;
+        }
+        return LockRoster(Notice, Error);
+    }
     switch (Notice.Step)
     {
     case ELDRestStep::Build:
@@ -548,7 +559,11 @@ bool ALDPKDirector::ProcessTransactions(const FLDGameplayWritePermit& Permit, FS
         const FLDPKAwardView& Row = PendingAwards[Index];
         const int64 Points = TotalPoints(Row);
         if (Points <= 0 || !Core->IsContenderPresent(Row.Contender)) { continue; }
-        const ELDGrowthReason Reason = Core->Development->GrantPKPoints(Row.Contender, Points, AwardIds[Index], Permit);
+        const int32 Seat = Entrants.IndexOfByKey(Row.Contender);
+        const bool bExtraFinalModCard = View.RestIndex > 0 && View.RestIndex < 3
+            && View.Outcome == ELDPKOutcome::Won && Drawn.SideOfSeat.IsValidIndex(Seat)
+            && Drawn.SideOfSeat[Seat] == View.WinnerSide && !Forfeited[Seat];
+        const ELDGrowthReason Reason = Core->Development->GrantPKPoints(Row.Contender, Points, AwardIds[Index], bExtraFinalModCard, Permit);
         if (Reason == ELDGrowthReason::None || Reason == ELDGrowthReason::PKAwardDuplicate) { continue; }
         Error = FString::Printf(TEXT("A PK award to %s was refused: %s."), *LDLog::Id(Row.Contender), LDGrowthWire::ReasonName(Reason));
         return false;

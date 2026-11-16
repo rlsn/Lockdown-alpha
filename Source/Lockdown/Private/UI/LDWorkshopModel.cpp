@@ -1,5 +1,6 @@
 #include "UI/LDWorkshopModel.h"
 #include "Development/LDProgressionRules.h"
+#include "Development/LDWorkshopRules.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
 
@@ -246,6 +247,15 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     Head.Elements=ActiveElements(Active,Content);
     return Head;
 }
+FString LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn Column,int32 Installed,const FLDDemoContentDefinitions* Content)
+{
+    if(!Content){return FString();}
+    const int32 Limit=Column==LDHUD::EStorageColumn::Body?Content->Progression.WorkshopBodyColumnCapacity
+        :Column==LDHUD::EStorageColumn::Dash?Content->Progression.WorkshopDashColumnCapacity:0;
+    if(Limit<1){return FString();}
+    const TCHAR* Name=Column==LDHUD::EStorageColumn::Body?LDTerms::ColumnBody:LDTerms::Dash;
+    return FString::Printf(TEXT("%s %d/%d"),Name,FMath::Max(0,Installed),Limit);
+}
 TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     TArray<ELDDemoElement> Out;
@@ -314,14 +324,19 @@ FString LDWorkshop::MissingPlace(FName Component,const FLDProgressionView& Progr
         if(Progression.Components.ContainsByPredicate([HostId](const FLDComponentInstanceView& C){return C.DefinitionId==HostId&&C.bInstalled;})){return FString();}
     }
     TArray<FString> Needed;
-    for(const TArray<FString>* List:{&Definition->TargetActives,&Definition->BindActives})
+    for(const FLDActiveSlotView& Active:Progression.Actives)
     {
-        for(const FString& Active:*List)
-        {
-            const FName ActiveId(*Active);
-            if(Progression.Actives.ContainsByPredicate([ActiveId](const FLDActiveSlotView& A){return A.DefinitionId==ActiveId;})){return FString();}
-            Needed.AddUnique(LDHUD::ContentName(Content,Active));
-        }
+        if(LDWorkshop::TargetsActive(*Content,*Definition,Active.DefinitionId)){return FString();}
+    }
+    for(const FString& Active:Definition->BindActives)
+    {
+        const FName ActiveId(*Active);
+        if(Progression.Actives.ContainsByPredicate([ActiveId](const FLDActiveSlotView& A){return A.DefinitionId==ActiveId;})){return FString();}
+        Needed.AddUnique(LDHUD::ContentName(Content,Active));
+    }
+    for(const FString& Active:Definition->TargetActives)
+    {
+        Needed.AddUnique(LDHUD::ContentName(Content,Active));
     }
     return Needed.IsEmpty()?FString():LDTerms::NeedsLearned(FString::Join(Needed,TEXT("、")));
 }
@@ -372,7 +387,7 @@ LDWorkshop::FOfferLinks LDWorkshop::LinkableComponents(FName Active,const FLDPro
     for(const FLDComponentInstanceView& Owned:Progression.Components)
     {
         const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Owned.DefinitionId);
-        if(!Definition||(!Definition->TargetActives.Contains(ActiveId)&&!Definition->BindActives.Contains(ActiveId))){continue;}
+        if(!Definition||(!LDWorkshop::TargetsActive(*Content,*Definition,Active)&&!Definition->BindActives.Contains(ActiveId))){continue;}
         FLDGrowthBuild Available=Chosen;
         if(Owned.bInstalled&&LDProgression::ApplyUninstallComponent(*Content,Chosen,Owned.DefinitionId,Context,Available)!=ELDGrowthReason::None){continue;}
         TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(Owned.DefinitionId,Projected,Content);

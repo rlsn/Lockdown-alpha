@@ -70,6 +70,7 @@ public:
         FString DeathCountdown;
         FString DeathClock;
         float DeathProgress=0.f;
+        LDHUD::FDamageListView DeathRecap;
         // The tray's size (its rows stack upward in the pending area) and how many decisions wait there.
         FVector2D TrayDesired=FVector2D::ZeroVector;
         int32 Pending=0;
@@ -241,6 +242,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DockSummary;
     UPROPERTY() TObjectPtr<URichTextBlock> DockBody;
     UPROPERTY() TObjectPtr<UTextBlock> DockChips;
+    // The death recap's icon chains (LDRecapChain), one row per recap row; empty and collapsed for every other dock.
+    UPROPERTY() TObjectPtr<UVerticalBox> DockChains;
+    TArray<LDHUD::FRecapChain> DockChainsShown;
+    float DockChainsScale=0.f;
     UPROPERTY() TObjectPtr<UTextBlock> DockWhereTitle;
     UPROPERTY() TObjectPtr<UTextBlock> DockWhere;
     UPROPERTY() TObjectPtr<UTextBlock> DockPreviewTitle;
@@ -305,4 +310,5 @@ private:
     void RefreshPreviewPage();
     void ShowComponentDock(FName Component,const ULDComponentStorage::FFocus* Focus);
     void ShowTextDock(const FString& Key,const FString& Name,const FString& Summary,const FString& Body,const FString& IconId,const FString& Glyph);
+    void ShowDockChains(const TArray<LDHUD::FRecapChain>& Chains);
 };

@@ -36,6 +36,8 @@ struct FLDCombatSourceRef
 // One attacker's committed positive damage through one source (shield-absorbed part included, as the build blueprint's
 // damage facts count it). Contender: the contender credited with the hits; MonsterId: the camp member definition when no
 // contender is credited; both empty: an unowned source. A match total of own damage leaves both empty.
+// Reaction damage of a death recap also names its rule chain: Reaction (ELDCombatReaction), the consumed element held by
+// the victim (Consumed, ELDCombatElement) and Setter, the contender credited with applying it (invalid: not a contender).
 USTRUCT()
 struct FLDDamageLine
 {
@@ -44,8 +46,15 @@ struct FLDDamageLine
     UPROPERTY() FName MonsterId;
     UPROPERTY() FLDCombatSourceRef Source;
     UPROPERTY() int64 DamageP2 = 0;
+    UPROPERTY() FGuid Setter;
+    UPROPERTY() uint8 Consumed = 0;
+    UPROPERTY() uint8 Reaction = 0;
     bool SameAttacker(const FLDDamageLine& Other) const { return Contender == Other.Contender && MonsterId == Other.MonsterId; }
-    bool SameKey(const FLDDamageLine& Other) const { return SameAttacker(Other) && Source == Other.Source; }
+    bool SameKey(const FLDDamageLine& Other) const
+    {
+        return SameAttacker(Other) && Source == Other.Source && Setter == Other.Setter && Consumed == Other.Consumed
+            && Reaction == Other.Reaction;
+    }
 };
 
 // Server-only, never serialized. Resolved from the owning connection, the registered AI or a registered camp member.
@@ -219,9 +228,11 @@ struct FLDCommittedDeath
     // Contender victims with an eligible killer only: the other contenders still in the match whose latest assist
     // contribution fell within REWARD.AssistWindowSec before the fatal hit, sorted. Frozen with the fact.
     TArray<FGuid> Assisters;
-    // Contender victims only: the damage this life took within RecapWindowMs before the fatal hit (LDDamageRecap::Summarize).
+    // Contender victims only: the damage this life took within RecapWindowMs (REWARD.AssistWindowSec, the assist window)
+    // before the fatal hit (LDDamageRecap::Summarize); the camp member definition of a fatal camp hit names that killer.
     TArray<FLDDamageLine> Recap;
     int64 RecapWindowMs=0;
+    FName KillerMonsterId;
     ELDDeathCause Cause=ELDDeathCause::Damage;
     double OccurredAtSeconds=0;           // raw authority time of the fatal hit
     int64 OccurredAtMs=0;                 // checked ceil bucket of OccurredAtSeconds

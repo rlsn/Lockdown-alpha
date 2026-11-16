@@ -86,21 +86,20 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("R0: rest 0, build step, T frozen at 0, build open"),
         Line.IsRest() && Line.GetRestIndex() == 0 && Line.GetStep() == ELDRestStep::Build && Line.FieldMsAt(Start + 20000) == 0
         && Line.IsRestBuildOpen() && !Line.IsFieldRunning() && Line.NextDueMs() == Start + P.OpeningBuildMs);
-    bGood &= TestTrue(TEXT("Sign-up opens for the last 10 s of the build, its deadline included"),
-        !Line.IsSignupOpen(Start + 169999) && Line.IsSignupOpen(Start + 170000) && Line.IsSignupOpen(Start + 180000));
-    bGood &= TestEqual(TEXT("R0 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
-        Start + P.OpeningBuildMs - P.SignupMs);
+    bGood &= TestFalse(TEXT("R0 has no PK sign-up window"), Line.IsSignupOpen(Start + 180000));
+    bGood &= TestEqual(TEXT("R0 publishes no PK sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs, int64(0));
     FLDOpponentPublicMatch Public;
     Public.Phase = ELDMatchPhase::Rest;
     Public.Timeline = Line.MakeView(1, 1);
-    Public.NowMs = Public.Timeline.SignupOpensAtMs;
+    Public.NowMs = Start + P.OpeningBuildMs;
     const FGuid Opponent(1, 2, 3, 4);
-    bGood &= TestTrue(TEXT("The AI signs up using the R0 public timeline"), LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
+    bGood &= TestFalse(TEXT("The AI does not sign up in R0"), LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
     bGood &= TestTrue(TEXT("Without the lock permission the due build lock waits"),
         Line.Advance(Start + P.OpeningBuildMs, 0, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + P.OpeningBuildMs));
-    // One entrant: the PK is skipped and the 5 s return follows the lock at once.
-    bGood &= TestTrue(TEXT("Lock with one sign-up skips the PK"), Line.Advance(Start + P.OpeningBuildMs, 1, true, true, Events, Error)
-        && FindEvent(Events, ELDTimelineEventKind::LockBuild) && FindEvent(Events, ELDTimelineEventKind::LockBuild)->Value == 1
+    // R0 has no PK; stale sign-ups cannot make the timeline enter PK steps.
+    bGood &= TestTrue(TEXT("R0 skips PK regardless of the supplied sign-up count"),
+        Line.Advance(Start + P.OpeningBuildMs, 2, true, true, Events, Error)
+        && FindEvent(Events, ELDTimelineEventKind::LockBuild) && FindEvent(Events, ELDTimelineEventKind::LockBuild)->Value == 0
         && Line.GetStep() == ELDRestStep::Return && Line.MakeView(1, 1).bPKSkipped && !Line.IsRestBuildOpen());
     Events.Reset();
     const int64 Field1 = Start + P.OpeningBuildMs + P.ReturnMs;
@@ -117,6 +116,12 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("T=180 s enters R1 with T frozen"), Line.Advance(Rest1, 0, false, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterRest) && Line.GetRestIndex() == 1 && Line.FieldMsAt(Rest1 + 99999) == 180000
         && Line.NextDueMs() == Rest1 + P.BuildMs && Line.FieldDueAuthorityMs(Rest1, 200000) == MAX_int64);
+    bGood &= TestTrue(TEXT("R1 sign-up opens for the last 10 s, including the lock deadline"),
+        !Line.IsSignupOpen(Rest1 + P.BuildMs - P.SignupMs - 1)
+        && Line.IsSignupOpen(Rest1 + P.BuildMs - P.SignupMs) && Line.IsSignupOpen(Rest1 + P.BuildMs));
+    Public.Timeline = Line.MakeView(1, 1);
+    Public.NowMs = Public.Timeline.SignupOpensAtMs;
+    bGood &= TestTrue(TEXT("The AI signs up using the R1 public timeline"), LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
     bGood &= TestEqual(TEXT("R1 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
         Rest1 + P.BuildMs - P.SignupMs);
     // Two entrants run every PK step; a PK that runs to its limit makes the approved 126 s rest.

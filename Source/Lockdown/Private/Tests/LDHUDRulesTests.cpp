@@ -32,15 +32,19 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/Image.h"
 #include "Components/Border.h"
+#include "Components/HorizontalBox.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/RichTextBlock.h"
 #include "Components/ScaleBox.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
 #include "Engine/World.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Input/HittestGrid.h"
+#include "Widgets/SWindow.h"
 #include <limits>
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
@@ -1102,6 +1106,27 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     }
     View.bHasActiveOffer=false;View.bFinalModPending=true;View.FinalModOfferId=FGuid(2,3,4,5);
     Input.bFinalStage=true;
+    View.FinalModOptions.Reset();
+    for(int32 Index=0;Index<4;++Index){View.FinalModOptions.Add(FName(*Content.FinalMods[Index].Id));}
+    for(int32 Tick=0;Tick<30;++Tick){Frame();}
+    TestTrue(TEXT("Four final options open the same choice stage"),Choices->IsFinalStage());
+    TestTrue(TEXT("The fourth final option can be selected"),Choices->SelectFinalMod(3));
+    Frame();
+    if(TestEqual(TEXT("All four final cards exist"),Choices->FinalCards.Num(),4))
+    {
+        const UWidget* Last=Choices->FinalCards[3].Frame;
+        const FGeometry& G=Last->GetCachedGeometry();
+        TestTrue(TEXT("The fourth card remains visible inside the 720p viewport"),Last->IsVisible()
+            && G.GetAbsoluteSize().X>30.f && G.GetAbsolutePosition().X+G.GetAbsoluteSize().X<=1280.f);
+        View.FinalModOptions.RemoveAt(3);View.FinalModOfferId=FGuid(2,3,4,6);
+        for(int32 Tick=0;Tick<30;++Tick){Frame();}
+        TestTrue(TEXT("A subsequent three-card offer removes the fourth card from the stage"),
+            Last->GetParent()!=Choices->StageCards);
+        View.FinalModOptions.Add(FName(*Content.FinalMods[3].Id));View.FinalModOfferId=FGuid(2,3,4,7);
+        for(int32 Tick=0;Tick<30;++Tick){Frame();}
+        TestTrue(TEXT("A subsequent four-card offer puts the fourth card back on the stage"),
+            Last->GetParent()==Choices->StageCards && Last->IsVisible());
+    }
     for(int32 First=0;First<Content.FinalMods.Num();First+=3)
     {
         View.FinalModOptions.Reset();
@@ -1135,6 +1160,16 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             TestTrue(At+TEXT(": final explanation is stable over 60 frames"),Largest-Smallest<.001f);
         }
     }
+    for(const FVector2D Size:{FVector2D(1920,1080),FVector2D(1280,720)})
+    {
+        Workshop->Layout(Size);
+        const auto& R=Workshop->Rects;
+        const FString At=FString::Printf(TEXT("Choice stage %.0fx%.0f"),Size.X,Size.Y);
+        TestTrue(At+TEXT(": stage and dock fit the screen without overlapping"),
+            R.Stage.bIsValid&&R.Dock.bIsValid&&R.Stage.Min.X>=0.&&R.Stage.Max.X<=Size.X
+            &&R.Dock.Min.X>=0.&&R.Dock.Max.X<=Size.X&&R.Stage.Min.Y>=0.&&R.Stage.Max.Y<=R.Dock.Min.Y
+            &&R.Dock.Max.Y<=Size.Y);
+    }
     Input.bStage=false;Input.bFinalStage=false;Choices->LeaveStage();
     for(int32 Tick=0;Tick<30;++Tick){Frame();}
     for(const ULDWorkshop::FReaction& Reaction:Workshop->Reactions)
@@ -1143,6 +1178,180 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Each element reaction exposes its rule in the actual workshop dock"),
             Workshop->DockBody->GetText().ToString()==LDTerms::ReactionExplanation(Reaction.Name->GetText().ToString())
                 &&!Workshop->DockBody->GetText().IsEmpty());
+    }
+    Input.bDead=true;
+    Frame();
+    Workshop->RefreshDock(FVector2D(-100,-100));
+    TestEqual(TEXT("The death dock reports a recap that has not arrived"),Workshop->DockName->GetText().ToString(),FString(TEXT("承伤记录同步中")));
+    Input.DeathRecap.bAvailable=true;
+    Input.DeathRecap.Heading=TEXT("近 15 秒承受伤害 100");
+    Input.DeathRecap.Rows={TEXT("对手 100 · 普攻 100")};
+    LDHUD::FRecapNode Basic;
+    Basic.Kind=LDHUD::ERecapNode::Source;Basic.Glyph=TEXT("普");Basic.Name=TEXT("普攻");
+    Input.DeathRecap.Chains.AddDefaulted_GetRef().Nodes.Add(Basic);
+    Frame();
+    Workshop->RefreshDock(FVector2D(-100,-100));
+    TestTrue(TEXT("The death dock shows the current life's recap"),
+        Workshop->DockName->GetText().ToString()==Input.DeathRecap.Heading
+        &&Workshop->DockChainsShown==Input.DeathRecap.Chains
+        &&Workshop->DockChains->GetVisibility()==ESlateVisibility::SelfHitTestInvisible);
+    const UHorizontalBox* ChainRow=Cast<UHorizontalBox>(Workshop->DockChains->GetChildAt(0));
+    const USizeBox* BasicFace=ChainRow?Cast<USizeBox>(ChainRow->GetChildAt(0)):nullptr;
+    const UOverlay* BasicOverlay=BasicFace?Cast<UOverlay>(BasicFace->GetContent()):nullptr;
+    const UImage* MissingIcon=BasicOverlay&&BasicOverlay->GetChildrenCount()==2?Cast<UImage>(BasicOverlay->GetChildAt(1)):nullptr;
+    TestTrue(TEXT("An iconless source exposes its glyph and hover name instead of covering it with an empty image"),
+        BasicFace&&BasicFace->GetToolTipText().ToString()==Basic.Name&&MissingIcon
+        &&MissingIcon->GetVisibility()==ESlateVisibility::Collapsed);
+    if(BasicFace)
+    {
+        const TSharedRef<SWindow> Window=SNew(SWindow).CreateTitleBar(false).UseOSWindowBorder(false).ClientSize(LayoutSize);
+        Window->SetContent(Slate);
+        const auto HitSource=[&]()
+        {
+            Window->SlatePrepass(2.f/3.f);
+            FHittestGrid HitTest;
+            HitTest.SetHittestArea(FVector2D::ZeroVector,FVector2D(1280,720));
+            FSlateWindowElementList Draw(Window);
+            Window->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,
+                FSlateRect(0,0,1280,720),Draw,0,FWidgetStyle(),true);
+            const FSlateRect Face=BasicFace->GetCachedGeometry().GetRenderBoundingRect();
+            const FVector2D Centre((Face.Left+Face.Right)*.5f,(Face.Top+Face.Bottom)*.5f);
+            const TSharedPtr<SWidget> FaceWidget=BasicFace->GetCachedWidget();
+            const TArray<FWidgetAndPointer> Path=HitTest.GetBubblePath(Centre,0.f,false);
+            return FaceWidget.IsValid()&&Path.ContainsByPredicate([&FaceWidget](const FWidgetAndPointer& Hit){return Hit.Widget==FaceWidget;});
+        };
+        TestTrue(TEXT("The death-dock source is actually reachable by the pointer"),HitSource());
+        Workshop->DockChains->SetVisibility(ESlateVisibility::HitTestInvisible);
+        TestFalse(TEXT("Hit testing detects when an ancestor blocks the death-dock source"),HitSource());
+        Workshop->DockChains->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    }
+    Workshop->RefreshDock(Workshop->Reactions[0].Row->GetCachedGeometry().GetAbsolutePosition()+FVector2D(2,2));
+    TestTrue(TEXT("A hovered reaction replaces the death recap"),!Workshop->DockKey.StartsWith(TEXT("D|"))
+        &&Workshop->DockChains->GetVisibility()==ESlateVisibility::Collapsed);
+    Workshop->RefreshDock(FVector2D(-100,-100));
+    TestTrue(TEXT("Leaving the reaction restores the death recap"),Workshop->DockKey.StartsWith(TEXT("D|"))
+        &&Workshop->DockChainsShown==Input.DeathRecap.Chains);
+    Input.bDead=false;
+    Frame();
+    Workshop->RefreshDock(FVector2D(-100,-100));
+    TestTrue(TEXT("The death recap clears after leaving death wait"),
+        Workshop->DockBody->GetText().IsEmpty()&&!Workshop->DockKey.StartsWith(TEXT("D|"))
+        &&Workshop->DockChains->GetVisibility()==ESlateVisibility::Collapsed);
+    Input.bDead=true;
+    Frame();
+    Workshop->RefreshDock(FVector2D(-100,-100));
+    Input.Mode=ULDWorkshop::EMode::Closed;Input.bDead=false;
+    Workshop->Present(Input);
+    Input.Mode=ULDWorkshop::EMode::Full;
+    Frame();
+    Workshop->RefreshDock(FVector2D(-100,-100));
+    TestTrue(TEXT("Closing during respawn cannot leave a previous life's recap in the reopened dock"),
+        Workshop->DockBody->GetText().IsEmpty()&&Workshop->DockName->GetText().IsEmpty());
+
+    ULDComponentStorage* Storage=NewObject<ULDComponentStorage>(World);Storage->Initialize();
+    auto* StorageSlot=Root->AddChildToOverlay(Storage);
+    StorageSlot->SetHorizontalAlignment(HAlign_Fill);StorageSlot->SetVerticalAlignment(VAlign_Fill);
+    Workshop->Storage=Storage;
+    FLDProgressionView Dense;Dense.bValid=true;Dense.Generation=1;Dense.Life=1;Dense.Level=16;Dense.BuildRevision=2;
+    const int32 Count=FMath::Min(12,Content.Components.Num());
+    for(int32 Index=0;Index<Count;++Index)
+    {
+        FLDComponentInstanceView& Entry=Dense.Components.AddDefaulted_GetRef();
+        Entry.DefinitionId=FName(*Content.Components[Index].Id);Entry.bInstalled=true;Entry.bEverInstalled=true;
+        if(Index>=Count-3)
+        {Entry.Target.Kind=ELDComponentTargetKind::Component;Entry.Target.Definition=Dense.Components[0].DefinitionId;}
+    }
+    for(int32 Index=Count;Index<FMath::Min(38,Content.Components.Num());++Index)
+    {Dense.Components.AddDefaulted_GetRef().DefinitionId=FName(*Content.Components[Index].Id);}
+    Input.Progression=&Dense;Input.TrayDesired=FVector2D(200,100);Input.Pending=2;
+    ULDComponentStorage::FAnchors NoAnchors;
+    for(const ULDWorkshop::EMode Mode:{ULDWorkshop::EMode::Full,ULDWorkshop::EMode::Field})
+    for(const float ScreenScale:{1.f,2.f/3.f})
+    {
+        Input.Mode=Mode;Input.bServices=Mode==ULDWorkshop::EMode::Full;Input.bLibraryServices=Input.bServices;
+        Workshop->LibraryPage=0;
+        const FGeometry Screen=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(ScreenScale));
+        const auto DenseFrame=[&]()
+        {
+            Workshop->Present(Input);
+            Storage->SetWorkshop(Workshop->StorageLayout());
+            Storage->Present(&Dense,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,L1,NoAnchors,true);
+            Slate->SlatePrepass(ScreenScale);
+            FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+            Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Screen,
+                FSlateRect(0,0,LayoutSize.X*ScreenScale,LayoutSize.Y*ScreenScale),Draw,0,FWidgetStyle(),true);
+            Workshop->NativeTick(Screen,1.f/60.f);Storage->NativeTick(Screen,1.f/60.f);
+        };
+        for(int32 Tick=0;Tick<30;++Tick){DenseFrame();}
+        const auto& R=Workshop->Rects;
+        const FString At=FString::Printf(TEXT("Dense workshop mode %d scale %.2f"),int32(Mode),ScreenScale);
+        if(Mode==ULDWorkshop::EMode::Full)
+        {
+            TestTrue(At+TEXT(": full-width dock is below all three panels"),
+                R.Dock.Min.X<=R.Character.Min.X&&R.Dock.Max.X>=R.Library.Max.X&&R.Dock.Min.Y>=R.Character.Max.Y
+                &&R.Dock.Min.Y>=R.Board.Max.Y&&R.Dock.Min.Y>=R.Pending.Max.Y);
+        }
+        TestTrue(At+TEXT(": library has a usable page"),Workshop->LibraryFit.bFits&&!Storage->Cards.IsEmpty());
+        const int32 Pages=Workshop->LibraryFit.Pages.Num();
+        TSet<FName> SeenCards;
+        for(int32 Page=0;Page<Pages;++Page)
+        {
+            Workshop->LibraryPage=Page;
+            for(int32 Tick=0;Tick<5;++Tick){DenseFrame();}
+            const FSlateRect Library=Storage->Workshop.Library;
+            for(const ULDComponentStorage::FCard& Card:Storage->Cards)
+            {
+                SeenCards.Add(Card.Component);
+                const FSlateRect Face=Card.Face->GetCachedGeometry().GetRenderBoundingRect();
+                TestTrue(At+TEXT(": library face stays visible and at least 36 pixels ")+Card.Component.ToString(),
+                    Face.Left>=Library.Left-1.f&&Face.Right<=Library.Right+1.f&&Face.Top>=Library.Top-1.f
+                    &&Face.Bottom<=Library.Bottom+1.f&&Face.Right-Face.Left>=35.5f&&Face.Bottom-Face.Top>=35.5f);
+            }
+        }
+        TestEqual(At+TEXT(": all owned stored components appear across the pages"),SeenCards.Num(),Dense.Components.Num()-Count);
+        const FSlateRect Column=Storage->Workshop.Columns[int32(LDHUD::EStorageColumn::Body)];
+        for(const FLDComponentInstanceView& Entry:Dense.Components)
+        {
+            if(!Entry.bInstalled){continue;}
+            FSlateRect Tile;
+            if(!TestTrue(At+TEXT(": installed face exists ")+Entry.DefinitionId.ToString(),Storage->TileBox(Entry.DefinitionId,Tile))){continue;}
+            const ULDComponentStorage::FTile* Face=Storage->Tiles.FindByPredicate(
+                [&Entry](const ULDComponentStorage::FTile& Candidate){return Candidate.Component==Entry.DefinitionId;});
+            if(!TestTrue(At+TEXT(": face widget exists"),Face&&Face->Face)){continue;}
+            Tile=Face->Face->GetCachedGeometry().GetRenderBoundingRect();
+            TestTrue(At+TEXT(": installed face fits its column ")+Entry.DefinitionId.ToString(),
+                Tile.Left>=Column.Left&&Tile.Right<=Column.Right&&Tile.Top>=Column.Top&&Tile.Bottom<=Column.Bottom);
+            const float Minimum=Mode==ULDWorkshop::EMode::Full?35.5f:20.f;
+            TestTrue(At+FString::Printf(TEXT(": installed face remains usable %s (%.2f x %.2f at %.2f,%.2f)"),
+                *Entry.DefinitionId.ToString(),Tile.Right-Tile.Left,Tile.Bottom-Tile.Top,Tile.Left,Tile.Top),
+                Tile.Right-Tile.Left>=Minimum&&Tile.Bottom-Tile.Top>=Minimum);
+            LDHUD::EStorageColumn HitColumn=LDHUD::EStorageColumn::Dash;FName Host;
+            const FVector2D Center((Tile.Left+Tile.Right)*.5f,(Tile.Top+Tile.Bottom)*.5f);
+            TestTrue(At+TEXT(": scaled face is its own drop target ")+Entry.DefinitionId.ToString(),
+                Storage->ColumnAt(Center,HitColumn,Host)&&HitColumn==LDHUD::EStorageColumn::Body&&Host==Entry.DefinitionId);
+        }
+        if(Count>0)
+        {
+            const FName Id=Dense.Components[Count-1].DefinitionId;FSlateRect Tile;
+            if(Storage->TileBox(Id,Tile))
+            {
+                const ULDComponentStorage::FTile* Face=Storage->Tiles.FindByPredicate(
+                    [Id](const ULDComponentStorage::FTile& Candidate){return Candidate.Component==Id;});
+                if(!Face||!Face->Face){continue;}
+                Tile=Face->Face->GetCachedGeometry().GetRenderBoundingRect();
+                const FVector2D Center((Tile.Left+Tile.Right)*.5f,(Tile.Top+Tile.Bottom)*.5f);
+                TestTrue(At+TEXT(": scaled face can be picked up"),
+                    Storage->BeginPress(Center)&&Storage->Press.bArmed&&Storage->Press.Component==Id);
+                Storage->UpdateDrag(Center,false);
+                TestTrue(At+TEXT(": pickup retains the component"),Storage->IsHolding()&&Storage->Drag.Component==Id);
+                Storage->CancelInteraction();
+                FName Picked;Storage->OnServicePick=[&Picked](FName Value){Picked=Value;};
+                Storage->SetServicePick({Id},{});
+                Storage->BeginPress(Center);
+                TestTrue(At+TEXT(": service selection reaches the scaled face"),Picked==Id);
+                Storage->SetServicePick({},{});Storage->OnServicePick=nullptr;
+            }
+        }
     }
     return true;
 }
@@ -1756,6 +1965,7 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     FLDDemoContentDefinitions Content;
     // A workshop of five slots at level 1, one more every two levels (every install takes one).
     Content.Progression.WorkshopCapacityBase=5;Content.Progression.WorkshopCapacityLevelsPerSlot=2;
+    Content.Progression.WorkshopBodyColumnCapacity=4;Content.Progression.WorkshopDashColumnCapacity=2;
     const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
     {
         FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
@@ -1886,7 +2096,10 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
             &&LDHUD::StoredPlaceText(TEXT("hud_fixture_mod"),Full,&Content)==LDTerms::WorkshopFullNoPlace(5));
         TestTrue(TEXT("An installed component still moves in a full workshop"),LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Full,&Content).Num()==1);
         Full.Level=3;
-        TestTrue(TEXT("Level 3 adds a slot"),!LDHUD::WorkshopFull(Full,&Content)&&LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Full,&Content).Num()==1);
+        TestTrue(TEXT("A free global slot does not exceed the four-item body limit"),
+            !LDHUD::WorkshopFull(Full,&Content)&&LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Full,&Content).IsEmpty()
+            &&LDHUD::StoredPlaceText(TEXT("hud_fixture_wet"),Full,&Content)==LDTerms::ReplaceAvailable
+            &&!LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Full,&Content).IsEmpty());
         Full.Level=1;
         // A full workshop offers a replace on each installed tile whose removal makes room in that column; never on the move of
         // an installed component, and never where the plain drop already lands.
@@ -1978,6 +2191,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLibraryPagesTest,"Lockdown.Rules.HUDLibra
 bool FLDHUDLibraryPagesTest::RunTest(const FString& Parameters)
 {
     FLDDemoContentDefinitions Content;
+    Content.Progression.WorkshopBodyColumnCapacity=4;
+    Content.Progression.WorkshopDashColumnCapacity=2;
+    TestEqual(TEXT("The body caption shows installed components against its cap"),
+        LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn::Body,4,&Content),FString(TEXT("本体 4/4")));
+    TestEqual(TEXT("The dash caption shows installed components against its cap"),
+        LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn::Dash,1,&Content),FString(TEXT("冲刺 1/2")));
+    TestTrue(TEXT("Active columns do not show a per-column cap"),
+        LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn::SlotQ,1,&Content).IsEmpty());
     FLDProgressionView View;View.bValid=true;
     const auto Add=[&](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoComponentTag Tag,bool bInstalled)
     {
@@ -2134,6 +2355,13 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     FLDDemoContentDefinitions Content;
     // A workshop of five slots at level 1, one more every two levels (every install takes one).
     Content.Progression.WorkshopCapacityBase=5;Content.Progression.WorkshopCapacityLevelsPerSlot=2;
+    const auto AddActive=[&Content](const TCHAR* Id,ELDDemoTargetMode Mode)
+    {
+        FLDDemoAbilityDefinition& Active=Content.Abilities.AddDefaulted_GetRef();Active.Id=Id;Active.Target.Mode=Mode;
+    };
+    AddActive(TEXT("hud_fixture_kick"),ELDDemoTargetMode::Unit);
+    AddActive(TEXT("hud_fixture_bolt"),ELDDemoTargetMode::DirectionProjectile);
+    AddActive(TEXT("hud_fixture_other"),ELDDemoTargetMode::Unit);
     const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
     {
         FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
@@ -2189,6 +2417,15 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
             &&Drops[0].Kind==ELDComponentTargetKind::Active&&Drops[0].TargetId==FName(TEXT("hud_fixture_bolt"))
             &&Drops[1].Column==LDHUD::EStorageColumn::Body&&Drops[1].Host==FName(TEXT("hud_fixture_fist"))
             &&Drops[1].Kind==ELDComponentTargetKind::Component&&Drops[2].Column==LDHUD::EStorageColumn::Dash);
+        FLDProgressionView SameMode=View;
+        FLDActiveSlotView& SameModeActive=SameMode.Actives.AddDefaulted_GetRef();
+        SameModeActive.DefinitionId=TEXT("hud_fixture_other");SameModeActive.Slot=0;
+        const TArray<LDHUD::FComponentDrop> SameModeDrops=LDHUD::ComponentDrops(TEXT("hud_fixture_reach"),SameMode,&Content);
+        TestTrue(TEXT("The workbench previews every learned active with a listed target mode"),
+            SameModeDrops.Num()==4&&SameModeDrops[0].TargetId==FName(TEXT("hud_fixture_bolt"))
+            &&SameModeDrops[1].TargetId==FName(TEXT("hud_fixture_other"))
+            &&LDHUD::ComponentConnections(TEXT("hud_fixture_reach"),SameMode,&Content).Actives
+                ==TArray<FName>({FName(TEXT("hud_fixture_bolt")),FName(TEXT("hud_fixture_other"))}));
         TestTrue(TEXT("Over its host the host's drop; over 本体 alone nothing (the mod is not a self mod)"),
             LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,TEXT("hud_fixture_fist"))==&Drops[1]
             &&LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,NAME_None)==nullptr);
@@ -2249,6 +2486,8 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::TargetConflict);
     TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr),
         TEXT("没有生效：")+FString(LDTerms::TargetConflict));
+    TestEqualSensitive(TEXT("A full body or dash column names its limits"),
+        LDHUD::GrowthReasonText(ELDGrowthReason::ComponentColumnFull),FString(LDTerms::ComponentColumnFullReason));
     return true;
 }
 
@@ -2487,7 +2726,7 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
     TSet<FString> Seen;
     for(const ELDGrowthReason Reason:{ELDGrowthReason::NoComponentChoice,ELDGrowthReason::ComponentOwned,ELDGrowthReason::NotAGap,ELDGrowthReason::NoGapFiller,
         ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate,
-        ELDGrowthReason::FinalLocked,ELDGrowthReason::NoFinalMod,ELDGrowthReason::FinalModUnavailable})
+        ELDGrowthReason::FinalLocked,ELDGrowthReason::NoFinalMod,ELDGrowthReason::FinalModUnavailable,ELDGrowthReason::ComponentColumnFull})
     {
         const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
         TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);

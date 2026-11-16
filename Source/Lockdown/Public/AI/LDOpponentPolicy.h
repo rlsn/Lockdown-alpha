@@ -21,8 +21,6 @@ enum class ELDOpponentMode : uint8
     Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Contest, Farm, Explore,
     // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
     Airdrop,
-    // #198: walking onto a lying field charm whose effect the body can use now.
-    Charm,
     // #198 D: the rest PK: signing up, betting, throwing as a spectator or fighting as an entrant.
     PK
 };
@@ -32,7 +30,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss, TakeCharm,
+    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss,
     // #198 D: PK sign-up, bet and throw requests, an entrant's fight and its walk back inside the ring.
     PKSignUp, PKBet, PKThrow, PKFight, PKRing,
     // #198 §16.3: a visible shared training dummy engaged in the rest build window once nothing is left to build.
@@ -194,8 +192,6 @@ struct FLDOpponentPublicMatch
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;
     bool bAirdropLanded = false;
-    // #198: the public airdrop points that hold a lying field charm now, with its kind, in serial order.
-    TArray<TPair<FName, ELDCharmKind>> Charms;
     // #198 outer §5: the camps whose public marker is open (revealed and not yet taken) now.
     TArray<FName> MarkedCamps;
     // D27: the public 上热搜 notice; Leader invalid when nobody is named.
@@ -542,7 +538,7 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
         FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
     // #198 F: where the AI installs an owned mod or connector (rule-based, no tunable numbers): the first legal target in
-    // catalog list order: a learned active of TargetActives, else an installed host of TargetComponents (C01 on B18 only
+    // catalog list order: a learned active with a target mode represented by TargetActives, else an installed host of TargetComponents (C01 on B18 only
     // while B18 burns), else the innate D (bTargetDash), else the holder itself (bTargetSelf); C12 also repeats the first
     // installed base of ExtraBases. Skips what growth refuses: M08/M09 on a target the other already holds (TargetConflict).
     // False for a base

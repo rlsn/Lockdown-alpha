@@ -20,16 +20,17 @@ import BuildEvaluationLockdown as lockdown  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 S, O, H, CAMP = "1" * 32, "2" * 32, "3" * 32, "4" * 32
 CONTENT_ROOT = hashlib.sha256((ROOT / "Content/Lockdown/Data/Demo/manifest.json").read_bytes()).hexdigest()
-# 600 XP reaches level 6: the opening opportunity plus the ones of levels 3 and 6.
+# 600 XP reaches level 8: the opening opportunity plus the ones of levels 3 and 6.
 SUPPLY = 600
 # The stats' design order (ascending native id), the order of every per-stat row and points= list.
 STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "stat_agility")
 
 
-# Supply to level 6: two draws on bonus levels 2, 4 and 6, one on 3 and 5 (progression.bonus_component_levels).
-LEVEL6_DRAW_LEVELS = (2, 2, 3, 4, 4, 5, 6, 6)
-LEVEL6_GRANTS = ("component_punch_heal", "component_breath_strike", "component_fist_water", "component_fist_shock",
-                 "component_blast_chase", "component_hard_skin", "component_catch_breath", "component_kick_down")
+# Supply to level 8: one draw on every level-up plus one on bonus levels 2, 4, 6 and 8.
+LEVEL8_DRAW_LEVELS = (2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8)
+LEVEL8_GRANTS = ("component_punch_heal", "component_breath_strike", "component_fist_water", "component_fist_shock",
+                 "component_blast_chase", "component_hard_skin", "component_catch_breath", "component_kick_down",
+                 "component_fist_fire", "component_tab_ledger", "component_spiky_hide")
 
 def stat_points(*points):
     return [{"id": stat, "points": value} for stat, value in zip(STATS, points)]
@@ -113,10 +114,10 @@ def trace(*extra, drop=()):
         ("field", "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"),
         ("s_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={S} life=2 pos=100,0,0"),
         ("o_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={O} life=2 pos=-100,5,0"),
-        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "),
-        ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->6 choices_earned=2 unspent_points=5"),
-        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "),
-        ("o_level", f"LD_LEVEL_UP t=5016 contender={O} level=1->6 choices_earned=2 unspent_points=5"),
+        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->8 "),
+        ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=5"),
+        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->8 "),
+        ("o_level", f"LD_LEVEL_UP t=5016 contender={O} level=1->8 choices_earned=2 unspent_points=5"),
         ("s_offer2", f"LD_OFFER t=5016 contender={S} ordinal=2 level=6 cards=active_flyer_trap,active_seethe,active_stare_down"),
         ("o_offer2", f"LD_OFFER t=5016 contender={O} ordinal=2 level=6 cards=active_stare_down,active_calculus_drop,active_seethe"),
         ("s_choice2", choice(5033, S, 2, "active_flyer_trap", "learned", "W", "-", 6, 1)),
@@ -143,7 +144,7 @@ def trace(*extra, drop=()):
 
 # #198 workshop: the subject owns its build. The opening base B18 is bound to the opening active with water, three opening
 # points go to strength, B18 is rebuilt with fire in the opening rest, then the drawn mod M03 goes onto the opening active and
-# the fifteen level points go to physique: every one of the 18 points 600 XP earns.
+# the 21 level points go to physique: every one of the 24 points 600 XP earns.
 WORKSHOP = {
     "choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
     "build": [
@@ -154,7 +155,7 @@ WORKSHOP = {
         {"step": "install", "at": "opening_rest", "component": "component_dirty_trick",
          "bind": {"active": "active_elbow", "element": "fire"}},
         {"step": "install", "at": "field", "component": "component_long_kick", "target": {"kind": "active", "id": "active_elbow"}},
-        {"step": "allocate_points", "at": "field", "points": {"stat_physique": 15}},
+        {"step": "allocate_points", "at": "field", "points": {"stat_physique": 21}},
     ],
 }
 GRANTS = "component_long_kick,component_fist_water,component_ball_kick,component_seeing_red,component_hold_down"
@@ -171,10 +172,10 @@ WORKSHOP_LINES = {
     "w_points": build_line(200, "AllocatePoints", points="0,0,3,0,0"),
     "w_off": build_line(300, "UninstallComponent", "component_dirty_trick", installed="0"),
     "w_fire": build_line(400, "InstallComponent", "component_dirty_trick", installed="1", bind="active_elbow:Fire"),
-    "w_level": f"LD_LEVEL_UP t=5016 contender={S} level=1->6 choices_earned=2 unspent_points=15 components={GRANTS} empty_pool_grants=0",
+    "w_level": f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=21 components={GRANTS} empty_pool_grants=0",
     "w_mod": build_line(5400, "InstallComponent", "component_long_kick", installed="1", bind="- on=Active:active_elbow",
-                        unspent=15, level=6),
-    "w_body": build_line(5500, "AllocatePoints", points="15,0,0,0,0", level=6),
+                        unspent=21, level=8),
+    "w_body": build_line(5500, "AllocatePoints", points="21,0,0,0,0", level=8),
 }
 
 
@@ -199,7 +200,7 @@ def workshop_components():
 
 def workshop_result(**subject):
     value = result()
-    value["contenders"][0].update(dict({"planned_steps": 6, "steps_committed": 6, "stat_points": stat_points(15, 0, 3, 0, 0),
+    value["contenders"][0].update(dict({"planned_steps": 6, "steps_committed": 6, "stat_points": stat_points(21, 0, 3, 0, 0),
                                         "components": workshop_components()}, **subject))
     return value
 
@@ -263,9 +264,9 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual((duel["parameters"]["opening_points"], duel["parameters"]["points_per_level"]),
                          (self.content["parameters"]["GROWTH.OpeningPoints"], self.content["parameters"]["GROWTH.PointsPerLevel"]))
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
-        self.assertEqual(lockdown.level_for(self.content["progression"], 180), 3)
-        self.assertEqual(lockdown.level_for(self.content["progression"], 179), 2)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 179, 180, 599, 600)], [1, 1, 2, 2, 3])
+        self.assertEqual(lockdown.level_for(self.content["progression"], 180), 4)
+        self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 179, 180, 599, 600)], [1, 2, 2, 3, 3])
 
 
 class PlanTest(AdapterCase):
@@ -382,7 +383,7 @@ class PlanTest(AdapterCase):
                       {case["arm"]: case["reason"] for case in cases}["t"])
 
     def test_level_component_presets_are_conditional_and_use_only_earned_distinct_common_grants(self):
-        grants = list(LEVEL6_GRANTS)
+        grants = list(LEVEL8_GRANTS)
         subject = {"choices": ["ai_select"] * 3, "level_components": grants}
         needs = self.requirements(subject)
         self.assertEqual(needs["problems"], [])
@@ -393,7 +394,7 @@ class PlanTest(AdapterCase):
         cases, _ = self.plan_cases(subject, sample="legal_search")
         self.assertTrue(all(case["status"] == "Unsupported" for case in cases))
         self.assertIn("diagnostic", {case["arm"]: case["reason"] for case in cases}["t"])
-        for invalid, reason in ((grants[:-1], "8"),
+        for invalid, reason in ((grants[:-1], "11"),
                                 (grants[:-1] + ["component_dirty_fist"], "scarce")):
             with self.subTest(grants=invalid):
                 problems = self.requirements({**subject, "level_components": invalid})["problems"]
@@ -403,18 +404,18 @@ class PlanTest(AdapterCase):
 
     def test_level_component_preset_refuses_an_install_not_in_the_fixed_inventory(self):
         subject = {"choices": ["ai_select"] * 3,
-                   "level_components": ["component_fist_fire", *LEVEL6_GRANTS[1:]],
+                   "level_components": ["component_dash_bump", *LEVEL8_GRANTS[1:]],
                    "build": [{"step": "install", "at": "field", "component": "component_punch_heal"},
-                             {"step": "allocate_points", "at": "field", "points": {"stat_strength": 18}}]}
+                             {"step": "allocate_points", "at": "field", "points": {"stat_strength": 24}}]}
         problems = self.requirements(subject)["problems"]
         self.assertTrue(any("component_punch_heal" in item and "preset" in item for item in problems), problems)
 
     def test_level_component_preset_rejects_an_opening_duplicate_and_a_zero_weight_category(self):
-        grants = list(LEVEL6_GRANTS)
+        grants = list(LEVEL8_GRANTS)
         subject = {"choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
                    "level_components": grants,
                    "build": [{"step": "opening_base", "at": "opening_rest", "component": "component_punch_heal"},
-                             {"step": "allocate_points", "at": "field", "points": {"stat_strength": 18}}]}
+                             {"step": "allocate_points", "at": "field", "points": {"stat_strength": 24}}]}
         self.assertTrue(any("already owned" in item for item in self.requirements(subject)["problems"]))
         caps = copy.deepcopy(self.caps)
         band = next(row for row in caps["scenarios"]["duel_site"]["parameters"]["component_category_weights"]
@@ -431,6 +432,13 @@ class PlanTest(AdapterCase):
         not_b18_opening = next(active for active in opening if active not in trick["opening"]["actives"])
         not_bindable = next(row["id"] for row in content["abilities"] if row["id"] not in trick["binding"]["actives"])
         build = WORKSHOP["build"]
+        long_kick = next(row for row in content["components"] if row["id"] == "component_long_kick")
+        abilities = {row["id"]: row for row in content["abilities"]}
+        listed_modes = {abilities[active]["target"]["mode"] for active in long_kick["targets"]["actives"]}
+        same_mode_unlisted = next(row["id"] for row in content["abilities"]
+                                  if row["id"] not in long_kick["targets"]["actives"]
+                                  and row["target"]["mode"] in listed_modes)
+        incompatible_active = next(row["id"] for row in content["abilities"] if row["target"]["mode"] not in listed_modes)
 
         def plan(steps, choices=None):
             return {"choices": choices or WORKSHOP["choices"], "build": steps}
@@ -439,9 +447,9 @@ class PlanTest(AdapterCase):
             return {"step": "opening_base", "at": "opening_rest", "component": "component_dirty_trick",
                     "bind": {"active": active, "element": element}}
 
-        points = {"step": "allocate_points", "at": "field", "points": {"stat_physique": 15}}
+        points = {"step": "allocate_points", "at": "field", "points": {"stat_physique": 21}}
         variants = {
-            "allocates 17 of the 18 points": plan([*build[:5], {**points, "points": {"stat_physique": 14}}]),
+            "allocates 17 of the 24 points": plan([*build[:5], {**points, "points": {"stat_physique": 14}}]),
             "the opening rest holds 3": plan([{"step": "allocate_points", "at": "opening_rest", "points": {"stat_strength": 4}},
                                               {**points, "points": {"stat_physique": 14}}]),
             "choose that opening active by definition": plan(build, ["ai_select"] * 3),
@@ -457,8 +465,8 @@ class PlanTest(AdapterCase):
             "is picked in the opening rest": plan([{**build[0], "at": "field"}]),
             "never a level-up draw": plan([*build, {"step": "install", "at": "field", "component": "component_owe_it",
                                                      "target": {"kind": "self"}}]),
-            "does not go onto active_seethe": plan([*build[:4], {**build[4], "target": {"kind": "active", "id": "active_seethe"}},
-                                                    build[5]]),
+            f"does not accept the target mode of {incompatible_active}": plan([*build[:4],
+                {**build[4], "target": {"kind": "active", "id": incompatible_active}}, build[5]]),
             "cannot prove active_hose_down is learned": plan([*build[:4], {**build[4], "target": {"kind": "active",
                                                                                                  "id": "active_hose_down"}}, build[5]]),
             "needs a target": plan([*build[:4], {"step": "install", "at": "field", "component": "component_long_kick"}, build[5]]),
@@ -481,6 +489,9 @@ class PlanTest(AdapterCase):
             with self.subTest(expected=expected):
                 problems = self.requirements(subject)["problems"]
                 self.assertTrue(any(expected in item and item.startswith("IllegalDecision") for item in problems), problems)
+        compatible = plan([*build[:4], {**build[4], "target": {"kind": "active", "id": same_mode_unlisted}}, build[5]])
+        compatible_problems = self.requirements(compatible)["problems"]
+        self.assertFalse(any("does not accept the target mode" in item for item in compatible_problems), compatible_problems)
         self.assertTrue(any("no level-up draws a component" in item
                             for item in self.requirements(plan([*build[:4], build[4], {**points, "points": {"stat_physique": 1}}],
                                                                [{"rule": "definition", "definition": "active_elbow"}]),
@@ -681,16 +692,16 @@ class EvidenceTest(AdapterCase):
         self.assertIn("PresetNotApplied", self.evidence(text=text.replace(fixed, original), plan_manifest=plan)["reason"])
 
     def test_level_component_preset_requires_ordered_staging_grants_and_terminal_provenance(self):
-        grants = list(LEVEL6_GRANTS)
+        grants = list(LEVEL8_GRANTS)
         subject = {"choices": ["ai_select"] * 3, "level_components": grants}
         plan = manifest(subject=subject, sample="diagnostic")
         value = result()
         value["contenders"][0]["components"] = [
-            {**component(name), "source_level": level} for level, name in zip(LEVEL6_DRAW_LEVELS, grants)]
+            {**component(name), "source_level": level} for level, name in zip(LEVEL8_DRAW_LEVELS, grants)]
         joined = ",".join(grants)
         stage = f"LD_EVAL_COMPONENT_PRESET t=5005 contender={S} ticket=1 components={joined}"
-        reward = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "
-        old_grant = f"LD_LEVEL_UP t=5016 contender={S} level=1->6 choices_earned=2 unspent_points=5"
+        reward = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->8 "
+        old_grant = f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=5"
         grant = old_grant + f" components={joined} empty_pool_grants=0"
         text = trace().replace(reward, stage + "\n" + reward).replace(old_grant, grant)
         out = self.evidence(value, text, plan)
@@ -1131,7 +1142,7 @@ class WorkshopEvidenceTest(AdapterCase):
                           ("UninstallComponent", "component_dirty_trick", "-", None, "-"),
                           ("InstallComponent", "component_dirty_trick", "active_elbow:Fire", None, "-"),
                           ("InstallComponent", "component_long_kick", "-", "Active:active_elbow", "-"),
-                          ("AllocatePoints", "-", "-", None, "15,0,0,0,0")])
+                          ("AllocatePoints", "-", "-", None, "21,0,0,0,0")])
         self.assertEqual(out["facts"]["grants"]["subject"][0]["components"], GRANTS)
         installed = {row["id"]: row for row in out["facts"]["builds"]["subject"]["components"] if row["installed"]}
         self.assertEqual((installed["component_dirty_trick"]["element"], installed["component_long_kick"]["target_id"]),

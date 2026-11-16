@@ -141,7 +141,7 @@ def describe(project_root):
     mechanics = {}
     for ability in content["abilities"]:
         mechanics[ability["id"]] = {"status": "Supported", "kind": "active", "opening": bool(ability.get("opening")),
-                                    "evidence": CATALOG_EVIDENCE}
+                                    "target_mode": ability["target"]["mode"], "evidence": CATALOG_EVIDENCE}
     for stat in content["stats"]:
         mechanics[stat["id"]] = {"status": "Supported", "kind": "stat", "evidence": CATALOG_EVIDENCE}
     for component in content["components"]:
@@ -512,8 +512,10 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_components):
                     problem(f"{row['kind']} {component} takes no binding")
                 if not target:
                     problem(f"{row['kind']} {component} needs a target")
-                elif target["kind"] == "active" and target["id"] not in targets.get("actives", []):
-                    problem(f"{component} does not go onto {target['id']}")
+                elif target["kind"] == "active" and target["id"] not in targets.get("actives", []) and not any(
+                        rows.get(active, {}).get("target_mode") == rows.get(target["id"], {}).get("target_mode")
+                        for active in targets.get("actives", [])):
+                    problem(f"{component} does not accept the target mode of {target['id']}")
                 elif target["kind"] == "active" and target["id"] not in learned[at]:
                     problem(f"cannot prove {target['id']} is learned here: choose it by definition")
                 elif target["kind"] == "component" and target["id"] not in targets.get("components", []):

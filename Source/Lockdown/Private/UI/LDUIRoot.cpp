@@ -961,6 +961,8 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         Cast<UOverlaySlot>(Empty->Slot)->SetVerticalAlignment(VAlign_Center);
         Seat(Card);
     }
+    // Rebuilding during a tick can otherwise paint the grid before its first layout prepass.
+    Seats->ForceLayoutPrepass();
 }
 
 void ULDUIRoot::SetFrontendPage(bool bStart)

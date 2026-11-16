@@ -151,6 +151,7 @@ protected:
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
+    friend class FLDHUDCardFacesTest;
     // How a face is drawn this frame (NativePaint): the kind's shape and rim, or a state colour that overrides it.
     enum class EFaceState : uint8 { Normal, Hovered, Held, Legal, Replace, Detached, Pick, Rejected, Dim };
     // One stored component's icon in the open grid.
@@ -189,7 +190,10 @@ private:
     {
         USizeBox* Frame=nullptr;
         UBorder* Panel=nullptr;
+        UScaleBox* Fit=nullptr;
         UVerticalBox* List=nullptr;
+        UWrapBox* DenseList=nullptr;
+        bool bDense=false;
         UWidget* Placeholder=nullptr;
         USizeBox* PlaceholderBox=nullptr;
         UBorder* PlaceholderFace=nullptr;

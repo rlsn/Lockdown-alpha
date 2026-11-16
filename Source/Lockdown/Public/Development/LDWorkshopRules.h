@@ -11,13 +11,15 @@ namespace LDWorkshop
 {
     // Whether Id is listed in Ids (case-sensitive catalog ids).
     LOCKDOWN_API bool Lists(const TArray<FString>& Ids, FName Id);
+    // Whether an ability may host a mod or connector: exact authored targets plus every ability with the same target mode.
+    LOCKDOWN_API bool TargetsActive(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition, FName ActiveId);
     // The first effect of Op the component carries, or null.
     LOCKDOWN_API const FLDDemoEffectDefinition* FindOp(const FLDDemoComponentDefinition& Definition, ELDDemoEffectOp Op);
-    // The stored shape of an installed mod or connector: a target kind its definition accepts (Active / Component listed in
-    // its targets, Dash when it takes the innate D, None for a self-installed mod), no active/element binding, and C12's
+    // The stored shape of an installed mod or connector: a target kind its definition accepts (Active of an accepted target
+    // mode, Component listed in its targets, Dash when it takes the innate D, None for a self-installed mod), no active/element binding, and C12's
     // repeated base exactly when the definition takes one (one of its ExtraBases). False for a base component.
-    LOCKDOWN_API bool TargetShape(const FLDDemoComponentDefinition& Definition, ELDComponentTargetKind Kind, FName TargetId,
-        FName BoundActive, ELDDemoElement Element, FName BoundComponent);
+    LOCKDOWN_API bool TargetShape(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition,
+        ELDComponentTargetKind Kind, FName TargetId, FName BoundActive, ELDDemoElement Element, FName BoundComponent);
     // Whether two components conflict on the same target (spec §4.4): distinct components of one form.
     LOCKDOWN_API bool Conflicts(const FLDDemoComponentDefinition& A, const FLDDemoComponentDefinition& B);
 }

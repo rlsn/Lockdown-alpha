@@ -71,7 +71,7 @@ Host 带仍连接的房间回 Lobby，再完整初始化新局。Lobby 和结果
 | `Lobby` / 真人进出 | 原子预留/释放真人容量；变更结构名单版本并使旧 Ready 失效 | PreLogin 检查之外，在最终入房提交点重查容量和阶段，覆盖同时到达的两个连接。 |
 | `Lobby` / Host Start | 重查 Host、名单版本和所有真人 Ready，关闭准入，进入 `Starting`，冻结参赛快照 | 重复 Start 重放原结果；同 ID 改条款拒绝。连接离开若先提交则改变名单并拒绝旧 Start。 |
 | `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；初次身体全部站到各自的休息锚点（休息生命、隔离组、世界冻结）后统一进入 `Rest`（R0 的配装步骤；`PublicMatch.StartedAtMs` 为此刻） | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
-| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。自己的构筑命令在每个休息步骤都受理（PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；未选的开局机会保留、不代选 |
+| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`，仅 R1、R2 的最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → R1/R2 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`；R0、R3 不开放报名或举行 PK，直接进入返场。自己的构筑命令在每个休息步骤都受理（PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；未选的开局机会保留、不代选 |
 | `Rest` / 返场 | 返回倒计时结束：清除休息效果、退休全部休息生命、按 §3.4 放置下一条野外生命并给 `LIFE.ProtectionSec`；进入 `Development`。R0 返场是每名参赛者在喷漆名单上的 `Joined` | 放置作为全员共同提交（§3.4“共同入场”）：有人放不下时谁都不返场，T 与旗杆停在边界、每拍重试，超过 `REST.EntryReadyTimeoutSec` 为 `LD_REST_RETURN_UNREADY` 权威故障；不跳过、不默认成功 |
 | `Development` / 野外段到期 | 定时野外段的 T 到达 `MATCH.FieldSegmentSec` 的整数倍时进入下一次休息（`Rest`），见 §3.4 | 进入休息不是死亡：无 K/D、击杀播报、奖励或复活等待 |
 | `Development` / 最终野外开放 | R3 返场即最终野外开始，`FLDCaptureReducer::ScheduleOpen` 把开放时刻定为该边界，同一边界的 Capture 阶段进入 `CaptureOpen`，只在开放后开始计喷漆进度 | 仍可升级、战斗；不能把前三段野外的区内停留时间算入喷漆。 |
@@ -128,17 +128,17 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 - **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，真人只可准备不可撤销；
   OwnerState 发布 `bRestReady`/`bCanRestReady`，公共时间线 `ReadyContenders` 只含真人id。`AdvanceTimeline` 忽略AI，全部仍在局真人准备后，
   `FinishBuildEarly` 仅缩短配装截止到当前时刻加 `REST.SignupSec`；已在最后报名窗口则不改，重复请求不延长。新休息/新局清空准备。
-- **休息步骤**：Build（R0 `REST.OpeningBuildSec`、R1–R3 `REST.BuildSec`；最后 `REST.SignupSec` 为 PK 站圈报名，截止时刻含在内）→
-  锁定报名者 ≥2 时 Draw `REST.DrawSec` / Betting `REST.BettingSec` / PKReady `REST.PKReadySec` / PK（至多 `REST.PKMaxSec`）/
-  Settlement `REST.SettlementSec` / Payout `REST.PayoutSec`，否则直接 → Return `REST.ReturnSec`。
+- **休息步骤**：Build（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`，其中只有 R1、R2 的最后 `REST.SignupSec` 是 PK 站圈报名，截止时刻含在内）→
+  R1/R2 锁定报名者 ≥2 时 Draw `REST.DrawSec` / Betting `REST.BettingSec` / PKReady `REST.PKReadySec` / PK（至多 `REST.PKMaxSec`）/
+  Settlement `REST.SettlementSec` / Payout `REST.PayoutSec`；R0、R3 不开放报名或举行 PK，直接 → Return `REST.ReturnSec`；R1/R2 报名不足 2 人也直接返场。
   报名锁定在该边界成长命令之后的 Transactions 阶段执行（`LockTimelineBuild`，截止时刻提交的命令有效；只锁报名名单，不锁构筑），其余转换在 RespawnsAndWorld 开始时执行（`AdvanceTimeline`）。
   `ReadBuildStage` 在 Build/Payout 为 Rest、其他休息步骤为 RestLocked：自己的构筑命令在两者都受理（不锁定报名者构筑快照，每次权威构筑变更直接投影到当前 PK 生命），NPC 服务在 RestLocked 以 `BuildLocked` 拒绝；
   Return 步骤 `IsInputLocked` 为真，订单、攻击、施法与冲刺都以 `NotStarted` 拒绝。休息服务（NPC、洗点、替换、遗忘）见[成长事务](../systems/GROWTH_TRANSACTIONS.md)。
 - **PK 接口**：PK 是可选提供者 `ELDMatchProvider::PK`，`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定（`FLDRestStepNotice`）；
-  报名是站圈报名（半径复用 `AIRDROP.PickupRadiusCm`）：没有报名请求，
-  `ALDGameMode::RefreshRestSignups` 在报名窗口内每拍（`AdvanceTimeline` 中）按休息生命已提交脚点是否在 `SignupDiskFor` 的公共圆盘
+  报名是站圈报名（半径复用 `AIRDROP.PickupRadiusCm`）：只有 R1、R2 有报名窗口，R0、R3 不报名也不举行 PK；
+  没有报名请求，`ALDGameMode::RefreshRestSignups` 在有效报名窗口内每拍（`AdvanceTimeline` 中）按休息生命已提交脚点是否在 `SignupDiskFor` 的公共圆盘
   （六站位的平均位置为圆心，半径 `AIRDROP.PickupRadiusCm`，XY、边界算在内）里重算 `Timeline.Signups`，锁定时再算一次，截止时刻圈内的人即锁定名单；
-  缺少报名站位是明确错误。没有该提供者时无人计入报名，每次休息跳过 PK。PK 提前分出结果时提供者调用 `ALDGameMode::FinishRestPK`。
+  缺少报名站位是明确错误。没有该提供者时 R1/R2 无人计入报名并跳过 PK；PK 提前分出结果时提供者调用 `ALDGameMode::FinishRestPK`。
 - **共同入场**（外层参数 §1：“阶段资源/加载未就绪时冻结入场，30秒仍无法建立合法场景则本场NoContest并明确报错”）：
   PK 入场（PKReady）与返回野外（Return → 野外）都由 `ALDGameMode::PrepareJointPhase` 先为全部目标准备位置与战斗状态，全部成功才一起提交
   （`CommitPhaseBody`，提交中任何失败都是故障）；有一人放不下就全部释放并撤回每个目标的出生请求（`ULDMapRegistry::WithdrawSpawnRequest`），
@@ -179,7 +179,7 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   七处全被占用时，待入休息位者保持等待并重试，不先提交新生命；位置恢复后才共同提交玩家生命与真实假人，不能因普通占位把整局带入 authority fault。
   `ServerTrainingReset` 带 match/life/rest/步骤起点，入队和执行都重查窗口，只重置本人和对应槽位假人，不清掉其他假人；
   下一休息、PK后新生命或新局的旧请求不会生效。训练资源与效果在阶段边界清理，不带入野外。
-- 其他世界拥有者（如后续的符咒）在 `EnterRestWorld/ExitRestWorld` 接入；查询入口为 `IsRestPhase`、`IsInputLocked`、`ReadBuildStage`、
+- 其他世界拥有者在 `EnterRestWorld/ExitRestWorld` 接入；查询入口为 `IsRestPhase`、`IsInputLocked`、`ReadBuildStage`、
   `GetFieldNowMs`、`IsFieldRunning`、`FieldDueAuthorityMs`、`NextTimelineDueMs`。
 
 ## 4. 唯一核心身份与写权限
@@ -917,7 +917,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` | 核心步序：Motion 后判定步内被冻结的守护恢复并完成，跳过边界时刻玩法阶段，Capture/Close 在守护获胜时刻锁定唯一结果 | 真实驱动与原生运动（步内守护完成在场景中不一定出现） |
 | `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame` | 喷漆区求交、公共 DTO（喷漆、涂鸦主人、守护字段组合）校验、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 | 真实连接 |
 | `Lockdown.Rules.DemoSessionReceipts`、`Lockdown.Rules.DemoCore.*`、`Lockdown.Rules.ViewPrivacySchema` | 会话窗口重放/拒旧、核心时间与许可、公开字段白名单 | 真实连接 |
-| `Lockdown.Rules.DemoRest.Timeline`、`.PhasePolicy`、`.EntryHold`、`.SpawnIdentity`；`Lockdown.Rules.DemoPK.RingOutsideTime`；`Lockdown.Rules.DemoVision.EffectAccess` | 纯时间线：批准时长、报名窗口（截止含在内）、锁定保持、PK 跳过、T 在休息冻结与野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按 T 的复活等待、客户端 T 推导；隔离组、冻结身体、阶段清理与补满；入场未就绪时 PKReady→PK 与 Return→野外停在边界、就绪后按实际时刻进入（`.EntryHold`）；被撤回的出生请求以新序号重试而不触发 `RequestConflict`、未定的请求仍挡住新序号（`.SpawnIdentity`）；圈伤按步内分段脚点路径的真实圈外时长切分（`.RingOutsideTime`）；观众/同队共享视野下飞行物的可见权限（`.EffectAccess`） | 真实驱动下的阶段生命放置、返场就近搜索与世界冻结；`RunDemoOpponentCheck.ps1` 另检查假人槽位并尝试触发 `Lives` 扩容（R01，未发生扩容记为未覆盖），以夹具制造 PK 出生点全被占（R02，等满 `REST.EntryReadyTimeoutSec` 后 NoContest）与返场时部分人放不下（R14） |
+| `Lockdown.Rules.DemoRest.Timeline`、`.PhasePolicy`、`.EntryHold`、`.SpawnIdentity`；`Lockdown.Rules.DemoPK.RingOutsideTime`；`Lockdown.Rules.DemoVision.EffectAccess` | 纯时间线：批准时长、R1/R2 报名窗口（截止时刻含在内）、R0/R3 不举行 PK、锁定保持、报名不足 2 人跳过 PK、T 在休息冻结与野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按 T 的复活等待、客户端 T 推导；隔离组、冻结身体、阶段清理与补满；入场未就绪时 PKReady→PK 与 Return→野外停在边界、就绪后按实际时刻进入（`.EntryHold`）；被撤回的出生请求以新序号重试而不触发 `RequestConflict`、未定的请求仍挡住新序号（`.SpawnIdentity`）；圈伤按步内分段脚点路径的真实圈外时长切分（`.RingOutsideTime`）；观众/同队共享视野下飞行物的可见权限（`.EffectAccess`） | 真实驱动下的阶段生命放置、返场就近搜索与世界冻结；`RunDemoOpponentCheck.ps1` 另检查假人槽位并尝试触发 `Lives` 扩容（R01，未发生扩容记为未覆盖），以夹具制造 R1 PK 出生点全被占（R02，等满 `REST.EntryReadyTimeoutSec` 后 NoContest）与返场时部分人放不下（R14） |
 | `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个真实拥有客户端 + 三个生产 AI；正常 R0、三段发育、R3 与独立场地入场；公开终局时钟、六个真实身体与本地目标标记；用正常导航/攻击争夺直至守护或期限结果；R3 三个真人经成长面板选择普通主动，服务器核对全部六人的选择与构筑锁定；终局 XP/构筑不变、六行贡献、写闸关闭；回新 Lobby 并正常开第二局检查清理 | 独立 FIN 效果、全部技能视觉质量、所有复活/截止细节、网络异常；通过结论只认当次 Artifacts |
 | `Scripts\RunDemoSessionFaultCheck.ps1` | 客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态、Host 经菜单离开 | 跨机器局域网与公网 |
 | `Scripts\RunDemoOpponentCheck.ps1` | AI 绑定、自主循环、喷漆/守护/围攻行为、AI 以 `GuardSucceeded` 获胜且是公开涂鸦主人、回 Lobby 后退役 | 真人离开、网络异常 |

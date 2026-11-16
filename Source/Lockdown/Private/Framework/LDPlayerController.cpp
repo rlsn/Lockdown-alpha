@@ -153,6 +153,22 @@ void ALDPlayerController::ClientDeathRecap_Implementation(const FLDDeathRecapVie
     DeathRecap=Recap;
 }
 
+void ALDPlayerController::ClientReactionAssist_Implementation(const FLDReactionAssistView& View)
+{
+    FString Error;
+    // The prompt can overtake the replicated own state; it is kept and the feed waits until that state catches up.
+    const LDDamageRecap::EAssistKeep Result=LDDamageRecap::KeepReactionAssist(ReactionAssists,ReactionAssistSerial,View,
+        OwnerState.Match,OwnerState.Life,ReactionAssistsKept,Error);
+    if (Result==LDDamageRecap::EAssistKeep::Invalid)
+    {
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_REACTION_ASSIST_REJECTED match=%u life=%u reason=%s"),View.Match,View.Life,*Error);
+    }
+    else if (Result==LDDamageRecap::EAssistKeep::Stale)
+    {
+        UE_LOG(LogLDMatch,Verbose,TEXT("LD_REACTION_ASSIST_STALE match=%u life=%u reason=%s"),View.Match,View.Life,*Error);
+    }
+}
+
 void ALDPlayerController::ClientDamageSummary_Implementation(const FLDDamageSummaryView& Summary)
 {
     FString Error;

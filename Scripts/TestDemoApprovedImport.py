@@ -278,7 +278,9 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 8, 8))
+                          self.data["identity"]["projection_revision"]), (3, 10, 9))
+        self.assertEqual(self.data["progression"]["workshop_capacity"],
+                         {"base": 5, "levels_per_slot": 2, "body_column": 4, "dash_column": 2})
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -309,13 +311,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.BasicAttackWindupSec", "ms", ".300"), ("VISION.RadiusCm", "cm", "1050"),
             ("CAPTURE.RadiusCm", "cm", "300"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
-            ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "240"),
+            ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),
             ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
-            ("SHOWDOWN.RespawnCutoffSec", "ms", "150"), ("SHOWDOWN.ClosureStartsSec", "ms", "120"),
-            # #198 match timeline: three 180 s field segments, rest phases and field respawn waits by T at death
+            ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
+            # #276 match timeline: three 130 s field segments, rest phases and field respawn waits by T at death
             # (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
-            ("MATCH.FieldSegmentSec", "ms", "180"),
-            ("REST.OpeningBuildSec", "ms", "180"), ("REST.BuildSec", "ms", "120"), ("REST.SignupSec", "ms", "10"),
+            ("MATCH.FieldSegmentSec", "ms", "130"),
+            ("REST.OpeningBuildSec", "ms", "75"), ("REST.BuildSec", "ms", "50"), ("REST.SignupSec", "ms", "10"),
             ("REST.DrawSec", "ms", "5"), ("REST.BettingSec", "ms", "8"), ("REST.PKReadySec", "ms", "3"),
             ("REST.PKMaxSec", "ms", "60"), ("REST.SettlementSec", "ms", "3"), ("REST.PayoutSec", "ms", "12"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
@@ -339,17 +341,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
-            ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "60"),
+            ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "43"),
             ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
             ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"),
-            # #198 outer §5 (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175, comment
-            # 6752628806: "批准整套方案，按票内参数实施"): six drops at explicit T, 40 s expiry, camp markers at segment+15 s.
-            ("AIRDROP.ExpireSec", "ms", "40"), ("CAMPMARK.RevealSec", "ms", "15"),
+            ("AIRDROP.ExpireSec", "ms", "30"), ("CAMPMARK.RevealSec", "ms", "11"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
-            # #198 outer parameters: charm waves at T=30/120/.../570, 45 field seconds each.
-            ("CHARM.FirstWaveSec", "ms", "30"), ("CHARM.WaveIntervalSec", "ms", "90"), ("CHARM.LifetimeSec", "ms", "45"),
-            ("CHARM.PickupRadiusCm", "cm", "100"), ("CHARM.HealMaxHPRatio", "ratio", ".20"),
-            ("CHARM.ManaMaxMPRatio", "ratio", ".25"), ("CHARM.MoveSpeedRatio", "ratio", ".20"), ("CHARM.MoveSpeedSec", "ms", "6"),
+            ("AIRDROP.HealMaxHPRatio", "ratio", ".20"), ("AIRDROP.ManaMaxMPRatio", "ratio", ".25"),
+            ("AIRDROP.MoveSpeedRatio", "ratio", ".20"), ("AIRDROP.MoveSpeedSec", "ms", "6"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
@@ -362,6 +360,18 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
             ("COMBAT.BurnPerSec", "points", "3"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
             ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"), ("COMBAT.LifestealCap", "ratio", ".35"),
+            ("COMBAT.KeystonePhysiqueHealToShieldRatio", "ratio", ".25"),
+            ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", ".035"),
+            ("COMBAT.KeystonePhysiqueShieldDurationSec", "ms", "3"),
+            ("COMBAT.KeystonePhysiqueIntervalSec", "ms", "6"),
+            ("COMBAT.KeystoneThickSkinGuardPoints", "points", "6"),
+            ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", ".12"),
+            ("COMBAT.KeystoneThickSkinIntervalSec", "ms", "8"),
+            ("COMBAT.KeystoneStrengthDamageRatio", "ratio", ".06"),
+            ("COMBAT.KeystoneBrainsManaRefundRatio", "ratio", ".15"),
+            ("COMBAT.KeystoneAgilityDamageBase", "points", "12.5"),
+            ("COMBAT.KeystoneAgilityADRatio", "ratio", ".125"),
+            ("COMBAT.KeystoneAgilityEmpowerDurationSec", "ms", "3"),
             # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
             ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"), ("COMBAT.ElectrifiedSec", "ms", "4"),
             ("COMBAT.DischargeRadiusCm", "cm", "350"), ("COMBAT.DischargeIntervalSec", "ms", "1"),
@@ -372,25 +382,23 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("XP.BaseToNext", 48), ("XP.IncreasePerLevel", 12),
             ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
-            ("CHARM.WaveCount", 7), ("CHARM.PerWave", 2),
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
-            # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.
-            ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
+            ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
             ("GROWTH.NpcActivePoints", 5), ("GROWTH.ActiveSkipPoints", 5), ("GROWTH.NpcActiveSkipPoints", 3),
             # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # #198 B: a level-up whose component roll finds the common pool empty gives 3 points instead.
             ("GROWTH.EmptyComponentPoolPoints", 3),
-            # #198 G (spec §4.5): FillGap costs 4 points; dismantle takes 3 distinct common components for 1.
-            ("GROWTH.FillGapPoints", 4), ("GROWTH.DismantleInputCount", 2),
+            # #198 G (spec §4.5): FillGap costs 4 points; dismantle takes two distinct common components for one.
+            ("GROWTH.FillGapPoints", 4), ("GROWTH.DismantleInputCount", 2), ("GROWTH.KeystoneThresholdPoints", 18),
         ):
             expected[key] = (None, value)
-        expected["AIRDROP.LandSec"] = ("ms", ("45", "125", "225", "305", "405", "485"))
+        expected["AIRDROP.LandSec"] = ("ms", ("32", "90", "163", "220", "293", "350"))
         self.assertEqual(set(self.data["parameters"]), set(expected))
         for key, (unit, value) in expected.items():
             with self.subTest(key=key):
@@ -582,7 +590,8 @@ class ApprovedDemoData(unittest.TestCase):
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels",
                           "bonus_component_levels", "workshop_capacity", "component_category_weights"})
         self.assertEqual(self.data["progression"]["bonus_component_levels"], (2, 4, 6, 8, 10, 12, 14, 16))
-        self.assertEqual(dict(self.data["progression"]["workshop_capacity"]), {"base": 5, "levels_per_slot": 2})
+        self.assertEqual(dict(self.data["progression"]["workshop_capacity"]),
+                         {"base": 5, "levels_per_slot": 2, "body_column": 4, "dash_column": 2})
 
     def test_all_base_component_values_openings_and_category_bands(self):
         # #198 B: B01-B18 at G=1 in native ID order (issue #198 catalog section 7, AI spec section 4.3).
@@ -868,9 +877,9 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"],
-                         (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440, 1700, 1980, 2280, 2600, 2940, 3300))
+                         (0, 48, 108, 180, 264, 360, 468, 588, 720, 864, 1020, 1188, 1368, 1560, 1764, 1980))
         self.assertEqual(self.data["progression"]["xp_to_next"],
-                         (80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360))
+                         (48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
             ("monster_scavenger", "Low", 3, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 14, 1250),
@@ -895,10 +904,9 @@ class ApprovedDemoData(unittest.TestCase):
         for key, expected in (("hp", 4500), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
                               ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
-        # #198 outer §5 (approved issue #198 comments 6752601175 / 6752628806): field T=240 s once, leaves at T=540 s,
-        # and the old 90 s AD/AP +25% / move speed +10% approval buff is removed.
+        # #276 tempo: field T=173 s once, leaves at the final timed-field boundary T=390 s; the old approval buff is removed.
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
-                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 240000, 540000, 300))
+                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 173000, 390000, 300))
         self.assertNotIn("approval", boss)
 
     def test_world_identity_and_shared_values(self):
