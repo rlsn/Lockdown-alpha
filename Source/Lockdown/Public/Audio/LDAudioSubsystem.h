@@ -12,7 +12,7 @@ class UWorld;
 struct FLDMusicRequest;
 
 // Local sound output for one game instance: resolves the whole cue and music catalog once at startup and owns the single
-// volume chain (SC_DemoMaster and its child SC_DemoMusic, overridden in SMix_DemoUser, UI_AND_SETTINGS 8). It never reads
+// volume chain (SC_DemoMaster and its child SC_DemoMusic, overridden in SMix_DemoUser, VISION_AND_UI settings page). It never reads
 // gameplay state; callers pass cues and music requests derived from DTOs they may already read, and every sound plays as
 // a non-spatial 2D sound.
 UCLASS()

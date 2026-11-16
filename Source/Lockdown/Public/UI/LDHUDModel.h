@@ -429,7 +429,7 @@ namespace LDHUD
         FString Kind;
         FString Name;
         FString State;
-        // Intent submission and execution limits are separate (UI 4): blocks grey the slot and explain why, but an
+        // Intent submission and execution limits are separate (MOVEMENT_INPUT_AND_CAMERA input ownership): blocks grey the slot and explain why, but an
         // explicit activation is still sent so the server decides, including protection removal and EmptySource.
         bool bCanSubmitIntent=false;
         uint32 ExecutionBlocks=0;
@@ -924,7 +924,7 @@ namespace LDHUD
     };
     LOCKDOWN_API FString EntryLabel(ELDCombatEntry Entry);
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
-    // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
+    // separate facts (VISION_AND_UI feedback); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);
     // The same execution failure for the pressed Q/W/D slot, which already names its entry: the reason only. Empty for
     // other entries and for anything CombatReceiptNotice would not report as a failure.

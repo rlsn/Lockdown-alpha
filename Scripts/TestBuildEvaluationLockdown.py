@@ -489,9 +489,11 @@ class PlanTest(AdapterCase):
             with self.subTest(expected=expected):
                 problems = self.requirements(subject)["problems"]
                 self.assertTrue(any(expected in item and item.startswith("IllegalDecision") for item in problems), problems)
-        compatible = plan([*build[:4], {**build[4], "target": {"kind": "active", "id": same_mode_unlisted}}, build[5]])
-        compatible_problems = self.requirements(compatible)["problems"]
-        self.assertFalse(any("does not accept the target mode" in item for item in compatible_problems), compatible_problems)
+        ineffective = plan([*build[:4], {**build[4], "target": {"kind": "active", "id": same_mode_unlisted}}, build[5]])
+        ineffective_problems = self.requirements(ineffective)["problems"]
+        # Same delivery mode alone is not enough: long_kick changes no unlisted active without a knockback.
+        self.assertTrue(any(f"does not accept the target mode of {same_mode_unlisted}" in item for item in ineffective_problems),
+                        ineffective_problems)
         self.assertTrue(any("no level-up draws a component" in item
                             for item in self.requirements(plan([*build[:4], build[4], {**points, "points": {"stat_physique": 1}}],
                                                                [{"rule": "definition", "definition": "active_elbow"}]),

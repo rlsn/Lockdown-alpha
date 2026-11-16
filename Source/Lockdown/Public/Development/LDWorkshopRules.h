@@ -11,7 +11,8 @@ namespace LDWorkshop
 {
     // Whether Id is listed in Ids (case-sensitive catalog ids).
     LOCKDOWN_API bool Lists(const TArray<FString>& Ids, FName Id);
-    // Whether an ability may host a mod or connector: exact authored targets plus every ability with the same target mode.
+    // Whether an ability may host a mod or connector: exact authored targets, plus an ability of an authored target's
+    // delivery mode that the component actually changes (a mod's compile gate, else every effect of a listed same-mode host).
     LOCKDOWN_API bool TargetsActive(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition, FName ActiveId);
     // The first effect of Op the component carries, or null.
     LOCKDOWN_API const FLDDemoEffectDefinition* FindOp(const FLDDemoComponentDefinition& Definition, ELDDemoEffectOp Op);

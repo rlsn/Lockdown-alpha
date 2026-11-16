@@ -168,7 +168,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     const FName DirtyTrick(TEXT("component_dirty_trick")), TabLedger(TEXT("component_tab_ledger")), BigTab(TEXT("component_big_tab"));
     const FName SpikyHide(TEXT("component_spiky_hide")), DirtyFist(TEXT("component_dirty_fist"));
 
-    // XP 600 is level 6: 3 opening + 5 * 3 = 18 points earned.
+    // XP 400 is level 6: 3 opening + 5 * 3 = 18 points earned.
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
     Build.Level = 6;
     FieldTestOwn(Build, FireSkin);
@@ -185,15 +185,15 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
 
     FLDGrowthBuild Out;
     int64 Paid = 0;
-    bGood &= FieldTestReason(Test, TEXT("FillGap outside the rest window"), LDProgression::ApplyFillGap(Content, Build, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap outside the rest window"), LDProgression::ApplyFillGap(Content, Build, 400, 0,
         FireSkin, FistFire, Field, Out, Paid), ELDGrowthReason::NotRestWindow);
-    bGood &= FieldTestReason(Test, TEXT("FillGap with a base that is no filler"), LDProgression::ApplyFillGap(Content, Build, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap with a base that is no filler"), LDProgression::ApplyFillGap(Content, Build, 400, 0,
         FireSkin, TabLedger, Rest, Out, Paid), ELDGrowthReason::NoGapFiller);
     FLDGrowthBuild Poor = Build;
     Poor.PermanentSpentPoints = 15;
-    bGood &= FieldTestReason(Test, TEXT("FillGap without the points"), LDProgression::ApplyFillGap(Content, Poor, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap without the points"), LDProgression::ApplyFillGap(Content, Poor, 400, 0,
         FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::NotEnoughPoints);
-    bGood &= FieldTestReason(Test, TEXT("FillGap of C01 with B01"), LDProgression::ApplyFillGap(Content, Build, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap of C01 with B01"), LDProgression::ApplyFillGap(Content, Build, 400, 0,
         FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::None);
     const FLDComponentInstance* Filled = Out.FindComponent(FistFire);
     bGood &= Test.TestTrue(TEXT("Payment, filler and the filled mark commit together"), Paid == 4 && Out.PermanentSpentPoints == 4
@@ -201,7 +201,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     FLDGrowthBuild Again = Out;
     Again.Components.RemoveAll([&](const FLDComponentInstance& Row) { return Row.Id == FistFire; });
     bGood &= FieldTestReason(Test, TEXT("A filled target never fills again, even without its entry"), LDProgression::ApplyFillGap(
-        Content, Again, 600, 0, FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::GapAlreadyFilled);
+        Content, Again, 400, 0, FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::GapAlreadyFilled);
 
     // Dismantle: two distinct owned commons for one unowned common; installs on a surrendered host come off.
     FLDGrowthBuild Shop = LDProgression::StartBuild(Content);
@@ -234,7 +234,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
         && (Received->TargetComponents.Contains(SpikyHide.ToString()) || Received->ExtraBases.Contains(SpikyHide.ToString()))
         && Out.FindComponent(Outcome.Received)->Source == ELDComponentSource::Dismantle);
     bGood &= Test.TestTrue(TEXT("The surrendered ones are gone and the mod on the surrendered host returned to inventory"),
-        !Out.FindComponent(TabLedger) && Out.FindComponent(FistFire) && Out.FindComponent(SpikyHide)->bInstalled
+        !Out.FindComponent(TabLedger) && !Out.FindComponent(FistFire) && Out.FindComponent(SpikyHide)->bInstalled
         && Out.FindComponent(BigTab) && !Out.FindComponent(BigTab)->bInstalled && Outcome.Uninstalled == TArray<FName>{BigTab});
     bGood &= FieldTestReason(Test, TEXT("The result is a valid build"), LDProgression::ValidateBuild(Content, Out), ELDGrowthReason::None);
     LDProgression::FDismantleOutcome Same;

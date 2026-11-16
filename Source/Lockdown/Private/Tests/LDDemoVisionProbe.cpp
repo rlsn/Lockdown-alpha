@@ -383,7 +383,7 @@ public:
             TEXT("Other units exist here only as proxies of this owner's current frame") + (Why.IsEmpty() ? FString() : TEXT(": ") + Why));
     }
 
-    // #15H (WORLD_CAMPS_AND_VISION §5.4, CT-A17): the Listen Host shows other units only through its own projection.
+    // #15H (VISION_AND_UI field permissions and Listen Host, CT-A17): the Listen Host shows other units only through its own projection.
     void CheckHostPresentation(const UWorld& InWorld, const ALDGameMode& Mode, const ALDPlayerController& Local,
         const ALDWorldViewRelay& Relay, const FLDWorldView& Frame)
     {

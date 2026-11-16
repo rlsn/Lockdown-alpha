@@ -235,14 +235,14 @@ void ALDPlayerController::FlushPressedKeys()
 {
     Super::FlushPressedKeys();
     // The engine also flushes when a panel or Settings takes keyboard focus inside this window: that only ends local
-    // gestures. Losing OS focus is Navigation's single Stop (UI 4, 7).
+    // gestures. Losing OS focus is Navigation's single Stop (MOVEMENT_INPUT_AND_CAMERA input ownership).
     ReleaseLocalInput();
 }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {
     // The menu and Settings suppress new world commands only: an accepted order keeps its heartbeat and the body
-    // keeps following its path underneath (UI 4, 7).
+    // keeps following its path underneath (MOVEMENT_INPUT_AND_CAMERA input ownership).
     bControlsSuppressed=bOpen;
     ReleaseLocalInput();
     FInputModeGameAndUI Mode;

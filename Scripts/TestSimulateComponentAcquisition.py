@@ -3,6 +3,10 @@ import unittest
 import SimulateComponentAcquisition as Sim
 
 
+def content_row(content, component):
+    return next(item for item in content["components"] if item["id"] == component)
+
+
 class SimulateComponentAcquisitionTests(unittest.TestCase):
     def test_every_catalog_entry_has_a_semantic_tag(self):
         content = Sim.load(Sim.CONTENT)
@@ -21,18 +25,13 @@ class SimulateComponentAcquisitionTests(unittest.TestCase):
             self.assertTrue(cat.hosts(drawn, actives, owned), drawn)
             owned.add(drawn)
 
-    def test_mod_targets_any_learned_active_with_the_same_target_mode(self):
+    def test_mod_targets_a_same_mode_active_only_when_it_changes_it(self):
         content = Sim.load(Sim.CONTENT)
         cat = Sim.Catalog(content, filtered=True)
-        component = "component_long_kick"
-        authored = content["components"]
-        row = next(item for item in authored if item["id"] == component)
-        listed = set(row.get("targets", {}).get("actives", []))
-        modes = {cat.active_modes[active] for active in listed}
-        same_mode = next(active for active in cat.actives if active not in listed and cat.active_modes[active] in modes)
-        other_mode = next(active for active in cat.actives if cat.active_modes[active] not in modes)
-        self.assertIn(same_mode, cat.hosts(component, [same_mode], set()))
-        self.assertNotIn(other_mode, cat.hosts(component, [other_mode], set()))
+        self.assertNotIn("active_zap", content_row(content, "component_crowd_hit")["targets"]["actives"])
+        self.assertIn("active_zap", cat.hosts("component_crowd_hit", ["active_zap"], set()))
+        self.assertNotIn("active_pants_down", cat.hosts("component_skewer", ["active_pants_down"], set()))
+        self.assertNotIn("active_open_mic", cat.hosts("component_crowd_hit", ["active_open_mic"], set()))
 
     def test_draw_requirement_needs_one_listed_active_learned(self):
         content = Sim.load(Sim.CONTENT)

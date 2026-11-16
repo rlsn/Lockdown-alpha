@@ -943,10 +943,10 @@ XP 曲线：每级所需从 48 起线性增加 12，864 累计 XP 达到十级�
 
 ## 8. 世界几何校准与未验证部分
 
-世界报告拥有正式坐标、可达目标集合和路径结果，本报告只拥有参数。
+[世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)拥有正式坐标、可达目标集合和路径结果，本报告只拥有参数。
 本节使用世界团队提交 `a961ad769c167f5bf8e229c0c29aaea2d2dd92d4` 的
 单一100m方形/单层候选方案及最终成员/出生偏移计算结果；
-完整坐标、五墙、路径构造和查询签名由 `WORLD_CAMPS_AND_VISION.md` 维护，
+完整坐标、五墙、路径构造和查询签名由[世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)维护，
 这里记录校准结果而不复制另一套可编辑坐标。它们仍是离线模型，不是UE路径实测。
 
 | 世界提供的几何结果 | 用本报告参数复算 | 设计结论与限制 |
@@ -1172,7 +1172,7 @@ XP和派生升级机会应先同时 Prepare，
 持续来源与成长请求分别按 §2/10 生命周期处理，不以一个“全部清空”策略替代。
 设计数值验证需要各域真实生产者/消费者；不能以 UI 禁用按钮替代服务器拒绝。
 
-订单接线见[操作与目标选择](CONTROLS_AND_TARGETING.md)：现有 `ULDNavigationComponent::SubmitOrder` /
+订单接线见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)：现有 `ULDNavigationComponent::SubmitOrder` /
 `CancelOrder` 处理空间订单。
 空间订单只含MoveGround/AttackUnit/AttackMove；普攻逐次交给Combat，
 Navigation的MoveIdentity/AttackCycle只作关联，不拥有CombatToken、NextAttackAt或副击结算。

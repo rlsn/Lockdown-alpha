@@ -204,7 +204,7 @@ namespace LDCombatSourcesDetail
     }
 }
 
-// COMBAT 5.1: each learned definition keeps one track and its end time.
+// COMBAT_AND_GROWTH sources and cooldowns: each learned definition keeps one track and its end time.
 bool LDCombatSourceRules::PlanTrackBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,
     const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out, ELDCombatPrepareError& Code, FString& Error)
 {

@@ -9,7 +9,7 @@ class UTextBlock;
 class UVerticalBox;
 class USlider;
 class ULDGameInstance;
-// The settings page (UI_AND_SETTINGS 8). One category page shows at a time behind named tabs; every row shows its current
+// The settings page (VISION_AND_UI settings page). One category page shows at a time behind named tabs; every row shows its current
 // value. Local preferences apply and save at once; VSync and quality stay a display draft until Apply.
 UCLASS()
 class LOCKDOWN_API ULDControlsPanel : public ULDPanel
@@ -146,7 +146,7 @@ private:
     void ApplyDisplay();
     // A refusal keeps the close prompt open with the failure and focuses "discard and return".
     void ApplyDisplayAndReturn();
-    // Restore defaults (UI_AND_SETTINGS 8) for the page that asked: a preference group applies and saves at once; the
+    // Restore defaults (VISION_AND_UI settings page) for the page that asked: a preference group applies and saves at once; the
     // display page makes the product defaults the draft and applies it through the normal display apply.
     void ConfirmResetDefaults();
     void RestoreDisplayDefaults(ULDGameInstance& Instance);

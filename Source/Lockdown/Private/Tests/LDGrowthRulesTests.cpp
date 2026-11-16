@@ -1751,7 +1751,8 @@ bool GrowthTestRunComponentGrants(FAutomationTestBase& Test)
         Seen.Add(Drawn);
     }
     bGood &= Test.TestTrue(TEXT("Every band rolls an unowned common definition"), bAllCommon);
-    bGood &= Test.TestEqual(TEXT("The weighted picks reach every hostable unowned common definition"), Seen.Num(), 55);
+    // 49: same-delivery actives only host components that change them (no skewer, encore, pull or empower reach here).
+    bGood &= Test.TestEqual(TEXT("The weighted picks reach every hostable unowned common definition"), Seen.Num(), 49);
 
     // With all three categories present the band weights hold; 2000 fixed seeds land near the band percentages.
     const FLDDemoContentDefinitions Mixed = GrowthTestMixedContent(Content);
@@ -4495,6 +4496,11 @@ bool FLDDemoGrowthComponentsWorkshopTargetsTest::RunTest(const FString& Paramete
         LDWorkshop::TargetsActive(Content, *CrowdDefinition, SameDeliveryId));
     bGood &= GrowthTestReason(*this, TEXT("A mod installs on another active of the same delivery type"),
         Install(SameDeliveryBuild, Crowd, Target(EKind::Active, SameDeliveryId)), ELDGrowthReason::None);
+    const FLDDemoComponentDefinition* SkewerDefinition = Content.Components.FindByPredicate(
+        [](const FLDDemoComponentDefinition& Row) { return Row.Id == TEXT("component_skewer"); });
+    bGood &= TestTrue(TEXT("A same-delivery active the mod cannot change is no target (skewer on a chainless, non-projectile unit active)"),
+        SkewerDefinition && LDWorkshop::TargetsActive(Content, *SkewerDefinition, FName(TEXT("active_zap")))
+        && !LDWorkshop::TargetsActive(Content, *SkewerDefinition, FName(TEXT("active_pants_down"))));
     const FLDDemoAbilityDefinition* DifferentDeliveryActive = Content.Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Row)
     {
         return Row.Target.Mode != ElbowDefinition->Target.Mode

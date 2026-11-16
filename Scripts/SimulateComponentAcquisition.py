@@ -38,6 +38,8 @@ from collections import Counter
 from itertools import combinations
 from pathlib import Path
 
+from DemoContent import workshop_targets_active
+
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "SourceData" / "Demo" / "content.json"
 
@@ -160,6 +162,8 @@ class Catalog:
         self.filtered = filtered
         self.actives = [a["id"] for a in content["abilities"]]
         self.active_modes = {a["id"]: a.get("target", {}).get("mode") for a in content["abilities"]}
+        self.active_hosts = {a["id"]: (a.get("target", {}).get("mode"), {e["op"] for e in a.get("effects", [])})
+                             for a in content["abilities"]}
         self.opening = [a["id"] for a in content["abilities"] if a.get("opening")]
         prog = content["progression"]
         self.max_level = prog["max_level"]
@@ -222,9 +226,9 @@ class Catalog:
         return out
 
     def targets_active(self, cid: str, active: str) -> bool:
-        targets = self.components[cid].get("targets", {}).get("actives", [])
-        mode = self.active_modes.get(active)
-        return active in targets or (mode is not None and any(self.active_modes.get(target) == mode for target in targets))
+        component = self.components[cid]
+        return workshop_targets_active(component.get("targets", {}).get("actives", []),
+                                       [e["op"] for e in component.get("effects", [])], self.active_hosts, active)
 
     def hosts(self, cid: str, actives: list[str], owned: set[str]) -> list[str]:
         c = self.components[cid]

@@ -62,7 +62,7 @@ struct FLDOpponentRequestTally
     uint32 BodyRequests() const { return Orders + Stops + Actions; }
 };
 
-// Server-only opponent adapter (docs/demo/OPPONENT_AI.md §3). It has no local player, connection, input or
+// Server-only opponent adapter (docs/systems/OPPONENT_AI.md §3). It has no local player, connection, input or
 // UI. Each decision interval it reads only what the core and the domains publish for this contender, runs
 // the pure policy once and submits at most one body and one build request through the same server entries
 // a human reaches over its owning connection. Receipts advance only this adapter's cursors and the

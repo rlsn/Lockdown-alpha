@@ -1,48 +1,16 @@
-# Demo 对手 AI
+# 对手 AI
 
-**目标：v0.11.0 · 职责：M12 · 引擎：Unreal 5.8.4**
-
-本文描述对手 AI 的当前实现、约束与验收边界，对应 [App Spec](../APP_SPEC.md) §6.2
-与已批准的 AI 参数、攻击移动规则、成长规则以及喷漆 + 守护终局。
-共同身份、时序、权限及回执遵循 [共享契约](SHARED_CONTRACTS.md)。
-AI 参数数值只由 `CONTENT_AND_BALANCE.md` 维护并经内容管线进入运行载荷，本文不另列数值。
-
-## 1. 范围与已确认约束
-
-对手 AI 必须是**能独立完成成长并按相同条件获胜的参赛者**，不是占席、巡逻或靶子。
-仅选择一种固定优先级策略，不引入通用 GOAP、人格、多难度、学习平台或第二套世界模拟。
-
-| 边界 | 本模块遵守的产品约束 |
+| 项 | 内容 |
 | --- | --- |
-| 名单 | Host 选择零至三个 AI；与最多三名真人（含 Host）共存，各自 FFA，不补满、不组队、不接管断线真人。 |
-| 起步与成长 | 同一基础角色，初始近战单体物理普攻；开局休息 R0 内得到开局点数和一次开局主动选择，之后正常打野/对抗获得最后一击的经验，升级得属性点、3 级与 6 级各再得一次主动选择，并喷漆、守护涂鸦和围攻别人的涂鸦主人。五维属性、主动与构件可以增加攻击距离。 |
-| 营地反击与回位 | 未受攻击营地不主动攻击路过者；确认的合法命中触发同组存活成员反击，即使被击成员当次死亡，也不共享隐藏位置。预览/挥空/被拒命令/单纯碰撞不触发。Returning 仍可受伤、控制、被杀，不回头追击；存活成员到家满血蓝、清临时状态/仇恨、技能就绪，不复活已死成员、不因回位发奖。 |
-| 技能 | Q/W/E 三个角色主动槽；技能只有一级，数值随角色等级成长。主动选择从当前候选中选一个：有空槽时同次学到最低空槽，Q/W/E 已满时存为待学图纸；图纸只能学到空槽。选择、学习、加点与首次安装构件和真人一样没有构筑安全窗，野外交战中与死亡等待中都可以做；搬动已装过的构件仍只在休息构筑窗口（§6.4）。满槽替换与遗忘只在休息时进行（休息服务）；AI 在休息构筑窗口按 §6.4 使用 NPC、洗点、替换、补缺与拆解，不使用遗忘。属性点分到五维，整次生效、不能撤回。 |
-| 冷却 | 换槽、遗忘重学和死亡不能洗冷却；失去来源期间原期限继续流逝。 |
-| 死亡 | 保留成长、候选、图纸、点数和冷却；死亡等待可以从当前候选选择并学到空槽、学图纸、首次安装构件并加点，只更新持久构筑，不治疗尸体或提前复活。最大血蓝变化按统一公式保持原百分比；AI 不另算公式。 |
-| 保护 | 经过身份、当前 Match/Life、请求新鲜度、形状及写闸检查的进攻意图先解除保护；随后目标、距离、路径、法力或冷却检查失败也不恢复保护。只读查询、普通移动、Stop 和本地预览不是进攻。 |
-| 视野 | 失视野取消单位锁定并停止该追击订单，不续走 LastSeen，不保留地图 LastSeen 单位标记。只读取当前可见对手的名称、等级、血量、蓝量和状态；不读取技能、冷却、内部构筑或属性。 |
-| 死亡与离局效果 | 正常死亡后，已成功释放的独立效果继续至原期限，在局的阵亡所有者仍可获得合法击杀归属。正式离局/断线立即移除身体并取消其未结束独立效果；AI 不追踪已离局身体。 |
-| 结束 | 唯一终局闸关闭后停止新增意图；返回 Lobby 的新局重新初始化，不沿用旧目标、订单或局内战力。死亡无活体视野；能查看静态地图不等于获得隐藏玩家跟随。 |
+| 规则 | [App Spec](../APP_SPEC.md) §6.2；AI 参数只在[内容与数值 §6.3](../demo/CONTENT_AND_BALANCE.md)；跨域见[共享契约](../demo/SHARED_CONTRACTS.md) |
+| 文件 | `Source\Lockdown\{Public,Private}\AI`：`LDOpponentController`（唯一服务器适配器）、`LDOpponentPolicy`（纯值策略与成本估计）、`LDOpponentFrame`（受限投影映射）、`LDOpponentRequests`（意图→领域请求、回执→失败记录） |
+| 入口函数 | 绑定与读取 `ALDGameMode::RegisterAIContender` / `ReadAISelf` / `ReadPublicMatch`；订单 `ULDNavigationComponent::SubmitOrder` / `CancelOrder` / `QueryOrder`；动作 `ALDCombatDirector::SubmitAction` / `CancelAction` / `QueryActionReceipt` / `QueryAvailability` / `BuildOwnerView`；成长 `ALDDevelopmentDirector::QueueBuild` / `QueryBuildReceipt`；观察 `ALDVisionDirector::EnumerateVisibleUnits`；路径估计 `ULDMapRegistry::QueryGround` / `QueryCompletePath`；数值 `LDTactical::EvaluateDamage` / `EvaluateBasicTiming` |
+| 不变量 | AI 不拥有任何玩法状态，只读获准投影并经与真人相同的服务器入口提交；一种固定优先级策略，没有 GOAP、人格、多难度或第二套世界模拟；不持有写许可；只用当前可见单位，不保存 LastSeen；只处理自己的选择，不替真人选择 |
+| 检查 | `Lockdown.Rules.DemoOpponentPolicy.*`；场景 `RunDemoOpponentCheck.ps1`（见 §8） |
 
-AI 自动处理的是**自己的**主动选择、图纸学习、加点、构件与休息服务，不替真人选择。构筑请求不暂停世界。
+对手 AI 是能独立完成成长并按相同条件获胜的参赛者，不是占席、巡逻或靶子；产品约束（名单、成长、营地反击、冷却、死亡、保护、视野与结束）见 App Spec，本文只写 AI 侧的接口与策略。
 恢复只能依靠同规则的自然回复或已拥有的合法能力，不能通过重建身体、刷新构筑或调试授予恢复。
 AI 加点先比较已学主动的 AD/AP 系数总和，将点数投向较强的一侧对应属性直到激活关键石；相同或无主动系数时优先力道（若基础攻击不提供 AD，则优先体格）。达到门槛后，再在相关属性间均衡分配。该策略使用目录的既有系数与关键石门槛，不引入新的数值。
-
-## 2. 代码入口
-
-AI 只新增 `Source\Lockdown\{Public,Private}\AI` 下的文件，不拥有任何玩法状态；它读取的投影与提交的请求都属于原领域，
-与真人使用同一服务器入口：
-
-| 用途 | 入口 | 说明 |
-| --- | --- | --- |
-| 绑定与读取 | `ALDGameMode::RegisterAIContender`、`ReadAISelf`、`ReadPublicMatch` | 名额在 Starting 冻结；`ReadAISelf` 含 `FLDOwnerState.Growth` 发布。 |
-| 空间订单 | `ULDNavigationComponent::SubmitOrder`/`CancelOrder`/`QueryOrder` | 与真人 `ServerSubmitOrder` 共用订单簿；激活由 Actions 阶段的 `ProcessAuthorityOrders` 统一处理。 |
-| 直接动作（Q/W/E/D） | `ALDCombatDirector::SubmitAction`/`CancelAction`/`QueryActionReceipt`/`QueryAvailability`、`BuildOwnerView` | Caller 由核心绑定解析；AI 只读本人 `FLDCombatOwnerView`。 |
-| 成长构筑 | `ALDDevelopmentDirector::QueueBuild`/`QueryBuildReceipt` | 与真人同一 `FLDBuildCommand`（主动选择、学图纸、加点、构件与休息服务），含开局候选；Transactions 阶段提交。 |
-| 观察 | `ALDVisionDirector::EnumerateVisibleUnits` | 与真人同一受限帧；AI 只用当前可见单位。 |
-| 进喷漆区路径估计 | `ULDMapRegistry::QueryGround`/`QueryCompletePath` | 只为回防紧急度计算本人到喷漆区的完整路径长度。 |
-| 数值原语 | `LDTactical::EvaluateDamage`/`EvaluateBasicTiming` | 营地成本估计与真实战斗共用。 |
 
 ## 3. SC-09：状态、正式接口与权限
 
@@ -630,7 +598,7 @@ AI 持有被暂停的喷漆进度时留在区内迎战，只在止损线离开�
 `RunDemoOpponentCheck.ps1 -Telemetry -MatchCount N` 是另一回事：一名无渲染、闲置的 Listen Host 与三个 AI 连打 N 局，
 每局记录时长、首杀、每名参赛者的等级曲线、喷漆尝试与争夺次数和胜负方式，
 以及度量（每名参赛者的首个主动时刻、最终 Q/W/E、图纸与五维点数、未分配点数、主动选择次数与每次学习时的等级，每次死亡的击杀者/助攻者与奖励、喷漆/改漆/涂鸦清除原因与守护用时），并汇总为一份报告
-（字段见[验证手册](../systems/VERIFICATION.md#合并前与里程碑检查)）。它只是对局数据，供 AI 与节奏评审参考：不核对上述任何一项，
+（字段见[验证手册](VERIFICATION.md#合并前与里程碑检查)）。它只是对局数据，供 AI 与节奏评审参考：不核对上述任何一项，
 也不把某个数字当作目标；真人闲置时 AI 也会击杀 Host，这些击杀照常计入。
 
 ## 9. 已知限制

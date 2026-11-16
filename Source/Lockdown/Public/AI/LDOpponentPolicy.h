@@ -11,7 +11,7 @@
 
 class FLDDemoContentSnapshot;
 
-// Pure opponent strategy over one already-published, authorized read copy (docs/demo/OPPONENT_AI.md §6).
+// Pure opponent strategy over one already-published, authorized read copy (docs/systems/OPPONENT_AI.md §6).
 // It never reads a world, actor, clock or hidden state: the server adapter fills the frame from the
 // same owner, observation and public projections a human player receives, then submits each intent to its
 // owning domain, which revalidates everything at its own commit point.

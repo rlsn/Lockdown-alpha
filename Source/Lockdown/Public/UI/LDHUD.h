@@ -96,7 +96,7 @@ public:
     // LDHUD::SelfIconsNotice: "状态同步中" in place of the marks while the own projection is missing; painted, never hit-tested.
     const FString& GetOwnStatusNotice() const {return OwnStatusNotice;}
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The normal main panels (UI 3.1) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
+    // The normal main panels (VISION_AND_UI navigation) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
     // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.

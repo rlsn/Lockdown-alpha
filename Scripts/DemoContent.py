@@ -1555,3 +1555,50 @@ def verify_runtime_files(root, expected_digest):
             "CatalogIntegrity", "display", "display projection differs")
     validate_world(world_raw)
     return expected_digest
+
+
+# Whether a mod op changes a host active (ability mode and effect ops); None for ops without a compile gate.
+# Mirrors LDWorkshop::TargetsActive and the gates of LDCombatSourceRules::CompileWorkshopActive.
+def _mod_changes_host(op, mode, ops):
+    control = {"root", "stun", "silence", "disarm", "taunt"}
+    gates = {
+        "knockback_scale": "knockback" in ops,
+        "control_scale": bool(control & ops),
+        "range_bonus": mode != "Self",
+        "cooldown_cost": True,
+        "compress_cone": "channel_cone" in ops,
+        "compress_zone": {"zone", "zone_damage"} <= ops,
+        "dash_scale": "dash" in ops,
+        "spread_unit": mode == "Unit" and "damage" in ops,
+        "spread_projectile": mode == "DirectionProjectile" and "damage" in ops,
+        "projectile_return": mode == "DirectionProjectile" and "damage" in ops,
+        "projectile_pierce": mode == "DirectionProjectile" and "damage" in ops,
+        "chain_extra": "chain_bounce" in ops,
+        "compress_chain": "chain_bounce" in ops,
+        "echo_impact": "damage" in ops and bool({"self_area", "ground_impact", "contact_trap"} & ops),
+        "zone_tether": "zone" in ops,
+        "defense_shove": bool({"shield", "brace"} & ops),
+        "empower_reach": "empower_basic" in ops,
+        "final_knockback": bool({"empower_basic", "channel_cone"} & ops),
+        "pull": bool({"knockback", "taunt"} & ops),
+    }
+    return gates.get(op)
+
+
+def workshop_targets_active(listed, component_ops, hosts, active):
+    """Whether a mod or connector may go onto an active. listed: its targets.actives; component_ops: its effect ops;
+    hosts: active id -> (target mode, set of effect ops). A listed active always qualifies; another active of a listed
+    active's delivery mode only when the component changes it (a mod's gate, else every effect of a listed same-mode host)."""
+    if active in listed:
+        return True
+    if active not in hosts:
+        return False
+    mode, ops = hosts[active]
+    same_mode = [hosts[a][1] for a in listed if a in hosts and hosts[a][0] == mode]
+    if not same_mode:
+        return False
+    gated = [_mod_changes_host(op, mode, ops) for op in component_ops]
+    gated = [g for g in gated if g is not None]
+    if gated:
+        return any(gated)
+    return any(listed_ops <= ops for listed_ops in same_mode)

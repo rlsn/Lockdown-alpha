@@ -2498,6 +2498,7 @@ bool FLDHUDOfferLinksTest::RunTest(const FString& Parameters)
     FLDDemoContentDefinitions Content;
     Content.Progression.ActiveSlots=3;Content.Progression.MaxLevel=5;
     Content.Progression.WorkshopCapacityBase=3;Content.Progression.WorkshopCapacityLevelsPerSlot=1;
+    Content.Progression.WorkshopBodyColumnCapacity=4;Content.Progression.WorkshopDashColumnCapacity=2;
     for(const TCHAR* Id:{TEXT("offer_old"),TEXT("offer_new"),TEXT("offer_other1"),TEXT("offer_other2")})
     {Content.Abilities.AddDefaulted_GetRef().Id=Id;}
     const auto Add=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind)->FLDDemoComponentDefinition&

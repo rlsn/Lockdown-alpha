@@ -2955,7 +2955,8 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     const FLDDemoComponentDefinition* FireSkin = Component(Test, C, TEXT("component_fire_skin"));
     const FLDDemoComponentDefinition* BlastChase = Component(Test, C, TEXT("component_blast_chase"));
     const FLDDemoComponentDefinition* DirtyFist = Component(Test, C, TEXT("component_dirty_fist"));
-    if (!LongKick || !Ram || !OweIt || !FireSkin || !BlastChase || !DirtyFist) { return false; }
+    const FLDDemoComponentDefinition* CrowdHit = Component(Test, C, TEXT("component_crowd_hit"));
+    if (!LongKick || !Ram || !OweIt || !FireSkin || !BlastChase || !DirtyFist || !CrowdHit) { return false; }
 
     FLDOpponentSelf Self;
     FLDOpponentComponentTarget Target;
@@ -2968,25 +2969,17 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     Self.Actives.Add({TEXT("active_elbow"), 0});
     bGood &= Test.TestTrue(TEXT("A learned listed active comes before a host"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target)
         && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("")));
-    const FLDDemoAbilityDefinition* ElbowDefinition = C.Get().Abilities.FindByPredicate(
-        [](const FLDDemoAbilityDefinition& Ability) { return Ability.Id == TEXT("active_elbow"); });
-    const FLDDemoAbilityDefinition* SameDeliveryActive = ElbowDefinition
-        ? C.Get().Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Ability)
-        {
-            const FName Id(*Ability.Id);
-            return Ability.Target.Mode == ElbowDefinition->Target.Mode && Ability.Id != TEXT("active_elbow")
-                && !LDWorkshop::Lists(LongKick->TargetActives, Id);
-        })
-        : nullptr;
-    if (!Test.TestNotNull(TEXT("The catalog has a same-delivery active outside M03's exact targets"), SameDeliveryActive))
-    {
-        return false;
-    }
+    // M01 is not listed on S10 but spreads its single-target damage; M03 has no push to scale on an unlisted unit active.
     FLDOpponentSelf SameDeliverySelf;
-    SameDeliverySelf.Actives.Add({SameDeliveryActive->Id, 0});
-    bGood &= Test.TestTrue(TEXT("AI targets an unlisted active of the same delivery type"),
-        LDOpponentPolicy::WorkshopTarget(SameDeliverySelf, C, *LongKick, Target)
-        && Is(ELDComponentTargetKind::Active, *SameDeliveryActive->Id, TEXT("")));
+    SameDeliverySelf.Actives.Add({TEXT("active_zap"), 0});
+    bGood &= Test.TestTrue(TEXT("AI targets an unlisted active of the same delivery type the mod changes"),
+        !LDWorkshop::Lists(CrowdHit->TargetActives, FName(TEXT("active_zap")))
+        && LDOpponentPolicy::WorkshopTarget(SameDeliverySelf, C, *CrowdHit, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_zap"), TEXT("")));
+    FLDOpponentSelf IneffectiveSelf;
+    IneffectiveSelf.Actives.Add({TEXT("active_account_banned"), 0});
+    bGood &= Test.TestFalse(TEXT("AI skips a same-delivery active the mod cannot change"),
+        LDOpponentPolicy::WorkshopTarget(IneffectiveSelf, C, *LongKick, Target));
     bGood &= Test.TestTrue(TEXT("M08 without its actives goes onto the innate D"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target)
         && Is(ELDComponentTargetKind::Dash, TEXT(""), TEXT("")));
     Self.Components.Add(Hosted(TEXT("component_quick_hop"), ELDComponentTargetKind::Dash));
@@ -3582,10 +3575,11 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     Spec.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {{Physique, 1}, {Skin, 1}, {Strength, 1}, {Brains, 2}});
     FString Ignored;
     bGood &= Test.TestFalse(TEXT("Brains serve a learned AP active: no respec"), LDOpponentPolicy::WantsRespec(Spec.Self, C, Ignored));
-    bGood &= RunRestBuilds(Test, C, Spec, Steps, After) && Test.TestTrue(TEXT("Replacement, one respec, then the points go to the AD stats only"),
+    // Below the keystone threshold every refunded point goes to the AD keystone stat.
+    bGood &= RunRestBuilds(Test, C, Spec, Steps, After) && Test.TestTrue(TEXT("Replacement, one respec, then the points go to the AD keystone stat"),
         KindsOf(Steps) == TArray<EKind>({EKind::ReplaceActive, EKind::Respec, EKind::AllocatePoints})
         && Steps[0].Blueprint == TEXT("active_crotch_grab") && Steps[0].Slot == 2
-        && LDOpponentPolicyTests::SameCounts(LDOpponentPolicyTests::ById(C, Steps[2].PointCounts), {{Physique, 2}, {Skin, 2}, {Strength, 1}})
+        && LDOpponentPolicyTests::SameCounts(LDOpponentPolicyTests::ById(C, Steps[2].PointCounts), {{Strength, 5}})
         && !LDOpponentPolicy::WantsRespec(After, C, Ignored));
     auto FieldSpec = OnField(Rest);
     FieldSpec.Self.Actives = {{TEXT("active_elbow"), 0}};

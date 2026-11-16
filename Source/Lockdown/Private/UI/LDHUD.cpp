@@ -674,7 +674,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // Padded in from the block's clipped left edge so the points badge hanging off the portrait's corner stays whole.
         auto* PortraitSlot=SelfHead->AddChildToHorizontalBox(PortraitStack);PortraitSlot->SetPadding(FMargin(8,0,10,0));PortraitSlot->SetVerticalAlignment(VAlign_Top);
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
-        // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (UI 3.3).
+        // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (VISION_AND_UI readability).
         SelfName=OneLine(TEXT(""),LDHUDStyle::TypeLabel,0);HudFace(SelfName,true,0);SelfName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SelfName->SetVisibility(ESlateVisibility::Visible);NameBox->AddChildToVerticalBox(SelfName);
         auto* NameSlot=SelfHead->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         // The 属性 entry turns the stat icons below into the attribute view and back (alive or dead, never a panel). The DEV
@@ -1154,7 +1154,7 @@ void ULDHUD::RefreshReadModel()
     const bool bShow=Playing&&!Overlay;
     if(!Playing)
     {
-        // The result replaces gameplay UI: no main panel outlives play (UI 3.1); closing never undoes submitted work.
+        // The result replaces gameplay UI: no main panel outlives play (VISION_AND_UI navigation); closing never undoes submitted work.
         for(ULDPanel* Open:MainPanels()){if(Open->IsPanelOpen()){Open->ClosePanel();}}
     }
     if(bOwnMatch&&PC->SlotOrderMatch!=O.Match){PC->ResetSlotOrder(O.Match);}
@@ -2331,7 +2331,7 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
     auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
     auto Project=[&](FVector P,FVector2D& Out){FVector2D Screen;if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}int32 W=0,H=0;PC->GetViewportSize(W,H);Out=Screen*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));return true;};
     // The inspected unit is marked only by the selection ring under its feet; the HUD draws no bracket over it.
-    // Armed preview (CONTROLS 3): the own range ring around the feet, and for direction forms the direction from the
+    // Armed preview (MOVEMENT_INPUT_AND_CAMERA ability targets): the own range ring around the feet, and for direction forms the direction from the
     // feet toward the cursor. Local presentation only; the server re-checks range, direction and target on confirm.
     ELDCombatEntry Armed=ELDCombatEntry::None;
     const bool bArmedEntry=PC->ReadArmedCombatEntry(Armed);
