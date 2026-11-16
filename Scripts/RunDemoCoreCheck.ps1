@@ -25,7 +25,9 @@ function Start-CoreRole {
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCoreProbe -LDDemoCoreRole={2} -LDDemoCoreTimeout={3} -LDDemoCoreOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    # The NPC service is part of the laid-out workshop, so its owning client needs real Slate geometry.
+    $render = if ($EarlyRestReady -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
+    $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCoreProbe -LDDemoCoreRole={3} -LDDemoCoreTimeout={4} -LDDemoCoreOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($EarlyRestReady) { $arguments += ' -LDDemoCoreReady' }
     if ($ReplayFieldReturn) { $arguments += ' -LDDemoCoreReplayFieldReturn' }
     if ($NetEmulation) { $arguments += " $NetEmulation" }
@@ -82,14 +84,14 @@ try {
             throw "Owned projection does not match the authoritative body/life: $output"
         }
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
+    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Owning clients explicitly leave the room'
     foreach ($process in @($processes)[1..2]) {
         if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw "Core process did not exit cleanly: $output" }
     }
     Wait-CoreReports @('Disconnects.json')
     $disconnect = Get-Content -LiteralPath (Join-Path $evidence 'Disconnects.json') -Raw | ConvertFrom-Json
     if (-not $disconnect.passed -or $disconnect.retired_clients -ne 2 -or $disconnect.remaining_live_bodies -ne 1) {
-        throw "Disconnect did not retire authoritative body/resource ownership: $output"
+        throw "Explicit room leave did not retire authoritative body/resource ownership: $output"
     }
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
     if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
