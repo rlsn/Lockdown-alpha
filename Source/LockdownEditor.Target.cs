@@ -9,6 +9,6 @@ public class LockdownEditorTarget : TargetRules
         DisablePlugins.Add("Fab"); // Optional marketplace plugin has unavailable FabToolset rules in this installed engine.
         DefaultBuildSettings = BuildSettingsVersion.V7;
         IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
-        ExtraModuleNames.AddRange(new[] { "Lockdown", "LockdownEditor" });
+        ExtraModuleNames.AddRange(new[] { "Lockdown", "LockdownEditor", "LockdownTests" });
     }
 }

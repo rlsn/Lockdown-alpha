@@ -11,7 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
-#include "Tests/LDDemoEntryProbe.h"
+#include "Probes/LDDemoEntryProbe.h"
 #include "Character/LDCharacter.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"

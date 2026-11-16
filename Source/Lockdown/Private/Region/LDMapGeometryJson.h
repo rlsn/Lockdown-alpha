@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Region/LDMapGeometry.h"
-#include "../Development/LDDemoContentJson.h"
+#include "Development/LDDemoContentJson.h"
 
 namespace LDDemoWorld
 {

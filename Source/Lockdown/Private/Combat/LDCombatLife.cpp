@@ -7,7 +7,7 @@
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Engine/World.h"
 
 namespace LDCombatLifeDetail
@@ -62,7 +62,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     const FLDGameplayWritePermit& Permit,FLDBodyCombatState& Out,FString& Error) const
 {
     Out={};
-    const auto* Mode=Core();
+    const auto* Mode=Authority();
     const auto* Content=Catalog();
     if (!Mode || !Content || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None
         || !Victim.IsValid() || Victim.Kind!=ELDVictimKind::Contender
@@ -140,7 +140,7 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     const FLDGameplayWritePermit& Permit,FLDBodyCombatState& Out,FString& Error) const
 {
     Out={};
-    const auto* Mode=Core();
+    const auto* Mode=Authority();
     const auto* Content=Catalog();
     if (!Mode || !Content || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None
         || !Victim.IsValid() || Victim.Kind!=ELDVictimKind::CampMember
@@ -209,7 +209,7 @@ bool ALDCombatDirector::InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&
     const FLDGameplayWritePermit& Permit,FLDCombatBodyRef& Out,FString& Error)
 {
     Out={};
-    const auto* Mode=Core();
+    const auto* Mode=Authority();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None
         || !Prepared.Identity.IsValid() || !Prepared.Victim.IsValid() || !Prepared.Resources.Revision
         || !Prepared.AttributeRevision || !Prepared.PublicFacts.IsSet() || Bodies.Contains(&Body))

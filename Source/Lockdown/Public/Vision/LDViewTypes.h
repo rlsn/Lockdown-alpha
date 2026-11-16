@@ -154,7 +154,7 @@ struct FLDObservedFootprint
 };
 
 USTRUCT()
-struct FLDWorldView
+struct LOCKDOWN_API FLDWorldView
 {
     GENERATED_BODY()
     UPROPERTY() uint32 Schema = 0;
@@ -176,7 +176,7 @@ template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2
 { enum { WithNetSerializer = true }; };
 
 USTRUCT()
-struct FLDObservedConceal
+struct LOCKDOWN_API FLDObservedConceal
 {
     GENERATED_BODY()
     UPROPERTY() uint32 MatchGeneration = 0;
@@ -189,7 +189,7 @@ template<> struct TStructOpsTypeTraits<FLDObservedConceal> : TStructOpsTypeTrait
 { enum { WithNetSerializer = true }; };
 
 USTRUCT()
-struct FLDObservedTerminationNotice
+struct LOCKDOWN_API FLDObservedTerminationNotice
 {
     GENERATED_BODY()
     UPROPERTY() uint32 MatchGeneration = 0;

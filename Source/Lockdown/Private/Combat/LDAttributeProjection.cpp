@@ -1,7 +1,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDWorkshopRules.h"
 
-#include "../Development/LDDemoContentMath.h"
+#include "Development/LDDemoContentMath.h"
 #include "Development/LDSkillGrowth.h"
 
 namespace LDAttributeProjection

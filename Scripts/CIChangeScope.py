@@ -25,8 +25,8 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 # The native files the data-import tests exercise; the include closure of these is computed, not listed.
 IMPORTER_ROOTS = re.compile(
-    r'^Source/Lockdown/(Public|Private)/(Development/LDDemoContent[^/]*|Region/LDMap(Definition|Geometry)[^/]*'
-    r'|World/LDDemoWorldContract\.h|Tests/LDDemoContentCatalogTests\.cpp)$')
+    r'^Source/(Lockdown/(Public|Private)/(Development/LDDemoContent[^/]*|Region/LDMap(Definition|Geometry)[^/]*'
+    r'|World/LDDemoWorldContract\.h)|LockdownTests/Private/LDDemoContentCatalogTests\.cpp)$')
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.M)
 IMPORT_RUNNERS = {'Scripts/RunTests.ps1', 'Scripts/Common.ps1', 'Scripts/CIChangeScope.py'}
 

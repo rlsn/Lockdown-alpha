@@ -1,6 +1,6 @@
 #include "Development/LDDemoContentCatalog.h"
 
-#include "LDDemoContentJson.h"
+#include "Development/LDDemoContentJson.h"
 #include "Algo/StableSort.h"
 #include "Development/LDSkillGrowth.h"
 #include "GenericPlatform/GenericPlatformFile.h"

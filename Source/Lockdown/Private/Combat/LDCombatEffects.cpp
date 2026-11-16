@@ -10,7 +10,9 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDSkillGrowth.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
+#include "World/LDAirdrop.h"
+#include "World/LDDormZones.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
@@ -134,7 +136,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 {
     // Hits queue more hits; keep this one stable even when the caller passed one of PendingHits' elements.
     FLDCombatHit Hit=InHit;
-    ALDGameMode* Mode=Core();
+    ILDLifeAuthority* Mode=Authority();
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Mode || !Content)
     {
@@ -729,7 +731,7 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     bool bCritical, FString& Error)
 {
     const FLDDemoContentSnapshot* Content=Catalog();
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     if (!Content || !Mode) { Error=TEXT("Thorns require the current core and the approved Demo content."); return false; }
     const FLDAttributeProjection& Projection=Body.AttributeProjection;
     ALDCharacter* Attacker=nullptr;
@@ -765,8 +767,8 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     // B03: the holder answers only an attacker it observes with clear sight (the perception rule of every enemy observation).
     const UWorld* CurrentWorld=GetWorld();
     const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
-    if (!Mode->Vision || !Registry) { Error=TEXT("Thorns require the observation owner and the registered world."); return false; }
-    const ELDSightResult Sight=Mode->Vision->TraceObservation(OwnerFoot,*Attacker,Registry->Revision());
+    if (!Mode->GetVisionAuthority() || !Registry) { Error=TEXT("Thorns require the observation owner and the registered world."); return false; }
+    const ELDSightResult Sight=Mode->GetVisionAuthority()->TraceObservation(OwnerFoot,*Attacker,Registry->Revision());
     if (Sight==ELDSightResult::Blocked || Sight==ELDSightResult::OutOfRange) { return true; }
     if (Sight!=ELDSightResult::Visible) { Error=TEXT("Thorns sight failed on a registered body."); return false; }
     for (const FLDPassiveEffectRef& Source : Sources)
@@ -792,10 +794,10 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
 bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
 {
     if (Projectiles.IsEmpty()) { return true; }
-    ALDGameMode* Mode=Core();
+    ILDLifeAuthority* Mode=Authority();
     const UWorld* CurrentWorld=GetWorld();
     const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
-    if (!Mode || !Mode->Vision || !Registry)
+    if (!Mode || !Mode->GetVisionAuthority() || !Registry)
     {
         Error=TEXT("Projectiles require the current core, the observation owner and the registered world.");
         return false;
@@ -836,7 +838,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         const FVector From(Origin.X+Heading.X*Projectile.TravelledCm,Origin.Y+Heading.Y*Projectile.TravelledCm,Origin.Z);
         const FVector To(From.X+Heading.X*Step,From.Y+Heading.Y*Step,Origin.Z);
         double ClearFraction=1;
-        if (Step>0 && !LDCombatEffectsDetail::ClearPrefix(*Mode->Vision,WorldRevision,From,To,ClearFraction,Error)) { return false; }
+        if (Step>0 && !LDCombatEffectsDetail::ClearPrefix(*Mode->GetVisionAuthority(),WorldRevision,From,To,ClearFraction,Error)) { return false; }
         const FVector Stop=FMath::Lerp(From,To,ClearFraction);
         // M14: a pierced body does not end the flight; the search goes on past it in the same step.
         FVector SegmentFrom=From;
@@ -940,10 +942,10 @@ bool ALDCombatDirector::CollectAreaTargets(const FVector& Anchor, double RadiusC
     const FGuid& SourceEntity, TArray<FLDCombatBodyRef>& Out, FString& Error) const
 {
     Out.Reset();
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     const UWorld* CurrentWorld=GetWorld();
     const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
-    if (!Mode || !Mode->Vision || !Registry || !FMath::IsFinite(RadiusCm) || RadiusCm<0 || Anchor.ContainsNaN())
+    if (!Mode || !Mode->GetVisionAuthority() || !Registry || !FMath::IsFinite(RadiusCm) || RadiusCm<0 || Anchor.ContainsNaN())
     {
         Error=TEXT("An area query requires the observation owner, the registered world and a valid radius.");
         return false;
@@ -968,7 +970,7 @@ bool ALDCombatDirector::CollectAreaTargets(const FVector& Anchor, double RadiusC
     { return Left.Body.Victim.EntityId<Right.Body.Victim.EntityId; });
     for (const LDCombatEffectsDetail::FAreaCandidate& Candidate : InReach)
     {
-        const ELDSightResult Sight=Mode->Vision->TraceSight(Anchor,Candidate.FootCm,Registry->Revision());
+        const ELDSightResult Sight=Mode->GetVisionAuthority()->TraceSight(Anchor,Candidate.FootCm,Registry->Revision());
         if (Sight==ELDSightResult::Visible) { Out.Add(Candidate.Body); }
         else if (Sight!=ELDSightResult::Blocked && Sight!=ELDSightResult::OutOfRange)
         {
@@ -1124,7 +1126,7 @@ bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
     Recovery.MaxHPBpPerSec=Parameters.OutOfCombatMaxHPRegenBp;
     Recovery.MaxMPBpPerSec=Parameters.OutOfCombatMaxMPRegenBp;
     // D21 (#79): the dorm's fast recovery stacks on top for a contender standing in a dorm.
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     if (!Mode || !Mode->GetDormZones().IsValid())
     {
         Error=TEXT("Regeneration requires the resolved dorms of this match.");
@@ -1146,7 +1148,7 @@ void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& O
         const ALDCharacter* Actor=Pair.Key.Get();
         if (!Actor || Body.bPendingDeath || Body.Resources.HpP2<=0 || Body.Victim.Kind!=ELDVictimKind::Contender) { continue; }
         // D26: respawn protection is read here so the pure pickup rule can refuse it.
-        const ALDGameMode* M=Core();
+        const ILDLifeAuthority* M=Authority();
         bool Protected = M && M->IsContenderProtected(Body.Victim.EntityId);
 #if WITH_DEV_AUTOMATION_TESTS
         Protected |= M && M->IsDevPeaceful(Body.Victim.EntityId);
@@ -1228,7 +1230,7 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
         MarkViewChanged(Body.Victim.EntityId);
         return true;
     }
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     const FLDDemoContentSnapshot* Content=Catalog();
     const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
     if (!Mode || !Content || !Record)
@@ -1268,7 +1270,7 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     if (Body.PKSide!=0) { Basis.NoRewardReason=ELDNoRewardReason::PKArena; }
     else if (!Hit.CreditOwner.IsValid()) { Basis.NoRewardReason=ELDNoRewardReason::NoOwner; }
     else if (Hit.CreditOwner==Death.VictimContender) { Basis.NoRewardReason=ELDNoRewardReason::SelfInflicted; }
-    else if (!Mode->IsMemberPresent(Hit.CreditOwner)) { Basis.NoRewardReason=ELDNoRewardReason::OwnerLeft; }
+    else if (!Mode->IsContenderPresent(Hit.CreditOwner)) { Basis.NoRewardReason=ELDNoRewardReason::OwnerLeft; }
     else
     {
         Basis.NoRewardReason=ELDNoRewardReason::None;
@@ -1278,7 +1280,7 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     if (Body.Victim.Kind==ELDVictimKind::Contender && Basis.bCreditOwnerEligibleAtDeath)
     {
         LDAssist::SelectAssisters(Body.AssistContributions,Hit.CreditOwner,Body.Victim.EntityId,Mode->GetAuthorityNowMs(),
-            Content->Get().Parameters.AssistWindowMs,[Mode](const FGuid& Contender) { return Mode->IsMemberPresent(Contender); },
+            Content->Get().Parameters.AssistWindowMs,[Mode](const FGuid& Contender) { return Mode->IsContenderPresent(Contender); },
             Death.Assisters);
     }
     // The owner's recap of this death: the same window as the assists, the fatal hit included.

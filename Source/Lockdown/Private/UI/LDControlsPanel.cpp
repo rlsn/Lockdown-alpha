@@ -6,7 +6,7 @@
 #include "UI/LDWidgets.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameInstance.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "UI/LDUIRoot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateColorBrush.h"

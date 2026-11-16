@@ -1,6 +1,6 @@
-#include "LDDemoContentJson.h"
+#include "Development/LDDemoContentJson.h"
 
-#include "LDDemoContentMath.h"
+#include "Development/LDDemoContentMath.h"
 #include "Framework/LDMatchTimeline.h"
 #include "../Region/LDMapGeometryJson.h"
 

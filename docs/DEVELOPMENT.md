@@ -94,6 +94,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | --- | --- |
 | `Source\Lockdown\Public` / `Private` | 当前原生运行模块接口与实现 |
 | `Source\LockdownEditor` | 原生导入、地图/资产生成与保存 |
+| `Source\LockdownTests` | `Lockdown.Rules` 规则测试与夹具（仅编辑器目标） |
 | `SourceData` | 当前生成器消费的内容定义、schema、ID 映射与 CSV |
 | `Content\Lockdown\Data` | 已生成并校验的运行载荷 |
 | `Content\Lockdown\Generated` | 原生目录、派生碰撞网格与保存的正式关卡 |

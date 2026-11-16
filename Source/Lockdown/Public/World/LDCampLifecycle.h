@@ -30,7 +30,7 @@ struct FLDCampSpec
     TArray<FLDCampMemberSpec> Members;
 };
 
-struct FLDCampRoster
+struct LOCKDOWN_API FLDCampRoster
 {
     TArray<FLDCampSpec> Camps;
 
