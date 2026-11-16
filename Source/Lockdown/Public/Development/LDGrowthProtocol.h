@@ -5,7 +5,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "LDGrowthProtocol.generated.h"
 
-// Growth protocol (PROGRESSION_AND_REWARDS). Client-sent enums are decoded by an explicit whitelist; unknown values are
+// Growth protocol (GROWTH_TRANSACTIONS). Client-sent enums are decoded by an explicit whitelist; unknown values are
 // rejected, never clamped to a neighbouring meaning. Retired values (the #144 shop family and trade reasons, the #198
 // three-card choice family, rerolls and replacements) are never reused.
 

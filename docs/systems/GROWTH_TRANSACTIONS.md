@@ -1,8 +1,15 @@
 # 成长事务与回执
 
-可复用的是身份、版本校验、原子提交和反馈机制。Demo 没有装备、金钱与商店；
-成长由经验、等级、派生的五维点数、单级主动、主动机会、待学图纸、材料实例与构件组成，休息窗口另有 NPC 主动候选、洗点、替换与遗忘主动四项服务，范围见 [App Spec](../APP_SPEC.md)，
-目标合同见 [成长与奖励](../demo/PROGRESSION_AND_REWARDS.md)，数值见 [内容与数值](../demo/CONTENT_AND_BALANCE.md)。
+| 项 | 内容 |
+| --- | --- |
+| 规则 | [App Spec](../APP_SPEC.md) §4、§6–§10；数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)（§4.1、§4.3、§4.4、§6.1）；跨域见[共享契约](../demo/SHARED_CONTRACTS.md) SC-05 |
+| 文件 | `Development\LDGrowthDirector`、`LDDevelopmentDirector`、`LDProgressionRules.h`、`LDGrowthProtocol.h`、`LDGrowthRequests`、`LDGrowthProviders.cpp`、`LDDevGrowthFixture`；`Framework\LDPlayerGrowth.cpp` |
+| 入口函数 | `ALDGrowthDirector::CommitDeathReward` / `CommitFieldReward` / `ProcessTransactions` / `PublishGrowth`；`ALDDevelopmentDirector::PrepareExperience` / `ApplyPreparedGrowth`；`QueueBuild`（`ServerGrowthBuild`）、`QueryGrowthReceipt`；Combat `PrepareBuildChange` / `ApplyBuildChange` |
+| 不变量 | 一份参赛者成长、一条 Combat 来源链；奖励只在 DeathsAndRewards、成长命令只在 Transactions；Prepare 完成全部可失败工作，Apply 不失败；同一 DeathKey 只结算一次；请求窗口 64 条有界拒旧；只有 Combat 写 `ReadyAtMs`；拒绝的命令不扣点数、不消费机会、不改图纸 |
+| 检查 | `Lockdown.Rules.DemoGrowth*`、`DemoGrowthComponents.*`、`DemoRest.Services.*`、`DemoAssist.*`；场景 `RunDemoGrowthCheck.ps1`（见[检查入口](#检查入口)） |
+
+Demo 没有装备、金钱与商店；成长由经验、等级、派生的五维点数、单级主动、主动机会、待学图纸、材料实例与构件组成，休息窗口另有 NPC 主动候选、洗点、替换与遗忘四项服务。
+构筑安装与来源冷却见[战斗、效果与成长](COMBAT_AND_GROWTH.md)。
 
 ## 状态与入口
 
@@ -144,6 +151,45 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 只由本人 `FLDCombatOwnerView::BuildSafeAtMs` 发布，供 HUD 在交战中收起野外摘要；成长提交与 AI 都不读它，
 `FLDProgressionView::BuildSafeAtMs` 已删除。
 
+## 死亡奖励
+
+`CommitDeathReward(const FLDCommittedDeath&, const FLDGameplayWritePermit&) -> FLDRewardReceipt` 只从 Combat 的已提交死亡接收事实，不是客户端/AI RPC。
+死亡身份与奖励基准（`FLDDeathKey`、`FLDCommittedDeath`、`FLDRewardBasis`）由 Combat 冻结，见[战斗、效果与成长](COMBAT_AND_GROWTH.md#身份与接口)；全部字段进入奖励指纹。
+致死事实按 `OccurredAtSeconds` 排序逐个结算，同刻按受害者 EntityId 的确定顺序。世界的 CampId/MemberId 只映射同一 Victim/Life，没有第二条发奖链。
+
+| 输入 | 结果 |
+| --- | --- |
+| 参赛者击杀野怪 | 全部归该所有者，无助攻、距离或伤害比例分配 |
+| 参赛者击杀参赛者 | 致死瞬间冻结助攻者（`FLDCommittedDeath::Assisters`）；XP 由击杀者与助攻者平分（`LDAssist::SplitKillReward`，各自向下取整），全部准备成功后一起安装 |
+| 同批互相致死 | 两个 DeathKey，各按各自致死快照与仍在局的所有者收奖 |
+| 已阵亡来源的存续效果击杀 | 致死时所有者仍在本局则全额收奖 |
+| 无主、自杀、实际致死前已离局 | `NoReward`（`NoRewardNoOwner/NoRewardSelf/NoRewardOwnerLeft`），同一死亡仍封已处理 |
+| 回位/重置、断线移除、Host 结束 | 不产生击杀事实 |
+| 营地成员死亡/清空/刷新 | 每成员每 Life 一次；清空与刷新不另发清营奖 |
+
+**助攻记录**：唯一的伤害/状态施加路径（`ApplyHit` 已提交正伤害含盾吸收，或定身、缴械、眩晕、减速；`ApplyTauntEffect`；其他控制与减益在施加成功处）对参赛者受害者调用
+`ALDCombatDirector::RecordAssistContribution`，在受害者这条生命上记最近贡献时刻（`FLDBodyCombatState::AssistContributions`，`LDAssist::RecordContribution`），换命随身体消失。
+`LockDeath` 在击杀者合格时用 `LDAssist::SelectAssisters` 选出 `REWARD.AssistWindowSec` 内（含边界）有贡献、仍在本局、不是击杀者或受害者的参赛者；死亡中的参赛者仍可得助攻。
+回执自身字段是击杀者那一份，`Assists` 按事实顺序列出每名助攻者的 XP、等级与机会变化。
+
+**经验**：使用累计阈值 `XP.Threshold[L]`，目标等级是已达到阈值的最高等级；逐级给点；跨过 `progression.active_offer_levels` 的等级各授予一次机会，不一次性预生成全部候选。
+满 16 级后继续累计 `int64` XP，不再升级或授予机会，超出部分每满 `GROWTH.MaxLevelPointsXP` 派生 `GROWTH.MaxLevelPoints` 点；UI 显示 `MAX`。任何越界在整奖准备阶段拒绝。
+
+**Prepare/Apply**：调用方在同一提交段内先 `ValidateWritePermit`，再 `PrepareExperience(ContenderId, GrantXP)` 与 Combat `PrepareBuildChange`，最终重查许可与全部依赖版本后进入
+不可重入、无等待的连续段 `ApplyPreparedGrowth` + `ApplyBuildChange`。Prepare 完成 XP/阈值/等级/点数/机会、最终 Build、来源、容器复制与发布 outbox；
+Apply 只移动已准备数据，不分配、不加载、不调 RPC/Delegate/OnRep、不做第二次业务校验。子结果全部封存后才生成一致的 owner 投影与回执。
+
+| `FLDRewardReceipt` | 含义 | 后续 |
+| --- | --- | --- |
+| `Granted` | XP/等级/机会与投影全部提交，带事实指纹、增量、等级前后与结果修订 | 同条款只读重放 |
+| `NoReward` | 合法死亡明确无奖，带类型化原因 | 同 Key 记已处理，不能后来补发 |
+| `RetryableNotCommitted` | 准备资源暂不可用（如 `CapacityExceeded`），什么都未提交 | Combat 保留事实，下一边界 DeathsAndRewards 重试一次 |
+| `PermanentlyRejected` | 旧局、未提交事实、同 Key 异条款 `DeathConflict`、旧 Life `StaleDeath`、非法目录、越界 | 真正待付事实的不可恢复错误作为权威故障 |
+
+重试仍失败或不可恢复时该边界返回错误，GameMode 以 `FaultAuthority` 进入 `Faulted`（无正常胜者），奖励明确未支付，关闭后不后台补发。待重试奖励存在时 `TryCloseMatch` 返回 `RewardPending`、
+Host 结束返回 `RequestInFlight`；同刻 Capture 完成时 Close 保留提案（`LD_CAPTURE_CLOSE_AWAITS_REWARD`），由同刻结算边界结清（见[战斗、效果与成长](COMBAT_AND_GROWTH.md#权威时序)）。
+离局清理身体与效果，但参赛记录保留到能结算既成事实；这不是离局后的新发奖资格。
+
 ## 复合事务
 
 奖励与构筑命令都按同一形状提交：纯 Prepare 完成全部可失败工作（整数 checked、版本、容量、
@@ -172,10 +218,88 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 `RestOnly=63` 已退役、编号保留不复用；休息服务 `BuildLocked=70`（只用于 NPC 服务）、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
 （76、77 未分配）。构筑命令种类 1–3 之外，组件命令为 10–12，休息服务为 20–23，其余编号未用。
 
+## 协议、回执与恢复
+
+| 字段族 | 类型 | 限制 |
+| --- | --- | --- |
+| Generation / Life | `uint32` | 仅核心推进，零值无效，到上限明确失败 |
+| ContenderId / LedgerMatch / OfferId / OptionId / IssuedCooldownId | `FGuid` | 有效 ID 非零；可选项单独带存在位 |
+| RequestId / CommitBatch | `uint64` | 请求每族从 1 开始，只在新 Match 重置，死亡不重置；CommitBatch 是边界的 `BatchSerial` |
+| Build / Progression / Offer 修订 | `uint64` | 建立后基准为 1，只由唯一写入者 checked 递增；计时不增修订 |
+| Level / OpportunityOrdinal / SlotIndex / 每项加点数 | `uint8` | Level 1..16、机会从 1 起、槽 0/1/2；技能没有等级字段 |
+| XP / P2 | `int64` | 越界在 Prepare 拒绝 |
+| `FLDDemoContentDigest` | 32 字节 SHA-256（`FLDDemoContentDefinitions::Identity.Root`） | 只做逐字节比较；日志为 64 位小写 hex |
+| 技能 DefinitionId | wire 为 `FLDDefinitionWire`：64 字节 UTF-8 缓冲，最多 63 字节，NUL 终止零填充 | `[a-z][a-z0-9_]*`；先验证再构造 FName，未知/非法拒绝不截断 |
+| Kind / Family / Outcome / Reason / bool | 枚举 `uint8`，Reason `uint16`，bool 仅 0/1 | decoder 逐值白名单，不用历史最大枚举包住废弃值 |
+
+| 操作 | 推进的修订 |
+| --- | --- |
+| XP 增加未升级 | 只 ProgressionRevision |
+| 奖励升级 | ProgressionRevision、BuildRevision；可能新增机会，已有候选不换组 |
+| 成长命令成功 | ProgressionRevision、BuildRevision 与处理记录；学到主动或加点时 Combat 推进来源修订 |
+| 主动释放/效果触发 | 只 Combat readiness/动作修订，不使成长命令过期 |
+| 时间流逝、查询、关窗、回执重放 | 不改任何版本 |
+
+- **受理与提交两步**：受理只规范化、核验、固定条款并入队，返回 `AcceptedPending / Final / AdmissionRejected`；`ProcessTransactions` 按受理顺序提交冻结条款。
+  每条流（`TLDGrowthRequestStream`）只允许一个未决变更，另一新序号 `RequestInFlight`，未来缺口 `OutOfOrder`；同 ID 同条款返回原 Pending/回执，异条款 `RequestConflict`；
+  超出 64 份窗口返回 `ReceiptExpired` 与当前状态，不重执行。请求序号不大于 FinalizedThrough、DeathKey 的 Life 不大于 `ResolvedLifeThrough` 时只查/重放，在成长 Prepare 之前生效。
+- **查询**返回 `Pending / Final / NotFound / ReceiptExpired / InvalidContext`，查找键为当前 Match、服务器解析的参赛者、命令族与请求号，先拒旧 Generation；没有“查不到就再执行”。
+- **生命阶段**：命令的 Life 是参赛记录当前生命代次；`ExpectedLifePhase` 只接受 Alive/Dead，表达该次确认所见的生死：死前 Alive 确认在死亡后拒绝，死后复活换 Life 后旧死亡确认拒绝；
+  拒绝保留候选、图纸与点数。
+- **回执**：共同头为 Generation、命令族、RequestId、原 Life 与阶段、Applied/Rejected、原因、所在批次、结果版本集合；载荷写明学到的槽或存为图纸及原因、加点后的未分配点数、可选的下一组候选。
+  Rejected 不伪造消费、学习或下一组。
+
+| 错误族 | UI / AI 恢复 |
+| --- | --- |
+| `OldMatch / OldLife / LifePhaseChanged / LeftMatch / MatchClosed / NotContender` | 清旧意图，读当前状态或停止策略 |
+| `BuildStale / CatalogMismatch` | 读当前状态；候选保留，重新明确确认，不自动改槽 |
+| 时机：`PhaseClosed`、`BuildLocked`/`NotRestWindow`、阵亡或离 NPC 远 | 显示原因，等合法时机重新提交，不自动排队 |
+| 对象：无候选、已处理、无图纸、槽不合法、点数不足 | 给出实际状态，保留未消费机会 |
+| `InvalidRequest / RequestConflict / OutOfOrder / RequestInFlight / ReceiptExpired` | 不重执行；查询或同步，不以超时猜成功 |
+| `NumericUnderflow / NumericDomain` | Combat 资源投影未提交，整次拒绝 |
+| `DataInvalid / ArithmeticOverflow / PrepareUnavailable / CapacityExceeded / NotAuthority / AuthorityFault` | 明确未提交与是否可恢复，不返回默认数据或长期 spinner |
+
+全部原因只在 `ELDGrowthReason`（`LDGrowthProtocol.h`）声明一次；奖励专用原因只出现在服务器内部。错误详情只给有权的本人。
+
+**本人视图**：`FLDProgressionView`（随 `FLDOwnerState.Growth` 发布）提供生命与资格、Level/MaxLevel/CumulativeXP、当前与下一级阈值、修订、未分配与五维点数、Q/W/E、图纸、
+排队机会数、当前候选、材料与工坊状态及 CatalogDigest。技能冷却与 `BuildSafeAtMs` 只在 Combat 的本人视图。回执可以先于新快照到达：UI 显示“已提交，等待状态同步”，不自行补齐；
+新快照先到则迟到回执只补提示。关闭面板不撤销已受理事实。正常结算只取冻结的 `Build.Level` 作为 FinalLevel，K/D 由核心按 DeathKey 归约，XP、构筑与 CD 不公开。
+
+**候选状态**：`Queued`（无合格主动，机会保留，构筑变化后重判，不阻挡加点）→ `Offered`（至多 3 个合格主动，保存一次；关闭、重开、死亡都读同组；真人开局候选在首次到达且无其他主面板或输入捕获时
+由 HUD 自动打开一次，几秒未操作或受击时收起）→ `RequestPending` → `Committed`（恰消费一次机会，之后才生成下一队首）。两个请求竞争同一组只有一个提交，另一个得到“该组已处理”。
+目录损坏以 `DataInvalid` 拒绝，不以替换修补。
+
 ## 对外信息
 
 普通客户端只接收自己的等级、经验、点数、候选组、图纸、材料实例（含安装与绑定）、开局基础构件候选与自身回执（交战窗口只在本人 Combat 视图里）。
 可见对手只经世界/视野发布获得等级与 Q/W/E 主动，不含冷却、XP、点数、候选、图纸或材料。拒绝原因只给有权的本人。
+
+## 生命周期矩阵
+
+| 对象 | 取消或关窗 | 死亡/复活 | 普通离局 | 终局 | 新局 |
+| --- | --- | --- | --- | --- | --- |
+| XP/等级/点数/技能/图纸/材料 | 不变 | 全部保留，不再初始化 | 不转移 | 冻结 | 按初始输入重建 |
+| 主动机会/候选 | 只清本地草稿 | 保留；复活不再授开局点数或机会；Dead 可选择、学空槽、加点与安装构件，只更新持久 Build | 不再提交 | 冻结 | 重新授予开局点数、开局机会及候选 |
+| 来源/`IssuedCooldownId`/`ReadyAtMs` | 不因图标清除 | 时间继续；新身体重绑保留来源 | 取消未结效果，不改既成事实 | 只读 | 全部失效 |
+| 致死到奖励 | 不可取消 | 死者可收存续效果奖励 | 按致死时资格 | 无新提交 | 旧 DeathKey 拒绝 |
+| 已提交回执 | 可查不重 apply | 不写新身体 | 仅服务器诊断 | 可只读查 | 旧投影拒绝 |
+
+没有断线重连、席位转 AI、Host 迁移或跨局战力恢复。
+
+## 内容键
+
+数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)；作者源 `SourceData\Demo\content.json`（`progression`：`max_level`、`active_slots`、`xp_start`、`xp_thresholds`、`active_offer_levels`、
+`component_category_weights`、`workshop_capacity`；参数 `XP.*`、`REWARD.PlayerXP.*`、`GROWTH.*`、`SKILL.GrowthPerLevel*`；`abilities[].opening`、`stats[].per_point`；营地 `reward_xp`），
+由 `Scripts\SyncDemoContentData.py` 生成载荷与 `LDDemoContentContract.h`，经 `ULDDemoContentCatalog` 提供不可变快照（见[世界与数据管线](WORLD_AND_DATA_PIPELINE.md)）。
+
+| 键 | 消费者与必须验证 |
+| --- | --- |
+| `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | `PrepareExperience`：严格递增阈值、逐级跨阈值、16 级 MAX、无 17 级阈值 |
+| `REWARD.PlayerXP`、`CAMP.*.RewardXP` | `CommitDeathReward`；每成员每 Life 一次 |
+| `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints / EmptyComponentPoolPoints`、`active_offer_levels`、`abilities[].opening` | 点数派生、开局与 3/6 级机会、无放回抽样与排除 |
+| `GROWTH.BuildSafeWindowSec` | Combat 交战窗口，只供 HUD 折叠，不限制成长命令 |
+| `stats[].per_point` | Combat 最终投影 |
+| `POLICY.MissingSourceCooldown=ContinueServerTime`、`POLICY.DeadChoiceCommit=Allowed`、`POLICY.ResourceMaxChange=PreserveRatio` | 失源/重学/死亡计时；死亡中成长只改持久 Build、不治疗；活体一次最终同比换算（`FORMULA.ResourceMaxChange=FloorFinalRatioRejectAliveUnderflow`） |
 
 ## 检查入口
 

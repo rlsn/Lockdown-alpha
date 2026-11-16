@@ -205,7 +205,7 @@ FLDLocalSettingsStorage FLDLocalSettingsStorage::Automation(const FGuid& Fixture
 
 const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
 {
-    // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2. Labels are player-facing copy only.
+    // Actions and default keys: APP_SPEC section 3.1, MOVEMENT_INPUT_AND_CAMERA controls table and input ownership. Labels are player-facing copy only.
     static const TArray<FLDControlBinding> Values={
         {TEXT("Select"),TEXT("选择 / 确认目标"),EKeys::LeftMouseButton},
         {TEXT("Navigate"),TEXT("移动 / 攻击"),EKeys::RightMouseButton},

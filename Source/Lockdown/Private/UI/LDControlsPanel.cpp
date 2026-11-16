@@ -246,7 +246,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         // copy); later refreshes only change text, faces, enablement and visibility.
         UWidgetTree* Tree=WidgetTree;
         auto* Canvas=Tree->ConstructWidget<UCanvasPanel>();Tree->RootWidget=Canvas;
-        // The world keeps running under Settings (UI_AND_SETTINGS 4); the scrim only separates the page from it.
+        // The world keeps running under Settings (MOVEMENT_INPUT_AND_CAMERA input ownership); the scrim only separates the page from it.
         auto* Scrim=Tree->ConstructWidget<UBorder>();Scrim->SetBrush(FSlateColorBrush(FLinearColor::White));Scrim->SetBrushColor(ScrimColor);
         Scrim->SetVisibility(ESlateVisibility::HitTestInvisible);
         auto* ScrimSlot=Canvas->AddChildToCanvas(Scrim);ScrimSlot->SetAnchors(FAnchors(0,0,1,1));ScrimSlot->SetOffsets(FMargin(0));
@@ -504,7 +504,7 @@ void ULDControlsPanel::Populate()
 {
     if(!Feedback){return;}
     const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
-    // Text size (UI 3.3) rescales every label once per change; the fixed control columns already leave room for 125%.
+    // Text size (VISION_AND_UI readability) rescales every label once per change; the fixed control columns already leave room for 125%.
     ApplyTextScale(Applied.TextScale);
     PopulatePreferences();
     PopulateBindings();

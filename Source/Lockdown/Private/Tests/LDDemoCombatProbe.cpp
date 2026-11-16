@@ -56,7 +56,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "UnrealClient.h"
 
-// Owned-connection combat and orders scenario (COMBAT_AND_ATTRIBUTES, CONTROLS_AND_TARGETING). Client1 acts only
+// Owned-connection combat and orders scenario (COMBAT_AND_GROWTH, MOVEMENT_INPUT_AND_CAMERA). Client1 acts only
 // through its own connection and the calls its hotkeys make; the participating Listen Host stands still while it is
 // attacked, audits those hits from its authority and then kills Client1 with an ordinary right-click order. Afterwards
 // both learn approved actives from offers the Host's DEV growth fixture (-LDDevGrowthFixture) presets and grants XP
@@ -1030,7 +1030,7 @@ public:
     }
 
     // Client1 opens Settings through its production entry over the accepted first walk and holds it past the order
-    // lease (UI_AND_SETTINGS 4, 7). bHandled stays false only while that walk is not accepted yet.
+    // lease (MOVEMENT_INPUT_AND_CAMERA input ownership). bHandled stays false only while that walk is not accepted yet.
     bool TickSettings(double Now, ALDPlayerController& PC, const ALDCharacter& Body, bool& bHandled)
     {
         ULDNavigationComponent& Nav = *PC.Navigation;
