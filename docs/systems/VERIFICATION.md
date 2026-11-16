@@ -21,7 +21,7 @@
 | SourceData / 编译器 | 对应 Sync `--check`、`Test*Import.py`，核对载荷与 contract |
 | Demo 世界 / 资产 | `BootstrapAssets.ps1 -Mode Generate/Regenerate/RefreshDefinitions/RegenerateFrontend/Validate`（`RegenerateFrontend` 只重建空白的 `L_Frontend`；每次都拒绝前端地图里出现世界设置以外的任何 Actor）；`Lockdown.Rules.DemoWorld` 的精确有符号几何、typed 投影与资产往返；真实拥有连接和完整移动/观测另行验收 |
 | Demo 世界 / 拥有连接 | `RunDemoWorldRoomCheck.ps1`；实际 Listen Host 加两个拥有客户端校验同一 Lobby/内容根/原生地面与导航，隔离 UserDir；没有 AI 或玩法身体，不代替完整对局 |
-| Demo 核心 / 拥有身体 | `RunDemoCoreCheck.ps1`；DEV-only 三拥有身体、地面/Stop/重放与原生 CMC 执行夹具，调用同一核心提交路径且不改变普通 Start 门禁；开局身体按名册位落在公共休息室锚点并像普通开局一样进入 R0，地面与原生审计在 R0 返回后的第一条野外生命上进行。可选 `-EarlyRestReady` 在三端观察其他真人与共享假人、远端走近和离开两类服务 NPC 后提交准备，检查最后 10 秒并提前进入野外；开局点数不足购买时，远端通过跳过开局候选取得点数再购买。`-ReplayFieldReturn` 用真实放置路径重放一次捕获的坡缝返场脚点，要求原脚点能够精确准备并撤回该夹具请求；`-FinalEntryOnly` 只检查六个终局入口经权威出生路径准备成功，不模拟完整休息时间线；营地成员只计数不受检；不代替完整战斗、随机出生、完整视野或 CT06 |
+| Demo 核心 / 拥有身体 | `RunDemoCoreCheck.ps1`；DEV-only 三拥有身体、地面/Stop/重放与原生 CMC 执行夹具，调用同一核心提交路径且不改变普通 Start 门禁；开局身体按名册位落在公共休息室锚点并像普通开局一样进入 R0，地面与原生审计在 R0 返回后的第一条野外生命上进行。分别检查攻击移动待受理时保留已接受身份、远端普通地面单立即预测新身份。可选 `-EarlyRestReady` 在三端观察其他真人与共享假人、远端走近和离开两类服务 NPC 后提交准备，检查最后 10 秒并提前进入野外；训练目标按权威夹具记录的实体身份在各自获准观察帧中查找，不按距离或外观猜测。该模式的 Client1 使用离屏真实渲染以取得工坊服务布局，其他端及默认模式使用 NullRHI；开局点数不足购买时，远端通过跳过开局候选取得点数再购买。`-ReplayFieldReturn` 用真实放置路径重放一次捕获的坡缝返场脚点，要求原脚点能够精确准备并撤回该夹具请求；`-FinalEntryOnly` 只检查六个终局入口经权威出生路径准备成功，不模拟完整休息时间线；营地成员只计数不受检；不代替完整战斗、随机出生、完整视野或 CT06 |
 | 喷漆守护 / 终局 / 新局 | `Lockdown.Rules.DemoCapture` 与 `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` 覆盖守护、打断、贡献及复活配置；`DemoFinalMod` 覆盖独立候选/绑定/锁定、真实命中触发、延迟与重复命中、硬控结束推送、撞击包、双区域代价和交通带逐段时效。`RunDemoCaptureCheck.ps1` 默认用 Listen Host、两个拥有客户端和三个生产 AI 经正常大厅开局；`-AllHuman` 用 Host 与五个拥有客户端，不添加 AI，并在选卡后通过真实前端按钮断线恢复同一角色、身体、资源、Build 请求水位及锁定的 FIN。终局发出普通 D 意图；候选包含交通管制时优先选择并绑定 D，`C16` 要求该绑定在拥有者获准读取的画面产生实际已走交通带，报告明确记录是否选到该卡及是否观察到交通带，不把未选卡当作效果证明。`-RenderHost` 用实际 RHI 保存三选一卡面、所需来源选择、已锁定卡，并在拥有身体进入核心圈后保存旗杆主视图。两种名额模式检查三段野外、六人的独立 FIN 选择与锁定、六入口、目标结束、成长冻结、返回 Lobby 与第二局。各角色必须恰好报告对应稳定检查 id。它不证明全部卡的图形品质或所有复活/截止细节；通过只认当次 Artifacts |
 | Demo 纯值战斗 / 时间许可 | `Lockdown.Rules.DemoCombatEvaluation`、`Lockdown.Rules.DemoCore`；伤害/时长使用当前 producer 的 `approved_base`，合成 `base` 保留供导入拒绝和变异测试；纯值成功不等于实际命中提交 |
 | 营地纯决策 | `Lockdown.Rules.CampDecision` 使用同一 `approved_base` 内容夹具，覆盖授权读取完成、身份/世界/时间拒绝、只在已攻击本营的参赛者中稳定选敌、从当前脚点量的感知半径、只约束成员自身的活动范围和成员回位；不创建 Actor 或执行移动/攻击/重置，不代替 N03 真实接线 |
@@ -51,6 +51,9 @@
 交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。
 
 `RunDemoSessionFaultCheck.ps1 -RefuseOnly` 只运行版本不兼容、六席满房和开局后的拒绝场景，不覆盖其他网络异常。
+
+Core 场景收尾由两个拥有客户端经正式离开房间入口退出，再校验服务器退休身体与资源所有权。
+它不把直接结束进程当作正式离开；意外断线保留参赛者的重连路径由对应会话检查覆盖。
 
 ## 合并前与里程碑检查
 

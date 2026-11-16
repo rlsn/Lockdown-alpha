@@ -39,6 +39,14 @@
 
 namespace LDDemoCoreProbeDetail
 {
+    const FLDObservedUnitView* TrainingTarget(const FLDWorldView& Frame, const FGuid& Entity)
+    {
+        return Frame.Units.FindByPredicate([&Entity](const FLDObservedUnitView& Unit)
+        {
+            return Entity.IsValid() && Unit.Kind==ELDObservedUnitKind::Contender && Unit.ContenderId==Entity;
+        });
+    }
+
     bool CanStartArrival(int32 Slot, bool bHostArrived, bool bClient1Arrived)
     {
         return Slot==0 || (Slot==1 && bHostArrived) || (Slot==2 && bHostArrived && bClient1Arrived);
@@ -61,11 +69,13 @@ class FLDDemoCoreProbe : public TSharedFromThis<FLDDemoCoreProbe>
 {
 public:
     TWeakObjectPtr<ALDPlayerController> Controller;
+    TWeakObjectPtr<UWorld> LeavingWorld;
     FString Output, Role, Error, CatalogDigest;
     double Deadline=0, StageAt=0, ArrivalReceivedAt=0;
     int64 FieldStartedAtMs=0;
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
+    bool bRoomLeaveRequested=false;
     bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
     bool bReadyWindowObserved=false, bLeftFirstService=false, bChoicesPanelOpened=false, bServicePanelOpened=false, bServicePanelClosed=false;
     bool bNpcPurchaseSent=false, bNpcPurchaseApplied=false;
@@ -80,6 +90,7 @@ public:
     bool bAuthoredTrainingDone=false;
     int32 AuthoredTrainingStage=0;
     int32 RestServiceStage=0;
+    FGuid SharedTargetEntity,AuthoredTargetEntity;
     FLDCombatBodyRef OriginalBody;
     FLDMoveIdentity OldOrder, AcceptedOrder, RestServiceOrder;
     FVector StartPosition=FVector::ZeroVector;
@@ -192,16 +203,8 @@ public:
             const auto* Relay=PC.LocalView();
             const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
             if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
-            const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
             auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-            const auto* Slot=Registry?Registry->Resolve(TEXT("training_dummy_0"),Registry->Generation):nullptr;
-            const auto* Target=Read.Frame->Units.FindByPredicate([Public,Slot](const FLDObservedUnitView& Unit)
-            {
-                return Slot&&FVector::DistSquared2D(Unit.FeetCm,Slot->Position)<FMath::Square(300.)
-                    &&Unit.Kind==ELDObservedUnitKind::Contender&&Unit.Presentation==0
-                    &&!Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& Member)
-                    {return Member.ContenderId==Unit.ContenderId;});
-            });
+            const auto* Target=LDDemoCoreProbeDetail::TrainingTarget(*Read.Frame,SharedTargetEntity);
             if(!Target){return true;}
             if(SharedTrainingStage==0)
             {
@@ -279,13 +282,7 @@ public:
         const auto* Relay=PC.LocalView();
         const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
         if(!Anchor||!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
-        const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
-        const auto* Target=Read.Frame->Units.FindByPredicate([Public,Anchor](const FLDObservedUnitView& Unit)
-        {
-            return Unit.Kind==ELDObservedUnitKind::Contender
-                &&FVector::DistSquared2D(Unit.FeetCm,Anchor->Position)<FMath::Square(300.)
-                &&!Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& M){return M.ContenderId==Unit.ContenderId;});
-        });
+        const auto* Target=LDDemoCoreProbeDetail::TrainingTarget(*Read.Frame,AuthoredTargetEntity);
         if(!Target){return true;}
         if(AuthoredTrainingStage==0)
         {
@@ -580,6 +577,21 @@ public:
             return true;
         },Error);
         if (!Check(Registered,TEXT("Three real controllers receive one committed body each"))) { return false; }
+        if (bEarlyRestReady)
+        {
+            // Fixture bindings choose one real target; each connection must still find it in its own permitted view.
+            const auto* Shared=Mode.TrainingDummies.Find(Controller->OwnerState.ContenderId);
+            if (!Check(Shared!=nullptr,TEXT("The host owns the shared reset target"))) { return false; }
+            auto Targets=MakeShared<FJsonObject>();
+            Targets->SetStringField(TEXT("shared"),Shared->Entity.ToString());
+            const auto* Placement=Registry.GetGeometry()->Anchors.FindByPredicate([](const FLDDemoWorldAnchor& A)
+                {return A.Kind==ELDDemoWorldAnchorKind::TrainingDummy&&A.Id.StartsWith(TEXT("training_shared_"));});
+            const auto* Authored=Placement?Mode.SharedTrainingDummies.Find(FName(*Placement->Id)):nullptr;
+            if (!Check(!Placement || Authored,TEXT("The authored target binds to its registered training body"))) { return false; }
+            Targets->SetStringField(TEXT("authored"),Authored?Authored->Entity.ToString():FGuid().ToString());
+            if (!Save(Targets,TEXT("TrainingTargets.json")))
+            { Error=TEXT("Could not save training target bindings."); return false; }
+        }
         // Like a normal start, the match opens in the rest R0; the movement audit runs on the first field life after it.
         Mode.MatchPhase=ELDMatchPhase::Rest;
         ++Mode.TimelineRevision;
@@ -599,6 +611,11 @@ public:
         Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body rest placement/retry, optional EarlyRestReady shared training observation/hit/reset, core/ground/CMC and native-prefix audit fixture. Not a full playable match, death/respawn, final motion Fence, general vision/combat or 3+3 AI acceptance."));
         Report->SetBoolField(TEXT("shared_training_exercised"),bSharedTrainingDone);
         Report->SetBoolField(TEXT("authored_training_exercised"),bAuthoredTrainingDone && AllMarkers(TEXT("AuthoredHit.json")));
+        Report->SetNumberField(TEXT("shared_training_stage"),SharedTrainingStage);
+        Report->SetNumberField(TEXT("authored_training_stage"),AuthoredTrainingStage);
+        Report->SetNumberField(TEXT("rest_service_stage"),RestServiceStage);
+        Report->SetStringField(TEXT("shared_training_target"),SharedTargetEntity.ToString());
+        Report->SetStringField(TEXT("authored_training_target"),AuthoredTargetEntity.ToString());
         Report->SetStringField(TEXT("role"),Role);
         Report->SetStringField(TEXT("catalog_sha256"),CatalogDigest);
         Report->SetStringField(TEXT("detail"),Error);
@@ -675,7 +692,30 @@ public:
         if (Written)
         {
             if (Role!=TEXT("Host") && FPaths::FileExists(FPaths::Combine(Output,TEXT("FinishClients"))))
-            { FPlatformMisc::RequestExitWithStatus(false,0); return false; }
+            {
+                if (!bRoomLeaveRequested)
+                {
+                    auto* PC=Controller.Get();
+                    if (!PC)
+                    {
+                        UE_LOG(LogLDTest,Error,TEXT("LD_DEMO_CORE_LEAVE_FAILED no owning controller"));
+                        FPlatformMisc::RequestExitWithStatus(false,2);
+                        return false;
+                    }
+                    LeavingWorld=PC->GetWorld();
+                    PC->LeaveDemoRoom();
+                    bRoomLeaveRequested=true;
+                    StageAt=FPlatformTime::Seconds();
+                }
+                if (!Controller.IsValid() || !LeavingWorld.IsValid() || !LeavingWorld->GetNetDriver())
+                { FPlatformMisc::RequestExitWithStatus(false,0); return false; }
+                if (FPlatformTime::Seconds()-StageAt>=20.)
+                {
+                    UE_LOG(LogLDTest,Error,TEXT("LD_DEMO_CORE_LEAVE_FAILED owning client did not leave the room"));
+                    FPlatformMisc::RequestExitWithStatus(false,2);
+                    return false;
+                }
+            }
             if (Role==TEXT("Host"))
             {
                 auto* PC=Controller.Get();
@@ -702,7 +742,7 @@ public:
                     Result->SetBoolField(TEXT("passed"),Clean);
                     Result->SetNumberField(TEXT("retired_clients"),Left);
                     Result->SetNumberField(TEXT("remaining_live_bodies"),Alive);
-                    Result->SetStringField(TEXT("scope"),TEXT("Real client disconnect retires body/resource ownership even when native Pawn teardown precedes Logout; the Host remains active."));
+                    Result->SetStringField(TEXT("scope"),TEXT("Explicit owning-client room leave retires body/resource ownership even when native Pawn teardown precedes Logout; an unexpected disconnect retains the reconnectable participant. The Host remains active."));
                     if (!Save(Result,TEXT("Disconnects.json")) || !Clean)
                     {
                         UE_LOG(LogLDTest,Error,TEXT("LD_DEMO_CORE_DISCONNECT_FAILED"));
@@ -769,6 +809,19 @@ public:
                 && Line.Stage==ELDMatchStage::Rest && Line.Step==ELDRestStep::Build && Body && Movement && Nav
                 && PC->OwnerState.bActive && PC->OwnerState.Match==Public->PublicMatch.Generation)
             {
+                if (!SharedTargetEntity.IsValid())
+                {
+                    const FString File=FPaths::Combine(Output,TEXT("TrainingTargets.json"));
+                    if (!FPaths::FileExists(File)) { return true; }
+                    FString Json,Shared,Authored;
+                    TSharedPtr<FJsonObject> Targets;
+                    if (!Check(FFileHelper::LoadFileToString(Json,*File)
+                        && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Targets) && Targets.IsValid()
+                        && Targets->TryGetStringField(TEXT("shared"),Shared) && FGuid::Parse(Shared,SharedTargetEntity)
+                        && SharedTargetEntity.IsValid()
+                        && Targets->TryGetStringField(TEXT("authored"),Authored) && FGuid::Parse(Authored,AuthoredTargetEntity),
+                        TEXT("The owning connection reads the exact fixture training target bindings"))) { return Finish(); }
+                }
                 if (const ALDWorldViewRelay* Relay=PC->LocalView())
                 {
                     const FLDObservedFrameRead Read=Relay->ReadObservedFrame();
@@ -813,7 +866,11 @@ public:
                     else if (RestServiceStage==1 && PC->OwnerState.NearbyRestService==ELDRestService::SkillMerchant)
                     {
                         ULDChoicesPanel* Panel=PC->HUDUI?PC->HUDUI->ChoicesPanel.Get():nullptr;
-                        if (!Check(Panel && PC->RootUI,TEXT("The remote owner has the shared choices panel and root UI"))) { return Finish(); }
+                        if (!Panel || !PC->RootUI)
+                        {
+                            Check(false,TEXT("The remote owner has the shared choices panel and root UI"));
+                            return Finish();
+                        }
                         if (!bChoicesPanelOpened)
                         {
                             if (!Check(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices),
@@ -1002,9 +1059,9 @@ public:
             if (FVector::Dist2D(StartPosition,Body->GetActorLocation())<300) { return true; }
             Check(true,TEXT("The owned body actually moves through native CMC"));
             AcceptedOrder=Nav->PredictedIdentity();
-            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            Nav->AttackMove(Goal->Position,Goal->Surface);
             Check(Nav->LocalIdentity()!=AcceptedOrder && Nav->PredictedIdentity()==AcceptedOrder,
-                TEXT("A pending replacement keeps the accepted order identity for prediction and replay"));
+                TEXT("A pending attack-move replacement keeps the accepted order identity for prediction and replay"));
             if (!Passed) { return Finish(); }
             StageAt=FPlatformTime::Seconds();
             Stage=31;
@@ -1012,6 +1069,12 @@ public:
         else if (Stage==31)
         {
             if (FPlatformTime::Seconds()-StageAt<.5) { return true; }
+            const FLDMoveIdentity BeforeGround=Nav->PredictedIdentity();
+            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            Check(Nav->LocalIdentity()!=BeforeGround
+                && Nav->PredictedIdentity()==(PC->HasAuthority()?BeforeGround:Nav->LocalIdentity()),
+                TEXT("A remote ground replacement predicts its own identity immediately while the host waits for authority"));
+            if (!Passed) { return Finish(); }
             // Stop, then a new order before the stop receipt: the pre-stop order stays client-active but has the old epoch.
             Check(Nav->HasMoveOrder(),TEXT("The walk is still client-active when Stop is pressed"));
             Nav->Stop();
@@ -1182,6 +1245,31 @@ bool FLDDemoCoreProbeArrivalTurnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A passing body can legitimately complete a route beyond the strict endpoint check"),
         LDPathSteering::BlockedAtHeldGoal(Foot,40,Goal,{PassingBody})
         && FVector2D::Distance(Foot,Goal)>40+ClientErrorCm);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoCoreProbeTrainingTargetTest, "Lockdown.Rules.DemoCoreProbe.TrainingTarget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoCoreProbeTrainingTargetTest::RunTest(const FString& Parameters)
+{
+    using LDDemoCoreProbeDetail::TrainingTarget;
+    FLDWorldView Frame;
+    FLDObservedUnitView Decoy,Target;
+    Decoy.Kind=Target.Kind=ELDObservedUnitKind::Contender;
+    Decoy.Presentation=Target.Presentation=0;
+    Decoy.ContenderId=FGuid::NewGuid();
+    Target.ContenderId=FGuid::NewGuid();
+    Decoy.FeetCm=Target.FeetCm=FVector(100,100,0);
+    Frame.Units={Decoy,Target};
+    TestTrue(TEXT("A nearby target with the same presentation cannot replace the bound training entity"),
+        TrainingTarget(Frame,Target.ContenderId)==&Frame.Units[1]);
+    Swap(Frame.Units[0],Frame.Units[1]);
+    TestTrue(TEXT("Observation row order does not change the shared target"),
+        TrainingTarget(Frame,Target.ContenderId)==&Frame.Units[0]);
+    Frame.Units.RemoveAt(0);
+    TestNull(TEXT("An unobserved bound target is not replaced by a nearby dummy"),
+        TrainingTarget(Frame,Target.ContenderId));
     return true;
 }
 
