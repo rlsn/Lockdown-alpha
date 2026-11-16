@@ -266,6 +266,12 @@ namespace LDHUD
     struct FCircleView
     {
         FString Line;
+        // The top-centre panel's split of Line (Mock 1): Head over the bar, then the graffiti owner on the left and the
+        // guard state on the right. Head carries the spray or contest part when there is one, otherwise the guard state
+        // (Aside then empty); Head · Owner · Aside together say exactly what Line says.
+        FString Head;
+        FString Owner;
+        FString Aside;
         bool bProgress=false;
         float Progress=0.f;
     };
@@ -421,11 +427,12 @@ namespace LDHUD
         bool bMana=false;
         FResourceView Mana;
         FString Statuses;
-        // A visible contender's Q/W/E actives (#112 §10, #198 single level): key and display name; never cooldowns.
+        // A visible contender's Q/W/E actives (#112 §10, #198 single level): key, display name and icon; never cooldowns.
         struct FActiveChip
         {
             FString Key;
             FString Name;
+            FString IconId;
             bool bEmpty=true;
         };
         bool bActives=false;

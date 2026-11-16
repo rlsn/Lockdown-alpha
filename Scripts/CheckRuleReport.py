@@ -370,6 +370,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDRegenDisplay",
         "Lockdown.Rules.DemoCombat.RegenRates",
         "Lockdown.Rules.HUDPublicMatch",
+        "Lockdown.Rules.HUDCircleColumns",
         "Lockdown.Rules.HUDMatchTimer",
         "Lockdown.Rules.HUDObservationBoundary",
         "Lockdown.Rules.HUDBasicAttackTerm",

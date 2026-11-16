@@ -186,7 +186,12 @@ constexpr float HudBlockGap=12.f;
 constexpr float HudTargetInner=226.f;
 constexpr float HudTargetPortrait=32.f;
 constexpr float HudTargetHealthHeight=16.f;
-constexpr float HudTargetManaHeight=10.f;
+constexpr float HudTargetManaHeight=8.f;
+constexpr float HudTargetActiveSide=34.f;
+// Mock 5's result page: the whole width, the gap between its cards and the winner's rule board inside its card.
+constexpr float HudResultWidth=1640.f;
+constexpr float HudResultGap=20.f;
+constexpr float HudResultBoardWidth=600.f;
 constexpr float HudTopInner=508.f;
 constexpr float HudMapSize=248.f;
 constexpr float HudPromptWidth=244.f;
@@ -361,21 +366,30 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         UProgressBar* B=nullptr;UTextBlock* T=nullptr;
         // Mock 1: a 16-unit health bar over a thin mana bar; their values ride inside at caption size.
         TargetBox->AddChildToVerticalBox(Bar(LDHUDStyle::EnemyHealth,B,T,HudTargetInner,HudTargetHealthHeight))->SetPadding(FMargin(0,6,0,2));TargetHealthBar=B;TargetHealth=T;
-        TargetManaRow=Bar(LDHUDStyle::Mana,B,T,HudTargetInner,HudTargetManaHeight);TargetBox->AddChildToVerticalBox(TargetManaRow)->SetPadding(FMargin(0,2));TargetManaBar=B;TargetMana=T;
+        TargetManaRow=Bar(LDHUDStyle::Mana,B,T,HudTargetInner,HudTargetManaHeight);TargetBox->AddChildToVerticalBox(TargetManaRow)->SetPadding(FMargin(0,4,0,2));TargetManaBar=B;TargetMana=T;
         for(UTextBlock* Value:{TargetHealth.Get(),TargetMana.Get()}){FSlateFontInfo Font=Value->GetFont();Font.Size=LDHUDStyle::TypeTiny;Value->SetFont(Font);}
+        // The 8-unit mana bar is too thin for its value; the value is the bar's tooltip instead.
+        TargetMana->SetVisibility(ESlateVisibility::Collapsed);TargetManaRow->SetVisibility(ESlateVisibility::Visible);
         TargetStatuses=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudTargetInner);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
         {
-            // Three Q/W/E tiles of a visible contender: the key and the active's name; no cooldown is ever drawn.
-            auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+            // Mock 1: three 34-unit Q/W/E icon tiles of a visible contender, 8 apart; no cooldown is ever drawn. The key and
+            // name are the tile's tooltip; a missing icon shows the name's first character.
+            auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
             for(int32 Index=0;Index<3;++Index)
             {
-                UTextBlock* Name=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);HudFace(Name,true,1);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+                UTextBlock* Name=OneLine(TEXT(""),LDHUDStyle::TypeBody,0);HudFace(Name,true,1);Name->SetJustification(ETextJustify::Center);
                 auto* Tile=WidgetTree->ConstructWidget<UBorder>();Tile->SetBrush(HudRound(6.f,LDHUDStyle::Rim,1.f));Tile->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
-                Tile->SetPadding(FMargin(8,3));Tile->SetContent(Name);Tile->SetClipping(EWidgetClipping::ClipToBounds);
-                auto* TileSlot=Row->AddChildToHorizontalBox(Tile);TileSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));TileSlot->SetPadding(FMargin(Index?3.f:0.f,0,Index?0.f:3.f,0));
-                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);
+                Tile->SetPadding(FMargin(0));Tile->SetHorizontalAlignment(HAlign_Center);Tile->SetVerticalAlignment(VAlign_Center);Tile->SetContent(Name);
+                UImage* Icon=WidgetTree->ConstructWidget<UImage>();Icon->SetVisibility(ESlateVisibility::Collapsed);
+                auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+                for(UWidget* Layer:{static_cast<UWidget*>(Tile),static_cast<UWidget*>(Icon)})
+                {auto* LayerSlot=Face->AddChildToOverlay(Layer);LayerSlot->SetHorizontalAlignment(HAlign_Fill);LayerSlot->SetVerticalAlignment(VAlign_Fill);}
+                auto* Side=WidgetTree->ConstructWidget<USizeBox>();Side->SetWidthOverride(HudTargetActiveSide);Side->SetHeightOverride(HudTargetActiveSide);Side->SetContent(Face);
+                Side->SetVisibility(ESlateVisibility::Visible);
+                Row->AddChildToHorizontalBox(Side)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
+                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);TargetActiveIcons.Add(Icon);
             }
-            TargetActivesRow=Row;TargetBox->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,4,0,0));
+            TargetActivesRow=Row;TargetBox->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,10,0,0));
         }
         auto* TargetWidth=WidgetTree->ConstructWidget<USizeBox>();TargetWidth->SetWidthOverride(HudTargetInner);TargetWidth->SetContent(TargetBox);
         TargetCard=Panel(TargetWidth,true);TargetCard->SetVisibility(ESlateVisibility::Collapsed);
@@ -395,11 +409,22 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         TimelineDetailText=OneLine(TEXT(""),LDHUDStyle::TypeBody,HudTopInner);TimelineDetailText->SetJustification(ETextJustify::Center);TimelineDetailText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         TimelineDetailText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(TimelineDetailText)->SetHorizontalAlignment(HAlign_Center);
-        PhaseText=OneLine(TEXT(""),LDHUDStyle::TypeLead,HudTopInner);PhaseText->SetJustification(ETextJustify::Center);
-        CircleBox->AddChildToVerticalBox(PhaseText)->SetHorizontalAlignment(HAlign_Center);
+        PhaseText=OneLine(TEXT(""),LDHUDStyle::TypeLead,HudTopInner);PhaseText->SetJustification(ETextJustify::Left);HudFace(PhaseText,true,0);
+        CircleBox->AddChildToVerticalBox(PhaseText)->SetHorizontalAlignment(HAlign_Fill);
         CircleProgress=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(CircleProgress,FLinearColor(1,.78f,.25f));CircleProgress->SetPercent(0);
         auto* CircleBarSize=WidgetTree->ConstructWidget<USizeBox>();CircleBarSize->SetWidthOverride(HudTopInner);CircleBarSize->SetHeightOverride(8);CircleBarSize->SetContent(CircleProgress);
         CircleBox->AddChildToVerticalBox(CircleBarSize)->SetPadding(FMargin(0,6,0,0));
+        {
+            // Mock 1: the graffiti owner on the left under the bar and the guard state on the right, in caption grey.
+            auto* Foot=WidgetTree->ConstructWidget<UHorizontalBox>();
+            PhaseOwnerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);PhaseOwnerText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+            PhaseAsideText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);PhaseAsideText->SetJustification(ETextJustify::Right);PhaseAsideText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+            for(UTextBlock* Side:{PhaseOwnerText.Get(),PhaseAsideText.Get()}){Side->SetColorAndOpacity(LDHUDStyle::TextSecondary);}
+            Foot->AddChildToHorizontalBox(PhaseOwnerText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            auto* AsideSlot=Foot->AddChildToHorizontalBox(PhaseAsideText);AsideSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));AsideSlot->SetPadding(FMargin(12,0,0,0));
+            Foot->SetVisibility(ESlateVisibility::Collapsed);PhaseFootRow=Foot;
+            CircleBox->AddChildToVerticalBox(Foot)->SetPadding(FMargin(0,8,0,0));
+        }
         // Mock 1: one fixed-width panel at the top centre, the gold progress bar running its full width.
         auto* CircleWidth=WidgetTree->ConstructWidget<USizeBox>();CircleWidth->SetWidthOverride(HudTopInner);CircleWidth->SetContent(CircleBox);
         PhaseBanner=Panel(CircleWidth,false);
@@ -505,43 +530,63 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* ResultBox=WidgetTree->ConstructWidget<UVerticalBox>();
         ResultTitle=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBanner,NAME_None,LDUIFonts::ERole::Title);
         // The verdict is written like the logo: action yellow over an event-pink offset, sprayed on a sheared pink band.
-        ResultTitle->SetColorAndOpacity(LDHUDStyle::UIAction);ResultTitle->SetShadowOffset(FVector2D(4.f,4.f));ResultTitle->SetShadowColorAndOpacity(LDHUDStyle::UIEvent);ResultTitle->SetJustification(ETextJustify::Center);
+        ResultTitle->SetColorAndOpacity(LDHUDStyle::UIAction);ResultTitle->SetShadowOffset(FVector2D(4.f,4.f));ResultTitle->SetShadowColorAndOpacity(LDHUDStyle::UIEvent);ResultTitle->SetJustification(ETextJustify::Left);
         {
             auto* Verdict=WidgetTree->ConstructWidget<UBorder>();Verdict->SetBrush(HudRound(6.f,LDHUDStyle::UIEvent.CopyWithNewOpacity(.55f),2.f));
             Verdict->SetBrushColor(LDHUDStyle::UIEvent.CopyWithNewOpacity(.16f));Verdict->SetPadding(FMargin(36,8));Verdict->SetContent(ResultTitle);
-            Verdict->SetRenderTransformAngle(-3.f);Verdict->SetVisibility(ESlateVisibility::HitTestInvisible);ResultWinnerBand=Verdict;
-            ResultBox->AddChildToVerticalBox(Verdict)->SetHorizontalAlignment(HAlign_Center);
+            Verdict->SetVisibility(ESlateVisibility::HitTestInvisible);ResultWinnerBand=Verdict;
+            ResultBox->AddChildToVerticalBox(Verdict)->SetHorizontalAlignment(HAlign_Left);
         }
-        ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,12));
-        ResultWinnerBuild=WidgetTree->ConstructWidget<USizeBox>();
-        ResultBox->AddChildToVerticalBox(ResultWinnerBuild)->SetHorizontalAlignment(HAlign_Center);
-        ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
-        ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();ResultBox->AddChildToVerticalBox(ResultRows);
-        // The own damage per source: four cells per line, DamageSummarySourcesMax cells in all.
-        ResultDamageHeading=Text(TEXT(""),16);ResultBox->AddChildToVerticalBox(ResultDamageHeading)->SetPadding(FMargin(0,14,0,4));
-        ResultDamageCells.Reset();
-        for(int32 Index=0;Index<LDHUD::DamageSummarySourcesMax;)
+        ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Left);ResultSubtitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,18));
+        // Mock 5: the contender table on the left, the winner's rule board in its own card on the right.
         {
-            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-            for(int32 Column=0;Column<4&&Index<LDHUD::DamageSummarySourcesMax;++Column,++Index)
+            auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(Body);
+            ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();
+            auto* RowsSlot=Body->AddChildToHorizontalBox(ResultRows);RowsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));RowsSlot->SetPadding(FMargin(0,0,HudResultGap,0));
+            auto* BoardBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            UTextBlock* BoardTitle=OneLine(TEXT("赢家规则板"),LDHUDStyle::TypeHeading,0);HudFace(BoardTitle,true,0);
+            BoardBox->AddChildToVerticalBox(BoardTitle)->SetPadding(FMargin(0,0,0,14));
+            ResultWinnerBuild=WidgetTree->ConstructWidget<USizeBox>();BoardBox->AddChildToVerticalBox(ResultWinnerBuild);
+            ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
+            auto* Board=WidgetTree->ConstructWidget<UBorder>();Board->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
+            Board->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));Board->SetPadding(FMargin(24,20));Board->SetContent(BoardBox);
+            auto* BoardWidth=WidgetTree->ConstructWidget<USizeBox>();BoardWidth->SetWidthOverride(HudResultBoardWidth+48.f);BoardWidth->SetContent(Board);
+            Body->AddChildToHorizontalBox(BoardWidth)->SetVerticalAlignment(VAlign_Fill);
+        }
+        // The own damage per source in one card: a heading, then DamageSummarySourcesMax cells on one line.
+        ResultDamageCells.Reset();
+        {
+            auto* DamageBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            ResultDamageHeading=Text(TEXT(""),LDHUDStyle::TypeHeading);HudFace(ResultDamageHeading,true,0);
+            DamageBox->AddChildToVerticalBox(ResultDamageHeading)->SetPadding(FMargin(0,0,0,10));
+            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();DamageBox->AddChildToVerticalBox(Line);
+            for(int32 Index=0;Index<LDHUD::DamageSummarySourcesMax;++Index)
             {
-                UTextBlock* Cell=OneLine(TEXT(""),14,0);Cell->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                UTextBlock* Cell=OneLine(TEXT(""),15,0);Cell->SetColorAndOpacity(LDHUDStyle::UIText);
                 auto* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
                 Fit->SetContent(Cell);
                 if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);}
-                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(180);Box->SetContent(Fit);
-                Line->AddChildToHorizontalBox(Box);ResultDamageCells.Add(Cell);
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride((HudResultWidth-48.f)/LDHUD::DamageSummarySourcesMax-12.f);Box->SetContent(Fit);
+                Line->AddChildToHorizontalBox(Box)->SetPadding(FMargin(0,0,12,0));ResultDamageCells.Add(Cell);
             }
-            ResultBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,2));
+            auto* DamageCard=WidgetTree->ConstructWidget<UBorder>();DamageCard->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
+            DamageCard->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));DamageCard->SetPadding(FMargin(24,18));DamageCard->SetContent(DamageBox);
+            ResultBox->AddChildToVerticalBox(DamageCard)->SetPadding(FMargin(0,HudResultGap,0,0));
         }
-        auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,16,0,0));ResultActionsBox=ResultActions;
-        ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
-        ResultActions->AddChildToHorizontalBox(ReturnButton)->SetPadding(FMargin(0,0,12,0));
-        LeaveRoomButton=LDWidgets::Button(WidgetTree,TEXT("离开房间并返回主菜单"),[PC](){if(PC->RootUI){PC->RootUI->LeaveRoom();}},false,TEXT("ResultLeaveRoom"));
-        ResultActions->AddChildToHorizontalBox(LeaveRoomButton);
+        // Actions sit bottom-right: the blueprint viewer, leave, and the host's return to Lobby as the one primary button.
+        auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();
+        ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,HudResultGap,0,0));
+        if(auto* ActionsSlot=Cast<UVerticalBoxSlot>(ResultActions->Slot)){ActionsSlot->SetHorizontalAlignment(HAlign_Right);}
+        ResultActionsBox=ResultActions;
         // #198 §10: the own build blueprint of this match, read-only.
-        ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::BuildBlueprint,[PC](){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}},false,TEXT("ResultBuildBlueprint")))->SetPadding(FMargin(12,0,0,0));
-        auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(820);ResultWidth->SetContent(ResultBox);
+        ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::BuildBlueprint,[PC](){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}},false,TEXT("ResultBuildBlueprint")))->SetPadding(FMargin(0,0,12,0));
+        LeaveRoomButton=LDWidgets::Button(WidgetTree,TEXT("离开房间并返回主菜单"),[PC](){if(PC->RootUI){PC->RootUI->LeaveRoom();}},false,TEXT("ResultLeaveRoom"));
+        ResultActions->AddChildToHorizontalBox(LeaveRoomButton)->SetPadding(FMargin(0,0,12,0));
+        ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
+        LDWidgets::SetLook(ReturnButton,LDUIPaint::EButton::Primary);
+        ResultActions->AddChildToHorizontalBox(ReturnButton);
+        auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(HudResultWidth);ResultWidth->SetContent(ResultBox);
         ResultPanel=Panel(ResultWidth,true);Place(ResultPanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,0));ResultPanel->SetVisibility(ESlateVisibility::Collapsed);
 
         // Centre: the hold-Tab scoreboard, read-only and click-through, over the running match.
@@ -1166,9 +1211,11 @@ void ULDHUD::RefreshReadModel()
     const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
     {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
-    HudSetText(PhaseText,Circle.Line);
-    HudSetShown(PhaseText,!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)
-        &&Public.Phase!=ELDMatchPhase::Rest,ESlateVisibility::HitTestInvisible);
+    HudSetText(PhaseText,Circle.Head);
+    const bool bPhaseLine=!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)&&Public.Phase!=ELDMatchPhase::Rest;
+    HudSetShown(PhaseText,bPhaseLine,ESlateVisibility::HitTestInvisible);
+    HudSetText(PhaseOwnerText,Circle.Owner);HudSetText(PhaseAsideText,Circle.Aside);
+    HudSetShown(PhaseFootRow,bPhaseLine&&!(Circle.Owner.IsEmpty()&&Circle.Aside.IsEmpty()),ESlateVisibility::HitTestInvisible);
     CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
@@ -1682,15 +1729,21 @@ void ULDHUD::RefreshReadModel()
         const FLinearColor HealthFill=!bContender?LDHUDStyle::CampHealth:Subject.ContenderId==O.ContenderId?LDHUDStyle::OwnHealth:LDHUDStyle::EnemyHealth;
         if(TargetHealthBar->GetFillColorAndOpacity()!=HealthFill){TargetHealthBar->SetFillColorAndOpacity(HealthFill);}
         TargetHealthBar->SetPercent(Card.Health.Fraction);HudSetText(TargetHealth,Card.Health.Text);
-        HudSetShown(TargetManaRow,Card.bMana,ESlateVisibility::SelfHitTestInvisible);
-        if(Card.bMana){TargetManaBar->SetPercent(Card.Mana.Fraction);HudSetText(TargetMana,Card.Mana.Text);}
+        HudSetShown(TargetManaRow,Card.bMana,ESlateVisibility::Visible);
+        if(Card.bMana&&!TargetMana->GetText().ToString().Equals(Card.Mana.Text,ESearchCase::CaseSensitive))
+        {TargetManaBar->SetPercent(Card.Mana.Fraction);HudSetText(TargetMana,Card.Mana.Text);TargetManaRow->SetToolTipText(FText::FromString(Card.Mana.Text));}
+        else if(Card.bMana){TargetManaBar->SetPercent(Card.Mana.Fraction);}
         HudSetText(TargetStatuses,Card.Statuses);
-        HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::HitTestInvisible);
+        HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::SelfHitTestInvisible);
         for(int32 Index=0;Card.bActives&&Index<TargetActiveTiles.Num();++Index)
         {
             const LDHUD::FObservedCard::FActiveChip& Chip=Card.Actives[Index];
-            HudSetText(TargetActiveNames[Index],Chip.Key+TEXT(" · ")+Chip.Name);
-            TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.55f:.9f));
+            const FString Tip=Chip.Key+TEXT(" · ")+Chip.Name;
+            UWidget* Tile=TargetActiveTiles[Index]->GetParent()?TargetActiveTiles[Index]->GetParent()->GetParent():nullptr;
+            if(Tile&&!Tile->GetToolTipText().ToString().Equals(Tip,ESearchCase::CaseSensitive)){Tile->SetToolTipText(FText::FromString(Tip));}
+            HudSetText(TargetActiveNames[Index],Chip.bEmpty?FString():Chip.Name.Left(1));
+            LDUIIcons::Apply(TargetActiveIcons[Index],Chip.IconId,6.f);
+            TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.45f:.9f));
         }
     }
 
@@ -2147,7 +2200,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     ResultWinnerBuild->SetVisibility(WinnerRow?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     if(WinnerRow)
     {
-        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),760.f,184.f,
+        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),HudResultBoardWidth,184.f,
             AppliedScale>0?AppliedScale:1.f));
     }
     const int64 Seconds=FMath::Max<int64>(0,Result.DurationMs)/1000;
@@ -2168,10 +2221,20 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     {
         static constexpr float Widths[]={190,90,90,60,90,100,60,70};
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        auto* Strip=WidgetTree->ConstructWidget<UBorder>();Strip->SetBrush(HudRound(3.f,FLinearColor::Transparent,0.f));
-        Strip->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);
-        auto* StripBox=WidgetTree->ConstructWidget<USizeBox>();StripBox->SetWidthOverride(6.f);StripBox->SetContent(Strip);
-        Line->AddChildToHorizontalBox(StripBox)->SetPadding(FMargin(0,0,12,0));
+        // Mock 5: the winner's star, then a seat-coloured portrait tile carrying the name's first glyph.
+        {
+            UTextBlock* Star=LDWidgets::Text(WidgetTree,bWinner?TEXT("★"):TEXT(""),LDHUDStyle::TypeHeading,NAME_None,LDUIFonts::ERole::Strong);
+            Star->SetAutoWrapText(false);Star->SetColorAndOpacity(LDHUDStyle::UIAction);Star->SetJustification(ETextJustify::Center);
+            auto* StarBox=WidgetTree->ConstructWidget<USizeBox>();StarBox->SetWidthOverride(36.f);StarBox->SetContent(Star);
+            Line->AddChildToHorizontalBox(StarBox)->SetVerticalAlignment(VAlign_Center);
+            auto* Portrait=WidgetTree->ConstructWidget<UBorder>();Portrait->SetBrush(HudRound(4.f,FLinearColor::Transparent,0.f));
+            Portrait->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);Portrait->SetHorizontalAlignment(HAlign_Center);Portrait->SetVerticalAlignment(VAlign_Center);
+            if(Seat&&Values.Num()>0){UTextBlock* Glyph=LDWidgets::Text(WidgetTree,LDHUD::IconGlyph(Values[0]),Size+2,NAME_None,LDUIFonts::ERole::Strong);Glyph->SetAutoWrapText(false);Glyph->SetColorAndOpacity(LDHUDStyle::UIText);Portrait->SetContent(Glyph);}
+            auto* PortraitBox=WidgetTree->ConstructWidget<USizeBox>();PortraitBox->SetWidthOverride(44.f);PortraitBox->SetHeightOverride(Seat?44.f:8.f);
+            PortraitBox->SetContent(Portrait);
+            Line->AddChildToHorizontalBox(PortraitBox)->SetPadding(FMargin(0,0,14,0));
+            if(auto* PortraitSlot=Cast<UHorizontalBoxSlot>(PortraitBox->Slot)){PortraitSlot->SetVerticalAlignment(VAlign_Center);}
+        }
         const FLinearColor Ink=!Seat?LDHUDStyle::TextSecondary:bSelf?LDHUDStyle::UIText:LDHUDStyle::UIText.CopyWithNewOpacity(.86f);
         for(int32 Column=0;Column<Values.Num()&&Column<UE_ARRAY_COUNT(Widths);++Column)
         {

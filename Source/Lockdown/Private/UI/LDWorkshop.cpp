@@ -41,6 +41,7 @@ namespace
 // Sizes in Slate units at the 1080p reference.
 constexpr float WorkshopMargin=40.f;
 constexpr float WorkshopTop=116.f;
+constexpr float WorkshopTitleWidth=118.f;
 constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
 constexpr float WorkshopCharacterWidth=352.f;
@@ -138,6 +139,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             PhaseStep=Label(TEXT(""),20,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Names->AddChildToVerticalBox(PhaseStep);
             Row->AddChildToHorizontalBox(Names)->SetPadding(FMargin(14,0,0,0));
             PhasePanel=Surface(Row,FMargin(14,8));Add(PhasePanel,2);
+            PageTitle=Label(LDTerms::Choice,34,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Add(PageTitle,2,ESlateVisibility::HitTestInvisible);
             CloseButton=LDWidgets::Button(WidgetTree,LDTerms::WorkshopClose,[this](){if(RequestClose){RequestClose();}},true,TEXT("WorkshopClose"));
             if(UTextBlock* Caption=Cast<UTextBlock>(CloseButton->GetContent()))
             {
@@ -424,7 +426,8 @@ void ULDWorkshop::Layout(FVector2D Size)
     {
         const float Bottom=H-WorkshopMargin;
         Next.Region=WorkshopBox(0,0,W,H);
-        Next.Phase=WorkshopBox(WorkshopMargin,20,WorkshopMargin+464,94);
+        Next.Title=WorkshopBox(WorkshopMargin,30,WorkshopMargin+WorkshopTitleWidth,84);
+        Next.Phase=WorkshopBox(WorkshopMargin+WorkshopTitleWidth,20,WorkshopMargin+WorkshopTitleWidth+464,94);
         Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,Bottom);
         const float ServiceHeight=Latest.bServices?58.f:0.f;
         const float FullTrayLimit=FMath::Max(0.f,Bottom-WorkshopTop-52.f-ServiceHeight);
@@ -516,6 +519,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     Place(Blur,Rects.Region);
     Place(Backdrop,WorkshopBox(0.f,0.f,W,H));
     Place(PhasePanel,bFull?Rects.Phase:FBox2D(ForceInit));
+    Place(PageTitle,bFull?Rects.Title:FBox2D(ForceInit));
     Place(CloseButton,WorkshopBox(W-WorkshopMargin-74.f,bFull?34.f:float(Rects.Region.Min.Y)-60.f,W-WorkshopMargin,bFull?86.f:float(Rects.Region.Min.Y)-8.f));
     Place(CharacterPanel,bFull?Rects.Character:FBox2D(ForceInit));
     Place(BoardPanel,Rects.Board);

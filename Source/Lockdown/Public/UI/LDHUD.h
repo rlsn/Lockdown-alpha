@@ -149,10 +149,12 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> TargetManaBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
-    // The visible contender's Q/W/E tiles: key and name (#198: an active has one level).
+    // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
+    // icon is missing, and the key and name are the tile's tooltip.
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
+    UPROPERTY() TArray<TObjectPtr<UImage>> TargetActiveIcons;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     // The top-centre stack (the banner and the rest actions); the full workshop moves it to the top-right corner.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> TopCentreSlot;
@@ -246,6 +248,10 @@ public:
     bool CancelPKThrowAim();
 private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
+    // Under the capture bar (Mock 1): the graffiti owner on the left, the guard state on the right.
+    UPROPERTY() TObjectPtr<UWidget> PhaseFootRow;
+    UPROPERTY() TObjectPtr<UTextBlock> PhaseOwnerText;
+    UPROPERTY() TObjectPtr<UTextBlock> PhaseAsideText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     // Bottom-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.

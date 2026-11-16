@@ -628,6 +628,29 @@ bool FLDHUDPKViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A rest without a PK shows nothing"),!LDHUD::HasPK(Public)&&!LDHUD::PKPanel(Public,Lobby,In).bVisible);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCircleColumnsTest,"Lockdown.Rules.HUDCircleColumns",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDCircleColumnsTest::RunTest(const FString& Parameters)
+{
+    // Mock 1's top-centre panel: Head over the bar, the graffiti owner under it on the left and the guard state on the right.
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;Public.OpenAtMs=MAX_int64;
+    const LDHUD::FCircleView Closed=LDHUD::Circle(Public,FString(),FString(),true,0);
+    TestTrue(TEXT("Outside the open flagpole the whole line is the head"),Closed.Head==Closed.Line&&Closed.Owner.IsEmpty()&&Closed.Aside.IsEmpty());
+    Public.Phase=ELDMatchPhase::CaptureOpen;Public.CircleState=ELDCircleState::Solo;Public.SoloSinceMs=100000;Public.DueAtMs=103500;
+    Public.GraffitiOwner=FGuid::NewGuid();Public.GuardKeptMs=5000;
+    const LDHUD::FCircleView Repaint=LDHUD::Circle(Public,TEXT("玩家甲"),TEXT("玩家乙"),true,101400,3500,20000);
+    TestTrue(TEXT("A spray over a graffiti heads with the spray, the owner left and the paused guard right"),
+        Repaint.Head==FString(TEXT("玩家甲 "))+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" 2.1s")
+        &&Repaint.Owner==LDTerms::GraffitiOf(TEXT("玩家乙"))
+        &&Repaint.Aside==FString(LDTerms::GuardPaused)+TEXT("（")+LDTerms::GuardLeft+TEXT(" 15.0s）"));
+    Public.CircleState=ELDCircleState::Guarded;Public.Occupier.Invalidate();Public.SoloSinceMs=Public.DueAtMs=Public.GuardKeptMs=0;Public.GuardDueAtMs=120000;
+    const LDHUD::FCircleView Guard=LDHUD::Circle(Public,FString(),TEXT("玩家乙"),true,105000,3500,20000);
+    TestTrue(TEXT("A running guard heads with its countdown and names the owner below, nothing on the right"),
+        Guard.Head==FString(LDTerms::GuardLeft)+TEXT(" 15.0s")&&Guard.Owner==LDTerms::GraffitiOf(TEXT("玩家乙"))&&Guard.Aside.IsEmpty());
+    Public.GraffitiOwner.Invalidate();Public.CircleState=ELDCircleState::Empty;
+    const LDHUD::FCircleView Empty=LDHUD::Circle(Public,FString(),FString(),true,0);
+    TestTrue(TEXT("An empty zone without a graffiti is the head alone"),Empty.Head==FString(LDTerms::CircleEmpty)&&Empty.Owner.IsEmpty()&&Empty.Aside.IsEmpty());
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {
