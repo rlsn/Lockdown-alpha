@@ -19,7 +19,7 @@ if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d
 $wire = [int]$Matches[1]
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
-# Every role must report the check groups it owns (PROGRESSION_AND_REWARDS §12 ids); a skipped stage cannot pass silently.
+# Every role must report the check groups it owns (GROWTH_TRANSACTIONS check entries); a skipped stage cannot pass silently.
 $requiredChecks = @{
     Host = @('Net','Start','Rest0','Rest','Opening','Fixture','A14','N03','Iso','DevTest')
     Client1 = @('Net','Start','Rest0','Rest','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A24','Iso','DevTest')

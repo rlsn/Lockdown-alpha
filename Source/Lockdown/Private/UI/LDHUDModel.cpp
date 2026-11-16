@@ -647,43 +647,52 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         // #198: the opening is scheduled only when the final field begins (OpenAtMs is unscheduled until then).
         View.Line=Public.Showdown.bStarted?FString(TEXT("旗杆解锁 · "))+(!bClock?FString(TEXT("同步中")):TenthsUp(Public.OpenAtMs-NowMs))
             :FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
+        View.Head=View.Line;
         return View;
     case ELDMatchPhase::CaptureOpen:
     {
         const FString Sprayer=SprayerName.IsEmpty()?FString(TEXT("未列名参赛者")):SprayerName;
         // The graffiti and its guard are public in every open state; the guard runs only while its owner is alone in
         // the zone: anyone else in the zone freezes it and an empty zone pauses it.
-        FString Guard;
+        FString GuardState;
         float GuardProgress=0.f;
         bool bGuardProgress=false;
         if(Public.GraffitiOwner.IsValid())
         {
-            Guard=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
+            View.Owner=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
             if(Public.CircleState!=ELDCircleState::Guarded)
             {
-                Guard+=FString(TEXT(" · "))+(Public.CircleState==ELDCircleState::Empty?LDTerms::GuardAway:LDTerms::GuardPaused);
+                GuardState=Public.CircleState==ELDCircleState::Empty?LDTerms::GuardAway:LDTerms::GuardPaused;
                 if(GuardMs>0)
                 {
-                    Guard+=FString(TEXT("（"))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(GuardMs-Public.GuardKeptMs)+TEXT("）");
+                    GuardState+=FString(TEXT("（"))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(GuardMs-Public.GuardKeptMs)+TEXT("）");
                     bGuardProgress=true;GuardProgress=float(FMath::Clamp(double(Public.GuardKeptMs)/double(GuardMs),0.,1.));
                 }
             }
-            else if(!bClock){Guard+=TEXT(" · 守护同步中");}
+            else if(!bClock){GuardState=TEXT("守护同步中");}
             else
             {
-                Guard+=FString(TEXT(" · "))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(Public.GuardDueAtMs-NowMs);
+                GuardState=FString(LDTerms::GuardLeft)+TEXT(" ")+TenthsUp(Public.GuardDueAtMs-NowMs);
                 if(GuardMs>0){bGuardProgress=true;GuardProgress=float(FMath::Clamp(1.-double(Public.GuardDueAtMs-NowMs)/double(GuardMs),0.,1.));}
             }
         }
-        const auto WithGuard=[&Guard](const FString& Spray){return Guard.IsEmpty()?Spray:Spray.IsEmpty()?Guard:Spray+TEXT(" · ")+Guard;};
+        const FString Guard=View.Owner.IsEmpty()?FString():GuardState.IsEmpty()?View.Owner:View.Owner+TEXT(" · ")+GuardState;
+        // Line keeps the spray part first and the whole guard after it; the panel lifts the spray part (or, without one,
+        // the guard state) into Head and puts the owner and the remaining guard state under the bar.
+        const auto Finish=[&View,&Guard,&GuardState](const FString& Spray)
+        {
+            View.Line=Guard.IsEmpty()?Spray:Spray.IsEmpty()?Guard:Spray+TEXT(" · ")+Guard;
+            if(Spray.IsEmpty()){View.Head=GuardState;}else{View.Head=Spray;View.Aside=GuardState;}
+            if(View.Head.IsEmpty()){View.Head=View.Owner;View.Owner.Reset();}
+        };
         switch(Public.CircleState)
         {
         case ELDCircleState::Empty:
-            View.Line=Guard.IsEmpty()?FString(LDTerms::CircleEmpty):Guard;
+            Finish(Guard.IsEmpty()?FString(LDTerms::CircleEmpty):FString());
             View.bProgress=bGuardProgress;View.Progress=GuardProgress;
             return View;
         case ELDCircleState::Guarded:
-            View.Line=Guard;
+            Finish(FString());
             View.bProgress=bGuardProgress;View.Progress=GuardProgress;
             return View;
         case ELDCircleState::Contested:
@@ -691,40 +700,30 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
             // A contest pauses the holder's spray progress instead of clearing it; without a holder nothing is kept.
             if(!Public.Occupier.IsValid()||Public.PausedProgressMs<=0)
             {
-                View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept);
+                Finish(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept);
                 View.bProgress=bGuardProgress;View.Progress=GuardProgress;
                 return View;
             }
             const FString Kept=FString::Printf(TEXT("%.1f"),double(Public.PausedProgressMs)/1000.);
-            if(SprayMs<=0){View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT("（")+Kept+TEXT(" s）"));return View;}
+            if(SprayMs<=0){Finish(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT("（")+Kept+TEXT(" s）"));return View;}
             View.bProgress=true;View.Progress=float(FMath::Clamp(double(Public.PausedProgressMs)/double(SprayMs),0.,1.));
-            View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT(" ")+Kept+FString::Printf(TEXT("/%.1f s"),double(SprayMs)/1000.));
+            Finish(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT(" ")+Kept+FString::Printf(TEXT("/%.1f s"),double(SprayMs)/1000.));
             return View;
         }
         case ELDCircleState::Solo:
         {
             const int64 Span=Public.DueAtMs-Public.SoloSinceMs;
-            if(!bClock||Span<=0){View.Line=WithGuard(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · 进度同步中"));return View;}
+            if(!bClock||Span<=0){Finish(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · 进度同步中"));return View;}
             View.bProgress=true;View.Progress=float(FMath::Clamp(double(NowMs-Public.SoloSinceMs)/double(Span),0.,1.));
-            View.Line=WithGuard(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" ")+TenthsUp(Public.DueAtMs-NowMs));
+            Finish(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" ")+TenthsUp(Public.DueAtMs-NowMs));
             return View;
         }
-        default: View.Line=FString(LDTerms::CapturePoint)+TEXT("状态同步中");return View;
+        default: View.Owner.Reset();View.Line=FString(LDTerms::CapturePoint)+TEXT("状态同步中");View.Head=View.Line;return View;
         }
     }
     default:
-        View.Line=PhaseLine(Public.Phase);
+        View.Line=PhaseLine(Public.Phase);View.Head=View.Line;
         return View;
-    }
-}
-FLinearColor LDHUD::CharmColor(ELDCharmKind Kind)
-{
-    switch(Kind)
-    {
-    case ELDCharmKind::Heal: return FLinearColor(.30f,.86f,.42f);
-    case ELDCharmKind::Mana: return FLinearColor(.28f,.56f,1.f);
-    case ELDCharmKind::MoveSpeed: return FLinearColor(1.f,.80f,.18f);
-    default: return FLinearColor(.6f,.6f,.6f);
     }
 }
 FLinearColor LDHUD::MarkerColor()
@@ -744,6 +743,7 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
     const uint32 Match=In.Public?In.Public->Generation:0;
     // A new match (or none) starts an empty feed whose first observation only records the state.
     if(Match!=Generation){Generation=Match;bPrimed=false;KillSerial=0;Shown.Reset();}
+    Prompt.Reset();
     auto Add=[this,Now](const FString& Text,bool bSelf,uint64 ClaimSerial=0,ELDFieldMarkerKind MarkerKind=ELDFieldMarkerKind::None,uint8 MarkerSegment=0)
     {
         if(Text.IsEmpty()){return;}
@@ -768,6 +768,21 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 for(const FGuid& Assister:Notice->Assisters){Assisters.Add(Name(Assister));}
                 const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName,Assisters);
                 Add(Line.Text,Line.bSelf);
+            }
+        }
+        if(In.OwnReactionAssists)
+        {
+            for(const FLDReactionAssistView& Assist:*In.OwnReactionAssists)
+            {
+                if(Assist.Serial<=ReactionAssistSerial){continue;}
+                // A prompt can overtake the match or own life it belongs to, or arrive before the clock that dates it is known:
+                // it waits, unconsumed, until they are. The serial is client-local and never resets, so each prompt is told
+                // at most once by this feed, however late its first observation (the HUD lives as long as its controller).
+                if(!In.bClock||Assist.Match>Match||(Assist.Match==Match&&(In.OwnLife==0||Assist.Life>In.OwnLife))){break;}
+                ReactionAssistSerial=Assist.Serial;
+                if(Assist.Match!=Match||Assist.Life!=In.OwnLife||In.NowMs-Assist.AtMs>StaleKillMs){continue;}
+                Prompt=ReactionAssistText(In.Content,Assist,Name(Assist.Trigger));
+                Add(Prompt,true);
             }
         }
         if(bPrimed)
@@ -955,6 +970,74 @@ FString HudDamageEntry(const FString& Name,int64 DamageP2)
 {
     return FString::Printf(TEXT("%s %lld"),*Name,HudWholePoints(DamageP2,true));
 }
+// ELDCombatElement (Fire, Water, Electric) as the status it leaves; ELDCombatReaction (Fog, Conduct, Overload) as its term.
+FString HudElementState(const FLDDemoContentDefinitions* Content,uint8 Element)
+{
+    const TCHAR* Id=Element==1?TEXT("burn"):Element==2?TEXT("wet"):Element==3?TEXT("electrified"):nullptr;
+    return Id?LDHUD::ContentName(Content,Id):FString();
+}
+FString HudReactionTerm(uint8 Reaction)
+{
+    return FString(Reaction==1?LDTerms::ReactionFog:Reaction==2?LDTerms::ReactionConduct:Reaction==3?LDTerms::ReactionOverload:TEXT(""));
+}
+FString HudElementStateId(uint8 Element)
+{
+    return FString(Element==1?TEXT("burn"):Element==2?TEXT("wet"):Element==3?TEXT("electrified"):TEXT(""));
+}
+// The icon of a damage source: its content display row's icon, the dash icon, or none for a plain basic attack.
+FString HudDamageSourceIcon(const FLDDemoContentDefinitions* Content,const FLDCombatSourceRef& Source)
+{
+    if(Source.Kind==ELDCombatSourceKind::Innate){return LDUIIcons::Dash;}
+    if(Source.DefinitionId.IsNone()){return FString();}
+    switch(Source.Kind)
+    {
+    case ELDCombatSourceKind::Basic: case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Component: case ELDCombatSourceKind::FinalMod:
+        return LDHUD::ContentIconId(Content,Source.DefinitionId.ToString());
+    default: return FString();
+    }
+}
+LDHUD::FRecapNode HudRecapNode(LDHUD::ERecapNode Kind,LDHUD::ERecapLink Link,const FString& Text,const FString& IconId=FString(),const FString& Name=FString())
+{
+    LDHUD::FRecapNode Node;Node.Kind=Kind;Node.Link=Link;Node.Text=Text;Node.IconId=IconId;Node.Name=Name.IsEmpty()?Text:Name;
+    Node.Glyph=LDHUD::IconGlyph(Node.Name);
+    return Node;
+}
+}
+FString LDHUD::ReactionChainText(const FLDDemoContentDefinitions* Content,const FLDDamageLine& Line,const FGuid& Self,const FString& SetterName)
+{
+    const FString Source=DamageSourceName(Content,Line.Source);
+    if(Line.Reaction==0){return Source;}
+    // An Overload splash consumed nothing on this body.
+    if(Line.Consumed==0){return FString::Printf(TEXT("%s → %s"),*Source,*HudReactionTerm(Line.Reaction));}
+    FString Owner;
+    if(Line.Setter.IsValid()&&Self.IsValid()&&Line.Setter==Self){Owner=TEXT("你的");}
+    else if(Line.Setter.IsValid()&&Line.Setter!=Line.Contender){Owner=(SetterName.IsEmpty()?FString(TEXT("未列名参赛者")):SetterName)+TEXT("的");}
+    return FString::Printf(TEXT("%s → %s%s → %s"),*Source,*Owner,*HudElementState(Content,Line.Consumed),*HudReactionTerm(Line.Reaction));
+}
+void LDHUD::ReactionChainNodes(const FLDDemoContentDefinitions* Content,const FLDDamageLine& Line,const FGuid& Self,const FString& SetterName,TArray<FRecapNode>& Out)
+{
+    const FString Source=DamageSourceName(Content,Line.Source);
+    Out.Add(HudRecapNode(ERecapNode::Source,ERecapLink::None,FString(),HudDamageSourceIcon(Content,Line.Source),Source));
+    if(Line.Reaction==0){return;}
+    const FString Reaction=HudReactionTerm(Line.Reaction);
+    if(Line.Consumed!=0)
+    {
+        FString Setter;
+        if(Line.Setter.IsValid()&&Self.IsValid()&&Line.Setter==Self){Setter=TEXT("你");}
+        else if(Line.Setter.IsValid()&&Line.Setter!=Line.Contender){Setter=SetterName.IsEmpty()?FString(TEXT("未列名参赛者")):SetterName;}
+        if(!Setter.IsEmpty()){Out.Add(HudRecapNode(ERecapNode::Setter,ERecapLink::Arrow,Setter));}
+        const FString State=HudElementState(Content,Line.Consumed);
+        Out.Add(HudRecapNode(ERecapNode::State,Setter.IsEmpty()?ERecapLink::Arrow:ERecapLink::None,FString(),
+            ContentIconId(Content,HudElementStateId(Line.Consumed)),State));
+    }
+    Out.Add(HudRecapNode(ERecapNode::Reaction,ERecapLink::Arrow,Reaction,FString(),Reaction+TEXT("：")+LDTerms::ReactionExplanation(Reaction)));
+}
+FString LDHUD::ReactionAssistText(const FLDDemoContentDefinitions* Content,const FLDReactionAssistView& View,const FString& TriggerName)
+{
+    // A trigger the setter did not see stays unnamed.
+    if(!View.Trigger.IsValid()){return FString::Printf(TEXT("你的%s被引爆（%s）"),*HudElementState(Content,View.Consumed),*HudReactionTerm(View.Reaction));}
+    return FString::Printf(TEXT("你的%s被%s引爆（%s）"),*HudElementState(Content,View.Consumed),
+        TriggerName.IsEmpty()?TEXT("未列名参赛者"):*TriggerName,*HudReactionTerm(View.Reaction));
 }
 FString LDHUD::DamageSourceName(const FLDDemoContentDefinitions* Content,const FLDCombatSourceRef& Source)
 {
@@ -986,7 +1069,8 @@ LDHUD::FDamageListView LDHUD::DeathRecap(const FLDDeathRecapView& Recap,const FL
     {
         const FLDDamageLine& Line=Recap.Lines[Index];
         if(Attackers.IsEmpty()||!Recap.Lines[Attackers.Last().First].SameAttacker(Line)){Attackers.Add({Index,0,0});}
-        ++Attackers.Last().Num;Attackers.Last().TotalP2+=Line.DamageP2;AllP2+=Line.DamageP2;
+        FAttacker& Attacker=Attackers.Last();
+        ++Attacker.Num;Attacker.TotalP2+=Line.DamageP2;AllP2+=Line.DamageP2;
     }
     View.Heading=FString::Printf(TEXT("近 %s 秒承受伤害 %lld"),*Window,HudWholePoints(AllP2,true));
     const int32 Shown=Attackers.Num()>DeathRecapAttackersMax?DeathRecapAttackersMax-1:Attackers.Num();
@@ -997,14 +1081,34 @@ LDHUD::FDamageListView LDHUD::DeathRecap(const FLDDeathRecapView& Recap,const FL
         FString Name=Head.Contender.IsValid()?RosterName(Lobby,Head.Contender):!Head.MonsterId.IsNone()?ContentName(Content,Head.MonsterId.ToString()):FString(TEXT("其他来源"));
         if(Name.IsEmpty()){Name=TEXT("未列名参赛者");}
         TArray<FString> Parts;Parts.Add(HudDamageEntry(Name,Attacker.TotalP2));
+        TArray<FRecapNode>& Nodes=View.Chains.AddDefaulted_GetRef().Nodes;
+        Nodes.Add(HudRecapNode(ERecapNode::Attacker,ERecapLink::None,Name));
+        Nodes.Add(HudRecapNode(ERecapNode::Amount,ERecapLink::None,FString::Printf(TEXT("%lld"),HudWholePoints(Attacker.TotalP2,true))));
         const int32 Sources=Attacker.Num>DeathRecapSourcesMax?DeathRecapSourcesMax-1:Attacker.Num;
         int64 RestP2=0;
         for(int32 Offset=0;Offset<Attacker.Num;++Offset)
         {
             const FLDDamageLine& Line=Recap.Lines[Attacker.First+Offset];
-            if(Offset<Sources){Parts.Add(HudDamageEntry(DamageSourceName(Content,Line.Source),Line.DamageP2));}else{RestP2+=Line.DamageP2;}
+            if(Offset<Sources)
+            {
+                const FString SetterName=Line.Setter.IsValid()?RosterName(Lobby,Line.Setter):FString();
+                Parts.Add(HudDamageEntry(ReactionChainText(Content,Line,Own.ContenderId,SetterName),Line.DamageP2));
+                const int32 Start=Nodes.Num();
+                ReactionChainNodes(Content,Line,Own.ContenderId,SetterName,Nodes);
+                Nodes[Start].Link=ERecapLink::Gap;
+                Nodes.Add(HudRecapNode(ERecapNode::Amount,ERecapLink::None,FString::Printf(TEXT("%lld"),HudWholePoints(Line.DamageP2,true))));
+            }
+            else{RestP2+=Line.DamageP2;}
         }
-        if(RestP2>0){Parts.Add(HudDamageEntry(TEXT("其他"),RestP2));}
+        if(RestP2>0)
+        {
+            Parts.Add(HudDamageEntry(TEXT("其他"),RestP2));
+            Nodes.Add(HudRecapNode(ERecapNode::Rest,ERecapLink::Gap,HudDamageEntry(TEXT("其他"),RestP2)));
+        }
+        const bool bKiller=Head.Contender.IsValid()?Head.Contender==Recap.Killer
+            :!Head.MonsterId.IsNone()&&Head.MonsterId==Recap.KillerMonsterId;
+        const FString Tag=bKiller?FString(TEXT("击杀")):Head.Contender.IsValid()&&Recap.Assisters.Contains(Head.Contender)?FString(LDTerms::Assist):FString();
+        if(!Tag.IsEmpty()){Parts.Add(Tag);Nodes.Add(HudRecapNode(ERecapNode::Tag,ERecapLink::Gap,Tag));}
         View.Rows.Add(FString::Join(Parts,TEXT(" · ")));
     }
     if(Shown<Attackers.Num())
@@ -1012,6 +1116,7 @@ LDHUD::FDamageListView LDHUD::DeathRecap(const FLDDeathRecapView& Recap,const FL
         int64 RestP2=0;
         for(int32 Index=Shown;Index<Attackers.Num();++Index){RestP2+=Attackers[Index].TotalP2;}
         View.Rows.Add(HudDamageEntry(FString::Printf(TEXT("其他 %d 个攻击者"),Attackers.Num()-Shown),RestP2));
+        View.Chains.AddDefaulted_GetRef().Nodes.Add(HudRecapNode(ERecapNode::Rest,ERecapLink::None,View.Rows.Last()));
     }
     return View;
 }
@@ -1136,6 +1241,11 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
         const uint8 Id=Unit.Actives.Abilities[Index];
         Chip.bEmpty=Id==0;
         Chip.Name=Chip.bEmpty?FString(TEXT("空槽")):AbilityName(Content,Id);
+        if(!Chip.bEmpty&&Content)
+        {
+            if(const auto* Ability=Content->Abilities.FindByPredicate([Id](const FLDDemoAbilityDefinition& A){return A.NativeId==Id;}))
+            {Chip.IconId=ContentIconId(Content,Ability->Id);}
+        }
     }
     return Card;
 }
@@ -1762,13 +1872,12 @@ TArray<LDHUD::FWorkshopTargetView> LDHUD::WorkshopTargets(const FLDDemoComponent
     const FLDDemoContentDefinitions* Content)
 {
     TArray<FWorkshopTargetView> Out;
-    if(Component.Kind==ELDDemoComponentKind::Base){return Out;}
+    if(Component.Kind==ELDDemoComponentKind::Base||!Content){return Out;}
     const FName Self(*Component.Id);
-    for(const FString& Id:Component.TargetActives)
+    for(const FLDActiveSlotView& Active:Progression.Actives)
     {
-        const FName Active(*Id);
-        if(Progression.Actives.ContainsByPredicate([Active](const FLDActiveSlotView& A){return A.DefinitionId==Active;}))
-        {Out.Add({ELDComponentTargetKind::Active,Active,ContentName(Content,Id)});}
+        if(LDWorkshop::TargetsActive(*Content,Component,Active.DefinitionId))
+        {Out.Add({ELDComponentTargetKind::Active,Active.DefinitionId,ContentName(Content,Active.DefinitionId.ToString())});}
     }
     for(const FString& Id:Component.TargetComponents)
     {
@@ -1920,6 +2029,29 @@ namespace
         default: OutColumn=LDHUD::EStorageColumn::Body;return;
         }
     }
+    bool HudColumnAtCapacity(LDHUD::EStorageColumn Column,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content,FName MovingComponent)
+    {
+        const int32 Limit=!Content?0:Column==LDHUD::EStorageColumn::Body?Content->Progression.WorkshopBodyColumnCapacity
+        :Column==LDHUD::EStorageColumn::Dash?Content->Progression.WorkshopDashColumnCapacity:0;
+        if(Limit==0){return false;}
+        TSet<FName> Released;
+        const FLDComponentInstanceView* Moving=HudOwned(Progression,MovingComponent);
+        if(Moving&&Moving->bInstalled)
+        {
+        Released.Add(MovingComponent);
+        for(const FName Detached:LDHUD::DetachedWith(MovingComponent,Progression)){Released.Add(Detached);}
+        }
+        int32 Occupied=0;
+        for(const FLDComponentInstanceView& Owned:Progression.Components)
+        {
+        if(!Owned.bInstalled||Released.Contains(Owned.DefinitionId)){continue;}
+        LDHUD::EStorageColumn InstalledColumn=LDHUD::EStorageColumn::Body;FName Host;
+        HudPlacement(Progression,Owned,InstalledColumn,Host);
+        Occupied+=InstalledColumn==Column?1:0;
+        }
+        return Occupied>=Limit;
+    }
 }
 LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
@@ -2040,12 +2172,15 @@ TArray<LDHUD::FComponentDrop> LDHUD::ComponentDrops(FName Component,const FLDPro
         if(Definition->Binding!=ELDDemoComponentBinding::ActiveElement)
         {
             if(!FormMateAt(Component,ELDComponentTargetKind::None,NAME_None,Progression,Content).IsNone()){return Out;}
+            if(HudColumnAtCapacity(EStorageColumn::Body,Progression,Content,Component)){return Out;}
             FComponentDrop Drop;Drop.Column=EStorageColumn::Body;Out.Add(Drop);
             return Out;
         }
         for(const FName& Active:BindableActives(*Definition,Progression))
         {
-            FComponentDrop Drop;Drop.Column=HudActiveColumn(Progression,Active);Drop.BindActive=Active;Drop.Elements=Definition->BindElements;
+            FComponentDrop Drop;Drop.Column=HudActiveColumn(Progression,Active);
+            if(HudColumnAtCapacity(Drop.Column,Progression,Content,Component)){continue;}
+            Drop.BindActive=Active;Drop.Elements=Definition->BindElements;
             if(!Drop.Elements.IsEmpty()){Out.Add(MoveTemp(Drop));}
         }
         return Out;
@@ -2080,6 +2215,7 @@ TArray<LDHUD::FComponentDrop> LDHUD::ComponentDrops(FName Component,const FLDPro
         // C12 repeats an installed base, never one coming off with it.
         Drop.Bases.RemoveAll([&Off](const FName& Base){return Off.Contains(Base);});
         if(!Bases.IsEmpty()&&Drop.Bases.IsEmpty()){continue;}
+        if(HudColumnAtCapacity(Drop.Column,Progression,Content,Component)){continue;}
         Out.Add(MoveTemp(Drop));
     }
     return Out;
@@ -2152,9 +2288,9 @@ LDHUD::FComponentConnections LDHUD::ComponentConnections(FName Component,const F
     const FLDDemoComponentDefinition* Definition=HudComponentDefinition(Content,Component);
     if(!Definition||!Content){return Out;}
     const FString Self=Component.ToString();
-    for(const FString& Id:Definition->TargetActives)
+    for(const FLDActiveSlotView& Active:Progression.Actives)
     {
-        if(Progression.Actives.ContainsByPredicate([&Id](const FLDActiveSlotView& A){return A.DefinitionId==FName(*Id);})){Out.Actives.AddUnique(FName(*Id));}
+        if(LDWorkshop::TargetsActive(*Content,*Definition,Active.DefinitionId)){Out.Actives.AddUnique(Active.DefinitionId);}
     }
     for(const FLDComponentInstanceView& Owned:Progression.Components)
     {
@@ -2469,6 +2605,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::OpeningActiveFirst: return FString(TEXT("先选开局技能，再选开局基础"))+LDTerms::Component;
     case ELDGrowthReason::TargetConflict: return LDTerms::TargetConflict;
     case ELDGrowthReason::WorkshopFull: return LDTerms::WorkshopFullReason;
+    case ELDGrowthReason::ComponentColumnFull: return LDTerms::ComponentColumnFullReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
@@ -2571,6 +2708,10 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
         return false;
     }
     return false;
+}
+FString LDHUD::SelfIconsNotice(const FSelfIconsView& View,bool bShown)
+{
+    return bShown&&View.bSyncing?FString(TEXT("状态同步中")):FString();
 }
 LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
 {

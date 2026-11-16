@@ -742,7 +742,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
         }
     }
     // Only a lost life, body, match or phase ends the accepted order. The menu, Settings, panels and confirmations
-    // only suppress new commands: the order keeps its heartbeat and path-following (UI 4, 7).
+    // only suppress new commands: the order keeps its heartbeat and path-following (MOVEMENT_INPUT_AND_CAMERA input ownership).
     if (!PC->IsWorldLifeValid())
     {
         ClearPointer();
@@ -1010,7 +1010,7 @@ void ULDNavigationComponent::UpdateLocalCamera(float Delta)
     auto* PC=Controller();
     auto* Body=Cast<ALDCharacter>(PC->GetPawn());
     // Dead in the running match, the owner's waiting camera keeps this same camera state over the static map:
-    // it pans and zooms, never follows anyone and never moves a body (CONTROLS 3.3, UI 4).
+    // it pans and zooms, never follows anyone and never moves a body (MOVEMENT_INPUT_AND_CAMERA camera).
     ACameraActor* DeathView=!Body && bCameraCentreKnown && PC->IsAwaitingRespawn()
         ? Cast<ACameraActor>(PC->GetViewTarget()) : nullptr;
     if (!Body && !DeathView) { return; }

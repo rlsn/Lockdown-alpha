@@ -127,6 +127,21 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     if (!CheckDamage(*this, TEXT("100 resistance points halve damage"), Input, *Catalog, {3500, 0, 3500, 0, 58500, 0})) { return false; }
     Input.TargetResistanceP2 = int64(20000);
     if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 59667, 0})) { return false; }
+    Input = PrimaryInput(*Catalog);
+    Input.PrimaryGuardP2 = 100;
+    Input.PrimaryGuardCapBp = 5000;
+    Input.KeystoneGuardP2 = 200;
+    Input.KeystoneGuardCapBp = 5000;
+    const FLDDamageEvaluationResult Guarded = LDTactical::EvaluateDamage(Input, *Catalog);
+    if (!TestTrue(TEXT("Ordinary and keystone primary guards evaluate"), Guarded.IsSuccess())) { return false; }
+    TestEqual(TEXT("Ordinary primary guard cuts first"), Guarded.Value->GuardCutP2, int64(100));
+    TestEqual(TEXT("Keystone guard cuts the post-component amount"), Guarded.Value->KeystoneGuardCutP2, int64(200));
+    TestEqual(TEXT("Both guard cuts precede shields"), Guarded.Value->DamageP2, int64(5632));
+    Input.bTargetProtected = true;
+    const FLDDamageEvaluationResult Protected = LDTactical::EvaluateDamage(Input, *Catalog);
+    if (!TestTrue(TEXT("Protection accepts the same valid guard inputs"), Protected.IsSuccess())) { return false; }
+    TestEqual(TEXT("Protection suppresses ordinary guard"), Protected.Value->GuardCutP2, int64(0));
+    TestEqual(TEXT("Protection suppresses keystone guard"), Protected.Value->KeystoneGuardCutP2, int64(0));
 
     FString Error;
     const FLDDemoAbilityDefinition* Snark = nullptr;

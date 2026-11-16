@@ -122,6 +122,15 @@ struct FLDAttributeContributions
     bool bClamped = false;
 };
 
+struct FLDKeystoneActivation
+{
+    bool bPhysique = false;
+    bool bThickSkin = false;
+    bool bStrength = false;
+    bool bBrains = false;
+    bool bAgility = false;
+};
+
 // A held low-HP trigger (low_hp_stat_bonus, B15): its stats apply only while current HP is strictly below ThresholdBp of
 // max HP.
 struct FLDLowHPBonusTerm
@@ -155,6 +164,8 @@ struct FLDInstalledComponentTerm
 struct FLDAttributeProjection
 {
     FLDProjectedAttributes Final;
+    // Activated from allocated point counts, independently of stat caps and unspent points.
+    FLDKeystoneActivation Keystones;
     // One row per ELDProjectedAttribute, in enum order.
     TArray<FLDAttributeContributions> Contributions;
     // #198 B conditional component terms; Combat applies them from body state, the build projection never adds them.

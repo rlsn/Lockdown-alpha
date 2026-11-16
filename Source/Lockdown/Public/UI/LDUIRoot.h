@@ -21,7 +21,7 @@ class ALDGameState;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
-// Local navigation only (UI_AND_SETTINGS 3.1/4): one main panel at a time, each with at most one child confirmation.
+// Local navigation only (VISION_AND_UI navigation; MOVEMENT_INPUT_AND_CAMERA input ownership): one main panel at a time, each with at most one child confirmation.
 UENUM()
 enum class ELDUIMainPanel : uint8 { None, Menu, Settings, Choices, DevTest };
 enum class ELDUIInputLayer : uint8 { None, TextEditing, ChildConfirmation, MainPanel };

@@ -5,7 +5,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "LDGrowthProtocol.generated.h"
 
-// Growth protocol (PROGRESSION_AND_REWARDS). Client-sent enums are decoded by an explicit whitelist; unknown values are
+// Growth protocol (GROWTH_TRANSACTIONS). Client-sent enums are decoded by an explicit whitelist; unknown values are
 // rejected, never clamped to a neighbouring meaning. Retired values (the #144 shop family and trade reasons, the #198
 // three-card choice family, rerolls and replacements) are never reused.
 
@@ -142,8 +142,9 @@ enum class ELDGrowthReason : uint16
     NoComponentChoice = 160, ComponentOwned = 161, NotAGap = 162, NoGapFiller = 163, GapAlreadyFilled = 164,
     DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167,
     // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
-    // entry), NoFinalMod (no open final mod of that id), FinalModUnavailable (its selected source is no longer legal).
-    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172
+    // entry), NoFinalMod (no open final mod of that id), FinalModUnavailable (its selected source is no longer legal),
+    // ComponentColumnFull (the body or dash column reached its own install limit).
+    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172, ComponentColumnFull = 173
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -374,6 +375,7 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() TArray<FLDFieldRewardView> FieldRewards;
     // Immutable once-revealed candidates; legal bindings reflect the current build without redrawing them.
     UPROPERTY() bool bFinalModPending = false;
+    UPROPERTY() bool bExtraFinalModCard = false;
     UPROPERTY() FGuid FinalModOfferId;
     UPROPERTY() TArray<FName> FinalModOptions;
     UPROPERTY() TArray<FLDFinalModSourceView> FinalModSources;

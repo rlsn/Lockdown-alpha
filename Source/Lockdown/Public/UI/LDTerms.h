@@ -182,6 +182,7 @@ inline constexpr TCHAR NoPlaceNow[]=TEXT("现在没有可装的位置");
 inline constexpr TCHAR WorkshopFullReason[]=TEXT("工坊已满");
 inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，拖到一件已装构件上替换它"),Capacity,Capacity);}
 inline FString WorkshopFullNoPlace(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，现在没有可替换的位置"),Capacity,Capacity);}
+inline constexpr TCHAR ComponentColumnFullReason[]=TEXT("该列已达安装上限");
 inline constexpr TCHAR ReplaceAvailable[]=TEXT("拖到可替换的已装构件上");
 // 拖动构件时跟随的一行预览：放下会装到哪里，替换谁、连带拆下谁；联动行列出已拥有的相关技能和构件，同形态行列出互斥的构件。
 inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT("装到 %s"),*Place);}
@@ -332,7 +333,7 @@ inline FString SignedUpCount(int32 Count){return FString::Printf(TEXT("已报名
 inline constexpr TCHAR SignedUpSelf[]=TEXT("你在报名圈里，已报名");
 inline constexpr TCHAR NotSignedUpSelf[]=TEXT("站进报名圈即报名");
 inline FString PKEntrants(int32 Count){return FString::Printf(TEXT("PK %d 人参赛"),Count);}
-inline constexpr TCHAR PKSkipped[]=TEXT("PK 跳过（报名不足 2 人）");
+inline constexpr TCHAR PKSkipped[]=TEXT("本次休息不举行 PK");
 // PK 与观众（#198 D，APP_SPEC §5）：抽签公布赛制与分队；没参赛的观众押一方会赢（免费、一人一票、押注结束前可改）；
 // PK 中观众可以往竞技场地面投掷干扰；出局的参赛者只能观战。数值来自内容参数，这里不写数字。
 inline constexpr TCHAR PKDuel[]=TEXT("单挑");

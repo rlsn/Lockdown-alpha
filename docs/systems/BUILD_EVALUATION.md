@@ -286,7 +286,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 | `growth.match_secret` | `ALDDevelopmentDirector::BeginMatch` 的 `MatchSecret`（所有 Offer） |
 | `world.spawn` | `ALDGameMode::StartDemoMatch` 的 `SpawnRandom`（出生点与 AI 开局计划） |
 | `combat.crit` | `InitializeAuthorityCore` 创建 Combat 后的 `CritRandom` |
-| `world.airdrop` | `LDAirdrop::Resolve` 的投放点序列；符咒与营地标记（`LDFieldMarkers::Resolve`）的种子由它派生 |
+| `world.airdrop` | `LDAirdrop::Resolve` 的投放点序列；营地标记（`LDFieldMarkers::Resolve`）的种子由它派生 |
 | `eval.operation` | 评估画像操作参数的掷骰（`FLDEvaluationProfile::OperationSeed`，与自身身份和掷骰计数一同散列） |
 | `identity.ai.<slot>` / `identity.session.<n>` | AI 参赛者身份；Host 会话身份按加入顺序固定（身份决定同一边界内的处理顺序） |
 

@@ -77,6 +77,86 @@ const FLDDemoComponentDefinition* ProgressionFindComponent(const FLDDemoContentD
     return Content.Components.FindByPredicate([&](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Id; });
 }
 
+int32 ProgressionTargetColumn(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target, TSet<FName>& Visiting);
+
+int32 ProgressionComponentColumn(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
+    TSet<FName>& Visiting)
+{
+    if (Visiting.Contains(Id))
+    {
+        return INDEX_NONE;
+    }
+    const FLDComponentInstance* Instance = Build.FindComponent(Id);
+    const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Id);
+    if (!Instance || !Instance->bInstalled || !Definition)
+    {
+        return INDEX_NONE;
+    }
+    Visiting.Add(Id);
+    const int32 Column = ProgressionTargetColumn(Content, Build, *Definition, Instance->Target, Visiting);
+    Visiting.Remove(Id);
+    return Column;
+}
+
+int32 ProgressionTargetColumn(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target, TSet<FName>& Visiting)
+{
+    if (Definition.Kind == ELDDemoComponentKind::Base && !Target.BoundActive.IsNone())
+    {
+        const FLDLearnedActive* Active = Build.FindActive(Target.BoundActive);
+        return Active ? int32(Active->Slot) + 1 : INDEX_NONE;
+    }
+    switch (Target.Kind)
+    {
+    case ELDComponentTargetKind::None:
+        return 0;
+    case ELDComponentTargetKind::Active:
+    case ELDComponentTargetKind::EffectSegment:
+    {
+        const FLDLearnedActive* Active = Build.FindActive(Target.Definition);
+        return Active ? int32(Active->Slot) + 1 : INDEX_NONE;
+    }
+    case ELDComponentTargetKind::Dash:
+        return 4;
+    case ELDComponentTargetKind::Component:
+        return ProgressionComponentColumn(Content, Build, Target.Definition, Visiting);
+    default:
+        return INDEX_NONE;
+    }
+}
+
+int32 ProgressionInstalledColumnCount(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Column)
+{
+    int32 Count = 0;
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        if (!Instance.bInstalled)
+        {
+            continue;
+        }
+        TSet<FName> Visiting;
+        Count += ProgressionComponentColumn(Content, Build, Instance.Id, Visiting) == Column ? 1 : 0;
+    }
+    return Count;
+}
+
+ELDGrowthReason ProgressionColumnCapacityReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
+{
+    TSet<FName> Visiting;
+    const int32 Column = ProgressionTargetColumn(Content, Build, Definition, Target, Visiting);
+    if (Column == 0 && ProgressionInstalledColumnCount(Content, Build, Column) >= Content.Progression.WorkshopBodyColumnCapacity)
+    {
+        return ELDGrowthReason::ComponentColumnFull;
+    }
+    if (Column == 4 && ProgressionInstalledColumnCount(Content, Build, Column) >= Content.Progression.WorkshopDashColumnCapacity)
+    {
+        return ELDGrowthReason::ComponentColumnFull;
+    }
+    return ELDGrowthReason::None;
+}
+
 bool ProgressionListsId(const TArray<FString>& Ids, FName Id)
 {
     return !Id.IsNone() && Ids.ContainsByPredicate([Id](const FString& Row) { return FName(*Row) == Id; });
@@ -85,13 +165,14 @@ bool ProgressionListsId(const TArray<FString>& Ids, FName Id)
 // The stored shape of an installed component (ValidateBuild): a base component without a target, carrying exactly the
 // binding parameters its definition takes. Whether its active, host or repeated base is still held is checked by
 // ValidateBuild itself: forgetting or uninstalling reclaims the install in the same commit (spec §5).
-bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
+bool ProgressionInstalledShape(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition,
+    const FLDComponentTarget& Target)
 {
     // #198 F: a mod or connector stores its target (no segment form) in the shape its definition accepts.
     if (Definition.Kind != ELDDemoComponentKind::Base)
     {
-        return Target.Segment == 0 && LDWorkshop::TargetShape(Definition, Target.Kind, Target.Definition, Target.BoundActive,
-            Target.Element, Target.BoundComponent);
+        return Target.Segment == 0 && LDWorkshop::TargetShape(Content, Definition, Target.Kind, Target.Definition,
+            Target.BoundActive, Target.Element, Target.BoundComponent);
     }
     if (Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone() || Target.Segment != 0
         || !Target.BoundComponent.IsNone())
@@ -129,8 +210,8 @@ bool ProgressionFormConflict(const FLDDemoContentDefinitions& Content, const FLD
 ELDGrowthReason ProgressionWorkshopTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
     const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
 {
-    if (Target.Segment != 0 || !LDWorkshop::TargetShape(Definition, Target.Kind, Target.Definition, Target.BoundActive, Target.Element,
-        Target.BoundComponent))
+    if (Target.Segment != 0 || !LDWorkshop::TargetShape(Content, Definition, Target.Kind, Target.Definition, Target.BoundActive,
+        Target.Element, Target.BoundComponent))
     {
         return ELDGrowthReason::InvalidTarget;
     }
@@ -469,7 +550,7 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
         if (!Definition || !bSource || (Index > 0 && !ProgressionIdLess(Build.Components[Index - 1].Id, Instance.Id))
             || (Instance.bInstalled && !Instance.bEverInstalled)
             || (Instance.bGapFilled && Definition->Kind == ELDDemoComponentKind::Base)
-            || (Instance.bInstalled ? !ProgressionInstalledShape(*Definition, Instance.Target) : !Instance.Target.IsEmpty()))
+            || (Instance.bInstalled ? !ProgressionInstalledShape(Content, *Definition, Instance.Target) : !Instance.Target.IsEmpty()))
         {
             return ELDGrowthReason::DataInvalid;
         }
@@ -489,7 +570,26 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
             return ELDGrowthReason::DataInvalid;
         }
     }
-    if (OpeningPicks > 1 || InstalledComponents(Build) > WorkshopCapacity(Content.Progression, Build.Level))
+    int32 BodyComponents = 0;
+    int32 DashComponents = 0;
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        if (!Instance.bInstalled)
+        {
+            continue;
+        }
+        TSet<FName> Visiting;
+        const int32 Column = ProgressionComponentColumn(Content, Build, Instance.Id, Visiting);
+        if (Column == INDEX_NONE)
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        BodyComponents += Column == 0 ? 1 : 0;
+        DashComponents += Column == 4 ? 1 : 0;
+    }
+    if (OpeningPicks > 1 || InstalledComponents(Build) > WorkshopCapacity(Content.Progression, Build.Level)
+        || BodyComponents > Content.Progression.WorkshopBodyColumnCapacity
+        || DashComponents > Content.Progression.WorkshopDashColumnCapacity)
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -1109,9 +1209,10 @@ ELDGrowthReason LDProgression::FinalModTargets(const FLDDemoContentDefinitions& 
 }
 
 ELDGrowthReason LDProgression::DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-    uint64 Seed, TArray<FName>& Out)
+    uint64 Seed, TArray<FName>& Out, int32 Count)
 {
     Out.Reset();
+    if (Count != 3 && Count != 4) { return ELDGrowthReason::DataInvalid; }
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Build); Reason != ELDGrowthReason::None) { return Reason; }
     TArray<FName> Universal, Mechanic, All;
     for (const FLDDemoFinalModDefinition& Card : Content.FinalMods)
@@ -1124,7 +1225,7 @@ ELDGrowthReason LDProgression::DrawFinalModOptions(const FLDDemoContentDefinitio
         All.Add(Id);
         (Card.IsUniversal() ? Universal : Mechanic).Add(Id);
     }
-    if (Universal.Num() != 4 || All.Num() < 3) { return ELDGrowthReason::DataInvalid; }
+    if (Universal.Num() != 4 || All.Num() < Count) { return ELDGrowthReason::DataInvalid; }
     uint64 State = Seed;
     const auto Pick = [&Out, &State](TArray<FName> Pool)
     {
@@ -1133,8 +1234,8 @@ ELDGrowthReason LDProgression::DrawFinalModOptions(const FLDDemoContentDefinitio
     };
     Pick(Mechanic.IsEmpty() ? Universal : Mechanic);
     Pick(Universal);
-    Pick(All);
-    return Out.Num() == 3 ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
+    for (int32 Index = Out.Num(); Index < Count; ++Index) { Pick(All); }
+    return Out.Num() == Count ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
 }
 
 uint64 LDProgression::FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender)
@@ -1289,6 +1390,13 @@ ELDGrowthReason ProgressionLevelComponentPools(const FLDDemoContentDefinitions& 
     {
         return Build.Actives.ContainsByPredicate([&Ids](const FLDLearnedActive& Active) { return LDWorkshop::Lists(Ids, Active.Id); });
     };
+    const auto HasTargetActive = [&Content, &Build](const FLDDemoComponentDefinition& Definition)
+    {
+        return Build.Actives.ContainsByPredicate([&Content, &Definition](const FLDLearnedActive& Active)
+        {
+            return LDWorkshop::TargetsActive(Content, Definition, Active.Id);
+        });
+    };
     const auto Owned = [&Build](const TArray<FString>& Ids)
     {
         return Build.Components.ContainsByPredicate([&Ids](const FLDComponentInstance& Instance) { return LDWorkshop::Lists(Ids, Instance.Id); });
@@ -1299,7 +1407,7 @@ ELDGrowthReason ProgressionLevelComponentPools(const FLDDemoContentDefinitions& 
         {
             return Definition.Binding == ELDDemoComponentBinding::None || Learned(Definition.BindActives);
         }
-        return (Definition.bTargetSelf || Definition.bTargetDash || Learned(Definition.TargetActives) || Owned(Definition.TargetComponents))
+        return (Definition.bTargetSelf || Definition.bTargetDash || HasTargetActive(Definition) || Owned(Definition.TargetComponents))
             && (Definition.ExtraBases.IsEmpty() || Owned(Definition.ExtraBases));
     };
     // Indexed by ELDDemoComponentKind: Base, Mod, Connector.
@@ -1332,6 +1440,99 @@ ELDGrowthReason ProgressionLevelComponentPools(const FLDDemoContentDefinitions& 
         return ELDGrowthReason::DataInvalid;
     }
     return ELDGrowthReason::None;
+}
+
+int64 ProgressionComponentLinkWeight(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition,
+    const FLDGrowthBuild& Build)
+{
+    const bool bTargetsLearnedActive = Build.Actives.ContainsByPredicate([&Content, &Definition](const FLDLearnedActive& Active)
+    {
+        return LDWorkshop::TargetsActive(Content, Definition, Active.Id) || ProgressionListsId(Definition.BindActives, Active.Id)
+            || ProgressionListsId(Definition.DrawRequiresActives, Active.Id);
+    });
+    const bool bTargetsInstalledComponent = Build.Components.ContainsByPredicate([&Definition](const FLDComponentInstance& Instance)
+    {
+        return Instance.bInstalled && (ProgressionListsId(Definition.TargetComponents, Instance.Id)
+            || ProgressionListsId(Definition.ExtraBases, Instance.Id));
+    });
+    return bTargetsLearnedActive || bTargetsInstalledComponent ? 3 : 1;
+}
+
+ELDGrowthReason ProgressionDrawOpeningPairComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    uint64 Seed, FName& OutComponent, bool& OutFound)
+{
+    OutComponent = NAME_None;
+    OutFound = false;
+    TArray<FName> Pools[3];
+    int64 Weights[3] = {};
+    if (const ELDGrowthReason Reason = ProgressionLevelComponentPools(Content, Build, 2, Pools, Weights);
+        Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+
+    const FLDComponentInstance* OpeningBase = Build.Components.FindByPredicate(
+        [](const FLDComponentInstance& Instance) { return Instance.Source == ELDComponentSource::OpeningPick; });
+    if (!OpeningBase || !OpeningBase->bInstalled || Build.Actives.Num() != 1)
+    {
+        return ELDGrowthReason::None;
+    }
+    const FName OpeningActive = Build.Actives[0].Id;
+
+    TArray<FName> PairPools[3];
+    for (const FLDDemoComponentDefinition& Definition : Content.Components)
+    {
+        const int32 Kind = int32(Definition.Kind);
+        if (Kind < int32(ELDDemoComponentKind::Mod) || Kind > int32(ELDDemoComponentKind::Connector))
+        {
+            continue;
+        }
+        const FName Id(*Definition.Id);
+        const bool bTargetsOpeningBase = Definition.TargetComponents.Contains(OpeningBase->Id.ToString())
+            || Definition.ExtraBases.Contains(OpeningBase->Id.ToString());
+        const bool bOpeningPairScarce = Definition.Pool == ELDDemoComponentPool::Scarce;
+        if (Weights[Kind] <= 0 || (!Pools[Kind].Contains(Id) && !bOpeningPairScarce) || Build.FindComponent(Id)
+            || !LDWorkshop::TargetsActive(Content, Definition, OpeningActive)
+            || !bTargetsOpeningBase)
+        {
+            continue;
+        }
+        FLDComponentTarget Target;
+        Target.Kind = ELDComponentTargetKind::Active;
+        Target.Definition = OpeningActive;
+        if (LDProgression::InstallTargetReason(Content, Build, Id, Target) == ELDGrowthReason::None)
+        {
+            PairPools[Kind].Add(Id);
+        }
+    }
+
+    int64 Total = 0;
+    for (int32 Kind = 0; Kind < 3; ++Kind)
+    {
+        Total += PairPools[Kind].IsEmpty() ? 0 : Weights[Kind];
+    }
+    if (Total <= 0)
+    {
+        return ELDGrowthReason::None;
+    }
+
+    uint64 State = Seed;
+    int64 Roll = int64(ProgressionSplitMix64(State) % uint64(Total));
+    for (int32 Kind = 0; Kind < 3; ++Kind)
+    {
+        if (PairPools[Kind].IsEmpty())
+        {
+            continue;
+        }
+        if (Roll < Weights[Kind])
+        {
+            OutComponent = PairPools[Kind][int32(ProgressionSplitMix64(State) % uint64(PairPools[Kind].Num()))];
+            OutFound = true;
+            return ELDGrowthReason::None;
+        }
+        Roll -= Weights[Kind];
+    }
+    return ELDGrowthReason::DataInvalid;
 }
 }
 
@@ -1379,8 +1580,37 @@ ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinition
         }
         if (Roll < Weights[Kind])
         {
-            OutComponent = Pools[Kind][int32(ProgressionSplitMix64(State) % uint64(Pools[Kind].Num()))];
-            return ELDGrowthReason::None;
+            int64 ItemTotal = 0;
+            for (const FName Id : Pools[Kind])
+            {
+                const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Id);
+                if (!Definition)
+                {
+                    return ELDGrowthReason::DataInvalid;
+                }
+                ItemTotal += ProgressionComponentLinkWeight(Content, *Definition, Build);
+            }
+            if (ItemTotal <= 0)
+            {
+                return ELDGrowthReason::DataInvalid;
+            }
+            int64 ItemRoll = int64(ProgressionSplitMix64(State) % uint64(ItemTotal));
+            for (const FName Id : Pools[Kind])
+            {
+                const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Id);
+                if (!Definition)
+                {
+                    return ELDGrowthReason::DataInvalid;
+                }
+                const int64 ItemWeight = ProgressionComponentLinkWeight(Content, *Definition, Build);
+                if (ItemRoll < ItemWeight)
+                {
+                    OutComponent = Id;
+                    return ELDGrowthReason::None;
+                }
+                ItemRoll -= ItemWeight;
+            }
+            return ELDGrowthReason::DataInvalid;
         }
         Roll -= Weights[Kind];
     }
@@ -1413,8 +1643,17 @@ ELDGrowthReason LDProgression::GrantLevelComponents(const FLDDemoContentDefiniti
         for (uint8 Draw = 0; Draw < Draws; ++Draw)
         {
             FName Picked;
-            const ELDGrowthReason Reason = DrawLevelComponent(Content, Out, uint8(Level),
-                ComponentSeed(MatchSecret, Contender, uint8(Level), Draw), Picked);
+            const uint64 Seed = ComponentSeed(MatchSecret, Contender, uint8(Level), Draw);
+            bool bOpeningPairDraw = false;
+            ELDGrowthReason Reason = ELDGrowthReason::None;
+            if (Level == 2 && Draw == 1)
+            {
+                Reason = ProgressionDrawOpeningPairComponent(Content, Out, Seed, Picked, bOpeningPairDraw);
+            }
+            if (Reason == ELDGrowthReason::None && !bOpeningPairDraw)
+            {
+                Reason = DrawLevelComponent(Content, Out, uint8(Level), Seed, Picked);
+            }
             if (Reason != ELDGrowthReason::None)
             {
                 Out = Current;
@@ -1486,7 +1725,12 @@ ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitio
     const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Component);
     if (Definition && Definition->Kind != ELDDemoComponentKind::Base)
     {
-        return ProgressionWorkshopTargetReason(Content, Build, *Definition, Target);
+        if (const ELDGrowthReason Reason = ProgressionWorkshopTargetReason(Content, Build, *Definition, Target);
+            Reason != ELDGrowthReason::None)
+        {
+            return Reason;
+        }
+        return ProgressionColumnCapacityReason(Content, Build, *Definition, Target);
     }
     if (!Definition || Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone() || Target.Segment != 0
         || !Target.BoundComponent.IsNone())
@@ -1505,7 +1749,11 @@ ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitio
     {
         return ELDGrowthReason::InvalidTarget;
     }
-    return ProgressionFormConflict(Content, Build, *Definition, Target) ? ELDGrowthReason::TargetConflict : ELDGrowthReason::None;
+    if (ProgressionFormConflict(Content, Build, *Definition, Target))
+    {
+        return ELDGrowthReason::TargetConflict;
+    }
+    return ProgressionColumnCapacityReason(Content, Build, *Definition, Target);
 }
 
 ELDGrowthReason LDProgression::ApplyOpeningBase(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
@@ -1686,17 +1934,18 @@ void ProgressionReceive(FLDGrowthBuild& Build, FName Id, ELDComponentSource Sour
 
 // The held entries of a mod/connector (spec §4.5): owned components, learned actives and pending blueprints its targets
 // list; -1 when it takes the innate D or its holder, which always exist.
-int32 ProgressionHeldEntries(const FLDDemoComponentDefinition& Definition, const FLDGrowthBuild& Build)
+int32 ProgressionHeldEntries(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition,
+    const FLDGrowthBuild& Build)
 {
     if (Definition.bTargetDash || Definition.bTargetSelf)
     {
         return -1;
     }
     int32 Held = 0;
-    for (const FString& Row : Definition.TargetActives)
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
     {
-        const FName Id(*Row);
-        Held += Build.FindActive(Id) || Build.HasBlueprint(Id) ? 1 : 0;
+        const FName Id(*Ability.Id);
+        Held += LDWorkshop::TargetsActive(Content, Definition, Id) && (Build.FindActive(Id) || Build.HasBlueprint(Id)) ? 1 : 0;
     }
     for (const FString& Row : Definition.TargetComponents)
     {
@@ -1759,10 +2008,13 @@ TSet<ELDDemoElement> ProgressionHeldElements(const FLDDemoContentDefinitions& Co
     const FLDGrowthBuild& Build)
 {
     TSet<ELDDemoElement> Kinds;
-    for (const FString& Row : Definition.TargetActives)
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
     {
-        const FName Id(*Row);
-        if (Build.FindActive(Id) || Build.HasBlueprint(Id)) { ProgressionEntryElements(Content, Build, Id, false, Kinds); }
+        const FName Id(*Ability.Id);
+        if (LDWorkshop::TargetsActive(Content, Definition, Id) && (Build.FindActive(Id) || Build.HasBlueprint(Id)))
+        {
+            ProgressionEntryElements(Content, Build, Id, false, Kinds);
+        }
     }
     for (const FString& Row : Definition.TargetComponents)
     {
@@ -1791,7 +2043,7 @@ ELDGrowthReason ProgressionGapReason(const FLDDemoContentDefinitions& Content, c
     {
         return ProgressionHeldElements(Content, *Definition, Build).Num() < 2 ? ELDGrowthReason::None : ELDGrowthReason::NotAGap;
     }
-    const int32 Held = ProgressionHeldEntries(*Definition, Build);
+    const int32 Held = ProgressionHeldEntries(Content, *Definition, Build);
     return Held == 0 ? ELDGrowthReason::None : ELDGrowthReason::NotAGap;
 }
 }
@@ -2207,20 +2459,11 @@ ELDGrowthReason LDProgression::ApplyDismantle(const FLDDemoContentDefinitions& C
     {
         return Reason;
     }
-    // The surrendered ones are owned, so the unowned common pool already excludes them.
-    TArray<FName> Pool;
-    UnownedComponents(Content, Current, ELDDemoComponentPool::Common, Pool);
-    if (Pool.IsEmpty())
-    {
-        return ELDGrowthReason::DismantlePoolEmpty;
-    }
-    uint64 State = Seed;
-    Outcome.Received = Pool[ProgressionPick(State, Pool.Num())];
-    // Every install left without its host component or repeated base comes off, transitively (like an uninstall).
+
     TArray<FName> Gone = Surrendered;
     for (int32 Index = 0; Index < Gone.Num(); ++Index)
     {
-        for (const FLDComponentInstance& Attached : Out.Components)
+        for (const FLDComponentInstance& Attached : Current.Components)
         {
             const bool bOnIt = Attached.bInstalled && ((Attached.Target.Kind == ELDComponentTargetKind::Component
                 && Attached.Target.Definition == Gone[Index]) || Attached.Target.BoundComponent == Gone[Index]);
@@ -2231,6 +2474,30 @@ ELDGrowthReason LDProgression::ApplyDismantle(const FLDDemoContentDefinitions& C
             }
         }
     }
+
+    TArray<FName> Pool;
+    UnownedComponents(Content, Current, ELDDemoComponentPool::Common, Pool);
+    Pool.RemoveAll([&](FName Candidate)
+    {
+        const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Candidate);
+        if (!Definition)
+        {
+            return true;
+        }
+        return !Current.Components.ContainsByPredicate([&](const FLDComponentInstance& Instance)
+        {
+            return Instance.bInstalled && !Gone.Contains(Instance.Id)
+                && (ProgressionListsId(Definition->TargetComponents, Instance.Id)
+                    || ProgressionListsId(Definition->ExtraBases, Instance.Id));
+        });
+    });
+    if (Pool.IsEmpty())
+    {
+        return ELDGrowthReason::DismantlePoolEmpty;
+    }
+    uint64 State = Seed;
+    Outcome.Received = Pool[ProgressionPick(State, Pool.Num())];
+    // Every install left without its host component or repeated base comes off, transitively (like an uninstall).
     for (const FName& Id : Outcome.Uninstalled)
     {
         FLDComponentInstance* Detached = Out.FindComponent(Id);

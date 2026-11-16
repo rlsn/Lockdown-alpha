@@ -8,18 +8,23 @@ definition: hostable now and, when it lists `draw_requires_actives`, with one of
 within the category). Active opportunities: the opening three-choice from the opening pool, then three unlearned actives
 at each `active_offer_levels` entry; the component rolls of that level see the build before the new active is chosen.
 Optional elite-camp two-choices draw two distinct unowned common definitions uniformly (LDProgression::DrawFieldReward)
-and optional rest dismantles trade GROWTH.DismantleInputCount idle components for one uniform unowned common one;
+and optional rest dismantles trade GROWTH.DismantleInputCount idle components for one uniform unowned common component
+that can attach to a surviving installed component;
 airdrop/Boss scarce rewards are out of scope.
 
-Installation follows the workshop capacity (LDProgression::WorkshopCapacity): every installed base, mod and connector
-takes one slot. After each level the modelled player re-chooses the installed set greedily (working transforms first,
-then the ones that link to what is already installed); everything else waits in the storage. The legacy supply
+Installation follows the workshop capacity (LDProgression::WorkshopCapacity) and the approved Body/Dash column limits:
+every installed base, mod and connector takes one slot. After each level the modelled player re-chooses the installed set
+greedily (working transforms first, then the ones that link to what is already installed); everything else waits in storage. The legacy supply
 (`--legacy-supply`) reproduces the earlier rules: one draw per level and no capacity (every hostable component counts).
 
 Hosting is authoritative (content targets). Usefulness is a design model: TAGS records what each active and component
 produces and needs, and whether a component transforms behaviour or only adds efficiency. The metrics are therefore
 model estimates of build formation, not observed player data. Uses Python's PRNG rather than the native splitmix, so
 the distributions match in law, not draw-for-draw.
+
+The original top-two use-tag signatures break ties by tag name. The tie-neutral distribution instead splits each
+run equally among its eligible signatures; it is a sensitivity check on that metric, not a measure of player fun
+or evidence that real players converge.
 """
 from __future__ import annotations
 
@@ -30,7 +35,10 @@ import random
 import statistics
 import sys
 from collections import Counter
+from itertools import combinations
 from pathlib import Path
+
+from DemoContent import workshop_targets_active
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "SourceData" / "Demo" / "content.json"
@@ -153,6 +161,9 @@ class Catalog:
         self.content = content
         self.filtered = filtered
         self.actives = [a["id"] for a in content["abilities"]]
+        self.active_modes = {a["id"]: a.get("target", {}).get("mode") for a in content["abilities"]}
+        self.active_hosts = {a["id"]: (a.get("target", {}).get("mode"), {e["op"] for e in a.get("effects", [])})
+                             for a in content["abilities"]}
         self.opening = [a["id"] for a in content["abilities"] if a.get("opening")]
         prog = content["progression"]
         self.max_level = prog["max_level"]
@@ -161,6 +172,8 @@ class Catalog:
         capacity = prog.get("workshop_capacity")
         self.capacity_base = overrides.get("capacity_base", capacity["base"] if capacity else None)
         self.capacity_step = overrides.get("capacity_step", capacity["levels_per_slot"] if capacity else None)
+        self.body_column_capacity = overrides.get("body_column_capacity", capacity.get("body_column") if capacity else None)
+        self.dash_column_capacity = overrides.get("dash_column_capacity", capacity.get("dash_column") if capacity else None)
         self.affinity = overrides.get("affinity", prog.get("active_affinity_weight", 1))
         self.dismantle_count = int(content["parameters"].get("GROWTH.DismantleInputCount", 3))
         self.bands = [(b["levels"][0], b["levels"][1], (b["base"], b["mod"], b["connector"]))
@@ -187,6 +200,17 @@ class Catalog:
         pool = [cid for cid in self.common if cid not in owned]
         return rng.sample(pool, min(count, len(pool)))
 
+    def dismantle_pool(self, owned: set[str], installed: set[str]) -> list[str]:
+        pool = []
+        for cid in self.common:
+            if cid in owned:
+                continue
+            targets = self.components[cid].get("targets", {})
+            linked_hosts = set(targets.get("components", [])) | set(targets.get("bases", []))
+            if linked_hosts & installed:
+                pool.append(cid)
+        return pool
+
     def kind(self, cid: str) -> int:
         return {"base": 0, "mod": 1, "connector": 2}[self.components[cid]["kind"]]
 
@@ -201,12 +225,17 @@ class Catalog:
                 out.append(cid)
         return out
 
+    def targets_active(self, cid: str, active: str) -> bool:
+        component = self.components[cid]
+        return workshop_targets_active(component.get("targets", {}).get("actives", []),
+                                       [e["op"] for e in component.get("effects", [])], self.active_hosts, active)
+
     def hosts(self, cid: str, actives: list[str], owned: set[str]) -> list[str]:
         c = self.components[cid]
         if c["kind"] == "base":
             b = c.get("binding") or {}
             listed = b.get("actives")
-            return ["self"] if not listed or any(a in listed for a in actives) else []
+            return [a for a in actives if a in listed] if listed else ["self"]
         t = c.get("targets", {})
         extra = t.get("bases", [])
         if extra and not any(e in owned for e in extra):
@@ -216,7 +245,7 @@ class Catalog:
             out.append("self")
         if t.get("dash"):
             out.append("D")
-        out += [a for a in t.get("actives", []) if a in actives]
+        out += [a for a in actives if self.targets_active(cid, a)]
         out += [h for h in t.get("components", []) if h in owned and h != cid]
         return out
 
@@ -234,12 +263,25 @@ class Catalog:
     def form(self, cid: str) -> str | None:
         return self.components[cid].get("form")
 
+    def column_for_host(self, host: str, placed: dict[str, str]) -> str | None:
+        seen: set[str] = set()
+        while host in placed:
+            if host in seen:
+                return None
+            seen.add(host)
+            host = placed[host]
+        if host == "self":
+            return "body"
+        if host == "D":
+            return "dash"
+        return "active" if host in self.active_modes else None
+
     def skill_affine(self, cid: str, actives: list[str]) -> bool:
         """Lists a learned active as a target, binding or draw requirement (LDProgression::DrawLevelComponent affinity)."""
         c = self.components[cid]
-        listed = set(c.get("targets", {}).get("actives", [])) | set((c.get("binding") or {}).get("actives", []) or [])
+        listed = set((c.get("binding") or {}).get("actives", []) or [])
         listed |= set(c.get("draw_requires_actives", []))
-        return bool(listed & set(actives))
+        return bool(listed & set(actives)) or any(self.targets_active(cid, active) for active in actives)
 
     def draw(self, rng: random.Random, level: int, actives: list[str], owned: set[str], weights=None) -> str | None:
         w = weights(level) if weights else self.band(level)
@@ -346,7 +388,7 @@ def score_active(cat: Catalog, active: str, actives: list[str], owned: set[str])
     trial = actives + [active]
     tags = build_tags(cat, trial, owned)
     return sum(1 for c in owned if working(cat, c, trial, owned, tags)) * 3 + sum(
-        1 for c in cat.common if c not in owned and cat.tags[c][0] == T and active in cat.components[c].get("targets", {}).get("actives", []))
+        1 for c in cat.common if c not in owned and cat.tags[c][0] == T and cat.targets_active(c, active))
 
 
 def score_component(cat: Catalog, cid: str, actives: list[str], owned: set[str]) -> int:
@@ -366,11 +408,18 @@ MACHINE_THEMES = ("basic", "collision", "spell", "area", "control", "element", "
 POLICIES = ("random", "synergy", "themed", "machine")
 
 
-def place(cat: Catalog, c: str, actives: list[str], owned: set[str], placed: dict[str, str]) -> str | None:
-    """The first host of c that no installed component of the same form already holds (TargetConflict), else None."""
+def place(cat: Catalog, c: str, actives: list[str], owned: set[str], placed: dict[str, str], *,
+          body_capacity: int | None = None, dash_capacity: int | None = None) -> str | None:
+    """The first host of c that fits its column and has no same-form install (TargetConflict), else None."""
     form = cat.form(c)
+    columns = Counter(cat.column_for_host(host, placed) for host in placed.values())
     for host in cat.hosts(c, actives, owned):
         if not form or not any(h == host and cat.form(o) == form for o, h in placed.items()):
+            column = cat.column_for_host(host, placed)
+            if column == "body" and body_capacity is not None and columns[column] >= body_capacity:
+                continue
+            if column == "dash" and dash_capacity is not None and columns[column] >= dash_capacity:
+                continue
             return host
     return None
 
@@ -389,7 +438,7 @@ def machine_theme(cat: Catalog, actives: list[str], owned: set[str], live: list[
 
 def choose_installed(cat: Catalog, rng: random.Random, actives: list[str], owned: set[str], capacity: int | None,
                      previous: set[str], policy: str = "synergy", theme: str | None = None) -> set[str]:
-    """The modelled player's installed set: everything placeable without a capacity, else a pick by the policy.
+    """The modelled player's installed set, respecting total and Body/Dash capacity before applying its policy.
 
     random: a uniformly ordered fill of working components (no value judgement). synergy: greedy by value (a working
     transform 3, a working efficiency or generic attachment 1) plus 2 per link to an already chosen component and 0.5
@@ -419,7 +468,8 @@ def choose_installed(cat: Catalog, rng: random.Random, actives: list[str], owned
             hosted_on = [h for h in cat.components[c].get("targets", {}).get("components", []) if h in owned]
             if hosted_on and not set(hosted_on) & set(placed) and not cat.hosts(c, actives, set()):
                 continue
-            host = place(cat, c, actives, owned, placed)
+            host = place(cat, c, actives, owned, placed, body_capacity=cat.body_column_capacity,
+                         dash_capacity=cat.dash_column_capacity)
             if host is None:
                 continue
             ctags = set(cat.components[c].get("tags", []))
@@ -442,6 +492,22 @@ def tag_signature(cat: Catalog, installed: set[str]) -> tuple[str, ...]:
     """The two SourceData use tags most represented among the installed components (ties by name)."""
     counts = Counter(tag for c in installed for tag in cat.components[c].get("tags", []))
     return tuple(sorted(sorted(counts, key=lambda t: (-counts[t], t))[:2]))
+
+
+def tag_signature_candidates(cat: Catalog, installed: set[str]) -> list[tuple[str, ...]]:
+    """All equally ranked top-two signatures, without breaking ties by tag name."""
+    counts = Counter(tag for c in installed for tag in cat.components[c].get("tags", []))
+    if not counts:
+        return [()]
+    highest = max(counts.values())
+    leaders = sorted(tag for tag, count in counts.items() if count == highest)
+    if len(leaders) > 1:
+        return list(combinations(leaders, 2))
+    others = {tag: count for tag, count in counts.items() if tag != leaders[0]}
+    if not others:
+        return [(leaders[0],)]
+    second = max(others.values())
+    return [tuple(sorted((leaders[0], tag))) for tag, count in sorted(others.items()) if count == second]
 
 
 def run_one(cat: Catalog, rng: random.Random, policy: str, elite_levels: list[int], weights=None, *, legacy: bool = False,
@@ -529,11 +595,12 @@ def run_one(cat: Catalog, rng: random.Random, policy: str, elite_levels: list[in
             dead = sorted(c for c in owned - installed if not working(cat, c, actives, owned, full))
             if len(dead) >= cat.dismantle_count:
                 surrendered = set(rng.sample(dead, cat.dismantle_count))
-                received = cat.uniform_unowned(rng, owned, 1)
-                owned -= surrendered
-                if received:
-                    owned.add(received[0])
-                    new = received[0]
+                pool = cat.dismantle_pool(owned, installed)
+                if pool:
+                    received = rng.choice(pool)
+                    owned -= surrendered
+                    owned.add(received)
+                    new = received
         observe(level, new)
     tags = build_tags(cat, actives, installed)
     full_tags = build_tags(cat, actives, owned)
@@ -549,6 +616,7 @@ def run_one(cat: Catalog, rng: random.Random, policy: str, elite_levels: list[in
                   generic=len(generic), unlinked_transform=len(set(transforms) - linked), transforms=len(transforms),
                   idle_ids=dead, actives=list(actives), owned_ids=sorted(owned), swaps=len(ever_installed - installed),
                   choice_levels=choice_levels, left_out=left_out_at_end, signature=tag_signature(cat, installed),
+                  signature_candidates=tag_signature_candidates(cat, installed),
                   replacements=replacements, theme_changes=theme_changes, installed_ids=sorted(installed),
                   working_ids=sorted(working_owned),
                   forced_out=left_out_at_end / len(working_transforms) if working_transforms else 0.0)
@@ -578,6 +646,18 @@ def summarize(results: list[dict]) -> dict:
     out["signatures"] = {"distinct": len(signatures),
                          "entropy_bits": round(-sum(c / n * math.log2(c / n) for c in signatures.values()), 3),
                          "top": [["+".join(sig), round(c / n, 3)] for sig, c in signatures.most_common(8)]}
+    neutral = Counter()
+    for r in results:
+        candidates = r["signature_candidates"]
+        for sig in candidates:
+            neutral[sig] += 1 / len(candidates)
+    ranked_neutral = sorted(neutral.items(), key=lambda item: (-item[1], item[0]))
+    out["signatures_tie_neutral"] = {
+        "distinct": len(neutral),
+        "entropy_bits": round(-sum(c / n * math.log2(c / n) for c in neutral.values()), 3),
+        "ambiguous_run_share": sum(len(r["signature_candidates"]) > 1 for r in results) / n,
+        "top": [["+".join(sig), round(c / n, 3)] for sig, c in ranked_neutral[:8]],
+    }
     # Must-install detection: of the runs that end holding a working, hostable copy, how often it is installed.
     working_ids = Counter(i for r in results for i in r["working_ids"])
     installed_when_working = Counter(i for r in results for i in r["installed_ids"] if i in r["working_ids"])

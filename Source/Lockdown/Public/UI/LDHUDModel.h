@@ -13,6 +13,7 @@
 struct FLDDemoContentDefinitions;
 struct FLDDeathRecapView;
 struct FLDDamageSummaryView;
+struct FLDReactionAssistView;
 struct FLDDemoStatBonus;
 struct FLDDemoEffectDefinition;
 struct FLDDemoTargetDefinition;
@@ -266,6 +267,12 @@ namespace LDHUD
     struct FCircleView
     {
         FString Line;
+        // The top-centre panel's split of Line (Mock 1): Head over the bar, then the graffiti owner on the left and the
+        // guard state on the right. Head carries the spray or contest part when there is one, otherwise the guard state
+        // (Aside then empty); Head · Owner · Aside together say exactly what Line says.
+        FString Head;
+        FString Owner;
+        FString Aside;
         bool bProgress=false;
         float Progress=0.f;
     };
@@ -278,7 +285,6 @@ namespace LDHUD
     LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
         int64 SprayMs=0,int64 GuardMs=0);
     // #198: a charm's map colour (heal green, mana blue, move speed gold).
-    LOCKDOWN_API FLinearColor CharmColor(ELDCharmKind Kind);
     // The event feed's line for a downed Boss: the own last hit is told it got a build reward, others see the public roster name.
     LOCKDOWN_API FString BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName);
     // #198: the camp marker colour shared by the minimap ring and the world label.
@@ -316,12 +322,36 @@ namespace LDHUD
     // rounded up. A basic reads 普攻 and the innate dash 冲刺; abilities, components and final mods read their approved
     // display name.
     LOCKDOWN_API FString DamageSourceName(const FLDDemoContentDefinitions* Content,const FLDCombatSourceRef& Source);
+    // One node of a death recap row drawn as an icon chain. Attacker and Setter show Glyph on a chip with Text beside it;
+    // Source and State show the imported IconId (Glyph on a plain square when it has none); Reaction, Amount, Tag and Rest
+    // are short text chips. Name is the node's full name for hover text. Link says what is drawn before the node: an arrow
+    // (who triggered → what it consumed → what it produced) or a gap between two entries of one row.
+    enum class ERecapNode:uint8{Attacker,Source,Setter,State,Reaction,Amount,Tag,Rest};
+    enum class ERecapLink:uint8{None,Arrow,Gap};
+    struct FRecapNode
+    {
+        ERecapNode Kind=ERecapNode::Rest;
+        ERecapLink Link=ERecapLink::None;
+        FString IconId;
+        FString Glyph;
+        FString Text;
+        FString Name;
+        bool operator==(const FRecapNode& Other) const
+        {return Kind==Other.Kind&&Link==Other.Link&&IconId==Other.IconId&&Glyph==Other.Glyph&&Text==Other.Text&&Name==Other.Name;}
+    };
+    struct FRecapChain
+    {
+        TArray<FRecapNode> Nodes;
+        bool operator==(const FRecapChain& Other) const {return Nodes==Other.Nodes;}
+    };
     struct FDamageListView
     {
         // False: no statistic was delivered for this death or this result; the caller says so instead of showing zeros.
         bool bAvailable=false;
         FString Heading;
         TArray<FString> Rows;
+        // The death recap only: Rows[i] as an icon chain (same order and content).
+        TArray<FRecapChain> Chains;
     };
     // Bounds that keep both lists on screen without scrolling; what does not fit is summed into one 其他 entry.
     inline constexpr int32 DeathRecapAttackersMax=4;
@@ -329,10 +359,21 @@ namespace LDHUD
     inline constexpr int32 DamageSummarySourcesMax=8;
     // The own death banner's recap: available only for the recap of exactly the dead life shown. One row per attacker in
     // the recap's order: name, total, then its sources. Contenders read their public roster name, camp members their
-    // approved display name.
+    // approved display name. Reaction damage reads its rule chain, source → [setter的]state → reaction (你的 when the
+    // dead player set it up himself, nothing when the attacker did). A row ends with 击杀 (who landed the fatal hit),
+    // 助攻 (a credited assister, as frozen in the death fact). Chains give each row as icon nodes: the attacker and its
+    // total, then per source its ReactionChainNodes and amount, then the tag.
+    LOCKDOWN_API FString ReactionChainText(const FLDDemoContentDefinitions* Content,const FLDDamageLine& Line,const FGuid& Self,const FString& SetterName);
+    // ReactionChainText as nodes: Source, then for reaction damage → [Setter] State → Reaction (an Overload splash that
+    // consumed nothing on this body: Source → Reaction). The setter node is 你 for the dead player's own state, the
+    // setter's name (未列名参赛者 when unlisted) for another contender's, and absent when unnamed or the attacker itself.
+    LOCKDOWN_API void ReactionChainNodes(const FLDDemoContentDefinitions* Content,const FLDDamageLine& Line,const FGuid& Self,const FString& SetterName,TArray<FRecapNode>& Out);
     LOCKDOWN_API FDamageListView DeathRecap(const FLDDeathRecapView& Recap,const FLDOwnerState& Own,const FLDLobbyView& Lobby,const FLDDemoContentDefinitions* Content);
     // The result page's own damage: available only for the summary of exactly the result shown. One row per source.
     LOCKDOWN_API FDamageListView DamageSummary(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FLDDemoContentDefinitions* Content);
+    // The prompt said to a reaction's setter: "你的潮湿被老王引爆（导电）". It reports the detonation only; assist credit
+    // still comes from the setter's own contribution within REWARD.AssistWindowSec, as for every assist.
+    LOCKDOWN_API FString ReactionAssistText(const FLDDemoContentDefinitions* Content,const FLDReactionAssistView& View,const FString& TriggerName);
     struct FScoreLine
     {
         FString Name;
@@ -388,7 +429,7 @@ namespace LDHUD
         FString Kind;
         FString Name;
         FString State;
-        // Intent submission and execution limits are separate (UI 4): blocks grey the slot and explain why, but an
+        // Intent submission and execution limits are separate (MOVEMENT_INPUT_AND_CAMERA input ownership): blocks grey the slot and explain why, but an
         // explicit activation is still sent so the server decides, including protection removal and EmptySource.
         bool bCanSubmitIntent=false;
         uint32 ExecutionBlocks=0;
@@ -421,11 +462,12 @@ namespace LDHUD
         bool bMana=false;
         FResourceView Mana;
         FString Statuses;
-        // A visible contender's Q/W/E actives (#112 §10, #198 single level): key and display name; never cooldowns.
+        // A visible contender's Q/W/E actives (#112 §10, #198 single level): key, display name and icon; never cooldowns.
         struct FActiveChip
         {
             FString Key;
             FString Name;
+            FString IconId;
             bool bEmpty=true;
         };
         bool bActives=false;
@@ -574,7 +616,7 @@ namespace LDHUD
         // The active's or component's display name, 冲刺(D) or 自身.
         FString Label;
     };
-    // The places Component takes now, in its catalog list order: each learned active of TargetActives, each installed other
+    // The places Component takes now: each learned active whose target mode is represented by TargetActives, each installed other
     // component of TargetComponents, then 冲刺(D) (bTargetDash) and 自身 (bTargetSelf). Empty for a base component.
     LOCKDOWN_API TArray<FWorkshopTargetView> WorkshopTargets(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
@@ -854,6 +896,9 @@ namespace LDHUD
     // points round up and a remainder needs the matching authority clock) and the active out-of-combat and dorm recoveries
     // (conditional, so no remaining time).
     LOCKDOWN_API FSelfIconsView SelfIcons(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    // The one line painted where the own status icons sit over the own overhead bars: "状态同步中" while the own projection
+    // is missing and the band is shown (bShown false while the workshop hides it), empty otherwise.
+    LOCKDOWN_API FString SelfIconsNotice(const FSelfIconsView& View,bool bShown);
     // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
     // followed by its tone, " · 正面" or " · 负面"), then the full content description: a status's text or a recovery's rule
     // with the REGEN/DORM parameters. Built only for the hovered square.
@@ -879,7 +924,7 @@ namespace LDHUD
     };
     LOCKDOWN_API FString EntryLabel(ELDCombatEntry Entry);
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
-    // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
+    // separate facts (VISION_AND_UI feedback); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);
     // The same execution failure for the pressed Q/W/D slot, which already names its entry: the reason only. Empty for
     // other entries and for anything CombatReceiptNotice would not report as a failure.
@@ -937,6 +982,11 @@ namespace LDHUD
         uint64 OwnAirdropClaimSerial=0;
         // The own field reward history of this match (owner view); null when unknown.
         const TArray<FLDFieldRewardView>* OwnFieldRewards=nullptr;
+        // The own reaction assist prompts (owner channel, newest last, client-local serials); null when unknown. Only those of
+        // OwnLife (the own current life in this match; 0 when unknown) are told.
+        const TArray<FLDReactionAssistView>* OwnReactionAssists=nullptr;
+        uint32 OwnLife=0;
+        const FLDDemoContentDefinitions* Content=nullptr;
         bool bClock=false;
         int64 NowMs=0;
         double LocalSeconds=0;
@@ -957,7 +1007,12 @@ namespace LDHUD
     // state, so a screen that joins mid-match never replays what already happened. Told events: the flagpole opening, a
     // drop landing, being claimed and expiring, the Boss appearing, going down and leaving, camp markers being revealed,
     // claimed and expiring, a new 上热搜 leader, a new graffiti owner and the same owner's frozen guard dropping to zero (he
-    // left the zone while a challenger was in it).
+    // left the zone while a challenger was in it). An own reaction prompt of this match and the own current life is told
+    // like a kill, also on the first observation of a match and when it was kept before the feed's first observation;
+    // stale ones (older than StaleKillMs) and those of an earlier match or life are skipped, and each is told at most once
+    // (the local serial never resets). A prompt of a match or life the client does not know yet, or any prompt while the
+    // clock is unknown, waits with the later ones until they catch up. It is also the observation's AssistPrompt, for a
+    // one-off toast.
     class LOCKDOWN_API FEventFeed
     {
     public:
@@ -966,8 +1021,12 @@ namespace LDHUD
         static constexpr int64 StaleKillMs=6000;
         void Observe(const FEventFeedInput& Input);
         const TArray<FEventLine>& Lines() const {return Shown;}
+        // The newest reaction assist told by the last Observe; empty when none was.
+        const FString& AssistPrompt() const {return Prompt;}
     private:
         TArray<FEventLine> Shown;
+        FString Prompt;
+        uint64 ReactionAssistSerial=0;
         uint32 Generation=0;
         bool bPrimed=false;
         uint64 KillSerial=0;

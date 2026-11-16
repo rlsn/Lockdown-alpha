@@ -225,9 +225,8 @@ bool FLDAirdropRulesTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// #198 outer §5 (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175, comment 6752628806:
-// "批准整套方案，按票内参数实施"): six drops at field T=45/125/225/305/405/485 s, each announced 15 s earlier and gone
-// 40 s after landing unless claimed (200 XP plus one build reward draw); never a seventh, and none in the final field.
+// #276: six drops land during the three timed field segments, each announced 15 s early and gone 30 s after landing
+// unless claimed; the final drop expires before the final field ends.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAirdropApprovedScheduleTest, "Lockdown.Rules.DemoAirdropApprovedSchedule",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDAirdropApprovedScheduleTest::RunTest(const FString& Parameters)
@@ -235,10 +234,12 @@ bool FLDAirdropApprovedScheduleTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const auto& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("The approved landings are T=45/125/225/305/405/485 s"),
-        P.AirdropLandMs == TArray<int64>({45000, 125000, 225000, 305000, 405000, 485000}));
-    bGood &= TestTrue(TEXT("Announced 15 s early, gone 40 s after landing, 200 XP"),
-        P.AirdropAnnounceLeadMs == 15000 && P.AirdropExpireMs == 40000 && P.AirdropRewardXP == 200);
+    bool bGood = TestTrue(TEXT("The approved landings are T=32/90/163/220/293/350 s"),
+        P.AirdropLandMs == TArray<int64>({32000, 90000, 163000, 220000, 293000, 350000}));
+    bGood &= TestTrue(TEXT("Announced 15 s early, gone 30 s after landing, 200 XP and the approved reward effects"),
+        P.AirdropAnnounceLeadMs == 15000 && P.AirdropExpireMs == 30000 && P.AirdropRewardXP == 200
+        && P.AirdropHealMaxHPBp == 2000 && P.AirdropManaMaxMPBp == 2500 && P.AirdropMoveSpeedBp == 2000
+        && P.AirdropMoveSpeedMs == 6000);
     FLDAirdropState State = LDAirdropTests::MakeState();
     State.Schedule.StartedAtMs = 0;
     State.Schedule.LandMs = P.AirdropLandMs;
@@ -257,12 +258,23 @@ bool FLDAirdropApprovedScheduleTest::RunTest(const FString& Parameters)
         (State.Phase == ELDAirdropPhase::Announced ? Announced : State.Phase == ELDAirdropPhase::Landed ? Landed : Expired).Add(Now);
     }
     bGood &= TestTrue(TEXT("Six announcements, each 15 s before its landing"),
-        Announced == TArray<int64>({30000, 110000, 210000, 290000, 390000, 470000}));
+        Announced == TArray<int64>({17000, 75000, 148000, 205000, 278000, 335000}));
     bGood &= TestTrue(TEXT("Six landings at the approved instants"), Landed == P.AirdropLandMs);
-    bGood &= TestTrue(TEXT("Unclaimed, each is gone 40 s after landing, the last before the final field"),
-        Expired == TArray<int64>({85000, 165000, 265000, 345000, 445000, 525000})
+    bGood &= TestTrue(TEXT("Unclaimed, each is gone 30 s after landing, the last before the final field"),
+        Expired == TArray<int64>({62000, 120000, 193000, 250000, 323000, 380000})
         && Expired.Last() <= P.FieldSegmentMs * FLDTimelineParameters::TimedSegments);
     bGood &= TestTrue(TEXT("There is no seventh drop"), State.Serial == 6 && !State.Advance(10000000) && State.Serial == 6);
     return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAirdropRewardShareTest, "Lockdown.Rules.DemoAirdrop.Rewards",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDAirdropRewardShareTest::RunTest(const FString& Parameters)
+{
+    TestEqual(TEXT("Twenty percent of 620.00 HP is 124.00"), LDAirdrop::ShareP2(62000, 2000), int64(12400));
+    TestEqual(TEXT("Max-share floors without overflowing"), LDAirdrop::ShareP2(MAX_int64, 2000),
+        MAX_int64 / 10000 * 2000 + MAX_int64 % 10000 * 2000 / 10000);
+    TestEqual(TEXT("Non-positive inputs grant no resource"), LDAirdrop::ShareP2(-1, 2000), int64(0));
+    return true;
 }
 #endif

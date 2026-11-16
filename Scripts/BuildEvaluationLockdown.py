@@ -26,6 +26,8 @@ import math
 import re
 from pathlib import Path
 
+from DemoContent import workshop_targets_active
+
 ADAPTER_ID = "lockdown-demo"
 ADAPTER_VERSION = 13
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
@@ -141,6 +143,8 @@ def describe(project_root):
     mechanics = {}
     for ability in content["abilities"]:
         mechanics[ability["id"]] = {"status": "Supported", "kind": "active", "opening": bool(ability.get("opening")),
+                                    "target_mode": ability["target"]["mode"],
+                                    "effect_ops": sorted({effect["op"] for effect in ability.get("effects", [])}),
                                     "evidence": CATALOG_EVIDENCE}
     for stat in content["stats"]:
         mechanics[stat["id"]] = {"status": "Supported", "kind": "stat", "evidence": CATALOG_EVIDENCE}
@@ -154,6 +158,7 @@ def describe(project_root):
             "binding": ({"kind": binding["kind"], "actives": list(binding["actives"]), "elements": list(binding["elements"])}
                         if binding else None),
             "targets": component.get("targets"),
+            "effect_ops": [effect["op"] for effect in component.get("effects", [])],
             "evidence": CATALOG_EVIDENCE}
     places = sorted(anchor["id"] for anchor in world["anchors"] if anchor["kind"] in PUBLIC_PLACE_KINDS)
     progression = content["progression"]
@@ -512,8 +517,11 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_components):
                     problem(f"{row['kind']} {component} takes no binding")
                 if not target:
                     problem(f"{row['kind']} {component} needs a target")
-                elif target["kind"] == "active" and target["id"] not in targets.get("actives", []):
-                    problem(f"{component} does not go onto {target['id']}")
+                elif target["kind"] == "active" and not workshop_targets_active(
+                        targets.get("actives", []), row.get("effect_ops", []),
+                        {key: (value.get("target_mode"), set(value.get("effect_ops", [])))
+                         for key, value in rows.items() if value.get("kind") == "active"}, target["id"]):
+                    problem(f"{component} does not accept the target mode of {target['id']}")
                 elif target["kind"] == "active" and target["id"] not in learned[at]:
                     problem(f"cannot prove {target['id']} is learned here: choose it by definition")
                 elif target["kind"] == "component" and target["id"] not in targets.get("components", []):

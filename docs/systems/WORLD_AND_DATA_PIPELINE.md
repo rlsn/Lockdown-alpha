@@ -1,7 +1,14 @@
 # 世界、资产与数据管线
 
+| 项 | 内容 |
+| --- | --- |
+| 规则 | [App Spec](../APP_SPEC.md) §1.1、§5；数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)；关卡编辑约束见[关卡创作自由与开发约束](../LEVEL_AUTHORING_CONTRACT.md) |
+| 文件 | `SourceData\Demo\content.json`、`SourceData\World\demo_world.json`；`Scripts\SyncDemoContentData.py`、`SyncDemoWorldData`、`SyncDemoMap.ps1`、`ApplyDemoMapEdits.py`、`CatalogTools.py`、`DemoContent.py`、`BootstrapAssets.ps1`；`Region\LDMapRegistry`、`ULDMapDefinition`、`Navigation\LDDemoNavigationSystem`、`World\LDCampLifecycle`、`LDCampDecision`、`LDCampDirector`、`LDCaptureCircle`；`Source\LockdownEditor\...\LDDemoWorldBuilder.cpp` |
+| 入口函数 | `ULDMapRegistry::QueryGround` / `QueryCompletePath`、`FindApproach`、`TraceSight`、`QueryCircleMembership` / `ExtractCircleCrossings`、`QueryCombatContacts`；`ALDCampDirector::OnCombatHostileContact` / `AdvanceCamps` / `FreezeForRest` / `ThawAfterRest`；`ULDDemoContentCatalog` 快照 |
+| 不变量 | 一张地图、一个旗杆；SourceData 是生成输入、Content 是游戏读取的载荷，docs 不是构建输入；载荷只经 Sync 生成，不手改哈希；查询不授予观察或交易权限；营地不另存身体、生命、战斗或奖励真值；出生锚点等概率有放回抽样 |
+| 检查 | 对应 Sync `--check` 与 `Test*Import.py`、`BootstrapAssets.ps1 -Mode Validate`、`Lockdown.Rules.DemoWorld.*`、`StaticScene.*`、`DemoCamp.*`；场景 `RunDemoWorldRoomCheck.ps1`、`RunDemoCampCheck.ps1`（见[检查入口](#检查入口)） |
+
 本手册保留当前地形、对象和生成链的维护知识，不要求 Demo 继承完整城市、人口或环境玩法。
-地图规模与必需地点由 [App Spec](../APP_SPEC.md) 决定。
 
 ## 三种不同的文件
 
@@ -378,6 +385,39 @@ Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 不要用它们保存任何材质。`Scripts\CaptureDemoArt.ps1`（DEV `-LDDemoArtCapture`）
 渲染身体、动画姿势、场地俯视与路线遮挡扫描，`Scripts\DrawDemoArtLayout.py` 画出道具布局图；输出在
 `Artifacts`。原始下载包不入库。
+## 世界查询与喷漆区几何
+
+唯一坐标源是 `SourceData\World\demo_world.json`（改布局在关卡里编辑后按[标准关卡编辑与同步](#标准关卡编辑与同步)写回）。当前布局：野外 100 m × 100 m（`X,Y ∈ [-5000,5000] cm`），
+东侧 `X ∈ (5000,9000] cm` 是公共休息室与 PK 场地；每层 50 cm，四角高台经中层台地与坡道连到中央盆地，悬崖不可走；12 个野外出生锚点；34 个营地（小野 18、中野 10、大野 4、远古 2，营地净空 300 cm）；
+1 个喷漆区；4 个外卖落点、4 个画饼老板巡逻点、2 个躺平角；休息室 6 个休息位、6 个训练假人、6 个 PK 报名圈、6 个 PK 出生点、1 个观众投掷点、3 个 NPC 服务点；980 个凸多边形阻挡按声明阻挡移动和/或视线。
+测试只验证功能（锚点与成员站位合法、墙与围栏阻挡移动并按声明阻挡视线、树阻挡两者、坡道可走、悬崖不可走），不检查固定坐标之间的路线长度。
+
+距离口径为厘米、单层脚点 XY 中心距；身体脚点是直立 capsule 的权威位置减 scaled half-height。地面支持、碰撞与路径是另外的检查。
+
+| 签名（语义简写） | 生产者与接受条件 | 消费者 |
+| --- | --- | --- |
+| `QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint) -> Result<LegalGround>` | 有限坐标、边界、支持面、完整占地；投影须显式报告位移与同层结果 | 点击、导航、出生；不替代当前身体位置 |
+| `QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule) -> Result<CompletePath>` | 正确 agent、两端合法、完整路径、对应 GeometryRevision | partial、无 nav data、失配或无进展必须拒绝 |
+| `ResolveObservedUnit(ObserverContext, Handle, Purpose)` / `EnumerateVisibleUnits(ObserverContext, Purpose)` | Vision，见[视野与 UI](VISION_AND_UI.md#谁可以看到什么) | 订单、战斗、UI、AI |
+| `FindApproach(ObserverContext, Origin, UnitHandle or PublicPOI, RangeCm, Capsule)` | 单位先重新解析；在碰撞外、范围内找合法完整路径；范围由服务器当前属性提供 | 攻击接近；单位失明不更新隐藏坐标 |
+| `TraceSight(SourceGround, TargetSample, WorldRevision)` | 有限、同层与固定 eye/target 样本、范围与阻视线几何；与阻走分开 | 授权层与 Combat 几何；静态 ray 不是单位锁定权限 |
+| `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision)` / `ExtractCircleCrossings(CaptureId, MotionSegments, WorldRevision)` | 脚点在闭圆盘内、合法地面 patch、站位不穿阻走体；对实际提交的连续运动片段求转换，不连续 placement 只取前后态 | 只产生几何事实；资格、计时与胜负归核心（`LDCaptureCircle::Extract`） |
+| `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision)` | 仅权威 Combat；用现有 Combat 身体表加静态几何裁剪，无第二 Bodies 表 | 结果不进入 UI、AI、公共消息或命中预览 |
+
+- `SurfaceHint: FName` 必填，是该 WorldRevision 中注册的 SurfaceId；`NAME_None`/未知返回 `InvalidSurface`，支持面不符返回 `WrongSurface`，身体无合法 floor 为 `NotGrounded`（确定的不在区内，不是数据故障）。
+  点击由公开地图地面 trace 取得 hint，当前身体由权威 `CMC.CurrentFloor` 映射；hint 只是期望，不是接地证明。出生/营地/圈的规划点使用静态地点已注册的 SurfaceId。
+- 圈内谓词：`DistanceSquaredXY(Feet, CaptureAnchor) <= CAPTURE.RadiusCm^2` 且当前 grounded、同一连续 capture patch、合法 capsule 站位；边界含等号，脚点在圈外但胶囊擦圈不计；
+  圆盘不得被墙或不可达地面切成多个区域，生成器拒绝这种布局。运动提供者提交实际 accepted sweep 子片段，同帧进入又退出的转换都保留。
+- `Purpose` 区分 `NewAttackOrder/AttackMoveCandidate`、`AttackStart` 与 `Inspect`：前者不要求已进入射程（否则无法发出接近命令），真正 AttackStart 由 Combat 复验射程、视线与状态；观察范围与攻击范围不是同一参数。
+
+| 结果 | 调用方处理 |
+| --- | --- |
+| `DataNotReady / StaleContext / StaleWorld / UnknownSite` | 不接受命令；地图初始化错误阻止开局 |
+| `InvalidPoint / InvalidSurface / InvalidGround / NotGrounded / WrongSurface / Blocked` | 不把零向量、空 hint、旧目标或另一层当成功 |
+| `NoCompletePath / OutsideRange / InvalidApproachRegion` | 区分无路与不在范围，导航停止并反馈 |
+| `TargetUnavailable` | 对外合并隐藏、过期、销毁与换命，服务端保留细因 |
+| `CapacityExceeded / InvalidPayload` | 显式诊断，不静默漏掉可见单位 |
+| `SpawnBlocked / ConflictingTerms / UnregisteredLife` | 不重抽、不造新生命或奖励；同请求重放原结果 |
 
 ## 营地与旗杆的复用边界
 
@@ -431,6 +471,34 @@ DEV 测试会话的 `FLDCaptureReducer::DevOpenAt` 只把未开放旗杆的开�
 DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCaptureTally`）按每次归约后的状态变化计数：每名持有者的尝试（从零开始喷漆）、
 续喷（暂停的进度恢复）、被争夺暂停、失去、被硬控打断和喷成次数，以及全局的进入争夺、喷成、覆盖（喷在别人涂鸦上）、
 因主人死亡/离局清除涂鸦的次数和当前涂鸦的喷上时刻（无主为 -1）；只供遥测读取，任何规则都不读它，`Reset` 时清空。
+
+**营地身份**：静态 CampId + MemberSlot + CampGeneration → 世界成员索引 → 核心 `FLDVictimKey` + `FLDCombatBodyRef` → Combat 唯一致死事实 → `FLDDeathKey` → 成长一次 XP 提交 → 营地更新存活集合与清营时间。
+EntityId 每局按 (CampId, Slot) 分配一次，跨整组刷新保留；Life 只在整组新生命提交时递增，回位不增。CampId/Slot/Generation 是索引元数据，不加入奖励主键。
+
+| 状态/事件 | 行为 | 不能出现 |
+| --- | --- | --- |
+| 组生成 → IdleAwaitAttack | 全部成员完成 ground/nav/capsule 预约后一次发布整组；未受攻击不先手 | 叠点、半组可战斗、因路过就获取目标 |
+| 已确认受击 → 同营反击 | Combat 的敌对接触通知同营；存活且非 Returning 的成员各自验证目标、视线与来源生命后发意图 | 用失败意图/Miss 触发；共享隐藏坐标；旧来源的重生身体自动成为目标 |
+| 失去目标/视野 | 即刻取消锁定与追击；`LoseTargetGraceSec` 只决定回位前的等待 | grace 中读隐藏 Pawn 或续走 LastSeen |
+| 超 Leash / grace 到期 → Returning | 以 Camp 锚点脚点 XY 距离判定，只约束 Engaged 成员；合法路径回各自 MemberHome | 被反复攻击无限重置 leash |
+| Returning | 正常可受伤、控制、杀死；不开新目标、不回头追 | 回位无敌 |
+| 成功回营 → Reset | 同刻先处理到期命中与死亡；只对真实到家的存活成员满 HP/MP、清临时效果与仇恨、技能就绪 | 复活死者、增加 Life、清拒重水位、发奖 |
+| 最后一名死亡 → WaitingRespawn | 按 T 固化 ClearAt，按该档 `RespawnSec` 建一次组刷新 ticket | 每个死亡回调重复建 ticket |
+| ticket 到期 | 重查 Match、终局闸、CampGeneration 与全组落点，成功后整组绑定新生命 | 半组或静默跳过 |
+| 局结束/重开 | 先关闸再取消目标、行为、ticket 与观察 | 清理回调发奖 |
+
+- **受击消费**：`OnCombatHostileContact` 按 VictimBody 验证本营存活成员，把来源参赛者当前生命的身体幂等记入全营敌对来源（Returning 成员不记，早于出生/重置时刻的接触不重开仇恨）；
+  之后每个 Actions 边界由 `LDCampDecision` 产生意图，普攻经 Combat `SubmitAction`。没有 MP 定义的怪物为 NotApplicable，不补临时 Mana。
+- **HomeProof 与重置**：`FLDCampResetInput{Body, ReturnEpoch, HomeFootCm, ExpectedResourceRevision, ExpectedStateRevision}`。营地先判定成员在登记地面落地、支持面相同、脚点至 MemberHome 不超过
+  `CAMP.ResetArrivalRadiusCm`（不加减胶囊半径，不强 snap 被占中心）；Combat 再校验，距离超限或致死中返回 InvalidInput，修订已变返回 StaleBuild，营地留到下一边界重试。
+  语义见[战斗、效果与成长](COMBAT_AND_GROWTH.md#死亡奖励与营地重置)。
+- **回位无路**：规划被拒时停止并按 ReturnEpoch 记一次 `LD_CAMP_RETURN_BLOCKED`，2 s 无进展记 `LD_CAMP_PATH_STALLED` 后重规划；`FLDCampReturnWatch` 计数连续 `CAMP.ReturnDeadEndPlans` 次被拒，
+  或可移动却 `CAMP.ReturnDeadEndSec` 内无进展（受控制时把计时后推）即记 `LD_CAMP_RETURN_DEAD_END` 并停下；下一个 RespawnsAndWorld 对站在合法支持面上的该成员走同一重置（`bInPlace`，只免除到家距离，
+  日志 `LD_CAMP_RESET … in_place=1`）。原地重置的成员记 `bStrandedInPlace`：在 Leash 外受击后坚守原地，射程内反击、不追击、不按 Leash 返回，失去目标且 grace 到期后才再次 Returning。
+- **刷新阻挡**：落点被动态占用时保留同一 ticket，在原营地局部合法落点每个 RespawnsAndWorld 重试（首次记 `LD_CAMP_REFRESH_BLOCKED`），不换营地；开局整组落点被占则开局失败。
+- **休息冻结**：`FreezeForRest` 先让到达退场时刻（`BOSS leave_at`）的 Boss 经 `ALDGameMode::RetireCampBody` 无死亡、无奖励退场，再停下营地成员与 Boss，Combat 把它们挂起（保持 HP/MP、不回复、不能被命中或行动、视野中隐藏）；
+  `ThawAfterRest` 在冻结处解冻，`ForgetTargetsForRest` 只清目标丢失计时与敌对来源并推进旧接触拒绝水位，保留行为阶段、生命与回位代次。
+- 旧自动获取扫描与 `CAMP.Low/High.AggroRadiusCm` 已从实现与 schema 删除；`CAMP.AggroTrigger=ConfirmedCombatHit`、`CAMP.GroupRetaliation=true` 与 `CAMP.ResetPolicy` 是固定规则，不是可切换模式。
 
 ## 保存与复位边界
 

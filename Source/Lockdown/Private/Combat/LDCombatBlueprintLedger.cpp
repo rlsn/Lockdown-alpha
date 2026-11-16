@@ -161,6 +161,16 @@ void ALDCombatDirector::RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombat
     FLDDamageLine Line;
     Line.Source=Hit.Source;
     Line.DamageP2=Damage.DamageP2;
+    // Reaction damage keeps its rule chain: an Overload splash consumed nothing on this body; a setter that is not a single
+    // contender stays unnamed (LockDeath further hides setters the victim cannot read).
+    if (Hit.ReactionKind!=ELDCombatReaction::None)
+    {
+        Line.Reaction=uint8(Hit.ReactionKind);
+        Line.Consumed=uint8(Hit.ReactionConsumed);
+        const FLDCombatEntityRecord* Setter=Hit.ReactionConsumed!=ELDCombatElement::None && Hit.ReactionSetter.IsValid()
+            ? FindRecord(Hit.ReactionSetter) : nullptr;
+        if (Setter && Setter->Kind==ELDVictimKind::Contender) { Line.Setter=Hit.ReactionSetter; }
+    }
     if (bContenderOwner) { Line.Contender=Hit.CreditOwner; }
     else if (Hit.SourceBody.Victim.Kind==ELDVictimKind::CampMember)
     {

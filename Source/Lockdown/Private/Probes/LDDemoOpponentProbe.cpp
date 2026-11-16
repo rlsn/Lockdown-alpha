@@ -226,11 +226,8 @@ public:
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
     // #198: each AI's current life in the shared opening rest room, that life's foot at its first
-    // sample, whether it has decided to train on its target (§6.4: the only reason to move there before the PK sign-up
-    // window) and its distance to its own sign-up disk at the first sample inside the window (站圈报名: afterwards the only
-    // walk is into that disk); the largest drift seen before training, the largest step away from the disk inside the
-    // window, the AIs that stood in their disks at the lock, the AIs seen training or on a PK life in R0, and the ms since
-    // the match start (R0) at which each AI's opening choice was first seen.
+    // sample, whether it has decided to train on its target, the largest drift before training, and the ms since match
+    // start at which each AI's opening choice was first seen. PK sign-up and entrant checks belong to R1.
     struct FRest0Foot
     {
         uint32 Life = 0;
@@ -240,10 +237,10 @@ public:
         bool bLocked = false;
     };
     TMap<FGuid, FRest0Foot> Rest0AIFeet;
-    TSet<FGuid> Rest0PKEntrants;
-    TSet<FGuid> Rest0Signed;
     TSet<FGuid> Rest0Trainers;
     TMap<FGuid, int64> Rest0Picks;
+    TSet<FGuid> R1PKEntrants;
+    bool bR1SignupsChecked = false, bR1PKRosterChecked = false;
     double MaxRest0AIDriftCm = 0;
     double MaxRest0AIStrayCm = 0;
     int32 Rest0Samples = 0;
@@ -351,7 +348,7 @@ public:
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetStringField(TEXT("scope"), UIReview.IsEmpty()
             ? TEXT("DEV-only full room: participating Listen Host, two owning clients and three opponent AI through the normal lobby; the humans stay out of play. Not hidden-state non-interference, field whitelists, a leaving human or network faults.")
-            : TEXT("DEV-only R0 team UI: three real owning connections, ordinary sign-up movement and production PK draw/replication with a pinned random seed. Not full-match AI acceptance."));
+            : TEXT("DEV-only R1 team PK UI: three real owning connections, ordinary sign-up movement and production PK draw/replication with a pinned random seed. Not full-match AI acceptance."));
         Summary->SetArrayField(TEXT("not_exercised"), NotExercised);
         Report->SetObjectField(TEXT("summary"), Summary);
         Report->SetArrayField(TEXT("checks"), Checks);
@@ -1850,10 +1847,10 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
         if (Now - PKRewardSeenAt < .3) { return true; }
         const auto& P = Content->Get().Parameters;
         if (!Check(bPKRewardBaseline && PK.Generation == View.Generation && PK.Serial > 0
-            && PK.RestIndex == 0 && PK.Outcome == ELDPKOutcome::Won
+            && PK.RestIndex == 1 && PK.Outcome == ELDPKOutcome::Won
             && P.PKRewardMultiplierBp == 15000 && P.PKParticipationPoints == 1
             && P.PKWinnerPointsMax == 3 && P.PKBettingPoolMaxPoints == 2,
-            TEXT("PK225: a real won R0 PK exercises the approved reward inputs"))) { return false; }
+            TEXT("PK225: a real won R1 PK exercises the approved reward inputs"))) { return false; }
         TArray<FLDPKAwardView> Expected;
         TArray<int32> Winners;
         for (const FLDPKEntrantView& Entrant : PK.Entrants)
@@ -2097,13 +2094,11 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                         return Left.Right<=Right.Left+.5f||Right.Right<=Left.Left+.5f
                             ||Left.Bottom<=Right.Top+.5f||Right.Bottom<=Left.Top+.5f;
                     };
-                    bool bStatusClear=HUD->MapColumn&&HUD->Band;
-                    for(const UBorder* Cell:HUD->SelfIconCells)
-                    {bStatusClear&=Separate(Cell,HUD->MapColumn)&&Separate(Cell,HUD->Band);}
+                    const bool bStatusClear=HUD->MapColumn&&HUD->Band&&Separate(HUD->MapColumn,HUD->Band);
                     return Check(ActualWidth==Width&&ActualHeight==Height&&HUD->Minimap&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD)
                         &&LDSlateProbeInput::FullyVisible(Body,HUD)&&LDSlateProbeInput::FullyVisible(Q,HUD)
                         &&Body->GetCachedGeometry().GetLayoutBoundingRect().Right<=Q->GetCachedGeometry().GetLayoutBoundingRect().Left&&bStatusClear,
-                        TEXT("UI: the field minimap, status squares and body slot fit without overlap, with the body left of Q"));
+                        TEXT("UI: the field minimap and the centred band fit without overlap, with the body left of Q"));
                 };
                 if(UIFieldStep==0)
                 {
@@ -2545,18 +2540,17 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 an opponent AI moves in the shared room only to train on its private target
-        // once nothing is left to build (OPPONENT_AI.md §6.4) and, once the PK sign-up window opens, only to walk into its own
-        // sign-up disk (站圈报名, user decision A), so every AI stands in its disk at the lock (sampled on the authority until
-        // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights on
-        // a PK life in the arena during the PK step (approved R0 PK); that life is not a rest-space body, and the rest life
-        // it returns to afterwards is measured from its own first sample.
+        // #198: through R0 an opponent AI moves in the shared room only to train on its private target once nothing is left
+        // to build (OPPONENT_AI.md §6.4); each picks its opening active in the R0 build step after its drawn delay.
+        // R0 has no PK signup. R1/R2 signup and PK entrant checks are sampled separately below.
         if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
             && Mode->GetTimeline().GetRestIndex() == 0)
         {
             const FLDTimelineView Line = Mode->ReadPublicMatch().Timeline;
-            const bool bBeforeWindow = Line.Step == ELDRestStep::Build && Mode->GetAuthorityNowMs() < Line.SignupOpensAtMs;
-            const bool bInWindow = Line.Step == ELDRestStep::Build && !bBeforeWindow;
+            const bool bPKSignupScheduled = LDMatchTimeline::IsPKRest(Line.RestIndex);
+            const bool bBeforeWindow = Line.Step == ELDRestStep::Build
+                && (!bPKSignupScheduled || Mode->GetAuthorityNowMs() < Line.SignupOpensAtMs);
+            const bool bInWindow = bPKSignupScheduled && Line.Step == ELDRestStep::Build && !bBeforeWindow;
             if (!bRestChoicesShot && bBeforeWindow && FApp::CanEverRender()
                 && Mode->GetAuthorityNowMs() - Mode->ReadPublicMatch().StartedAtMs >= 3000
                 && PC->HUDUI && PC->HUDUI->ChoicesPanel && PC->HUDUI->ChoicesPanel->IsPanelOpen()
@@ -2570,8 +2564,6 @@ bool FLDDemoOpponentProbe::Tick()
             for (TActorIterator<ALDOpponentController> It(World); It; ++It)
             {
                 const FGuid Id = Mode->ContenderId(*It);
-                if (Mode->IsPKLife(Id)) { Rest0PKEntrants.Add(Id); }
-                if (Mode->GetLockedEntrants().Contains(Id)) { Rest0Signed.Add(Id); }
                 const bool bTraining = It->GetReportedReason() == ELDOpponentReason::Train;
                 if (bTraining) { Rest0Trainers.Add(Id); }
                 const APawn* Pawn = It->GetPawn();
@@ -2639,14 +2631,10 @@ bool FLDDemoOpponentProbe::Tick()
         if (bHost)
         {
             Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1. && MaxRest0AIStrayCm < 1.,
-                TEXT("Before training an R0 AI stays at its initial foot, and in the sign-up window it does not stray farther from its disk than its first sample"));
-            Check(Rest0Signed.Num() == OpponentCount && Rest0PKEntrants.Num() == OpponentCount,
-                TEXT("Every opponent AI stood in its own sign-up disk at the R0 lock and entered the PK (站圈报名)"));
+                TEXT("Before training an R0 AI stays at its initial foot; R0 has no PK sign-up window"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
             Summary->SetNumberField(TEXT("rest0_ai_drift_cm"), MaxRest0AIDriftCm);
             Summary->SetNumberField(TEXT("rest0_ai_stray_cm"), MaxRest0AIStrayCm);
-            Summary->SetNumberField(TEXT("rest0_signed"), Rest0Signed.Num());
-            Summary->SetNumberField(TEXT("rest0_pk_entrants"), Rest0PKEntrants.Num());
             Summary->SetNumberField(TEXT("rest0_trainers"), Rest0Trainers.Num());
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
@@ -2656,6 +2644,40 @@ bool FLDDemoOpponentProbe::Tick()
     }
     case ELDOpponentProbeStage::Match:
     {
+        const FLDTimelineView Line = View.Timeline;
+        if (bHost && Mode && Line.Stage == ELDMatchStage::Rest && Line.RestIndex == 1)
+        {
+            if (!bR1SignupsChecked && Line.Step != ELDRestStep::Build)
+            {
+                int32 SignedAIs = 0;
+                for (const FGuid& Id : OpponentIds)
+                {
+                    SignedAIs += Line.Signups.Contains(Id) ? 1 : 0;
+                }
+                Check(SignedAIs == OpponentCount,
+                    TEXT("Every opponent AI signs up during the R1 public signup window"));
+                Summary->SetNumberField(TEXT("r1_pk_signups"), SignedAIs);
+                bR1SignupsChecked = true;
+            }
+            if (Mode->PKDirector && Line.Step == ELDRestStep::PK)
+            {
+                const FLDPKView& PK = Mode->PKDirector->GetView();
+                if (PK.Serial != 0 && PK.RestIndex == 1)
+                {
+                    for (const FLDPKEntrantView& Entrant : PK.Entrants)
+                    {
+                        if (OpponentIds.Contains(Entrant.Contender)) { R1PKEntrants.Add(Entrant.Contender); }
+                    }
+                    if (!bR1PKRosterChecked)
+                    {
+                        Check(R1PKEntrants.Num() == OpponentCount,
+                            TEXT("Every opponent AI signed up in R1 is locked as an R1 PK entrant"));
+                        Summary->SetNumberField(TEXT("r1_pk_entrants"), R1PKEntrants.Num());
+                        bR1PKRosterChecked = true;
+                    }
+                }
+            }
+        }
         int64 MarkNowMs = 0;
         if (!bPlaytestMarked && View.Phase == ELDMatchPhase::Development && PC->ReadDemoAuthorityTimeMs(MarkNowMs)
             && LDMatchTimeline::FieldNowFromView(View.Timeline, MarkNowMs) >= 60000)

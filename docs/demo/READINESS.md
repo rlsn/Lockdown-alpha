@@ -32,13 +32,13 @@
 | E10 | [SourceData/Demo](../../SourceData/Demo)，[SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)，[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 唯一作者域、schema、稳定 ID 与载荷契约；首版内容与数值已获批 | 首次试玩输入获批就是平衡测试结论 |
 | E11 | [LDGrowthRulesTests.cpp](../../Source/LockdownTests/Private/LDGrowthRulesTests.cpp)，[LDCombatSourceRulesTests.cpp](../../Source/LockdownTests/Private/LDCombatSourceRulesTests.cpp) | `Lockdown.Rules.DemoGrowth*` 与战斗来源用例覆盖等级/点数/主动机会、学习与加点准入与来源冷却（未运行） | 规则套件全绿就满足拥有连接下的 Demo 行为 |
 | E12 | [RunTests.ps1](../../Scripts/RunTests.ps1)，[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)，[开发指南](../systems/VERIFICATION.md#最小验证选择) | 已有构建、生成、规则和场景入口；总入口核对明确的当前用例集合，拒绝缺项、重复、失败与未完成 | 当前组件套件通过就等于 Demo 专属规则与真实场景均已实现 |
-| E14 | [操作与目标](CONTROLS_AND_TARGETING.md)，§5、§7.3、§10、§11 | 单一订单、只收件入口、写许可激活/原子交接、CMC 子段/事件序、授权终止已按该合同实现，拥有连接见 `RunDemoCombatCheck.ps1` | CT06 的全部提供者封桶（正式 Motion Fence/Sealing）已完成；核心类型仍由生命周期域单点定义 |
-| E15 | [会话与生命周期](SESSION_MATCH_LIFECYCLE.md)，§4–6、§10 | 唯一核心 Match/Victim/Body/DeathKey、实际时间/许可/写闸、RewardBasis、settlement-only、结果和故障退出已实现；3+3、同房间新局与网络异常见 Opponent、Capture、SessionFault 场景 | 跨机器联机已经验证；不能另造第二驱动 |
-| E16 | [世界/营地/视野](WORLD_CAMPS_AND_VISION.md)，§2–5、§9；[当前世界管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 现有100m单层布局已获批准；严格world2生产者、原生目录/唯一地图、凸多边形碰撞和导航保存/重载检查已接通；营地、稀疏观测与实际运动见 `RunDemoCampCheck.ps1`、`RunDemoVisionCheck.ps1`、`RunDemoCoreCheck.ps1` | 锚点内七个局部槽是额外的随机出生点，或静态导航检查等于动态落地、真实拥有连接、公平性及完整地图玩法通过 |
-| E17 | [对手 AI](OPPONENT_AI.md)，§3、§6–9 | 无连接 Controller 适配、同一权威接口、P0–P9 策略与 AI 叶参数已实现，参数随中央方案获批；满员对局见 `RunDemoOpponentCheck.ps1` | AI 可新建第二世界/经济状态或读取隐藏状态；参数仍以中央内容报告为唯一来源 |
-| E18 | [战斗与属性](COMBAT_AND_ATTRIBUTES.md)，§3–8、§13 | 唯一动作/属性/P2/来源写入、不可变致死集合、CampReset最终上限次序有独立审核；typed 内容定义导入见 E21 | JSON/hash 或原生定义投影一致即可实现效果（实际执行见 `Lockdown.Rules.DemoCombatEvaluation` 与 `RunDemoCombatCheck.ps1`） |
-| E19 | [成长与奖励](PROGRESSION_AND_REWARDS.md)，§3–8 | XP/等级/机会复合提交、持久候选、独立CD债与tagged查询 | 业务缓存可代替拒旧（真实连接见 `RunDemoGrowthCheck.ps1`） |
-| E20 | [UI与设置](UI_AND_SETTINGS.md)，§4–8；[当前本地设置接口](../systems/MOVEMENT_INPUT_AND_CAMERA.md) | 本地类型化加载/保存、隔离测试存储、磁盘回读和无边框固定窗口已有实现；玩法界面经各领域的合法投影与单一输入层接线（`Lockdown.Rules.HUD*`） | 规则测试与离屏截图已经证明打包版的无边框窗口、OS 输入与音效听感 |
+| E14 | [移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md) | 单一订单、只收件入口、写许可激活/原子交接、CMC 子段/事件序、授权终止已按该合同实现，拥有连接见 `RunDemoCombatCheck.ps1` | CT06 的全部提供者封桶（正式 Motion Fence/Sealing）已完成；核心类型仍由生命周期域单点定义 |
+| E15 | [架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md) | 唯一核心 Match/Victim/Body/DeathKey、实际时间/许可/写闸、RewardBasis、settlement-only、结果和故障退出已实现；3+3、同房间新局与网络异常见 Opponent、Capture、SessionFault 场景 | 跨机器联机已经验证；不能另造第二驱动 |
+| E16 | [世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)、[视野与 UI](../systems/VISION_AND_UI.md) | 现有100m单层布局已获批准；严格world2生产者、原生目录/唯一地图、凸多边形碰撞和导航保存/重载检查已接通；营地、稀疏观测与实际运动见 `RunDemoCampCheck.ps1`、`RunDemoVisionCheck.ps1`、`RunDemoCoreCheck.ps1` | 锚点内七个局部槽是额外的随机出生点，或静态导航检查等于动态落地、真实拥有连接、公平性及完整地图玩法通过 |
+| E17 | [对手 AI](../systems/OPPONENT_AI.md)，§3、§6–9 | 无连接 Controller 适配、同一权威接口、P0–P9 策略与 AI 叶参数已实现，参数随中央方案获批；满员对局见 `RunDemoOpponentCheck.ps1` | AI 可新建第二世界/经济状态或读取隐藏状态；参数仍以中央内容报告为唯一来源 |
+| E18 | [战斗、效果与成长](../systems/COMBAT_AND_GROWTH.md) | 唯一动作/属性/P2/来源写入、不可变致死集合、CampReset最终上限次序有独立审核；typed 内容定义导入见 E21 | JSON/hash 或原生定义投影一致即可实现效果（实际执行见 `Lockdown.Rules.DemoCombatEvaluation` 与 `RunDemoCombatCheck.ps1`） |
+| E19 | [成长事务](../systems/GROWTH_TRANSACTIONS.md) | XP/等级/机会复合提交、持久候选、独立CD债与tagged查询 | 业务缓存可代替拒旧（真实连接见 `RunDemoGrowthCheck.ps1`） |
+| E20 | [视野与 UI](../systems/VISION_AND_UI.md)；[当前本地设置接口](../systems/MOVEMENT_INPUT_AND_CAMERA.md) | 本地类型化加载/保存、隔离测试存储、磁盘回读和无边框固定窗口已有实现；玩法界面经各领域的合法投影与单一输入层接线（`Lockdown.Rules.HUD*`） | 规则测试与离屏截图已经证明打包版的无边框窗口、OS 输入与音效听感 |
 | E21 | [内容与数值](CONTENT_AND_BALANCE.md)，§3–14；[SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)；[LDDemoContentCatalog.h](../../Source/Lockdown/Public/Development/LDDemoContentCatalog.h)；[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 批准方案已生成正式作者数据/载荷/原生目录；严格 Decimal/定点、受保护输出、不可变 typed 目录及全字段校验接同一可信根。世界源/schema亦受独立字段/cm合同与字节身份约束 | 定义导入、地图生成或输入批准就表示已经实现战斗处理器、真实3+3与人类平衡 |
 
 ## App Spec 完成标准的覆盖
@@ -65,8 +65,8 @@
 | 视野一致 | 场景 Opponent：`HostOpponentCard.png` 截图审阅可见 AI 的 Q/W 卡（截图早于当前目录，需重新截图）；规则 `DemoVision.OpponentActives`。场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
 | AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的喷漆进度持有者留区迎战，以喷漆守护获胜；遥测记录改漆与守护用时 | 当前版本的满员场景未通过：最近一次在 R1 返野外时权威故障，返场修复后未复跑完整场景；本局没有出现的情形报告为未覆盖，不计为通过 |
 | UI 完整 | 截图审阅：`HostChoices.png`、`HostKillAssist.png`（播报助攻者）、`HostResults.png`（助攻列）、`HostOpponentCard.png`、`HostSpray.png`/`HostGuard.png`。规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量 | 截图早于当前构筑界面与构件库；构件库没有截图或人工界面审阅；全部游戏状态的人工界面审阅与音效人工试听未完成 |
-| 伤害统计 | 规则：`DamageRecap.Window`（承伤窗口、求和与排序、各来源总量、列表校验）、`DamageRecap.Display`（死亡承伤列表与结算页本人伤害的可用条件、行文与合并） | 没有拥有连接场景：远端客户端收到自己的承伤列表与伤害总量、别人收不到，未经场景证明；死亡横幅与结算页的新段落没有截图或人工界面审阅 |
-| 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、六席满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”；Host 进程在客户端仍连接时正常退出，Host 日志无权威故障，客户端回主菜单显示会话中断。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName）、`DemoOwnerViewTeardown`（拆除与关房期间不发布本人视图，对局中的真实投影不一致仍判故障） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断；六席满员场景待验证 |
+| 伤害统计 | 规则：`DamageRecap.Window`（承伤窗口、求和与排序、各来源总量、列表校验）、`DamageRecap.Display`（死亡承伤列表与结算页本人伤害的可用条件、行文与合并）、`DamageRecap.Chain`（反应规则链分行、链与引爆提示校验）、`DamageRecap.ChainDisplay`（规则链文字与图标链节点、击杀/助攻标签、状态引爆提示）、`DamageRecap.ChainSources`（施加者可读边界、溅射行、不具名触发者、首次观察前的提示、旧生命提示不播报）、`DamageRecap.AssistOrdering`（提示保留与乱序等待）、`DamageRecap.LiveSight`（命中时视野和隔离复核）；场景 `RunDemoVisionCheck.ps1 -ReactionOnly`：服务端夹具将潮湿和电命中排入原生 Effects，仅远端施加者经真实拥有连接收到具名导电提示 | 玩家操作触发、隐藏视野负例和远端客户端的承伤列表与伤害总量没有拥有连接场景；死亡横幅图标链、成长面板死因信息栏、状态引爆提示与结算页的新段落没有截图或人工界面审阅 |
+| 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、六席满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”；Host 进程在客户端仍连接时正常退出，Host 日志无权威故障，客户端回主菜单显示会话中断。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName）、`DemoOwnerViewTeardown`（拆除与关房期间不发布本人视图，对局中的真实投影不一致仍判故障） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断；六席满员场景待验证。意外断线当前保留身体以供重连，与 App Spec §8 的断线即离局规则不一致；普通 Vision 断线清理断言未通过，`-ReactionOnly` 的主动离房清理不能代替断线验证 |
 | 新局隔离 | 场景 Capture 与 Growth 的第二局：开局成长、构筑、冷却、营地与抢圈全部复位，旧代请求被拒。规则：`DemoOrders.BookIsolation`、`DemoMatchIdentity` | — |
 | 正常完整对局 | 场景 Opponent 的满员房间从大厅开局到喷漆守护获胜、结果和回 Lobby；Capture 中真人守护获胜后开第二局 | 当前版本的完整对局与三名真人试玩未验收 |
 
@@ -80,7 +80,7 @@
 - **未完成验收**：
   - 打包版已取得同机三拥有连接下的开局公共休息和构筑面板画面，以及前端真实渲染首帧；完整前端交互未验收。
   - 打包版三拥有连接夹具覆盖共享假人可见、准备、首次返野外和坡缝原脚点的返场回放。
-  - 满员场景未通过：R0 三个 AI 报名并进入 PK，R01 假人槽位通过但账本未实际增长（未覆盖），R02 检查通过；
+  - 满员场景尚未按 R1/R2 才开放 PK 的当前规则重跑；R01 假人槽位通过但账本未实际增长（未覆盖），R02 检查通过；
     R1 返回野外时出现 `Prepared body does not occupy its exact registered placement` 权威故障。返场已改为按物理胶囊实际支撑中心预约出生，
     相关地面、出生、营地和休息规则通过，但完整满员对局未复跑。
   - NPC 服务、构件安装、PK 与观战没有拥有连接场景；全套规则未在本页记为通过。

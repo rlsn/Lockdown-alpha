@@ -60,6 +60,9 @@ struct FLDDamageEvaluationInput
     // primary_guard: a flat cut of a primary basic after resistance, at most PrimaryGuardCapBp of it.
     int64 PrimaryGuardP2 = 0;
     int64 PrimaryGuardCapBp = 0;
+    // The activated thick-skin keystone cuts after the ordinary primary guard.
+    int64 KeystoneGuardP2 = 0;
+    int64 KeystoneGuardCapBp = 0;
     // #198 S16: the target's stance cuts this share of the hit after resistance and delivery scaling, before the guard.
     int64 BraceCutBp = 0;
 };
@@ -78,6 +81,7 @@ struct FLDDamageEvaluation
     // The amount the primary guard actually took off a primary basic (the floored damage before it minus the floored damage
     // after it; zero for a protected target).
     int64 GuardCutP2 = 0;
+    int64 KeystoneGuardCutP2 = 0;
     // #198 F M12: the deferred part of DamageP2's mitigated amount (DamageP2 is what this hit applies now).
     int64 DeferredP2 = 0;
 };

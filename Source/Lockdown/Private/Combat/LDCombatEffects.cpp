@@ -186,6 +186,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // slow alone is not IsImpaired) and the idle amplification its release locked (B17).
     int64 PoolBp=FMath::Max<int64>(Hit.IdleReadyAmpBp,0);
     if (Hit.ControlAmpBp>0 && bImpaired) { PoolBp+=Hit.ControlAmpBp; }
+    const bool bStrengthTargetCondition=Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment
+        && (LDTactical::StrongestSlowBp(Body->Slows,NowMs)>0
+            || LDTactical::HasActiveRoot(Body->Roots,NowMs)
+            || LDTactical::HasActiveRoot(Body->Stuns,NowMs)
+            || LDTactical::HasActiveRoot(Body->Disarms,NowMs)
+            || LDControl::IsTaunted(Body->Taunt,NowMs)
+            || LDTactical::HasActiveRoot(Body->Silences,NowMs));
+    if (Source && Source->AttributeProjection.Keystones.bStrength && bStrengthTargetCondition)
+    { PoolBp+=Content->Get().Parameters.KeystoneStrengthDamageBp; }
     // B14/B15 on a hostile native direct hit: the distance amplification (caster foot to target foot in 2D, at
     // resolution, from a standing source) and the alternate amplification its release locked.
     const bool bNativeDirect=IsNativeDirectHit(Hit) && Hit.SourceEntity!=Body->Victim.EntityId;
@@ -248,6 +257,14 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Evaluation.PrimaryGuardP2=PrimaryGuard->Effect.BaseP2;
         Evaluation.PrimaryGuardCapBp=PrimaryGuard->Effect.RatioBp;
     }
+    const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
+        && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.HitClass==ELDCombatHitClass::BasicPrimary
+        && Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment;
+    if (bKeystoneGuardReady)
+    {
+        Evaluation.KeystoneGuardP2=Content->Get().Parameters.KeystoneThickSkinGuardP2;
+        Evaluation.KeystoneGuardCapBp=Content->Get().Parameters.KeystoneThickSkinGuardCapBp;
+    }
     // #198 S16: the target's live stance cuts hostile damage (never its own); a due M12 debt is paid at its original amount
     // and neither takes the cut nor feeds the record (spec §9.1/§12.1).
     const bool bBraced=LDCombatElements::BraceActive(Body->Brace,NowMs) && Hit.SourceEntity!=Body->Victim.EntityId
@@ -261,6 +278,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         return false;
     }
     const FLDDamageEvaluation& Damage=Evaluated.Value.GetValue();
+    int64 KeystoneGuardReadyAtMs=Body->KeystoneThickSkinReadyAtMs;
+    if (Damage.KeystoneGuardCutP2>0
+        && !LDMatchLifecycle::AddDurationMs(NowMs,Content->Get().Parameters.KeystoneThickSkinIntervalMs,
+            KeystoneGuardReadyAtMs,Error))
+    { return false; }
 
     // Every fallible read of the hit is resolved before its first write.
     const bool bControllable=!bProtected && Damage.RemainingHPP2>0;
@@ -334,6 +356,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     Body->Resources.HpP2=Damage.RemainingHPP2;
     Body->Resources.ShieldP2=Damage.RemainingShieldP2;
     ++Body->Resources.Revision;
+    if (Damage.KeystoneGuardCutP2>0) { Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs; }
     if (bBraced && Damage.BraceCutP2>0)
     {
         Body->Brace.RecordedP2=LDCombatElements::BraceRecordP2(Body->Brace.RecordedP2,Damage.BraceCutP2,Body->Brace.CapP2);
@@ -508,7 +531,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // B04 is the lifesteal source (#198 F: C08 may sit on it; M12 debts are repaid first).
         TOptional<FLDPassiveEffectRef> Vamp;
         if (!FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::Lifesteal,Vamp,Error)) { return false; }
-        HealBody(*Source,HealP2,Vamp.IsSet() ? Vamp->Source : FLDCombatSourceRef(),&VampHealedP2);
+        FString HealError;
+        HealBody(*Source,HealP2,Vamp.IsSet() ? Vamp->Source : FLDCombatSourceRef(),&VampHealedP2,FGuid(),&HealError);
+        if (!HealError.IsEmpty()) { Error=MoveTemp(HealError); return false; }
         if (Vamp.IsSet() && VampHealedP2>0) { LedgerComponentTriggered(*Source,Vamp->Source.DefinitionId); }
     }
     // Host playtest record of this committed hit (docs/DEVELOPMENT.md): every term the player could ask about afterwards.
@@ -564,6 +589,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (!Hit.bReflect && !Hit.bDebtPayment && Damage.DamageP2>0 && Body->Resources.HpP2>0
         && !QueueThorns(Hit,*Actor,*Body,Damage.DamageP2,bCritical,Error)) { return false; }
     if (Body->Resources.HpP2==0 && !LockDeath(*Actor,*Body,Hit,Error)) { return false; }
+    // The reaction's setters hear of it only now that its hit on this body fully committed with an effect.
+    if (Hit.ReactionKind!=ELDCombatReaction::None && (Damage.DamageP2>0 || bControlled)
+        && !NotifyReactionAssists(Hit,Error)) { return false; }
     return true;
 }
 
@@ -1259,7 +1287,14 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     if (Body.Victim.Kind==ELDVictimKind::Contender)
     {
         Death.RecapWindowMs=Content->Get().Parameters.AssistWindowMs;
-        LDDamageRecap::Summarize(Body.DamageLog,Mode->GetAuthorityNowMs(),Death.RecapWindowMs,Death.Recap);
+        // Setters the victim cannot read (neither in its recap as attackers nor among the frozen assisters) stay unnamed.
+        TArray<FLDDamageSample> Readable=Body.DamageLog;
+        LDDamageRecap::HideUnreadableSetters(Readable,Mode->GetAuthorityNowMs(),Death.RecapWindowMs,Body.Victim.EntityId,Death.Assisters);
+        LDDamageRecap::Summarize(Readable,Mode->GetAuthorityNowMs(),Death.RecapWindowMs,Death.Recap);
+        if (!Hit.CreditOwner.IsValid() && Hit.SourceBody.Victim.Kind==ELDVictimKind::CampMember)
+        {
+            if (const FLDCombatEntityRecord* Monster=FindRecord(Hit.SourceBody.Victim.EntityId)) { Death.KillerMonsterId=Monster->MonsterAtLife(Hit.SourceBody.Victim.Life); }
+        }
     }
     // Effects run on an integral authority boundary, so the fatal instant is that exact millisecond.
     Death.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();

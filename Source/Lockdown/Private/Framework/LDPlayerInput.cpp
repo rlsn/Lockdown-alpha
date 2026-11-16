@@ -120,7 +120,7 @@ void ALDPlayerController::RebuildV05Mappings()
     for (uint32 Handle : V05BindingHandles) { Input->RemoveBindingByHandle(Handle); }
     V05BindingHandles.Reset();
     if (NavigationInputContext) { Subsystem->RemoveMappingContext(NavigationInputContext); }
-    // A rebuilt mapping clears latches and waits for release; it never stops an accepted order (UI 7).
+    // A rebuilt mapping clears latches and waits for release; it never stops an accepted order (VISION_AND_UI interface lifecycle matrix).
     ReleaseLocalInput();
     NavigationInputContext=NewObject<UInputMappingContext>(this);
     for (const auto& Binding : Controls->Definitions())
@@ -162,7 +162,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         for (const auto& Binding : Controls->Definitions()) { Down|=LDPlayerInputDetail::PhysicalDown(this,Controls->Key(Binding.Action)); }
         if (!Down) { bFreshInputRequired=false; }
     }
-    // A child confirmation or text edit that opens over an armed preview cancels it before the next frame (UI 4).
+    // A child confirmation or text edit that opens over an armed preview cancels it before the next frame (MOVEMENT_INPUT_AND_CAMERA input ownership).
     if (IsWorldInputCaptured()) { CancelArmedCombat(); }
     FlushQueuedCombat();
     if (GetPawn()!=PreferencesPawn.Get())
@@ -206,7 +206,7 @@ void ALDPlayerController::ToggleControlsPanel()
 
 void ALDPlayerController::V05Back()
 {
-    // UI_AND_SETTINGS 4: one layer per press — editing/child confirmation, then a local Armed preview,
+    // MOVEMENT_INPUT_AND_CAMERA input ownership: one layer per press — editing/child confirmation, then a local Armed preview,
     // then a normal main panel, then the menu. Cancelling Armed never stops an accepted order.
     if (!RootUI) { return; }
     // Play goes on during a yielding confirmation, so a skill armed meanwhile is the nearer layer and is cancelled first.
@@ -224,9 +224,9 @@ void ALDPlayerController::V05Pressed(FName Action)
     if (Action==TEXT("Back")) { V05Back(); return; }
     if (IsDevFreeCameraActive()) { return; }
     if (bControlsSuppressed || bFreshInputRequired) { return; }
-    // The HUD's stat icons <-> attribute view, alive or dead (UI_AND_SETTINGS 3.2).
+    // The HUD's stat icons <-> attribute view, alive or dead (VISION_AND_UI pages).
     if (Action==TEXT("Attributes")) { if (HUDUI) { HUDUI->ToggleAttributeView(); } return; }
-    // A child confirmation or a text edit owns every other key and click until it closes (UI 4).
+    // A child confirmation or a text edit owns every other key and click until it closes (MOVEMENT_INPUT_AND_CAMERA input ownership).
     if (IsWorldInputCaptured()) { return; }
     // The 构筑 workshop opens and closes like its button, alive or dead.
     if (Action==TEXT("Workshop")) { if (HUDUI) { HUDUI->ToggleWorkshop(); } return; }
@@ -236,7 +236,7 @@ void ALDPlayerController::V05Pressed(FName Action)
     if (Action==TEXT("Recenter") || Action==TEXT("Follow"))
     {
         if (!CanCameraCommand()) { return; }
-        // The static death camera has no living body to centre on or follow, and never another player's (CONTROLS 3.3).
+        // The static death camera has no living body to centre on or follow, and never another player's (MOVEMENT_INPUT_AND_CAMERA camera).
         if (IsAwaitingRespawn())
         {
             PostIntentNotice(TEXT("无存活角色"));

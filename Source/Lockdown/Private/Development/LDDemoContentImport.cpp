@@ -460,14 +460,11 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAMP.GrowthRewardXPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthRewardXPPerStageBp, 0, MAX_int64},
         {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
+        {TEXT("AIRDROP.HealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropHealMaxHPBp, 1, 10000},
+        {TEXT("AIRDROP.ManaMaxMPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropManaMaxMPBp, 1, 10000},
+        {TEXT("AIRDROP.MoveSpeedRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropMoveSpeedBp, 1, 10000},
+        {TEXT("AIRDROP.MoveSpeedSec"), TEXT("ms"), TEXT("ms"), &P.AirdropMoveSpeedMs, 1, MAX_int64},
         {TEXT("CAMPMARK.RevealSec"), TEXT("ms"), TEXT("ms"), &P.CampMarkRevealMs, 1, MAX_int64},
-        {TEXT("CHARM.FirstWaveSec"), TEXT("ms"), TEXT("ms"), &P.CharmFirstWaveMs, 1, MAX_int64},
-        {TEXT("CHARM.WaveIntervalSec"), TEXT("ms"), TEXT("ms"), &P.CharmWaveIntervalMs, 1, MAX_int64},
-        {TEXT("CHARM.LifetimeSec"), TEXT("ms"), TEXT("ms"), &P.CharmLifetimeMs, 1, MAX_int64},
-        {TEXT("CHARM.HealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.CharmHealMaxHPBp, 1, 10000},
-        {TEXT("CHARM.ManaMaxMPRatio"), TEXT("ratio"), TEXT("bp"), &P.CharmManaMaxMPBp, 1, 10000},
-        {TEXT("CHARM.MoveSpeedRatio"), TEXT("ratio"), TEXT("bp"), &P.CharmMoveSpeedBp, 1, 10000},
-        {TEXT("CHARM.MoveSpeedSec"), TEXT("ms"), TEXT("ms"), &P.CharmMoveSpeedMs, 1, MAX_int64},
         {TEXT("LEADER.RefreshSec"), TEXT("ms"), TEXT("ms"), &P.LeaderRefreshMs, 1, MAX_int64},
         {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
         {TEXT("GROWTH.BuildSafeWindowSec"), TEXT("ms"), TEXT("ms"), &P.BuildSafeWindowMs, 1, MAX_int64},
@@ -489,6 +486,18 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.BurnTickSec"), TEXT("ms"), TEXT("ms"), &P.BurnTickMs, 1, MAX_int64},
         {TEXT("COMBAT.BurnSec"), TEXT("ms"), TEXT("ms"), &P.BurnMs, 1, MAX_int64},
         {TEXT("COMBAT.LifestealCap"), TEXT("ratio"), TEXT("bp"), &P.LifestealCapBp, 0, 10000},
+        {TEXT("COMBAT.KeystonePhysiqueHealToShieldRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueHealToShieldBp, 1, 10000},
+        {TEXT("COMBAT.KeystonePhysiqueShieldMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueShieldMaxHPBp, 1, 10000},
+        {TEXT("COMBAT.KeystonePhysiqueShieldDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystonePhysiqueShieldDurationMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystonePhysiqueIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystonePhysiqueIntervalMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneThickSkinGuardPoints"), TEXT("points"), TEXT("p2"), &P.KeystoneThickSkinGuardP2, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneThickSkinGuardCapRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneThickSkinGuardCapBp, 1, 9999},
+        {TEXT("COMBAT.KeystoneThickSkinIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneThickSkinIntervalMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneStrengthDamageRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneStrengthDamageBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneBrainsManaRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsManaRefundBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneAgilityDamageBase"), TEXT("points"), TEXT("p2"), &P.KeystoneAgilityDamageBaseP2, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneAgilityADRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityADRatioBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneAgilityEmpowerDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneAgilityEmpowerDurationMs, 1, MAX_int64},
         // #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
         {TEXT("COMBAT.WetSec"), TEXT("ms"), TEXT("ms"), &P.WetMs, 1, MAX_int64},
         {TEXT("COMBAT.WetSlow"), TEXT("ratio"), TEXT("bp"), &P.WetSlowBp, 1, 9999},
@@ -533,7 +542,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("VISION.RadiusCm"), &P.VisionRadiusCm},
         {TEXT("CAPTURE.RadiusCm"), &P.CaptureRadiusCm}, {TEXT("CAMP.ResetArrivalRadiusCm"), &P.CampResetArrivalRadiusCm},
         {TEXT("DORM.RadiusCm"), &P.DormRadiusCm}, {TEXT("AIRDROP.PickupRadiusCm"), &P.AirdropPickupRadiusCm},
-        {TEXT("CHARM.PickupRadiusCm"), &P.CharmPickupRadiusCm},
         {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm},
         {TEXT("COMBAT.DischargeRadiusCm"), &P.DischargeRadiusCm}, {TEXT("COMBAT.FogRadiusCm"), &P.FogRadiusCm},
         {TEXT("COMBAT.ConductRadiusCm"), &P.ConductRadiusCm}, {TEXT("COMBAT.OverloadRadiusCm"), &P.OverloadRadiusCm},
@@ -556,10 +564,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
         {TEXT("CAMP.GrowthMaxStage"), &P.CampGrowthMaxStage, 1},
         {TEXT("AIRDROP.RewardXP"), &P.AirdropRewardXP, 1}, {TEXT("LEADER.MinLevel"), &P.LeaderMinLevel, 1},
-        {TEXT("CHARM.WaveCount"), &P.CharmWaveCount, 1}, {TEXT("CHARM.PerWave"), &P.CharmPerWave, 1},
         {TEXT("COMBAT.BreachMaxStacks"), &P.BreachMaxStacks, 1}, {TEXT("COMBAT.BurnMaxStacks"), &P.BurnMaxStacks, 1},
         {TEXT("GROWTH.OpeningPoints"), &P.OpeningPoints, 1}, {TEXT("GROWTH.PointsPerLevel"), &P.PointsPerLevel, 1},
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
+        {TEXT("GROWTH.KeystoneThresholdPoints"), &P.KeystoneThresholdPoints, 1},
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
         {TEXT("GROWTH.EmptyComponentPoolPoints"), &P.EmptyComponentPoolPoints, 1},
         {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1},
@@ -2229,6 +2237,8 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
     FFields Capacity(Check, F.Take(TEXT("workshop_capacity")), F.Path + TEXT(".workshop_capacity"));
     if (!Capacity.SmallInt(TEXT("base"), Out.WorkshopCapacityBase, 1, 64)
         || !Capacity.SmallInt(TEXT("levels_per_slot"), Out.WorkshopCapacityLevelsPerSlot, 1, Out.MaxLevel)
+        || !Capacity.SmallInt(TEXT("body_column"), Out.WorkshopBodyColumnCapacity, 1, 63)
+        || !Capacity.SmallInt(TEXT("dash_column"), Out.WorkshopDashColumnCapacity, 1, 63)
         || !Capacity.Done())
     {
         return false;
@@ -2340,9 +2350,9 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields F(Check, Value, TEXT("content"));
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
-    if (!Identity.Int(TEXT("schema_version"), Revision, 2, 2)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 8, 8)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 8, 8))
+    if (!Identity.Int(TEXT("schema_version"), Revision, 3, 3)
+        || !Identity.Int(TEXT("handler_revision"), Revision, 10, 10)
+        || !Identity.Int(TEXT("projection_revision"), Revision, 9, 9))
     {
         return false;
     }
@@ -2620,8 +2630,8 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 8\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 8\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 3\n#define LD_DEMO_CONTENT_HANDLER_REVISION 10\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 9\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -2663,9 +2673,9 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     }
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
-        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 2, 2)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 8, 8)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 8, 8)
+        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 3, 3)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 10, 10)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 9, 9)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)

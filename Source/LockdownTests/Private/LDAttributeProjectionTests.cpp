@@ -279,6 +279,9 @@ bool SameAttributes(const FLDAttributeProjection& A, const FLDAttributeProjectio
         && SameRational(L.MoveSpeedCmPerSec, R.MoveSpeedCmPerSec) && SameRational(L.AttackRangeCm, R.AttackRangeCm)
         && SameRational(L.HPRegenPerSec, R.HPRegenPerSec) && SameRational(L.MPRegenPerSec, R.MPRegenPerSec)
         && L.CritChanceBp == R.CritChanceBp && L.CooldownHasteP2 == R.CooldownHasteP2
+        && A.Keystones.bPhysique == B.Keystones.bPhysique && A.Keystones.bThickSkin == B.Keystones.bThickSkin
+        && A.Keystones.bStrength == B.Keystones.bStrength && A.Keystones.bBrains == B.Keystones.bBrains
+        && A.Keystones.bAgility == B.Keystones.bAgility
         && A.Contributions.Num() == B.Contributions.Num();
     for (int32 Index = 0; bSame && Index < A.Contributions.Num(); ++Index)
     {
@@ -469,6 +472,37 @@ bool RunStatPoints(FAutomationTestBase& Test)
     {
         bGood &= ExpectTerms(Test, TEXT("An empty allocation has no permanent-choice term"), Row.PermanentChoices, Zero, Zero);
     }
+    struct FKeystoneCase
+    {
+        const TCHAR* StatId;
+        bool FLDKeystoneActivation::*Flag;
+    };
+    const FKeystoneCase KeystoneCases[] = {
+        {TEXT("stat_physique"), &FLDKeystoneActivation::bPhysique},
+        {TEXT("stat_thick_skin"), &FLDKeystoneActivation::bThickSkin},
+        {TEXT("stat_strength"), &FLDKeystoneActivation::bStrength},
+        {TEXT("stat_brains"), &FLDKeystoneActivation::bBrains},
+        {TEXT("stat_agility"), &FLDKeystoneActivation::bAgility},
+    };
+    for (const FKeystoneCase& Case : KeystoneCases)
+    {
+        FLDAttributeProjection AtThreshold;
+        if (!ProjectBuild(Test, FString::Printf(TEXT("18 points activate %s"), Case.StatId),
+            MakeBuild(16, {FLDStatPointsValue(Case.StatId, 18)}), *Catalog, AtThreshold))
+        { return false; }
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s keystone activates at the threshold"), Case.StatId),
+            AtThreshold.Keystones.*(Case.Flag));
+    }
+    FLDAttributeProjection BelowThreshold, MixedKeystones;
+    if (!ProjectBuild(Test, TEXT("17 points remain below the keystone threshold"),
+            MakeBuild(16, {FLDStatPointsValue(TEXT("stat_physique"), 17)}), *Catalog, BelowThreshold)
+        || !ProjectBuild(Test, TEXT("Two keystones activate independently"),
+            MakeBuild(16, {FLDStatPointsValue(TEXT("stat_physique"), 18), FLDStatPointsValue(TEXT("stat_brains"), 18)}),
+            *Catalog, MixedKeystones))
+    { return false; }
+    bGood &= Test.TestFalse(TEXT("17 allocated points do not activate a keystone"), BelowThreshold.Keystones.bPhysique);
+    bGood &= Test.TestTrue(TEXT("A mixed allocation can activate physique and brains together"),
+        MixedKeystones.Keystones.bPhysique && MixedKeystones.Keystones.bBrains);
     return bGood;
 }
 
@@ -502,7 +536,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
     bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 300 x 1.24"), Projection.Final.MoveSpeedCmPerSec, MakeRational(372));
     bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 590, 133);
 
-    // Past level 16 every full 400 XP adds 3 points; the attributes then clamp to their catalog bounds and say so.
+    // Past level 16 every full 240 XP adds 3 points; the attributes then clamp to their catalog bounds and say so.
     if (!Envelope(TEXT("Brains past the cap"), TEXT("stat_brains"), 78)) { return false; }
     bGood &= Test.TestTrue(TEXT("AP, haste and MP regeneration clamp to 300, 60 and 4"), Projection.Final.APP2 == 30000
         && Projection.Final.CooldownHasteP2 == 6000 && Projection.Final.MPRegenPerSec.Numerator == 4 * Projection.Final.MPRegenPerSec.Denominator);

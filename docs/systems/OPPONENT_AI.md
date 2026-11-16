@@ -1,47 +1,16 @@
-# Demo 对手 AI
+# 对手 AI
 
-**目标：v0.11.0 · 职责：M12 · 引擎：Unreal 5.8.4**
-
-本文描述对手 AI 的当前实现、约束与验收边界，对应 [App Spec](../APP_SPEC.md) §6.2
-与已批准的 AI 参数、攻击移动规则、成长规则以及喷漆 + 守护终局。
-共同身份、时序、权限及回执遵循 [共享契约](SHARED_CONTRACTS.md)。
-AI 参数数值只由 `CONTENT_AND_BALANCE.md` 维护并经内容管线进入运行载荷，本文不另列数值。
-
-## 1. 范围与已确认约束
-
-对手 AI 必须是**能独立完成成长并按相同条件获胜的参赛者**，不是占席、巡逻或靶子。
-仅选择一种固定优先级策略，不引入通用 GOAP、人格、多难度、学习平台或第二套世界模拟。
-
-| 边界 | 本模块遵守的产品约束 |
+| 项 | 内容 |
 | --- | --- |
-| 名单 | Host 选择零至三个 AI；与最多三名真人（含 Host）共存，各自 FFA，不补满、不组队、不接管断线真人。 |
-| 起步与成长 | 同一基础角色，初始近战单体物理普攻；开局休息 R0 内得到开局点数和一次开局主动选择，之后正常打野/对抗获得最后一击的经验，升级得属性点、3 级与 6 级各再得一次主动选择，并喷漆、守护涂鸦和围攻别人的涂鸦主人。五维属性、主动与构件可以增加攻击距离。 |
-| 营地反击与回位 | 未受攻击营地不主动攻击路过者；确认的合法命中触发同组存活成员反击，即使被击成员当次死亡，也不共享隐藏位置。预览/挥空/被拒命令/单纯碰撞不触发。Returning 仍可受伤、控制、被杀，不回头追击；存活成员到家满血蓝、清临时状态/仇恨、技能就绪，不复活已死成员、不因回位发奖。 |
-| 技能 | Q/W/E 三个角色主动槽；技能只有一级，数值随角色等级成长。主动选择从当前候选中选一个：有空槽时同次学到最低空槽，Q/W/E 已满时存为待学图纸；图纸只能学到空槽。选择、学习、加点与首次安装构件和真人一样没有构筑安全窗，野外交战中与死亡等待中都可以做；搬动已装过的构件仍只在休息构筑窗口（§6.4）。满槽替换与遗忘只在休息时进行（休息服务）；AI 在休息构筑窗口按 §6.4 使用 NPC、洗点、替换、补缺与拆解，不使用遗忘。属性点分到五维，整次生效、不能撤回。 |
-| 冷却 | 换槽、遗忘重学和死亡不能洗冷却；失去来源期间原期限继续流逝。 |
-| 死亡 | 保留成长、候选、图纸、点数和冷却；死亡等待可以从当前候选选择并学到空槽、学图纸、首次安装构件并加点，只更新持久构筑，不治疗尸体或提前复活。最大血蓝变化按统一公式保持原百分比；AI 不另算公式。 |
-| 保护 | 经过身份、当前 Match/Life、请求新鲜度、形状及写闸检查的进攻意图先解除保护；随后目标、距离、路径、法力或冷却检查失败也不恢复保护。只读查询、普通移动、Stop 和本地预览不是进攻。 |
-| 视野 | 失视野取消单位锁定并停止该追击订单，不续走 LastSeen，不保留地图 LastSeen 单位标记。只读取当前可见对手的名称、等级、血量、蓝量和状态；不读取技能、冷却、内部构筑或属性。 |
-| 死亡与离局效果 | 正常死亡后，已成功释放的独立效果继续至原期限，在局的阵亡所有者仍可获得合法击杀归属。正式离局/断线立即移除身体并取消其未结束独立效果；AI 不追踪已离局身体。 |
-| 结束 | 唯一终局闸关闭后停止新增意图；返回 Lobby 的新局重新初始化，不沿用旧目标、订单或局内战力。死亡无活体视野；能查看静态地图不等于获得隐藏玩家跟随。 |
+| 规则 | [App Spec](../APP_SPEC.md) §6.2；AI 参数只在[内容与数值 §6.3](../demo/CONTENT_AND_BALANCE.md)；跨域见[共享契约](../demo/SHARED_CONTRACTS.md) |
+| 文件 | `Source\Lockdown\{Public,Private}\AI`：`LDOpponentController`（唯一服务器适配器）、`LDOpponentPolicy`（纯值策略与成本估计）、`LDOpponentFrame`（受限投影映射）、`LDOpponentRequests`（意图→领域请求、回执→失败记录） |
+| 入口函数 | 绑定与读取 `ALDGameMode::RegisterAIContender` / `ReadAISelf` / `ReadPublicMatch`；订单 `ULDNavigationComponent::SubmitOrder` / `CancelOrder` / `QueryOrder`；动作 `ALDCombatDirector::SubmitAction` / `CancelAction` / `QueryActionReceipt` / `QueryAvailability` / `BuildOwnerView`；成长 `ALDDevelopmentDirector::QueueBuild` / `QueryBuildReceipt`；观察 `ALDVisionDirector::EnumerateVisibleUnits`；路径估计 `ULDMapRegistry::QueryGround` / `QueryCompletePath`；数值 `LDTactical::EvaluateDamage` / `EvaluateBasicTiming` |
+| 不变量 | AI 不拥有任何玩法状态，只读获准投影并经与真人相同的服务器入口提交；一种固定优先级策略，没有 GOAP、人格、多难度或第二套世界模拟；不持有写许可；只用当前可见单位，不保存 LastSeen；只处理自己的选择，不替真人选择 |
+| 检查 | `Lockdown.Rules.DemoOpponentPolicy.*`；场景 `RunDemoOpponentCheck.ps1`（见 §8） |
 
-AI 自动处理的是**自己的**主动选择、图纸学习、加点、构件与休息服务，不替真人选择。构筑请求不暂停世界。
+对手 AI 是能独立完成成长并按相同条件获胜的参赛者，不是占席、巡逻或靶子；产品约束（名单、成长、营地反击、冷却、死亡、保护、视野与结束）见 App Spec，本文只写 AI 侧的接口与策略。
 恢复只能依靠同规则的自然回复或已拥有的合法能力，不能通过重建身体、刷新构筑或调试授予恢复。
-
-## 2. 代码入口
-
-AI 只新增 `Source\Lockdown\{Public,Private}\AI` 下的文件，不拥有任何玩法状态；它读取的投影与提交的请求都属于原领域，
-与真人使用同一服务器入口：
-
-| 用途 | 入口 | 说明 |
-| --- | --- | --- |
-| 绑定与读取 | `ALDGameMode::RegisterAIContender`、`ReadAISelf`、`ReadPublicMatch` | 名额在 Starting 冻结；`ReadAISelf` 含 `FLDOwnerState.Growth` 发布。 |
-| 空间订单 | `ULDNavigationComponent::SubmitOrder`/`CancelOrder`/`QueryOrder` | 与真人 `ServerSubmitOrder` 共用订单簿；激活由 Actions 阶段的 `ProcessAuthorityOrders` 统一处理。 |
-| 直接动作（Q/W/E/D） | `ALDCombatDirector::SubmitAction`/`CancelAction`/`QueryActionReceipt`/`QueryAvailability`、`BuildOwnerView` | Caller 由核心绑定解析；AI 只读本人 `FLDCombatOwnerView`。 |
-| 成长构筑 | `ALDDevelopmentDirector::QueueBuild`/`QueryBuildReceipt` | 与真人同一 `FLDBuildCommand`（主动选择、学图纸、加点、构件与休息服务），含开局候选；Transactions 阶段提交。 |
-| 观察 | `ALDVisionDirector::EnumerateVisibleUnits` | 与真人同一受限帧；AI 只用当前可见单位。 |
-| 进喷漆区路径估计 | `ULDMapRegistry::QueryGround`/`QueryCompletePath` | 只为回防紧急度计算本人到喷漆区的完整路径长度。 |
-| 数值原语 | `LDTactical::EvaluateDamage`/`EvaluateBasicTiming` | 营地成本估计与真实战斗共用。 |
+AI 加点先比较已学主动的 AD/AP 系数总和，将点数投向较强的一侧对应属性直到激活关键石；相同或无主动系数时优先力道（若基础攻击不提供 AD，则优先体格）。达到门槛后，再在相关属性间均衡分配。该策略使用目录的既有系数与关键石门槛，不引入新的数值。
 
 ## 3. SC-09：状态、正式接口与权限
 
@@ -368,17 +337,12 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 它排在回防、喷漆、守护涂鸦、围攻和区内争夺之后、普通喷漆与打野之前，模式 `Airdrop`、原因 `ContestAirdrop`（`DemoOpponentPolicy.Airdrop`）。
 抢外卖不是争夺旗杆：从外卖处止损撤离不计为一次喷漆失败，不会让 AI 失去回防资格。
 拾取由权威按脚点判定，AI 不另行提交请求；自己是否抢到来自本人视图（`AirdropClaimedSerial`），公开视图不说是谁。
-外卖落地 40 s 无人领取即从公开视图消失，AI 随之不再把它当目标。
+外卖落地 30 s 无人领取即从公开视图消失，AI 随之不再把它当目标。领取会同时恢复生命与法力并提供短暂移速加成；
+恢复中的 AI 在没有更高优先级威胁或退避目标时，可把公开外卖作为恢复目标。
 
 标记营地读取公开对局视图中开放（已标记、未领走、未过期）的营地标记，与真人看到的相同（`FLDOpponentPublicMatch::MarkedCamps`）。
 打野选营地时已标记的营地排在最前，但仍受原有的进入门槛、成本估计、失败抑制与访问记忆约束（低于高级营地进入门槛的 AI 不会因标记去打高档或精英营地）；
 领取由权威按清场死亡的击杀归属判定，AI 不另行提交请求。外卖仍排在标记营地之前（`DemoOpponentPolicy.Airdrop`）。
-
-符咒读取公开对局视图中正在地上的符咒（所在外卖落点与种类），与真人看到的相同。
-恢复中的 AI 若尚未因威胁退避且有血量符咒，先走向最近的一枚，再考虑躺平角；因威胁退避后则继续去可达的躺平角，
-没有可达躺平角时原地恢复，避免刚脱离视野就为符咒折返。恢复结束后符咒重新参与选择。不恢复、不在交战中的营地里时，排在外卖之后、争夺旗杆之前，
-走向最近的、此刻用得上的符咒（血量需未满血，蓝量需未满蓝，移速总是有用）。模式 `Charm`、原因 `TakeCharm`
-（`DemoOpponentPolicy.Charms`、`DemoOpponentPolicy.RecoveryCharmEscape`）。拾取与真人一样只靠走进拾取圆，由权威判定，AI 不另行提交请求。
 
 上热搜读取公开对局视图中上热搜者与模糊圆心，与真人看到的相同；上热搜者若不可见，AI 不知道其实时位置。
 本人等级不低于 `LEADER.MinLevel`、生命不低于进入高级营地的门槛、不是上热搜者本人、不在交战中的营地里时，
@@ -487,7 +451,7 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
 休息中只在构筑开放步骤产生构筑意图（这是 AI 策略的取舍；服务器在 PK 等锁定步骤也受理自己的构筑命令），开局休息 R0 内还要等到本 AI 的 `OpeningPickAtMs`；
 adapter 每局只从服务器随机流抽一次这个时刻，策略不读隐藏技能，不看未来随机结果。
 补缺、拆解、洗点、替换与 NPC 购买须先走到对应商人附近：策略读取自己的 `NearbyRestService` 与已注册的公共商人锚点，
-复用普通移动订单及其失败退避；到达后才经原成长事务提交。报名窗口优先走向公共报名圈内本人槽位的站位，NPC 交易留到之后。
+复用普通移动订单及其失败退避；到达后才经原成长事务提交。R1、R2 的报名窗口优先走向公共报名圈内本人槽位的站位，NPC 交易留到之后；R0、R3 没有报名窗口。
 其余身体意图为下面的训练与 PK 步骤内的存活参赛者（§6.6）。
 
 **训练**：休息构筑窗口内到了 `OpeningPickAtMs`、没有可做的构筑也没有在途构筑请求时，
@@ -618,7 +582,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 `RunDemoOpponentCheck.ps1` 的场景是满员房间（参赛 Listen Host、两个拥有客户端、三个 AI）经正常大厅开局，真人不参与。
 它核对 AI 的独立绑定与不补位、每个 AI 自主移动、获胜 AI 升级并确认选择、
 死亡期间不发任何身体请求、死亡后按批准时长复活并继续行动、请求速率有界、由 AI 按喷漆 + 守护规则以 `GuardSucceeded` 获胜且获胜 AI 是公开涂鸦主人，最后回到新 Lobby 并退役全部 AI。
-它还核对每个 AI 在开局休息 R0 的构筑步骤内处理掉开局主动选择（落在开局后 1000 ms 至 R0 构筑结束之间），公共休息室中的身体在报名窗口开放前，首次报告原因 `Train` 之前保持静止（报告 `rest0_trainers`；探针不核对观察帧中的训练目标句柄），窗口开放后只走向公共报名圈内的本人站位（`rest0_ai_stray_cm`：窗口内离站位距离不超过窗口内首个样本），锁定后又只为训练移动（派奖步骤也训练），且每个 AI 在 R0 锁定时站在圈内并进入 PK（`rest0_signed`、`rest0_pk_entrants`）；PK 生命在竞技场作战，不算休息室移动；请求速率上界在休息与 PK 中照常计数。
+它还核对每个 AI 在开局休息 R0 的构筑步骤内处理掉开局主动选择（落在开局后 1000 ms 至 R0 构筑结束之间），R0 不开放 PK 报名；R1、R2 报名时由 AI 走向公共报名圈内本人槽位的站位，并检查 R1 的 AI 报名数与 PK 锁定名单（`r1_pk_signups`、`r1_pk_entrants`）。公共休息室中的身体在构筑时保持静止，首次报告原因 `Train` 之前不离开起始位置（报告 `rest0_trainers`；探针不核对观察帧中的训练目标句柄）；锁定后只为训练移动（派奖步骤也训练）。PK 生命在竞技场作战，不算休息室移动；请求速率上界在休息与 PK 中照常计数。
 Host 另用夹具在真实驱动中检查 R01/R02/R14：R1 前尝试压缩 `Lives`，分别核对假人槽位与生成假人时实际分配是否增长；未增长时扩容检查记为 NotExercised，不计为通过。R1 中占满全部 PK 出生偏移，核对 PK 入场等待、满 `REST.EntryReadyTimeoutSec` 后 NoContest 并回到休息位；R2 返场时挡住最后一人的近处与全部出生锚点，核对全员都未返场、T 与旗杆不开始，移除阻挡后共同返场；
 返场受阻时休息生命已退役，夹具检查权威生命无身体、无待提交身体且 T 冻结；`Lockdown.Rules.DemoOpponentProbe.ReturnHold` 覆盖生命状态判定。
 旗杆开放前每个 AI 都取得过经验，除非发育期至少一半时间处于死亡或回血恢复（1 级开局互打后按批准回血等回 ResumeFarm 可能占去大半个发育期，这是批准节奏，不算卡住）；以及争夺暂停下的两类决策：
@@ -634,7 +598,7 @@ AI 持有被暂停的喷漆进度时留在区内迎战，只在止损线离开�
 `RunDemoOpponentCheck.ps1 -Telemetry -MatchCount N` 是另一回事：一名无渲染、闲置的 Listen Host 与三个 AI 连打 N 局，
 每局记录时长、首杀、每名参赛者的等级曲线、喷漆尝试与争夺次数和胜负方式，
 以及度量（每名参赛者的首个主动时刻、最终 Q/W/E、图纸与五维点数、未分配点数、主动选择次数与每次学习时的等级，每次死亡的击杀者/助攻者与奖励、喷漆/改漆/涂鸦清除原因与守护用时），并汇总为一份报告
-（字段见[验证手册](../systems/VERIFICATION.md#合并前与里程碑检查)）。它只是对局数据，供 AI 与节奏评审参考：不核对上述任何一项，
+（字段见[验证手册](VERIFICATION.md#合并前与里程碑检查)）。它只是对局数据，供 AI 与节奏评审参考：不核对上述任何一项，
 也不把某个数字当作目标；真人闲置时 AI 也会击杀 Host，这些击杀照常计入。
 
 ## 9. 已知限制

@@ -62,9 +62,10 @@ bool ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, EL
 }
 
 bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource, int64* OutApplied,
-    const FGuid& RootEffectId)
+    const FGuid& RootEffectId, FString* OutError)
 {
     if (OutApplied) { *OutApplied=0; }
+    if (OutError) { OutError->Reset(); }
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
     // #198 S21: a live grievous cuts every new heal once, before it lands.
     if (const ILDLifeAuthority* Mode=Authority()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
@@ -122,6 +123,53 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
     LedgerDebtRepaid(Body,Repaid);
+    if (Healed>0 && HealSource.Kind!=ELDCombatSourceKind::None && Body.AttributeProjection.Keystones.bPhysique)
+    {
+        const auto* Mode=Authority();
+        if (!Mode)
+        {
+            const FString Message=TEXT("The physique keystone requires the current core.");
+            if (OutError) { *OutError=Message; }
+            else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*Message); }
+            return false;
+        }
+        const int64 NowMs=Mode->GetAuthorityNowMs();
+        if (NowMs>=Body.KeystonePhysiqueReadyAtMs)
+        {
+            const auto* Content=Catalog();
+            if (!Content)
+            {
+                const FString Message=TEXT("The physique keystone requires the approved Demo content.");
+                if (OutError) { *OutError=Message; }
+                else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*Message); }
+                return false;
+            }
+            const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
+            const int64 ShieldP2=FMath::Min(LDCombatMechanicsDetail::Scale(Healed,Parameters.KeystonePhysiqueHealToShieldBp),
+                LDCombatMechanicsDetail::Scale(Pool.MaxHpP2,Parameters.KeystonePhysiqueShieldMaxHPBp));
+            if (ShieldP2>0)
+            {
+                int64 ExpiresAtMs=0, NextReadyAtMs=0;
+                FString ShieldError;
+                if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueShieldDurationMs,ExpiresAtMs,ShieldError)
+                    || !LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,ShieldError))
+                {
+                    if (OutError) { *OutError=MoveTemp(ShieldError); }
+                    else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*ShieldError); }
+                    return false;
+                }
+                const FGuid ShieldId=FGuid::NewGuid();
+                if (!GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,ShieldId,Body.Victim.EntityId,
+                    NowMs,ShieldError))
+                {
+                    if (OutError) { *OutError=MoveTemp(ShieldError); }
+                    else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*ShieldError); }
+                    return false;
+                }
+                if (Body.Shield.IsSet() && Body.Shield->EffectId==ShieldId) { Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs; }
+            }
+        }
+    }
     return true;
 }
 

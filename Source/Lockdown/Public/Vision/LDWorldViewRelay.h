@@ -50,7 +50,10 @@ class LOCKDOWN_API FLDObservedFrameReceiver
 {
 public:
     enum class EResult : uint8 { Applied, Stale, Rejected };
+    // Clean-link receive timeout; SetStaleAfter widens it with the measured arrival jitter (LDObservedPresentation::Timing).
     static constexpr double StaleAfterSeconds = 0.25;
+    void SetStaleAfter(double Seconds) { StaleAfter = FMath::Max(Seconds, StaleAfterSeconds); }
+    double GetStaleAfter() const { return StaleAfter; }
     EResult AcceptFull(const FLDWorldView& View, const FLDWorldRevision& ExpectedWorld, const FLDObservedCatalog& Catalog,
         double NowSeconds, TArray<FLDObservedClear>& Cleared, FString& Error);
     EResult AcceptConceal(const FLDObservedConceal& Notice, TArray<FLDObservedClear>& Cleared, FString& Error);
@@ -68,6 +71,7 @@ private:
     ELDObservedViewStatus Status = ELDObservedViewStatus::Unavailable;
     uint32 Match = 0, Generation = 0, Revision = 0, LastTermination = 0;
     double LastFullAt = -1;
+    double StaleAfter = StaleAfterSeconds;
     uint64 Serial = 0;
 };
 
@@ -76,8 +80,19 @@ private:
 // actions, flights and hit reactions stay in step with the positions they belong to.
 namespace LDObservedPresentation
 {
-    // The clock trails the authority sample time by one publication interval plus a jitter margin.
-    constexpr double DelaySeconds = .13;
+    // The clock trails the authority sample time by one publication interval, a margin and the measured arrival
+    // lateness of recent frames (Timing), never less than MinDelaySeconds and never more than MaxDelaySeconds.
+    constexpr double MinDelaySeconds = .13;
+    constexpr double MaxDelaySeconds = .6;
+    constexpr double DelayMarginSeconds = .03;
+    // The receive timeout keeps this much room over the delay, never below FLDObservedFrameReceiver::StaleAfterSeconds.
+    constexpr double StaleOverDelaySeconds = .12;
+    // Lateness envelope: a later arrival raises it at once; it then decays toward newer arrivals with this time constant.
+    constexpr double LatenessReleaseSeconds = 4.;
+    // The applied delay follows its target at most this fast (seconds of delay per second): growth slows the clock,
+    // shrinking runs it slightly fast, so no shown pose jumps.
+    constexpr double DelayGrowthPerSecond = .5;
+    constexpr double DelayShrinkPerSecond = .05;
     // Later arrivals may raise the tracked offset only this fast; a jump beyond ReseedSeconds re-seeds it.
     constexpr double OffsetGrowthPerSecond = .05;
     constexpr double ReseedSeconds = .5;
@@ -115,6 +130,23 @@ namespace LDObservedPresentation
     // Local-minus-authority clock offset from one arrival: an earlier arrival lowers it at once, later ones raise it by at
     // most OffsetGrowthPerSecond, and a jump beyond ReseedSeconds (another authority clock) re-seeds it.
     LOCKDOWN_API double TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds);
+    // Lateness of one accepted arrival is how far it came after the tracked offset (never negative). The envelope keeps
+    // the largest recent lateness: a larger one replaces it, otherwise it decays toward the new one.
+    LOCKDOWN_API double TrackLateness(double Envelope, double SecondsSinceUpdate, double Lateness);
+    struct FTiming
+    {
+        double DelaySeconds = MinDelaySeconds;
+        double StaleAfterSeconds = FLDObservedFrameReceiver::StaleAfterSeconds;
+    };
+    // Target delay = publish interval + margin + lateness envelope, clamped to [MinDelaySeconds, MaxDelaySeconds];
+    // receive timeout = delay + StaleOverDelaySeconds, never below the clean-link timeout. A clean link keeps the floors.
+    LOCKDOWN_API FTiming Timing(double LatenessEnvelope, double PublishIntervalSeconds);
+    // Moves the applied delay toward the target within the growth and shrink rates.
+    LOCKDOWN_API double SlewDelay(double Applied, double Target, double DeltaSeconds);
+    // The receive timeout widens to its target at once and narrows only this fast, so a link that spiked once keeps
+    // room for the next spike long after the delay has come back down. A wide timeout costs no latency.
+    constexpr double TimeoutShrinkPerSecond = .01;
+    LOCKDOWN_API double TrackTimeout(double Applied, double Target, double DeltaSeconds);
 }
 
 // Client-only fading of tall props that stand between the gameplay camera and a body the player must see (A4), or that
@@ -274,7 +306,14 @@ public:
     // The delayed authority time (FLDWorldView::SampledAtServerSec scale) at which proxies and flights are posed now,
     // so overlays can show a sample's facts when its pose shows. False before the first accepted frame.
     bool ReadPresentationTime(double& OutAtServerSec) const;
+    // This client's applied presentation delay, arrival lateness envelope and receive timeout, for the playtest log.
+    double PresentationDelaySeconds() const { return ShownDelay; }
+    double ArrivalLatenessSeconds() const { return Lateness; }
+    double ReceiveTimeoutSeconds() const { return Receiver.GetStaleAfter(); }
+    // Receive timeouts (every unit cleared for lack of frames) since this relay began.
+    uint32 TimeoutCount() const { return Timeouts; }
 private:
+    uint32 Timeouts = 0;
     void Present(const TArray<FLDObservedClear>& Cleared);
     void Refuse(const FString& Error);
     bool EnsureCatalog(FString& Error);
@@ -288,7 +327,7 @@ private:
     void UploadFog();
     void BlendFog(float Delta);
     // Delayed authority time at which proxies and flights are posed.
-    double PresentationAt(double LocalSeconds) const { return LocalSeconds - ClockOffset - LDObservedPresentation::DelaySeconds; }
+    double PresentationAt(double LocalSeconds) const { return LocalSeconds - ClockOffset - ShownDelay; }
     void PresentProxies(float Delta);
     // Fades tagged props that hide the own body or a presented unit from the camera (LDPropFade).
     void FadeOccludingProps(const ALDPlayerController& Owning, float Delta);
@@ -330,4 +369,9 @@ private:
     bool bClock = false;
     double ClockOffset = 0;
     double ClockUpdatedAt = 0;
+    // Adaptive presentation timing of this client (LDObservedPresentation::Timing).
+    double Lateness = 0;
+    double TargetDelay = LDObservedPresentation::MinDelaySeconds;
+    double ShownDelay = LDObservedPresentation::MinDelaySeconds;
+    double DelaySlewedAt = -1;
 };

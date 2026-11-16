@@ -52,7 +52,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "World/LDCampDirector.h"
 
-// Owned-connection growth scenario (docs/demo/PROGRESSION_AND_REWARDS.md). The owning client earns XP and sends its
+// Owned-connection growth scenario (docs/systems/GROWTH_TRANSACTIONS.md). The owning client earns XP and sends its
 // build commands only through its own connection; the Host plays the victim and audits the growth records afterwards.
 // The probe never calls a growth driver entry, a Commit* handler or an _Implementation. Named, not anonymous: unity
 // builds merge files.

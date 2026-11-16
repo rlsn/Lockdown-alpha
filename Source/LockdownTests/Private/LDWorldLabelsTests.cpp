@@ -276,4 +276,22 @@ bool FLDWorldLabelsOwnBarsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Known zero mana is an empty mana bar, not a missing one"),Spent.bMana&&Spent.Mana==0.f);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldLabelsOwnStatusIconsTest,"Lockdown.Rules.WorldLabels.OwnStatusIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDWorldLabelsOwnStatusIconsTest::RunTest(const FString& Parameters)
+{
+    TestTrue(TEXT("No status paints no icon"),LDWorldLabels::OwnStatusIconRects(0,100.f,50.f,22.f,3.f,6).IsEmpty());
+    const TArray<FSlateRect> Two=LDWorldLabels::OwnStatusIconRects(2,100.f,50.f,22.f,3.f,6);
+    TestTrue(TEXT("A short row is centred over the bars and rests on the anchor"),Two.Num()==2
+        &&FMath::IsNearlyEqual(Two[0].Left,100.f-23.5f)&&FMath::IsNearlyEqual(Two[1].Right,100.f+23.5f)
+        &&Two[0].Bottom==50.f&&Two[0].Top==28.f&&FMath::IsNearlyEqual(Two[1].Left-Two[0].Right,3.f));
+    // Eight statuses: a full row of six on the anchor, the other two centred on the row above, never capped.
+    const TArray<FSlateRect> Eight=LDWorldLabels::OwnStatusIconRects(8,100.f,50.f,22.f,3.f,6);
+    bool bFirstRow=Eight.Num()==8;
+    for(int32 Index=0;bFirstRow&&Index<6;++Index){bFirstRow&=Eight[Index].Bottom==50.f;}
+    TestTrue(TEXT("The first six fill the bottom row, left to right and centred"),bFirstRow
+        &&FMath::IsNearlyEqual(Eight[0].Left,100.f-73.5f)&&FMath::IsNearlyEqual(Eight[5].Right,100.f+73.5f)&&Eight[0].Left<Eight[1].Left);
+    TestTrue(TEXT("Further statuses stack upward on a centred row"),Eight[6].Bottom==25.f&&Eight[7].Bottom==25.f
+        &&FMath::IsNearlyEqual(Eight[6].Left,100.f-23.5f)&&FMath::IsNearlyEqual(Eight[7].Right,100.f+23.5f));
+    return true;
+}
 #endif

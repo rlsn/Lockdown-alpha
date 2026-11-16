@@ -2138,7 +2138,7 @@ bool FLDLocalDiagnosticsTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// The settings page restores one category at a time (UI_AND_SETTINGS 8): each preference group restores exactly its own
+// The settings page restores one category at a time (VISION_AND_UI settings page): each preference group restores exactly its own
 // fields, never the player name, and the four groups together are the complete local defaults.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsPreferenceGroupsTest,"Lockdown.Rules.LocalSettingsPreferenceGroups",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

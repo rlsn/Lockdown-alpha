@@ -310,7 +310,7 @@ bool RestTestRunNpc(FAutomationTestBase& Test)
     Bought.ActiveEarned = 2;
     Bought.NpcPurchased = 1;
     bGood &= Test.TestTrue(TEXT("XP plans see only the level part of the earned opportunities"),
-        LDProgression::PlanExperience(Content.Progression, 0, 1, uint8(Bought.ActiveEarned - Bought.NpcPurchased), 180, Change)
+        LDProgression::PlanExperience(Content.Progression, 0, 1, uint8(Bought.ActiveEarned - Bought.NpcPurchased), 108, Change)
             == ELDGrowthReason::None
         && Change.LevelAfter == 3 && int32(Change.ActiveEarnedAfter) + Bought.NpcPurchased == 3);
     return bGood;
@@ -329,8 +329,8 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     FLDGrowthBuild Out;
     int64 Refunded = -1;
-    // Level 3 at 180 XP earned 9 points: 4 allocated and the NPC price paid.
-    const int64 XP = 180;
+    // Level 3 at 108 XP earned 9 points: 4 allocated and the NPC price paid.
+    const int64 XP = 108;
     const FLDGrowthBuild Built = RestTestBuild(Content, 3, {{Opening[0], 0}}, {}, {1, 0, 2, 0, 1}, Cost);
     const int64 Before = RestTestUnspent(Content, Built, XP);
     bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated minus paid is unspent"), Before, 9 - 4 - Cost);
@@ -645,6 +645,13 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
         Options.Num() == 3 && Options[0] != Options[1] && Options[1] != Options[2] && Options[0] != Options[2]
         && !Options.Contains(A) && !Options.Contains(B) && !Options.Contains(D) && Options == Again);
     bGood &= TestTrue(TEXT("Another contender draws from the same pool independently"), Other.Num() == 3);
+    TArray<FName> Extra, Invalid;
+    bGood &= TestTrue(TEXT("An extra look keeps the original three and adds one distinct eligible option"),
+        LDProgression::DrawFinalModOptions(Content, Build, Seed, Extra, 4) == ELDGrowthReason::None
+        && Extra.Num() == 4 && Options.Num() == 3 && Extra[0] == Options[0] && Extra[1] == Options[1]
+        && Extra[2] == Options[2] && !Options.Contains(Extra[3]));
+    bGood &= TestTrue(TEXT("An unsupported option count is rejected"),
+        LDProgression::DrawFinalModOptions(Content, Build, Seed, Invalid, 5) == ELDGrowthReason::DataInvalid && Invalid.IsEmpty());
     if (Options.Num() != 3)
     {
         return false;

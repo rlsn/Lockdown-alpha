@@ -502,6 +502,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.HeldBlueprints = Progression.HeldBlueprints;
     View.FieldRewards = Progression.FieldRewards;
     View.bFinalModPending = Progression.FinalMod.IsPending();
+    View.bExtraFinalModCard = Progression.bExtraFinalModCard;
     View.FinalModOfferId = Progression.FinalMod.OfferId;
     View.FinalModOptions = Progression.FinalMod.Options;
     View.FinalModChosen = Build.FinalMod.DefinitionId;
@@ -1098,7 +1099,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
 }
 
 ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId,
-    const FLDGameplayWritePermit& Permit)
+    bool bExtraFinalModCard, const FLDGameplayWritePermit& Permit)
 {
     ALDGameMode* GameMode = Mode();
     FRecord* Record = Records.Find(ContenderId);
@@ -1113,14 +1114,42 @@ ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, 
     if (NewBuild.AwardedPoints > MAX_int64 - Points) { return ELDGrowthReason::ArithmeticOverflow; }
     NewBuild.AwardedPoints += Points;
     FLDProgressionState NewProgression = Record->Progression;
-    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), false, Permit);
+    const bool bNewCard = bExtraFinalModCard && !NewProgression.bExtraFinalModCard;
+    if (bNewCard && NewProgression.FinalMod.OfferId.IsValid()) { return ELDGrowthReason::PhaseClosed; }
+    NewProgression.bExtraFinalModCard |= bNewCard;
+    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), bNewCard, Permit);
     if (Reason == ELDGrowthReason::None)
     {
         PaidPKAwards.Add(AwardId);
+        GameMode->Growth->MarkDirty(ContenderId);
         UE_LOG(LogLDGrowth, Display, TEXT("LD_PK_POINTS contender=%s award=%s points=%lld awarded_total=%lld"),
             *LDLog::Id(ContenderId), *LDLog::Id(AwardId), Points, Record->Build.AwardedPoints);
     }
     return Reason;
+}
+
+bool ALDDevelopmentDirector::GrantBossFinalModCard(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* GameMode = Mode();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!GameMode || !GameMode->Growth || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None || !Record)
+    {
+        Error = TEXT("The boss final-mod reward requires the current death permit and a contender's growth record.");
+        return false;
+    }
+    FLDProgressionState& Progression = Record->Progression;
+    if (Progression.bExtraFinalModCard) { Error.Reset(); return true; }
+    if (Progression.FinalMod.OfferId.IsValid() || Progression.Revision == MAX_uint64)
+    {
+        Error = TEXT("The boss final-mod reward cannot be applied after the offer opens or its revision is exhausted.");
+        return false;
+    }
+    Progression.bExtraFinalModCard = true;
+    ++Progression.Revision;
+    GameMode->Growth->MarkDirty(ContenderId);
+    Error.Reset();
+    return true;
 }
 
 bool ALDDevelopmentDirector::OpenFinalMods(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -1139,9 +1168,10 @@ bool ALDDevelopmentDirector::OpenFinalMods(const FLDGameplayWritePermit& Permit,
         if (Progression.FinalMod.OfferId.IsValid() || !GameMode->IsContenderPresent(Pair.Key)) { continue; }
         if (Progression.Revision == MAX_uint64) { Error = TEXT("final mod offer revision overflow"); return false; }
         TArray<FName> Options;
+        const int32 Count = Progression.bExtraFinalModCard ? 4 : 3;
         const ELDGrowthReason Reason = LDProgression::DrawFinalModOptions(Content->Get(), Pair.Value.Build,
-            LDProgression::FinalModSeed(MatchSecret, Pair.Key), Options);
-        if (Reason != ELDGrowthReason::None || Options.Num() != 3)
+            LDProgression::FinalModSeed(MatchSecret, Pair.Key), Options, Count);
+        if (Reason != ELDGrowthReason::None || Options.Num() != Count)
         {
             Error = FString::Printf(TEXT("final mod offer for %s: %s"), *LDLog::Id(Pair.Key), LDGrowthWire::ReasonName(Reason));
             return false;

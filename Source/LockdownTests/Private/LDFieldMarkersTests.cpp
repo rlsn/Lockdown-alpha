@@ -66,14 +66,14 @@ bool FLDFieldMarkersTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("Markers are revealed 15 s into each 180 s field segment"),
-        P.CampMarkRevealMs == 15000 && P.FieldSegmentMs == 180000);
+    bool bGood = TestTrue(TEXT("Markers are revealed 11 s into each 130 s field segment"),
+        P.CampMarkRevealMs == 11000 && P.FieldSegmentMs == 130000);
     FLDFieldMarkerState State = MakeState(P);
     if (!TestTrue(TEXT("The test schedule is valid"), State.IsActive())) { return false; }
     int64 At = 0;
-    bGood &= TestTrue(TEXT("Reveals at T=15/195/375 s, segment ends at 180/360/540 s, no fourth segment"),
-        State.Schedule.RevealAtMs(1, At) && At == 15000 && State.Schedule.RevealAtMs(2, At) && At == 195000
-        && State.Schedule.RevealAtMs(3, At) && At == 375000 && State.Schedule.EndAtMs(3, At) && At == 540000
+    bGood &= TestTrue(TEXT("Reveals at T=11/141/271 s, segment ends at 130/260/390 s, no fourth segment"),
+        State.Schedule.RevealAtMs(1, At) && At == 11000 && State.Schedule.RevealAtMs(2, At) && At == 141000
+        && State.Schedule.RevealAtMs(3, At) && At == 271000 && State.Schedule.EndAtMs(3, At) && At == 390000
         && !State.Schedule.RevealAtMs(4, At) && !State.Schedule.RevealAtMs(0, At));
 
     // Quadrants around the centre and the draws.

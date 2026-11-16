@@ -75,17 +75,18 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 工作 | 技术说明 |
 | --- | --- |
 | 关卡、地编、美术、TA 与场景相关功能（必读） | [关卡创作自由与开发约束](LEVEL_AUTHORING_CONTRACT.md)，再按下表读具体接口 |
-| 模块、Lobby、IP 联机、生命代次、回执 | [架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md) |
-| 点击移动、预测、取消、输入层、镜头 | [移动、输入与镜头](systems/MOVEMENT_INPUT_AND_CAMERA.md) |
-| 伤害/状态、时序、效果来源、构筑 | [战斗与成长](systems/COMBAT_AND_GROWTH.md) |
-| 奖励、选择、去重、原子事务 | [成长事务](systems/GROWTH_TRANSACTIONS.md) |
-| 战争迷雾、观测句柄、HUD 与隐私 | [视野与 UI](systems/VISION_AND_UI.md) |
-| 地形、碰撞、动态对象、SourceData、资产 | [世界与数据管线](systems/WORLD_AND_DATA_PIPELINE.md) |
+| 模块、Lobby、IP 联机、阶段与休息、生命代次、喷漆与结果、回执 | [架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md) |
+| 操作表、订单、点击移动、预测、取消、输入层、镜头、本地设置 | [移动、输入与镜头](systems/MOVEMENT_INPUT_AND_CAMERA.md) |
+| 伤害/状态、属性、时序、效果来源、构筑、死亡事实 | [战斗与成长](systems/COMBAT_AND_GROWTH.md) |
+| 奖励、经验、选择、去重、原子事务 | [成长事务](systems/GROWTH_TRANSACTIONS.md) |
+| 对手 AI 的接口与策略 | [对手 AI](systems/OPPONENT_AI.md) |
+| 战争迷雾、观测句柄、HUD、界面页面、设置页与隐私 | [视野与 UI](systems/VISION_AND_UI.md) |
+| 地形、碰撞、世界查询、营地、SourceData、资产 | [世界与数据管线](systems/WORLD_AND_DATA_PIPELINE.md) |
 | 每个检查与场景覆盖什么、规则测试集合、里程碑清单、共用机器 | [验证手册](systems/VERIFICATION.md) |
 | 打包、产品版本、PR 检查、每日试玩包、自托管 runner | [CI 与发布](systems/CI_AND_RELEASE.md) |
 | 构筑评估（DEV 实验编排、原生重放、合法成长与反事实报告） | [构筑评估 Harness](systems/BUILD_EVALUATION.md) |
 
-这些手册描述当前代码的接口与约束。各玩法域的设计合同在 `docs\demo`（会话与生命周期、操作、战斗与属性、成长与奖励、世界/营地/视野、对手 AI、界面与设置），跨域语义在[共享契约](demo/SHARED_CONTRACTS.md)。
+每个玩法域只有这里的一份手册，开头的表给出文件、入口函数、不变量与检查入口；跨域语义在[共享契约](demo/SHARED_CONTRACTS.md)，数值在[内容与数值](demo/CONTENT_AND_BALANCE.md)。
 
 ## 工程目录
 

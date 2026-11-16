@@ -451,7 +451,7 @@ FVector2D ULDMinimap::Fraction(const FGeometry& G,const FPointerEvent& E) const
 bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->IsFrontend()){return false;}
-    // Death keeps camera operations (UI 4); a ground order still needs the controller's world-command gate.
+    // Death keeps camera operations (MOVEMENT_INPUT_AND_CAMERA input ownership); a ground order still needs the controller's world-command gate.
     if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(FString(LDTerms::Dead)+TEXT("，只能移动镜头，不能下达移动"));}return false;}
     FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
     const FBox2D Region=MinimapRegion(*PC,MinimapCache(StaticMap),GetWorld(),Ground);
@@ -589,14 +589,8 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 if(Drop.Phase==ELDAirdropPhase::Landed){Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),FLinearColor(.55f,.36f,.16f));Box(7,At-FVector2f(4.f,.75f),FVector2f(8.f,1.5f),Ink);}
                 else{Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Ink);}
             }
-            // #198: lying charms, a disc in the kind's colour (heal green, mana blue, move speed gold) on an ink disc.
             if(Public->PublicMatch.Generation==Own.Match)
             {
-                for(const FLDCharmView& Charm:Public->PublicMatch.Charms)
-                {
-                    const FVector2f At=Spot(Charm.PositionCm);
-                    Disc(5,At,7.5f,Ink);Disc(6,At,5.5f,LDHUD::CharmColor(Charm.Kind));Disc(7,At,2.f,FLinearColor(.97f,.97f,.94f));
-                }
                 // #198 outer §5: an open camp marker, a marker-violet ring around its camp diamond.
                 for(const FLDFieldMarkerView& Marker:Public->PublicMatch.Markers)
                 {
