@@ -52,16 +52,16 @@ FString Exact(const FLDDemoRational& Value,int64 Factor=1)
 FString Seconds(int64 Ms){return Exact(Ms,1000)+TEXT("s");}
 FString Points(int64 P2){return Exact(P2,100);}
 FString Percent(int64 Bp){return Exact(Bp,100)+TEXT("%");}
-FString Cm(const FLDDemoRational& Value){return Exact(Value)+TEXT("cm");}
+FString Cm(const FLDDemoRational& Value){return Exact(Value)+TEXT(" 厘米");}
 
 FString Range(double Value)
 {
     for(int32 Precision=0;Precision<=15;++Precision)
     {
         const FString Text=FString::Printf(TEXT("%.*f"),Precision,Value);
-        if(FCString::Atod(*Text)==Value){return Text+TEXT("cm");}
+        if(FCString::Atod(*Text)==Value){return Text+TEXT(" 厘米");}
     }
-    return FString::Printf(TEXT("%.17gcm"),Value);
+    return FString::Printf(TEXT("%.17g 厘米"),Value);
 }
 
 void Add(TArray<FLine>& Lines,const FString& Label,const FString& Before,const FString& After,EImpact Impact)

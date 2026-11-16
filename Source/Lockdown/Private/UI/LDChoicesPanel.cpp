@@ -47,6 +47,8 @@ constexpr float TrayPagerHeight=32.f,TrayMinIconPixels=36.f;
 static_assert(8*TrayTileSize+7*TrayTileGap<=TrayWidth,"eight grid tiles fit on one tray line");
 static_assert(TrayTileIcon+2*TrayCardPadding<=TrayTileSize,"a grid tile holds its icon");
 constexpr float ServicePanelWidth=540.f;
+// The confirm line wraps short of the hold and cancel buttons that share its row.
+constexpr float ServiceConfirmButtons=200.f;
 bool GrowthHasArea(const FSlateRect& Rect){return Rect.Right>Rect.Left&&Rect.Bottom>Rect.Top;}
 float TrayIconSize(bool bTile,float Scale,bool bCompact)
 {
@@ -237,7 +239,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             // The confirm line names what is forgotten, replaced, filled or removed; the components it sends back light up on
             // the board first.
             auto* ConfirmRow=WidgetTree->ConstructWidget<UHorizontalBox>();
-            RestConfirmText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth);RestConfirmText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+            RestConfirmText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth-ServiceConfirmButtons);RestConfirmText->SetColorAndOpacity(LDHUDStyle::TextWarning);
             auto* ConfirmTextSlot=ConfirmRow->AddChildToHorizontalBox(RestConfirmText);ConfirmTextSlot->SetVerticalAlignment(VAlign_Center);
             ConfirmTextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
             RestConfirmButton=LDWidgets::HoldButton(WidgetTree,LDTerms::ConfirmAction,[this](){ConfirmRestAction();},TEXT("GrowthRestConfirm"));
@@ -2058,6 +2060,9 @@ void ULDChoicesPanel::ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon)
     if(!bBig){GrowthShown(Card.Links,false);GrowthShown(Card.ElementChip,false);GrowthShown(Card.IconFrame,true);}
     auto Style=Card.Button->GetStyle();
     const FMargin Inner=bBig?FMargin(18,22):FMargin(TrayCardPadding);Style.NormalPadding=Inner;Style.PressedPadding=Inner;Card.Button->SetStyle(Style);
+    // Stage cards stretch to one height: a face with an icon hangs from the top so the icons and names of the row line up,
+    // whatever extra lines one card carries; the icon-less 不选 card stays centred.
+    if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetVerticalAlignment(bBig&&Icon>0.f?VAlign_Top:VAlign_Center);}
 }
 void ULDChoicesPanel::UpdateStage()
 {
@@ -2086,7 +2091,7 @@ void ULDChoicesPanel::UpdateStage()
     const auto OnStage=[this,&Move](FTrayCard& Card,UHorizontalBox* Row,float Gap,float Width,float Icon)
     {
         Move(Card.Frame,Row);
-        if(UHorizontalBoxSlot* CardSlot=Cast<UHorizontalBoxSlot>(Card.Frame->Slot)){CardSlot->SetPadding(FMargin(Row->GetChildrenCount()>1?Gap:0.f,0,0,0));CardSlot->SetVerticalAlignment(VAlign_Center);}
+        if(UHorizontalBoxSlot* CardSlot=Cast<UHorizontalBoxSlot>(Card.Frame->Slot)){CardSlot->SetPadding(FMargin(Row->GetChildrenCount()>1?Gap:0.f,0,0,0));CardSlot->SetVerticalAlignment(VAlign_Fill);}
         ShowBig(Card,true,Width,Icon);
     };
     if(!bStageFinal)

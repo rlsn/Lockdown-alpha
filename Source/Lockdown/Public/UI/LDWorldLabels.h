@@ -26,6 +26,7 @@ namespace LDWorldLabels
         FString Status;        // public statuses as on the target card, without its prefix; empty when there are none
         TArray<FStatusPart> StatusParts;  // the parts Status joins with " · ", in the same order
         bool bContender=false;
+        bool bPeaceful=false;  // a contender the viewer cannot attack now: its bar is not the hostile red
         uint8 Presentation=0;  // contender identity tint key; 0 for camp members
         uint8 CreatureId=0;    // camp member definition; 0 for contenders
         uint8 Level=0;         // contender level; 0 for camp members, which have none

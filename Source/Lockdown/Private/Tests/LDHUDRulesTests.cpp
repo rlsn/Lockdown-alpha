@@ -371,8 +371,8 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
     TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
         LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 25 秒"));
-    TestTrue(TEXT("Before the sign-up window it says when it opens and where the disk is"),
-        View.Detail==LDTerms::SignupOpensIn(15)+TEXT(" · ")+LDTerms::SignupCircleHint&&!View.bSignupOpen&&View.bSignupStep);
+    TestTrue(TEXT("Before the sign-up window it says when it opens; the lit disk in the room shows where"),
+        View.Detail==LDTerms::SignupOpensIn(15)&&!View.bSignupOpen&&View.bSignupStep);
     View=LDHUD::TimelineBanner(Public,Self,true,121500);
     TestTrue(TEXT("Inside the window the line counts who stands in a disk and asks Self to step in"),View.bSignupOpen&&!View.bSignedUp
         &&View.Detail==LDTerms::SignupOpenFor(9)+TEXT(" · ")+LDTerms::SignedUpCount(0)+TEXT(" · ")+LDTerms::NotSignedUpSelf);
@@ -822,7 +822,7 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     Stat.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;Stat.Amount=1000;
     TestEqualSensitive(TEXT("Ratio stats are basis points"),LDHUD::StatLine(Stat),FString(LDTerms::AttackSpeed)+TEXT(" +10%"));
     Stat.Stat=ELDDemoBonusStat::AttackRangeCmFlat;Stat.Amount=0;Stat.Cm.Numerator=40;Stat.Cm.Denominator=1;
-    TestEqualSensitive(TEXT("Range bonuses are centimetres"),LDHUD::StatLine(Stat),FString(TEXT("攻击距离 +40cm")));
+    TestEqualSensitive(TEXT("Range bonuses are centimetres"),LDHUD::StatLine(Stat),FString(TEXT("攻击距离 +40 厘米")));
     FLDDemoEffectDefinition Damage;Damage.Opcode=uint8(ELDDemoEffectOp::Damage);Damage.BaseP2=10000;Damage.ADRatioBp=8000;Damage.APRatioBp=6500;Damage.DamageType=ELDDemoDamageType::Magical;
     TestEqualSensitive(TEXT("Magic damage uses the approved term and its AD and AP scaling"),LDHUD::EffectLine(Damage),FString::Printf(TEXT("%s 100 + 80%%%s + 65%%%s"),LDTerms::MagicalDamage,LDTerms::AttackDamage,LDTerms::AbilityPower));
     FLDDemoEffectDefinition Root;Root.Opcode=uint8(ELDDemoEffectOp::Root);Root.DurationMs=1300;
@@ -849,7 +849,7 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The card face is the sentence with this level's numbers and its keywords"),Card.bKnown
         &&Card.SentencePlain==TEXT("命中造成 100 魔法伤害并减速。")&&Card.Sentence==TEXT("命中造成 100 魔法伤害并<b>减速</>。")
         &&Card.Keywords.Num()==1&&Card.Keywords[0].StartsWith(TEXT("<b>减速</>：")));
-    TestTrue(TEXT("The card shows the target form and the cost"),Card.Target==TEXT("方向弹道 · 射程 650cm")&&Card.Cost==LDHUD::CostLine(Cost));
+    TestTrue(TEXT("The card shows the target form and the cost"),Card.Target==TEXT("方向弹道 · 射程 650 厘米")&&Card.Cost==LDHUD::CostLine(Cost));
     TestTrue(TEXT("An active card draws its display icon, with the name's first character only as the missing-icon stand-in"),
         Card.Glyph==Card.Name.Left(1)&&Card.IconId==TEXT("icon_hud_rules_fixture_bolt"));
     LDHUD::FCardStats L4;L4.Level=4;
