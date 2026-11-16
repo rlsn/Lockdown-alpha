@@ -861,6 +861,9 @@ namespace LDHUD
     // points round up and a remainder needs the matching authority clock) and the active out-of-combat and dorm recoveries
     // (conditional, so no remaining time).
     LOCKDOWN_API FSelfIconsView SelfIcons(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    // The one line painted where the own status icons sit over the own overhead bars: "状态同步中" while the own projection
+    // is missing and the band is shown (bShown false while the workshop hides it), empty otherwise.
+    LOCKDOWN_API FString SelfIconsNotice(const FSelfIconsView& View,bool bShown);
     // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
     // followed by its tone, " · 正面" or " · 负面"), then the full content description: a status's text or a recovery's rule
     // with the REGEN/DORM parameters. Built only for the hovered square.

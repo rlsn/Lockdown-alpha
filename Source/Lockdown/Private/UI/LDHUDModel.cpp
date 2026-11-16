@@ -2586,6 +2586,10 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     }
     return false;
 }
+FString LDHUD::SelfIconsNotice(const FSelfIconsView& View,bool bShown)
+{
+    return bShown&&View.bSyncing?FString(TEXT("状态同步中")):FString();
+}
 LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
 {
     FSelfIconsView View;

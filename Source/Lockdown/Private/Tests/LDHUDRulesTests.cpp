@@ -1249,6 +1249,18 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An accepted attack still reports the lost protection"),LDHUD::CombatReceiptNotice(Receipt),LDTerms::ProtectionRemoved());
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsNoticeTest,"Lockdown.Rules.HUDSelfIconsNotice",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDSelfIconsNoticeTest::RunTest(const FString& Parameters)
+{
+    FLDDemoContentDefinitions Content;
+    const LDHUD::FSelfIconsView Missing=LDHUD::SelfIcons(nullptr,true,0,&Content);
+    TestEqualSensitive(TEXT("A missing own projection shows the syncing line over the own bars"),LDHUD::SelfIconsNotice(Missing,true),FString(TEXT("状态同步中")));
+    TestTrue(TEXT("The syncing line hides with the band"),LDHUD::SelfIconsNotice(Missing,false).IsEmpty());
+    FLDCombatOwnerView Combat;
+    TestTrue(TEXT("A known projection without statuses shows nothing, not syncing"),LDHUD::SelfIconsNotice(LDHUD::SelfIcons(&Combat,true,0,&Content),true).IsEmpty());
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBasicAttackTermTest,"Lockdown.Rules.HUDBasicAttackTerm",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDBasicAttackTermTest::RunTest(const FString& Parameters)
 {

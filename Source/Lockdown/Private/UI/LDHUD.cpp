@@ -1338,7 +1338,9 @@ void ULDHUD::RefreshReadModel()
             if(Icon.ExpiresAtMs>0&&bClock){Mark.Remaining=SelfIconRings.Fraction(Icon.Key,Icon.ExpiresAtMs,NowMs);LiveRings.Add(Icon.Key);}
         }
         SelfIconRings.Retain(LiveRings);
-        if(!Band||!Band->IsVisible()){OwnStatusMarks.Reset();}
+        const bool bShown=Band&&Band->IsVisible();
+        if(!bShown){OwnStatusMarks.Reset();}
+        OwnStatusNotice=LDHUD::SelfIconsNotice(Icons,bShown);
     }
     {
         // Unspent points ride on the portrait; the stat icons under the name spend them.
