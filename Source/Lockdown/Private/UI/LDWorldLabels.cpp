@@ -1,4 +1,5 @@
 #include "UI/LDWorldLabels.h"
+#include "UI/LDTerms.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
@@ -301,6 +302,12 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             {
                 const FString Relation=LDHUD::PKRelationText(Public->PublicMatch,Own.ContenderId,Unit.ContenderId);
                 if(!Entry.Label.Name.IsEmpty()&&!Relation.IsEmpty()){Entry.Label.Name+=TEXT(" · ")+Relation;}
+                // Nobody can be attacked in a rest outside the PK itself, and a PK teammate never can; the shared training
+                // dummies stay attackable.
+                const ELDRestStep Step=Public->PublicMatch.Timeline.Step;
+                const bool bFighting=Step==ELDRestStep::PKReady||Step==ELDRestStep::PK;
+                const bool bDummy=Entry.Label.Name.StartsWith(LDTerms::TrainingDummy);
+                Entry.Label.bPeaceful=!bDummy&&((Public->PublicMatch.Phase==ELDMatchPhase::Rest&&!bFighting)||Relation==LDTerms::PKTeammate);
             }
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;
@@ -379,7 +386,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
             Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
             if(Label.HealthFraction>0.f)
-            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),Label.bContender?LDHUDStyle::EnemyHealth:LDHUDStyle::CampHealth);}
+            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
             if(Label.bContender&&Label.Level>0)
             {
                 // The badge carries the identity tint: the name itself identifies, the colour is only an extra cue.

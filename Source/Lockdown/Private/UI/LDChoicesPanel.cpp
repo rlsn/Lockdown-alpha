@@ -2117,9 +2117,6 @@ void ULDChoicesPanel::UpdateStage()
 void ULDChoicesPanel::RefreshStage()
 {
     GrowthShown(TrayFrame,(bOpen&&!bStageShown)||bQuickShown);
-    // The tray stands on the 构筑 button, whose height follows the text scale.
-    const FMargin TrayInset(0.f,0.f,16.f,24.f+48.f*FMath::Max(1.f,AppliedTextScale));
-    if(TrayFrame&&TrayFrame->GetPadding()!=TrayInset){TrayFrame->SetPadding(TrayInset);}
     GrowthShown(StageBox,bStageShown);
     GrowthShown(StageBack,bStageShown,ESlateVisibility::Visible);
     const bool bFinalStage=IsFinalStage();

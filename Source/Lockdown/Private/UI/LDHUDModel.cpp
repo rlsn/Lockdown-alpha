@@ -94,6 +94,13 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     const FStringTableConstPtr Table=FStringTableRegistry::Get().FindStringTable(FName(*Display->Namespace));
     FString Text;
     if(Key.IsEmpty()||!Table.IsValid()||!Table->GetSourceString(FTextKey(Key),Text)||Text.IsEmpty()){HudReportMissingText(ContentId);return false;}
+    // A description that lists several variants (one clause per host kind) reads as one clause per line. A final mod keeps
+    // its text whole: FinalModParts lays its effect, cost and notes out as three labelled rows.
+    if(bDescription&&!ContentId.StartsWith(TEXT("final_")))
+    {
+        int32 Clauses=0;for(const TCHAR C:Text){Clauses+=C==TEXT('；');}
+        if(Clauses>=2){Text.ReplaceInline(TEXT("；"),TEXT("；\n"));}
+    }
     Out=Text;
     return true;
 }
@@ -361,7 +368,6 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
         else if(NowMs<Timeline.SignupOpensAtMs)
         {
             Detail.Add(LDTerms::SignupOpensIn(Seconds(Timeline.SignupOpensAtMs-NowMs)));
-            Detail.Add(LDTerms::SignupCircleHint);
         }
         else if(NowMs<=Timeline.StepEndsAtMs){View.bSignupOpen=true;Detail.Add(LDTerms::SignupOpenFor(Seconds(Timeline.StepEndsAtMs-NowMs)));}
         else{Detail.Add(TEXT("PK 报名已截止"));}

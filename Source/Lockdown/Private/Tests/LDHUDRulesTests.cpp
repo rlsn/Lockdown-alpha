@@ -371,8 +371,8 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
     TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
         LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 25 秒"));
-    TestTrue(TEXT("Before the sign-up window it says when it opens and where the disk is"),
-        View.Detail==LDTerms::SignupOpensIn(15)+TEXT(" · ")+LDTerms::SignupCircleHint&&!View.bSignupOpen&&View.bSignupStep);
+    TestTrue(TEXT("Before the sign-up window it says when it opens; the lit disk in the room shows where"),
+        View.Detail==LDTerms::SignupOpensIn(15)&&!View.bSignupOpen&&View.bSignupStep);
     View=LDHUD::TimelineBanner(Public,Self,true,121500);
     TestTrue(TEXT("Inside the window the line counts who stands in a disk and asks Self to step in"),View.bSignupOpen&&!View.bSignedUp
         &&View.Detail==LDTerms::SignupOpenFor(9)+TEXT(" · ")+LDTerms::SignedUpCount(0)+TEXT(" · ")+LDTerms::NotSignedUpSelf);

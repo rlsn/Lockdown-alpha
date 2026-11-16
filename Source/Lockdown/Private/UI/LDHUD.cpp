@@ -438,6 +438,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 }
                 PKThrowButton=LDWidgets::Button(WidgetTree,LDTerms::PKThrow,[this](){TogglePKThrowAim();},true,TEXT("HUDPKThrow"));
                 PKThrowButton->SetVisibility(ESlateVisibility::Collapsed);Centred(PKThrowButton,6);
+                PKThrowButton->SetToolTipText(FText::FromString(LDTerms::PKThrowEffect));
                 PKResultLine=OneLine(TEXT(""),LDHUDStyle::TypeHeading,HudPKWrap);PKResultLine->SetJustification(ETextJustify::Center);HudFace(PKResultLine,true,0);
                 PKResultLine->SetColorAndOpacity(LDHUDStyle::Celebration);Centred(PKResultLine,6);
                 PKAwardsTitle=OneLine(LDTerms::PKAwardsTitle,LDHUDStyle::TypeSmall,0);PKAwardsTitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAwardsTitle,6);
@@ -1200,7 +1201,7 @@ void ULDHUD::RefreshReadModel()
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
     HudSetText(PhaseText,Circle.Line);
     HudSetShown(PhaseText,!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)
-        &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning),ESlateVisibility::HitTestInvisible);
+        &&Public.Phase!=ELDMatchPhase::Rest,ESlateVisibility::HitTestInvisible);
     CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
