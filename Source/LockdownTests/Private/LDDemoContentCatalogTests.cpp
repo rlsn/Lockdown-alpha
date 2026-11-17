@@ -1259,7 +1259,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
-        P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 400 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
+        P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 240 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
     TestTrue(TEXT("Skill growth steps are 0.15 through level 10 and 0.075 after"),
         P.SkillGrowthPerLevelBp == 1500 && P.SkillGrowthPerLevelAfter10Bp == 750);
 
