@@ -9,6 +9,10 @@ struct FLDDemoPolicies;
 
 namespace LDTactical
 {
+    // Spec §3.7: the product of Factors grouped by Key (one multiplier per key: 1 + the summed Bp), in basis points, stopped
+    // at CapBp (DAMAGE.FactorTechCap; bOutCapped). False with Error for a negative or unnamed factor or an int64 overflow.
+    LOCKDOWN_API bool DamageFactorProduct(const TArray<FLDDamageFactor>& Factors, int64 CapBp, int64& OutBp, bool& bOutCapped,
+        FString& Error);
     LOCKDOWN_API FLDDamageEvaluationResult EvaluateDamage(
         const FLDDamageEvaluationInput& Input, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API FLDBasicTimingResult EvaluateBasicTiming(

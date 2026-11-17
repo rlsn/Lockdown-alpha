@@ -82,14 +82,11 @@ namespace LDCombatSourceRules
     LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, FLDInnateDashTerms& Out, FString& Error);
     LOCKDOWN_API FLDAttributeProjectionResult ProjectBuildInput(const FLDBuildProjectionInput& Build,
         const FLDDemoContentSnapshot& Content);
-    // Workshop compilation is shared with the owner's read-only install preview.
-    LOCKDOWN_API bool CollectWorkshopEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+    // Card resolution and compilation are shared with the owner's read-only install preview (LDCombatCards.cpp).
+    LOCKDOWN_API bool CollectCardEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
         const FLDDemoContentSnapshot* Content, TArray<FLDPassiveEffectRef>& Out, FString& Error);
-    LOCKDOWN_API bool CompileWorkshopActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
+    LOCKDOWN_API bool CompileCardActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
         const FLDDemoContentSnapshot* Content, FLDCombatActiveTerms& Terms, FString& Error);
-    LOCKDOWN_API bool WidenWorkshopTerms(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
-        const FLDDemoContentSnapshot* Content, const FLDCombatPreviewWideToken& Token, int64 NowMs,
-        FLDCombatActiveTerms& Terms, bool& bWidened, FString& Error);
     LOCKDOWN_API bool FinalTargetsSource(const FLDFinalModSelection& Selection, const FLDCombatSourceRef& Source);
     LOCKDOWN_API bool FinalCooldownCost(const FLDDemoContentSnapshot* Content, const FLDFinalModSelection& Selection,
         bool bFinalField, const FLDCombatSourceRef& Source, int64& InOutCooldownMs, FString& Error);
@@ -110,7 +107,7 @@ namespace LDCombatSourceRules
         int64 NowMs, const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out,
         ELDCombatPrepareError& Code, FString& Error);
 
-    // The remaining-cooldown cut shared by every refund (cooldown_refund, dash_contact_refund):
+    // The remaining-cooldown cut shared by every refund (K01, K25, A02, D02):
     // a cooling track ends AmountMs earlier but never before NowMs; MAX_int64 makes it ready now. A ready track
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
