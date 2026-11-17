@@ -94,6 +94,19 @@ class LocalVerificationTests(unittest.TestCase):
         path.unlink()
         self.assertNotEqual(first, verify.fingerprint(self.root, ["SourceData"]))
 
+    def test_local_engine_binding_invalidates_native_check_cache(self):
+        plan = verify.make_plan(self.root, ["Source/Game/Private/Combat.cpp"],
+                                filters=["Lockdown.Rules.DemoMatchIdentity"])
+        for step in plan["steps"]:
+            with self.subTest(step=step["id"]):
+                first = verify.cache_key(self.root, step)
+                self.write(".env", 'LD_UE_ROOT="C:\\Engine One"\n')
+                second = verify.cache_key(self.root, step)
+                self.assertNotEqual(first, second)
+                self.write(".env", 'LD_UE_ROOT="C:\\Engine Two"\n')
+                self.assertNotEqual(second, verify.cache_key(self.root, step))
+                (self.root / ".env").unlink()
+
     def test_cache_requires_evidence_outputs_and_identical_inputs(self):
         self.write("input.txt", "a")
         output = self.write("Binaries/tool.dll", "binary")

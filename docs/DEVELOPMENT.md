@@ -52,7 +52,7 @@ Issue/PR 保存任务进度、决策原话与本次验证结果，不将这些�
 ```powershell
 git lfs install
 git lfs pull                     # 新工作区的 Content 只有 LFS 指针，规则测试、编辑器和场景都需要先拉取
-$env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
+# 在根目录 .env 添加 LD_UE_ROOT="<UE 5.8.4 安装目录>"；此文件已被 Git 忽略
 .\Scripts\Preflight.ps1          # 核对引擎版本与工具链
 .\Scripts\BuildEditor.ps1        # 编辑器目标；编辑器、规则测试和 -game 运行都只需要它
 .\Scripts\OpenStandalone.ps1     # 打开前端；-HostRoom 直接以 Host 进入 L_Demo
@@ -60,8 +60,10 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 ```
 
 `BuildGame.ps1`（游戏目标）只用于里程碑检查，日常开发不需要；打包脚本自己构建。
-引擎查找依次使用 `-EngineRoot`、`LD_UE_ROOT`、忽略的 `Config\Local\Environment.json` 和项目引擎关联；
-本机路径不写进共享配置，每个新 shell 都要设置自己的环境变量。
+引擎查找依次使用 `-EngineRoot`、进程环境变量 `LD_UE_ROOT`、工作区根目录 `.env` 中的 `LD_UE_ROOT`、
+忽略的 `Config\Local\Environment.json` 和项目引擎关联。`.env` 只读取此键的字面量值，可使用成对的单/双引号，
+不执行文件内容；重复键或未闭合引号会明确报错，仍核对锁定引擎版本。本机路径只放被忽略的本机配置，
+不用在每个新 shell 重设；已有 `.env` 时保留其余键，只更新引擎路径。`.env` 变化会使本地原生验证缓存失效。
 修改反射类时先关闭编辑器。`-HostRoom` 不会绕过已批准数据与原生合同检查。
 
 仓库的 `unreal-mcp`（`.mcp.json`）由编辑器里的 ModelContextProtocol 插件在 `127.0.0.1:8000` 提供，

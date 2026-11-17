@@ -202,5 +202,57 @@ try {
 } finally {
     Remove-Item -LiteralPath $fixture -Recurse -Force
 }
+$fixture = Join-Path $output 'EnvironmentFixture'
+$engineOverride = $env:LD_UE_ROOT
+New-Item -ItemType Directory -Path (Join-Path $fixture 'Config\Local') -Force | Out-Null
+try {
+    & {
+        function Get-LDProjectRoot { $fixture }
+        $lock = @{ engine = @{ major = 5; minor = 8; patch = 4; changelist = 58902052 } }
+        $lock | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $fixture 'Config\PlatformLock.json')
+        @{ EngineAssociation = 'IsolatedEnvironmentFixture' } | ConvertTo-Json |
+            Set-Content -LiteralPath (Join-Path $fixture 'Lockdown.uproject')
+        $engines = foreach ($name in @('Engine #1', 'Engine Two')) {
+            $engine = Join-Path $fixture $name
+            New-Item -ItemType Directory -Path (Join-Path $engine 'Engine\Build') -Force | Out-Null
+            @{ MajorVersion = 5; MinorVersion = 8; PatchVersion = 4; Changelist = 58902052 } |
+                ConvertTo-Json | Set-Content -LiteralPath (Join-Path $engine 'Engine\Build\Build.version')
+            $engine
+        }
+        $env:LD_UE_ROOT = ''
+        $dotenv = Join-Path $fixture '.env'
+        foreach ($quote in @('', '"', "'")) {
+            @('# Local engine', 'UNRELATED_SETTING=unused', "LD_UE_ROOT=$quote$($engines[0])$quote") |
+                Set-Content -LiteralPath $dotenv
+            Assert-Case ((Resolve-LDEngine) -eq $engines[0]) "Engine .env reads literal spaces and hash characters (quote=$quote)"
+        }
+        $env:LD_UE_ROOT = $engines[1]
+        Assert-Case ((Resolve-LDEngine) -eq $engines[1]) 'Process engine override takes precedence over .env'
+        Assert-Case ((Resolve-LDEngine -EngineRoot $engines[0]) -eq $engines[0]) 'Explicit engine argument takes precedence over environment'
+        $env:LD_UE_ROOT = ''
+        @{ engineRoot = $engines[1] } | ConvertTo-Json |
+            Set-Content -LiteralPath (Join-Path $fixture 'Config\Local\Environment.json')
+        Assert-Case ((Resolve-LDEngine) -eq $engines[0]) '.env takes precedence over the existing local JSON fallback'
+        Remove-Item -LiteralPath $dotenv
+        Assert-Case ((Resolve-LDEngine) -eq $engines[1]) 'Missing .env preserves local JSON fallback'
+        foreach ($entry in @("LD_UE_ROOT=`"$($engines[0])", "LD_UE_ROOT=$($engines[0])`nLD_UE_ROOT=$($engines[1])")) {
+            $entry | Set-Content -LiteralPath $dotenv
+            $rejected = $false
+            try { Resolve-LDEngine | Out-Null }
+            catch { $rejected = $_.Exception.Message -like 'Invalid LD_UE_ROOT in .env:*' }
+            Assert-Case $rejected 'Malformed or duplicate .env engine binding is reported instead of falling back'
+        }
+        "LD_UE_ROOT=$($engines[0])" | Set-Content -LiteralPath $dotenv
+        @{ MajorVersion = 5; MinorVersion = 8; PatchVersion = 3; Changelist = 58902052 } |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $engines[0] 'Engine\Build\Build.version')
+        $rejected = $false
+        try { Resolve-LDEngine | Out-Null }
+        catch { $rejected = $_.Exception.Message -like 'Engine does not match pinned*' }
+        Assert-Case $rejected '.env cannot bypass the pinned engine version'
+    }
+} finally {
+    $env:LD_UE_ROOT = $engineOverride
+    Remove-Item -LiteralPath $fixture -Recurse -Force
+}
 @{ passed = $true; checks = @($checks) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'EntryChecks.json') -Encoding utf8
 Write-Host "Demo entry script checks passed: $($checks.Count). Evidence: $output"

@@ -184,7 +184,7 @@ def make_plan(root, changes, rules="None", filters=(), engine=None, base="origin
     plugin_inputs = [p.relative_to(root).as_posix() for p in (root / "Plugins").rglob("*")
                      if p.is_file() and p.suffix in (".h", ".cpp", ".cs", ".uplugin")
                      and not {"Binaries", "Intermediate"} & set(p.relative_to(root).parts)]
-    native_inputs = ["Source", "Config", *plugin_inputs, "Lockdown.uproject", "Scripts/Common.ps1",
+    native_inputs = ["Source", "Config", ".env", *plugin_inputs, "Lockdown.uproject", "Scripts/Common.ps1",
                      "Scripts/BuildEditor.ps1", "Scripts/Preflight.ps1", "SourceData", "Content"]
     if native_changes:
         add("editor", "build", [*pwsh, "Scripts/BuildEditor.ps1", *engine_args],
