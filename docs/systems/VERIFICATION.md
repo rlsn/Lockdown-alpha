@@ -185,6 +185,8 @@ Editor/Game 构建、Bootstrap Validate、相关原生规则
 ### 美术 / 装饰
 
 `ImportDemoArt.ps1 -Mode Validate`（Bootstrap Validate 也执行，含标题/房间背景图的清单、哈希、尺寸与 UI 纹理设置）；`Lockdown.Rules.ArtCatalog/ArtCatalogAsset/ArtDecorations`；`CaptureDemoArt.ps1` 在 Demo 地图大厅渲染全部身体、各动画姿势与装饰后的场地截图，并核对装饰无碰撞、不挡视线追踪、不改 navmesh。
+
+`CaptureDemoArt.ps1 -CombatVfx` 在正常游戏镜头下捕获动作与命中特效并检查特效生命周期；可加 `-CastOnly` 只捕获静止和施法画面。截图仍需人工检查，不代表真实对局、联机或美术验收。
 不代替身体接线、战斗或联机验收
 
 ### 战斗 / 观测复制
@@ -304,8 +306,9 @@ DEV probe 只在带开关时生效，证据先写入包内 `Lockdown\Artifacts`�
 runner 核对每个角色的日志确实解析了每一项。这只是同机模拟，不代表跨机器局域网或公网直连。
 `RunDemoCombatCheck.ps1` 与 `RunDemoVisionCheck.ps1` 的 Host 主视图默认 1280×720，
 加 `-Resolution 1080p` 以 `-ForceRes` 渲染 1920×1080（输出目录带 `-1080p` 后缀），用于两种分辨率的截图审阅。
-`RunDemoVisionCheck.ps1 -ReactionOnly` 使用无渲染的真实拥有连接，由服务端夹具将潮湿和电命中排入原生 Effects，
-检查仅施加者收到具名导电提示，以及主动离房后的 Host 视图清理；不覆盖玩家输入、隐藏视野负例或意外断线。
+`RunDemoVisionCheck.ps1 -ReactionOnly` 使用无渲染的真实拥有连接，由服务端夹具将直接伤害、潮湿和电命中排入原生 Effects，
+检查仅施加者收到即时可见命中回执和具名导电提示，以及主动离房后的 Host 视图清理；
+不覆盖玩家输入、隐藏视野负例或意外断线。
 源码、配置和生成输入在一次原生构建/运行期间保持稳定。
 删除反射类型或成员前，可用 `AuditAssetReferences.ps1 -RequestPath <审计请求JSON>`。
 它在旧原生类仍存在时加载全部项目包，记录 AssetRegistry、linker import/soft/name 表、

@@ -73,6 +73,9 @@ private:
     UPROPERTY() TObjectPtr<UEditableTextBox> XPBox;
     UPROPERTY() TArray<TObjectPtr<UEditableTextBox>> StatBoxes;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> StatLines;
+    // The hit-feel tunables (LDHitFeel::Fields): local client console variables, not DEV test commands.
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> FeelValues;
+    void PresentFeel();
     UPROPERTY() TObjectPtr<UTextBlock> LearnHint;
     UPROPERTY() TObjectPtr<UVerticalBox> LearnList;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> LearnNames;

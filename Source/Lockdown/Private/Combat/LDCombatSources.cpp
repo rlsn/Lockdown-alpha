@@ -9,6 +9,7 @@
 #include "Development/LDProgressionRules.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
+#include "Vision/LDVisionDirector.h"
 
 namespace LDCombatSourcesDetail
 {
@@ -988,6 +989,15 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
             Out.Cues=CueFactsOf(*Body);
+            if (Out.Cues.LastHitId.IsValid())
+            {
+                Out.Cues.LastHitId=LDObservation::ScopedHitId(Body->Identity,Out.Cues.LastHitId);
+                if (!Out.Cues.LastHitId.IsValid())
+                {
+                    UE_LOG(LogLDCombat,Error,TEXT("LD_OWNER_HIT_ID scope=failed"));
+                    return false;
+                }
+            }
             Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move)
                 || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; });
             const auto& Parameters=Content->Get().Parameters;

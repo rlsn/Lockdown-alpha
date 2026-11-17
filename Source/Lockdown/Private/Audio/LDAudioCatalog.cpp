@@ -15,7 +15,7 @@ namespace
         TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack"), nullptr, nullptr, TEXT("SelfShieldBreak"),
         TEXT("SelfDash"), TEXT("UIHover"), TEXT("UIPickup"), TEXT("UIInstall"), TEXT("UIReject"), TEXT("UIWorkshopOpen"),
         TEXT("UIWorkshopClose"), TEXT("UIOfferDeal"), TEXT("UIChoose"), TEXT("UIGain"), TEXT("UIAddPoint"), TEXT("UIHoldCharge"),
-        TEXT("UIFinalLock")
+        TEXT("UIFinalLock"), TEXT("SelfDealtImpact"), TEXT("SelfDealtAccent")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
 

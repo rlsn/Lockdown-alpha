@@ -82,6 +82,10 @@ public:
     {return LDOrderRules::PredictedMoveIdentity(Local,ClientActive,EarlyOrder,bLocalStop,RevokedOrder);}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
+    // Owning client: the newest own order is an accepted attack that stands in reach now, so the server swings as soon as
+    // the cadence allows: an attack-unit order within RangeCm of its presented target (the server's engaged receipt
+    // while the target is not presented), or an engaged attack-move. Presentation only (LDHitFeel::AdvanceSwing).
+    bool ReadBasicEngagement(const FVector& OwnFootCm, float RangeCm) const;
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);

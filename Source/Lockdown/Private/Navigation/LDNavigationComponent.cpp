@@ -370,6 +370,19 @@ void ULDNavigationComponent::RememberSentOrder(const FLDSpatialOrderRequest& Req
 void ULDNavigationComponent::ClearCastFollowUp()
 { CastFollowUp={}; }
 
+bool ULDNavigationComponent::ReadBasicEngagement(const FVector& OwnFootCm, float RangeCm) const
+{
+    if (ClientActive.Order==0 || ClientActive!=Local || bLocalStop || EarlyOrder.Order!=0) { return false; }
+    if (ActiveKind==ELDSpatialOrderKind::AttackMove) { return bActiveEngaged; }
+    if (ActiveKind!=ELDSpatialOrderKind::AttackUnit) { return false; }
+    const FAttackIntent* Attack=SentAttackTargets.FindByPredicate([this](const FAttackIntent& Sent) { return Sent.Identity==ClientActive; });
+    const auto* PC=Controller();
+    const auto* Relay=PC?PC->LocalView():nullptr;
+    FVector TargetCm;
+    if (!Attack || !Relay || !Relay->ReadPresentedLocation(Attack->Observed,Attack->ObservationEpoch,TargetCm)) { return bActiveEngaged; }
+    return FMath::IsFinite(RangeCm) && RangeCm>0.f && FVector::DistSquared2D(OwnFootCm,TargetCm)<=FMath::Square(double(RangeCm));
+}
+
 // Runs after the receipt updated the order state, so the follow-up attack is an ordinary newest own order.
 void ULDNavigationComponent::StepCastFollowUp(const FLDOrderReceipt& Receipt)
 {

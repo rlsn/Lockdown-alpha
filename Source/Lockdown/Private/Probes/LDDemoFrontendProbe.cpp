@@ -229,7 +229,7 @@ namespace
                 // Hidden pages leave the keyboard order; Tab from the panel itself lands on the first category tab.
                 const TArray<UWidget*> Targets = Panel->PanelFocusTargets();
                 bool bTabs = true;
-                for (const TCHAR* Tab : { TEXT("TabDisplay"), TEXT("TabAudio"), TEXT("TabControls"), TEXT("TabCamera"), TEXT("TabInterface") })
+                for (const TCHAR* Tab : { TEXT("TabDisplay"), TEXT("TabAudio"), TEXT("TabControls"), TEXT("TabCamera"), TEXT("TabInterface"), TEXT("TabEffects") })
                 { bTabs &= Targets.Contains(Panel->WidgetTree->FindWidget(Tab)); }
                 Check(bTabs && Targets.Contains(FindButton(Panel, TEXT("VSyncDraft"))) && !Targets.Contains(FindButton(Panel, TEXT("ToggleFPS")))
                     && !Targets.Contains(Panel->WidgetTree->FindWidget(TEXT("MasterVolume"))),

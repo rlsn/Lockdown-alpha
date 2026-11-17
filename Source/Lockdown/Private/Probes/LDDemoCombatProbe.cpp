@@ -1848,10 +1848,10 @@ public:
         {
             return Fail(TEXT("AttackMove"), TEXT("The Host's first life ended during the attack-move"));
         }
-        // The own body's reaction to the remote basic hit is captured from the frame the hit lands on.
+        // The own body's hit flash is captured from the frame the hit lands on; the body keeps its pose.
         if (!Shot && !bStruckSeen)
         {
-            BeginShot(TEXT("HostSees-OwnHit.png"), [this](FString& Facts) { return ShowsOwn(ELDObservedActionCue::Hit, 0.f, .25f, Facts); },
+            BeginShot(TEXT("HostSees-OwnHit.png"), [this](FString& Facts) { return ShowsOwnStruck(.25f, Facts); },
                 2.0 * LDDemoCombatScenario::CombatProbeKillSeconds);
         }
         if (!bStruckSeen && Own->Resources.HpP2 < Own->Resources.MaxHpP2)
@@ -1865,7 +1865,7 @@ public:
         if (bStruckSeen)
         {
             if (ShotPending()) { return true; }
-            if (!ShotSaved(TEXT("its own body reacting to a remote basic hit"))) { return Finish(); }
+            if (!ShotSaved(TEXT("its own body flashing under a remote basic hit"))) { return Finish(); }
             SetStage(EStage::Quiet);
             return true;
         }
@@ -2324,19 +2324,19 @@ public:
             const int64 HitAgeMs=Mode.GetAuthorityNowMs()-Own->Cues.LastHitAtMs;
             // A synchronous screenshot readback may span the entire cue window. Damage remains committed,
             // but the public cue must expire normally rather than being held alive for this probe.
-            const bool bHitCueCorrect=HitAgeMs>=0 && HitAgeMs<LDCombatCues::HitHoldMs
-                ? Struck.ActionCue==ELDObservedActionCue::Hit && Struck.ActionCueAtMs==Own->Cues.LastHitAtMs
-                : HitAgeMs>=LDCombatCues::HitHoldMs && Struck.ActionCue==ELDObservedActionCue::None && Struck.ActionCueAtMs==0;
-            const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld cue_ms=%lld hit_age_ms=%lld %s%s"),
+            const bool bHitCueCorrect=uint8(Struck.ActionCue)<=uint8(ELDObservedActionCue::Cast)
+                && (HitAgeMs>=0 && HitAgeMs<LDCombatCues::HitHoldMs ? Struck.LastHitAtMs==Own->Cues.LastHitAtMs
+                    : HitAgeMs>=LDCombatCues::HitHoldMs && Struck.LastHitAtMs==0);
+            const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld seen_hit_ms=%lld hit_age_ms=%lld %s%s"),
                 ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
-                Own->Cues.LastHitAtMs, Struck.ActionCueAtMs, HitAgeMs, *FlyingError, *StruckError);
+                Own->Cues.LastHitAtMs, Struck.LastHitAtMs, HitAgeMs, *FlyingError, *StruckError);
             Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
                 TEXT("Client1's snark bolt (active_snark_bolt) flies as a Chalk projectile fact from Client1 toward the Host"), Detail);
             Check(bRead && PoolP2 < PoolBeforeP2 && Slow && Slow->ExpiresAtMs>Mode.GetAuthorityNowMs()
                 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
                 TEXT("Skills"), TEXT("The snark bolt hits the Host, slows its movement and ends its flight"), Detail);
             Check(bCastCueSeen && bStruck && bHitCueCorrect,
-                TEXT("Skills"), TEXT("Public facts show Client1's Cast cue and the Host's exact landing Hit cue or its on-time expiry"), Detail);
+                TEXT("Skills"), TEXT("Public facts show Client1's Cast cue and the Host's exact landing hit (never a hit pose) or its on-time expiry"), Detail);
             if (!Passed) { return Finish(); }
             bBoltLanded = true;
             if (!Mark(TEXT("HostBoltLanded.json"))) { return Finish(); }
@@ -2388,6 +2388,22 @@ public:
 
     // The Host's own body shows Wanted between MinAge and MaxAge seconds into it (None: any moment), by the same cue rule
     // and clock its own body is drawn from; fills what it shows, with Client1 as the Host's frame shows it.
+    bool ShowsOwnStruck(float MaxAge, FString& Facts) const
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        int64 NowMs = 0;
+        if (!PC || !PC->ReadDemoAuthorityTimeMs(NowMs) || PC->CombatView.Generation != PC->OwnerState.Match
+            || PC->CombatView.Life != PC->OwnerState.Life)
+        {
+            return false;
+        }
+        const int64 HitAt = PC->CombatView.Cues.LastHitAtMs, AgeMs = NowMs - HitAt;
+        if (HitAt <= 0 || AgeMs < 0 || AgeMs > int64(1000.f * MaxAge)) { return false; }
+        const LDCombatCues::FCue Own = LDCombatCues::Select(PC->CombatView.Cues, NowMs);
+        Facts = FString::Printf(TEXT("own_cue=%d own_hit_age_ms=%lld"), int32(Own.Cue), AgeMs);
+        return true;
+    }
+
     bool ShowsOwn(ELDObservedActionCue Wanted, float MinAge, float MaxAge, FString& Facts) const
     {
         const ALDPlayerController* PC = Controller.Get();

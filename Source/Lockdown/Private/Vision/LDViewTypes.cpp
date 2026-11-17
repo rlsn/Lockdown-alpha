@@ -127,7 +127,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
-        << Unit.RecentHitAgePlusOneMs << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep;
+        << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -245,17 +245,14 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (!Unit.Handle.IsValid() || Unit.ObservationEpoch == 0 || Unit.StateRevision == 0)
     { return FailObservation(Error, TEXT("An observed unit requires an opaque handle, observation epoch and state revision.")); }
     if (!IsFiniteObservedPoint(Unit.FeetCm)) { return FailObservation(Error, TEXT("An observed unit position is outside the finite world range.")); }
-    if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
+    if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Cast)
         || uint8(Unit.HitLook) > uint8(ELDObservedHitLook::Electric)
         || (Unit.HitFlags & ~HitFlagsMask) != 0
         || ((Unit.HitFlags & ShieldBroken) != 0 && (Unit.HitFlags & ShieldAbsorbed) == 0)
         || Unit.RecentHitAgePlusOneMs > RecentHitWindowMs
+        || (Unit.RecentHitId.IsValid() != (Unit.RecentHitAgePlusOneMs != 0))
         || (Unit.RecentHitAgePlusOneMs == 0 && (Unit.HitLook != ELDObservedHitLook::None || Unit.HitFlags != 0))
-        || (Unit.ActionCue == ELDObservedActionCue::Hit
-            && (Unit.RecentHitAgePlusOneMs == 0 || Unit.ActionCueAgeMs + 1 != Unit.RecentHitAgePlusOneMs))
-        || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0))
-        || (Unit.ActionCue == ELDObservedActionCue::None && Unit.RecentHitAgePlusOneMs != 0)
-        || (Unit.ActionCue == ELDObservedActionCue::Hit && Unit.ActionCueImpactDelayMs != 0))
+        || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0)))
     { return FailObservation(Error, TEXT("Unknown observed action cue, or cue timing without a compatible cue.")); }
     if (Unit.ActionAbility != 0 && Unit.ActionCue != ELDObservedActionCue::Cast)
     { return FailObservation(Error, TEXT("An observed cast source needs a Cast cue and names an ability.")); }

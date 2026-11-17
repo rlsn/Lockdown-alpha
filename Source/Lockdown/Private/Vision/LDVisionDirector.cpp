@@ -1,4 +1,5 @@
 #include "Vision/LDVisionDirector.h"
+#include "Core/LDLog.h"
 #include "Components/PrimitiveComponent.h"
 #include "World/LDNativeGround.h"
 #include "PhysicsEngine/BodyInstance.h"
@@ -17,6 +18,24 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+
+THIRD_PARTY_INCLUDES_START
+#include <openssl/sha.h>
+THIRD_PARTY_INCLUDES_END
+
+FGuid LDObservation::ScopedHitId(const FGuid& Handle, const FGuid& HitId)
+{
+    if (!Handle.IsValid() || !HitId.IsValid()) { return FGuid(); }
+    const uint32 Input[] = {Handle.A, Handle.B, Handle.C, Handle.D, HitId.A, HitId.B, HitId.C, HitId.D};
+    uint8 Digest[SHA256_DIGEST_LENGTH];
+    if (!SHA256(reinterpret_cast<const uint8*>(Input), sizeof(Input), Digest)) { return FGuid(); }
+    FGuid Result;
+    FMemory::Memcpy(&Result.A, Digest, sizeof(uint32));
+    FMemory::Memcpy(&Result.B, Digest + 4, sizeof(uint32));
+    FMemory::Memcpy(&Result.C, Digest + 8, sizeof(uint32));
+    FMemory::Memcpy(&Result.D, Digest + 12, sizeof(uint32));
+    return Result;
+}
 
 namespace
 {
@@ -164,6 +183,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
         && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook && A.HitFlags == B.HitFlags
         && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
+        && A.RecentHitId == B.RecentHitId
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
         && A.MomentumBar == B.MomentumBar && A.bCharging == B.bCharging && A.ActionComboStep == B.ActionComboStep
@@ -667,6 +687,15 @@ bool FLDObserverLedger::Sample(const TArray<const FLDObservedTarget*>& Visible, 
         Unit.Handle = Binding->Handle;
         Unit.ObservationEpoch = Binding->Epoch;
         Unit.StateRevision = Binding->StateRevision;
+        if (Unit.RecentHitId.IsValid())
+        {
+            Unit.RecentHitId = LDObservation::ScopedHitId(Unit.Handle, Unit.RecentHitId);
+            if (!Unit.RecentHitId.IsValid())
+            {
+                Error = TEXT("Could not scope a visible hit identity to its observation interval.");
+                return false;
+            }
+        }
         Units.Add(MoveTemp(Unit));
     }
     // Output order is observer-local: a frame or concealment never lists units in canonical body order.
@@ -1187,10 +1216,11 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         Unit.ActionComboStep = Facts.ActionCue == ELDObservedActionCue::Attack ? Facts.ActionComboStep : 0;
         Unit.HitLook = Facts.HitLook;
         Unit.HitFlags = Facts.HitFlags;
+        Unit.RecentHitId = Facts.LastHitId;
         Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
             ? uint16(NowMs - Facts.LastHitAtMs + 1) : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
-        if (Facts.ActionCue != ELDObservedActionCue::None && Facts.ActionCue != ELDObservedActionCue::Hit)
+        if (Facts.ActionCue != ELDObservedActionCue::None)
         {
             if (Facts.ActionCueImpactAtMs < Facts.ActionCueAtMs || Facts.ActionCueImpactAtMs - Facts.ActionCueAtMs > MAX_uint16)
             {
@@ -1661,4 +1691,41 @@ bool ALDVisionDirector::FindObservedHandle(const ALDPlayerController& Caller, co
 {
     const FObserver* Observer = FindObserver(Caller);
     return bActive && Observer && Observer->Ledger.FindHandle(Body, OutHandle, OutEpoch);
+}
+
+void ALDVisionDirector::SendOwnHit(const FLDCombatBodyRef& Attacker, const FLDCombatBodyRef& Target, const FGuid& HitId,
+    int64 OccurredAtMs, ELDObservedHitLook HitLook, uint8 HitFlags)
+{
+    if (!bActive || Attacker.Victim.Kind != ELDVictimKind::Contender || !HitId.IsValid() || OccurredAtMs <= 0) { return; }
+    FObserver* Observer = Observers.FindByPredicate([&Attacker](const FObserver& Candidate)
+        { return Candidate.ContenderId == Attacker.Victim.EntityId; });
+    ALDPlayerController* Controller = Observer ? Observer->Controller.Get() : nullptr;
+    ALDWorldViewRelay* Relay = Observer ? Observer->Relay.Get() : nullptr;
+    if (!Observer || !Controller || !Relay || Observer->Ledger.Phase() != ELDLifePhase::Alive
+        || Observer->Ledger.ObserverLife() != Attacker.Victim.Life) { return; }
+    FGuid Handle;
+    uint32 Epoch = 0;
+    if (!FindObservedHandle(*Controller, Target, Handle, Epoch)) { return; }
+    FLDAuthorityTargetSample Resolved;
+    FString Diagnostic;
+    const ELDObservedResolve Outcome = ResolvePresentedUnit(*Controller, Handle, Epoch, Resolved, &Diagnostic);
+    if (Outcome == ELDObservedResolve::AuthorityFault)
+    { UE_LOG(LogLDWorld, Error, TEXT("LD_HIT_RECEIPT_AUTHORITY_FAULT %s"), *Diagnostic); }
+    if (Outcome != ELDObservedResolve::Resolved || !(Resolved.Target == Target)) { return; }
+    FLDObservedHitReceipt Receipt;
+    Receipt.MatchGeneration = Observer->Ledger.MatchGeneration();
+    Receipt.ObserverLife = Observer->Ledger.ObserverLife();
+    Receipt.Generation = Observer->Ledger.Generation();
+    Receipt.Handle = Handle;
+    Receipt.ObservationEpoch = Epoch;
+    Receipt.HitId = LDObservation::ScopedHitId(Handle, HitId);
+    if (!Receipt.HitId.IsValid())
+    {
+        UE_LOG(LogLDWorld, Error, TEXT("LD_HIT_RECEIPT_ID scope=failed"));
+        return;
+    }
+    Receipt.OccurredAtMs = OccurredAtMs;
+    Receipt.HitLook = HitLook;
+    Receipt.HitFlags = HitFlags;
+    Relay->ClientPresentedHit(Receipt);
 }

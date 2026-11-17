@@ -476,8 +476,14 @@ struct FLDCombatCueFacts
     UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life
     UPROPERTY() int64 DashUntilMs=0;
     UPROPERTY() int64 LastHitAtMs=0;                 // 0 = not hit in this life
+    UPROPERTY() FGuid LastHitId;                      // identity of the last resolved hit in this life
     UPROPERTY() uint8 LastHitLook=0;                  // ELDObservedHitLook; recent server-resolved hit presentation only
     UPROPERTY() uint8 LastHitFlags=0;                 // LDObservation::EHitFlags for this hit
+    // The owner's hit receipt: the last blow this life landed (LDCombatCues::ConfirmsDealt). Owner-only; it never names
+    // or locates the target.
+    UPROPERTY() int64 LastDealtAtMs=0;               // 0 = nothing landed in this life
+    UPROPERTY() uint8 LastDealtLook=0;               // ELDObservedHitLook
+    UPROPERTY() uint8 LastDealtFlags=0;              // LDObservation::EHitFlags
 };
 
 USTRUCT()

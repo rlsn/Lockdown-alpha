@@ -67,12 +67,16 @@
 - 参赛者的 `Presentation` 是锁定名册座位 0..5（由 Combat 写入身体，跨命不变），codec 拒绝 6 及以上；
   六个座位色由 `ULDHumanoidVisualComponent::ContenderTint` 唯一定义，身体、头像和小地图共用。
   营地 NPC 不用座位色：低档已读不回的 HR 带袖章和夹板，高档追着办卡的私教带帽子和哨子（`ApplyMonsterLook`）。
-- 动作提示 `ActionCue` 为 `Attack/Cast/Hit`：Combat 在核心 `ReadObservedPublicFacts` 里给出当前提示、开始及释放的权威时刻；
+- 动作提示 `ActionCue` 为 `Attack/Cast`（线缆值 1、2；3 已停用，被打从来不是姿势）：Combat 在核心 `ReadObservedPublicFacts` 里给出当前提示、开始及释放的权威时刻；
   线缆只带提示、`ActionCueAgeMs` 与 `ActionCueImpactDelayMs`。后者对 Attack/Cast 是从提示开始到服务器释放的毫秒数，
-  对 Hit/None 为 0；超出 `uint16` 或提示开始晚于当前时刻时发布失败关闭（`LD_OBSERVATION_ACTION_CUE_INVALID`）。
+  对 None 为 0；超出 `uint16` 或提示开始晚于当前时刻时发布失败关闭（`LD_OBSERVATION_ACTION_CUE_INVALID`）。
   代理与本人身体经 `ALDCharacter::PresentationCue` 得到同一个 cue 字节：低 4 位是动作姿势，
   定身、回位、护盾、复活保护各有独立形状（脚下圆环并锁腿、背后标牌、头顶光环、竖直光柱），不只靠颜色区分。
-- 受击提示可带 `HitLook`（魔法、火、水、电或普通）及最近命中的年龄：只由服务器已提交的命中 payload 分类，不公开命中来源/目标；本人及当前可见代理在授权提示期间使用相应闪光和胸前火花颜色。
+- 最近命中独立于动作提示：任何提示（含 None）都可带 `HitLook`（魔法、火、水、电或普通）、最近命中的年龄和本可见区间专属的命中标识，
+  只由服务器已提交的命中 payload 分类，不公开命中来源/目标；本人及当前可见代理在授权提示期间使用相应闪光和胸前火花颜色。
+  本人直接命中后，服务器先重新检查当前呈现授权，再只向攻击者的拥有连接发送可见句柄、epoch 和区间专属命中标识；
+  客户端仅在当前帧和已放置代理仍匹配同一 match/life/generation/句柄/epoch、且事件未过期时即时闪光。
+  稍后观察帧与即时事件按命中标识去重，失视、超时或代理销毁后不能播放；命中标识按可见句柄派生，不能用于跨观察区间关联。
 - `Cast` 提示可带该次施法的技能原生 id（`ActionAbility`；其他提示与 D 冲刺的 `Cast` 提示为 0），
   由 Combat 在同一公开事实里给出；接收端只接受批准内容中的 id。这是已批准的 CB-P10/SC-07 例外：
   只用于在施法那一刻于可见施法者旁显示技能名（`ULDWorldFeedback`），不进目标卡，不保留技能列表，不含等级或冷却。
@@ -119,10 +123,41 @@
   静态 Sight 或本人模型遮挡之前的最近表面才可选，模型包围盒仅作宽相拒绝，不能当作模型命中；本人模型是第一遮挡面时不做宽容回退。没有表面命中时，
   才按 `LDModelPicking::NearVolume` 取射线在 12 px 角容差内最接近的竖直拾取体（脚底到头顶、根环足迹半径），
   同样不越过静态 Sight 或本人模型遮挡；遮挡距离在角容差判断前生效。隐藏或倒地的模型没有拾取体。
-- 受击闪光、按公开 `HitLook` 着色的胸口火花与轻微后仰独立于攻击/施法动作。本人用合法 owner cue 的 `LastHitAtMs`；
+- 被命中的身体没有受击动作：不后仰、不后退、不停顿、不打断攻击/施法，只叠加闪光与按公开 `HitLook` 着色的胸口火花
+  （`LDBodyMotion::HitOverlay`）。本人用合法 owner cue 的 `LastHitAtMs`；
   可见代理使用授权快照里的命中年龄，在呈现时钟到达样本时触发，不依赖血量下降，也不推断施害者。
   权威命中结果标记暴击、护盾吸收和破盾：暴击放大火花，护盾吸收显示青色火花，破盾的护盾条向外散开。
-  受击时仍在攻击/施法的模型有 45 ms 局部姿势停顿，随后追上原动作时间；不暂停输入、位移或服务器判定。
+  每次新看到的命中还在胸口产生本机 Niagara 粒子（`LDImpactFx`）：沿速度方向伸长的火星、柔边烟尘、核心闪光，
+  护盾吸收时加青色碎片（破盾更多）；暴击更多更快，颜色按护盾青、暴击金、`HitLook` 或暖色。
+  `DA_CombatVfx` 指向可编辑的 `NS_LDImpact`、`NS_LDSwingTrail`、`NS_LDCastCharge` 与挥击/施法颜色；美术可替换系统、材质和发射器，
+  运行时通过用户参数传入本机调参。命中效果限制同时存活数并使用 Niagara 池；隐藏、倒地或代理销毁时立即清除对应效果，
+  降低特效时减少粒子数量和尺寸。
+- 普攻动作窗口内，`ULDHumanoidVisualComponent` 跟随美术目录指定的手骨驱动 Niagara 挥击轨迹，轨迹可从身体中心按比例延展；手部静止时停止新粒子，
+  动作结束后保留短暂余韵，身体隐藏、倒地或注销时立即清除。轨迹宽度、持续时间和亮度可实时调节，
+  延展比例也可实时调节，本地预测撤回时不会延长权威动作。
+- 施法前摇在同一手骨显示通用 Niagara 聚能核心、光环与火星，跟随手骨位置和旋转但不继承骨骼缩放，强度随既有动作时间线增长和消退，不代表具体技能的专属特效；
+  大小、亮度与火星密度可实时调节，降低特效时缩小并削弱。身体隐藏、倒地或注销时立即清除。
+- 打击确认只给攻击者本人（`LDHitFeel`）：服务器在一次直接命中造成正伤害时（`LDCombatCues::ConfirmsDealt`，排除周期、灼烧跳、
+  状态结算、反伤、债务与兑现）把命中时刻、外观与标记写进攻击者自己的 `Cues.LastDealt*` 并刷新本人视图；
+  这一击把目标生命打到 0 时另带 `LDCombatCues::DealtLethal`（在 `HitFlagsMask` 之外，只进本人回执）。
+  本人身体在回执首次出现且距当前不足 `LDHitFeel::FreshMs`=500 ms 时确认一次（`TakeFreshReceipt`，较旧回执不会降低水位；时间超前时等时钟追上，已过时的回执只记下不播放）：
+  出手姿势停顿 `HitStopPoseAge`（停住后以 1.5 倍速追回，不延长动作），出手的手部火花放大（`ConfirmSpark`），
+  镜头沿朝向轻顿（`KickOffset`，受界面“镜头震动”开关控制，降低特效时为 0.45 倍），身前弹出拟声字（同时只留一个，
+  `ULDWorldFeedback` 的 `DealtConfirm`）。档位由重到轻（`TierOf`）：击杀“终结！”停顿最长、镜头乘击杀倍数；暴击“暴击！”镜头 1.5 倍；
+  破盾“破盾！”镜头 1.25 倍；其余普通“啪！”，护盾吸收为“铛！”。暴击与击杀用较大的手部火花。
+  全部数值是本机控制台变量 `ld.Feel.*`（`LDHitFeel::Fields` 列出名称、分组、初值、步长与上限），在 DEV 测试面板的
+  “打击感与特效”区与设置页“特效”页实时步进；只在本次运行有效、不写盘，默认值只是试玩起点，未经批准。
+  全部只改本机画面与音量，不暂停输入、位移、权威时间或服务器判定，也不公开目标。
+- 本人普攻出手预测（`LDHitFeel::AdvanceSwing`，开关 `ld.Feel.PredictSwing`）：本人最新的已接受攻击指令站在攻击范围内
+  （`ULDNavigationComponent::ReadBasicEngagement`：攻击单位指令按呈现中的目标位置与本人视图的 `AttackRangeCm` 判断，
+  目标未呈现时用服务器的 engaged 回执；攻击移动用 engaged 回执；有待答复、排队、早走或停止的新指令时不算），
+  且普攻节奏已到（`NextAttackAtMs`）、没有其他动作或冲刺、没有禁普攻状态时，本人身体立即开始出手，
+  不等一个往返。预测姿势停在 `SwingHoldFraction`=0.75 倍前摇（出手闪光之前），直到权威在该节奏点或之后开始一次普攻即确认，
+  改用权威动作；超过 往返延迟 + `ld.Feel.PredictGraceMs` 仍未开始、或出现施法/冲刺/禁普攻/脱离范围/失去当前视图，
+  就撤回并在 `LDBodyMotion::RetractSeconds`=0.1 s 内倒放回静止（`ULDHumanoidVisualComponent::Retract`），
+  同一节奏点在仍在范围内时不再预测，脱离后重新进入可再次预测。前摇时长取权威最近一次普攻，之前用内容的
+  `BasicAttackWindupMs`。预测只改本人姿势，不发送、不延迟任何请求，也不触发确认、粒子或拟声字；
+  每次开始、确认、撤回写 `LD_SWING_PREDICT step=… key=… started=… now=… grace=…`。技能施法不预测。
 - 代理与飞行物由 relay 用同一个呈现时钟摆姿（`LDObservedPresentation`）：呈现时刻是权威时间轴上的
   “本机时间 − 跟踪的时钟偏移 − 呈现延迟”，偏移由每帧的到达时间与 `SampledAtServerSec` 得出：
   更早的到达立即下调偏移，迟到只能缓慢上调，跳变超过 0.5 s 视为换了时钟并重新起算。
@@ -544,7 +579,8 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | 音频 | 主音量（滑条 + 百分比）；音乐音量（滑条 + 百分比，默认 60%） | 立即应用，延迟保存；主音量松手后试听一次，音乐音量直接听正在播放的音乐 |
 | 操作 | 快速施法（开关）；施法后自动攻击（开关，默认开启）；按键表每个动作一行，右侧按键框 | 立即应用并保存 |
 | 镜头 | 镜头距离（当前值 + “采用推荐镜头”）、边缘平移、开局镜头跟随（开关）、镜头平移速度（‹ cm/s ›，每次 300） | 立即应用并保存 |
-| 界面 | 战斗特效（标准/降低）、自身受击镜头震动（开关，默认开启）、文字大小（100% / 125%）、小地图朝向（三选一）、网络诊断、FPS 显示（开关） | 立即应用并保存；降低特效只减弱临时冲击闪光、命中火花和施法光效，不影响角色动作、状态标记或战斗结果 |
+| 界面 | 战斗特效（标准/降低）、镜头震动（本人命中时镜头轻顿，开关，默认开启）、文字大小（100% / 125%）、小地图朝向（三选一）、网络诊断、FPS 显示（开关） | 立即应用并保存；降低特效只减弱临时冲击闪光、命中火花、命中粒子和施法光效，不影响角色动作、状态标记或战斗结果 |
+| 特效 | 按 `LDHitFeel::Fields` 分组（命中停顿、镜头、出手闪光、命中粒子、拟声字、出手预测、挥击轨迹、施法聚能、攻击音效），每项一个 ‹ 值 › 步进器，范围 0 到该项上限 | 下一次相应表现生效，持续中的挥击和施法可实时调整；只在本次运行有效、不保存；底部“恢复本页默认”经确认把全部特效值恢复试玩初值 |
 
 - 每行左侧是名称与一行说明，右侧控件从同一竖线开始；当前值始终显示在控件上，开关同时写“开/关”，
   选中项用琥珀底与加粗描边，不只靠颜色。到头的 ‹ › 置灰，不循环。
@@ -578,8 +614,8 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 目录解析失败后，首次请求播放还会记录一次 Warning 级 `LD_AUDIO_CUE_UNAVAILABLE`。
 所有音效都以非空间化 2D UI 声音（`PlaySound2D`）播放，不带世界位置，不能借声音暴露隐藏坐标。
 
-`ULDHUD` 每次采样读模型时（拥有者的 PlayerController 每秒至多采样 `LDHUD::ReadModelHz` = 30 次，帧率更低时每帧一次；读模型本身不一定重建）把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
-跟踪器没有观察单位、Actor 或他人私有状态输入；新代次的首个样本只建立基线，不补放之前的变化。
+除本人命中确认外，`ULDHUD` 每次采样读模型时（拥有者的 PlayerController 每秒至多采样 `LDHUD::ReadModelHz` = 30 次，帧率更低时每帧一次；读模型本身不一定重建）把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
+跟踪器没有观察单位、Actor 或他人私有状态输入；新代次的首个样本只建立基线，不补放之前的变化。本人命中确认由本人的角色 Tick 在回执被接受的同一帧播放。
 
 | 音效 | 唯一来源 | 只响一次的规则 |
 | --- | --- | --- |
@@ -589,6 +625,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中生命下降且上限未降；致死一击交给本人死亡音效 | 0.2 秒内最多一次 |
 | 本人护盾吸收 / 破裂（`SelfShieldHit` / `SelfShieldBreak`） | 同 Match/Life 的 `CombatView` 新命中含服务器结算的护盾吸收或破裂标记；同时损失生命时优先播放护盾音，护盾自然到期不响 | 每次命中至多一次；破裂与普通受击分别限频 0.2 秒，不被紧邻的普通受击吞掉 |
 | 本人普攻出手（`SelfAttack`，不是命中确认） | 同 Match/Life 的 `CombatView` 新 Revision 中 `Cues.ReleasedAtMs` 晚于上次所见且 `bReleasedBasic`（近战出手或飞行物发射的时刻，Nav 与 Direct 来源相同）；技能的释放交给下一行的回执 | 每次出手一次；新 Life 的首个投影只建立基线，死亡、旧生命与重放不响 |
+| 本人命中确认（`SelfDealtImpact`、`SelfDealtAccent`） | 本人角色 Tick 中通过新鲜度校验的同 Match/Life 命中回执，和攻击方停顿、镜头反馈同帧 | 每个新鲜回执播放重击与瞬态两层；不从目标血量推断 |
 | 本人技能或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/E/D，Finished/Released 且无拒绝；冲刺使用独立的 `SelfDash` 音效 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧相同音效合成一次）；别局或别条命的回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
@@ -607,7 +644,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | 曲目 | 何时播放 | 播放方式 |
 | --- | --- | --- |
 | `Menu` | 主菜单，以及房间的 Lobby、Starting、Countdown、Resetting | 循环；主菜单与大厅共用，进出大厅不重启 |
-| `Farm` | 发育期（Development） | 从 T=0 起只播一次。曲长约 181 s，对齐 `MATCH.DevelopmentSec` 的 180 s 旗杆开放；中途开始时从 T=0 起已过的秒数接着播，超过曲长则不播 |
+| `Farm` | 野外段（Development） | 每个野外段从头只播一次。曲长约 181 s，不短于 `MATCH.FieldSegmentSec`，段结束进入休息时淡出；中途开始时从本段开始已过的秒数接着播，超过曲长则不播 |
 | `Escalation` | 旗杆开放（CaptureOpen）到本局结束 | 从头循环 |
 | 无 | Results、Closing、Faulted | 淡出，让胜负短曲单独响；回到 Lobby 时 `Menu` 重新开始 |
 
@@ -629,16 +666,18 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 音效素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
 逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`（schema 2，音乐见上节）；
 一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如护盾吸收复用受击的 `impactGeneric_light_000.ogg`；
-本人普攻出手使用独立的 `SW_SelfAttack`，只表示释放，不作为命中确认。
+本人普攻出手使用 `SW_SelfAttack`，只表示释放，不作为命中确认；目前复用界面卷帘音作为挥击试听素材。
+`SW_SelfDealtImpact` 和 `SW_SelfDealtAccent` 分别复用重击与轻击素材，在本人命中确认时叠加。
+挥击和命中音量通过 `ld.Feel.SwingVolume`、`ld.Feel.ConfirmVolume` 在 DEV 面板和设置页实时调节，主音量仍生效。
 释放事实只保留最后一次动作；同一采样间隔内被后续技能释放覆盖的普攻不能补放，不从其他单位血量推断。
 `ELDAudioCue` 的编号是稳定的技术身份：删除的音效只留下编号空位，不复用、不重排其他音效；
-编号 10、11、18、19 空缺；清单与目录按其余音效的枚举顺序排列。护盾破裂复用普攻音源并以 1.35 倍音调播放，与护盾吸收音区分。
+编号 10、11、18、19 空缺；清单与目录按其余音效的枚举顺序排列。护盾破裂复用重击音源并以 1.35 倍音调播放，与护盾吸收音区分。
 kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
 BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中位数，提升以样本峰值 0.95 为上限，
 结果连同 `loudness_lufs` 写入清单的 `volume`，导入时应用，源文件字节不变。
-复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（护盾吸收为 -6 dB，音量约为受击的一半）；不复用文件的条目也可带它，本人普攻 `impactPunch_medium_000.ogg` 为 -6 dB，连续普攻不刺耳；被复用的文件只计一次中位数。
+复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（护盾吸收为 -6 dB，音量约为受击的一半）；不复用文件的条目也可带它；被复用的文件只计一次中位数。
 该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
 很短的本人反馈音（受击、施法、点击、交易）受峰值上限约束，按同一测量仍比中位数低约 5–9 LU。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；
@@ -697,7 +736,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   `HUDBuildGate` 另覆盖 `GrowthPending`：只有显示中的候选、有空槽的图纸、开局自选与精英二选一点亮构筑按钮，排队机会数只用于脉动，未分配点数与别局投影不点亮。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCueBasicAttack`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
   首样本基线与去重、别局/别命/迟到回执不响、目录完整性（含音乐类的父子关系与每首的循环标志），以及实际 `DA_DemoAudio` 资产可解析、
-  `Farm` 曲长不短于且不超过发育期 2 s；`AudioMusicSelection` 覆盖各阶段到曲目的映射、未决定的情形与 `Farm` 的起点；
+  `Farm` 曲长不短于一个野外段；`AudioMusicSelection` 覆盖各阶段到曲目的映射、未决定的情形与 `Farm` 的起点；
   `LocalSettingsMusicVolume` 覆盖音乐音量的默认 60%、保存回读、拒绝与 schema 19 迁移。
   它们不证明实际听感、换曲淡出或打包后的设备输出。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。

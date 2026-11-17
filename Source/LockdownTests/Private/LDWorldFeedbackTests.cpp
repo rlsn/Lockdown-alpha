@@ -1,4 +1,5 @@
 #include "UI/LDWorldFeedback.h"
+#include "Character/LDHitFeel.h"
 #include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentIds.h"
@@ -180,6 +181,19 @@ bool FLDWorldFeedbackOwnDamageAndHealTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A late view of the previous life is ignored"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Sample.OwnCombat=&Combat;Combat.Revision=3;Combat.AsOfMs=9300;Combat.HPP2=58000;
     TestTrue(TEXT("...and never became the baseline"),WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::DamageTaken,10}}));
+
+    // The confirmation word takes the receipt on the clock the body's confirmation layer uses.
+    Combat.Cues.LastDealtAtMs=1200;Sample.NowMs=1100;
+    TestTrue(TEXT("A receipt ahead of the clock waits"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    Sample.NowMs=1250;
+    const FWorldFeedbackTestEvents Word=WorldFeedbackTestObserve(Tracker,Sample);
+    TestTrue(TEXT("...and shows once the clock reaches it, though the revision is unchanged"),
+        WorldFeedbackTestIs(Word,{{EKind::DealtConfirm,1}}));
+    TestTrue(TEXT("A taken receipt shows once"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    Combat.Cues.LastDealtAtMs=1300;Sample.NowMs=1300+LDHitFeel::FreshMs;
+    TestTrue(TEXT("A stale receipt is skipped"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    Combat.Cues.LastDealtAtMs=1250;Sample.NowMs=1400;
+    TestTrue(TEXT("An older receipt never shows"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     return true;
 }
 

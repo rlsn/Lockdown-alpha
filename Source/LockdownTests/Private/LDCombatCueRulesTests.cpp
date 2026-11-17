@@ -15,7 +15,7 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     const auto Is=[](const LDCombatCues::FCue& Cue, ELDObservedActionCue Expected, int64 AtMs)
     { return Cue.Cue==Expected && Cue.AtMs==AtMs; };
     const ELDObservedActionCue None=ELDObservedActionCue::None, Attack=ELDObservedActionCue::Attack,
-        Cast=ELDObservedActionCue::Cast, Hit=ELDObservedActionCue::Hit;
+        Cast=ELDObservedActionCue::Cast;
 
     TestTrue(TEXT("A body without action or hit shows no cue"), Is(Select(FLDCombatCueFacts(),5000),None,0));
 
@@ -50,17 +50,15 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     FLDCombatCueFacts Struck;
     Struck.LastHitAtMs=4000;
     Struck.LastHitLook=uint8(ELDObservedHitLook::Fire);
-    TestTrue(TEXT("A landed hit shows Hit for its hold"),
-        Is(Select(Struck,4000),Hit,4000) && Is(Select(Struck,4299),Hit,4000) && Is(Select(Struck,4300),None,0)
-        && Select(Struck,4100).HitLook==ELDObservedHitLook::Fire);
+    TestTrue(TEXT("A landed hit is never an action cue: the struck body keeps its own pose"),
+        Is(Select(Struck,4000),None,0) && Is(Select(Struck,4100),None,0));
 
     FLDCombatCueFacts Busy=Struck;
     Busy.bActing=Busy.bActingBasic=true;
     Busy.ActingStartedAtMs=4100;
-    TestTrue(TEXT("Hit outranks Attack, so a swinging body still shows the hit it takes"),
-        Is(Select(Busy,4150),Hit,4000) && Is(Select(Busy,4300),Attack,4100));
+    TestTrue(TEXT("A swinging body that is hit keeps showing its swing"), Is(Select(Busy,4150),Attack,4100));
     Busy.ReleasedStartedAtMs=Busy.ReleasedAtMs=4120;
-    TestTrue(TEXT("Cast outranks Hit and Attack"), Is(Select(Busy,4150),Cast,4120));
+    TestTrue(TEXT("Cast outranks Attack"), Is(Select(Busy,4150),Cast,4120));
     FLDCombatCueFacts Again=Released;
     Again.bActing=Again.bActingBasic=true;
     Again.ActingStartedAtMs=1300;
@@ -89,8 +87,16 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Cast pose with root and shield markers"),
         ALDCharacter::PresentationCue(Cast,{{Root,1,0},{Shield,1,5000}}), uint8(2|16|64));
     TestEqual(TEXT("Attack pose"), ALDCharacter::PresentationCue(Attack,{}), uint8(1));
-    TestEqual(TEXT("Hit pose with protection and returning markers"),
-        ALDCharacter::PresentationCue(Hit,{{Protected,1,9000},{Returning,1,0}}), uint8(4|128|32));
+    TestEqual(TEXT("Attack pose with protection and returning markers"),
+        ALDCharacter::PresentationCue(Attack,{{Protected,1,9000},{Returning,1,0}}), uint8(1|128|32));
+
+    FLDCombatHit Direct;
+    TestTrue(TEXT("A direct hit with damage confirms to its attacker"), LDCombatCues::ConfirmsDealt(Direct,100));
+    TestFalse(TEXT("A hit without damage confirms nothing"), LDCombatCues::ConfirmsDealt(Direct,0));
+    const auto Indirect=[](bool FLDCombatHit::*Flag){FLDCombatHit Hit;Hit.*Flag=true;return LDCombatCues::ConfirmsDealt(Hit,100);};
+    TestFalse(TEXT("Periodic, burn, settle, reflect, debt and cash-out damage never confirm a hit"),
+        Indirect(&FLDCombatHit::bPeriodic) || Indirect(&FLDCombatHit::bBurnTick) || Indirect(&FLDCombatHit::bStatusSettle)
+        || Indirect(&FLDCombatHit::bReflect) || Indirect(&FLDCombatHit::bDebtPayment) || Indirect(&FLDCombatHit::bLedgerCashOut));
 
     FLDCombatHit Elemental;
     Elemental.DamageType=ELDDemoDamageType::Magical;
