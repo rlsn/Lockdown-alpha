@@ -257,7 +257,7 @@
       "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_reach_out.png in this set (hue +330 deg, white inward-arrow-to-bar glyph bottom-right); no image generation, no third-party art."
     },
     {
-      "id": "icon_component_control_mana",
+      "id": "icon_component_control_momentum",
       "sha256": "82e0e4224b8bcd60a12ffdc4f867c5100e1a42993daf64c1debce2ce454b6d64",
       "width": 64,
       "height": 64
@@ -335,7 +335,7 @@
       "sha256": "c6b8441e7640397ebcd7fde62900132271690c2d1382b8f491d5d903baa05a7a",
       "width": 64,
       "height": 64,
-      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_control_mana.png in this set (hue +300 deg, white three-ring group glyph bottom-right); no image generation, no third-party art."
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_control_momentum.png in this set (hue +300 deg, white three-ring group glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_component_guard_up",

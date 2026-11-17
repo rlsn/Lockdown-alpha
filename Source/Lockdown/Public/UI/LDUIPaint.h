@@ -85,7 +85,7 @@ namespace LDUIPaint
         float Fade=1.f;
     };
     LOCKDOWN_API void Button(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,EButton Look,const FButtonState& State);
-    // A dark round-ended chip (the mana and cooldown pills).
+    // A dark round-ended chip (the momentum cost and cooldown pills).
     LOCKDOWN_API void Pill(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Border=FLinearColor(1,1,1,.075f),
         const FLinearColor& Fill=FLinearColor(0,0,0,.42f));
     // A component tile: the kind's shape (base rounded square, mod octagon, link circle) with its gradient frame, the icon

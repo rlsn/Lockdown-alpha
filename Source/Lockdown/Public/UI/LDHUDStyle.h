@@ -2,7 +2,7 @@
 #include "CoreMinimal.h"
 
 // Shared in-match presentation tokens, so the HUD band, overhead bars, world feedback and minimap keep one visual
-// language: the own body reads green, other contenders red, camp members amber, mana blue and the shield the bright cyan of
+// language: the own body reads green, other contenders red, camp members amber, momentum hot orange and the shield the bright cyan of
 // the body's shield marker.
 // Local presentation only; no gameplay value or rule lives here. Sizes are Slate units at the 1080p reference.
 namespace LDHUDStyle
@@ -28,7 +28,9 @@ namespace LDHUDStyle
     // A contender who cannot be attacked right now (anyone in a rest outside the PK, a PK teammate): never the hostile red.
     inline const FLinearColor PeacefulHealth(.16f,.42f,.78f);
     inline const FLinearColor CampHealth(.85f,.32f,.03f);
-    inline const FLinearColor Mana(.05f,.22f,.85f);
+    // Momentum: a hot orange bar; a full bar glows overdrive gold (the bar, slot rings, target bars and charge halos).
+    inline const FLinearColor Momentum(.95f,.30f,.02f);
+    inline const FLinearColor Overdrive(1.f,.80f,.10f);
     inline const FLinearColor Shield(0.f,.78f,1.f);
     inline const FLinearColor Experience(.70f,.45f,.05f);
     inline const FLinearColor BarTrack(.04f,.05f,.07f,.85f);
@@ -45,7 +47,10 @@ namespace LDHUDStyle
     inline const FLinearColor SlotReady(.06f,.22f,.24f,.98f);
     inline const FLinearColor SlotArmed(.36f,.27f,.06f,.98f);
     inline const FLinearColor SlotBlocked(.05f,.06f,.08f,.96f);
-    inline const FLinearColor SlotNoMana(.08f,.13f,.34f,.98f);
+    inline const FLinearColor SlotMomentumShort(.20f,.09f,.03f,.98f);
+    // Combo pips of the basic slot: lit steps, the third in gold.
+    inline const FLinearColor ComboPip(.95f,.92f,.85f);
+    inline const FLinearColor ComboPipDim(.20f,.22f,.26f,.9f);
     inline const FLinearColor SlotControlled(.28f,.10f,.32f,.98f);
     inline const FLinearColor SlotCooldownMask(0.f,0.f,0.f,.62f);
     inline const FLinearColor SlotReadyFlash(1.f,.92f,.55f);

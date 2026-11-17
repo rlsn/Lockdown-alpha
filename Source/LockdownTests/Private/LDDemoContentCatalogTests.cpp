@@ -306,7 +306,7 @@ bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, 
     const auto& Abilities = Root->AsObject()->GetArrayField(TEXT("abilities"));
     for (int32 I = 0; I < Abilities.Num(); ++I)
     {
-        for (const TCHAR* Field : {TEXT("mana_cost"), TEXT("cooldown"), TEXT("effects")})
+        for (const TCHAR* Field : {TEXT("momentum_cost"), TEXT("cooldown"), TEXT("effects")})
         {
             QuantityPaths(Abilities[I]->AsObject()->TryGetField(Field), FString::Printf(TEXT("content.abilities[%d].%s"), I, Field), Out);
         }
@@ -449,10 +449,10 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
             }
             const FUTF8ToTCHAR Decoded(reinterpret_cast<const ANSICHAR*>(Bundle.Content.GetData()), Bundle.Content.Num());
             const FString Canonical(Decoded.Length(), Decoded.Get());
-            const int32 MP = Canonical.Find(TEXT("\"STAT.MPRegen.Base\""), ESearchCase::CaseSensitive);
-            const int32 Magic = Canonical.Find(TEXT("\"STAT.MagicResist.Base\""), ESearchCase::CaseSensitive);
-            TestTrue(TEXT("Compiler case-sensitive MPRegen-before-MagicResist key order survives native canonical validation"),
-                MP >= 0 && Magic > MP);
+            const int32 Upper = Canonical.Find(TEXT("\"REST.PKMaxSec\""), ESearchCase::CaseSensitive);
+            const int32 Lower = Canonical.Find(TEXT("\"REST.PayoutSec\""), ESearchCase::CaseSensitive);
+            TestTrue(TEXT("Compiler case-sensitive PKMaxSec-before-PayoutSec key order survives native canonical validation"),
+                Upper >= 0 && Lower > Upper);
         }
         for (const FString& Path : Case.ChangedPaths)
         {
@@ -1220,7 +1220,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
         {TEXT("stat_physique"), ELDDemoStatId::StatPhysique, {S::MaxHPFlat, S::HPRegenFlat}},
         {TEXT("stat_thick_skin"), ELDDemoStatId::StatThickSkin, {S::ArmorFlat, S::MagicResistFlat}},
         {TEXT("stat_strength"), ELDDemoStatId::StatStrength, {S::ADFlat, S::CritChanceBonusRatio}},
-        {TEXT("stat_brains"), ELDDemoStatId::StatBrains, {S::APFlat, S::CooldownHasteFlat, S::MPRegenFlat}},
+        {TEXT("stat_brains"), ELDDemoStatId::StatBrains, {S::APFlat, S::CooldownHasteFlat, S::MomentumRegenFlat}},
         {TEXT("stat_agility"), ELDDemoStatId::StatAgility, {S::AttackSpeedBonusRatio, S::MoveSpeedBonusRatio}}};
     TestEqual(TEXT("Exactly five point-bought stats"), Definitions.Stats.Num(), 5);
     // Per-stat arrays (points, AllocatePoints counts, owner rows, UI rows, AI ties) follow the approved design order 体格,
@@ -1260,8 +1260,10 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
         P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 400 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
-    TestTrue(TEXT("Skill growth steps are 0.15 through level 10 and 0.075 after"),
-        P.SkillGrowthPerLevelBp == 1500 && P.SkillGrowthPerLevelAfter10Bp == 750);
+    TestTrue(TEXT("Skill growth is G(L) = 1 + 0.04 (L - 1) and the ranks scale 1/1.5/2 and 1/1.25/1.5"),
+        P.SkillGrowthPerLevelBp == 400 && P.SkillRanks.RankBaseScaleBp == TArray<int64>({10000, 15000, 20000})
+        && P.SkillRanks.RankRatioScaleBp == TArray<int64>({10000, 12500, 15000})
+        && P.SkillRanks.PointLevels == TArray<int64>({4, 8, 12}) && P.SkillRanks.CooldownFloorMs == 300);
 
     const FLDDemoAbilityDefinition* Elbow = nullptr;
     if (!TestTrue(TEXT("active_elbow resolves: ") + Error, Snapshot->FindAbility(TEXT("active_elbow"), Elbow, Error))) { return false; }
@@ -1269,9 +1271,9 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16);
     if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
     TestTrue(TEXT("Level 1 uses the authored G=1 values"),
-        First->Effects[0].BaseP2 == 7500 && First->Effects[0].ADRatioBp == 6500 && First->ManaCostP2 == 5000 && First->CooldownMs == 10000);
-    TestTrue(TEXT("Level 16 grows the base by G(16)=2.8 and keeps ratios, cost and cooldown"),
-        Top->Effects[0].BaseP2 == 21000 && Top->Effects[0].ADRatioBp == 6500 && Top->ManaCostP2 == 5000 && Top->CooldownMs == 10000);
+        First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 6000 && First->MomentumCostP2 == 2500 && First->CooldownMs == 6000);
+    TestTrue(TEXT("Level 16 grows the base by G(16)=1.6 and keeps ratios, cost and cooldown"),
+        Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 6000 && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 6000);
     const FLDDemoAbilityDefinition Detached = *Elbow;
     TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),
         !Snapshot->FindValues(*Elbow, 0) && !Snapshot->FindValues(*Elbow, 17) && !Snapshot->FindValues(Detached, 1));

@@ -91,7 +91,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("components", "component_roll_bump", ELDDemoComponentId, ComponentRollBump),
     DEMO_ID("components", "component_pin_punch", ELDDemoComponentId, ComponentPinPunch),
     DEMO_ID("components", "component_after_pin", ELDDemoComponentId, ComponentAfterPin),
-    DEMO_ID("components", "component_control_mana", ELDDemoComponentId, ComponentControlMana),
+    DEMO_ID("components", "component_control_momentum", ELDDemoComponentId, ComponentControlMomentum),
     DEMO_ID("components", "component_breath_strike", ELDDemoComponentId, ComponentBreathStrike),
     DEMO_ID("components", "component_blast_chase", ELDDemoComponentId, ComponentBlastChase),
     DEMO_ID("components", "component_shell_burst", ELDDemoComponentId, ComponentShellBurst),
@@ -172,7 +172,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "cooldown_refund", ELDDemoEffectOp, CooldownRefund),
     DEMO_ID("effect_ops", "triggered_shield", ELDDemoEffectOp, TriggeredShield),
     DEMO_ID("effect_ops", "nth_basic_bonus", ELDDemoEffectOp, NthBasicBonus),
-    DEMO_ID("effect_ops", "mana_on_hit", ELDDemoEffectOp, ManaOnHit),
     DEMO_ID("effect_ops", "dispel_slow", ELDDemoEffectOp, DispelSlow),
     DEMO_ID("effect_ops", "knockback", ELDDemoEffectOp, Knockback),
     DEMO_ID("effect_ops", "zone", ELDDemoEffectOp, Zone),
@@ -225,7 +224,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "contact_knockback", ELDDemoEffectOp, ContactKnockback),
     DEMO_ID("effect_ops", "control_mark", ELDDemoEffectOp, ControlMark),
     DEMO_ID("effect_ops", "aftershock", ELDDemoEffectOp, Aftershock),
-    DEMO_ID("effect_ops", "control_mana", ELDDemoEffectOp, ControlMana),
+    DEMO_ID("effect_ops", "control_momentum", ELDDemoEffectOp, ControlMomentum),
     DEMO_ID("effect_ops", "heal_counter", ELDDemoEffectOp, HealCounter),
     DEMO_ID("effect_ops", "reaction_empower", ELDDemoEffectOp, ReactionEmpower),
     DEMO_ID("effect_ops", "shield_burst", ELDDemoEffectOp, ShieldBurst),
@@ -242,7 +241,7 @@ DEMO_ID("effect_ops", "alternate_amp", ELDDemoEffectOp, AlternateAmp),
     DEMO_ID("effect_ops", "hit_haste_other", ELDDemoEffectOp, HitHasteOther),
     DEMO_ID("effect_ops", "setup_mark", ELDDemoEffectOp, SetupMark),
     DEMO_ID("effect_ops", "reaction_haste", ELDDemoEffectOp, ReactionHaste),
-    DEMO_ID("effect_ops", "multi_hit_mana", ELDDemoEffectOp, MultiHitMana),
+    DEMO_ID("effect_ops", "multi_hit_momentum", ELDDemoEffectOp, MultiHitMomentum),
     DEMO_ID("effect_ops", "zone_tether", ELDDemoEffectOp, ZoneTether),
     DEMO_ID("effect_ops", "defense_shove", ELDDemoEffectOp, DefenseShove),
     DEMO_ID("effect_ops", "final_knockback", ELDDemoEffectOp, FinalKnockback),
@@ -293,13 +292,13 @@ bool NativeMap(const FValue& Value, FCheck& Check)
         return false;
     }
     // Inclusive retired identity ranges per section; they must stay exactly these and are never reused (#198 retires the
-    // passives 104-113/120-125, cower 119, the attribute cards 15-26, statuses 28-29 and every operation without a consumer).
+    // passives 104-113/120-125, cower 119, the attribute cards 15-26, statuses 28-29, effect op 36 and every operation without a consumer).
     struct FRetiredRange { int64 First; int64 Last; };
     static const FRetiredRange RetiredAbilities[] = {{0, 91}, {104, 113}, {119, 125}};
     static const FRetiredRange RetiredStats[] = {{0, 26}};
     static const FRetiredRange RetiredStatuses[] = {{7, 8}, {11, 11}, {15, 19}, {21, 24}, {28, 29}};
     static const FRetiredRange RetiredEffectOps[] = {{6, 6}, {9, 11}, {16, 16}, {19, 19}, {23, 23}, {25, 25}, {27, 30}, {32, 34},
-        {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 66}, {68, 68}, {72, 76}, {83, 85}, {89, 89}};
+        {36, 36}, {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 66}, {68, 68}, {72, 76}, {83, 85}, {89, 89}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
     for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
         {TEXT("stats"), RetiredStats}, {TEXT("statuses"), RetiredStatuses},
@@ -369,17 +368,111 @@ bool RateBounds(FFields& Fields, const TCHAR* Stat, const TCHAR* Unit, FLDDemoRa
         && Fields.Fraction(*(Prefix + TEXT(".Max")), Unit, Out.Max);
 }
 
+// A fixed-length array of ratios ({"unit": "ratio", "bp": n}), each at least Min.
+bool RatioArray(FFields& F, const TCHAR* Key, int32 Count, int64 Min, TArray<int64>& Out, FCheck& Check)
+{
+    const TArray<FValue>* Rows = nullptr;
+    const FString Path = F.Path + TEXT(".") + Key;
+    if (!Array(F.Take(Key), Rows, Check, Path, Count, Count))
+    {
+        return false;
+    }
+    Out.Reset();
+    for (int32 Index = 0; Index < Rows->Num(); ++Index)
+    {
+        FFields Row(Check, (*Rows)[Index], FString::Printf(TEXT("%s[%d]"), *Path, Index));
+        int64 Bp = 0;
+        if (!Row.Literal(TEXT("unit"), TEXT("ratio")) || !Row.Int(TEXT("bp"), Bp, Min) || !Row.Done())
+        {
+            return false;
+        }
+        Out.Add(Bp);
+    }
+    return true;
+}
+
+// Momentum, combo, overdrive and skill rank parameters (CONTENT_AND_BALANCE §3.3-§3.6).
+bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
+{
+    FLDDemoMomentumParameters& M = P.Momentum;
+    FLDDemoOverdriveParameters& O = P.Overdrive;
+    struct FFixedField { const TCHAR* Key; const TCHAR* Unit; const TCHAR* Storage; int64* Out; int64 Min; int64 Max; };
+    const FFixedField Fixed[] =
+    {
+        {TEXT("MOMENTUM.Max"), TEXT("momentum"), TEXT("p2"), &M.MaxP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.Start"), TEXT("momentum"), TEXT("p2"), &M.StartP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.BasicPerRefInterval"), TEXT("momentum"), TEXT("p2"), &M.BasicPerRefP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.BasicRefIntervalSec"), TEXT("ms"), TEXT("ms"), &M.BasicRefIntervalMs, 1, MAX_int64},
+        {TEXT("MOMENTUM.SkillHit"), TEXT("momentum"), TEXT("p2"), &M.SkillHitP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.Reaction"), TEXT("momentum"), TEXT("p2"), &M.ReactionP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.PerfectDodge"), TEXT("momentum"), TEXT("p2"), &M.PerfectDodgeP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.PerfectDodgeWindowSec"), TEXT("ms"), TEXT("ms"), &M.PerfectDodgeWindowMs, 1, MAX_int64},
+        {TEXT("MOMENTUM.IdleDelaySec"), TEXT("ms"), TEXT("ms"), &M.IdleDelayMs, 1, MAX_int64},
+        {TEXT("COMBO.ResetSec"), TEXT("ms"), TEXT("ms"), &P.Combo.ResetMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.Threshold"), TEXT("momentum"), TEXT("p2"), &O.ThresholdP2, 1, MAX_int64},
+        {TEXT("OVERDRIVE.HoldSec"), TEXT("ms"), TEXT("ms"), &O.HoldMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.Scale"), TEXT("ratio"), TEXT("bp"), &O.ScaleBp, 10000, MAX_int64},
+        {TEXT("OVERDRIVE.WaterSlow"), TEXT("ratio"), TEXT("bp"), &O.WaterSlowBp, 1, 9999},
+        {TEXT("OVERDRIVE.WaterSlowSec"), TEXT("ms"), TEXT("ms"), &O.WaterSlowMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.GustPushSec"), TEXT("ms"), TEXT("ms"), &O.GustPushMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.ShockReactionRatio"), TEXT("ratio"), TEXT("bp"), &O.ShockReactionBp, 1, MAX_int64},
+        {TEXT("OVERDRIVE.RotDurationScale"), TEXT("ratio"), TEXT("bp"), &O.RotDurationBp, 10000, MAX_int64},
+        {TEXT("SKILL.CooldownFloorSec"), TEXT("ms"), TEXT("ms"), &P.SkillRanks.CooldownFloorMs, 1, MAX_int64},
+        {TEXT("AIRDROP.Momentum"), TEXT("momentum"), TEXT("p2"), &P.AirdropMomentumP2, 1, MAX_int64},
+        {TEXT("AI.DodgeChance"), TEXT("ratio"), TEXT("bp"), &P.AI.DodgeChanceBp, 0, 10000},
+    };
+    for (const auto& Field : Fixed)
+    {
+        if (!F.Fixed(Field.Key, Field.Unit, Field.Storage, *Field.Out, Field.Min, Field.Max))
+        {
+            return false;
+        }
+    }
+    if (!F.Fraction(TEXT("MOMENTUM.CombatPerSec"), TEXT("momentum/s"), M.CombatPerSec, true)
+        || !F.Fraction(TEXT("MOMENTUM.IdleReturnPerSec"), TEXT("momentum/s"), M.IdleReturnPerSec, true)
+        || !F.Fraction(TEXT("OVERDRIVE.GustPushCm"), TEXT("cm"), O.GustPushCm, true)
+        || !F.Int(TEXT("OVERDRIVE.FireBurnStacks"), O.FireBurnStacks, 1)
+        || !RatioArray(F, TEXT("COMBO.StepRatios"), 3, 1, P.Combo.StepRatiosBp, Check)
+        || !RatioArray(F, TEXT("SKILL.RankBaseScale"), 3, 10000, P.SkillRanks.RankBaseScaleBp, Check)
+        || !RatioArray(F, TEXT("SKILL.RankRatioScale"), 3, 10000, P.SkillRanks.RankRatioScaleBp, Check))
+    {
+        return false;
+    }
+    const TArray<FValue>* Levels = nullptr;
+    if (!Array(F.Take(TEXT("SKILL.PointLevels")), Levels, Check, F.Path + TEXT(".SKILL.PointLevels"), 1, 15))
+    {
+        return false;
+    }
+    P.SkillRanks.PointLevels.Reset();
+    for (const auto& Row : *Levels)
+    {
+        int64 Level = 0;
+        if (!Integer(Row, Level, Check, F.Path + TEXT(".SKILL.PointLevels"), 2, LDDemoProgression::MaxLevel)
+            || !Check.Require(P.SkillRanks.PointLevels.IsEmpty() || Level > P.SkillRanks.PointLevels.Last(), F.Path,
+                TEXT("skill point levels must be strictly ascending")))
+        {
+            return false;
+        }
+        P.SkillRanks.PointLevels.Add(Level);
+    }
+    const auto& Base = P.SkillRanks.RankBaseScaleBp;
+    const auto& Ratio = P.SkillRanks.RankRatioScaleBp;
+    return Check.Require(M.StartP2 <= M.MaxP2 && O.ThresholdP2 <= M.MaxP2, F.Path,
+            TEXT("the momentum start and the overdrive threshold must fit the bar"))
+        && Check.Require(Base[0] == 10000 && Ratio[0] == 10000 && Base[0] <= Base[1] && Base[1] <= Base[2]
+            && Ratio[0] <= Ratio[1] && Ratio[1] <= Ratio[2], F.Path, TEXT("rank 1 is the authored set and ranks never weaken it"));
+}
+
 bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content.parameters"));
     if (!P2Bounds(F, TEXT("MaxHP"), TEXT("hp"), P.MaxHP)
-        || !P2Bounds(F, TEXT("MaxMP"), TEXT("mp"), P.MaxMP)
         || !P2Bounds(F, TEXT("AD"), TEXT("points"), P.AD)
         || !P2Bounds(F, TEXT("AP"), TEXT("points"), P.AP)
         || !P2Bounds(F, TEXT("Armor"), TEXT("points"), P.Armor)
         || !P2Bounds(F, TEXT("MagicResist"), TEXT("points"), P.MagicResist)
         || !RateBounds(F, TEXT("HPRegen"), TEXT("hp/s"), P.HPRegen)
-        || !RateBounds(F, TEXT("MPRegen"), TEXT("mp/s"), P.MPRegen))
+        || !CoreParameters(F, P, Check))
     {
         return false;
     }
@@ -405,7 +498,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("STAT.CooldownHaste.Base"), TEXT("points"), TEXT("p2"), &P.CooldownHasteBaseP2, 0, MAX_int64},
         {TEXT("STAT.CooldownHaste.Max"), TEXT("points"), TEXT("p2"), &P.CooldownHasteMaxP2, 0, MAX_int64},
         {TEXT("SKILL.GrowthPerLevel"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelBp, 0, 10000},
-        {TEXT("SKILL.GrowthPerLevelAfter10"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelAfter10Bp, 0, 10000},
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
@@ -448,10 +540,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
         {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
-        {TEXT("REGEN.OutOfCombatMaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxMPRegenBp, 0, 10000},
         {TEXT("DORM.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.DormRegenDelayMs, 1, MAX_int64},
         {TEXT("DORM.MaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxHPRegenBp, 0, 10000},
-        {TEXT("DORM.MaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxMPRegenBp, 0, 10000},
         {TEXT("CAMP.ReturnDeadEndSec"), TEXT("ms"), TEXT("ms"), &P.CampReturnDeadEndMs, 1, MAX_int64},
         {TEXT("CAMP.GrowthStageSec"), TEXT("ms"), TEXT("ms"), &P.CampGrowthStageMs, 1, MAX_int64},
         {TEXT("CAMP.GrowthHPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthHPPerStageBp, 0, MAX_int64},
@@ -461,7 +551,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
         {TEXT("AIRDROP.HealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropHealMaxHPBp, 1, 10000},
-        {TEXT("AIRDROP.ManaMaxMPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropManaMaxMPBp, 1, 10000},
         {TEXT("AIRDROP.MoveSpeedRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropMoveSpeedBp, 1, 10000},
         {TEXT("AIRDROP.MoveSpeedSec"), TEXT("ms"), TEXT("ms"), &P.AirdropMoveSpeedMs, 1, MAX_int64},
         {TEXT("CAMPMARK.RevealSec"), TEXT("ms"), TEXT("ms"), &P.CampMarkRevealMs, 1, MAX_int64},
@@ -494,7 +583,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.KeystoneThickSkinGuardCapRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneThickSkinGuardCapBp, 1, 9999},
         {TEXT("COMBAT.KeystoneThickSkinIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneThickSkinIntervalMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneStrengthDamageRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneStrengthDamageBp, 1, 10000},
-        {TEXT("COMBAT.KeystoneBrainsManaRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsManaRefundBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneBrainsMomentumRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsMomentumRefundBp, 1, 10000},
         {TEXT("COMBAT.KeystoneAgilityDamageBase"), TEXT("points"), TEXT("p2"), &P.KeystoneAgilityDamageBaseP2, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneAgilityADRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityADRatioBp, 1, 10000},
         {TEXT("COMBAT.KeystoneAgilityEmpowerDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneAgilityEmpowerDurationMs, 1, MAX_int64},
@@ -642,7 +731,7 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
         DEMO_POLICY(LifestealRecursiveTriggers, Disabled), DEMO_POLICY(BasicSecondaryTriggers, Disabled),
         DEMO_POLICY(RegenIntegration, CarrySubP2Remainder), DEMO_POLICY(ShieldPolicy, ReplaceIfNotWeaker),
         DEMO_POLICY(CampAggroTrigger, ConfirmedCombatHit), DEMO_POLICY(CampResetPolicy, ReturnThenReset),
-        DEMO_POLICY(CampManaPolicy, NotApplicable),
+        DEMO_POLICY(CampMomentumPolicy, NotApplicable),
     };
 #undef DEMO_POLICY
     for (const auto& Entry : Entries)
@@ -686,7 +775,6 @@ const FBonusField BonusFields[] =
     {TEXT("ADFlat"), ELDDemoBonusStat::ADFlat, TEXT("points"), TEXT("p2")},
     {TEXT("APFlat"), ELDDemoBonusStat::APFlat, TEXT("points"), TEXT("p2")},
     {TEXT("MaxHPFlat"), ELDDemoBonusStat::MaxHPFlat, TEXT("hp"), TEXT("p2")},
-    {TEXT("MaxMPFlat"), ELDDemoBonusStat::MaxMPFlat, TEXT("mp"), TEXT("p2")},
     {TEXT("ArmorFlat"), ELDDemoBonusStat::ArmorFlat, TEXT("points"), TEXT("p2")},
     {TEXT("MagicResistFlat"), ELDDemoBonusStat::MagicResistFlat, TEXT("points"), TEXT("p2")},
     {TEXT("CooldownHasteFlat"), ELDDemoBonusStat::CooldownHasteFlat, TEXT("points"), TEXT("p2")},
@@ -697,7 +785,7 @@ const FBonusField BonusFields[] =
     {TEXT("ADBonusRatio"), ELDDemoBonusStat::ADBonusRatio, TEXT("ratio"), TEXT("bp")},
     {TEXT("HPRegenFlat"), ELDDemoBonusStat::HPRegenFlat, TEXT("hp/s"), nullptr},
     {TEXT("APBonusRatio"), ELDDemoBonusStat::APBonusRatio, TEXT("ratio"), TEXT("bp")},
-    {TEXT("MPRegenFlat"), ELDDemoBonusStat::MPRegenFlat, TEXT("mp/s"), nullptr},
+    {TEXT("MomentumRegenFlat"), ELDDemoBonusStat::MomentumRegenFlat, TEXT("momentum/s"), nullptr},
 };
 
 // An authored integer into an int32 definition field.
@@ -736,8 +824,8 @@ constexpr FOpMask OpBit(ELDDemoEffectOp Op)
 }
 
 // Temporary and conditional bonuses never change resource maxima or regeneration (no conversion exists for them).
-constexpr uint32 TemporaryStats = ~(Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::MaxMPFlat) | Bit(ELDDemoBonusStat::HPRegenFlat)
-    | Bit(ELDDemoBonusStat::MPRegenFlat));
+constexpr uint32 TemporaryStats = ~(Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::HPRegenFlat)
+    | Bit(ELDDemoBonusStat::MomentumRegenFlat));
 
 bool DamageTerms(FFields& F, FLDDemoEffectDefinition& Out, FCheck& Check, const FString& Path)
 {
@@ -913,12 +1001,12 @@ constexpr FOpMask WorkshopOps = OpBit(ELDDemoEffectOp::SpreadUnit) | OpBit(ELDDe
     | OpBit(ELDDemoEffectOp::LedgerVariant) | OpBit(ELDDemoEffectOp::MarkedCounter) | OpBit(ELDDemoEffectOp::DamageDefer)
     | OpBit(ELDDemoEffectOp::FireShield) | OpBit(ELDDemoEffectOp::KnockbackImpact) | OpBit(ELDDemoEffectOp::DashContactRefund)
     | OpBit(ELDDemoEffectOp::ContactKnockback) | OpBit(ELDDemoEffectOp::ControlMark) | OpBit(ELDDemoEffectOp::Aftershock)
-    | OpBit(ELDDemoEffectOp::ControlMana) | OpBit(ELDDemoEffectOp::HealCounter) | OpBit(ELDDemoEffectOp::ReactionEmpower)
+    | OpBit(ELDDemoEffectOp::ControlMomentum) | OpBit(ELDDemoEffectOp::HealCounter) | OpBit(ELDDemoEffectOp::ReactionEmpower)
     | OpBit(ELDDemoEffectOp::ShieldBurst) | OpBit(ELDDemoEffectOp::SkillLifesteal) | OpBit(ELDDemoEffectOp::ExtraBase)
     | OpBit(ELDDemoEffectOp::CompressChain) | OpBit(ELDDemoEffectOp::ProjectileReturn) | OpBit(ELDDemoEffectOp::ProjectilePierce)
     | OpBit(ELDDemoEffectOp::ChainExtra) | OpBit(ELDDemoEffectOp::EchoImpact)
     | OpBit(ELDDemoEffectOp::HitHasteOther) | OpBit(ELDDemoEffectOp::SetupMark) | OpBit(ELDDemoEffectOp::ReactionHaste)
-    | OpBit(ELDDemoEffectOp::MultiHitMana) | OpBit(ELDDemoEffectOp::ZoneTether) | OpBit(ELDDemoEffectOp::DefenseShove)
+    | OpBit(ELDDemoEffectOp::MultiHitMomentum) | OpBit(ELDDemoEffectOp::ZoneTether) | OpBit(ELDDemoEffectOp::DefenseShove)
     | OpBit(ELDDemoEffectOp::FinalKnockback) | OpBit(ELDDemoEffectOp::EmpowerReach) | OpBit(ELDDemoEffectOp::Pull)
     | OpBit(ELDDemoEffectOp::ZoneRelocate) | OpBit(ELDDemoEffectOp::StoredForce) | OpBit(ELDDemoEffectOp::EmpowerSpend)
     | OpBit(ELDDemoEffectOp::ControlWiden) | OpBit(ELDDemoEffectOp::ZoneDetonate);
@@ -1228,13 +1316,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
             return false;
         }
         break;
-    case ELDDemoEffectOp::ManaOnHit:
-        if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::AbilityHit})
-            || !F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1))
-        {
-            return false;
-        }
-        break;
     // #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
     case ELDDemoEffectOp::Breach:
     case ELDDemoEffectOp::Burn:
@@ -1340,9 +1421,9 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
     case ELDDemoEffectOp::DashContactRefund:
         if (!F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Out.AmountMs, 1)
             || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
-            || !OptionalFixed(F, TEXT("mana_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 9999)
-            || !OptionalFixed(F, TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
-            || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.LimitP2 > 0), Path, TEXT("contact mana needs ratio and cap")))
+            || !OptionalFixed(F, TEXT("momentum_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 9999)
+            || !OptionalFixed(F, TEXT("momentum_cap"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.LimitP2 > 0), Path, TEXT("contact momentum needs ratio and cap")))
         { return false; }
         break;
     // #198 B component-only operations (field use: FLDDemoEffectDefinition).
@@ -1463,10 +1544,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1) || !DamageTerms(F, Out, Check, Path)
             || !F.Fixed(TEXT("root_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1)) { return false; }
         break;
-    case ELDDemoEffectOp::ControlMana:
-        if (!F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1)
-            || !F.Fixed(TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
-            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-action mana cap holds one grant"))) { return false; }
+    case ELDDemoEffectOp::ControlMomentum:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("momentum_cap"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-action momentum cap holds one grant"))) { return false; }
         break;
     case ELDDemoEffectOp::HealCounter:
     {
@@ -1533,10 +1614,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
             || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
         break;
-    case ELDDemoEffectOp::MultiHitMana:
-        if (!F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1)
-            || !F.Fixed(TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
-            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-release mana cap holds one grant"))) { return false; }
+    case ELDDemoEffectOp::MultiHitMomentum:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("momentum_cap"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-release momentum cap holds one grant"))) { return false; }
         break;
     // Mods M16-M20.
     case ELDDemoEffectOp::ZoneTether:
@@ -1618,10 +1699,39 @@ bool Effects(const FValue& Value, TArray<FLDDemoEffectDefinition>& Out, bool bCo
 bool Values(FFields& F, FLDDemoAbilityValues& Out, FOpMask ExpectedOps, FCheck& Check, const FString& Path)
 {
     FOpMask Mask;
-    return F.Fixed(TEXT("mana_cost"), TEXT("mp"), TEXT("p2"), Out.ManaCostP2)
+    return F.Fixed(TEXT("momentum_cost"), TEXT("momentum"), TEXT("p2"), Out.MomentumCostP2)
         && F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Out.CooldownMs, 1)
         && Effects(F.Take(TEXT("effects")), Out.Effects, false, Mask, Check, Path + TEXT(".effects"))
         && Check.Require(Mask == ExpectedOps, Path + TEXT(".effects"), TEXT("missing or extra effect; definition/target projection mismatch"));
+}
+
+// An active's element (none|fire|water|shock|chill|rot|gust) and hit type (targeted|projectile|area|dash|self).
+bool SkillElementField(FFields& F, ELDDemoSkillElement& Out, FCheck& Check, const FString& Path)
+{
+    FString Name;
+    if (!F.Identifier(TEXT("element"), Name)) { return false; }
+    using E = ELDDemoSkillElement;
+    const TPair<const TCHAR*, E> Names[] = {{TEXT("none"), E::None}, {TEXT("fire"), E::Fire}, {TEXT("water"), E::Water},
+        {TEXT("shock"), E::Shock}, {TEXT("chill"), E::Chill}, {TEXT("rot"), E::Rot}, {TEXT("gust"), E::Gust}};
+    for (const auto& Row : Names)
+    {
+        if (Name.Equals(Row.Key, ESearchCase::CaseSensitive)) { Out = Row.Value; return true; }
+    }
+    return Check.Require(false, Path + TEXT(".element"), TEXT("unknown skill element"));
+}
+
+bool HitTypeField(FFields& F, ELDDemoHitType& Out, FCheck& Check, const FString& Path)
+{
+    FString Name;
+    if (!F.Identifier(TEXT("hit_type"), Name)) { return false; }
+    using H = ELDDemoHitType;
+    const TPair<const TCHAR*, H> Names[] = {{TEXT("targeted"), H::Targeted}, {TEXT("projectile"), H::Projectile},
+        {TEXT("area"), H::Area}, {TEXT("dash"), H::Dash}, {TEXT("self"), H::Self}};
+    for (const auto& Row : Names)
+    {
+        if (Name.Equals(Row.Key, ESearchCase::CaseSensitive)) { Out = Row.Value; return true; }
+    }
+    return Check.Require(false, Path + TEXT(".hit_type"), TEXT("unknown hit type"));
 }
 
 bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, const FString& Path)
@@ -1697,6 +1807,7 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         || !F.Fixed(TEXT("windup"), TEXT("ms"), TEXT("ms"), Out.WindupMs)
         || !F.Identifier(TEXT("cooldown_family"), Out.CooldownFamily)
         || !Check.Require(Out.CooldownFamily == TEXT("cd_") + Out.Id.Mid(7), Path, TEXT("wrong cooldown family"))
+        || !SkillElementField(F, Out.Element, Check, Path) || !HitTypeField(F, Out.HitType, Check, Path)
         || !Values(F, Out.Values, ExpectedOps, Check, Path))
     {
         return false;
@@ -1726,7 +1837,7 @@ bool StatDefinition(const FValue& Value, FLDDemoStatDefinition& Out, FCheck& Che
     case ELDDemoStatId::StatPhysique: Expected = Bit(S::MaxHPFlat) | Bit(S::HPRegenFlat); break;
     case ELDDemoStatId::StatThickSkin: Expected = Bit(S::ArmorFlat) | Bit(S::MagicResistFlat); break;
     case ELDDemoStatId::StatStrength: Expected = Bit(S::ADFlat) | Bit(S::CritChanceBonusRatio); break;
-    case ELDDemoStatId::StatBrains: Expected = Bit(S::APFlat) | Bit(S::CooldownHasteFlat) | Bit(S::MPRegenFlat); break;
+    case ELDDemoStatId::StatBrains: Expected = Bit(S::APFlat) | Bit(S::CooldownHasteFlat) | Bit(S::MomentumRegenFlat); break;
     case ELDDemoStatId::StatAgility: Expected = Bit(S::AttackSpeedBonusRatio) | Bit(S::MoveSpeedBonusRatio); break;
     default: return Check.Require(false, Path, TEXT("unimplemented stat projection"));
     }
@@ -2089,11 +2200,9 @@ bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, 
         && F.Fixed(TEXT("respawn"), TEXT("ms"), TEXT("ms"), Out.RespawnMs, 1)
         && F.Int(TEXT("reward_xp"), Out.RewardXP)
         && F.Fraction(TEXT("hp_regen"), TEXT("hp/s"), Out.HPRegenPerSec)
-        && F.Fixed(TEXT("max_mp"), TEXT("mp"), TEXT("p2"), Out.MaxMPP2, 0, 0)
-        && F.Fraction(TEXT("mp_regen"), TEXT("mp/s"), Out.MPRegenPerSec)
         && F.Fixed(TEXT("ap"), TEXT("points"), TEXT("p2"), Out.APP2, 0, 0)
         && F.Fixed(TEXT("crit_chance"), TEXT("ratio"), TEXT("bp"), Out.CritChanceBp, 0, 0)
-        && Check.Require(Out.HPRegenPerSec.Numerator == 0 && Out.MPRegenPerSec.Numerator == 0,
+        && Check.Require(Out.HPRegenPerSec.Numerator == 0,
             Path, TEXT("unsupported monster regeneration")) && F.Done();
 }
 
@@ -2386,8 +2495,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FLDDemoEffectDefinition& DashMove = InnateDash.Values.Effects.AddDefaulted_GetRef();
     InnateDash.Target.Mode = ELDDemoTargetMode::DirectionDash;
     DashMove.Opcode = uint8(ELDDemoEffectOp::Dash);
-    if (!Dash.Fixed(TEXT("mana_cost"), TEXT("mp"), TEXT("p2"), InnateDash.Values.ManaCostP2)
-        || !Dash.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), InnateDash.Values.CooldownMs, 1)
+    if (!Dash.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), InnateDash.Values.CooldownMs, 1)
         || !Dash.Fraction(TEXT("distance"), TEXT("cm"), DashMove.DistanceCm, true)
         || !Dash.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), DashMove.DurationMs, 1)
         || !Check.Require(DashMove.DurationMs < InnateDash.Values.CooldownMs, Dash.Path, TEXT("dash outlasts its cooldown"))
@@ -2459,7 +2567,6 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         Body.PerceptionRadiusCm = Rules.AggroRadiusCm;
         Body.LoseTargetGraceMs = Rules.AttackerMemoryMs;
         Body.HPRegenPerSec = {0, 1};
-        Body.MPRegenPerSec = {0, 1};
         Rules.Id = Body.Id;
         Out.Monsters.Add(MoveTemp(Body));
     }

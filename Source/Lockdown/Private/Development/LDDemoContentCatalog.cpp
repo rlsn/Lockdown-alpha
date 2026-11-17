@@ -171,8 +171,8 @@ FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) :
             // Content validation proves every grown amount fits; a level that does not stays unset so FindValues refuses
             // it instead of guessing.
             FLDDemoAbilityValues Row;
-            if (LDSkillGrowth::GrowValues(Authored, Definitions.Parameters.SkillGrowthPerLevelBp,
-                Definitions.Parameters.SkillGrowthPerLevelAfter10Bp, uint8(Level), Row))
+            if (LDSkillGrowth::GrowValues(Authored, Definitions.Parameters.SkillRanks, Definitions.Parameters.SkillGrowthPerLevelBp,
+                uint8(Level), 1, Row))
             {
                 Grown[Level - 1] = MoveTemp(Row);
             }

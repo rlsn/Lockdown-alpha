@@ -94,10 +94,10 @@ namespace LDHUD
         // Each placeholder's value, in template order ("?" when it reads nothing).
         TArray<FString> Values;
     };
-    // Renders an active's card template (LDDemoCardText) against its single value set grown for Stats.Level. The glossary
-    // keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
+    // Renders an active's card template (LDDemoCardText) against its value set grown for Stats.Level at Rank (G(L) and the
+    // rank scales). The glossary keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
     LOCKDOWN_API FCardText CardText(const FString& Template,const FLDDemoAbilityValues& Values,const FCardStats& Stats,
-        int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp=0);
+        const FLDDemoSkillRankParameters& Ranks,int64 GrowthPerLevelBp,uint8 Rank=1);
     // Renders a stat's card template: each [per_point.<Stat>] reads that per-point bonus of Stat, which never grows.
     LOCKDOWN_API FCardText StatCardText(const FString& Template,const FLDDemoStatDefinition& Stat);
     // "<b>减速</>：…" for each keyword.
@@ -146,7 +146,7 @@ namespace LDHUD
         float Fraction=0.f;
     };
     // Points from the owner projection. Max<=0 means not projected yet: shown as syncing, never as 0/0.
-    // Health rounds up so a living body never reads 0; mana rounds down so a cost never looks affordable early.
+    // Health rounds up so a living body never reads 0; momentum rounds down so a cost never looks affordable early.
     LOCKDOWN_API FResourceView Resource(const FString& Label,double Current,double Max,bool bRoundUp);
     LOCKDOWN_API FResourceView ResourceP2(const FString& Label,int64 CurrentP2,int64 MaxP2,bool bRoundUp);
 
@@ -329,7 +329,7 @@ namespace LDHUD
     // holder names no sprayer.
     LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
         int64 SprayMs=0,int64 GuardMs=0);
-    // #198: a charm's map colour (heal green, mana blue, move speed gold).
+    // #198: a charm's map colour (heal green, momentum orange, move speed gold).
     // The event feed's line for a downed Boss: the own last hit is told it got a build reward, others see the public roster name.
     LOCKDOWN_API FString BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName);
     // #198: the camp marker colour shared by the minimap ring and the world label.
@@ -435,7 +435,7 @@ namespace LDHUD
     enum class EActionSlot : uint8 { Q, W, E, Dash };
     enum EActionBlock : uint32
     {
-        ActionUnsynced=1<<0, ActionEmpty=1<<1, ActionCooldown=1<<3, ActionMana=1<<4,
+        ActionUnsynced=1<<0, ActionEmpty=1<<1, ActionCooldown=1<<3, ActionMomentum=1<<4,
         ActionControlled=1<<5, ActionDead=1<<6, ActionNotPlaying=1<<7, ActionServer=1<<8
     };
     struct FActionInput
@@ -446,7 +446,7 @@ namespace LDHUD
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
-        int64 ManaCostP2=0;
+        int64 MomentumCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
         int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
         int32 RangeCm=0;          // the active's current reach (the dash distance for D)
@@ -462,8 +462,8 @@ namespace LDHUD
         bool bInputCaptured=false;  // Combat's input half: menu/Settings, child confirmation or text edit, keys still held
         bool bClock=false;
         int64 NowMs=0;
-        bool bManaKnown=false;
-        int64 ManaP2=0;
+        bool bMomentumKnown=false;
+        int64 MomentumP2=0;
         // #147/#198: the owner's level and stats, so a skill's card text shows the numbers it has now.
         FCardStats Card;
     };
@@ -481,14 +481,14 @@ namespace LDHUD
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
-        FString Cost;             // the active's mana cost rounded like the shown mana, number only, e.g. "30"; empty without one
+        FString Cost;             // the active's momentum cost rounded like the shown bar, number only, e.g. "30"; empty without one
         FString IconId;           // the icon texture id (LDUIIcons); empty without a source
         FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Slot look: the slot face says its state by colour alone (the tooltip keeps the words). A dead, unsynced or empty
-    // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, mana and server reasons.
-    enum class EActionLook : uint8 { Ready, Armed, Cooling, NoMana, Controlled, Empty, Blocked };
+    // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, momentum and server reasons.
+    enum class EActionLook : uint8 { Ready, Armed, Cooling, MomentumShort, Controlled, Empty, Blocked };
     LOCKDOWN_API EActionLook ActionLook(const FActionView& View,bool bArmed);
     // The hover description of a slot, laid out like the growth panel's popups: the name, "<kind> [<key>] · <state>", then
     // the active's card sentence with the owner's current numbers, the targeting and the cost (the dash: its reach).
@@ -504,8 +504,10 @@ namespace LDHUD
     {
         FString Title;
         FResourceView Health;
-        bool bMana=false;
-        FResourceView Mana;
+        bool bMomentum=false;
+        bool bMomentumFull=false;   // a full public bar: the target may overdrive
+        bool bCharging=false;       // the target holds an overdrive charge
+        FResourceView Momentum;
         FString Statuses;
         // A visible contender's Q/W/E actives (#112 §10, #198 single level): key, display name and icon; never cooldowns.
         struct FActiveChip
@@ -527,7 +529,7 @@ namespace LDHUD
     LOCKDOWN_API FString StatLine(const FLDDemoStatBonus& Stat);
     LOCKDOWN_API FString EffectLine(const FLDDemoEffectDefinition& Effect);
     LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
-    // The mana cost and cooldown line of an active's value set.
+    // The momentum cost and cooldown line of an active's value set.
     LOCKDOWN_API FString CostLine(const FLDDemoAbilityValues& Values);
     // #198 growth panel: one active of the current offer, a pending blueprint or a learned slot, rendered for the owner's
     // current level and stats. Card faces show the icon, the name, the sentence and the targeting/cost line; the hover popup
@@ -900,7 +902,7 @@ namespace LDHUD
     // One combat-projected attribute with its sources; the HUD never recomputes the projection.
     LOCKDOWN_API FAttributeRowView AttributeRow(const FLDCombatAttributeRowView& Row);
     // The attributes of the HUD's attribute view (ELDProjectedAttribute ids, in this order): every projected attribute the
-    // HUD shows nowhere else. The health and mana bars already carry both maxima and both regenerations.
+    // HUD shows nowhere else. The health and momentum bars already carry their maxima and the health regeneration.
     LOCKDOWN_API TArray<uint8> AttributeViewOrder();
     LOCKDOWN_API FString GrowthReasonText(ELDGrowthReason Reason);
     LOCKDOWN_API FString CombatRejectText(ELDCombatReject Reject);

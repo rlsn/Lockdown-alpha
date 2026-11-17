@@ -541,7 +541,7 @@ ELDOpponentSettle SettleAction(const FLDCombatActionReceipt& Receipt)
     case ELDCombatReject::MatchClosed:
     case ELDCombatReject::NotStarted:
     case ELDCombatReject::ReceiptExpired: return ELDOpponentSettle::Dropped;
-    // Readiness, mana, control, range, a changed source and malformed requests back off and stay bounded.
+    // Readiness, momentum, control, range, a changed source and malformed requests back off and stay bounded.
     default: return ELDOpponentSettle::Failed;
     }
 }

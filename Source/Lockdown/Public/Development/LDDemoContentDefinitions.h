@@ -75,6 +75,75 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 RetryMaxBackoffMs = 0;
     UPROPERTY() int64 ExploreRevisitIntervalMs = 0;
     UPROPERTY() int64 EngagementBudgetMs = 0;
+    // An AI contender inside a visible telegraph with its D ready dodges out with this chance (AI.DodgeChance).
+    UPROPERTY() int64 DodgeChanceBp = 0;
+};
+
+// Momentum (劲), the one skill resource of a contender (CONTENT_AND_BALANCE §3.3, LDMomentum). Camp members hold none.
+USTRUCT()
+struct FLDDemoMomentumParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 MaxP2 = 0;
+    // The value at match start, every new life and every rest start; the idle drift returns to it.
+    UPROPERTY() int64 StartP2 = 0;
+    // Gain per second while in combat (LastCombatAt within IdleDelayMs), before the brains bonus.
+    UPROPERTY() FLDDemoRational CombatPerSec;
+    // A primary basic hit gains BasicPerRefP2 x its attack interval / BasicRefIntervalMs (floored to P2).
+    UPROPERTY() int64 BasicPerRefP2 = 0;
+    UPROPERTY() int64 BasicRefIntervalMs = 0;
+    UPROPERTY() int64 SkillHitP2 = 0;
+    UPROPERTY() int64 ReactionP2 = 0;
+    UPROPERTY() int64 PerfectDodgeP2 = 0;
+    UPROPERTY() int64 PerfectDodgeWindowMs = 0;
+    // IdleDelayMs after the last combat event the bar drifts toward StartP2 at IdleReturnPerSec.
+    UPROPERTY() int64 IdleDelayMs = 0;
+    UPROPERTY() FLDDemoRational IdleReturnPerSec;
+};
+
+// The basic three-step combo (COMBO.*): StepRatiosBp[step - 1] scales a primary basic's own package; a successful
+// AttackStart more than ResetMs after the previous one starts again at step 1.
+USTRUCT()
+struct FLDDemoComboParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() TArray<int64> StepRatiosBp;
+    UPROPERTY() int64 ResetMs = 0;
+};
+
+// Overdrive (爆劲, OVERDRIVE.*): a full-bar release held HoldMs; ScaleBp multiplies its base amounts and ratios, and
+// the release's element adds its bonus.
+USTRUCT()
+struct FLDDemoOverdriveParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 ThresholdP2 = 0;
+    UPROPERTY() int64 HoldMs = 0;
+    UPROPERTY() int64 ScaleBp = 0;
+    UPROPERTY() int64 FireBurnStacks = 0;
+    UPROPERTY() int64 WaterSlowBp = 0;
+    UPROPERTY() int64 WaterSlowMs = 0;
+    UPROPERTY() int64 ShockReactionBp = 0;
+    UPROPERTY() int64 RotDurationBp = 0;
+    UPROPERTY() FLDDemoRational GustPushCm;
+    UPROPERTY() int64 GustPushMs = 0;
+};
+
+// Skill ranks 1..3 (SKILL.*): rank r scales the grown base amounts by RankBaseScaleBp[r - 1] and the AD/AP/max-HP
+// ratios by RankRatioScaleBp[r - 1]; each level of PointLevels grants one skill point.
+USTRUCT()
+struct FLDDemoSkillRankParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() TArray<int64> RankBaseScaleBp;
+    UPROPERTY() TArray<int64> RankRatioScaleBp;
+    UPROPERTY() TArray<int64> PointLevels;
+    // The technical floor of a Q/W/E cooldown after haste (not a gameplay cap).
+    UPROPERTY() int64 CooldownFloorMs = 0;
 };
 
 USTRUCT()
@@ -83,21 +152,22 @@ struct FLDDemoContentParameters
     GENERATED_BODY()
 
     UPROPERTY() FLDDemoP2Bounds MaxHP;
-    UPROPERTY() FLDDemoP2Bounds MaxMP;
     UPROPERTY() FLDDemoP2Bounds AD;
     UPROPERTY() FLDDemoP2Bounds AP;
     UPROPERTY() FLDDemoP2Bounds Armor;
     UPROPERTY() FLDDemoP2Bounds MagicResist;
     UPROPERTY() FLDDemoRateBounds HPRegen;
-    UPROPERTY() FLDDemoRateBounds MPRegen;
     UPROPERTY() FLDDemoRationalBounds AttackSpeed;
     UPROPERTY() int64 AttackSpeedPerLevelBp = 0;
     UPROPERTY() int64 CritChanceBaseBp = 0;
     UPROPERTY() int64 CritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
-    // #166/#198: G(L) = 1 + SkillGrowthPerLevelBp x min(L-1, 9) + SkillGrowthPerLevelAfter10Bp x max(L-10, 0).
+    // G(L) = 1 + SkillGrowthPerLevelBp x (L - 1).
     UPROPERTY() int64 SkillGrowthPerLevelBp = 0;
-    UPROPERTY() int64 SkillGrowthPerLevelAfter10Bp = 0;
+    UPROPERTY() FLDDemoSkillRankParameters SkillRanks;
+    UPROPERTY() FLDDemoMomentumParameters Momentum;
+    UPROPERTY() FLDDemoComboParameters Combo;
+    UPROPERTY() FLDDemoOverdriveParameters Overdrive;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
     UPROPERTY() FLDDemoRational CollisionRadiusCm;
@@ -171,15 +241,13 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 RespawnField2Ms = 0;
     UPROPERTY() int64 RespawnField3Ms = 0;
     UPROPERTY() int64 ProtectionMs = 0;
-    // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
+    // D21: every contender's recovery, a per-second share of its current maximum HP once this long without combat.
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
     UPROPERTY() int64 OutOfCombatMaxHPRegenBp = 0;
-    UPROPERTY() int64 OutOfCombatMaxMPRegenBp = 0;
     // D21 (#79): fast recovery for a contender whose foot stands inside a public dorm disk once this long without combat.
     UPROPERTY() FLDDemoRational DormRadiusCm;
     UPROPERTY() int64 DormRegenDelayMs = 0;
     UPROPERTY() int64 DormMaxHPRegenBp = 0;
-    UPROPERTY() int64 DormMaxMPRegenBp = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
     // #28: a Returning member with this many consecutive refused path plans, or this long without path progress
     // while free to move, resets where it stands instead of retrying forever.
@@ -201,7 +269,8 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
     UPROPERTY() int64 AirdropHealMaxHPBp = 0;
-    UPROPERTY() int64 AirdropManaMaxMPBp = 0;
+    // The momentum a claimed airdrop adds (AIRDROP.Momentum).
+    UPROPERTY() int64 AirdropMomentumP2 = 0;
     UPROPERTY() int64 AirdropMoveSpeedBp = 0;
     UPROPERTY() int64 AirdropMoveSpeedMs = 0;
     // #198 outer §5 camp markers: in each timed field segment a High and an Elite camp are marked CampMarkRevealMs of
@@ -233,7 +302,7 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 KeystoneThickSkinGuardCapBp = 0;
     UPROPERTY() int64 KeystoneThickSkinIntervalMs = 0;
     UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
-    UPROPERTY() int64 KeystoneBrainsManaRefundBp = 0;
+    UPROPERTY() int64 KeystoneBrainsMomentumRefundBp = 0;
     UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
     UPROPERTY() int64 KeystoneAgilityADRatioBp = 0;
     UPROPERTY() int64 KeystoneAgilityEmpowerDurationMs = 0;
@@ -359,15 +428,15 @@ struct FLDDemoPolicies
     UPROPERTY() bool CampReturningDamageable = false;
     UPROPERTY() bool CampReturningControllable = false;
     UPROPERTY() ELDDemoPolicy CampResetPolicy = ELDDemoPolicy::None;
-    UPROPERTY() ELDDemoPolicy CampManaPolicy = ELDDemoPolicy::None;
+    UPROPERTY() ELDDemoPolicy CampMomentumPolicy = ELDDemoPolicy::None;
 };
 
 // #198: DirectionLine (S09) is a straight band of RangeCm x 2 LineHalfWidthCm in the requested direction; appended last.
 UENUM()
 enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone, DirectionLine };
 
-// When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
-// (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
+// When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), triggered_shield on an ability hit
+// (AbilityHit) or when the holder took positive damage (Damaged).
 // #198 B: DashComplete arms an empower_basic of a component when a voluntary dash (D or an active dash) completes with
 // a positive displacement (B12).
 UENUM()
@@ -377,6 +446,14 @@ enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, D
 // #198 A. A component effect or binding names one of them.
 UENUM()
 enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3 };
+
+// The element an active carries (its own or a branch's): it picks the overdrive bonus (CONTENT_AND_BALANCE §3.5).
+UENUM()
+enum class ELDDemoSkillElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5, Gust = 6 };
+
+// How an active reaches its targets (targeted / projectile / area / dash / self).
+UENUM()
+enum class ELDDemoHitType : uint8 { Targeted = 0, Projectile = 1, Area = 2, Dash = 3, Self = 4 };
 
 // #198 workshop material kinds (基础构件 / 改装件 / 连接件).
 UENUM()
@@ -447,7 +524,7 @@ struct FLDDemoMonsterSkill
 UENUM()
 enum class ELDDemoBonusStat : uint8
 {
-    ADFlat, APFlat, MaxHPFlat, MaxMPFlat, ArmorFlat, MagicResistFlat, CooldownHasteFlat,
+    ADFlat, APFlat, MaxHPFlat, ArmorFlat, MagicResistFlat, CooldownHasteFlat,
     AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio,
     // Percent of the projected AD; only conditional and timed bonuses may use it (floored to P2 when applied).
     ADBonusRatio,
@@ -455,8 +532,8 @@ enum class ELDDemoBonusStat : uint8
     HPRegenFlat,
     // Percent of the projected AP; timed bonuses only (the D26 Boss approval buff), floored to P2 when applied.
     APBonusRatio,
-    // Always-on MP regeneration in mp/s (an exact rational in FLDDemoStatBonus::Cm, like HPRegenFlat).
-    MPRegenFlat
+    // In-combat momentum gain in momentum/s added to MOMENTUM.CombatPerSec (an exact rational in FLDDemoStatBonus::Cm).
+    MomentumRegenFlat
 };
 
 USTRUCT()
@@ -515,7 +592,7 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 ArmorRatioBp = 0;
     UPROPERTY() int64 IntervalMs = 0;
     UPROPERTY() int64 CriticalMultiplierBp = 0;
-    // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield, mana_on_hit).
+    // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield).
     UPROPERTY() ELDDemoEffectTrigger Trigger = ELDDemoEffectTrigger::None;
     UPROPERTY() ELDDemoCooldownEntries Entries = ELDDemoCooldownEntries::None;
     // cooldown_refund: the remaining-cooldown reduction.
@@ -530,19 +607,19 @@ struct FLDDemoEffectDefinition
     // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
-    // dash_contact_refund caps actual mana grants; this cap never grows with level. brace: the record cap (grows with G).
+    // dash_contact_refund caps actual momentum grants; this cap never grows with level. brace: the record cap (grows with G).
     UPROPERTY() int64 LimitP2 = 0;
     // dash_contact: every body the dash actually touches takes the native hit once (otherwise only the first Count).
     UPROPERTY() bool bEveryContact = false;
     // #198 B basic_element: the element a primary basic applies (Water/Electric/Fire); None for every other operation.
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
-    // #198 F workshop terms: a cone angle (spread_unit, compress_cone) and a mana-cost multiplier (cooldown_cost).
+    // #198 F workshop terms: a cone angle (spread_unit, compress_cone) and a momentum-cost multiplier (cooldown_cost).
     UPROPERTY() FLDDemoRational AngleDegrees;
     UPROPERTY() int64 CostRatioBp = 0;
     // #198 F workshop field use (content.json key -> field): damage_ratio MultiplierBp (a damage multiplier of the target's
     // package), ratio RatioBp (a geometry/time multiplier or a share), cooldown_ratio SecondaryRatioBp, cost_ratio CostRatioBp,
     // angle AngleDegrees, range_cap and radius RadiusCm, distance DistanceCm, stun_duration/root_duration SecondaryDurationMs,
-    // cap_ratio MultiplierBp (C01's max-HP cap), mana BaseP2 + mana_cap LimitP2 (C07), base BaseP2 (a damage/shield base,
+    // cap_ratio MultiplierBp (C01's max-HP cap), momentum BaseP2 + momentum_cap LimitP2 (C07), base BaseP2 (a damage/shield base,
     // or the grown cap of C08's store and C11's heal), delay DelayMs, interval IntervalMs, duration DurationMs, count Count.
     // #147/#198 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // zone Count pulses at DelayMs + k x IntervalMs inside DurationMs; zone_slow RatioBp every IntervalMs for DurationMs;
@@ -563,7 +640,7 @@ struct FLDDemoEffectDefinition
     // basic_element Element; basic_damage_scale RatioBp (0 < ratio < 1, the primary basic's own package only);
     // idle_ready_amp DelayMs (ready and idle) + RatioBp (next native direct damage bonus); active_element no fields (the
     // install binds the active and element, FLDDemoComponentDefinition::Binding).
-    // Skill rules on native direct hits (IsNativeDirectHit): cast_hit_refund RatioBp (share of the mana the release
+    // Skill rules on native direct hits (IsNativeDirectHit): cast_hit_refund RatioBp (share of the momentum the release
     // paid, once per release); distance_amp DistanceCm (minimum 2D foot distance) + RatioBp (damage bonus); alternate_amp
     // DurationMs (window after the previous Q/W/E release) + RatioBp (bonus of a different active); triggered_shield
     // AbilityHit uses the Damaged fields (BaseP2, MaxHPRatioBp, DurationMs, IntervalMs).
@@ -575,8 +652,8 @@ struct FLDDemoEffectDefinition
     // hit_haste_other AmountMs (cut of every other learned active's remaining cooldown, once per release; also a hosted
     // dash's first enemy contact); setup_mark DurationMs (mark on the struck enemy) + RatioBp (bonus of a different
     // active's next native direct hit on it); reaction_haste AmountMs (cut of the host's remaining cooldown when it
-    // triggers an element reaction, once per release); multi_hit_mana BaseP2 (MP per distinct enemy beyond the first) +
-    // LimitP2 (MP cap per release).
+    // triggers an element reaction, once per release); multi_hit_momentum BaseP2 (momentum per distinct enemy beyond the
+    // first) + LimitP2 (momentum cap per release).
     // Mods M16-M20 (forced moves are real knockbacks of the host's source): zone_tether RatioBp (zone radius
     // share; the zone follows the caster); defense_shove DistanceCm + DurationMs (shove) + RadiusCm (shove reach) +
     // RatioBp (host shield share); final_knockback DistanceCm + DurationMs (last empowered package / final wave knockback)
@@ -599,7 +676,7 @@ struct FLDDemoAbilityValues
 {
     GENERATED_BODY()
 
-    UPROPERTY() int64 ManaCostP2 = 0;
+    UPROPERTY() int64 MomentumCostP2 = 0;
     UPROPERTY() int64 CooldownMs = 0;
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 };
@@ -617,6 +694,8 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
+    UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
+    UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
     UPROPERTY() FLDDemoAbilityValues Values;
 
     ELDDemoAbilityId GetNativeId() const { return static_cast<ELDDemoAbilityId>(NativeId); }
@@ -752,7 +831,7 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() int64 BasicADRatioBp = 0;
     UPROPERTY() int64 BasicIntervalMs = 0;
     // D19 innate D dash of every contender, projected into the active shape Combat executes: DirectionDash target,
-    // no windup, one value set with the approved mana cost, cooldown and a single Dash effect.
+    // no windup, one value set with no momentum cost, the approved cooldown and a single Dash effect.
     UPROPERTY() FLDDemoDashDefinition Dash;
 };
 
@@ -797,8 +876,6 @@ struct FLDDemoMonsterDefinition
     UPROPERTY() int64 RespawnMs = 0;
     UPROPERTY() int64 RewardXP = 0;
     UPROPERTY() FLDDemoRational HPRegenPerSec;
-    UPROPERTY() int64 MaxMPP2 = 0;
-    UPROPERTY() FLDDemoRational MPRegenPerSec;
     UPROPERTY() int64 APP2 = 0;
     UPROPERTY() int64 CritChanceBp = 0;
 };

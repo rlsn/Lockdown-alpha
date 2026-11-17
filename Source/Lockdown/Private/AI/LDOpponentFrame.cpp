@@ -290,14 +290,14 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
 {
     using namespace Detail;
     if (!Combat.bHasBody || Combat.MaxHPP2 <= 0 || Combat.HPP2 < 0 || Combat.HPP2 > Combat.MaxHPP2
-        || Combat.MPP2 < 0 || Combat.MaxMPP2 < 0 || Combat.MPP2 > Combat.MaxMPP2)
+        || Combat.MomentumP2 < 0 || Combat.MaxMomentumP2 < 0 || Combat.MomentumP2 > Combat.MaxMomentumP2)
     {
         return Fail(Error, TEXT("The own combat view has no consistent living body."));
     }
     Out.HpP2 = Combat.HPP2;
     Out.MaxHpP2 = Combat.MaxHPP2;
-    Out.MpP2 = Combat.MPP2;
-    Out.MaxMpP2 = Combat.MaxMPP2;
+    Out.MomentumP2 = Combat.MomentumP2;
+    Out.MaxMomentumP2 = Combat.MaxMomentumP2;
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
     Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;

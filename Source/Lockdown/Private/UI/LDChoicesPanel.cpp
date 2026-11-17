@@ -362,7 +362,7 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
     Card.Name->SetJustification(ETextJustify::Center);ScaleNewText(Card.Name);RowWidgets.Add(Card.Name);
     auto* NameSlot=Face->AddChildToVerticalBox(Card.Name);NameSlot->SetHorizontalAlignment(HAlign_Fill);NameSlot->SetPadding(FMargin(0,4,0,0));
     {
-        // The stage face's extra lines: targeting, mana and cooldown; the tags; the element chip on the icon; the 可接 row.
+        // The stage face's extra lines: targeting, momentum cost and cooldown; the tags; the element chip on the icon; the 可接 row.
         const auto Line=[this](int32 Size,const FLinearColor& Ink,LDUIFonts::ERole Role)
         {
             UTextBlock* Text=LDWidgets::Text(WidgetTree,TEXT(""),Size,NAME_None,Role);Text->SetAutoWrapText(false);Text->SetJustification(ETextJustify::Center);
@@ -877,7 +877,7 @@ void ULDChoicesPanel::RefreshOffer()
             }
             if(!Lines.IsEmpty()){Detail.Body+=TEXT("\n\n")+FString::Join(Lines,TEXT("\n"));}
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,Detail);
-            // The stage face: targeting, mana and cooldown, the keywords as tags, the element and the 可接 icons.
+            // The stage face: targeting, momentum cost and cooldown, the keywords as tags, the element and the 可接 icons.
             GrowthText(Card.Facts,View.Target+TEXT("\n")+View.Cost);
             GrowthText(Card.Tags,FString::Join(LDWorkshop::KeywordNames(View.Keywords),TEXT("  ·  ")));
             GrowthText(Card.Element,Own.IsEmpty()?FString():LDHUD::ElementName(Own[0]));

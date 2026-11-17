@@ -161,10 +161,10 @@ bool LDCombatSourceRules::CompileWorkshopActive(const FLDAttributeProjection& Pr
             }
             case ELDDemoEffectOp::CooldownCost:
             {
-                // M06: a shorter base cooldown for a dearer cast, the cost rounded up to the next 0.01 MP.
+                // M06: a shorter base cooldown for a dearer cast, the cost rounded up to the next 0.01 momentum.
                 ScaleCooldown(Effect.SecondaryRatioBp);
-                const int64 Cost=Values.ManaCostP2;
-                Values.ManaCostP2=Cost/10000*Effect.CostRatioBp+(Cost%10000*Effect.CostRatioBp+9999)/10000;
+                const int64 Cost=Values.MomentumCostP2;
+                Values.MomentumCostP2=Cost/10000*Effect.CostRatioBp+(Cost%10000*Effect.CostRatioBp+9999)/10000;
                 break;
             }
             case ELDDemoEffectOp::CompressCone:
@@ -500,21 +500,21 @@ bool ALDCombatDirector::OnHardControl(FLDBodyCombatState& Victim, const FLDContr
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Ref.Effect.DurationMs,Mark->ExpiresAtMs,Error)) { return false; }
         }
     }
-    // C07: mana per controlled body, at most the cap per original action and all of its derived controls.
-    TArray<FLDPassiveEffectRef> Manas;
-    if (!WorkshopOn(Holder->AttributeProjection,ELDDemoEffectOp::ControlMana,App.Source,Manas,Error)) { return false; }
-    for (const FLDPassiveEffectRef& Mana : Manas)
+    // C07: momentum per controlled body, at most the cap per original action and all of its derived controls.
+    TArray<FLDPassiveEffectRef> Grants;
+    if (!WorkshopOn(Holder->AttributeProjection,ELDDemoEffectOp::ControlMomentum,App.Source,Grants,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Granted : Grants)
     {
         FLDCombatEffectBudget* Budget=Holder->EffectBudgets.FindByPredicate([&](const FLDCombatEffectBudget& Row)
-        { return Row.EffectId==App.EffectId && Row.Component==Mana.Source.DefinitionId; });
-        if (!Budget) { Budget=&Holder->EffectBudgets.Add_GetRef({App.EffectId,Mana.Source.DefinitionId,0,NowMs}); }
-        const int64 Grant=FMath::Min(Mana.Effect.BaseP2,Mana.Effect.LimitP2-Budget->SpentP2);
+        { return Row.EffectId==App.EffectId && Row.Component==Granted.Source.DefinitionId; });
+        if (!Budget) { Budget=&Holder->EffectBudgets.Add_GetRef({App.EffectId,Granted.Source.DefinitionId,0,NowMs}); }
+        const int64 Grant=FMath::Min(Granted.Effect.BaseP2,Granted.Effect.LimitP2-Budget->SpentP2);
         if (Grant<=0) { continue; }
         Budget->SpentP2+=Grant;
-        const int64 MpBeforeP2=Holder->Resources.MpP2;
-        GrantMana(*Holder,Grant);
-        // §10: C07 is one trigger per grant that actually raised the holder's mana.
-        if (Holder->Resources.MpP2>MpBeforeP2) { LedgerComponentTriggered(*Holder,Mana.Source.DefinitionId); }
+        const int64 MomentumBeforeP2=Holder->Resources.MomentumP2;
+        GrantMomentum(*Holder,Grant);
+        // §10: C07 is one trigger per grant that actually raised the holder's momentum.
+        if (Holder->Resources.MomentumP2>MomentumBeforeP2) { LedgerComponentTriggered(*Holder,Granted.Source.DefinitionId); }
     }
     // Budgets of actions long finished are no longer read.
     Holder->EffectBudgets.RemoveAll([NowMs](const FLDCombatEffectBudget& Row) { return NowMs-Row.AtMs>30000; });
@@ -635,28 +635,28 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
             *LDLog::Id(Holder.Victim.EntityId),*Setup.TargetId.ToString(),*LDLog::Id(Hit.Target.Victim.EntityId),Mark->ExpiresAtMs);
     }
     // C16: each distinct enemy past the first this release's native direct hits struck, up to the cap per release.
-    TArray<FLDPassiveEffectRef> Manas;
+    TArray<FLDPassiveEffectRef> Grants;
     if (!Hit.EffectId.IsValid()) { return true; }
-    if (!WorkshopOn(Holder.AttributeProjection,ELDDemoEffectOp::MultiHitMana,Hit.Source,Manas,Error)) { return false; }
-    for (const FLDPassiveEffectRef& Mana : Manas)
+    if (!WorkshopOn(Holder.AttributeProjection,ELDDemoEffectOp::MultiHitMomentum,Hit.Source,Grants,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Granted : Grants)
     {
         FLDCombatEffectBudget* Budget=Holder.EffectBudgets.FindByPredicate([&](const FLDCombatEffectBudget& Row)
-        { return Row.EffectId==Hit.EffectId && Row.Component==Mana.Source.DefinitionId; });
-        if (!Budget) { Budget=&Holder.EffectBudgets.Add_GetRef({Hit.EffectId,Mana.Source.DefinitionId,0,NowMs}); }
+        { return Row.EffectId==Hit.EffectId && Row.Component==Granted.Source.DefinitionId; });
+        if (!Budget) { Budget=&Holder.EffectBudgets.Add_GetRef({Hit.EffectId,Granted.Source.DefinitionId,0,NowMs}); }
         if (Budget->Struck.Contains(Hit.Target)) { continue; }
         Budget->Struck.Add(Hit.Target);
         if (Budget->Struck.Num()<2) { continue; }
-        const int64 Grant=FMath::Min(Mana.Effect.BaseP2,Mana.Effect.LimitP2-Budget->SpentP2);
+        const int64 Grant=FMath::Min(Granted.Effect.BaseP2,Granted.Effect.LimitP2-Budget->SpentP2);
         if (Grant<=0) { continue; }
         Budget->SpentP2+=Grant;
-        const int64 MpBeforeP2=Holder.Resources.MpP2;
-        GrantMana(Holder,Grant);
-        if (Holder.Resources.MpP2<=MpBeforeP2) { continue; }
-        // §10: C16 is one trigger per grant that actually raised the holder's mana.
-        LedgerComponentTriggered(Holder,Mana.Source.DefinitionId);
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_MULTI_HIT_MANA t=%lld holder=%s host=%s struck=%d mp=%s->%s"),NowMs,
-            *LDLog::Id(Holder.Victim.EntityId),*LDLog::Source(Hit.Source),Budget->Struck.Num(),*LDLog::P2(MpBeforeP2),
-            *LDLog::P2(Holder.Resources.MpP2));
+        const int64 MomentumBeforeP2=Holder.Resources.MomentumP2;
+        GrantMomentum(Holder,Grant);
+        if (Holder.Resources.MomentumP2<=MomentumBeforeP2) { continue; }
+        // §10: C16 is one trigger per grant that actually raised the holder's momentum.
+        LedgerComponentTriggered(Holder,Granted.Source.DefinitionId);
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_MULTI_HIT_MOMENTUM t=%lld holder=%s host=%s struck=%d momentum=%s->%s"),NowMs,
+            *LDLog::Id(Holder.Victim.EntityId),*LDLog::Source(Hit.Source),Budget->Struck.Num(),*LDLog::P2(MomentumBeforeP2),
+            *LDLog::P2(Holder.Resources.MomentumP2));
     }
     return true;
 }
@@ -950,7 +950,7 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
         const auto* Record=FindRecord(Hit.SourceEntity);
         if (!Content || !Record) { Error=TEXT("Bowling impact lost its checked source build."); return false; }
         const auto& P=Content->Get().Parameters;
-        const int64 Growth=LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,P.SkillGrowthPerLevelAfter10Bp,Record->Build.Level);
+        const int64 Growth=LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,Record->Build.Level);
         if (!LDSkillGrowth::GrowP2(Card->BaseP2,Growth,Impact.FinalBaseP2))
         { Error=TEXT("Bowling fixed damage growth overflow."); return false; }
         Impact.FinalCardId=FName(*Card->Id);

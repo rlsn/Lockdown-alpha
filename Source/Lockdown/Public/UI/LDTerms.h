@@ -15,7 +15,11 @@ inline constexpr TCHAR SlangNote[]=TEXT("雾港黑话：淫 = 把人揍趴下，
 
 // 资源与属性
 inline constexpr TCHAR Health[]=TEXT("生命");
-inline constexpr TCHAR Mana[]=TEXT("法力");
+inline constexpr TCHAR Momentum[]=TEXT("劲");
+inline constexpr TCHAR Overdrive[]=TEXT("爆劲");
+inline constexpr TCHAR Combo[]=TEXT("连击");
+inline constexpr TCHAR SkillPoint[]=TEXT("技能点");
+inline constexpr TCHAR PerfectDodge[]=TEXT("完美闪避");
 inline constexpr TCHAR AttackDamage[]=TEXT("攻击力");
 inline constexpr TCHAR AbilityPower[]=TEXT("法术强度");
 inline constexpr TCHAR Armor[]=TEXT("护甲");
@@ -28,11 +32,10 @@ inline constexpr TCHAR PhysicalDamage[]=TEXT("物理伤害");
 inline constexpr TCHAR MagicalDamage[]=TEXT("魔法伤害");
 inline constexpr TCHAR Experience[]=TEXT("流量");
 inline FString MaxHealth(){return FString(Health)+TEXT("上限");}
-inline FString MaxMana(){return FString(Mana)+TEXT("上限");}
 inline FString HealthRegen(){return FString(Health)+TEXT("回复");}
-inline FString ManaRegen(){return FString(Mana)+TEXT("回复");}
+inline FString MomentumRegen(){return FString(TEXT("交战"))+Momentum+TEXT("回复");}
 inline FString CritChance(){return FString(Crit)+TEXT("率");}
-inline FString NotEnoughMana(){return FString(Mana)+TEXT("不足");}
+inline FString MomentumShort(){return FString(Momentum)+TEXT("不足");}
 
 // 动作与地点
 inline constexpr TCHAR BasicAttack[]=TEXT("普攻");

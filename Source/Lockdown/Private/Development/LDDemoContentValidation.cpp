@@ -33,28 +33,36 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path)
                 && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
-    // #166: levels 2..10 and 11..16 have separate fixed-amount growth steps.
-    int64 FirstGrowth = 0, LaterGrowth = 0, Factor = 0;
-    if (!N.Mul64(FMath::Min(FMath::Max(D.Progression.MaxLevel - 1, 0), 9), P.SkillGrowthPerLevelBp,
-            FirstGrowth, TEXT("SKILL.GrowthPerLevel"))
-        || !N.Mul64(FMath::Max(D.Progression.MaxLevel - 10, 0), P.SkillGrowthPerLevelAfter10Bp,
-            LaterGrowth, TEXT("SKILL.GrowthPerLevelAfter10"))
-        || !N.Add64(10000, FirstGrowth, Factor, TEXT("SKILL.GrowthPerLevel"))
-        || !N.Add64(Factor, LaterGrowth, Factor, TEXT("SKILL.GrowthPerLevelAfter10")))
+    // G(L) = 1 + SKILL.GrowthPerLevel x (L - 1) at the top level; the top rank and overdrive scale the grown amounts again
+    // (base and ratios alike), so the envelope checks their product.
+    int64 Growth = 0, Factor = 0, RankFactor = 0;
+    const auto& Ranks = P.SkillRanks;
+    if (Ranks.RankBaseScaleBp.Num() != 3 || Ranks.RankRatioScaleBp.Num() != 3
+        || !N.Mul64(FMath::Max(D.Progression.MaxLevel - 1, 0), P.SkillGrowthPerLevelBp, Growth, TEXT("SKILL.GrowthPerLevel"))
+        || !N.Add64(10000, Growth, Factor, TEXT("SKILL.GrowthPerLevel"))
+        || !N.Mul64(FMath::Max(Ranks.RankBaseScaleBp[2], Ranks.RankRatioScaleBp[2]), P.Overdrive.ScaleBp, RankFactor,
+            TEXT("SKILL.RankBaseScale")))
     {
         return false;
     }
-    const auto Grow = [&N, Factor](int64 AmountP2, int64& Out, const FString& Path)
+    const auto Grow = [&N, Factor, RankFactor](int64 AmountP2, int64& Out, const FString& Path)
     {
-        int64 Product = 0;
-        if (!N.Mul64(AmountP2, Factor, Product, Path)) { return false; }
-        Out = Product / 10000;
+        int64 Product = 0, Scaled = 0;
+        if (!N.Mul64(AmountP2, Factor, Product, Path) || !N.Mul64(Product / 10000, RankFactor, Scaled, Path)) { return false; }
+        Out = Scaled / 100000000;
         return true;
     };
-    const auto CheckGrown = [&Grow, &CheckEffect](const FLDDemoEffectDefinition& Effect, const FString& Path)
+    const auto CheckGrown = [&Grow, &CheckEffect, &N, RankFactor](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
         FLDDemoEffectDefinition Grown = Effect;
-        if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Path)) { return false; }
+        if (!Grow(Effect.BaseP2, Grown.BaseP2, Path)) { return false; }
+        // Ratios scale with the top rank and overdrive too.
+        for (int64* Ratio : {&Grown.ADRatioBp, &Grown.APRatioBp, &Grown.MaxHPRatioBp})
+        {
+            int64 Scaled = 0;
+            if (!N.Mul64(*Ratio, RankFactor, Scaled, Path)) { return false; }
+            *Ratio = Scaled / 100000000;
+        }
         if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
         {
             for (FLDDemoStatBonus& Stat : Grown.Stats)
@@ -101,7 +109,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
 {
     FNumbers N(Check);
     const auto& P = D.Parameters;
-    for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.MaxMP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
+    for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
     {
         int64 Growth, Final;
         if (!N.Mul64(D.Progression.MaxLevel - 1, Bounds->PerLevelP2, Growth, TEXT("stat bounds"))
@@ -112,7 +120,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    for (const FLDDemoRateBounds* Bounds : {&P.HPRegen, &P.MPRegen})
+    for (const FLDDemoRateBounds* Bounds : {&P.HPRegen})
     {
         const FExact Final = N.Add(N.Value(Bounds->Base),
             N.Mul(N.Value(D.Progression.MaxLevel - 1), N.Value(Bounds->PerLevel)));
@@ -152,7 +160,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         return false;
     }
     // A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate (LDTactical::SettleRegen).
-    for (const int64 Bp : {P.OutOfCombatMaxHPRegenBp, P.OutOfCombatMaxMPRegenBp})
+    for (const int64 Bp : {P.OutOfCombatMaxHPRegenBp})
     {
         if (!Check.Require(P.OutOfCombatRegenDelayMs > 0 && Bp > 0 && Bp <= 10000 && Bp % 10 == 0, TEXT("REGEN"),
             TEXT("out-of-combat recovery needs a positive delay and a positive multiple of 0.001 of the maximum per second")))
@@ -197,9 +205,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    if (!Check.Require(P.AirdropHealMaxHPBp > 0 && P.AirdropManaMaxMPBp > 0 && P.AirdropMoveSpeedBp > 0
+    if (!Check.Require(P.AirdropHealMaxHPBp > 0 && P.AirdropMomentumP2 > 0 && P.AirdropMoveSpeedBp > 0
         && P.AirdropMoveSpeedMs > 0, TEXT("AIRDROP"),
-        TEXT("the airdrop healing, mana and move-speed rewards must all be positive")))
+        TEXT("the airdrop healing, momentum and move-speed rewards must all be positive")))
     {
         return false;
     }
@@ -223,7 +231,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         return false;
     }
     // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
-    for (const int64 Bp : {P.DormMaxHPRegenBp, P.DormMaxMPRegenBp})
+    for (const int64 Bp : {P.DormMaxHPRegenBp})
     {
         if (!Check.Require(P.DormRegenDelayMs > 0 && Bp > 0 && Bp <= 10000 && Bp % 10 == 0, TEXT("DORM"),
             TEXT("dorm recovery needs a positive delay and a positive multiple of 0.001 of the maximum per second")))

@@ -123,8 +123,8 @@ struct FLDOpponentSelf
     FVector FootCm = FVector::ZeroVector;
     int64 HpP2 = 0;
     int64 MaxHpP2 = 0;
-    int64 MpP2 = 0;
-    int64 MaxMpP2 = 0;
+    int64 MomentumP2 = 0;
+    int64 MaxMomentumP2 = 0;
     FLDProjectedAttributes Attributes;
     // Authority ms at which the next basic AttackStart may begin; at or before now when ready.
     int64 BasicReadyAtMs = 0;

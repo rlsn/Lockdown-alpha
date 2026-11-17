@@ -39,7 +39,7 @@ constexpr double OwnBarsHeadroomCm=120.;
 constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
 constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
-constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
+constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnMomentumHeight=4.f;
 // Own status icons over the own bars: squares at the reference text scale, the gap between them and how many fill a row.
 constexpr float OwnStatusSide=22.f,OwnStatusGap=3.f;constexpr int32 OwnStatusPerRow=6;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
@@ -92,6 +92,7 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
     // As on the target card (LDHUD::ResourceP2), health without a known maximum or with a malformed current is unknown:
     // no bar rather than an empty one.
     Label.bHealth=Unit.Health.MaxP2>0&&Unit.Health.CurrentP2>=0;
+    Label.bCharging=Label.bContender&&Unit.bCharging;
     if(Label.bHealth){Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));}
     // The same parts as the target card's status line (LDHUD::ObservedCard), so both read alike.
     for(const FLDObservedStatus& Status:Unit.Statuses)
@@ -118,8 +119,8 @@ LDWorldLabels::FOwnBars LDWorldLabels::OwnBars(const FLDOwnerState& Own,uint32 P
     double Health=FMath::Clamp(double(Combat.HPP2)/MaxHealth,0.,1.),Shield=FMath::Max(double(Combat.ShieldP2),0.)/MaxHealth;
     if(Health+Shield>1.){const double Total=Health+Shield;Health/=Total;Shield/=Total;}
     Bars.Health=float(Health);Bars.Shield=float(Shield);
-    Bars.bMana=Combat.MaxMPP2>0&&Combat.MPP2>=0;
-    if(Bars.bMana){Bars.Mana=float(FMath::Clamp(double(Combat.MPP2)/double(Combat.MaxMPP2),0.,1.));}
+    Bars.bMomentum=Combat.MaxMomentumP2>0&&Combat.MomentumP2>=0;
+    if(Bars.bMomentum){Bars.Momentum=float(FMath::Clamp(double(Combat.MomentumP2)/double(Combat.MaxMomentumP2),0.,1.));}
     return Bars;
 }
 
@@ -233,18 +234,18 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))
         {
-            // Bottom-up from the anchor: mana under health (the shield after its fill) in one rim.
-            const float RimW=OwnBarWidth+2.f,RimH=OwnHealthHeight+2.f+(SelfBars.bMana?OwnManaHeight+1.f:0.f);
+            // Bottom-up from the anchor: momentum under health (the shield after its fill) in one rim.
+            const float RimW=OwnBarWidth+2.f,RimH=OwnHealthHeight+2.f+(SelfBars.bMomentum?OwnMomentumHeight+1.f:0.f);
             const float RimLeft=OwnX-RimW*.5f,RimTop=OwnBottom-RimH,BarX=RimLeft+1.f,HealthTop=RimTop+1.f;
             Box(1,FVector2f(RimLeft,RimTop),FVector2f(RimW,RimH),LDHUDStyle::Rim);
             Box(2,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth,OwnHealthHeight),LDHUDStyle::BarTrack);
             if(SelfBars.Health>0.f){Box(3,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth*SelfBars.Health,OwnHealthHeight),LDHUDStyle::OwnHealth);}
             if(SelfBars.Shield>0.f){Box(3,FVector2f(BarX+OwnBarWidth*SelfBars.Health,HealthTop),FVector2f(OwnBarWidth*SelfBars.Shield,OwnHealthHeight),LDHUDStyle::Shield);}
-            if(SelfBars.bMana)
+            if(SelfBars.bMomentum)
             {
-                const float ManaTop=HealthTop+OwnHealthHeight+1.f;
-                Box(2,FVector2f(BarX,ManaTop),FVector2f(OwnBarWidth,OwnManaHeight),LDHUDStyle::BarTrack);
-                if(SelfBars.Mana>0.f){Box(3,FVector2f(BarX,ManaTop),FVector2f(OwnBarWidth*SelfBars.Mana,OwnManaHeight),LDHUDStyle::Mana);}
+                const float MomentumTop=HealthTop+OwnHealthHeight+1.f;
+                Box(2,FVector2f(BarX,MomentumTop),FVector2f(OwnBarWidth,OwnMomentumHeight),LDHUDStyle::BarTrack);
+                if(SelfBars.Momentum>0.f){Box(3,FVector2f(BarX,MomentumTop),FVector2f(OwnBarWidth*SelfBars.Momentum,OwnMomentumHeight),SelfBars.Momentum>=1.f?LDHUDStyle::Overdrive:LDHUDStyle::Momentum);}
             }
             // The own level badge left of the bars, like every contender's: the own progression of this match, in the own
             // identity tint. Without a known level there is no badge rather than a guessed number.
@@ -465,6 +466,12 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         {
             const float BarWidth=WorldBarWidth(Label),BarRimHeight=WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f;
             const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f,BarTop=Mid-BarRimHeight*.5f;
+            // An overdrive charge: a pulsing gold halo around the bar, visible to every observer of the unit.
+            if(Label.bCharging)
+            {
+                const float Pulse=.55f+.45f*FMath::Abs(FMath::Sin(float(FPlatformTime::Seconds())*9.f));
+                Box(0,FVector2f(BarLeft-3.f,BarTop-3.f),FVector2f(BarWidth+8.f,BarRimHeight+6.f),LDHUDStyle::Overdrive.CopyWithNewOpacity(Pulse));
+            }
             Box(1,FVector2f(BarLeft,BarTop),FVector2f(BarWidth+2.f,BarRimHeight),LDHUDStyle::Rim);
             float TrackTop=BarTop+1.f;
             // The shield is a line across the top of the bar; the status line below names it too.

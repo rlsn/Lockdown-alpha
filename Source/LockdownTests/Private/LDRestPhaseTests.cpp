@@ -343,7 +343,6 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
         LDTactical::FOutOfCombatRecovery Recovery;
         Recovery.DelayMs = 1;
         Recovery.MaxHPBpPerSec = 10000;
-        Recovery.MaxMPBpPerSec = 10000;
         FString Error;
         const int64 HpBefore = SM.Resources.HpP2;
         bGood &= TestTrue(TEXT("Regeneration settles"), Driver->RegenerateBodies(Recovery, 5000, Error));

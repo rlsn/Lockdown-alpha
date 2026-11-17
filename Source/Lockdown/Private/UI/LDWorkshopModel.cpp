@@ -230,7 +230,7 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
         if(Content)
         {
             const FLDDemoAbilityValues& Values=Content->Character.Dash.Values;
-            if(Values.ManaCostP2>0){Head.Mana=WorkshopWhole(Values.ManaCostP2);}
+            if(Values.MomentumCostP2>0){Head.Momentum=WorkshopWhole(Values.MomentumCostP2);}
             if(Values.CooldownMs>0){Head.Cooldown=WorkshopSeconds(Values.CooldownMs);}
         }
         return Head;
@@ -241,7 +241,7 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     Head.Glyph=LDHUD::IconGlyph(Head.Name);
     if(const FLDDemoAbilityDefinition* Ability=WorkshopAbility(Content,Active))
     {
-        Head.Mana=WorkshopWhole(Ability->Values.ManaCostP2);
+        Head.Momentum=WorkshopWhole(Ability->Values.MomentumCostP2);
         Head.Cooldown=WorkshopSeconds(Ability->Values.CooldownMs);
     }
     Head.Elements=ActiveElements(Active,Content);

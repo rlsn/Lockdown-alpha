@@ -67,14 +67,14 @@ namespace LDWorkshop
     LOCKDOWN_API FPendingFit FitPending(const TArray<float>& Heights,float Height,float PagerHeight);
     // The elements an active applies (burn, wet and electric effects), in fire, water, electric order.
     LOCKDOWN_API TArray<ELDDemoElement> ActiveElements(FName Active,const FLDDemoContentDefinitions* Content);
-    // A rule board column head: the learned active's (or the dash's) icon, name, mana and cooldown and the elements it
+    // A rule board column head: the learned active's (or the dash's) icon, name, momentum cost and cooldown and the elements it
     // applies; 本体 shows the holder. An empty Q/W/E slot is bEmpty.
     struct FColumnHead
     {
         FString Name;
         FString IconId;
         FString Glyph;
-        FString Mana;
+        FString Momentum;
         FString Cooldown;
         TArray<ELDDemoElement> Elements;
         bool bEmpty=false;

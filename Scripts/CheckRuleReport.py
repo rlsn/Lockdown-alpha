@@ -137,7 +137,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Components.HitHasteOtherDashContact",
         "Lockdown.Rules.Combat.Components.SetupMark",
         "Lockdown.Rules.Combat.Components.ReactionHaste",
-        "Lockdown.Rules.Combat.Components.MultiHitMana",
+        "Lockdown.Rules.Combat.Components.MultiHitMomentum",
         "Lockdown.Rules.Combat.Components.ZoneTether",
         "Lockdown.Rules.Combat.Components.DefenseShove",
         "Lockdown.Rules.Combat.Components.FinalKnockback",

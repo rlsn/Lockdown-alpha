@@ -67,7 +67,7 @@ def manifest(subject=None, opponent=None, sample="legal_search", supply=SUPPLY, 
 def contender(role, slot, contender_id, hp=31000, body=True, **rest):
     row = {"role": role, "slot": slot, "contender": contender_id, "progression_valid": True, "level": 6, "xp": SUPPLY,
            "choices": 3, "planned_choices": 3, "unspent_points": 0, **copy.deepcopy(BUILDS[role]),
-           "has_body": body, "hp_p2": hp, "max_hp_p2": 62000, "mp_p2": 0, "max_mp_p2": 0, "profile_bound": True,
+           "has_body": body, "hp_p2": hp, "max_hp_p2": 62000, "momentum_p2": 0, "max_momentum_p2": 0, "profile_bound": True,
            "profile_phase": "Engaging", "profile_failure": "", "supply_xp": SUPPLY, "supply_status": "Granted",
            "presets_requested": 0, "presets_queued": 0, "planned_steps": 0, "steps_committed": 0, "components": []}
     row.update(rest)

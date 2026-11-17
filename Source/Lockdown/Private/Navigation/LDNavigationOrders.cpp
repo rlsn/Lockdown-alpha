@@ -243,7 +243,7 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     }
     if (!Request.bQueue && Cast)
     {
-        // A cast whose skill could not start anyway (cooldown, mana, control, empty slot) is refused here (2026-11-07
+        // A cast whose skill could not start anyway (cooldown, momentum, control, empty slot) is refused here (2026-11-07
         // decision): the current order, the pending request and the shift queue stay as they were. The identity is
         // spent and the attempt still ends protection in the next Actions phase (APP_SPEC 7.1).
         double ReachCm=0;

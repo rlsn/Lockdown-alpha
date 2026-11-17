@@ -40,7 +40,16 @@ namespace LDCA
             && A.Target.ObservationEpoch==B.Target.ObservationEpoch
             && FVector(A.Target.Direction).Equals(FVector(B.Target.Direction),0.0001)
             && FVector(A.Target.Point).Equals(FVector(B.Target.Point),0.0001)
-            && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision;
+            && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision
+            && A.bOverdrive==B.bOverdrive;
+    }
+
+    // Whether Body holds the overdrive charge of Entry long enough at NowMs: half of OVERDRIVE.HoldSec at the server, the
+    // client's own hold being the rest (jitter room between the charge and the request).
+    bool ChargeHeld(const FLDBodyCombatState& Body, ELDCombatEntry Entry, int64 NowMs, int64 HoldMs)
+    {
+        return Body.OverdriveCharge.IsSet() && Body.OverdriveCharge->Entry==Entry && HoldMs>0
+            && NowMs-Body.OverdriveCharge->StartMs>=HoldMs/2;
     }
 
     bool ValidDirection(const FVector& Direction)
@@ -465,10 +474,14 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     Action.TargetBody=Target;
     Action.StartedAtMs=Now;
     Action.ReleaseAtMs=ReleaseAt;
+    // The combo advances from the last released basic; a windup cancelled before release never advances it.
+    Action.ComboStep=LDMomentum::NextComboStep(Body->ComboStep,Body->ComboStartMs,Now,Parameters.Combo.ResetMs);
+    Action.BasicIntervalMs=Timing.Value->IntervalMs;
     CancelChannel(*Body);
     Body->Action=Action;
     Body->BasicTiming=Timing.Value.GetValue();
     Body->LastCombatAtMs=Now;
+    Body->MomentumEngagedAtMs=Now;
     ++Body->StateRevision;
     // #198: an accepted basic windup is a combat action of the build safe window.
     MarkBuildUnsafe(Caller.EntityId,Now);
@@ -731,8 +744,8 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
     Gate.ReadyAtMs=Track->ReadyAtMs;
-    Gate.MpP2=Body->Resources.MpP2;
-    Gate.ManaCostP2=ValuesDef->ManaCostP2;
+    Gate.MomentumP2=Body->Resources.MomentumP2;
+    Gate.MomentumCostP2=ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body->Roots;
@@ -749,6 +762,10 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Action.Source=Source;
     Action.Target=Request.Target;
     Action.SourceRevision=Record.SourceRevision;
+    // Overdrive needs the visible charge of this entry held for half of OVERDRIVE.HoldSec at the server (the rest is
+    // jitter room); without it the request releases normally. The charge ends with the admission.
+    Action.bOverdrive=Request.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
+        && LDCA::ChargeHeld(*Body,Request.Entry,Now,Content->Get().Parameters.Overdrive.HoldMs);
     switch (TargetDef->Mode)
     {
     case ELDDemoTargetMode::Self:
@@ -796,6 +813,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs,Action.ReleaseAtMs,Error)) { return false; }
     Action.Token=Record.NextToken++;
     Action.StartedAtMs=Now;
+    if (Body->OverdriveCharge.IsSet() && Body->OverdriveCharge->Entry==Request.Entry) { EndOverdriveCharge(*Body); }
     CancelChannel(*Body);
     // A new ability interrupts an unreleased basic windup; its committed cadence is not refunded.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
@@ -842,6 +860,7 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
             if (FLDBodyCombatState* After=Bodies.Find(Actor))
             {
                 After->Cues.bReleasedBasic=Action.Kind==ELDCombatActionKind::Basic && !Action.bMonsterSpecial;
+                After->Cues.ReleasedComboStep=After->Cues.bReleasedBasic ? Action.ComboStep : 0;
                 After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
                 After->Cues.ReleasedAtMs=Now;
                 After->ReleasedSource=Action.Source;
@@ -979,6 +998,18 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
         Hit.ADRatioBp=Hit.ADRatioBp*Scale.Effect.RatioBp/10000;
     }
     const int64 Now=Mode->GetAuthorityNowMs();
+    // COMBO.StepRatios: the contender's combo step scales the basic's own raw package (not the merged empowered ones)
+    // before its critical roll. The released step is the body's combo from now on.
+    if (Body.Victim.Kind==ELDVictimKind::Contender && Action.ComboStep>0)
+    {
+        const int64 ComboBp=LDMomentum::ComboRatioBp(Content->Get().Parameters.Combo,Action.ComboStep);
+        if (ComboBp<=0 || Hit.ADRatioBp>MAX_int64/ComboBp) { Error=TEXT("A combo step leaves the checked numeric domain."); return false; }
+        Hit.ADRatioBp=Hit.ADRatioBp*ComboBp/10000;
+        Hit.ComboStep=Action.ComboStep;
+        Hit.BasicIntervalMs=Action.BasicIntervalMs;
+        Body.ComboStep=Action.ComboStep;
+        Body.ComboStartMs=Action.StartedAtMs;
+    }
     // Spec §10.2: every live empowered package (one per source: S11, S17, B12) joins this one primary hit before its
     // critical roll, so the hit crits, heals and counts once.
     const int32 PendingBefore=Body.Empowers.Num();
@@ -1112,6 +1143,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     auto* Track=TrackFor(*Record,Action.Entry);
     if (!ActiveOf(*Record,Source,Ability,Terms) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
+    // Overdrive: a release admitted with a held charge whose bar still holds OVERDRIVE.Threshold scales its base amounts
+    // and ratios and takes its element's bonus; otherwise it releases normally (never a refusal).
+    const auto& OverdriveTerms=Content->Get().Parameters.Overdrive;
+    const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
+        && LDMomentum::OverdriveReady(OverdriveTerms,Body.Resources.MomentumP2);
+    if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
     // C20: a live wide token of another host widens this release's area terms (consumed only if it is paid).
     bool bWidened=false;
     if (!WidenTerms(Body,Source,Terms,Mode->GetAuthorityNowMs(),bWidened,Error)) { return false; }
@@ -1133,8 +1170,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
     Gate.ReadyAtMs=Track->ReadyAtMs;
-    Gate.MpP2=Body.Resources.MpP2;
-    Gate.ManaCostP2=bInnate ? Innate.ManaCostP2 : ValuesDef->ManaCostP2;
+    Gate.MomentumP2=Body.Resources.MomentumP2;
+    Gate.MomentumCostP2=bInnate ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body.Roots;
@@ -1224,17 +1261,27 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The duration is fixed at the actual release moment; later build changes never move this endpoint. The innate
     // dash issues its whole cooldown without haste.
     int64 DurationMs=bInnate ? Innate.CooldownMs : 0, ReadyAt=0;
-    if ((!bInnate && !LDTactical::CooldownDurationMs(BaseCooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
-            Content->Get().Formulas.HasteScaleP2,DurationMs,Error))
-        || !LDMatchLifecycle::AddDurationMs(Now,DurationMs,ReadyAt,Error)) { return false; }
+    if (!bInnate && !LDTactical::CooldownDurationMs(BaseCooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
+            Content->Get().Formulas.HasteScaleP2,DurationMs,Error)) { return false; }
+    // SKILL.CooldownFloorSec: the technical floor of a hasted Q/W/E (animation and network), not a gameplay cap.
+    if (!bInnate) { DurationMs=FMath::Max(DurationMs,Content->Get().Parameters.SkillRanks.CooldownFloorMs); }
+    if (!LDMatchLifecycle::AddDurationMs(Now,DurationMs,ReadyAt,Error)) { return false; }
     // B17: read from the track's real ReadyAt before this release issues the next one (the wait restarts after it).
     int64 IdleAmpBp=0;
     if (!IdleReadyAmpBp(Body,*Track,Now,IdleAmpBp,Error)) { return false; }
     // B15: a different learned active released within the window after the previous Q/W/E release locks its amplification.
     int64 AlternateBp=0;
     if (!AlternateAmpBp(Body,Source,Now,AlternateBp,Error)) { return false; }
-    // Every fallible step is done: pay once and register the effects.
-    Body.Resources.MpP2-=Gate.ManaCostP2;
+    // Every fallible step is done: pay once and register the effects (an overdrive pays the whole bar).
+    const int64 PaidP2=bOverdrive ? Body.Resources.MomentumP2 : Gate.MomentumCostP2;
+    GrantMomentum(Body,-PaidP2,ELDMomentumBook::Spent);
+    if (bOverdrive)
+    {
+        ++Body.MomentumLedger.Overdrives;
+        UE_LOG(LogLDCombat,Log,TEXT("LD_OVERDRIVE t=%lld src=%s active=%s paid=%lld"),Now,*LDLog::Id(Body.Victim.EntityId),
+            *Source.DefinitionId.ToString(),PaidP2);
+    }
+    if (Body.OverdriveCharge.IsSet()) { EndOverdriveCharge(Body); }
     ++Body.Resources.Revision;
     Track->ReadyAtMs=ReadyAt;
     Track->LastDurationMs=DurationMs;
@@ -1244,7 +1291,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
-    CastLedger->PaidManaP2=Gate.ManaCostP2;
+    CastLedger->PaidMomentumP2=PaidP2;
+    CastLedger->bOverdrive=bOverdrive;
     CastLedger->AlternateAmpBp=AlternateBp;
     if (AlternateBp>0)
     {
@@ -1332,7 +1380,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Body.DashContact->Source=Source;
                 Body.DashContact->StartMs=Now;
                 Body.DashContact->EndMs=Body.DashUntilMs;
-                Body.DashContact->PaidManaP2=Gate.ManaCostP2;
+                Body.DashContact->PaidMomentumP2=PaidP2;
                 Body.DashContact->bCanDamage=bDamage;
                 Body.DashContact->bCanRefund=bRefund;
                 Body.DashContact->bCanKnock=bKnock;
@@ -1463,7 +1511,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     {
         if (Zone.EffectId==EffectId && Zone.bDamage) { Zone.IdleReadyAmpBp=IdleAmpBp; Zone.PackageScaleBp=Terms.PackageScaleBp; }
     }
-    if (bDealsDamage) { Body.LastCombatAtMs=Now; }
+    if (bDealsDamage) { Body.LastCombatAtMs=Now; Body.MomentumEngagedAtMs=Now; }
     // #198: an offensive release is a combat action of the build safe window; a self buff, shield or plain dash is not.
     if (LDCombatSourceRules::IsOffensive(*ValuesDef)) { MarkBuildUnsafe(Body.Victim.EntityId,Now); }
     if (bTimedBonus && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
@@ -1673,8 +1721,8 @@ bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBod
     Out.bPendingDeath=Body->bPendingDeath;
     Out.HPP2=Body->Resources.HpP2;
     Out.MaxHPP2=Body->Resources.MaxHpP2;
-    Out.MPP2=Body->Resources.MpP2;
-    Out.MaxMPP2=Body->Resources.MaxMpP2;
+    Out.MomentumP2=Body->Resources.MomentumP2;
+    Out.MaxMomentumP2=Catalog() ? Catalog()->Get().Parameters.Momentum.MaxP2 : 0;
     Out.ShieldP2=Body->Resources.ShieldP2;
     Out.ResourceRevision=Body->Resources.Revision;
     Out.StateRevision=Body->StateRevision;

@@ -1016,7 +1016,7 @@ public:
                 && PC->OwnerState.LifeRevision==ObservedRestRevision+2,
                 TEXT("Possession, body identity and the first field life after the R0 rest life agree"));
             Check(PC->OwnerState.Hp*100==Content->Get().Parameters.MaxHP.BaseP2
-                && PC->OwnerState.Mp*100==Content->Get().Parameters.MaxMP.BaseP2,
+                && PC->CombatView.MomentumP2==Content->Get().Parameters.Momentum.StartP2,
                 TEXT("Approved P2 resources are projected from the sole Combat body record"));
             FieldStartedAtMs=Line.FieldStartedAtMs;
             Check(Line.Stage==ELDMatchStage::Field && Line.FieldSegment==0 && FieldStartedAtMs>0

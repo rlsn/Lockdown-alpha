@@ -279,10 +279,10 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 Head.Name->SetAutoWrapText(true);
                 auto* NameSlot=Box->AddChildToVerticalBox(Head.Name);NameSlot->SetHorizontalAlignment(HAlign_Fill);NameSlot->SetPadding(FMargin(0,8,0,0));
                 auto* Chips=WidgetTree->ConstructWidget<UHorizontalBox>();
-                // .pill: the numbers sit inside painted pills, each led by its mana dot or cooldown diamond.
-                Head.Mana=Label(TEXT(""),14,LDHUDStyle::UIText,LDUIFonts::ERole::Number);
+                // .pill: the numbers sit inside painted pills, each led by its momentum dot or cooldown diamond.
+                Head.Momentum=Label(TEXT(""),14,LDHUDStyle::UIText,LDUIFonts::ERole::Number);
                 Head.Cooldown=Label(TEXT(""),14,LDHUDStyle::UIText,LDUIFonts::ERole::Number);
-                Chips->AddChildToHorizontalBox(Head.Mana)->SetPadding(FMargin(WorkshopPillLead,3,WorkshopPillTail,3));
+                Chips->AddChildToHorizontalBox(Head.Momentum)->SetPadding(FMargin(WorkshopPillLead,3,WorkshopPillTail,3));
                 Chips->AddChildToHorizontalBox(Head.Cooldown)->SetPadding(FMargin(6.f+WorkshopPillLead,3,WorkshopPillTail,3));
                 auto* ChipsSlot=Box->AddChildToVerticalBox(Chips);ChipsSlot->SetHorizontalAlignment(HAlign_Center);ChipsSlot->SetPadding(FMargin(0,8,0,0));
                 auto* HeadFrame=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),FName(*FString::Printf(TEXT("WorkshopHead%d"),Index)));
@@ -1024,7 +1024,7 @@ void ULDWorkshop::RefreshHeads()
             WorkshopShown(Head.Picture,false);
         }
         Head.Glyph->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Column==LDHUD::EStorageColumn::Body?40:28));
-        WorkshopText(Head.Mana,Shown.Mana);WorkshopShown(Head.Mana,!Shown.Mana.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        WorkshopText(Head.Momentum,Shown.Momentum);WorkshopShown(Head.Momentum,!Shown.Momentum.IsEmpty(),ESlateVisibility::HitTestInvisible);
         WorkshopText(Head.Cooldown,Shown.Cooldown);WorkshopShown(Head.Cooldown,!Shown.Cooldown.IsEmpty(),ESlateVisibility::HitTestInvisible);
         {
             // A locked final mod shows its icon over the head of what it binds (本体 when it binds the holder).
@@ -1612,7 +1612,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
             const FLinearColor Holder=Latest.HolderColor;
             Paint.Shape(Ink+6,EShape::Rounded,LDUIPaint::Grow(Art,-3.f),7.f,FFill::Linear(160.f,{{0.f,FLinearColor::LerpUsingHSV(Holder,FLinearColor::White,.18f)},{1.f,Holder*.42f}}));
         }
-        for(const UTextBlock* Number:{Head.Mana,Head.Cooldown})
+        for(const UTextBlock* Number:{Head.Momentum,Head.Cooldown})
         {
             if(!Shown(Number)){continue;}
             const FBox2D Text=Box(Number);
@@ -1620,7 +1620,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
             const FBox2D Pill=WorkshopBox(Text.Min.X-WorkshopPillLead,Mid-11.f,Text.Max.X+WorkshopPillTail,Mid+11.f);
             Paint.Pill(Ink+2,Pill);
             const FVector2D Dot(Pill.Min.X+12.f,Mid);
-            if(Number==Head.Mana){Paint.Shape(Ink+3,EShape::Circle,WorkshopBox(Dot.X-4.f,Mid-4.f,Dot.X+4.f,Mid+4.f),4.f,FFill::Solid(Hex(0x3D8BFF)));}
+            if(Number==Head.Momentum){Paint.Shape(Ink+3,EShape::Circle,WorkshopBox(Dot.X-4.f,Mid-4.f,Dot.X+4.f,Mid+4.f),4.f,FFill::Solid(Hex(0x3D8BFF)));}
             else{Paint.Polygon(Ink+3,{FVector2D(Dot.X,Mid-5.f),FVector2D(Dot.X+5.f,Mid),FVector2D(Dot.X,Mid+5.f),FVector2D(Dot.X-5.f,Mid)},FFill::Solid(Hex(0xC9D2E0)));}
         }
     }

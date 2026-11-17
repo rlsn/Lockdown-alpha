@@ -91,10 +91,9 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
-    // Survival, basic-attack, stat, cooldown, mana and release riders add no structural usage of their own.
+    // Survival, basic-attack, stat, cooldown, momentum and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
     case ELDDemoEffectOp::CooldownRefund:
-    case ELDDemoEffectOp::ManaOnHit:
     default:
         break;
     }
@@ -2832,7 +2831,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
         // After escaping a threat, continue to recovery instead of turning back toward a charm at the sight edge.
         const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
-        if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MpP2 < C.Self.MaxMpP2))
+        if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MomentumP2 < C.Self.MaxMomentumP2))
         {
             Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
             return Finish(EMode::Airdrop, EReason::ContestAirdrop);

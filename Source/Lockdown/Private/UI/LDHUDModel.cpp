@@ -104,8 +104,9 @@ FString LDHUD::RegenText(const FLDOwnerState& Own,const FLDCombatOwnerView* Comb
 {
     if(!Combat||Own.Match==0||Own.Life==0||Own.LifePhase!=ELDLifePhase::Alive
         ||Combat->Generation!=Own.Match||Combat->Life!=Own.Life||!Combat->bHasBody||Combat->HPP2<=0
-        ||(bHealth?Combat->MaxHPP2:Combat->MaxMPP2)<=0||(!bHealth&&Combat->MPP2<0)){return FString();}
-    const double Rate=bHealth?Combat->HPRegenPerSec:Combat->MPRegenPerSec;
+        ||!bHealth||Combat->MaxHPP2<=0){return FString();}
+    // Momentum has no steady rate (combat gain, idle drift and hit income): only health shows one.
+    const double Rate=Combat->HPRegenPerSec;
     return FMath::IsFinite(Rate)&&Rate>=0?FString::Printf(TEXT("+%.1f/s"),Rate):FString();
 }
 
@@ -1191,11 +1192,11 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
         }
     }
     if(bActive&&Input.bControlled){Block(ActionControlled,TEXT("受控制无法使用"));}
-    if(bActive&&Context.bManaKnown&&Input.ManaCostP2>Context.ManaP2){Block(ActionMana,LDTerms::NotEnoughMana());}
+    if(bActive&&Context.bMomentumKnown&&Input.MomentumCostP2>Context.MomentumP2){Block(ActionMomentum,LDTerms::MomentumShort());}
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
     View.State=State.IsEmpty()?FString(TEXT("就绪")):State;
     View.Countdown=CooldownText(View.CooldownRemainingMs);
-    if(bActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
+    if(bActive&&Input.MomentumCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.MomentumCostP2,false));}
     if(Input.bHasSource&&!Input.Name.IsEmpty()){View.Glyph=Input.Name.Left(1);}
     if(Input.bHasSource){View.IconId=Input.IconId;}
     return View;
@@ -1236,7 +1237,7 @@ LDHUD::EActionLook LDHUD::ActionLook(const FActionView& View,bool bArmed)
     if(bArmed){return EActionLook::Armed;}
     if(Blocks&ActionControlled){return EActionLook::Controlled;}
     if(Blocks&ActionCooldown){return EActionLook::Cooling;}
-    if(Blocks&ActionMana){return EActionLook::NoMana;}
+    if(Blocks&ActionMomentum){return EActionLook::MomentumShort;}
     if(Blocks&ActionServer){return EActionLook::Blocked;}
     return EActionLook::Ready;
 }
@@ -1248,8 +1249,16 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
     if(bContender){Card.Title=FString::Printf(TEXT("%s · 等级 %d"),ContenderName.IsEmpty()?TEXT("未列名参赛者"):*ContenderName,Unit.Level);}
     else{Card.Title=CreatureName(Content,Unit.CreatureId);}
     Card.Health=ResourceP2(LDTerms::Health,Unit.Health.CurrentP2,Unit.Health.MaxP2,true);
-    Card.bMana=(Unit.AuthorizedFieldMask&LDObservation::Mana)!=0;
-    if(Card.bMana){Card.Mana=ResourceP2(LDTerms::Mana,Unit.Mana.CurrentP2,Unit.Mana.MaxP2,false);}
+    Card.bMomentum=(Unit.AuthorizedFieldMask&LDObservation::Momentum)!=0;
+    if(Card.bMomentum)
+    {
+        // The public bar is a 0..255 fraction: the card shows its share, and a full bar (a possible overdrive) glows.
+        Card.Momentum.bKnown=true;
+        Card.Momentum.Fraction=float(Unit.MomentumBar)/float(LDObservation::MomentumBarFull);
+        Card.Momentum.Text=FString::Printf(TEXT("%s %d%%"),LDTerms::Momentum,FMath::RoundToInt(Card.Momentum.Fraction*100.f));
+        Card.bMomentumFull=Unit.MomentumBar==LDObservation::MomentumBarFull;
+        Card.bCharging=Unit.bCharging;
+    }
     FString Statuses;
     for(const FLDObservedStatus& Status:Unit.Statuses)
     {
@@ -1278,7 +1287,7 @@ FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& Conte
 {
     const FObservedCard Card=ObservedCard(Unit,ContenderName,Content,SampledAtServerSec);
     FString Text=Card.Title+TEXT("\n")+Card.Health.Text;
-    if(Card.bMana){Text+=TEXT(" · ")+Card.Mana.Text;}
+    if(Card.bMomentum){Text+=TEXT(" · ")+Card.Momentum.Text;}
     Text+=TEXT("\n")+Card.Statuses;
     if(Card.bActives)
     {
@@ -1313,7 +1322,7 @@ FString HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::ADFlat: return LDTerms::AttackDamage;
     case ELDDemoBonusStat::APFlat: return LDTerms::AbilityPower;
     case ELDDemoBonusStat::MaxHPFlat: return LDTerms::MaxHealth();
-    case ELDDemoBonusStat::MaxMPFlat: return LDTerms::MaxMana();
+
     case ELDDemoBonusStat::ArmorFlat: return LDTerms::Armor;
     case ELDDemoBonusStat::MagicResistFlat: return LDTerms::MagicResist;
     case ELDDemoBonusStat::CooldownHasteFlat: return LDTerms::Haste;
@@ -1324,7 +1333,7 @@ FString HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::ADBonusRatio: return LDTerms::AttackDamage;
     case ELDDemoBonusStat::HPRegenFlat: return LDTerms::HealthRegen();
     case ELDDemoBonusStat::APBonusRatio: return LDTerms::AbilityPower;
-    case ELDDemoBonusStat::MPRegenFlat: return LDTerms::ManaRegen();
+    case ELDDemoBonusStat::MomentumRegenFlat: return LDTerms::MomentumRegen();
     default: return FString();
     }
 }
@@ -1349,7 +1358,7 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     switch(Stat.Stat)
     {
     case ELDDemoBonusStat::AttackRangeCmFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT(" 厘米");
-    case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MPRegenFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("/s");
+    case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MomentumRegenFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("/s");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
     case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio:
         return Name+TEXT(" +")+HudPercent(Stat.Amount);
@@ -1410,8 +1419,6 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
             +LDTerms::Shield+TEXT(" ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::NthBasicBonus:
         return TEXT("每第 ")+FString::FromInt(Effect.Count)+TEXT(" 次")+LDTerms::BasicAttack+TEXT("额外造成 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+HudDamageTerm(Effect);
-    case ELDDemoEffectOp::ManaOnHit:
-        return FString(TEXT("技能命中时"))+TEXT("回复 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+LDTerms::Mana+TEXT("（每次施放一次）");
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
     case ELDDemoEffectOp::ShieldBreakRetort:
     {
@@ -1444,7 +1451,7 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
 }
 FString LDHUD::CostLine(const FLDDemoAbilityValues& Values)
 {
-    return FString(LDTerms::Mana)+TEXT(" ")+HudPoints(Values.ManaCostP2)+TEXT(" · 冷却 ")+HudSeconds(Values.CooldownMs);
+    return FString(LDTerms::Momentum)+TEXT(" ")+HudPoints(Values.MomentumCostP2)+TEXT(" · 冷却 ")+HudSeconds(Values.CooldownMs);
 }
 LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes)
 {
@@ -1464,7 +1471,7 @@ namespace
 bool CardRationalStat(ELDDemoBonusStat Stat)
 {
     // The importer stores these exact fractions in Cm (unit cm, hp/s, mp/s); Amount stays 0.
-    return Stat==ELDDemoBonusStat::AttackRangeCmFlat||Stat==ELDDemoBonusStat::HPRegenFlat||Stat==ELDDemoBonusStat::MPRegenFlat;
+    return Stat==ELDDemoBonusStat::AttackRangeCmFlat||Stat==ELDDemoBonusStat::HPRegenFlat||Stat==ELDDemoBonusStat::MomentumRegenFlat;
 }
 bool CardRatioStat(ELDDemoBonusStat Stat)
 {
@@ -1572,10 +1579,10 @@ LDHUD::FCardText CardRender(const FString& Template,TValueOf&& ValueOf)
 }
 }
 LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoAbilityValues& Values,const FCardStats& Stats,
-    int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp)
+    const FLDDemoSkillRankParameters& Ranks,int64 GrowthPerLevelBp,uint8 Rank)
 {
     FLDDemoAbilityValues Grown;
-    if(!LDSkillGrowth::GrowValues(Values,GrowthPerLevelBp,GrowthPerLevelAfter10Bp,Stats.Level,Grown))
+    if(!LDSkillGrowth::GrowValues(Values,Ranks,GrowthPerLevelBp,Stats.Level,Rank,Grown))
     {
         FCardText Text;Text.bComplete=false;Text.Plain=Text.Rich=TEXT("（卡面数据缺失）");return Text;
     }
@@ -1609,8 +1616,8 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
         Card.SentencePlain=Card.Sentence=Content?FString(TEXT("内容目录中找不到该技能")):FString(TEXT("内容数据同步中"));
         return Card;
     }
-    const FCardText Sentence=CardText(Display->DescriptionText,Ability->Values,Stats,Content->Parameters.SkillGrowthPerLevelBp,
-        Content->Parameters.SkillGrowthPerLevelAfter10Bp);
+    const FCardText Sentence=CardText(Display->DescriptionText,Ability->Values,Stats,Content->Parameters.SkillRanks,
+        Content->Parameters.SkillGrowthPerLevelBp,1);
     Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
     Card.Keywords=KeywordLines(Sentence.Keywords);
     Card.Target=TargetLine(Ability->Target);
@@ -1632,8 +1639,7 @@ LDHUD::FFinalModCardView LDHUD::FinalModCard(FName DefinitionId,const FLDDemoCon
     const auto Percent=[&Decimal](int64 Value){return Decimal(Value,100)+TEXT("%");};
     const auto Cm=[](const FLDDemoRational& Value){return HudDecimal(double(Value.Numerator)/double(Value.Denominator))+TEXT(" 厘米");};
     int64 Base=0;
-    if(!LDSkillGrowth::GrowP2(Card->BaseP2,LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,
-        Content->Parameters.SkillGrowthPerLevelAfter10Bp,Stats.Level),Base))
+    if(!LDSkillGrowth::GrowP2(Card->BaseP2,LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,Stats.Level),Base))
     {
         View.Detail.Body=TEXT("终局改装成长数值无效。");
         HudReportMissingText(Id+TEXT(".growth"));return View;
@@ -1728,7 +1734,7 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
         case ELDDemoBonusStat::ADFlat: case ELDDemoBonusStat::ADBonusRatio: return ELDProjectedAttribute::AD;
         case ELDDemoBonusStat::APFlat: case ELDDemoBonusStat::APBonusRatio: return ELDProjectedAttribute::AP;
         case ELDDemoBonusStat::MaxHPFlat: return ELDProjectedAttribute::MaxHP;
-        case ELDDemoBonusStat::MaxMPFlat: return ELDProjectedAttribute::MaxMP;
+
         case ELDDemoBonusStat::ArmorFlat: return ELDProjectedAttribute::Armor;
         case ELDDemoBonusStat::MagicResistFlat: return ELDProjectedAttribute::MagicResist;
         case ELDDemoBonusStat::CooldownHasteFlat: return ELDProjectedAttribute::CooldownHaste;
@@ -1737,7 +1743,7 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
         case ELDDemoBonusStat::MoveSpeedBonusRatio: return ELDProjectedAttribute::MoveSpeed;
         case ELDDemoBonusStat::CritChanceBonusRatio: return ELDProjectedAttribute::CritChance;
         case ELDDemoBonusStat::HPRegenFlat: return ELDProjectedAttribute::HPRegen;
-        case ELDDemoBonusStat::MPRegenFlat: return ELDProjectedAttribute::MPRegen;
+        case ELDDemoBonusStat::MomentumRegenFlat: return ELDProjectedAttribute::MomentumRegen;
         }
         return ELDProjectedAttribute::Count;
     };
@@ -1750,7 +1756,7 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
         FStatEffectView& Effect=Effects.AddDefaulted_GetRef();
         Effect.Attribute=AttributeRow(Row?*Row:Named).Name;
         Effect.Current=Row?AttributeRow(*Row).Final:FString(TEXT("?"));
-        const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" 厘米"):Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MPRegenFlat?TEXT("/s"):TEXT("");
+        const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" 厘米"):Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MomentumRegenFlat?TEXT("/s"):TEXT("");
         Effect.PerPoint=TEXT("+")+(CardRationalStat(Bonus.Stat)?HudRational(Bonus.Cm)+Unit:CardRatioStat(Bonus.Stat)?HudPercent(Bonus.Amount):HudPoints(Bonus.Amount));
     }
     return Effects;
@@ -1998,8 +2004,8 @@ LDHUD::FComponentCardView LDHUD::ComponentCard(FName DefinitionId,const FLDDemoC
     // A component's fixed amounts grow with the holder's level like an active's (LDSkillGrowth), so its card renders the
     // same way against a value set that holds only its effects.
     FLDDemoAbilityValues Values;Values.Effects=Component->Effects;
-    const FCardText Sentence=CardText(Display->DescriptionText,Values,Stats,Content->Parameters.SkillGrowthPerLevelBp,
-        Content->Parameters.SkillGrowthPerLevelAfter10Bp);
+    const FCardText Sentence=CardText(Display->DescriptionText,Values,Stats,Content->Parameters.SkillRanks,
+        Content->Parameters.SkillGrowthPerLevelBp,1);
     Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
     Card.Keywords=KeywordLines(Sentence.Keywords);
     Card.bKnown=Sentence.bComplete;
@@ -2533,10 +2539,10 @@ TArray<FLDFieldRewardView> LDHUD::FFieldRewardWatch::Observe(const FLDProgressio
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
 {
-    static const FString Names[]={LDTerms::MaxHealth(),LDTerms::MaxMana(),LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
-        LDTerms::AttackSpeed,LDTerms::MoveSpeed,TEXT("攻击距离"),LDTerms::HealthRegen(),LDTerms::ManaRegen(),LDTerms::CritChance(),LDTerms::Haste};
-    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/分钟"),TEXT(""),TEXT(" 厘米"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
-    static const TCHAR* Glyphs[]={TEXT("血"),TEXT("蓝"),TEXT("攻"),TEXT("法"),TEXT("甲"),TEXT("抗"),TEXT("速"),TEXT("移"),TEXT("距"),TEXT("回"),TEXT("复"),TEXT("暴"),TEXT("急")};
+    static const FString Names[]={LDTerms::MaxHealth(),LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
+        LDTerms::AttackSpeed,LDTerms::MoveSpeed,TEXT("攻击距离"),LDTerms::HealthRegen(),LDTerms::MomentumRegen(),LDTerms::CritChance(),LDTerms::Haste};
+    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/分钟"),TEXT(""),TEXT(" 厘米"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
+    static const TCHAR* Glyphs[]={TEXT("血"),TEXT("攻"),TEXT("法"),TEXT("甲"),TEXT("抗"),TEXT("速"),TEXT("移"),TEXT("距"),TEXT("回"),TEXT("劲"),TEXT("暴"),TEXT("急")};
     static_assert(UE_ARRAY_COUNT(Names)==int32(ELDProjectedAttribute::Count)&&UE_ARRAY_COUNT(Units)==int32(ELDProjectedAttribute::Count)
         &&UE_ARRAY_COUNT(Glyphs)==int32(ELDProjectedAttribute::Count),"One name, unit and glyph per projected attribute.");
     FAttributeRowView View;
@@ -2672,7 +2678,7 @@ FString LDHUD::CombatRejectText(ELDCombatReject Reject)
     case ELDCombatReject::Busy: return TEXT("正在执行其他动作");
     case ELDCombatReject::Cooldown: return TEXT("冷却中");
     case ELDCombatReject::AttackNotReady: return FString(LDTerms::BasicAttack)+TEXT("尚未就绪");
-    case ELDCombatReject::InsufficientMana: return LDTerms::NotEnoughMana();
+    case ELDCombatReject::MomentumShort: return LDTerms::MomentumShort();
     case ELDCombatReject::ControlBlocked: return TEXT("受控制无法使用");
     case ELDCombatReject::TargetUnavailable: return TEXT("目标不可用");
     case ELDCombatReject::InvalidDirection: return TEXT("方向无效");
@@ -2696,7 +2702,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     if(Input.bHasSource){Input.IconId=Slot==EActionSlot::Dash?FString(LDUIIcons::Dash):ContentIconId(Content,Entry.DefinitionId.ToString());}
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
-    Input.ManaCostP2=Entry.ManaCostP2;
+    Input.MomentumCostP2=Entry.MomentumCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
@@ -2800,9 +2806,7 @@ LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const F
         const FLDDemoContentParameters& P=Content->Parameters;
         const bool bDorm=Icon.Source==ESelfIconSource::DormRegen;
         const int64 HPBp=bDorm?P.DormMaxHPRegenBp:P.OutOfCombatMaxHPRegenBp;
-        const int64 MPBp=bDorm?P.DormMaxMPRegenBp:P.OutOfCombatMaxMPRegenBp;
-        const FString Rate=HPBp==MPBp?TEXT("每秒恢复 ")+HudPercent(HPBp)+TEXT(" 生命上限和法力上限")
-            :TEXT("每秒恢复 ")+HudPercent(HPBp)+TEXT(" 生命上限、")+HudPercent(MPBp)+TEXT(" 法力上限");
+        const FString Rate=TEXT("每秒恢复 ")+HudPercent(HPBp)+TEXT(" 生命上限");
         Lines.Add(bDorm?FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 ")+HudSeconds(P.DormRegenDelayMs)+TEXT(" 后，")+Rate+TEXT("；与脱战回复叠加")
             :TEXT("脱战 ")+HudSeconds(P.OutOfCombatRegenDelayMs)+TEXT(" 后，")+Rate);
         Lines.Add(bDorm?FString(TEXT("出手、释放伤害技能、受到伤害或离开"))+LDTerms::Dorm+TEXT("立即停止")

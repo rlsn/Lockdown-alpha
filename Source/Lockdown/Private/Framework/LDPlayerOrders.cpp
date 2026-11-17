@@ -5,6 +5,8 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatPreInput.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDOrderRules.h"
 #include "UI/LDControlSettings.h"
@@ -90,6 +92,8 @@ void ALDPlayerController::ArmAttackMove()
 bool ALDPlayerController::CancelArmedCombat()
 {
     const bool bWasArmed=bAttackMoveArmed || ArmedEntry!=ELDCombatEntry::None;
+    // A cancelled aim drops its overdrive and the visible charge with it.
+    if (bOverdriveArmed && ArmedEntry==OverdriveEntry) { EndOverdriveHold(); }
     bAttackMoveArmed=false;
     ArmedEntry=ELDCombatEntry::None;
     return bWasArmed;
@@ -317,7 +321,92 @@ bool ALDPlayerController::NextCombatRequest(ELDCombatEntry Entry, const FLDComba
     Request.Target=Aim;
     Request.Target.ServerBody={};
     Request.ExpectedSourceRevision=CombatView.SourceRevision;
+    // The overdrive armed by a completed hold rides on this entry's next request only.
+    if (bOverdriveArmed && Entry==OverdriveEntry)
+    {
+        Request.bOverdrive=true;
+        bOverdriveArmed=false;
+        OverdriveEntry=ELDCombatEntry::None;
+    }
     return true;
+}
+
+const FLDDemoOverdriveParameters* ALDPlayerController::OverdriveTerms()
+{
+    if (!bOverdriveContentTried)
+    {
+        bOverdriveContentTried=true;
+        FString Error;
+        if (!LDDemoEntry::LoadRuntimeContent(OverdriveContent,Error)) { OverdriveContent.Reset(); }
+    }
+    return OverdriveContent ? &OverdriveContent->Get().Parameters.Overdrive : nullptr;
+}
+
+void ALDPlayerController::SendCharge(ELDCombatEntry Entry, bool bCharging)
+{
+    FLDCombatChargeRequest Request;
+    Request.Generation=OwnerState.Match;
+    Request.Life=OwnerState.Life;
+    Request.Entry=Entry;
+    Request.bCharging=bCharging;
+    ServerChargeOverdrive(Request);
+}
+
+void ALDPlayerController::EndOverdriveHold()
+{
+    if (OverdriveEntry!=ELDCombatEntry::None && (bOverdriveHolding || bOverdriveArmed)) { SendCharge(OverdriveEntry,false); }
+    OverdriveEntry=ELDCombatEntry::None;
+    bOverdriveHolding=false;
+    bOverdriveArmed=false;
+}
+
+void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
+{
+    // A full bar and a ready learned active start the hold: the release decides between a normal cast and overdrive.
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
+    const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
+    if (IsLocalController() && CanWorldCommand() && Terms && View && !View->DefinitionId.IsNone()
+        && View->SourceKind==ELDCombatSourceKind::Learned && View->Unavailable==ELDCombatReject::None
+        && CombatView.MomentumP2>=Terms->ThresholdP2 && !bOverdriveHolding)
+    {
+        if (bOverdriveArmed) { EndOverdriveHold(); }
+        OverdriveEntry=Entry;
+        OverdriveHoldStartSec=FPlatformTime::Seconds();
+        bOverdriveHolding=true;
+        SendCharge(Entry,true);
+        return;
+    }
+    ActivateCombatEntry(Entry);
+}
+
+void ALDPlayerController::ReleaseSkill(ELDCombatEntry Entry)
+{
+    if (!bOverdriveHolding || Entry!=OverdriveEntry) { return; }
+    // Let go before the hold completed: the charge ends and the press is an ordinary cast.
+    EndOverdriveHold();
+    ActivateCombatEntry(Entry);
+}
+
+void ALDPlayerController::TickOverdriveHold()
+{
+    if (!bOverdriveHolding) { return; }
+    const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
+    if (!Terms || !CanWorldCommand()) { EndOverdriveHold(); return; }
+    if ((FPlatformTime::Seconds()-OverdriveHoldStartSec)*1000.<double(Terms->HoldMs)) { return; }
+    // Held through OVERDRIVE.HoldSec: the next request of this entry asks for overdrive (the server decides by the bar).
+    bOverdriveHolding=false;
+    bOverdriveArmed=true;
+    ActivateCombatEntry(OverdriveEntry);
+}
+
+float ALDPlayerController::OverdriveHoldProgress(ELDCombatEntry Entry) const
+{
+    if (Entry!=OverdriveEntry) { return 0.f; }
+    if (bOverdriveArmed) { return 1.f; }
+    if (!bOverdriveHolding || !OverdriveContent) { return 0.f; }
+    const double HoldMs=double(OverdriveContent->Get().Parameters.Overdrive.HoldMs);
+    return HoldMs>0 ? float(FMath::Clamp((FPlatformTime::Seconds()-OverdriveHoldStartSec)*1000./HoldMs,0.,1.)) : 0.f;
 }
 
 void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
@@ -382,6 +471,20 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
         return;
     }
     ClientCombatReceipt(Mode->Combat->CancelAction(Caller,Request));
+}
+
+void ALDPlayerController::ServerChargeOverdrive_Implementation(const FLDCombatChargeRequest& Request)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    FLDCombatCaller Caller;
+    FString Error;
+    if (!Mode || !Mode->Combat || !Mode->Combat->ResolveControllerCaller(*this,Caller,Error))
+    {
+        UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_CHARGE_CALLER_REJECTED %s"),*Error);
+        return;
+    }
+    // A charge is presentation and a gate for the later request: no receipt, a stale one simply changes nothing.
+    Mode->Combat->SubmitCharge(Caller,Request);
 }
 
 // Only records the receipt: the HUD alone presents combat receipts (LDHUD::CombatReceiptNotice).

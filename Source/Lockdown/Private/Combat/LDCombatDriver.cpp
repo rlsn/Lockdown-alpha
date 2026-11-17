@@ -443,7 +443,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
         if (!BuildOwnerView(Caller,View)) { Error=TEXT("A present contender has no Combat owner projection."); return false; }
         // These owner-only facts can change without another resource mutation. Advance the revision so clients
         // accept the publication instead of discarding it as an older view of the same life.
-        if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.MPRegenPerSec!=PC->CombatView.MPRegenPerSec
+        if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.SkillPoints!=PC->CombatView.SkillPoints
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
             || View.PreviewWideToken!=PC->CombatView.PreviewWideToken || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {

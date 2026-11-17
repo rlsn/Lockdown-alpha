@@ -12,6 +12,7 @@
 #include "Combat/LDMonsterRules.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
+#include "Combat/LDMomentum.h"
 #include "Development/LDBuildBlueprint.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
@@ -24,9 +25,21 @@ struct FLDAirdropRewardFact
 {
     int64 HpBeforeP2 = 0;
     int64 HpAfterP2 = 0;
-    int64 MpBeforeP2 = 0;
-    int64 MpAfterP2 = 0;
+    int64 MomentumBeforeP2 = 0;
+    int64 MomentumAfterP2 = 0;
     int64 MoveSpeedBonusUntilMs = 0;
+};
+
+// Which momentum book a change goes to (the LD_MOMENTUM line of a life or rest, LDMomentum::FLedger).
+enum class ELDMomentumBook : uint8 { Basic, Combat, Skill, Reaction, Dodge, Other, Idle, Spent };
+
+// An owner holding a Q/W/E with a full bar (overdrive charge): public while it lasts, ended by the release, a
+// release of the key, death or a stun, silence or knockback. ExpiresAtMs bounds a charge whose release never arrives.
+struct FLDCombatOverdriveCharge
+{
+    ELDCombatEntry Entry=ELDCombatEntry::None;
+    int64 StartMs=0;
+    int64 ExpiresAtMs=0;
 };
 
 class ALDCharacter;
@@ -43,15 +56,17 @@ struct FLDInnateDashTerms;
 struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
-// What one release shares across all of its hits: a mana grant and brains-keystone refund each pay once per release;
-// PaidManaP2 is the mana this release really paid (after M06). B17/B15 amplification is locked at release and triggers
-// once at its first positive hit.
+// What one release shares across all of its hits: the brains-keystone refund pays once per release; PaidMomentumP2 is the
+// momentum this release really paid (after M06; a whole bar for an overdrive). B17/B15 amplification is locked at release
+// and triggers once at its first positive hit. MomentumStruck holds the bodies whose first native direct hit of this release
+// already gained MOMENTUM.SkillHit; bOverdrive marks an overdrive release.
 struct FLDCombatCastLedger
 {
-    bool bManaGrantPaid=false;
+    bool bOverdrive=false;
+    TArray<FLDCombatBodyRef> MomentumStruck;
     bool bBrainsKeystoneRefunded=false;
     bool bIdleAmpTriggered=false;
-    int64 PaidManaP2=0;
+    int64 PaidMomentumP2=0;
     int64 AlternateAmpBp=0;
     bool bAlternateAmpTriggered=false;
 };
@@ -137,8 +152,8 @@ struct FLDCombatControlMark
     int64 ExpiresAtMs=0;
 };
 
-// #198 F: what one original action (its EffectId) already received from a capped connector (C07 mana, C11 heal;
-// C13/C15 once-per-release cuts, C16 mana with the distinct enemies its native direct hits already struck).
+// #198 F: what one original action (its EffectId) already received from a capped connector (C07 momentum, C11 heal;
+// C13/C15 once-per-release cuts, C16 momentum with the distinct enemies its native direct hits already struck).
 struct FLDCombatEffectBudget
 {
     FGuid EffectId;
@@ -289,6 +304,11 @@ struct FLDCombatAction
     int64 ReleaseAtMs=0;
     uint64 SourceRevision=0;
     bool bMonsterSpecial=false;
+    // A contender basic: the combo step its AttackStart took and the attack interval it committed (momentum income).
+    uint8 ComboStep=0;
+    int64 BasicIntervalMs=0;
+    // A Q/W/E admitted with a held overdrive charge; the release decides by the bar (LDMomentum::OverdriveReady).
+    bool bOverdrive=false;
 };
 
 struct FLDBodyCombatState
@@ -307,7 +327,8 @@ struct FLDBodyCombatState
     int64 ExposedUntilMs=0;
     struct FResources
     {
-        int64 HpP2=0,MaxHpP2=0,MpP2=0,MaxMpP2=0,ShieldP2=0;
+        // Momentum lives here beside HP and the shield; its maximum is the fixed MOMENTUM.Max.
+        int64 HpP2=0,MaxHpP2=0,MomentumP2=0,ShieldP2=0;
         uint64 Revision=0;
     } Resources;
     FLDBasicTiming BasicTiming;
@@ -331,8 +352,6 @@ struct FLDBodyCombatState
     // B06 (nth_basic_bonus): this life's landed primary basics while the counter is held; it survives target changes and
     // ends with the life.
     int32 LandedBasics=0;
-    // Once-per-release mana grant of item_runic_focus (ability hit).
-    FGuid LastAbilityManaEffect;
     // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
     TArray<FLDCombatRoot> Disarms;
     TArray<FLDCombatRoot> Stuns;
@@ -351,7 +370,19 @@ struct FLDBodyCombatState
     int64 RegenThroughMs=0;
     // D21 (#79): this contender's foot stood inside a dorm at the last regeneration settle.
     bool bInDorm=false;
-    int64 HpRegenMicroP2=0, MpRegenMicroP2=0; // sub-P2 remainders in 1e-6 P2
+    // Sub-P2 remainders in 1e-6 P2; momentum's is signed (positive rising, negative falling, LDMomentum::Settle).
+    int64 HpRegenMicroP2=0, MomentumMicroP2=0;
+    // The last real combat event of this life for momentum (LastCombatAt without the spawn and rest starts); unset = idle.
+    TOptional<int64> MomentumEngagedAtMs;
+    LDMomentum::FLedger MomentumLedger;
+    // The combo step the last released basic of this life took (0 = none) and its AttackStart instant.
+    uint8 ComboStep=0;
+    int64 ComboStartMs=0;
+    // The overdrive charge shown to observers while an owner holds a Q/W/E with a full bar (FLDCombatOverdriveCharge).
+    TOptional<FLDCombatOverdriveCharge> OverdriveCharge;
+    // The last D or dash-counting start of this life (perfect dodge, LDMomentum::IsPerfectDodge).
+    TOptional<int64> DashStartedAtMs;
+    FVector DashStartFootCm=FVector::ZeroVector;
     int32 MonsterAttackCount=0;
     bool bMonsterEnraged=false;
     int64 MonsterGuardUntilMs=0;
@@ -496,6 +527,9 @@ struct FLDCombatHit
     bool bCritical=false;
     int64 RootDurationMs=0;
     int64 SlowBp=0, SlowDurationMs=0;
+    // A contender's primary basic: its combo step (1..3) and committed attack interval (momentum income per hit).
+    uint8 ComboStep=0;
+    int64 BasicIntervalMs=0;
     // Snapshot of the source's control amplification (control_damage_amp, B07): joins the damage bonus pool when the target
     // was move-slowed, hard-controlled or knocked back before this hit.
     int64 ControlAmpBp=0;
@@ -591,7 +625,7 @@ struct FLDCombatDashContact
     FGuid EffectId;
     FLDCombatBodyRef Body;
     FLDCombatSourceRef Source;
-    int64 StartMs=0, EndMs=0, PaidManaP2=0;
+    int64 StartMs=0, EndMs=0, PaidMomentumP2=0;
     TArray<FLDCombatBodyRef> Struck;
     TOptional<FLDCombatHit> NativeHit;
     int32 NativeHitsRemaining=0;
@@ -796,6 +830,9 @@ public:
     bool RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, ELDCombatReject Reject,
         FLDCombatActionReceipt& Out);
     FLDCombatActionReceipt CancelAction(const FLDCombatCaller& Caller, const FLDCombatCancelRequest& Request);
+    // The owner's overdrive charge intent (a Q/W/E pressed or let go with a full bar). Shown to observers while held;
+    // refused silently when stale, not castable or the bar is short. A later request with bOverdrive needs it.
+    void SubmitCharge(const FLDCombatCaller& Caller, const FLDCombatChargeRequest& Request);
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
@@ -864,15 +901,15 @@ public:
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
-    // The contender's current Alive body to its committed HP/MP maxima (the shield is untouched). False with Detail when
+    // The contender's current Alive body to its committed HP maximum and a full momentum bar (the shield is untouched). False with Detail when
     // the permit, the contender record or a living body is missing; nothing changes then.
     bool DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
     // Every cooldown track of the contender (learned, held or forgotten, and the innate dash) ready at the permit
     // boundary; tracks keep their identity. False with Detail when the permit or the contender record is missing.
     bool DevResetCooldowns(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
-    // Pure parts of the two commands. RefillPool returns whether HP or MP changed; ResetTracks the number of tracks
+    // Pure parts of the two commands. RefillPool returns whether HP or momentum changed; ResetTracks the number of tracks
     // that were cooling down at NowMs.
-    static bool DevRefillPool(FLDBodyCombatState::FResources& Pool);
+    static bool DevRefillPool(FLDBodyCombatState::FResources& Pool, int64 MomentumP2);
     static int32 DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
     // The DEV test layer of the installed build (FLDBuildProjectionInput::DevBonuses): bClearAll empties it, otherwise
     // Stat's term becomes Amount in its unit (0 removes it). The installed build is reprojected and installed through
@@ -889,7 +926,7 @@ public:
     FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision) const;
     // Part 2, right after ApplyBuildChange of part 1: every learned cooldown track is dropped (a later learn issues a
     // new one, as at the match start), the innate dash track is ready at NowMs, the build safe window has passed and a
-    // living body's HP/MP are full. Returns the number of dropped tracks.
+    // living body's HP is full and its momentum at MOMENTUM.Start. Returns the number of dropped tracks.
     int32 DevFinishReset(const FGuid& Contender, int64 NowMs);
     // Pure part of DevFinishReset's tracks.
     static int32 DevDropTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
@@ -902,7 +939,7 @@ public:
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // ---- Field rewards.
-    // Transactions: applies the approved airdrop healing, mana and timed move-speed rewards to its living claimant.
+    // Transactions: applies the approved airdrop healing, momentum and timed move-speed rewards to its living claimant.
     // False only on an authority fault; bOutApplied is false when the body is already gone or dying.
     bool ApplyAirdropReward(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
         FLDAirdropRewardFact& Out, FString& Error);
@@ -937,14 +974,14 @@ public:
     bool IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const;
     // A rest life joins the shared rest group (bRest) or returns to the field group. RespawnsAndWorld permit.
     bool SetRestIsolation(const FLDCombatBodyRef& Body, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error);
-    // Freezes or thaws a world body (camp member, Boss) for a rest; its HP/MP stay as they are. RespawnsAndWorld permit.
+    // Freezes or thaws a world body (camp member, Boss) for a rest; its HP stays as it is. RespawnsAndWorld permit.
     bool SetBodySuspended(const FLDCombatBodyRef& Body, bool bSuspended, const FLDGameplayWritePermit& Permit, FString& Error);
     // Phase boundary cleanup (approved §8): every in-flight effect is cancelled (CancelledByPhase, no damage, break or
     // death is invented) and every control, mark, burn, breach, shield and temporary term on every remaining body ends.
     // Returns the number of cancelled effects. RespawnsAndWorld permit.
     int32 CancelAllForPhase(const FLDGameplayWritePermit& Permit);
     // Phase refill (approved §8): every cooldown track of the contender (skills, dash, held tracks of forgotten actives)
-    // and its basic cadence are ready at the boundary. New lives start at full HP/MP by construction.
+    // and its basic cadence are ready at the boundary. New lives start at full HP by construction.
     bool ReadyAllForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
     // Retires a contender's living body for a phase boundary: its own unsettled effects end with it.
     void RetireBodyForPhase(const FLDCombatBodyRef& Body);
@@ -1106,8 +1143,10 @@ private:
     bool Regenerate(int64 NowMs, FString& Error);
     // Settles every living body through NowMs; only contender bodies receive the D21 Recovery, and a contender whose
     // foot stands inside one of Dorms at this settle also receives DormRecovery for the interval (#79).
+    // Momentum (contenders) settles with the same interval when Momentum is given (the match's MOMENTUM.* terms).
     bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
-        const LDTactical::FOutOfCombatRecovery* DormRecovery = nullptr, const FLDDormZones* Dorms = nullptr);
+        const LDTactical::FOutOfCombatRecovery* DormRecovery = nullptr, const FLDDormZones* Dorms = nullptr,
+        const FLDDemoMomentumParameters* Momentum = nullptr);
 
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
     // Every live body other than the source within RadiusCm (planar foot distance) of Anchor with clear sight from it,
@@ -1124,8 +1163,23 @@ private:
     // holder's level (LDSkillGrowth::GrowEffect). False with Error when a listed component or its growth is missing.
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
-    // Mana grant of a triggered effect; marks the owner view.
-    void GrantMana(FLDBodyCombatState& Body, int64 AmountP2);
+    // Momentum change of a contender body (a gain, a spend or a steal), clamped to the bar and booked under Kind; marks
+    // the owner view. Camp members hold no momentum (CampMomentumPolicy) and ignore it. Returns the applied change.
+    int64 GrantMomentum(FLDBodyCombatState& Body, int64 AmountP2, ELDMomentumBook Kind=ELDMomentumBook::Other);
+    // The bar over [FromMs, NowMs) of a contender body (LDMomentum::Settle with its brains rate), booked as combat/idle.
+    bool SettleMomentum(FLDBodyCombatState& Body, const FLDDemoMomentumParameters& Momentum, int64 FromMs, int64 NowMs,
+        int64& InOutP2, FString& Error);
+    // Momentum income of one committed hostile hit of Source: a primary basic by its interval, a release's first native
+    // direct hit on each body MOMENTUM.SkillHit.
+    bool OnMomentumHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, const FLDBodyCombatState& Victim,
+        bool bNativeDirect, FString& Error);
+    // Ends the body's overdrive charge (released, let go, controlled, the bar fell); observers stop seeing it.
+    void EndOverdriveCharge(FLDBodyCombatState& Body);
+    // OVERDRIVE.Scale on the release's terms and the bonus of the active's element (CONTENT_AND_BALANCE §3.5).
+    bool ApplyOverdrive(const FLDBodyCombatState& Body, const FLDDemoAbilityDefinition& Ability, FLDCombatActiveTerms& Terms,
+        FString& Error) const;
+    // One LD_MOMENTUM line of a contender life's momentum books (at the end of the life; a rest starts a new life).
+    void LogMomentumLedger(const FLDBodyCombatState& Body) const;
     // Cast range of an active for this body now: the authored range and its share of the extra basic-attack range.
     bool CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm, FString& Error) const;
     // Hooks of one landing primary basic before it is queued: cooldown refunds and the B06 counter (every Count-th basic
@@ -1222,7 +1276,7 @@ private:
     // The damage-triggered shield of Body after it took hostile positive damage (B09: the rest starts only on a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     // B13 and B16 on a hostile native direct hit of Source that dealt positive damage (IsNativeDirectHit): the release's
-    // mana refund (once per release EffectId) and the ability-hit shield (its rest starts only on a granted shield).
+    // momentum refund (once per release EffectId) and the ability-hit shield (its rest starts only on a granted shield).
     bool OnNativeDirectHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
@@ -1306,7 +1360,7 @@ private:
     // active's remaining cooldown, once per release EffectId.
     bool HasteOtherActives(FLDBodyCombatState& Holder, const FLDCombatSourceRef& Host, const FGuid& EffectId, int64 NowMs,
         FString& Error);
-    // C14/C16 on a host's native direct hit: set the setup mark; count a distinct enemy for the release's mana.
+    // C14/C16 on a host's native direct hit: set the setup mark; count a distinct enemy for the release's momentum.
     bool OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // C14: the bonus of the holder's setup marks on Target that a different active's native direct hit takes now.
     bool SetupMarkBonus(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, int64& OutBp,
@@ -1411,11 +1465,11 @@ private:
     // M12 debt a heal actually repaid (never counted as healing), and HP natural regeneration actually restored.
     void LedgerDebtRepaid(const FLDBodyCombatState& Body, int64 RepaidP2);
     void LedgerRegenerated(const FLDBodyCombatState& Body, int64 RestoredP2);
-    // One proc of an installed component of Holder that committed a real result (a hit, heal, shield, mana, status, cut or
+    // One proc of an installed component of Holder that committed a real result (a hit, heal, shield, momentum, status, cut or
     // change of an outcome); never a passive stat term, a candidate or a refused proc.
     void LedgerComponentTriggered(const FLDBodyCombatState& Holder, FName Component);
     // One own combat action request of Entity that Combat refused for a gameplay gate (busy, cooldown, attack cadence,
-    // mana, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
+    // momentum, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
     void LedgerActionRefused(const FGuid& Entity, ELDCombatReject Reason);
 
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;

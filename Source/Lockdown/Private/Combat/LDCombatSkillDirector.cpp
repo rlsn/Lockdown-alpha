@@ -487,7 +487,7 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
                 Dash.bRefunded=true;
                 Track->ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track->ReadyAtMs, NowMs, Refund->AmountMs);
                 Body.ContactRefundReadyAtMs=Ready;
-                GrantMana(Body, FMath::Min(Share(Dash.PaidManaP2, Refund->SecondaryRatioBp), Refund->LimitP2));
+                GrantMomentum(Body, FMath::Min(Share(Dash.PaidMomentumP2, Refund->SecondaryRatioBp), Refund->LimitP2));
                 MarkViewChanged(Body.Victim.EntityId);
                 LedgerComponentTriggered(Body, Held->Source.DefinitionId);
             }

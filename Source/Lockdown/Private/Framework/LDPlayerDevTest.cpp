@@ -366,7 +366,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestPoints(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestAttr(
     TEXT("ld.Dev.Attr"),
-    TEXT("DEV test session: set your DEV attribute term <MaxHP|MaxMP|AD|AP|Armor|MR|Haste|Range|AttackSpeed|MoveSpeed|Crit> "
+    TEXT("DEV test session: set your DEV attribute term <MaxHP|AD|AP|Armor|MR|Haste|Range|AttackSpeed|MoveSpeed|Crit> "
         "<value> on top of your build (points, cm or percent; 0 removes it). A final value outside its bound is refused."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
@@ -454,7 +454,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestOpenCapture(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestRefill(
     TEXT("ld.Dev.Refill"),
-    TEXT("DEV test session: refill your living body's HP and MP to their committed maxima."),
+    TEXT("DEV test session: refill your living body's HP to its maximum and its momentum bar to full."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {

@@ -1445,7 +1445,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     return bGood;
 }
 
-// ---- #198 skill growth: G(L) on an active's fixed amounts, never on mana, ratios or durations ----
+// ---- Skill growth: G(L) and the rank scales on an active's fixed amounts and ratios, never on momentum or durations ----
 bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -1455,16 +1455,14 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const int64 Step = Content.Parameters.SkillGrowthPerLevelBp;
-    const int64 LaterStep = Content.Parameters.SkillGrowthPerLevelAfter10Bp;
-    bool bGood = Test.TestTrue(TEXT("The approved growth steps are 15% through level 10 and 7.5% after"),
-        Step == 1500 && LaterStep == 750);
-    bGood &= Test.TestTrue(TEXT("G(1)=1.0, G(5)=1.6, G(10)=2.35, G(13)=2.575, G(16)=2.8; no level 0"),
-        LDSkillGrowth::FactorBp(Step, LaterStep, 1) == 10000
-        && LDSkillGrowth::FactorBp(Step, LaterStep, 5) == 16000
-        && LDSkillGrowth::FactorBp(Step, LaterStep, 10) == 23500
-        && LDSkillGrowth::FactorBp(Step, LaterStep, 13) == 25750
-        && LDSkillGrowth::FactorBp(Step, LaterStep, 16) == 28000
-        && LDSkillGrowth::FactorBp(Step, LaterStep, 0) == 0);
+    const FLDDemoSkillRankParameters& Ranks = Content.Parameters.SkillRanks;
+    bool bGood = Test.TestTrue(TEXT("The approved growth step is 4% per level"), Step == 400);
+    bGood &= Test.TestTrue(TEXT("G(1)=1.0, G(5)=1.16, G(10)=1.36, G(16)=1.6; no level 0"),
+        LDSkillGrowth::FactorBp(Step, 1) == 10000
+        && LDSkillGrowth::FactorBp(Step, 5) == 11600
+        && LDSkillGrowth::FactorBp(Step, 10) == 13600
+        && LDSkillGrowth::FactorBp(Step, 16) == 16000
+        && LDSkillGrowth::FactorBp(Step, 0) == 0);
     int64 Grown = 0;
     bGood &= Test.TestTrue(TEXT("A grown amount floors to P2"), LDSkillGrowth::GrowP2(6001, 16000, Grown) && Grown == 9601);
     bGood &= Test.TestFalse(TEXT("Overflow is refused"), LDSkillGrowth::GrowP2(MAX_int64 / 2, 23500, Grown));
@@ -1472,27 +1470,35 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
     FLDDemoEffectDefinition Damage;
     Damage.Opcode = uint8(ELDDemoEffectOp::Damage);
     Damage.BaseP2 = 6000; Damage.ADRatioBp = 5000; Damage.DurationMs = 1000; Damage.RatioBp = 2500;
-    FLDDemoEffectDefinition Mana;
-    Mana.Opcode = uint8(ELDDemoEffectOp::ManaOnHit);
-    Mana.BaseP2 = 1200;
+    FLDDemoEffectDefinition Grant;
+    Grant.Opcode = uint8(ELDDemoEffectOp::ControlMomentum);
+    Grant.BaseP2 = 1200;
+    Grant.LimitP2 = 1200;
     FLDDemoEffectDefinition Timed;
     Timed.Opcode = uint8(ELDDemoEffectOp::TimedStatBonus);
     Timed.DurationMs = 3000;
     Timed.Stats = {{ELDDemoBonusStat::ArmorFlat, 1200, {}}, {ELDDemoBonusStat::AttackSpeedBonusRatio, 3500, {}}};
     FLDDemoAbilityValues Authored;
-    Authored.ManaCostP2 = 6000; Authored.CooldownMs = 12000;
-    Authored.Effects = {Damage, Mana, Timed};
+    Authored.MomentumCostP2 = 6000; Authored.CooldownMs = 12000;
+    Authored.Effects = {Damage, Grant, Timed};
     FLDDemoAbilityValues At5;
-    if (!Test.TestTrue(TEXT("A value set grows at level 5"), LDSkillGrowth::GrowValues(Authored, Step, LaterStep, 5, At5)))
+    if (!Test.TestTrue(TEXT("A value set grows at level 5"), LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 1, At5)))
     {
         return false;
     }
-    bGood &= Test.TestTrue(TEXT("The base amount grows 1.6x; coefficients, ratios and durations do not"),
-        At5.Effects[0].BaseP2 == 9600 && At5.Effects[0].ADRatioBp == 5000 && At5.Effects[0].DurationMs == 1000 && At5.Effects[0].RatioBp == 2500);
-    bGood &= Test.TestEqual(TEXT("A mana grant does not grow"), At5.Effects[1].BaseP2, int64(1200));
-    bGood &= Test.TestTrue(TEXT("A timed bonus grows its points, not its ratios or duration"), At5.Effects[2].Stats[0].Amount == 1920
+    bGood &= Test.TestTrue(TEXT("The base amount grows 1.16x; coefficients, ratios and durations do not at rank 1"),
+        At5.Effects[0].BaseP2 == 6960 && At5.Effects[0].ADRatioBp == 5000 && At5.Effects[0].DurationMs == 1000 && At5.Effects[0].RatioBp == 2500);
+    bGood &= Test.TestEqual(TEXT("A momentum grant does not grow"), At5.Effects[1].BaseP2, int64(1200));
+    bGood &= Test.TestTrue(TEXT("A timed bonus grows its points, not its ratios or duration"), At5.Effects[2].Stats[0].Amount == 1392
         && At5.Effects[2].Stats[1].Amount == 3500 && At5.Effects[2].DurationMs == 3000);
-    bGood &= Test.TestTrue(TEXT("Mana cost and cooldown never grow"), At5.ManaCostP2 == 6000 && At5.CooldownMs == 12000);
+    bGood &= Test.TestTrue(TEXT("Momentum cost and cooldown never grow"), At5.MomentumCostP2 == 6000 && At5.CooldownMs == 12000);
+    FLDDemoAbilityValues Rank3;
+    bGood &= Test.TestTrue(TEXT("Rank 3 at level 5: base x G x 2, ratio x 1.5, momentum and durations unchanged"),
+        LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 3, Rank3) && Rank3.Effects[0].BaseP2 == 13920
+        && Rank3.Effects[0].ADRatioBp == 7500 && Rank3.Effects[0].DurationMs == 1000 && Rank3.Effects[1].BaseP2 == 1200
+        && Rank3.MomentumCostP2 == 6000 && Rank3.CooldownMs == 12000);
+    bGood &= Test.TestFalse(TEXT("Rank 0 and rank 4 are no ranks"), LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 0, Rank3)
+        || LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 4, Rank3));
 
     // The snapshot serves every active's one value set for every level, grown by the approved step, and refuses anything else.
     for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
@@ -1501,9 +1507,9 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
         {
             const FLDDemoAbilityValues* Served = Catalog->FindValues(Ability, uint8(Level));
             FLDDemoAbilityValues Expected;
-            const bool bExpected = LDSkillGrowth::GrowValues(Ability.Values, Step, LaterStep, uint8(Level), Expected);
+            const bool bExpected = LDSkillGrowth::GrowValues(Ability.Values, Ranks, Step, uint8(Level), 1, Expected);
             bool bSame = Served && bExpected && Served->Effects.Num() == Expected.Effects.Num()
-                && Served->ManaCostP2 == Ability.Values.ManaCostP2 && Served->CooldownMs == Ability.Values.CooldownMs;
+                && Served->MomentumCostP2 == Ability.Values.MomentumCostP2 && Served->CooldownMs == Ability.Values.CooldownMs;
             for (int32 Index = 0; bSame && Index < Expected.Effects.Num(); ++Index)
             {
                 bSame = Served->Effects[Index].BaseP2 == Expected.Effects[Index].BaseP2;
@@ -2644,14 +2650,13 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     FLDBodyCombatState::FResources Pool;
     Pool.HpP2 = 40;
     Pool.MaxHpP2 = 100;
-    Pool.MpP2 = 0;
-    Pool.MaxMpP2 = 60;
+    Pool.MomentumP2 = 0;
     Pool.ShieldP2 = 7;
     Pool.Revision = 3;
-    TestTrue(TEXT("A refill reports a change"), ALDCombatDirector::DevRefillPool(Pool));
-    TestTrue(TEXT("A refill sets HP and MP to their maxima, keeps the shield and advances the resource revision once"),
-        Pool.HpP2 == 100 && Pool.MpP2 == 60 && Pool.ShieldP2 == 7 && Pool.Revision == 4);
-    TestFalse(TEXT("A full pool refills without a change or a revision"), ALDCombatDirector::DevRefillPool(Pool) || Pool.Revision != 4);
+    TestTrue(TEXT("A refill reports a change"), ALDCombatDirector::DevRefillPool(Pool, 60));
+    TestTrue(TEXT("A refill sets HP to its maximum and momentum to the given bar, keeps the shield and advances the revision once"),
+        Pool.HpP2 == 100 && Pool.MomentumP2 == 60 && Pool.ShieldP2 == 7 && Pool.Revision == 4);
+    TestFalse(TEXT("A full pool refills without a change or a revision"), ALDCombatDirector::DevRefillPool(Pool, 60) || Pool.Revision != 4);
     TArray<FLDCombatTrack> Tracks;
     FLDCombatTrack& Cooling = Tracks.AddDefaulted_GetRef();
     Cooling.IssuedCooldownId = FGuid(0xD7, 0, 0, 1);

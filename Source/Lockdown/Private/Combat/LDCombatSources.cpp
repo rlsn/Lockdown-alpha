@@ -256,7 +256,7 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     const FLDDemoEffectDefinition* Move=Dash.Values.Effects.Num()==1 && Dash.Values.Effects[0].GetOp()==ELDDemoEffectOp::Dash
         ? &Dash.Values.Effects[0] : nullptr;
     if (Dash.Target.Mode!=ELDDemoTargetMode::DirectionDash || !Move || Move->DistanceCm.Numerator<=0 || Move->DistanceCm.Denominator<=0
-        || Move->DurationMs<=0 || Dash.Values.CooldownMs<=Move->DurationMs || Dash.Values.ManaCostP2<0)
+        || Move->DurationMs<=0 || Dash.Values.CooldownMs<=Move->DurationMs || Dash.Values.MomentumCostP2!=0)
     {
         Error=TEXT("Catalog: the approved character has no executable innate dash.");
         return false;
@@ -264,7 +264,6 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     Out.DistanceCm=Move->DistanceCm;
     Out.DurationMs=Move->DurationMs;
     Out.CooldownMs=Dash.Values.CooldownMs;
-    Out.ManaCostP2=Dash.Values.ManaCostP2;
     Error.Reset();
     return true;
 }
@@ -273,7 +272,7 @@ ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input,
     if (Input.bControlBlocked) { return ELDCombatReject::ControlBlocked; }
     if (Input.bCheckBusy && Input.bAbilityInProgress) { return ELDCombatReject::Busy; }
     if (Input.ReadyAtMs>Input.NowMs) { return ELDCombatReject::Cooldown; }
-    if (Input.MpP2<Input.ManaCostP2) { return ELDCombatReject::InsufficientMana; }
+    if (Input.MomentumP2<Input.MomentumCostP2) { return ELDCombatReject::MomentumShort; }
     if (Input.bDash && (Input.bDisplacementBlocked
         || (Input.Roots && LDTactical::RootBlocks(*Input.Roots,Input.NowMs,Policies,ELDDemoRootBlock::Dash))))
     { return ELDCombatReject::ControlBlocked; }
@@ -507,7 +506,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     const FLDDemoTargetDefinition* Target=&Terms.Target;
     const FLDDemoAbilityValues* Values=&Terms.Values;
     View.TargetMode=static_cast<uint8>(Target->Mode);
-    View.ManaCostP2=Values->ManaCostP2;
+    View.MomentumCostP2=Values->MomentumCostP2;
     // A dash has no authored target range; its reach is the Dash effect distance of the active.
     const FLDDemoEffectDefinition* Dash=Target->Mode==ELDDemoTargetMode::DirectionDash
         ? Values->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
@@ -530,7 +529,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
             return View;
         }
         View.RangeCm=int32(FMath::RoundToDouble(double(LDCombatSourcesDetail::DisplayCm(Innate.DistanceCm))*double(Terms.DashScaleBp)/10000.));
-        View.ManaCostP2=Innate.ManaCostP2;
+        View.MomentumCostP2=0;
     }
     if (const FLDCombatTrack* Track=TrackFor(Record,Entry))
     {
@@ -543,8 +542,8 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     FLDActiveGateInput Gate;
     Gate.NowMs=NowMs;
     Gate.ReadyAtMs=View.ReadyAtMs;
-    Gate.MpP2=Body->Resources.MpP2;
-    Gate.ManaCostP2=View.ManaCostP2;
+    Gate.MomentumP2=Body->Resources.MomentumP2;
+    Gate.MomentumCostP2=View.MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*Values);
     Gate.Roots=&Body->Roots;
@@ -639,33 +638,24 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareProjected(const ALDGameMode& Mo
     const FLDBodyCombatState* Body=FindEntityBody(Contender);
     if (Body && !Body->bPendingDeath)
     {
-        // One final-maximum conversion per pool; a dead contender changes only the persistent build.
+        // One final-maximum conversion of HP; momentum has a fixed maximum and keeps its value. A dead contender
+        // changes only the persistent build.
         FLDResourceMaxChangeInput HpChange;
         HpChange.Pool=ELDResourcePool::HP;
         HpChange.OldCurrentP2=Body->Resources.HpP2;
         HpChange.OldMaxP2=Body->Resources.MaxHpP2;
         HpChange.NewMaxP2=Projection.Final.MaxHPP2;
-        FLDResourceMaxChangeInput MpChange;
-        MpChange.Pool=ELDResourcePool::MP;
-        MpChange.OldCurrentP2=Body->Resources.MpP2;
-        MpChange.OldMaxP2=Body->Resources.MaxMpP2;
-        MpChange.NewMaxP2=Projection.Final.MaxMPP2;
         const FLDResourceMaxChangeResult Hp=LDAttributeProjection::ResourceMaxChange(HpChange,*Content);
-        const FLDResourceMaxChangeResult Mp=LDAttributeProjection::ResourceMaxChange(MpChange,*Content);
-        if (!Hp.IsSuccess() || !Mp.IsSuccess())
+        if (!Hp.IsSuccess())
         {
-            const FLDResourceMaxChangeResult& Refused=Hp.IsSuccess() ? Mp : Hp;
-            return LDCombatSourcesDetail::PrepareFailure(LDCombatSourcesDetail::FromProjectionError(Refused.Error.Code),
-                FString::Printf(TEXT("%s maximum change refused: %s: %s"),Hp.IsSuccess() ? TEXT("MP") : TEXT("HP"),
-                    *Refused.Error.Field,*Refused.Error.Message));
+            return LDCombatSourcesDetail::PrepareFailure(LDCombatSourcesDetail::FromProjectionError(Hp.Error.Code),
+                FString::Printf(TEXT("HP maximum change refused: %s: %s"),*Hp.Error.Field,*Hp.Error.Message));
         }
         Prepared.bAlive=true;
         Prepared.Body={Body->Victim,Body->Identity};
         Prepared.ExpectedResourceRevision=Body->Resources.Revision;
         Prepared.NewHPP2=Hp.Value->NewCurrentP2;
         Prepared.NewMaxHPP2=Projection.Final.MaxHPP2;
-        Prepared.NewMPP2=Mp.Value->NewCurrentP2;
-        Prepared.NewMaxMPP2=Projection.Final.MaxMPP2;
     }
     Prepared.Match=Mode->GetMatchContext();
     Prepared.Contender=Contender;
@@ -743,7 +733,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         bValid=LDCombatSourcesDetail::ProjectedBasicTiming(Prepared.Projection,*Content,Timing,Code,Reason)
             && LDCombatSourcesDetail::NativeWalkSpeed(Prepared.Projection.Final.MoveSpeedCmPerSec,WalkSpeed)
             && PublicActivesOf(Prepared.Input,*Content,PublicActives)
-            && Prepared.NewMaxHPP2==Prepared.Projection.Final.MaxHPP2 && Prepared.NewMaxMPP2==Prepared.Projection.Final.MaxMPP2;
+            && Prepared.NewMaxHPP2==Prepared.Projection.Final.MaxHPP2;
     }
     if (!bValid)
     {
@@ -798,11 +788,8 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         Body->BasicTiming=Timing;
         Body->Resources.MaxHpP2=Prepared.NewMaxHPP2;
         Body->Resources.HpP2=Prepared.NewHPP2;
-        Body->Resources.MaxMpP2=Prepared.NewMaxMPP2;
-        Body->Resources.MpP2=Prepared.NewMPP2;
         // The sub-P2 remainder stays an unbooked part of the old points; a full pool banks nothing.
         if (Body->Resources.HpP2>=Body->Resources.MaxHpP2) { Body->HpRegenMicroP2=0; }
-        if (Body->Resources.MpP2>=Body->Resources.MaxMpP2) { Body->MpRegenMicroP2=0; }
         ++Body->Resources.Revision;
         if (!Body->PublicFacts.IsSet()) { Body->PublicFacts.Emplace(); }
         Body->PublicFacts->Level=Prepared.Input.Level;
@@ -897,9 +884,10 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     {
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
-        Out.MPP2=Body->Resources.MpP2;
-        Out.MaxMPP2=Body->Resources.MaxMpP2;
+        Out.MomentumP2=Body->Resources.MomentumP2;
         Out.ShieldP2=Body->Resources.ShieldP2;
+        Out.ComboStep=Body->ComboStep;
+        Out.ComboStartMs=Body->ComboStartMs;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);
@@ -996,14 +984,12 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; });
             const auto& Parameters=Content->Get().Parameters;
             const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
-                Parameters.OutOfCombatMaxHPRegenBp,Parameters.OutOfCombatMaxMPRegenBp};
+                Parameters.OutOfCombatMaxHPRegenBp};
             // Inside a 躺平角 (D21) its term is part of the displayed rate, as it is of the settled one.
-            const LDTactical::FOutOfCombatRecovery Dorm{Parameters.DormRegenDelayMs,Parameters.DormMaxHPRegenBp,
-                Parameters.DormMaxMPRegenBp};
-            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Out.MaxMPP2,Body->LastCombatAtMs,NowMs,
+            const LDTactical::FOutOfCombatRecovery Dorm{Parameters.DormRegenDelayMs,Parameters.DormMaxHPRegenBp};
+            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Body->LastCombatAtMs,NowMs,
                 Body->bInDorm ? &Dorm : nullptr);
             Out.HPRegenPerSec=Regen.HP;
-            Out.MPRegenPerSec=Regen.MP;
             // The D21 contender recovery (this view is a contender's) is running.
             Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
                 Content->Get().Parameters.OutOfCombatRegenDelayMs,NowMs);
@@ -1015,8 +1001,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     else
     {
         Out.MaxHPP2=Projection.Final.MaxHPP2;
-        Out.MaxMPP2=Projection.Final.MaxMPP2;
     }
+    Out.MaxMomentumP2=Content->Get().Parameters.Momentum.MaxP2;
     for (const ELDCombatEntry Slot : LDCombatSourcesDetail::OwnerEntries) { Out.Entries.Add(EntryView(*Record,Body,Slot,NowMs)); }
     double MoveSpeed=LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec);
     // The owning client predicts with the same effective speed the authority moves its body at.
@@ -1103,7 +1089,7 @@ FLDCampResetPrepareResult ALDCombatDirector::PrepareCampReset(const FLDCampReset
     FString LookupError;
     if (Body->MonsterId.IsNone() || !Content->FindMonster(Body->MonsterId.ToString(),BaseMonster,LookupError) || !BaseMonster
         || !LDCampGrowth::ScaleBody(Content->Get().Parameters,*BaseMonster,Body->CampStage,Grown,LookupError)
-        || Monster->HPP2<=0 || Monster->MaxMPP2<0)
+        || Monster->HPP2<=0)
     {
         return LDCombatSourcesDetail::CampResetFailure(EPrepare::Catalog,
             FString::Printf(TEXT("Catalog: monster %s has no executable maxima. %s"),*Body->MonsterId.ToString(),*LookupError));
@@ -1114,7 +1100,6 @@ FLDCampResetPrepareResult ALDCombatDirector::PrepareCampReset(const FLDCampReset
     Prepared.Input=Input;
     Prepared.Match=Mode->GetMatchContext();
     Prepared.MaxHPP2=Monster->HPP2;
-    Prepared.MaxMPP2=Monster->MaxMPP2;
     FLDCampResetPrepareResult Result;
     Result.Value.Emplace(MoveTemp(Prepared));
     return Result;
@@ -1134,7 +1119,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
         || Body->Victim.Kind!=ELDVictimKind::CampMember
         || Body->Resources.Revision!=Prepared.Input.ExpectedResourceRevision
         || Body->StateRevision!=Prepared.Input.ExpectedStateRevision
-        || Prepared.Input.ReturnEpoch<=Body->ResetThroughEpoch || Prepared.MaxHPP2<=0 || Prepared.MaxMPP2<0)
+        || Prepared.Input.ReturnEpoch<=Body->ResetThroughEpoch || Prepared.MaxHPP2<=0)
     {
         Mode->FaultAuthority(FString::Printf(TEXT("Combat camp reset of %s lost its permit, life or revisions."),
             *Prepared.Input.Body.Victim.EntityId.ToString()));
@@ -1159,10 +1144,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Resources.ShieldP2=0;
     Body->Resources.MaxHpP2=Prepared.MaxHPP2;
     Body->Resources.HpP2=Prepared.MaxHPP2;
-    Body->Resources.MaxMpP2=Prepared.MaxMPP2;
-    Body->Resources.MpP2=Prepared.MaxMPP2;
     Body->HpRegenMicroP2=0;
-    Body->MpRegenMicroP2=0;
     Body->LastCombatAtMs=0;
     Body->MonsterNextAttackAtMs=0;
     Body->MonsterAttackCount=0;Body->bMonsterEnraged=false;Body->MonsterGuardUntilMs=0;Body->MonsterRecoverUntilMs=0;

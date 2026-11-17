@@ -109,7 +109,7 @@ void ALDGameMode::LogPlaytestHeartbeat()
             if (Life->Phase == ELDLifePhase::Alive && Combat->ReadCombatBody(Life->Body, Read))
             {
                 Resources = FString::Printf(TEXT("hp=%s/%s mp=%s/%s shield=%s"), *LDLog::P2(Read.HPP2), *LDLog::P2(Read.MaxHPP2),
-                    *LDLog::P2(Read.MPP2), *LDLog::P2(Read.MaxMPP2), *LDLog::P2(Read.ShieldP2));
+                    *LDLog::P2(Read.MomentumP2), *LDLog::P2(Read.MaxMomentumP2), *LDLog::P2(Read.ShieldP2));
                 if (Read.bActionInProgress) { Action = LDLog::EnumName(Read.ActionEntry); }
             }
             TArray<FLDObservedStatus> Observed;

@@ -44,7 +44,7 @@ struct FLDOwnStatusMark
 
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
-// the icon and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
+// the icon and the momentum cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot
 {
@@ -151,9 +151,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> TargetTitle;
     UPROPERTY() TObjectPtr<UProgressBar> TargetHealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetHealth;
-    UPROPERTY() TObjectPtr<UWidget> TargetManaRow;
-    UPROPERTY() TObjectPtr<UProgressBar> TargetManaBar;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
+    UPROPERTY() TObjectPtr<UWidget> TargetMomentumRow;
+    UPROPERTY() TObjectPtr<UProgressBar> TargetMomentumBar;
+    UPROPERTY() TObjectPtr<UTextBlock> TargetMomentum;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
     // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
     // icon is missing, and the key and name are the tile's tooltip.
@@ -317,10 +317,9 @@ private:
     LDHUD::FStatusRings SelfIconRings;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
-    UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
-    UPROPERTY() TObjectPtr<UTextBlock> ManaText;
+    UPROPERTY() TObjectPtr<UProgressBar> MomentumBar;
+    UPROPERTY() TObjectPtr<UTextBlock> MomentumText;
     UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
-    UPROPERTY() TObjectPtr<UTextBlock> ManaRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     FString LevelTip;
     // The toast's own canvas slot, kept right above the band.

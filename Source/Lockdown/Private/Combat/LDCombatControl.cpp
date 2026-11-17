@@ -156,12 +156,13 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         break;
     case ELDControlKind::Stun:
         bApplied=LDCombatControl::Apply(Victim.Stuns,Instance,NowMs);
-        // A stun interrupts any unreleased windup; queued and later requests are refused while it lasts.
-        if (bApplied) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
+        // A stun interrupts any unreleased windup and an overdrive charge; queued and later requests are refused while it lasts.
+        if (bApplied) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); EndOverdriveCharge(Victim); }
         break;
     case ELDControlKind::Silence:
         // #147 D10: a silence forbids Q/W only; a learned skill still winding up ends unpaid, a basic or the dash goes on.
         bApplied=LDCombatControl::Apply(Victim.Silences,Instance,NowMs);
+        if (bApplied) { EndOverdriveCharge(Victim); }
         if (bApplied && Victim.Action.IsSet() && (Victim.Action->Kind==ELDCombatActionKind::Ability || Victim.Action->bMonsterSpecial)
             && Victim.Action->Source.Kind!=ELDCombatSourceKind::Innate)
         { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
@@ -197,6 +198,7 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         // lasts, the unreleased action ends, and Navigation drops the current order when KnockbackSerial changes; the
         // caller (ApplyKnockback) starts the displacement itself after this commit.
         bApplied=LDCombatControl::Apply(Victim.Knockbacks,Instance,NowMs);
+        if (bApplied) { EndOverdriveCharge(Victim); }
         if (bApplied)
         {
             AbandonAction(Victim,ELDCombatReject::ControlBlocked);

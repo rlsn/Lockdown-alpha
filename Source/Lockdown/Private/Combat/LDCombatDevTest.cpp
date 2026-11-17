@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDGameMode.h"
 
@@ -19,11 +20,12 @@ bool CombatDevPermitValid(const ALDGameMode* Mode, const FLDGameplayWritePermit&
 }
 }
 
-bool ALDCombatDirector::DevRefillPool(FLDBodyCombatState::FResources& Pool)
+bool ALDCombatDirector::DevRefillPool(FLDBodyCombatState::FResources& Pool, int64 MomentumMaxP2)
 {
-    const bool bChanged = Pool.HpP2 != Pool.MaxHpP2 || Pool.MpP2 != Pool.MaxMpP2;
+    // HP to its maximum and a full momentum bar (overdrive is ready).
+    const bool bChanged = Pool.HpP2 != Pool.MaxHpP2 || Pool.MomentumP2 != MomentumMaxP2;
     Pool.HpP2 = Pool.MaxHpP2;
-    Pool.MpP2 = Pool.MaxMpP2;
+    Pool.MomentumP2 = MomentumMaxP2;
     if (bChanged)
     {
         ++Pool.Revision;
@@ -60,13 +62,19 @@ bool ALDCombatDirector::DevRefillResources(const FGuid& Contender, const FLDGame
         Detail = TEXT("The contender has no living combat body to refill.");
         return false;
     }
-    const int64 HpBefore = Body->Resources.HpP2, MpBefore = Body->Resources.MpP2;
-    if (DevRefillPool(Body->Resources))
+    const int64 HpBefore = Body->Resources.HpP2, MomentumBefore = Body->Resources.MomentumP2;
+    if (!Catalog())
     {
+        Detail = TEXT("The refill needs the approved Demo content.");
+        return false;
+    }
+    if (DevRefillPool(Body->Resources, Catalog()->Get().Parameters.Momentum.MaxP2))
+    {
+        Body->MomentumMicroP2 = 0;
         MarkViewChanged(Contender);
     }
-    Detail = FString::Printf(TEXT("hp %lld->%lld P2, mp %lld->%lld P2"), HpBefore, Body->Resources.HpP2, MpBefore,
-        Body->Resources.MpP2);
+    Detail = FString::Printf(TEXT("hp %lld->%lld P2, momentum %lld->%lld P2"), HpBefore, Body->Resources.HpP2, MomentumBefore,
+        Body->Resources.MomentumP2);
     return true;
 }
 
@@ -187,8 +195,8 @@ ELDGrowthReason ALDCombatDirector::DevSetAttribute(const FGuid& Contender, bool 
         return ELDGrowthReason::AuthorityFault;
     }
     const FLDProjectedAttributes& Final = Record->Projection.Final;
-    Detail = FString::Printf(TEXT("dev layer: %s; max hp %lld, max mp %lld, ad %lld, ap %lld, armor %lld, mr %lld P2"),
-        *Describe(Record->Build.DevBonuses), Final.MaxHPP2, Final.MaxMPP2, Final.ADP2, Final.APP2, Final.ArmorP2,
+    Detail = FString::Printf(TEXT("dev layer: %s; max hp %lld, ad %lld, ap %lld, armor %lld, mr %lld P2"),
+        *Describe(Record->Build.DevBonuses), Final.MaxHPP2, Final.ADP2, Final.APP2, Final.ArmorP2,
         Final.MagicResistP2);
     return ELDGrowthReason::None;
 }
@@ -237,9 +245,14 @@ int32 ALDCombatDirector::DevFinishReset(const FGuid& Contender, int64 NowMs)
     const int32 Dropped = DevDropTracks(Record->Tracks, NowMs);
     // Back at the match start no combat action holds the build safe window.
     Record->LastBuildUnsafeAtMs = 0;
-    if (FLDBodyCombatState* Body = FindEntityBody(Contender); Body && !Body->bPendingDeath)
+    if (FLDBodyCombatState* Body = FindEntityBody(Contender); Body && !Body->bPendingDeath && Catalog())
     {
-        DevRefillPool(Body->Resources);
+        // As at the match start: full HP, momentum at MOMENTUM.Start, no combo and no charge.
+        DevRefillPool(Body->Resources, Catalog()->Get().Parameters.Momentum.StartP2);
+        Body->MomentumMicroP2 = 0;
+        Body->MomentumEngagedAtMs.Reset();
+        Body->ComboStep = 0;
+        EndOverdriveCharge(*Body);
     }
     MarkViewChanged(Contender);
     return Dropped;

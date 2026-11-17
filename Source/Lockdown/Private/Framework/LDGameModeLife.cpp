@@ -1039,11 +1039,9 @@ bool ALDGameMode::ProjectLife(ALDPlayerController& Controller, FLDOwnerState& Ou
     {
         Candidate.Hp = double(State->Resources.HpP2) / 100.;
         Candidate.MaxHp = double(State->Resources.MaxHpP2) / 100.;
-        Candidate.Mp = double(State->Resources.MpP2) / 100.;
-        Candidate.MaxMp = double(State->Resources.MaxMpP2) / 100.;
         Candidate.Barrier = double(State->Resources.ShieldP2) / 100.;
     }
-    else { Candidate.Hp = Candidate.Mp = Candidate.Barrier = 0; }
+    else { Candidate.Hp = Candidate.Barrier = 0; }
     Out = MoveTemp(Candidate);
     Error.Reset();
     return true;

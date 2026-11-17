@@ -21,7 +21,6 @@ const TCHAR* AttributeName(EAttribute Attribute)
     switch (Attribute)
     {
     case EAttribute::MaxHP: return TEXT("MaxHP");
-    case EAttribute::MaxMP: return TEXT("MaxMP");
     case EAttribute::AD: return TEXT("AD");
     case EAttribute::AP: return TEXT("AP");
     case EAttribute::Armor: return TEXT("Armor");
@@ -30,7 +29,7 @@ const TCHAR* AttributeName(EAttribute Attribute)
     case EAttribute::MoveSpeed: return TEXT("MoveSpeed");
     case EAttribute::AttackRange: return TEXT("AttackRange");
     case EAttribute::HPRegen: return TEXT("HPRegen");
-    case EAttribute::MPRegen: return TEXT("MPRegen");
+    case EAttribute::MomentumRegen: return TEXT("MomentumRegen");
     case EAttribute::CritChance: return TEXT("CritChance");
     case EAttribute::CooldownHaste: return TEXT("CooldownHaste");
     default: return TEXT("Attribute");
@@ -52,7 +51,6 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
     case ELDDemoBonusStat::ADFlat: Attribute = EAttribute::AD; return true;
     case ELDDemoBonusStat::APFlat: Attribute = EAttribute::AP; return true;
     case ELDDemoBonusStat::MaxHPFlat: Attribute = EAttribute::MaxHP; return true;
-    case ELDDemoBonusStat::MaxMPFlat: Attribute = EAttribute::MaxMP; return true;
     case ELDDemoBonusStat::ArmorFlat: Attribute = EAttribute::Armor; return true;
     case ELDDemoBonusStat::MagicResistFlat: Attribute = EAttribute::MagicResist; return true;
     case ELDDemoBonusStat::CooldownHasteFlat: Attribute = EAttribute::CooldownHaste; return true;
@@ -61,7 +59,7 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
     case ELDDemoBonusStat::MoveSpeedBonusRatio: Attribute = EAttribute::MoveSpeed; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::ADBonusRatio: Attribute = EAttribute::AD; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::HPRegenFlat: Attribute = EAttribute::HPRegen; return true;
-    case ELDDemoBonusStat::MPRegenFlat: Attribute = EAttribute::MPRegen; return true;
+    case ELDDemoBonusStat::MomentumRegenFlat: Attribute = EAttribute::MomentumRegen; return true;
     case ELDDemoBonusStat::APBonusRatio: Attribute = EAttribute::AP; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::CritChanceBonusRatio:
         // Probability points add to the base chance; they are not a percentage of it.
@@ -74,11 +72,11 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
     }
 }
 
-// Stats whose amount is an exact rational in FLDDemoStatBonus::Cm (cm or hp/s) rather than a scaled integer.
+// Stats whose amount is an exact rational in FLDDemoStatBonus::Cm (cm, hp/s or momentum/s) rather than a scaled integer.
 bool IsRationalStat(ELDDemoBonusStat Stat)
 {
     return Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat == ELDDemoBonusStat::HPRegenFlat
-        || Stat == ELDDemoBonusStat::MPRegenFlat;
+        || Stat == ELDDemoBonusStat::MomentumRegenFlat;
 }
 
 // #198 B: the effects an installed component may carry. The projection consumes stat_bonus, low_hp_stat_bonus and
@@ -92,7 +90,7 @@ bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Lifesteal: case ELDDemoEffectOp::DashContactDamage: case ELDDemoEffectOp::NthBasicBonus:
     case ELDDemoEffectOp::TriggeredShield: case ELDDemoEffectOp::BasicElement: case ELDDemoEffectOp::BasicDamageScale:
     case ELDDemoEffectOp::PrimaryGuard: case ELDDemoEffectOp::IdleReadyAmp: case ELDDemoEffectOp::ActiveElement:
-    case ELDDemoEffectOp::ManaOnHit: case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::DashContactRefund:
+    case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::DashContactRefund:
     case ELDDemoEffectOp::ShieldBreakRetort:
     // #198 F mods and connectors (Combat reads them for their install target).
     case ELDDemoEffectOp::SpreadUnit: case ELDDemoEffectOp::SpreadProjectile: case ELDDemoEffectOp::SpreadLedger:
@@ -102,7 +100,7 @@ bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::CompressZone: case ELDDemoEffectOp::DashScale: case ELDDemoEffectOp::LedgerVariant:
     case ELDDemoEffectOp::MarkedCounter: case ELDDemoEffectOp::DamageDefer: case ELDDemoEffectOp::FireShield:
     case ELDDemoEffectOp::KnockbackImpact: case ELDDemoEffectOp::ContactKnockback: case ELDDemoEffectOp::ControlMark:
-    case ELDDemoEffectOp::Aftershock: case ELDDemoEffectOp::ControlMana: case ELDDemoEffectOp::HealCounter:
+    case ELDDemoEffectOp::Aftershock: case ELDDemoEffectOp::ControlMomentum: case ELDDemoEffectOp::HealCounter:
     case ELDDemoEffectOp::ReactionEmpower: case ELDDemoEffectOp::ShieldBurst: case ELDDemoEffectOp::SkillLifesteal:
     case ELDDemoEffectOp::ExtraBase: case ELDDemoEffectOp::CompressChain:
     // Skill rules (B13-B15).
@@ -112,7 +110,7 @@ bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::EchoImpact:
     // Connectors (C13-C16).
     case ELDDemoEffectOp::HitHasteOther: case ELDDemoEffectOp::SetupMark: case ELDDemoEffectOp::ReactionHaste:
-    case ELDDemoEffectOp::MultiHitMana:
+    case ELDDemoEffectOp::MultiHitMomentum:
     // Mods (M16-M20).
     case ELDDemoEffectOp::ZoneTether: case ELDDemoEffectOp::DefenseShove: case ELDDemoEffectOp::FinalKnockback:
     case ELDDemoEffectOp::EmpowerReach: case ELDDemoEffectOp::Pull:
@@ -195,15 +193,16 @@ private:
             && Progression.MaxLevel >= 1
             && P.AttackSpeedPerLevelBp >= 0 && P.CritChanceBaseBp >= 0
             && P.CooldownHasteBaseP2 >= 0 && P.CooldownHasteMaxP2 >= 0;
-        for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.MaxMP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
+        for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
         {
             bSupported &= Bounds->BaseP2 >= 0 && Bounds->PerLevelP2 >= 0 && Bounds->MinP2 <= Bounds->MaxP2;
         }
-        for (const FLDDemoRateBounds* Bounds : {&P.HPRegen, &P.MPRegen})
+        for (const FLDDemoRateBounds* Bounds : {&P.HPRegen})
         {
             bSupported &= NonnegativeRational(Bounds->Base) && NonnegativeRational(Bounds->PerLevel)
                 && NonnegativeRational(Bounds->Min) && NonnegativeRational(Bounds->Max);
         }
+        bSupported &= NonnegativeRational(P.Momentum.CombatPerSec) && P.Momentum.MaxP2 > 0;
         for (const FLDDemoRationalBounds* Bounds : {&P.AttackSpeed, &P.MoveSpeedCmPerSec, &P.AttackRangeCm})
         {
             bSupported &= NonnegativeRational(Bounds->Base) && NonnegativeRational(Bounds->Min)
@@ -278,7 +277,7 @@ private:
     bool ResolveComponents()
     {
         const FLDDemoContentParameters& P = Content.Parameters;
-        const int64 Factor = LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp, P.SkillGrowthPerLevelAfter10Bp, Build.Level);
+        const int64 Factor = LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,Build.Level);
         if (!Build.Components.IsEmpty() && Factor <= 0)
         {
             return Refuse(EError::Catalog, TEXT("Components"), TEXT("The skill growth parameters give no factor for this level"));
@@ -424,7 +423,7 @@ private:
         struct FPointGrowth { EAttribute Attribute; const FLDDemoP2Bounds* Bounds; };
         const FPointGrowth PointGrowth[] =
         {
-            {EAttribute::MaxHP, &P.MaxHP}, {EAttribute::MaxMP, &P.MaxMP}, {EAttribute::AD, &P.AD},
+            {EAttribute::MaxHP, &P.MaxHP}, {EAttribute::AD, &P.AD},
             {EAttribute::AP, &P.AP}, {EAttribute::Armor, &P.Armor}, {EAttribute::MagicResist, &P.MagicResist},
         };
         for (const FPointGrowth& Row : PointGrowth)
@@ -434,7 +433,7 @@ private:
             Sum.Level.Flat = Numbers.Mul(Numbers.Value(Row.Bounds->PerLevelP2, 100), Steps);
         }
         struct FRateGrowth { EAttribute Attribute; const FLDDemoRateBounds* Bounds; };
-        const FRateGrowth RateGrowth[] = {{EAttribute::HPRegen, &P.HPRegen}, {EAttribute::MPRegen, &P.MPRegen}};
+        const FRateGrowth RateGrowth[] = {{EAttribute::HPRegen, &P.HPRegen}};
         for (const FRateGrowth& Row : RateGrowth)
         {
             FAttributeSum& Sum = Sums[int32(Row.Attribute)];
@@ -448,6 +447,8 @@ private:
         Sums[int32(EAttribute::AttackRange)].Base = Numbers.Value(P.AttackRangeCm.Base);
         Sums[int32(EAttribute::CritChance)].Base = Numbers.Value(P.CritChanceBaseBp, 10000);
         Sums[int32(EAttribute::CooldownHaste)].Base = Numbers.Value(P.CooldownHasteBaseP2, 100);
+        // In-combat momentum gain: MOMENTUM.CombatPerSec plus the brains points (no level growth).
+        Sums[int32(EAttribute::MomentumRegen)].Base = Numbers.Value(P.Momentum.CombatPerSec);
         if (!Check.Good)
         {
             return ArithmeticFailure(TEXT("Catalog"));
@@ -539,7 +540,6 @@ private:
         switch (Attribute)
         {
         case EAttribute::MaxHP: return StoreScaled(Value, 100, P.MaxHP.MinP2, P.MaxHP.MaxP2, Final.MaxHPP2, Field);
-        case EAttribute::MaxMP: return StoreScaled(Value, 100, P.MaxMP.MinP2, P.MaxMP.MaxP2, Final.MaxMPP2, Field);
         case EAttribute::AD: return StoreScaled(Value, 100, P.AD.MinP2, P.AD.MaxP2, Final.ADP2, Field);
         case EAttribute::AP: return StoreScaled(Value, 100, P.AP.MinP2, P.AP.MaxP2, Final.APP2, Field);
         case EAttribute::Armor: return StoreScaled(Value, 100, P.Armor.MinP2, P.Armor.MaxP2, Final.ArmorP2, Field);
@@ -552,8 +552,9 @@ private:
                 && StoreRational(Value, Final.AttackRangeCm, Field);
         case EAttribute::HPRegen:
             return Within(Value, P.HPRegen.Min, P.HPRegen.Max, Field) && StoreRational(Value, Final.HPRegenPerSec, Field);
-        case EAttribute::MPRegen:
-            return Within(Value, P.MPRegen.Min, P.MPRegen.Max, Field) && StoreRational(Value, Final.MPRegenPerSec, Field);
+        case EAttribute::MomentumRegen:
+            return Within(Value, FLDDemoRational{0, 1}, FLDDemoRational{P.Momentum.MaxP2, 100}, Field)
+                && StoreRational(Value, Final.MomentumRegenPerSec, Field);
         case EAttribute::CritChance: return StoreScaled(Value, 10000, 0, 10000, Final.CritChanceBp, Field);
         case EAttribute::CooldownHaste:
             return StoreScaled(Value, 100, 0, P.CooldownHasteMaxP2, Final.CooldownHasteP2, Field);
@@ -579,7 +580,6 @@ private:
         switch (Attribute)
         {
         case EAttribute::MaxHP: Points(P.MaxHP); break;
-        case EAttribute::MaxMP: Points(P.MaxMP); break;
         case EAttribute::AD: Points(P.AD); break;
         case EAttribute::AP: Points(P.AP); break;
         case EAttribute::Armor: Points(P.Armor); break;
@@ -588,7 +588,8 @@ private:
         case EAttribute::MoveSpeed: Rational(P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max); break;
         case EAttribute::AttackRange: Rational(P.AttackRangeCm.Min, P.AttackRangeCm.Max); break;
         case EAttribute::HPRegen: Rational(P.HPRegen.Min, P.HPRegen.Max); break;
-        case EAttribute::MPRegen: Rational(P.MPRegen.Min, P.MPRegen.Max); break;
+        // The technical bound of the in-combat gain is one full bar per second.
+        case EAttribute::MomentumRegen: Rational(FLDDemoRational{0, 1}, FLDDemoRational{P.Momentum.MaxP2, 100}); break;
         case EAttribute::CritChance: Min = Numbers.Value(0); Max = Numbers.Value(1); break;
         case EAttribute::CooldownHaste: Min = Numbers.Value(0); Max = Numbers.Value(P.CooldownHasteMaxP2, 100); break;
         default: Min = Max = Numbers.Value(0); break;
@@ -710,7 +711,6 @@ FExact FinalValue(EAttribute Attribute, const FLDProjectedAttributes& Final, FNu
     switch (Attribute)
     {
     case EAttribute::MaxHP: return N.Value(Final.MaxHPP2, 100);
-    case EAttribute::MaxMP: return N.Value(Final.MaxMPP2, 100);
     case EAttribute::AD: return N.Value(Final.ADP2, 100);
     case EAttribute::AP: return N.Value(Final.APP2, 100);
     case EAttribute::Armor: return N.Value(Final.ArmorP2, 100);
@@ -719,7 +719,7 @@ FExact FinalValue(EAttribute Attribute, const FLDProjectedAttributes& Final, FNu
     case EAttribute::MoveSpeed: return N.Value(Final.MoveSpeedCmPerSec);
     case EAttribute::AttackRange: return N.Value(Final.AttackRangeCm);
     case EAttribute::HPRegen: return N.Value(Final.HPRegenPerSec);
-    case EAttribute::MPRegen: return N.Value(Final.MPRegenPerSec);
+    case EAttribute::MomentumRegen: return N.Value(Final.MomentumRegenPerSec);
     case EAttribute::CritChance: return N.Value(Final.CritChanceBp, 10000);
     case EAttribute::CooldownHaste: return N.Value(Final.CooldownHasteP2, 100);
     default: return N.Value(0);
@@ -818,7 +818,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         EAttribute Attribute = EAttribute::Count;
         bool bRatio = false, bBasisPoints = false;
         const bool bRange = IsRationalStat(Bonus.Stat);
-        if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Attribute == EAttribute::MaxHP || Attribute == EAttribute::MaxMP
+        if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Attribute == EAttribute::MaxHP
             || (bRange ? !NonnegativeRational(Bonus.Cm) : Bonus.Amount < 0))
         {
             return Fail(EError::InputDomain, Field, TEXT("A temporary bonus must be a nonnegative, non-resource stat"));
@@ -928,7 +928,7 @@ FLDResourceMaxChangeResult ResourceMaxChange(const FLDResourceMaxChangeInput& In
     {
         return Fail(EError::MissingValue, TEXT("Pool"), TEXT("The resource pool must be explicit"));
     }
-    if (Input.Pool != ELDResourcePool::HP && Input.Pool != ELDResourcePool::MP)
+    if (Input.Pool != ELDResourcePool::HP)
     {
         return Fail(EError::InputDomain, TEXT("Pool"), TEXT("Unknown resource pool"));
     }

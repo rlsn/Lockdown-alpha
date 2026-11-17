@@ -5,6 +5,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
 #include "Combat/LDCombatDirector.h"
+#include "LDTestApprovedFixture.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "Engine/Engine.h"
@@ -208,6 +209,9 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
     FLDObservedPublicFacts PublicFacts;
     TestFalse(TEXT("A missing committed public build is not defaulted to level one"),
         Mode->ReadObservedPublicFacts(Mode->MatchContext,Ref,PublicFacts,Error));
+    // A visible contender's momentum bar is quantized against the approved maximum the core owns.
+    World->CopyGameState(Mode,Public);
+    if (!LDTestApprovedFixture::Read(*this,Mode->DemoContent)) { return false; }
     auto& Registered=Driver->Bodies.FindChecked(Body);
     Registered.Resources.Revision=Registered.AttributeRevision=1;
     FLDObservedPublicFacts Committed;

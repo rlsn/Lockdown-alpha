@@ -18,7 +18,7 @@ struct FState
     FLDAttributeProjection Build;
     FLDAttributeProjection Effective;
     int64 HpP2=0;
-    int64 MpP2=0;
+    int64 MomentumP2=0;
 };
 
 FString Exact(int64 Numerator,int64 Denominator)
@@ -135,27 +135,23 @@ bool Project(const FLDDemoContentSnapshot& Content,const FLDGrowthBuild& Build,c
     if(!Combat.bPreviewLiving){return true;}
     if(!Previous)
     {
-        if(Combat.MaxHPP2!=Out.Build.Final.MaxHPP2||Combat.MaxMPP2!=Out.Build.Final.MaxMPP2)
+        if(Combat.MaxHPP2!=Out.Build.Final.MaxHPP2)
         {Error=TEXT("owner resource maxima do not match the installed projection");return false;}
-        Out.HpP2=Combat.HPP2;Out.MpP2=Combat.MPP2;
+        Out.HpP2=Combat.HPP2;Out.MomentumP2=Combat.MomentumP2;
     }
     else
     {
         FLDResourceMaxChangeInput Hp;
         Hp.Pool=ELDResourcePool::HP;Hp.OldCurrentP2=Previous->HpP2;Hp.OldMaxP2=Previous->Build.Final.MaxHPP2;
         Hp.NewMaxP2=Out.Build.Final.MaxHPP2;
-        FLDResourceMaxChangeInput Mp;
-        Mp.Pool=ELDResourcePool::MP;Mp.OldCurrentP2=Previous->MpP2;Mp.OldMaxP2=Previous->Build.Final.MaxMPP2;
-        Mp.NewMaxP2=Out.Build.Final.MaxMPP2;
         const FLDResourceMaxChangeResult Health=LDAttributeProjection::ResourceMaxChange(Hp,Content);
-        const FLDResourceMaxChangeResult Mana=LDAttributeProjection::ResourceMaxChange(Mp,Content);
-        if(!Health.IsSuccess()||!Mana.IsSuccess())
+        if(!Health.IsSuccess())
         {
-            const FLDAttributeProjectionFailure& Failure=Health.IsSuccess()?Mana.Error:Health.Error;
-            Error=Failure.Field+TEXT(": ")+Failure.Message;
+            Error=Health.Error.Field+TEXT(": ")+Health.Error.Message;
             return false;
         }
-        Out.HpP2=Health.Value->NewCurrentP2;Out.MpP2=Mana.Value->NewCurrentP2;
+        // Momentum keeps its value across a build change (its maximum is fixed).
+        Out.HpP2=Health.Value->NewCurrentP2;Out.MomentumP2=Previous->MomentumP2;
     }
     TArray<FLDCombatTimedBonus> Bonuses;
     for(const FLDCombatPreviewBonus& Row:Combat.PreviewBonuses)
@@ -205,7 +201,7 @@ FString AttributeValue(ELDProjectedAttribute Attribute,const FLDDemoRational& Va
     case ELDProjectedAttribute::AttackSpeed: return Exact(Value,60)+TEXT("/min");
     case ELDProjectedAttribute::CritChance: return Exact(Value,100)+TEXT("%");
     case ELDProjectedAttribute::AttackRange: return Cm(Value);
-    case ELDProjectedAttribute::HPRegen: case ELDProjectedAttribute::MPRegen: return Exact(Value)+TEXT("/s");
+    case ELDProjectedAttribute::HPRegen: case ELDProjectedAttribute::MomentumRegen: return Exact(Value)+TEXT("/s");
     default: return Exact(Value);
     }
 }
@@ -334,9 +330,10 @@ bool Ability(const FLDDemoContentSnapshot& Content,const FState& Before,const FS
             Content.Get().Formulas.HasteScaleP2,NewCooldown,Error))){return false;}
     if(OldCooldown!=NewCooldown)
     {Add(Lines,Label(LDTerms::WorkshopCooldown),Seconds(OldCooldown),Seconds(NewCooldown),Impact(OldCooldown,NewCooldown,false));}
-    const int64 OldCost=bInnate?OldDash.ManaCostP2:Old.Values.ManaCostP2;
-    const int64 NewCost=bInnate?NewDash.ManaCostP2:New.Values.ManaCostP2;
-    if(OldCost!=NewCost){Add(Lines,Label(LDTerms::Mana),Points(OldCost),Points(NewCost),Impact(OldCost,NewCost,false));}
+    // The innate dash costs no momentum.
+    const int64 OldCost=bInnate?0:Old.Values.MomentumCostP2;
+    const int64 NewCost=bInnate?0:New.Values.MomentumCostP2;
+    if(OldCost!=NewCost){Add(Lines,Label(LDTerms::Momentum),Points(OldCost),Points(NewCost),Impact(OldCost,NewCost,false));}
     if(Old.Target.RangeCm.Numerator>0||New.Target.RangeCm.Numerator>0)
     {
         double OldRange=0,NewRange=0;

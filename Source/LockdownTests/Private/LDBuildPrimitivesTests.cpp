@@ -229,7 +229,6 @@ struct FLDBuildPrimitivesAccess
             Target.Presented.ContenderId = Target.Body.Victim.EntityId;
             Target.Presented.Level = 1;
             Target.Presented.Health.CurrentP2 = Target.Presented.Health.MaxP2 = 100000;
-            Target.Presented.Mana.MaxP2 = 10000;
         }
         TArray<const FLDObservedTarget*> Visible;
         for (const FLDObservedTarget& Target : Targets) { Visible.Add(&Target); }
@@ -825,9 +824,9 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     TestTrue(FString::Printf(TEXT("The first tick: %s"), *Error), FAccess::AdvanceBurns(*F.Driver, 1500, Error));
     const TArray<FLDCombatHit>& Ticks = FAccess::PendingHits(*F.Driver);
     TestTrue(TEXT("One magic tick per applier, never a crit or on-hit"), Ticks.Num() == 2 && Ticks[0].SourceEntity == A.Victim.EntityId
-        && Ticks[0].BaseP2 == 300 && Ticks[1].SourceEntity == B.Victim.EntityId && Ticks[1].BaseP2 == 300 && Ticks[0].bBurnTick
+        && Ticks[0].BaseP2 == 450 && Ticks[1].SourceEntity == B.Victim.EntityId && Ticks[1].BaseP2 == 375 && Ticks[0].bBurnTick
         && Ticks[0].bPeriodic && Ticks[0].OnHitScaleBp == 0 && Ticks[0].DamageType == ELDDemoDamageType::Magical);
-    TestTrue(TEXT("The ticks land: 3.00 each"), F.Flush(Error) && Body.Resources.HpP2 == 89400
+    TestTrue(TEXT("The ticks land: 4.50 and 3.75"), F.Flush(Error) && Body.Resources.HpP2 == 89175
         && LDCombatKeywords::NextBurnTickAtMs(Body.Burn) == 2000);
     FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
     TestTrue(TEXT("A leaving applier's layers end; the shared breach stays"), Body.Burn.Layers.Num() == 1 && Body.SharedBreach.Stacks == 5);
@@ -1218,7 +1217,6 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     Unit.ContenderId = FGuid::NewGuid();
     Unit.Level = 1;
     Unit.Health.CurrentP2 = Unit.Health.MaxP2 = 100000;
-    Unit.Mana.MaxP2 = 10000;
     Unit.Statuses = Statuses;
     FString Error;
     TestTrue(TEXT("A fully debuffed contender is still a valid observation"), LDObservation::ValidateUnit(Unit, Error));
@@ -1281,19 +1279,19 @@ bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
     Hit.DeliveryScaleBp=-1;
     TestFalse(TEXT("A negative delivery share is refused"),LDTactical::EvaluateDamage(Hit,*Catalog).IsSuccess());
 
-    // Eighty agility points past level 16 stay below the cap until the temporary bonus is applied.
+    // Eighty agility points past level 16 stay below the cap of 5 until a large temporary bonus is applied.
     FLDAttributeBuildValues Values(16,{FLDStatPointsValue(TEXT("stat_agility"),80)});
     const auto Build=LDAttributeProjection::Project(Values,*Catalog);
     if (!TestTrue(TEXT("The capped build projects"),Build.IsSuccess())) { return false; }
     FLDTemporaryAttributeTerms Terms;
     FLDDemoStatBonus Speed;
     Speed.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;
-    Speed.Amount=3000;
+    Speed.Amount=60000;
     Terms.Bonuses.Add(Speed);
     Terms.AttackSlowBp=2500;
     const auto Slowed=LDAttributeProjection::ApplyTemporary(Build.Value.GetValue(),Terms,*Catalog);
     TestTrue(TEXT("An attack slow slows the capped attack speed, not the pre-cap sum"),
-        Slowed.IsSuccess() && Slowed.Value->Final.AttackSpeed.Numerator==69 && Slowed.Value->Final.AttackSpeed.Denominator==40);
+        Slowed.IsSuccess() && Slowed.Value->Final.AttackSpeed.Numerator==15 && Slowed.Value->Final.AttackSpeed.Denominator==4);
     return true;
 }
 
@@ -1645,7 +1643,7 @@ bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)
         for (const uint8 Level : {uint8(5),uint8(10),uint8(13),uint8(16)})
         {
             const FLDDemoAbilityValues* Grown=Catalog->FindValues(Ability,Level);
-            bool bBounded=Grown && Grown->ManaCostP2==First->ManaCostP2 && Grown->CooldownMs==First->CooldownMs
+            bool bBounded=Grown && Grown->MomentumCostP2==First->MomentumCostP2 && Grown->CooldownMs==First->CooldownMs
                 && Grown->Effects.Num()==First->Effects.Num();
             for (int32 Index=0; bBounded && Index<First->Effects.Num(); ++Index)
             {
@@ -1653,7 +1651,7 @@ bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)
                     && Grown->Effects[Index].DurationMs==First->Effects[Index].DurationMs
                     && Grown->Effects[Index].RatioBp==First->Effects[Index].RatioBp;
             }
-            TestTrue(*FString::Printf(TEXT("%s at level %u grows its amounts only, never mana, cooldown, ratios or durations"),
+            TestTrue(*FString::Printf(TEXT("%s at level %u grows its amounts only, never momentum, cooldown, ratios or durations"),
                 *Ability.Id,uint32(Level)),bBounded);
         }
     }
@@ -1737,8 +1735,8 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Fog consumes both elements; its 0 s pulse wets the element-free target again as B's fog, with one new slow"),
         Body.ElementMark.Kind == ELDCombatElement::Water && Body.ElementMark.Applier.SourceEntity == B.Victim.EntityId
         && Body.ElementMark.ExpiresAtMs == 5500 && Body.Slows.Num() == 1 && Body.Burn.Layers.IsEmpty());
-    TestTrue(TEXT("The new fire's whole budget (six ticks of 1.50) settles at once as B's fire, then R = 20 from B"),
-        Pending.Num() == 2 && Pending[0].bBurnTick && Pending[0].BaseP2 == 900 && Pending[0].SourceEntity == B.Victim.EntityId
+    TestTrue(TEXT("The new fire's whole budget (six ticks of 2.25) settles at once as B's fire, then R = 20 from B"),
+        Pending.Num() == 2 && Pending[0].bBurnTick && Pending[0].BaseP2 == 1350 && Pending[0].SourceEntity == B.Victim.EntityId
         && Pending[1].bStatusSettle && !Pending[1].bBurnTick && Pending[1].BaseP2 == 2000 && Pending[1].SourceEntity == B.Victim.EntityId
         && Pending[1].Target == Target);
     TestTrue(TEXT("B owns one fog, its next pulse one second later, and the reaction is reported with B as trigger"),
@@ -1746,7 +1744,7 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
         && FAccess::Fogs(*F.Driver)[0].NextPulseMs == 2500 && FAccess::Reactions(*F.Driver).Num() == 1
         && FAccess::Reactions(*F.Driver)[0].Kind == ELDCombatReaction::Fog
         && FAccess::Reactions(*F.Driver)[0].TriggerEntity == B.Victim.EntityId);
-    TestTrue(TEXT("The settles land"), F.Flush(Error) && Body.Resources.HpP2 == 100000 - 2900);
+    TestTrue(TEXT("The settles land"), F.Flush(Error) && Body.Resources.HpP2 == 100000 - 3350);
 
     FLDBodyCombatState& Other = F.Body(Second);
     FLDCombatHit TwoLayers = FFixture::Hit(A, Second, 0);
@@ -1757,7 +1755,7 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
     Water.bApplyWet = true;
     TestTrue(FString::Printf(TEXT("Water on fire: %s"), *Error), F.Apply(Water, Error));
     TestTrue(TEXT("A's held layers settle their remaining six ticks each to A; B's R follows; the new fog wets the target"),
-        Pending.Num() == 2 && Pending[0].SourceEntity == A.Victim.EntityId && Pending[0].BaseP2 == 1800 && Pending[0].bBurnTick
+        Pending.Num() == 2 && Pending[0].SourceEntity == A.Victim.EntityId && Pending[0].BaseP2 == 2700 && Pending[0].bBurnTick
         && Pending[1].SourceEntity == B.Victim.EntityId && Pending[1].BaseP2 == 2000
         && Other.Burn.Layers.IsEmpty() && Other.ElementMark.Kind == ELDCombatElement::Water);
     TestEqual(TEXT("B's newer fog replaced its first one"), FAccess::Fogs(*F.Driver).Num(), 1);
@@ -1923,7 +1921,7 @@ bool FLDComponentProjectionTest::RunTest(const FString& Parameters)
     const FLDAttributeProjection& Projected = Result.Value.GetValue();
     const auto Row = [&Projected](EAttribute Attribute) -> const FLDAttributeContributions& { return Projected.Contributions[int32(Attribute)]; };
     TestTrue(TEXT("B13-B15 add no stat or low-HP term"), SameRational(Row(EAttribute::CooldownHaste).Components.Flat, 0)
-        && Projected.Final.CooldownHasteP2 == P.CooldownHasteBaseP2 && SameRational(Row(EAttribute::MPRegen).Components.Flat, 0)
+        && Projected.Final.CooldownHasteP2 == P.CooldownHasteBaseP2 && SameRational(Row(EAttribute::MomentumRegen).Components.Flat, 0)
         && SameRational(Row(EAttribute::AttackRange).Components.Flat, 0) && !Projected.LowHPBonus.IsSet());
     {
         TArray<FLDPassiveEffectRef> Refund, Distance, Alternate;
@@ -1970,7 +1968,7 @@ bool FLDComponentProjectionTest::RunTest(const FString& Parameters)
         && Bound.Value->InstalledComponents[0].BoundActive == FName(TEXT("active_elbow"))
         && Bound.Value->InstalledComponents[0].Element == ELDDemoElement::Fire);
 
-    // Trigger effects arrive with their fixed amounts grown for the holder's level; ratios never grow (B16 at G(10)=2.35).
+    // Trigger effects arrive with their fixed amounts grown for the holder's level; ratios never grow (B16 at G(10)=1.36).
     const FLDAttributeProjectionResult Guard = ProjectComponents(*F.Catalog, 10, {{TEXT("component_thick_hide")}});
     TArray<FLDPassiveEffectRef> Held;
     FString Error;
@@ -1978,8 +1976,8 @@ bool FLDComponentProjectionTest::RunTest(const FString& Parameters)
         || !TestTrue(FString::Printf(TEXT("B16 resolves: %s"), *Error),
             FAccess::Collect(*F.Driver, Guard.Value.GetValue(), ELDDemoEffectOp::TriggeredShield, Held, Error)))
     { return false; }
-    TestTrue(TEXT("B16 holds its ability-hit shield 40G = 94 at level 10, 3% max HP, 3 s, 8 s rest"), Held.Num() == 1
-        && Held[0].Effect.Trigger == ELDDemoEffectTrigger::AbilityHit && Held[0].Effect.BaseP2 == 9400
+    TestTrue(TEXT("B16 holds its ability-hit shield 40G = 54.4 at level 10, 3% max HP, 3 s, 8 s rest"), Held.Num() == 1
+        && Held[0].Effect.Trigger == ELDDemoEffectTrigger::AbilityHit && Held[0].Effect.BaseP2 == 5440
         && Held[0].Effect.MaxHPRatioBp == 300 && Held[0].Effect.DurationMs == 3000 && Held[0].Effect.IntervalMs == 8000
         && Held[0].Source.Kind == ELDCombatSourceKind::Component && Held[0].Source.DefinitionId == FName(TEXT("component_thick_hide")));
     return true;
@@ -2133,7 +2131,7 @@ bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("leaving only the new entry"), Ledger.EntriesP2.Num(), 1);
     TestTrue(TEXT("A ledger without a threshold is refused"), !AddLedgerEntry(Ledger, 1000, 16100, 0, 6000, CashP2, bRefused) && bRefused);
 
-    // B02 on Combat: an owner at level 3 books 10G = 13 per effective hit; the fifth cashes out once as magic damage.
+    // B02 on Combat: an owner at level 3 books 10G = 10.8 per effective hit; the fifth cashes out once as magic damage.
     FFixture F;
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Owner = F.AddBody(), Target = F.AddBody();
@@ -2144,8 +2142,8 @@ bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
     {
         TestTrue(FString::Printf(TEXT("Hit %d lands: %s"), Hit, *Error), F.Apply(FFixture::Hit(Owner, Target, 10000), Error));
     }
-    TestTrue(TEXT("Four effective hits book four entries of 13 on the target life"), Victim.Ledgers.Num() == 1
-        && Victim.Ledgers[0].EntriesP2 == TArray<int64>({1300, 1300, 1300, 1300}) && FAccess::PendingHits(*F.Driver).IsEmpty());
+    TestTrue(TEXT("Four effective hits book four entries of 10.8 on the target life"), Victim.Ledgers.Num() == 1
+        && Victim.Ledgers[0].EntriesP2 == TArray<int64>({1080, 1080, 1080, 1080}) && FAccess::PendingHits(*F.Driver).IsEmpty());
     TestEqual(TEXT("Booked entries are records, not B02 triggers"), Triggers(F, Owner), int64(0));
     FLDCombatHit Tick = FFixture::Hit(Owner, Target, 1000);
     Tick.bBurnTick = Tick.bPeriodic = true;
@@ -2153,12 +2151,12 @@ bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A zero hit books nothing"), F.Apply(FFixture::Hit(Owner, Target, 0), Error) && Victim.Ledgers[0].EntriesP2.Num() == 4);
     TestTrue(TEXT("The fifth hit lands"), F.Apply(FFixture::Hit(Owner, Target, 10000), Error));
     const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
-    TestTrue(TEXT("The batch cashes out as one magic skill-class package of 65"), Pending.Num() == 1 && Pending[0].bLedgerCashOut
-        && Pending[0].BaseP2 == 6500 && Pending[0].DamageType == ELDDemoDamageType::Magical
+    TestTrue(TEXT("The batch cashes out as one magic skill-class package of 54"), Pending.Num() == 1 && Pending[0].bLedgerCashOut
+        && Pending[0].BaseP2 == 5400 && Pending[0].DamageType == ELDDemoDamageType::Magical
         && Pending[0].HitClass == ELDCombatHitClass::Ability && Pending[0].Source.DefinitionId == FName(TEXT("component_tab_ledger"))
         && Victim.Ledgers.IsEmpty());
     const int64 Before = Victim.Resources.HpP2;
-    TestTrue(TEXT("The cash-out lands"), F.Flush(Error) && Before - Victim.Resources.HpP2 == 6500);
+    TestTrue(TEXT("The cash-out lands"), F.Flush(Error) && Before - Victim.Resources.HpP2 == 5400);
     TestTrue(TEXT("and never books an entry itself"), Victim.Ledgers.IsEmpty());
     TestEqual(TEXT("The cash-out is one B02 trigger of its owner, its hit no second one"), Triggers(F, Owner), int64(1));
     return true;
@@ -2360,15 +2358,15 @@ bool FLDWorkshopCompileTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("M07 compresses S10's chain into one 175.2% hit"), FAccess::Compile(*H.Driver, H.Body(Caster).AttributeProjection,
         SourceOf(ELDCombatSourceKind::Learned, TEXT("active_zap")), Chain, Error) && Chain.CompressChain.IsSet()
         && Chain.PackageScaleBp == 17520);
-    // M04 + M06 on S02: root 1.5 s x 1.25; cooldown 12 s x 1.25 x 0.8; mana 55 x 1.25 rounded up to 0.01.
+    // M04 + M06 on S02: root 1.2 s x 1.25; cooldown 9 s x 1.25 x 0.8; momentum 30 x 1.25 rounded up to 0.01.
     FLDCombatActiveTerms Root;
     if (!ActiveTerms(*this, F, TEXT("active_pants_down"), Root)
         || !TestTrue(TEXT("S02 compiles"), FAccess::Compile(*F.Driver, Body.AttributeProjection,
             SourceOf(ELDCombatSourceKind::Learned, TEXT("active_pants_down")), Root, Error)))
     { return false; }
     const FLDDemoEffectDefinition* Hold = FindEffect(Root.Values, ELDDemoEffectOp::Root);
-    TestTrue(TEXT("M04 and M06 rewrite S02's control, cooldown and cost"), Hold && Hold->DurationMs == 1875
-        && Root.Values.CooldownMs == 12000 && Root.Values.ManaCostP2 == 6875);
+    TestTrue(TEXT("M04 and M06 rewrite S02's control, cooldown and cost"), Hold && Hold->DurationMs == 1500
+        && Root.Values.CooldownMs == 9000 && Root.Values.MomentumCostP2 == 3750);
     // M08 on D: distance and time x 1.5 (same speed), cooldown x 1.25, contact x 1.3.
     FLDCombatActiveTerms Dash;
     Dash.Target = F.Catalog->Get().Character.Dash.Target;
@@ -2395,11 +2393,10 @@ bool FLDWorkshopControlMarkTest::RunTest(const FString& Parameters)
     const FLDCombatBodyRef Holder = F.AddBody(), Victim = F.AddBody(), Second = F.AddBody(), Third = F.AddBody(), Fourth = F.AddBody();
     // C05 and C07 both sit on S02's root.
     if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_pin_punch"), EKind::Active, TEXT("active_pants_down")),
-        On(TEXT("component_control_mana"), EKind::Active, TEXT("active_pants_down"))}))
+        On(TEXT("component_control_momentum"), EKind::Active, TEXT("active_pants_down"))}))
     { return false; }
     FLDBodyCombatState& Body = F.Body(Holder);
-    Body.Resources.MaxMpP2 = 100000;
-    Body.Resources.MpP2 = 0;
+    Body.Resources.MomentumP2 = 0;
     const FGuid FirstCast = FGuid::NewGuid();
     const auto Control = [&](const FLDCombatBodyRef& To, ELDControlKind Kind, const TCHAR* Exit, const FGuid& EffectId)
     {
@@ -2417,7 +2414,7 @@ bool FLDWorkshopControlMarkTest::RunTest(const FString& Parameters)
     };
     TestTrue(TEXT("S02's root lands"), Control(Victim, ELDControlKind::Root, TEXT("active_pants_down"), FirstCast));
     TestTrue(TEXT("C05 marks the rooted life for 3 s; C07 grants 4 MP"), Body.ControlMarks.Num() == 1
-        && Body.ControlMarks[0].Kind == ELDControlKind::Root && Body.ControlMarks[0].ExpiresAtMs == 4000 && Body.Resources.MpP2 == 400);
+        && Body.ControlMarks[0].Kind == ELDControlKind::Root && Body.ControlMarks[0].ExpiresAtMs == 4000 && Body.Resources.MomentumP2 == 400);
     FAccess::PendingHits(*F.Driver).Reset();
     TestTrue(TEXT("A second root lands"), Control(Victim, ELDControlKind::Root, TEXT("active_crotch_grab"), FGuid::NewGuid()));
     TestTrue(TEXT("The same kind of hard control does not consume the mark"), FAccess::PendingHits(*F.Driver).IsEmpty()
@@ -2428,10 +2425,10 @@ bool FLDWorkshopControlMarkTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another kind consumes the mark for one physical 70G package, adding no control"), Pending.Num() == 1
         && Pending[0].BaseP2 == 7000 && Pending[0].DamageType == ELDDemoDamageType::Physical && Pending[0].StunDurationMs == 0
         && Pending[0].Source.DefinitionId == FName(TEXT("component_pin_punch")) && Body.ControlMarks.IsEmpty());
-    TestEqual(TEXT("C07 reads its own exit only"), Body.Resources.MpP2, int64(400));
+    TestEqual(TEXT("C07 reads its own exit only"), Body.Resources.MomentumP2, int64(400));
     // C07: one original action grants at most 12 MP however many bodies it controls.
     for (const FLDCombatBodyRef& Other : {Second, Third, Fourth}) { Control(Other, ELDControlKind::Root, TEXT("active_pants_down"), FirstCast); }
-    TestEqual(TEXT("The action's mana is capped at 12"), Body.Resources.MpP2, int64(1200));
+    TestEqual(TEXT("The action's momentum is capped at 12"), Body.Resources.MomentumP2, int64(1200));
     return true;
 }
 
@@ -3042,18 +3039,18 @@ bool FLDCombatEventControlSourceTest::RunTest(const FString& Parameters)
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Holder = F.AddBody(), Victim = F.AddBody(ELDVictimKind::Contender, 10000000);
     if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_pin_punch"), EKind::Active, TEXT("active_pants_down")),
-        On(TEXT("component_control_mana"), EKind::Active, TEXT("active_pants_down"))}))
+        On(TEXT("component_control_momentum"), EKind::Active, TEXT("active_pants_down"))}))
     { return false; }
     FLDBodyCombatState& Body = F.Body(Holder);
-    Body.Resources.MaxMpP2 = 100000;
-    Body.Resources.MpP2 = 0;
+    Body.Resources.MomentumP2 = 0;
     FLDCombatActiveTerms Root, Stun;
     FLDCombatHit RootHit, StunHit;
     if (!Released(*this, F, Holder, TEXT("active_pants_down"), Root, RootHit)
         || !DeliverOnUnit(*this, F, Holder, Root, RootHit, Victim) || !Drain(*this, F)) { return false; }
     TestTrue(TEXT("S02's root lands"), F.Body(Victim).Roots.Num() == 1);
-    TestTrue(TEXT("C05 reads S02 as the root's exit and marks the rooted life; C07 grants 4 MP"), Body.ControlMarks.Num() == 1
-        && Body.ControlMarks[0].Kind == ELDControlKind::Root && Body.Resources.MpP2 == 400);
+    const int64 Hit = F.Catalog->Get().Parameters.Momentum.SkillHitP2;
+    TestTrue(TEXT("C05 reads S02 as the root's exit and marks the rooted life; C07 grants 4 momentum besides the skill hit"),
+        Body.ControlMarks.Num() == 1 && Body.ControlMarks[0].Kind == ELDControlKind::Root && Body.Resources.MomentumP2 == 400 + Hit);
     F.Now(1500);
     if (!Released(*this, F, Holder, TEXT("active_crotch_grab"), Stun, StunHit)
         || !DeliverOnUnit(*this, F, Holder, Stun, StunHit, Victim) || !ApplyFirst(*this, F)) { return false; }
@@ -3061,7 +3058,7 @@ bool FLDCombatEventControlSourceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("S03's stun (another kind) consumes the mark for C05's one physical 70G package"), F.Body(Victim).Stuns.Num() == 1
         && Body.ControlMarks.IsEmpty() && Pending.Num() == 1 && Pending[0].Source.DefinitionId == FName(TEXT("component_pin_punch"))
         && Pending[0].BaseP2 == 7000 && Pending[0].StunDurationMs == 0);
-    TestEqual(TEXT("C07 on S02 does not read S03"), Body.Resources.MpP2, int64(400));
+    TestEqual(TEXT("C07 on S02 does not read S03 (S03 earns only its skill hit)"), Body.Resources.MomentumP2, 400 + 2 * Hit);
     return Drain(*this, F);
 }
 
@@ -3641,7 +3638,7 @@ bool FLDCombatEventFireWindowTest::RunTest(const FString& Parameters)
     Record.Projection = Installed;
     if (!TestTrue(TEXT("C01 is installed at 1000"), FAccess::NoteInstall(*F.Driver, Record, Bare, &Body, 1000, Error)
         && Record.FireWindowAnchorMs.IsSet() && Record.FireWindowAnchorMs.GetValue() == 1000)) { return false; }
-    // B01's layer at 1500 ticks 1.50 at 2000, 2500, 3000, 3500 ...
+    // B01's layer at 1500 ticks 2.25 at 2000, 2500, 3000, 3500 ...
     F.Now(1500);
     if (!Basic(*this, F, Holder, Target) || !Drain(*this, F) || !TestEqual(TEXT("One B01 layer"), F.Body(Target).Burn.Layers.Num(), 1))
     { return false; }
@@ -3652,14 +3649,14 @@ bool FLDCombatEventFireWindowTest::RunTest(const FString& Parameters)
             && Drain(*this, F);
     };
     if (!Boundary(2000)) { return false; }
-    TestTrue(TEXT("(1000, 2000] holds the tick on its boundary and settles after it: 12G + 60% of 1.50"),
-        Body.Resources.ShieldP2 == 1290 && Body.FireWindowEndMs == 0);
+    TestTrue(TEXT("(1000, 2000] holds the tick on its boundary and settles after it: 12G + 60% of 2.25"),
+        Body.Resources.ShieldP2 == 1335 && Body.FireWindowEndMs == 0);
     if (!Boundary(2500)) { return false; }
-    TestTrue(TEXT("(2000, 3000] stays open"), Body.FireWindowEndMs == 3000 && Body.FireWindowSumP2 == 150 && Body.Resources.ShieldP2 == 1290);
+    TestTrue(TEXT("(2000, 3000] stays open"), Body.FireWindowEndMs == 3000 && Body.FireWindowSumP2 == 225 && Body.Resources.ShieldP2 == 1335);
     TestEqual(TEXT("An open fire window schedules its own closing boundary"), FAccess::NextWorkshopDue(*F.Driver, 2500), int64(3000));
     if (!Boundary(3000)) { return false; }
-    TestTrue(TEXT("Its boundary tick joins it before it settles: 12G + 60% of 3.00 replaces the weaker shield"),
-        Body.Resources.ShieldP2 == 1380 && Body.FireWindowEndMs == 0);
+    TestTrue(TEXT("Its boundary tick joins it before it settles: 12G + 60% of 4.50 replaces the weaker shield"),
+        Body.Resources.ShieldP2 == 1470 && Body.FireWindowEndMs == 0);
     if (!Boundary(3500)) { return false; }
     Record.Projection = Bare;
     TestTrue(TEXT("An uninstall drops the open window"), FAccess::NoteInstall(*F.Driver, Record, Installed, &Body, 3600, Error)
@@ -3760,26 +3757,27 @@ bool FLDComponentCastHitRefundTest::RunTest(const FString& Parameters)
         Second = F.AddBody(ELDVictimKind::Contender, 10000000);
     if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_catch_breath")}})) { return false; }
     FLDBodyCombatState& Body = F.Body(Holder);
-    Body.Resources.MaxMpP2 = 100000;
-    Body.Resources.MpP2 = 0;
+    Body.Resources.MomentumP2 = 0;
+    // Each release's first native hit on a target also earns MOMENTUM.SkillHit.
+    const int64 Hit = F.Catalog->Get().Parameters.Momentum.SkillHitP2;
     FLDCombatHit Payload;
     if (!SnarkBolt(*this, F, Holder, Target, Payload)) { return false; }
-    // ReleaseAbility records the mana the release really paid (after M06) on its ledger.
-    Payload.CastLedger->PaidManaP2 = 4000;
+    // ReleaseAbility records the momentum the release really paid (after M06) on its ledger.
+    Payload.CastLedger->PaidMomentumP2 = 4000;
     if (!Land(*this, F, Payload)) { return false; }
-    TestEqual(TEXT("The first native hit refunds 30% of the 40 MP paid"), Body.Resources.MpP2, int64(1200));
+    TestEqual(TEXT("The first native hit refunds 30% of the 40 momentum paid"), Body.Resources.MomentumP2, 1200 + Hit);
     FLDCombatHit Again = Payload;
     Again.HitId = FGuid::NewGuid();
     Again.Target = Second;
     if (!Land(*this, F, Again)) { return false; }
-    TestEqual(TEXT("Another hit of the same release refunds nothing more"), Body.Resources.MpP2, int64(1200));
+    TestEqual(TEXT("Another hit of the same release refunds nothing more"), Body.Resources.MomentumP2, 1200 + 2 * Hit);
     FLDCombatHit Free;
     if (!SnarkBolt(*this, F, Holder, Target, Free)) { return false; }
-    Free.CastLedger->PaidManaP2 = 0;
+    Free.CastLedger->PaidMomentumP2 = 0;
     if (!Land(*this, F, Free)) { return false; }
-    TestEqual(TEXT("A release that paid nothing refunds nothing"), Body.Resources.MpP2, int64(1200));
+    TestEqual(TEXT("A release that paid nothing refunds nothing"), Body.Resources.MomentumP2, 1200 + 3 * Hit);
     if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
-    TestEqual(TEXT("A basic is no native hit"), Body.Resources.MpP2, int64(1200));
+    TestEqual(TEXT("A basic is no native hit"), Body.Resources.MomentumP2, 1200 + 3 * Hit);
     return true;
 }
 
@@ -3965,13 +3963,12 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
         || !InstallComponents(*this, F, Target, 1, {})) { return false; }
     FLDBodyCombatState& Body = F.Body(Holder);
     Body.AttributeProjection.Final.CritChanceBp = 0;
-    Body.Resources.MaxMpP2 = 100000;
-    Body.Resources.MpP2 = 0;
+    Body.Resources.MomentumP2 = 0;
     F.Now(1000);
     FLDCombatActiveTerms Terms;
     FLDCombatHit Payload;
     if (!Released(*this, F, Holder, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
-    Payload.CastLedger->PaidManaP2 = 4000;
+    Payload.CastLedger->PaidMomentumP2 = 4000;
     if (!TestTrue(TEXT("M13 compiles onto S06"), Terms.ProjectileReturn.IsSet() && Payload.SlowBp > 0)
         || !Throw(*this, F, Holder, Terms, Payload)) { return false; }
     TArray<FLDObservedProjectileFact> Observed;
@@ -4019,7 +4016,8 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
     const int64 Before = F.Body(Target).Resources.HpP2;
     if (!Drain(*this, F)) { return false; }
     const int64 Outbound = Before - F.Body(Target).Resources.HpP2;
-    TestEqual(TEXT("B13 refunds 30% of the paid 40 MP on the first native hit"), Body.Resources.MpP2, int64(1200));
+    const int64 Hit = F.Catalog->Get().Parameters.Momentum.SkillHitP2;
+    TestEqual(TEXT("B13 refunds 30% of the paid 40 momentum on the first native hit"), Body.Resources.MomentumP2, 1200 + Hit);
     if (!Fly(*this, F, 2400)) { return false; }
     if (!TestTrue(TEXT("The return strikes the body it started on at 50% without slow and does not return again"),
         Pending.Num() == 1 && Pending[0].Target == Target && Pending[0].DeliveryScaleBp == 5000 && Pending[0].SlowBp == 0
@@ -4030,7 +4028,7 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
     const int64 Back = Mid - F.Body(Target).Resources.HpP2;
     AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE m13 outbound_p2=%lld return_p2=%lld"), Outbound, Back));
     TestTrue(TEXT("The return deals half the outbound damage, within rounding"), Outbound > 0 && FMath::Abs(Back * 2 - Outbound) <= 2);
-    TestEqual(TEXT("B13 is budgeted per release: the return refunds nothing more"), Body.Resources.MpP2, int64(1200));
+    TestEqual(TEXT("B13 is budgeted per release: the return refunds nothing more"), Body.Resources.MomentumP2, 1200 + Hit);
 
     // Elements, burn and grievous ride home; slow and controls do not. A return never starts for a dead thrower.
     FLDCombatActiveTerms Sock;
@@ -4075,13 +4073,12 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
             || !InstallComponents(*this, Combo, First, 1, {}) || !InstallComponents(*this, Combo, Second, 1, {}))
         { return false; }
         FLDBodyCombatState& ComboBody = Combo.Body(Caster);
-        ComboBody.Resources.MaxMpP2 = 100000;
-        ComboBody.Resources.MpP2 = 0;
+        ComboBody.Resources.MomentumP2 = 0;
         Combo.Now(1000);
         FLDCombatActiveTerms CombinedTerms;
         FLDCombatHit CombinedPayload;
         if (!Released(*this, Combo, Caster, TEXT("active_snark_bolt"), CombinedTerms, CombinedPayload)) { return false; }
-        CombinedPayload.CastLedger->PaidManaP2 = 4000;
+        CombinedPayload.CastLedger->PaidMomentumP2 = 4000;
         if (!TestTrue(TEXT("Pierce and return both compile on the same release"),
             CombinedTerms.ProjectileReturn.IsSet() && CombinedTerms.ProjectilePierce.IsSet())
             || !Throw(*this, Combo, Caster, CombinedTerms, CombinedPayload) || !Fly(*this, Combo, 2000)) { return false; }
@@ -4096,15 +4093,16 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
             && Hits[1].CastLedger == CombinedPayload.CastLedger && CombinedFlights.Num() == 1 && CombinedFlights[0].bReturn))
         { return false; }
         if (!Drain(*this, Combo)) { return false; }
-        TestEqual(TEXT("The pierced hits share one mana-refund budget"), ComboBody.Resources.MpP2, int64(1200));
+        TestEqual(TEXT("The pierced hits share one refund budget; each struck body adds its skill hit"), ComboBody.Resources.MomentumP2,
+            1200 + 2 * Hit);
         if (!Fly(*this, Combo, 2100)) { return false; }
         if (!TestTrue(TEXT("The return hits the last body once at 50%, without control, and ends"),
             Hits.Num() == 1 && Hits[0].Target == Second && Hits[0].DeliveryScaleBp == 5000 && Hits[0].SlowBp == 0
             && Hits[0].EffectId == CombinedPayload.EffectId && Hits[0].CastLedger == CombinedPayload.CastLedger
             && IsNativeDirectHit(Hits[0]) && !Hits[0].bCritical && CombinedFlights.IsEmpty())) { return false; }
         if (!Drain(*this, Combo) || !Fly(*this, Combo, 3000)) { return false; }
-        TestTrue(TEXT("The return neither repeats nor refunds mana again"),
-            Hits.IsEmpty() && CombinedFlights.IsEmpty() && ComboBody.Resources.MpP2 == 1200);
+        TestTrue(TEXT("The return neither repeats nor grants momentum again"),
+            Hits.IsEmpty() && CombinedFlights.IsEmpty() && ComboBody.Resources.MomentumP2 == 1200 + 2 * Hit);
     }
     return true;
 }
@@ -4195,8 +4193,8 @@ bool FLDComponentEchoImpactTest::RunTest(const FString& Parameters)
     FLDCombatHit Payload;
     if (!ActiveTerms(*this, F, TEXT("active_calculus_drop"), Plain)
         || !Released(*this, F, Holder, TEXT("active_calculus_drop"), Drop, Payload)) { return false; }
-    TestTrue(TEXT("M15 multiplies S18's cooldown by 1.15"), Drop.EchoImpact.IsSet() && Plain.Values.CooldownMs == 12000
-        && Drop.Values.CooldownMs == 13800);
+    TestTrue(TEXT("M15 multiplies S18's cooldown by 1.15"), Drop.EchoImpact.IsSet() && Plain.Values.CooldownMs == 8000
+        && Drop.Values.CooldownMs == 9200);
     TArray<FLDCombatGroundEffect>& Ground = FAccess::Ground(*F.Driver);
     TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
     FString Error;
@@ -4236,7 +4234,7 @@ bool FLDComponentEchoImpactTest::RunTest(const FString& Parameters)
     FLDCombatHit Rage;
     if (!InstallComponents(*this, F, Holder, 10, {On(TEXT("component_encore"), ELDComponentTargetKind::Active, TEXT("active_seethe"))})
         || !Released(*this, F, Holder, TEXT("active_seethe"), Seethe, Rage)) { return false; }
-    TestEqual(TEXT("M15 multiplies S07's cooldown by 1.15"), Seethe.Values.CooldownMs, int64(11500));
+    TestEqual(TEXT("M15 multiplies S07's cooldown by 1.15"), Seethe.Values.CooldownMs, int64(8050));
     F.Now(7000);
     FLDCombatAction Self;
     if (!TestTrue(FString::Printf(TEXT("S07 is released: %s"), *Error), FAccess::DeliverPayload(*F.Driver, F.Actor(Holder),
@@ -4603,10 +4601,10 @@ bool FLDComponentReactionHasteTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentMultiHitManaTest, "Lockdown.Rules.Combat.Components.MultiHitMana",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentMultiHitMomentumTest, "Lockdown.Rules.Combat.Components.MultiHitMomentum",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDComponentMultiHitManaTest::RunTest(const FString& Parameters)
+bool FLDComponentMultiHitMomentumTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     FFixture F;
@@ -4617,8 +4615,7 @@ bool FLDComponentMultiHitManaTest::RunTest(const FString& Parameters)
     if (!InstallComponents(*this, F, Holder, 1,
         {On(TEXT("component_group_refund"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))})) { return false; }
     FLDBodyCombatState& Body = F.Body(Holder);
-    Body.Resources.MaxMpP2 = 100000;
-    Body.Resources.MpP2 = 0;
+    Body.Resources.MomentumP2 = 0;
     FLDCombatHit Payload;
     if (!SnarkBolt(*this, F, Holder, Targets[0], Payload)) { return false; }
     const auto Strike = [&](const FLDCombatHit& Release, int32 Index)
@@ -4628,17 +4625,20 @@ bool FLDComponentMultiHitManaTest::RunTest(const FString& Parameters)
         Hit.Target = Targets[Index];
         return Land(*this, F, Hit);
     };
+    // Besides C16, each release's first native hit on each target earns MOMENTUM.SkillHit.
+    const int64 Hit = F.Catalog->Get().Parameters.Momentum.SkillHitP2;
     if (!Strike(Payload, 0) || !Strike(Payload, 0)) { return false; }
-    TestEqual(TEXT("One enemy, struck twice by the release, gives nothing"), Body.Resources.MpP2, int64(0));
+    TestEqual(TEXT("One enemy, struck twice by the release, gives no C16 momentum"), Body.Resources.MomentumP2, Hit);
     if (!Strike(Payload, 1) || !Strike(Payload, 1)) { return false; }
-    TestEqual(TEXT("A second distinct enemy gives 8 MP once, however often a derived hit strikes it"), Body.Resources.MpP2, int64(800));
+    TestEqual(TEXT("A second distinct enemy gives 8 momentum once, however often a derived hit strikes it"), Body.Resources.MomentumP2,
+        800 + 2 * Hit);
     if (!Strike(Payload, 2) || !Strike(Payload, 3) || !Strike(Payload, 4)) { return false; }
-    TestEqual(TEXT("At most 24 MP per release"), Body.Resources.MpP2, int64(2400));
+    TestEqual(TEXT("At most 24 C16 momentum per release"), Body.Resources.MomentumP2, 2400 + 5 * Hit);
     FLDCombatHit Next;
     if (!SnarkBolt(*this, F, Holder, Targets[0], Next) || !Strike(Next, 0)) { return false; }
-    TestEqual(TEXT("A single-target release gives nothing"), Body.Resources.MpP2, int64(2400));
+    TestEqual(TEXT("A single-target release gives no C16 momentum"), Body.Resources.MomentumP2, 2400 + 6 * Hit);
     if (!Strike(Next, 1)) { return false; }
-    TestEqual(TEXT("Each release counts its own enemies"), Body.Resources.MpP2, int64(3200));
+    TestEqual(TEXT("Each release counts its own enemies"), Body.Resources.MomentumP2, 3200 + 7 * Hit);
     return true;
 }
 
@@ -4654,7 +4654,7 @@ bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& 
     Record.Build.Actives.Reset();
     Record.Build.Actives.Add({FName(Active), ELDCombatEntry::Q});
     TrackOf(F, Ref, Active, 0);
-    Body.Resources.MaxMpP2 = Body.Resources.MpP2 = 100000;
+    Body.Resources.MomentumP2 = 10000;
     FLDCombatAction Action;
     Action.Kind = ELDCombatActionKind::Ability;
     Action.Entry = ELDCombatEntry::Q;

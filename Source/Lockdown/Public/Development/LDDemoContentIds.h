@@ -35,7 +35,7 @@ enum class ELDDemoComponentId : uint8
     ComponentCrowdHit=19, ComponentSettleLater=20, ComponentLongKick=21, ComponentHoldDown=22, ComponentReachOut=23, ComponentAgainNow=24,
     ComponentOneSlam=25, ComponentRamThrough=26, ComponentQuickHop=27, ComponentBigTab=28, ComponentPickYou=29, ComponentOweIt=30,
     ComponentFireSkin=31, ComponentBallKick=32, ComponentBumpAgain=33, ComponentRollBump=34, ComponentPinPunch=35, ComponentAfterPin=36,
-    ComponentControlMana=37, ComponentBreathStrike=38, ComponentBlastChase=39, ComponentShellBurst=40, ComponentHurtHeal=41, ComponentDirtyFist=42,
+    ComponentControlMomentum=37, ComponentBreathStrike=38, ComponentBlastChase=39, ComponentShellBurst=40, ComponentHurtHeal=41, ComponentDirtyFist=42,
     ComponentBoomerang=43, ComponentSkewer=44, ComponentEncore=45,
     ComponentNextUp=46, ComponentSetupLine=47, ComponentBlastReload=48, ComponentGroupRefund=49,
     ComponentClearHead=50, ComponentRunAway=51, ComponentGuardUp=52, ComponentZoneTether=53,
@@ -53,7 +53,7 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
     Knockback=20, Silence=25, Burn=26, AttackSlowed=27,
     Wet=30, Electrified=31, Braced=32, Soured=33, CampEnraged=34, CampGuarding=35 };
 // #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md); #198 keeps the passive-form operations for base
-// components. Retired operation identities must never be reused: 6, 9..11, 16, 19, 23, 25, 27..30, 32..34, 38..39,
+// components. Retired operation identities must never be reused: 6, 9..11, 16, 19, 23, 25, 27..30, 32..34, 36, 38..39,
 // 41..49, 51, 53, 55..66, 68, 72..76, 83..85, 89 (native_ids.json). #198 B owns 100..119 for component-only operations;
 // 90..96 are the #198 elements, reactions and the S09/S10/S13/S16/S20/S21 actives; #198 F owns 120..149 (mods 120..136,
 // connectors 137..147; C03 reuses DashContactRefund); then 149..151 (B13-B15), 152..155 (M13-M15) and
@@ -65,7 +65,7 @@ enum class ELDDemoEffectOp : uint8
     Slow=12, TimedStatBonus=13, SelfArea=14, LowHpStatBonus=15, ControlDamageAmp=17,
     Taunt=18, Disarm=20, Stun=21, EmpowerBasic=22, Thorns=24,
     CooldownRefund=26, TriggeredShield=31,
-    NthBasicBonus=35, ManaOnHit=36, DispelSlow=37,
+    NthBasicBonus=35, DispelSlow=37,
     Knockback=40, Zone=50, ZoneSlow=52, ZoneDamage=54,
     ShieldBreakRetort=67,
     Silence=69, Breach=70, Burn=71, ZoneBurn=77,
@@ -76,11 +76,11 @@ enum class ELDDemoEffectOp : uint8
     SpreadUnit=120, SpreadProjectile=121, SpreadLedger=122, SpreadCounter=123, DelayLedger=124, DelayCounter=125,
     KnockbackScale=126, ControlScale=127, RangeBonus=128, CounterRangeBonus=129, CooldownCost=130, CompressCone=131,
     CompressZone=132, DashScale=133, LedgerVariant=134, MarkedCounter=135, DamageDefer=136, FireShield=137,
-    KnockbackImpact=138, ContactKnockback=139, ControlMark=140, Aftershock=141, ControlMana=142, HealCounter=143,
+    KnockbackImpact=138, ContactKnockback=139, ControlMark=140, Aftershock=141, ControlMomentum=142, HealCounter=143,
     ReactionEmpower=144, ShieldBurst=145, SkillLifesteal=146, ExtraBase=147, CompressChain=148,
     CastHitRefund=149, DistanceAmp=150, AlternateAmp=151,
     ProjectileReturn=152, ProjectilePierce=153, ChainExtra=154, EchoImpact=155,
-    HitHasteOther=156, SetupMark=157, ReactionHaste=158, MultiHitMana=159,
+    HitHasteOther=156, SetupMark=157, ReactionHaste=158, MultiHitMomentum=159,
     ZoneTether=160, DefenseShove=161, FinalKnockback=162, EmpowerReach=163, Pull=164,
     ZoneRelocate=165, StoredForce=166, EmpowerSpend=167, ControlWiden=168, ZoneDetonate=169
 };

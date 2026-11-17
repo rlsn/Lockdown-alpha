@@ -69,7 +69,7 @@ FString FLDPlaytestTrace::OwnState(const ALDPlayerController& PC)
     if (bCombat)
     {
         Resources = FString::Printf(TEXT("hp=%s/%s mp=%s/%s shield=%s"), *LDLog::P2(Combat.HPP2), *LDLog::P2(Combat.MaxHPP2),
-            *LDLog::P2(Combat.MPP2), *LDLog::P2(Combat.MaxMPP2), *LDLog::P2(Combat.ShieldP2));
+            *LDLog::P2(Combat.MomentumP2), *LDLog::P2(Combat.MaxMomentumP2), *LDLog::P2(Combat.ShieldP2));
         if (Combat.ActionPhase == ELDCombatPhase::Accepted) { Action = LDLog::EnumName(Combat.ActionEntry); }
         for (const FLDCombatStatusView& Status : Combat.Statuses)
         {

@@ -49,8 +49,8 @@ NATIVE_ENUMS = {
 # unused ops).
 RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29]],
-                  "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [38, 39],
-                                 [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
+                  "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [36, 36],
+                                 [38, 39], [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 # Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
@@ -58,7 +58,7 @@ CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
                        "control_damage_amp", "taunt", "disarm", "stun", "empower_basic", "thorns",
-                       "cooldown_refund", "triggered_shield", "nth_basic_bonus", "mana_on_hit", "dispel_slow",
+                       "cooldown_refund", "triggered_shield", "nth_basic_bonus", "dispel_slow",
                        "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
                        "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
@@ -68,13 +68,13 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        *("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
                          "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
                          "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
-                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_mana",
+                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_momentum",
                          "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base", "compress_chain",
                          "projectile_return", "projectile_pierce", "chain_extra", "echo_impact"),
                        # Skill rules on native direct hits (B13-B15).
                        "cast_hit_refund", "distance_amp", "alternate_amp",
                        # Connectors C13-C16.
-                       "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_mana",
+                       "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_momentum",
                        # Mods M16-M20 and connectors C17-C21.
                        "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
                        "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
@@ -83,9 +83,9 @@ WORKSHOP_OPS = frozenset(("spread_unit", "spread_projectile", "spread_ledger", "
                           "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
                           "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
                           "fire_shield", "knockback_impact", "dash_contact_refund", "contact_knockback", "control_mark",
-                          "aftershock", "control_mana", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
+                          "aftershock", "control_momentum", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
                           "extra_base", "compress_chain", "projectile_return", "projectile_pierce", "chain_extra", "echo_impact",
-                          "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_mana",
+                          "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_momentum",
                           "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
                           "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
 # #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
@@ -107,9 +107,9 @@ AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach"
 ZONE_PAYLOAD_OPS = frozenset(("zone_slow", "zone_damage", "zone_burn", "zone_wet"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 # Every bonus stat name; a card placeholder may read one stat of its effect.
-STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
+STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                          "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
-                         "ADBonusRatio", "HPRegenFlat", "APBonusRatio", "MPRegenFlat"))
+                         "ADBonusRatio", "HPRegenFlat", "APBonusRatio", "MomentumRegenFlat"))
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
@@ -262,8 +262,8 @@ SCHEMA_KEYS = frozenset(("$schema", "$defs", "$ref", "title", "description", "ty
                          "items", "minItems", "maxItems", "minLength", "maxLength", "pattern",
                          "minimum", "maximum", "exclusiveMinimum", "minProperties", "x-quantity"))
 QUANTITY_UNITS = {
-    "P2": frozenset(("hp", "mp", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
-    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s", "degrees")),
+    "P2": frozenset(("hp", "momentum", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
+    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "momentum/s", "degrees")),
 }
 
 
@@ -539,7 +539,7 @@ _PAIRED_FIELDS = {
     "triggered_shield": (("burst_ratio", "burst_radius"),),
     "channel_cone": (("slow", "slow_duration"),),
     "dash_contact_damage": (("slow", "slow_duration"),),
-    "dash_contact_refund": (("mana_ratio", "mana_cap"),),
+    "dash_contact_refund": (("momentum_ratio", "momentum_cap"),),
     "primary_guard": (("slow_resistance", "duration"),),
 }
 
@@ -572,13 +572,13 @@ def _validate_new_effect(effect, path):
     if effect["op"] == "dash_contact_damage":
         require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
                 "IneffectiveEffect", path, "additional damage needs magnitude or scaling")
-    for field in ("slow", "slow_resistance", "mana_ratio"):
+    for field in ("slow", "slow_resistance", "momentum_ratio"):
         if field in effect and effect["op"] in ("channel_cone", "dash_contact_damage", "primary_guard", "dash_contact_refund"):
             require(0 < quantity(effect[field]) < 1, "NumericDomain", path, f"{field} must be a positive fraction")
     if effect["op"] == "primary_guard":
         require(quantity(effect["base"]) > 0, "IneffectiveEffect", path, "cap must be positive")
-    if effect["op"] == "dash_contact_refund" and "mana_cap" in effect:
-        require(quantity(effect["mana_cap"]) > 0, "IneffectiveEffect", path, "mana cap must be positive")
+    if effect["op"] == "dash_contact_refund" and "momentum_cap" in effect:
+        require(quantity(effect["momentum_cap"]) > 0, "IneffectiveEffect", path, "momentum cap must be positive")
     # #198 session A (CONTENT_AND_BALANCE §4.2).
     if effect["op"] in ("chain_bounce", "brace", "zone_haste", "grievous"):
         require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
@@ -697,8 +697,8 @@ def _validate_component_effects(row, abilities, path):
         if op in ("control_damage_amp", "idle_ready_amp", "cast_hit_refund", "distance_amp", "alternate_amp", "setup_mark",
                   "stored_force", "control_widen", "zone_detonate"):
             require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "damage bonus must be positive")
-        if op == "multi_hit_mana":
-            require(0 < quantity(effect["mana"]) <= quantity(effect["mana_cap"]), "NumericDomain", path,
+        if op == "multi_hit_momentum":
+            require(0 < quantity(effect["momentum"]) <= quantity(effect["momentum_cap"]), "NumericDomain", path,
                     "a per-enemy refund must be positive and fit its per-release cap")
         if op in ("defense_shove", "final_knockback", "empower_reach", "pull"):
             require(quantity(effect["distance" if op != "empower_reach" else "range"]) > 0, "NumericDomain", path,
@@ -862,7 +862,7 @@ STAT_CONTRACTS = {
     "stat_physique": {"MaxHPFlat", "HPRegenFlat"},
     "stat_thick_skin": {"ArmorFlat", "MagicResistFlat"},
     "stat_strength": {"ADFlat", "CritChanceBonusRatio"},
-    "stat_brains": {"APFlat", "CooldownHasteFlat", "MPRegenFlat"},
+    "stat_brains": {"APFlat", "CooldownHasteFlat", "MomentumRegenFlat"},
     "stat_agility": {"AttackSpeedBonusRatio", "MoveSpeedBonusRatio"},
 }
 # The opening opportunity draws this many distinct actives from the opening pool.
@@ -1027,13 +1027,13 @@ def validate_numbers(data):
     params = data["parameters"]
     p = lambda key: quantity(params[key])
     level_steps = data["progression"]["max_level"] - 1
-    for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen"):
+    for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
         key = "STAT." + stat
         minimum, maximum = p(key + ".Min"), p(key + ".Max")
         base, growth = p(key + ".Base"), p(key + ".PerLevel")
         require(minimum <= base <= base + level_steps * growth <= maximum,
                 "StatBounds", key, "base/level growth is outside the declared projection bounds")
-        if stat not in ("HPRegen", "MPRegen"):
+        if stat != "HPRegen":
             checked_add(params[key + ".Base"]["p2"], checked_mul(level_steps, params[key + ".PerLevel"]["p2"], key), key)
     require(p("STAT.MaxHP.Min") > 0 and p("STAT.MaxHP.Base") > 0,
             "NumericDomain", "STAT.MaxHP", "alive characters require positive HP")
@@ -1069,8 +1069,7 @@ def validate_numbers(data):
             and unlock <= p("SHOWDOWN.ClosureStartsSec") < duration
             and params["SHOWDOWN.RespawnLimit"] <= 2,
             "InvalidTiming", "SHOWDOWN", "objective, respawn cutoff, closure and terminal clocks are inconsistent")
-    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
-                "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec"):
+    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "DORM.MaxHPRatioPerSec"):
         # A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate.
         require(params[key]["bp"] > 0 and params[key]["bp"] % 10 == 0, "NumericDomain", key,
                 "out-of-combat recovery must be a positive multiple of 0.001 of the maximum per second")
@@ -1105,9 +1104,9 @@ def validate_numbers(data):
             "fog pulses must fall inside the fog")
     require(params["COMBAT.OverloadBreachStacks"] <= params["COMBAT.BreachMaxStacks"], "NumericDomain",
             "COMBAT.OverloadBreachStacks", "overload cannot apply more breach stacks than the breach cap")
-    require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.ManaMaxMPRatio") > 0
+    require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.Momentum") > 0
             and p("AIRDROP.MoveSpeedRatio") > 0 and p("AIRDROP.MoveSpeedSec") > 0,
-            "InvalidPolicy", "AIRDROP", "healing, mana and move-speed rewards must all be positive")
+            "InvalidPolicy", "AIRDROP", "healing, momentum and move-speed rewards must all be positive")
     # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
     require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
             "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
@@ -1119,6 +1118,8 @@ def validate_numbers(data):
     for key in ("PK.RingDamageEarlyMaxHPRatioPerSec", "PK.RingDamageMidMaxHPRatioPerSec",
                 "PK.RingDamageFinalMaxHPRatioPerSec", "THROW.SlowRatio"):
         require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage and throw slow must be positive")
+
+    _validate_momentum(data)
 
     thresholds = [0]
     for level in range(1, data["progression"]["max_level"]):
@@ -1168,7 +1169,7 @@ def validate_numbers(data):
                 "camp perception (leash radius) exceeds VISION.RadiusCm, the sight range that supplies its candidates")
         interval = ceil_fraction(1000 / quantity(monster["attack_speed"]), path)
         require(monster["attack_windup"]["ms"] < interval, "InvalidTiming", path, "windup exceeds attack interval")
-        for field in ("hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"):
+        for field in ("hp_regen", "ap", "crit_chance"):
             require(quantity(monster[field]) == 0, "UnsupportedMonster", path,
                     f"{field} requires a different monster handler contract")
         checked_mul(monster["count_per_camp"], monster["reward_xp"], path)
@@ -1213,6 +1214,36 @@ def validate_numbers(data):
     _validate_build_envelope(data)
 
 
+def _validate_momentum(data):
+    """Momentum, combo, overdrive and skill ranks (CONTENT_AND_BALANCE §3.3-§3.6)."""
+    params = data["parameters"]
+    p = lambda key: quantity(params[key])
+    top = p("MOMENTUM.Max")
+    require(0 < p("MOMENTUM.Start") <= top and 0 < p("OVERDRIVE.Threshold") <= top, "NumericDomain", "MOMENTUM",
+            "the start and the overdrive threshold must lie in (0, max]")
+    for key in ("MOMENTUM.CombatPerSec", "MOMENTUM.IdleReturnPerSec", "MOMENTUM.BasicPerRefInterval", "MOMENTUM.SkillHit",
+                "MOMENTUM.Reaction", "MOMENTUM.PerfectDodge", "AIRDROP.Momentum"):
+        require(0 < p(key) <= top, "NumericDomain", key, "a momentum income must be positive and fit the bar")
+    require(params["MOMENTUM.BasicRefIntervalSec"]["ms"] > 0, "NumericDomain", "MOMENTUM.BasicRefIntervalSec",
+            "the reference interval must be positive")
+    ratios = [quantity(value) for value in params["COMBO.StepRatios"]]
+    require(all(ratio > 0 for ratio in ratios), "NumericDomain", "COMBO.StepRatios", "every combo step deals damage")
+    require(p("OVERDRIVE.Scale") >= 1 and p("OVERDRIVE.RotDurationScale") >= 1, "NumericDomain", "OVERDRIVE",
+            "overdrive never weakens a release")
+    require(0 < p("OVERDRIVE.WaterSlow") < 1, "NumericDomain", "OVERDRIVE.WaterSlow", "a slow must keep some move speed")
+    base_scales = [quantity(value) for value in params["SKILL.RankBaseScale"]]
+    ratio_scales = [quantity(value) for value in params["SKILL.RankRatioScale"]]
+    require(base_scales[0] == 1 and ratio_scales[0] == 1 and base_scales == sorted(base_scales)
+            and ratio_scales == sorted(ratio_scales), "NumericDomain", "SKILL.Rank",
+            "rank 1 is the authored value set and higher ranks never weaken it")
+    levels = params["SKILL.PointLevels"]
+    require(levels == sorted(set(levels)) and all(2 <= level <= data["progression"]["max_level"] for level in levels),
+            "NumericDomain", "SKILL.PointLevels", "skill point levels are distinct, ascending and reachable")
+    require(len(levels) <= 2 * data["progression"]["active_slots"], "NumericDomain", "SKILL.PointLevels",
+            "no more skill points than ranks to buy")
+    require(params["SKILL.CooldownFloorSec"]["ms"] > 0, "NumericDomain", "SKILL.CooldownFloorSec", "the floor must be positive")
+
+
 def _validate_build_envelope(data):
     # Every attribute clamps to its catalog bounds in the projection (#112 §4), so stat points are never refused;
     # what remains is that every damage or shield term stays inside int64 at the extreme attributes.
@@ -1220,15 +1251,12 @@ def _validate_build_envelope(data):
     max_ad = params["STAT.AD.Max"]["p2"]
     max_ap = params["STAT.AP.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
-    # #166: levels 2..10 grow by the first step, levels 11..16 by the second.
+    # G(L) = 1 + SKILL.GrowthPerLevel x (L - 1); the top rank and overdrive scale the grown base amounts again.
     top_level = data["progression"]["max_level"]
-    first_steps = min(max(top_level - 1, 0), 9)
-    later_steps = max(top_level - 10, 0)
-    factor = checked_add(10000, checked_mul(first_steps, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
+    factor = checked_add(10000, checked_mul(top_level - 1, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
                          "SKILL.GrowthPerLevel")
-    factor = checked_add(factor, checked_mul(later_steps, params["SKILL.GrowthPerLevelAfter10"]["bp"],
-                                            "SKILL.GrowthPerLevelAfter10"), "SKILL.GrowthPerLevelAfter10")
-    grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
+    rank_factor = checked_mul(params["SKILL.RankBaseScale"][-1]["bp"], params["OVERDRIVE.Scale"]["bp"], "SKILL.RankBaseScale")
+    grow = lambda amount, path: checked_mul(checked_mul(amount, factor, path) // 10000, rank_factor, path) // 100000000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
     # #198 reaction R = Base + (L - 1) x PerLevel + APRatio x AP; it never grows with G.
@@ -1246,8 +1274,7 @@ def _validate_build_envelope(data):
     for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
-            if effect["op"] != "mana_on_hit":
-                base = grow(base, row["id"])
+            base = grow(base, row["id"])
             if effect["op"] == "timed_stat_bonus":
                 for stat in effect.get("stats", {}).values():
                     for storage in ("p2", "bp"):

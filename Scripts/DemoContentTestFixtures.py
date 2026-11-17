@@ -18,10 +18,10 @@ def q(unit, value):
 def content_fixture():
     parameters = {}
     for stat, unit, base, per_level, minimum, maximum in (
-        ("MaxHP", "hp", 100, 10, 1, 10000), ("MaxMP", "mp", 60, 5, 1, 5000),
+        ("MaxHP", "hp", 100, 10, 1, 10000),
         ("AD", "points", 20, 1, 0, 1000), ("AP", "points", 8, 1, 0, 1000),
         ("Armor", "points", 5, 1, 0, 500), ("MagicResist", "points", 6, 1, 0, 500),
-        ("HPRegen", "hp/s", 1.25, 0.25, 0, 100), ("MPRegen", "mp/s", 0.5, 0.25, 0, 100),
+        ("HPRegen", "hp/s", 1.25, 0.25, 0, 100),
     ):
         for suffix, value in (("Base", base), ("PerLevel", per_level), ("Min", minimum), ("Max", maximum)):
             parameters[f"STAT.{stat}.{suffix}"] = q(unit, value)
@@ -30,7 +30,16 @@ def content_fixture():
         ("STAT.AttackSpeed.Min", "attacks/s", 0.1), ("STAT.AttackSpeed.Max", "attacks/s", 4),
         ("STAT.CritChance.Base", "ratio", 0), ("STAT.CritMultiplier", "ratio", 1.5),
         ("STAT.CooldownHaste.Base", "points", 0), ("STAT.CooldownHaste.Max", "points", 100),
-        ("SKILL.GrowthPerLevel", "ratio", 0.1), ("SKILL.GrowthPerLevelAfter10", "ratio", 0.05),
+        ("SKILL.GrowthPerLevel", "ratio", 0.05), ("SKILL.CooldownFloorSec", "s", 0.25),
+        ("MOMENTUM.Max", "momentum", 80), ("MOMENTUM.Start", "momentum", 40), ("MOMENTUM.CombatPerSec", "momentum/s", 2),
+        ("MOMENTUM.BasicPerRefInterval", "momentum", 8), ("MOMENTUM.BasicRefIntervalSec", "s", 1),
+        ("MOMENTUM.SkillHit", "momentum", 4), ("MOMENTUM.Reaction", "momentum", 6), ("MOMENTUM.PerfectDodge", "momentum", 12),
+        ("MOMENTUM.PerfectDodgeWindowSec", "s", 0.25), ("MOMENTUM.IdleDelaySec", "s", 4), ("MOMENTUM.IdleReturnPerSec", "momentum/s", 8),
+        ("COMBO.ResetSec", "s", 1.25), ("OVERDRIVE.Threshold", "momentum", 80), ("OVERDRIVE.HoldSec", "s", 0.25),
+        ("OVERDRIVE.Scale", "ratio", 1.5), ("OVERDRIVE.WaterSlow", "ratio", 0.4), ("OVERDRIVE.WaterSlowSec", "s", 1.25),
+        ("OVERDRIVE.ShockReactionRatio", "ratio", 0.5), ("OVERDRIVE.RotDurationScale", "ratio", 2),
+        ("OVERDRIVE.GustPushCm", "cm", 250), ("OVERDRIVE.GustPushSec", "s", 0.25),
+        ("AI.DodgeChance", "ratio", 0.5), ("AIRDROP.Momentum", "momentum", 30),
         ("UNIT.MoveSpeedCmPerSec", "cm/s", 500), ("STAT.MoveSpeed.Min", "cm/s", 100), ("STAT.MoveSpeed.Max", "cm/s", 1200),
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
         ("STAT.AttackRange.Min", "cm", 40), ("STAT.AttackRange.Max", "cm", 1000),
@@ -58,16 +67,14 @@ def content_fixture():
         ("LIFE.RespawnSec.Field1", "s", 6), ("LIFE.RespawnSec.Field2", "s", 9), ("LIFE.RespawnSec.Field3", "s", 11),
         ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
-        ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
-        ("DORM.MaxMPRatioPerSec", "ratio", 0.05),
         ("CAMP.ResetArrivalRadiusCm", "cm", 50),
         ("CAMP.ReturnDeadEndSec", "s", 4), ("CAMP.GrowthStageSec", "s", 30),
         ("CAMP.GrowthHPRatioPerStage", "ratio", 0.1), ("CAMP.GrowthAttackRatioPerStage", "ratio", 0.05),
         ("CAMP.GrowthResistPerStage", "points", 1), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", 0.25),
         ("AIRDROP.ExpireSec", "s", 20), ("AIRDROP.AnnounceLeadSec", "s", 10), ("CAMPMARK.RevealSec", "s", 10),
         ("AIRDROP.PickupRadiusCm", "cm", 120),
-        ("AIRDROP.HealMaxHPRatio", "ratio", 0.15), ("AIRDROP.ManaMaxMPRatio", "ratio", 0.2),
+        ("AIRDROP.HealMaxHPRatio", "ratio", 0.15),
         ("AIRDROP.MoveSpeedRatio", "ratio", 0.1), ("AIRDROP.MoveSpeedSec", "s", 4),
         ("LEADER.RefreshSec", "s", 8), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
         ("REWARD.AssistWindowSec", "s", 10), ("GROWTH.BuildSafeWindowSec", "s", 2.5),
@@ -86,7 +93,7 @@ def content_fixture():
         ("COMBAT.KeystoneThickSkinGuardPoints", "points", 6),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", 0.12), ("COMBAT.KeystoneThickSkinIntervalSec", "s", 8),
         ("COMBAT.KeystoneStrengthDamageRatio", "ratio", 0.06),
-        ("COMBAT.KeystoneBrainsManaRefundRatio", "ratio", 0.15),
+        ("COMBAT.KeystoneBrainsMomentumRefundRatio", "ratio", 0.15),
         ("COMBAT.KeystoneAgilityDamageBase", "points", 12.5),
         ("COMBAT.KeystoneAgilityADRatio", "ratio", 0.125),
         ("COMBAT.KeystoneAgilityEmpowerDurationSec", "s", 3),
@@ -99,6 +106,11 @@ def content_fixture():
     ):
         parameters[key] = q(unit, value)
     parameters["AIRDROP.LandSec"] = [q("s", 30), q("s", 90), q("s", 150)]
+    parameters["SKILL.RankBaseScale"] = [q("ratio", 1), q("ratio", 1.25), q("ratio", 1.75)]
+    parameters["SKILL.RankRatioScale"] = [q("ratio", 1), q("ratio", 1.125), q("ratio", 1.25)]
+    parameters["SKILL.PointLevels"] = [3, 6, 9]
+    parameters["COMBO.StepRatios"] = [q("ratio", 0.75), q("ratio", 1), q("ratio", 1.5)]
+    parameters["OVERDRIVE.FireBurnStacks"] = 2
     parameters.update({
         "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2, "AI.RetryPolicy.MaxAttempts": 2,
@@ -132,33 +144,37 @@ def content_fixture():
         "BasicSecondaryTriggers": "Disabled", "RegenIntegration": "CarrySubP2Remainder",
         "ShieldPolicy": "ReplaceIfNotWeaker", "RootBlocks": ["Move", "Dash"], "CampAggroTrigger": "ConfirmedCombatHit",
         "CampGroupRetaliation": True, "CampReturningDamageable": True, "CampReturningControllable": True,
-        "CampResetPolicy": "ReturnThenReset", "CampManaPolicy": "NotApplicable",
+        "CampResetPolicy": "ReturnThenReset", "CampMomentumPolicy": "NotApplicable",
     }
     # Synthetic #198-shaped single-level actives; only stare_down stays out of the opening pool.
     abilities = [
         {
             "id": "active_snark_bolt", "opening": True, "cooldown_family": "cd_snark_bolt", "windup": q("s", 0.125),
+            "element": "none", "hit_type": "projectile",
             "target": {"mode": "DirectionProjectile", "range": q("cm", 350), "projectile_radius": q("cm", 15), "projectile_speed": q("cm/s", 900)},
-            "mana_cost": q("mp", 6), "cooldown": q("s", 3),
+            "momentum_cost": q("momentum", 6), "cooldown": q("s", 3),
             "effects": [{"op": "damage", "base": q("points", 8), "ad_ratio": q("ratio", 0),
                          "ap_ratio": q("ratio", 0.125), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
                         {"op": "slow", "ratio": q("ratio", 0.25), "duration": q("s", 0.5)}],
         },
         {
             "id": "active_not_mad", "opening": True, "cooldown_family": "cd_not_mad",
-            "target": {"mode": "Self"}, "windup": q("s", 0), "mana_cost": q("mp", 4), "cooldown": q("s", 7),
+            "target": {"mode": "Self"}, "windup": q("s", 0), "momentum_cost": q("momentum", 4), "cooldown": q("s", 7),
+            "element": "none", "hit_type": "self",
             "effects": [{"op": "shield", "base": q("hp", 20), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)},
                         {"op": "dispel_slow"}, {"op": "dispel_root"}],
         },
         {
             "id": "active_pants_down", "opening": True, "cooldown_family": "cd_pants_down",
-            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125), "mana_cost": q("mp", 7), "cooldown": q("s", 9),
+            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125), "momentum_cost": q("momentum", 7), "cooldown": q("s", 9),
+            "element": "none", "hit_type": "targeted",
             "effects": [{"op": "damage", "base": q("points", 5), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
                         {"op": "root", "duration": q("s", 0.25)}],
         },
         {
             "id": "active_stare_down", "opening": False, "cooldown_family": "cd_stare_down",
-            "target": {"mode": "Self"}, "windup": q("s", 0.125), "mana_cost": q("mp", 5), "cooldown": q("s", 11),
+            "target": {"mode": "Self"}, "windup": q("s", 0.125), "momentum_cost": q("momentum", 5), "cooldown": q("s", 11),
+            "element": "none", "hit_type": "area",
             "effects": [{"op": "taunt", "radius": q("cm", 150), "duration": q("s", 0.5)},
                         {"op": "timed_stat_bonus", "stats": {"ArmorFlat": q("points", 3), "MagicResistFlat": q("points", 2)},
                          "duration": q("s", 1.5)}],
@@ -168,7 +184,7 @@ def content_fixture():
         {"id": "stat_physique", "per_point": {"MaxHPFlat": q("hp", 10), "HPRegenFlat": q("hp/s", 0.125)}},
         {"id": "stat_thick_skin", "per_point": {"ArmorFlat": q("points", 1), "MagicResistFlat": q("points", 1.5)}},
         {"id": "stat_strength", "per_point": {"ADFlat": q("points", 2), "CritChanceBonusRatio": q("ratio", 0.01)}},
-        {"id": "stat_brains", "per_point": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2), "MPRegenFlat": q("mp/s", 0.25)}},
+        {"id": "stat_brains", "per_point": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2), "MomentumRegenFlat": q("momentum/s", 0.25)}},
         {"id": "stat_agility", "per_point": {"AttackSpeedBonusRatio": q("ratio", 0.02), "MoveSpeedBonusRatio": q("ratio", 0.01)}},
     ]
     # Synthetic #198 B components in native ID order: an always-opening burn, a conditional opening, a dash-armed empowered
@@ -199,7 +215,7 @@ def content_fixture():
             "attack_range": q("cm", 80), "move_speed": q("cm/s", 250), "collision_radius": q("cm", 20),
             "leash_radius": q("cm", 300), "lose_target_grace": q("s", 1), "respawn": q("s", 10),
             "reward_xp": {"Low": 8, "High": 20, "Elite": 40, "Ancient": 60}[tier],
-            "hp_regen": q("hp/s", 0), "max_mp": q("mp", 0), "mp_regen": q("mp/s", 0),
+            "hp_regen": q("hp/s", 0),
             "ap": q("points", 0), "crit_chance": q("ratio", 0),
         })
     for m in monsters:
@@ -261,14 +277,14 @@ def content_fixture():
                 row[part + "_text"] = "TEST ONLY 合成" + part
     # Card templates: an active reads [op.field] of its effects, a stat [per_point.<Stat>] of one point.
     next(row for row in display if row["id"] == "active_snark_bolt")["description_text"] += " [damage.amount] [slow.ratio] [slow.duration]"
-    next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
+    next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"
     next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
     return {
         "identity": {"schema_version": 3, "handler_revision": 10, "projection_revision": 9,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
-                      "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
+                      "dash": {"cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
         "abilities": abilities, "stats": stats, "components": components, "final_mods": finals, "camps": camps, "boss": boss,
         "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],

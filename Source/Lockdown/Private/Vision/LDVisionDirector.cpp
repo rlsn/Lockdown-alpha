@@ -166,7 +166,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
         && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
-        && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
+        && A.MomentumBar == B.MomentumBar && A.bCharging == B.bCharging && A.ActionComboStep == B.ActionComboStep
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
         && A.Actives.Abilities[2] == B.Actives.Abilities[2]
         && SameObservedStatuses(A.Statuses, B.Statuses);
@@ -1184,6 +1184,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         }
         Unit.ActionCue = Facts.ActionCue;
         Unit.ActionAbility = Facts.ActionAbility;
+        Unit.ActionComboStep = Facts.ActionCue == ELDObservedActionCue::Attack ? Facts.ActionComboStep : 0;
         Unit.HitLook = Facts.HitLook;
         Unit.HitFlags = Facts.HitFlags;
         Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
@@ -1210,8 +1211,8 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Unit.Presentation = Body->PresentationKey;
             Unit.ContenderId = Ref.Victim.EntityId;
             Unit.Level = Facts.Level;
-            Unit.Mana.CurrentP2 = State->Resources.MpP2;
-            Unit.Mana.MaxP2 = State->Resources.MaxMpP2;
+            Unit.MomentumBar = Facts.MomentumBar;
+            Unit.bCharging = Facts.bCharging;
             Unit.Actives = Facts.Actives;
         }
         else
@@ -1227,12 +1228,6 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Unit.Kind = ELDObservedUnitKind::CampMember;
             Unit.AuthorizedFieldMask = LDObservation::CampFields;
             Unit.CreatureId = CreatureId;
-            if (Monster->MaxMPP2 > 0)
-            {
-                Unit.AuthorizedFieldMask |= LDObservation::Mana;
-                Unit.Mana.CurrentP2 = State->Resources.MpP2;
-                Unit.Mana.MaxP2 = State->Resources.MaxMpP2;
-            }
         }
         Out.Add(MoveTemp(Target));
     }

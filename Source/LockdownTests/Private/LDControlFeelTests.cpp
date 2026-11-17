@@ -183,7 +183,7 @@ bool FLDControlFeelRefusedSkillKeepsOrderTest::RunTest(const FString& Parameters
     // attack order, the pending request and the shift queue as they were; only a ready one goes on to replace them.
     TestTrue(TEXT("A ready entry goes on"), SkillRequestReady(ELDCombatReject::None));
     TestTrue(TEXT("The own ability windup only delays the request"), SkillRequestReady(ELDCombatReject::Busy));
-    for (const ELDCombatReject Refused : {ELDCombatReject::Cooldown, ELDCombatReject::InsufficientMana,
+    for (const ELDCombatReject Refused : {ELDCombatReject::Cooldown, ELDCombatReject::MomentumShort,
         ELDCombatReject::ControlBlocked, ELDCombatReject::SourceUnavailable,
         ELDCombatReject::Dead, ELDCombatReject::MatchClosed, ELDCombatReject::AuthorityDataUnavailable})
     {

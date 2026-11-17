@@ -51,9 +51,28 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.HitLook=ELDObservedHitLook::None;
     InOut.HitFlags=0;
     InOut.ActionAbility=0;
+    InOut.ActionComboStep=0;
+    InOut.bCharging=false;
+    InOut.MomentumBar=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
+    if (State->Victim.Kind==ELDVictimKind::Contender)
+    {
+        // The public bar is quantized; an overdrive charge shows while held (never which active it is).
+        const FLDDemoContentSnapshot* Content=Catalog();
+        const int64 MaxP2=Content ? Content->Get().Parameters.Momentum.MaxP2 : 0;
+        if (MaxP2<=0) { Error=TEXT("The visible momentum bar needs the approved maximum."); return false; }
+        const int64 Bar=FMath::Clamp<int64>(State->Resources.MomentumP2,0,MaxP2)*LDObservation::MomentumBarFull/MaxP2;
+        InOut.MomentumBar=uint8(Bar);
+        InOut.bCharging=State->OverdriveCharge.IsSet();
+        if (Cue.Cue==ELDObservedActionCue::Attack)
+        {
+            const bool bActingBasic=State->Action.IsSet() && State->Action->Kind==ELDCombatActionKind::Basic
+                && State->Action->StartedAtMs==Cue.AtMs;
+            InOut.ActionComboStep=bActingBasic ? State->Action->ComboStep : State->Cues.ReleasedComboStep;
+        }
+    }
     uint8 Ability=0;
     if (!ObservedCastSource(Body,NowMs,Ability))
     {

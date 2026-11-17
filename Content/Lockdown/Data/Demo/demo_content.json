@@ -2,7 +2,7 @@
   "abilities": [
     {
       "cooldown": {
-        "ms": 11000,
+        "ms": 9000,
         "unit": "ms"
       },
       "cooldown_family": "cd_account_banned",
@@ -13,11 +13,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 6500,
+            "bp": 6000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 6500,
+            "p2": 5500,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -30,17 +30,19 @@
         },
         {
           "duration": {
-            "ms": 1600,
+            "ms": 1200,
             "unit": "ms"
           },
           "op": "silence",
           "opcode": 69
         }
       ],
+      "element": "none",
+      "hit_type": "targeted",
       "id": "active_account_banned",
-      "mana_cost": {
-        "p2": 6000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 101,
       "opening": true,
@@ -59,7 +61,7 @@
     },
     {
       "cooldown": {
-        "ms": 11000,
+        "ms": 8000,
         "unit": "ms"
       },
       "cooldown_family": "cd_apology_slide",
@@ -116,10 +118,12 @@
           }
         }
       ],
+      "element": "none",
+      "hit_type": "dash",
       "id": "active_apology_slide",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
       },
       "native_id": 118,
       "opening": true,
@@ -133,7 +137,7 @@
     },
     {
       "cooldown": {
-        "ms": 9000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_bail_out",
@@ -153,7 +157,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 3500,
+            "bp": 4000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -161,7 +165,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 4000,
+            "p2": 4500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -173,10 +177,12 @@
           "opcode": 22
         }
       ],
+      "element": "none",
+      "hit_type": "dash",
       "id": "active_bail_out",
-      "mana_cost": {
-        "p2": 4000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2000,
+        "unit": "momentum"
       },
       "native_id": 96,
       "opening": true,
@@ -190,7 +196,7 @@
     },
     {
       "cooldown": {
-        "ms": 16000,
+        "ms": 12000,
         "unit": "ms"
       },
       "cooldown_family": "cd_brace",
@@ -205,7 +211,7 @@
             "unit": "ms"
           },
           "limit": {
-            "p2": 10000,
+            "p2": 12000,
             "unit": "points"
           },
           "op": "brace",
@@ -225,10 +231,12 @@
           }
         }
       ],
+      "element": "none",
+      "hit_type": "self",
       "id": "active_brace",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
       },
       "native_id": 129,
       "opening": false,
@@ -242,7 +250,7 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 8000,
         "unit": "ms"
       },
       "cooldown_family": "cd_calculus_drop",
@@ -279,7 +287,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 10000,
+            "p2": 11000,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -291,10 +299,12 @@
           "opcode": 1
         }
       ],
+      "element": "none",
+      "hit_type": "area",
       "id": "active_calculus_drop",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3500,
+        "unit": "momentum"
       },
       "native_id": 115,
       "opening": true,
@@ -313,7 +323,7 @@
     },
     {
       "cooldown": {
-        "ms": 13000,
+        "ms": 9000,
         "unit": "ms"
       },
       "cooldown_family": "cd_charged_ram",
@@ -366,7 +376,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 3500,
+            "p2": 4000,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -382,10 +392,12 @@
           "opcode": 91
         }
       ],
+      "element": "shock",
+      "hit_type": "dash",
       "id": "active_charged_ram",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 128,
       "opening": true,
@@ -399,7 +411,7 @@
     },
     {
       "cooldown": {
-        "ms": 14000,
+        "ms": 10000,
         "unit": "ms"
       },
       "cooldown_family": "cd_crotch_grab",
@@ -414,7 +426,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 8500,
+            "p2": 6000,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -427,17 +439,19 @@
         },
         {
           "duration": {
-            "ms": 1000,
+            "ms": 800,
             "unit": "ms"
           },
           "op": "stun",
           "opcode": 21
         }
       ],
+      "element": "none",
+      "hit_type": "targeted",
       "id": "active_crotch_grab",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3500,
+        "unit": "momentum"
       },
       "native_id": 93,
       "opening": true,
@@ -456,7 +470,7 @@
     },
     {
       "cooldown": {
-        "ms": 14000,
+        "ms": 9000,
         "unit": "ms"
       },
       "cooldown_family": "cd_dirty_puddle",
@@ -513,10 +527,12 @@
           }
         }
       ],
+      "element": "water",
+      "hit_type": "area",
       "id": "active_dirty_puddle",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 130,
       "opening": true,
@@ -535,14 +551,14 @@
     },
     {
       "cooldown": {
-        "ms": 10000,
+        "ms": 6000,
         "unit": "ms"
       },
       "cooldown_family": "cd_elbow",
       "effects": [
         {
           "ad_ratio": {
-            "bp": 6500,
+            "bp": 6000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -550,7 +566,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 7500,
+            "p2": 5500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -575,10 +591,12 @@
           "opcode": 40
         }
       ],
+      "element": "none",
+      "hit_type": "targeted",
       "id": "active_elbow",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
       },
       "native_id": 97,
       "opening": true,
@@ -597,7 +615,7 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 9000,
         "unit": "ms"
       },
       "cooldown_family": "cd_flyer_trap",
@@ -658,10 +676,12 @@
           }
         }
       ],
+      "element": "none",
+      "hit_type": "area",
       "id": "active_flyer_trap",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 117,
       "opening": false,
@@ -680,7 +700,7 @@
     },
     {
       "cooldown": {
-        "ms": 11000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_hose_down",
@@ -724,10 +744,12 @@
           "opcode": 90
         }
       ],
+      "element": "water",
+      "hit_type": "area",
       "id": "active_hose_down",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
       },
       "native_id": 126,
       "opening": true,
@@ -751,7 +773,7 @@
     },
     {
       "cooldown": {
-        "ms": 14000,
+        "ms": 10000,
         "unit": "ms"
       },
       "cooldown_family": "cd_not_mad",
@@ -762,7 +784,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 9000,
+            "p2": 8000,
             "unit": "hp"
           },
           "duration": {
@@ -785,10 +807,12 @@
           "opcode": 3
         }
       ],
+      "element": "none",
+      "hit_type": "self",
       "id": "active_not_mad",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
       },
       "native_id": 98,
       "opening": false,
@@ -802,7 +826,7 @@
     },
     {
       "cooldown": {
-        "ms": 10000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_open_mic",
@@ -830,11 +854,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 3000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 4000,
+            "p2": 3500,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -846,10 +870,12 @@
           "opcode": 1
         }
       ],
+      "element": "gust",
+      "hit_type": "area",
       "id": "active_open_mic",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 114,
       "opening": true,
@@ -873,14 +899,14 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 9000,
         "unit": "ms"
       },
       "cooldown_family": "cd_pants_down",
       "effects": [
         {
           "ad_ratio": {
-            "bp": 4500,
+            "bp": 4000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -888,7 +914,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 5500,
+            "p2": 4000,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -901,17 +927,19 @@
         },
         {
           "duration": {
-            "ms": 1500,
+            "ms": 1200,
             "unit": "ms"
           },
           "op": "root",
           "opcode": 4
         }
       ],
+      "element": "none",
+      "hit_type": "targeted",
       "id": "active_pants_down",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 92,
       "opening": true,
@@ -930,7 +958,7 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 8000,
         "unit": "ms"
       },
       "cooldown_family": "cd_quick_meeting",
@@ -967,7 +995,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 2800,
+            "p2": 3000,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -1000,10 +1028,12 @@
           "stacks": 1
         }
       ],
+      "element": "fire",
+      "hit_type": "area",
       "id": "active_quick_meeting",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3500,
+        "unit": "momentum"
       },
       "native_id": 100,
       "opening": true,
@@ -1022,7 +1052,7 @@
     },
     {
       "cooldown": {
-        "ms": 10000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_seethe",
@@ -1042,11 +1072,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 6500,
+            "bp": 6000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 6500,
+            "p2": 6000,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -1063,10 +1093,12 @@
           "stacks": 2
         }
       ],
+      "element": "fire",
+      "hit_type": "area",
       "id": "active_seethe",
-      "mana_cost": {
-        "p2": 5500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 95,
       "opening": true,
@@ -1080,7 +1112,7 @@
     },
     {
       "cooldown": {
-        "ms": 8000,
+        "ms": 6000,
         "unit": "ms"
       },
       "cooldown_family": "cd_snark_bolt",
@@ -1119,10 +1151,12 @@
           }
         }
       ],
+      "element": "none",
+      "hit_type": "projectile",
       "id": "active_snark_bolt",
-      "mana_cost": {
-        "p2": 4500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 94,
       "opening": true,
@@ -1151,7 +1185,7 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 8000,
         "unit": "ms"
       },
       "cooldown_family": "cd_sock_shot",
@@ -1202,10 +1236,12 @@
           }
         }
       ],
+      "element": "rot",
+      "hit_type": "projectile",
       "id": "active_sock_shot",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 116,
       "opening": true,
@@ -1234,14 +1270,14 @@
     },
     {
       "cooldown": {
-        "ms": 15000,
+        "ms": 12000,
         "unit": "ms"
       },
       "cooldown_family": "cd_stare_down",
       "effects": [
         {
           "duration": {
-            "ms": 1100,
+            "ms": 1000,
             "unit": "ms"
           },
           "op": "taunt",
@@ -1271,10 +1307,12 @@
           }
         }
       ],
+      "element": "none",
+      "hit_type": "area",
       "id": "active_stare_down",
-      "mana_cost": {
-        "p2": 6000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 99,
       "opening": false,
@@ -1288,14 +1326,14 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 9000,
         "unit": "ms"
       },
       "cooldown_family": "cd_triple_combo",
       "effects": [
         {
           "ad_ratio": {
-            "bp": 1000,
+            "bp": 1200,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -1303,7 +1341,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 1600,
+            "p2": 1800,
             "unit": "points"
           },
           "charges": 3,
@@ -1322,10 +1360,12 @@
           }
         }
       ],
+      "element": "none",
+      "hit_type": "self",
       "id": "active_triple_combo",
-      "mana_cost": {
-        "p2": 4000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2000,
+        "unit": "momentum"
       },
       "native_id": 103,
       "opening": true,
@@ -1339,7 +1379,7 @@
     },
     {
       "cooldown": {
-        "ms": 12000,
+        "ms": 8000,
         "unit": "ms"
       },
       "cooldown_family": "cd_unplug",
@@ -1354,7 +1394,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 5000,
+            "p2": 4500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -1367,17 +1407,19 @@
         },
         {
           "duration": {
-            "ms": 1800,
+            "ms": 1400,
             "unit": "ms"
           },
           "op": "disarm",
           "opcode": 20
         }
       ],
+      "element": "none",
+      "hit_type": "targeted",
       "id": "active_unplug",
-      "mana_cost": {
-        "p2": 4500,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
       },
       "native_id": 102,
       "opening": true,
@@ -1396,7 +1438,7 @@
     },
     {
       "cooldown": {
-        "ms": 11000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_zap",
@@ -1445,10 +1487,12 @@
           }
         }
       ],
+      "element": "shock",
+      "hit_type": "targeted",
       "id": "active_zap",
-      "mana_cost": {
-        "p2": 5000,
-        "unit": "mp"
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
       },
       "native_id": 127,
       "opening": true,
@@ -1539,7 +1583,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 9000,
+          "p2": 12600,
           "unit": "points"
         },
         "attack_interval_ms": 1667,
@@ -1590,19 +1634,10 @@
           "p2": 3000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 4,
         "perception_radius": {
@@ -1709,7 +1744,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 3600,
+          "p2": 5000,
           "unit": "points"
         },
         "attack_interval_ms": 1539,
@@ -1760,19 +1795,10 @@
           "p2": 2000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 7,
         "perception_radius": {
@@ -1879,7 +1905,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 9000,
+          "p2": 12600,
           "unit": "points"
         },
         "attack_interval_ms": 1667,
@@ -1930,19 +1956,10 @@
           "p2": 3000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 9,
         "perception_radius": {
@@ -2049,7 +2066,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 9000,
+          "p2": 12600,
           "unit": "points"
         },
         "attack_interval_ms": 1667,
@@ -2100,19 +2117,10 @@
           "p2": 3000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 10,
         "perception_radius": {
@@ -2219,7 +2227,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 1000,
+          "p2": 1400,
           "unit": "points"
         },
         "attack_interval_ms": 1250,
@@ -2270,19 +2278,10 @@
           "p2": 800,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 6,
         "perception_radius": {
@@ -2389,7 +2388,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 13000,
+          "p2": 18200,
           "unit": "points"
         },
         "attack_interval_ms": 1819,
@@ -2440,19 +2439,10 @@
           "p2": 4000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 11,
         "perception_radius": {
@@ -2559,7 +2549,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 13000,
+          "p2": 18200,
           "unit": "points"
         },
         "attack_interval_ms": 1819,
@@ -2610,19 +2600,10 @@
           "p2": 4000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 12,
         "perception_radius": {
@@ -2729,7 +2710,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 3600,
+          "p2": 5000,
           "unit": "points"
         },
         "attack_interval_ms": 1539,
@@ -2780,19 +2761,10 @@
           "p2": 2000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 8,
         "perception_radius": {
@@ -2899,7 +2871,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 3600,
+          "p2": 5000,
           "unit": "points"
         },
         "attack_interval_ms": 1539,
@@ -2950,19 +2922,10 @@
           "p2": 2000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 2,
         "perception_radius": {
@@ -3069,7 +3032,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 1000,
+          "p2": 1400,
           "unit": "points"
         },
         "attack_interval_ms": 1250,
@@ -3120,19 +3083,10 @@
           "p2": 800,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 5,
         "perception_radius": {
@@ -3239,7 +3193,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 13000,
+          "p2": 18200,
           "unit": "points"
         },
         "attack_interval_ms": 1819,
@@ -3290,19 +3244,10 @@
           "p2": 4000,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 260,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 13,
         "perception_radius": {
@@ -3409,7 +3354,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 1000,
+          "p2": 1400,
           "unit": "points"
         },
         "attack_interval_ms": 1250,
@@ -3460,19 +3405,10 @@
           "p2": 800,
           "unit": "points"
         },
-        "max_mp": {
-          "p2": 0,
-          "unit": "mp"
-        },
         "move_speed": {
           "denominator": 1,
           "numerator": 240,
           "unit": "cm/s"
-        },
-        "mp_regen": {
-          "denominator": 1,
-          "numerator": 0,
-          "unit": "mp/s"
         },
         "native_id": 1,
         "perception_radius": {
@@ -3732,10 +3668,6 @@
       "duration": {
         "ms": 200,
         "unit": "ms"
-      },
-      "mana_cost": {
-        "p2": 0,
-        "unit": "mp"
       }
     },
     "id": "character_demo",
@@ -5073,19 +5005,19 @@
     {
       "effects": [
         {
-          "mana": {
+          "momentum": {
             "p2": 400,
-            "unit": "mp"
+            "unit": "momentum"
           },
-          "mana_cap": {
+          "momentum_cap": {
             "p2": 1200,
-            "unit": "mp"
+            "unit": "momentum"
           },
-          "op": "control_mana",
+          "op": "control_momentum",
           "opcode": 142
         }
       ],
-      "id": "component_control_mana",
+      "id": "component_control_momentum",
       "kind": "connector",
       "native_id": 37,
       "pool": "common",
@@ -5579,15 +5511,15 @@
     {
       "effects": [
         {
-          "mana": {
+          "momentum": {
             "p2": 800,
-            "unit": "mp"
+            "unit": "momentum"
           },
-          "mana_cap": {
+          "momentum_cap": {
             "p2": 2400,
-            "unit": "mp"
+            "unit": "momentum"
           },
-          "op": "multi_hit_mana",
+          "op": "multi_hit_momentum",
           "opcode": 159
         }
       ],
@@ -5631,11 +5563,6 @@
             "CooldownHasteFlat": {
               "p2": 1500,
               "unit": "points"
-            },
-            "MPRegenFlat": {
-              "denominator": 1,
-              "numerator": 1,
-              "unit": "mp/s"
             }
           }
         },
@@ -6336,7 +6263,7 @@
     },
     {
       "description_key": "component_again_now.description",
-      "description_text": "装在一个主动上：冷却变为 [cooldown_cost.secondary_ratio]%，法力消耗变为 [cooldown_cost.cost_ratio]%。",
+      "description_text": "装在一个主动上：冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。",
       "icon_id": "icon_component_again_now",
       "id": "component_again_now",
       "name_key": "component_again_now.name",
@@ -6426,7 +6353,7 @@
     },
     {
       "description_key": "component_catch_breath.description",
-      "description_text": "主动的原生命中第一次命中敌人时，返还本次释放实际花费法力的 [cast_hit_refund.ratio]%；每次释放一次。",
+      "description_text": "主动的原生命中第一次命中敌人时，返还本次释放实际花费劲的 [cast_hit_refund.ratio]%；每次释放一次。",
       "icon_id": "icon_component_catch_breath",
       "id": "component_catch_breath",
       "name_key": "component_catch_breath.name",
@@ -6435,7 +6362,7 @@
     },
     {
       "description_key": "component_clear_head.description",
-      "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒；本体普攻伤害 ×[basic_damage_scale.ratio]%。",
+      "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]；本体普攻伤害 ×[basic_damage_scale.ratio]%。",
       "icon_id": "icon_component_clear_head",
       "id": "component_clear_head",
       "name_key": "component_clear_head.name",
@@ -6452,12 +6379,12 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "component_control_mana.description",
-      "description_text": "接一个硬控：每控住一个目标回 [control_mana.amount] 法力，同一次动作最多回 [control_mana.limit] 法力。",
-      "icon_id": "icon_component_control_mana",
-      "id": "component_control_mana",
-      "name_key": "component_control_mana.name",
-      "name_text": "控住薅点蓝",
+      "description_key": "component_control_momentum.description",
+      "description_text": "接一个硬控：每控住一个目标回 [control_momentum.amount] 劲，同一次动作最多回 [control_momentum.limit] 劲。",
+      "icon_id": "icon_component_control_momentum",
+      "id": "component_control_momentum",
+      "name_key": "component_control_momentum.name",
+      "name_text": "控住薅点劲",
       "namespace": "DemoContent"
     },
     {
@@ -6561,7 +6488,7 @@
     },
     {
       "description_key": "component_group_refund.description",
-      "description_text": "宿主一次释放每多命中一个不同的敌人，回 [multi_hit_mana.amount] 法力；每次释放最多回 [multi_hit_mana.limit] 法力。",
+      "description_text": "宿主一次释放每多命中一个不同的敌人，回 [multi_hit_momentum.amount] 劲；每次释放最多回 [multi_hit_momentum.limit] 劲。",
       "icon_id": "icon_component_group_refund",
       "id": "component_group_refund",
       "name_key": "component_group_refund.name",
@@ -7248,7 +7175,7 @@
     },
     {
       "description_key": "stat_brains.description",
-      "description_text": "每点法术强度 +[per_point.APFlat]、技能急速 +[per_point.CooldownHasteFlat]、法力回复 +[per_point.MPRegenFlat]/秒。",
+      "description_text": "每点法术强度 +[per_point.APFlat]、技能急速 +[per_point.CooldownHasteFlat]、交战时劲回复 +[per_point.MomentumRegenFlat]/秒。",
       "icon_id": "icon_stat_brains",
       "id": "stat_brains",
       "name_key": "stat_brains.name",
@@ -7590,6 +7517,10 @@
       "ms": 250,
       "unit": "ms"
     },
+    "AI.DodgeChance": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
     "AI.EngagementBudgetSec": {
       "ms": 40000,
       "unit": "ms"
@@ -7665,9 +7596,9 @@
         "unit": "ms"
       }
     ],
-    "AIRDROP.ManaMaxMPRatio": {
-      "bp": 2500,
-      "unit": "ratio"
+    "AIRDROP.Momentum": {
+      "p2": 4000,
+      "unit": "momentum"
     },
     "AIRDROP.MoveSpeedRatio": {
       "bp": 2000,
@@ -7746,7 +7677,7 @@
     },
     "COMBAT.BurnMaxStacks": 5,
     "COMBAT.BurnPerSec": {
-      "p2": 300,
+      "p2": 450,
       "unit": "points"
     },
     "COMBAT.BurnSec": {
@@ -7808,7 +7739,7 @@
       "ms": 3000,
       "unit": "ms"
     },
-    "COMBAT.KeystoneBrainsManaRefundRatio": {
+    "COMBAT.KeystoneBrainsMomentumRefundRatio": {
       "bp": 1500,
       "unit": "ratio"
     },
@@ -7874,11 +7805,25 @@
       "bp": 1500,
       "unit": "ratio"
     },
-    "DORM.MaxHPRatioPerSec": {
-      "bp": 1000,
-      "unit": "ratio"
+    "COMBO.ResetSec": {
+      "ms": 1500,
+      "unit": "ms"
     },
-    "DORM.MaxMPRatioPerSec": {
+    "COMBO.StepRatios": [
+      {
+        "bp": 9000,
+        "unit": "ratio"
+      },
+      {
+        "bp": 9000,
+        "unit": "ratio"
+      },
+      {
+        "bp": 13000,
+        "unit": "ratio"
+      }
+    ],
+    "DORM.MaxHPRatioPerSec": {
       "bp": 1000,
       "unit": "ratio"
     },
@@ -7939,6 +7884,90 @@
     },
     "MATCH.FieldSegmentSec": {
       "ms": 130000,
+      "unit": "ms"
+    },
+    "MOMENTUM.BasicPerRefInterval": {
+      "p2": 1000,
+      "unit": "momentum"
+    },
+    "MOMENTUM.BasicRefIntervalSec": {
+      "ms": 1334,
+      "unit": "ms"
+    },
+    "MOMENTUM.CombatPerSec": {
+      "denominator": 1,
+      "numerator": 3,
+      "unit": "momentum/s"
+    },
+    "MOMENTUM.IdleDelaySec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "MOMENTUM.IdleReturnPerSec": {
+      "denominator": 1,
+      "numerator": 10,
+      "unit": "momentum/s"
+    },
+    "MOMENTUM.Max": {
+      "p2": 10000,
+      "unit": "momentum"
+    },
+    "MOMENTUM.PerfectDodge": {
+      "p2": 1500,
+      "unit": "momentum"
+    },
+    "MOMENTUM.PerfectDodgeWindowSec": {
+      "ms": 300,
+      "unit": "ms"
+    },
+    "MOMENTUM.Reaction": {
+      "p2": 1000,
+      "unit": "momentum"
+    },
+    "MOMENTUM.SkillHit": {
+      "p2": 500,
+      "unit": "momentum"
+    },
+    "MOMENTUM.Start": {
+      "p2": 5000,
+      "unit": "momentum"
+    },
+    "OVERDRIVE.FireBurnStacks": 3,
+    "OVERDRIVE.GustPushCm": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm"
+    },
+    "OVERDRIVE.GustPushSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "OVERDRIVE.HoldSec": {
+      "ms": 300,
+      "unit": "ms"
+    },
+    "OVERDRIVE.RotDurationScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "OVERDRIVE.Scale": {
+      "bp": 16000,
+      "unit": "ratio"
+    },
+    "OVERDRIVE.ShockReactionRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "OVERDRIVE.Threshold": {
+      "p2": 10000,
+      "unit": "momentum"
+    },
+    "OVERDRIVE.WaterSlow": {
+      "bp": 4500,
+      "unit": "ratio"
+    },
+    "OVERDRIVE.WaterSlowSec": {
+      "ms": 1500,
       "unit": "ms"
     },
     "PK.ArenaRadiusCm": {
@@ -8004,10 +8033,6 @@
       "unit": "ms"
     },
     "REGEN.OutOfCombatMaxHPRatioPerSec": {
-      "bp": 150,
-      "unit": "ratio"
-    },
-    "REGEN.OutOfCombatMaxMPRatioPerSec": {
       "bp": 150,
       "unit": "ratio"
     },
@@ -8091,14 +8116,47 @@
       "ms": 10000,
       "unit": "ms"
     },
+    "SKILL.CooldownFloorSec": {
+      "ms": 300,
+      "unit": "ms"
+    },
     "SKILL.GrowthPerLevel": {
-      "bp": 1500,
+      "bp": 400,
       "unit": "ratio"
     },
-    "SKILL.GrowthPerLevelAfter10": {
-      "bp": 750,
-      "unit": "ratio"
-    },
+    "SKILL.PointLevels": [
+      4,
+      8,
+      12
+    ],
+    "SKILL.RankBaseScale": [
+      {
+        "bp": 10000,
+        "unit": "ratio"
+      },
+      {
+        "bp": 15000,
+        "unit": "ratio"
+      },
+      {
+        "bp": 20000,
+        "unit": "ratio"
+      }
+    ],
+    "SKILL.RankRatioScale": [
+      {
+        "bp": 10000,
+        "unit": "ratio"
+      },
+      {
+        "bp": 12500,
+        "unit": "ratio"
+      },
+      {
+        "bp": 15000,
+        "unit": "ratio"
+      }
+    ],
     "STAT.AD.Base": {
       "p2": 7000,
       "unit": "points"
@@ -8158,8 +8216,8 @@
       "unit": "cm"
     },
     "STAT.AttackSpeed.Max": {
-      "denominator": 10,
-      "numerator": 23,
+      "denominator": 1,
+      "numerator": 5,
       "unit": "attacks/s"
     },
     "STAT.AttackSpeed.Min": {
@@ -8181,7 +8239,7 @@
       "unit": "points"
     },
     "STAT.CooldownHaste.Max": {
-      "p2": 6000,
+      "p2": 40000,
       "unit": "points"
     },
     "STAT.CritChance.Base": {
@@ -8212,26 +8270,6 @@
       "numerator": 3,
       "unit": "hp/s"
     },
-    "STAT.MPRegen.Base": {
-      "denominator": 5,
-      "numerator": 6,
-      "unit": "mp/s"
-    },
-    "STAT.MPRegen.Max": {
-      "denominator": 1,
-      "numerator": 4,
-      "unit": "mp/s"
-    },
-    "STAT.MPRegen.Min": {
-      "denominator": 1,
-      "numerator": 0,
-      "unit": "mp/s"
-    },
-    "STAT.MPRegen.PerLevel": {
-      "denominator": 25,
-      "numerator": 2,
-      "unit": "mp/s"
-    },
     "STAT.MagicResist.Base": {
       "p2": 1800,
       "unit": "points"
@@ -8249,7 +8287,7 @@
       "unit": "points"
     },
     "STAT.MaxHP.Base": {
-      "p2": 62000,
+      "p2": 86000,
       "unit": "hp"
     },
     "STAT.MaxHP.Max": {
@@ -8261,24 +8299,8 @@
       "unit": "hp"
     },
     "STAT.MaxHP.PerLevel": {
-      "p2": 5800,
+      "p2": 8000,
       "unit": "hp"
-    },
-    "STAT.MaxMP.Base": {
-      "p2": 28000,
-      "unit": "mp"
-    },
-    "STAT.MaxMP.Max": {
-      "p2": 80000,
-      "unit": "mp"
-    },
-    "STAT.MaxMP.Min": {
-      "p2": 0,
-      "unit": "mp"
-    },
-    "STAT.MaxMP.PerLevel": {
-      "p2": 2200,
-      "unit": "mp"
     },
     "STAT.MoveSpeed.Max": {
       "denominator": 1,
@@ -8351,7 +8373,7 @@
     "BasicSecondaryTriggers": "Disabled",
     "CampAggroTrigger": "ConfirmedCombatHit",
     "CampGroupRetaliation": true,
-    "CampManaPolicy": "NotApplicable",
+    "CampMomentumPolicy": "NotApplicable",
     "CampResetPolicy": "ReturnThenReset",
     "CampReturningControllable": true,
     "CampReturningDamageable": true,
@@ -8488,10 +8510,10 @@
           "p2": 100,
           "unit": "points"
         },
-        "MPRegenFlat": {
-          "denominator": 100,
+        "MomentumRegenFlat": {
+          "denominator": 50,
           "numerator": 3,
-          "unit": "mp/s"
+          "unit": "momentum/s"
         }
       }
     },
@@ -8505,7 +8527,7 @@
           "unit": "hp/s"
         },
         "MaxHPFlat": {
-          "p2": 3000,
+          "p2": 4000,
           "unit": "hp"
         }
       }

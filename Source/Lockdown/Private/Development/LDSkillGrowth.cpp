@@ -2,15 +2,30 @@
 
 #include "Development/LDDemoContentDefinitions.h"
 
-int64 LDSkillGrowth::FactorBp(int64 ThroughTenBp, int64 AfterTenBp, uint8 Level)
+namespace LDSkillGrowthDetail
 {
-    if (Level < 1 || ThroughTenBp < 0 || ThroughTenBp > MAX_int32 || AfterTenBp < 0 || AfterTenBp > MAX_int32)
+    // Momentum grants keep their authored amount (control_momentum, multi_hit_momentum).
+    bool IsMomentumGrant(ELDDemoEffectOp Op)
+    {
+        return Op == ELDDemoEffectOp::ControlMomentum || Op == ELDDemoEffectOp::MultiHitMomentum;
+    }
+
+    bool ScaleBp(int64 Value, int64 Bp, int64& Out)
+    {
+        Out = 0;
+        if (Value < 0 || Bp < 0 || (Value > 0 && Bp > MAX_int64 / Value)) { return false; }
+        Out = Value * Bp / 10000;
+        return true;
+    }
+}
+
+int64 LDSkillGrowth::FactorBp(int64 PerLevelBp, uint8 Level)
+{
+    if (Level < 1 || PerLevelBp < 0 || PerLevelBp > MAX_int32)
     {
         return 0;
     }
-    const int64 ThroughTenSteps = FMath::Min<int64>(Level - 1, 9);
-    const int64 AfterTenSteps = FMath::Max<int64>(Level - 10, 0);
-    return 10000 + ThroughTenBp * ThroughTenSteps + AfterTenBp * AfterTenSteps;
+    return 10000 + PerLevelBp * (int64(Level) - 1);
 }
 
 bool LDSkillGrowth::GrowP2(int64 AmountP2, int64 Factor, int64& Out)
@@ -27,14 +42,11 @@ bool LDSkillGrowth::GrowP2(int64 AmountP2, int64 Factor, int64& Out)
 bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Factor, FLDDemoEffectDefinition& Out)
 {
     Out = Authored;
-    // Mana grants never grow (mana_on_hit, #198 F control_mana, C16 multi_hit_mana).
-    const bool bMana = Authored.GetOp() == ELDDemoEffectOp::ManaOnHit || Authored.GetOp() == ELDDemoEffectOp::ControlMana
-        || Authored.GetOp() == ELDDemoEffectOp::MultiHitMana;
-    if (!bMana && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
+    if (!LDSkillGrowthDetail::IsMomentumGrant(Authored.GetOp()) && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
     {
         return false;
     }
-    // #198 S16: the record cap is a fixed amount (100G) like the answer's base.
+    // S16: the record cap is a fixed amount that grows like the answer's base.
     if (Authored.GetOp() == ELDDemoEffectOp::Brace && !GrowP2(Authored.LimitP2, Factor, Out.LimitP2))
     {
         return false;
@@ -54,12 +66,50 @@ bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Fa
     return true;
 }
 
-bool LDSkillGrowth::GrowValues(const FLDDemoAbilityValues& Authored, int64 ThroughTenBp, int64 AfterTenBp,
-    uint8 Level, FLDDemoAbilityValues& Out)
+bool LDSkillGrowth::ScaleRatios(FLDDemoEffectDefinition& InOut, int64 RatioBp)
+{
+    using LDSkillGrowthDetail::ScaleBp;
+    return ScaleBp(InOut.ADRatioBp, RatioBp, InOut.ADRatioBp) && ScaleBp(InOut.APRatioBp, RatioBp, InOut.APRatioBp)
+        && ScaleBp(InOut.MaxHPRatioBp, RatioBp, InOut.MaxHPRatioBp);
+}
+
+bool LDSkillGrowth::ScaleValues(FLDDemoAbilityValues& InOut, int64 BaseBp, int64 RatioBp)
+{
+    if (BaseBp <= 0 || RatioBp <= 0)
+    {
+        return false;
+    }
+    for (FLDDemoEffectDefinition& Effect : InOut.Effects)
+    {
+        FLDDemoEffectDefinition Scaled;
+        if (!GrowEffect(Effect, BaseBp, Scaled) || !ScaleRatios(Scaled, RatioBp))
+        {
+            return false;
+        }
+        Effect = MoveTemp(Scaled);
+    }
+    return true;
+}
+
+bool LDSkillGrowth::RankScales(const FLDDemoSkillRankParameters& Ranks, uint8 Rank, int64& OutBaseBp, int64& OutRatioBp)
+{
+    OutBaseBp = OutRatioBp = 0;
+    if (Rank < 1 || Rank > Ranks.RankBaseScaleBp.Num() || Rank > Ranks.RankRatioScaleBp.Num())
+    {
+        return false;
+    }
+    OutBaseBp = Ranks.RankBaseScaleBp[Rank - 1];
+    OutRatioBp = Ranks.RankRatioScaleBp[Rank - 1];
+    return OutBaseBp > 0 && OutRatioBp > 0;
+}
+
+bool LDSkillGrowth::GrowValues(const FLDDemoAbilityValues& Authored, const FLDDemoSkillRankParameters& Ranks,
+    int64 PerLevelBp, uint8 Level, uint8 Rank, FLDDemoAbilityValues& Out)
 {
     Out = Authored;
-    const int64 Factor = FactorBp(ThroughTenBp, AfterTenBp, Level);
-    if (Factor <= 0)
+    const int64 Factor = FactorBp(PerLevelBp, Level);
+    int64 BaseBp = 0, RatioBp = 0;
+    if (Factor <= 0 || !RankScales(Ranks, Rank, BaseBp, RatioBp))
     {
         return false;
     }
@@ -70,5 +120,5 @@ bool LDSkillGrowth::GrowValues(const FLDDemoAbilityValues& Authored, int64 Throu
             return false;
         }
     }
-    return true;
+    return Rank == 1 || ScaleValues(Out, BaseBp, RatioBp);
 }

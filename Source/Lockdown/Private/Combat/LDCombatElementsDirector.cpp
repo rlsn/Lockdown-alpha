@@ -157,17 +157,23 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     ++Target.StateRevision;
     MarkViewChanged(Target.Victim.EntityId);
     const ELDCombatReaction Reaction=LDCombatElements::ReactionOf(Held,Kind);
+    // MOMENTUM.Reaction: the contender who triggers a reaction gains it, once per reaction.
+    if (Reaction!=ELDCombatReaction::None)
+    {
+        if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
+        { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
+    }
     if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded
-        && Applier.CastLedger->PaidManaP2>0)
+        && Applier.CastLedger->PaidMomentumP2>0)
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
         if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)
         {
-            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsManaRefundBp;
-            const int64 PaidP2=Applier.CastLedger->PaidManaP2;
+            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsMomentumRefundBp;
+            const int64 PaidP2=Applier.CastLedger->PaidMomentumP2;
             const int64 RefundP2=PaidP2/10000*RatioBp+PaidP2%10000*RatioBp/10000;
             Applier.CastLedger->bBrainsKeystoneRefunded=true;
-            if (RefundP2>0) { GrantMana(*SourceBody,RefundP2); }
+            if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }
         }
     }
     if (Reaction==ELDCombatReaction::None)

@@ -30,7 +30,7 @@
 //
 // Phase boundaries (approved §8): a field -> rest boundary retires every living field life (no death, kill or reward),
 // ends the remaining field respawn waits, cancels every in-flight effect and control, and gives everyone a fresh rest life
-// at full HP/MP with every cooldown ready. A rest -> field boundary does the same in reverse: every rest life is retired and
+// at full HP and MOMENTUM.Start with every cooldown ready. A rest -> field boundary does the same in reverse: every rest life is retired and
 // the next field life stands at the remembered field foot (or within REST.ReturnSearchRadiusCm, else a normal spawn; a
 // contender dead at the rest entry takes a normal spawn) with the shared LIFE.ProtectionSec. The field bodies (and a PK's
 // arena bodies) are prepared jointly and stand only together; while any is blocked the entry holds (T, the flagpole and
