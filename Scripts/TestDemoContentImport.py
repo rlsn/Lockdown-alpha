@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 from CatalogTools import encode
 import DemoContent as demo
-from DemoContentTestFixtures import write_fixture, write_world, world_fixture
+from DemoContentTestFixtures import simple_ranks, write_fixture, write_world, world_fixture
 import SyncDemoContentData as sync
 import SyncDemoWorldData as world_sync
 
@@ -165,7 +165,8 @@ class DemoContentImport(unittest.TestCase):
             result.catalog.parameter("CAMP.Low.AggroRadiusCm")
 
     def assert_leaf_projection(self, result, author):
-        source_leaves = leaves(author)
+        # Rank steps compile into branch definitions and display rows (test_rank_steps_compile_into_branches_and_display).
+        source_leaves = {key: value for key, value in leaves(author).items() if ".ranks." not in key}
         target_leaves = leaves(json.loads(result.outputs[demo.CONTENT_OUTPUT]))
         fields = result.catalog.field_projection
         self.assertEqual(set(fields), set(source_leaves))
@@ -197,6 +198,18 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(fields["content.stats[0].per_point.MaxHPFlat.value"],
                          ("content.stats[2].per_point.MaxHPFlat.p2",))
 
+    def test_rank_steps_compile_into_branches_and_display(self):
+        projected = json.loads(self.baseline.outputs[demo.CONTENT_OUTPUT])
+        display = {row["id"]: row for row in projected["display"]}
+        for source in self.author["abilities"]:
+            row = next(row for row in projected["abilities"] if row["id"] == source["id"])
+            with self.subTest(ability=source["id"]):
+                self.assertEqual([branch["path"] for branch in row["branches"]], list(demo.BRANCH_PATHS))
+                for step in demo.RANK_STEPS:
+                    shown = display[f"{source['id']}_{step.lower()}"]
+                    self.assertEqual(shown["name_text"], source["ranks"][step]["name"])
+                    self.assertEqual(shown["description_text"], source["ranks"][step]["text"])
+
     def test_single_value_set_projects_all_effects_costs_and_coefficients(self):
         bolt = self.baseline.catalog.definition("active_snark_bolt")
         guard = self.baseline.catalog.definition("active_not_mad")
@@ -208,7 +221,8 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(bolt["effects"][0]["base"]["p2"], 800)
         self.assertEqual(bolt["effects"][0]["ap_ratio"]["bp"], 1250)
         self.assertEqual([effect["opcode"] for effect in bolt["effects"]], [1, 12])
-        self.assertEqual((bolt["mana_cost"]["p2"], bolt["cooldown"]["ms"]), (600, 3000))
+        self.assertEqual((bolt["momentum_cost"]["p2"], bolt["cooldown"]["ms"]), (600, 3000))
+        self.assertEqual((bolt["element"], bolt["hit_type"]), ("none", "projectile"))
         self.assertEqual(guard["effects"][0]["base"]["p2"], 2000)
         self.assertEqual([effect["opcode"] for effect in guard["effects"]], [2, 37, 3])
         self.assertEqual(snare["effects"][1]["duration"]["ms"], 250)
@@ -226,7 +240,7 @@ class DemoContentImport(unittest.TestCase):
                          {"stat_physique": 27, "stat_thick_skin": 28, "stat_strength": 29, "stat_brains": 30, "stat_agility": 31})
         brains = self.baseline.catalog.definition("stat_brains")["per_point"]
         self.assertEqual((brains["APFlat"]["p2"], brains["CooldownHasteFlat"]["p2"]), (400, 200))
-        self.assertEqual(brains["MPRegenFlat"], {"unit": "mp/s", "numerator": 1, "denominator": 4})
+        self.assertEqual(brains["MomentumRegenFlat"], {"unit": "momentum/s", "numerator": 1, "denominator": 4})
         self.assertEqual(self.baseline.catalog.definition("stat_agility")["per_point"]["MoveSpeedBonusRatio"], {"unit": "ratio", "bp": 100})
         self.assertEqual(data["progression"]["active_offer_levels"], (4, 9))
         self.assertFalse({"max_choices", "max_skill_rank", "opening_offer", "reroll_levels"} & set(data["progression"]))
@@ -241,7 +255,7 @@ class DemoContentImport(unittest.TestCase):
         baseline_bytes = (self.root / demo.CONTENT_SOURCE).read_bytes()
         changes = 0
         for ability_index in range(len(self.author["abilities"])):
-            for field, amount, output_field in (("mana_cost", 1, "p2"), ("cooldown", 1, "ms")):
+            for field, amount, output_field in (("momentum_cost", 1, "p2"), ("cooldown", 1, "ms")):
                 with self.subTest(ability=ability_index, field=field):
                     (self.root / demo.CONTENT_SOURCE).write_bytes(baseline_bytes)
                     self.edit(lambda data: data["abilities"][ability_index][field].update(
@@ -408,7 +422,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),
             lambda data: data["parameters"]["STAT.BaseAttackSpeed"].update(value=0),
             lambda data: data["abilities"][0]["target"].update(projectile_speed={"unit": "cm/s", "value": -1}),
-            lambda data: data["abilities"][0]["mana_cost"].update(value=-1),
+            lambda data: data["abilities"][0]["momentum_cost"].update(value=-1),
             lambda data: data["parameters"]["GROWTH.BuildSafeWindowSec"].update(value=0.0001),
             lambda data: data["stats"][0]["per_point"]["HPRegenFlat"].update(unit="mp/s"),
         )
@@ -514,13 +528,16 @@ class DemoContentImport(unittest.TestCase):
 
     def test_single_value_set_shape_refuses_ranks_kinds_and_missing_values(self):
         for mutation in (
-            lambda data: data["abilities"][0].pop("mana_cost"),
+            lambda data: data["abilities"][0].pop("momentum_cost"),
+            lambda data: data["abilities"][0].pop("element"),
+            lambda data: data["abilities"][0].update(element="plasma"),
+            lambda data: data["abilities"][0].update(hit_type="beam"),
             lambda data: data["abilities"][0].pop("cooldown"),
             lambda data: data["abilities"][0].pop("effects"),
             lambda data: data["abilities"][0].update(effects=[]),
             lambda data: data["abilities"][0]["cooldown"].update(value=0),
             lambda data: data["abilities"][0].update(kind="active"),
-            lambda data: data["abilities"][0].update(ranks=[{"rank": 1, "mana_cost": data["abilities"][0]["mana_cost"],
+            lambda data: data["abilities"][0].update(ranks=[{"rank": 1, "momentum_cost": data["abilities"][0]["momentum_cost"],
                                                              "cooldown": data["abilities"][0]["cooldown"],
                                                              "effects": data["abilities"][0]["effects"]}]),
         ):
@@ -550,25 +567,28 @@ class DemoContentImport(unittest.TestCase):
         added = [
             {"id": "active_hose_down", "opening": False, "cooldown_family": "cd_hose_down", "windup": q("s", 0.25),
              "target": {"mode": "DirectionLine", "range": q("cm", 300), "half_width": q("cm", 40)},
-             "mana_cost": q("mp", 5), "cooldown": q("s", 6),
+             "element": "water", "hit_type": "area",
+             "momentum_cost": q("momentum", 5), "cooldown": q("s", 6),
              "effects": [deepcopy(damage), {"op": "knockback", "distance": q("cm", 100), "duration": q("s", 0.125)}, {"op": "wet"}]},
             {"id": "active_charged_ram", "opening": False, "cooldown_family": "cd_charged_ram", "windup": q("s", 0),
-             "target": {"mode": "DirectionDash"}, "mana_cost": q("mp", 5), "cooldown": q("s", 8),
+             "target": {"mode": "DirectionDash"}, "element": "shock", "hit_type": "dash", "momentum_cost": q("momentum", 5), "cooldown": q("s", 8),
              "effects": [{"op": "dash", "distance": q("cm", 200), "duration": q("s", 0.25)},
                          {"op": "shield", "base": q("hp", 10), "ap_ratio": q("ratio", 0), "duration": q("s", 1)},
                          {"op": "dash_contact", "targets": "Every"}, deepcopy(damage), {"op": "electrify"}]},
             {"id": "active_brace", "opening": False, "cooldown_family": "cd_brace", "windup": q("s", 0),
-             "target": {"mode": "Self"}, "mana_cost": q("mp", 5), "cooldown": q("s", 9),
+             "target": {"mode": "Self"}, "element": "none", "hit_type": "self", "momentum_cost": q("momentum", 5), "cooldown": q("s", 9),
              "effects": [{"op": "brace", "duration": q("s", 2), "ratio": q("ratio", 0.25), "limit": q("points", 40),
                           "radius": q("cm", 150), "base": q("points", 10), "record_ratio": q("ratio", 0.5)}]},
             {"id": "active_dirty_puddle", "opening": False, "cooldown_family": "cd_dirty_puddle", "windup": q("s", 0.25),
-             "target": {"mode": "GroundPoint", "range": q("cm", 400)}, "mana_cost": q("mp", 5), "cooldown": q("s", 9),
+             "target": {"mode": "GroundPoint", "range": q("cm", 400)}, "element": "water", "hit_type": "area", "momentum_cost": q("momentum", 5), "cooldown": q("s", 9),
              "effects": [{"op": "zone", "radius": q("cm", 150), "duration": q("s", 2), "interval": q("s", 1),
                           "delay": q("s", 0), "count": 2},
                          {"op": "zone_damage", "base": q("points", 3), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1),
                           "damage_type": "Magical"},
                          {"op": "zone_wet"}, {"op": "zone_haste", "ratio": q("ratio", 0.1)}]},
         ]
+        for index, row in enumerate(added):
+            row["ranks"] = simple_ranks(10 + index)
         author = deepcopy(self.author)
         author["abilities"].extend(added)
         author["display"].extend({"id": row["id"], "namespace": "DemoContent", "name_key": row["id"] + ".name",
@@ -585,7 +605,7 @@ class DemoContentImport(unittest.TestCase):
             return next(effect for effect in ability(data, identity)["effects"] if effect["op"] == op)
 
         for mutation, code in (
-            (lambda d: ability(d, "active_dirty_puddle")["effects"].append({"op": "wet"}), "TargetEffectMismatch"),
+            (lambda d: ability(d, "active_dirty_puddle")["effects"].append({"op": "wet"}), "MissingHandler"),
             (lambda d: ability(d, "active_dirty_puddle")["effects"].pop(2), "MissingHandler"),
             (lambda d: first(d, "active_dirty_puddle", "zone_haste")["ratio"].update(value=1), "NumericDomain"),
             (lambda d: first(d, "active_brace", "brace")["ratio"].update(value=1), "NumericDomain"),
@@ -674,7 +694,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["GROWTH.BuildSafeWindowSec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"].update({"GROWTH.PointsPerLevel": demo.INT64_MAX}), "NumericOverflow"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
-            (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0.0155), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
             # #198 rest phases: PK sign-up is the tail of every build window; retired timeline keys stay rejected.

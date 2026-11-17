@@ -1,9 +1,10 @@
 """Strict Demo author projection and file-byte identity; never supplies gameplay defaults."""
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal, DecimalException
+from decimal import Context, Decimal, DecimalException, Inexact, localcontext
 from fractions import Fraction
 import hashlib
+from copy import deepcopy
 import json
 from pathlib import Path
 import re
@@ -49,16 +50,29 @@ NATIVE_ENUMS = {
 # unused ops).
 RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29]],
-                  "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [38, 39],
-                                 [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
+                  "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [36, 36],
+                                 [38, 39], [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
+# The operations only a skill branch adds to an active (issue #287 spec §5.1); rank 1 never carries them.
+BRANCH_OPS = frozenset(("vulnerable", "next_basic_amp", "momentum_gain", "momentum_steal", "follow_up", "recast", "dash_back",
+                        "self_buff", "burn_burst", "pulse", "zone_guard", "zone_momentum", "overcharge", "follow_basic",
+                        "shield_burst_break", "basic_rider", "delayed_burst", "shield_reflect", "shield_end_heal",
+                        "shield_hit_bonus", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield",
+                        "projectile_zone"))
+# Workshop mod operations a skill branch may also give an active: the branch's own terms reuse the mod's handler.
+BRANCH_MOD_OPS = frozenset(("pull", "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
+                            "empower_reach"))
+# The rank-step order of an ability's ranks and the steps each branch path applies over the level-1 definition.
+RANK_STEPS = ("2A", "3A1", "3A2", "2B", "3B1", "3B2")
+BRANCH_PATHS = {"A": ("2A",), "B": ("2B",), "A1": ("2A", "3A1"), "A2": ("2A", "3A2"), "B1": ("2B", "3B1"), "B2": ("2B", "3B2")}
+STEP_PATH = {"2A": "A", "2B": "B", "3A1": "A1", "3A2": "A2", "3B1": "B1", "3B2": "B2"}
 # Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
 # #198 base components; no active may use them.
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
                        "control_damage_amp", "taunt", "disarm", "stun", "empower_basic", "thorns",
-                       "cooldown_refund", "triggered_shield", "nth_basic_bonus", "mana_on_hit", "dispel_slow",
+                       "cooldown_refund", "triggered_shield", "nth_basic_bonus", "dispel_slow",
                        "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
                        "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
@@ -68,24 +82,26 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        *("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
                          "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
                          "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
-                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_mana",
+                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_momentum",
                          "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base", "compress_chain",
                          "projectile_return", "projectile_pierce", "chain_extra", "echo_impact"),
                        # Skill rules on native direct hits (B13-B15).
                        "cast_hit_refund", "distance_amp", "alternate_amp",
                        # Connectors C13-C16.
-                       "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_mana",
+                       "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_momentum",
                        # Mods M16-M20 and connectors C17-C21.
                        "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
-                       "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
+                       "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate",
+                       # Skill branch operations (issue #287 spec §5.1).
+                       *BRANCH_OPS))
 # #198 F: the operations of mods (M01-M20) and connectors (C01-C21); they act on the install target the component names.
 WORKSHOP_OPS = frozenset(("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
                           "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
                           "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
                           "fire_shield", "knockback_impact", "dash_contact_refund", "contact_knockback", "control_mark",
-                          "aftershock", "control_mana", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
+                          "aftershock", "control_momentum", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
                           "extra_base", "compress_chain", "projectile_return", "projectile_pierce", "chain_extra", "echo_impact",
-                          "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_mana",
+                          "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_momentum",
                           "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
                           "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
 # #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
@@ -94,7 +110,7 @@ COMPONENT_OPS = frozenset(("burn", "breach", "empower_basic", "ledger", "thorns"
                            "nth_basic_bonus", "control_damage_amp", "triggered_shield", "basic_element", "stat_bonus",
                            "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element",
                            "cast_hit_refund", "distance_amp", "alternate_amp", *WORKSHOP_OPS))
-COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"}
+COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"} - BRANCH_MOD_OPS
 ELEMENTS = ("fire", "water", "electric")
 CATEGORY_KEYS = ("base", "mod", "connector")
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
@@ -107,9 +123,9 @@ AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach"
 ZONE_PAYLOAD_OPS = frozenset(("zone_slow", "zone_damage", "zone_burn", "zone_wet"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 # Every bonus stat name; a card placeholder may read one stat of its effect.
-STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
+STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                          "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
-                         "ADBonusRatio", "HPRegenFlat", "APBonusRatio", "MPRegenFlat"))
+                         "ADBonusRatio", "HPRegenFlat", "APBonusRatio", "MomentumRegenFlat"))
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
@@ -262,8 +278,8 @@ SCHEMA_KEYS = frozenset(("$schema", "$defs", "$ref", "title", "description", "ty
                          "items", "minItems", "maxItems", "minLength", "maxLength", "pattern",
                          "minimum", "maximum", "exclusiveMinimum", "minProperties", "x-quantity"))
 QUANTITY_UNITS = {
-    "P2": frozenset(("hp", "mp", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
-    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s", "degrees")),
+    "P2": frozenset(("hp", "momentum", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
+    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "momentum/s", "degrees")),
 }
 
 
@@ -539,7 +555,7 @@ _PAIRED_FIELDS = {
     "triggered_shield": (("burst_ratio", "burst_radius"),),
     "channel_cone": (("slow", "slow_duration"),),
     "dash_contact_damage": (("slow", "slow_duration"),),
-    "dash_contact_refund": (("mana_ratio", "mana_cap"),),
+    "dash_contact_refund": (("momentum_ratio", "momentum_cap"),),
     "primary_guard": (("slow_resistance", "duration"),),
 }
 
@@ -572,13 +588,13 @@ def _validate_new_effect(effect, path):
     if effect["op"] == "dash_contact_damage":
         require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
                 "IneffectiveEffect", path, "additional damage needs magnitude or scaling")
-    for field in ("slow", "slow_resistance", "mana_ratio"):
+    for field in ("slow", "slow_resistance", "momentum_ratio"):
         if field in effect and effect["op"] in ("channel_cone", "dash_contact_damage", "primary_guard", "dash_contact_refund"):
             require(0 < quantity(effect[field]) < 1, "NumericDomain", path, f"{field} must be a positive fraction")
     if effect["op"] == "primary_guard":
         require(quantity(effect["base"]) > 0, "IneffectiveEffect", path, "cap must be positive")
-    if effect["op"] == "dash_contact_refund" and "mana_cap" in effect:
-        require(quantity(effect["mana_cap"]) > 0, "IneffectiveEffect", path, "mana cap must be positive")
+    if effect["op"] == "dash_contact_refund" and "momentum_cap" in effect:
+        require(quantity(effect["momentum_cap"]) > 0, "IneffectiveEffect", path, "momentum cap must be positive")
     # #198 session A (CONTENT_AND_BALANCE §4.2).
     if effect["op"] in ("chain_bounce", "brace", "zone_haste", "grievous"):
         require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
@@ -595,17 +611,24 @@ def _validate_action(target, effects, path):
     allowed = {
         "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt", "stun",
                            "knockback", *HOSTILE_OPS, "silence", "breach", "burn", "empower_basic", *ELEMENT_OPS,
-                           "brace")),
+                           "brace", "vulnerable", "momentum_gain", "pulse", "burn_burst", "self_buff", "basic_rider",
+                           "shield_reflect", "shield_end_heal", "shield_hit_bonus", "brace_stun", "brace_heal", "brace_stack",
+                           "brace_shove", "brace_shield", "pull")),
         "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "silence", "breach", "burn", "knockback",
-                           *ELEMENT_OPS, "chain_bounce", "grievous")),
+                           *ELEMENT_OPS, "chain_bounce", "grievous", "vulnerable", "next_basic_amp", "momentum_gain",
+                           "momentum_steal", "follow_up", "recast", "dash_back", "self_buff", "pull", "overcharge")),
         "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "attack_slow", *ELEMENT_OPS,
-                                          "grievous")),
-        "DirectionLine": frozenset(("damage", "knockback", "slow", "burn", *ELEMENT_OPS)),
+                                          "grievous", "knockback", "pull", "projectile_return", "projectile_pierce",
+                                          "next_basic_amp", "projectile_zone")),
+        "DirectionLine": frozenset(("damage", "knockback", "slow", "burn", *ELEMENT_OPS, "pull", "vulnerable", "momentum_gain")),
         "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "zone", "zone_damage",
-                                    *HOSTILE_OPS, "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS)),
+                                    *HOSTILE_OPS, "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS,
+                                    "vulnerable", "follow_basic", "recast", "momentum_gain", "delayed_burst", "basic_rider",
+                                    "shield_burst_break", "empower_reach", "final_knockback")),
         "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
-                                  "ground_impact", "contact_trap", "damage", "root", "slow")),
-        "DirectionCone": frozenset(("channel_cone", "damage")),
+                                  "ground_impact", "contact_trap", "damage", "root", "slow", "burn", "knockback", *ELEMENT_OPS,
+                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain")),
+        "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence")),
     }[mode]
     ops = _effect_set(effects, path)
     require(not ops & COMPONENT_ONLY_OPS, "ComponentOnlyEffect", path,
@@ -620,8 +643,26 @@ def _validate_action(target, effects, path):
         require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
     require(mode != "DirectionDash" or not ops & ELEMENT_OPS or "dash_contact" in ops, "TargetEffectMismatch", path,
             "a dash attaches its element to the bodies it actually touches")
-    require("brace" not in ops or ops == {"brace"}, "TargetEffectMismatch", path,
-            "a brace is the whole action: it delivers nothing else")
+    require("brace" not in ops or ops <= {"brace", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield"},
+            "TargetEffectMismatch", path, "a brace is the whole action: it delivers nothing else")
+    require(not ops & {"brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield"} or "brace" in ops,
+            "MissingHandler", path, "brace terms need their brace")
+    require(not ops & {"shield_reflect", "shield_end_heal", "shield_hit_bonus", "shield_burst_break"} or "shield" in ops,
+            "MissingHandler", path, "shield terms need their shield")
+    require("shield_hit_bonus" not in ops or "self_area" in ops, "MissingHandler", path, "a shield hit bonus needs a self area")
+    require(not ops & {"zone_tether", "zone_guard", "zone_momentum"} or "zone" in ops, "MissingHandler", path,
+            "zone terms need their zone")
+    require("echo_impact" not in ops or "ground_impact" in ops, "MissingHandler", path, "an echo repeats a ground impact")
+    require("pull" not in ops or bool(ops & {"knockback", "taunt"}), "MissingHandler", path,
+            "a pull turns a knockback or a taunt toward the caster")
+    require(not ops & {"projectile_return", "projectile_pierce"} or mode == "DirectionProjectile", "MissingHandler", path,
+            "return and pierce change a projectile")
+    require(not ops & {"empower_reach", "final_knockback"} or bool(ops & {"empower_basic", "channel_cone"}), "MissingHandler",
+            path, "reach and final knockback change empowered basics or the last wave")
+    require("pulse" not in ops or "self_area" in ops, "MissingHandler", path, "a pulse repeats the self area")
+    require("burn_burst" not in ops or "burn" in ops, "MissingHandler", path, "a burn burst reads the burn it adds")
+    require("recast" not in ops or "damage" in ops, "MissingHandler", path, "a recast repeats a damaging release")
+    require("follow_basic" not in ops or "dash_contact" in ops, "MissingHandler", path, "a follow-up basic needs a contact")
     require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
     require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap"}) == 1,
             "MissingHandler", path, "a ground point needs exactly one delivery handler")
@@ -697,8 +738,8 @@ def _validate_component_effects(row, abilities, path):
         if op in ("control_damage_amp", "idle_ready_amp", "cast_hit_refund", "distance_amp", "alternate_amp", "setup_mark",
                   "stored_force", "control_widen", "zone_detonate"):
             require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "damage bonus must be positive")
-        if op == "multi_hit_mana":
-            require(0 < quantity(effect["mana"]) <= quantity(effect["mana_cap"]), "NumericDomain", path,
+        if op == "multi_hit_momentum":
+            require(0 < quantity(effect["momentum"]) <= quantity(effect["momentum_cap"]), "NumericDomain", path,
                     "a per-enemy refund must be positive and fit its per-release cap")
         if op in ("defense_shove", "final_knockback", "empower_reach", "pull"):
             require(quantity(effect["distance" if op != "empower_reach" else "range"]) > 0, "NumericDomain", path,
@@ -862,7 +903,7 @@ STAT_CONTRACTS = {
     "stat_physique": {"MaxHPFlat", "HPRegenFlat"},
     "stat_thick_skin": {"ArmorFlat", "MagicResistFlat"},
     "stat_strength": {"ADFlat", "CritChanceBonusRatio"},
-    "stat_brains": {"APFlat", "CooldownHasteFlat", "MPRegenFlat"},
+    "stat_brains": {"APFlat", "CooldownHasteFlat", "MomentumRegenFlat"},
     "stat_agility": {"AttackSpeedBonusRatio", "MoveSpeedBonusRatio"},
 }
 # The opening opportunity draws this many distinct actives from the opening pool.
@@ -905,6 +946,13 @@ def validate_definitions(data, ids):
                         if effect["op"] == "timed_stat_bonus"), "UnknownField", identity, "wrong timed stat")
         family = "cd_" + identity.removeprefix("active_")
         require(ability["cooldown_family"] == family, "InvalidReference", identity, "wrong cooldown family")
+        require(not _effect_set(ability["effects"], identity) & (BRANCH_OPS | BRANCH_MOD_OPS), "BranchOnlyEffect", identity,
+                "rank 1 carries no branch operation")
+        require([branch["path"] for branch in ability["branches"]] == list(BRANCH_PATHS), "BranchSet", identity,
+                "an active has exactly the six branch paths")
+        for branch in ability["branches"]:
+            branch_path = f"{identity}.branches.{branch['path']}"
+            _validate_action(branch["target"], branch["effects"], branch_path)
     require(sum(1 for row in data["abilities"] if row["opening"]) >= OPENING_OFFER_SIZE, "OpeningPool", "abilities",
             "the opening opportunity needs three distinct actives in the opening pool")
     stats = rows_by_id(data["stats"], "stats")
@@ -943,14 +991,16 @@ def validate_definitions(data, ids):
             effect["opcode"] = ids["effect_ops"][effect["op"]]
 
     display = rows_by_id(data["display"], "display")
-    expected_display = all_ids | set(ids["statuses"])
+    branch_display = {f"{row['id']}_{step.lower()}": (row, step) for row in data["abilities"] for step in RANK_STEPS}
+    expected_display = all_ids | set(ids["statuses"]) | set(branch_display)
     require(set(display) == expected_display, "DisplayReference", "display", "missing or extra display definition")
     abilities = rows_by_id(data["abilities"], "abilities")
     components = rows_by_id(data["components"], "components")
     names = set()
     for identity, row in display.items():
+        icon = "icon_" + branch_display[identity][0]["id"] if identity in branch_display else "icon_" + identity
         require(row["name_key"] == identity + ".name" and row["description_key"] == identity + ".description"
-                and row["icon_id"] == "icon_" + identity, "DisplayReference", identity, "non-canonical display reference")
+                and row["icon_id"] == icon, "DisplayReference", identity, "non-canonical display reference")
         if identity == data["character"]["id"]:
             require(row.get("portrait_icon_id") == "portrait_" + identity,
                     "DisplayReference", identity, "missing character portrait")
@@ -968,6 +1018,10 @@ def validate_definitions(data, ids):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
         if identity in abilities:
             card_template(row["description_text"], abilities[identity]["effects"], f"{identity}.description_text")
+        elif identity in branch_display:
+            ability, step = branch_display[identity]
+            variant = next(branch for branch in ability["branches"] if branch["path"] == STEP_PATH[step])
+            card_template(row["description_text"], variant["effects"], f"{identity}.description_text")
         elif identity in components:
             card_template(row["description_text"], components[identity]["effects"], f"{identity}.description_text")
         elif identity in stats:
@@ -979,7 +1033,7 @@ def validate_definitions(data, ids):
 
 CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
                          "secondary_ratio", "secondary_duration", "basic_count", "refund", "burst", "limit",
-                         "multiplier", "angle", "cost_ratio"))
+                         "multiplier", "angle", "cost_ratio", "extra_duration"))
 CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
 # A stat card names one bonus of its single point: [per_point.<Stat>].
 PER_POINT = "per_point"
@@ -1021,19 +1075,82 @@ def display_text(text, path, allow_digits):
 
 def all_effects(row):
     yield from row.get("effects", [])
+    for branch in row.get("branches", []):
+        yield from branch["effects"]
+
+
+def _patch_effect(variant, op, path):
+    found = [effect for effect in variant["effects"] if effect["op"] == op]
+    require(len(found) == 1, "PatchTarget", path, f"patch names {op}, which the definition does not hold exactly once")
+    return found[0]
+
+
+def apply_patch(variant, patch, path):
+    """One registered branch patch on an author-form definition (target, set, scale, add, remove, cooldown). Patch arithmetic
+    is exact whatever the caller's decimal context: an inexact product or sum is refused, never rounded."""
+    with localcontext(Context(prec=200, traps=[Inexact])):
+        try:
+            _apply_patch(variant, patch, path)
+        except Inexact:
+            raise ContentError("PrecisionLoss", path, "a branch patch would round an author value") from None
+
+
+def _apply_patch(variant, patch, path):
+    kind = patch["op"]
+    if kind == "target":
+        fields = {key: deepcopy(value) for key, value in patch.items() if key != "op"}
+        if "mode" in fields:
+            variant["target"] = fields
+        else:
+            require(set(fields) <= set(variant["target"]) - {"mode"}, "PatchTarget", path,
+                    "a target patch changes fields the target form has")
+            variant["target"].update(fields)
+    elif kind == "set":
+        effect = _patch_effect(variant, patch["effect"], path)
+        require(patch["field"] != "op", "PatchTarget", path, "a patch cannot rename an operation")
+        effect[patch["field"]] = deepcopy(patch["value"])
+    elif kind == "scale":
+        effect = _patch_effect(variant, patch["effect"], path)
+        for field in patch["fields"]:
+            value = effect.get(field)
+            require(type(value) is dict and "value" in value, "PatchTarget", path, f"{patch['effect']}.{field} is no quantity")
+            effect[field] = {"unit": value["unit"], "value": value["value"] * patch["ratio"]}
+    elif kind == "add":
+        require(not any(effect["op"] == patch["effect"]["op"] for effect in variant["effects"]), "DuplicateEffect", path,
+                f"{patch['effect']['op']} is already there")
+        variant["effects"].append(deepcopy(patch["effect"]))
+    elif kind == "remove":
+        variant["effects"].remove(_patch_effect(variant, patch["effect"], path))
+    elif kind == "cooldown":
+        variant["cooldown"] = {"unit": variant["cooldown"]["unit"], "value": variant["cooldown"]["value"] + patch["add"]["value"]}
+    else:
+        raise ContentError("UnknownPatch", path, f"unregistered patch {kind}")
+
+
+def resolve_branches(ability):
+    """The six branch variants of an author-form ability: each applies its rank steps' patches over the level-1 definition."""
+    out = []
+    for name, steps in BRANCH_PATHS.items():
+        variant = {key: deepcopy(ability[key]) for key in ("target", "windup", "element", "hit_type", "momentum_cost", "cooldown",
+                                                           "effects")}
+        for step in steps:
+            for index, patch in enumerate(ability["ranks"][step]["patches"]):
+                apply_patch(variant, patch, f"{ability['id']}.ranks.{step}.patches[{index}]")
+        out.append({"path": name, **variant})
+    return out
 
 
 def validate_numbers(data):
     params = data["parameters"]
     p = lambda key: quantity(params[key])
     level_steps = data["progression"]["max_level"] - 1
-    for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen"):
+    for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
         key = "STAT." + stat
         minimum, maximum = p(key + ".Min"), p(key + ".Max")
         base, growth = p(key + ".Base"), p(key + ".PerLevel")
         require(minimum <= base <= base + level_steps * growth <= maximum,
                 "StatBounds", key, "base/level growth is outside the declared projection bounds")
-        if stat not in ("HPRegen", "MPRegen"):
+        if stat != "HPRegen":
             checked_add(params[key + ".Base"]["p2"], checked_mul(level_steps, params[key + ".PerLevel"]["p2"], key), key)
     require(p("STAT.MaxHP.Min") > 0 and p("STAT.MaxHP.Base") > 0,
             "NumericDomain", "STAT.MaxHP", "alive characters require positive HP")
@@ -1069,8 +1186,7 @@ def validate_numbers(data):
             and unlock <= p("SHOWDOWN.ClosureStartsSec") < duration
             and params["SHOWDOWN.RespawnLimit"] <= 2,
             "InvalidTiming", "SHOWDOWN", "objective, respawn cutoff, closure and terminal clocks are inconsistent")
-    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
-                "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec"):
+    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "DORM.MaxHPRatioPerSec"):
         # A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate.
         require(params[key]["bp"] > 0 and params[key]["bp"] % 10 == 0, "NumericDomain", key,
                 "out-of-combat recovery must be a positive multiple of 0.001 of the maximum per second")
@@ -1105,9 +1221,9 @@ def validate_numbers(data):
             "fog pulses must fall inside the fog")
     require(params["COMBAT.OverloadBreachStacks"] <= params["COMBAT.BreachMaxStacks"], "NumericDomain",
             "COMBAT.OverloadBreachStacks", "overload cannot apply more breach stacks than the breach cap")
-    require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.ManaMaxMPRatio") > 0
+    require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.Momentum") > 0
             and p("AIRDROP.MoveSpeedRatio") > 0 and p("AIRDROP.MoveSpeedSec") > 0,
-            "InvalidPolicy", "AIRDROP", "healing, mana and move-speed rewards must all be positive")
+            "InvalidPolicy", "AIRDROP", "healing, momentum and move-speed rewards must all be positive")
     # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
     require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
             "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
@@ -1119,6 +1235,8 @@ def validate_numbers(data):
     for key in ("PK.RingDamageEarlyMaxHPRatioPerSec", "PK.RingDamageMidMaxHPRatioPerSec",
                 "PK.RingDamageFinalMaxHPRatioPerSec", "THROW.SlowRatio"):
         require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage and throw slow must be positive")
+
+    _validate_momentum(data)
 
     thresholds = [0]
     for level in range(1, data["progression"]["max_level"]):
@@ -1168,7 +1286,7 @@ def validate_numbers(data):
                 "camp perception (leash radius) exceeds VISION.RadiusCm, the sight range that supplies its candidates")
         interval = ceil_fraction(1000 / quantity(monster["attack_speed"]), path)
         require(monster["attack_windup"]["ms"] < interval, "InvalidTiming", path, "windup exceeds attack interval")
-        for field in ("hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"):
+        for field in ("hp_regen", "ap", "crit_chance"):
             require(quantity(monster[field]) == 0, "UnsupportedMonster", path,
                     f"{field} requires a different monster handler contract")
         checked_mul(monster["count_per_camp"], monster["reward_xp"], path)
@@ -1213,6 +1331,36 @@ def validate_numbers(data):
     _validate_build_envelope(data)
 
 
+def _validate_momentum(data):
+    """Momentum, combo, overdrive and skill ranks (CONTENT_AND_BALANCE §3.3-§3.6)."""
+    params = data["parameters"]
+    p = lambda key: quantity(params[key])
+    top = p("MOMENTUM.Max")
+    require(0 < p("MOMENTUM.Start") <= top and 0 < p("OVERDRIVE.Threshold") <= top, "NumericDomain", "MOMENTUM",
+            "the start and the overdrive threshold must lie in (0, max]")
+    for key in ("MOMENTUM.CombatPerSec", "MOMENTUM.IdleReturnPerSec", "MOMENTUM.BasicPerRefInterval", "MOMENTUM.SkillHit",
+                "MOMENTUM.Reaction", "MOMENTUM.PerfectDodge", "AIRDROP.Momentum"):
+        require(0 < p(key) <= top, "NumericDomain", key, "a momentum income must be positive and fit the bar")
+    require(params["MOMENTUM.BasicRefIntervalSec"]["ms"] > 0, "NumericDomain", "MOMENTUM.BasicRefIntervalSec",
+            "the reference interval must be positive")
+    ratios = [quantity(value) for value in params["COMBO.StepRatios"]]
+    require(all(ratio > 0 for ratio in ratios), "NumericDomain", "COMBO.StepRatios", "every combo step deals damage")
+    require(p("OVERDRIVE.Scale") >= 1 and p("OVERDRIVE.RotDurationScale") >= 1, "NumericDomain", "OVERDRIVE",
+            "overdrive never weakens a release")
+    require(0 < p("OVERDRIVE.WaterSlow") < 1, "NumericDomain", "OVERDRIVE.WaterSlow", "a slow must keep some move speed")
+    base_scales = [quantity(value) for value in params["SKILL.RankBaseScale"]]
+    ratio_scales = [quantity(value) for value in params["SKILL.RankRatioScale"]]
+    require(base_scales[0] == 1 and ratio_scales[0] == 1 and base_scales == sorted(base_scales)
+            and ratio_scales == sorted(ratio_scales), "NumericDomain", "SKILL.Rank",
+            "rank 1 is the authored value set and higher ranks never weaken it")
+    levels = params["SKILL.PointLevels"]
+    require(levels == sorted(set(levels)) and all(2 <= level <= data["progression"]["max_level"] for level in levels),
+            "NumericDomain", "SKILL.PointLevels", "skill point levels are distinct, ascending and reachable")
+    require(len(levels) <= 2 * data["progression"]["active_slots"], "NumericDomain", "SKILL.PointLevels",
+            "no more skill points than ranks to buy")
+    require(params["SKILL.CooldownFloorSec"]["ms"] > 0, "NumericDomain", "SKILL.CooldownFloorSec", "the floor must be positive")
+
+
 def _validate_build_envelope(data):
     # Every attribute clamps to its catalog bounds in the projection (#112 §4), so stat points are never refused;
     # what remains is that every damage or shield term stays inside int64 at the extreme attributes.
@@ -1220,15 +1368,12 @@ def _validate_build_envelope(data):
     max_ad = params["STAT.AD.Max"]["p2"]
     max_ap = params["STAT.AP.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
-    # #166: levels 2..10 grow by the first step, levels 11..16 by the second.
+    # G(L) = 1 + SKILL.GrowthPerLevel x (L - 1); the top rank and overdrive scale the grown base amounts again.
     top_level = data["progression"]["max_level"]
-    first_steps = min(max(top_level - 1, 0), 9)
-    later_steps = max(top_level - 10, 0)
-    factor = checked_add(10000, checked_mul(first_steps, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
+    factor = checked_add(10000, checked_mul(top_level - 1, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
                          "SKILL.GrowthPerLevel")
-    factor = checked_add(factor, checked_mul(later_steps, params["SKILL.GrowthPerLevelAfter10"]["bp"],
-                                            "SKILL.GrowthPerLevelAfter10"), "SKILL.GrowthPerLevelAfter10")
-    grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
+    rank_factor = checked_mul(params["SKILL.RankBaseScale"][-1]["bp"], params["OVERDRIVE.Scale"]["bp"], "SKILL.RankBaseScale")
+    grow = lambda amount, path: checked_mul(checked_mul(amount, factor, path) // 10000, rank_factor, path) // 100000000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
     # #198 reaction R = Base + (L - 1) x PerLevel + APRatio x AP; it never grows with G.
@@ -1246,8 +1391,7 @@ def _validate_build_envelope(data):
     for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
-            if effect["op"] != "mana_on_hit":
-                base = grow(base, row["id"])
+            base = grow(base, row["id"])
             if effect["op"] == "timed_stat_bonus":
                 for stat in effect.get("stats", {}).values():
                     for storage in ("p2", "bp"):
@@ -1432,6 +1576,35 @@ def _sort_definitions(data, fields):
         fields[source] = tuple(mapped)
 
 
+def project_author(schema, author, fields=None):
+    """The typed projection of a validated author document: each ability's rank steps resolve into its six branch variants
+    (projected like an ability's own values) and the steps' names and one-line texts become display rows."""
+    fields = {} if fields is None else fields
+    # Branch values are compiled from the rank steps, not copied from one author leaf, so they stay out of the leaf map.
+    derived = {}
+    projected_author = deepcopy(author)
+    rank_display = []
+    branches = []
+    for index, ability in enumerate(projected_author["abilities"]):
+        resolved = resolve_branches(ability)
+        for branch in resolved:
+            schema.validate(branch, schema.schema["$defs"]["branch"], f"content.abilities[{index}].branches.{branch['path']}")
+        branches.append([schema.project(branch, schema.schema["$defs"]["branch"],
+                                        f"content.abilities[{index}].branches[{position}]", derived)
+                         for position, branch in enumerate(resolved)])
+        for step in RANK_STEPS:
+            identity = f"{ability['id']}_{step.lower()}"
+            rank_display.append({"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
+                                 "name_text": ability["ranks"][step]["name"], "description_key": identity + ".description",
+                                 "description_text": ability["ranks"][step]["text"], "icon_id": "icon_" + ability["id"]})
+        del ability["ranks"]
+    data = schema.project(projected_author, fields=fields)
+    for ability, resolved in zip(data["abilities"], branches):
+        ability["branches"] = resolved
+    data["display"].extend(rank_display)
+    return data
+
+
 def compile_author(root=ROOT):
     root = Path(root)
     inputs = {relative: read_bytes(root, relative) for relative in AUTHOR_INPUT_PATHS}
@@ -1445,7 +1618,7 @@ def compile_author(root=ROOT):
     ids = parse_json(inputs[IDS_SOURCE], IDS_SOURCE)
     validate_native_ids(root, ids)
     fields = {}
-    data = schema.project(author, fields=fields)
+    data = project_author(schema, author, fields)
     require(data["identity"]["schema_version"] == SCHEMA_VERSION
             and data["identity"]["handler_revision"] == HANDLER_REVISION
             and data["identity"]["projection_revision"] == PROJECTION_REVISION,

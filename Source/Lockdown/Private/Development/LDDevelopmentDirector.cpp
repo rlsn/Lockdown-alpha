@@ -91,7 +91,11 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
             && Command.PointCounts.IsEmpty() && bNoComponent;
     case ELDBuildCommandKind::ForgetActive:
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
-            && Command.PointCounts.IsEmpty() && bNoComponent;
+            && Command.PointCounts.IsEmpty() && bNoComponent && Command.Branch == ELDSkillBranch::None;
+    case ELDBuildCommandKind::RankUpSkill:
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
+            && Command.PointCounts.IsEmpty() && bNoComponent && Command.Branch != ELDSkillBranch::None
+            && uint8(Command.Branch) <= uint8(ELDSkillBranch::B2);
     case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible
@@ -474,7 +478,9 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         FLDActiveSlotView& Row = View.Actives.AddDefaulted_GetRef();
         Row.DefinitionId = Active.Id;
         Row.Slot = Active.Slot;
+        Row.Branch = Active.Branch;
     }
+    View.SkillPoints = LDProgression::SkillPoints(Definitions, Build);
     View.PendingBlueprints = Build.PendingBlueprints;
     View.ActiveOpportunitiesEarned = Progression.ActiveEarned;
     View.ActiveOpportunitiesConsumed = Progression.ActiveConsumed;
@@ -872,6 +878,16 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         }
         break;
     }
+    case ELDBuildCommandKind::RankUpSkill:
+    {
+        const ELDGrowthReason RankReason = LDProgression::ApplyRankUpSkill(Definitions, Build, Command.Slot, Command.Branch, Context,
+            NewBuild);
+        if (RankReason != ELDGrowthReason::None)
+        {
+            return Reject(RankReason);
+        }
+        break;
+    }
     case ELDBuildCommandKind::FinalMod:
     {
         Command.Option.Decode(Definition);
@@ -1015,6 +1031,14 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         Receipt.PointsSpent = Command.PointCounts;
     }
     Receipt.ForgottenId = Forgotten;
+    if (Command.Kind == ELDBuildCommandKind::RankUpSkill)
+    {
+        const int32 Ranked = Record->Build.ActiveInSlot(Command.Slot);
+        Receipt.DefinitionId = Ranked == INDEX_NONE ? NAME_None : Record->Build.Actives[Ranked].Id;
+        Receipt.LearnedSlot = Command.Slot;
+        Receipt.Branch = Command.Branch;
+    }
+    Receipt.SkillPointsAfter = LDProgression::SkillPoints(Definitions, Record->Build);
     Receipt.PointsRefunded = Refunded;
     Receipt.PointsAwarded = PointsAwarded;
     Receipt.NpcPointsPaid = NpcPaid;
@@ -1055,7 +1079,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             || Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle;
         const FName Card = bMaterial ? Receipt.ComponentId : Receipt.DefinitionId;
         const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
-            || Command.Kind == ELDBuildCommandKind::ForgetActive;
+            || Command.Kind == ELDBuildCommandKind::ForgetActive || Command.Kind == ELDBuildCommandKind::RankUpSkill;
         UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s reclaimed=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Card.IsNone() ? TEXT("-") : *Card.ToString(),
@@ -1086,6 +1110,12 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
                 GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), uint32(Record->Build.Level),
                 *FString::JoinBy(Record->Progression.Offer->Options, TEXT(","), [](FName Id) { return Id.ToString(); }));
         }
+    }
+    if (Command.Kind == ELDBuildCommandKind::RankUpSkill)
+    {
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_SKILL_RANK t=%lld contender=%s skill=%s slot=%s branch=%s rank=%u skill_points=%d"),
+            GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *Receipt.DefinitionId.ToString(), DevelopmentSlotName(Command.Slot),
+            LDSkillBranch::StepKey(Command.Branch), uint32(LDSkillBranch::RankOf(Command.Branch)), Receipt.SkillPointsAfter);
     }
     if (Command.Kind == ELDBuildCommandKind::FinalMod)
     {

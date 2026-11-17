@@ -74,7 +74,7 @@ bool Frame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, FLD
     if (!Test.TestTrue(TEXT("Level 1 bare projection succeeds"), Projected.IsSuccess())) { return false; }
     Self.Attributes = Projected.Value->Final;
     Self.HpP2 = Self.MaxHpP2 = Self.Attributes.MaxHPP2;
-    Self.MpP2 = Self.MaxMpP2 = Self.Attributes.MaxMPP2;
+    Self.MomentumP2 = 5000; Self.MaxMomentumP2 = 10000;
     Self.BuildRevision = 1;
     Out.Public.Phase = ELDMatchPhase::Development;
     Out.Public.NowMs = 20000;

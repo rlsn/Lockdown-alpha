@@ -25,15 +25,19 @@
       "type": "object", "additionalProperties": false,
       "required": [
         "STAT.MaxHP.Base", "STAT.MaxHP.PerLevel", "STAT.MaxHP.Min", "STAT.MaxHP.Max",
-        "STAT.MaxMP.Base", "STAT.MaxMP.PerLevel", "STAT.MaxMP.Min", "STAT.MaxMP.Max",
         "STAT.AD.Base", "STAT.AD.PerLevel", "STAT.AD.Min", "STAT.AD.Max",
         "STAT.AP.Base", "STAT.AP.PerLevel", "STAT.AP.Min", "STAT.AP.Max",
         "STAT.Armor.Base", "STAT.Armor.PerLevel", "STAT.Armor.Min", "STAT.Armor.Max",
         "STAT.MagicResist.Base", "STAT.MagicResist.PerLevel", "STAT.MagicResist.Min", "STAT.MagicResist.Max",
         "STAT.HPRegen.Base", "STAT.HPRegen.PerLevel", "STAT.HPRegen.Min", "STAT.HPRegen.Max",
-        "STAT.MPRegen.Base", "STAT.MPRegen.PerLevel", "STAT.MPRegen.Min", "STAT.MPRegen.Max",
         "STAT.BaseAttackSpeed", "STAT.AttackSpeedPerLevelRatio", "STAT.AttackSpeed.Min", "STAT.AttackSpeed.Max",
-        "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max", "SKILL.GrowthPerLevel", "SKILL.GrowthPerLevelAfter10",
+        "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max", "SKILL.GrowthPerLevel",
+        "SKILL.RankBaseScale", "SKILL.RankRatioScale", "SKILL.PointLevels", "SKILL.CooldownFloorSec",
+        "MOMENTUM.Max", "MOMENTUM.Start", "MOMENTUM.CombatPerSec", "MOMENTUM.BasicPerRefInterval", "MOMENTUM.BasicRefIntervalSec",
+        "MOMENTUM.SkillHit", "MOMENTUM.Reaction", "MOMENTUM.PerfectDodge", "MOMENTUM.PerfectDodgeWindowSec",
+        "MOMENTUM.IdleDelaySec", "MOMENTUM.IdleReturnPerSec", "COMBO.StepRatios", "COMBO.ResetSec",
+        "OVERDRIVE.Threshold", "OVERDRIVE.HoldSec", "OVERDRIVE.Scale", "OVERDRIVE.FireBurnStacks", "OVERDRIVE.WaterSlow",
+        "OVERDRIVE.WaterSlowSec", "OVERDRIVE.ShockReactionRatio", "OVERDRIVE.RotDurationScale", "OVERDRIVE.GustPushCm", "OVERDRIVE.GustPushSec",
         "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Min", "STAT.MoveSpeed.Max",
         "UNIT.CollisionRadiusCm", "UNIT.BasicAttackRangeCm", "STAT.AttackRange.Min", "STAT.AttackRange.Max",
         "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "CAPTURE.RadiusCm",
@@ -49,8 +53,8 @@
         "THROW.CooldownSec", "THROW.TelegraphSec", "THROW.RadiusCm", "THROW.RangeCm", "THROW.SlowRatio", "THROW.SlowSec",
         "THROW.ExposeSec",
         "LIFE.RespawnSec.Field1", "LIFE.RespawnSec.Field2", "LIFE.RespawnSec.Field3", "LIFE.ProtectionSec",
-        "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
-        "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec",
+        "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec",
+        "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec",
         "GROWTH.OpeningPoints", "GROWTH.PointsPerLevel", "GROWTH.MaxLevelPointsXP", "GROWTH.MaxLevelPoints",
         "GROWTH.NpcActivePoints", "GROWTH.ActiveSkipPoints", "GROWTH.NpcActiveSkipPoints", "GROWTH.BuildSafeWindowSec", "GROWTH.EmptyComponentPoolPoints",
         "GROWTH.FillGapPoints", "GROWTH.DismantleInputCount", "GROWTH.KeystoneThresholdPoints",
@@ -59,21 +63,21 @@
         "CAMP.GrowthStageSec", "CAMP.GrowthMaxStage", "CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage",
         "CAMP.GrowthResistPerStage", "CAMP.GrowthRewardXPRatioPerStage",
         "AIRDROP.LandSec", "AIRDROP.ExpireSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
-        "AIRDROP.RewardXP", "AIRDROP.HealMaxHPRatio", "AIRDROP.ManaMaxMPRatio", "AIRDROP.MoveSpeedRatio", "AIRDROP.MoveSpeedSec",
+        "AIRDROP.RewardXP", "AIRDROP.HealMaxHPRatio", "AIRDROP.Momentum", "AIRDROP.MoveSpeedRatio", "AIRDROP.MoveSpeedSec",
         "CAMPMARK.RevealSec",
         "LEADER.MinLevel", "LEADER.RefreshSec", "LEADER.CircleRadiusCm", "LEADER.CircleMaxOffsetCm",
         "XP.BaseToNext", "XP.IncreasePerLevel", "REWARD.PlayerXP.Base", "REWARD.PlayerXP.PerLevel",
         "REWARD.AssistWindowSec",
         "AI.RetreatHPRatio", "AI.ResumeFarmHPRatio", "AI.HighCampEntryHPRatio", "AI.HighCampReserveHPRatio", "AI.LowCampReserveHPRatio",
         "AI.CaptureReactionBudgetSec", "AI.DecisionIntervalSec", "AI.RetryPolicy.MaxAttempts",
-        "AI.RetryPolicy.InitialBackoffSec", "AI.RetryPolicy.MaxBackoffSec", "AI.ExploreRevisitIntervalSec", "AI.EngagementBudgetSec",
+        "AI.RetryPolicy.InitialBackoffSec", "AI.RetryPolicy.MaxBackoffSec", "AI.ExploreRevisitIntervalSec", "AI.EngagementBudgetSec", "AI.DodgeChance",
         "COMBAT.BreachPerStack", "COMBAT.BreachMaxStacks", "COMBAT.BreachSec",
         "COMBAT.BurnPerSec", "COMBAT.BurnAPRatioPerSec", "COMBAT.BurnTickSec", "COMBAT.BurnSec", "COMBAT.BurnMaxStacks",
         "COMBAT.LifestealCap", "COMBAT.KeystonePhysiqueHealToShieldRatio", "COMBAT.KeystonePhysiqueShieldMaxHPRatio",
         "COMBAT.KeystonePhysiqueShieldDurationSec", "COMBAT.KeystonePhysiqueIntervalSec",
         "COMBAT.KeystoneThickSkinGuardPoints", "COMBAT.KeystoneThickSkinGuardCapRatio",
         "COMBAT.KeystoneThickSkinIntervalSec", "COMBAT.KeystoneStrengthDamageRatio",
-        "COMBAT.KeystoneBrainsManaRefundRatio", "COMBAT.KeystoneAgilityDamageBase",
+        "COMBAT.KeystoneBrainsMomentumRefundRatio", "COMBAT.KeystoneAgilityDamageBase",
         "COMBAT.KeystoneAgilityADRatio", "COMBAT.KeystoneAgilityEmpowerDurationSec",
         "COMBAT.WetSec", "COMBAT.WetSlow", "COMBAT.ElectrifiedSec", "COMBAT.DischargeRadiusCm", "COMBAT.DischargeIntervalSec",
         "COMBAT.ReactionBase", "COMBAT.ReactionPerLevel", "COMBAT.ReactionAPRatio",
@@ -84,8 +88,6 @@
       "properties": {
         "STAT.MaxHP.Base": {"$ref": "#/$defs/hp"}, "STAT.MaxHP.PerLevel": {"$ref": "#/$defs/hp"},
         "STAT.MaxHP.Min": {"$ref": "#/$defs/hp"}, "STAT.MaxHP.Max": {"$ref": "#/$defs/hp"},
-        "STAT.MaxMP.Base": {"$ref": "#/$defs/mp"}, "STAT.MaxMP.PerLevel": {"$ref": "#/$defs/mp"},
-        "STAT.MaxMP.Min": {"$ref": "#/$defs/mp"}, "STAT.MaxMP.Max": {"$ref": "#/$defs/mp"},
         "STAT.AD.Base": {"$ref": "#/$defs/points"}, "STAT.AD.PerLevel": {"$ref": "#/$defs/points"},
         "STAT.AD.Min": {"$ref": "#/$defs/points"}, "STAT.AD.Max": {"$ref": "#/$defs/points"},
         "STAT.AP.Base": {"$ref": "#/$defs/points"}, "STAT.AP.PerLevel": {"$ref": "#/$defs/points"},
@@ -96,14 +98,26 @@
         "STAT.MagicResist.Min": {"$ref": "#/$defs/points"}, "STAT.MagicResist.Max": {"$ref": "#/$defs/points"},
         "STAT.HPRegen.Base": {"$ref": "#/$defs/hp_rate"}, "STAT.HPRegen.PerLevel": {"$ref": "#/$defs/hp_rate"},
         "STAT.HPRegen.Min": {"$ref": "#/$defs/hp_rate"}, "STAT.HPRegen.Max": {"$ref": "#/$defs/hp_rate"},
-        "STAT.MPRegen.Base": {"$ref": "#/$defs/mp_rate"}, "STAT.MPRegen.PerLevel": {"$ref": "#/$defs/mp_rate"},
-        "STAT.MPRegen.Min": {"$ref": "#/$defs/mp_rate"}, "STAT.MPRegen.Max": {"$ref": "#/$defs/mp_rate"},
         "STAT.BaseAttackSpeed": {"$ref": "#/$defs/attack_rate"}, "STAT.AttackSpeedPerLevelRatio": {"$ref": "#/$defs/probability"},
         "STAT.AttackSpeed.Min": {"$ref": "#/$defs/attack_rate"}, "STAT.AttackSpeed.Max": {"$ref": "#/$defs/attack_rate"},
         "STAT.CritChance.Base": {"$ref": "#/$defs/probability"}, "STAT.CritMultiplier": {"$ref": "#/$defs/multiplier"},
         "STAT.CooldownHaste.Base": {"$ref": "#/$defs/points"}, "STAT.CooldownHaste.Max": {"$ref": "#/$defs/points"},
         "SKILL.GrowthPerLevel": {"$ref": "#/$defs/probability"},
-        "SKILL.GrowthPerLevelAfter10": {"$ref": "#/$defs/probability"},
+        "SKILL.RankBaseScale": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/multiplier"}}, "SKILL.RankRatioScale": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/multiplier"}},
+        "SKILL.PointLevels": {"type": "array", "minItems": 1, "maxItems": 15, "items": {"type": "integer", "minimum": 2, "maximum": 16}},
+        "SKILL.CooldownFloorSec": {"$ref": "#/$defs/positive_sec"},
+        "MOMENTUM.Max": {"$ref": "#/$defs/momentum"}, "MOMENTUM.Start": {"$ref": "#/$defs/momentum"},
+        "MOMENTUM.CombatPerSec": {"$ref": "#/$defs/momentum_rate"}, "MOMENTUM.BasicPerRefInterval": {"$ref": "#/$defs/momentum"},
+        "MOMENTUM.BasicRefIntervalSec": {"$ref": "#/$defs/positive_sec"}, "MOMENTUM.SkillHit": {"$ref": "#/$defs/momentum"},
+        "MOMENTUM.Reaction": {"$ref": "#/$defs/momentum"}, "MOMENTUM.PerfectDodge": {"$ref": "#/$defs/momentum"},
+        "MOMENTUM.PerfectDodgeWindowSec": {"$ref": "#/$defs/positive_sec"}, "MOMENTUM.IdleDelaySec": {"$ref": "#/$defs/positive_sec"},
+        "MOMENTUM.IdleReturnPerSec": {"$ref": "#/$defs/momentum_rate"},
+        "COMBO.StepRatios": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/multiplier"}}, "COMBO.ResetSec": {"$ref": "#/$defs/positive_sec"},
+        "OVERDRIVE.Threshold": {"$ref": "#/$defs/momentum"}, "OVERDRIVE.HoldSec": {"$ref": "#/$defs/positive_sec"},
+        "OVERDRIVE.Scale": {"$ref": "#/$defs/multiplier"}, "OVERDRIVE.FireBurnStacks": {"$ref": "#/$defs/positive_count"},
+        "OVERDRIVE.WaterSlow": {"$ref": "#/$defs/probability"}, "OVERDRIVE.WaterSlowSec": {"$ref": "#/$defs/positive_sec"},
+        "OVERDRIVE.ShockReactionRatio": {"$ref": "#/$defs/multiplier"}, "OVERDRIVE.RotDurationScale": {"$ref": "#/$defs/multiplier"},
+        "OVERDRIVE.GustPushCm": {"$ref": "#/$defs/cm"}, "OVERDRIVE.GustPushSec": {"$ref": "#/$defs/positive_sec"},
         "UNIT.MoveSpeedCmPerSec": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Min": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Max": {"$ref": "#/$defs/speed"},
         "UNIT.CollisionRadiusCm": {"$ref": "#/$defs/cm"}, "UNIT.BasicAttackRangeCm": {"$ref": "#/$defs/cm"},
         "STAT.AttackRange.Min": {"$ref": "#/$defs/cm"}, "STAT.AttackRange.Max": {"$ref": "#/$defs/cm"},
@@ -141,9 +155,8 @@
         "LIFE.RespawnSec.Field3": {"$ref": "#/$defs/positive_sec"},
         "LIFE.ProtectionSec": {"$ref": "#/$defs/sec"},
         "REGEN.OutOfCombatDelaySec": {"$ref": "#/$defs/positive_sec"}, "REGEN.OutOfCombatMaxHPRatioPerSec": {"$ref": "#/$defs/probability"},
-        "REGEN.OutOfCombatMaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
         "DORM.RadiusCm": {"$ref": "#/$defs/cm"}, "DORM.OutOfCombatDelaySec": {"$ref": "#/$defs/positive_sec"},
-        "DORM.MaxHPRatioPerSec": {"$ref": "#/$defs/probability"}, "DORM.MaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
+        "DORM.MaxHPRatioPerSec": {"$ref": "#/$defs/probability"},
         "GROWTH.OpeningPoints": {"$ref": "#/$defs/positive_count"}, "GROWTH.PointsPerLevel": {"$ref": "#/$defs/positive_count"},
         "GROWTH.MaxLevelPointsXP": {"$ref": "#/$defs/positive_count"}, "GROWTH.MaxLevelPoints": {"$ref": "#/$defs/positive_count"},
         "GROWTH.NpcActivePoints": {"$ref": "#/$defs/positive_count"},
@@ -161,7 +174,7 @@
         "AIRDROP.AnnounceLeadSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.PickupRadiusCm": {"$ref": "#/$defs/cm"},
         "AIRDROP.RewardXP": {"$ref": "#/$defs/positive_count"},
         "AIRDROP.HealMaxHPRatio": {"$ref": "#/$defs/probability"},
-        "AIRDROP.ManaMaxMPRatio": {"$ref": "#/$defs/probability"},
+        "AIRDROP.Momentum": {"$ref": "#/$defs/momentum"},
         "AIRDROP.MoveSpeedRatio": {"$ref": "#/$defs/probability"},
         "AIRDROP.MoveSpeedSec": {"$ref": "#/$defs/positive_sec"},
         "CAMPMARK.RevealSec": {"$ref": "#/$defs/positive_sec"},
@@ -174,7 +187,7 @@
         "AI.HighCampEntryHPRatio": {"$ref": "#/$defs/probability"}, "AI.HighCampReserveHPRatio": {"$ref": "#/$defs/probability"}, "AI.LowCampReserveHPRatio": {"$ref": "#/$defs/probability"},
         "AI.CaptureReactionBudgetSec": {"$ref": "#/$defs/positive_sec"}, "AI.DecisionIntervalSec": {"$ref": "#/$defs/positive_sec"},
         "AI.RetryPolicy.MaxAttempts": {"$ref": "#/$defs/positive_count"}, "AI.RetryPolicy.InitialBackoffSec": {"$ref": "#/$defs/positive_sec"},
-        "AI.RetryPolicy.MaxBackoffSec": {"$ref": "#/$defs/positive_sec"}, "AI.ExploreRevisitIntervalSec": {"$ref": "#/$defs/positive_sec"}, "AI.EngagementBudgetSec": {"$ref": "#/$defs/positive_sec"},
+        "AI.RetryPolicy.MaxBackoffSec": {"$ref": "#/$defs/positive_sec"}, "AI.ExploreRevisitIntervalSec": {"$ref": "#/$defs/positive_sec"}, "AI.EngagementBudgetSec": {"$ref": "#/$defs/positive_sec"}, "AI.DodgeChance": {"$ref": "#/$defs/probability"},
         "COMBAT.BreachPerStack": {"$ref": "#/$defs/points"}, "COMBAT.BreachMaxStacks": {"$ref": "#/$defs/positive_count"},
         "COMBAT.BreachSec": {"$ref": "#/$defs/positive_sec"},
         "COMBAT.BurnPerSec": {"$ref": "#/$defs/points"}, "COMBAT.BurnAPRatioPerSec": {"$ref": "#/$defs/probability"},
@@ -189,7 +202,7 @@
         "COMBAT.KeystoneThickSkinGuardCapRatio": {"$ref": "#/$defs/probability"},
         "COMBAT.KeystoneThickSkinIntervalSec": {"$ref": "#/$defs/positive_sec"},
         "COMBAT.KeystoneStrengthDamageRatio": {"$ref": "#/$defs/probability"},
-        "COMBAT.KeystoneBrainsManaRefundRatio": {"$ref": "#/$defs/probability"},
+        "COMBAT.KeystoneBrainsMomentumRefundRatio": {"$ref": "#/$defs/probability"},
         "COMBAT.KeystoneAgilityDamageBase": {"$ref": "#/$defs/points"},
         "COMBAT.KeystoneAgilityADRatio": {"$ref": "#/$defs/probability"},
         "COMBAT.KeystoneAgilityEmpowerDurationSec": {"$ref": "#/$defs/positive_sec"},
@@ -223,7 +236,7 @@
     },
     "policies": {
       "type": "object", "additionalProperties": false,
-      "required": ["StatStacking", "MissingSourceCooldown", "DeadChoiceCommit", "ResourceMaxChange", "ReleasedEffectSourceLoss", "SourceLeave", "InvalidAggressionProtection", "CritSampling", "LifestealBasis", "LifestealRecursiveTriggers", "BasicSecondaryTriggers", "RegenIntegration", "ShieldPolicy", "RootBlocks", "CampAggroTrigger", "CampGroupRetaliation", "CampReturningDamageable", "CampReturningControllable", "CampResetPolicy", "CampManaPolicy"],
+      "required": ["StatStacking", "MissingSourceCooldown", "DeadChoiceCommit", "ResourceMaxChange", "ReleasedEffectSourceLoss", "SourceLeave", "InvalidAggressionProtection", "CritSampling", "LifestealBasis", "LifestealRecursiveTriggers", "BasicSecondaryTriggers", "RegenIntegration", "ShieldPolicy", "RootBlocks", "CampAggroTrigger", "CampGroupRetaliation", "CampReturningDamageable", "CampReturningControllable", "CampResetPolicy", "CampMomentumPolicy"],
       "properties": {
         "StatStacking": {"const": "AddFlatThenAdditivePercent"},
         "MissingSourceCooldown": {"const": "ContinueServerTime"}, "DeadChoiceCommit": {"const": "Allowed"},
@@ -236,7 +249,7 @@
         "RootBlocks": {"type": "array", "const": ["Move", "Dash"]},
         "CampAggroTrigger": {"const": "ConfirmedCombatHit"}, "CampGroupRetaliation": {"type": "boolean", "const": true},
         "CampReturningDamageable": {"type": "boolean", "const": true}, "CampReturningControllable": {"type": "boolean", "const": true},
-        "CampResetPolicy": {"const": "ReturnThenReset"}, "CampManaPolicy": {"const": "NotApplicable"}
+        "CampResetPolicy": {"const": "ReturnThenReset"}, "CampMomentumPolicy": {"const": "NotApplicable"}
       }
     },
     "character": {
@@ -248,8 +261,8 @@
           "properties": {"target_mode": {"const": "Unit"}, "damage_type": {"const": "Physical"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}}
         },
         "dash": {
-          "type": "object", "additionalProperties": false, "required": ["mana_cost", "cooldown", "distance", "duration"],
-          "properties": {"mana_cost": {"$ref": "#/$defs/mp"}, "cooldown": {"$ref": "#/$defs/positive_sec"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+          "type": "object", "additionalProperties": false, "required": ["cooldown", "distance", "duration"],
+          "properties": {"cooldown": {"$ref": "#/$defs/positive_sec"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         }
       }
     },
@@ -378,9 +391,9 @@
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "P2",
       "properties": {"unit": {"const": "hp"}, "value": {"type": "number", "minimum": 0}}
     },
-    "mp": {
+    "momentum": {
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "P2",
-      "properties": {"unit": {"const": "mp"}, "value": {"type": "number", "minimum": 0}}
+      "properties": {"unit": {"const": "momentum"}, "value": {"type": "number", "minimum": 0}}
     },
     "points": {
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "P2",
@@ -422,22 +435,22 @@
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "Rational",
       "properties": {"unit": {"const": "hp/s"}, "value": {"type": "number", "minimum": 0}}
     },
-    "mp_rate": {
+    "momentum_rate": {
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "Rational",
-      "properties": {"unit": {"const": "mp/s"}, "value": {"type": "number", "minimum": 0}}
+      "properties": {"unit": {"const": "momentum/s"}, "value": {"type": "number", "minimum": 0}}
     },
     "stat_bonus": {
       "type": "object", "additionalProperties": false, "minProperties": 1,
       "properties": {
         "ADFlat": {"$ref": "#/$defs/points"}, "APFlat": {"$ref": "#/$defs/points"},
-        "MaxHPFlat": {"$ref": "#/$defs/hp"}, "MaxMPFlat": {"$ref": "#/$defs/mp"},
+        "MaxHPFlat": {"$ref": "#/$defs/hp"},
         "ArmorFlat": {"$ref": "#/$defs/points"}, "MagicResistFlat": {"$ref": "#/$defs/points"},
         "CooldownHasteFlat": {"$ref": "#/$defs/points"}, "AttackRangeCmFlat": {"$ref": "#/$defs/cm"},
         "AttackSpeedBonusRatio": {"$ref": "#/$defs/probability"}, "MoveSpeedBonusRatio": {"$ref": "#/$defs/probability"},
         "CritChanceBonusRatio": {"$ref": "#/$defs/probability"}, "ADBonusRatio": {"$ref": "#/$defs/probability"},
         "HPRegenFlat": {"$ref": "#/$defs/hp_rate"},
         "APBonusRatio": {"$ref": "#/$defs/probability"},
-        "MPRegenFlat": {"$ref": "#/$defs/mp_rate"}
+        "MomentumRegenFlat": {"$ref": "#/$defs/momentum_rate"}
       }
     },
     "effect": {
@@ -466,7 +479,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"],
-          "properties": {"op": {"const": "dash"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+          "properties": {"op": {"const": "dash"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "ghost": {"$ref": "#/$defs/positive_sec"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"],
@@ -502,7 +515,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "duration"],
-          "properties": {"op": {"const": "empower_basic"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}, "charges": {"type": "integer", "minimum": 1, "maximum": 10}, "stats": {"$ref": "#/$defs/stat_bonus"}, "trigger": {"enum": ["DashComplete"]}}
+          "properties": {"op": {"const": "empower_basic"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}, "charges": {"type": "integer", "minimum": 1, "maximum": 10}, "stats": {"$ref": "#/$defs/stat_bonus"}, "trigger": {"enum": ["DashComplete"]}, "momentum": {"$ref": "#/$defs/momentum"}, "breach": {"type": "integer", "minimum": 1, "maximum": 5}, "last_stun": {"$ref": "#/$defs/positive_sec"}, "crit": {"type": "boolean"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "armor_ratio", "damage_type", "radius", "critical_multiplier", "trigger"],
@@ -520,13 +533,10 @@
           "type": "object", "additionalProperties": false, "required": ["op", "count", "distance", "duration"],
           "properties": {"op": {"const": "nth_basic_bonus"}, "count": {"type": "integer", "minimum": 2, "maximum": 10}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         },
-        {
-          "type": "object", "additionalProperties": false, "required": ["op", "trigger", "mana"],
-          "properties": {"op": {"const": "mana_on_hit"}, "trigger": {"enum": ["AbilityHit"]}, "mana": {"$ref": "#/$defs/mp"}}
-        },
+
         {
           "type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"],
-          "properties": {"op": {"const": "knockback"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+          "properties": {"op": {"const": "knockback"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "wall_stun": {"$ref": "#/$defs/positive_sec"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "radius", "duration", "interval", "delay", "count"],
@@ -562,11 +572,11 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "interval", "count"],
-          "properties": {"op": {"const": "channel_cone"}, "interval": {"$ref": "#/$defs/positive_sec"}, "count": {"type": "integer", "minimum": 2, "maximum": 20}, "slow": {"$ref": "#/$defs/probability"}, "slow_duration": {"$ref": "#/$defs/positive_sec"}}
+          "properties": {"op": {"const": "channel_cone"}, "interval": {"$ref": "#/$defs/positive_sec"}, "count": {"type": "integer", "minimum": 1, "maximum": 20}, "slow": {"$ref": "#/$defs/probability"}, "slow_duration": {"$ref": "#/$defs/positive_sec"}, "slow_waves": {"type": "integer", "minimum": 2, "maximum": 20}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "radius", "inner_radius", "outer_ratio", "delay"],
-          "properties": {"op": {"const": "ground_impact"}, "radius": {"$ref": "#/$defs/cm"}, "inner_radius": {"$ref": "#/$defs/cm"}, "outer_ratio": {"$ref": "#/$defs/probability"}, "delay": {"$ref": "#/$defs/positive_sec"}}
+          "properties": {"op": {"const": "ground_impact"}, "radius": {"$ref": "#/$defs/cm"}, "inner_radius": {"$ref": "#/$defs/cm"}, "outer_ratio": {"$ref": "#/$defs/probability"}, "delay": {"$ref": "#/$defs/sec"}, "center_stun": {"$ref": "#/$defs/positive_sec"}, "linger": {"$ref": "#/$defs/positive_sec"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"],
@@ -574,7 +584,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "radius", "trigger_radius", "delay", "duration"],
-          "properties": {"op": {"const": "contact_trap"}, "radius": {"$ref": "#/$defs/cm"}, "trigger_radius": {"$ref": "#/$defs/cm"}, "delay": {"$ref": "#/$defs/positive_sec"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+          "properties": {"op": {"const": "contact_trap"}, "radius": {"$ref": "#/$defs/cm"}, "trigger_radius": {"$ref": "#/$defs/cm"}, "delay": {"$ref": "#/$defs/positive_sec"}, "duration": {"$ref": "#/$defs/positive_sec"}, "max": {"type": "integer", "minimum": 2, "maximum": 5}, "wire_distance": {"$ref": "#/$defs/cm"}, "wire_base": {"$ref": "#/$defs/points"}, "wire_ap_ratio": {"$ref": "#/$defs/multiplier"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "targets"],
@@ -590,7 +600,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "cooldown", "interval"],
-          "properties": {"op": {"const": "dash_contact_refund"}, "cooldown": {"$ref": "#/$defs/positive_sec"}, "interval": {"$ref": "#/$defs/positive_sec"}, "mana_ratio": {"$ref": "#/$defs/probability"}, "mana_cap": {"$ref": "#/$defs/mp"}}
+          "properties": {"op": {"const": "dash_contact_refund"}, "cooldown": {"$ref": "#/$defs/positive_sec"}, "interval": {"$ref": "#/$defs/positive_sec"}, "momentum_ratio": {"$ref": "#/$defs/probability"}, "momentum_cap": {"$ref": "#/$defs/momentum"}}
         },
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "wet"}}},
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "electrify"}}},
@@ -650,7 +660,7 @@
         {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"], "properties": {"op": {"const": "contact_knockback"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "duration", "base", "ad_ratio", "ap_ratio", "damage_type"], "properties": {"op": {"const": "control_mark"}, "duration": {"$ref": "#/$defs/positive_sec"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "delay", "base", "ad_ratio", "ap_ratio", "damage_type", "root_duration"], "properties": {"op": {"const": "aftershock"}, "delay": {"$ref": "#/$defs/positive_sec"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "root_duration": {"$ref": "#/$defs/positive_sec"}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "mana", "mana_cap"], "properties": {"op": {"const": "control_mana"}, "mana": {"$ref": "#/$defs/mp"}, "mana_cap": {"$ref": "#/$defs/mp"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "momentum", "momentum_cap"], "properties": {"op": {"const": "control_momentum"}, "momentum": {"$ref": "#/$defs/momentum"}, "momentum_cap": {"$ref": "#/$defs/momentum"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "interval", "radius", "base", "duration", "damage_type"], "properties": {"op": {"const": "heal_counter"}, "ratio": {"$ref": "#/$defs/probability"}, "interval": {"$ref": "#/$defs/positive_sec"}, "radius": {"$ref": "#/$defs/cm"}, "base": {"$ref": "#/$defs/points"}, "duration": {"$ref": "#/$defs/positive_sec"}, "damage_type": {"enum": ["Physical", "Magical"]}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "duration"], "properties": {"op": {"const": "reaction_empower"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "radius"], "properties": {"op": {"const": "shield_burst"}, "ratio": {"$ref": "#/$defs/probability"}, "radius": {"$ref": "#/$defs/cm"}}},
@@ -660,24 +670,50 @@
         {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "cast_hit_refund"}, "ratio": {"$ref": "#/$defs/probability"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "distance", "ratio"], "properties": {"op": {"const": "distance_amp"}, "distance": {"$ref": "#/$defs/cm"}, "ratio": {"$ref": "#/$defs/multiplier"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "duration", "ratio"], "properties": {"op": {"const": "alternate_amp"}, "duration": {"$ref": "#/$defs/positive_sec"}, "ratio": {"$ref": "#/$defs/multiplier"}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "damage_ratio"], "properties": {"op": {"const": "projectile_return"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "damage_ratio"], "properties": {"op": {"const": "projectile_return"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}, "electrify": {"type": "boolean"}, "wet": {"type": "boolean"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "count", "damage_ratio"], "properties": {"op": {"const": "projectile_pierce"}, "count": {"type": "integer", "minimum": 1, "maximum": 5}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "count"], "properties": {"op": {"const": "chain_extra"}, "count": {"type": "integer", "minimum": 1, "maximum": 5}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "damage_ratio", "cooldown_ratio"], "properties": {"op": {"const": "echo_impact"}, "delay": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/probability"}, "cooldown_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "damage_ratio", "cooldown_ratio"], "properties": {"op": {"const": "echo_impact"}, "delay": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/probability"}, "cooldown_ratio": {"$ref": "#/$defs/multiplier"}, "center_ratio": {"$ref": "#/$defs/multiplier"}, "electrify": {"type": "boolean"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "cooldown"], "properties": {"op": {"const": "hit_haste_other"}, "cooldown": {"$ref": "#/$defs/positive_sec"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "duration", "ratio"], "properties": {"op": {"const": "setup_mark"}, "duration": {"$ref": "#/$defs/positive_sec"}, "ratio": {"$ref": "#/$defs/multiplier"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "cooldown"], "properties": {"op": {"const": "reaction_haste"}, "cooldown": {"$ref": "#/$defs/positive_sec"}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "mana", "mana_cap"], "properties": {"op": {"const": "multi_hit_mana"}, "mana": {"$ref": "#/$defs/mp"}, "mana_cap": {"$ref": "#/$defs/mp"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "momentum", "momentum_cap"], "properties": {"op": {"const": "multi_hit_momentum"}, "momentum": {"$ref": "#/$defs/momentum"}, "momentum_cap": {"$ref": "#/$defs/momentum"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "radius_ratio"], "properties": {"op": {"const": "zone_tether"}, "radius_ratio": {"$ref": "#/$defs/probability"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration", "radius", "shield_ratio"], "properties": {"op": {"const": "defense_shove"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "radius": {"$ref": "#/$defs/cm"}, "shield_ratio": {"$ref": "#/$defs/probability"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration", "cost_ratio"], "properties": {"op": {"const": "final_knockback"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "cost_ratio": {"$ref": "#/$defs/probability"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "range", "damage_ratio"], "properties": {"op": {"const": "empower_reach"}, "range": {"$ref": "#/$defs/cm"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration", "min_distance"], "properties": {"op": {"const": "pull"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "min_distance": {"$ref": "#/$defs/cm"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration", "min_distance"], "properties": {"op": {"const": "pull"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "min_distance": {"$ref": "#/$defs/cm"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}}},
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "zone_relocate"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"], "properties": {"op": {"const": "stored_force"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "empower_spend"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"], "properties": {"op": {"const": "control_widen"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "zone_detonate"}, "ratio": {"$ref": "#/$defs/probability"}}}
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "zone_detonate"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration", "scope"], "properties": {"op": {"const": "vulnerable"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}, "scope": {"enum": ["all", "skill", "basic"]}, "own": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"], "properties": {"op": {"const": "next_basic_amp"}, "ratio": {"$ref": "#/$defs/multiplier"}, "duration": {"$ref": "#/$defs/positive_sec"}, "on_catch": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "momentum"], "properties": {"op": {"const": "momentum_gain"}, "momentum": {"$ref": "#/$defs/momentum"}, "center": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "momentum", "ratio"], "properties": {"op": {"const": "momentum_steal"}, "momentum": {"$ref": "#/$defs/momentum"}, "ratio": {"$ref": "#/$defs/multiplier"}, "delay": {"$ref": "#/$defs/positive_sec"}, "free_cast": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "count", "interval"], "properties": {"op": {"const": "follow_up"}, "delay": {"$ref": "#/$defs/positive_sec"}, "count": {"type": "integer", "minimum": 1, "maximum": 10}, "interval": {"$ref": "#/$defs/positive_sec"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "electrify": {"type": "boolean"}, "wet": {"type": "boolean"}, "attack_slow": {"$ref": "#/$defs/probability"}, "attack_slow_duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "window", "damage_ratio", "control", "control_duration"], "properties": {"op": {"const": "recast"}, "window": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}, "control": {"enum": ["same", "root", "disarm"]}, "control_duration": {"$ref": "#/$defs/sec"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "same_target_stun": {"$ref": "#/$defs/positive_sec"}, "free_direction": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"], "properties": {"op": {"const": "dash_back"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "as_dash": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "self_buff"}, "duration": {"$ref": "#/$defs/positive_sec"}, "cut": {"$ref": "#/$defs/probability"}, "stats": {"$ref": "#/$defs/stat_bonus"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "stacks", "base", "ap_ratio"], "properties": {"op": {"const": "burn_burst"}, "stacks": {"type": "integer", "minimum": 1, "maximum": 10}, "base": {"$ref": "#/$defs/points"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "count", "interval", "damage_ratio"], "properties": {"op": {"const": "pulse"}, "count": {"type": "integer", "minimum": 1, "maximum": 10}, "interval": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/probability"}, "momentum": {"$ref": "#/$defs/momentum"}, "shield_base": {"$ref": "#/$defs/points"}, "shield_max_hp_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "zone_guard"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "momentum"], "properties": {"op": {"const": "zone_momentum"}, "momentum": {"$ref": "#/$defs/momentum"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "overcharge"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "follow_basic"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "base", "ap_ratio", "radius"], "properties": {"op": {"const": "shield_burst_break"}, "base": {"$ref": "#/$defs/points"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "radius": {"$ref": "#/$defs/cm"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "basic_rider"}, "duration": {"$ref": "#/$defs/positive_sec"}, "electrify": {"type": "boolean"}, "breach": {"type": "integer", "minimum": 1, "maximum": 5}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "radius", "reaction_ratio"], "properties": {"op": {"const": "delayed_burst"}, "delay": {"$ref": "#/$defs/positive_sec"}, "radius": {"$ref": "#/$defs/cm"}, "reaction_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "shield_reflect"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "shield_end_heal"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "shield_hit_bonus"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "brace_stun"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "brace_heal"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "brace_stack"}, "ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"], "properties": {"op": {"const": "brace_shove"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "brace_shield"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "radius", "duration", "interval"], "properties": {"op": {"const": "projectile_zone"}, "radius": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}, "interval": {"$ref": "#/$defs/positive_sec"}}}
       ]
     },
     "target": {
@@ -696,11 +732,53 @@
     },
     "ability": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "opening", "target", "windup", "cooldown_family", "mana_cost", "cooldown", "effects"],
+      "required": ["id", "opening", "target", "windup", "cooldown_family", "element", "hit_type", "momentum_cost", "cooldown", "effects", "ranks"],
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "opening": {"type": "boolean"},
         "target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"},
-        "mana_cost": {"$ref": "#/$defs/mp"}, "cooldown": {"$ref": "#/$defs/positive_sec"},
+        "element": {"enum": ["none", "fire", "water", "shock", "chill", "rot", "gust"]},
+        "hit_type": {"enum": ["targeted", "projectile", "area", "dash", "self"]},
+        "momentum_cost": {"$ref": "#/$defs/momentum"}, "cooldown": {"$ref": "#/$defs/positive_sec"},
+        "effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}},
+        "ranks": {
+          "type": "object", "additionalProperties": false, "required": ["2A", "3A1", "3A2", "2B", "3B1", "3B2"],
+          "properties": {"2A": {"$ref": "#/$defs/rank_step"}, "3A1": {"$ref": "#/$defs/rank_step"}, "3A2": {"$ref": "#/$defs/rank_step"},
+            "2B": {"$ref": "#/$defs/rank_step"}, "3B1": {"$ref": "#/$defs/rank_step"}, "3B2": {"$ref": "#/$defs/rank_step"}}
+        }
+      }
+    },
+    "rank_step": {
+      "type": "object", "additionalProperties": false, "required": ["name", "text", "patches"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 32}, "text": {"type": "string", "minLength": 1, "maxLength": 200},
+        "patches": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/patch"}}
+      }
+    },
+    "patch_value": {
+      "oneOf": [
+        {"type": "boolean"}, {"type": "integer"}, {"type": "string", "minLength": 1, "maxLength": 32},
+        {"type": "object", "additionalProperties": false, "required": ["unit", "value"], "properties": {"unit": {"type": "string", "minLength": 1, "maxLength": 16}, "value": {"type": "number"}}}
+      ]
+    },
+    "patch": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "target"}, "mode": {"enum": ["Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint", "DirectionCone", "DirectionLine"]}, "range": {"$ref": "#/$defs/cm"}, "projectile_radius": {"$ref": "#/$defs/cm"}, "half_width": {"$ref": "#/$defs/cm"}, "angle": {"$ref": "#/$defs/angle"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "effect", "field", "value"], "properties": {"op": {"const": "set"}, "effect": {"$ref": "#/$defs/id"}, "field": {"$ref": "#/$defs/id"}, "value": {"$ref": "#/$defs/patch_value"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "effect", "fields", "ratio"], "properties": {"op": {"const": "scale"}, "effect": {"$ref": "#/$defs/id"}, "fields": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/$defs/id"}}, "ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 10}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "effect"], "properties": {"op": {"const": "add"}, "effect": {"$ref": "#/$defs/effect"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "effect"], "properties": {"op": {"const": "remove"}, "effect": {"$ref": "#/$defs/id"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "add"], "properties": {"op": {"const": "cooldown"}, "add": {"$ref": "#/$defs/positive_sec"}}}
+      ]
+    },
+    "branch": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "target", "windup", "element", "hit_type", "momentum_cost", "cooldown", "effects"],
+      "properties": {
+        "path": {"enum": ["A", "B", "A1", "A2", "B1", "B2"]},
+        "target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"},
+        "element": {"enum": ["none", "fire", "water", "shock", "chill", "rot", "gust"]},
+        "hit_type": {"enum": ["targeted", "projectile", "area", "dash", "self"]},
+        "momentum_cost": {"$ref": "#/$defs/momentum"}, "cooldown": {"$ref": "#/$defs/positive_sec"},
         "effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}}
       }
     },
@@ -738,7 +816,7 @@
     },
     "monster": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "hp_regen", "max_mp", "mp_regen", "ap", "crit_chance", "skill"],
+      "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "hp_regen", "ap", "crit_chance", "skill"],
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "tier": {"enum": ["Low", "High", "Elite", "Ancient"]}, "count_per_camp": {"$ref": "#/$defs/positive_count"},
         "hp": {"$ref": "#/$defs/hp"}, "armor": {"$ref": "#/$defs/points"}, "magic_resist": {"$ref": "#/$defs/points"}, "attack": {"$ref": "#/$defs/points"},
@@ -746,7 +824,7 @@
         "attack_range": {"$ref": "#/$defs/cm"}, "move_speed": {"$ref": "#/$defs/speed"}, "collision_radius": {"$ref": "#/$defs/cm"}, "leash_radius": {"$ref": "#/$defs/cm"},
         "lose_target_grace": {"$ref": "#/$defs/positive_sec"}, "respawn": {"$ref": "#/$defs/positive_sec"},
         "reward_xp": {"$ref": "#/$defs/count"},
-        "hp_regen": {"$ref": "#/$defs/hp_rate"}, "max_mp": {"$ref": "#/$defs/mp"}, "mp_regen": {"$ref": "#/$defs/mp_rate"},
+        "hp_regen": {"$ref": "#/$defs/hp_rate"},
         "ap": {"$ref": "#/$defs/points"}, "crit_chance": {"$ref": "#/$defs/probability"}, "skill": {"$ref": "#/$defs/monster_skill"}
       }
     },

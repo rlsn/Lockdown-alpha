@@ -116,7 +116,6 @@ TConstArrayView<LDDevTest::FStatField> LDDevTest::StatFields()
     static const FStatField Fields[] =
     {
         {TEXT("MaxHP"), uint8(ELDDemoBonusStat::MaxHPFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::MaxHP)},
-        {TEXT("MaxMP"), uint8(ELDDemoBonusStat::MaxMPFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::MaxMP)},
         {TEXT("AD"), uint8(ELDDemoBonusStat::ADFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::AD)},
         {TEXT("AP"), uint8(ELDDemoBonusStat::APFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::AP)},
         {TEXT("Armor"), uint8(ELDDemoBonusStat::ArmorFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::Armor)},
@@ -186,7 +185,7 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     switch (Op)
     {
     case ELDDevTestOp::GrantExperience: { static const FString Label=FString(TEXT("加"))+LDTerms::Experience; return *Label; }
-    case ELDDevTestOp::RefillResources: { static const FString Label=FString(TEXT("补满"))+LDTerms::Health+TEXT("与")+LDTerms::Mana; return *Label; }
+    case ELDDevTestOp::RefillResources: { static const FString Label=FString(TEXT("补满"))+LDTerms::Health+TEXT("与")+LDTerms::Momentum; return *Label; }
     case ELDDevTestOp::ResetCooldowns: return TEXT("重置冷却");
     case ELDDevTestOp::SetAttribute: return TEXT("设置测试属性");
     case ELDDevTestOp::ClearAttributes: return TEXT("清除测试属性");

@@ -23,7 +23,7 @@ bool IsGameplayRefusal(ELDCombatReject Reason)
     case ELDCombatReject::Busy:
     case ELDCombatReject::Cooldown:
     case ELDCombatReject::AttackNotReady:
-    case ELDCombatReject::InsufficientMana:
+    case ELDCombatReject::MomentumShort:
     case ELDCombatReject::ControlBlocked:
     case ELDCombatReject::TargetUnavailable:
     case ELDCombatReject::InvalidDirection:

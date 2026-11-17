@@ -278,14 +278,19 @@ void ALDPlayerController::V05Pressed(FName Action)
     }
     else if (Action==TEXT("AttackMove")) { ArmAttackMove(); }
     // The skill keys follow the local slot order the HUD shows (#97 drag to swap).
-    else if (Action==TEXT("Skill1")) { ActivateCombatEntry(SkillAtKey[0]); }
-    else if (Action==TEXT("Skill2")) { ActivateCombatEntry(SkillAtKey[1]); }
-    else if (Action==TEXT("SkillE")) { ActivateCombatEntry(SkillAtKey[2]); }
+    else if (Action==TEXT("Skill1")) { PressSkill(SkillAtKey[0]); }
+    else if (Action==TEXT("Skill2")) { PressSkill(SkillAtKey[1]); }
+    else if (Action==TEXT("SkillE")) { PressSkill(SkillAtKey[2]); }
     else if (Action==TEXT("Dash")) { ActivateCombatEntry(ELDCombatEntry::Dash); }
 }
 
 void ALDPlayerController::V05Released(FName Action)
-{ if (Action==TEXT("Recenter")) { Navigation->Recenter(false); } }
+{
+    if (Action==TEXT("Recenter")) { Navigation->Recenter(false); }
+    else if (Action==TEXT("Skill1")) { ReleaseSkill(SkillAtKey[0]); }
+    else if (Action==TEXT("Skill2")) { ReleaseSkill(SkillAtKey[1]); }
+    else if (Action==TEXT("SkillE")) { ReleaseSkill(SkillAtKey[2]); }
+}
 
 void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
 {

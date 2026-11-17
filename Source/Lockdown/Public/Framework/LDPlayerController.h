@@ -9,6 +9,8 @@
 #include "Development/LDDevTestProtocol.h"
 #include "PK/LDPKTypes.h"
 #include "Templates/PimplPtr.h"
+class FLDDemoContentSnapshot;
+struct FLDDemoOverdriveParameters;
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -188,6 +190,8 @@ public:
     void ArmAttackMove();
     // Clears any armed entry or attack-move without sending anything; true if something was armed.
     bool CancelArmedCombat();
+    // A confirmed aim leaves its preview; any overdrive the hold armed rides on the request it sends.
+    bool ClearArmedAim();
     // Left-click confirmation of the armed entry or attack-move; false when nothing was armed. An armed attack-move on an
     // attackable visible unit under the pointer attacks that unit like a right click; elsewhere it attack-moves.
     bool ConfirmArmedCombat();
@@ -195,6 +199,8 @@ public:
     // the cursor's; ConfirmArmedCombat resolves the cursor aim and ends here. False when no entry was armed. AimCm is
     // the ground point a direction aim points at: a Shift confirmation queues it and the server re-aims from there.
     bool ConfirmArmedEntry(const FLDCombatTarget& Aim, const FVector* AimCm=nullptr);
+    // The local overdrive hold of Entry for the slot ring: 0..1 while held, 1 once the overdrive is armed, 0 otherwise.
+    float OverdriveHoldProgress(ELDCombatEntry Entry) const;
     // Shift held (either side): the world command being issued joins the server's shift queue instead of replacing
     // the current order (ULDNavigationComponent, 2026-11-06 user decision). Fixed modifier, never a rebindable action.
     bool IsQueueModifierDown() const;
@@ -212,6 +218,8 @@ public:
     bool CanCameraCommand() const;
     UFUNCTION(Server,Reliable) void ServerSubmitCombatAction(const FLDCombatActionRequest& Request);
     UFUNCTION(Server,Reliable) void ServerCancelCombatAction(const FLDCombatCancelRequest& Request);
+    // The overdrive charge intent of a Q/W/E held with a full bar (reliable: it stays ordered before the cast request).
+    UFUNCTION(Server,Reliable) void ServerChargeOverdrive(const FLDCombatChargeRequest& Request);
     UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);
     UPROPERTY(ReplicatedUsing=OnRep_CombatView) FLDCombatOwnerView CombatView;
     UFUNCTION() void OnRep_CombatView();
@@ -297,6 +305,22 @@ private:
     bool NextCombatRequest(ELDCombatEntry Entry, const FLDCombatTarget& Target, FLDCombatActionRequest& Out);
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;
     bool bAttackMoveArmed=false;
+    // Overdrive hold (CONTENT_AND_BALANCE §3.5): a Q/W/E pressed with a full bar waits for its release (a normal cast) or
+    // OVERDRIVE.HoldSec (an overdrive request); the charge intent tells the server while the key is held. bOverdriveArmed
+    // marks the next request of OverdriveEntry (sent at once, or at the armed aim's confirmation).
+    ELDCombatEntry OverdriveEntry=ELDCombatEntry::None;
+    double OverdriveHoldStartSec=0;
+    bool bOverdriveHolding=false;
+    bool bOverdriveArmed=false;
+    TSharedPtr<const FLDDemoContentSnapshot> OverdriveContent;
+    bool bOverdriveContentTried=false;
+    const FLDDemoOverdriveParameters* OverdriveTerms();
+    // A skill key press: an eligible full-bar press starts the hold, any other press activates at once.
+    void PressSkill(ELDCombatEntry Entry);
+    void ReleaseSkill(ELDCombatEntry Entry);
+    void TickOverdriveHold();
+    void SendCharge(ELDCombatEntry Entry, bool bCharging);
+    void EndOverdriveHold();
     uint64 NextDirectSequence=0;
     FLDCombatOwnerView LatestCombatView;
     // Local controller only: this process's playtest log (LDPlaytestTrace.h); created on first use.

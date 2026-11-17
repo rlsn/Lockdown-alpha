@@ -38,17 +38,18 @@ public:
     bool FindFinalMod(const FString& Id, const FLDDemoFinalModDefinition*& Out, FString& Error) const;
     bool FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
     bool FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const;
-    // #198 skill growth: Ability's value set as its owner at Level uses it (LDSkillGrowth::GrowValues with SKILL.GrowthPerLevel).
-    // Null for an ability outside this snapshot or a level outside 1..MaxLevel. Stable for the snapshot's life.
-    const FLDDemoAbilityValues* FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level) const;
+    // Skill growth: Ability's value set as its owner at Level uses it on Branch (LDSkillGrowth::GrowValues with SKILL.GrowthPerLevel
+    // and the rank Branch belongs to; None is rank 1). Null for an ability outside this snapshot, a missing branch or a level
+    // outside 1..MaxLevel. Stable for the snapshot's life.
+    const FLDDemoAbilityValues* FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level, ELDSkillBranch Branch) const;
 
 private:
     friend class ULDDemoContentCatalog;
     explicit FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In);
     FLDDemoContentDefinitions Definitions;
-    // Per ability (index into Definitions.Abilities): its value set grown for each level 1..MaxLevel; unset where growth
-    // would overflow, which content validation refuses.
-    TArray<TArray<TOptional<FLDDemoAbilityValues>>> GrownValues;
+    // Per ability (index into Definitions.Abilities) and variant (0 = rank 1, then its branches in path order): the value set
+    // grown for each level 1..MaxLevel; unset where growth would overflow, which content validation refuses.
+    TArray<TArray<TArray<TOptional<FLDDemoAbilityValues>>>> GrownValues;
 };
 
 class LOCKDOWN_API FLDDemoPreparedContent

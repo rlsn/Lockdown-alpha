@@ -343,10 +343,14 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         while (Zone.Pulsed<Zone.Count && Zone.StartMs+Zone.DelayMs+Zone.IntervalMs*Zone.Pulsed<=NowMs)
         {
             ++Zone.Pulsed;
-            if (Zone.bDamage || Zone.bWet)
+            if (Zone.bDamage || Zone.bWet || Zone.PulseAttackSlowBp>0 || Zone.PulseGrievousBp>0)
             {
                 if (!EmitZonePulse(Zone,Error)) { Error=TEXT("Zone pulse: ")+Error; return false; }
             }
+            // S20 A2: the owner standing inside gains momentum every pulse.
+            if (Zone.MomentumP2>0 && Holder && HolderActor && !Holder->bPendingDeath
+                && FVector::Dist2D(Zone.CentreCm,FootOf(*HolderActor))<=Zone.RadiusCm)
+            { GrantMomentum(*Holder,Zone.MomentumP2,ELDMomentumBook::Skill); }
         }
         while (Zone.bSlow && Zone.NextSlowAtMs>0 && Zone.NextSlowAtMs<=NowMs && Zone.NextSlowAtMs<Zone.EndMs)
         {
@@ -571,6 +575,9 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         }
         // #198: wet on every pulse, and the owner's (and its current-match teammates') move speed inside.
         Zone.bWet=FindOp(Values,ELDDemoEffectOp::ZoneWet)!=nullptr;
+        // Skill branches: the owner's cut and momentum inside (S08 A2, S20 A2).
+        if (const FLDDemoEffectDefinition* Guard=FindOp(Values,ELDDemoEffectOp::ZoneGuard)) { Zone.GuardBp=Guard->RatioBp; }
+        if (const FLDDemoEffectDefinition* Gain=FindOp(Values,ELDDemoEffectOp::ZoneMomentum)) { Zone.MomentumP2=Gain->BaseP2; }
         if (const FLDDemoEffectDefinition* Haste=FindOp(Values,ELDDemoEffectOp::ZoneHaste))
         {
             Zone.HasteBp=Haste->RatioBp;

@@ -58,7 +58,7 @@ public:
     FLDFinalModSelection ReconnectFinalMod;
     uint64 ReconnectBuildRevision = 0;
     uint64 ReconnectBuildNext = 0;
-    double ReconnectHp = 0, ReconnectMp = 0;
+    double ReconnectHp = 0;
     bool bRenderHost = false, bSourcePickerSeen = false;
     FString PreparingShot, PendingShot, ShotError;
     double ShotReadyAt = 0;
@@ -207,7 +207,7 @@ public:
                 && PC.OwnerState.ContenderId == ReconnectContender && PC.OwnerState.BodyRef == ReconnectBody
                 && Build->FinalMod == ReconnectFinalMod && Build->bBuildLocked && Build->BuildRevision == ReconnectBuildRevision
                 && PC.PeekGrowthRequestId(ELDGrowthFamily::Build) == ReconnectBuildNext
-                && PC.OwnerState.Hp == ReconnectHp && PC.OwnerState.Mp == ReconnectMp,
+                && PC.OwnerState.Hp == ReconnectHp,
                 TEXT("C14"), TEXT("The real frontend reconnect restores the same life, resources, build request cursor and locked FIN on the owning connection"));
             NextInputAt = FPlatformTime::Seconds() + 1.;
             return true;
@@ -222,7 +222,6 @@ public:
             ReconnectBuildRevision = Build->BuildRevision;
             ReconnectBuildNext = PC.PeekGrowthRequestId(ELDGrowthFamily::Build);
             ReconnectHp = PC.OwnerState.Hp;
-            ReconnectMp = PC.OwnerState.Mp;
             bDisconnected = true;
             if (!PC.GetNetConnection() || !Mark(TEXT("ReconnectBefore.json"))) { bPassed = false; return true; }
             PC.GetNetConnection()->Close();

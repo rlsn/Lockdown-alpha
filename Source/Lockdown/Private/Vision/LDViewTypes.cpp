@@ -75,11 +75,6 @@ bool IsObservedResourcePair(const FLDObservedResource& Resource, bool RequirePos
     return Resource.MaxP2 >= (RequirePositiveMax ? 1 : 0) && Resource.CurrentP2 >= 0 && Resource.CurrentP2 <= Resource.MaxP2;
 }
 
-bool IsEmptyObservedResource(const FLDObservedResource& Resource)
-{
-    return Resource.CurrentP2 == 0 && Resource.MaxP2 == 0;
-}
-
 bool IsObservedMapIdCharacter(TCHAR Character, bool First)
 {
     return (Character >= TEXT('a') && Character <= TEXT('z'))
@@ -132,7 +127,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
-        << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility;
+        << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -149,7 +144,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     }
     if (Mask & LDObservation::Level) { Ar << Unit.Level; }
     if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2; }
-    if (Mask & LDObservation::Mana) { Ar << Unit.Mana.CurrentP2 << Unit.Mana.MaxP2; }
+    if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar << Unit.bCharging; }
     if (Mask & LDObservation::Statuses)
     {
         uint8 Count = uint8(FMath::Min(Unit.Statuses.Num(), 255));
@@ -264,15 +259,17 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     const bool Contender = Unit.Kind == ELDObservedUnitKind::Contender;
     if (!Contender && Unit.Kind != ELDObservedUnitKind::CampMember) { return FailObservation(Error, TEXT("Unknown observed unit kind.")); }
     const uint32 Mask = Unit.AuthorizedFieldMask;
-    if (Contender ? Mask != ContenderFields : (Mask != CampFields && Mask != (CampFields | Mana)))
+    if (Contender ? Mask != ContenderFields : Mask != CampFields)
     { return FailObservation(Error, TEXT("Observed field authorization is not the complete applicable set for this unit kind.")); }
     if (Contender
         ? Unit.Presentation >= MaxPresentations || !Unit.ContenderId.IsValid() || Unit.CreatureId != 0 || Unit.Level == 0
         : Unit.Presentation != 0 || Unit.ContenderId.IsValid() || !IsPublicCreatureId(Unit.CreatureId) || Unit.Level != 0)
     { return FailObservation(Error, TEXT("Observed identity, presentation or level does not match the unit kind.")); }
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
-    if ((Mask & Mana) ? !IsObservedResourcePair(Unit.Mana, false) : !IsEmptyObservedResource(Unit.Mana))
-    { return FailObservation(Error, TEXT("Observed mana is either an invalid P2 pair or present without authorization.")); }
+    if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.bCharging))
+    { return FailObservation(Error, TEXT("Observed momentum is present without authorization.")); }
+    if (Unit.ActionComboStep > 3 || (Unit.ActionComboStep != 0 && Unit.ActionCue != ELDObservedActionCue::Attack))
+    { return FailObservation(Error, TEXT("An observed combo step needs an Attack cue and is 1..3.")); }
     if (Unit.Statuses.Num() > MaxStatuses) { return FailObservation(Error, TEXT("Too many observed statuses.")); }
     uint64 SeenStatuses = 0;
     for (const FLDObservedStatus& Status : Unit.Statuses)

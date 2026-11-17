@@ -238,7 +238,7 @@ bool FLDAirdropApprovedScheduleTest::RunTest(const FString& Parameters)
         P.AirdropLandMs == TArray<int64>({32000, 90000, 163000, 220000, 293000, 350000}));
     bGood &= TestTrue(TEXT("Announced 15 s early, gone 30 s after landing, 200 XP and the approved reward effects"),
         P.AirdropAnnounceLeadMs == 15000 && P.AirdropExpireMs == 30000 && P.AirdropRewardXP == 200
-        && P.AirdropHealMaxHPBp == 2000 && P.AirdropManaMaxMPBp == 2500 && P.AirdropMoveSpeedBp == 2000
+        && P.AirdropHealMaxHPBp == 2000 && P.AirdropMomentumP2 == 4000 && P.AirdropMoveSpeedBp == 2000
         && P.AirdropMoveSpeedMs == 6000);
     FLDAirdropState State = LDAirdropTests::MakeState();
     State.Schedule.StartedAtMs = 0;

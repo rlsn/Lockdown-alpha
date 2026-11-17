@@ -171,13 +171,13 @@ bool FLDHUDMaskTest::RunTest(const FString& Parameters)
     ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
     const FLDDemoContentDefinitions Content=HudFixtureContent();
     FLDObservedUnitView Rival;Rival.Kind=ELDObservedUnitKind::Contender;Rival.AuthorizedFieldMask=LDObservation::ContenderFields;Rival.ContenderId=FGuid::NewGuid();Rival.Level=3;
-    Rival.Health.CurrentP2=45001;Rival.Health.MaxP2=60000;Rival.Mana.CurrentP2=12099;Rival.Mana.MaxP2=20000;
+    Rival.Health.CurrentP2=45001;Rival.Health.MaxP2=60000;Rival.MomentumBar=153;
     FLDObservedStatus Root;Root.StatusId=uint8(ELDDemoStatusId::Root);Root.ExpiresAtServerMs=12500;Rival.Statuses.Add(Root);
     FLDObservedStatus Protection;Protection.StatusId=uint8(ELDDemoStatusId::RespawnProtection);Protection.ExpiresAtServerMs=11500;Rival.Statuses.Add(Protection);
     const FString Shown=LDHUD::ObservedUnit(Rival,TEXT("玩家甲"),&Content,10.);
     auto Has=[](const FString& Text,const TCHAR* Label){return Text.Contains(Label,ESearchCase::CaseSensitive);};
     TestEqualSensitive(TEXT("Observed card renders exactly the SC-07 whitelist with Q/W/E and approved display names"),Shown,
-        FString::Printf(TEXT("玩家甲 · 等级 3\n%s 451/600 · %s 120/200\n状态：%s 2.5s · %s 1.5s\n技能：Q 空槽 · W 空槽 · E 空槽"),LDTerms::Health,LDTerms::Mana,
+        FString::Printf(TEXT("玩家甲 · 等级 3\n%s 451/600 · %s 60%%\n状态：%s 2.5s · %s 1.5s\n技能：Q 空槽 · W 空槽 · E 空槽"),LDTerms::Health,LDTerms::Momentum,
             *HudName(TEXT("root")),*HudName(TEXT("respawn_protection"))));
     for(const TCHAR* Private:{LDTerms::Experience,TEXT("冷却"),TEXT("被动"),LDTerms::AttackDamage,LDTerms::Armor,TEXT("属性"),TEXT("98765")})
     {TestFalse(FString::Printf(TEXT("Observed card has no private category: %s"),Private),Has(Shown,Private));}
@@ -186,9 +186,9 @@ bool FLDHUDMaskTest::RunTest(const FString& Parameters)
     Camp.Health.CurrentP2=100;Camp.Health.MaxP2=200;FLDObservedStatus Returning;Returning.StatusId=uint8(ELDDemoStatusId::CampReturning);Camp.Statuses.Add(Returning);
     const FString CampShown=LDHUD::ObservedUnit(Camp,TEXT("Ignored"),&Content,0.);
     TestEqualSensitive(TEXT("Camp card renders exactly name, HP and public status"),CampShown,HudName(TEXT("monster_guardian"))+TEXT("\n")+LDTerms::Health+TEXT(" 1/2\n状态：")+HudName(TEXT("camp_returning")));
-    TestFalse(TEXT("Camp card has no level, mana or a contender name"),Has(CampShown,TEXT("等级"))||Has(CampShown,LDTerms::Mana)||Has(CampShown,TEXT("Ignored")));
+    TestFalse(TEXT("Camp card has no level, momentum or a contender name"),Has(CampShown,TEXT("等级"))||Has(CampShown,LDTerms::Momentum)||Has(CampShown,TEXT("Ignored")));
     const LDHUD::FObservedCard CampCard=LDHUD::ObservedCard(Camp,FString(),&Content,0.);
-    TestTrue(TEXT("Card structure follows the authorized field mask"),!CampCard.bMana&&!CampCard.bActives&&CampCard.Health.bKnown);
+    TestTrue(TEXT("Card structure follows the authorized field mask"),!CampCard.bMomentum&&!CampCard.bActives&&CampCard.Health.bKnown);
     FString Text;
     // The missing-text path is a content error by design: it logs once per id and shows the stable id.
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_without_text"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,1,false);
@@ -264,22 +264,21 @@ bool FLDHUDRegenDisplayTest::RunTest(const FString& Parameters)
 {
     FLDOwnerState Own;Own.Match=2;Own.Life=3;Own.LifePhase=ELDLifePhase::Alive;
     FLDCombatOwnerView View;View.Generation=2;View.Life=3;View.bHasBody=true;
-    View.HPP2=View.MaxHPP2=62000;View.MPP2=View.MaxMPP2=30000;
-    View.HPRegenPerSec=2.5;View.MPRegenPerSec=1.2;
+    View.HPP2=View.MaxHPP2=62000;View.MomentumP2=View.MaxMomentumP2=30000;
+    View.HPRegenPerSec=2.5;
     TestEqualSensitive(TEXT("Full HP still displays regen capacity"),LDHUD::RegenText(Own,&View,true),FString(TEXT("+2.5/s")));
-    TestEqualSensitive(TEXT("MP has its own rate"),LDHUD::RegenText(Own,&View,false),FString(TEXT("+1.2/s")));
+    TestTrue(TEXT("Momentum has no steady rate to display"),LDHUD::RegenText(Own,&View,false).IsEmpty());
     View.HPP2=100;View.HPRegenPerSec=12.345;
     TestEqualSensitive(TEXT("Rate changes render to one decimal independent of HP deltas"),LDHUD::RegenText(Own,&View,true),FString(TEXT("+12.3/s")));
-    View.MPRegenPerSec=0;
-    TestEqualSensitive(TEXT("A known zero is explicit"),LDHUD::RegenText(Own,&View,false),FString(TEXT("+0.0/s")));
+    View.HPRegenPerSec=0;
+    TestEqualSensitive(TEXT("A known zero is explicit"),LDHUD::RegenText(Own,&View,true),FString(TEXT("+0.0/s")));View.HPRegenPerSec=12.345;
     TestTrue(TEXT("Missing projection does not invent zero"),LDHUD::RegenText(Own,nullptr,true).IsEmpty());
     View.Generation=1;TestTrue(TEXT("Old match is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.Generation=2;
     View.Life=2;TestTrue(TEXT("Old life is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.Life=3;
     Own.LifePhase=ELDLifePhase::Dead;TestTrue(TEXT("Death hides regen even with a lingering live view"),LDHUD::RegenText(Own,&View,true).IsEmpty());Own.LifePhase=ELDLifePhase::Alive;
     View.bHasBody=false;TestTrue(TEXT("Absent body hides regen"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.bHasBody=true;
     View.HPP2=0;TestTrue(TEXT("Pending death hides regen"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.HPP2=100;
-    View.MPP2=-1;TestTrue(TEXT("Invalid MP resource hides regen"),LDHUD::RegenText(Own,&View,false).IsEmpty());View.MPP2=0;
-    View.MaxMPP2=0;TestTrue(TEXT("Unknown MP maximum hides regen"),LDHUD::RegenText(Own,&View,false).IsEmpty());
+    View.MaxHPP2=0;TestTrue(TEXT("Unknown HP maximum hides regen"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.MaxHPP2=62000;
     View.HPRegenPerSec=std::numeric_limits<double>::quiet_NaN();TestTrue(TEXT("Nonfinite rate is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());
     View.HPRegenPerSec=-1;TestTrue(TEXT("Malformed negative rate is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());
     return true;
@@ -287,14 +286,14 @@ bool FLDHUDRegenDisplayTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDOwnResourcesTest,"Lockdown.Rules.HUDOwnResources",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDOwnResourcesTest::RunTest(const FString& Parameters)
 {
-    const FString Health(LDTerms::Health),Mana(LDTerms::Mana),Experience(LDTerms::Experience);
+    const FString Health(LDTerms::Health),Momentum(LDTerms::Momentum),Experience(LDTerms::Experience);
     const LDHUD::FResourceView Shown=LDHUD::Resource(Health,12.34,100,true);
     TestTrue(TEXT("Live health rounds up so a living body never reads zero"),Shown.bKnown&&Shown.Text==Health+TEXT(" 13/100")&&FMath::IsNearlyEqual(Shown.Fraction,.1234f,.0001f));
-    TestEqualSensitive(TEXT("Mana rounds down so a cost never looks affordable early"),LDHUD::Resource(Mana,7.9,30,false).Text,Mana+TEXT(" 7/30"));
+    TestEqualSensitive(TEXT("Momentum rounds down so a cost never looks affordable early"),LDHUD::Resource(Momentum,7.9,30,false).Text,Momentum+TEXT(" 7/30"));
     const LDHUD::FResourceView Unset=LDHUD::Resource(Health,0,0,true);
     TestTrue(TEXT("An unprojected maximum is syncing, never 0/0"),!Unset.bKnown&&Unset.Text==Health+TEXT(" 同步中")&&Unset.Fraction==0.f);
     TestFalse(TEXT("A non-finite value is not shown as a resource"),LDHUD::Resource(Health,std::numeric_limits<double>::quiet_NaN(),100,true).bKnown);
-    TestFalse(TEXT("A negative P2 value is not shown as a resource"),LDHUD::ResourceP2(Mana,-1,100,false).bKnown);
+    TestFalse(TEXT("A negative P2 value is not shown as a resource"),LDHUD::ResourceP2(Momentum,-1,100,false).bKnown);
     TestEqualSensitive(TEXT("P2 encodings are hundredths of a point"),LDHUD::ResourceP2(Health,59950,60000,true).Text,Health+TEXT(" 600/600"));
     const LDHUD::FLevelView Mid=LDHUD::Level(3,10,200,180,true,300);
     TestTrue(TEXT("Experience shows progress inside the current level"),Mid.Level==TEXT("等级 3")&&Mid.Experience==Experience+TEXT(" 20/120")&&FMath::IsNearlyEqual(Mid.Fraction,1.f/6.f,.0001f)&&!Mid.bMax);
@@ -313,18 +312,18 @@ bool FLDHUDOwnResourcesTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionViewTest,"Lockdown.Rules.HUDActionView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
 {
-    LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.ManaCostP2=5000;
+    LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bMomentumKnown=true;Context.MomentumP2=10000;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.MomentumCostP2=5000;
     LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
     TestTrue(TEXT("A ready learned active can be sent and shows its name without a skill level"),View.bCanSubmitIntent&&View.ExecutionBlocks==0&&View.State==TEXT("就绪")&&View.Name==TEXT("技能甲")&&View.Kind==TEXT("角色主动"));
     Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;View=LDHUD::Action(Bolt,Context);
     TestTrue(TEXT("Cooldown is an execution limit with its own track remainder"),(View.ExecutionBlocks&LDHUD::ActionCooldown)&&View.State==TEXT("冷却 3.2s")&&View.CooldownRemainingMs==3200&&FMath::IsNearlyEqual(View.CooldownFraction,.4f,.0001f));
     TestTrue(TEXT("Cooldown does not suppress the explicit intent"),View.bCanSubmitIntent);
-    Context.ManaP2=4000;View=LDHUD::Action(Bolt,Context);
-    TestTrue(TEXT("Several limits are all reported while the state shows the first"),(View.ExecutionBlocks&LDHUD::ActionCooldown)&&(View.ExecutionBlocks&LDHUD::ActionMana)&&View.State.StartsWith(TEXT("冷却")));
+    Context.MomentumP2=4000;View=LDHUD::Action(Bolt,Context);
+    TestTrue(TEXT("Several limits are all reported while the state shows the first"),(View.ExecutionBlocks&LDHUD::ActionCooldown)&&(View.ExecutionBlocks&LDHUD::ActionMomentum)&&View.State.StartsWith(TEXT("冷却")));
     Bolt.ReadyAtMs=0;View=LDHUD::Action(Bolt,Context);
-    TestTrue(TEXT("Insufficient mana greys and explains without blocking the intent"),View.State==LDTerms::NotEnoughMana()&&View.bCanSubmitIntent);
-    Context.ManaP2=10000;
+    TestTrue(TEXT("Short momentum greys and explains without blocking the intent"),View.State==LDTerms::MomentumShort()&&View.bCanSubmitIntent);
+    Context.MomentumP2=10000;
     LDHUD::FActionInput Empty;Empty.Slot=LDHUD::EActionSlot::W;Empty.bProjected=true;View=LDHUD::Action(Empty,Context);
     TestTrue(TEXT("An empty learned slot is an explicit EmptySource attempt, still sent"),View.Name==TEXT("空槽")&&(View.ExecutionBlocks&LDHUD::ActionEmpty)&&View.bCanSubmitIntent);
     Empty.Slot=LDHUD::EActionSlot::Dash;View=LDHUD::Action(Empty,Context);
@@ -764,19 +763,20 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     FLDDemoEffectDefinition Slow;Slow.Opcode=uint8(ELDDemoEffectOp::Slow);Slow.RatioBp=2500;Slow.DurationMs=1500;
     FLDDemoEffectDefinition Timed;Timed.Opcode=uint8(ELDDemoEffectOp::TimedStatBonus);Timed.DurationMs=3000;
     Timed.Stats={{ELDDemoBonusStat::ArmorFlat,1200,{}},{ELDDemoBonusStat::AttackSpeedBonusRatio,5000,{}}};
-    FLDDemoAbilityValues Values;Values.ManaCostP2=5000;Values.CooldownMs=10000;Values.Effects={Root,Damage,Slow,Timed};
+    FLDDemoAbilityValues Values;Values.MomentumCostP2=5000;Values.CooldownMs=10000;Values.Effects={Root,Damage,Slow,Timed};
     LDHUD::FCardStats L1;L1.ADP2=7000;
-    const LDHUD::FCardText Face=LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L1,1000);
+    FLDDemoSkillRankParameters Ranks;Ranks.RankBaseScaleBp={10000,15000,20000};Ranks.RankRatioScaleBp={10000,12500,15000};
+    const LDHUD::FCardText Face=LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L1,Ranks,1000);
     TestEqualSensitive(TEXT("Level 1 numbers: base plus the coefficient times the owner's AD"),Face.Plain,FString(TEXT("定身目标 1 秒，造成 95 物理伤害。")));
     TestEqualSensitive(TEXT("Keywords are bold"),Face.Rich,FString(TEXT("<b>定身</>目标 1 秒，造成 95 物理伤害。")));
     TestTrue(TEXT("The keywords used are listed in glossary order"),Face.bComplete&&Face.Keywords==TArray<FString>{TEXT("定身")});
     TestTrue(TEXT("and the card lists each placeholder's value"),Face.Values==TArray<FString>({TEXT("1"),TEXT("95")}));
     LDHUD::FCardStats L5=L1;L5.Level=5;
     TestEqualSensitive(TEXT("Level 5 grows the base (60 x 1.4 + 35) but not the duration"),
-        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L5,1000).Plain,FString(TEXT("定身目标 1 秒，造成 119 物理伤害。")));
+        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L5,Ranks,1000).Plain,FString(TEXT("定身目标 1 秒，造成 119 物理伤害。")));
     LDHUD::FCardStats BlueprintStats=L5;BlueprintStats.bShowScalingFormula=true;
     const LDHUD::FCardText BlueprintFace=LDHUD::CardText(
-        TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,BlueprintStats,1000);
+        TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,BlueprintStats,Ranks,1000);
     TestTrue(TEXT("A blueprint renders fixed values and attribute scaling without assuming the recorded player's attributes"),
         BlueprintFace.bComplete&&BlueprintFace.Plain==TEXT("定身目标 1 秒，造成 84 + 50%攻击力 物理伤害。"));
     FLDDemoEffectDefinition Shield;Shield.Opcode=uint8(ELDDemoEffectOp::Shield);Shield.BaseP2=2500;
@@ -784,36 +784,39 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     FLDDemoAbilityValues ShieldValues;ShieldValues.Effects.Add(Shield);
     BlueprintStats.Level=1;
     TestEqualSensitive(TEXT("A blueprint burst keeps the armor coefficient and multiplier"),
-        LDHUD::CardText(TEXT("造成 [shield.burst] 伤害。"),ShieldValues,BlueprintStats,1000).Plain,
+        LDHUD::CardText(TEXT("造成 [shield.burst] 伤害。"),ShieldValues,BlueprintStats,Ranks,1000).Plain,
         FString(TEXT("造成 (25 + 35%护甲) × 20% 伤害。")));
     LDHUD::FCardStats L12=L1;L12.Level=12;
-    TestEqualSensitive(TEXT("After level 10 the slower growth applies (60 x (1 + 0.9 + 0.1) + 35)"),
-        LDHUD::CardText(TEXT("造成 [damage.amount] 物理伤害。"),Values,L12,1000,500).Plain,FString(TEXT("造成 155 物理伤害。")));
+    TestEqualSensitive(TEXT("One growth step through every level (60 x 2.1 + 35)"),
+        LDHUD::CardText(TEXT("造成 [damage.amount] 物理伤害。"),Values,L12,Ranks,1000).Plain,FString(TEXT("造成 161 物理伤害。")));
+    LDHUD::FCardStats R3=L12;R3.ADP2=8000;
+    TestEqualSensitive(TEXT("Rank 3 doubles the grown base and raises the coefficient 1.5x (60 x 2.1 x 2 + 75% x 80)"),
+        LDHUD::CardText(TEXT("造成 [damage.amount] 物理伤害。"),Values,R3,Ranks,1000,3).Plain,FString(TEXT("造成 312 物理伤害。")));
     TestEqualSensitive(TEXT("Timed stats: points grow, ratios do not"),
-        LDHUD::CardText(TEXT("护甲 +[timed_stat_bonus.ArmorFlat]，攻速 +[timed_stat_bonus.AttackSpeedBonusRatio]%。"),Values,L5,1000).Plain,
+        LDHUD::CardText(TEXT("护甲 +[timed_stat_bonus.ArmorFlat]，攻速 +[timed_stat_bonus.AttackSpeedBonusRatio]%。"),Values,L5,Ranks,1000).Plain,
         FString(TEXT("护甲 +17，攻速 +50%。")));
     TestFalse(TEXT("An active's template never reads a per-point bonus"),
-        LDHUD::CardText(TEXT("每点 +[per_point.ADFlat]。"),Values,L1,1000).bComplete);
+        LDHUD::CardText(TEXT("每点 +[per_point.ADFlat]。"),Values,L1,Ranks,1000).bComplete);
     // #198 stat rows: [per_point.<Stat>] reads the per-point bonus exactly as authored, decimals kept and never grown.
     FLDDemoStatDefinition Brains;Brains.Id=TEXT("hud_rules_fixture_brains");
     FLDDemoStatBonus AP;AP.Stat=ELDDemoBonusStat::APFlat;AP.Amount=500;
     FLDDemoStatBonus Haste;Haste.Stat=ELDDemoBonusStat::CooldownHasteFlat;Haste.Amount=100;
-    FLDDemoStatBonus Regen;Regen.Stat=ELDDemoBonusStat::MPRegenFlat;Regen.Cm.Numerator=3;Regen.Cm.Denominator=100;
+    FLDDemoStatBonus Regen;Regen.Stat=ELDDemoBonusStat::MomentumRegenFlat;Regen.Cm.Numerator=6;Regen.Cm.Denominator=100;
     FLDDemoStatBonus Crit;Crit.Stat=ELDDemoBonusStat::CritChanceBonusRatio;Crit.Amount=40;
     Brains.PerPoint={AP,Haste,Regen,Crit};
-    const FString StatTemplate=TEXT("每点法术强度 +[per_point.APFlat]、技能急速 +[per_point.CooldownHasteFlat]、法力回复 +[per_point.MPRegenFlat]/秒、暴击率 +[per_point.CritChanceBonusRatio]%。");
+    const FString StatTemplate=TEXT("每点法术强度 +[per_point.APFlat]、技能急速 +[per_point.CooldownHasteFlat]、交战时劲回复 +[per_point.MomentumRegenFlat]/秒、暴击率 +[per_point.CritChanceBonusRatio]%。");
     const LDHUD::FCardText StatFace=LDHUD::StatCardText(StatTemplate,Brains);
-    TestEqualSensitive(TEXT("A stat row shows its per-point bonuses; mana regeneration reads its Cm fraction"),StatFace.Plain,
-        FString(TEXT("每点法术强度 +5、技能急速 +1、法力回复 +0.03/秒、暴击率 +0.4%。")));
+    TestEqualSensitive(TEXT("A stat row shows its per-point bonuses; momentum regeneration reads its Cm fraction"),StatFace.Plain,
+        FString(TEXT("每点法术强度 +5、技能急速 +1、交战时劲回复 +0.06/秒、暴击率 +0.4%。")));
     TestTrue(TEXT("Every per-point placeholder reads a number"),StatFace.bComplete&&StatFace.Values.Num()==4);
     TestFalse(TEXT("A stat's template never reads an active's effect"),LDHUD::StatCardText(TEXT("造成 [damage.amount] 伤害。"),Brains).bComplete);
     TestFalse(TEXT("A per-point bonus the stat lacks is never shown as a number"),LDHUD::StatCardText(TEXT("+[per_point.ArmorFlat]"),Brains).bComplete);
-    const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Values,L1,1000);
+    const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Values,L1,Ranks,1000);
     TestTrue(TEXT("Slow and control are separate keywords"),Both.Keywords==TArray<FString>({TEXT("减速"),TEXT("控制")})
         &&Both.Rich==TEXT("被<b>减速</>或被<b>控制</>的敌人。"));
-    const LDHUD::FCardText Absent=LDHUD::CardText(TEXT("造成 [stun.duration] 秒。"),Values,L1,1000);
+    const LDHUD::FCardText Absent=LDHUD::CardText(TEXT("造成 [stun.duration] 秒。"),Values,L1,Ranks,1000);
     TestTrue(TEXT("A placeholder of an absent effect is never shown as a number"),!Absent.bComplete&&Absent.Plain.Contains(TEXT("?")));
-    TestFalse(TEXT("A broken template is refused"),LDHUD::CardText(TEXT("造成 [damage] 伤害。"),Values,L1,1000).bComplete);
+    TestFalse(TEXT("A broken template is refused"),LDHUD::CardText(TEXT("造成 [damage] 伤害。"),Values,L1,Ranks,1000).bComplete);
     TArray<LDDemoCardText::FToken> Tokens;FString Error;
     TestFalse(TEXT("An unknown op is refused"),LDDemoCardText::Parse(TEXT("[teleport.amount]"),Tokens,Error));
     TestFalse(TEXT("A stray bracket is refused"),LDDemoCardText::Parse(TEXT("造成 ] 伤害"),Tokens,Error));
@@ -830,7 +833,7 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
         &&LDHUD::KeywordLines({TEXT("定身")})[0].StartsWith(TEXT("<b>定身</>：")));
     for(const TCHAR* Reaction:{LDTerms::ReactionFog,LDTerms::ReactionConduct,LDTerms::ReactionOverload})
     {
-        const LDHUD::FCardText Text=LDHUD::CardText(Reaction,{},L1,1000);
+        const LDHUD::FCardText Text=LDHUD::CardText(Reaction,{},L1,Ranks,1000);
         const TArray<FString> Lines=LDHUD::KeywordLines(Text.Keywords);
         TestTrue(FString(Reaction)+TEXT(" in a card brings its explanation"),Lines.Num()==1&&Lines[0].Contains(LDTerms::ReactionExplanation(Reaction)));
     }
@@ -856,12 +859,13 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Control duration is shown in seconds"),LDHUD::EffectLine(Root),FString(LDTerms::Root)+TEXT(" 1.3s"));
     FLDDemoEffectDefinition Unknown;Unknown.Opcode=200;
     TestEqualSensitive(TEXT("An unknown effect is reported, never described"),LDHUD::EffectLine(Unknown),FString(TEXT("未知效果 #200")));
-    FLDDemoAbilityValues Cost;Cost.ManaCostP2=4500;Cost.CooldownMs=6400;Cost.Effects.Add(Damage);
-    TestEqualSensitive(TEXT("An active's cost line carries mana and cooldown"),LDHUD::CostLine(Cost),FString(LDTerms::Mana)+TEXT(" 45 · 冷却 6.4s"));
+    FLDDemoAbilityValues Cost;Cost.MomentumCostP2=4500;Cost.CooldownMs=6400;Cost.Effects.Add(Damage);
+    TestEqualSensitive(TEXT("An active's cost line carries momentum and cooldown"),LDHUD::CostLine(Cost),FString(LDTerms::Momentum)+TEXT(" 45 · 冷却 6.4s"));
     FLDDemoContentDefinitions Content;FLDDemoAbilityDefinition Bolt;Bolt.Id=TEXT("hud_rules_fixture_bolt");
     Bolt.Target.Mode=ELDDemoTargetMode::DirectionProjectile;Bolt.Target.RangeCm.Numerator=650;Bolt.Target.RangeCm.Denominator=1;
     Bolt.Values=Cost;Content.Abilities.Add(Bolt);
     Content.Parameters.SkillGrowthPerLevelBp=1000;
+    Content.Parameters.SkillRanks.RankBaseScaleBp={10000,15000,20000};Content.Parameters.SkillRanks.RankRatioScaleBp={10000,12500,15000};
     LDHUD::FCardStats Stats;
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_bolt"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
     const LDHUD::FActiveCardView Missing=LDHUD::ActiveCard(TEXT("hud_rules_fixture_bolt"),&Content,Stats);
@@ -1437,13 +1441,13 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Recoveries draw their own icons without a display row"),
         Icons.Items[0].IconId==LDUIIcons::OutOfCombatRegen&&Icons.Items[1].IconId==LDUIIcons::DormRegen);
     TestTrue(TEXT("Recoveries are positive"),Icons.Items.FilterByPredicate([](const LDHUD::FSelfIconView& Icon){return Icon.bPositive;}).Num()==2);
-    Content.Parameters.OutOfCombatRegenDelayMs=5000;Content.Parameters.OutOfCombatMaxHPRegenBp=150;Content.Parameters.OutOfCombatMaxMPRegenBp=150;
-    Content.Parameters.DormRegenDelayMs=3000;Content.Parameters.DormMaxHPRegenBp=1000;Content.Parameters.DormMaxMPRegenBp=1000;
+    Content.Parameters.OutOfCombatRegenDelayMs=5000;Content.Parameters.OutOfCombatMaxHPRegenBp=150;
+    Content.Parameters.DormRegenDelayMs=3000;Content.Parameters.DormMaxHPRegenBp=1000;
     const LDHUD::FActionDetailView Slow=LDHUD::SelfIconDetail(Icons.Items[0],&Content);
     TestTrue(TEXT("The out-of-combat popup states the REGEN delay and share"),Slow.Name==LDTerms::OutOfCombatRegen&&Slow.Summary==TEXT("临时状态 · 正面")
-        &&Slow.Body==TEXT("脱战 5s 后，每秒恢复 1.5% 生命上限和法力上限\n出手、释放伤害技能或受到伤害立即停止"));
+        &&Slow.Body==TEXT("脱战 5s 后，每秒恢复 1.5% 生命上限\n出手、释放伤害技能或受到伤害立即停止"));
     const LDHUD::FActionDetailView Dorm=LDHUD::SelfIconDetail(Icons.Items[1],&Content);
-    TestTrue(TEXT("The dorm popup states the DORM delay and share"),Dorm.Body.StartsWith(FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 3s 后，每秒恢复 10% 生命上限和法力上限")));
+    TestTrue(TEXT("The dorm popup states the DORM delay and share"),Dorm.Body.StartsWith(FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 3s 后，每秒恢复 10% 生命上限")));
     Combat.bOutOfCombatRegenActive=false;Combat.bDormRegenActive=false;
     Icons=LDHUD::SelfIcons(&Combat,true,10000,&Content);
     TestTrue(TEXT("A known projection without statuses or recoveries shows an empty strip"),Icons.Items.IsEmpty()&&!Icons.bSyncing);
@@ -1537,35 +1541,35 @@ bool FLDHUDCooldownTextTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionStatesTest,"Lockdown.Rules.HUDActionStates",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
 {
-    LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.ManaCostP2=3050;
+    LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bMomentumKnown=true;Context.MomentumP2=10000;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.MomentumCostP2=3050;
     LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
     LDHUD::EActionLook Shown=LDHUD::ActionLook(View,false);
-    TestEqualSensitive(TEXT("The cost chip shows only the mana cost, rounded down like the shown mana"),View.Cost,FString(TEXT("30")));
+    TestEqualSensitive(TEXT("The cost chip shows only the momentum cost, rounded down like the shown momentum"),View.Cost,FString(TEXT("30")));
     TestTrue(TEXT("A learned active shows its name's first character as the icon"),View.Glyph==TEXT("技"));
     TestTrue(TEXT("A ready, affordable active looks ready"),Shown==LDHUD::EActionLook::Ready);
     Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
     TestTrue(TEXT("A cooling active looks cooling and carries its remainder"),Shown==LDHUD::EActionLook::Cooling&&View.Countdown==TEXT("3.2"));
-    Context.ManaP2=1000;View=LDHUD::Action(Bolt,Context);
-    TestTrue(TEXT("A cooldown outranks missing mana"),LDHUD::ActionLook(View,false)==LDHUD::EActionLook::Cooling);
+    Context.MomentumP2=1000;View=LDHUD::Action(Bolt,Context);
+    TestTrue(TEXT("A cooldown outranks short momentum"),LDHUD::ActionLook(View,false)==LDHUD::EActionLook::Cooling);
     Bolt.ReadyAtMs=0;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
-    TestTrue(TEXT("Missing mana without a cooldown has its own look and still sends"),Shown==LDHUD::EActionLook::NoMana&&View.State==LDTerms::NotEnoughMana()&&View.bCanSubmitIntent);
+    TestTrue(TEXT("Short momentum without a cooldown has its own look and still sends"),Shown==LDHUD::EActionLook::MomentumShort&&View.State==LDTerms::MomentumShort()&&View.bCanSubmitIntent);
     Bolt.bControlled=true;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
-    TestTrue(TEXT("A control status outranks missing mana"),Shown==LDHUD::EActionLook::Controlled);
+    TestTrue(TEXT("A control status outranks short momentum"),Shown==LDHUD::EActionLook::Controlled);
     Bolt.ReadyAtMs=8000;View=LDHUD::Action(Bolt,Context);
     TestTrue(TEXT("A control status outranks the cooldown, whose remainder still shows"),LDHUD::ActionLook(View,false)==LDHUD::EActionLook::Controlled&&View.Countdown==TEXT("3.2"));
     Shown=LDHUD::ActionLook(View,true);
     TestTrue(TEXT("The armed entry outranks its remaining limits"),Shown==LDHUD::EActionLook::Armed);
-    Bolt.bControlled=false;Bolt.ReadyAtMs=0;Context.ManaP2=10000;
+    Bolt.bControlled=false;Bolt.ReadyAtMs=0;Context.MomentumP2=10000;
     LDHUD::FActionInput Empty;Empty.Slot=LDHUD::EActionSlot::W;Empty.bProjected=true;View=LDHUD::Action(Empty,Context);Shown=LDHUD::ActionLook(View,true);
     TestTrue(TEXT("An empty slot looks empty even when armed and has no cost or icon glyph"),Shown==LDHUD::EActionLook::Empty&&View.Cost.IsEmpty()&&View.Glyph.IsEmpty()&&View.Name==TEXT("空槽"));
     Context.bAlive=false;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,true);
     TestTrue(TEXT("A dead owner's slot is blocked, never armed"),Shown==LDHUD::EActionLook::Blocked&&View.State==LDTerms::Dead);
     Context.bAlive=true;Bolt.ServerBlock=TEXT("目标不可用");View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
     TestTrue(TEXT("A published server reason blocks the look and its tooltip names the reason"),Shown==LDHUD::EActionLook::Blocked&&View.State==TEXT("目标不可用"));
-    Bolt.ServerBlock.Reset();Bolt.ManaCostP2=0;
+    Bolt.ServerBlock.Reset();Bolt.MomentumCostP2=0;
     TestTrue(TEXT("An active without a cost shows no chip"),LDHUD::Action(Bolt,Context).Cost.IsEmpty());
-    LDHUD::FActionInput Unprojected=Bolt;Unprojected.bProjected=false;Unprojected.ManaCostP2=5000;View=LDHUD::Action(Unprojected,Context);
+    LDHUD::FActionInput Unprojected=Bolt;Unprojected.bProjected=false;Unprojected.MomentumCostP2=5000;View=LDHUD::Action(Unprojected,Context);
     TestTrue(TEXT("Without a projection there is no cost and the slot is unsynced"),View.Cost.IsEmpty()&&LDHUD::ActionLook(View,false)==LDHUD::EActionLook::Blocked);
     FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::OutOfRange;
     TestEqualSensitive(TEXT("The pressed slot shows the reason of the player's failed request"),LDHUD::CombatReceiptSlotNotice(Receipt),FString(TEXT("超出射程")));
@@ -2295,9 +2299,9 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("M04 compares the compiled control duration and cooldown without claiming a conditional effect"),
         Preview.Status==EStatus::Ready&&!Preview.bPartial
         &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
-            {return Line.Label.Contains(LDTerms::Root)&&Line.Before==TEXT("1.5s")&&Line.After==TEXT("1.875s");})
+            {return Line.Label.Contains(LDTerms::Root)&&Line.Before==TEXT("1.2s")&&Line.After==TEXT("1.5s");})
         &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
-            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("12s")&&Line.After==TEXT("15s");}));
+            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("9s")&&Line.After==TEXT("11.25s");}));
     ++View.CombatInstalledRevision;
     TestTrue(TEXT("Mismatched installed revisions wait for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
     --View.CombatInstalledRevision;
@@ -2317,7 +2321,7 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
     Combat.bPreviewLiving=true;
     Combat.MaxHPP2=Projected.Value->Final.MaxHPP2;Combat.HPP2=Combat.MaxHPP2/2;
-    Combat.MaxMPP2=Projected.Value->Final.MaxMPP2;Combat.MPP2=Combat.MaxMPP2/2;
+    Combat.MaxMomentumP2=10000;Combat.MomentumP2=5000;
     FLDDemoStatBonus Haste;Haste.Stat=ELDDemoBonusStat::CooldownHasteFlat;Haste.Amount=1500;
     FLDCombatPreviewBonus& Bonus=Combat.PreviewBonuses.AddDefaulted_GetRef();
     Bonus.Stats.Add(Haste);Bonus.ExpiresAtMs=2000;
@@ -2332,8 +2336,8 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     }
     int64 OldCooldown=0,NewCooldown=0;FString Error;
     if(!TestTrue(TEXT("Both expected cooldowns use the authority formula"),
-        LDTactical::CooldownDurationMs(12000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
-        &&LDTactical::CooldownDurationMs(15000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
+        LDTactical::CooldownDurationMs(9000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
+        &&LDTactical::CooldownDurationMs(11250,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
     {return false;}
     const LDWorkshopPreview::FResult Live=LDWorkshopPreview::Compare(Input);
     const LDWorkshopPreview::FLine* Cooldown=Live.Lines.FindByPredicate([](const LDWorkshopPreview::FLine& Line)
@@ -2739,11 +2743,11 @@ bool FLDHUDChoiceTrayTest::RunTest(const FString& Parameters)
 {
     // A card shows only its icon and name; the popup carries the kind, the full rule, the keywords (as plain text) and what
     // a click does when that is not the plain take.
-    LDHUD::FActiveCardView Card;Card.Name=TEXT("肘击");Card.Target=TEXT("单体");Card.Cost=TEXT("法力 30");Card.bKnown=true;
+    LDHUD::FActiveCardView Card;Card.Name=TEXT("肘击");Card.Target=TEXT("单体");Card.Cost=TEXT("劲 30");Card.bKnown=true;
     Card.SentencePlain=TEXT("造成 10 点伤害并减速");Card.Keywords={TEXT("<b>减速</>：移速降低 &lt;30%&gt;")};
     const LDHUD::FActionDetailView Offer=LDHUD::ActiveChoiceDetail(Card,false,LDTerms::LearnInto(TEXT("Q")));
     TestEqualSensitive(TEXT("An offer popup is named after the active"),Offer.Name,FString(TEXT("肘击")));
-    TestEqualSensitive(TEXT("An offer popup names the kind, the targeting and the cost"),Offer.Summary,FString(TEXT("技能 · 单体 · 法力 30")));
+    TestEqualSensitive(TEXT("An offer popup names the kind, the targeting and the cost"),Offer.Summary,FString(TEXT("技能 · 单体 · 劲 30")));
     TestEqualSensitive(TEXT("The rule, its plain keyword lines and the outcome follow"),Offer.Body,
         FString(TEXT("造成 10 点伤害并减速\n\n减速：移速降低 <30%>\n\n"))+LDTerms::LearnInto(TEXT("Q")));
     TestTrue(TEXT("A blueprint card says it is a blueprint"),LDHUD::ActiveChoiceDetail(Card,true,FString()).Summary.StartsWith(LDTerms::Blueprint));
@@ -2836,7 +2840,7 @@ bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
         Stats.Add(Field.Stat);Names.Add(Field.ConsoleName);
         bRowsValid&=Field.Attribute<uint8(ELDProjectedAttribute::Count)&&Field.Stat!=uint8(ELDDemoBonusStat::ADBonusRatio);
     }
-    TestTrue(TEXT("Eleven distinct permanent stats, never the conditional AD ratio"),Fields.Num()==11&&Stats.Num()==11&&Names.Num()==11&&bRowsValid);
+    TestTrue(TEXT("Ten distinct permanent stats, never the conditional AD ratio"),Fields.Num()==10&&Stats.Num()==10&&Names.Num()==10&&bRowsValid);
     const LDDevTest::FStatField* Crit=Fields.FindByPredicate([](const LDDevTest::FStatField& F){return F.Stat==uint8(ELDDemoBonusStat::CritChanceBonusRatio);});
     const LDDevTest::FStatField* Range=Fields.FindByPredicate([](const LDDevTest::FStatField& F){return F.Stat==uint8(ELDDemoBonusStat::AttackRangeCmFlat);});
     TestTrue(TEXT("Fields name the stat in player terms with the entry unit"),Crit&&Range&&LDDevPanel::StatLabel(*Crit)==LDTerms::CritChance()+TEXT("（百分点）")
@@ -2931,7 +2935,7 @@ bool FLDHUDTermsGlossaryTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("The glossary's %s is the approved display name"),Pair.Key),Name&&Name->Equals(Pair.Value,ESearchCase::CaseSensitive));
     }
     // Every system term is filled, distinct from the others and never an entry name, so it cannot read as a skill or creature.
-    const TCHAR* const Terms[]={LDTerms::Health,LDTerms::Mana,LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
+    const TCHAR* const Terms[]={LDTerms::Health,LDTerms::Momentum,LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
         LDTerms::AttackSpeed,LDTerms::MoveSpeed,LDTerms::Crit,LDTerms::Haste,LDTerms::PhysicalDamage,LDTerms::MagicalDamage,
         LDTerms::Experience,LDTerms::BasicAttack,LDTerms::Dash,LDTerms::CapturePoint,LDTerms::CampLow,LDTerms::CampHigh,
         LDTerms::Dead,LDTerms::RespawnWait,LDTerms::Choice,LDTerms::Winner,LDTerms::UnknownVictim};
@@ -2954,12 +2958,12 @@ bool FLDHUDTermsGlossaryTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDAttributeViewTest,"Lockdown.Rules.HUDAttributeView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDAttributeViewTest::RunTest(const FString& Parameters)
 {
-    // The HUD attribute view lists each projected attribute once, except what the health and mana bars already show.
+    // The HUD attribute view lists each projected attribute once, except what the health and momentum bars already show.
     using A=ELDProjectedAttribute;
     const TArray<uint8> Order=LDHUD::AttributeViewOrder();
-    for(const A Shown:{A::MaxHP,A::MaxMP,A::HPRegen,A::MPRegen})
+    for(const A Shown:{A::MaxHP,A::HPRegen,A::MomentumRegen})
     {TestFalse(TEXT("The bars' maxima and regenerations are not repeated"),Order.Contains(uint8(Shown)));}
-    TestEqual(TEXT("Every other projected attribute is listed"),Order.Num(),int32(A::Count)-4);
+    TestEqual(TEXT("Every other projected attribute is listed"),Order.Num(),int32(A::Count)-3);
     TSet<FString> Glyphs;
     for(const uint8 Attribute:Order)
     {

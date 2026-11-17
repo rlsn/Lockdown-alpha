@@ -91,10 +91,9 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
-    // Survival, basic-attack, stat, cooldown, mana and release riders add no structural usage of their own.
+    // Survival, basic-attack, stat, cooldown, momentum and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
     case ELDDemoEffectOp::CooldownRefund:
-    case ELDDemoEffectOp::ManaOnHit:
     default:
         break;
     }
@@ -595,12 +594,66 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             default:
                 break;
             }
+            // Issue #287 spec §13: a full bar on a healthy target spends itself as an overdrive.
+            if (bUse && Tier >= 2 && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
+                && Need.Target->MaxHpP2.GetValue() > 0 && C.Self.MomentumP2 >= C.Catalog.Get().Parameters.Overdrive.ThresholdP2
+                && Need.Target->HpP2.GetValue() * 10 > Need.Target->MaxHpP2.GetValue() * 4)
+            {
+                Body.bOverdrive = true;
+            }
             if (bUse && C.CanAttempt(Key))
             {
                 Body.Key = Key;
                 return Body;
             }
         }
+    }
+    return {};
+}
+
+// Issue #287 spec §13: a visible enemy warning about to land on the own foot is dashed out of with the ready D, at
+// AI.DodgeChance (one stable roll per warning).
+TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C)
+{
+    const FLDOpponentSource* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
+    if (!Dash || !Dash->bReady) { return {}; }
+    const FVector Foot(C.Self.FootCm.X, C.Self.FootCm.Y, 0);
+    for (const FLDOpponentWarning& Warning : C.Frame.Warnings)
+    {
+        if (Warning.RemainingMs > 450) { continue; }
+        const FVector Centre(Warning.CentreCm.X, Warning.CentreCm.Y, 0);
+        const FVector Heading = FVector(Warning.Heading.X, Warning.Heading.Y, 0).GetSafeNormal();
+        const FVector Offset = Foot - Centre;
+        bool bInside = false;
+        FVector Away = Offset.GetSafeNormal();
+        if (Warning.LengthCm > 0 && !Heading.IsNearlyZero())
+        {
+            const double Ahead = FVector::DotProduct(Offset, Heading);
+            const FVector Side = FVector::CrossProduct(FVector::UpVector, Heading);
+            const double Across = FVector::DotProduct(Offset, Side);
+            bInside = Warning.AngleDegrees > 0
+                ? Offset.Size() <= Warning.LengthCm && (Offset.IsNearlyZero()
+                    || FVector::DotProduct(Offset.GetSafeNormal(), Heading) >= FMath::Cos(FMath::DegreesToRadians(Warning.AngleDegrees * .5)))
+                : Ahead >= 0 && Ahead <= Warning.LengthCm && FMath::Abs(Across) <= Warning.RadiusCm;
+            // Out of a line or a cone sideways.
+            Away = Across >= 0 ? Side : -Side;
+        }
+        else
+        {
+            bInside = Offset.Size() <= Warning.RadiusCm;
+        }
+        if (!bInside) { continue; }
+        if (Away.IsNearlyZero()) { Away = Heading.IsNearlyZero() ? FVector::ForwardVector : FVector::CrossProduct(FVector::UpVector, Heading); }
+        const uint32 Roll = HashCombine(GetTypeHash(Warning.Handle), GetTypeHash(C.Self.ContenderId)) % 10000;
+        if (int64(Roll) >= C.Catalog.Get().Parameters.AI.DodgeChanceBp) { continue; }
+        FLDOpponentBodyIntent Body;
+        Body.Kind = EBody::Activate;
+        Body.Source = ELDOpponentSourceSlot::Dash;
+        Body.TargetMode = ELDDemoTargetMode::DirectionDash;
+        Body.Direction = Away.GetSafeNormal2D();
+        Body.Key.Category = ELDOpponentFailure::Activation;
+        Body.Key.Slot = uint8(ELDOpponentSourceSlot::Dash);
+        if (C.CanAttempt(Body.Key)) { return Body; }
     }
     return {};
 }
@@ -1524,6 +1577,23 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         {
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::BuyNpcOffer;
+            Out.Key = Key;
+            return true;
+        }
+    }
+    // Issue #287 spec §13: a skill point goes to the learned skill that deals the most damage at once (branch A/1 on ties).
+    if (Self.SkillPoints > 0
+        && LDProgression::CommandGate(ELDBuildCommandKind::RankUpSkill, Context) == ELDGrowthReason::None)
+    {
+        const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::RankUpSkill);
+        uint8 Slot = 0;
+        ELDSkillBranch Branch = ELDSkillBranch::None;
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::PickRankUp(Self, Catalog, Slot, Branch))
+        {
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::RankUpSkill;
+            Out.Slot = Slot;
+            Out.Branch = Branch;
             Out.Key = Key;
             return true;
         }
@@ -2504,6 +2574,38 @@ ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind)
     }
 }
 
+bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8& OutSlot, ELDSkillBranch& OutBranch)
+{
+    // The damage one release of each learned skill deals now (its base plus the own AD/AP shares of every damage package).
+    int64 Best = -1;
+    bool bFound = false;
+    for (const FLDOpponentActive& Active : Self.Actives)
+    {
+        if (LDSkillBranch::RankOf(Active.Branch) >= 3) { continue; }
+        const FLDDemoAbilityDefinition* Ability = Catalog.Get().Abilities.FindByPredicate([&Active](const FLDDemoAbilityDefinition& Row)
+        { return Row.Id == Active.DefinitionId; });
+        if (!Ability) { continue; }
+        const FLDDemoAbilityBranch* Variant = Ability->FindBranch(Active.Branch);
+        const FLDDemoAbilityValues& Values = Variant ? Variant->Values : Ability->Values;
+        int64 Damage = 0;
+        for (const FLDDemoEffectDefinition& Effect : Values.Effects)
+        {
+            const ELDDemoEffectOp Op = Effect.GetOp();
+            if (Op != ELDDemoEffectOp::Damage && Op != ELDDemoEffectOp::ZoneDamage && Op != ELDDemoEffectOp::EmpowerBasic) { continue; }
+            Damage += Effect.BaseP2 + Effect.ADRatioBp * Self.Attributes.ADP2 / 10000 + Effect.APRatioBp * Self.Attributes.APP2 / 10000;
+        }
+        if (Damage > Best || (Damage == Best && bFound && Active.Slot < OutSlot))
+        {
+            Best = Damage;
+            OutSlot = Active.Slot;
+            bFound = true;
+            OutBranch = Active.Branch == ELDSkillBranch::None ? ELDSkillBranch::A
+                : Active.Branch == ELDSkillBranch::A ? ELDSkillBranch::A1 : ELDSkillBranch::B1;
+        }
+    }
+    return bFound;
+}
+
 FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
     FLDOpponentPolicyState& State)
 {
@@ -2713,6 +2815,15 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Out.Body = Intent;
         if (bActionLive) { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
     };
+    // A telegraph about to land on the own foot comes first (issue #287 spec §13).
+    if (!bActionLive && Self.Phase == ELDLifePhase::Alive)
+    {
+        if (const TOptional<FLDOpponentBodyIntent> Dodge = DodgeIntent(C))
+        {
+            Body(Dodge.GetValue());
+            return Finish(State.Mode, EReason::EngageTarget);
+        }
+    }
 
     if (Frame.Public.Timeline.Stage == ELDMatchStage::FinalField)
     {
@@ -2832,7 +2943,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
         // After escaping a threat, continue to recovery instead of turning back toward a charm at the sight edge.
         const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
-        if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MpP2 < C.Self.MaxMpP2))
+        if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MomentumP2 < C.Self.MaxMomentumP2))
         {
             Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
             return Finish(EMode::Airdrop, EReason::ContestAirdrop);

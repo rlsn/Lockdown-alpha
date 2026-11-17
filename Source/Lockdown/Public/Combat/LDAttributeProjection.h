@@ -71,14 +71,13 @@ struct FLDAttributeBuildValues
 
 enum class ELDProjectedAttribute : uint8
 {
-    MaxHP, MaxMP, AD, AP, Armor, MagicResist, AttackSpeed, MoveSpeed, AttackRange,
-    HPRegen, MPRegen, CritChance, CooldownHaste, Count
+    MaxHP, AD, AP, Armor, MagicResist, AttackSpeed, MoveSpeed, AttackRange,
+    HPRegen, MomentumRegen, CritChance, CooldownHaste, Count
 };
 
 struct FLDProjectedAttributes
 {
     int64 MaxHPP2 = 0;
-    int64 MaxMPP2 = 0;
     int64 ADP2 = 0;
     int64 APP2 = 0;
     int64 ArmorP2 = 0;
@@ -90,7 +89,8 @@ struct FLDProjectedAttributes
     FLDDemoRational AttackRangeCm;
     // Always-on rates.
     FLDDemoRational HPRegenPerSec;
-    FLDDemoRational MPRegenPerSec;
+    // In-combat momentum gain per second (MOMENTUM.CombatPerSec plus the brains points).
+    FLDDemoRational MomentumRegenPerSec;
     int64 CritChanceBp = 0;
     int64 CooldownHasteP2 = 0;
 };
@@ -196,8 +196,8 @@ struct LOCKDOWN_API FLDTemporaryAttributeTerms
     bool operator!=(const FLDTemporaryAttributeTerms& Other) const { return !(*this == Other); }
 };
 
-// Selects only the quantization policy: HP refuses positive-to-zero, MP accepts it.
-enum class ELDResourcePool : uint8 { None, HP, MP };
+// Selects the quantization policy: HP refuses positive-to-zero. Momentum has a fixed maximum and never converts.
+enum class ELDResourcePool : uint8 { None, HP };
 
 struct FLDResourceMaxChangeInput
 {

@@ -45,7 +45,7 @@ enum class ELDBlueprintFact : uint8
     BasicAttacks, AbilityCasts,
     // HP natural (and dorm) regeneration actually restored; M12 debt heals actually repaid; what the player's own cuts
     // (S16 stance, primary guard) took off hostile hits; procs of installed components that committed a real result;
-    // own combat requests refused for a gameplay gate (busy, cooldown, cadence, mana, control, target, direction, range,
+    // own combat requests refused for a gameplay gate (busy, cooldown, cadence, momentum, control, target, direction, range,
     // sight).
     Regeneration, DebtRepaid, DamageReduced, Triggers, Rejections,
     Count

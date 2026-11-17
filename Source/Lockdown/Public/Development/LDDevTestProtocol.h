@@ -21,7 +21,7 @@ enum class ELDDevTestOp : uint8
     None = 0,
     // Amount > 0: cumulative XP with its levels and opportunities, like a reward without a death.
     GrantExperience = 1,
-    // Amount == 0: the current Alive body's HP and MP to their committed maxima; the shield is untouched.
+    // Amount == 0: the current Alive body's HP to its committed maximum and a full momentum bar; the shield is untouched.
     RefillResources = 3,
     // Amount == 0: every cooldown track of the caller (Q/W/E and the dash, bound or debt) ready at the commit boundary.
     ResetCooldowns = 4,

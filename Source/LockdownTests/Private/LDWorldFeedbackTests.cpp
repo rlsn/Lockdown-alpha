@@ -45,7 +45,7 @@ FLDCombatOwnerView WorldFeedbackTestBody(uint32 Match,uint32 Life,uint64 Revisio
 {
     FLDCombatOwnerView Combat;
     Combat.Generation=Match;Combat.Life=Life;Combat.Revision=Revision;Combat.AsOfMs=AsOfMs;Combat.bHasBody=true;
-    Combat.HPP2=HPP2;Combat.MaxHPP2=MaxHPP2;Combat.MPP2=20000;Combat.MaxMPP2=20000;
+    Combat.HPP2=HPP2;Combat.MaxHPP2=MaxHPP2;Combat.MomentumP2=20000;Combat.MaxMomentumP2=20000;
     return Combat;
 }
 FLDCombatStatusView WorldFeedbackTestShield(int64 AmountP2,int64 ExpiresAtMs)

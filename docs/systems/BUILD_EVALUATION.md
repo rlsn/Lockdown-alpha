@@ -314,13 +314,13 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 判读要求唯一的 `LD_FIELD_ENTER segment=0` 与结果的代次、起点及 `field_t_ms=0` 一致，并核对对局开局和双方 `LD_EVAL_FIELD_SPAWN` 记录；
 缺失、重复、不一致或跨越第一野外段的证据均判无效。只有第一野外段入口至 `started_at_ms + duel_timeout_ms`（含边界）
 的击杀计入；更晚的通知忽略，按精确时限判为删失。命中指标和首击事实同样从野外入口起统计，
-但终态 HP/MP 与重放终态仍记录探针实际结束帧。
+但终态 HP/劲与重放终态仍记录探针实际结束帧。
 
 ## 重放
 
 `-ReplayRun` 以原 Case 的身份、种子与方案新开进程重跑。只有两次都成功完成，计划、Case、能力表、原生运行身份、
 编辑器可执行文件和游戏模块的运行前后摘要均可核对且一致，双方选择证据与心跳资源/位置完整，才进行成功判定。
-比较终态的构筑（含构件与已提交的计划步数）、HP/MP 等字段和双方心跳资源，以及到 Case 结束为止的
+比较终态的构筑（含构件与已提交的计划步数）、HP/劲等字段和双方心跳资源，以及到 Case 结束为止的
 `LD_EVAL_OPENING_PRESET/COMPONENT_PRESET/FIELD_SPAWN`、`LD_OFFER/CHOICE/BUILD/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`（身份换成角色名）；
 心跳位置按 `-SpatialToleranceCm`（默认 0）比较。
 比较前事件先规范化：进程级的绝对 match `generation` 换成本 Case 的序号；同一权威时刻内双方彼此独立的准备事件

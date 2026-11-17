@@ -58,19 +58,18 @@ namespace LDTactical
         int64& InOutP2, int64& InOutRemainderMicroP2, FString& Error);
 
     // D21 recovery of every contender: once DelayMs has passed since its last combat event, a per-second share
-    // (basis points) of its current maximum HP and MP. It stacks with every other regeneration term.
+    // (basis points) of its current maximum HP. It stacks with every other regeneration term.
     struct FOutOfCombatRecovery
     {
         int64 DelayMs = 0;
         int64 MaxHPBpPerSec = 0;
-        int64 MaxMPBpPerSec = 0;
     };
 
     // The resource pools and sub-P2 remainders of one living body that regeneration settles.
     struct FRegenPools
     {
-        int64 HpP2 = 0, MaxHpP2 = 0, MpP2 = 0, MaxMpP2 = 0;
-        int64 HpMicroP2 = 0, MpMicroP2 = 0;
+        int64 HpP2 = 0, MaxHpP2 = 0;
+        int64 HpMicroP2 = 0;
     };
 
     // FORMULA.Regen over [FromMs, NowMs) of one living body: the always-on rates of Attributes and, when given, the
@@ -80,11 +79,11 @@ namespace LDTactical
     LOCKDOWN_API bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
         int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error,
         const FOutOfCombatRecovery* Dorm = nullptr);
-    struct FRegenRates { double HP=0, MP=0; };
+    struct FRegenRates { double HP=0; };
     // Read-only instantaneous rates from validated authority inputs, before full-pool clipping.
     // Uses the same terms (including the D21 躺平角 term when given) and activation boundaries as SettleRegen; no resource integration or mutation.
     LOCKDOWN_API FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, const FOutOfCombatRecovery* Dorm = nullptr);
+        int64 MaxHpP2, int64 LastCombatAtMs, int64 NowMs, const FOutOfCombatRecovery* Dorm = nullptr);
     // Whether an out-of-combat term with DelayMs is running at NowMs.
     LOCKDOWN_API bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs);
 }

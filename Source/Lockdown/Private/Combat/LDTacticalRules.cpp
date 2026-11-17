@@ -539,15 +539,14 @@ namespace LDTactical
     }
 
     FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, const FOutOfCombatRecovery* Dorm)
+        int64 MaxHpP2, int64 LastCombatAtMs, int64 NowMs, const FOutOfCombatRecovery* Dorm)
     {
         const auto Value=[](const FLDDemoRational& Rate){return double(Rate.Numerator)/double(Rate.Denominator);};
-        FRegenRates Rates{Value(Attributes.Final.HPRegenPerSec),Value(Attributes.Final.MPRegenPerSec)};
+        FRegenRates Rates{Value(Attributes.Final.HPRegenPerSec)};
         for (const FOutOfCombatRecovery* Term : {Recovery, Dorm})
         {
             if (!Term || !OutOfCombatAt(LastCombatAtMs,Term->DelayMs,NowMs)) { continue; }
             Rates.HP+=double(MaxHpP2)*double(Term->MaxHPBpPerSec)/1000000.;
-            Rates.MP+=double(MaxMpP2)*double(Term->MaxMPBpPerSec)/1000000.;
         }
         return Rates;
     }
@@ -584,8 +583,7 @@ namespace LDTactical
             return true;
         };
         const int64 Elapsed = NowMs - FromMs;
-        if (!IntegrateRegen(Attributes.Final.HPRegenPerSec, Elapsed, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
-            || !IntegrateRegen(Attributes.Final.MPRegenPerSec, Elapsed, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
+        if (!IntegrateRegen(Attributes.Final.HPRegenPerSec, Elapsed, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error))
         {
             return false;
         }
@@ -593,11 +591,9 @@ namespace LDTactical
         {
             if (!Term) { continue; }
             int64 StartMs = NowMs;
-            FLDDemoRational HPRate, MPRate;
+            FLDDemoRational HPRate;
             if (!TermStart(Term->DelayMs, StartMs) || !Share(InOut.MaxHpP2, Term->MaxHPBpPerSec, HPRate)
-                || !Share(InOut.MaxMpP2, Term->MaxMPBpPerSec, MPRate)
-                || !IntegrateRegen(HPRate, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
-                || !IntegrateRegen(MPRate, NowMs - StartMs, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
+                || !IntegrateRegen(HPRate, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error))
             {
                 return false;
             }

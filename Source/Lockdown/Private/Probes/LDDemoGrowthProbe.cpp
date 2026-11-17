@@ -3444,9 +3444,9 @@ public:
                 TEXT("The public kill feed counts exactly one death of the buyer this match, dealt by the Host; no rest retirement counted"),
                 FString::Printf(TEXT("deaths=%lld killer=%s cause=%u"), Deaths,
                     Notice ? *LDDemoGrowthScenario::GrowthProbeGuid(Notice->Killer) : TEXT("none"), Notice ? uint32(Notice->Cause) : 0u));
-            Check(Own.MaxHPP2 == GrownMaxHPP2 && Own.HPP2 == Own.MaxHPP2 && Own.MaxMPP2 > 0 && Own.MPP2 == Own.MaxMPP2, TEXT("A14"),
-                TEXT("The normal respawn restores full HP and MP at the maximum grown while dead"),
-                FString::Printf(TEXT("life %u hp %lld/%lld mp %lld/%lld"), PC.OwnerState.Life, Own.HPP2, Own.MaxHPP2, Own.MPP2, Own.MaxMPP2));
+            Check(Own.MaxHPP2 == GrownMaxHPP2 && Own.HPP2 == Own.MaxHPP2 && Own.MomentumP2 == Catalog->Get().Parameters.Momentum.StartP2, TEXT("A14"),
+                TEXT("The normal respawn restores full HP at the maximum grown while dead and momentum at MOMENTUM.Start"),
+                FString::Printf(TEXT("life %u hp %lld/%lld momentum %lld"), PC.OwnerState.Life, Own.HPP2, Own.MaxHPP2, Own.MomentumP2));
             Check(Own.RespawnDurationMs == 0, TEXT("A14"), TEXT("The new life does not inherit the previous respawn wait"));
             const FLDCombatEntryView* E = CurrentEntry(PC, ELDCombatEntry::E);
             const FLDActiveSlotView* Learned = LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2);

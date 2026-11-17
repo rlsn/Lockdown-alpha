@@ -170,6 +170,11 @@ bool ALDCombatDirector::MakeEmpower(const FLDBodyCombatState& Body, const FLDCom
     Out.EffectId=EffectId;
     Out.Source=Source;
     Out.Charges=FMath::Max(Effect.Count,1);
+    // Skill branch terms of an active's package (S11, S17).
+    Out.MomentumP2=Effect.LimitP2;
+    Out.BreachStacks=Effect.BasicCount;
+    Out.LastStunMs=Effect.ExtraDurationMs;
+    Out.bAlwaysCrit=Effect.bAlwaysCrit;
     if (!LDCombatComponentsDetail::PackageP2(Effect,Body.AttributeProjection.Final,Out.AmountP2))
     {
         Error=FString::Printf(TEXT("empower_basic of %s is outside the checked numeric domain."),*LDLog::Source(Source));

@@ -67,7 +67,7 @@ def manifest(subject=None, opponent=None, sample="legal_search", supply=SUPPLY, 
 def contender(role, slot, contender_id, hp=31000, body=True, **rest):
     row = {"role": role, "slot": slot, "contender": contender_id, "progression_valid": True, "level": 6, "xp": SUPPLY,
            "choices": 3, "planned_choices": 3, "unspent_points": 0, **copy.deepcopy(BUILDS[role]),
-           "has_body": body, "hp_p2": hp, "max_hp_p2": 62000, "mp_p2": 0, "max_mp_p2": 0, "profile_bound": True,
+           "has_body": body, "hp_p2": hp, "max_hp_p2": 62000, "momentum_p2": 0, "max_momentum_p2": 0, "profile_bound": True,
            "profile_phase": "Engaging", "profile_failure": "", "supply_xp": SUPPLY, "supply_status": "Granted",
            "presets_requested": 0, "presets_queued": 0, "planned_steps": 0, "steps_committed": 0, "components": []}
     row.update(rest)
@@ -94,7 +94,7 @@ def hit(t, src, victim, dmg, absorbed, lost, before, after, monster="-"):
 
 
 def heartbeat(t, contender_id, pos, hp="620.00/620.00"):
-    return (f"LD_HEARTBEAT t={t} contender={contender_id} phase=Alive life=1 pos={pos} hp={hp} mp=280.00/280.00 shield=0.00 "
+    return (f"LD_HEARTBEAT t={t} contender={contender_id} phase=Alive life=1 pos={pos} hp={hp} momentum=50.00/100.00 shield=0.00 "
             f"level=6 xp={SUPPLY} pending=0 order=- order_at=- action=- statuses=- protected_until=0 respawn_at=0")
 
 
@@ -1338,12 +1338,12 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertEqual(terminal["actives"], BUILDS["subject"]["actives"])
         self.assertEqual(terminal["stat_points"], BUILDS["subject"]["stat_points"])
         self.assertEqual((terminal["blueprints"], terminal["unspent_points"]), ([], 0))
-        self.assertEqual(snapshot["resources"][0]["mp"], "280.00/280.00")
+        self.assertEqual(snapshot["resources"][0]["momentum"], "50.00/100.00")
         value = result()
         del value["contenders"][0]["blueprints"]
         snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, value, trace())
         self.assertTrue(any("terminal contender build" in problem for problem in snapshot["problems"]))
-        malformed = trace().replace("mp=280.00/280.00 shield=0.00", "shield=0.00", 1)
+        malformed = trace().replace("momentum=50.00/100.00 shield=0.00", "shield=0.00", 1)
         snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), malformed)
         self.assertTrue(any("lacks resource" in problem for problem in snapshot["problems"]))
         snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), "")

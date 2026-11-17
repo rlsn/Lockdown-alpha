@@ -17,9 +17,8 @@ struct FLDInnateDashTerms
 {
     FLDDemoRational DistanceCm;
     int64 DurationMs=0;
-    // Whole cooldown issued at release; cooldown haste does not apply to the innate dash.
+    // Whole cooldown issued at release; cooldown haste does not apply to the innate dash. The dash costs no momentum.
     int64 CooldownMs=0;
-    int64 ManaCostP2=0;
 };
 
 // Execution limits shared by admission, release and the owner view, checked in this fixed order.
@@ -27,8 +26,8 @@ struct FLDActiveGateInput
 {
     int64 NowMs=0;
     int64 ReadyAtMs=0;           // the source's persistent track end
-    int64 MpP2=0;
-    int64 ManaCostP2=0;
+    int64 MomentumP2=0;
+    int64 MomentumCostP2=0;
     bool bDash=false;            // the active moves the body (POLICY.RootBlocks Dash applies)
     const TArray<FLDCombatRoot>* Roots=nullptr;
     // The control matrix (Director::IsActionBlocked): Stun or taunt blocks the entry's cast;
@@ -97,7 +96,7 @@ namespace LDCombatSourceRules
     LOCKDOWN_API void ScaleInnateDash(FLDInnateDashTerms& Dash, const FLDCombatActiveTerms& Terms);
     LOCKDOWN_API bool CastRangeCm(const FLDDemoContentSnapshot& Content, const FLDAttributeProjection& Projection,
         const FLDDemoTargetDefinition& Target, double& OutCm);
-    // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
+    // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, MomentumShort, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
     // ControlBlocked when the attacker's own control ends the swing; TargetUnavailable when the committed target life is

@@ -33,8 +33,9 @@ namespace LDWorldLabels
         bool bHealth=false;    // false without a known maximum or with a malformed current: no bar, never an empty one
         float HealthFraction=0.f;  // current over maximum, clamped to 0..1
         bool bShield=false;    // the unit has the public shield status; its amount is not part of the label
+        bool bCharging=false;  // a contender holding an overdrive charge: a gold halo rings its bar (never which skill)
     };
-    // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never mana, skills or
+    // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never momentum, skills or
     // cooldowns. A remaining time counts from the frame's own authority sample and rounds up to a
     // tenth, the same text as the target card.
     LOCKDOWN_API FLabel Build(const FLDObservedUnitView& Unit,const FString& RosterName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
@@ -42,12 +43,12 @@ namespace LDWorldLabels
     struct FOwnBars
     {
         bool bVisible=false;
-        float Health=0,Shield=0,Mana=0;
-        bool bMana=false;
+        float Health=0,Shield=0,Momentum=0;
+        bool bMomentum=false;
     };
     // Bars over the local owner's own body, from this controller's own combat projection only and behind the HUD band's
     // gate: the current public match, this life, alive, with a body and a known health maximum. The shield continues after the
-    // health fill and, when both exceed the bar, the two share it in proportion; mana is omitted without a known maximum.
+    // health fill and, when both exceed the bar, the two share it in proportion; momentum is omitted without a known maximum.
     // The widget also requires the owner's pawn, which anchors the bars.
     LOCKDOWN_API FOwnBars OwnBars(const FLDOwnerState& Own,uint32 PublicGeneration,const FLDCombatOwnerView& Combat);
 

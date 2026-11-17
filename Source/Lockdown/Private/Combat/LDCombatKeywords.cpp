@@ -15,7 +15,6 @@ FLDKeywordTerms FLDKeywordTerms::From(const FLDDemoContentParameters& Parameters
     Terms.BurnMaxStacks = int32(FMath::Clamp<int64>(Parameters.BurnMaxStacks, 0, MAX_int32));
     Terms.LifestealCapBp = Parameters.LifestealCapBp;
     Terms.SkillGrowthPerLevelBp = Parameters.SkillGrowthPerLevelBp;
-    Terms.SkillGrowthPerLevelAfter10Bp = Parameters.SkillGrowthPerLevelAfter10Bp;
     return Terms;
 }
 
@@ -55,7 +54,7 @@ namespace LDCombatKeywords
     int64 BurnLayerPerSecondP2(int32 Level, int64 SourceAPP2, const FLDKeywordTerms& Terms)
     {
         int64 Base = 0;
-        const int64 Factor = LDSkillGrowth::FactorBp(Terms.SkillGrowthPerLevelBp, Terms.SkillGrowthPerLevelAfter10Bp,
+        const int64 Factor = LDSkillGrowth::FactorBp(Terms.SkillGrowthPerLevelBp,
             uint8(FMath::Clamp(Level, 1, int32(MAX_uint8))));
         if (!LDSkillGrowth::GrowP2(FMath::Max<int64>(Terms.BurnPerSecP2, 0), Factor, Base)) { Base = 0; }
         const int64 AP = FMath::Max<int64>(SourceAPP2, 0), Ratio = FMath::Max<int64>(Terms.BurnAPRatioBp, 0);

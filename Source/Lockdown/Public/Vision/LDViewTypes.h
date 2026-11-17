@@ -10,13 +10,17 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
+    // 17: a contender carries a quantized momentum bar and its overdrive charge; an Attack cue carries its combo step.
+    // 16 adds the observer-local identity of a visible hit and owner hit receipts; the Hit reaction cue is retired.
     // 13 distinguishes visible return flights without carrying their caster or build.
     // 12 adds the authorized hit's critical and shield outcome.
     // 11 adds the age of an authorized hit, independent of the current action cue.
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 16;
+    constexpr uint32 Schema = 17;
+    // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
+    constexpr uint8 MomentumBarFull = 255;
     constexpr uint16 RecentHitWindowMs = 300;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
@@ -40,8 +44,8 @@ namespace LDObservation
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
     // Bit 32 (the retired equipment slots, #144) is never reused.
-    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Actives = 64 };
-    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Actives;
+    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Momentum = 8, Statuses = 16, Actives = 64 };
+    constexpr uint32 ContenderFields = Identity | Level | Health | Momentum | Statuses | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
 }
 
@@ -77,7 +81,7 @@ struct FLDObservedStatus
     UPROPERTY() int64 ExpiresAtServerMs = 0; // 0 = untimed
 };
 
-// The three Q/W/E actives of a visible contender (#198: an active has one level). No cooldown, mana cost or other field.
+// The three Q/W/E actives of a visible contender. No rank, branch, cooldown, momentum cost or other field.
 USTRUCT()
 struct FLDObservedActivesView
 {
@@ -111,7 +115,11 @@ struct FLDObservedUnitView
     UPROPERTY() uint8 CreatureId = 0; // CampMember identity -> ELDDemoMonsterId
     UPROPERTY() uint8 Level = 0;
     UPROPERTY() FLDObservedResource Health;
-    UPROPERTY() FLDObservedResource Mana;
+    // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
+    UPROPERTY() uint8 MomentumBar = 0;
+    UPROPERTY() bool bCharging = false;
+    // The combo step (1..3) of an Attack cue; 0 for every other cue.
+    UPROPERTY() uint8 ActionComboStep = 0;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
 };
@@ -235,6 +243,10 @@ struct FLDObservedPublicFacts
     uint8 HitFlags = 0;
     // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.
     uint8 ActionAbility = 0;
+    // The combo step of an Attack cue and a held overdrive charge (contenders).
+    uint8 ActionComboStep = 0;
+    bool bCharging = false;
+    uint8 MomentumBar = 0;
 };
 
 // Server-only authority record of one projectile in flight, sampled by the observation owner. Never serialized.
@@ -271,8 +283,6 @@ struct FLDOwnerState
     UPROPERTY() bool bCanRestReady = false;
     UPROPERTY() ELDRestService NearbyRestService = ELDRestService::None;
     UPROPERTY() bool bLobbyHost = false;
-    UPROPERTY() double Mp=0;
-    UPROPERTY() double MaxMp=0;
     UPROPERTY() double Barrier=0;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;

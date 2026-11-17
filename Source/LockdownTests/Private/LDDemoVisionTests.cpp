@@ -47,8 +47,8 @@ FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
     Unit.Level = 3;
     Unit.Health.CurrentP2 = 45000;
     Unit.Health.MaxP2 = 60000;
-    Unit.Mana.CurrentP2 = 1000;
-    Unit.Mana.MaxP2 = 30000;
+    Unit.MomentumBar = 85;
+    Unit.bCharging = true;
     FLDObservedStatus Root;
     Root.StatusId = uint8(ELDDemoStatusId::Root);
     Root.ExpiresAtServerMs = 12345;
@@ -250,12 +250,6 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
         Unit.StateRevision = uint32(1000 + Index);
         Unit.FeetCm = FVector(100.37 + Index * 211, -200.62 - Index * 97, 2.04);
         Unit.Facing = uint16(1234 + Index);
-        if (Index == 3)
-        {
-            Unit.AuthorizedFieldMask |= LDObservation::Mana;
-            Unit.Mana.CurrentP2 = 0;
-            Unit.Mana.MaxP2 = 5000;
-        }
         Full.Units.Add(Unit);
     }
     for (uint32 Sequence = 1; Sequence <= uint32(LDObservation::MaxTerminations); ++Sequence)
@@ -336,11 +330,10 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     }
     const FLDObservedUnitView& Contender = Read.Units[0];
     TestTrue(TEXT("Contender whitelist survives exactly"), Contender.ContenderId == Full.Units[0].ContenderId && Contender.Level == 3
-        && Contender.Health.CurrentP2 == 45000 && Contender.Health.MaxP2 == 60000 && Contender.Mana.MaxP2 == 30000
+        && Contender.Health.CurrentP2 == 45000 && Contender.Health.MaxP2 == 60000 && Contender.MomentumBar == 85 && Contender.bCharging
         && Contender.Statuses.Num() == 1);
-    TestTrue(TEXT("Camp NotApplicable fields stay absent"), Read.Units[1].Level == 0 && Read.Units[1].Mana.MaxP2 == 0
-        && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
-    TestTrue(TEXT("Defined camp mana is a closed pair"), Read.Units[3].Mana.MaxP2 == 5000);
+    TestTrue(TEXT("Camp NotApplicable fields stay absent"), Read.Units[1].Level == 0 && Read.Units[1].MomentumBar == 0
+        && !Read.Units[1].bCharging && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
 
     auto Mutated = [&](TFunctionRef<void(FLDWorldView&)> Change)
     {
@@ -380,7 +373,8 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Respawn protection is always timed"), Encodes(Mutated([&Protection](FLDWorldView& V)
     { FLDObservedStatus Untimed = Protection; Untimed.ExpiresAtServerMs = 0; V.Units[0].Statuses.Add(Untimed); })));
     TestFalse(TEXT("Resources are closed pairs"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Health.CurrentP2 = V.Units[0].Health.MaxP2 + 1; })));
-    TestFalse(TEXT("Unauthorized camp mana refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Mana.MaxP2 = 10; })));
+    TestFalse(TEXT("Unauthorized camp momentum refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].MomentumBar = 10; })));
+    TestFalse(TEXT("A combo step needs an Attack cue"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionComboStep = 2; })));
     TestFalse(TEXT("Camp level refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Level = 1; })));
     TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 255; })));
     TestFalse(TEXT("Unknown action cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCue = static_cast<ELDObservedActionCue>(4); })));
@@ -531,7 +525,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
-        TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
+        TEXT("Level"), TEXT("Health"), TEXT("MomentumBar"), TEXT("bCharging"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives")});
     Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
         TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
@@ -539,7 +533,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees"), TEXT("LengthCm"), TEXT("bOwn"), TEXT("WarningRemainingMs")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
-    // #112 §10, #198: the Q/W/E active ids only; no rank, cooldown or mana field.
+    // #112 §10, #198: the Q/W/E active ids only; no rank, cooldown or momentum field.
     Exact(FLDObservedActivesView::StaticStruct(), {TEXT("Abilities")});
     Exact(FLDObservedUnitTermination::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("Generation"),
         TEXT("TerminationSequence"), TEXT("OccurredAtServerMs"), TEXT("Kind")});

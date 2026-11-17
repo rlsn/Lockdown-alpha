@@ -44,7 +44,7 @@ struct FLDOwnStatusMark
 
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
-// the icon and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
+// the icon and the momentum cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot
 {
@@ -66,6 +66,12 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
     UPROPERTY() TObjectPtr<UTextBlock> Countdown;
     UPROPERTY() TObjectPtr<UBorder> Flash;
+    // Skill ranks and momentum (issue #287 spec §12): the rank dots on the lower edge, the "+" on the corner while a skill
+    // point can raise this skill, the missing momentum over a dimmed face and the overdrive hold filling the face.
+    UPROPERTY() TObjectPtr<UTextBlock> Ranks;
+    UPROPERTY() TObjectPtr<ULDCommandButton> Plus;
+    UPROPERTY() TObjectPtr<UTextBlock> Gap;
+    UPROPERTY() TObjectPtr<UProgressBar> Hold;
     // Local presentation only (real time): the applied look, the ready flash and the last rejected press of this slot.
     int32 AppliedLook=-1;
     FString AppliedIcon;
@@ -151,9 +157,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> TargetTitle;
     UPROPERTY() TObjectPtr<UProgressBar> TargetHealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetHealth;
-    UPROPERTY() TObjectPtr<UWidget> TargetManaRow;
-    UPROPERTY() TObjectPtr<UProgressBar> TargetManaBar;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
+    UPROPERTY() TObjectPtr<UWidget> TargetMomentumRow;
+    UPROPERTY() TObjectPtr<UProgressBar> TargetMomentumBar;
+    UPROPERTY() TObjectPtr<UTextBlock> TargetMomentum;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
     // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
     // icon is missing, and the key and name are the tile's tooltip.
@@ -317,15 +323,29 @@ private:
     LDHUD::FStatusRings SelfIconRings;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
-    UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
-    UPROPERTY() TObjectPtr<UTextBlock> ManaText;
+    UPROPERTY() TObjectPtr<UProgressBar> MomentumBar;
+    UPROPERTY() TObjectPtr<UTextBlock> MomentumText;
     UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
-    UPROPERTY() TObjectPtr<UTextBlock> ManaRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     FString LevelTip;
     // The toast's own canvas slot, kept right above the band.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
     UPROPERTY() TObjectPtr<USizeBox> BodySlot;
+    // The basic attack's three combo pips under the body slot: the current step lit, the third gold.
+    UPROPERTY() TArray<TObjectPtr<UBorder>> ComboPips;
+    // The rank-up page (issue #287 spec §12): two big cards of the chosen skill's next rank; a click submits RankUpSkill.
+    UPROPERTY() TObjectPtr<UBorder> RankPage;
+    UPROPERTY() TObjectPtr<UTextBlock> RankTitle;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RankCards;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardNames;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardLines;
+    UPROPERTY() TArray<TObjectPtr<UImage>> RankCardIcons;
+    int32 RankSlot=INDEX_NONE;
+    TArray<ELDSkillBranch> RankOptions;
+    FName RankAbility;
+    void OpenRankUp(int32 ProgressionSlot);
+    void SubmitRankUp(int32 Card);
+    void RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats);
     UPROPERTY() TObjectPtr<UBorder> BodyPortrait;
     UPROPERTY() TObjectPtr<UTextBlock> BodyPortraitGlyph;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;

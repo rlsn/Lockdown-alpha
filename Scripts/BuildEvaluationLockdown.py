@@ -999,10 +999,10 @@ def case_evidence(case, manifest, caps, result, trace_text):
     rows = result.get("contenders")
     required = {"role", "slot", "contender", "progression_valid", "profile_bound", "choices", "planned_choices",
                 "supply_xp", "supply_status", "presets_queued", "presets_requested", "level", "unspent_points",
-                "stat_points", "actives", "blueprints", "has_body", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2",
+                "stat_points", "actives", "blueprints", "has_body", "hp_p2", "max_hp_p2", "momentum_p2", "max_momentum_p2",
                 "planned_steps", "steps_committed", "components"}
     integer_fields = ("slot", "level", "unspent_points", "choices", "planned_choices", "supply_xp",
-                      "presets_queued", "presets_requested", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2",
+                      "presets_queued", "presets_requested", "hp_p2", "max_hp_p2", "momentum_p2", "max_momentum_p2",
                       "planned_steps", "steps_committed")
     if (not isinstance(rows, list) or len(rows) != len(ROLES) or
             any(not isinstance(row, dict) or not required <= row.keys() for row in rows) or
@@ -1464,7 +1464,7 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
     terminal_fields = ("status", "case_id", "seed", "content_root", "started_at_ms", "ended_at_ms", "outcome")
     contender_fields = ("role", "slot", "contender", "progression_valid", "level", "xp", "choices", "planned_choices",
                         "unspent_points", "stat_points", "actives", "blueprints", "has_body", "hp_p2", "max_hp_p2",
-                        "mp_p2", "max_mp_p2", "profile_bound", "profile_phase", "profile_failure", "supply_xp",
+                        "momentum_p2", "max_momentum_p2", "profile_bound", "profile_phase", "profile_failure", "supply_xp",
                         "supply_status", "presets_requested", "presets_queued", "planned_steps", "steps_committed", "components")
     terminal = {key: result.get(key) for key in terminal_fields}
     rows = result.get("contenders")
@@ -1512,7 +1512,7 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
                 positions.add(role)
         if not role:
             continue
-        required = ("phase", "life", "pos", "hp", "mp", "shield")
+        required = ("phase", "life", "pos", "hp", "momentum", "shield")
         if any(key not in fields for key in required):
             problems.append(f"the {role} heartbeat at {t} lacks resource or position evidence")
             continue
@@ -1520,13 +1520,13 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
             problems.append(f"the {role} heartbeat at {t} is duplicated")
             continue
         seen.add((role, t))
-        for key in ("hp", "mp"):
+        for key in ("hp", "momentum"):
             pieces = fields[key].split("/")
             if fields[key] != "-" and (len(pieces) != 2 or any(not P2.fullmatch(piece) for piece in pieces)):
                 problems.append(f"the {role} heartbeat at {t} has malformed {key}")
         if fields["shield"] != "-" and not P2.fullmatch(fields["shield"]):
             problems.append(f"the {role} heartbeat at {t} has malformed shield")
-        resources.append({"role": role, "t_ms": t, **{key: fields[key] for key in ("phase", "life", "hp", "mp", "shield")}})
+        resources.append({"role": role, "t_ms": t, **{key: fields[key] for key in ("phase", "life", "hp", "momentum", "shield")}})
     if {role for role, _ in seen} != set(ROLES) or positions != set(ROLES):
         problems.append("both duelists need heartbeat resource and position evidence")
     return {"identity": identity, "terminal": terminal, "resources": resources, "problems": problems}

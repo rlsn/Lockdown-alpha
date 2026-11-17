@@ -22,7 +22,9 @@ namespace LDDemoCardText
         // One stat of the effect's Stats, or of a stat's PerPoint.
         Stat, Limit,
         // #198 F: MultiplierBp and CostRatioBp as percents, AngleDegrees in degrees.
-        Multiplier, Angle, CostRatio
+        Multiplier, Angle, CostRatio,
+        // A skill branch's third duration (ExtraDurationMs) in seconds.
+        ExtraDuration
     };
 
     struct FToken

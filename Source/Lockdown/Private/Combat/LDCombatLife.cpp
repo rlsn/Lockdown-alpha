@@ -101,7 +101,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
         Projection=Result.Value.GetValue();
     }
     const auto& Attributes=Projection.Final;
-    if (Attributes.MaxHPP2<=0 || Attributes.MaxMPP2<0)
+    if (Attributes.MaxHPP2<=0 || Content->Get().Parameters.Momentum.StartP2<=0)
     {
         Error=TEXT("Contender resources are not defined by the validated Demo content.");
         return false;
@@ -120,9 +120,9 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     FLDBodyCombatState State;
     State.Identity=FGuid::NewGuid();
     State.Victim=Victim;
-    // Every life (initial or respawn) starts with full resources at the newest maxima.
+    // Every life (initial or respawn) starts with full HP at the newest maximum and momentum at MOMENTUM.Start.
     State.Resources.HpP2=State.Resources.MaxHpP2=Attributes.MaxHPP2;
-    State.Resources.MpP2=State.Resources.MaxMpP2=Attributes.MaxMPP2;
+    State.Resources.MomentumP2=Content->Get().Parameters.Momentum.StartP2;
     State.Resources.Revision=1;
     State.BasicTiming=Timing.Value.GetValue();
     State.BuildProjection=Projection;
@@ -165,7 +165,7 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
         return false;
     }
     const FLDDemoMonsterDefinition* Monster=&Grown;
-    if (Monster->HPP2<=0 || Monster->MaxMPP2<0 || Monster->AttackWindupMs<=0 || Monster->AttackIntervalMs<=Monster->AttackWindupMs)
+    if (Monster->HPP2<=0 || Monster->AttackWindupMs<=0 || Monster->AttackIntervalMs<=Monster->AttackWindupMs)
     {
         Error=TEXT("The approved monster definition has no executable body values.");
         return false;
@@ -177,7 +177,6 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     State.CampStage=CampStage;
     auto& Final=State.AttributeProjection.Final;
     Final.MaxHPP2=Monster->HPP2;
-    Final.MaxMPP2=Monster->MaxMPP2;
     Final.ADP2=Monster->AttackP2;
     Final.APP2=Monster->APP2;
     Final.ArmorP2=Monster->ArmorP2;
@@ -186,12 +185,11 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     Final.MoveSpeedCmPerSec=Monster->MoveSpeedCmPerSec;
     Final.AttackRangeCm=Monster->AttackRangeCm;
     Final.HPRegenPerSec=Monster->HPRegenPerSec;
-    Final.MPRegenPerSec=Monster->MPRegenPerSec;
     Final.CritChanceBp=Monster->CritChanceBp;
     Final.CooldownHasteP2=0;
     State.BuildProjection=State.AttributeProjection;
+    // Camp members hold no momentum (POLICY.CampMomentumPolicy=NotApplicable): their skills cost nothing.
     State.Resources.HpP2=State.Resources.MaxHpP2=Monster->HPP2;
-    State.Resources.MpP2=State.Resources.MaxMpP2=Monster->MaxMPP2;
     State.Resources.Revision=1;
     State.BasicTiming.IntervalMs=Monster->AttackIntervalMs;
     State.BasicTiming.WindupMs=Monster->AttackWindupMs;
@@ -269,6 +267,8 @@ void ALDCombatDirector::RemoveRegisteredBody(const FLDCombatBodyRef& Ref)
         if (It.Value().Victim==Ref.Victim && It.Value().Identity==Ref.BodyIdentity)
         {
             const FGuid Entity=Ref.Victim.EntityId;
+            LogMomentumLedger(It.Value());
+            ClearBranchState(It.Value());
             // Unreleased work dies with the life; released independent effects stay in Projectiles/PendingHits.
             It.RemoveCurrent();
             MarkViewChanged(Entity);

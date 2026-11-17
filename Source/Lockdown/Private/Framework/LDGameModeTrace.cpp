@@ -101,15 +101,15 @@ void ALDGameMode::LogPlaytestHeartbeat()
         const FLDLifeRecord* Life = Lives.Find(Id);
         const FLDContenderRecord* Record = FindContender(Id);
         if (!Life || !Record) { continue; }
-        FString Position = TEXT("-"), Resources = TEXT("hp=- mp=- shield=-"), Action = TEXT("-"), Statuses;
+        FString Position = TEXT("-"), Resources = TEXT("hp=- momentum=- shield=-"), Action = TEXT("-"), Statuses;
         if (const ALDCharacter* Body = Life->Actor.Get())
         {
             Position = LDLog::Cm(ALDCombatDirector::FootOf(*Body));
             FLDCombatBodyRead Read;
             if (Life->Phase == ELDLifePhase::Alive && Combat->ReadCombatBody(Life->Body, Read))
             {
-                Resources = FString::Printf(TEXT("hp=%s/%s mp=%s/%s shield=%s"), *LDLog::P2(Read.HPP2), *LDLog::P2(Read.MaxHPP2),
-                    *LDLog::P2(Read.MPP2), *LDLog::P2(Read.MaxMPP2), *LDLog::P2(Read.ShieldP2));
+                Resources = FString::Printf(TEXT("hp=%s/%s momentum=%s/%s shield=%s"), *LDLog::P2(Read.HPP2), *LDLog::P2(Read.MaxHPP2),
+                    *LDLog::P2(Read.MomentumP2), *LDLog::P2(Read.MaxMomentumP2), *LDLog::P2(Read.ShieldP2));
                 if (Read.bActionInProgress) { Action = LDLog::EnumName(Read.ActionEntry); }
             }
             TArray<FLDObservedStatus> Observed;

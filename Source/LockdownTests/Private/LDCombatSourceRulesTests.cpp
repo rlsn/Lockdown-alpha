@@ -93,7 +93,7 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     FLDInnateDashTerms Base;
     TestTrue(TEXT("The terms are the approved character dash"),
         LDCombatSourceRules::InnateDashTerms(*Content, Base, Error)
-        && Base.CooldownMs == Dash.Values.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Values.ManaCostP2
+        && Base.CooldownMs == Dash.Values.CooldownMs && Base.DurationMs == Move.DurationMs && Dash.Values.MomentumCostP2 == 0
         && Base.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Base.DistanceCm.Denominator);
     AddInfo(Error);
     const FLDDemoAbilityDefinition* LungeSkill = nullptr;
@@ -110,8 +110,8 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     FLDActiveGateInput Gate;
     Gate.NowMs = NowMs;
     Gate.ReadyAtMs = NowMs;
-    Gate.ManaCostP2 = Base.ManaCostP2;
-    Gate.MpP2 = Base.ManaCostP2;
+    Gate.MomentumCostP2 = 0;
+    Gate.MomentumP2 = 0;
     Gate.bDash = true;
     Gate.Roots = &Roots;
     TestTrue(TEXT("A dash whose track ends now is usable"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::None);
@@ -128,11 +128,11 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     Gate.ReadyAtMs = NowMs + 500;
     TestTrue(TEXT("The Root ends exactly at its deadline and the dash is free again"),
         LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::None);
-    Gate.ManaCostP2 = 100;
-    Gate.MpP2 = 99;
+    Gate.MomentumCostP2 = 100;
+    Gate.MomentumP2 = 99;
     TestTrue(TEXT("An unaffordable cost is refused before the Root check"),
-        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::InsufficientMana);
-    Gate.ManaCostP2 = Gate.MpP2 = 0;
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::MomentumShort);
+    Gate.MomentumCostP2 = Gate.MomentumP2 = 0;
     Gate.bCheckBusy = Gate.bAbilityInProgress = true;
     TestTrue(TEXT("Admission refuses a dash during another ability windup"),
         LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::Busy);

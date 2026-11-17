@@ -15,7 +15,11 @@ inline constexpr TCHAR SlangNote[]=TEXT("雾港黑话：淫 = 把人揍趴下，
 
 // 资源与属性
 inline constexpr TCHAR Health[]=TEXT("生命");
-inline constexpr TCHAR Mana[]=TEXT("法力");
+inline constexpr TCHAR Momentum[]=TEXT("劲");
+inline constexpr TCHAR Overdrive[]=TEXT("爆劲");
+inline constexpr TCHAR Combo[]=TEXT("连击");
+inline constexpr TCHAR SkillPoint[]=TEXT("技能点");
+inline constexpr TCHAR PerfectDodge[]=TEXT("完美闪避");
 inline constexpr TCHAR AttackDamage[]=TEXT("攻击力");
 inline constexpr TCHAR AbilityPower[]=TEXT("法术强度");
 inline constexpr TCHAR Armor[]=TEXT("护甲");
@@ -28,11 +32,10 @@ inline constexpr TCHAR PhysicalDamage[]=TEXT("物理伤害");
 inline constexpr TCHAR MagicalDamage[]=TEXT("魔法伤害");
 inline constexpr TCHAR Experience[]=TEXT("流量");
 inline FString MaxHealth(){return FString(Health)+TEXT("上限");}
-inline FString MaxMana(){return FString(Mana)+TEXT("上限");}
 inline FString HealthRegen(){return FString(Health)+TEXT("回复");}
-inline FString ManaRegen(){return FString(Mana)+TEXT("回复");}
+inline FString MomentumRegen(){return FString(TEXT("交战"))+Momentum+TEXT("回复");}
 inline FString CritChance(){return FString(Crit)+TEXT("率");}
-inline FString NotEnoughMana(){return FString(Mana)+TEXT("不足");}
+inline FString MomentumShort(){return FString(Momentum)+TEXT("不足");}
 
 // 动作与地点
 inline constexpr TCHAR BasicAttack[]=TEXT("普攻");
@@ -183,6 +186,10 @@ inline constexpr TCHAR WorkshopFullReason[]=TEXT("工坊已满");
 inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，拖到一件已装构件上替换它"),Capacity,Capacity);}
 inline FString WorkshopFullNoPlace(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，现在没有可替换的位置"),Capacity,Capacity);}
 inline constexpr TCHAR ComponentColumnFullReason[]=TEXT("该列已达安装上限");
+inline constexpr TCHAR NoSkillPointReason[]=TEXT("没有技能点");
+inline constexpr TCHAR SkillRank[]=TEXT("等级");
+inline constexpr TCHAR Close[]=TEXT("关闭");
+inline constexpr TCHAR BranchUnavailableReason[]=TEXT("不能升到这个分支");
 inline constexpr TCHAR ReplaceAvailable[]=TEXT("拖到可替换的已装构件上");
 // 拖动构件时跟随的一行预览：放下会装到哪里，替换谁、连带拆下谁；联动行列出已拥有的相关技能和构件，同形态行列出互斥的构件。
 inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT("装到 %s"),*Place);}

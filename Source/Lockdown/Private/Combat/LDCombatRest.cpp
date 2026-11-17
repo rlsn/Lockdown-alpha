@@ -9,7 +9,7 @@
 // #198 rest phases: the Combat side of the approved phase-boundary resource policy (issue #198 comment 6752601175 §8)
 // and of the shared rest space. Field bodies have no isolation group; rest lives share one group, so nothing
 // crosses between rest groups or into the frozen field. A frozen world body (camp member,
-// Boss) is suspended: it keeps HP/MP, regenerates nothing, and can neither be affected nor act.
+// Boss) is suspended: it keeps its HP, regenerates nothing, and can neither be affected nor act.
 
 bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
 {
@@ -214,6 +214,11 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.ExposedUntilMs=0;
     Body.DashContact.Reset();
     Body.DashUntilMs=0;
+    // A new phase starts a new combo; a held overdrive charge and a dodge window end with the old one.
+    Body.ComboStep=0;
+    Body.OverdriveCharge.Reset();
+    Body.DashStartedAtMs.Reset();
+    ClearBranchState(Body);
     // Component rests are cooldowns too: every one is ready in the new phase.
     Body.RetortReadyAtMs=0;
     Body.DamagedShieldReadyAtMs=0;
@@ -257,7 +262,7 @@ bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictim
     Out.BuildProjection=Chassis;
     Out.AttributeProjection=Chassis;
     Out.Resources.HpP2=Out.Resources.MaxHpP2=Chassis.Final.MaxHPP2;
-    Out.Resources.MpP2=Out.Resources.MaxMpP2=Chassis.Final.MaxMPP2;
+    Out.Resources.MomentumP2=Content->Get().Parameters.Momentum.StartP2;
     if (Out.PublicFacts.IsSet()) { Out.PublicFacts->Level=Level; }
     Out.IsolationGroup=ALDGameMode::RestIsolationGroup();
     Out.bTrainingDummy=true;
@@ -286,7 +291,10 @@ bool ALDCombatDirector::ResetTraining(const FGuid& OwnerId, const FGuid& Dummy, 
         }
         if (!ClearBodyForPhase(*Body,Actor,NowMs,Error)) { return false; }
         Body->Resources.HpP2=Body->Resources.MaxHpP2;
-        Body->Resources.MpP2=Body->Resources.MaxMpP2;
+        Body->Resources.MomentumP2=Catalog()->Get().Parameters.Momentum.StartP2;
+        Body->MomentumMicroP2=0;
+        Body->MomentumEngagedAtMs.Reset();
+        Body->ComboStep=0;
         ++Body->Resources.Revision;
     }
     return ReadyAllForPhase(OwnerId,Permit,Error);

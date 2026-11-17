@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Algo/Find.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
@@ -70,6 +71,9 @@ namespace LDCombatWorkshopDetail
         ELDDemoEffectOp::SpreadUnit,ELDDemoEffectOp::SpreadProjectile,ELDDemoEffectOp::ChainExtra,ELDDemoEffectOp::CompressChain,
         ELDDemoEffectOp::ProjectileReturn,ELDDemoEffectOp::ProjectilePierce,ELDDemoEffectOp::EchoImpact,ELDDemoEffectOp::ZoneTether,
         ELDDemoEffectOp::DefenseShove,ELDDemoEffectOp::EmpowerReach};
+    // The mod operations a skill branch variant may carry itself (DemoContent.BRANCH_MOD_OPS).
+    constexpr ELDDemoEffectOp BranchModOps[]={ELDDemoEffectOp::Pull,ELDDemoEffectOp::ProjectileReturn,ELDDemoEffectOp::ProjectilePierce,
+        ELDDemoEffectOp::EchoImpact,ELDDemoEffectOp::ZoneTether,ELDDemoEffectOp::FinalKnockback,ELDDemoEffectOp::EmpowerReach};
 }
 
 bool ALDCombatDirector::WorkshopOn(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, const FLDCombatSourceRef& Exit,
@@ -99,12 +103,32 @@ bool LDCombatSourceRules::CompileWorkshopActive(const FLDAttributeProjection& Pr
         if (Source.Kind==ELDCombatSourceKind::Innate) { Terms.CooldownScaleBp=Share(Terms.CooldownScaleBp,Bp); }
         else { Values.CooldownMs=Share(Values.CooldownMs,Bp); }
     };
+    // Skill branches (issue #287 spec §5.1): a variant's own pull, return, pierce, echo, tether, finisher or reach leaves the
+    // value set and runs through the same mod handler, ahead of the installed mods of that operation. It names no component,
+    // so the blueprint ledger never counts it as a component trigger.
+    TArray<FLDDemoEffectDefinition> BranchMods;
+    for (int32 Index=Values.Effects.Num()-1; Index>=0; --Index)
+    {
+        if (Algo::Find(BranchModOps,Values.Effects[Index].GetOp()))
+        {
+            BranchMods.Add(Values.Effects[Index]);
+            Values.Effects.RemoveAt(Index);
+        }
+    }
     // Spec §12.3: eligibility first, then coverage/range/motion, then timing, then cost/multipliers; every mod on this exit.
     for (const ELDDemoEffectOp Op : ActiveMods)
     {
         TArray<FLDPassiveEffectRef> Mods;
         if (!CollectWorkshopEffects(Projection,Op,Content,Mods,Error)) { return false; }
         Mods.RemoveAll([&Source](const FLDPassiveEffectRef& Ref) { return !Ref.Targets(Source); });
+        for (const FLDDemoEffectDefinition& Own : BranchMods)
+        {
+            if (Own.GetOp()!=Op) { continue; }
+            FLDPassiveEffectRef Branch;
+            Branch.Source.Kind=Source.Kind;
+            Branch.Effect=Own;
+            Mods.Insert(MoveTemp(Branch),0);
+        }
         for (const FLDPassiveEffectRef& Mod : Mods)
         {
             const FLDDemoEffectDefinition& Effect=Mod.Effect;
@@ -161,10 +185,10 @@ bool LDCombatSourceRules::CompileWorkshopActive(const FLDAttributeProjection& Pr
             }
             case ELDDemoEffectOp::CooldownCost:
             {
-                // M06: a shorter base cooldown for a dearer cast, the cost rounded up to the next 0.01 MP.
+                // M06: a shorter base cooldown for a dearer cast, the cost rounded up to the next 0.01 momentum.
                 ScaleCooldown(Effect.SecondaryRatioBp);
-                const int64 Cost=Values.ManaCostP2;
-                Values.ManaCostP2=Cost/10000*Effect.CostRatioBp+(Cost%10000*Effect.CostRatioBp+9999)/10000;
+                const int64 Cost=Values.MomentumCostP2;
+                Values.MomentumCostP2=Cost/10000*Effect.CostRatioBp+(Cost%10000*Effect.CostRatioBp+9999)/10000;
                 break;
             }
             case ELDDemoEffectOp::CompressCone:
@@ -377,6 +401,13 @@ bool ALDCombatDirector::ScheduleEcho(const FLDCombatBodyRef& OwnerRef, const FLD
     Repeat.OuterRatioBp=Blast.OuterRatioBp;
     Repeat.Origin=ELDCombatGroundOrigin::Echo;
     Repeat.ObservedKey=FGuid::NewGuid();
+    // Skill branches (S18 A1/A2): the echo's center hits harder and it shocks.
+    if (Echo.Effect.RatioBp>0)
+    {
+        Repeat.Payload.DeliveryScaleBp=LDCombatWorkshopDetail::Share(Repeat.Payload.DeliveryScaleBp,Echo.Effect.RatioBp);
+        Repeat.OuterRatioBp=FMath::Clamp<int64>(Repeat.OuterRatioBp*10000/Echo.Effect.RatioBp,1,10000);
+    }
+    Repeat.Payload.bApplyElectric|=Echo.Effect.Element==ELDDemoElement::Electric;
     if (Repeat.Payload.DeliveryScaleBp<=0 || !LDMatchLifecycle::AddDurationMs(NowMs,Echo.Effect.DelayMs,Repeat.ReadyAtMs,Error))
     {
         if (Error.IsEmpty()) { Error=TEXT("An echo needs a positive share."); }
@@ -426,6 +457,10 @@ bool ALDCombatDirector::LaunchReturn(const FLDCombatProjectile& Outbound, const 
     Payload.SilenceDurationMs=Payload.AttackSlowBp=Payload.AttackSlowMs=Payload.KnockbackMs=0;
     Payload.KnockbackCm=0;
     Payload.KnockbackSource=FLDCombatSourceRef();
+    // Skill branches (S06 B1, S21 B2): the return shocks or wets.
+    Payload.bApplyElectric|=Outbound.ReturnElement==ELDDemoElement::Electric;
+    Payload.bApplyWet|=Outbound.ReturnElement==ELDDemoElement::Water;
+    Return.LandingZone.Reset();
     if (Payload.DeliveryScaleBp<=0) { Error=TEXT("A return flight needs a positive share."); return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_PROJECTILE_RETURN owner=%s exit=%s length=%.0f share_bp=%lld"),
         *LDLog::Id(Return.SourceEntity),*LDLog::Source(Return.Source),Length,ShareBp);
@@ -500,21 +535,21 @@ bool ALDCombatDirector::OnHardControl(FLDBodyCombatState& Victim, const FLDContr
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Ref.Effect.DurationMs,Mark->ExpiresAtMs,Error)) { return false; }
         }
     }
-    // C07: mana per controlled body, at most the cap per original action and all of its derived controls.
-    TArray<FLDPassiveEffectRef> Manas;
-    if (!WorkshopOn(Holder->AttributeProjection,ELDDemoEffectOp::ControlMana,App.Source,Manas,Error)) { return false; }
-    for (const FLDPassiveEffectRef& Mana : Manas)
+    // C07: momentum per controlled body, at most the cap per original action and all of its derived controls.
+    TArray<FLDPassiveEffectRef> Grants;
+    if (!WorkshopOn(Holder->AttributeProjection,ELDDemoEffectOp::ControlMomentum,App.Source,Grants,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Granted : Grants)
     {
         FLDCombatEffectBudget* Budget=Holder->EffectBudgets.FindByPredicate([&](const FLDCombatEffectBudget& Row)
-        { return Row.EffectId==App.EffectId && Row.Component==Mana.Source.DefinitionId; });
-        if (!Budget) { Budget=&Holder->EffectBudgets.Add_GetRef({App.EffectId,Mana.Source.DefinitionId,0,NowMs}); }
-        const int64 Grant=FMath::Min(Mana.Effect.BaseP2,Mana.Effect.LimitP2-Budget->SpentP2);
+        { return Row.EffectId==App.EffectId && Row.Component==Granted.Source.DefinitionId; });
+        if (!Budget) { Budget=&Holder->EffectBudgets.Add_GetRef({App.EffectId,Granted.Source.DefinitionId,0,NowMs}); }
+        const int64 Grant=FMath::Min(Granted.Effect.BaseP2,Granted.Effect.LimitP2-Budget->SpentP2);
         if (Grant<=0) { continue; }
         Budget->SpentP2+=Grant;
-        const int64 MpBeforeP2=Holder->Resources.MpP2;
-        GrantMana(*Holder,Grant);
-        // §10: C07 is one trigger per grant that actually raised the holder's mana.
-        if (Holder->Resources.MpP2>MpBeforeP2) { LedgerComponentTriggered(*Holder,Mana.Source.DefinitionId); }
+        const int64 MomentumBeforeP2=Holder->Resources.MomentumP2;
+        GrantMomentum(*Holder,Grant);
+        // §10: C07 is one trigger per grant that actually raised the holder's momentum.
+        if (Holder->Resources.MomentumP2>MomentumBeforeP2) { LedgerComponentTriggered(*Holder,Granted.Source.DefinitionId); }
     }
     // Budgets of actions long finished are no longer read.
     Holder->EffectBudgets.RemoveAll([NowMs](const FLDCombatEffectBudget& Row) { return NowMs-Row.AtMs>30000; });
@@ -635,28 +670,28 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
             *LDLog::Id(Holder.Victim.EntityId),*Setup.TargetId.ToString(),*LDLog::Id(Hit.Target.Victim.EntityId),Mark->ExpiresAtMs);
     }
     // C16: each distinct enemy past the first this release's native direct hits struck, up to the cap per release.
-    TArray<FLDPassiveEffectRef> Manas;
+    TArray<FLDPassiveEffectRef> Grants;
     if (!Hit.EffectId.IsValid()) { return true; }
-    if (!WorkshopOn(Holder.AttributeProjection,ELDDemoEffectOp::MultiHitMana,Hit.Source,Manas,Error)) { return false; }
-    for (const FLDPassiveEffectRef& Mana : Manas)
+    if (!WorkshopOn(Holder.AttributeProjection,ELDDemoEffectOp::MultiHitMomentum,Hit.Source,Grants,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Granted : Grants)
     {
         FLDCombatEffectBudget* Budget=Holder.EffectBudgets.FindByPredicate([&](const FLDCombatEffectBudget& Row)
-        { return Row.EffectId==Hit.EffectId && Row.Component==Mana.Source.DefinitionId; });
-        if (!Budget) { Budget=&Holder.EffectBudgets.Add_GetRef({Hit.EffectId,Mana.Source.DefinitionId,0,NowMs}); }
+        { return Row.EffectId==Hit.EffectId && Row.Component==Granted.Source.DefinitionId; });
+        if (!Budget) { Budget=&Holder.EffectBudgets.Add_GetRef({Hit.EffectId,Granted.Source.DefinitionId,0,NowMs}); }
         if (Budget->Struck.Contains(Hit.Target)) { continue; }
         Budget->Struck.Add(Hit.Target);
         if (Budget->Struck.Num()<2) { continue; }
-        const int64 Grant=FMath::Min(Mana.Effect.BaseP2,Mana.Effect.LimitP2-Budget->SpentP2);
+        const int64 Grant=FMath::Min(Granted.Effect.BaseP2,Granted.Effect.LimitP2-Budget->SpentP2);
         if (Grant<=0) { continue; }
         Budget->SpentP2+=Grant;
-        const int64 MpBeforeP2=Holder.Resources.MpP2;
-        GrantMana(Holder,Grant);
-        if (Holder.Resources.MpP2<=MpBeforeP2) { continue; }
-        // §10: C16 is one trigger per grant that actually raised the holder's mana.
-        LedgerComponentTriggered(Holder,Mana.Source.DefinitionId);
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_MULTI_HIT_MANA t=%lld holder=%s host=%s struck=%d mp=%s->%s"),NowMs,
-            *LDLog::Id(Holder.Victim.EntityId),*LDLog::Source(Hit.Source),Budget->Struck.Num(),*LDLog::P2(MpBeforeP2),
-            *LDLog::P2(Holder.Resources.MpP2));
+        const int64 MomentumBeforeP2=Holder.Resources.MomentumP2;
+        GrantMomentum(Holder,Grant);
+        if (Holder.Resources.MomentumP2<=MomentumBeforeP2) { continue; }
+        // §10: C16 is one trigger per grant that actually raised the holder's momentum.
+        LedgerComponentTriggered(Holder,Granted.Source.DefinitionId);
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_MULTI_HIT_MOMENTUM t=%lld holder=%s host=%s struck=%d momentum=%s->%s"),NowMs,
+            *LDLog::Id(Holder.Victim.EntityId),*LDLog::Source(Hit.Source),Budget->Struck.Num(),*LDLog::P2(MomentumBeforeP2),
+            *LDLog::P2(Holder.Resources.MomentumP2));
     }
     return true;
 }
@@ -934,8 +969,9 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
     if (!FinalModOf(Hit.SourceEntity,Card,Error)) { return false; }
     const bool bBowling=Card && Card->GetNativeId()==ELDDemoFinalModId::FinalBowling && !Hit.bFinalModDerived
         && FinalModTargetsSource(Hit.SourceEntity,Hit.KnockbackSource);
-    if (Impacts.IsEmpty() && !bBowling) { return true; }
+    if (Impacts.IsEmpty() && !bBowling && Hit.KnockbackWallStunMs<=0) { return true; }
     FLDCombatKnockbackImpact& Impact=Body.PendingImpact.Emplace();
+    Impact.WallStunMs=Hit.KnockbackWallStunMs;
     Impact.EffectId=Hit.EffectId;
     Impact.Holder=Hit.SourceBody;
     Impact.CreditOwner=Hit.CreditOwner;
@@ -950,7 +986,7 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
         const auto* Record=FindRecord(Hit.SourceEntity);
         if (!Content || !Record) { Error=TEXT("Bowling impact lost its checked source build."); return false; }
         const auto& P=Content->Get().Parameters;
-        const int64 Growth=LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,P.SkillGrowthPerLevelAfter10Bp,Record->Build.Level);
+        const int64 Growth=LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,Record->Build.Level);
         if (!LDSkillGrowth::GrowP2(Card->BaseP2,Growth,Impact.FinalBaseP2))
         { Error=TEXT("Bowling fixed damage growth overflow."); return false; }
         Impact.FinalCardId=FName(*Card->Id);
@@ -1412,6 +1448,23 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             {
                 const ALDCharacter* Blocker=Cast<ALDCharacter>(Block->Blocker.Get());
                 if (Impact.bWorkshopImpact && !ResolveKnockbackImpact(Body,Impact,Block->bBody,Blocker,NowMs,Error)) { return false; }
+                // A skill branch's push stuns the body a wall stopped (S01 B1, S09 B1, S20 B1).
+                if (!Block->bBody && Impact.WallStunMs>0)
+                {
+                    FLDCombatHit Stun;
+                    Stun.HitId=FGuid::NewGuid();
+                    Stun.EffectId=Impact.EffectId;
+                    Stun.Target=SelfRef;
+                    Stun.SourceBody=Impact.Holder;
+                    Stun.SourceEntity=Impact.Holder.Victim.EntityId;
+                    Stun.CreditOwner=Impact.CreditOwner;
+                    Stun.Source=Impact.PushSource;
+                    Stun.HitClass=ELDCombatHitClass::Ability;
+                    Stun.StunDurationMs=Impact.WallStunMs;
+                    PendingHits.Add(MoveTemp(Stun));
+                    UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_WALL_STUN t=%lld target=%s stun_ms=%lld"),NowMs,
+                        *LDLog::Id(Body.Victim.EntityId),Impact.WallStunMs);
+                }
                 if (Block->bBody && !ResolveFinalBowlingImpact(Impact,Blocker,Block->Direction,NowMs,Error)) { return false; }
             }
         }

@@ -38,7 +38,9 @@ enum class ELDBuildCommandKind : uint8
     BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25,
     SkipActiveOffer = 26,
     // One independent final rule rewrite; selection and the build lock commit together.
-    FinalMod = 27
+    FinalMod = 27,
+    // Spend one skill point on the next rank of a learned skill (issue #287 spec §4.5, SC-05).
+    RankUpSkill = 28
 };
 
 // #198 B: where an installed component sits. Base components take None (enabled on the build); mods/connectors
@@ -144,7 +146,10 @@ enum class ELDGrowthReason : uint16
     // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
     // entry), NoFinalMod (no open final mod of that id), FinalModUnavailable (its selected source is no longer legal),
     // ComponentColumnFull (the body or dash column reached its own install limit).
-    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172, ComponentColumnFull = 173
+    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172, ComponentColumnFull = 173,
+    // Skill ranks (issue #287 spec §4.5): NoSkillPoint (no unspent skill point), BranchUnavailable (not the next rank of that
+    // skill's branch: A/B from rank 1, A1/A2 under A, B1/B2 under B; rank 3 has none).
+    NoSkillPoint = 180, BranchUnavailable = 181
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -231,6 +236,8 @@ struct LOCKDOWN_API FLDActiveSlotView
     UPROPERTY() FName DefinitionId;
     // 0 = Q, 1 = W, 2 = E.
     UPROPERTY() uint8 Slot = 0;
+    // The chosen branch path; its rank follows from it (None = rank 1).
+    UPROPERTY() ELDSkillBranch Branch = ELDSkillBranch::None;
 };
 
 USTRUCT()
@@ -350,6 +357,8 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() TArray<FLDStatPointsView> StatPoints;
     // Learned Q/W/E actives, by slot.
     UPROPERTY() TArray<FLDActiveSlotView> Actives;
+    // Skill points earned at SKILL.PointLevels and not yet spent on a rank (LDProgression::SkillPoints).
+    UPROPERTY() int32 SkillPoints = 0;
     // Chosen actives waiting to be learned (待学图纸), sorted by id.
     UPROPERTY() TArray<FName> PendingBlueprints;
     UPROPERTY() uint8 ActiveOpportunitiesEarned = 0;
@@ -407,8 +416,10 @@ struct LOCKDOWN_API FLDBuildCommand
     // ActiveChoice: learn it in the same commit when the contender may learn now and a slot is empty, else store it.
     UPROPERTY() bool bLearnIfPossible = false;
     // ActiveChoice with bLearnIfPossible: the preferred slot 0..2 or AnySlot; LearnBlueprint: the empty slot 0..2;
-    // ReplaceActive and ForgetActive: the learned slot 0..2. BuyNpcOffer and Respec carry no further field.
+    // ReplaceActive, ForgetActive and RankUpSkill: the learned slot 0..2. BuyNpcOffer and Respec carry no further field.
     UPROPERTY() uint8 Slot = AnySlot;
+    // RankUpSkill: the next branch path of the skill in Slot (A|B at rank 1, A1|A2 under A, B1|B2 under B).
+    UPROPERTY() ELDSkillBranch Branch = ELDSkillBranch::None;
     // LearnBlueprint and ReplaceActive: the pending blueprint to learn.
     UPROPERTY() FLDDefinitionWire Blueprint;
     // AllocatePoints: one count per stat in the stats' design order, at least one point in total.
@@ -469,6 +480,10 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() FGuid NextOfferId;
     // ReplaceActive and ForgetActive: the forgotten active.
     UPROPERTY() FName ForgottenId;
+    // RankUpSkill: the branch now held by the skill in LearnedSlot (DefinitionId).
+    UPROPERTY() ELDSkillBranch Branch = ELDSkillBranch::None;
+    // Unspent skill points after the commit.
+    UPROPERTY() int32 SkillPointsAfter = 0;
     // Respec: the allocated points returned to the unspent ones.
     UPROPERTY() int64 PointsRefunded = 0;
     // SkipActiveOffer: points awarded for permanently giving up this opportunity.

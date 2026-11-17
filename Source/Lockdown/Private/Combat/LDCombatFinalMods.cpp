@@ -238,6 +238,10 @@ bool ALDCombatDirector::EmitZonePulse(const FLDCombatZone& Zone, FString& Error)
         Hit.ElementAPP2=Zone.ElementAPP2;
         Hit.SlowBp=Zone.PulseSlowBp;
         Hit.SlowDurationMs=Zone.PulseSlowMs;
+        Hit.AttackSlowBp=Zone.PulseAttackSlowBp;
+        Hit.AttackSlowMs=Zone.PulseAttackSlowMs;
+        Hit.GrievousBp=Zone.PulseGrievousBp;
+        Hit.GrievousMs=Zone.PulseGrievousMs;
         Hit.CastLedger=Zone.CastLedger;
     }
     return true;
@@ -267,7 +271,7 @@ bool ALDCombatDirector::SpawnFinalZone(FLDBodyCombatState& Holder, const FLDDemo
     const auto& Parameters=Content->Get().Parameters;
     const FLDCombatEntityRecord* Record=FindRecord(Holder.Victim.EntityId);
     if (!Record) { Error=TEXT("A final zone lost its persistent build."); return false; }
-    const int64 Growth=LDSkillGrowth::FactorBp(Parameters.SkillGrowthPerLevelBp,Parameters.SkillGrowthPerLevelAfter10Bp,Record->Build.Level);
+    const int64 Growth=LDSkillGrowth::FactorBp(Parameters.SkillGrowthPerLevelBp,Record->Build.Level);
     if (!LDSkillGrowth::GrowP2(Card.BaseP2,Growth,Zone.BaseP2))
     { Error=TEXT("Final damage growth overflow."); return false; }
     Zone.ADRatioBp=Card.ADRatioBp;

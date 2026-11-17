@@ -15,7 +15,7 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
     }
     const auto& P = Out->Get().Parameters;
     return Test.TestTrue(TEXT("Fixture uses the approved first-play damage and timing parameters"),
-        P.AD.BaseP2 == 7000 && P.AP.BaseP2 == 0 && P.MaxHP.BaseP2 == 62000
+        P.AD.BaseP2 == 7000 && P.AP.BaseP2 == 0 && P.MaxHP.BaseP2 == 86000
         && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.Armor.MaxP2 == 20000 && P.MagicResist.MaxP2 == 20000
         && P.CritMultiplierBp == 20000 && Out->Get().Formulas.ResistanceScaleP2 == 10000
@@ -117,16 +117,16 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(*this, Catalog)) { return false; }
     auto Input = PrimaryInput(*Catalog);
-    if (!CheckDamage(*this, TEXT("70 AD against 18 armor"), Input, *Catalog, {5932, 0, 5932, 0, 56068, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("70 AD against 18 armor"), Input, *Catalog, {5932, 0, 5932, 0, 80068, 0})) { return false; }
     Input.bCritical = true;
-    if (!CheckDamage(*this, TEXT("Critical multiplier precedes resistance"), Input, *Catalog, {11864, 0, 11864, 0, 50136, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Critical multiplier precedes resistance"), Input, *Catalog, {11864, 0, 11864, 0, 74136, 0})) { return false; }
     Input.bCritical = false;
     Input.TargetResistanceP2 = int64(0);
-    if (!CheckDamage(*this, TEXT("Zero armor is valid"), Input, *Catalog, {7000, 0, 7000, 0, 55000, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Zero armor is valid"), Input, *Catalog, {7000, 0, 7000, 0, 79000, 0})) { return false; }
     Input.TargetResistanceP2 = int64(10000);
-    if (!CheckDamage(*this, TEXT("100 resistance points halve damage"), Input, *Catalog, {3500, 0, 3500, 0, 58500, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("100 resistance points halve damage"), Input, *Catalog, {3500, 0, 3500, 0, 82500, 0})) { return false; }
     Input.TargetResistanceP2 = int64(20000);
-    if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 59667, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 83667, 0})) { return false; }
     Input = PrimaryInput(*Catalog);
     Input.PrimaryGuardP2 = 100;
     Input.PrimaryGuardCapBp = 5000;
@@ -161,13 +161,13 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     // A Physical hit meets armor, a Magical one magic resistance (the same base points).
     Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
         ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
-    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD and 20 AP"), Input, *Catalog, {9152, 0, 9152, 0, 52848, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD and 20 AP"), Input, *Catalog, {9152, 0, 9152, 0, 76848, 0})) { return false; }
     Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
     if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
-        {7627, 0, 7627, 0, 54373, 0})) { return false; }
+        {7627, 0, 7627, 0, 78373, 0})) { return false; }
     Input.TargetResistanceP2 = int64(20000);
     if (!CheckDamage(*this, TEXT("Resistance uses the same points formula"), Input, *Catalog,
-        {3000, 0, 3000, 0, 59000, 0})) { return false; }
+        {3000, 0, 3000, 0, 83000, 0})) { return false; }
     return true;
 }
 
@@ -293,26 +293,26 @@ bool FLDDemoDamageExactTest::RunTest(const FString& Parameters)
     Input.Definition.Emplace(0, 0, 0, ELDDemoDamageType::Physical);
     Input.SourceADP2.Reset();
     if (!CheckDamage(*this, TEXT("An explicit zero definition needs no unused source attributes"), Input, *Catalog,
-        {0, 0, 0, 0, 62000, 0})) { return false; }
+        {0, 0, 0, 0, 86000, 0})) { return false; }
     Input.SourceADP2 = int64(1);
     for (const int64 Ratio : {int64(9000), int64(9999), int64(10000), int64(10001)})
     {
         Input.Definition.Emplace(0, Ratio, 0, ELDDemoDamageType::Physical);
         const int64 Expected = Ratio / 10000;
         if (!CheckDamage(*this, FString::Printf(TEXT("Sub-P2 boundary at R4=%lld"), Ratio), Input, *Catalog,
-            {Expected, 0, Expected, 0, 62000 - Expected, 0})) { return false; }
+            {Expected, 0, Expected, 0, 86000 - Expected, 0})) { return false; }
     }
     Input.Definition.Emplace(0, 6000, 6000, ELDDemoDamageType::Magical);
     Input.SourceAPP2 = int64(1);
-    if (!CheckDamage(*this, TEXT("Add fractional source terms before flooring"), Input, *Catalog, {1, 0, 1, 0, 61999, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Add fractional source terms before flooring"), Input, *Catalog, {1, 0, 1, 0, 85999, 0})) { return false; }
     Input.Definition.Emplace(0, 19000, 0, ELDDemoDamageType::Physical);
     Input.SourceAPP2.Reset();
     Input.TargetResistanceP2 = int64(1800);
-    if (!CheckDamage(*this, TEXT("Do not floor before resistance"), Input, *Catalog, {1, 0, 1, 0, 61999, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Do not floor before resistance"), Input, *Catalog, {1, 0, 1, 0, 85999, 0})) { return false; }
     Input = PrimaryInput(*Catalog);
     Input.SourceADP2 = int64(1);
     Input.bCritical = true;
-    if (!CheckDamage(*this, TEXT("Do not floor before the critical multiplier"), Input, *Catalog, {1, 0, 1, 0, 61999, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Do not floor before the critical multiplier"), Input, *Catalog, {1, 0, 1, 0, 85999, 0})) { return false; }
 
     Input = PrimaryInput(*Catalog);
     Input.HitClass = ELDCombatHitClass::Ability;
@@ -363,12 +363,12 @@ bool FLDDemoBasicTimingTest::RunTest(const FString& Parameters)
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Min;
     if (!CheckTiming(*this, TEXT("AS lower bound"), Input, *Catalog, 3334, 750)) { return false; }
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Max;
-    if (!CheckTiming(*this, TEXT("AS upper bound"), Input, *Catalog, 435, 98)) { return false; }
+    if (!CheckTiming(*this, TEXT("AS upper bound"), Input, *Catalog, 200, 45)) { return false; }
 
     struct FMonsterCase { const TCHAR* Id; int64 Interval; int64 Windup; int64 FasterInterval; int64 FasterWindup; int64 Damage; };
     for (const auto& Case : {
-        FMonsterCase{TEXT("monster_scavenger"), 1250, 350, 625, 175, 847},
-        FMonsterCase{TEXT("monster_guardian"), 1539, 500, 770, 250, 3050}})
+        FMonsterCase{TEXT("monster_scavenger"), 1250, 350, 625, 175, 1186},
+        FMonsterCase{TEXT("monster_guardian"), 1539, 500, 770, 250, 4237}})
     {
         FString Error;
         const FLDDemoMonsterDefinition* Monster = nullptr;
@@ -387,7 +387,7 @@ bool FLDDemoBasicTimingTest::RunTest(const FString& Parameters)
         auto Damage = PrimaryInput(*Catalog);
         Damage.SourceADP2 = Monster->AttackP2;
         if (!CheckDamage(*this, FString(Case.Id) + TEXT(" same physical evaluator"), Damage, *Catalog,
-            {Case.Damage, 0, Case.Damage, 0, 62000 - Case.Damage, 0})) { return false; }
+            {Case.Damage, 0, Case.Damage, 0, 86000 - Case.Damage, 0})) { return false; }
     }
     return true;
 }
@@ -439,7 +439,7 @@ bool FLDDemoTimingDomainTest::RunTest(const FString& Parameters)
         CheckFailure(*this, TEXT("Nonpositive base windup"), LDTactical::EvaluateBasicTiming(Input, *Catalog), EError::Domain);
     }
     for (const auto& Outside : {Rate(299999999999999999LL, 1000000000000000000LL),
-        Rate(2500000000000000001LL, 1000000000000000000LL)})
+        Rate(5000000000000000001LL, 1000000000000000000LL)})
     {
         Input = TimingInput(*Catalog);
         Input.CurrentAttackSpeed = Outside;

@@ -85,7 +85,7 @@ bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
         && Component == Other.Component && bInstallIfPossible == Other.bInstallIfPossible && TargetKind == Other.TargetKind
         && TargetDefinition == Other.TargetDefinition && TargetSegment == Other.TargetSegment && BoundActive == Other.BoundActive
         && Element == Other.Element && BoundComponent == Other.BoundComponent && Filler == Other.Filler
-        && Surrendered == Other.Surrendered && Replacing == Other.Replacing;
+        && Surrendered == Other.Surrendered && Replacing == Other.Replacing && Branch == Other.Branch;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
@@ -112,6 +112,7 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::Dismantle:
     case ELDBuildCommandKind::SkipActiveOffer:
     case ELDBuildCommandKind::FinalMod:
+    case ELDBuildCommandKind::RankUpSkill:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -232,6 +233,8 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NoFinalMod: return TEXT("NoFinalMod");
     case ELDGrowthReason::FinalModUnavailable: return TEXT("FinalModUnavailable");
     case ELDGrowthReason::ComponentColumnFull: return TEXT("ComponentColumnFull");
+    case ELDGrowthReason::NoSkillPoint: return TEXT("NoSkillPoint");
+    case ELDGrowthReason::BranchUnavailable: return TEXT("BranchUnavailable");
     }
     return TEXT("Unknown");
 }

@@ -151,7 +151,7 @@ private:
         UTextBlock* Glyph=nullptr;
         UTextBlock* Key=nullptr;
         UTextBlock* Name=nullptr;
-        UTextBlock* Mana=nullptr;
+        UTextBlock* Momentum=nullptr;
         UTextBlock* Cooldown=nullptr;
         UTextBlock* Element=nullptr;
         // The locked final mod's icon over the head of what it binds.

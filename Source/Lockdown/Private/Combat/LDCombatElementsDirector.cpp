@@ -157,17 +157,23 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     ++Target.StateRevision;
     MarkViewChanged(Target.Victim.EntityId);
     const ELDCombatReaction Reaction=LDCombatElements::ReactionOf(Held,Kind);
+    // MOMENTUM.Reaction: the contender who triggers a reaction gains it, once per reaction.
+    if (Reaction!=ELDCombatReaction::None)
+    {
+        if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
+        { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
+    }
     if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded
-        && Applier.CastLedger->PaidManaP2>0)
+        && Applier.CastLedger->PaidMomentumP2>0)
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
         if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)
         {
-            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsManaRefundBp;
-            const int64 PaidP2=Applier.CastLedger->PaidManaP2;
+            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsMomentumRefundBp;
+            const int64 PaidP2=Applier.CastLedger->PaidMomentumP2;
             const int64 RefundP2=PaidP2/10000*RatioBp+PaidP2%10000*RatioBp/10000;
             Applier.CastLedger->bBrainsKeystoneRefunded=true;
-            if (RefundP2>0) { GrantMana(*SourceBody,RefundP2); }
+            if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }
         }
     }
     if (Reaction==ELDCombatReaction::None)
@@ -593,6 +599,9 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
         if (Body.Brace.EndsAtMs>NowMs) { continue; }
         const FLDCombatBrace Brace=Body.Brace;
         Body.Brace=FLDCombatBrace();
+        // Skill branch terms of this brace (S16 A1/A2, B1/B2).
+        const FLDCombatBranchState& Branched=Body.Branch;
+        const bool bBranch=Branched.BraceEffectId==Brace.EffectId && Brace.EffectId.IsValid();
         ++Body.StateRevision;
         MarkViewChanged(Body.Victim.EntityId);
         TArray<FLDCombatBodyRef> Around;
@@ -628,6 +637,15 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
                 Hit.KnockbackAnchorCm=HolderFoot;
                 Hit.KnockbackSource=Brace.Source;
             }
+            if (bBranch && Branched.BraceShoveCm>0)
+            {
+                Hit.KnockbackCm=Branched.BraceShoveCm;
+                Hit.KnockbackMs=Branched.BraceShoveMs;
+                Hit.bKnockbackFromAnchor=true;
+                Hit.KnockbackAnchorCm=HolderFoot;
+                Hit.KnockbackSource=Brace.Source;
+            }
+            if (bBranch && Branched.BraceStunMs>0) { Hit.StunDurationMs=Branched.BraceStunMs; }
             if (!StampSourceTerms(Body,Hit,Error) || !StampElementSnapshot(Body,Hit,Error)) { return false; }
         }
         if (!Shoves.IsEmpty() && !Around.IsEmpty()) { LedgerComponentTriggered(Body,Shoves[0].Source.DefinitionId); }
@@ -636,6 +654,15 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
         if (Brace.RecordedP2>0
             && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::StoredForce,Brace.Source,Stores,Error)) { return false; }
         if (!Stores.IsEmpty() && !StoreForce(Body,Stores[0],Brace.RecordedP2,NowMs,Error)) { return false; }
+        // S16 A2 heals a share of the record; S16 B2 turns the record into a shield.
+        if (bBranch && Branched.BraceHealBp>0 && Brace.RecordedP2>0)
+        {
+            const int64 Heal=Brace.RecordedP2/10000*Branched.BraceHealBp+Brace.RecordedP2%10000*Branched.BraceHealBp/10000;
+            if (Heal>0 && !HealBody(Body,Heal,Brace.Source,nullptr,FGuid(),&Error) && !Error.IsEmpty()) { return false; }
+        }
+        if (bBranch && Branched.BraceShieldMs>0 && Brace.RecordedP2>0
+            && !GrantShieldTo(Body,Brace.RecordedP2,Branched.BraceShieldMs,Brace.EffectId,Body.Victim.EntityId,NowMs,Error,Brace.Source))
+        { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_BRACE_ANSWER t=%lld src=%s recorded=%s amount=%s targets=%d"),NowMs,
             *LDLog::Id(Body.Victim.EntityId),*LDLog::P2(Brace.RecordedP2),*LDLog::P2(Amount),Around.Num());
     }

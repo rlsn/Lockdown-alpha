@@ -159,7 +159,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // Protection is the target life's state at this hit, not at the time the effect was accepted.
     const bool bProtected=Hit.Target.Victim.Kind==ELDVictimKind::Contender
         && Mode->IsContenderProtected(Hit.Target.Victim.EntityId);
-    // The exact releasing life, when it still stands: geometry, heals and mana grants read it; a dead or replaced
+    // The exact releasing life, when it still stands: geometry, heals and momentum grants read it; a dead or replaced
     // source still deals its released damage.
     ALDCharacter* SourceActor=nullptr;
     FLDBodyCombatState* Source=FindBody(Hit.SourceBody,&SourceActor);
@@ -229,8 +229,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!SetupMarkBonus(*Source,Hit,NowMs,SetupBp,SetupTaken,Error)) { return false; }
         PoolBp+=SetupBp;
     }
+    // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
+    PoolBp+=BranchVulnerableBp(*Body,Hit,NowMs)+FMath::Max<int64>(Hit.BranchAmpBp,0);
     Evaluation.DamageBonusBp=PoolBp;
     Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
+    // A branch's self damage cut (S15 A1, S08 A2) on hits from other bodies.
+    if (Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment)
+    {
+        if (const int64 Guard=BranchGuardBp(*Body,NowMs); Guard>0)
+        { Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp/10000*(10000-Guard)+Evaluation.DeliveryScaleBp%10000*(10000-Guard)/10000; }
+    }
     if(Body->MonsterGuardUntilMs>NowMs && SourceActor
         && FVector::DotProduct(Actor->GetActorForwardVector(),(FootOf(*SourceActor)-FootOf(*Actor)).GetSafeNormal2D())>0)
     {
@@ -295,8 +303,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     const int64 StunMs=Hit.StunDurationMs;
     // Spec §8: an effective hit lost HP or had its damage absorbed by a shield.
     const bool bEffective=Damage.HPLostP2>0 || Damage.ShieldAbsorbedP2>0;
-    TArray<FLDPassiveEffectRef> ManaGrants;
-    if (Source && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::ManaOnHit,ManaGrants,Error)) { return false; }
     // #198 B10/B11 (a primary basic) and B18 (a native direct effective hit of the bound active): the source's component
     // elements on this hit. Derived, reflected, status and settle hits carry none. Each is a §10 trigger once the element
     // batch applies it (bControllable).
@@ -379,7 +385,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
     if (Ended.bShieldChanged && !SettleStoredForce(*Body,NowMs,Error)) { return false; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
-    if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
+    if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; Body->MomentumEngagedAtMs=NowMs; }
     // #198 build safe window: hostile positive damage marks its victim and the contender credited with it (burn ticks
     // and zone pulses included); a self-inflicted hit marks nobody.
     if (Damage.DamageP2>0 && Hit.SourceEntity!=Body->Victim.EntityId)
@@ -584,27 +590,20 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     if (Source)
     {
-        // Mana grant (mana_on_hit), at most once per release for an ability hit.
-        for (const FLDPassiveEffectRef& Grant : ManaGrants)
-        {
-            const FLDDemoEffectDefinition& Effect=Grant.Effect;
-            if (Effect.Trigger==ELDDemoEffectTrigger::AbilityHit && !bProtected && !Hit.bReflect
-                && Hit.HitClass==ELDCombatHitClass::Ability && Hit.Token!=0
-                && Hit.Source.Kind==ELDCombatSourceKind::Learned
-                && Source->LastAbilityManaEffect!=Hit.EffectId
-                && (!Hit.CastLedger || !Hit.CastLedger->bManaGrantPaid))
-            {
-                Source->LastAbilityManaEffect=Hit.EffectId;
-                if (Hit.CastLedger) { Hit.CastLedger->bManaGrantPaid=true; }
-                GrantMana(*Source,Effect.BaseP2);
-            }
-        }
+        // Momentum income of a committed hostile hit (MOMENTUM.*): a primary basic gains by its committed interval; a
+        // release's first native direct hit on each body gains MOMENTUM.SkillHit once.
+        if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId && !OnMomentumHit(*Source,Hit,*Body,bNativeDirect,Error))
+        { return false; }
+        // Skill branch riders of the release on each of its native direct hits.
+        if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
+            && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
         // B13 and B16 on a hostile native direct hit that dealt positive damage (a shield's share counts).
         if (bNativeDirect && Damage.DamageP2>0 && !Hit.bDebtPayment && !OnNativeDirectHit(*Source,Hit,NowMs,Error)) { return false; }
         // A lethal hit ends the target life and with it every ledger on it.
         if (!Ledgers.IsEmpty() && Body->Resources.HpP2>0 && !RecordLedgerEntries(*Body,Hit,*Source,Ledgers,NowMs,Error)) { return false; }
     }
     if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
+    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
     // #198 F connectors and mods on this committed hit (C01, C08 memory, M11, C11, C12, M12 debt, C10).
     if (!ApplyWorkshopHit(Hit,*Body,Source,Damage,bShieldBroken,ShieldGrantedP2,NowMs,Error)) { return false; }
     if (!OnFinalHit(Hit,*Body,Source,bEffective,bControlled,NowMs,Error)) { return false; }
@@ -653,7 +652,7 @@ bool LDCombatSourceRules::CollectWorkshopEffects(const FLDAttributeProjection& P
             return false;
         }
         // The same growth the projection validated: fixed amounts grow with the holder's level, ratios and times do not.
-        const int64 Factor=LDSkillGrowth::FactorBp(Parameters.SkillGrowthPerLevelBp,Parameters.SkillGrowthPerLevelAfter10Bp,Term.Level);
+        const int64 Factor=LDSkillGrowth::FactorBp(Parameters.SkillGrowthPerLevelBp,Term.Level);
         for (const FLDDemoEffectDefinition& Authored : Component->Effects)
         {
             if (Authored.GetOp()!=Op) { continue; }
@@ -727,15 +726,6 @@ bool ALDCombatDirector::ApplyPendingHits(int64 NowMs, FString& Error)
     }
     PendingHits.Reset();
     return SettleFireWindows(NowMs,Error);
-}
-
-void ALDCombatDirector::GrantMana(FLDBodyCombatState& Body, int64 AmountP2)
-{
-    auto& Pool=Body.Resources;
-    if (AmountP2<=0 || Body.bPendingDeath || Pool.MpP2>=Pool.MaxMpP2) { return; }
-    Pool.MpP2=AmountP2>=Pool.MaxMpP2-Pool.MpP2 ? Pool.MaxMpP2 : Pool.MpP2+AmountP2;
-    ++Pool.Revision;
-    MarkViewChanged(Body.Victim.EntityId);
 }
 
 bool ALDCombatDirector::CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm,
@@ -949,6 +939,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             }
             if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn
                 && !LaunchReturn(Projectile,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
+            if (!EndBranchProjectile(Projectile,At,false,Error)) { return false; }
             bEnded=true;
             break;
         }
@@ -961,6 +952,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         {
             // M13: terrain or the end of the reach still sends the return home.
             if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(Projectile,Stop,bReachesRange,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }
@@ -1157,7 +1149,6 @@ bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
     LDTactical::FOutOfCombatRecovery Recovery;
     Recovery.DelayMs=Parameters.OutOfCombatRegenDelayMs;
     Recovery.MaxHPBpPerSec=Parameters.OutOfCombatMaxHPRegenBp;
-    Recovery.MaxMPBpPerSec=Parameters.OutOfCombatMaxMPRegenBp;
     // D21 (#79): the dorm's fast recovery stacks on top for a contender standing in a dorm.
     const ILDLifeAuthority* Mode=Authority();
     if (!Mode || !Mode->GetDormZones().IsValid())
@@ -1168,8 +1159,7 @@ bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
     LDTactical::FOutOfCombatRecovery Dorm;
     Dorm.DelayMs=Parameters.DormRegenDelayMs;
     Dorm.MaxHPBpPerSec=Parameters.DormMaxHPRegenBp;
-    Dorm.MaxMPBpPerSec=Parameters.DormMaxMPRegenBp;
-    return RegenerateBodies(Recovery,NowMs,Error,&Dorm,&Mode->GetDormZones());
+    return RegenerateBodies(Recovery,NowMs,Error,&Dorm,&Mode->GetDormZones(),&Parameters.Momentum);
 }
 
 void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& Out) const
@@ -1191,7 +1181,7 @@ void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& O
 }
 
 bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
-    const LDTactical::FOutOfCombatRecovery* DormRecovery, const FLDDormZones* Dorms)
+    const LDTactical::FOutOfCombatRecovery* DormRecovery, const FLDDormZones* Dorms, const FLDDemoMomentumParameters* MomentumTerms)
 {
     for (auto& Pair : Bodies)
     {
@@ -1205,7 +1195,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             return false;
         }
         if (NowMs==FromMs) { continue; }
-        // #198: a body frozen by a rest keeps its HP/MP; its interval is consumed without recovery.
+        // #198: a body frozen by a rest keeps its HP; its interval is consumed without recovery.
         if (Body.bSuspended)
         {
             Body.RegenThroughMs=NowMs;
@@ -1215,10 +1205,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
         LDTactical::FRegenPools Pools;
         Pools.HpP2=Pool.HpP2;
         Pools.MaxHpP2=Pool.MaxHpP2;
-        Pools.MpP2=Pool.MpP2;
-        Pools.MaxMpP2=Pool.MaxMpP2;
         Pools.HpMicroP2=Body.HpRegenMicroP2;
-        Pools.MpMicroP2=Body.MpRegenMicroP2;
         // D21: every contender recovers out of combat; camp members heal only by their reset.
         const bool bContender=Body.Victim.Kind==ELDVictimKind::Contender;
         // The foot at this settle decides the dorm term for the elapsed interval (at most one authority step late).
@@ -1235,12 +1222,18 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             Error=FString::Printf(TEXT("Regeneration of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
             return false;
         }
-        const bool bChanged=Pool.HpP2!=Pools.HpP2 || Pool.MpP2!=Pools.MpP2;
+        // Momentum (contenders only): the combat gain while engaged, then the idle drift toward MOMENTUM.Start.
+        int64 Momentum=Pool.MomentumP2;
+        if (bContender && MomentumTerms && !SettleMomentum(Body,*MomentumTerms,FromMs,NowMs,Momentum,Error))
+        {
+            Error=FString::Printf(TEXT("Momentum of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
+            return false;
+        }
+        const bool bChanged=Pool.HpP2!=Pools.HpP2 || Pool.MomentumP2!=Momentum;
         const int64 RestoredP2=Pools.HpP2-Pool.HpP2;
         Pool.HpP2=Pools.HpP2;
-        Pool.MpP2=Pools.MpP2;
+        Pool.MomentumP2=Momentum;
         Body.HpRegenMicroP2=Pools.HpMicroP2;
-        Body.MpRegenMicroP2=Pools.MpMicroP2;
         Body.RegenThroughMs=NowMs;
         if (bChanged)
         {

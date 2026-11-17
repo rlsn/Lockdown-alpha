@@ -46,15 +46,15 @@ bool ALDCombatDirector::ApplyAirdropReward(const FGuid& Contender, const FLDGame
 
     FLDBodyCombatState Staged = *Body;
     Out.HpBeforeP2 = Staged.Resources.HpP2;
-    Out.MpBeforeP2 = Staged.Resources.MpP2;
+    Out.MomentumBeforeP2 = Staged.Resources.MomentumP2;
     HealBody(Staged, LDAirdrop::ShareP2(Staged.Resources.MaxHpP2, P.AirdropHealMaxHPBp));
-    GrantMana(Staged, LDAirdrop::ShareP2(Staged.Resources.MaxMpP2, P.AirdropManaMaxMPBp));
+    GrantMomentum(Staged, P.AirdropMomentumP2, ELDMomentumBook::Other);
     LDTactical::ApplyTimedBonus(Staged.TimedBonuses, Bonus);
     if (!RefreshTemporary(Staged, Actor, NowMs, Error)) { return false; }
     Staged.StateRevision = Body->StateRevision + 1;
     *Body = MoveTemp(Staged);
     Out.HpAfterP2 = Body->Resources.HpP2;
-    Out.MpAfterP2 = Body->Resources.MpP2;
+    Out.MomentumAfterP2 = Body->Resources.MomentumP2;
     Out.MoveSpeedBonusUntilMs = Bonus.ExpiresAtMs;
     bOutApplied = true;
     Error.Reset();

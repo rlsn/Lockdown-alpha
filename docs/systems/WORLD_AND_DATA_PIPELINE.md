@@ -203,7 +203,7 @@ SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才
 
 `Development\LDDemoContentCatalog.h` 的 `ULDDemoContentCatalog` 是 Demo 内容导入提供者；
 固定资产路径为 `/Game/Lockdown/Generated/Data/DA_DemoContent.DA_DemoContent`。
-它只保存定义，不保存 Match、角色生命、HP/MP、钱包、选择或冷却状态，也不启动对局。
+它只保存定义，不保存 Match、角色生命、HP、劲、钱包、选择或冷却状态，也不启动对局。
 原生编号来自 `LDDemoContentIds.h` 的保留编号；能解析某个 opcode **不代表战斗处理器已接通**。
 
 作者链为 `Scripts\DemoContent.py` / `SyncDemoContentData.py`：
@@ -482,13 +482,13 @@ EntityId 每局按 (CampId, Slot) 分配一次，跨整组刷新保留；Life �
 | 失去目标/视野 | 即刻取消锁定与追击；`LoseTargetGraceSec` 只决定回位前的等待 | grace 中读隐藏 Pawn 或续走 LastSeen |
 | 超 Leash / grace 到期 → Returning | 以 Camp 锚点脚点 XY 距离判定，只约束 Engaged 成员；合法路径回各自 MemberHome | 被反复攻击无限重置 leash |
 | Returning | 正常可受伤、控制、杀死；不开新目标、不回头追 | 回位无敌 |
-| 成功回营 → Reset | 同刻先处理到期命中与死亡；只对真实到家的存活成员满 HP/MP、清临时效果与仇恨、技能就绪 | 复活死者、增加 Life、清拒重水位、发奖 |
+| 成功回营 → Reset | 同刻先处理到期命中与死亡；只对真实到家的存活成员满 HP、清临时效果与仇恨、技能就绪 | 复活死者、增加 Life、清拒重水位、发奖 |
 | 最后一名死亡 → WaitingRespawn | 按 T 固化 ClearAt，按该档 `RespawnSec` 建一次组刷新 ticket | 每个死亡回调重复建 ticket |
 | ticket 到期 | 重查 Match、终局闸、CampGeneration 与全组落点，成功后整组绑定新生命 | 半组或静默跳过 |
 | 局结束/重开 | 先关闸再取消目标、行为、ticket 与观察 | 清理回调发奖 |
 
 - **受击消费**：`OnCombatHostileContact` 按 VictimBody 验证本营存活成员，把来源参赛者当前生命的身体幂等记入全营敌对来源（Returning 成员不记，早于出生/重置时刻的接触不重开仇恨）；
-  之后每个 Actions 边界由 `LDCampDecision` 产生意图，普攻经 Combat `SubmitAction`。没有 MP 定义的怪物为 NotApplicable，不补临时 Mana。
+  之后每个 Actions 边界由 `LDCampDecision` 产生意图，普攻经 Combat `SubmitAction`。野怪没有劲（`CAMP.MomentumPolicy=NotApplicable`），技能不耗劲。
 - **HomeProof 与重置**：`FLDCampResetInput{Body, ReturnEpoch, HomeFootCm, ExpectedResourceRevision, ExpectedStateRevision}`。营地先判定成员在登记地面落地、支持面相同、脚点至 MemberHome 不超过
   `CAMP.ResetArrivalRadiusCm`（不加减胶囊半径，不强 snap 被占中心）；Combat 再校验，距离超限或致死中返回 InvalidInput，修订已变返回 StaleBuild，营地留到下一边界重试。
   语义见[战斗、效果与成长](COMBAT_AND_GROWTH.md#死亡奖励与营地重置)。

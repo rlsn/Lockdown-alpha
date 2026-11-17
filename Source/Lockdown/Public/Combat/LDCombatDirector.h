@@ -12,6 +12,7 @@
 #include "Combat/LDMonsterRules.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
+#include "Combat/LDMomentum.h"
 #include "Development/LDBuildBlueprint.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
@@ -24,9 +25,20 @@ struct FLDAirdropRewardFact
 {
     int64 HpBeforeP2 = 0;
     int64 HpAfterP2 = 0;
-    int64 MpBeforeP2 = 0;
-    int64 MpAfterP2 = 0;
+    int64 MomentumBeforeP2 = 0;
+    int64 MomentumAfterP2 = 0;
     int64 MoveSpeedBonusUntilMs = 0;
+};
+
+// Which momentum book a change goes to (the LD_MOMENTUM line of a life or rest, LDMomentum::FLedger).
+enum class ELDMomentumBook : uint8 { Basic, Combat, Skill, Reaction, Dodge, Other, Idle, Spent };
+
+// An owner holding a Q/W/E with a full bar (overdrive charge): public while it lasts, ended by the release, a
+// let-go or abandon of the key (bCharging false), a bar below the threshold, death or a stun, silence or knockback.
+struct FLDCombatOverdriveCharge
+{
+    ELDCombatEntry Entry=ELDCombatEntry::None;
+    int64 StartMs=0;
 };
 
 class ALDCharacter;
@@ -43,18 +55,87 @@ struct FLDInnateDashTerms;
 struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
-// What one release shares across all of its hits: a mana grant and brains-keystone refund each pay once per release;
-// PaidManaP2 is the mana this release really paid (after M06). B17/B15 amplification is locked at release and triggers
-// once at its first positive hit.
+// What one release shares across all of its hits: the brains-keystone refund pays once per release; PaidMomentumP2 is the
+// momentum this release really paid (after M06; a whole bar for an overdrive). B17/B15 amplification is locked at release
+// and triggers once at its first positive hit. MomentumStruck holds the bodies whose first native direct hit of this release
+// already gained MOMENTUM.SkillHit; bOverdrive marks an overdrive release.
 struct FLDCombatCastLedger
 {
-    bool bManaGrantPaid=false;
+    bool bOverdrive=false;
+    TArray<FLDCombatBodyRef> MomentumStruck;
     bool bBrainsKeystoneRefunded=false;
     bool bIdleAmpTriggered=false;
-    int64 PaidManaP2=0;
+    int64 PaidMomentumP2=0;
     int64 AlternateAmpBp=0;
     bool bAlternateAmpTriggered=false;
+    // Skill branch riders of this release (issue #287 spec §5.1, LDCombatBranchDirector.cpp): applied by every native
+    // direct hit it lands. RiderStruck: the bodies a once-per-target rider already reached; RecastFirst: a recast window's
+    // first-release targets (S12 B1 stuns a body both releases hit).
+    TArray<FLDDemoEffectDefinition> Riders;
+    TArray<FLDCombatBodyRef> RiderStruck;
+    TArray<FLDCombatBodyRef> RecastFirst;
+    bool bNextBasicGranted=false;
+    bool bRecast=false;
 };
+
+// A vulnerability a skill branch left on a life: hits of Scope (from OwnerEntity only when it is set) take RatioBp more.
+struct FLDCombatVulnerability
+{
+    FGuid OwnerEntity;
+    ELDDemoDamageScope Scope=ELDDemoDamageScope::All;
+    int64 RatioBp=0;
+    int64 ExpiresAtMs=0;
+};
+
+// An open recast window (S02 B, S12 B): the same entry releases once more before UntilMs without cooldown or momentum.
+struct FLDCombatRecastWindow
+{
+    FName Definition;
+    int64 UntilMs=0;
+    FVector Direction=FVector::ZeroVector;
+    FLDDemoEffectDefinition Terms;
+    TSharedPtr<FLDCombatCastLedger> FirstLedger;
+};
+
+// The skill branch state of one life (LDCombatBranchDirector.cpp).
+struct FLDCombatBranchState
+{
+    TArray<FLDCombatVulnerability> Vulnerabilities;
+    // The next primary basic's damage bonus (S01 A1, S06 B2, S16 B) and its window.
+    int64 NextBasicAmpBp=0, NextBasicAmpUntilMs=0;
+    // A self damage cut (S15 A1) and its window.
+    int64 GuardBp=0, GuardUntilMs=0;
+    // The next Q/W/E release costs no momentum until then (S05 B2).
+    int64 FreeCastUntilMs=0;
+    // Primary basics shock or breach until then (S13 A2, S15 A2).
+    int64 RiderUntilMs=0;
+    bool bRiderElectric=false;
+    int32 RiderBreach=0;
+    // Every hit on this life discharges until then (S10 B1); the discharge credits OverchargeSource at its snapshot.
+    int64 OverchargeUntilMs=0;
+    FLDCombatBodyRef OverchargeSource;
+    FLDCombatSourceRef OverchargeExit;
+    int32 OverchargeLevel=1;
+    int64 OverchargeAPP2=0;
+    // The current shield's branch terms (S13 A1, S14 A1/A2), keyed by the shield's effect.
+    FGuid ShieldEffectId;
+    int64 ShieldReflectBp=0, ShieldEndHealBp=0;
+    TOptional<FLDDemoEffectDefinition> ShieldBreakBurst;
+    FLDCombatSourceRef ShieldExit;
+    // The current brace's branch terms (S16), keyed by the brace's effect.
+    FGuid BraceEffectId;
+    int64 BraceStunMs=0, BraceHealBp=0, BraceStackBp=0, BraceShieldMs=0, BraceShoveMs=0;
+    double BraceShoveCm=0;
+    // A dash's end burst (S13 B2): placed at the foot where the dash ends, Delay after it.
+    TOptional<FLDDemoEffectDefinition> DashEndBurst;
+    FLDCombatSourceRef DashEndExit;
+    FGuid DashEndEffectId;
+    int64 DashEndAtMs=0;
+    TSharedPtr<FLDCombatCastLedger> DashEndLedger;
+    // The open recast window of this life.
+    TOptional<FLDCombatRecastWindow> Recast;
+};
+
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
 
@@ -95,6 +176,8 @@ struct FLDCombatActiveTerms
     FLDDemoTargetDefinition Target;
     FLDDemoAbilityValues Values;
     int64 WindupMs=0;
+    // The learned branch the release snapshot came from (None = rank 1).
+    ELDSkillBranch Branch=ELDSkillBranch::None;
     // Native direct damage package multiplier (M01 Unit/projectile, M03, M05), applied as the hits' PackageScaleBp.
     int64 PackageScaleBp=10000;
     // Contact damage multiplier of a dash (M08) for its native contact hit and B05.
@@ -126,6 +209,8 @@ struct FLDCombatKnockbackImpact
     FLDCombatSourceRef PushSource;
     int64 HolderADP2=0, HolderAPP2=0;
     int64 EndMs=0;
+    // A skill branch's wall stun of this push (static geometry only).
+    int64 WallStunMs=0;
 };
 
 // #198 F C05: a 3 s pursuit mark one holder set on one target life with its first hard control kind.
@@ -137,8 +222,8 @@ struct FLDCombatControlMark
     int64 ExpiresAtMs=0;
 };
 
-// #198 F: what one original action (its EffectId) already received from a capped connector (C07 mana, C11 heal;
-// C13/C15 once-per-release cuts, C16 mana with the distinct enemies its native direct hits already struck).
+// #198 F: what one original action (its EffectId) already received from a capped connector (C07 momentum, C11 heal;
+// C13/C15 once-per-release cuts, C16 momentum with the distinct enemies its native direct hits already struck).
 struct FLDCombatEffectBudget
 {
     FGuid EffectId;
@@ -289,6 +374,11 @@ struct FLDCombatAction
     int64 ReleaseAtMs=0;
     uint64 SourceRevision=0;
     bool bMonsterSpecial=false;
+    // A contender basic: the combo step its AttackStart took and the attack interval it committed (momentum income).
+    uint8 ComboStep=0;
+    int64 BasicIntervalMs=0;
+    // A Q/W/E admitted with a held overdrive charge; the release decides by the bar (LDMomentum::OverdriveReady).
+    bool bOverdrive=false;
 };
 
 struct FLDBodyCombatState
@@ -307,7 +397,8 @@ struct FLDBodyCombatState
     int64 ExposedUntilMs=0;
     struct FResources
     {
-        int64 HpP2=0,MaxHpP2=0,MpP2=0,MaxMpP2=0,ShieldP2=0;
+        // Momentum lives here beside HP and the shield; its maximum is the fixed MOMENTUM.Max.
+        int64 HpP2=0,MaxHpP2=0,MomentumP2=0,ShieldP2=0;
         uint64 Revision=0;
     } Resources;
     FLDBasicTiming BasicTiming;
@@ -331,8 +422,6 @@ struct FLDBodyCombatState
     // B06 (nth_basic_bonus): this life's landed primary basics while the counter is held; it survives target changes and
     // ends with the life.
     int32 LandedBasics=0;
-    // Once-per-release mana grant of item_runic_focus (ability hit).
-    FGuid LastAbilityManaEffect;
     // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
     TArray<FLDCombatRoot> Disarms;
     TArray<FLDCombatRoot> Stuns;
@@ -351,7 +440,22 @@ struct FLDBodyCombatState
     int64 RegenThroughMs=0;
     // D21 (#79): this contender's foot stood inside a dorm at the last regeneration settle.
     bool bInDorm=false;
-    int64 HpRegenMicroP2=0, MpRegenMicroP2=0; // sub-P2 remainders in 1e-6 P2
+    // Sub-P2 remainders in 1e-6 P2; momentum's is signed (positive rising, negative falling, LDMomentum::Settle).
+    int64 HpRegenMicroP2=0, MomentumMicroP2=0;
+    // The last real combat event of this life for momentum (LastCombatAt without the spawn and rest starts); unset = idle.
+    TOptional<int64> MomentumEngagedAtMs;
+    LDMomentum::FLedger MomentumLedger;
+    // The combo step the last released basic of this life took (0 = none) and its AttackStart instant.
+    uint8 ComboStep=0;
+    int64 ComboStartMs=0;
+    // The overdrive charge shown to observers while an owner holds a Q/W/E with a full bar (FLDCombatOverdriveCharge).
+    TOptional<FLDCombatOverdriveCharge> OverdriveCharge;
+    // The last D or dash-counting start of this life (perfect dodge, LDMomentum::IsPerfectDodge).
+    TOptional<int64> DashStartedAtMs;
+    FVector DashStartFootCm=FVector::ZeroVector;
+    // Perfect dodges of this life and the last one's instant (owner notice).
+    uint32 PerfectDodges=0;
+    int64 LastPerfectDodgeAtMs=0;
     int32 MonsterAttackCount=0;
     bool bMonsterEnraged=false;
     int64 MonsterGuardUntilMs=0;
@@ -421,6 +525,8 @@ struct FLDBodyCombatState
     TOptional<FLDCombatStoredForceWatch> StoredForceWatch;
     TOptional<FLDCombatStoredForce> StoredForce;
     TOptional<FLDCombatWideToken> WideToken;
+    // Skill branch state (LDCombatBranchDirector.cpp).
+    FLDCombatBranchState Branch;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -496,6 +602,15 @@ struct FLDCombatHit
     bool bCritical=false;
     int64 RootDurationMs=0;
     int64 SlowBp=0, SlowDurationMs=0;
+    // A contender's primary basic: its combo step (1..3) and committed attack interval (momentum income per hit).
+    uint8 ComboStep=0;
+    int64 BasicIntervalMs=0;
+    // A skill branch's next-basic bonus this primary basic took (joins the damage bonus pool).
+    int64 BranchAmpBp=0;
+    // A knockback that stuns when a wall stops it (S01 B1, S09 B1, S20 B1).
+    int64 KnockbackWallStunMs=0;
+    // An S10 B1 discharge: never discharges again.
+    bool bOverchargeDischarge=false;
     // Snapshot of the source's control amplification (control_damage_amp, B07): joins the damage bonus pool when the target
     // was move-slowed, hard-controlled or knocked back before this hit.
     int64 ControlAmpBp=0;
@@ -586,12 +701,31 @@ inline bool IsNativeDirectHit(const FLDCombatHit& Hit)
         && !Hit.bDebtPayment && !Hit.bFromShieldTrigger;
 }
 
+// A delayed or repeated package a branch scheduled on one struck body (follow_up, delayed momentum_steal).
+struct FLDCombatFollowUp
+{
+    FLDCombatHit Payload;
+    int64 DueMs=0, IntervalMs=0;
+    int32 Remaining=1;
+    int64 StealP2=0, StealMultiplierBp=0, FreeCastMs=0;
+};
+
+// S07 B: the self area repeats around its living owner's foot.
+struct FLDCombatPulse
+{
+    FLDCombatHit Template;
+    double RadiusCm=0;
+    int64 NextMs=0, IntervalMs=0;
+    int32 Remaining=0;
+    int64 MomentumP2=0, ShieldBaseP2=0, ShieldMaxHPBp=0;
+};
+
 struct FLDCombatDashContact
 {
     FGuid EffectId;
     FLDCombatBodyRef Body;
     FLDCombatSourceRef Source;
-    int64 StartMs=0, EndMs=0, PaidManaP2=0;
+    int64 StartMs=0, EndMs=0, PaidMomentumP2=0;
     TArray<FLDCombatBodyRef> Struck;
     TOptional<FLDCombatHit> NativeHit;
     int32 NativeHitsRemaining=0;
@@ -620,6 +754,8 @@ struct FLDCombatChannel
     // M18: the final wave knocks every struck enemy away from the channel origin (source: the host).
     double FinalKnockbackCm=0;
     int64 FinalKnockbackMs=0;
+    // S22 A2: how many of the last waves carry the slow (1 = the final wave only).
+    int32 SlowWaves=1;
 };
 
 // #198 F: what a delayed ground blast is. An S18 landing, an S19 detonation and an M07 compressed zone are natural
@@ -642,6 +778,12 @@ struct FLDCombatGroundEffect
     ELDCombatGroundOrigin Origin=ELDCombatGroundOrigin::Impact;
     // M15 on the host release (S18 impact, S19 trap): its echo follows this blast.
     TOptional<FLDPassiveEffectRef> Echo;
+    // Skill branches: an impact's center stun (S18 B1) and the wet area it leaves (S20 B2); a trap's wire to its owner's
+    // next armed trap (S19 A1) and the enemies that wire already struck (each once).
+    int64 CenterStunMs=0, LingerMs=0;
+    double WireCm=0;
+    int64 WireBaseP2=0, WireAPRatioBp=0;
+    TArray<FGuid> WireStruck;
     // Observers key a blast on its release EffectId; an echo, which shares it, carries its own key.
     FGuid ObservedKey;
     // C17 (traps only): moved once already; CreatedSerial orders the owner's zones and traps by creation.
@@ -689,6 +831,11 @@ struct FLDCombatProjectile
     int32 PierceRemaining=0;
     int64 PierceScaleBp=0, ReturnScaleBp=0;
     FName PierceComponent, ReturnComponent;
+    // Skill branches: the return's element (S06 B1, S21 B2) and the area the outbound flight leaves where it ends (S21 A2).
+    ELDDemoElement ReturnElement=ELDDemoElement::None;
+    TOptional<FLDDemoEffectDefinition> LandingZone;
+    // A telegraphed flight (windup of at least 0.15 s, or a camp warning): its end can be perfectly dodged.
+    bool bTelegraphed=false;
     bool bReturn=false;
     TArray<FGuid> Struck;
     // A return that starts on the body its outbound flight ended on touches that body at its start (it may strike it again).
@@ -743,6 +890,10 @@ struct FLDCombatZone
     int64 HasteBp=0;
     FGuid OwnerGroup;
     uint8 OwnerPKSide=0;
+    // Skill branches: the owner's damage cut and momentum per pulse while its foot stands inside (S08 A2, S20 A2), and the
+    // attack slow and heal cut every pulse lays on the bodies inside (S21 A2's landing area).
+    int64 GuardBp=0, MomentumP2=0;
+    int64 PulseAttackSlowBp=0, PulseAttackSlowMs=0, PulseGrievousBp=0, PulseGrievousMs=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
     // M16: the centre follows the living source body's foot at every mechanics advance.
     bool bTether=false;
@@ -796,6 +947,9 @@ public:
     bool RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, ELDCombatReject Reject,
         FLDCombatActionReceipt& Out);
     FLDCombatActionReceipt CancelAction(const FLDCombatCaller& Caller, const FLDCombatCancelRequest& Request);
+    // The owner's overdrive charge intent (a Q/W/E pressed or let go with a full bar). Shown to observers while held;
+    // refused silently when stale, not castable or the bar is short. A later request with bOverdrive needs it.
+    void SubmitCharge(const FLDCombatCaller& Caller, const FLDCombatChargeRequest& Request);
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
@@ -864,15 +1018,15 @@ public:
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
-    // The contender's current Alive body to its committed HP/MP maxima (the shield is untouched). False with Detail when
+    // The contender's current Alive body to its committed HP maximum and a full momentum bar (the shield is untouched). False with Detail when
     // the permit, the contender record or a living body is missing; nothing changes then.
     bool DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
     // Every cooldown track of the contender (learned, held or forgotten, and the innate dash) ready at the permit
     // boundary; tracks keep their identity. False with Detail when the permit or the contender record is missing.
     bool DevResetCooldowns(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
-    // Pure parts of the two commands. RefillPool returns whether HP or MP changed; ResetTracks the number of tracks
+    // Pure parts of the two commands. RefillPool returns whether HP or momentum changed; ResetTracks the number of tracks
     // that were cooling down at NowMs.
-    static bool DevRefillPool(FLDBodyCombatState::FResources& Pool);
+    static bool DevRefillPool(FLDBodyCombatState::FResources& Pool, int64 MomentumP2);
     static int32 DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
     // The DEV test layer of the installed build (FLDBuildProjectionInput::DevBonuses): bClearAll empties it, otherwise
     // Stat's term becomes Amount in its unit (0 removes it). The installed build is reprojected and installed through
@@ -889,7 +1043,7 @@ public:
     FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision) const;
     // Part 2, right after ApplyBuildChange of part 1: every learned cooldown track is dropped (a later learn issues a
     // new one, as at the match start), the innate dash track is ready at NowMs, the build safe window has passed and a
-    // living body's HP/MP are full. Returns the number of dropped tracks.
+    // living body's HP is full and its momentum at MOMENTUM.Start. Returns the number of dropped tracks.
     int32 DevFinishReset(const FGuid& Contender, int64 NowMs);
     // Pure part of DevFinishReset's tracks.
     static int32 DevDropTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
@@ -902,7 +1056,7 @@ public:
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // ---- Field rewards.
-    // Transactions: applies the approved airdrop healing, mana and timed move-speed rewards to its living claimant.
+    // Transactions: applies the approved airdrop healing, momentum and timed move-speed rewards to its living claimant.
     // False only on an authority fault; bOutApplied is false when the body is already gone or dying.
     bool ApplyAirdropReward(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
         FLDAirdropRewardFact& Out, FString& Error);
@@ -937,14 +1091,14 @@ public:
     bool IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const;
     // A rest life joins the shared rest group (bRest) or returns to the field group. RespawnsAndWorld permit.
     bool SetRestIsolation(const FLDCombatBodyRef& Body, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error);
-    // Freezes or thaws a world body (camp member, Boss) for a rest; its HP/MP stay as they are. RespawnsAndWorld permit.
+    // Freezes or thaws a world body (camp member, Boss) for a rest; its HP stays as it is. RespawnsAndWorld permit.
     bool SetBodySuspended(const FLDCombatBodyRef& Body, bool bSuspended, const FLDGameplayWritePermit& Permit, FString& Error);
     // Phase boundary cleanup (approved §8): every in-flight effect is cancelled (CancelledByPhase, no damage, break or
     // death is invented) and every control, mark, burn, breach, shield and temporary term on every remaining body ends.
     // Returns the number of cancelled effects. RespawnsAndWorld permit.
     int32 CancelAllForPhase(const FLDGameplayWritePermit& Permit);
     // Phase refill (approved §8): every cooldown track of the contender (skills, dash, held tracks of forgotten actives)
-    // and its basic cadence are ready at the boundary. New lives start at full HP/MP by construction.
+    // and its basic cadence are ready at the boundary. New lives start at full HP by construction.
     bool ReadyAllForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
     // Retires a contender's living body for a phase boundary: its own unsettled effects end with it.
     void RetireBodyForPhase(const FLDCombatBodyRef& Body);
@@ -1106,8 +1260,10 @@ private:
     bool Regenerate(int64 NowMs, FString& Error);
     // Settles every living body through NowMs; only contender bodies receive the D21 Recovery, and a contender whose
     // foot stands inside one of Dorms at this settle also receives DormRecovery for the interval (#79).
+    // Momentum (contenders) settles with the same interval when Momentum is given (the match's MOMENTUM.* terms).
     bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
-        const LDTactical::FOutOfCombatRecovery* DormRecovery = nullptr, const FLDDormZones* Dorms = nullptr);
+        const LDTactical::FOutOfCombatRecovery* DormRecovery = nullptr, const FLDDormZones* Dorms = nullptr,
+        const FLDDemoMomentumParameters* Momentum = nullptr);
 
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
     // Every live body other than the source within RadiusCm (planar foot distance) of Anchor with clear sight from it,
@@ -1124,8 +1280,23 @@ private:
     // holder's level (LDSkillGrowth::GrowEffect). False with Error when a listed component or its growth is missing.
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
-    // Mana grant of a triggered effect; marks the owner view.
-    void GrantMana(FLDBodyCombatState& Body, int64 AmountP2);
+    // Momentum change of a contender body (a gain, a spend or a steal), clamped to the bar and booked under Kind; marks
+    // the owner view. Camp members hold no momentum (CampMomentumPolicy) and ignore it. Returns the applied change.
+    int64 GrantMomentum(FLDBodyCombatState& Body, int64 AmountP2, ELDMomentumBook Kind=ELDMomentumBook::Other);
+    // The bar over [FromMs, NowMs) of a contender body (LDMomentum::Settle with its brains rate), booked as combat/idle.
+    bool SettleMomentum(FLDBodyCombatState& Body, const FLDDemoMomentumParameters& Momentum, int64 FromMs, int64 NowMs,
+        int64& InOutP2, FString& Error);
+    // Momentum income of one committed hostile hit of Source: a primary basic by its interval, a release's first native
+    // direct hit on each body MOMENTUM.SkillHit.
+    bool OnMomentumHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, const FLDBodyCombatState& Victim,
+        bool bNativeDirect, FString& Error);
+    // Ends the body's overdrive charge (released, let go, controlled, the bar fell); observers stop seeing it.
+    void EndOverdriveCharge(FLDBodyCombatState& Body);
+    // OVERDRIVE.Scale on the release's terms and the bonus of the active's element (CONTENT_AND_BALANCE §3.5).
+    bool ApplyOverdrive(const FLDBodyCombatState& Body, const FLDDemoAbilityDefinition& Ability, FLDCombatActiveTerms& Terms,
+        FString& Error) const;
+    // One LD_MOMENTUM line of a contender life's momentum books (at the end of the life; a rest starts a new life).
+    void LogMomentumLedger(const FLDBodyCombatState& Body) const;
     // Cast range of an active for this body now: the authored range and its share of the extra basic-attack range.
     bool CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm, FString& Error) const;
     // Hooks of one landing primary basic before it is queued: cooldown refunds and the B06 counter (every Count-th basic
@@ -1222,7 +1393,7 @@ private:
     // The damage-triggered shield of Body after it took hostile positive damage (B09: the rest starts only on a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     // B13 and B16 on a hostile native direct hit of Source that dealt positive damage (IsNativeDirectHit): the release's
-    // mana refund (once per release EffectId) and the ability-hit shield (its rest starts only on a granted shield).
+    // momentum refund (once per release EffectId) and the ability-hit shield (its rest starts only on a granted shield).
     bool OnNativeDirectHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
@@ -1294,6 +1465,39 @@ private:
         const FVector& Centre, double RadiusCm, int64 NowMs, FString& Error);
     // M15: the release's echo blast (a derived host hit) at Centre after the mod's delay, at its share of Blast's payload;
     // Blast gives the outline. No echo when the holder is gone or about to die.
+    // Skill branches (issue #287 spec §5.1; LDCombatBranchDirector.cpp). The release copies its hit riders onto the cast ledger
+    // and arms its self terms; every native direct hit applies the riders; AdvanceBranches runs follow-ups, pulses, dash-end
+    // bursts and window expiries.
+    bool ArmBranchRelease(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
+        const FLDCombatActiveTerms& Terms, const FGuid& EffectId, const TSharedPtr<FLDCombatCastLedger>& CastLedger,
+        const FLDCombatAction& Action, int64 NowMs, FString& Error);
+    bool ArmBranchHostile(FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatHit& Template,
+        const TArray<FLDCombatBodyRef>& AreaTargets, int64 NowMs, FString& Error);
+    bool ApplyBranchRiders(const FLDCombatHit& Hit, FLDBodyCombatState& Source, FLDBodyCombatState& Target, int64 NowMs,
+        FString& Error);
+    int64 BranchVulnerableBp(const FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs) const;
+    int64 BranchGuardBp(const FLDBodyCombatState& Target, int64 NowMs) const;
+    // S02 B / S12 B: Source's recast window is open (no cooldown, no momentum); S05 B2: a free next cast.
+    bool BranchRecastOpen(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs) const;
+    bool BranchFreeCast(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs) const;
+    // The recast's own terms over the release snapshot (damage share, control, extra damage, direction).
+    void ApplyRecastTerms(const FLDCombatRecastWindow& Window, FLDCombatActiveTerms& Terms, FLDCombatAction& Delivery) const;
+    bool AdvanceBranches(int64 NowMs, FString& Error);
+    int64 NextBranchDueMs(int64 NowMs) const;
+    void ClearBranchState(FLDBodyCombatState& Body);
+    // Perfect dodge (issue #287 spec §4.4): at the resolution of a telegraphed enemy effect, a contender whose D started inside
+    // InArea within MOMENTUM.PerfectDodgeWindowSec and whose foot is outside now gains MOMENTUM.PerfectDodge, once per effect.
+    bool ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea, int64 NowMs,
+        FString& Error);
+    // Branch reactions of a committed hit on Target: S10 B1 discharges, S14 A1 reflections, S16 B stacks, S13 A1 bursts.
+    bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, bool bShieldBroken, int64 NowMs,
+        FString& Error);
+    // A flight ended at EndCm: a return that reached its thrower was caught (S06 B2); an outbound flight leaves its landing area.
+    bool EndBranchProjectile(const FLDCombatProjectile& Projectile, const FVector& EndCm, bool bReachedRange, FString& Error);
+    // S19 A1: Ground's wire to its owner's next newer armed trap within WireCm strikes every enemy body on the segment once.
+    bool StrikeTrapWire(FLDCombatGroundEffect& Ground, const FLDBodyCombatState& Holder, FString& Error);
+    // S20 B2: a wet area for LingerMs at Centre, owned like the impact's payload.
+    bool SpawnLingerZone(const FLDCombatHit& Payload, const FVector& Centre, double RadiusCm, int64 LingerMs, int64 NowMs, FString& Error);
     bool ScheduleEcho(const FLDCombatBodyRef& Owner, const FLDPassiveEffectRef& Echo, const FLDCombatGroundEffect& Blast,
         int64 NowMs, FString& Error);
     // M13: a return flight from where Outbound ended toward its living thrower's foot now.
@@ -1306,7 +1510,7 @@ private:
     // active's remaining cooldown, once per release EffectId.
     bool HasteOtherActives(FLDBodyCombatState& Holder, const FLDCombatSourceRef& Host, const FGuid& EffectId, int64 NowMs,
         FString& Error);
-    // C14/C16 on a host's native direct hit: set the setup mark; count a distinct enemy for the release's mana.
+    // C14/C16 on a host's native direct hit: set the setup mark; count a distinct enemy for the release's momentum.
     bool OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // C14: the bonus of the holder's setup marks on Target that a different active's native direct hit takes now.
     bool SetupMarkBonus(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, int64& OutBp,
@@ -1411,11 +1615,11 @@ private:
     // M12 debt a heal actually repaid (never counted as healing), and HP natural regeneration actually restored.
     void LedgerDebtRepaid(const FLDBodyCombatState& Body, int64 RepaidP2);
     void LedgerRegenerated(const FLDBodyCombatState& Body, int64 RestoredP2);
-    // One proc of an installed component of Holder that committed a real result (a hit, heal, shield, mana, status, cut or
+    // One proc of an installed component of Holder that committed a real result (a hit, heal, shield, momentum, status, cut or
     // change of an outcome); never a passive stat term, a candidate or a refused proc.
     void LedgerComponentTriggered(const FLDBodyCombatState& Holder, FName Component);
     // One own combat action request of Entity that Combat refused for a gameplay gate (busy, cooldown, attack cadence,
-    // mana, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
+    // momentum, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
     void LedgerActionRefused(const FGuid& Entity, ELDCombatReject Reason);
 
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
@@ -1426,6 +1630,11 @@ private:
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
     TArray<FLDCombatGroundEffect> GroundEffects;
+    // Skill branch schedules (LDCombatBranchDirector.cpp).
+    TArray<FLDCombatFollowUp> FollowUps;
+    TArray<FLDCombatPulse> Pulses;
+    // (effect, dodger) pairs already judged a perfect dodge, with the instant; pruned after the window.
+    TArray<TTuple<FGuid,FGuid,int64>> PerfectDodgeMarks;
     TArray<FLDMonsterStrike> MonsterStrikes;
     // C17: creation order of zones and traps (most recent first when one is relocated).
     uint64 NextAreaSerial=0;

@@ -59,7 +59,7 @@ FLDObservedUnitView WorldLabelRival()
 {
     FLDObservedUnitView Unit;Unit.Handle=FGuid::NewGuid();Unit.ObservationEpoch=3;Unit.StateRevision=1;Unit.Kind=ELDObservedUnitKind::Contender;
     Unit.AuthorizedFieldMask=LDObservation::ContenderFields;Unit.Presentation=2;Unit.ContenderId=FGuid::NewGuid();Unit.Level=7;
-    Unit.Health.CurrentP2=45001;Unit.Health.MaxP2=60000;Unit.Mana.CurrentP2=12099;Unit.Mana.MaxP2=20000;
+    Unit.Health.CurrentP2=45001;Unit.Health.MaxP2=60000;Unit.MomentumBar=153;
     return Unit;
 }
 FLDObservedUnitView WorldLabelCampMember(ELDDemoMonsterId Creature)
@@ -72,7 +72,7 @@ FLDObservedUnitView WorldLabelCampMember(ELDDemoMonsterId Creature)
 bool WorldLabelSame(const LDWorldLabels::FLabel& A,const LDWorldLabels::FLabel& B)
 {
     return A.Name.Equals(B.Name,ESearchCase::CaseSensitive)&&A.Status.Equals(B.Status,ESearchCase::CaseSensitive)&&A.bContender==B.bContender
-        &&A.Presentation==B.Presentation&&A.CreatureId==B.CreatureId&&A.Level==B.Level&&A.bHealth==B.bHealth&&A.HealthFraction==B.HealthFraction&&A.bShield==B.bShield;
+        &&A.Presentation==B.Presentation&&A.CreatureId==B.CreatureId&&A.Level==B.Level&&A.bHealth==B.bHealth&&A.HealthFraction==B.HealthFraction&&A.bShield==B.bShield&&A.bCharging==B.bCharging;
 }
 // The local owner alive in public match 5, life 2, and its own combat projection of that life with a body.
 FLDOwnerState WorldLabelOwner()
@@ -80,7 +80,7 @@ FLDOwnerState WorldLabelOwner()
 FLDCombatOwnerView WorldLabelOwnCombat()
 {
     FLDCombatOwnerView Combat;Combat.Generation=5;Combat.Life=2;Combat.bHasBody=true;
-    Combat.HPP2=30000;Combat.MaxHPP2=60000;Combat.MPP2=5000;Combat.MaxMPP2=20000;
+    Combat.HPP2=30000;Combat.MaxHPP2=60000;Combat.MomentumP2=5000;Combat.MaxMomentumP2=20000;
     return Combat;
 }
 }
@@ -163,15 +163,15 @@ bool FLDWorldLabelsWhitelistTest::RunTest(const FString& Parameters)
     const LDWorldLabels::FLabel Label=LDWorldLabels::Build(Rival,TEXT("玩家甲"),&Content,10.);
     const FString Shown=Label.Name+TEXT("\n")+Label.Status;
     TestEqualSensitive(TEXT("A label's text is the name and the public statuses only"),Shown,TEXT("玩家甲\n")+WorldLabelName(TEXT("root"))+TEXT(" 2.5s"));
-    for(const TCHAR* Private:{TEXT("等级"),LDTerms::Health,LDTerms::Mana,TEXT("空槽"),TEXT("451"),TEXT("600"),TEXT("120"),TEXT("200"),LDTerms::Experience,TEXT("冷却"),TEXT("技能")})
+    for(const TCHAR* Private:{TEXT("等级"),LDTerms::Health,LDTerms::Momentum,TEXT("空槽"),TEXT("451"),TEXT("600"),TEXT("120"),TEXT("200"),LDTerms::Experience,TEXT("冷却"),TEXT("技能")})
     {TestFalse(FString::Printf(TEXT("A world label shows no non-whitelisted field: %s"),Private),Shown.Contains(Private,ESearchCase::CaseSensitive));}
     TestTrue(TEXT("Beside its text a label carries only the level, the health fraction and shield presence"),
         Label.Level==7&&Label.bHealth&&Label.HealthFraction==float(45001./60000.)&&!Label.bShield);
-    // Everything outside the label's subset changes: mana, pose, observation identity and a stray creature id
+    // Everything outside the label's subset changes: momentum, pose, observation identity and a stray creature id
     // on a contender. None of it may reach the label.
     FLDObservedUnitView Changed=Rival;
     Changed.Handle=FGuid::NewGuid();Changed.ObservationEpoch=9;Changed.StateRevision=77;
-    Changed.Mana.CurrentP2=0;Changed.Mana.MaxP2=1;
+    Changed.MomentumBar=0;
     Changed.FeetCm=FVector(1234,-567,89);Changed.Facing=4321;Changed.CreatureId=uint8(ELDDemoMonsterId::MonsterGuardian);
     TestTrue(TEXT("Fields outside the label never change it"),WorldLabelSame(LDWorldLabels::Build(Changed,TEXT("玩家甲"),&Content,10.),Label)&&Label.CreatureId==0);
     // Level and health are in the subset: each changes exactly its own label field and nothing else.
@@ -181,6 +181,9 @@ bool FLDWorldLabelsWhitelistTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Hurt=Rival;Hurt.Health.CurrentP2=1;Hurt.Health.MaxP2=99999;
     Expected=Label;Expected.HealthFraction=float(1./99999.);
     TestTrue(TEXT("New health changes only the label's health fraction"),WorldLabelSame(LDWorldLabels::Build(Hurt,TEXT("玩家甲"),&Content,10.),Expected));
+    FLDObservedUnitView Charging=Rival;Charging.bCharging=true;
+    Expected=Label;Expected.bCharging=true;
+    TestTrue(TEXT("An overdrive charge changes only the label's halo"),WorldLabelSame(LDWorldLabels::Build(Charging,TEXT("玩家甲"),&Content,10.),Expected));
     FLDObservedUnitView Camp=WorldLabelCampMember(ELDDemoMonsterId::MonsterGuardian);Camp.Presentation=3;Camp.ContenderId=Rival.ContenderId;Camp.Level=5;
     const LDWorldLabels::FLabel CampLabel=LDWorldLabels::Build(Camp,TEXT("玩家甲"),&Content,10.);
     TestTrue(TEXT("A camp member never takes a contender's name, tint or level"),CampLabel.Name==WorldLabelName(TEXT("monster_guardian"))&&CampLabel.Presentation==0&&CampLabel.Level==0&&!CampLabel.bContender);
@@ -228,11 +231,11 @@ bool FLDWorldLabelsOwnBarsTest::RunTest(const FString& Parameters)
 {
     const FLDOwnerState Own=WorldLabelOwner();const FLDCombatOwnerView Combat=WorldLabelOwnCombat();
     const LDWorldLabels::FOwnBars Bars=LDWorldLabels::OwnBars(Own,5,Combat);
-    TestTrue(TEXT("The own body's bars show for its own current match, life and body"),Bars.bVisible&&Bars.bMana);
+    TestTrue(TEXT("The own body's bars show for its own current match, life and body"),Bars.bVisible&&Bars.bMomentum);
     TestEqual(TEXT("Health fills its share of the bar"),Bars.Health,.5f);
     TestEqual(TEXT("Without a shield nothing follows the health fill"),Bars.Shield,0.f);
-    TestEqual(TEXT("Mana fills its own bar"),Bars.Mana,.25f);
-    auto Hidden=[](const LDWorldLabels::FOwnBars& Result){return !Result.bVisible&&!Result.bMana&&Result.Health==0.f&&Result.Shield==0.f&&Result.Mana==0.f;};
+    TestEqual(TEXT("Momentum fills its own bar"),Bars.Momentum,.25f);
+    auto Hidden=[](const LDWorldLabels::FOwnBars& Result){return !Result.bVisible&&!Result.bMomentum&&Result.Health==0.f&&Result.Shield==0.f&&Result.Momentum==0.f;};
     FLDCombatOwnerView Stale=Combat;Stale.Life=1;
     TestTrue(TEXT("A projection of an earlier life hides the bars"),Hidden(LDWorldLabels::OwnBars(Own,5,Stale)));
     Stale=Combat;Stale.Generation=4;
@@ -268,12 +271,12 @@ bool FLDWorldLabelsOwnBarsTest::RunTest(const FString& Parameters)
     Shielded.HPP2=60000;Shielded.ShieldP2=60000;
     const LDWorldLabels::FOwnBars Even=LDWorldLabels::OwnBars(Own,5,Shielded);
     TestTrue(TEXT("Full health with as much shield splits the bar evenly"),Even.Health==.5f&&Even.Shield==.5f);
-    FLDCombatOwnerView Manaless=Combat;Manaless.MPP2=0;Manaless.MaxMPP2=0;
-    const LDWorldLabels::FOwnBars HealthOnly=LDWorldLabels::OwnBars(Own,5,Manaless);
-    TestTrue(TEXT("Without a known mana maximum the mana bar is omitted and the health bar stays"),HealthOnly.bVisible&&!HealthOnly.bMana&&HealthOnly.Mana==0.f&&HealthOnly.Health==.5f);
-    Manaless.MaxMPP2=20000;
-    const LDWorldLabels::FOwnBars Spent=LDWorldLabels::OwnBars(Own,5,Manaless);
-    TestTrue(TEXT("Known zero mana is an empty mana bar, not a missing one"),Spent.bMana&&Spent.Mana==0.f);
+    FLDCombatOwnerView NoMomentum=Combat;NoMomentum.MomentumP2=0;NoMomentum.MaxMomentumP2=0;
+    const LDWorldLabels::FOwnBars HealthOnly=LDWorldLabels::OwnBars(Own,5,NoMomentum);
+    TestTrue(TEXT("Without a known momentum maximum the momentum bar is omitted and the health bar stays"),HealthOnly.bVisible&&!HealthOnly.bMomentum&&HealthOnly.Momentum==0.f&&HealthOnly.Health==.5f);
+    NoMomentum.MaxMomentumP2=20000;
+    const LDWorldLabels::FOwnBars Spent=LDWorldLabels::OwnBars(Own,5,NoMomentum);
+    TestTrue(TEXT("Known zero momentum is an empty momentum bar, not a missing one"),Spent.bMomentum&&Spent.Momentum==0.f);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldLabelsOwnStatusIconsTest,"Lockdown.Rules.WorldLabels.OwnStatusIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

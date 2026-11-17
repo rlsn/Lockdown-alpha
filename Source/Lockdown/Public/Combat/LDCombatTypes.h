@@ -95,6 +95,20 @@ struct FLDCombatActionRequest
     UPROPERTY() FLDCombatTarget Target;
     // Owner view SourceRevision that the input was armed against; a changed source is not re-interpreted.
     UPROPERTY() uint64 ExpectedSourceRevision=0;
+    // A Q/W/E held OVERDRIVE.HoldSec with a full bar asks for overdrive; the release decides (a bar below the threshold
+    // releases normally, never a refusal). Part of the request's terms (a replay with another flag conflicts).
+    UPROPERTY() bool bOverdrive=false;
+};
+
+// The owner's overdrive charge intent: a Q/W/E pressed with a full bar (bCharging) or let go before the hold completed.
+USTRUCT()
+struct FLDCombatChargeRequest
+{
+    GENERATED_BODY()
+    UPROPERTY() uint32 Generation=0;
+    UPROPERTY() uint32 Life=0;
+    UPROPERTY() ELDCombatEntry Entry=ELDCombatEntry::None;
+    UPROPERTY() bool bCharging=false;
 };
 
 USTRUCT()
@@ -134,7 +148,7 @@ enum class ELDCombatReject : uint8
 {
     None, InvalidRequest, NotOwner, StaleMatch, StaleLife, StaleRequest, RequestConflict, ReceiptExpired,
     Cancelled, StaleSource, SourceUnavailable, Busy, Cooldown, AttackNotReady,
-    InsufficientMana, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
+    MomentumShort, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
     MatchClosed, AuthorityDataUnavailable, CapacityUnavailable,
     // #198: the rest return countdown locks every attack, ability and dash.
     NotStarted
@@ -255,6 +269,8 @@ struct FLDLearnedActiveValue
 {
     FName AbilityId;
     ELDCombatEntry Entry=ELDCombatEntry::None;   // Q, W or E
+    // The skill's branch path; its rank follows from it (None = rank 1).
+    ELDSkillBranch Branch=ELDSkillBranch::None;
 };
 
 // Complete post-change build. Empty arrays mean "none held"; nothing is merged with the previous build.
@@ -319,7 +335,7 @@ private:
     bool bAlive=false;
     FLDCombatBodyRef Body;
     uint64 ExpectedResourceRevision=0;
-    int64 NewHPP2=0, NewMaxHPP2=0, NewMPP2=0, NewMaxMPP2=0;
+    int64 NewHPP2=0, NewMaxHPP2=0;
 };
 
 struct FLDCombatPrepareResult
@@ -355,7 +371,7 @@ private:
     FLDPreparedCampReset()=default;
     FLDCampResetInput Input;
     FLDMatchContext Match;
-    int64 MaxHPP2=0, MaxMPP2=0;
+    int64 MaxHPP2=0;
 };
 
 struct FLDCampResetPrepareResult
@@ -371,7 +387,7 @@ struct FLDCombatBodyRead
 {
     FLDCombatBodyRef Body;
     bool bPendingDeath=false;
-    int64 HPP2=0, MaxHPP2=0, MPP2=0, MaxMPP2=0, ShieldP2=0;
+    int64 HPP2=0, MaxHPP2=0, MomentumP2=0, MaxMomentumP2=0, ShieldP2=0;
     uint64 ResourceRevision=0;
     uint64 StateRevision=0;
     int64 RootedUntilMs=0;               // 0 when not rooted
@@ -396,7 +412,10 @@ struct FLDCombatEntryView
     UPROPERTY() FName DefinitionId;                  // None = empty slot
     UPROPERTY() uint8 TargetMode=0;                  // ELDDemoTargetMode
     UPROPERTY() int32 RangeCm=0;
-    UPROPERTY() int64 ManaCostP2=0;
+    UPROPERTY() int64 MomentumCostP2=0;
+    // Skill rank 1..3 and branch path of a learned Q/W/E (ELDSkillBranch); 0/None for the innate dash or an empty slot.
+    UPROPERTY() uint8 Rank=0;
+    UPROPERTY() uint8 Branch=0;
     UPROPERTY() FGuid IssuedCooldownId;              // persistent cooldown identity; owner view only
     UPROPERTY() int64 ReadyAtMs=0;                   // persistent track end; <= now means ready
     UPROPERTY() int64 CooldownMs=0;                  // duration last issued on this track, for the UI ratio
@@ -451,6 +470,8 @@ struct FLDCombatCueFacts
     UPROPERTY() int64 ActingStartedAtMs=0;
     UPROPERTY() int64 ActingReleaseAtMs=0;
     UPROPERTY() bool bReleasedBasic=false;
+    // The combo step (1..3) of the released basic; 0 for a released ability (hit feel picks its tier from it).
+    UPROPERTY() uint8 ReleasedComboStep=0;
     UPROPERTY() int64 ReleasedStartedAtMs=0;
     UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life
     UPROPERTY() int64 DashUntilMs=0;
@@ -509,12 +530,19 @@ struct FLDCombatOwnerView
     UPROPERTY() bool bHasBody=false;
     UPROPERTY() int64 HPP2=0;
     UPROPERTY() int64 MaxHPP2=0;
-    UPROPERTY() int64 MPP2=0;
-    UPROPERTY() int64 MaxMPP2=0;
+    UPROPERTY() int64 MomentumP2=0;
+    UPROPERTY() int64 MaxMomentumP2=0;
     UPROPERTY() int64 ShieldP2=0;
-    // Current effective regeneration in points/second; owner-only display, not writable resource state.
+    // Current effective HP regeneration in points/second; owner-only display, not writable resource state.
     UPROPERTY() double HPRegenPerSec=0;
-    UPROPERTY() double MPRegenPerSec=0;
+    // The combo step of the last released basic (0 = none) and its AttackStart; a start after COMBO.ResetSec is step 1.
+    UPROPERTY() uint8 ComboStep=0;
+    UPROPERTY() int64 ComboStartMs=0;
+    // Perfect dodges of this life (MOMENTUM.PerfectDodge) and the authority ms of the last: the owner's one-line notice.
+    UPROPERTY() uint32 PerfectDodges=0;
+    UPROPERTY() int64 LastPerfectDodgeAtMs=0;
+    // The Q/W/E whose overdrive charge the authority currently holds (None when there is none or control ended it).
+    UPROPERTY() ELDCombatEntry ChargingEntry=ELDCombatEntry::None;
     UPROPERTY() uint64 SourceRevision=0;
     // Inputs needed to reproduce this owner's build and temporary projection without mutating authority state.
     UPROPERTY() uint64 InstalledBuildRevision=0;

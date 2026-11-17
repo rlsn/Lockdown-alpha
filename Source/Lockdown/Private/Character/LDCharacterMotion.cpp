@@ -165,7 +165,8 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     // ignores other bodies only for the dash's own sweeps, so everyone else still bumps into the dashing body.
     // #198 F: a forced push (knockback) is blocked by bodies; C02 reads its first real block.
     const bool bPushing=IsDashing()&&bKnockbackMotion;
-    const bool bThroughBodies=Sweep&&UpdatedPrimitive&&IsDashing()&&!bKnockbackMotion;
+    const bool bGhost=GetWorld() && GetWorld()->GetTimeSeconds()<BodyPassThroughUntilSeconds;
+    const bool bThroughBodies=Sweep&&UpdatedPrimitive&&!bPushing&&(IsDashing()||bGhost);
     if (bThroughBodies) { UpdatedPrimitive->SetCollisionResponseToChannel(ECC_Pawn,ECR_Ignore); }
     const bool Result=Super::MoveUpdatedComponentImpl(Delta,Rotation,Sweep,Hit,Teleport);
     if (bThroughBodies) { UpdatedPrimitive->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block); }

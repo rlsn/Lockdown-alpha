@@ -16,19 +16,16 @@ namespace LDCombatRecoveryTestDetail
 {
 constexpr int64 MicroPerP2 = 1000000;
 
-FLDBodyCombatState Body(ELDVictimKind Kind, int64 MaxHpP2, int64 MaxMpP2, int64 AtMs)
+FLDBodyCombatState Body(ELDVictimKind Kind, int64 MaxHpP2, int64 AtMs)
 {
     FLDBodyCombatState State;
     State.Identity = FGuid::NewGuid();
     State.Victim = {Kind, FGuid::NewGuid(), 1};
     State.Resources.MaxHpP2 = MaxHpP2;
     State.Resources.HpP2 = MaxHpP2 / 2;
-    State.Resources.MaxMpP2 = MaxMpP2;
-    State.Resources.MpP2 = MaxMpP2 / 2;
     State.Resources.Revision = 1;
     // Zero always-on rates isolate the out-of-combat terms.
     State.AttributeProjection.Final.HPRegenPerSec = FLDDemoRational();
-    State.AttributeProjection.Final.MPRegenPerSec = FLDDemoRational();
     // A life starts out of combat at its spawn moment, exactly as LDCombatLife installs it.
     State.LastCombatAtMs = State.RegenThroughMs = AtMs;
     return State;
@@ -39,7 +36,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatRecoveryTest, "Lockdown.Rules.DemoComb
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 // D21: after REGEN.OutOfCombatDelaySec without a combat event every contender recovers a per-second share of its
-// current maximum HP and MP; combat stops it at once, and dead or camp bodies do not get it.
+// current maximum HP; combat stops it at once, and dead or camp bodies do not get it.
 bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatRecoveryTestDetail;
@@ -50,19 +47,15 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const FLDDemoContentParameters& P = Content.Parameters;
-    bool bGood = TestTrue(TEXT("The approved D21 recovery is 1.5% of maximum HP and MP per second after 5 s"),
-        P.OutOfCombatRegenDelayMs == 5000 && P.OutOfCombatMaxHPRegenBp == 150 && P.OutOfCombatMaxMPRegenBp == 150);
+    bool bGood = TestTrue(TEXT("The approved D21 recovery is 1.5% of maximum HP per second after 5 s"),
+        P.OutOfCombatRegenDelayMs == 5000 && P.OutOfCombatMaxHPRegenBp == 150);
     LDTactical::FOutOfCombatRecovery Recovery;
     Recovery.DelayMs = P.OutOfCombatRegenDelayMs;
     Recovery.MaxHPBpPerSec = P.OutOfCombatMaxHPRegenBp;
-    Recovery.MaxMPBpPerSec = P.OutOfCombatMaxMPRegenBp;
     const int64 Delay = Recovery.DelayMs;
     const int64 MaxHp = P.MaxHP.BaseP2;
-    const int64 MaxMp = P.MaxMP.BaseP2 > 0 ? P.MaxMP.BaseP2 : 10000;
     const int64 HpMicro = MaxHp * Recovery.MaxHPBpPerSec / 10;
-    const int64 MpMicro = MaxMp * Recovery.MaxMPBpPerSec / 10;
-    if (!TestTrue(TEXT("Recovery rates are exact per millisecond"),
-        HpMicro * 10 == MaxHp * Recovery.MaxHPBpPerSec && MpMicro * 10 == MaxMp * Recovery.MaxMPBpPerSec))
+    if (!TestTrue(TEXT("Recovery rates are exact per millisecond"), HpMicro * 10 == MaxHp * Recovery.MaxHPBpPerSec))
     {
         return false;
     }
@@ -83,54 +76,49 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
         AddError(TEXT("Recovery fixture actors failed to spawn"));
         return false;
     }
-    Driver->Bodies.Add(Plain, Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0));
-    FLDBodyCombatState DeadState = Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0);
+    Driver->Bodies.Add(Plain, Body(ELDVictimKind::Contender, MaxHp, 0));
+    FLDBodyCombatState DeadState = Body(ELDVictimKind::Contender, MaxHp, 0);
     DeadState.bPendingDeath = true;
     Driver->Bodies.Add(Dead, MoveTemp(DeadState));
-    Driver->Bodies.Add(Camp, Body(ELDVictimKind::CampMember, MaxHp, MaxMp, 0));
+    Driver->Bodies.Add(Camp, Body(ELDVictimKind::CampMember, MaxHp, 0));
     FLDBodyCombatState& A = Driver->Bodies.FindChecked(Plain);
     FLDBodyCombatState& D = Driver->Bodies.FindChecked(Dead);
     FLDBodyCombatState& C = Driver->Bodies.FindChecked(Camp);
-    const int64 Hp0 = A.Resources.HpP2, Mp0 = A.Resources.MpP2;
+    const int64 Hp0 = A.Resources.HpP2;
     FString Error;
 
     // 1. Nothing before the delay has passed.
     bGood &= TestTrue(FString::Printf(TEXT("Regeneration through %lld ms (%s)"), Delay - 1, *Error),
         Driver->RegenerateBodies(Recovery, Delay - 1, Error));
-    bGood &= TestTrue(TEXT("No recovery one millisecond before the delay"), A.Resources.HpP2 == Hp0 && A.Resources.MpP2 == Mp0
-        && A.HpRegenMicroP2 == 0 && A.MpRegenMicroP2 == 0);
+    bGood &= TestTrue(TEXT("No recovery one millisecond before the delay"), A.Resources.HpP2 == Hp0 && A.HpRegenMicroP2 == 0);
 
-    // 2. It starts exactly at LastCombat + Delay and restores the share of both maxima.
+    // 2. It starts exactly at LastCombat + Delay and restores the share of the maximum.
     const int64 T1 = Delay + 1000;
     const int64 Run = T1 - Delay;
     bGood &= TestTrue(TEXT("Regeneration past the delay"), Driver->RegenerateBodies(Recovery, T1, Error));
     bGood &= TestTrue(TEXT("Recovery restores the HP share of the maximum from the delay on"),
         A.Resources.HpP2 == Hp0 + HpMicro * Run / MicroPerP2 && A.HpRegenMicroP2 == HpMicro * Run % MicroPerP2);
-    bGood &= TestTrue(TEXT("Recovery restores the MP share of the maximum from the delay on"),
-        A.Resources.MpP2 == Mp0 + MpMicro * Run / MicroPerP2 && A.MpRegenMicroP2 == MpMicro * Run % MicroPerP2);
 
     // 3. Dead and camp bodies never receive it.
     bGood &= TestTrue(TEXT("A dead body does not recover"),
-        D.Resources.HpP2 == Hp0 && D.Resources.MpP2 == Mp0 && D.RegenThroughMs == 0);
-    bGood &= TestTrue(TEXT("A camp member has no contender recovery"), C.Resources.HpP2 == Hp0 && C.Resources.MpP2 == Mp0);
+        D.Resources.HpP2 == Hp0 && D.RegenThroughMs == 0);
+    bGood &= TestTrue(TEXT("A camp member has no contender recovery"), C.Resources.HpP2 == Hp0);
 
     // 4. A combat event stops it immediately; it resumes only a full delay later.
     A.LastCombatAtMs = T1;
-    const int64 HpCombat = A.Resources.HpP2, MpCombat = A.Resources.MpP2;
-    const int64 HpRemainder = A.HpRegenMicroP2, MpRemainder = A.MpRegenMicroP2;
-    Driver->Bodies.Add(Respawned, Body(ELDVictimKind::Contender, MaxHp, MaxMp, T1));
+    const int64 HpCombat = A.Resources.HpP2;
+    const int64 HpRemainder = A.HpRegenMicroP2;
+    Driver->Bodies.Add(Respawned, Body(ELDVictimKind::Contender, MaxHp, T1));
     // Adding a body may move the map's storage: read every body again.
     FLDBodyCombatState& R = Driver->Bodies.FindChecked(Respawned);
     FLDBodyCombatState& AA = Driver->Bodies.FindChecked(Plain);
     bGood &= TestTrue(TEXT("Regeneration through the combat delay"), Driver->RegenerateBodies(Recovery, T1 + Delay - 1, Error));
-    bGood &= TestTrue(TEXT("Recovery stops at the combat event"), AA.Resources.HpP2 == HpCombat && AA.Resources.MpP2 == MpCombat
-        && AA.HpRegenMicroP2 == HpRemainder && AA.MpRegenMicroP2 == MpRemainder);
-    bGood &= TestTrue(TEXT("A new life's clock starts at its respawn moment"), R.Resources.HpP2 == Hp0 && R.Resources.MpP2 == Mp0);
+    bGood &= TestTrue(TEXT("Recovery stops at the combat event"), AA.Resources.HpP2 == HpCombat && AA.HpRegenMicroP2 == HpRemainder);
+    bGood &= TestTrue(TEXT("A new life's clock starts at its respawn moment"), R.Resources.HpP2 == Hp0);
     const int64 T2 = T1 + Delay + 2000;
     bGood &= TestTrue(TEXT("Regeneration after the combat delay"), Driver->RegenerateBodies(Recovery, T2, Error));
     bGood &= TestTrue(TEXT("Recovery resumes a full delay after the combat event"),
-        AA.Resources.HpP2 == HpCombat + (HpRemainder + HpMicro * 2000) / MicroPerP2
-        && AA.Resources.MpP2 == MpCombat + (MpRemainder + MpMicro * 2000) / MicroPerP2);
+        AA.Resources.HpP2 == HpCombat + (HpRemainder + HpMicro * 2000) / MicroPerP2);
     bGood &= TestTrue(TEXT("The respawned life recovers from its own delay"),
         R.Resources.HpP2 == Hp0 + HpMicro * 2000 / MicroPerP2);
 
@@ -144,10 +132,8 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
 
     // 6. A full pool stays full; an inexact share is refused explicitly.
     AA.Resources.HpP2 = AA.Resources.MaxHpP2;
-    AA.Resources.MpP2 = AA.Resources.MaxMpP2;
     bGood &= TestTrue(TEXT("Regeneration of a full pool"), Driver->RegenerateBodies(Recovery, T2 + 3000, Error));
-    bGood &= TestTrue(TEXT("A full pool discards recovery"), AA.Resources.HpP2 == AA.Resources.MaxHpP2 && AA.HpRegenMicroP2 == 0
-        && AA.Resources.MpP2 == AA.Resources.MaxMpP2);
+    bGood &= TestTrue(TEXT("A full pool discards recovery"), AA.Resources.HpP2 == AA.Resources.MaxHpP2 && AA.HpRegenMicroP2 == 0);
     LDTactical::FOutOfCombatRecovery Inexact = Recovery;
     Inexact.MaxHPBpPerSec = 155;
     LDTactical::FRegenPools Pools;
@@ -162,7 +148,7 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatDormRecoveryTest, "Lockdown.Rules.DemoCombatStatus.DormRecovery",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-// D21 (#79): a contender whose foot stands inside a dorm disk recovers DORM.Max*RatioPerSec of its current maxima once
+// D21 (#79): a contender whose foot stands inside a dorm disk recovers DORM.MaxHPRatioPerSec of its current maximum once
 // DORM.OutOfCombatDelaySec has passed since its last combat event. It stacks with the slow recovery, stops at a combat
 // event, leaving or death, and camp members never get it. The dorm is not a safe zone: nothing else changes.
 bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
@@ -174,38 +160,32 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("The approved dorm is a 400 cm disk recovering 10% of maximum HP and MP per second after 3 s"),
-        P.DormRadiusCm.Numerator == 400 * P.DormRadiusCm.Denominator && P.DormRegenDelayMs == 3000
-        && P.DormMaxHPRegenBp == 1000 && P.DormMaxMPRegenBp == 1000);
+    bool bGood = TestTrue(TEXT("The approved dorm is a 400 cm disk recovering 10% of maximum HP per second after 3 s"),
+        P.DormRadiusCm.Numerator == 400 * P.DormRadiusCm.Denominator && P.DormRegenDelayMs == 3000 && P.DormMaxHPRegenBp == 1000);
     LDTactical::FOutOfCombatRecovery Slow;
     Slow.DelayMs = P.OutOfCombatRegenDelayMs;
     Slow.MaxHPBpPerSec = P.OutOfCombatMaxHPRegenBp;
-    Slow.MaxMPBpPerSec = P.OutOfCombatMaxMPRegenBp;
     LDTactical::FOutOfCombatRecovery Dorm;
     Dorm.DelayMs = P.DormRegenDelayMs;
     Dorm.MaxHPBpPerSec = P.DormMaxHPRegenBp;
-    Dorm.MaxMPBpPerSec = P.DormMaxMPRegenBp;
     if (!TestTrue(TEXT("The dorm starts before the slow recovery"), Dorm.DelayMs < Slow.DelayMs)) { return false; }
     {
         FLDAttributeProjection Flat;
         Flat.Final.HPRegenPerSec = {0, 1};
-        Flat.Final.MPRegenPerSec = {0, 1};
-        const auto Shown = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs, &Dorm);
-        const auto Away = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs);
+        const auto Shown = LDTactical::RegenRates(Flat, &Slow, 100000, 0, Slow.DelayMs, &Dorm);
+        const auto Away = LDTactical::RegenRates(Flat, &Slow, 100000, 0, Slow.DelayMs);
         bGood &= TestTrue(TEXT("The displayed rate inside a dorm adds the dorm share to the slow one"),
-            FMath::IsNearlyEqual(Shown.HP - Away.HP, 100000. * Dorm.MaxHPBpPerSec / 1000000.)
-            && FMath::IsNearlyEqual(Shown.MP - Away.MP, 50000. * Dorm.MaxMPBpPerSec / 1000000.));
+            FMath::IsNearlyEqual(Shown.HP - Away.HP, 100000. * Dorm.MaxHPBpPerSec / 1000000.));
     }
     const double Radius = double(P.DormRadiusCm.Numerator) / double(P.DormRadiusCm.Denominator);
     FLDDormZones Zones;
     Zones.RadiusCm = Radius;
     Zones.Dorms.Add({TEXT("dorm_test"), FVector2D(1000., -2000.)});
     const int64 MaxHp = P.MaxHP.BaseP2;
-    const int64 MaxMp = P.MaxMP.BaseP2 > 0 ? P.MaxMP.BaseP2 : 10000;
-    const int64 DormHp = MaxHp * Dorm.MaxHPBpPerSec / 10, DormMp = MaxMp * Dorm.MaxMPBpPerSec / 10;
+    const int64 DormHp = MaxHp * Dorm.MaxHPBpPerSec / 10;
     const int64 SlowHp = MaxHp * Slow.MaxHPBpPerSec / 10;
     if (!TestTrue(TEXT("Dorm rates are exact per millisecond"), DormHp * 10 == MaxHp * Dorm.MaxHPBpPerSec
-        && DormMp * 10 == MaxMp * Dorm.MaxMPBpPerSec && SlowHp * 10 == MaxHp * Slow.MaxHPBpPerSec))
+        && SlowHp * 10 == MaxHp * Slow.MaxHPBpPerSec))
     {
         return false;
     }
@@ -235,11 +215,11 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
     Place(Outside, Center + FVector2D(Radius + 1., 0.));
     Place(Camp, Center);
     Place(Dead, Center);
-    Driver->Bodies.Add(Resting, Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0));
-    Driver->Bodies.Add(Edge, Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0));
-    Driver->Bodies.Add(Outside, Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0));
-    Driver->Bodies.Add(Camp, Body(ELDVictimKind::CampMember, MaxHp, MaxMp, 0));
-    FLDBodyCombatState DeadState = Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0);
+    Driver->Bodies.Add(Resting, Body(ELDVictimKind::Contender, MaxHp, 0));
+    Driver->Bodies.Add(Edge, Body(ELDVictimKind::Contender, MaxHp, 0));
+    Driver->Bodies.Add(Outside, Body(ELDVictimKind::Contender, MaxHp, 0));
+    Driver->Bodies.Add(Camp, Body(ELDVictimKind::CampMember, MaxHp, 0));
+    FLDBodyCombatState DeadState = Body(ELDVictimKind::Contender, MaxHp, 0);
     DeadState.bPendingDeath = true;
     Driver->Bodies.Add(Dead, MoveTemp(DeadState));
     FLDBodyCombatState& R = Driver->Bodies.FindChecked(Resting);
@@ -247,7 +227,7 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
     FLDBodyCombatState& O = Driver->Bodies.FindChecked(Outside);
     FLDBodyCombatState& C = Driver->Bodies.FindChecked(Camp);
     FLDBodyCombatState& D = Driver->Bodies.FindChecked(Dead);
-    const int64 Hp0 = R.Resources.HpP2, Mp0 = R.Resources.MpP2;
+    const int64 Hp0 = R.Resources.HpP2;
     FString Error;
     const auto Settle = [&](int64 AtMs)
     {
@@ -257,17 +237,16 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
 
     // 1. Nothing before the dorm delay; standing inside is already known.
     bGood &= Settle(Dorm.DelayMs - 1);
-    bGood &= TestTrue(TEXT("No dorm recovery one millisecond before its delay"), R.Resources.HpP2 == Hp0 && R.Resources.MpP2 == Mp0);
+    bGood &= TestTrue(TEXT("No dorm recovery one millisecond before its delay"), R.Resources.HpP2 == Hp0);
     bGood &= TestTrue(TEXT("Inside and boundary bodies are in the dorm; the outside one is not"), R.bInDorm && E.bInDorm && !O.bInDorm);
 
-    // 2. From the dorm delay on, the dorm share of both maxima; outside nothing until the slow delay.
+    // 2. From the dorm delay on, the dorm share of the maximum; outside nothing until the slow delay.
     const int64 T1 = Dorm.DelayMs + 1000;
     bGood &= Settle(T1);
     bGood &= TestTrue(TEXT("The dorm restores its HP share from its delay on"),
         R.Resources.HpP2 == Hp0 + DormHp * 1000 / MicroPerP2 && R.HpRegenMicroP2 == DormHp * 1000 % MicroPerP2);
-    bGood &= TestTrue(TEXT("The dorm restores its MP share from its delay on"), R.Resources.MpP2 == Mp0 + DormMp * 1000 / MicroPerP2);
     bGood &= TestTrue(TEXT("A foot on the boundary recovers like one inside"), E.Resources.HpP2 == R.Resources.HpP2);
-    bGood &= TestTrue(TEXT("A foot one centimetre outside gets no dorm recovery"), O.Resources.HpP2 == Hp0 && O.Resources.MpP2 == Mp0);
+    bGood &= TestTrue(TEXT("A foot one centimetre outside gets no dorm recovery"), O.Resources.HpP2 == Hp0);
 
     // 3. Past the slow delay both run and add up exactly, each from its own delay.
     const int64 T2 = Slow.DelayMs + 1000;
@@ -278,7 +257,7 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Outside only the slow recovery runs"), O.Resources.HpP2 == Hp0 + SlowHp * 1000 / MicroPerP2);
 
     // 4. Camp members and dead bodies never receive it.
-    bGood &= TestTrue(TEXT("A camp member in a dorm gets nothing"), C.Resources.HpP2 == Hp0 && C.Resources.MpP2 == Mp0 && !C.bInDorm);
+    bGood &= TestTrue(TEXT("A camp member in a dorm gets nothing"), C.Resources.HpP2 == Hp0 && !C.bInDorm);
     bGood &= TestTrue(TEXT("A dead body in a dorm gets nothing"), D.Resources.HpP2 == Hp0 && D.RegenThroughMs == 0);
 
     // 5. A combat event stops it at once; it resumes a full dorm delay later.
@@ -317,30 +296,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatRegenRatesTest,"Lockdown.Rules.DemoCom
 bool FLDCombatRegenRatesTest::RunTest(const FString& Parameters)
 {
     FLDAttributeProjection Attributes;
-    Attributes.Final.HPRegenPerSec={8,5};Attributes.Final.MPRegenPerSec={6,5};
-    const LDTactical::FOutOfCombatRecovery Recovery{5000,150,150};
-    const auto Before=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,5999);
-    TestTrue(TEXT("Before the boundary only always-on rates are displayed"),FMath::IsNearlyEqual(Before.HP,1.6)&&FMath::IsNearlyEqual(Before.MP,1.2));
-    const auto Boundary=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,6000);
-    TestTrue(TEXT("Recovery appears exactly at its own delay"),FMath::IsNearlyEqual(Boundary.HP,10.9)&&FMath::IsNearlyEqual(Boundary.MP,5.7));
+    Attributes.Final.HPRegenPerSec={8,5};
+    const LDTactical::FOutOfCombatRecovery Recovery{5000,150};
+    const auto Before=LDTactical::RegenRates(Attributes,&Recovery,62000,1000,5999);
+    TestTrue(TEXT("Before the boundary only always-on rates are displayed"),FMath::IsNearlyEqual(Before.HP,1.6));
+    const auto Boundary=LDTactical::RegenRates(Attributes,&Recovery,62000,1000,6000);
+    TestTrue(TEXT("Recovery appears exactly at its own delay"),FMath::IsNearlyEqual(Boundary.HP,10.9));
     // Compare the displayed instantaneous rates to the existing integrator's actual one-second gain, including remainders.
     for(const int64 At:{int64(5999),int64(6000),int64(7000)})
     {
-        const auto Rates=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,At);
-        LDTactical::FRegenPools Pools;Pools.MaxHpP2=62000;Pools.MaxMpP2=30000;
+        const auto Rates=LDTactical::RegenRates(Attributes,&Recovery,62000,1000,At);
+        LDTactical::FRegenPools Pools;Pools.MaxHpP2=62000;
         FString Error;
         // At=5999 would cross a boundary; sample that case wholly before it.
         const int64 Start=At==5999?4999:At;
         if(!TestTrue(TEXT("The existing integrator accepts the same rate inputs"),LDTactical::SettleRegen(Attributes,&Recovery,1000,Start,Start+1000,Pools,Error))){return false;}
         TestTrue(TEXT("Displayed HP rate matches settled points plus fractional remainder"),
             FMath::IsNearlyEqual(Rates.HP,(double(Pools.HpP2)+double(Pools.HpMicroP2)/1000000.)/100.));
-        TestTrue(TEXT("Displayed MP rate matches settled points plus fractional remainder"),
-            FMath::IsNearlyEqual(Rates.MP,(double(Pools.MpP2)+double(Pools.MpMicroP2)/1000000.)/100.));
     }
-    const auto ChangedMax=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,1000,7000);
-    TestTrue(TEXT("The current maxima set the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,20.2)&&FMath::IsNearlyEqual(ChangedMax.MP,10.2));
-    const auto Combat=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,7000,7000);
-    TestTrue(TEXT("A combat event removes conditional terms immediately"),FMath::IsNearlyEqual(Combat.HP,1.6)&&FMath::IsNearlyEqual(Combat.MP,1.2));
+    const auto ChangedMax=LDTactical::RegenRates(Attributes,&Recovery,124000,1000,7000);
+    TestTrue(TEXT("The current maximum sets the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,20.2));
+    const auto Combat=LDTactical::RegenRates(Attributes,&Recovery,124000,7000,7000);
+    TestTrue(TEXT("A combat event removes conditional terms immediately"),FMath::IsNearlyEqual(Combat.HP,1.6));
     return true;
 }
 

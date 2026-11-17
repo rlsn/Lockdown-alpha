@@ -197,7 +197,7 @@ UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执�
 `GetMatchContext()` 是唯一映射入口；旧 Generation 即使带当前 ContenderId 或新请求号也不执行。`AliveProtected` 是 Alive 与保护期限的派生资格，不另存可写标志。
 
 **生命提交链**：Combat 首次 0 HP 锁存 → 同一 `FLDCommittedDeath`/DeathKey → `EndContenderLife(Fact, Permit) -> FLDLifeReceipt`（资格只消费一次，切 `DeadWaiting`，取消旧身体动作，设复活截止）
-→ 成长复合奖励（含零奖励）→ 抽点与同点预留 → 核心/Combat 提交新 Life、BodyIdentity、满 HP/MP 与保护截止 → World Finalize + Owner/Vision 投影 → `AliveProtected` → 到期或主动解除 → `Alive`。
+→ 成长复合奖励（含零奖励）→ 抽点与同点预留 → 核心/Combat 提交新 Life、BodyIdentity、满 HP、起始劲与保护截止 → World Finalize + Owner/Vision 投影 → `AliveProtected` → 到期或主动解除 → `Alive`。
 `DeathSerial` 只是派生显示计数。离局后保留 settlement-only 参赛/奖励接收记录直到既成事实处理完，不恢复在局资格。
 
 **出生与复活**：首次进入野外、野外复活与返场找不到位置时，从同一组全部出生锚点独立等概率、有放回抽一次（不按危险、视野或敌人距离挑点）；重复请求与同点暂占复用已选 SpawnId；
@@ -223,7 +223,7 @@ Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当�
 Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
 死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
 （撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
-复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。已确定的等待总时长经 `CombatView.RespawnDurationMs` 仅发布给本人供界面使用，复活、离局或休息终止等待时清除。
+复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP、起始劲与保护截止。已确定的等待总时长经 `CombatView.RespawnDurationMs` 仅发布给本人供界面使用，复活、离局或休息终止等待时清除。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
 成长、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。
@@ -250,7 +250,7 @@ PK 报名是实体的站圈报名，只在 R1、R2 开放：没有报名 RPC，`
 判定，回 `ClientPKBet`/`ClientPKThrow`（投掷另带下次可投时刻）；AI 走同一入口。观众与被淘汰者由观察所有者显式授权看见全部场内选手、场区覆盖
 与场内技能投射物和预警，同队 PK 生命共享各自合法视线的并集（投射物与预警同样按队友的脚点与视线判定），被暴露的选手只对本场 PK 生命额外可见。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
-GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/MP/盾仍只在
+GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/劲/盾仍只在
 `Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。
 初次身体绑定只接受已登记的 Unspawned 主体、当前 Starting permit 和重新核验的真实合法位置，
 重复调用不再初始化资源。初次出生（放在休息锚点）、阶段放置与复活共用同一落地/准备/提交路径（`PlaceContenderBody` 的目标为抽点、指定锚点或就近搜索）；初次出生不附加保护。
@@ -408,7 +408,7 @@ K/D/A 由 GameMode 从同一 DeathKey 派生一次：真实死亡加 Deaths，�
 | 已释放效果 | 不回滚、不退款 | 独立效果继续原期限 | 立即取消，不回滚既成事实 | 不再结算 | 清空 |
 | 等级、XP、技能 | 不变 | 保留 | 仅 settlement-only 接收 | 冻结 | 全新建立 |
 | 来源冷却 | 不清零 | 按服务器时间继续 | 不再提交动作 | 不再释放 | 新时间域 |
-| HP/MP、控制、保护 | 按真实结果 | 复活满 HP/MP、清旧控制、原子建立保护 | 立即移除身体与碰撞 | 不再变化 | 全新身体 |
+| HP、劲、控制、保护 | 按真实结果 | 复活满 HP、起始劲、清旧控制、原子建立保护 | 立即移除身体与碰撞 | 不再变化 | 全新身体 |
 | 喷漆、涂鸦、守护 | 停止/面板/战斗不清零 | 死亡或硬控清未完成喷漆；守护、涂鸦与历史贡献保留 | 清未完成喷漆、失去冠军资格、保留贡献 | 不再推进 | 全部清空，从 R0 开始 |
 | 观察与私有回执 | 不改服务器可见集合 | 旧生命观测撤销 | 关闭通道 | 保留获准结果 | 代次全换 |
 | 本地名称与设置 | 保留 | 保留 | 保留 | 保留 | 保留，不夹带局内战力 |
@@ -436,7 +436,7 @@ Host（Listen Host 的权威代码）在试玩期记录完整权威信息：
 | 标签 | 写入位置 | 字段要点 |
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
-| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、待选、当前订单与目标点、正在前摇的动作、公开状态 |
+| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/劲/护盾、等级、经验、待选、当前订单与目标点、正在前摇的动作、公开状态 |
 | `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
 | `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级 |
 | `LD_REWARD` / `LD_LEVEL_UP` | `LDGrowthDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（`cause=death`/`map_event`/`dev_fixture`，`role=killer`/`assist`/`recipient`）、经验及其结余、等级变化、获得的三选一次数 |

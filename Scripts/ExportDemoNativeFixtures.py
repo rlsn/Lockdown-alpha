@@ -45,11 +45,13 @@ POLICIES = (
     "CarrySubP2Remainder", "ReplaceIfNotWeaker", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
 )
 BONUS_STATS = (
-    "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
+    "ADFlat", "APFlat", "MaxHPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
-    "HPRegenFlat", "APBonusRatio", "MPRegenFlat",
+    "HPRegenFlat", "APBonusRatio", "MomentumRegenFlat",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint", "DirectionCone", "DirectionLine")
+SKILL_ELEMENTS = ("none", "fire", "water", "shock", "chill", "rot", "gust")
+HIT_TYPES = ("targeted", "projectile", "area", "dash", "self")
 BUNDLE_PATHS = (
     demo.MANIFEST_OUTPUT, demo.CONTENT_OUTPUT, demo.WORLD_OUTPUT, demo.CONTENT_CONTRACT,
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
@@ -110,8 +112,8 @@ def rational(value=None):
     }
 
 
-# Rational stats keep their exact amount in Cm (range in cm, HP regeneration in hp/s) and leave Amount 0.
-RATIONAL_STATS = frozenset(("AttackRangeCmFlat", "HPRegenFlat", "MPRegenFlat"))
+# Rational stats keep their exact amount in Cm (range in cm, HP regeneration in hp/s, momentum in momentum/s) and leave Amount 0.
+RATIONAL_STATS = frozenset(("AttackRangeCmFlat", "HPRegenFlat", "MomentumRegenFlat"))
 
 
 def stats(values):
@@ -153,18 +155,20 @@ def effect(value):
         "Trigger": 0, "Entries": 0, "AmountMs": 0,
         "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
         "LimitP2": 0, "bEveryContact": False, "Element": 0, "AngleDegrees": rational(), "CostRatioBp": 0,
+        "ExtraDurationMs": 0, "ExtraDistanceCm": rational(), "Scope": 0, "RecastControl": 0,
+        "bOwnOnly": False, "bOnCatch": False, "bCenterOnly": False, "bAsDash": False, "bFreeDirection": False, "bAlwaysCrit": False,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
-        ("cooldown", "AmountMs"), ("mana", "BaseP2"),
+        ("cooldown", "AmountMs"), ("momentum", "BaseP2"),
         # #112 handlers.
         ("slow", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"), ("internal_cooldown", "IntervalMs"),
         # #147 build v7 terms.
         ("hp_below", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
         ("lifesteal", "SecondaryRatioBp"), ("outer_ratio", "RatioBp"),
-        ("mana_ratio", "SecondaryRatioBp"), ("mana_cap", "LimitP2"), ("slow_resistance", "SecondaryRatioBp"),
+        ("momentum_ratio", "SecondaryRatioBp"), ("momentum_cap", "LimitP2"), ("slow_resistance", "SecondaryRatioBp"),
         # #198 brace: the record cap and the record's share of the release.
         ("limit", "LimitP2"), ("record_ratio", "SecondaryRatioBp"),
         # #198 F workshop terms.
@@ -205,6 +209,9 @@ def effect(value):
         result["Element"] = ELEMENTS.index(value["element"])
     if value.get("op") == "channel_cone":
         result["DurationMs"] = result["IntervalMs"] * (result["Count"] - 1)
+        if "slow_waves" in value:
+            result["BasicCount"] = value["slow_waves"]
+    branch_terms(value, result)
     # #198 dash_contact: First touches one body (Count 1); Every touches each body once.
     if value.get("targets") == "First":
         result["Count"] = 1
@@ -213,9 +220,72 @@ def effect(value):
     return result
 
 
+def branch_terms(value, result):
+    """Skill branch fields (issue #287 spec §5.1), into the slots the native importer reads them into."""
+    op = value.get("op")
+    for source in ("wall_stun", "ghost", "last_stun", "center_stun", "same_target_stun", "free_cast"):
+        if source in value:
+            result["ExtraDurationMs"] = scalar(value[source])
+    for source, flag in (("own", "bOwnOnly"), ("on_catch", "bOnCatch"), ("center", "bCenterOnly"), ("as_dash", "bAsDash"),
+                         ("free_direction", "bFreeDirection"), ("crit", "bAlwaysCrit")):
+        if source in value:
+            result[flag] = value[source]
+    if "electrify" in value and value["electrify"]:
+        result["Element"] = ELEMENTS.index("electric")
+    if "wet" in value and value["wet"]:
+        result["Element"] = ELEMENTS.index("water")
+    if op == "vulnerable":
+        result["Scope"] = ("all", "skill", "basic").index(value["scope"])
+    elif op == "next_basic_amp":
+        result["RatioBp"] = scalar(value["ratio"])
+    elif op == "momentum_steal":
+        result["MultiplierBp"] = scalar(value["ratio"])
+        result["RatioBp"] = 0
+    elif op == "follow_up":
+        if "attack_slow" in value:
+            result["RatioBp"] = scalar(value["attack_slow"])
+            result["DurationMs"] = scalar(value["attack_slow_duration"])
+    elif op == "recast":
+        result["DurationMs"] = scalar(value["window"])
+        result["MultiplierBp"] = scalar(value["damage_ratio"])
+        result["RecastControl"] = ("same", "root", "disarm").index(value["control"])
+        result["SecondaryDurationMs"] = scalar(value["control_duration"])
+    elif op == "self_buff" and "cut" in value:
+        result["RatioBp"] = scalar(value["cut"])
+    elif op == "burn_burst":
+        result["DamageType"] = 1
+    elif op == "pulse":
+        result["LimitP2"] = scalar(value["momentum"]) if "momentum" in value else 0
+        result["BaseP2"] = scalar(value["shield_base"]) if "shield_base" in value else 0
+        result["MaxHPRatioBp"] = scalar(value["shield_max_hp_ratio"]) if "shield_max_hp_ratio" in value else 0
+    elif op == "shield_burst_break":
+        result["DamageType"] = 1
+    elif op == "basic_rider" and "breach" in value:
+        result["Count"] = value["breach"]
+    elif op == "delayed_burst":
+        result["RatioBp"] = scalar(value["reaction_ratio"])
+    elif op == "empower_basic":
+        if "momentum" in value:
+            result["LimitP2"] = scalar(value["momentum"])
+            result["BaseP2"] = scalar(value["base"])
+        if "breach" in value:
+            result["BasicCount"] = value["breach"]
+    elif op == "ground_impact" and "linger" in value:
+        result["SecondaryDurationMs"] = scalar(value["linger"])
+    elif op == "contact_trap":
+        if "max" in value:
+            result["Count"] = value["max"]
+        if "wire_distance" in value:
+            result["ExtraDistanceCm"] = rational(value["wire_distance"])
+            result["BaseP2"] = scalar(value["wire_base"]) if "wire_base" in value else 0
+            result["APRatioBp"] = scalar(value["wire_ap_ratio"]) if "wire_ap_ratio" in value else 0
+    elif op == "echo_impact" and "center_ratio" in value:
+        result["RatioBp"] = scalar(value["center_ratio"])
+
+
 def values(value):
     return {
-        "ManaCostP2": scalar(value["mana_cost"]), "CooldownMs": scalar(value["cooldown"]),
+        "MomentumCostP2": scalar(value["momentum_cost"]) if "momentum_cost" in value else 0, "CooldownMs": scalar(value["cooldown"]),
         "Effects": [effect(row) for row in value["effects"]],
     }
 
@@ -249,8 +319,8 @@ def dash_definition(value):
 
 def parameter_projection(parameters):
     result = {}
-    for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen"):
-        rate = stat in ("HPRegen", "MPRegen")
+    for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
+        rate = stat == "HPRegen"
         result[stat] = {
             suffix + ("" if rate else "P2"): (rational if rate else scalar)(parameters[f"STAT.{stat}.{suffix}"])
             for suffix in ("Base", "PerLevel", "Min", "Max")
@@ -266,7 +336,7 @@ def parameter_projection(parameters):
         ("STAT.AttackSpeedPerLevelRatio", "AttackSpeedPerLevelBp"), ("STAT.CritChance.Base", "CritChanceBaseBp"),
         ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
-        ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
+        ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
         ("SHOWDOWN.UnlockDelaySec", "ShowdownUnlockDelayMs"), ("SHOWDOWN.DurationSec", "ShowdownDurationMs"),
         ("SHOWDOWN.FirstRespawnSec", "ShowdownFirstRespawnMs"),
@@ -290,16 +360,15 @@ def parameter_projection(parameters):
         ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
-        ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
-        ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"), ("DORM.MaxMPRatioPerSec", "DormMaxMPRegenBp"),
+        ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"),
         ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"), ("CAMP.GrowthStageSec", "CampGrowthStageMs"),
         ("CAMP.GrowthHPRatioPerStage", "CampGrowthHPPerStageBp"), ("CAMP.GrowthAttackRatioPerStage", "CampGrowthAttackPerStageBp"),
         ("CAMP.GrowthResistPerStage", "CampGrowthResistPerStageP2"), ("CAMP.GrowthRewardXPRatioPerStage", "CampGrowthRewardXPPerStageBp"),
         ("AIRDROP.ExpireSec", "AirdropExpireMs"), ("CAMPMARK.RevealSec", "CampMarkRevealMs"),
         ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"),
         ("AIRDROP.MoveSpeedSec", "AirdropMoveSpeedMs"),
-        ("AIRDROP.HealMaxHPRatio", "AirdropHealMaxHPBp"), ("AIRDROP.ManaMaxMPRatio", "AirdropManaMaxMPBp"),
+        ("AIRDROP.HealMaxHPRatio", "AirdropHealMaxHPBp"), ("AIRDROP.Momentum", "AirdropMomentumP2"),
         ("AIRDROP.MoveSpeedRatio", "AirdropMoveSpeedBp"),
         ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
         ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
@@ -312,7 +381,7 @@ def parameter_projection(parameters):
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "KeystoneThickSkinGuardCapBp"),
         ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"),
         ("COMBAT.KeystoneStrengthDamageRatio", "KeystoneStrengthDamageBp"),
-        ("COMBAT.KeystoneBrainsManaRefundRatio", "KeystoneBrainsManaRefundBp"),
+        ("COMBAT.KeystoneBrainsMomentumRefundRatio", "KeystoneBrainsMomentumRefundBp"),
         ("COMBAT.KeystoneAgilityDamageBase", "KeystoneAgilityDamageBaseP2"),
         ("COMBAT.KeystoneAgilityADRatio", "KeystoneAgilityADRatioBp"),
         ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"),
@@ -369,6 +438,34 @@ def parameter_projection(parameters):
     ):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
+    result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])
+    result["Momentum"] = {
+        "MaxP2": scalar(parameters["MOMENTUM.Max"]), "StartP2": scalar(parameters["MOMENTUM.Start"]),
+        "CombatPerSec": rational(parameters["MOMENTUM.CombatPerSec"]),
+        "BasicPerRefP2": scalar(parameters["MOMENTUM.BasicPerRefInterval"]),
+        "BasicRefIntervalMs": scalar(parameters["MOMENTUM.BasicRefIntervalSec"]),
+        "SkillHitP2": scalar(parameters["MOMENTUM.SkillHit"]), "ReactionP2": scalar(parameters["MOMENTUM.Reaction"]),
+        "PerfectDodgeP2": scalar(parameters["MOMENTUM.PerfectDodge"]),
+        "PerfectDodgeWindowMs": scalar(parameters["MOMENTUM.PerfectDodgeWindowSec"]),
+        "IdleDelayMs": scalar(parameters["MOMENTUM.IdleDelaySec"]),
+        "IdleReturnPerSec": rational(parameters["MOMENTUM.IdleReturnPerSec"]),
+    }
+    result["Combo"] = {"StepRatiosBp": [scalar(value) for value in parameters["COMBO.StepRatios"]],
+                       "ResetMs": scalar(parameters["COMBO.ResetSec"])}
+    result["Overdrive"] = {
+        "ThresholdP2": scalar(parameters["OVERDRIVE.Threshold"]), "HoldMs": scalar(parameters["OVERDRIVE.HoldSec"]),
+        "ScaleBp": scalar(parameters["OVERDRIVE.Scale"]), "FireBurnStacks": parameters["OVERDRIVE.FireBurnStacks"],
+        "WaterSlowBp": scalar(parameters["OVERDRIVE.WaterSlow"]), "WaterSlowMs": scalar(parameters["OVERDRIVE.WaterSlowSec"]),
+        "ShockReactionBp": scalar(parameters["OVERDRIVE.ShockReactionRatio"]),
+        "RotDurationBp": scalar(parameters["OVERDRIVE.RotDurationScale"]),
+        "GustPushCm": rational(parameters["OVERDRIVE.GustPushCm"]), "GustPushMs": scalar(parameters["OVERDRIVE.GustPushSec"]),
+    }
+    result["SkillRanks"] = {
+        "RankBaseScaleBp": [scalar(value) for value in parameters["SKILL.RankBaseScale"]],
+        "RankRatioScaleBp": [scalar(value) for value in parameters["SKILL.RankRatioScale"]],
+        "PointLevels": list(parameters["SKILL.PointLevels"]),
+        "CooldownFloorMs": scalar(parameters["SKILL.CooldownFloorSec"]),
+    }
     return result
 
 
@@ -415,7 +512,7 @@ def expected_projection(compilation):
     dash = character["dash"]
     dash_opcode = json.loads(compilation.inputs[demo.IDS_SOURCE])["effect_ops"]["dash"]
     innate_dash = dash_definition({"target": {"mode": "DirectionDash"}, "values": {
-        "mana_cost": dash["mana_cost"], "cooldown": dash["cooldown"],
+        "cooldown": dash["cooldown"],
         "effects": [{"opcode": dash_opcode, "distance": dash["distance"], "duration": dash["duration"]}]}})
     result = {
         "Identity": identity, "Parameters": parameter_projection(data["parameters"]), "Formulas": formulas, "Policies": policies,
@@ -424,7 +521,13 @@ def expected_projection(compilation):
                       "BasicIntervalMs": character["basic_attack"]["interval_ms"], "Dash": innate_dash},
         "Abilities": [{
             "Id": row["id"], "NativeId": row["native_id"], "Opening": row["opening"], "Target": target(row["target"]),
-            "WindupMs": scalar(row["windup"]), "CooldownFamily": row["cooldown_family"], "Values": values(row),
+            "WindupMs": scalar(row["windup"]), "CooldownFamily": row["cooldown_family"],
+            "Element": SKILL_ELEMENTS.index(row["element"]), "HitType": HIT_TYPES.index(row["hit_type"]), "Values": values(row),
+            "Branches": [{
+                "Path": ("None", "A", "B", "A1", "A2", "B1", "B2").index(branch["path"]), "Target": target(branch["target"]),
+                "WindupMs": scalar(branch["windup"]), "Element": SKILL_ELEMENTS.index(branch["element"]),
+                "HitType": HIT_TYPES.index(branch["hit_type"]), "Values": values(branch),
+            } for branch in row["branches"]],
         } for row in data["abilities"]],
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
         "Components": [component(row) for row in data["components"]],
@@ -478,13 +581,13 @@ def expected_projection(compilation):
         for source, dest in (
             ("hp", "HPP2"), ("armor", "ArmorP2"), ("magic_resist", "MagicResistP2"), ("attack", "AttackP2"),
             ("attack_windup", "AttackWindupMs"), ("lose_target_grace", "LoseTargetGraceMs"),
-            ("respawn", "RespawnMs"), ("max_mp", "MaxMPP2"), ("ap", "APP2"), ("crit_chance", "CritChanceBp"),
+            ("respawn", "RespawnMs"), ("ap", "APP2"), ("crit_chance", "CritChanceBp"),
         ):
             monster[dest] = scalar(row[source])
         for source, dest in (
             ("attack_speed", "AttackSpeed"), ("attack_range", "AttackRangeCm"), ("move_speed", "MoveSpeedCmPerSec"),
             ("collision_radius", "CollisionRadiusCm"), ("leash_radius", "LeashRadiusCm"), ("perception_radius", "PerceptionRadiusCm"),
-            ("hp_regen", "HPRegenPerSec"), ("mp_regen", "MPRegenPerSec"),
+            ("hp_regen", "HPRegenPerSec"),
         ):
             monster[dest] = rational(row[source])
         monster["Skill"]=monster_skill(row["skill"])
@@ -499,11 +602,11 @@ def expected_projection(compilation):
         "Id": boss["id"], "NativeId": boss["native_id"], "Tier": 2, "CountPerCamp": 1, "Skill":monster_skill(), "AttackIntervalMs": interval,
         "RewardXP": boss["reward_xp"], "HPP2": scalar(boss["hp"]), "ArmorP2": scalar(boss["armor"]),
         "MagicResistP2": scalar(boss["magic_resist"]), "AttackP2": scalar(boss["attack"]), "AttackWindupMs": scalar(boss["attack_windup"]),
-        "LoseTargetGraceMs": scalar(boss["attacker_memory"]), "RespawnMs": 0, "MaxMPP2": 0, "APP2": 0, "CritChanceBp": 0,
+        "LoseTargetGraceMs": scalar(boss["attacker_memory"]), "RespawnMs": 0, "APP2": 0, "CritChanceBp": 0,
         "AttackSpeed": {"Numerator": 1000 // divisor, "Denominator": interval // divisor}, "AttackRangeCm": rational(boss["attack_range"]),
         "MoveSpeedCmPerSec": rational(boss["move_speed"]), "CollisionRadiusCm": rational(boss["collision_radius"]),
         "LeashRadiusCm": rational(boss["aggro_radius"]), "PerceptionRadiusCm": rational(boss["aggro_radius"]),
-        "HPRegenPerSec": rational(), "MPRegenPerSec": rational(),
+        "HPRegenPerSec": rational(),
     })
     return result
 
@@ -721,7 +824,7 @@ def _export(output, *, profile, value_mutations, jobs, written):
 
 
 # #198: the quantities of an active's single value set (its cost, cooldown and every effect term).
-ABILITY_VALUE_FIELDS = ("mana_cost", "cooldown", "effects")
+ABILITY_VALUE_FIELDS = ("momentum_cost", "cooldown", "effects")
 
 
 def _value_mutation(author, path):
@@ -767,7 +870,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     valid("above_double_integer", exact, literal=b"9007199254740.993")
     _export_exact_integer_case(valid)
     exact = fixtures.content_fixture()
-    exact["parameters"]["STAT.MPRegen.PerLevel"]["value"] = "__exact_literal__"
+    exact["parameters"]["STAT.HPRegen.PerLevel"]["value"] = "__exact_literal__"
     valid("exact_rational", exact, literal=b"0.000000000000000001")
     _export_world_spawn_shift_case(valid)
     unicode_author = fixtures.content_fixture()
@@ -801,7 +904,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     bad_content("unknown_root_field", lambda d: d.update({"future_content": 1}), "unknown field")
     bad_content("unknown_parameter", lambda d: d["parameters"].update({"STAT.Unknown": 1}), "unknown field")
     bad_content("missing_parameter", lambda d: d["parameters"].pop("STAT.AD.Base"), "missing")
-    bad_content("bad_unit", lambda d: d["parameters"]["STAT.MaxHP.Base"].update({"unit": "mp"}), "unsupported constant")
+    bad_content("bad_unit", lambda d: d["parameters"]["STAT.MaxHP.Base"].update({"unit": "momentum"}), "unsupported constant")
     bad_content("bad_storage", lambda d: d["parameters"]["STAT.MaxHP.Base"].update({"bp": 10}), "unknown field")
     bad_content("bool_integer", lambda d: d["parameters"].update({"AIRDROP.RewardXP": True}), "integer token")
     bad_content("string_integer", lambda d: d["parameters"].update({"AIRDROP.RewardXP": "10"}), "integer token")
@@ -827,7 +930,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
                 "multiplication overflow")
     bad_content("wrong_family", lambda d: d["abilities"][0].update({"cooldown_family": "cd_wrong"}), "cooldown family")
     bad_content("zero_cooldown", lambda d: d["abilities"][0]["cooldown"].update({"ms": 0}), "integer outside")
-    bad_content("negative_cost", lambda d: d["abilities"][0]["mana_cost"].update({"p2": -1}), "integer outside")
+    bad_content("negative_cost", lambda d: d["abilities"][0]["momentum_cost"].update({"p2": -1}), "integer outside")
     bad_content("coefficient_overflow", lambda d: d["abilities"][0]["effects"][0]["ap_ratio"].update({"bp": demo.INT64_MAX}), "multiplication overflow")
     bad_content("growth_overflow", lambda d: d["parameters"]["STAT.MaxHP.PerLevel"].update({"p2": demo.INT64_MAX}), "multiplication overflow")
     bad_content("inverted_bounds", lambda d: d["parameters"]["STAT.AD.Min"].update({"p2": d["parameters"]["STAT.AD.Max"]["p2"]}), "outside")

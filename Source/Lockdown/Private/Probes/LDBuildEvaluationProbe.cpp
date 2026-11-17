@@ -991,8 +991,8 @@ public:
             Value->SetBoolField(TEXT("has_body"), bBody);
             Value->SetNumberField(TEXT("hp_p2"), bBody ? double(Adapter->CombatView.HPP2) : 0.);
             Value->SetNumberField(TEXT("max_hp_p2"), bBody ? double(Adapter->CombatView.MaxHPP2) : 0.);
-            Value->SetNumberField(TEXT("mp_p2"), bBody ? double(Adapter->CombatView.MPP2) : 0.);
-            Value->SetNumberField(TEXT("max_mp_p2"), bBody ? double(Adapter->CombatView.MaxMPP2) : 0.);
+            Value->SetNumberField(TEXT("momentum_p2"), bBody ? double(Adapter->CombatView.MomentumP2) : 0.);
+            Value->SetNumberField(TEXT("max_momentum_p2"), bBody ? double(Adapter->CombatView.MaxMomentumP2) : 0.);
             Value->SetBoolField(TEXT("profile_bound"), Side.Run && Side.Run->bBound);
             Value->SetStringField(TEXT("profile_phase"), Side.Run ? PhaseName(Side.Run->State.Phase) : FString(TEXT("Missing")));
             Value->SetStringField(TEXT("profile_failure"), Side.Run ? Side.Run->State.Failure : FString());

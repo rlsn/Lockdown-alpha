@@ -22,7 +22,6 @@ struct LOCKDOWN_API FLDKeywordTerms
     int64 LifestealCapBp = 0;
     // The burn's fixed part uses the same segmented skill growth as learned abilities.
     int64 SkillGrowthPerLevelBp = 0;
-    int64 SkillGrowthPerLevelAfter10Bp = 0;
 
     static FLDKeywordTerms From(const FLDDemoContentParameters& Parameters);
 };

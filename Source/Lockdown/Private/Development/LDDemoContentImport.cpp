@@ -91,7 +91,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("components", "component_roll_bump", ELDDemoComponentId, ComponentRollBump),
     DEMO_ID("components", "component_pin_punch", ELDDemoComponentId, ComponentPinPunch),
     DEMO_ID("components", "component_after_pin", ELDDemoComponentId, ComponentAfterPin),
-    DEMO_ID("components", "component_control_mana", ELDDemoComponentId, ComponentControlMana),
+    DEMO_ID("components", "component_control_momentum", ELDDemoComponentId, ComponentControlMomentum),
     DEMO_ID("components", "component_breath_strike", ELDDemoComponentId, ComponentBreathStrike),
     DEMO_ID("components", "component_blast_chase", ELDDemoComponentId, ComponentBlastChase),
     DEMO_ID("components", "component_shell_burst", ELDDemoComponentId, ComponentShellBurst),
@@ -172,7 +172,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "cooldown_refund", ELDDemoEffectOp, CooldownRefund),
     DEMO_ID("effect_ops", "triggered_shield", ELDDemoEffectOp, TriggeredShield),
     DEMO_ID("effect_ops", "nth_basic_bonus", ELDDemoEffectOp, NthBasicBonus),
-    DEMO_ID("effect_ops", "mana_on_hit", ELDDemoEffectOp, ManaOnHit),
     DEMO_ID("effect_ops", "dispel_slow", ELDDemoEffectOp, DispelSlow),
     DEMO_ID("effect_ops", "knockback", ELDDemoEffectOp, Knockback),
     DEMO_ID("effect_ops", "zone", ELDDemoEffectOp, Zone),
@@ -225,7 +224,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "contact_knockback", ELDDemoEffectOp, ContactKnockback),
     DEMO_ID("effect_ops", "control_mark", ELDDemoEffectOp, ControlMark),
     DEMO_ID("effect_ops", "aftershock", ELDDemoEffectOp, Aftershock),
-    DEMO_ID("effect_ops", "control_mana", ELDDemoEffectOp, ControlMana),
+    DEMO_ID("effect_ops", "control_momentum", ELDDemoEffectOp, ControlMomentum),
     DEMO_ID("effect_ops", "heal_counter", ELDDemoEffectOp, HealCounter),
     DEMO_ID("effect_ops", "reaction_empower", ELDDemoEffectOp, ReactionEmpower),
     DEMO_ID("effect_ops", "shield_burst", ELDDemoEffectOp, ShieldBurst),
@@ -242,7 +241,7 @@ DEMO_ID("effect_ops", "alternate_amp", ELDDemoEffectOp, AlternateAmp),
     DEMO_ID("effect_ops", "hit_haste_other", ELDDemoEffectOp, HitHasteOther),
     DEMO_ID("effect_ops", "setup_mark", ELDDemoEffectOp, SetupMark),
     DEMO_ID("effect_ops", "reaction_haste", ELDDemoEffectOp, ReactionHaste),
-    DEMO_ID("effect_ops", "multi_hit_mana", ELDDemoEffectOp, MultiHitMana),
+    DEMO_ID("effect_ops", "multi_hit_momentum", ELDDemoEffectOp, MultiHitMomentum),
     DEMO_ID("effect_ops", "zone_tether", ELDDemoEffectOp, ZoneTether),
     DEMO_ID("effect_ops", "defense_shove", ELDDemoEffectOp, DefenseShove),
     DEMO_ID("effect_ops", "final_knockback", ELDDemoEffectOp, FinalKnockback),
@@ -253,6 +252,32 @@ DEMO_ID("effect_ops", "alternate_amp", ELDDemoEffectOp, AlternateAmp),
     DEMO_ID("effect_ops", "empower_spend", ELDDemoEffectOp, EmpowerSpend),
     DEMO_ID("effect_ops", "control_widen", ELDDemoEffectOp, ControlWiden),
     DEMO_ID("effect_ops", "zone_detonate", ELDDemoEffectOp, ZoneDetonate),
+    DEMO_ID("effect_ops", "vulnerable", ELDDemoEffectOp, Vulnerable),
+    DEMO_ID("effect_ops", "next_basic_amp", ELDDemoEffectOp, NextBasicAmp),
+    DEMO_ID("effect_ops", "momentum_gain", ELDDemoEffectOp, MomentumGain),
+    DEMO_ID("effect_ops", "momentum_steal", ELDDemoEffectOp, MomentumSteal),
+    DEMO_ID("effect_ops", "follow_up", ELDDemoEffectOp, FollowUp),
+    DEMO_ID("effect_ops", "recast", ELDDemoEffectOp, Recast),
+    DEMO_ID("effect_ops", "dash_back", ELDDemoEffectOp, DashBack),
+    DEMO_ID("effect_ops", "self_buff", ELDDemoEffectOp, SelfBuff),
+    DEMO_ID("effect_ops", "burn_burst", ELDDemoEffectOp, BurnBurst),
+    DEMO_ID("effect_ops", "pulse", ELDDemoEffectOp, Pulse),
+    DEMO_ID("effect_ops", "zone_guard", ELDDemoEffectOp, ZoneGuard),
+    DEMO_ID("effect_ops", "zone_momentum", ELDDemoEffectOp, ZoneMomentum),
+    DEMO_ID("effect_ops", "overcharge", ELDDemoEffectOp, Overcharge),
+    DEMO_ID("effect_ops", "follow_basic", ELDDemoEffectOp, FollowBasic),
+    DEMO_ID("effect_ops", "shield_burst_break", ELDDemoEffectOp, ShieldBurstBreak),
+    DEMO_ID("effect_ops", "basic_rider", ELDDemoEffectOp, BasicRider),
+    DEMO_ID("effect_ops", "delayed_burst", ELDDemoEffectOp, DelayedBurst),
+    DEMO_ID("effect_ops", "shield_reflect", ELDDemoEffectOp, ShieldReflect),
+    DEMO_ID("effect_ops", "shield_end_heal", ELDDemoEffectOp, ShieldEndHeal),
+    DEMO_ID("effect_ops", "shield_hit_bonus", ELDDemoEffectOp, ShieldHitBonus),
+    DEMO_ID("effect_ops", "brace_stun", ELDDemoEffectOp, BraceStun),
+    DEMO_ID("effect_ops", "brace_heal", ELDDemoEffectOp, BraceHeal),
+    DEMO_ID("effect_ops", "brace_stack", ELDDemoEffectOp, BraceStack),
+    DEMO_ID("effect_ops", "brace_shove", ELDDemoEffectOp, BraceShove),
+    DEMO_ID("effect_ops", "brace_shield", ELDDemoEffectOp, BraceShield),
+    DEMO_ID("effect_ops", "projectile_zone", ELDDemoEffectOp, ProjectileZone),
 };
 #undef DEMO_ID
 
@@ -293,13 +318,13 @@ bool NativeMap(const FValue& Value, FCheck& Check)
         return false;
     }
     // Inclusive retired identity ranges per section; they must stay exactly these and are never reused (#198 retires the
-    // passives 104-113/120-125, cower 119, the attribute cards 15-26, statuses 28-29 and every operation without a consumer).
+    // passives 104-113/120-125, cower 119, the attribute cards 15-26, statuses 28-29, effect op 36 and every operation without a consumer).
     struct FRetiredRange { int64 First; int64 Last; };
     static const FRetiredRange RetiredAbilities[] = {{0, 91}, {104, 113}, {119, 125}};
     static const FRetiredRange RetiredStats[] = {{0, 26}};
     static const FRetiredRange RetiredStatuses[] = {{7, 8}, {11, 11}, {15, 19}, {21, 24}, {28, 29}};
     static const FRetiredRange RetiredEffectOps[] = {{6, 6}, {9, 11}, {16, 16}, {19, 19}, {23, 23}, {25, 25}, {27, 30}, {32, 34},
-        {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 66}, {68, 68}, {72, 76}, {83, 85}, {89, 89}};
+        {36, 36}, {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 66}, {68, 68}, {72, 76}, {83, 85}, {89, 89}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
     for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
         {TEXT("stats"), RetiredStats}, {TEXT("statuses"), RetiredStatuses},
@@ -369,17 +394,111 @@ bool RateBounds(FFields& Fields, const TCHAR* Stat, const TCHAR* Unit, FLDDemoRa
         && Fields.Fraction(*(Prefix + TEXT(".Max")), Unit, Out.Max);
 }
 
+// A fixed-length array of ratios ({"unit": "ratio", "bp": n}), each at least Min.
+bool RatioArray(FFields& F, const TCHAR* Key, int32 Count, int64 Min, TArray<int64>& Out, FCheck& Check)
+{
+    const TArray<FValue>* Rows = nullptr;
+    const FString Path = F.Path + TEXT(".") + Key;
+    if (!Array(F.Take(Key), Rows, Check, Path, Count, Count))
+    {
+        return false;
+    }
+    Out.Reset();
+    for (int32 Index = 0; Index < Rows->Num(); ++Index)
+    {
+        FFields Row(Check, (*Rows)[Index], FString::Printf(TEXT("%s[%d]"), *Path, Index));
+        int64 Bp = 0;
+        if (!Row.Literal(TEXT("unit"), TEXT("ratio")) || !Row.Int(TEXT("bp"), Bp, Min) || !Row.Done())
+        {
+            return false;
+        }
+        Out.Add(Bp);
+    }
+    return true;
+}
+
+// Momentum, combo, overdrive and skill rank parameters (CONTENT_AND_BALANCE §3.3-§3.6).
+bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
+{
+    FLDDemoMomentumParameters& M = P.Momentum;
+    FLDDemoOverdriveParameters& O = P.Overdrive;
+    struct FFixedField { const TCHAR* Key; const TCHAR* Unit; const TCHAR* Storage; int64* Out; int64 Min; int64 Max; };
+    const FFixedField Fixed[] =
+    {
+        {TEXT("MOMENTUM.Max"), TEXT("momentum"), TEXT("p2"), &M.MaxP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.Start"), TEXT("momentum"), TEXT("p2"), &M.StartP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.BasicPerRefInterval"), TEXT("momentum"), TEXT("p2"), &M.BasicPerRefP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.BasicRefIntervalSec"), TEXT("ms"), TEXT("ms"), &M.BasicRefIntervalMs, 1, MAX_int64},
+        {TEXT("MOMENTUM.SkillHit"), TEXT("momentum"), TEXT("p2"), &M.SkillHitP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.Reaction"), TEXT("momentum"), TEXT("p2"), &M.ReactionP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.PerfectDodge"), TEXT("momentum"), TEXT("p2"), &M.PerfectDodgeP2, 1, MAX_int64},
+        {TEXT("MOMENTUM.PerfectDodgeWindowSec"), TEXT("ms"), TEXT("ms"), &M.PerfectDodgeWindowMs, 1, MAX_int64},
+        {TEXT("MOMENTUM.IdleDelaySec"), TEXT("ms"), TEXT("ms"), &M.IdleDelayMs, 1, MAX_int64},
+        {TEXT("COMBO.ResetSec"), TEXT("ms"), TEXT("ms"), &P.Combo.ResetMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.Threshold"), TEXT("momentum"), TEXT("p2"), &O.ThresholdP2, 1, MAX_int64},
+        {TEXT("OVERDRIVE.HoldSec"), TEXT("ms"), TEXT("ms"), &O.HoldMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.Scale"), TEXT("ratio"), TEXT("bp"), &O.ScaleBp, 10000, MAX_int64},
+        {TEXT("OVERDRIVE.WaterSlow"), TEXT("ratio"), TEXT("bp"), &O.WaterSlowBp, 1, 9999},
+        {TEXT("OVERDRIVE.WaterSlowSec"), TEXT("ms"), TEXT("ms"), &O.WaterSlowMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.GustPushSec"), TEXT("ms"), TEXT("ms"), &O.GustPushMs, 1, MAX_int64},
+        {TEXT("OVERDRIVE.ShockReactionRatio"), TEXT("ratio"), TEXT("bp"), &O.ShockReactionBp, 1, MAX_int64},
+        {TEXT("OVERDRIVE.RotDurationScale"), TEXT("ratio"), TEXT("bp"), &O.RotDurationBp, 10000, MAX_int64},
+        {TEXT("SKILL.CooldownFloorSec"), TEXT("ms"), TEXT("ms"), &P.SkillRanks.CooldownFloorMs, 1, MAX_int64},
+        {TEXT("AIRDROP.Momentum"), TEXT("momentum"), TEXT("p2"), &P.AirdropMomentumP2, 1, MAX_int64},
+        {TEXT("AI.DodgeChance"), TEXT("ratio"), TEXT("bp"), &P.AI.DodgeChanceBp, 0, 10000},
+    };
+    for (const auto& Field : Fixed)
+    {
+        if (!F.Fixed(Field.Key, Field.Unit, Field.Storage, *Field.Out, Field.Min, Field.Max))
+        {
+            return false;
+        }
+    }
+    if (!F.Fraction(TEXT("MOMENTUM.CombatPerSec"), TEXT("momentum/s"), M.CombatPerSec, true)
+        || !F.Fraction(TEXT("MOMENTUM.IdleReturnPerSec"), TEXT("momentum/s"), M.IdleReturnPerSec, true)
+        || !F.Fraction(TEXT("OVERDRIVE.GustPushCm"), TEXT("cm"), O.GustPushCm, true)
+        || !F.Int(TEXT("OVERDRIVE.FireBurnStacks"), O.FireBurnStacks, 1)
+        || !RatioArray(F, TEXT("COMBO.StepRatios"), 3, 1, P.Combo.StepRatiosBp, Check)
+        || !RatioArray(F, TEXT("SKILL.RankBaseScale"), 3, 10000, P.SkillRanks.RankBaseScaleBp, Check)
+        || !RatioArray(F, TEXT("SKILL.RankRatioScale"), 3, 10000, P.SkillRanks.RankRatioScaleBp, Check))
+    {
+        return false;
+    }
+    const TArray<FValue>* Levels = nullptr;
+    if (!Array(F.Take(TEXT("SKILL.PointLevels")), Levels, Check, F.Path + TEXT(".SKILL.PointLevels"), 1, 15))
+    {
+        return false;
+    }
+    P.SkillRanks.PointLevels.Reset();
+    for (const auto& Row : *Levels)
+    {
+        int64 Level = 0;
+        if (!Integer(Row, Level, Check, F.Path + TEXT(".SKILL.PointLevels"), 2, LDDemoProgression::MaxLevel)
+            || !Check.Require(P.SkillRanks.PointLevels.IsEmpty() || Level > P.SkillRanks.PointLevels.Last(), F.Path,
+                TEXT("skill point levels must be strictly ascending")))
+        {
+            return false;
+        }
+        P.SkillRanks.PointLevels.Add(Level);
+    }
+    const auto& Base = P.SkillRanks.RankBaseScaleBp;
+    const auto& Ratio = P.SkillRanks.RankRatioScaleBp;
+    return Check.Require(M.StartP2 <= M.MaxP2 && O.ThresholdP2 <= M.MaxP2, F.Path,
+            TEXT("the momentum start and the overdrive threshold must fit the bar"))
+        && Check.Require(Base[0] == 10000 && Ratio[0] == 10000 && Base[0] <= Base[1] && Base[1] <= Base[2]
+            && Ratio[0] <= Ratio[1] && Ratio[1] <= Ratio[2], F.Path, TEXT("rank 1 is the authored set and ranks never weaken it"));
+}
+
 bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content.parameters"));
     if (!P2Bounds(F, TEXT("MaxHP"), TEXT("hp"), P.MaxHP)
-        || !P2Bounds(F, TEXT("MaxMP"), TEXT("mp"), P.MaxMP)
         || !P2Bounds(F, TEXT("AD"), TEXT("points"), P.AD)
         || !P2Bounds(F, TEXT("AP"), TEXT("points"), P.AP)
         || !P2Bounds(F, TEXT("Armor"), TEXT("points"), P.Armor)
         || !P2Bounds(F, TEXT("MagicResist"), TEXT("points"), P.MagicResist)
         || !RateBounds(F, TEXT("HPRegen"), TEXT("hp/s"), P.HPRegen)
-        || !RateBounds(F, TEXT("MPRegen"), TEXT("mp/s"), P.MPRegen))
+        || !CoreParameters(F, P, Check))
     {
         return false;
     }
@@ -405,7 +524,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("STAT.CooldownHaste.Base"), TEXT("points"), TEXT("p2"), &P.CooldownHasteBaseP2, 0, MAX_int64},
         {TEXT("STAT.CooldownHaste.Max"), TEXT("points"), TEXT("p2"), &P.CooldownHasteMaxP2, 0, MAX_int64},
         {TEXT("SKILL.GrowthPerLevel"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelBp, 0, 10000},
-        {TEXT("SKILL.GrowthPerLevelAfter10"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelAfter10Bp, 0, 10000},
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
@@ -448,10 +566,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
         {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
-        {TEXT("REGEN.OutOfCombatMaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxMPRegenBp, 0, 10000},
         {TEXT("DORM.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.DormRegenDelayMs, 1, MAX_int64},
         {TEXT("DORM.MaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxHPRegenBp, 0, 10000},
-        {TEXT("DORM.MaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxMPRegenBp, 0, 10000},
         {TEXT("CAMP.ReturnDeadEndSec"), TEXT("ms"), TEXT("ms"), &P.CampReturnDeadEndMs, 1, MAX_int64},
         {TEXT("CAMP.GrowthStageSec"), TEXT("ms"), TEXT("ms"), &P.CampGrowthStageMs, 1, MAX_int64},
         {TEXT("CAMP.GrowthHPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthHPPerStageBp, 0, MAX_int64},
@@ -461,7 +577,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
         {TEXT("AIRDROP.HealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropHealMaxHPBp, 1, 10000},
-        {TEXT("AIRDROP.ManaMaxMPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropManaMaxMPBp, 1, 10000},
         {TEXT("AIRDROP.MoveSpeedRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropMoveSpeedBp, 1, 10000},
         {TEXT("AIRDROP.MoveSpeedSec"), TEXT("ms"), TEXT("ms"), &P.AirdropMoveSpeedMs, 1, MAX_int64},
         {TEXT("CAMPMARK.RevealSec"), TEXT("ms"), TEXT("ms"), &P.CampMarkRevealMs, 1, MAX_int64},
@@ -494,7 +609,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.KeystoneThickSkinGuardCapRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneThickSkinGuardCapBp, 1, 9999},
         {TEXT("COMBAT.KeystoneThickSkinIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneThickSkinIntervalMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneStrengthDamageRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneStrengthDamageBp, 1, 10000},
-        {TEXT("COMBAT.KeystoneBrainsManaRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsManaRefundBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneBrainsMomentumRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsMomentumRefundBp, 1, 10000},
         {TEXT("COMBAT.KeystoneAgilityDamageBase"), TEXT("points"), TEXT("p2"), &P.KeystoneAgilityDamageBaseP2, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneAgilityADRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityADRatioBp, 1, 10000},
         {TEXT("COMBAT.KeystoneAgilityEmpowerDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneAgilityEmpowerDurationMs, 1, MAX_int64},
@@ -642,7 +757,7 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
         DEMO_POLICY(LifestealRecursiveTriggers, Disabled), DEMO_POLICY(BasicSecondaryTriggers, Disabled),
         DEMO_POLICY(RegenIntegration, CarrySubP2Remainder), DEMO_POLICY(ShieldPolicy, ReplaceIfNotWeaker),
         DEMO_POLICY(CampAggroTrigger, ConfirmedCombatHit), DEMO_POLICY(CampResetPolicy, ReturnThenReset),
-        DEMO_POLICY(CampManaPolicy, NotApplicable),
+        DEMO_POLICY(CampMomentumPolicy, NotApplicable),
     };
 #undef DEMO_POLICY
     for (const auto& Entry : Entries)
@@ -686,7 +801,6 @@ const FBonusField BonusFields[] =
     {TEXT("ADFlat"), ELDDemoBonusStat::ADFlat, TEXT("points"), TEXT("p2")},
     {TEXT("APFlat"), ELDDemoBonusStat::APFlat, TEXT("points"), TEXT("p2")},
     {TEXT("MaxHPFlat"), ELDDemoBonusStat::MaxHPFlat, TEXT("hp"), TEXT("p2")},
-    {TEXT("MaxMPFlat"), ELDDemoBonusStat::MaxMPFlat, TEXT("mp"), TEXT("p2")},
     {TEXT("ArmorFlat"), ELDDemoBonusStat::ArmorFlat, TEXT("points"), TEXT("p2")},
     {TEXT("MagicResistFlat"), ELDDemoBonusStat::MagicResistFlat, TEXT("points"), TEXT("p2")},
     {TEXT("CooldownHasteFlat"), ELDDemoBonusStat::CooldownHasteFlat, TEXT("points"), TEXT("p2")},
@@ -697,7 +811,7 @@ const FBonusField BonusFields[] =
     {TEXT("ADBonusRatio"), ELDDemoBonusStat::ADBonusRatio, TEXT("ratio"), TEXT("bp")},
     {TEXT("HPRegenFlat"), ELDDemoBonusStat::HPRegenFlat, TEXT("hp/s"), nullptr},
     {TEXT("APBonusRatio"), ELDDemoBonusStat::APBonusRatio, TEXT("ratio"), TEXT("bp")},
-    {TEXT("MPRegenFlat"), ELDDemoBonusStat::MPRegenFlat, TEXT("mp/s"), nullptr},
+    {TEXT("MomentumRegenFlat"), ELDDemoBonusStat::MomentumRegenFlat, TEXT("momentum/s"), nullptr},
 };
 
 // An authored integer into an int32 definition field.
@@ -736,8 +850,8 @@ constexpr FOpMask OpBit(ELDDemoEffectOp Op)
 }
 
 // Temporary and conditional bonuses never change resource maxima or regeneration (no conversion exists for them).
-constexpr uint32 TemporaryStats = ~(Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::MaxMPFlat) | Bit(ELDDemoBonusStat::HPRegenFlat)
-    | Bit(ELDDemoBonusStat::MPRegenFlat));
+constexpr uint32 TemporaryStats = ~(Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::HPRegenFlat)
+    | Bit(ELDDemoBonusStat::MomentumRegenFlat));
 
 bool DamageTerms(FFields& F, FLDDemoEffectDefinition& Out, FCheck& Check, const FString& Path)
 {
@@ -882,6 +996,22 @@ bool OptionalFixed(FFields& F, const TCHAR* Key, const TCHAR* Unit, const TCHAR*
     return !F.Has(Key) || F.Fixed(Key, Unit, Storage, Out, Min, Max);
 }
 
+bool OptionalFlag(FFields& F, const TCHAR* Key, bool& Out)
+{
+    return !F.Has(Key) || F.Flag(Key, Out);
+}
+
+bool OptionalDamageType(FFields& F, ELDDemoDamageType& Out, FCheck& Check, const FString& Path)
+{
+    FString Type;
+    if (!F.Has(TEXT("damage_type"))) { return true; }
+    if (!F.Text(TEXT("damage_type"), Type)
+        || !Check.Require(Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) || Type.Equals(TEXT("Magical"), ESearchCase::CaseSensitive),
+            Path, TEXT("unknown damage type"))) { return false; }
+    Out = Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
+    return true;
+}
+
 bool TriggerField(FFields& F, ELDDemoEffectTrigger& Out, std::initializer_list<ELDDemoEffectTrigger> Allowed)
 {
     static const TCHAR* Names[] = {TEXT("None"), TEXT("BasicHit"), TEXT("AbilityHit"), TEXT("Damaged"), TEXT("DashComplete")};
@@ -913,12 +1043,12 @@ constexpr FOpMask WorkshopOps = OpBit(ELDDemoEffectOp::SpreadUnit) | OpBit(ELDDe
     | OpBit(ELDDemoEffectOp::LedgerVariant) | OpBit(ELDDemoEffectOp::MarkedCounter) | OpBit(ELDDemoEffectOp::DamageDefer)
     | OpBit(ELDDemoEffectOp::FireShield) | OpBit(ELDDemoEffectOp::KnockbackImpact) | OpBit(ELDDemoEffectOp::DashContactRefund)
     | OpBit(ELDDemoEffectOp::ContactKnockback) | OpBit(ELDDemoEffectOp::ControlMark) | OpBit(ELDDemoEffectOp::Aftershock)
-    | OpBit(ELDDemoEffectOp::ControlMana) | OpBit(ELDDemoEffectOp::HealCounter) | OpBit(ELDDemoEffectOp::ReactionEmpower)
+    | OpBit(ELDDemoEffectOp::ControlMomentum) | OpBit(ELDDemoEffectOp::HealCounter) | OpBit(ELDDemoEffectOp::ReactionEmpower)
     | OpBit(ELDDemoEffectOp::ShieldBurst) | OpBit(ELDDemoEffectOp::SkillLifesteal) | OpBit(ELDDemoEffectOp::ExtraBase)
     | OpBit(ELDDemoEffectOp::CompressChain) | OpBit(ELDDemoEffectOp::ProjectileReturn) | OpBit(ELDDemoEffectOp::ProjectilePierce)
     | OpBit(ELDDemoEffectOp::ChainExtra) | OpBit(ELDDemoEffectOp::EchoImpact)
     | OpBit(ELDDemoEffectOp::HitHasteOther) | OpBit(ELDDemoEffectOp::SetupMark) | OpBit(ELDDemoEffectOp::ReactionHaste)
-    | OpBit(ELDDemoEffectOp::MultiHitMana) | OpBit(ELDDemoEffectOp::ZoneTether) | OpBit(ELDDemoEffectOp::DefenseShove)
+    | OpBit(ELDDemoEffectOp::MultiHitMomentum) | OpBit(ELDDemoEffectOp::ZoneTether) | OpBit(ELDDemoEffectOp::DefenseShove)
     | OpBit(ELDDemoEffectOp::FinalKnockback) | OpBit(ELDDemoEffectOp::EmpowerReach) | OpBit(ELDDemoEffectOp::Pull)
     | OpBit(ELDDemoEffectOp::ZoneRelocate) | OpBit(ELDDemoEffectOp::StoredForce) | OpBit(ELDDemoEffectOp::EmpowerSpend)
     | OpBit(ELDDemoEffectOp::ControlWiden) | OpBit(ELDDemoEffectOp::ZoneDetonate);
@@ -929,6 +1059,10 @@ constexpr FOpMask ComponentOnlyOps = OpBit(ELDDemoEffectOp::Ledger) | OpBit(ELDD
     | OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::ActiveElement) | OpBit(ELDDemoEffectOp::CastHitRefund)
     | OpBit(ELDDemoEffectOp::DistanceAmp) | OpBit(ELDDemoEffectOp::AlternateAmp) | WorkshopOps;
 constexpr FOpMask ComponentOps = SharedComponentOps | ComponentOnlyOps;
+// Workshop mod operations a skill branch may also give an active (DemoContent.BRANCH_MOD_OPS).
+constexpr FOpMask BranchModOps = OpBit(ELDDemoEffectOp::Pull) | OpBit(ELDDemoEffectOp::ProjectileReturn)
+    | OpBit(ELDDemoEffectOp::ProjectilePierce) | OpBit(ELDDemoEffectOp::EchoImpact) | OpBit(ELDDemoEffectOp::ZoneTether)
+    | OpBit(ELDDemoEffectOp::FinalKnockback) | OpBit(ELDDemoEffectOp::EmpowerReach);
 
 bool ElementField(const FString& Name, ELDDemoElement& Out)
 {
@@ -961,7 +1095,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
     }
     Out.Opcode = static_cast<uint8>(Opcode);
     const FOpMask OpFlag = OpBit(Out.GetOp());
-    if (!Check.Require(bComponent ? (ComponentOps & OpFlag).Any() : !(ComponentOnlyOps & OpFlag).Any(), Path,
+    if (!Check.Require(bComponent ? (ComponentOps & OpFlag).Any() : !(ComponentOnlyOps & ~BranchModOps & OpFlag).Any(), Path,
         bComponent ? TEXT("not a component operation") : TEXT("an active cannot carry a component operation")))
     {
         return false;
@@ -1023,7 +1157,8 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         break;
     case ELDDemoEffectOp::Dash:
         if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
-            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFixed(F, TEXT("ghost"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1))
         {
             return false;
         }
@@ -1114,6 +1249,11 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
             if ((bComponent && (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::DashComplete})
                     || !Check.Require(F.Has(TEXT("charges")), Path, TEXT("a component's empowered basic names its charges"))))
                 || (F.Has(TEXT("charges")) && !IntInto(F, TEXT("charges"), Out.Count, 1, 10))
+                // Branch terms: momentum per empowered hit, breach stacks, a stun on the last charge, certain crits.
+                || !OptionalFixed(F, TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+                || (F.Has(TEXT("breach")) && !IntInto(F, TEXT("breach"), Out.BasicCount, 1, 5))
+                || !OptionalFixed(F, TEXT("last_stun"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1)
+                || !OptionalFlag(F, TEXT("crit"), Out.bAlwaysCrit)
                 || (F.Has(TEXT("stats")) && (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
                     || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima")))))
             {
@@ -1143,9 +1283,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
     }
     // #112 handlers (LDCombatMechanics). Field use: see FLDDemoEffectDefinition and docs/systems/COMBAT_AND_GROWTH.md.
     case ELDDemoEffectOp::Knockback:
-        // A push along the caster-to-target direction; a block ends it early (#198: no wall stun).
+        // A push along the caster-to-target direction; a block ends it early, stunning for wall_stun when a branch names one.
         if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
-            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFixed(F, TEXT("wall_stun"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1))
         {
             return false;
         }
@@ -1228,13 +1369,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
             return false;
         }
         break;
-    case ELDDemoEffectOp::ManaOnHit:
-        if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::AbilityHit})
-            || !F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1))
-        {
-            return false;
-        }
-        break;
     // #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
     case ELDDemoEffectOp::Breach:
     case ELDDemoEffectOp::Burn:
@@ -1256,11 +1390,12 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         break;
     case ELDDemoEffectOp::ChannelCone:
         if (!F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
-            || !IntInto(F, TEXT("count"), Out.Count, 2, 20)
+            || !IntInto(F, TEXT("count"), Out.Count, 1, 20)
+            || (F.Has(TEXT("slow_waves")) && !IntInto(F, TEXT("slow_waves"), Out.BasicCount, 2, 20))
             || !OptionalFixed(F, TEXT("slow"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 9999)
             || !OptionalFixed(F, TEXT("slow_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1)
             || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.SecondaryDurationMs > 0)
-                && Out.IntervalMs <= MAX_int64 / (Out.Count - 1), Path, TEXT("invalid channel timing or final slow")))
+                && (Out.Count == 1 || Out.IntervalMs <= MAX_int64 / (Out.Count - 1)), Path, TEXT("invalid channel timing or final slow")))
         { return false; }
         Out.DurationMs = Out.IntervalMs * (Out.Count - 1);
         break;
@@ -1271,11 +1406,20 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         FNumbers Numbers(Check);
         if (!F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
             || !F.Fraction(bImpact ? TEXT("inner_radius") : TEXT("trigger_radius"), TEXT("cm"), Out.DistanceCm, true)
-            || !F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, bImpact ? 0 : 1)
             || !Check.Require(Numbers.LE(Numbers.Value(Out.DistanceCm), Numbers.Value(Out.RadiusCm)), Path,
                 TEXT("inner/trigger radius must fit the effect radius"))) { return false; }
         if (bImpact ? !F.Fixed(TEXT("outer_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)
                     : !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        // Branch terms: a center stun and a lingering wet area; a trap's count and the wire between two of them.
+        if (bImpact ? (!OptionalFixed(F, TEXT("center_stun"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1)
+                        || !OptionalFixed(F, TEXT("linger"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1))
+                    : ((F.Has(TEXT("max")) && !IntInto(F, TEXT("max"), Out.Count, 2, 5))
+                        || (F.Has(TEXT("wire_distance")) && !F.Fraction(TEXT("wire_distance"), TEXT("cm"), Out.ExtraDistanceCm, true))
+                        || !OptionalFixed(F, TEXT("wire_base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+                        || !OptionalFixed(F, TEXT("wire_ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+                        || !Check.Require((Out.ExtraDistanceCm.Numerator > 0) == (Out.BaseP2 > 0 || Out.APRatioBp > 0), Path,
+                            TEXT("a trap wire needs its distance and damage")))) { return false; }
         break;
     }
     case ELDDemoEffectOp::DashContact:
@@ -1340,9 +1484,9 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
     case ELDDemoEffectOp::DashContactRefund:
         if (!F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Out.AmountMs, 1)
             || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
-            || !OptionalFixed(F, TEXT("mana_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 9999)
-            || !OptionalFixed(F, TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
-            || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.LimitP2 > 0), Path, TEXT("contact mana needs ratio and cap")))
+            || !OptionalFixed(F, TEXT("momentum_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 9999)
+            || !OptionalFixed(F, TEXT("momentum_cap"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.LimitP2 > 0), Path, TEXT("contact momentum needs ratio and cap")))
         { return false; }
         break;
     // #198 B component-only operations (field use: FLDDemoEffectDefinition).
@@ -1463,10 +1607,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1) || !DamageTerms(F, Out, Check, Path)
             || !F.Fixed(TEXT("root_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1)) { return false; }
         break;
-    case ELDDemoEffectOp::ControlMana:
-        if (!F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1)
-            || !F.Fixed(TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
-            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-action mana cap holds one grant"))) { return false; }
+    case ELDDemoEffectOp::ControlMomentum:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("momentum_cap"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-action momentum cap holds one grant"))) { return false; }
         break;
     case ELDDemoEffectOp::HealCounter:
     {
@@ -1510,8 +1654,16 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         break;
     // Mods M13-M15: derived host hits.
     case ELDDemoEffectOp::ProjectileReturn:
-        if (!F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+    {
+        // A component's return keeps at most the outbound damage; a skill branch may name more and an element.
+        bool bElectric = false, bWet = false;
+        if (!F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, bComponent ? 10000 : MAX_int64)
+            || !OptionalFlag(F, TEXT("electrify"), bElectric) || !OptionalFlag(F, TEXT("wet"), bWet)
+            || !Check.Require(!(bElectric && bWet) && (!bComponent || !(bElectric || bWet)), Path, TEXT("invalid return element")))
+        { return false; }
+        Out.Element = bElectric ? ELDDemoElement::Electric : bWet ? ELDDemoElement::Water : ELDDemoElement::None;
         break;
+    }
     case ELDDemoEffectOp::ProjectilePierce:
         if (!IntInto(F, TEXT("count"), Out.Count, 1, 5)
             || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
@@ -1523,6 +1675,13 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
             || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
             || !F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)) { return false; }
+        {
+            // Branch terms: the echo's center multiplier and its shock.
+            bool bElectric = false;
+            if (!OptionalFixed(F, TEXT("center_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+                || !OptionalFlag(F, TEXT("electrify"), bElectric)) { return false; }
+            Out.Element = bElectric ? ELDDemoElement::Electric : ELDDemoElement::None;
+        }
         break;
     // Connectors C13-C16.
     case ELDDemoEffectOp::HitHasteOther:
@@ -1533,10 +1692,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
             || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
         break;
-    case ELDDemoEffectOp::MultiHitMana:
-        if (!F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1)
-            || !F.Fixed(TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
-            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-release mana cap holds one grant"))) { return false; }
+    case ELDDemoEffectOp::MultiHitMomentum:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("momentum_cap"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-release momentum cap holds one grant"))) { return false; }
         break;
     // Mods M16-M20.
     case ELDDemoEffectOp::ZoneTether:
@@ -1565,7 +1724,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
             || !F.Fraction(TEXT("min_distance"), TEXT("cm"), Out.RadiusCm, true)
-            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a pull needs a positive distance"))) { return false; }
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a pull needs a positive distance"))
+            // Branch term: two pulled bodies that meet each take this physical damage.
+            || !OptionalFixed(F, TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !OptionalFixed(F, TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)) { return false; }
         break;
     // Connectors C17-C21.
     case ELDDemoEffectOp::ZoneRelocate:
@@ -1581,6 +1743,147 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         break;
     case ELDDemoEffectOp::ZoneDetonate:
         if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
+    // Skill branch operations (issue #287 spec §5.1; field use in docs/systems/COMBAT_AND_GROWTH.md).
+    case ELDDemoEffectOp::Vulnerable:
+    {
+        FString Scope;
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Text(TEXT("scope"), Scope) || !OptionalFlag(F, TEXT("own"), Out.bOwnOnly)) { return false; }
+        if (Scope.Equals(TEXT("all"), ESearchCase::CaseSensitive)) { Out.Scope = ELDDemoDamageScope::All; }
+        else if (Scope.Equals(TEXT("skill"), ESearchCase::CaseSensitive)) { Out.Scope = ELDDemoDamageScope::Skill; }
+        else if (Scope.Equals(TEXT("basic"), ESearchCase::CaseSensitive)) { Out.Scope = ELDDemoDamageScope::Basic; }
+        else { return Check.Require(false, Path, TEXT("unknown vulnerability scope")); }
+        break;
+    }
+    case ELDDemoEffectOp::NextBasicAmp:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFlag(F, TEXT("on_catch"), Out.bOnCatch)) { return false; }
+        break;
+    case ELDDemoEffectOp::MomentumGain:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)
+            || !OptionalFlag(F, TEXT("center"), Out.bCenterOnly)) { return false; }
+        break;
+    case ELDDemoEffectOp::MomentumSteal:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)
+            || !OptionalFixed(F, TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !OptionalFixed(F, TEXT("free_cast"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::FollowUp:
+    {
+        bool bElectric = false, bWet = false;
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !IntInto(F, TEXT("count"), Out.Count, 1, 10)
+            || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            || !OptionalFixed(F, TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !OptionalFixed(F, TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
+            || !OptionalFixed(F, TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+            || !OptionalDamageType(F, Out.DamageType, Check, Path)
+            || !OptionalFlag(F, TEXT("electrify"), bElectric) || !OptionalFlag(F, TEXT("wet"), bWet)
+            || !OptionalFixed(F, TEXT("attack_slow"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)
+            || !OptionalFixed(F, TEXT("attack_slow_duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !Check.Require((Out.RatioBp > 0) == (Out.DurationMs > 0) && !(bElectric && bWet), Path,
+                TEXT("a follow-up attack slow needs its duration; one element at most"))
+            || !Check.Require(Out.BaseP2 > 0 || Out.ADRatioBp > 0 || Out.APRatioBp > 0 || bElectric || bWet || Out.RatioBp > 0, Path,
+                TEXT("ineffective follow-up"))) { return false; }
+        Out.Element = bElectric ? ELDDemoElement::Electric : bWet ? ELDDemoElement::Water : ELDDemoElement::None;
+        break;
+    }
+    case ELDDemoEffectOp::Recast:
+    {
+        FString Control;
+        if (!F.Fixed(TEXT("window"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)
+            || !F.Text(TEXT("control"), Control)
+            || !F.Fixed(TEXT("control_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs)
+            || !OptionalFixed(F, TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !OptionalFixed(F, TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
+            || !OptionalFixed(F, TEXT("same_target_stun"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1)
+            || !OptionalFlag(F, TEXT("free_direction"), Out.bFreeDirection)) { return false; }
+        if (Control.Equals(TEXT("same"), ESearchCase::CaseSensitive)) { Out.RecastControl = ELDDemoRecastControl::Same; }
+        else if (Control.Equals(TEXT("root"), ESearchCase::CaseSensitive)) { Out.RecastControl = ELDDemoRecastControl::Root; }
+        else if (Control.Equals(TEXT("disarm"), ESearchCase::CaseSensitive)) { Out.RecastControl = ELDDemoRecastControl::Disarm; }
+        else { return Check.Require(false, Path, TEXT("unknown recast control")); }
+        if (!Check.Require((Out.RecastControl == ELDDemoRecastControl::Same) == (Out.SecondaryDurationMs == 0), Path,
+            TEXT("a replaced control names its duration"))) { return false; }
+        break;
+    }
+    case ELDDemoEffectOp::DashBack:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFlag(F, TEXT("as_dash"), Out.bAsDash)) { return false; }
+        break;
+    case ELDDemoEffectOp::SelfBuff:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFixed(F, TEXT("cut"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)
+            || (F.Has(TEXT("stats")) && (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
+                || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima"))))
+            || !Check.Require(Out.RatioBp > 0 || !Out.Stats.IsEmpty(), Path, TEXT("ineffective self buff"))) { return false; }
+        break;
+    case ELDDemoEffectOp::BurnBurst:
+        if (!IntInto(F, TEXT("stacks"), Out.Count, 1, 10)
+            || !F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)) { return false; }
+        Out.DamageType = ELDDemoDamageType::Magical;
+        break;
+    case ELDDemoEffectOp::Pulse:
+        if (!IntInto(F, TEXT("count"), Out.Count, 1, 10)
+            || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+            || !OptionalFixed(F, TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !OptionalFixed(F, TEXT("shield_base"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1)
+            || !OptionalFixed(F, TEXT("shield_max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::ZoneGuard:
+    case ELDDemoEffectOp::ShieldReflect:
+    case ELDDemoEffectOp::ShieldEndHeal:
+    case ELDDemoEffectOp::ShieldHitBonus:
+    case ELDDemoEffectOp::BraceHeal:
+    case ELDDemoEffectOp::BraceStack:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::ZoneMomentum:
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.BaseP2, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::Overcharge:
+    case ELDDemoEffectOp::BraceStun:
+    case ELDDemoEffectOp::BraceShield:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::FollowBasic:
+        break;
+    case ELDDemoEffectOp::ShieldBurstBreak:
+        if (!F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)) { return false; }
+        Out.DamageType = ELDDemoDamageType::Magical;
+        break;
+    case ELDDemoEffectOp::BasicRider:
+    {
+        bool bElectric = false;
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFlag(F, TEXT("electrify"), bElectric)
+            || (F.Has(TEXT("breach")) && !IntInto(F, TEXT("breach"), Out.Count, 1, 5))
+            || !Check.Require(bElectric || Out.Count > 0, Path, TEXT("ineffective basic rider"))) { return false; }
+        Out.Element = bElectric ? ELDDemoElement::Electric : ELDDemoElement::None;
+        break;
+    }
+    case ELDDemoEffectOp::DelayedBurst:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("reaction_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::BraceShove:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ProjectileZone:
+        if (!F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)) { return false; }
         break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
@@ -1618,10 +1921,75 @@ bool Effects(const FValue& Value, TArray<FLDDemoEffectDefinition>& Out, bool bCo
 bool Values(FFields& F, FLDDemoAbilityValues& Out, FOpMask ExpectedOps, FCheck& Check, const FString& Path)
 {
     FOpMask Mask;
-    return F.Fixed(TEXT("mana_cost"), TEXT("mp"), TEXT("p2"), Out.ManaCostP2)
+    return F.Fixed(TEXT("momentum_cost"), TEXT("momentum"), TEXT("p2"), Out.MomentumCostP2)
         && F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Out.CooldownMs, 1)
         && Effects(F.Take(TEXT("effects")), Out.Effects, false, Mask, Check, Path + TEXT(".effects"))
         && Check.Require(Mask == ExpectedOps, Path + TEXT(".effects"), TEXT("missing or extra effect; definition/target projection mismatch"));
+}
+
+// An active's element (none|fire|water|shock|chill|rot|gust) and hit type (targeted|projectile|area|dash|self).
+bool SkillElementField(FFields& F, ELDDemoSkillElement& Out, FCheck& Check, const FString& Path)
+{
+    FString Name;
+    if (!F.Identifier(TEXT("element"), Name)) { return false; }
+    using E = ELDDemoSkillElement;
+    const TPair<const TCHAR*, E> Names[] = {{TEXT("none"), E::None}, {TEXT("fire"), E::Fire}, {TEXT("water"), E::Water},
+        {TEXT("shock"), E::Shock}, {TEXT("chill"), E::Chill}, {TEXT("rot"), E::Rot}, {TEXT("gust"), E::Gust}};
+    for (const auto& Row : Names)
+    {
+        if (Name.Equals(Row.Key, ESearchCase::CaseSensitive)) { Out = Row.Value; return true; }
+    }
+    return Check.Require(false, Path + TEXT(".element"), TEXT("unknown skill element"));
+}
+
+bool HitTypeField(FFields& F, ELDDemoHitType& Out, FCheck& Check, const FString& Path)
+{
+    FString Name;
+    if (!F.Identifier(TEXT("hit_type"), Name)) { return false; }
+    using H = ELDDemoHitType;
+    const TPair<const TCHAR*, H> Names[] = {{TEXT("targeted"), H::Targeted}, {TEXT("projectile"), H::Projectile},
+        {TEXT("area"), H::Area}, {TEXT("dash"), H::Dash}, {TEXT("self"), H::Self}};
+    for (const auto& Row : Names)
+    {
+        if (Name.Equals(Row.Key, ESearchCase::CaseSensitive)) { Out = Row.Value; return true; }
+    }
+    return Check.Require(false, Path + TEXT(".hit_type"), TEXT("unknown hit type"));
+}
+
+// The six resolved branch variants of an active in path order A, B, A1, A2, B1, B2 (issue #287 spec §5.2). The content
+// compiler applied the registered patches and checked each variant's target form; the operations are any active form.
+bool Branches(const FValue& Value, TArray<FLDDemoAbilityBranch>& Out, FCheck& Check, const FString& Path)
+{
+    static const TPair<const TCHAR*, ELDSkillBranch> Paths[] = {{TEXT("A"), ELDSkillBranch::A}, {TEXT("B"), ELDSkillBranch::B},
+        {TEXT("A1"), ELDSkillBranch::A1}, {TEXT("A2"), ELDSkillBranch::A2}, {TEXT("B1"), ELDSkillBranch::B1}, {TEXT("B2"), ELDSkillBranch::B2}};
+    const TArray<FValue>* Rows;
+    if (!Array(Value, Rows, Check, Path, UE_ARRAY_COUNT(Paths), UE_ARRAY_COUNT(Paths)))
+    {
+        return false;
+    }
+    Out.Reset();
+    for (int32 Index = 0; Index < Rows->Num(); ++Index)
+    {
+        const FString RowPath = FString::Printf(TEXT("%s[%d]"), *Path, Index);
+        FFields F(Check, (*Rows)[Index], RowPath);
+        FLDDemoAbilityBranch& Branch = Out.AddDefaulted_GetRef();
+        FString Name;
+        FOpMask Mask;
+        if (!F.Text(TEXT("path"), Name)
+            || !Check.Require(Name.Equals(Paths[Index].Key, ESearchCase::CaseSensitive), RowPath, TEXT("branch paths must be A, B, A1, A2, B1, B2"))
+            || !Target(F.Take(TEXT("target")), Branch.Target, Check, RowPath + TEXT(".target"))
+            || !F.Fixed(TEXT("windup"), TEXT("ms"), TEXT("ms"), Branch.WindupMs)
+            || !SkillElementField(F, Branch.Element, Check, RowPath) || !HitTypeField(F, Branch.HitType, Check, RowPath)
+            || !F.Fixed(TEXT("momentum_cost"), TEXT("momentum"), TEXT("p2"), Branch.Values.MomentumCostP2)
+            || !F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Branch.Values.CooldownMs, 1)
+            || !Effects(F.Take(TEXT("effects")), Branch.Values.Effects, false, Mask, Check, RowPath + TEXT(".effects"))
+            || !F.Done())
+        {
+            return false;
+        }
+        Branch.Path = Paths[Index].Value;
+    }
+    return true;
 }
 
 bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, const FString& Path)
@@ -1697,7 +2065,9 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         || !F.Fixed(TEXT("windup"), TEXT("ms"), TEXT("ms"), Out.WindupMs)
         || !F.Identifier(TEXT("cooldown_family"), Out.CooldownFamily)
         || !Check.Require(Out.CooldownFamily == TEXT("cd_") + Out.Id.Mid(7), Path, TEXT("wrong cooldown family"))
-        || !Values(F, Out.Values, ExpectedOps, Check, Path))
+        || !SkillElementField(F, Out.Element, Check, Path) || !HitTypeField(F, Out.HitType, Check, Path)
+        || !Values(F, Out.Values, ExpectedOps, Check, Path)
+        || !Branches(F.Take(TEXT("branches")), Out.Branches, Check, Path + TEXT(".branches")))
     {
         return false;
     }
@@ -1726,7 +2096,7 @@ bool StatDefinition(const FValue& Value, FLDDemoStatDefinition& Out, FCheck& Che
     case ELDDemoStatId::StatPhysique: Expected = Bit(S::MaxHPFlat) | Bit(S::HPRegenFlat); break;
     case ELDDemoStatId::StatThickSkin: Expected = Bit(S::ArmorFlat) | Bit(S::MagicResistFlat); break;
     case ELDDemoStatId::StatStrength: Expected = Bit(S::ADFlat) | Bit(S::CritChanceBonusRatio); break;
-    case ELDDemoStatId::StatBrains: Expected = Bit(S::APFlat) | Bit(S::CooldownHasteFlat) | Bit(S::MPRegenFlat); break;
+    case ELDDemoStatId::StatBrains: Expected = Bit(S::APFlat) | Bit(S::CooldownHasteFlat) | Bit(S::MomentumRegenFlat); break;
     case ELDDemoStatId::StatAgility: Expected = Bit(S::AttackSpeedBonusRatio) | Bit(S::MoveSpeedBonusRatio); break;
     default: return Check.Require(false, Path, TEXT("unimplemented stat projection"));
     }
@@ -2089,11 +2459,9 @@ bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, 
         && F.Fixed(TEXT("respawn"), TEXT("ms"), TEXT("ms"), Out.RespawnMs, 1)
         && F.Int(TEXT("reward_xp"), Out.RewardXP)
         && F.Fraction(TEXT("hp_regen"), TEXT("hp/s"), Out.HPRegenPerSec)
-        && F.Fixed(TEXT("max_mp"), TEXT("mp"), TEXT("p2"), Out.MaxMPP2, 0, 0)
-        && F.Fraction(TEXT("mp_regen"), TEXT("mp/s"), Out.MPRegenPerSec)
         && F.Fixed(TEXT("ap"), TEXT("points"), TEXT("p2"), Out.APP2, 0, 0)
         && F.Fixed(TEXT("crit_chance"), TEXT("ratio"), TEXT("bp"), Out.CritChanceBp, 0, 0)
-        && Check.Require(Out.HPRegenPerSec.Numerator == 0 && Out.MPRegenPerSec.Numerator == 0,
+        && Check.Require(Out.HPRegenPerSec.Numerator == 0,
             Path, TEXT("unsupported monster regeneration")) && F.Done();
 }
 
@@ -2386,8 +2754,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FLDDemoEffectDefinition& DashMove = InnateDash.Values.Effects.AddDefaulted_GetRef();
     InnateDash.Target.Mode = ELDDemoTargetMode::DirectionDash;
     DashMove.Opcode = uint8(ELDDemoEffectOp::Dash);
-    if (!Dash.Fixed(TEXT("mana_cost"), TEXT("mp"), TEXT("p2"), InnateDash.Values.ManaCostP2)
-        || !Dash.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), InnateDash.Values.CooldownMs, 1)
+    if (!Dash.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), InnateDash.Values.CooldownMs, 1)
         || !Dash.Fraction(TEXT("distance"), TEXT("cm"), DashMove.DistanceCm, true)
         || !Dash.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), DashMove.DurationMs, 1)
         || !Check.Require(DashMove.DurationMs < InnateDash.Values.CooldownMs, Dash.Path, TEXT("dash outlasts its cooldown"))
@@ -2459,7 +2826,6 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         Body.PerceptionRadiusCm = Rules.AggroRadiusCm;
         Body.LoseTargetGraceMs = Rules.AttackerMemoryMs;
         Body.HPRegenPerSec = {0, 1};
-        Body.MPRegenPerSec = {0, 1};
         Rules.Id = Body.Id;
         Out.Monsters.Add(MoveTemp(Body));
     }
@@ -2492,7 +2858,18 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     }
     TSet<FString> DisplayIds;
     DisplayIds.Add(Out.Character.Id);
-    for (const auto& Row : Out.Abilities) { DisplayIds.Add(Row.Id); }
+    // A branch step's row (its name and one-line text) shows its active's icon.
+    TMap<FString, FString> BranchIcons;
+    for (const auto& Row : Out.Abilities)
+    {
+        DisplayIds.Add(Row.Id);
+        for (const auto& Branch : Row.Branches)
+        {
+            const FString Id = LDSkillBranch::DisplayId(Row.Id, Branch.Path);
+            DisplayIds.Add(Id);
+            BranchIcons.Add(Id, TEXT("icon_") + Row.Id);
+        }
+    }
     for (const auto& Row : Out.Stats) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Components) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.FinalMods) { DisplayIds.Add(Row.Id); }
@@ -2503,7 +2880,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     }
     const FValue Display = F.Take(TEXT("display"));
     TArray<FString> DisplayNames;
-    const auto ParseDisplay = [&Out, &DisplayIds, &DisplayNames](const FValue& Row, FLDDemoDisplayDefinition& D, FCheck& C, const FString& Path)
+    const auto ParseDisplay = [&Out, &DisplayIds, &DisplayNames, &BranchIcons](const FValue& Row, FLDDemoDisplayDefinition& D, FCheck& C, const FString& Path)
     {
         FFields Fields(C, Row, Path);
         if (!Fields.Identifier(TEXT("id"), D.Id) || !Fields.Text(TEXT("namespace"), D.Namespace)
@@ -2517,7 +2894,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             || !C.Require(DisplayIds.Contains(D.Id) && D.Namespace.Equals(TEXT("DemoContent"), ESearchCase::CaseSensitive)
                 && D.NameKey.Equals(D.Id + TEXT(".name"), ESearchCase::CaseSensitive)
                 && D.DescriptionKey.Equals(D.Id + TEXT(".description"), ESearchCase::CaseSensitive)
-                && D.IconId == TEXT("icon_") + D.Id, Path, TEXT("unknown or noncanonical display reference"))
+                && D.IconId == (BranchIcons.Contains(D.Id) ? BranchIcons[D.Id] : TEXT("icon_") + D.Id), Path,
+                TEXT("unknown or noncanonical display reference"))
             || !C.Require(!DisplayNames.ContainsByPredicate([&D](const FString& Name)
                 { return Name.Equals(D.NameText, ESearchCase::CaseSensitive); }), Path, TEXT("duplicate display name")))
         {
@@ -2583,6 +2961,21 @@ bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check)
                 TEXT("content.display.") + Ability.Id, TEXT("a card placeholder names no effect of this active")))
             {
                 return false;
+            }
+        }
+        // Each rank step's one-line text reads the variant of its own branch path.
+        for (const FLDDemoAbilityBranch& Branch : Ability.Branches)
+        {
+            const FString Id = LDSkillBranch::DisplayId(Ability.Id, Branch.Path);
+            TArray<LDDemoCardText::FToken> Steps;
+            if (!Tokens(Id, Steps)) { return false; }
+            for (const LDDemoCardText::FToken& Token : Steps)
+            {
+                if (Token.bValue && !Check.Require(LDDemoCardText::FindEffect(Branch.Values, Token) != nullptr,
+                    TEXT("content.display.") + Id, TEXT("a branch placeholder names no effect of its variant")))
+                {
+                    return false;
+                }
             }
         }
     }
@@ -2747,7 +3140,8 @@ bool LDDemoCardText::Parse(const FString& Template, TArray<FToken>& Out, FString
         {TEXT("interval"), EField::Interval}, {TEXT("delay"), EField::Delay}, {TEXT("secondary_ratio"), EField::SecondaryRatio},
         {TEXT("secondary_duration"), EField::SecondaryDuration}, {TEXT("basic_count"), EField::BasicCount},
         {TEXT("refund"), EField::Refund}, {TEXT("burst"), EField::Burst}, {TEXT("limit"), EField::Limit},
-        {TEXT("multiplier"), EField::Multiplier}, {TEXT("angle"), EField::Angle}, {TEXT("cost_ratio"), EField::CostRatio}};
+        {TEXT("multiplier"), EField::Multiplier}, {TEXT("angle"), EField::Angle}, {TEXT("cost_ratio"), EField::CostRatio},
+        {TEXT("extra_duration"), EField::ExtraDuration}};
     int32 Index = 0;
     while (Index < Template.Len())
     {

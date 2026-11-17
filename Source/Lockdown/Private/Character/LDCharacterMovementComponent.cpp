@@ -292,6 +292,11 @@ bool ULDCharacterMovementComponent::ApplyDashRootMotion(const FVector& Direction
     return true;
 }
 
+void ULDCharacterMovementComponent::SetBodyPassThroughSeconds(double Seconds)
+{
+    if (GetWorld() && FMath::IsFinite(Seconds) && Seconds>0) { BodyPassThroughUntilSeconds=GetWorld()->GetTimeSeconds()+Seconds; }
+}
+
 bool ULDCharacterMovementComponent::IsDashing() const
 {
     return const_cast<ULDCharacterMovementComponent*>(this)->GetRootMotionSource(LDCharacterMovementDetail::DashSourceName).IsValid();

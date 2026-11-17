@@ -67,19 +67,21 @@ namespace LDWorkshop
     LOCKDOWN_API FPendingFit FitPending(const TArray<float>& Heights,float Height,float PagerHeight);
     // The elements an active applies (burn, wet and electric effects), in fire, water, electric order.
     LOCKDOWN_API TArray<ELDDemoElement> ActiveElements(FName Active,const FLDDemoContentDefinitions* Content);
-    // A rule board column head: the learned active's (or the dash's) icon, name, mana and cooldown and the elements it
+    // A rule board column head: the learned active's (or the dash's) icon, name, momentum cost and cooldown and the elements it
     // applies; 本体 shows the holder. An empty Q/W/E slot is bEmpty.
     struct FColumnHead
     {
         FString Name;
         FString IconId;
         FString Glyph;
-        FString Mana;
+        FString Momentum;
         FString Cooldown;
         TArray<ELDDemoElement> Elements;
         bool bEmpty=false;
     };
-    LOCKDOWN_API FColumnHead ColumnHead(LDHUD::EStorageColumn Column,FName Active,const FString& HolderName,const FLDDemoContentDefinitions* Content);
+    // Branch is the slot's learned branch (None = rank 1): the head shows that variant's momentum, cooldown and elements.
+    LOCKDOWN_API FColumnHead ColumnHead(LDHUD::EStorageColumn Column,FName Active,ELDSkillBranch Branch,const FString& HolderName,
+        const FLDDemoContentDefinitions* Content);
     // The Body and Dash column captions include their installed count and content-defined limit.
     LOCKDOWN_API FString ColumnCapacityLabel(LDHUD::EStorageColumn Column,int32 Installed,const FLDDemoContentDefinitions* Content);
     // Every element the current build applies: the learned actives' and the installed components' (basic elements, B18's

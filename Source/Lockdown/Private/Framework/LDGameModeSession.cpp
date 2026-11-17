@@ -120,7 +120,6 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     Record.State.bActive = false;
     Record.State.bLobbyHost = LobbyHost == Controller;
     Record.State.Hp = Record.State.MaxHp = 0;
-    Record.State.Mp = Record.State.MaxMp = 0;
     RosterOrder.Add(Record.Session);
     Lives.Add(Record.Session);
     Contenders.Add(Controller, MoveTemp(Record));

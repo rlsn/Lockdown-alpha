@@ -231,6 +231,20 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.Slot = Intent.Slot;
         break;
     }
+    case ELDOpponentBuildKind::RankUpSkill:
+    {
+        const FLDActiveSlotView* Learned = Progression.Actives.FindByPredicate([&Intent](const FLDActiveSlotView& Row)
+        { return Row.Slot == Intent.Slot; });
+        if (!Learned || Progression.SkillPoints <= 0 || Intent.Branch == ELDSkillBranch::None
+            || !LDSkillBranch::IsNext(Learned->Branch, Intent.Branch))
+        {
+            return Fail(Error, TEXT("The rank-up names no learned skill, point or next branch."));
+        }
+        Out.Kind = ELDBuildCommandKind::RankUpSkill;
+        Out.Slot = Intent.Slot;
+        Out.Branch = Intent.Branch;
+        break;
+    }
     case ELDOpponentBuildKind::AllocatePoints:
     {
         int64 Total = 0;
@@ -541,7 +555,7 @@ ELDOpponentSettle SettleAction(const FLDCombatActionReceipt& Receipt)
     case ELDCombatReject::MatchClosed:
     case ELDCombatReject::NotStarted:
     case ELDCombatReject::ReceiptExpired: return ELDOpponentSettle::Dropped;
-    // Readiness, mana, control, range, a changed source and malformed requests back off and stay bounded.
+    // Readiness, momentum, control, range, a changed source and malformed requests back off and stay bounded.
     default: return ELDOpponentSettle::Failed;
     }
 }
