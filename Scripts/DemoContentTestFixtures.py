@@ -15,6 +15,13 @@ def q(unit, value):
     return {"unit": unit, "value": value}
 
 
+
+def simple_ranks(tag):
+    """Six rank steps that each lengthen the cooldown a little: the smallest valid ranks of a synthetic active."""
+    q = lambda unit, value: {"unit": unit, "value": value}
+    return {step: {"name": f"测试分支{tag}{step}", "text": "冷却变长。", "patches": [{"op": "cooldown", "add": q("s", 0.5)}]}
+            for step in ("2A", "3A1", "3A2", "2B", "3B1", "3B2")}
+
 def content_fixture():
     parameters = {}
     for stat, unit, base, per_level, minimum, maximum in (
@@ -180,6 +187,8 @@ def content_fixture():
                          "duration": q("s", 1.5)}],
         },
     ]
+    for index, ability in enumerate(abilities):
+        ability["ranks"] = simple_ranks(index)
     stats = [
         {"id": "stat_physique", "per_point": {"MaxHPFlat": q("hp", 10), "HPRegenFlat": q("hp/s", 0.125)}},
         {"id": "stat_thick_skin", "per_point": {"ArmorFlat": q("points", 1), "MagicResistFlat": q("points", 1.5)}},

@@ -155,6 +155,8 @@ def effect(value):
         "Trigger": 0, "Entries": 0, "AmountMs": 0,
         "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
         "LimitP2": 0, "bEveryContact": False, "Element": 0, "AngleDegrees": rational(), "CostRatioBp": 0,
+        "ExtraDurationMs": 0, "ExtraDistanceCm": rational(), "Scope": 0, "RecastControl": 0,
+        "bOwnOnly": False, "bOnCatch": False, "bCenterOnly": False, "bAsDash": False, "bFreeDirection": False, "bAlwaysCrit": False,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -207,12 +209,78 @@ def effect(value):
         result["Element"] = ELEMENTS.index(value["element"])
     if value.get("op") == "channel_cone":
         result["DurationMs"] = result["IntervalMs"] * (result["Count"] - 1)
+        if "slow_waves" in value:
+            result["BasicCount"] = value["slow_waves"]
+    branch_terms(value, result)
     # #198 dash_contact: First touches one body (Count 1); Every touches each body once.
     if value.get("targets") == "First":
         result["Count"] = 1
     elif value.get("targets") == "Every":
         result["bEveryContact"] = True
     return result
+
+
+def branch_terms(value, result):
+    """Skill branch fields (issue #287 spec §5.1), into the slots the native importer reads them into."""
+    op = value.get("op")
+    for source in ("wall_stun", "ghost", "last_stun", "center_stun", "same_target_stun", "free_cast"):
+        if source in value:
+            result["ExtraDurationMs"] = scalar(value[source])
+    for source, flag in (("own", "bOwnOnly"), ("on_catch", "bOnCatch"), ("center", "bCenterOnly"), ("as_dash", "bAsDash"),
+                         ("free_direction", "bFreeDirection"), ("crit", "bAlwaysCrit")):
+        if source in value:
+            result[flag] = value[source]
+    if "electrify" in value and value["electrify"]:
+        result["Element"] = ELEMENTS.index("electric")
+    if "wet" in value and value["wet"]:
+        result["Element"] = ELEMENTS.index("water")
+    if op == "vulnerable":
+        result["Scope"] = ("all", "skill", "basic").index(value["scope"])
+    elif op == "next_basic_amp":
+        result["RatioBp"] = scalar(value["ratio"])
+    elif op == "momentum_steal":
+        result["MultiplierBp"] = scalar(value["ratio"])
+        result["RatioBp"] = 0
+    elif op == "follow_up":
+        if "attack_slow" in value:
+            result["RatioBp"] = scalar(value["attack_slow"])
+            result["DurationMs"] = scalar(value["attack_slow_duration"])
+    elif op == "recast":
+        result["DurationMs"] = scalar(value["window"])
+        result["MultiplierBp"] = scalar(value["damage_ratio"])
+        result["RecastControl"] = ("same", "root", "disarm").index(value["control"])
+        result["SecondaryDurationMs"] = scalar(value["control_duration"])
+    elif op == "self_buff" and "cut" in value:
+        result["RatioBp"] = scalar(value["cut"])
+    elif op == "burn_burst":
+        result["DamageType"] = 1
+    elif op == "pulse":
+        result["LimitP2"] = scalar(value["momentum"]) if "momentum" in value else 0
+        result["BaseP2"] = scalar(value["shield_base"]) if "shield_base" in value else 0
+        result["MaxHPRatioBp"] = scalar(value["shield_max_hp_ratio"]) if "shield_max_hp_ratio" in value else 0
+    elif op == "shield_burst_break":
+        result["DamageType"] = 1
+    elif op == "basic_rider" and "breach" in value:
+        result["Count"] = value["breach"]
+    elif op == "delayed_burst":
+        result["RatioBp"] = scalar(value["reaction_ratio"])
+    elif op == "empower_basic":
+        if "momentum" in value:
+            result["LimitP2"] = scalar(value["momentum"])
+            result["BaseP2"] = scalar(value["base"])
+        if "breach" in value:
+            result["BasicCount"] = value["breach"]
+    elif op == "ground_impact" and "linger" in value:
+        result["SecondaryDurationMs"] = scalar(value["linger"])
+    elif op == "contact_trap":
+        if "max" in value:
+            result["Count"] = value["max"]
+        if "wire_distance" in value:
+            result["ExtraDistanceCm"] = rational(value["wire_distance"])
+            result["BaseP2"] = scalar(value["wire_base"]) if "wire_base" in value else 0
+            result["APRatioBp"] = scalar(value["wire_ap_ratio"]) if "wire_ap_ratio" in value else 0
+    elif op == "echo_impact" and "center_ratio" in value:
+        result["RatioBp"] = scalar(value["center_ratio"])
 
 
 def values(value):
@@ -455,6 +523,11 @@ def expected_projection(compilation):
             "Id": row["id"], "NativeId": row["native_id"], "Opening": row["opening"], "Target": target(row["target"]),
             "WindupMs": scalar(row["windup"]), "CooldownFamily": row["cooldown_family"],
             "Element": SKILL_ELEMENTS.index(row["element"]), "HitType": HIT_TYPES.index(row["hit_type"]), "Values": values(row),
+            "Branches": [{
+                "Path": ("None", "A", "B", "A1", "A2", "B1", "B2").index(branch["path"]), "Target": target(branch["target"]),
+                "WindupMs": scalar(branch["windup"]), "Element": SKILL_ELEMENTS.index(branch["element"]),
+                "HitType": HIT_TYPES.index(branch["hit_type"]), "Values": values(branch),
+            } for branch in row["branches"]],
         } for row in data["abilities"]],
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
         "Components": [component(row) for row in data["components"]],

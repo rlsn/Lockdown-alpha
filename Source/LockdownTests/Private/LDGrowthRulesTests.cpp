@@ -207,11 +207,11 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::OpeningBase, ELDBuildCommandKind::InstallComponent,
         ELDBuildCommandKind::UninstallComponent, ELDBuildCommandKind::ComponentChoice, ELDBuildCommandKind::FillGap,
-        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer, ELDBuildCommandKind::FinalMod})
+        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer, ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(28), uint8(255)})
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(29), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -898,10 +898,10 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("CatalogDigest"),
          TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
          TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
-         TEXT("bBuildLocked")});
+         TEXT("bBuildLocked"), TEXT("SkillPoints")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
-    bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot")});
+    bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot"), TEXT("Branch")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
     bGood &= GrowthTestExactFields(Test, FLDComponentInstanceView::StaticStruct(),
         {TEXT("DefinitionId"), TEXT("Source"), TEXT("SourceLevel"), TEXT("bInstalled"), TEXT("bEverInstalled"), TEXT("Target"),

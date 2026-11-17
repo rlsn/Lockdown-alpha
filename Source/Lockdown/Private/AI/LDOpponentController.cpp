@@ -484,6 +484,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         return false;
     }
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
+    LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
 #if WITH_DEV_AUTOMATION_TESTS
     // Only annotate already authorized visible units; the policy never queries hidden contenders.
     for (auto& Unit : Frame.Units) { Unit.bProtected |= Mode.IsDevPeaceful(Unit.ContenderId); }
@@ -726,6 +727,27 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     }
     if (Intent.Kind == ELDOpponentBodyKind::Activate)
     {
+        // Issue #287 spec §13: an overdrive holds the charge (seen by observers) for OVERDRIVE.HoldSec before the release.
+        bool bOverdriveNow = false;
+        if (Intent.bOverdrive && Intent.Source != ELDOpponentSourceSlot::Dash)
+        {
+            const ELDCombatEntry Held = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
+                : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W : ELDCombatEntry::E;
+            if (!Charge.bHas || Charge.Entry != Held)
+            {
+                FLDCombatChargeRequest Start;
+                Start.Generation = Generation;
+                Start.Life = Life;
+                Start.Entry = Held;
+                Start.bCharging = true;
+                Mode.Combat->SubmitCharge(Reads.CombatCaller, Start);
+                Charge = {true, Held, NowMs};
+                return;
+            }
+            if (NowMs - Charge.StartMs < Content->Get().Parameters.Overdrive.HoldMs) { return; }
+            bOverdriveNow = true;
+        }
+        Charge = FChargeTrack();
         FLDCombatActionRequest Request;
         FString Error;
         if (DirectSequence == MAX_uint64 || !LDOpponentRequests::BuildAction(Intent, Generation, Life, DirectSequence + 1,
@@ -735,6 +757,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
             Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
             return;
         }
+        Request.bOverdrive = bOverdriveNow;
         DirectSequence = Request.DirectSequence;
         ++Tally.Actions;
         Tally.Dashes += Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;

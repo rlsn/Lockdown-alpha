@@ -1,3 +1,4 @@
+#include "Combat/LDMomentum.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
@@ -42,6 +43,14 @@ struct FLDBuildPrimitivesAccess
     static TMap<TWeakObjectPtr<ALDCharacter>, FLDBodyCombatState>& Bodies(ALDCombatDirector& Driver) { return Driver.Bodies; }
     static TMap<FGuid, FLDCombatEntityRecord>& Records(ALDCombatDirector& Driver) { return Driver.Records; }
     static TArray<FLDCombatHit>& PendingHits(ALDCombatDirector& Driver) { return Driver.PendingHits; }
+    // Issue #287 P1: overdrive terms, perfect dodges and branch riders.
+    static bool Overdrive(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDDemoAbilityDefinition& Ability,
+        FLDCombatActiveTerms& Terms, FString& Error) { return Driver.ApplyOverdrive(Body, Ability, Terms, Error); }
+    static bool PerfectDodges(ALDCombatDirector& Driver, const FGuid& EffectId, const FGuid& Source, TFunctionRef<bool(const FVector&)> InArea,
+        int64 NowMs, FString& Error) { return Driver.ResolvePerfectDodges(EffectId, Source, InArea, NowMs, Error); }
+    static int64 Vulnerable(const ALDCombatDirector& Driver, const FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs)
+    { return Driver.BranchVulnerableBp(Target, Hit, NowMs); }
+    static bool AdvanceBranches(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBranches(NowMs, Error); }
     static auto& MonsterStrikes(ALDCombatDirector& Driver){return Driver.MonsterStrikes;}
     static bool MonsterRelease(ALDCombatDirector& D,ALDCharacter& A,FLDBodyCombatState& B,const FLDCombatAction& Action,ELDCombatReject& Reject,FString& Error)
     {return D.ReleaseMonsterSkill(A,B,Action,Reject,Error);}
@@ -5607,6 +5616,155 @@ bool FLDMonsterDeliveryTest::RunTest(const FString& Parameters)
         if(!FAccess::MonsterStep(*Sweep.Driver,2500,Error)||!Sweep.Flush(Error)){AddError(Error);return false;}
         TestEqual(TEXT("The auditor's middle sweep deals its physical package despite the target's magic resistance"),Sweep.Body(Victim).Resources.HpP2,Hp-int64(6750));
     }
+    return true;
+}
+
+// ---- Issue #287 P1: overdrive, perfect dodge and branch riders on Combat ----
+
+namespace LDBuildPrimitivesTests
+{
+// The level-1 terms of Active with its overdrive applied by Combat for Holder.
+bool OverdriveTerms(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Holder, const TCHAR* Active, FLDCombatActiveTerms& Plain,
+    FLDCombatActiveTerms& Over)
+{
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    FString Error;
+    if (!ActiveTerms(Test, F, Active, Plain) || !F.Catalog->FindAbility(Active, Ability, Error)) { return false; }
+    Over = Plain;
+    return Test.TestTrue(FString::Printf(TEXT("%s overdrives: %s"), Active, *Error), FAccess::Overdrive(*F.Driver, F.Body(Holder), *Ability, Over, Error));
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveReleaseTest, "Lockdown.Rules.Combat.Overdrive.Release",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDOverdriveReleaseTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    FLDCombatActiveTerms Plain, Over;
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    const FLDDemoEffectDefinition* Base = FindEffect(Plain.Values, ELDDemoEffectOp::Damage);
+    const FLDDemoEffectDefinition* Scaled = FindEffect(Over.Values, ELDDemoEffectOp::Damage);
+    TestTrue(TEXT("S01's base and AD coefficient are 1.6 times"), Base && Scaled && Scaled->BaseP2 == Base->BaseP2 * 16 / 10
+        && Scaled->ADRatioBp == Base->ADRatioBp * 16 / 10);
+    TestTrue(TEXT("its push distance and time do not scale"), FindEffect(Over.Values, ELDDemoEffectOp::Knockback)->DistanceCm.Numerator
+        == FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->DistanceCm.Numerator
+        && FindEffect(Over.Values, ELDDemoEffectOp::Knockback)->DurationMs == FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->DurationMs);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_pants_down"), Plain, Over)) { return false; }
+    TestEqual(TEXT("A control's duration never scales"), FindEffect(Over.Values, ELDDemoEffectOp::Root)->DurationMs,
+        FindEffect(Plain.Values, ELDDemoEffectOp::Root)->DurationMs);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_not_mad"), Plain, Over)) { return false; }
+    TestTrue(TEXT("A shield's base, AP and max-HP shares are 1.6 times"), FindEffect(Over.Values, ELDDemoEffectOp::Shield)->BaseP2
+        == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->BaseP2 * 16 / 10
+        && FindEffect(Over.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp * 16 / 10);
+    TestTrue(TEXT("Only a full bar may overdrive"), !LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 9999)
+        && LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 10000));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveElementTest, "Lockdown.Rules.Combat.Overdrive.ElementBonus",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDOverdriveElementTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    const FLDDemoOverdriveParameters& O = F.Catalog->Get().Parameters.Overdrive;
+    FLDCombatActiveTerms Plain, Over;
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_seethe"), Plain, Over)) { return false; }
+    TestEqual(TEXT("Fire (S07) adds three burn layers"), FindEffect(Over.Values, ELDDemoEffectOp::Burn)->Count,
+        FindEffect(Plain.Values, ELDDemoEffectOp::Burn)->Count + int32(O.FireBurnStacks));
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_hose_down"), Plain, Over)) { return false; }
+    const FLDDemoEffectDefinition* Slow = FindEffect(Over.Values, ELDDemoEffectOp::Slow);
+    TestTrue(TEXT("Water (S09) slows 45% for 1.5 s"), Slow && Slow->RatioBp == O.WaterSlowBp && Slow->DurationMs == O.WaterSlowMs);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_zap"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Shock (S10) discharges once more: its base gains 0.5 R on top of the 1.6 scale"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2 > FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * 16 / 10);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_sock_shot"), Plain, Over)) { return false; }
+    TestEqual(TEXT("Rot (S21) doubles the cut's duration"), FindEffect(Over.Values, ELDDemoEffectOp::Grievous)->DurationMs,
+        FindEffect(Plain.Values, ELDDemoEffectOp::Grievous)->DurationMs * 2);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_open_mic"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Gust (S22) pushes 300 cm on the last wave"), Over.FinalKnockbackTerms.IsSet()
+        && Over.FinalKnockbackTerms->DistanceCm.Numerator == 300 * Over.FinalKnockbackTerms->DistanceCm.Denominator);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    TestFalse(TEXT("A skill without an element gains only the scale"), Over.FinalKnockbackTerms.IsSet()
+        || FindEffect(Over.Values, ELDDemoEffectOp::Burn) || FindEffect(Over.Values, ELDDemoEffectOp::Slow));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPerfectDodgeResolveTest, "Lockdown.Rules.Combat.PerfectDodge.Resolve",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDPerfectDodgeResolveTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Caster = F.AddBody(), Dodger = F.AddBody();
+    F.Place(Dodger, 600, 0);
+    FLDBodyCombatState& Body = F.Body(Dodger);
+    Body.Resources.MomentumP2 = 1000;
+    F.Now(2000);
+    // The dodger's D started at 1800 inside a 200 cm circle at the origin; it now stands 600 cm away.
+    Body.DashStartedAtMs = 1800;
+    Body.DashStartFootCm = FVector(50, 0, F.Foot(Dodger).Z);
+    const auto InCircle = [](const FVector& Point) { return FVector::Dist2D(Point, FVector::ZeroVector) <= 200.; };
+    const FGuid Effect = FGuid::NewGuid();
+    FString Error;
+    TestTrue(TEXT("The resolution judges"), FAccess::PerfectDodges(*F.Driver, Effect, Caster.Victim.EntityId, InCircle, 2000, Error));
+    TestTrue(TEXT("A perfect dodge gains 15 momentum and is counted"), Body.Resources.MomentumP2 == 2500 && Body.PerfectDodges == 1
+        && Body.LastPerfectDodgeAtMs == 2000);
+    TestTrue(TEXT("The same effect never pays twice"), FAccess::PerfectDodges(*F.Driver, Effect, Caster.Victim.EntityId, InCircle, 2000, Error)
+        && Body.Resources.MomentumP2 == 2500);
+    TestTrue(TEXT("The caster never dodges its own effect"), FAccess::PerfectDodges(*F.Driver, FGuid::NewGuid(), Dodger.Victim.EntityId,
+        InCircle, 2000, Error) && Body.Resources.MomentumP2 == 2500);
+    TestTrue(TEXT("A dash older than the window is no perfect dodge"), FAccess::PerfectDodges(*F.Driver, FGuid::NewGuid(),
+        Caster.Victim.EntityId, InCircle, 2301, Error) && Body.Resources.MomentumP2 == 2500);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDSkillRankRidersTest, "Lockdown.Rules.Combat.SkillRank.Riders",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDSkillRankRidersTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    FLDCombatHit Payload;
+    if (!SnarkBolt(*this, F, Holder, Target, Payload)) { return false; }
+    // S01 B2's rider on this release: the struck body takes 20% more for 3 s; S04 B2's: 10 momentum per body.
+    FLDDemoEffectDefinition Vulnerable;
+    Vulnerable.Opcode = uint8(ELDDemoEffectOp::Vulnerable);
+    Vulnerable.RatioBp = 2000;
+    Vulnerable.DurationMs = 3000;
+    FLDDemoEffectDefinition Gain;
+    Gain.Opcode = uint8(ELDDemoEffectOp::MomentumGain);
+    Gain.BaseP2 = 1000;
+    Payload.CastLedger->Riders = {Vulnerable, Gain};
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.Resources.MomentumP2 = 0;
+    if (!Land(*this, F, Payload)) { return false; }
+    const int64 Hit = F.Catalog->Get().Parameters.Momentum.SkillHitP2;
+    TestEqual(TEXT("The rider grants its momentum beside the skill hit"), Body.Resources.MomentumP2, 1000 + Hit);
+    FLDCombatHit Probe;
+    Probe.SourceEntity = FGuid::NewGuid();
+    Probe.HitClass = ELDCombatHitClass::BasicPrimary;
+    TestEqual(TEXT("The struck body is vulnerable to everyone for 3 s"), FAccess::Vulnerable(*F.Driver, F.Body(Target), Probe,
+        F.Mode->GetAuthorityNowMs()), int64(2000));
+    TestEqual(TEXT("and no longer once it ran out"), FAccess::Vulnerable(*F.Driver, F.Body(Target), Probe,
+        F.Mode->GetAuthorityNowMs() + 3000), int64(0));
+    FLDCombatHit Again = Payload;
+    Again.HitId = FGuid::NewGuid();
+    if (!Land(*this, F, Again)) { return false; }
+    TestEqual(TEXT("Another hit of the release grants the per-hit rider again, never the skill hit"), Body.Resources.MomentumP2, 2000 + Hit);
+    TestEqual(TEXT("A once-per-body rider does not stack its vulnerability"), F.Body(Target).Branch.Vulnerabilities.Num(), 1);
     return true;
 }
 

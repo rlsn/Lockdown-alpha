@@ -124,6 +124,24 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
     return true;
 }
 
+void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out)
+{
+    Out.Reset();
+    // An enemy warning still pending (ground point, trap, cone, camp telegraph); the AI reads its public outline only.
+    for (const FLDObservedProjectileView& Seen : View.Projectiles)
+    {
+        if (Seen.bOwn || Seen.WarningRemainingMs == 0) { continue; }
+        FLDOpponentWarning& Warning = Out.AddDefaulted_GetRef();
+        Warning.Handle = Seen.Handle;
+        Warning.CentreCm = Seen.PositionCm;
+        Warning.Heading = FRotator(0, double(Seen.Heading) * 360. / 65536., 0).Vector();
+        Warning.RadiusCm = Seen.RadiusCm;
+        Warning.LengthCm = Seen.LengthCm;
+        Warning.AngleDegrees = Seen.AngleDegrees;
+        Warning.RemainingMs = Seen.WarningRemainingMs;
+    }
+}
+
 bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const FLDDemoContentSnapshot& Catalog,
     TArray<FLDOpponentUnit>& Out, FString& Error)
 {
@@ -185,6 +203,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         return Fail(Error, TEXT("The own progression view must be a valid publication of this match."));
     }
     Out.Actives.Reset();
+    Out.SkillPoints = Progression.SkillPoints;
     Out.Blueprints.Reset();
     Out.StatPoints.Reset();
     Out.Offer.Reset();
@@ -196,7 +215,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     for (const FLDActiveSlotView& Active : Progression.Actives)
     {
         if (Active.Slot > 2 || Active.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own active is outside the Q/W/E slots.")); }
-        Out.Actives.Add({CanonicalId(Active.DefinitionId), Active.Slot});
+        Out.Actives.Add({CanonicalId(Active.DefinitionId), Active.Slot, Active.Branch});
     }
     for (const FName& Blueprint : Progression.PendingBlueprints) { Out.Blueprints.Add(CanonicalId(Blueprint)); }
     TArray<FLDStatPointsValue> Points;

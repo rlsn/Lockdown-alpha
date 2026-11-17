@@ -187,6 +187,8 @@ inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工
 inline FString WorkshopFullNoPlace(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，现在没有可替换的位置"),Capacity,Capacity);}
 inline constexpr TCHAR ComponentColumnFullReason[]=TEXT("该列已达安装上限");
 inline constexpr TCHAR NoSkillPointReason[]=TEXT("没有技能点");
+inline constexpr TCHAR SkillRank[]=TEXT("等级");
+inline constexpr TCHAR Close[]=TEXT("关闭");
 inline constexpr TCHAR BranchUnavailableReason[]=TEXT("不能升到这个分支");
 inline constexpr TCHAR ReplaceAvailable[]=TEXT("拖到可替换的已装构件上");
 // 拖动构件时跟随的一行预览：放下会装到哪里，替换谁、连带拆下谁；联动行列出已拥有的相关技能和构件，同形态行列出互斥的构件。

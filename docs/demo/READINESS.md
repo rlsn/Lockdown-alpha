@@ -61,6 +61,8 @@
 | 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 流量”飘字中看到精确奖励；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowth*` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)）；助攻分配由规则 `DemoAssist.*` 覆盖，满员局 `HostKillAssist.png` 只截到播报，助攻奖励只在遥测与规则层 |
 | 复活保护 | 场景 Combat：在野外出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
 | 喷漆与守护 | 场景 Capture：开局关闭；争夺暂停与续计、喷上涂鸦、主人出区守护暂停、他人独自改漆使守护保持冻结并在完成前出区（改漆清零、守护仍暂停）、主人独自回区从保留值续计（C18）、主人回区后与他人同在区内（守护冻结）再走出使守护清零、他人出区后守护停在 0、主人独自回区后从 0 计时（C19）、主人独自在区内站满守护时长以 `GuardSucceeded` 唯一锁定；场景 Opponent：AI 以喷漆守护获胜，`HostSpray.png`/`HostGuard.png` 截图审阅喷漆与守护 HUD 和旗杆涂鸦。规则：`DemoCapture.*`（含 `SprayAndGuard`、`GuardFreeze`、`GuardNeedsOwner`、`SprayInterrupt`、`GraffitiCleared`、`CombatHitInterrupt`：真实命中的眩晕与击退在施加瞬间清零喷漆） | 喷漆者死亡、硬控打断、主人死亡清除涂鸦与被击退出区只在规则层；主人回区后与他人同在区内再走出、守护清零后从 0 重计（C19）未在打包版上运行 |
+| 劲、连击、爆劲与完美闪避 | 规则：`Combat.Momentum.*`（收入、扣劲与拒绝、脱战回落）、`Combat.Combo.Steps`、`Combat.Overdrive.*`（门槛、释放、元素附加）、`Combat.PerfectDodge.*`（窗口、结算）、`Combat.Components.MultiHitMomentum` | 没有拥有连接场景；爆劲蓄力与完美闪避的手感、AI 爆劲与闪避只在规则与代码层 |
+| 技能等级与分支 | 规则：`Growth.SkillRank.*`（下一步分支、技能点与遗忘退回）、`Combat.SkillRank.*`（分支补丁与命中附加项）、`DemoContent.DisplayStringTable`（分支显示行） | 没有拥有连接场景；132 个分支只有导入与代表性规则覆盖，没有逐个分支的战斗规则；升级页只经编译与 HUD 规则 |
 | 战斗原语 | 规则：`DemoCombatPrimitives.*`（硬控递减、冷却缩减、解除减速、唯一控制入口）、`DemoCombatEvaluation.ControlAmplify`、`DemoMechanics.*`（护盾打破、击退方向、区域脉冲）、`DemoBuildPrimitives.*`（沉默、共享破防与灼烧、伤害加成池、吸血上限、减速中仍被定身、交战窗口触发（只供 HUD 交战折叠）、区域脉冲次数、多次强化普攻）、`DemoGrowthSkillGrowth`（等级成长）、`DemoAttributeProjection.*`（五维点数与夹取）（部分规则已运行）。场景 Combat 改用扒裤子定身、锅盖挡脸护盾与解除定身、甩你一鞋命中与减速 | 相关规则与场景不能代替全部技能效果的拥有连接验收 |
 | 视野一致 | 场景 Opponent：`HostOpponentCard.png` 截图审阅可见 AI 的 Q/W 卡（截图早于当前目录，需重新截图）；规则 `DemoVision.OpponentActives`。场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
 | AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的喷漆进度持有者留区迎战，以喷漆守护获胜；遥测记录改漆与守护用时 | 当前版本的满员场景未通过：最近一次在 R1 返野外时权威故障，返场修复后未复跑完整场景；本局没有出现的情形报告为未覆盖，不计为通过 |
@@ -92,3 +94,4 @@
   唯一的弹道技能甩你一鞋沿用粉笔弹体外观；截图只供人工审阅，不做像素比对；
   新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
   玩法与 AI 的场景覆盖缺口见 [#89](https://github.com/rlsn/Lockdown-alpha/issues/89)。
+  L1 同级裸构筑击杀时间约 11.8 s 是按内容数值的解析估算（普攻 + 平均技能频率 × 平均单体伤害，扣除基础护甲/魔抗），不是原生对局测量。

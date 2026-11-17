@@ -707,7 +707,21 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         BodySlot=Portraits(HudBodySlotWidth,LDHUDStyle::TypePage,BodyFrame,BodyGlyph,TEXT("HUDActionBody"));
         BodyPortrait=BodyFrame;BodyPortraitGlyph=BodyGlyph;
         BodySlot->SetVisibility(ESlateVisibility::HitTestInvisible);
-        Actions->AddChildToHorizontalBox(BodySlot)->SetVerticalAlignment(VAlign_Top);
+        {
+            // The basic attack's combo: three pips under the body slot.
+            auto* BodyColumn=WidgetTree->ConstructWidget<UVerticalBox>();
+            BodyColumn->AddChildToVerticalBox(BodySlot);
+            auto* Pips=WidgetTree->ConstructWidget<UHorizontalBox>();Pips->SetVisibility(ESlateVisibility::HitTestInvisible);
+            for(int32 Pip=0;Pip<3;++Pip)
+            {
+                auto* Face=WidgetTree->ConstructWidget<UBorder>();Face->SetBrush(HudRound(3.f,LDHUDStyle::Rim,1.f));Face->SetBrushColor(LDHUDStyle::ComboPipDim);
+                auto* PipBox=WidgetTree->ConstructWidget<USizeBox>();PipBox->SetWidthOverride(14);PipBox->SetHeightOverride(6);PipBox->SetContent(Face);
+                Pips->AddChildToHorizontalBox(PipBox)->SetPadding(FMargin(Pip==0?0:4,0,0,0));
+                ComboPips.Add(Face);
+            }
+            BodyColumn->AddChildToVerticalBox(Pips)->SetHorizontalAlignment(HAlign_Center);
+            Actions->AddChildToHorizontalBox(BodyColumn)->SetVerticalAlignment(VAlign_Top);
+        }
         for(int32 Index=0;Index<HudActionCount;++Index)
         {
             FLDHUDActionSlot& Entry=ActionSlots.AddDefaulted_GetRef();
@@ -746,6 +760,19 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             UTextBlock* ChipText=nullptr;
             Entry.CostChip=Chip(ChipText,HudMomentumText,FLinearColor(.62f,.24f,.05f),FLinearColor(.09f,.03f,.01f,.92f));Entry.Cost=ChipText;
             auto* CostLayer=Face->AddChildToOverlay(Entry.CostChip);CostLayer->SetHorizontalAlignment(HAlign_Right);CostLayer->SetVerticalAlignment(VAlign_Bottom);CostLayer->SetPadding(FMargin(0,0,3,3));
+            // The rank dots on the lower edge and the missing momentum over a short face.
+            Entry.Ranks=OneLine(TEXT(""),LDHUDStyle::TypeCaption,0);HudFace(Entry.Ranks,true,2);Entry.Ranks->SetColorAndOpacity(LDHUDStyle::TextAccent);
+            auto* RanksLayer=Face->AddChildToOverlay(Entry.Ranks);RanksLayer->SetHorizontalAlignment(HAlign_Left);RanksLayer->SetVerticalAlignment(VAlign_Bottom);RanksLayer->SetPadding(FMargin(5,0,0,2));
+            Entry.Gap=OneLine(TEXT(""),LDHUDStyle::TypeSubBanner,0);HudFace(Entry.Gap,true,2);Entry.Gap->SetColorAndOpacity(HudMomentumText);Entry.Gap->SetVisibility(ESlateVisibility::Collapsed);
+            auto* GapLayer=Face->AddChildToOverlay(Entry.Gap);GapLayer->SetHorizontalAlignment(HAlign_Center);GapLayer->SetVerticalAlignment(VAlign_Center);
+            // The overdrive hold fills the face from the bottom in gold while the key is held on a full bar.
+            Entry.Hold=WidgetTree->ConstructWidget<UProgressBar>();
+            {
+                FProgressBarStyle HoldStyle;HoldStyle.SetBackgroundImage(FSlateNoResource()).SetFillImage(FSlateRoundedBoxBrush(FLinearColor::White,6.f)).SetMarqueeImage(FSlateNoResource());
+                Entry.Hold->SetWidgetStyle(HoldStyle);Entry.Hold->SetBarFillType(EProgressBarFillType::BottomToTop);
+                Entry.Hold->SetFillColorAndOpacity(LDHUDStyle::Overdrive.CopyWithNewOpacity(.45f));Entry.Hold->SetPercent(0);Entry.Hold->SetVisibility(ESlateVisibility::Collapsed);
+            }
+            FillLayer(Face->AddChildToOverlay(Entry.Hold));
             Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(3));
             Entry.Frame->SetHorizontalAlignment(HAlign_Fill);Entry.Frame->SetVerticalAlignment(VAlign_Fill);Entry.Frame->SetContent(Face);
             // The ready flash covers the whole slot; neither layer takes input, the button under them does.
@@ -766,7 +793,22 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Entry.Button->SetStyle(ButtonStyle);
             Entry.Button->SetContent(Stack);
             if(UButtonSlot* StackSlot=Cast<UButtonSlot>(Stack->Slot)){StackSlot->SetPadding(FMargin(0));StackSlot->SetHorizontalAlignment(HAlign_Fill);StackSlot->SetVerticalAlignment(VAlign_Fill);}
-            Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);Entry.Box->SetContent(Entry.Button);
+            Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);
+            // A skill point can raise this Q/W/E: the "+" on its upper-right corner opens the rank-up page.
+            if(Index<3)
+            {
+                auto* WithPlus=WidgetTree->ConstructWidget<UOverlay>();
+                auto* ButtonLayer=WithPlus->AddChildToOverlay(Entry.Button);ButtonLayer->SetHorizontalAlignment(HAlign_Fill);ButtonLayer->SetVerticalAlignment(VAlign_Fill);
+                Entry.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,PC,Index]()
+                {
+                    const ELDCombatEntry Shown=PC->SkillAtKey[Index];
+                    OpenRankUp(Shown==ELDCombatEntry::Q?0:Shown==ELDCombatEntry::W?1:Shown==ELDCombatEntry::E?2:INDEX_NONE);
+                },true,FName(*FString::Printf(TEXT("HUDRankUp%d"),Index)));
+                Entry.Plus->SetVisibility(ESlateVisibility::Collapsed);
+                auto* PlusLayer=WithPlus->AddChildToOverlay(Entry.Plus);PlusLayer->SetHorizontalAlignment(HAlign_Right);PlusLayer->SetVerticalAlignment(VAlign_Top);
+                Entry.Box->SetContent(WithPlus);
+            }
+            else{Entry.Box->SetContent(Entry.Button);}
         }
         // Character actives (Q/W/E) and the innate dash (D) are separate groups, after the body.
         for(int32 Index=0;Index<HudActionCount;++Index)
@@ -831,6 +873,38 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(HudDetailWidth);DetailWidth->SetContent(DetailPanel);
             DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
+        }
+        {
+            // The rank-up page: the skill's name, two big branch cards (icon, name, one-line change; hover for the numbers)
+            // and a close button. A card click submits RankUpSkill.
+            auto* PageBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            RankTitle=Text(TEXT(""),LDHUDStyle::TypeBanner);HudFace(RankTitle,true,0);RankTitle->SetJustification(ETextJustify::Center);
+            PageBox->AddChildToVerticalBox(RankTitle)->SetHorizontalAlignment(HAlign_Center);
+            auto* CardRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            for(int32 Card=0;Card<2;++Card)
+            {
+                auto* CardBox=WidgetTree->ConstructWidget<UVerticalBox>();
+                auto* Icon=WidgetTree->ConstructWidget<UImage>();
+                auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(72);IconBox->SetHeightOverride(72);IconBox->SetContent(Icon);
+                CardBox->AddChildToVerticalBox(IconBox)->SetHorizontalAlignment(HAlign_Center);
+                UTextBlock* Name=Text(TEXT(""),LDHUDStyle::TypeLabel);HudFace(Name,true,0);Name->SetJustification(ETextJustify::Center);
+                CardBox->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,8,0,0));
+                UTextBlock* Line=Text(TEXT(""),LDHUDStyle::TypeSmall);Line->SetAutoWrapText(true);Line->SetJustification(ETextJustify::Center);
+                CardBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,6,0,0));
+                auto* CardPanel=LDWidgets::Panel(WidgetTree,CardBox,FMargin(14,12));CardPanel->SetBrushColor(FLinearColor(.04f,.06f,.09f,.96f));
+                auto* CardSize=WidgetTree->ConstructWidget<USizeBox>();CardSize->SetWidthOverride(240);CardSize->SetHeightOverride(220);CardSize->SetContent(CardPanel);
+                ULDCommandButton* Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Card](){SubmitRankUp(Card);},true,FName(*FString::Printf(TEXT("HUDRankCard%d"),Card)));
+                Button->SetContent(CardSize);
+                CardRow->AddChildToHorizontalBox(Button)->SetPadding(FMargin(Card==0?0:24,0,0,0));
+                RankCards.Add(Button);RankCardNames.Add(Name);RankCardLines.Add(Line);RankCardIcons.Add(Icon);
+            }
+            PageBox->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,16,0,0));
+            ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){RankSlot=INDEX_NONE;MarkReadModelDirty();},true,TEXT("HUDRankClose"));
+            PageBox->AddChildToVerticalBox(Close)->SetPadding(FMargin(0,16,0,0));
+            RankPage=LDWidgets::Panel(WidgetTree,PageBox,FMargin(24,18));RankPage->SetBrushColor(FLinearColor(.02f,.03f,.05f,.97f));
+            RankPage->SetVisibility(ESlateVisibility::Collapsed);
+            auto* PageSlot=Canvas->AddChildToCanvas(RankPage);PageSlot->SetAnchors(FAnchors(.5f,.5f));PageSlot->SetAlignment(FVector2D(.5f,.5f));
+            PageSlot->SetAutoSize(true);PageSlot->SetZOrder(25);
         }
 
         // Bottom-right corner: the 构筑 button, which toggles the card tray right above it. It says 构筑 and nothing else; it
@@ -1779,6 +1853,23 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             }
         }
         HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        // Skill ranks: the dots, the "+" while a point can raise this skill, the momentum gap and the overdrive hold.
+        if(Index<3)
+        {
+            const int32 ProgressionSlot=Wanted==ELDCombatEntry::Q?0:Wanted==ELDCombatEntry::W?1:Wanted==ELDCombatEntry::E?2:INDEX_NONE;
+            const FLDActiveSlotView* Learned=Progression&&ProgressionSlot!=INDEX_NONE
+                ?Progression->Actives.FindByPredicate([ProgressionSlot](const FLDActiveSlotView& Row){return Row.Slot==ProgressionSlot;}):nullptr;
+            const uint8 Rank=Learned?LDSkillBranch::RankOf(Learned->Branch):0;
+            HudSetText(Entry.Ranks,Learned?LDHUD::RankDots(Rank):FString());
+            HudSetShown(Entry.Ranks,Learned!=nullptr,ESlateVisibility::HitTestInvisible);
+            HudSetShown(Entry.Plus,Learned&&Rank<3&&Progression->SkillPoints>0&&bAlive,ESlateVisibility::Visible);
+        }
+        HudSetText(Entry.Gap,View.Gap);HudSetShown(Entry.Gap,!View.Gap.IsEmpty()&&!bCooling,ESlateVisibility::HitTestInvisible);
+        {
+            const float Held=Index<3?PC->OverdriveHoldProgress(Wanted):0.f;
+            Entry.Hold->SetPercent(Held);HudSetShown(Entry.Hold,Held>0.f,ESlateVisibility::HitTestInvisible);
+            bReadModelLive|=Held>0.f;
+        }
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
         // An empty slot fades as a whole; the ready flash pops the slot and fades out.
@@ -1799,6 +1890,18 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
         if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
     }
+    // The basic attack's combo pips: the current step lit (the third gold) until COMBO.ResetSec after its start.
+    {
+        int32 Step=0;
+        if(OwnCombat&&Content&&bClock&&OwnCombat->ComboStep>0&&NowMs-OwnCombat->ComboStartMs<=Content->Parameters.Combo.ResetMs)
+        {Step=OwnCombat->ComboStep;bReadModelLive=true;}
+        for(int32 Pip=0;Pip<ComboPips.Num();++Pip)
+        {
+            const bool bLit=Pip+1==Step;
+            ComboPips[Pip]->SetBrushColor(!bLit?LDHUDStyle::ComboPipDim:Pip==2?LDHUDStyle::Overdrive:LDHUDStyle::ComboPip);
+        }
+    }
+    RefreshRankUp(Progression,Content,LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>()));
     // Without a slot under the pointer, a hovered own status mark over the own bars (LDHUD::SelfIconDetail) or stat icon uses
     // the same popup. The world layer reports the marks' last painted rects.
     const UWidget* DetailOver=DetailIndex!=INDEX_NONE?ActionSlots[DetailIndex].Box.Get():nullptr;
@@ -1917,6 +2020,53 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
     }
 }
+void ULDHUD::OpenRankUp(int32 ProgressionSlot)
+{
+    RankSlot=ProgressionSlot;
+    MarkReadModelDirty();
+}
+
+void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
+{
+    const FLDActiveSlotView* Learned=Progression&&RankSlot!=INDEX_NONE
+        ?Progression->Actives.FindByPredicate([this](const FLDActiveSlotView& Row){return Row.Slot==RankSlot;}):nullptr;
+    RankOptions=Learned&&Progression->SkillPoints>0?LDHUD::NextBranches(Learned->Branch):TArray<ELDSkillBranch>();
+    // A page without a legal next rank (no point left, a forgotten skill, rank 3) closes itself.
+    if(RankOptions.Num()!=RankCards.Num()){RankSlot=INDEX_NONE;RankOptions.Reset();}
+    HudSetShown(RankPage,RankSlot!=INDEX_NONE,ESlateVisibility::Visible);
+    if(RankSlot==INDEX_NONE){return;}
+    RankAbility=Learned->DefinitionId;
+    FString SkillName;
+    LDHUD::ContentText(Content,RankAbility.ToString(),false,SkillName);
+    HudSetText(RankTitle,FString::Printf(TEXT("%s · %s %u"),*SkillName,LDTerms::SkillRank,uint32(LDSkillBranch::RankOf(RankOptions[0]))));
+    for(int32 Card=0;Card<RankCards.Num();++Card)
+    {
+        const LDHUD::FBranchCardView View=LDHUD::BranchCard(Content,RankAbility,RankOptions[Card],Stats);
+        HudSetText(RankCardNames[Card],View.Name);
+        HudSetText(RankCardLines[Card],View.Line);
+        RankCards[Card]->SetToolTipText(FText::FromString(View.Detail));
+        RankCards[Card]->SetIsEnabled(View.bKnown);
+        LDUIIcons::Apply(RankCardIcons[Card],View.IconId,8.f,FLinearColor::White);
+    }
+}
+
+void ULDHUD::SubmitRankUp(int32 Card)
+{
+    ALDPlayerController* PC=GetOwningPlayer<ALDPlayerController>();
+    const FLDProgressionView* Latest=PC?PC->ReadOwnProgression():nullptr;
+    if(!PC||!Latest||RankSlot==INDEX_NONE||!RankOptions.IsValidIndex(Card)){return;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::RankUpSkill;
+    Command.Slot=uint8(RankSlot);
+    Command.Branch=RankOptions[Card];
+    Command.ExpectedBuildRevision=Latest->BuildRevision;
+    Command.CatalogDigest=Latest->CatalogDigest;
+    ELDGrowthReason Reason=ELDGrowthReason::None;
+    if(PC->SubmitBuild(Command,Reason)==0){ShowToast(LDHUD::GrowthReasonText(Reason));return;}
+    RankSlot=INDEX_NONE;
+    MarkReadModelDirty();
+}
+
 void ULDHUD::ShowToast(const FString& Text)
 {
     MarkReadModelDirty();

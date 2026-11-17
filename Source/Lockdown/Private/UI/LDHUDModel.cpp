@@ -110,6 +110,51 @@ FString LDHUD::RegenText(const FLDOwnerState& Own,const FLDCombatOwnerView* Comb
     return FMath::IsFinite(Rate)&&Rate>=0?FString::Printf(TEXT("+%.1f/s"),Rate):FString();
 }
 
+FString LDHUD::RankDots(uint8 Rank)
+{
+    FString Out;
+    for(uint8 Index=1;Index<=3;++Index){Out+=Index<=Rank?TEXT("●"):TEXT("○");}
+    return Out;
+}
+
+TArray<ELDSkillBranch> LDHUD::NextBranches(ELDSkillBranch Current)
+{
+    using B=ELDSkillBranch;
+    switch(Current)
+    {
+    case B::None: return {B::A,B::B};
+    case B::A: return {B::A1,B::A2};
+    case B::B: return {B::B1,B::B2};
+    default: return {};
+    }
+}
+
+LDHUD::FBranchCardView LDHUD::BranchCard(const FLDDemoContentDefinitions* Content,FName AbilityId,ELDSkillBranch Path,const FCardStats& Stats)
+{
+    FBranchCardView Out;
+    Out.Path=Path;
+    if(!Content){return Out;}
+    const FString Id=AbilityId.ToString();
+    const FLDDemoAbilityDefinition* Ability=Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& Row){return Row.Id==Id;});
+    const FLDDemoAbilityBranch* Branch=Ability?Ability->FindBranch(Path):nullptr;
+    if(!Branch){return Out;}
+    const FString StepId=LDSkillBranch::DisplayId(Id,Path);
+    const FLDDemoDisplayDefinition* Step=Content->Display.FindByPredicate([&StepId](const FLDDemoDisplayDefinition& Row){return Row.Id==StepId;});
+    const FLDDemoDisplayDefinition* Whole=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;});
+    if(!Step||!Whole){return Out;}
+    const uint8 Rank=LDSkillBranch::RankOf(Path);
+    FString Name;
+    Out.Name=ContentText(Content,StepId,false,Name)?Name:Step->NameText;
+    const FCardText Line=CardText(Step->DescriptionText,Branch->Values,Stats,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,Rank);
+    const FCardText Body=CardText(Whole->DescriptionText,Branch->Values,Stats,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,Rank);
+    if(!Line.bComplete){return Out;}
+    Out.Line=Line.Plain;
+    Out.Detail=FString::Printf(TEXT("%s\n%s\n%s"),*Line.Plain,*Body.Plain,*CostLine(Branch->Values));
+    Out.IconId=Whole->IconId;
+    Out.bKnown=true;
+    return Out;
+}
+
 bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out)
 {
     Out=ContentId;
@@ -1192,7 +1237,12 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
         }
     }
     if(bActive&&Input.bControlled){Block(ActionControlled,TEXT("受控制无法使用"));}
-    if(bActive&&Context.bMomentumKnown&&Input.MomentumCostP2>Context.MomentumP2){Block(ActionMomentum,LDTerms::MomentumShort());}
+    if(bActive&&Context.bMomentumKnown&&Input.MomentumCostP2>Context.MomentumP2)
+    {
+        Block(ActionMomentum,LDTerms::MomentumShort());
+        // The gap rounds up, so a slot never reads one point closer than it is.
+        View.Gap=FString::Printf(TEXT("-%lld"),(Input.MomentumCostP2-FMath::Max<int64>(Context.MomentumP2,0)+99)/100);
+    }
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
     View.State=State.IsEmpty()?FString(TEXT("就绪")):State;
     View.Countdown=CooldownText(View.CooldownRemainingMs);

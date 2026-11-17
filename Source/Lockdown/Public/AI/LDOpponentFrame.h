@@ -20,6 +20,8 @@ namespace LDOpponentFrame
     // Currently authorized units of one observation frame; fields outside the authorized mask stay unset.
     LOCKDOWN_API bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration,
         const FLDDemoContentSnapshot& Catalog, TArray<FLDOpponentUnit>& Out, FString& Error);
+    // The enemy warnings of one observation frame that are still pending (their public outline only).
+    LOCKDOWN_API void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out);
     // Own actives, blueprints, stat points, the current active offer and queued opportunities, and (#198 B) the owned
     // components (with their placement) and opening base pick; derived attributes come from the shared pure projection over
     // the allocated points and installed components.

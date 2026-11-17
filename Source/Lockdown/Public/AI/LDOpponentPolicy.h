@@ -45,6 +45,18 @@ struct FLDOpponentActive
     FString DefinitionId;
     // 0 = Q, 1 = W, 2 = E.
     uint8 Slot = 0;
+    // The skill's branch path; its rank follows from it (None = rank 1).
+    ELDSkillBranch Branch = ELDSkillBranch::None;
+};
+
+// A visible enemy warning (a ground point, trap, cone or camp telegraph) about to resolve: its footprint and remaining time.
+struct FLDOpponentWarning
+{
+    FGuid Handle;
+    FVector CentreCm = FVector::ZeroVector;
+    FVector Heading = FVector::ForwardVector;
+    double RadiusCm = 0, LengthCm = 0, AngleDegrees = 0;
+    int64 RemainingMs = 0;
 };
 
 // One bound active source exactly as the authority's availability read reports it; no second cooldown.
@@ -136,6 +148,8 @@ struct FLDOpponentSelf
     uint64 BuildRevision = 0;
     uint8 Level = 1;
     TArray<FLDOpponentActive> Actives;
+    // Unspent skill points (issue #287 spec §4.5).
+    int32 SkillPoints = 0;
     // Chosen actives waiting for an empty slot (待学图纸), sorted by id.
     TArray<FString> Blueprints;
     // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
@@ -259,6 +273,8 @@ struct FLDOpponentDecisionFrame
     FLDOpponentSelf Self;
     FLDOpponentPublicMatch Public;
     TArray<FLDOpponentUnit> Units;
+    // Visible enemy warnings (issue #287 spec §13 dodging).
+    TArray<FLDOpponentWarning> Warnings;
     TArray<FLDOpponentPOI> POIs;
     FLDOpponentOrder Order;
     // Complete-path length from the current pose to the capture entry, when the world answered.
@@ -309,6 +325,8 @@ struct FLDOpponentBodyIntent
     FName Surface;
     // Failure memory of MoveGround, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
+    // Activate: release it as an overdrive (the adapter holds the charge for OVERDRIVE.HoldSec first).
+    bool bOverdrive = false;
 };
 
 // #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),
@@ -321,7 +339,9 @@ struct FLDOpponentBodyIntent
 enum class ELDOpponentBuildKind : uint8
 {
     None, ChooseActive, LearnBlueprint, AllocatePoints, OpeningBase, InstallComponent, ComponentChoice, FillGap,
-    UninstallComponent, BuyNpcOffer, Respec, ReplaceActive, Dismantle, FinalMod
+    UninstallComponent, BuyNpcOffer, Respec, ReplaceActive, Dismantle, FinalMod,
+    // Issue #287 spec §13: a skill point raises a learned skill (Slot) to its next branch (Branch).
+    RankUpSkill
 };
 
 struct FLDOpponentBuildIntent
@@ -331,6 +351,8 @@ struct FLDOpponentBuildIntent
     FGuid OfferId;
     uint64 OfferRevision = 0;
     FString Option;
+    // RankUpSkill: the next branch path of the skill in Slot.
+    ELDSkillBranch Branch = ELDSkillBranch::None;
     // FinalMod uses OfferId/Option and TargetKind/TargetId, independently of active slots.
     // LearnBlueprint: the blueprint and the empty slot 0..2; ReplaceActive: the blueprint and the learned slot 0..2.
     FString Blueprint;
@@ -504,6 +526,10 @@ namespace LDOpponentPolicy
     LOCKDOWN_API FLDOpponentUsage AbilityUsage(const FLDDemoAbilityDefinition& Ability);
     // #198 active preference (OPPONENT_AI.md §6.4): an active that brings a role (engagement or self-protection) the learned
     // actives and blueprints lack comes first; then the fixed target-mode order Unit > GroundPoint > DirectionCone =
+    // Issue #287 spec §13: the learned skill below rank 3 that deals the most damage now (lower slot on ties) and its next
+    // branch (A, then A1 or B1). False without such a skill.
+    LOCKDOWN_API bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8& OutSlot,
+        ELDSkillBranch& OutBranch);
     // DirectionLine > DirectionProjectile > Self > DirectionDash; then catalog order. Picks among the current offer's options.
     LOCKDOWN_API bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error);
     // The pending blueprint to learn first by the same preference and the lowest empty Q/W/E slot; false when either is missing.

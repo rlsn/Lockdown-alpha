@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 from CatalogTools import encode
 import DemoContent as demo
-from DemoContentTestFixtures import write_fixture, write_world, world_fixture
+from DemoContentTestFixtures import simple_ranks, write_fixture, write_world, world_fixture
 import SyncDemoContentData as sync
 import SyncDemoWorldData as world_sync
 
@@ -165,7 +165,8 @@ class DemoContentImport(unittest.TestCase):
             result.catalog.parameter("CAMP.Low.AggroRadiusCm")
 
     def assert_leaf_projection(self, result, author):
-        source_leaves = leaves(author)
+        # Rank steps compile into branch definitions and display rows (test_rank_steps_compile_into_branches_and_display).
+        source_leaves = {key: value for key, value in leaves(author).items() if ".ranks." not in key}
         target_leaves = leaves(json.loads(result.outputs[demo.CONTENT_OUTPUT]))
         fields = result.catalog.field_projection
         self.assertEqual(set(fields), set(source_leaves))
@@ -196,6 +197,18 @@ class DemoContentImport(unittest.TestCase):
                          ("content.abilities[2].effects[0].base.p2",))
         self.assertEqual(fields["content.stats[0].per_point.MaxHPFlat.value"],
                          ("content.stats[2].per_point.MaxHPFlat.p2",))
+
+    def test_rank_steps_compile_into_branches_and_display(self):
+        projected = json.loads(self.baseline.outputs[demo.CONTENT_OUTPUT])
+        display = {row["id"]: row for row in projected["display"]}
+        for source in self.author["abilities"]:
+            row = next(row for row in projected["abilities"] if row["id"] == source["id"])
+            with self.subTest(ability=source["id"]):
+                self.assertEqual([branch["path"] for branch in row["branches"]], list(demo.BRANCH_PATHS))
+                for step in demo.RANK_STEPS:
+                    shown = display[f"{source['id']}_{step.lower()}"]
+                    self.assertEqual(shown["name_text"], source["ranks"][step]["name"])
+                    self.assertEqual(shown["description_text"], source["ranks"][step]["text"])
 
     def test_single_value_set_projects_all_effects_costs_and_coefficients(self):
         bolt = self.baseline.catalog.definition("active_snark_bolt")
@@ -574,6 +587,8 @@ class DemoContentImport(unittest.TestCase):
                           "damage_type": "Magical"},
                          {"op": "zone_wet"}, {"op": "zone_haste", "ratio": q("ratio", 0.1)}]},
         ]
+        for index, row in enumerate(added):
+            row["ranks"] = simple_ranks(10 + index)
         author = deepcopy(self.author)
         author["abilities"].extend(added)
         author["display"].extend({"id": row["id"], "namespace": "DemoContent", "name_key": row["id"] + ".name",
@@ -590,7 +605,7 @@ class DemoContentImport(unittest.TestCase):
             return next(effect for effect in ability(data, identity)["effects"] if effect["op"] == op)
 
         for mutation, code in (
-            (lambda d: ability(d, "active_dirty_puddle")["effects"].append({"op": "wet"}), "TargetEffectMismatch"),
+            (lambda d: ability(d, "active_dirty_puddle")["effects"].append({"op": "wet"}), "MissingHandler"),
             (lambda d: ability(d, "active_dirty_puddle")["effects"].pop(2), "MissingHandler"),
             (lambda d: first(d, "active_dirty_puddle", "zone_haste")["ratio"].update(value=1), "NumericDomain"),
             (lambda d: first(d, "active_brace", "brace")["ratio"].update(value=1), "NumericDomain"),

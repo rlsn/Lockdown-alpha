@@ -1,7 +1,7 @@
 """Strict Demo author projection and file-byte identity; never supplies gameplay defaults."""
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal, DecimalException
+from decimal import Context, Decimal, DecimalException, Inexact, localcontext
 from fractions import Fraction
 import hashlib
 from copy import deepcopy
@@ -1086,7 +1086,16 @@ def _patch_effect(variant, op, path):
 
 
 def apply_patch(variant, patch, path):
-    """One registered branch patch on an author-form definition (target, set, scale, add, remove, cooldown)."""
+    """One registered branch patch on an author-form definition (target, set, scale, add, remove, cooldown). Patch arithmetic
+    is exact whatever the caller's decimal context: an inexact product or sum is refused, never rounded."""
+    with localcontext(Context(prec=200, traps=[Inexact])):
+        try:
+            _apply_patch(variant, patch, path)
+        except Inexact:
+            raise ContentError("PrecisionLoss", path, "a branch patch would round an author value") from None
+
+
+def _apply_patch(variant, patch, path):
     kind = patch["op"]
     if kind == "target":
         fields = {key: deepcopy(value) for key, value in patch.items() if key != "op"}
@@ -1567,6 +1576,35 @@ def _sort_definitions(data, fields):
         fields[source] = tuple(mapped)
 
 
+def project_author(schema, author, fields=None):
+    """The typed projection of a validated author document: each ability's rank steps resolve into its six branch variants
+    (projected like an ability's own values) and the steps' names and one-line texts become display rows."""
+    fields = {} if fields is None else fields
+    # Branch values are compiled from the rank steps, not copied from one author leaf, so they stay out of the leaf map.
+    derived = {}
+    projected_author = deepcopy(author)
+    rank_display = []
+    branches = []
+    for index, ability in enumerate(projected_author["abilities"]):
+        resolved = resolve_branches(ability)
+        for branch in resolved:
+            schema.validate(branch, schema.schema["$defs"]["branch"], f"content.abilities[{index}].branches.{branch['path']}")
+        branches.append([schema.project(branch, schema.schema["$defs"]["branch"],
+                                        f"content.abilities[{index}].branches[{position}]", derived)
+                         for position, branch in enumerate(resolved)])
+        for step in RANK_STEPS:
+            identity = f"{ability['id']}_{step.lower()}"
+            rank_display.append({"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
+                                 "name_text": ability["ranks"][step]["name"], "description_key": identity + ".description",
+                                 "description_text": ability["ranks"][step]["text"], "icon_id": "icon_" + ability["id"]})
+        del ability["ranks"]
+    data = schema.project(projected_author, fields=fields)
+    for ability, resolved in zip(data["abilities"], branches):
+        ability["branches"] = resolved
+    data["display"].extend(rank_display)
+    return data
+
+
 def compile_author(root=ROOT):
     root = Path(root)
     inputs = {relative: read_bytes(root, relative) for relative in AUTHOR_INPUT_PATHS}
@@ -1580,26 +1618,7 @@ def compile_author(root=ROOT):
     ids = parse_json(inputs[IDS_SOURCE], IDS_SOURCE)
     validate_native_ids(root, ids)
     fields = {}
-    projected_author = deepcopy(author)
-    rank_display = []
-    branches = []
-    for index, ability in enumerate(projected_author["abilities"]):
-        resolved = resolve_branches(ability)
-        for branch in resolved:
-            schema.validate(branch, schema.schema["$defs"]["branch"], f"content.abilities[{index}].branches.{branch['path']}")
-        branches.append([schema.project(branch, schema.schema["$defs"]["branch"],
-                                        f"content.abilities[{index}].branches[{position}]", fields)
-                         for position, branch in enumerate(resolved)])
-        for step in RANK_STEPS:
-            identity = f"{ability['id']}_{step.lower()}"
-            rank_display.append({"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
-                                 "name_text": ability["ranks"][step]["name"], "description_key": identity + ".description",
-                                 "description_text": ability["ranks"][step]["text"], "icon_id": "icon_" + ability["id"]})
-        del ability["ranks"]
-    data = schema.project(projected_author, fields=fields)
-    for ability, resolved in zip(data["abilities"], branches):
-        ability["branches"] = resolved
-    data["display"].extend(rank_display)
+    data = project_author(schema, author, fields)
     require(data["identity"]["schema_version"] == SCHEMA_VERSION
             and data["identity"]["handler_revision"] == HANDLER_REVISION
             and data["identity"]["projection_revision"] == PROJECTION_REVISION,

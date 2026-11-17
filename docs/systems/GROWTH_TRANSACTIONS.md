@@ -99,6 +99,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `ComponentChoice` = 13 | `OfferId` = 待选的精英营地二选一 `ChoiceId`；`Component` = 所选项，全零 = 改领点数 | 与 `ActiveChoice` 同表（对局进行中随时，存活或死亡）。所选项成为库存实例（`EliteChoice`），该二选一结束；没有该 `ChoiceId` 为 `NoComponentChoice` = 160，不是候选项为 `InvalidOption`，所选项已持有为 `ComponentOwned` = 161。只有全部候选都已持有时才能带全零 `Component` 改领 `GROWTH.EmptyComponentPoolPoints`（计入 `AwardedPoints`），否则也是 `ComponentOwned` |
 | `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未安装过、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 要求这些入口原生施加至少两种不同元素——主动的灼烧/潮湿/感电、B01/B10/B11 与 B18 已绑定的元素，两个火源不算），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`；C09 只列能补上一种缺少元素的，未绑定的 B18 按可绑元素计），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
 | `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
+| `RankUpSkill` = 28 | 已学主动的 `Slot` 0..2、`Branch` = 下一步分支 | 花 1 个技能点把该技能升一级：1 级只能选 `A`/`B`，`A` 只能选 `A1`/`A2`，`B` 只能选 `B1`/`B2`（`LDSkillBranch::IsNext`）；技能点 = `SKILL.PointLevels` 中已达到的个数 − Σ（技能等级 − 1）（`LDProgression::SkillPoints`）。对局中随时受理（含交战与死亡等待；`CommandGate` 只拒绝 `Closed` 与非 Alive/Dead），成功后重新投影战斗构筑；回执 `Branch` 与 `SkillPointsAfter`，日志 `LD_SKILL_RANK`。空槽为 `SlotEmpty`，没有技能点为 `NoSkillPoint` = 180，分支不是下一步为 `BranchUnavailable` = 181。遗忘或替换主动会清空它的分支，花在它上面的点随之退回 |
 | `FinalMod` = 27 | `OfferId` = 本人 `FinalModOfferId`、`Option`、`TargetKind`/`TargetDefinition`；`Slot` 为 `AnySlot` | R3 进入时 `ALDDevelopmentDirector::OpenFinalMods` 按比赛私密种子与参赛者抽取三个互异的独立 FIN（`DrawFinalModOptions`）；候选与合法绑定由本人 `FinalModOptions`/`FinalModSources` 投影。选择在 `Rest` 构筑窗口、活着时受理，不需要 NPC；提交时重验来源，写入唯一的 `FLDGrowthBuild::FinalMod`（定义及绑定），同时置 `FLDFinalModState::bLocked`（这次选择已用掉）。不修改主动、图纸或构件，不占工坊容量；有普通主动候选也可选择。之后普通构筑命令照常受理；绑定的来源被拆下或遗忘时改装休眠（`LDProgression::FinalModBound` 为假，`ValidateBuild` 仍通过，战斗投影不带它），本人 `FinalModSources` 改为列出已选卡的合法来源；同一 `OfferId` 与 `Option` 的 `FinalMod` 在 `InstallGate` 开放时（任何阶段）只改绑定。再选或换卡为 `FinalLocked` = 170；没有该选择为 `NoFinalMod` = 171，不是候选为 `InvalidOption`，来源不合法为 `FinalModUnavailable` = 172。揭示后不重抽；最终野外入场边界 `LockFinalMods` 关闭全部未选者的这次选择 |
 
 野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
@@ -122,7 +123,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 `ALDGameMode::ReadBuildStage` 与时间线读阶段及本人生命阶段）。最终野外之外自己的构筑命令在对局进行中受理：`ActiveChoice`、`SkipActiveOffer`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
 `UninstallComponent`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
 
-| 阶段（`EMatchStage`） | 自己的构筑 | BuyNpcOffer / Respec / FillGap / Dismantle | ReplaceActive / ForgetActive |
+| 阶段（`EMatchStage`） | 自己的构筑（含 `RankUpSkill`） | BuyNpcOffer / Respec / FillGap / Dismantle | ReplaceActive / ForgetActive |
 | --- | --- | --- | --- |
 | `Rest`（休息构筑窗口 Build/Payout：时长见内容与数值 `REST.*`），活着 | 允许 | 靠近对应NPC时允许 | 靠近训练师时允许 |
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许 | `Dead` | `Dead` |
@@ -194,7 +195,7 @@ Host 结束返回 `RequestInFlight`；同刻 Capture 完成时 Close 保留提�
 ## 复合事务
 
 奖励与构筑命令都按同一形状提交：纯 Prepare 完成全部可失败工作（整数 checked、版本、容量、
-Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入不会失败的 Apply，然后标记发布。
+Combat 投影与 HP 同比换算），在同一调用栈重验许可后进入不会失败的 Apply，然后标记发布。
 拒绝的命令不扣点数、不消费机会、不改图纸。
 
 | 事务 | 同次提交 |
@@ -350,7 +351,7 @@ DEV 构筑操作要求 Alive 或 Dead。
 | 命令 | 提交 |
 | --- | --- |
 | `GrantExperience`（数量 > 0） | 与死亡奖励同一 `CommitRewardParts` 复合提交（`cause=dev_fixture`）；可重试拒绝保留待下一阶段 |
-| `RefillResources`（数量 0） | 当前 Alive 身体的 HP/MP 设为已提交上限，不动护盾；非 Alive 为 `Dead` |
+| `RefillResources`（数量 0） | 当前 Alive 身体的 HP 设为已提交上限、劲设为上限，不动护盾；非 Alive 为 `Dead` |
 | `ResetCooldowns`（数量 0） | 该参赛者全部冷却轨道（技能与 D 冲刺、已绑定或未绑定的债）截止时间提前到本边界，身份与绑定不变 |
 | `GrantBlueprint`（主动 id） | `ALDDevelopmentDirector::DevGrantBlueprint`：不消费机会，加一张待学图纸；已学或已是图纸为 `InvalidOption` |
 | `LearnActive`（主动 id，槽 0..3） | `ALDDevelopmentDirector::DevLearnActive`：不需要机会或图纸；0 为最低空槽（满槽 `NoEmptySlot`），1..3 为 Q/W/E 并遗忘该槽原主动（Combat 保留其冷却轨道供重学）；已学为 `InvalidOption`；同名图纸一并移除 |

@@ -75,11 +75,11 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 `ProcessAuthorityO
 
 | 获准输入 | 正式来源 | 限制与撤销 |
 | --- | --- | --- |
-| 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView | 可以读本人血蓝/资源/等级/技能、图纸、属性点、控制、真实 readiness、候选和回执（ AI 不再读 `BuildSafeAtMs`）；不能取得可写 StateFor 或全账本。 |
+| 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView | 可以读本人生命/劲/资源/等级/技能（含技能分支与技能点）、图纸、属性点、控制、真实 readiness、候选和回执（ AI 不再读 `BuildSafeAtMs`）；不能取得可写 StateFor 或全账本。 |
 | 公共对局 | `FLDPublicMatchView` → `FLDOpponentPublicMatch`；休息中另读公开房间名单 `ReadLobby`（成员 ID，`Roster`） | 名单只用于按 HUD 规则认出获准观察帧里的共享真实训练目标（§6.4），不借此读取所属玩家私有成长。Phase、OpenAtMs、CircleState（`Empty / Solo / Contested / Guarded`）、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、GraffitiOwner（策略帧中为 `Owner`）、GuardDueAtMs、Result；Occupier 在 Solo（独自喷漆）和争夺暂停（Contested 且有人持有喷漆进度）时有效，DueAtMs 只在 Solo 时有效；Owner 是当前涂鸦主人，GuardDueAtMs 是运行中守护的获胜时刻，只在 Guarded（主人独自在区内）时非 0；Empty（主人在区外、区内无人，守护暂停）与 Solo/Contested（区内有主人以外的有效参赛者，守护冻结）时为 0。喷漆者和涂鸦主人的身份与进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
 | 可见营地回位提示 | 同一观察帧单位 `Statuses` 中只读 `StatusId=CampReturning`（`ELDDemoStatusId`，内容 id `camp_returning`） | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回位”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
-| 可见资源 | 上述观察帧的展示字段 | 不含 IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP/MP 按世界 Resources 的 P2 Current/Max 读取；NPC 不适用的 MP/Level 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
+| 可见资源 | 上述观察帧的展示字段 | 不含 IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP 按世界 Resources 的 P2 Current/Max 读取，劲只有公开比例；NPC 不适用的 Level 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
 | 静态世界与内容 | 世界公开地图/POI、公共目录 | Camp/Capture 固定位置、营地档位、地形和公开定义可知；不能把定义里的原始营地人数/刷新周期当作当前存活人数或剩余刷新时间。 |
 | 路径 | `ULDMapRegistry::QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint)`、`QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule)`；接近公共地点与单位由 Navigation 订单规划 | QueryGround 四参，无默认/三参重载；SurfaceHint 为必填 FName 注册 SurfaceId，仍须重查真实支持面。AI 只用自身真实位置与当前地图估计到喷漆区的完整路径长度（厘米）；不含隐藏动态身体定位。 |
 | 单位解析 | `ResolveObservedUnit(ObserverContext, Handle, Purpose)` | 仅供导航/战斗执行域重查可见性、目标生命和 epoch；返回的 authority 样本不进入策略黑板。 |
@@ -149,7 +149,7 @@ AI 订单的存活性来自仍有效的服务器策略/参赛记录绑定，不�
 
 **Rejected 不一律等于零状态变化。** 合法身份的新 AttackUnit/AttackMove 或角色
 进攻意图会先经生命域解除保护，回执可带 ProtectionRemoved 与 LifeRevision；
-随后 TargetUnavailable、NoCompletePath、资源或冷却拒绝仍保留该变化，但不消耗失败动作的法力/冷却。
+随后 TargetUnavailable、NoCompletePath、资源或冷却拒绝仍保留该变化，但不消耗失败动作的劲/冷却。
 旧局/旧生命、重放、越权和真正畸形请求不触发这一步。AI 必须重读本人状态，不能恢复本地保护标记。
 InvalidSurface/WrongSurface/NotGrounded 属于世界可执行性拒绝，不伪装成 Malformed；
 已识别的规范化进攻意图仍按同一前置解除保护。
@@ -161,7 +161,7 @@ InvalidSurface/WrongSurface/NotGrounded 属于世界可执行性拒绝，不伪�
 | TargetUnavailable | 不区分隐藏、销毁、过期或换生命；清目标、停该单位追击。禁止跟到最后坐标或换一个全局 ID 重试。 |
 | NoCompletePath/PathBlocked/NoProgress | 接受原订单终结；有限退避并选择其他公共可达目标。不 partial 成功、不传送、不缩短射程、不每帧重算。 |
 | InvalidSurface/WrongSurface/NotGrounded | 重读合法支持面/本人真实接地结果，等相关条件变化后再规划；不伪造 SurfaceId 或把身体向下投影成接地，不以此错误自报系统故障或喷漆成功。 |
-| Cooldown/AttackNotReady/InsufficientMana/ControlBlocked | 使用本人 readiness 和控制投影等待或换合法动作；策略只保存再评估期限，不写第二份 CD。 |
+| Cooldown/AttackNotReady/MomentumShort/ControlBlocked | 使用本人 readiness 和控制投影等待或换合法动作；策略只保存再评估期限，不写第二份 CD。 |
 | Dead/StaleLife | 移动/战斗作废；当前 Dead 阶段的选择与加点使用新的合法生命阶段提交，候选不变；等核心真实复活。 |
 | PhaseClosed/NoActiveOffer（成长） | 阶段或候选在读取与提交之间变了：丢弃该请求、不计失败，下次决策重读本人投影后再决定。 |
 | MatchClosed/LeftMatch/StaleMatch | 停止全部新增意图，最多读取已提交结果；不重建 adapter、补席或重试旧局。 |
@@ -185,7 +185,7 @@ Navigation 在替换订单通过准入前保留现役订单，adapter 因此分�
 | 来源冷却 | 不因取消、换槽或遗忘消失 | 按原时间继续；再次拥有沿用原期限 | 无新释放资格 | 不再释放；原回执不增加效果 | 原域新时间域，无跨局继承 |
 | 已释放独立效果 | AI 不回滚，按 Combat/内容生命周期 | 正常死亡继续原期限；不得打中同 ID 的新生命 | 核心/Combat 取消本人未结束效果，身体立即退出 | 关闭写闸后不得继续结算 | 全部换代 |
 | 观察/公共 POI 访问记忆 | 失视野立即丢动态目标；无 LastSeen | 死亡无身体视野；静态知识可读；复活新 observer 代次，不沿用旧句柄 | 通道/句柄失效；不跟踪移除身体 | 不保持实时隐藏更新 | 清访问/失败缓存及观察游标 |
-| 血蓝/复活/保护/喷漆与涂鸦 | 进攻意图按已确认规则解保护；受伤不由 AI 清喷漆或守护计时 | 核心复活满血蓝/新 Life；死亡已由核心清零喷漆进度并清除本人涂鸦；AI 不改 RespawnAt 或自行声明喷漆资格 | 立即失去战斗/喷漆资格并清除其涂鸦，不为剩余人判胜 | 不复活、不再喷漆 | 核心重建发育期与旗杆状态 |
+| 生命/复活/保护/喷漆与涂鸦 | 进攻意图按已确认规则解保护；受伤不由 AI 清喷漆或守护计时 | 核心复活满血、起始劲/新 Life；死亡已由核心清零喷漆进度并清除本人涂鸦；AI 不改 RespawnAt 或自行声明喷漆资格 | 立即失去战斗/喷漆资格并清除其涂鸦，不为剩余人判胜 | 不复活、不再喷漆 | 核心重建发育期与旗杆状态 |
 
 离局前已提交的死亡事实，其 `RewardBasis.CreditOwnerEligibleAtDeath` 由核心/成长域冻结；
 允许原域完成这一事实的 settlement-only 处理，不等于离局者恢复行动资格。
@@ -281,7 +281,7 @@ Returning 只从同一授权观察的只读 `camp_returning` 状态提示识别�
 否则取消追击并结束访问，不新建回营追逐订单。
 这只是 AI 的止损偏好，不给真人增加“不能追杀回位者”的世界限制。
 回位者不回头追击也不等于回位路线成为安全区，其他参赛者仍可能攻击。
-存活成员到家重置血蓝、临时状态、仇恨及技能 readiness 属于世界的营地规则；
+存活成员到家重置生命、临时状态、仇恨及技能 readiness 属于世界的营地规则；
 AI 只能消费获准表现，不能推断隐藏的到家时刻或借回位索要奖励/复活已死成员。
 
 **目标。** 当前授权候选中，优先正在阻止自己喷漆、守护或回防的可见威胁，
@@ -328,7 +328,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 这些硬控在施加瞬间清零他的喷漆进度。受伤、施法或区内移动本身不由策略重置进度；达到显示期限也不自行判胜。
 
 **恢复。** RetreatHPRatio 判断受压脱险，ResumeFarmHPRatio 是脱险后重新主动刷野的门槛。
-恢复等待不禁构筑请求、重新评估公共回防或低风险移动；不要求满蓝才能普攻。
+恢复等待不禁构筑请求、重新评估公共回防或低风险移动；不要求劲才能普攻。
 没有有效回复来源时，不永久等“回满”，转可达探索或合法喷漆/围攻机会。
 躺平角是公开的快回地点，但不是安全区：恢复中且没有可见威胁时，走向最近的、未被失败抑制的躺平角；
 站进躺平角后一直留到生命回满才结束恢复（不在 ResumeFarm 线离开），可见威胁照常触发撤离，紧急回防照常优先
@@ -342,7 +342,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 它排在回防、喷漆、守护涂鸦、围攻和区内争夺之后、普通喷漆与打野之前，模式 `Airdrop`、原因 `ContestAirdrop`（`DemoOpponentPolicy.Airdrop`）。
 抢外卖不是争夺旗杆：从外卖处止损撤离不计为一次喷漆失败，不会让 AI 失去回防资格。
 拾取由权威按脚点判定，AI 不另行提交请求；自己是否抢到来自本人视图（`AirdropClaimedSerial`），公开视图不说是谁。
-外卖落地 30 s 无人领取即从公开视图消失，AI 随之不再把它当目标。领取会同时恢复生命与法力并提供短暂移速加成；
+外卖落地 30 s 无人领取即从公开视图消失，AI 随之不再把它当目标。领取会同时恢复生命、获得劲并提供短暂移速加成；
 恢复中的 AI 在没有更高优先级威胁或退避目标时，可把公开外卖作为恢复目标。
 
 标记营地读取公开对局视图中开放（已标记、未领走、未过期）的营地标记，与真人看到的相同（`FLDOpponentPublicMatch::MarkedCamps`）。
@@ -369,7 +369,13 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 对真正绑定的 Q/W/E 与 D 枚举自身 QueryAvailability，固定考虑：
 有意义的合法自保/恢复 → 必要合法机动 → 可见威胁控制 → 合法伤害 → 保持普攻/移动。
 优先级只决定策略先选哪个动作，不给效果追加类型或数值；SourceRef 和真实目录决定动作。
-每个 Q/W/E 来源读该主动唯一的一组效果值（`ResolveSource`；技能只有一级，数值随拥有者等级成长由 Combat 结算）。
+每个 Q/W/E 来源读该主动唯一的一组效果值（`ResolveSource`，按本人该技能的分支取值；数值随拥有者等级与技能等级成长由 Combat 结算）。
+
+**劲、爆劲与闪避**（Issue #287 规范 §13）：
+
+- 劲不足的来源由真实 readiness 报 `MomentumShort`，策略只等待或换动作，不另算劲。
+- 伤害档（第 2 档及以上）选中技能时，若本人劲不少于 `OVERDRIVE.Threshold` 且目标可见生命高于 40%，意图带 `bOverdrive`：`ALDOpponentController` 先经 `SubmitCharge` 开始蓄力，`OVERDRIVE.HoldSec` 后再提交带爆劲的释放（`FChargeTrack`），与真人同一服务器校验。
+- 观察帧的 `Warnings` 列出可见的敌方预警（`ReadWarnings`：未结算的地面落点、陷阱、扇形与营地预警，只有公开轮廓与剩余时间）。D 就绪、某个预警剩余不超过 450 ms 且本人脚点在其轮廓内时，按 `AI.DodgeChance`（每个预警对每个 AI 一次稳定掷骰）向侧面或背离中心冲刺（`DodgeIntent`），优先于其他身体意图；完美闪避由服务器判定，AI 不自报。
 施法用途全部由 typed 效果推出（`ReadEffects`），不按技能名称或构筑配方分支。
 同一时刻只送当前动作系统可接收的一项；前摇、控制、资源、来源和占用均不得绕过。
 成功 handoff 后旧运动不由 AI 私下恢复，按新合法观察重新决策；失败则消费真实回执。
@@ -440,6 +446,7 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
     至少三个既未学也非图纸的主动、并且有空的 Q/W/E 而没有图纸可学时，向 NPC 买一次主动三选一（`WantsNpcOffer`，`BuyNpcOffer`），
     下一次决策先选择。它排在加点之前，因为加点会用掉全部未分配点数。开局休息 R0 从不买 NPC：
     开局点数用于加点。
+    **升技能**：有技能点时，`PickRankUp` 选按本人当前攻击力/法强算一次释放直接伤害最高的已学技能（平局取靠前的槽），1 级升到 2A，2A 升到 3A1，2B 升到 3B1，经 `RankUpSkill` 提交；对局中随时可用。
 12. **加点**：有未分配点数且允许加点（休息的构筑开放步骤，或野外各段，存活或死亡）时，一次分配全部未分配点：
    每一点给相关属性中当前点数最少的一项，平局按五维设计顺序（体格、脸皮、力道、脑力、身手）；相关属性固定含体格与脸皮，基础普攻或任一已学主动有 AD 系数时加力道，
    任一已学主动有 AP 系数时加脑力；身手不在其中。
@@ -543,7 +550,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | 参数键 | 类型/单位与消费 | 必须可检验的约束 |
 | --- | --- | --- |
 | `AI.RetreatHPRatio` | 无量纲比例；受压脱险线 | 在零至一的有效健康比例域内，低于 ResumeFarmHPRatio，避免往返振荡。 |
-| `AI.ResumeFarmHPRatio` | 无量纲比例；恢复后重新主动刷野 | 不要求满蓝、不阻止死时选择与加点/公开回防；与低档止损和入场能力一致。 |
+| `AI.ResumeFarmHPRatio` | 无量纲比例；恢复后重新主动刷野 | 不要求劲、不阻止死时选择与加点/公开回防；与低档止损和入场能力一致。 |
 | `AI.HighCampEntryHPRatio` | 无量纲比例；高档入场的当前 HP 门槛 | 高档还须等级 ≥ 2（开局主动选择与开局点数属于起始构筑）并通过保守成本评估；不保证“进了就能打赢”。 |
 | `AI.HighCampReserveHPRatio`、`AI.LowCampReserveHPRatio` | 无量纲比例；相应营地预测清空后的剩余 HP 门槛 | 使用本人实际构筑与公共目录的限定成本模型，不读隐藏血量；不是当前 HP 止损线/额外免伤。实际止损沿 RetreatHPRatio，模型不能保证第三方干扰下安全。 |
 | `AI.CaptureReactionBudgetSec` | 正有限秒数；回防估计余量 | 包含常规规划/排队的不利延迟，不是等待此时长才行动；不得改变喷漆或守护的真实截止。 |
@@ -552,8 +559,8 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | `AI.RetryPolicy.InitialBackoffSec`、`AI.RetryPolicy.MaxBackoffSec` | 正有限秒数 | 最大值不小于初值；重试只在原操作确定终结/拒旧及当前合法条件下发生。 |
 | `AI.ExploreRevisitIntervalSec` | 正有限秒数 | 只描述本 AI 公共 POI 再探节奏；不随隐藏营地刷新事件调整。 |
 | `AI.EngagementBudgetSec` | 正有限秒数 | 覆盖批准基础低档战斗的合理投入；同一次目标/营地过程累计，不随普通攻击、Order 或帧重置。 |
-| `STAT.AttackRangeCm`、本人移速/血蓝/readiness | 原领域权威派生；厘米、厘米/秒、资源 P2、绝对服务器毫秒 | AI 不用初始射程覆盖成长，不另存技能 CD，也不读或另算交战窗口（构筑没有安全窗）；字段单位由提供者定义并集中转换。 |
-| `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/ManaCost/CooldownSec`、`stats` | 公共定义；按字段单位/类型读取 | 技能只有一级，每个主动一组效果值；按实际目标模式（Self/Unit/DirectionProjectile/DirectionCone/DirectionDash/GroundPoint）覆盖全部非空来源；加点只读五维目录与效果的 AD/AP 系数；未知 enum/缺作用条件拒绝而非默认为普攻。 |
+| `STAT.AttackRangeCm`、本人移速/生命/劲/readiness | 原领域权威派生；厘米、厘米/秒、资源 P2、绝对服务器毫秒 | AI 不用初始射程覆盖成长，不另存技能 CD，也不读或另算交战窗口（构筑没有安全窗）；字段单位由提供者定义并集中转换。 |
+| `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/MomentumCost/CooldownSec`、分支、`stats` | 公共定义；按字段单位/类型读取 | 每个主动 1 级一组效果值、六个分支各一组；按实际目标模式（Self/Unit/DirectionProjectile/DirectionCone/DirectionDash/GroundPoint）覆盖全部非空来源；加点只读五维目录与效果的 AD/AP 系数；未知 enum/缺作用条件拒绝而非默认为普攻。 |
 | `CAMP.Low/High`、公开地点；`FORMULA.Damage/Resistance/AttackIntervalMs/AttackWindupMs/ResourceMaxChange` | 只读公共定义/统一数值原语 | 成本估计复用原语但不执行战斗，不读隐藏当前营地成员/HP/刷新期限；资源比例变化只消费 Combat 最终投影。 |
 
 工程级回执容量、订单 liveness、无进展/求路预算沿操作/领域合同集中定义，

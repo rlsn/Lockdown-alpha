@@ -472,7 +472,8 @@ class ApprovedDemoData(unittest.TestCase):
             "projectile_return": 152, "projectile_pierce": 153, "chain_extra": 154, "echo_impact": 155,
             "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "multi_hit_momentum": 159,
             "zone_tether": 160, "defense_shove": 161, "final_knockback": 162, "empower_reach": 163, "pull": 164,
-            "zone_relocate": 165, "stored_force": 166, "empower_spend": 167, "control_widen": 168, "zone_detonate": 169})
+            "zone_relocate": 165, "stored_force": 166, "empower_spend": 167, "control_widen": 168, "zone_detonate": 169,
+            "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "projectile_zone": 195})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -486,7 +487,12 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_display_names_are_the_approved_fog_harbor_names(self):
         # #111 雾港 v2 entry names (CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5); #148 status names use generic game terms.
-        self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"]}, {
+        # Skill branch steps (issue #287 spec §5.1) are checked on their own below.
+        step = re.compile(r"_(2a|2b|3a1|3a2|3b1|3b2)$")
+        steps = {row["id"]: row["name_text"] for row in self.data["display"] if step.search(row["id"])}
+        self.assertEqual(len(steps), 22 * 6)
+        self.assertEqual((steps["active_elbow_2a"], steps["active_elbow_3b2"], steps["active_open_mic_2b"]), ("给我过来", "踹出内伤", "一嗓子"))
+        self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"] if not step.search(row["id"])}, {
             "character_demo": "脆皮大学生",
             # #198 v0.11 actives and the five point-bought stats.
             "active_elbow": "滚远点", "active_pants_down": "扒裤子", "active_crotch_grab": "掏蛋子",
@@ -544,16 +550,16 @@ class ApprovedDemoData(unittest.TestCase):
         schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
         schema.validate(author)
-        projected = schema.project(author)
+        projected = content.project_author(schema, author)
         projected["display"] = [row for row in projected["display"] if row["id"] != "respawn_protection"]
         with self.assertRaisesRegex(content.ContentError, "DisplayReference"):
             content.validate_definitions(projected, ids)
-        projected = schema.project(author)
+        projected = content.project_author(schema, author)
         projected["display"].append(dict(next(row for row in projected["display"] if row["id"] == "respawn_protection")))
         with self.assertRaisesRegex(content.ContentError, "DuplicateId"):
             content.validate_definitions(projected, ids)
         for field in ("name_key", "description_key", "icon_id"):
-            projected = schema.project(author)
+            projected = content.project_author(schema, author)
             next(row for row in projected["display"] if row["id"] == "respawn_protection")[field] = "unresolved_reference"
             with self.subTest(field=field), self.assertRaisesRegex(content.ContentError, "DisplayReference"):
                 content.validate_definitions(projected, ids)
@@ -657,7 +663,7 @@ class ApprovedDemoData(unittest.TestCase):
         schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
         schema.validate(author)
-        projected = schema.project(author)
+        projected = content.project_author(schema, author)
         guardian = next(row for row in projected["camps"]["monsters"] if row["id"] == "monster_guardian")
         guardian["leash_radius"].update(numerator=1100, denominator=1)
         content.validate_definitions(projected, ids)
@@ -671,7 +677,7 @@ class ApprovedDemoData(unittest.TestCase):
         schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
         schema.validate(author)
-        projected = schema.project(author)
+        projected = content.project_author(schema, author)
         content.validate_definitions(projected, ids)
         bolt = next(row for row in projected["abilities"] if row["id"] == "active_snark_bolt")
         bolt["effects"][0]["base"]["p2"] = 4 * 10 ** 14
@@ -721,7 +727,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("opening pool below one offer", lambda d: [row.update(opening=False) for row in d["abilities"]], "OpeningPool"),
             ("unreachable active offer level", lambda d: d["progression"].update(active_offer_levels=[6, 3]), "ActiveOfferLevels"),
         ):
-            projected = schema.project(author)
+            projected = content.project_author(schema, author)
             mutate(projected)
             with self.subTest(case=name), self.assertRaisesRegex(content.ContentError, code):
                 content.validate_definitions(projected, ids)
@@ -756,7 +762,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("active_dirty_puddle", "zone_haste", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
         )
         for identity, op, field, value, error in cases:
-            projected = schema.project(author)
+            projected = content.project_author(schema, author)
             row = next(item for item in projected["abilities"] if item["id"] == identity)
             effect = next(item for item in row["effects"] if item["op"] == op)
             if value is None:
@@ -782,7 +788,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("active_seethe", {"op": "echo", "delay": {"unit": "ms", "ms": 1000}, "ratio": {"unit": "ratio", "bp": 5000}}),
             ("active_account_banned", {"op": "breach", "stacks": 3}),
         ):
-            projected = schema.project(author)
+            projected = content.project_author(schema, author)
             next(item for item in projected["abilities"] if item["id"] == identity)["effects"].append(effect)
             with self.subTest(identity=identity, op=effect["op"]), self.assertRaisesRegex(content.ContentError, "MissingHandler"):
                 content.validate_definitions(projected, ids)
@@ -813,7 +819,7 @@ class ApprovedDemoData(unittest.TestCase):
                           if item["op"] == op)
             effect[field] = dict(effect[field], value=0)
             with self.subTest(op=op, field=field), self.assertRaises(content.ContentError):
-                content.validate_definitions(schema.project(candidate), ids)
+                content.validate_definitions(content.project_author(schema, candidate), ids)
         for identity, op, field in (("component_come_here", "pull", "min_distance"),
                                     ("component_finisher", "final_knockback", "duration")):
             candidate = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
@@ -835,7 +841,7 @@ class ApprovedDemoData(unittest.TestCase):
 
         def check(candidate):
             schema.validate(candidate)
-            content.validate_definitions(schema.project(candidate), ids)
+            content.validate_definitions(content.project_author(schema, candidate), ids)
 
         check(fresh())
         for identity, op, field in (
@@ -859,7 +865,7 @@ class ApprovedDemoData(unittest.TestCase):
             with self.subTest(op=op), self.assertRaises(content.ContentError):
                 check(candidate)
         # A connector op is component-only: no active may carry it.
-        projected = schema.project(author)
+        projected = content.project_author(schema, author)
         next(row for row in projected["abilities"] if row["id"] == "active_seethe")["effects"].append({"op": "zone_relocate"})
         with self.assertRaises(content.ContentError):
             content.validate_definitions(projected, ids)
@@ -871,7 +877,7 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_self_area_damage_refuses_without_its_area(self):
         author, schema, ids = self.approved_projection_inputs()
-        projected = schema.project(author)
+        projected = content.project_author(schema, author)
         seethe = next(row for row in projected["abilities"] if row["id"] == "active_seethe")
         seethe["effects"] = [effect for effect in seethe["effects"] if effect["op"] != "self_area"]
         with self.assertRaisesRegex(content.ContentError, "TargetEffectMismatch"):
@@ -886,7 +892,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("active_seethe", lambda effects: next(e for e in effects if e["op"] == "burn").update(basic_stacks=1)),
             ("active_stare_down", lambda effects: effects.append({"op": "stat_bonus", "stats": {"ADFlat": {"unit": "points", "p2": 100}}})),
         ):
-            projected = schema.project(author)
+            projected = content.project_author(schema, author)
             change(next(row for row in projected["abilities"] if row["id"] == identity)["effects"])
             with self.subTest(identity=identity), self.assertRaises(content.ContentError):
                 content.validate_definitions(projected, ids)

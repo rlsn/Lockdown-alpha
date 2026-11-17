@@ -65,7 +65,7 @@
   作为普通 Direct 请求发出（新序号、当前来源修订）。S、新生命/新局、输入被抑制或保留超过 1 s 丢弃（超时提示“前一个技能未结束，预输入已取消”）；
   `SourceRevision` 变化取消（提示“技能已变化，预输入已取消”）。普攻不需要预输入。
 - 每个 Direct 请求携带 Generation/Life、单调 `DirectSequence`、入口、目标与 owner view 的 `ExpectedSourceRevision`。
-  owner view 的生命或 `SourceRevision` 变化时撤销准备（`OnRep_CombatView`），HP/MP 变化不撤销。按钮可用性与冷却只读 Combat owner view。
+  owner view 的生命或 `SourceRevision` 变化时撤销准备（`OnRep_CombatView`），HP/劲变化不撤销。按钮可用性与冷却只读 Combat owner view。
   能力确认越距由服务器拒绝，**不自动走近**；只有普攻、攻击移动与 `CastUnit/CastPoint` 订单负责接近。
 
 ### 指针反馈
@@ -219,7 +219,7 @@ native record sequence 与圈事件/提供者序列分开；`CompleteNativeMotio
 - **CastUnit**：对单位 Q/W/E 发一条订单替换当前订单（Shift 时入队），经 `ServerSubmitCast`/`SubmitCast` 与 Direct 请求一同收件。Direct 必须非 D、`Unit` 目标、
   与订单观察句柄一致、序号未被 Combat 见过。不带 Shift 时收件即 `CastReady` 判定，未就绪回 `Rejected/CastRefused` 并发 Combat 拒绝回执，不占待受理槽、
   不动当前订单与队列，仍在下一次 Actions 阶段解除保护（`QueueOwedAggression`）。
-  激活（`AdmitOrder`）时 `QueryAvailability` 再判：冷却、法力、受控、空槽、非单位技能立即 `CastRefused`；`Busy` 只延后。施法距离为 `RangeCm - CastMarginCm`（10 cm）。
+  激活（`AdmitOrder`）时 `QueryAvailability` 再判：冷却、劲、受控、空槽、非单位技能立即 `CastRefused`；`Busy` 只延后。施法距离为 `RangeCm - CastMarginCm`（10 cm）。
   推进（`AdvanceCast`）：距离外与普攻共用 `ChaseTarget`；进入距离调 `StartNavCast`（按普通 Direct 判定）：`OutOfRange/Blocked` 继续贴近，`Busy` 等待，其余记录并结束订单
   （成功 `Completed`，否则 `CastRefused`）。目标失视野或死亡同 AttackUnit。
 - **CastPoint**：`GroundPoint` 与 `DirectionProjectile` 确认在地面点时发出（`GroundCm`），判定同上（模式须与瞄准相符）；距离外按身体目标规划行走，进入距离即停下

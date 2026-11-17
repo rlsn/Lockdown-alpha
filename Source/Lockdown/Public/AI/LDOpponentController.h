@@ -107,6 +107,14 @@ private:
         int64 SentAtMs = 0;
         int32 Attempts = 0;
     };
+    // An overdrive charge this adapter holds before it sends the release (OVERDRIVE.HoldSec).
+    struct FChargeTrack
+    {
+        bool bHas = false;
+        ELDCombatEntry Entry = ELDCombatEntry::None;
+        int64 StartMs = 0;
+    };
+    FChargeTrack Charge;
     // The latest direct action; it owns the body until its receipt is final.
     struct FActionTrack
     {

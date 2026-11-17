@@ -482,10 +482,26 @@ namespace LDHUD
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
         FString Cost;             // the active's momentum cost rounded like the shown bar, number only, e.g. "30"; empty without one
+        FString Gap;              // momentum short: the missing momentum, e.g. "-12"; empty otherwise
         FString IconId;           // the icon texture id (LDUIIcons); empty without a source
         FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
+    // Skill ranks (issue #287 spec §12): the rank dots of a slot ("●●○") and the branch cards of its next rank.
+    LOCKDOWN_API FString RankDots(uint8 Rank);
+    // The branch paths the next rank offers: A/B from rank 1, A1/A2 under A, B1/B2 under B, none at rank 3.
+    LOCKDOWN_API TArray<ELDSkillBranch> NextBranches(ELDSkillBranch Current);
+    struct FBranchCardView
+    {
+        bool bKnown=false;
+        ELDSkillBranch Path=ELDSkillBranch::None;
+        FString Name;      // the step's display name
+        FString Line;      // its one-line change with the owner's numbers
+        FString Detail;    // the whole active card at that branch and rank (hover)
+        FString IconId;    // the active's icon
+    };
+    LOCKDOWN_API FBranchCardView BranchCard(const FLDDemoContentDefinitions* Content,FName AbilityId,ELDSkillBranch Path,
+        const FCardStats& Stats);
     // Slot look: the slot face says its state by colour alone (the tooltip keeps the words). A dead, unsynced or empty
     // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, momentum and server reasons.
     enum class EActionLook : uint8 { Ready, Armed, Cooling, MomentumShort, Controlled, Empty, Blocked };
