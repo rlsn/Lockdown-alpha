@@ -36,6 +36,18 @@ class NativeModulesTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 CIChangeScope.native_python_modules(Path(temp))
 
+    def test_import_closure_is_lazy_handles_cycles_and_ignores_relative_imports(self):
+        with tempfile.TemporaryDirectory() as temp:
+            scripts = Path(temp)
+            (scripts / 'A.py').write_text(
+                'import B as alias\nfrom B.tools import item\nfrom .C import item\nimport Gone\n', encoding='utf-8')
+            (scripts / 'B.py').write_text('import A\n', encoding='utf-8')
+            (scripts / 'C.py').write_text('', encoding='utf-8')
+            (scripts / 'Unused.py').write_text('not valid python !', encoding='utf-8')
+            self.assertEqual(CIChangeScope.python_closure(scripts, ['A'], 'fixture'), {'A', 'B'})
+            with self.assertRaisesRegex(RuntimeError, r'fixture depends on missing Scripts/Gone.py'):
+                CIChangeScope.python_closure(scripts, ['Gone'], 'fixture')
+
 
 class ClassifyTest(unittest.TestCase):
     native = {'DemoContent', 'ExportDemoNativeFixtures'}

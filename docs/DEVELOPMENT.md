@@ -1,74 +1,10 @@
 # 开发指南
 
 产品目标见 [App Spec](APP_SPEC.md)，协作约束见 [AGENTS](../AGENTS.md)，验收状态见[实施就绪评估](demo/READINESS.md)。
-本页按章节查阅，不需要通读。
+本页按章节查阅，不需要通读。先用任务索引选一份手册，再从手册的入口表定位实际实现；不要顺读全部系统。
 
-## 环境与首次启动
-
-使用 PowerShell 7、Python 3、Git LFS、Unreal **5.8.4** 及兼容的 MSVC/Windows SDK。
-精确引擎基线在 `Config\PlatformLock.json`。需要 .NET Framework SDK，只有现代 .NET runtime 或 targeting pack 不够。
-
-在工作区根目录执行：
-
-```powershell
-git lfs install
-git lfs pull                     # 新工作区的 Content 只有 LFS 指针，规则测试、编辑器和场景都需要先拉取
-$env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
-.\Scripts\Preflight.ps1          # 核对引擎版本与工具链
-.\Scripts\BuildEditor.ps1        # 编辑器目标；编辑器、规则测试和 -game 运行都只需要它
-.\Scripts\OpenStandalone.ps1     # 打开前端；-HostRoom 直接以 Host 进入 L_Demo
-.\Scripts\OpenEditor.ps1
-```
-
-`BuildGame.ps1`（游戏目标）只用于里程碑检查，日常开发不需要；打包脚本自己构建。
-引擎查找依次使用 `-EngineRoot`、`LD_UE_ROOT`、忽略的 `Config\Local\Environment.json` 和项目引擎关联；
-本机路径不写进共享配置，每个新 shell 都要设置自己的环境变量。
-修改反射类时先关闭编辑器。`-HostRoom` 不会绕过已批准数据与原生合同检查。
-
-仓库的 `unreal-mcp`（`.mcp.json`）由编辑器里的 ModelContextProtocol 插件在 `127.0.0.1:8000` 提供，
-只有 `OpenEditor.ps1` 打开的编辑器在运行时才能连上；`OpenStandalone.ps1`、规则测试与打包版都禁用该插件。
-编辑器打开的是哪个工作区，MCP 改的就是哪个工作区。
-
-## 验证
-
-改完一批连贯改动后，在工作区根目录跑一次：
-
-```powershell
-.\Scripts\Verify.ps1                                    # 按改动决定跑什么
-.\Scripts\Verify.ps1 -Plan                              # 只列出会跑的检查
-.\Scripts\Verify.ps1 -Filter Lockdown.Rules.DemoGrowth  # 另跑这些前缀下的规则测试
-```
-
-它比较工作区（含未提交与未跟踪文件）与 `origin/main` 的合并基点：
-
-| 改动 | 本地运行 |
-| --- | --- |
-| 只有 `docs`、`*.md`、工作流 | 不运行 |
-| `Scripts/*.py` | 对应的 `Test<模块>.py`；有模块找不到对应测试时跑全部 Python 测试 |
-| `SourceData`、`Content/Lockdown/Data` | 两个 Sync `--check` 和全部 Python 测试 |
-| `Source`、`*.uproject` | 一次增量 `BuildEditor.ps1` |
-| 其他（`Config`、资产、PowerShell 脚本） | 不运行；按[验证手册](systems/VERIFICATION.md#最小验证选择)选对应检查 |
-
-- 规则测试的门禁是 PR 的 CI（[CI 与发布](systems/CI_AND_RELEASE.md#pr-检查与每日试玩包)），本地不重复跑整套。
-  新增或改了规则测试、或在排查失败用例时，才加 `-Filter`（可给多个前缀）；它是部分运行，不算门禁。
-  新增的原生测试同步登记到 `CheckRuleReport.py`，并在 PR 里写明测试名。
-- 先完成一批连贯开发，再集中做一次增量、定向验证收尾，不在每次小编辑后构建或测试。
-  提前检查仅用于定位具体缺陷或验证高风险实现假设；保留 `Binaries`、`Intermediate` 与构建缓存，不为验证清理重建。
-  已通过且输入未受后续改动影响的检查不重复跑。无冲突地合并 `main` 后不重跑；
-  冲突涉及生成文件（`Content/Lockdown/Data`、生成资产、`*Contract.h`）时沿 Sync 入口重新生成，不手工拼接。
-- 场景（`RunDemo*Check.ps1`）只在改动涉及网络、交易、成长、胜负等必须用真实拥有连接证明的行为，
-  或 Issue 明确要求时才在 PR 前跑；只选覆盖实际改动及其直接依赖的最小场景或已有定向模式。
-  同一模块不等于需要整局回归；没有定向入口时报告覆盖缺口，不默认启动长测，其余集中到里程碑验收。
-- 失败先看本次 `Artifacts`、日志与断言并标记未通过，不原样重跑来碰运气通过或判断偶发性。
-  修复相关原因后只重跑失败项及受影响检查；没有定向入口的长测仅在明确要求专项验证时重跑。
-  无关失败保留证据和未确认归因，不扩大开发范围。
-- `-FullUnity`、`RunTests.ps1 -ImportTests Run`、全套场景只用于里程碑、发布和全新检出，
-  清单见[验证手册](systems/VERIFICATION.md#合并前与里程碑检查)。
-- 新工作区没有 `Binaries` 与 `Intermediate`，第一次构建要 3–6 分钟（之后的增量构建约 20 秒）。
-  只改文档、数据或 Python 的任务不需要构建。
-- Python 测试失败时看输出结尾 `Log:` 指向的日志，修复后用 `python -B .\Scripts\RunPythonTests.py --failed` 只重跑失败项。
-- PR 保持 Draft 到改动稳定：转 Ready 后每次推送都占用自托管 runner。
-- 共用机器的并发上限见[验证手册](systems/VERIFICATION.md#多人共用一台机器)。
+流程直达：[环境与首次启动](#环境与首次启动) · [验证](#验证) · [工程目录](#工程目录) ·
+[数据修改](#数据修改) · [运行与联机](#运行与联机) · [试玩问题排查](#试玩问题排查) · [任务管理](#任务管理issuemilestoneproject)。
 
 ## 按任务读取系统手册
 
@@ -87,6 +23,120 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 构筑评估（DEV 实验编排、原生重放、合法成长与反事实报告） | [构筑评估 Harness](systems/BUILD_EVALUATION.md) |
 
 每个玩法域只有这里的一份手册，开头的表给出文件、入口函数、不变量与检查入口；跨域语义在[共享契约](demo/SHARED_CONTRACTS.md)，数值在[内容与数值](demo/CONTENT_AND_BALANCE.md)。
+
+### 文档维护归属
+
+| 事实 | 唯一维护位置 |
+| --- | --- |
+| 常驻安全、协作、实现边界与阅读路由 | [AGENTS](../AGENTS.md) |
+| 产品规则、显示术语与完成标准 | [App Spec](APP_SPEC.md#按任务查规则) |
+| 内容、公式与批准数值 | [内容与数值](demo/CONTENT_AND_BALANCE.md#按任务查内容)；运行输入沿 SourceData → Sync → Content 生成 |
+| 跨领域所有权、身份、时间与交接语义 | [共享契约](demo/SHARED_CONTRACTS.md) |
+| 本领域接口、文件、入口函数与不变量 | 上表对应的系统手册 |
+| 环境、日常命令、数据修改与 Issue/PR 流程 | 本页对应章节 |
+| 检查覆盖范围、限制、测试集合与里程碑清单 | [验证手册](systems/VERIFICATION.md#最小验证选择) |
+| 打包、版本、runner 与 CI 门禁 | [CI 与发布](systems/CI_AND_RELEASE.md) |
+| 验收证据、未运行和未实现 | [就绪评估](demo/READINESS.md) |
+
+README 只作项目概览与入口。新增说明写入所属章节，其他位置链接过去，不复制整套规则或测试清单。
+Issue/PR 保存任务进度、决策原话与本次验证结果，不将这些记录写入系统手册。
+
+## 环境与首次启动
+
+使用 Windows 10/11、PowerShell 7、Python 3、Git LFS、Unreal **5.8.4** 及兼容的 MSVC/Windows SDK。
+精确引擎基线在 `Config\PlatformLock.json`。需要 .NET Framework SDK，只有现代 .NET runtime 或 targeting pack 不够。
+`.uasset`、`.umap` 以及 `SourceData\Audio`、`SourceData\Art` 下的音频与 3D 源文件由 Git LFS 管理。
+
+在工作区根目录执行：
+
+```powershell
+git lfs install
+git lfs pull                     # 新工作区的 Content 只有 LFS 指针，规则测试、编辑器和场景都需要先拉取
+# 在根目录 .env 添加 LD_UE_ROOT="<UE 5.8.4 安装目录>"；此文件已被 Git 忽略
+.\Scripts\Preflight.ps1          # 核对引擎版本与工具链
+.\Scripts\BuildEditor.ps1        # 编辑器目标；编辑器、规则测试和 -game 运行都只需要它
+.\Scripts\OpenStandalone.ps1     # 打开前端；-HostRoom 直接以 Host 进入 L_Demo
+.\Scripts\OpenEditor.ps1
+```
+
+`BuildGame.ps1`（游戏目标）只用于里程碑检查，日常开发不需要；打包脚本自己构建。
+引擎查找依次使用 `-EngineRoot`、进程环境变量 `LD_UE_ROOT`、工作区根目录 `.env` 中的 `LD_UE_ROOT`、
+忽略的 `Config\Local\Environment.json` 和项目引擎关联。`.env` 只读取此键的字面量值，可使用成对的单/双引号，
+不执行文件内容；重复键或未闭合引号会明确报错，仍核对锁定引擎版本。本机路径只放被忽略的本机配置，
+不用在每个新 shell 重设；已有 `.env` 时保留其余键，只更新引擎路径。`.env` 变化会使本地原生验证缓存失效。
+修改反射类时先关闭编辑器。`-HostRoom` 不会绕过已批准数据与原生合同检查。
+
+仓库的 `unreal-mcp`（`.mcp.json`）由编辑器里的 ModelContextProtocol 插件在 `127.0.0.1:8000` 提供，
+只有 `OpenEditor.ps1` 打开的编辑器在运行时才能连上；`OpenStandalone.ps1`、规则测试与打包版都禁用该插件。
+编辑器打开的是哪个工作区，MCP 改的就是哪个工作区。
+
+## 验证
+
+改完一批连贯改动后，在工作区根目录跑一次：
+
+```powershell
+.\Scripts\Verify.ps1                                    # 按改动决定跑什么
+.\Scripts\Verify.ps1 -Plan                              # 只列出会跑的检查
+.\Scripts\Verify.ps1 -Filter Lockdown.Rules.DemoGrowth  # 另跑这些前缀下的规则测试
+.\Scripts\Verify.ps1 -Plan -Rules Auto                  # include 图推导规则选择；仅计划
+.\Scripts\Verify.ps1 -Rules Auto                        # 执行有界的受影响规则子集
+.\Scripts\Verify.ps1 -Force                             # 不复用通过结果
+```
+
+它比较工作区（含未提交与未跟踪文件）与 `origin/main` 的合并基点：
+
+| 改动 | 本地运行 |
+| --- | --- |
+| 只有 `docs`、`*.md`、工作流 | 不运行 |
+| `Scripts/*.py` | 反向 Python 导入闭包中的 `Test*.py`，包含字面量脚本引用；无静态可达测试时报告缺口，不回退全量 |
+| `SourceData`、`Content/Lockdown/Data` | 两个 Sync `--check`；仅选择导入闭包中引用该数据路径的 Python 测试 |
+| `Source`、`*.uproject` | 一次增量 `BuildEditor.ps1`；计划同时列出反向 include 图推导的规则名，`-Rules Auto` 可选执行 |
+| 其他（`Config`、资产、PowerShell 脚本） | 不运行；按[验证手册](systems/VERIFICATION.md#最小验证选择)选对应检查 |
+
+验证阶梯：一批连贯改动跑一次 Verify → 按 `-Filter` / `RunPythonTests.py --pattern <文件名>` 定向检查 →
+失败后只重跑失败项（Python 用 `--failed`；原生用失败项的 `-Filter`）→ 非草稿 PR CI 完整门禁 → 里程碑全量。
+不因为没有同名测试、未知依赖或局部失败就升级为本地完整套件。
+
+`LocalVerification.py` 维护选择和缓存，`Verify.ps1` 只编排参数；Python import 提取和闭包遍历复用 `CIChangeScope.py`，
+CI 拒绝缺失入口，局部计划保留已删除模块的依赖边。静态分析识别 Python import、字面量脚本引用、
+数据路径与项目双引号 include；实现文件通过同名头文件关联使用者。它不运行 Python 测试来发现依赖。
+字面量目录引用会保守包含子目录；动态加载、运行时拼接、宏 include、跨编译单元隐藏接线可能缺失，CI 完整门禁兜底，局部通过不等于完整验收。
+超过 12 个 Python 测试模块或 80 项原生规则时，计划明确标为交 CI，不自动跑全量；
+这是本地工具的开销边界，不是产品规则。显式 `-Filter` 也不能通过 Verify 启动完整套件。
+需要检查选择结果可用 `-Plan -Json`；模拟路径只能用于计划，例如
+`.\Scripts\Verify.ps1 -Plan -Paths Scripts\SummarizePlaytestLog.py`，不会修改工作区或将模拟通过写入缓存。
+
+通过记录和独立日志位于忽略的 `Artifacts\Verification`。复用要求命令、输入文件内容/目录成员、
+Python/工具环境、构建输出（如适用）及日志摘要一致；计划和跳过信息显示上次通过时间与日志路径。
+删除证据、修改输入、失败或运行中输入变化都不能产生可复用的通过结果；`-Force` 强制重验。
+本地静态输入指纹不证明外部引擎/SDK 安装未被修改，切换或维护外部工具后用 `-Force`，不能把本机缓存当作 CI 门禁。
+
+- 规则测试的门禁是 PR 的 CI（[CI 与发布](systems/CI_AND_RELEASE.md#pr-检查与每日试玩包)），本地不重复跑整套。
+  新增或改了规则测试、或在排查失败用例时，才加 `-Filter`（可给多个前缀）；它是部分运行，不算门禁。
+  新增的原生测试同步登记到 `CheckRuleReport.py`，并在 PR 里写明测试名。
+- 先完成一批连贯开发，再集中做一次增量、定向验证收尾，不在每次小编辑后构建或测试。
+  提前检查仅用于定位具体缺陷或验证高风险实现假设；保留 `Binaries`、`Intermediate` 与构建缓存，不为验证清理重建。
+  已通过且输入未受后续改动影响的检查不重复跑。无冲突地合并 `main` 后不重跑；
+  冲突涉及生成文件（`Content/Lockdown/Data`、生成资产、`*Contract.h`）时沿 Sync 入口重新生成，不手工拼接。
+- 场景（`RunDemo*Check.ps1`）只在改动涉及网络、交易、成长、胜负等必须用真实拥有连接证明的行为，
+  或 Issue 明确要求时才在 PR 前跑；只选覆盖实际改动及其直接依赖的最小场景或已有定向模式。
+  不用仅有 Host 的调试场景替代拥有连接证据；同一模块不等于需要整局回归。
+  没有定向入口时报告覆盖缺口，不默认启动长测，其余集中到里程碑验收。
+- Core、Combat、Camp、Growth、Capture、Vision、Opponent 复用 `DemoEntry.ps1` 的进程与证据 harness；
+  新场景沿用它，入口只维护探针参数、断言和特殊错误规则，不复制端口、身份、轮询与退出流程。
+- 失败先看本次 `Artifacts`、日志与断言并标记未通过，不原样重跑来碰运气通过或判断偶发性。
+  修复相关原因后只重跑失败项及受影响检查；没有定向入口的长测仅在明确要求专项验证时重跑。
+  无关失败保留证据和未确认归因，不扩大开发范围。
+- `-FullUnity`、`RunTests.ps1 -Full -ImportTests Run`、全套场景只用于里程碑、发布和全新检出，
+  或明确要求的专项验证；清单见[验证手册](systems/VERIFICATION.md#合并前与里程碑检查)。
+- fork PR 不跑 CI 的原生任务：改了 `Source` 的 fork PR 在本地用 `Verify.ps1 -Filter` 跑受影响的规则前缀并在 PR 里写明结果；
+  合并前由维护者在本仓库分支上补跑原生门禁。
+- 新 worktree 不继承 `Binaries` 与 `Intermediate`，Content 还可能是 LFS 指针，需要 `git lfs pull`。
+  首次构建通常要 3–6 分钟，已有产物的增量构建约 20 秒，实际取决于机器与改动；因此串行任务优先复用已构建工作区。
+  不复制别的工作区的 Binaries/Intermediate 来承诺增量复用；只改文档、数据或 Python 的任务不需要构建。
+- Python 测试失败时看输出结尾 `Log:` 指向的日志，修复后用 `python -B .\Scripts\RunPythonTests.py --failed` 只重跑失败项。
+- PR 保持 Draft 到改动稳定，攒一批再推：Ready PR 每次推送都触发 CI；需要 native 门禁时会占用自托管 runner。
+- 共用机器的并发上限见[验证手册](systems/VERIFICATION.md#多人共用一台机器)。
 
 ## 工程目录
 
@@ -281,3 +331,36 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
   `-Trace` 额外录 Unreal Insights CPU 追踪 `PerfBudget.utrace`；`-ExtraArguments '-ExecCmds="<cvar> <值>"'` 做单项 A/B。
   无界面导出计时表：`Start-Process -Wait UnrealInsights.exe -ArgumentList '-OpenTraceFile="<utrace>" -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics <csv> -threads=GameThread" -AutoQuit -NoUI'`。
   游戏线程上权威阶段（`LDPhase_*`）、视野发布、HUD 读模型等已有 `LD*` 命名的追踪区段。
+
+## 任务管理：Issue、Milestone、Project
+
+仅在建票、改期、提交 PR 或合并时读取本节；开发中的常驻约束见 [AGENTS](../AGENTS.md)。
+
+- **合并同类**：同一系统、同一类型的工作合成一张票，子项用 checklist 列出，由一个人连续做完。
+  发现新问题时先搜现有的票：能并入就在原票里加子项，不能并入才新建。
+- **票的内容**：只写三部分：目标；范围（checklist）；验收标准。引用相关规格章节和已批准决定的原话，
+  不写个人上手步骤或环境教学。
+- **标签**：每张票打一个类型标签，可选：`类型:逻辑`、`类型:数值数据`、`类型:表现`、
+  `类型:工具工程`、`类型:测试`、`类型:流程`。
+  另外按情况加：本期不做的加 `12/31之后`；缺陷加 `bug`；需要用户拍板的加 `question`。
+- **Milestone**：每两周一个，依次是 M1、M2、M3、M4、交付；截止日期以 GitHub Milestone 为准。
+  排期越偏逻辑越早、越偏视觉越晚；M4 只做试玩、打磨和迭代，不加新功能。
+  带 `12/31之后` 的票不挂 milestone。
+- **看板**：[Lockdown 12/31 内部版](https://github.com/users/sinmentis/projects/4)。“排期”视图按“开始日期”和“结束日期”显示。
+  PR 关联票后状态自动变为 In Progress，票关闭后自动变为 Done；开工但还没有 PR 时，手动改为 In Progress。
+- **新建票必做**：打类型标签、指派负责人、挂 Milestone 或打 `12/31之后` 标签；
+  加入看板，状态设为 Todo，填写开始日期和结束日期，结束日期不晚于 Milestone 的截止日。漏掉任何一项就不会出现在排期里。
+- **改期**：更换 Milestone 或负责人时，同步更新结束日期。票过了结束日期还没完成，在票里写明原因并改期。
+- **重复的票**：用 `gh issue close <N> --duplicate-of <M>` 关闭，目标票在“合并来源”里列出原票。
+- **产品决定**：决定原话记在对应 Issue；落地后的规格归属见 [AGENTS：任务管理](../AGENTS.md#任务管理issuemilestoneproject)。
+
+从开工到关闭：
+
+1. 把票指派给自己。
+2. 在干净且无人使用的现有工作区，从最新 `main` 切独立分支；同一任务跟进复用原会话与工作区。
+   仅确需并行时建新 worktree，协调者派生会话也须说明 LFS 和首次构建的冷启动成本。
+3. 提 PR，描述里写 `Fixes #N`、改动内容和验证结果，通过、失败、未运行要分开写，并写明新增的测试名。
+4. 验证通过后以 merge commit 合并，并删除分支；禁止 force push，不改写共享提交。
+5. 确认票已经关闭。
+
+一张票可以拆成多个 PR：前面的 PR 写 `Part of #N`，最后一个写 `Fixes #N`。

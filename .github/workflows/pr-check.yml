@@ -110,7 +110,7 @@ jobs:
       - name: Rule tests
         env:
           IMPORT_TESTS: ${{ needs.scope.outputs.import_tests }}
-        run: ./Scripts/RunTests.ps1 -ImportTests $(if ($env:IMPORT_TESTS -eq 'skip') { 'Skip' } else { 'Run' })
+        run: ./Scripts/RunTests.ps1 -Full -ImportTests $(if ($env:IMPORT_TESTS -eq 'skip') { 'Skip' } else { 'Run' })
 
       - name: Upload evidence on failure
         if: failure()

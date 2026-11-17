@@ -7,18 +7,14 @@ Assert-LDDemoInputs
 $output = New-LDArtifactDirectory (($(if ($PackageRoot) { 'DemoCapture-OwnedMatch-Packaged' } else { 'DemoCapture-OwnedMatch' })) +
     $(if ($AllHuman) { '-SixOwners' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
-# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$harness = New-LDDemoHarness -Launch $launch -TimeoutSeconds ($TimeoutSeconds + 60) -PollMilliseconds 200 `
+    -ExitError { param($process) "Capture scenario process exited before evidence completed: PID $($process.Id); $(Get-CaptureFailure). Evidence: $output" } `
+    -TimeoutError { "Capture scenario evidence timed out: $output" }
 $evidence = $launch.ProbeOutput
-$socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
-$port = $socket.Client.LocalEndPoint.Port
-$socket.Dispose()
-$digest = (Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
-$version = Get-LDProjectVersion
-# The wire version is read from the native source, so this runner cannot drift from the build it launches.
-$entryHeader = Get-Content -LiteralPath (Join-Path (Get-LDProjectRoot) 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
-if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
-$wire = [int]$Matches[1]
-$processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+$port = $harness.Port
+$digest = $harness.Digest
+$version = $harness.Version
+$wire = $harness.Wire
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
@@ -46,16 +42,17 @@ function Get-CaptureName {
 
 function Start-CaptureRole {
     param([string]$Role,[string]$Url)
-    $user = Join-Path $output "$Role-User"
-    New-Item -ItemType Directory -Path $user | Out-Null
-    $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    # UI commands need initialized rendered widgets on every owner; only the Host saves frames.
-    $render = if ($RenderHost) {
-        '-RenderOffScreen -ResX=1280 -ResY=720' + $(if ($Role -eq 'Host') { ' -LDCaptureRenderHost' } else { '' })
-    } else { '-nullrhi' }
-    $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCaptureProbe -LDDemoCaptureRole={3} -LDDemoCaptureTimeout={4} -LDDemoCaptureOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
-    if ($AllHuman) { $arguments += ' -LDCaptureAllHuman' }
-    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+        param($user, $log)
+        $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
+        # UI commands need initialized rendered widgets on every owner; only the Host saves frames.
+        $render = if ($RenderHost) {
+            '-RenderOffScreen -ResX=1280 -ResY=720' + $(if ($Role -eq 'Host') { ' -LDCaptureRenderHost' } else { '' })
+        } else { '-nullrhi' }
+        $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCaptureProbe -LDDemoCaptureRole={3} -LDDemoCaptureTimeout={4} -LDDemoCaptureOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
+        if ($AllHuman) { $arguments += ' -LDCaptureAllHuman' }
+        $arguments
+    }
 }
 
 function Get-CaptureFailure {
@@ -74,33 +71,16 @@ function Get-CaptureFailure {
     return 'no role report explains it'
 }
 
-function Wait-CaptureReports {
-    param([string[]]$Names)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + 60)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        foreach ($process in $processes) {
-            $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
-                $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Capture scenario process exited before evidence completed: PID $($process.Id); $(Get-CaptureFailure). Evidence: $output"
-            }
-        }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
-        Start-Sleep -Milliseconds 200
-    }
-    throw "Capture scenario evidence timed out: $output"
-}
-
 try {
     Start-CaptureRole 'Host' ('/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName={0}' -f (Get-CaptureName 'Host'))
-    Wait-CaptureReports @('HostJoined.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('HostJoined.json')
     foreach ($index in 1..$clientCount) {
         $url = '127.0.0.1:{0}?LDName={1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,(Get-CaptureName "Client$index"),$wire,$version,$digest
         Start-CaptureRole "Client$index" $url
     }
-    Wait-CaptureReports @($roles | ForEach-Object { "$_.json" })
+    Wait-LDDemoEvidence -Harness $harness -Names @($roles | ForEach-Object { "$_.json" })
     $reports = foreach ($role in $roles) {
-        $r = Get-Content -LiteralPath (Join-Path $evidence "$role.json") -Raw | ConvertFrom-Json
+        $r = Read-LDDemoReport -Harness $harness -Name "$role.json"
         if (-not $r.passed -or $r.role -ne $role -or @($r.checks | Where-Object { $_.passed -ne $true }).Count -ne 0) {
             throw "Owned capture evidence failed for $role`: $($r.detail). Evidence: $output"
         }
@@ -129,14 +109,9 @@ try {
             throw "Roles disagree on the unique result, the next Lobby generation or the second match generation: $output"
         }
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
-    foreach ($process in @($processes)[1..$clientCount]) {
-        if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw "Capture client did not exit cleanly: $output" }
-    }
-    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
-    if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT' |
+    Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Capture client did not exit cleanly: $output"
+    Stop-LDDemoHost -Harness $harness
+    $errors = @(Get-LDDemoLogErrors -Harness $harness |
         Where-Object { -not ($AllHuman -and (Split-Path -Leaf $_.Path) -eq 'Client5.log' -and
             $_.Line -match 'LogNet: Error: UEngine::BroadcastNetworkFailure: FailureType = ConnectionLost,') })
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
@@ -147,9 +122,5 @@ try {
         $roster,$reports[0].summary.second_generation,$output)
 }
 finally {
-    foreach ($process in $processes) {
-        $process.Refresh()
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
-    }
-    Complete-LDGameEvidence $launch
+    Close-LDDemoHarness -Harness $harness
 }

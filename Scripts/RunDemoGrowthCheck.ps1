@@ -5,19 +5,14 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
 Assert-LDDemoInputs
 $output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoGrowth-Owned-Packaged' } else { 'DemoGrowth-Owned' })
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
-# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$harness = New-LDDemoHarness -Launch $launch -TimeoutSeconds ($TimeoutSeconds) -PollMilliseconds 200 `
+    -ExitError { param($process) "Growth scenario process exited before its evidence completed: PID $($process.Id). Evidence: $output" } `
+    -TimeoutError { "Growth scenario evidence timed out: $output" }
 $evidence = $launch.ProbeOutput
-$socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
-$port = $socket.Client.LocalEndPoint.Port
-$socket.Dispose()
-$projectRoot = Get-LDProjectRoot
-$digest = (Get-FileHash -LiteralPath (Join-Path $projectRoot 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
-$version = Get-LDProjectVersion
-# The wire version is read from the native source, so this runner cannot drift from the build it launches.
-$entryHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
-if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
-$wire = [int]$Matches[1]
-$processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+$port = $harness.Port
+$digest = $harness.Digest
+$version = $harness.Version
+$wire = $harness.Wire
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (GROWTH_TRANSACTIONS check entries); a skipped stage cannot pass silently.
 $requiredChecks = @{
@@ -27,47 +22,26 @@ $requiredChecks = @{
 
 function Start-GrowthRole {
     param([string]$Role,[string]$Url)
-    $user = Join-Path $output "$Role-User"
-    New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host is a participating Listen Host with a real RHI main view and the DEV growth fixture that presets the owning
-    # client's active offers and grants its own XP; the owning client never carries the fixture and renders offscreen.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port -LDDevGrowthFixture" } else { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
-    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthProbe -LDDemoGrowthRole={2} -LDDemoGrowthTimeout={3} -LDDemoGrowthOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
-    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
-}
-
-function Wait-GrowthFiles {
-    param([string[]]$Names)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        foreach ($process in $processes) {
-            $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
-                $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Growth scenario process exited before its evidence completed: PID $($process.Id). Evidence: $output"
-            }
-        }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
-        Start-Sleep -Milliseconds 200
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+        param($user, $log)
+        # The Host is a participating Listen Host with a real RHI main view and the DEV growth fixture that presets the owning
+        # client's active offers and grants its own XP; the owning client never carries the fixture and renders offscreen.
+        $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port -LDDevGrowthFixture" } else { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
+        $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthProbe -LDDemoGrowthRole={2} -LDDemoGrowthTimeout={3} -LDDemoGrowthOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
+        $arguments
     }
-    throw "Growth scenario evidence timed out: $output"
-}
-
-function Read-GrowthJson {
-    param([string]$Name)
-    Get-Content -LiteralPath (Join-Path $evidence $Name) -Raw | ConvertFrom-Json
 }
 
 try {
     Start-GrowthRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoGrowthHost'
-    Wait-GrowthFiles @('HostReady.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('HostReady.json')
     $url = '127.0.0.1:{0}?Name=DemoGrowthClient1?LDWire={1}?LDProduct={2}?LDCatalog={3}' -f $port,$wire,$version,$digest
     Start-GrowthRole 'Client1' $url
-    Wait-GrowthFiles @('Host.json','Client1.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json')
     $reports = @{}
     $failures = @()
     foreach ($role in $roles) {
-        $report = Read-GrowthJson "$role.json"
+        $report = Read-LDDemoReport -Harness $harness -Name "$role.json"
         $failed = @($report.checks | Where-Object { -not $_.passed })
         if (-not $report.passed -or $report.role -ne $role -or -not $report.dev_probe -or
             $report.catalog_sha256 -ne $digest -or $failed.Count -ne 0) {
@@ -152,12 +126,9 @@ try {
     if (@($client.dev_test).Count -ne 15 -or @($hostReport.dev_test).Count -ne 3) {
         throw "A DEV test step is missing from the reports: $output"
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
-    if (-not $processes[1].WaitForExit(30000) -or $processes[1].ExitCode -ne 0) { throw "Owning client did not exit cleanly: $output" }
-    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
-    if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
+    Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Owning client did not exit cleanly: $output"
+    Stop-LDDemoHost -Harness $harness
+    $errors = @(Get-LDDemoLogErrors -Harness $harness -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
     if (-not (Select-String -LiteralPath (Join-Path $output 'Host.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet) -or
         (Select-String -LiteralPath (Join-Path $output 'Client1.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet)) {
@@ -181,9 +152,5 @@ try {
         "Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
-    foreach ($process in $processes) {
-        $process.Refresh()
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
-    }
-    Complete-LDGameEvidence $launch
+    Close-LDDemoHarness -Harness $harness
 }

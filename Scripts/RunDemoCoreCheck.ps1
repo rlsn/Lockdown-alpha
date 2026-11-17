@@ -7,67 +7,47 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$Ti
 Assert-LDDemoInputs
 $output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoCore-OwnedBodies-Packaged' } else { 'DemoCore-OwnedBodies' })
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
-# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$harness = New-LDDemoHarness -Launch $launch -TimeoutSeconds ($TimeoutSeconds) -PollMilliseconds 100 `
+    -ExitError { param($process) "Native core process exited before evidence completed: PID $($process.Id). Evidence: $output" } `
+    -TimeoutError { "Native core evidence timed out: $output" }
 $evidence = $launch.ProbeOutput
-$socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
-$port = $socket.Client.LocalEndPoint.Port
-$socket.Dispose()
-$digest = (Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
-$version = Get-LDProjectVersion
-# The wire version is read from the native source, so this runner cannot drift from the build it launches.
-$entryHeader = Get-Content -LiteralPath (Join-Path (Get-LDProjectRoot) 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
-if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
-$wire = [int]$Matches[1]
-$processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+$port = $harness.Port
+$digest = $harness.Digest
+$version = $harness.Version
+$wire = $harness.Wire
 
 function Start-CoreRole {
     param([string]$Role,[string]$Url)
-    $user = Join-Path $output "$Role-User"
-    New-Item -ItemType Directory -Path $user | Out-Null
-    $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    # The NPC service is part of the laid-out workshop, so its owning client needs real Slate geometry.
-    $render = if ($EarlyRestReady -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
-    $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCoreProbe -LDDemoCoreRole={3} -LDDemoCoreTimeout={4} -LDDemoCoreOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
-    if ($EarlyRestReady) { $arguments += ' -LDDemoCoreReady' }
-    if ($ReplayFieldReturn) { $arguments += ' -LDDemoCoreReplayFieldReturn' }
-    if ($NetEmulation) { $arguments += " $NetEmulation" }
-    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
-}
-
-function Wait-CoreReports {
-    param([string[]]$Names)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        foreach ($process in $processes) {
-            $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
-                $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Native core process exited before evidence completed: PID $($process.Id). Evidence: $output"
-            }
-        }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
-        Start-Sleep -Milliseconds 100
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+        param($user, $log)
+        $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
+        # The NPC service is part of the laid-out workshop, so its owning client needs real Slate geometry.
+        $render = if ($EarlyRestReady -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
+        $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCoreProbe -LDDemoCoreRole={3} -LDDemoCoreTimeout={4} -LDDemoCoreOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
+        if ($EarlyRestReady) { $arguments += ' -LDDemoCoreReady' }
+        if ($ReplayFieldReturn) { $arguments += ' -LDDemoCoreReplayFieldReturn' }
+        if ($NetEmulation) { $arguments += " $NetEmulation" }
+        $arguments
     }
-    throw "Native core evidence timed out: $output"
 }
 
 try {
     Start-CoreRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoCoreHost'
-    Wait-CoreReports @('HostReady.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('HostReady.json')
     foreach ($index in 1..2) {
         $url = '127.0.0.1:{0}?Name=DemoCoreClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
         Start-CoreRole "Client$index" $url
     }
     if ($FinalEntryOnly) {
-        Wait-CoreReports @('FinalEntry.json')
-        $entry = Get-Content -LiteralPath (Join-Path $evidence 'FinalEntry.json') -Raw | ConvertFrom-Json
+        Wait-LDDemoEvidence -Harness $harness -Names @('FinalEntry.json')
+        $entry = Read-LDDemoReport -Harness $harness -Name 'FinalEntry.json'
         if (-not $entry.passed -or $entry.entries -ne 6) { throw "Final entry preparation failed: $($entry.detail). Evidence: $output" }
         Write-Host "All six final entries prepared through the authoritative spawn path. Evidence: $output"
         return
     }
-    Wait-CoreReports @('Host.json','Client1.json','Client2.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {
-        $r = Get-Content -LiteralPath (Join-Path $evidence "$_.json") -Raw | ConvertFrom-Json
+        $r = Read-LDDemoReport -Harness $harness -Name "$_.json"
         # A blocked-placement retry fixture can retire an R0 life; every role still finishes on exactly its next field life.
         if (-not $r.passed -or $r.role -ne $_ -or -not $r.fixture_only -or $r.full_ct06 -or $r.catalog_sha256 -ne $digest -or
             $r.rest_life_before_field -lt 1 -or $r.life -ne ($r.rest_life_before_field + 1) -or
@@ -84,26 +64,17 @@ try {
             throw "Owned projection does not match the authoritative body/life: $output"
         }
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Owning clients explicitly leave the room'
-    foreach ($process in @($processes)[1..2]) {
-        if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw "Core process did not exit cleanly: $output" }
-    }
-    Wait-CoreReports @('Disconnects.json')
-    $disconnect = Get-Content -LiteralPath (Join-Path $evidence 'Disconnects.json') -Raw | ConvertFrom-Json
+    Stop-LDDemoClients -Harness $harness -Message 'Owning clients explicitly leave the room' -ExitError "Core process did not exit cleanly: $output"
+    Wait-LDDemoEvidence -Harness $harness -Names @('Disconnects.json')
+    $disconnect = Read-LDDemoReport -Harness $harness -Name 'Disconnects.json'
     if (-not $disconnect.passed -or $disconnect.retired_clients -ne 2 -or $disconnect.remaining_live_bodies -ne 1) {
         throw "Explicit room leave did not retire authoritative body/resource ownership: $output"
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
-    if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    Stop-LDDemoHost -Harness $harness
+    $errors = @(Get-LDDemoLogErrors -Harness $harness)
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
     Write-Host "DEV-only owned-body core/ground/native CMC scenario passed. Not full gameplay or CT06. Evidence: $output"
 }
 finally {
-    foreach ($process in $processes) {
-        $process.Refresh()
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
-    }
-    Complete-LDGameEvidence $launch
+    Close-LDDemoHarness -Harness $harness
 }

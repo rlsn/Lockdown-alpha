@@ -25,35 +25,33 @@ $scenario = if ($UIReview) { "DemoUI-$UIReview" } elseif ($Telemetry) { 'DemoOpp
 $output = New-LDArtifactDirectory ($scenario + $(if ($PackageRoot) { '-Packaged' } else { '' }) +
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
-# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$harness = New-LDDemoHarness -Launch $launch -TimeoutSeconds ($TimeoutSeconds + 60) -PollMilliseconds 200 `
+    -ExitError { param($process) "Opponent scenario process exited before evidence completed: PID $($process.Id); $(Get-OpponentFailure). Evidence: $output" } `
+    -TimeoutError { "Opponent scenario evidence timed out: $output" }
 $evidence = $launch.ProbeOutput
-$socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
-$port = $socket.Client.LocalEndPoint.Port
-$socket.Dispose()
-$digest = (Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
-$version = Get-LDProjectVersion
-# The wire version is read from the native source, so this runner cannot drift from the build it launches.
-$entryHeader = Get-Content -LiteralPath (Join-Path (Get-LDProjectRoot) 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
-if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
-$wire = [int]$Matches[1]
-$processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+$port = $harness.Port
+$digest = $harness.Digest
+$version = $harness.Version
+$wire = $harness.Wire
+$processes = $harness.Processes
 
 function Start-OpponentRole {
     param([string]$Role,[string]$Url)
-    $user = Join-Path $output "$Role-User"
-    New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host renders (1280x720 offscreen) so it can keep HUD screenshots of the match; clients and the telemetry
-    # Host stay headless.
-    $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
-        elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })" }
-        elseif ($UIReview -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
-        else { '-nullrhi' }
-    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
-    if ($NetEmulation) { $arguments += " $NetEmulation" }
-    if ($LogCmds) { $arguments += " -LogCmds=""$LogCmds""" }
-    if ($UIReview) { $arguments += " -LDDemoUIReview=$UIReview" }
-    if ($UIReview -and $Role -eq 'Host') { $arguments += ' -LDDevGrowthFixture' }
-    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+        param($user, $log)
+        # The Host renders (1280x720 offscreen) so it can keep HUD screenshots of the match; clients and the telemetry
+        # Host stay headless.
+        $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
+            elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })" }
+            elseif ($UIReview -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
+            else { '-nullrhi' }
+        $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
+        if ($NetEmulation) { $arguments += " $NetEmulation" }
+        if ($LogCmds) { $arguments += " -LogCmds=""$LogCmds""" }
+        if ($UIReview) { $arguments += " -LDDemoUIReview=$UIReview" }
+        if ($UIReview -and $Role -eq 'Host') { $arguments += ' -LDDevGrowthFixture' }
+        $arguments
+    }
 }
 
 function Get-OpponentFailure {
@@ -65,23 +63,6 @@ function Get-OpponentFailure {
         }
     }
     return 'no role report explains it'
-}
-
-function Wait-OpponentReports {
-    param([string[]]$Names)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + 60)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        foreach ($process in $processes) {
-            $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
-                $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Opponent scenario process exited before evidence completed: PID $($process.Id); $(Get-OpponentFailure). Evidence: $output"
-            }
-        }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
-        Start-Sleep -Milliseconds 200
-    }
-    throw "Opponent scenario evidence timed out: $output"
 }
 
 # Clients can connect as soon as the Host's lobby exists; its own HostJoined marker comes many seconds later, once the
@@ -110,8 +91,7 @@ function Invoke-OpponentTelemetry {
     if (-not $report.passed -or $process.ExitCode -ne 0) {
         throw "Opponent telemetry failed after $($report.matches_completed) of $MatchCount match(es): $($report.detail). Evidence: $output"
     }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    $errors = @(Get-LDDemoLogErrors -Harness $harness)
     if ($errors.Count) { throw "Opponent telemetry logged an error: $($errors[0].Line). Evidence: $output" }
     Invoke-LDTool -Tool 'python' -ToolArguments @('-B', (Join-Path $PSScriptRoot 'SummarizeOpponentTelemetry.py'), $evidence) -LogPath (Join-Path $output 'Summary.txt')
     Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
@@ -163,9 +143,9 @@ try {
         $url = '127.0.0.1:{0}?Name=DemoOpponentClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
         Start-OpponentRole "Client$index" $url
     }
-    Wait-OpponentReports @('Host.json','Client1.json','Client2.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {
-        $r = Get-Content -LiteralPath (Join-Path $evidence "$_.json") -Raw | ConvertFrom-Json
+        $r = Read-LDDemoReport -Harness $harness -Name "$_.json"
         # A check this match gave no occasion for is listed below as not exercised; it is neither a pass nor a failure.
         if (-not $r.passed -or $r.role -ne $_ -or @($r.checks | Where-Object { $_.status -ne 'passed' -and $_.status -ne 'not_exercised' }).Count -ne 0) {
             throw "Opponent scenario evidence failed for $_`: $($r.detail). Evidence: $output"
@@ -179,14 +159,9 @@ try {
             throw "Roles disagree on the unique result or the next Lobby generation: $output"
         }
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
-    foreach ($process in @($processes)[1..2]) {
-        if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw "Opponent scenario client did not exit cleanly: $output" }
-    }
-    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
-    if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $loggedErrors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Opponent scenario client did not exit cleanly: $output"
+    Stop-LDDemoHost -Harness $harness
+    $loggedErrors = @(Get-LDDemoLogErrors -Harness $harness)
     # R02 intentionally blocks every PK spawn. Only its single Host marker, backed by the passed assertion, is expected.
     $r02Passed = @($reports | Where-Object { $_.role -eq 'Host' } | ForEach-Object { $_.checks } |
         Where-Object { $_.name -like 'R02:*' -and $_.status -eq 'passed' }).Count -eq 1
@@ -229,9 +204,5 @@ try {
     Write-Host "DEV-only full-room opponent AI scenario passed on real owned connections: the humans stayed out of play and an AI won by capture after $([math]::Round($first.duration_ms / 1000)) s.$coverage$impairment Not hidden-state non-interference, a leaving human or network faults. Evidence: $output"
 }
 finally {
-    foreach ($process in $processes) {
-        $process.Refresh()
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
-    }
-    Complete-LDGameEvidence $launch
+    Close-LDDemoHarness -Harness $harness
 }

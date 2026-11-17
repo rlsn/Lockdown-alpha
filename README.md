@@ -25,57 +25,31 @@ Demo 的完整流程已经实现：前端建房或加入 → Lobby（Host 选 0�
 
 ## 环境
 
-| 需要 | 说明 |
-| --- | --- |
-| 系统与 Shell | Windows 10/11，PowerShell 7，Python 3 |
-| 引擎 | Unreal Engine **5.8.4**（精确基线见 `Config\PlatformLock.json`），通过 `LD_UE_ROOT` 或脚本的 `-EngineRoot` 指定安装目录 |
-| 工具链 | 与该引擎兼容的 MSVC 与 Windows SDK，.NET Framework SDK（只有现代 .NET runtime 不够） |
-| 二进制资产 | Git LFS：`.uasset`、`.umap` 以及 `SourceData\Audio`、`SourceData\Art` 下的音频与 3D 源文件 |
-
-本机路径不提交到仓库；每个新 shell 都需要设置自己的环境变量。
+Windows、工具链、Git LFS 与引擎路径的要求统一见[环境与首次启动](docs/DEVELOPMENT.md#环境与首次启动)。
 
 ## 快速开始
 
-在工作区根目录执行：
-
-```powershell
-git lfs install
-git lfs pull
-$env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
-.\Scripts\Preflight.ps1          # 核对引擎版本与工具链
-.\Scripts\BuildEditor.ps1        # 编辑器目标；日常开发只需要它
-.\Scripts\OpenStandalone.ps1     # 以无边框全屏打开前端；加 -HostRoom 直接以 Host 进入 Demo 地图
-.\Scripts\OpenEditor.ps1         # 打开编辑器
-```
+首次检出按[启动命令](docs/DEVELOPMENT.md#环境与首次启动)拉取 LFS、检查环境并构建 Editor；
+日常用 `.\Scripts\OpenStandalone.ps1` 打开前端，`.\Scripts\OpenEditor.ps1` 打开编辑器。
 
 游戏固定以无边框全屏、桌面分辨率运行。同机多开时给每个 `OpenStandalone.ps1` 加 `-Windowed`（1280×720 窗口），
 一个建房，其余用回环地址加入；窗口模式下指针离开窗口就无法边缘平移，正式试玩不要用。
 
 ## 测试与打包
 
-| 目的 | 命令 |
+| 目的 | 入口 |
 | --- | --- |
-| 日常验证：按改动决定跑什么（规则见[开发指南](docs/DEVELOPMENT.md#验证)） | `.\Scripts\Verify.ps1`；另跑相关规则测试加 `-Filter <测试路径前缀>…` |
-| 完整原生规则测试（PR 的 CI 会跑；本地用于里程碑） | `.\Scripts\RunTests.ps1`；完整导入门禁显式用 `-ImportTests Run` |
-| 保存的正式地图布局同步（先保存并关闭编辑器） | `.\Scripts\SyncDemoMap.ps1` |
-| 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
-| 全部 Python 测试 | `python -B .\Scripts\RunPythonTests.py` |
-| 试玩日志整理（房主与客户端日志合并成每局时间线） | `python -B .\Scripts\SummarizePlaytestLog.py <日志或目录>…`，见[开发指南](docs/DEVELOPMENT.md#试玩问题排查) |
-| 生成资产、音效与美术校验 | `.\Scripts\BootstrapAssets.ps1`（默认 Validate，同时校验音效与美术目录） |
-| 拥有连接场景 | `.\Scripts\RunDemo<Core/Combat/Camp/Growth/Capture/Vision/Opponent/SessionFault>Check.ps1`，加 `-PackageRoot <包的 Archive 目录>` 在打包版上运行 |
-| 全新检出验证 | `.\Scripts\VerifyCleanCheckout.ps1` |
-| 打包 Development 版 | `.\Scripts\PackageWin64.ps1`，输出到 `Artifacts\<时间戳>-PackageWin64\Archive` |
-| 打开打包版 | `.\Scripts\OpenPackaged.ps1 -PackageRoot <Archive 目录>` |
+| 日常按改动验证 | `.\Scripts\Verify.ps1`，选择规则与定向参数见[开发指南：验证](docs/DEVELOPMENT.md#验证) |
+| 数据生成、地图同步与资产导入 | [数据修改](docs/DEVELOPMENT.md#数据修改)与[世界管线](docs/systems/WORLD_AND_DATA_PIPELINE.md#标准关卡编辑与同步) |
+| 规则、场景与全新检出检查 | [最小验证选择](docs/systems/VERIFICATION.md#最小验证选择)；完整检查仅用于[里程碑等指定场合](docs/systems/VERIFICATION.md#合并前与里程碑检查) |
+| 试玩日志整理 | [试玩问题排查](docs/DEVELOPMENT.md#试玩问题排查) |
+| 打包与打开打包版 | [打包与产物](docs/systems/CI_AND_RELEASE.md#打包与产物) |
 
-每个场景覆盖和不覆盖的内容见[验证手册](docs/systems/VERIFICATION.md)，数据修改流程见[开发指南](docs/DEVELOPMENT.md#数据修改)。
 所有运行输出写入 Git 忽略的 `Artifacts`。
 
 ## 协作流程
 
-工作以 [GitHub Issue](https://github.com/rlsn/Lockdown-alpha/issues) 为单位，按 Milestone 和
-[看板](https://github.com/users/sinmentis/projects/4) 排期；每张票一个分支，经 PR 以 merge commit 合入 `main`，禁止 force push。
-里程碑与发布在冻结后跑[完整检查](docs/systems/VERIFICATION.md#合并前与里程碑检查)并在打包版上跑全部场景，
-全部通过后才替换唯一一份已知可用的包。规则全文见 [AGENTS](AGENTS.md)。
+常驻约束见 [AGENTS](AGENTS.md)；建票、排期、PR 和合并步骤见[任务管理](docs/DEVELOPMENT.md#任务管理issuemilestoneproject)。
 
 ## 文档地图
 
@@ -90,7 +64,6 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 跨模块契约 | [共享契约](docs/demo/SHARED_CONTRACTS.md) |
 | 各玩法域的接口与实现说明 | `docs\systems` 下的系统手册（索引见[开发指南](docs/DEVELOPMENT.md#按任务读取系统手册)） |
 | 首版内容与数值（唯一来源） | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md) |
-| 现有组件的实现与接口 | `docs\systems` 下的系统手册，索引见[开发指南](docs/DEVELOPMENT.md#按任务读取系统手册) |
 
 ## 文件边界与第三方素材
 

@@ -27,6 +27,26 @@ function Resolve-LDEngine {
     $projectRoot = Get-LDProjectRoot
     if (-not $EngineRoot) { $EngineRoot = $env:LD_UE_ROOT }
     if (-not $EngineRoot) {
+        $dotenv = Join-Path $projectRoot '.env'
+        if (Test-Path -LiteralPath $dotenv) {
+            $bindings = @(foreach ($line in Get-Content -LiteralPath $dotenv -Encoding utf8) {
+                if ($line -match '^\s*LD_UE_ROOT\s*=(.*)$') { $Matches[1].Trim() }
+            })
+            if ($bindings.Count -gt 1) { throw 'Invalid LD_UE_ROOT in .env: duplicate binding.' }
+            if ($bindings.Count -eq 1) {
+                $EngineRoot = $bindings[0]
+                if ($EngineRoot.StartsWith('"') -or $EngineRoot.StartsWith("'")) {
+                    if ($EngineRoot.Length -lt 2 -or $EngineRoot[-1] -ne $EngineRoot[0]) {
+                        throw 'Invalid LD_UE_ROOT in .env: unmatched quotes.'
+                    }
+                    $EngineRoot = $EngineRoot.Substring(1, $EngineRoot.Length - 2)
+                } elseif ($EngineRoot.EndsWith('"') -or $EngineRoot.EndsWith("'")) {
+                    throw 'Invalid LD_UE_ROOT in .env: unmatched quotes.'
+                }
+            }
+        }
+    }
+    if (-not $EngineRoot) {
         $settingsPath = Join-Path $projectRoot 'Config/Local/Environment.json'
         if (Test-Path -LiteralPath $settingsPath) {
             $EngineRoot = (Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json).engineRoot
@@ -44,7 +64,7 @@ function Resolve-LDEngine {
             if (Test-Path -LiteralPath $installedKey) { $EngineRoot = (Get-ItemProperty -LiteralPath $installedKey).InstalledDirectory }
         }
     }
-    if (-not $EngineRoot) { throw 'Engine not found. Set LD_UE_ROOT or Config/Local/Environment.json (engineRoot).' }
+    if (-not $EngineRoot) { throw 'Engine not found. Set LD_UE_ROOT in the environment or project .env, or use Config/Local/Environment.json (engineRoot).' }
     $resolvedRoot = (Resolve-Path -LiteralPath $EngineRoot).Path
     $version = Get-Content -LiteralPath (Join-Path $resolvedRoot 'Engine/Build/Build.version') -Raw | ConvertFrom-Json
     $lock = Get-Content -LiteralPath (Join-Path $projectRoot 'Config/PlatformLock.json') -Raw | ConvertFrom-Json
