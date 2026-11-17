@@ -479,9 +479,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         MarkViewChanged(Body->Victim.EntityId);
         if (Source && LDCombatCues::ConfirmsDealt(Hit,Damage.DamageP2))
         {
+            // A training dummy refills at zero rather than dying, so emptying it is no kill.
+            const uint8 Dealt=LDCombatCues::ClassifyDealt(bCritical,ShieldBeforeP2,Damage,
+                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy);
+            // One receipt per authority instant: an area release confirms its strongest hit whatever the target order.
+            if (Source->Cues.LastDealtAtMs!=NowMs || LDCombatCues::DealtRank(Dealt)>LDCombatCues::DealtRank(Source->Cues.LastDealtFlags))
+            {
+                Source->Cues.LastDealtLook=uint8(LDCombatCues::ClassifyHit(Hit));
+                Source->Cues.LastDealtFlags=Dealt;
+            }
             Source->Cues.LastDealtAtMs=NowMs;
-            Source->Cues.LastDealtLook=uint8(LDCombatCues::ClassifyHit(Hit));
-            Source->Cues.LastDealtFlags=LDCombatCues::ClassifyDealt(bCritical,ShieldBeforeP2,Damage,HPBefore>0 && Body->Resources.HpP2==0);
             MarkViewChanged(Source->Victim.EntityId);
             bSendOwnHit=true;
             OwnHitLook=static_cast<ELDObservedHitLook>(Body->Cues.LastHitLook);

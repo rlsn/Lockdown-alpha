@@ -276,6 +276,7 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
         for (const FGuid& Source : {B, Camp})
         {
             FLDCombatHit Hit;
+            Hit.HitId = FGuid::NewGuid();
             Hit.SourceEntity = Source;
             Hit.Target = {SA.Victim, SA.Identity};
             const int64 Hp = SA.Resources.HpP2;

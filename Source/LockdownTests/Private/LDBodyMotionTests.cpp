@@ -173,6 +173,19 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A kill outweighs a critical hit and a broken shield sits between"),
         Kill.Tier==LDHitFeel::ETier::Kill && Kill.StopSeconds==.16f && Kill.KickCm==12.f
         && Break.Tier==LDHitFeel::ETier::ShieldBreak && Break.StopSeconds==.09f);
+    TestTrue(TEXT("The authority keeps the strongest receipt of one instant: kill, critical, broken shield, then any hit"),
+        LDCombatCues::DealtRank(LDCombatCues::DealtLethal)>LDCombatCues::DealtRank(LDObservation::Critical|LDObservation::ShieldBroken)
+        && LDCombatCues::DealtRank(LDObservation::Critical)>LDCombatCues::DealtRank(LDObservation::ShieldBroken)
+        && LDCombatCues::DealtRank(LDObservation::ShieldBroken)>LDCombatCues::DealtRank(LDObservation::ShieldAbsorbed)
+        && LDCombatCues::DealtRank(LDObservation::ShieldAbsorbed)==LDCombatCues::DealtRank(0));
+    // A confirmed prediction hands over to the authority's start even within the jitter window of a repeated report.
+    ULDHumanoidVisualComponent* Handover=NewObject<ULDHumanoidVisualComponent>();
+    Handover->Clock=2.1;
+    Handover->SetCue(1,0.f,.3f);
+    Handover->SetCue(1,.1f,.3f);
+    TestTrue(TEXT("An earlier report of the same swing is jitter"),FMath::IsNearlyEqual(Handover->ActionOnset,2.1));
+    Handover->SetCue(1,.1f,.3f,false,true);
+    TestTrue(TEXT("The handover adopts the authority's earlier start"),FMath::IsNearlyEqual(Handover->ActionOnset,2.0));
     TestTrue(TEXT("Each receipt names its own onomatopoeia"),
         LDHitFeel::Word(0)==TEXT("啪！") && LDHitFeel::Word(LDObservation::ShieldAbsorbed)==TEXT("铛！")
         && LDHitFeel::Word(LDObservation::Critical|LDObservation::ShieldAbsorbed)==TEXT("暴击！")

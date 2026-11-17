@@ -58,4 +58,6 @@ private:
     LDHitFeel::FSwingPrediction Swing;
     uint32 SwingLife = 0;
     int64 PredictWindupMs = 0;
+    // The last tick showed the predicted swing rather than the authority's cue.
+    bool bShownPredicted = false;
 };

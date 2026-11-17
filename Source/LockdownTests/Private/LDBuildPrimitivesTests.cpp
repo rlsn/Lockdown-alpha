@@ -454,7 +454,13 @@ struct FFixture
         return Out;
     }
 
-    bool Apply(const FLDCombatHit& Hit, FString& Error) { return FAccess::ApplyHit(*Driver, Hit, Error); }
+    // A hand-built payload gets the hit identity every release path issues; queued hits keep theirs (Flush).
+    bool Apply(const FLDCombatHit& Hit, FString& Error)
+    {
+        FLDCombatHit Issued = Hit;
+        if (!Issued.HitId.IsValid()) { Issued.HitId = FGuid::NewGuid(); }
+        return FAccess::ApplyHit(*Driver, Issued, Error);
+    }
 
     // Applies every queued hit (and what those queue) like one Effects phase.
     bool Flush(FString& Error)
@@ -463,7 +469,7 @@ struct FFixture
         for (int32 Index = 0; Index < Pending.Num(); ++Index)
         {
             const FLDCombatHit Each = Pending[Index];
-            if (!Apply(Each, Error)) { return false; }
+            if (!FAccess::ApplyHit(*Driver, Each, Error)) { return false; }
         }
         Pending.Reset();
         return true;

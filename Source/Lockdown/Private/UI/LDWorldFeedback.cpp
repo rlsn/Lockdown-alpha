@@ -85,6 +85,14 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
     // Only the body of this match and life; anything else leaves the baseline alone until the current view arrives.
     if(!Combat||!Combat->bHasBody||Sample.Life==0||Combat->Generation!=Sample.Match||Combat->Life!=Sample.Life){return;}
     const bool bNewLife=!bBody||BodyLife!=Combat->Life;
+    // The confirmation word takes the receipt the body's confirmation layer takes (LDHitFeel::TakeFreshReceipt), checked
+    // on every sample rather than per revision: a receipt ahead of the clock waits, a stale one is only skipped and the
+    // first view of a life only primes it.
+    if(bNewLife){DealtAtMs=Combat->Cues.LastDealtAtMs;}
+    else if(Sample.bClock&&Sample.LifePhase==ELDLifePhase::Alive&&LDHitFeel::TakeFreshReceipt(DealtAtMs,Combat->Cues.LastDealtAtMs,Sample.NowMs))
+    {
+        FEvent& Dealt=Out.AddDefaulted_GetRef();Dealt.Kind=EKind::DealtConfirm;Dealt.Amount=1;Dealt.HitFlags=Combat->Cues.LastDealtFlags;
+    }
     if(!bNewLife&&Combat->Revision<=BodyRevision){return;}
     const FLDCombatStatusView* Shield=WorldFeedbackShieldStatus(*Combat);
     // A changed maximum rescales the points proportionally (level, build): never a hit or a heal.
@@ -98,12 +106,6 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
         // merely reached its end is silent.
         else if(DeltaShield<0&&(Shield||DeltaHP<0||ShieldEndsAtMs>Combat->AsOfMs)){WorldFeedbackAdd(Out,EKind::ShieldAbsorbed,-DeltaShield);}
     }
-    // A new own hit receipt is one confirmation word; the first view of a life only primes it.
-    if(!bNewLife&&Sample.LifePhase==ELDLifePhase::Alive&&Combat->Cues.LastDealtAtMs>0&&Combat->Cues.LastDealtAtMs!=DealtAtMs)
-    {
-        FEvent& Dealt=Out.AddDefaulted_GetRef();Dealt.Kind=EKind::DealtConfirm;Dealt.Amount=1;Dealt.HitFlags=Combat->Cues.LastDealtFlags;
-    }
-    DealtAtMs=Combat->Cues.LastDealtAtMs;
     bBody=true;BodyLife=Combat->Life;BodyRevision=Combat->Revision;BodyAsOfMs=Combat->AsOfMs;
     HPP2=Combat->HPP2;MaxHPP2=Combat->MaxHPP2;ShieldP2=Combat->ShieldP2;ShieldEndsAtMs=Shield?Shield->ExpiresAtMs:0;
 }

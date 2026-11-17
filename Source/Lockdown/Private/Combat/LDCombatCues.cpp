@@ -55,3 +55,8 @@ uint8 LDCombatCues::ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FL
 {
     return ClassifyImpact(bCritical,ShieldBeforeP2,Damage) | (bLethal && Damage.DamageP2>0 ? DealtLethal : 0);
 }
+
+int32 LDCombatCues::DealtRank(uint8 DealtFlags)
+{
+    return (DealtFlags & DealtLethal) ? 3 : (DealtFlags & LDObservation::Critical) ? 2 : (DealtFlags & LDObservation::ShieldBroken) ? 1 : 0;
+}

@@ -52,8 +52,10 @@ public:
     bool PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const;
     // The cue byte and the seconds its action has already run on the presentation clock; a negative age is unknown and
     // counts the action from now. The same action kind reported with a later start restarts it (a new swing).
-    // The first cue showing respawn protection also plays the appear effect.
-    void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f, bool bKnockback = false);
+    // The first cue showing respawn protection also plays the appear effect. bAdoptOnset takes a known age as the action's
+    // start even within the jitter window (a confirmed prediction hands over to the authority's timeline).
+    void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f, bool bKnockback = false,
+        bool bAdoptOnset = false);
     // The victim's overlay only (flash and impact particles); the body's pose and position never react to a hit.
     bool SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None, uint8 HitFlags = 0,
         const FGuid& HitId = FGuid(), int64 HitAtMs = 0);

@@ -158,7 +158,7 @@ void ALDCharacter::Tick(float Delta)
         : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
     // The own swing prediction (LDHitFeel::AdvanceSwing): once the standing attack order is in reach and the cadence is
     // due, the swing starts now and holds short of its impact until the authority's start confirms it, else rewinds.
-    if (SwingLife!=ShownLife) { Swing={}; SwingLife=ShownLife; }
+    if (SwingLife!=ShownLife) { Swing={}; SwingLife=ShownLife; bShownPredicted=false; }
     const FLDCombatCueFacts& Facts=View.Cues;
     if (bCurrentView && Facts.bActingBasic && Facts.ActingReleaseAtMs>Facts.ActingStartedAtMs)
     { PredictWindupMs=Facts.ActingReleaseAtMs-Facts.ActingStartedAtMs; }
@@ -195,9 +195,12 @@ void ALDCharacter::Tick(float Delta)
     }
     else
     {
+        // The swing the prediction showed is now the authority's: take its start, earlier or later, not the jitter filter.
+        const bool bHandover=bShownPredicted && Selected.Cue==ELDObservedActionCue::Attack;
         Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
-            bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses));
+            bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
     }
+    bShownPredicted=bPredicted;
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
         static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags,View.Cues.LastHitId,View.Cues.LastHitAtMs); }
@@ -209,9 +212,9 @@ void ALDCharacter::Tick(float Delta)
         if (LDHitFeel::TakeFreshReceipt(ConfirmedAtMs,View.Cues.LastDealtAtMs,NowMs))
         {
             const LDHitFeel::FConfirm Confirm=LDHitFeel::ConfirmOf(LDHitFeel::Read(),View.Cues.LastDealtFlags);
-            const float Age=float(NowMs-View.Cues.LastDealtAtMs)/1000.f;
-            Body->SetConfirm(Age,Confirm.StopSeconds,Confirm.SparkScale);
-            KickAge=Age;
+            // The server time only judges the receipt; the layers start now, together with the confirmation sounds.
+            Body->SetConfirm(0.f,Confirm.StopSeconds,Confirm.SparkScale);
+            KickAge=0.f;
             KickCm=Confirm.KickCm*(bReduced ? .45f : 1.f);
             UGameInstance* Instance=GetGameInstance();
             ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;

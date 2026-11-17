@@ -37,4 +37,6 @@ namespace LDCombatCues
     constexpr uint8 DealtLethal=8;
     static_assert((DealtLethal & LDObservation::HitFlagsMask)==0, "The lethal receipt bit is outside the observed hit flags.");
     LOCKDOWN_API uint8 ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal);
+    // The confirmation strength of receipt flags: lethal, then critical, then a broken shield, then any other hit.
+    LOCKDOWN_API int32 DealtRank(uint8 DealtFlags);
 }

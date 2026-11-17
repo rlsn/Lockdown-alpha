@@ -634,14 +634,16 @@ void ULDHumanoidVisualComponent::Layout()
     Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
-void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, bool bInKnockback)
+void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, bool bInKnockback,
+    bool bAdoptOnset)
 {
     using LDBodyMotion::EAction;
     const uint8 Code = Value & ActionMask;
     const EAction Next = Code == 1 ? EAction::Attack : Code == 2 ? EAction::Cast : EAction::None;
     const bool bAgeKnown = ActionAgeSeconds >= 0.f && FMath::IsFinite(ActionAgeSeconds);
     const double Onset = bAgeKnown ? Clock - ActionAgeSeconds : Clock;
-    if (LDBodyMotion::IsNewInstance(Action, ActionOnset, Next, Onset, bAgeKnown)) { ActionOnset = Onset; }
+    if ((bAdoptOnset && bAgeKnown && Next != EAction::None) || LDBodyMotion::IsNewInstance(Action, ActionOnset, Next, Onset, bAgeKnown))
+    { ActionOnset = Onset; }
     ActionImpactSeconds = FMath::IsFinite(ImpactDelaySeconds) && ImpactDelaySeconds >= 0.f
         ? ImpactDelaySeconds : LDBodyMotion::StrikeAt;
     Action = Next;
