@@ -208,15 +208,15 @@
     },
     {
       "cue": "SelfAttack",
-      "pack": "kenney-impact-sounds",
-      "source": "Kenney/ImpactSounds/impactPunch_medium_000.ogg",
-      "pack_path": "Audio/impactPunch_medium_000.ogg",
-      "sha256": "486988aa2d6440ffc4c62a0e8ccf3c23673ba84424bd4723378d451b7255eb5c",
-      "duration_sec": 0.431,
-      "purpose": "本人普攻出手：低 6 dB，连续普攻不刺耳",
-      "loudness_lufs": -16.67,
-      "level_db": -6.0,
-      "volume": 0.541
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/minimize_006.ogg",
+      "pack_path": "Audio/minimize_006.ogg",
+      "sha256": "39d7c47855b9642f43548b7b132c20e20a1490c7eb13d10008c32fcb24da19f8",
+      "duration_sec": 0.38,
+      "purpose": "本人普攻出手：暂用卷帘声音作挥击层，命中由另两层确认",
+      "loudness_lufs": -15.2,
+      "level_db": -8.0,
+      "volume": 0.423
     },
     {
       "cue": "SelfShieldBreak",
@@ -385,6 +385,30 @@
       "level_db": 0.0,
       "loudness_lufs": -22.66,
       "volume": 1.053
+    },
+    {
+      "cue": "SelfDealtImpact",
+      "pack": "kenney-impact-sounds",
+      "source": "Kenney/ImpactSounds/impactPunch_medium_000.ogg",
+      "pack_path": "Audio/impactPunch_medium_000.ogg",
+      "sha256": "486988aa2d6440ffc4c62a0e8ccf3c23673ba84424bd4723378d451b7255eb5c",
+      "duration_sec": 0.431,
+      "purpose": "本人命中确认：重击主体层",
+      "loudness_lufs": -16.67,
+      "level_db": -6.0,
+      "volume": 0.541
+    },
+    {
+      "cue": "SelfDealtAccent",
+      "pack": "kenney-impact-sounds",
+      "source": "Kenney/ImpactSounds/impactGeneric_light_000.ogg",
+      "pack_path": "Audio/impactGeneric_light_000.ogg",
+      "sha256": "f0e982611e97512fee5f777986b67e8b435434b601f94992ec044f7e89fb5acb",
+      "duration_sec": 0.139,
+      "purpose": "本人命中确认：短促瞬态层，与主体层叠加",
+      "loudness_lufs": -23.01,
+      "level_db": -12.0,
+      "volume": 0.275
     }
   ],
   "music": [
