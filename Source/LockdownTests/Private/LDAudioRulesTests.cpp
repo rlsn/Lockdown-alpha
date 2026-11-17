@@ -440,15 +440,14 @@ bool FLDAudioCatalogAssetTest::RunTest(const FString& Parameters)
         &&Catalog->MasterClass->GetPathName()==ULDAudioCatalog::MasterClassPath&&Catalog->UserMix->GetPathName()==ULDAudioCatalog::UserMixPath
         &&Catalog->MusicClass->GetPathName()==ULDAudioCatalog::MusicClassPath);
     if(!bResolved){return false;}
-    // The farm track spans one field segment (#94: "farm is exactly 3 mins to fit the first 3 mins of the game until the flag
-    // opens"; #198 made that the 180 s field segment); a changed segment length needs a matching track rather than music that
-    // stops early or runs into the next rest.
+    // The farm track restarts with every field segment and the rest that follows fades it out, so a longer track is cut
+    // cleanly while a shorter one would leave the end of the segment silent.
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if(!LDTestApprovedFixture::Read(*this,Content)){return false;}
     const float SegmentSec=float(Content->Get().Parameters.FieldSegmentMs)/1000.f;
     const float FarmSec=Music[int32(ELDMusicTrack::Farm)]->Duration;
-    TestTrue(FString::Printf(TEXT("The farm track (%.2f s) lasts a field segment (%.0f s) within 2 s"),FarmSec,SegmentSec),
-        FarmSec>=SegmentSec&&FarmSec<=SegmentSec+2.f);
+    TestTrue(FString::Printf(TEXT("The farm track (%.2f s) covers a field segment (%.0f s)"),FarmSec,SegmentSec),
+        FarmSec>=SegmentSec);
     return true;
 }
 #endif

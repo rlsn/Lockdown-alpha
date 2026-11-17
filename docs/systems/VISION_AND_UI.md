@@ -642,7 +642,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | 曲目 | 何时播放 | 播放方式 |
 | --- | --- | --- |
 | `Menu` | 主菜单，以及房间的 Lobby、Starting、Countdown、Resetting | 循环；主菜单与大厅共用，进出大厅不重启 |
-| `Farm` | 发育期（Development） | 从 T=0 起只播一次。曲长约 181 s，对齐 `MATCH.DevelopmentSec` 的 180 s 旗杆开放；中途开始时从 T=0 起已过的秒数接着播，超过曲长则不播 |
+| `Farm` | 野外段（Development） | 每个野外段从头只播一次。曲长约 181 s，不短于 `MATCH.FieldSegmentSec`，段结束进入休息时淡出；中途开始时从本段开始已过的秒数接着播，超过曲长则不播 |
 | `Escalation` | 旗杆开放（CaptureOpen）到本局结束 | 从头循环 |
 | 无 | Results、Closing、Faulted | 淡出，让胜负短曲单独响；回到 Lobby 时 `Menu` 重新开始 |
 
@@ -734,7 +734,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   `HUDBuildGate` 另覆盖 `GrowthPending`：只有显示中的候选、有空槽的图纸、开局自选与精英二选一点亮构筑按钮，排队机会数只用于脉动，未分配点数与别局投影不点亮。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCueBasicAttack`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
   首样本基线与去重、别局/别命/迟到回执不响、目录完整性（含音乐类的父子关系与每首的循环标志），以及实际 `DA_DemoAudio` 资产可解析、
-  `Farm` 曲长不短于且不超过发育期 2 s；`AudioMusicSelection` 覆盖各阶段到曲目的映射、未决定的情形与 `Farm` 的起点；
+  `Farm` 曲长不短于一个野外段；`AudioMusicSelection` 覆盖各阶段到曲目的映射、未决定的情形与 `Farm` 的起点；
   `LocalSettingsMusicVolume` 覆盖音乐音量的默认 60%、保存回读、拒绝与 schema 19 迁移。
   它们不证明实际听感、换曲淡出或打包后的设备输出。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。
