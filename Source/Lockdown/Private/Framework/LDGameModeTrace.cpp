@@ -5,6 +5,7 @@
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
+#include "Development/LDBuildBlueprint.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Framework/LDDemoEntry.h"
@@ -94,6 +95,7 @@ void ALDGameMode::LogPlaytestHeartbeat()
 {
     // The gate and every read below are skipped while the trace category is off.
     if (!UE_LOG_ACTIVE(LogLDTrace, Log) || !Combat || !IsGameplayWriteOpen(MatchContext)) { return; }
+    LogPlaytestCasts();
     if (!HeartbeatGate.Due(AuthorityNowMs)) { return; }
     using namespace LDGameModeTraceDetail;
     for (const FGuid& Id : RosterOrder)
@@ -133,6 +135,27 @@ void ALDGameMode::LogPlaytestHeartbeat()
             Build ? int32(Build->Level) : -1, Progression ? Progression->CumulativeXP : int64(-1),
             Progression ? int32(Progression->QueuedActiveOpportunities()) : -1, *Order, bOrderPoint ? *LDLog::Cm(OrderPoint) : TEXT("-"), *Action,
             Statuses.IsEmpty() ? TEXT("-") : *Statuses, Life->ProtectedUntilMs, Life->Phase == ELDLifePhase::Dead ? Life->RespawnAtMs : int64(0));
+    }
+}
+
+void ALDGameMode::LogPlaytestCasts()
+{
+    // Combat counts one ability_casts fact per successful Q/W/E release of a match life, a recast included (the innate dash
+    // and private training count nothing); this reads that count and writes what is new since the last advance, so a
+    // release that hits nothing is still on record.
+    const FLDBuildLedger& Ledger = Combat->GetBuildLedger();
+    for (const FGuid& Id : RosterOrder)
+    {
+        const TArray<FLDBlueprintVersion>* Versions = Ledger.Find(Id);
+        if (!Versions) { continue; }
+        int64 Casts = 0;
+        for (const FLDBlueprintVersion& Version : *Versions) { Casts += Version.Facts[int32(ELDBlueprintFact::AbilityCasts)].Value; }
+        int64& Logged = LoggedAbilityCasts.FindOrAdd(Id, 0);
+        if (Casts <= Logged) { Logged = Casts; continue; }
+        const FLDLifeRecord* Life = Lives.Find(Id);
+        UE_LOG(LogLDTrace, Log, TEXT("LD_CAST t=%lld contender=%s life=%u casts=%lld added=%lld"),
+            AuthorityNowMs, *LDLog::Id(Id), Life ? Life->Life : 0u, Casts, Casts - Logged);
+        Logged = Casts;
     }
 }
 

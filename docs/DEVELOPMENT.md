@@ -321,6 +321,23 @@ python -B .\Scripts\SummarizePlaytestLog.py <RunDemo 输出目录> --check-clien
 每次死亡及死前 10 秒的命中（只有客户端日志时为公开击杀通知里的每次死亡，本人死亡另列死前的本人受伤、受控与所见施法；
 `--death-window` 可改）、经济时间线、每个标记前 30 秒到后 10 秒的事件与标记前最近的状态行（`--mark-before`/`--mark-after`；
 AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能与网络汇总、警告与错误。
+
+有房主日志时，每局还有一节“Metrics (spec §16)”，末尾一节把全部局汇总成史诗 #287 §16 的指标表（目标只供判断，不是门禁）：
+
+| 指标 | 口径 |
+| --- | --- |
+| 伤害占比 | 参赛者造成的 `LD_HIT dmg`，按 `via` 分普攻 / 技能（`learned:`）/ 牌或构件（`card:`、`component:`）/ 反应 / 其他，打参赛者与打野怪分开；反应伤害是 `LD_REACTION` 之前同一时刻、同一触发者的 `struck + fire_settles` 条命中 |
+| 每场施法次数 | 一名参赛者的“一场”：它的 `LD_CAST` 与它和其他参赛者互相的命中，间隔超过 5 s（交战窗口）或它死亡即结束；只计含参赛者互相命中的场；同级场 = 开场时它与所有交手者等级相同 |
+| 击杀时间 | 死者与凶手之间（任一方向）、间隔不超过 5 s 的连续命中中第一次命中到死亡回执；按死前一刻双方等级判同级 |
+| 劲的收入构成 | `LD_MOMENTUM` 各项之和与占比，另列脱战漂移、花费、爆劲次数与 `LD_PERFECT_DODGE` 次数 |
+| 质变 | 一名参赛者全部场内对参赛者的伤害 ÷（各场同级裸构筑 DPS × 场长，至少 1 s）≥ 3；裸构筑 DPS 默认是 §3.9 的估算（L1 72、L10 154，线性插值、两端沿最近一段外推），`--baseline-dps 1=..,6=..,10=..` 换成实测值，报告写明所用基线 |
+| 被选率 | `LD_OFFER` 出现次数中被 `LD_CHOICE` 或 `*Choice` 类 `LD_BUILD` 选中的比例，主动（`active_*`）与牌或构件分列；另列装上过的构件或牌占参赛者·局的比例 |
+| 离谱时刻 | 单次命中 ≥ 目标生命上限 60% 的条数（列出最大的 5 条），或 `LD_CHAIN steps` ≥ 5 |
+| 最长连锁、伤害因子 | `LD_CHAIN`、`LD_HIT factor_bp`/`factors`；日志里没有这些行时写 “no data”，旧日志另报 `amp_bp` 峰值 |
+
+缺少相应日志行的指标写 “no data” 和原因，不输出 0。`--metrics-only` 只输出指标两节。
+AI 整局遥测的房主日志也可以直接汇总：`python -B .\Scripts\SummarizePlaytestLog.py <遥测输出目录>\Telemetry.log --metrics-only`
+（遥测输出目录见[验证手册](systems/VERIFICATION.md#合并前与里程碑检查)）。
 测试：`python -B -m unittest discover -s .\Scripts -p TestSummarizePlaytestLog.py`。
 
 **开关**：

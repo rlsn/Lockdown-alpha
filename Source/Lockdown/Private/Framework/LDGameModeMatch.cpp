@@ -129,6 +129,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d started_at_ms=%lld rest_ends_at_ms=%lld"),
         MatchContext.Generation, RosterOrder.Num(), MatchStartedAtMs, Timeline.GetStepEndsAtMs());
     HeartbeatGate.Reset();
+    LoggedAbilityCasts.Reset();
     LastMarkAt.Reset();
     LogPlaytestRoster();
     Detail = TEXT("对局开始。");

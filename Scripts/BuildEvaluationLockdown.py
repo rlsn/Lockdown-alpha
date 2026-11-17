@@ -29,7 +29,7 @@ from pathlib import Path
 from DemoContent import workshop_targets_active
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 13
+ADAPTER_VERSION = 14
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -104,6 +104,14 @@ METRICS = {
                           "description": "the subject's HP share when the Case ended (0 when dead)"},
     "decision_time_ms": {"unit": "ms", "kind": "time_to_event", "direction": "descriptive",
                          "description": "authority time from first-field entry to the first duelist death, censored at the duel timeout"},
+    "engage_to_kill_ms": {"unit": "ms", "kind": "time_to_event", "direction": "descriptive",
+                          "description": "authority time from the first committed hit between the duelists to the first duelist "
+                                         "death (time to kill), censored at the duel timeout (counted from the duel start when "
+                                         "no hit landed)"},
+    "subject_casts": {"unit": "casts", "kind": "continuous", "direction": "descriptive",
+                      "description": "the subject's Q/W/E releases (LD_CAST) from first-field entry to the outcome"},
+    "opponent_casts": {"unit": "casts", "kind": "continuous", "direction": "descriptive",
+                       "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome"},
 }
 
 
@@ -184,7 +192,8 @@ def describe(project_root):
                                                    "opening base pick, enabled at once, with B18's learned active and element; "
                                                    "refused when not offered"},
             "allocate_points": {"description": "build step allocate_points: exact points per stat id in one command; a planned "
-                                               "build spends every point its supply earns"},
+                                               "build spends every point its supply earns, or none when the side sets "
+                                               "keep_points_unspent"},
             "install_component": {"description": "build step install: an owned component onto a named target (B18's active and "
                                                  "element, a learned active, an installed host, the innate D, the holder, "
                                                  "C12's installed base): a field first install of a level-up component the "
@@ -257,8 +266,12 @@ def _rule(rule, where):
 
 def _side_plan(plan, role):
     side = plan.get(role)
-    if not isinstance(side, dict) or set(side) - {"choices", "opening_preset", "presets", "level_components", "build", "stance"} or "choices" not in side:
-        raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_components, build and stance)")
+    if (not isinstance(side, dict) or "choices" not in side
+            or set(side) - {"choices", "opening_preset", "presets", "level_components", "build", "stance", "keep_points_unspent"}):
+        raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_components, build, "
+                         "stance and keep_points_unspent)")
+    if not isinstance(side.get("keep_points_unspent", False), bool):
+        raise ValueError(f"plan.{role}.keep_points_unspent: true or false")
     if not isinstance(side["choices"], list):
         raise ValueError(f"plan.{role}.choices: a list")
     choices = [_rule(rule, f"plan.{role}.choices[{index}]") for index, rule in enumerate(side["choices"])]
@@ -416,9 +429,10 @@ def _supply_problem(component, row, level, params):
     return None
 
 
-def _build_needs(role, steps, choices, caps, supply_xp, level_components):
+def _build_needs(role, steps, choices, caps, supply_xp, level_components, keep_unspent=False):
     """What a planned build needs, and what duel_site provably cannot give it. Components come only from the opening base
-    pick and the seeded level-up draws of the common pool; a named active is learned only through a definition choice."""
+    pick and the seeded level-up draws of the common pool; a named active is learned only through a definition choice.
+    keep_unspent: the plan leaves every earned point unspent (a bare build), so its point steps must net to zero."""
     params = caps["scenarios"]["duel_site"]["parameters"]
     rows = caps["mechanics"]
     level = level_for({"xp_to_next": params["xp_to_next"]}, supply_xp)
@@ -565,9 +579,16 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_components):
                     "opening rest, or at the field start inside the build safe window, always with an empty slot)")
         elif kind == "replace":
             problem("the opening rest holds the opening active and no pending blueprint, so nothing can replace it")
-    if steps and allocated != earned:
+    if keep_unspent and not steps:
+        problems.append(f"IllegalDecision: plan.{role}.keep_points_unspent needs a planned build; without one the production "
+                        "rule allocates every point")
+    elif keep_unspent and allocated:
+        problems.append(f"IllegalDecision: plan.{role}.build leaves {allocated} points allocated; keep_points_unspent keeps "
+                        f"all {earned} earned points unspent")
+    elif steps and not keep_unspent and allocated != earned:
         problems.append(f"IllegalDecision: plan.{role}.build allocates {allocated} of the {earned} points its supply earns; a "
-                        "planned build owns every build command, so it spends every earned point (spec §4.1)")
+                        "planned build owns every build command, so it spends every earned point (spec §4.1) unless the side "
+                        "sets keep_points_unspent")
     return mechanics, decisions, problems
 
 
@@ -590,7 +611,8 @@ def requirements(scenario, plan, caps):
             decision, reason = UNPLANNABLE[kind]
             problems.append(f"UnsupportedDecision: {decision} (plan.{role}.build[{index}]): {reason}")
         if not unplannable:
-            needs = _build_needs(role, steps, choices, caps, supply[role], level_components)
+            needs = _build_needs(role, steps, choices, caps, supply[role], level_components,
+                                 plan[role].get("keep_points_unspent", False))
             mechanics |= needs[0]
             decisions |= needs[1]
             problems += needs[2]
@@ -1173,6 +1195,19 @@ def case_evidence(case, manifest, caps, result, trace_text):
         for position, preset in enumerate(presets):
             if offered.get(str(position + 2)) != preset:
                 reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
+    casts = {role: 0 for role in ROLES}
+    for tag, row, _ in events:
+        if tag == "LD_CAST" and row.get("contender") in duelists:
+            if not row.get("t", "").isdigit() or not row.get("added", "").isdigit() or int(row["added"]) < 1:
+                reasons.append("TraceIncomplete: LD_CAST has no valid authority time or count")
+            elif t0 <= int(row["t"]) <= t_out:
+                casts[roles[row["contender"]]] += int(row["added"])
+    # A duelist's skill hit proves a Q/W/E release; a trace without any LD_CAST then comes from a Host build that predates
+    # the cast trace, and its cast counts would be zeros of the wrong shape.
+    if not any(tag == "LD_CAST" for tag, _, _ in events) and any(
+            tag == "LD_HIT" and row.get("src") in duelists and row.get("via", "").startswith("learned:")
+            for tag, row, _ in events):
+        reasons.append("TraceIncomplete: duelist skill hits without any LD_CAST line (the Host build predates the cast trace)")
     if out["violations"]:
         reasons.append("EvidenceViolation: a committed hit contradicts its recorded damage")
     if reasons:
@@ -1189,6 +1224,8 @@ def case_evidence(case, manifest, caps, result, trace_text):
             taken += _hundredths(fields["hp_lost"])
     me = next(row for row in result["contenders"] if row["role"] == "subject")
     score = 0 if outcome["kind"] in ("timeout", "trade") else (1 if outcome["victim"] == "opponent" else -1)
+    engaged = min((int(fields["t"]) for tag, fields, _ in events if tag == "LD_HIT" and t0 <= int(fields["t"]) <= t_out
+                   and {fields["src"], fields["victim"]} == {subject, opponent}), default=t0)
     out.update(status="Completed", reason="", metrics={
         "duel_score": {"value": score, "censored": outcome["kind"] == "timeout"},
         "damage_dealt_hp": {"value": dealt / 100, "censored": False},
@@ -1196,6 +1233,9 @@ def case_evidence(case, manifest, caps, result, trace_text):
         "subject_hp_end_bp": {"value": (me["hp_p2"] * 10000 // me["max_hp_p2"]) if me["has_body"] and me["max_hp_p2"] else 0,
                               "censored": False},
         "decision_time_ms": {"value": t_out - t0, "censored": outcome["kind"] == "timeout"},
+        "engage_to_kill_ms": {"value": t_out - engaged, "censored": outcome["kind"] == "timeout"},
+        "subject_casts": {"value": casts["subject"], "censored": False},
+        "opponent_casts": {"value": casts["opponent"], "censored": False},
     })
     return out
 

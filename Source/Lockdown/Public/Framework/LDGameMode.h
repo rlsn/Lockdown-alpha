@@ -247,7 +247,8 @@ public:
     // be replayed without a new RNG.
     bool DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, int32& Seed, FString& Error);
     // ---- Playtest log (Framework/LDGameModeTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
-    // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only).
+    // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only), and
+    // one LD_CAST line for each Q/W/E release Combat's build ledger counted since the previous advance.
     void LogPlaytestHeartbeat();
     // A human's mark key reached the Host (ALDPlayerController::ServerPlaytestMark): LD_PLAYER_MARK when Match is the running
     // match (LDPlaytest::InRunningMatch), otherwise LD_PLAYER_MARK_REJECTED; at most one line per second per contender.
@@ -654,5 +655,8 @@ private:
     void LogPlaytestRoster() const;
     void LogPlaytestSummary(const FLDResultView& View) const;
     LDLog::FPeriodicGate HeartbeatGate{1000};
+    // Q/W/E releases of each contender this match already written as LD_CAST (the build ledger's ability_casts).
+    TMap<FGuid, int64> LoggedAbilityCasts;
+    void LogPlaytestCasts();
     TMap<FGuid, double> LastMarkAt;
 };
