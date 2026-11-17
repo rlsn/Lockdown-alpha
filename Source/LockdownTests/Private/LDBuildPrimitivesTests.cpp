@@ -1065,7 +1065,7 @@ bool FLDBuildZonePulsesTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityDefinition* Ability = nullptr;
     FString Error;
     if (!TestTrue(TEXT("S08 is approved"), F.Catalog->FindAbility(TEXT("active_quick_meeting"), Ability, Error) && Ability)) { return false; }
-    const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, 1);
+    const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, 1, ELDSkillBranch::None);
     if (!TestNotNull(TEXT("S08 has its level-1 values"), Values)) { return false; }
     const auto Op = [Values](ELDDemoEffectOp Wanted) { return Values->Effects.FindByPredicate(
         [Wanted](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == Wanted; }); };
@@ -1653,11 +1653,11 @@ bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)
     if (!LDTestApprovedFixture::Read(*this,Catalog)) { return false; }
     for (const auto& Ability : Catalog->Get().Abilities)
     {
-        const FLDDemoAbilityValues* First=Catalog->FindValues(Ability,1);
+        const FLDDemoAbilityValues* First=Catalog->FindValues(Ability,1, ELDSkillBranch::None);
         if (!TestNotNull(*FString::Printf(TEXT("%s has its level-1 values"),*Ability.Id),First)) { continue; }
         for (const uint8 Level : {uint8(5),uint8(10),uint8(13),uint8(16)})
         {
-            const FLDDemoAbilityValues* Grown=Catalog->FindValues(Ability,Level);
+            const FLDDemoAbilityValues* Grown=Catalog->FindValues(Ability,Level, ELDSkillBranch::None);
             bool bBounded=Grown && Grown->MomentumCostP2==First->MomentumCostP2 && Grown->CooldownMs==First->CooldownMs
                 && Grown->Effects.Num()==First->Effects.Num();
             for (int32 Index=0; bBounded && Index<First->Effects.Num(); ++Index)
@@ -2290,7 +2290,7 @@ bool ActiveTerms(FAutomationTestBase& Test, FFixture& F, const TCHAR* Active, FL
     const FLDDemoAbilityDefinition* Ability = nullptr;
     FString Error;
     if (!F.Catalog->FindAbility(Active, Ability, Error) || !Ability) { Test.AddError(FString(TEXT("Missing active ")) + Active); return false; }
-    const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, 1);
+    const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, 1, ELDSkillBranch::None);
     if (!Values) { Test.AddError(TEXT("Missing level-1 values")); return false; }
     Out = FLDCombatActiveTerms();
     Out.Target = Ability->Target;
@@ -2717,7 +2717,7 @@ bool FLDCombatEventAttributeMarginalTest::RunTest(const FString& Parameters)
         FString Error;
         if (!F.Catalog->FindAbility(TEXT("active_snark_bolt"), Ability, Error) || !Ability)
         { AddError(TEXT("S06 lookup: ") + Error); return false; }
-        const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, Level);
+        const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, Level, ELDSkillBranch::None);
         if (!TestNotNull(TEXT("S06 has level-grown values"), Values)) { return false; }
         int64 SkillLoss[2] = {}, BasicLoss[2] = {};
         for (int32 Variant = 0; Variant < 2; ++Variant)

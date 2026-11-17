@@ -204,7 +204,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
 - **爆劲**：客户端劲满时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；
   服务器只在蓄力至少一半时长、释放瞬间 `OverdriveReady` 才由 `ApplyOverdrive` 把伤害、护盾、治疗的基础量与系数乘 `OVERDRIVE.Scale` 并按技能元素加料
   （烫加灼烧层；湿换减速；麻在命中后排一次 `OVERDRIVE.ShockReactionRatio` 倍反应伤害；馊乘削减时长；吹的末波推开），然后劲清零。
-  不满足时按普通施放结算，不拒绝。眩晕、沉默、击退或死亡经 `EndOverdriveCharge` 取消蓄力，不扣劲。
+  不满足时按普通施放结算，不拒绝。眩晕、沉默、击退、劲跌破门槛或死亡经 `EndOverdriveCharge` 取消蓄力，不扣劲；本人视图的 `ChargingEntry` 发布当前蓄力的技能。
 - **完美闪避**：D 冲刺开始时在身体上记 `DashStartedAtMs` 与当时脚点；带预警的效果（前摇 ≥ 0.15s 的弹道、直线、扇形、自身范围、地面落点、
   陷阱爆炸、野怪预警技能）结算时调用 `ResolvePerfectDodges(EffectId, Source, InArea)`：开始时在判定内、结算时不在、
   且冲刺开始距结算不超过 `MOMENTUM.PerfectDodgeWindowSec` 的敌方参赛者各得一次（`PerfectDodgeMarks` 按效果实例与人去重），

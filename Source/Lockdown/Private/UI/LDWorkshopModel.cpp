@@ -216,7 +216,8 @@ TArray<ELDDemoElement> LDWorkshop::ActiveElements(FName Active,const FLDDemoCont
     WorkshopSortElements(Out);
     return Out;
 }
-LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FName Active,const FString& HolderName,const FLDDemoContentDefinitions* Content)
+LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FName Active,ELDSkillBranch Branch,const FString& HolderName,
+    const FLDDemoContentDefinitions* Content)
 {
     FColumnHead Head;
     if(Column==LDHUD::EStorageColumn::Body)
@@ -241,10 +242,13 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     Head.Glyph=LDHUD::IconGlyph(Head.Name);
     if(const FLDDemoAbilityDefinition* Ability=WorkshopAbility(Content,Active))
     {
-        Head.Momentum=WorkshopWhole(Ability->Values.MomentumCostP2);
-        Head.Cooldown=WorkshopSeconds(Ability->Values.CooldownMs);
+        const FLDDemoAbilityBranch* Variant=Ability->FindBranch(Branch);
+        const FLDDemoAbilityValues& Values=Variant?Variant->Values:Ability->Values;
+        Head.Momentum=WorkshopWhole(Values.MomentumCostP2);
+        Head.Cooldown=WorkshopSeconds(Values.CooldownMs);
+        for(const FLDDemoEffectDefinition& Effect:Values.Effects){WorkshopAddElement(Head.Elements,WorkshopEffectElement(Effect));}
+        WorkshopSortElements(Head.Elements);
     }
-    Head.Elements=ActiveElements(Active,Content);
     return Head;
 }
 FString LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn Column,int32 Installed,const FLDDemoContentDefinitions* Content)

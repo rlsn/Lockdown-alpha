@@ -34,12 +34,11 @@ struct FLDAirdropRewardFact
 enum class ELDMomentumBook : uint8 { Basic, Combat, Skill, Reaction, Dodge, Other, Idle, Spent };
 
 // An owner holding a Q/W/E with a full bar (overdrive charge): public while it lasts, ended by the release, a
-// release of the key, death or a stun, silence or knockback. ExpiresAtMs bounds a charge whose release never arrives.
+// let-go or abandon of the key (bCharging false), a bar below the threshold, death or a stun, silence or knockback.
 struct FLDCombatOverdriveCharge
 {
     ELDCombatEntry Entry=ELDCombatEntry::None;
     int64 StartMs=0;
-    int64 ExpiresAtMs=0;
 };
 
 class ALDCharacter;

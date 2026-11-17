@@ -65,10 +65,10 @@ FString FLDPlaytestTrace::OwnState(const ALDPlayerController& PC)
     const APawn* Body = PC.GetPawn();
     const FLDCombatOwnerView& Combat = PC.CombatView;
     const bool bCombat = Own.Life != 0 && Combat.bHasBody && Combat.Generation == Own.Match && Combat.Life == Own.Life;
-    FString Resources = TEXT("hp=- mp=- shield=-"), Action = TEXT("-"), Statuses;
+    FString Resources = TEXT("hp=- momentum=- shield=-"), Action = TEXT("-"), Statuses;
     if (bCombat)
     {
-        Resources = FString::Printf(TEXT("hp=%s/%s mp=%s/%s shield=%s"), *LDLog::P2(Combat.HPP2), *LDLog::P2(Combat.MaxHPP2),
+        Resources = FString::Printf(TEXT("hp=%s/%s momentum=%s/%s shield=%s"), *LDLog::P2(Combat.HPP2), *LDLog::P2(Combat.MaxHPP2),
             *LDLog::P2(Combat.MomentumP2), *LDLog::P2(Combat.MaxMomentumP2), *LDLog::P2(Combat.ShieldP2));
         if (Combat.ActionPhase == ELDCombatPhase::Accepted) { Action = LDLog::EnumName(Combat.ActionEntry); }
         for (const FLDCombatStatusView& Status : Combat.Statuses)

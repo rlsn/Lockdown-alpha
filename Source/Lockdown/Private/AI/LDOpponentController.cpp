@@ -687,9 +687,33 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
     Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
 }
 
+void ALDOpponentController::AbandonCharge(ALDGameMode& Mode, const FReads& Reads)
+{
+    if (!Charge.bHas) { return; }
+    if (Mode.Combat && Reads.bCombat)
+    {
+        FLDCombatChargeRequest End;
+        End.Generation = Binding.GetMatch().Generation;
+        End.Life = Charge.Life;
+        End.Entry = Charge.Entry;
+        End.bCharging = false;
+        Mode.Combat->SubmitCharge(Reads.CombatCaller, End);
+    }
+    Charge = FChargeTrack();
+}
+
 void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem)
 {
+    // A charge lives only while the policy keeps asking to overdrive the same skill: any other intent (keep, stop, move,
+    // retreat, another skill) ends it on the authority so no stale charge stays visible or is reused later.
+    if (Charge.bHas)
+    {
+        const ELDCombatEntry Wanted = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
+            : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W
+            : Intent.Source == ELDOpponentSourceSlot::E ? ELDCombatEntry::E : ELDCombatEntry::None;
+        if (Intent.Kind != ELDOpponentBodyKind::Activate || !Intent.bOverdrive || Wanted != Charge.Entry) { AbandonCharge(Mode, Reads); }
+    }
     if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
     const uint32 Generation = Binding.GetMatch().Generation;
@@ -735,6 +759,12 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         {
             const ELDCombatEntry Held = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
                 : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W : ELDCombatEntry::E;
+            // The authority ended the charge since (a stun, silence or knockback, or a bar drop): start over and time it anew.
+            if (Charge.bHas && Charge.Life == Life && Charge.Entry == Held && Reads.Combat.AsOfMs > Charge.StartMs
+                && Reads.Combat.ChargingEntry != Held)
+            {
+                Charge = FChargeTrack();
+            }
             if (!Charge.bHas || Charge.Life != Life || Charge.Entry != Held)
             {
                 FLDCombatChargeRequest Start;

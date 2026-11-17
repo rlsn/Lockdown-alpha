@@ -541,6 +541,8 @@ struct FLDCombatOwnerView
     // Perfect dodges of this life (MOMENTUM.PerfectDodge) and the authority ms of the last: the owner's one-line notice.
     UPROPERTY() uint32 PerfectDodges=0;
     UPROPERTY() int64 LastPerfectDodgeAtMs=0;
+    // The Q/W/E whose overdrive charge the authority currently holds (None when there is none or control ended it).
+    UPROPERTY() ELDCombatEntry ChargingEntry=ELDCombatEntry::None;
     UPROPERTY() uint64 SourceRevision=0;
     // Inputs needed to reproduce this owner's build and temporary projection without mutating authority state.
     UPROPERTY() uint64 InstalledBuildRevision=0;

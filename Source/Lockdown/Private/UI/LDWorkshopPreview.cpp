@@ -257,9 +257,14 @@ bool Compiled(const FLDDemoContentSnapshot& Content,const FState& State,const FL
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
         if(!Content.FindAbility(Source.DefinitionId.ToString(),Ability,Error)||!Ability){return false;}
-        const FLDDemoAbilityValues* Values=Content.FindValues(*Ability,State.Input.Level);
-        if(!Values){Error=TEXT("the active has no values at this level");return false;}
-        Out.Target=Ability->Target;Out.Values=*Values;Out.WindupMs=Ability->WindupMs;
+        // The learned branch decides the variant, its target form and windup, like the authority's release (ActiveOf).
+        const FLDLearnedActiveValue* Learned=State.Input.Actives.FindByPredicate([&Source](const FLDLearnedActiveValue& Row)
+            {return Row.AbilityId==Source.DefinitionId;});
+        const ELDSkillBranch Branch=Learned?Learned->Branch:ELDSkillBranch::None;
+        const FLDDemoAbilityBranch* Variant=Ability->FindBranch(Branch);
+        const FLDDemoAbilityValues* Values=Content.FindValues(*Ability,State.Input.Level,Branch);
+        if(!Values){Error=TEXT("the active has no values at this level and branch");return false;}
+        Out.Target=Variant?Variant->Target:Ability->Target;Out.Values=*Values;Out.WindupMs=Variant?Variant->WindupMs:Ability->WindupMs;
         if(!LDCombatSourceRules::FinalCooldownCost(&Content,State.Input.FinalMod,Combat.bPreviewFinalField,Source,Out.Values.CooldownMs,Error)){return false;}
     }
     if(!LDCombatSourceRules::CompileWorkshopActive(State.Build,Source,&Content,Out,Error)){return false;}

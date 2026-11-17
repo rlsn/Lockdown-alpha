@@ -77,8 +77,8 @@ bool FLDMomentumSpendTest::RunTest(const FString& Parameters)
     for (const FLDDemoAbilityDefinition& Ability : Catalog->Get().Abilities)
     {
         TestTrue(FString::Printf(TEXT("%s costs momentum and the costs never grow with level"), *Ability.Id),
-            Ability.Values.MomentumCostP2 > 0 && Catalog->FindValues(Ability, 16)
-            && Catalog->FindValues(Ability, 16)->MomentumCostP2 == Ability.Values.MomentumCostP2);
+            Ability.Values.MomentumCostP2 > 0 && Catalog->FindValues(Ability, 16, ELDSkillBranch::None)
+            && Catalog->FindValues(Ability, 16, ELDSkillBranch::None)->MomentumCostP2 == Ability.Values.MomentumCostP2);
     }
     return true;
 }

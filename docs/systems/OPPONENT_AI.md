@@ -374,7 +374,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 **劲、爆劲与闪避**（Issue #287 规范 §13）：
 
 - 劲不足的来源由真实 readiness 报 `MomentumShort`，策略只等待或换动作，不另算劲。
-- 伤害档（第 2 档及以上）选中技能时，若本人劲不少于 `OVERDRIVE.Threshold` 且目标可见生命高于 40%，意图带 `bOverdrive`：`ALDOpponentController` 先经 `SubmitCharge` 开始蓄力，`OVERDRIVE.HoldSec` 后再提交带爆劲的释放（`FChargeTrack`），与真人同一服务器校验。
+- 伤害档（第 2 档及以上）选中技能时，若本人劲不少于 `OVERDRIVE.Threshold` 且目标可见生命高于 40%，意图带 `bOverdrive`：`ALDOpponentController` 先经 `SubmitCharge` 开始蓄力，`OVERDRIVE.HoldSec` 后再提交带爆劲的释放（`FChargeTrack`），与真人同一服务器校验。蓄力只属于发起它的生命；策略改为其他意图（保持、停止、移动、换技能）时经 `AbandonCharge` 通知服务器结束蓄力；本人战斗视图的 `ChargingEntry` 显示服务器已结束蓄力（控制或劲不足）时，下次重新发起并重新计时。
 - 观察帧的 `Warnings` 列出可见的敌方预警（`ReadWarnings`：未结算的地面落点、陷阱、扇形与营地预警，只有公开轮廓与剩余时间）。D 就绪、某个预警剩余不超过 450 ms 且本人脚点在其轮廓内时，按 `AI.DodgeChance`（每个预警对每个 AI 一次稳定掷骰）向侧面或背离中心冲刺（`DodgeIntent`），优先于其他身体意图；完美闪避由服务器判定，AI 不自报。
 施法用途全部由 typed 效果推出（`ReadEffects`），不按技能名称或构筑配方分支。
 同一时刻只送当前动作系统可接收的一项；前摇、控制、资源、来源和占用均不得绕过。

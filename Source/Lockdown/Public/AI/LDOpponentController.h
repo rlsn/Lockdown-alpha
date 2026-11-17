@@ -151,6 +151,8 @@ private:
     void SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void ComposeFrame(FLDOpponentDecisionFrame& Frame) const;
+    // Ends the AI's own charge on the authority and forgets it (the intent changed or the charge is stale).
+    void AbandonCharge(ALDGameMode& Mode, const FReads& Reads);
     void DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
         const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem);
     void DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,

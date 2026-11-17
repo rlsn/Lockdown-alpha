@@ -79,7 +79,9 @@ namespace LDWorkshop
         TArray<ELDDemoElement> Elements;
         bool bEmpty=false;
     };
-    LOCKDOWN_API FColumnHead ColumnHead(LDHUD::EStorageColumn Column,FName Active,const FString& HolderName,const FLDDemoContentDefinitions* Content);
+    // Branch is the slot's learned branch (None = rank 1): the head shows that variant's momentum, cooldown and elements.
+    LOCKDOWN_API FColumnHead ColumnHead(LDHUD::EStorageColumn Column,FName Active,ELDSkillBranch Branch,const FString& HolderName,
+        const FLDDemoContentDefinitions* Content);
     // The Body and Dash column captions include their installed count and content-defined limit.
     LOCKDOWN_API FString ColumnCapacityLabel(LDHUD::EStorageColumn Column,int32 Installed,const FLDDemoContentDefinitions* Content);
     // Every element the current build applies: the learned actives' and the installed components' (basic elements, B18's

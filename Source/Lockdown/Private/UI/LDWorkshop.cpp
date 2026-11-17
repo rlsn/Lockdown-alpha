@@ -995,7 +995,10 @@ void ULDWorkshop::RefreshHeads()
         FHead& Head=Heads[Index];
         const LDHUD::EStorageColumn Column=static_cast<LDHUD::EStorageColumn>(Index);
         const FName Active=View.bValid&&Index>=1&&Index<=3?LDHUD::ActiveInSlot(View,uint8(Index-1)):NAME_None;
-        const LDWorkshop::FColumnHead Shown=LDWorkshop::ColumnHead(Column,Active,Latest.HolderName,Latest.Content);
+        const FLDActiveSlotView* Learned=Active.IsNone()?nullptr:View.Actives.FindByPredicate([Index](const FLDActiveSlotView& Row)
+            {return Row.Slot==uint8(Index-1);});
+        const ELDSkillBranch Branch=Learned?static_cast<ELDSkillBranch>(Learned->Branch):ELDSkillBranch::None;
+        const LDWorkshop::FColumnHead Shown=LDWorkshop::ColumnHead(Column,Active,Branch,Latest.HolderName,Latest.Content);
         Head.Active=Active;Head.bEmpty=Shown.bEmpty;Head.Elements=Shown.Elements;
         FString Key;
         if(Column==LDHUD::EStorageColumn::Body){Key=LDTerms::ColumnBody;}

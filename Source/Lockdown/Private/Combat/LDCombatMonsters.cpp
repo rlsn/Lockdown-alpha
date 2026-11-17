@@ -75,7 +75,14 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
     {
         const FLDDemoMonsterDefinition* Monster=nullptr;
         if(!Catalog()->FindMonster(S.Payload.Source.DefinitionId.ToString(),Monster,Error)){return false;}
-        if(Monster->Skill.Pattern==ELDMonsterPattern::Charge){continue;}
+        // A charge's line warning ends at its release, where its dash starts: a contender who dashed out of the line in time
+        // dodged perfectly (spec §4.4); the dash itself then strikes only the bodies it actually meets (ResolveDashContacts).
+        if(Monster->Skill.Pattern==ELDMonsterPattern::Charge)
+        {
+            if(!ResolvePerfectDodges(S.Key,S.Payload.SourceEntity,[&S](const FVector& Point){return LDMonsterRules::Contains(S.Area,Point);},NowMs,Error))
+            {return false;}
+            continue;
+        }
         if(Monster->Skill.Pattern==ELDMonsterPattern::Projectile)
         {
             FLDCombatProjectile P;

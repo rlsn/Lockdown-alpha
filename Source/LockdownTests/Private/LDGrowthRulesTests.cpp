@@ -1505,7 +1505,7 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
     {
         for (int32 Level = 1; Level <= Content.Progression.MaxLevel; ++Level)
         {
-            const FLDDemoAbilityValues* Served = Catalog->FindValues(Ability, uint8(Level));
+            const FLDDemoAbilityValues* Served = Catalog->FindValues(Ability, uint8(Level), ELDSkillBranch::None);
             FLDDemoAbilityValues Expected;
             const bool bExpected = LDSkillGrowth::GrowValues(Ability.Values, Ranks, Step, uint8(Level), 1, Expected);
             bool bSame = Served && bExpected && Served->Effects.Num() == Expected.Effects.Num()
@@ -1519,13 +1519,13 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
                 bGood &= Test.TestTrue(FString::Printf(TEXT("%s at level %d is served grown"), *Ability.Id, Level), false);
             }
         }
-        bGood &= Test.TestNull(Ability.Id + TEXT(" has no level 0 values"), Catalog->FindValues(Ability, 0));
+        bGood &= Test.TestNull(Ability.Id + TEXT(" has no level 0 values"), Catalog->FindValues(Ability, 0, ELDSkillBranch::None));
         bGood &= Test.TestNull(Ability.Id + TEXT(" has no values past the top level"),
-            Catalog->FindValues(Ability, uint8(Content.Progression.MaxLevel + 1)));
+            Catalog->FindValues(Ability, uint8(Content.Progression.MaxLevel + 1), ELDSkillBranch::None));
     }
     FLDDemoAbilityDefinition Stranger;
     Stranger.Values = Authored;
-    bGood &= Test.TestNull(TEXT("An ability outside the snapshot is refused"), Catalog->FindValues(Stranger, 1));
+    bGood &= Test.TestNull(TEXT("An ability outside the snapshot is refused"), Catalog->FindValues(Stranger, 1, ELDSkillBranch::None));
     return bGood;
 }
 

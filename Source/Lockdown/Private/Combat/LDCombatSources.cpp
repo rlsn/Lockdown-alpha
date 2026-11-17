@@ -897,6 +897,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.ComboStartMs=Body->ComboStartMs;
         Out.PerfectDodges=Body->PerfectDodges;
         Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
+        Out.ChargingEntry=Body->OverdriveCharge.IsSet() ? Body->OverdriveCharge->Entry : ELDCombatEntry::None;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);

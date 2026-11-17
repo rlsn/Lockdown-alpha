@@ -1512,7 +1512,7 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
                 positions.add(role)
         if not role:
             continue
-        required = ("phase", "life", "pos", "hp", "mp", "shield")
+        required = ("phase", "life", "pos", "hp", "momentum", "shield")
         if any(key not in fields for key in required):
             problems.append(f"the {role} heartbeat at {t} lacks resource or position evidence")
             continue
@@ -1520,13 +1520,13 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
             problems.append(f"the {role} heartbeat at {t} is duplicated")
             continue
         seen.add((role, t))
-        for key in ("hp", "mp"):
+        for key in ("hp", "momentum"):
             pieces = fields[key].split("/")
             if fields[key] != "-" and (len(pieces) != 2 or any(not P2.fullmatch(piece) for piece in pieces)):
                 problems.append(f"the {role} heartbeat at {t} has malformed {key}")
         if fields["shield"] != "-" and not P2.fullmatch(fields["shield"]):
             problems.append(f"the {role} heartbeat at {t} has malformed shield")
-        resources.append({"role": role, "t_ms": t, **{key: fields[key] for key in ("phase", "life", "hp", "mp", "shield")}})
+        resources.append({"role": role, "t_ms": t, **{key: fields[key] for key in ("phase", "life", "hp", "momentum", "shield")}})
     if {role for role, _ in seen} != set(ROLES) or positions != set(ROLES):
         problems.append("both duelists need heartbeat resource and position evidence")
     return {"identity": identity, "terminal": terminal, "resources": resources, "problems": problems}

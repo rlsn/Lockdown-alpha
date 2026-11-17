@@ -1267,8 +1267,8 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
 
     const FLDDemoAbilityDefinition* Elbow = nullptr;
     if (!TestTrue(TEXT("active_elbow resolves: ") + Error, Snapshot->FindAbility(TEXT("active_elbow"), Elbow, Error))) { return false; }
-    const FLDDemoAbilityValues* First = Snapshot->FindValues(*Elbow, 1);
-    const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16);
+    const FLDDemoAbilityValues* First = Snapshot->FindValues(*Elbow, 1, ELDSkillBranch::None);
+    const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16, ELDSkillBranch::None);
     if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
     TestTrue(TEXT("Level 1 uses the authored G=1 values"),
         First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 6000 && First->MomentumCostP2 == 2500 && First->CooldownMs == 6000);
@@ -1276,7 +1276,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
         Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 6000 && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 6000);
     const FLDDemoAbilityDefinition Detached = *Elbow;
     TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),
-        !Snapshot->FindValues(*Elbow, 0) && !Snapshot->FindValues(*Elbow, 17) && !Snapshot->FindValues(Detached, 1));
+        !Snapshot->FindValues(*Elbow, 0, ELDSkillBranch::None) && !Snapshot->FindValues(*Elbow, 17, ELDSkillBranch::None) && !Snapshot->FindValues(Detached, 1, ELDSkillBranch::None));
 
     TArray<LDDemoCardText::FToken> Tokens;
     const FLDDemoStatDefinition* Brains = nullptr;

@@ -94,7 +94,7 @@ def hit(t, src, victim, dmg, absorbed, lost, before, after, monster="-"):
 
 
 def heartbeat(t, contender_id, pos, hp="620.00/620.00"):
-    return (f"LD_HEARTBEAT t={t} contender={contender_id} phase=Alive life=1 pos={pos} hp={hp} mp=280.00/280.00 shield=0.00 "
+    return (f"LD_HEARTBEAT t={t} contender={contender_id} phase=Alive life=1 pos={pos} hp={hp} momentum=50.00/100.00 shield=0.00 "
             f"level=6 xp={SUPPLY} pending=0 order=- order_at=- action=- statuses=- protected_until=0 respawn_at=0")
 
 
@@ -1338,12 +1338,12 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertEqual(terminal["actives"], BUILDS["subject"]["actives"])
         self.assertEqual(terminal["stat_points"], BUILDS["subject"]["stat_points"])
         self.assertEqual((terminal["blueprints"], terminal["unspent_points"]), ([], 0))
-        self.assertEqual(snapshot["resources"][0]["mp"], "280.00/280.00")
+        self.assertEqual(snapshot["resources"][0]["momentum"], "50.00/100.00")
         value = result()
         del value["contenders"][0]["blueprints"]
         snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, value, trace())
         self.assertTrue(any("terminal contender build" in problem for problem in snapshot["problems"]))
-        malformed = trace().replace("mp=280.00/280.00 shield=0.00", "shield=0.00", 1)
+        malformed = trace().replace("momentum=50.00/100.00 shield=0.00", "shield=0.00", 1)
         snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), malformed)
         self.assertTrue(any("lacks resource" in problem for problem in snapshot["problems"]))
         snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), "")

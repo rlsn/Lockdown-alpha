@@ -41,8 +41,7 @@ public:
     // Skill growth: Ability's value set as its owner at Level uses it on Branch (LDSkillGrowth::GrowValues with SKILL.GrowthPerLevel
     // and the rank Branch belongs to; None is rank 1). Null for an ability outside this snapshot, a missing branch or a level
     // outside 1..MaxLevel. Stable for the snapshot's life.
-    const FLDDemoAbilityValues* FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level,
-        ELDSkillBranch Branch = ELDSkillBranch::None) const;
+    const FLDDemoAbilityValues* FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level, ELDSkillBranch Branch) const;
 
 private:
     friend class ULDDemoContentCatalog;
