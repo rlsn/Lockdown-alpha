@@ -67,7 +67,7 @@ bool FLDRestEntryHoldTest::RunTest(const FString& Parameters)
     FLDMatchTimeline Line;
     TArray<FLDTimelineEvent> Events;
     if (!TestTrue(TEXT("The match begins in R0"), Line.Begin(P, 0, Error))) { return false; }
-    // R0 with two entrants runs to the PK ready countdown.
+    // R0 is not a PK rest; R1 with two entrants runs to the PK ready countdown.
     Line.Advance(P.OpeningBuildMs, 2, true, true, Events, Error);
     while (Line.GetStep() != ELDRestStep::PKReady) { Line.Advance(Line.NextDueMs(), 2, true, true, Events, Error); }
     const int64 PKDue = Line.NextDueMs();
@@ -83,15 +83,16 @@ bool FLDRestEntryHoldTest::RunTest(const FString& Parameters)
         && Line.GetStepEndsAtMs() == PKDue + 7250 + P.PKMaxMs);
     while (Line.GetStep() != ELDRestStep::Return) { Line.Advance(Line.NextDueMs(), 2, true, true, Events, Error); }
     const int64 FieldDue = Line.NextDueMs();
-    // A partially unready return: nobody stands, T stays frozen and the field (and in R3 the flagpole) does not start.
+    // A partially unready return: nobody stands, T stays frozen at segment 1's end and segment 2 (and in R3 the flagpole)
+    // does not start.
     Events.Reset();
     bGood &= TestTrue(TEXT("An unready field return holds: no field entry, T frozen"), Line.Advance(FieldDue, 0, true, false, Events, Error)
         && !FindEvent(Events, ELDTimelineEventKind::EnterField) && Line.IsRest() && !Line.IsFieldRunning()
-        && Line.FieldMsAt(FieldDue + 2000) == 0 && Line.IsEntryHeld());
+        && Line.FieldMsAt(FieldDue + 2000) == P.FieldSegmentMs && Line.IsEntryHeld());
     bGood &= TestTrue(TEXT("The held return enters the field when every body stands; T starts there"),
         Line.Advance(FieldDue + 2000, 0, true, true, Events, Error) && FindEvent(Events, ELDTimelineEventKind::EnterField)
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->AtMs == FieldDue + 2000 && Line.IsFieldRunning()
-        && Line.FieldMsAt(FieldDue + 3000) == 1000 && Line.NextDueMs() == FieldDue + 2000 + P.FieldSegmentMs);
+        && Line.FieldMsAt(FieldDue + 3000) == P.FieldSegmentMs + 1000 && Line.NextDueMs() == FieldDue + 2000 + P.FieldSegmentMs);
     // An unheld entry keeps its exact scheduled instant.
     while (Line.GetStage() != ELDMatchStage::Rest || Line.GetStep() != ELDRestStep::Return) { Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error); }
     const int64 Field2Due = Line.NextDueMs();
