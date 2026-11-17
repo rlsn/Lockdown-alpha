@@ -8,25 +8,36 @@
 // state.
 namespace LDBodyMotion
 {
-    enum class EAction : uint8 { None, Attack, Cast, Hit };
+    // A struck body has no action of its own: being hit never replaces, pauses or pushes the victim's pose.
+    enum class EAction : uint8 { None, Attack, Cast };
 
     // Effect amounts at one instant: distances in cm, the rest 0..1. The limbs move by the skeletal clips.
     struct FChannels
     {
-        float Lunge = 0;     // whole body shifted forward (negative: knocked back)
+        float Lunge = 0;     // whole body shifted forward
         float Charge = 0;    // cast orb at the hand
-        float Burst = 0;     // impact flash at the hand or chest
+        float Burst = 0;     // release flash at the striking or casting hand
         float Flash = 0;     // hit flash over the whole body
-        float HitBurst = 0;  // independent chest impact while another action keeps playing
     };
 
     // Fallback impact age for cues that predate a known authoritative release time.
     constexpr float StrikeAt = .2f;
     LOCKDOWN_API FChannels Evaluate(EAction Action, float AgeSeconds, float ImpactSeconds = StrikeAt);
+    // The victim's hit overlay alone: a short flash, no movement. A negative age shows nothing.
+    constexpr float HitOverlaySeconds = .18f;
+    LOCKDOWN_API FChannels HitOverlay(float HitAgeSeconds);
+    // The action's channels with the hit overlay laid over them; the action keeps its pose and lunge.
     LOCKDOWN_API FChannels WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds, float ImpactSeconds = StrikeAt);
-    // Hold only a victim's current attack/cast pose at impact; never pause input, movement or authority time.
-    constexpr float HitPoseHoldSeconds = .045f;
-    LOCKDOWN_API float ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds);
+
+    // Attacker confirmation (the owner's own hit receipt, presentation only): the striking pose holds for StopSeconds
+    // from the confirmation, then catches up at 1.5x until it is back on the timeline after another 2 x StopSeconds.
+    // Input, movement and authority time never pause. A negative confirmation age or no stop returns AgeSeconds.
+    LOCKDOWN_API float HitStopPoseAge(float AgeSeconds, float ConfirmAgeSeconds, float StopSeconds);
+    // The camera's push along the attacker's facing, in cm: up to KickCm a quarter in, back to 0 at KickSeconds.
+    LOCKDOWN_API float KickOffset(float ConfirmAgeSeconds, float KickCm, float KickSeconds);
+    // The confirmation spark at the striking hand, 0..1, over ConfirmSparkSeconds.
+    constexpr float ConfirmSparkSeconds = .16f;
+    LOCKDOWN_API float ConfirmSpark(float ConfirmAgeSeconds);
     // Presentation-only tilt opposite the actual horizontal push, in the body's local space.
     LOCKDOWN_API FRotator KnockbackLean(const FVector& LocalVelocity);
 
@@ -38,6 +49,11 @@ namespace LDBodyMotion
     // new swing). Without a known age a continuing kind is never restarted.
     constexpr double SameInstanceSeconds = .08;
     LOCKDOWN_API bool IsNewInstance(EAction Previous, double PreviousOnset, EAction Next, double NextOnset, bool bAgeKnown);
+
+    // A withdrawn predicted swing rewinds from the age it showed back to rest over RetractSeconds instead of snapping;
+    // a negative result means the rewind is over.
+    constexpr float RetractSeconds = .1f;
+    LOCKDOWN_API float RetractAge(float FromAgeSeconds, float SinceSeconds);
 
     // A respawned body materialises; a dead body plays its death clip for LieSeconds, then sinks and shrinks away.
     constexpr float AppearSeconds = .6f;

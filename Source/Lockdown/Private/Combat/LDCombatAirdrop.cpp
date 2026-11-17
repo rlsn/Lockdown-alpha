@@ -3,6 +3,7 @@
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDLifeAuthority.h"
+#include "World/LDAirdrop.h"
 
 bool ALDCombatDirector::ApplyAirdropReward(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
     FLDAirdropRewardFact& Out, FString& Error)

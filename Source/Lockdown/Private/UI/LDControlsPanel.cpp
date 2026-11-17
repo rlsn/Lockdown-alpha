@@ -1,6 +1,7 @@
 #include "UI/LDControlsPanel.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Character/LDCameraSettings.h"
+#include "Character/LDHitFeel.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDWidgets.h"
@@ -74,8 +75,11 @@ namespace
     struct FCategoryInfo {const TCHAR* Title;const TCHAR* Tab;};
     const FCategoryInfo Categories[ULDControlsPanel::CategoryCount]={
         {TEXT("画面"),TEXT("TabDisplay")},{TEXT("音频"),TEXT("TabAudio")},{TEXT("操作"),TEXT("TabControls")},
-        {TEXT("镜头"),TEXT("TabCamera")},{TEXT("界面"),TEXT("TabInterface")}};
+        {TEXT("镜头"),TEXT("TabCamera")},{TEXT("界面"),TEXT("TabInterface")},{TEXT("特效"),TEXT("TabEffects")}};
     const TCHAR* CategoryTitle(ECategory Category){return Categories[int32(Category)].Title;}
+    // The automation name of one effects row: "Feel" plus the console name after "ld.Feel.", then Lower/Higher/Value.
+    FName EffectPart(int32 Field,const TCHAR* Suffix)
+    {return FName(*(FString(TEXT("Feel"))+FString(LDHitFeel::Fields()[Field].ConsoleName).RightChop(8)+Suffix));}
 
     FName Part(FName Base,const TCHAR* Suffix){return FName(*(Base.ToString()+Suffix));}
     const TCHAR* OnOff(bool Value){return Value?TEXT("开"):TEXT("关");}
@@ -404,7 +408,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
             AddSegment(Tree,EffectsScale,TEXT("CombatEffectsFull"),TEXT("标准"),[this](){ChangePreference([](auto& S){S.bReduceCombatEffects=false;});});
             AddSegment(Tree,EffectsScale,TEXT("CombatEffectsReduced"),TEXT("降低"),[this](){ChangePreference([](auto& S){S.bReduceCombatEffects=true;});});
             AddRow(Tree,Content,TEXT("战斗特效强度"),TEXT("降低临时冲击闪光、命中火花和施法光效；不影响角色动作、状态标记或战斗结果。"),EffectsScale);
-            AddRow(Tree,Content,TEXT("镜头震动"),TEXT("自身受击时短暂震动镜头，只影响本地画面。"),
+            AddRow(Tree,Content,TEXT("镜头震动"),TEXT("自己打中目标时镜头沿出手方向轻顿，只影响本地画面。"),
                 Switch(Tree,TEXT("ToggleCameraShake"),[this](){ChangePreference([](auto& S){S.bCameraShake=!S.bCameraShake;});}));
             AddSection(Tree,Content,TEXT("界面"));
             auto* Sizes=Tree->ConstructWidget<UHorizontalBox>();
@@ -423,6 +427,21 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
                 Switch(Tree,TEXT("ToggleNetworkDiagnostics"),[this](){ChangePreference([](auto& S){S.bShowNetworkDiagnostics=!S.bShowNetworkDiagnostics;});}));
             AddRow(Tree,Content,TEXT("FPS 显示"),TEXT("在右上角显示帧率与帧耗时。"),
                 Switch(Tree,TEXT("ToggleFPS"),[this](){ChangePreference([](auto& S){S.bShowFPS=!S.bShowFPS;});}));
+            AddPage(Scroll);
+        }
+        // Effects: one stepper per hit-feel tunable, grouped by its section; a change shows on the next hit.
+        {
+            UScrollBox* Scroll=nullptr;UVerticalBox* Content=NewPage(Scroll);
+            Content->AddChildToVerticalBox(Text(Tree,TEXT("调整出手轨迹、命中停顿、推镜、闪光、粒子、音效与拟声字，下一次出手或命中即可看到或听到。数值只在本次运行有效，不写入设置文件。"),
+                NoteSize,LDHUDStyle::TextSecondary))->SetPadding(FMargin(6,16,6,4));
+            const TConstArrayView<LDHitFeel::FField> Fields=LDHitFeel::Fields();
+            const TCHAR* Section=nullptr;
+            for(int32 Field=0;Field<Fields.Num();++Field)
+            {
+                if(!Section||FCString::Strcmp(Section,Fields[Field].Section)!=0){Section=Fields[Field].Section;AddSection(Tree,Content,Section);}
+                AddRow(Tree,Content,Fields[Field].Label,TEXT(""),Stepper(Tree,EffectPart(Field,TEXT("Lower")),EffectPart(Field,TEXT("Higher")),
+                    EffectPart(Field,TEXT("Value")),[this,Field](){StepEffect(Field,-1);},[this,Field](){StepEffect(Field,1);}),true);
+            }
             AddPage(Scroll);
         }
 
@@ -491,7 +510,10 @@ void ULDControlsPanel::ShowCategory(ECategory Next)
 }
 
 void ULDControlsPanel::ShowPageHint()
-{SetFeedback(Category==ECategory::Display?TEXT("本页更改点击“应用”后生效。"):TEXT("本页更改立即生效并自动保存。"),false);}
+{
+    SetFeedback(Category==ECategory::Display?TEXT("本页更改点击“应用”后生效。")
+        :Category==ECategory::Effects?TEXT("本页更改立即生效，只在本次运行有效，不会保存。"):TEXT("本页更改立即生效并自动保存。"),false);
+}
 
 void ULDControlsPanel::SetFeedback(const FString& Message,bool bProblem)
 {
@@ -508,6 +530,7 @@ void ULDControlsPanel::Populate()
     ApplyTextScale(Applied.TextScale);
     PopulatePreferences();
     PopulateBindings();
+    PopulateEffects();
     bSyncingVolume=true;VolumeSlider->SetValue(Applied.MasterVolume);MusicSlider->SetValue(Applied.MusicVolume);bSyncingVolume=false;
     PopulateFooter();
 }
@@ -536,6 +559,24 @@ void ULDControlsPanel::PopulatePreferences()
     {MarkChosen(Find(WidgetTree,OrientationButton(Option)),Option==Applied.GetMinimapOrientation(),RestStyle);}
     MarkChosen(Find(WidgetTree,TEXT("CombatEffectsFull")),!Applied.bReduceCombatEffects,RestStyle);
     MarkChosen(Find(WidgetTree,TEXT("CombatEffectsReduced")),Applied.bReduceCombatEffects,RestStyle);
+}
+
+void ULDControlsPanel::PopulateEffects()
+{
+    const TConstArrayView<LDHitFeel::FField> Fields=LDHitFeel::Fields();
+    for(int32 Field=0;Field<Fields.Num();++Field)
+    {
+        const float Value=LDHitFeel::Value(Field);
+        SetStepper(WidgetTree,EffectPart(Field,TEXT("Lower")),EffectPart(Field,TEXT("Higher")),EffectPart(Field,TEXT("Value")),
+            LDHitFeel::Current(Field),Value>0.f,Value<Fields[Field].Max);
+    }
+}
+
+void ULDControlsPanel::StepEffect(int32 Field,int32 Direction)
+{
+    if(LDHitFeel::Step(Field,Direction))
+    {SetFeedback(FString::Printf(TEXT("%s：%s，下一次出手或命中生效。"),LDHitFeel::Fields()[Field].Label,*LDHitFeel::Current(Field)),false);}
+    PopulateEffects();PopulateFooter();
 }
 
 void ULDControlsPanel::PopulateBindings()
@@ -579,7 +620,8 @@ void ULDControlsPanel::PopulateFooter()
     FooterActions(bShownRetrySave,bShownRecover);
     Show(Find(WidgetTree,TEXT("RetryLocalSave")),bShownRetrySave);
     Show(Find(WidgetTree,TEXT("RecoverLocalSettings")),bShownRecover);
-    Find(WidgetTree,TEXT("ResetCategoryDefaults"))->SetIsEnabled(SettingsInstance.Get()&&(Category!=ECategory::Display||bDisplayAvailable));
+    Find(WidgetTree,TEXT("ResetCategoryDefaults"))->SetIsEnabled(Category==ECategory::Effects?!LDHitFeel::IsAllDefault()
+        :SettingsInstance.Get()&&(Category!=ECategory::Display||bDisplayAvailable));
 }
 
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
@@ -677,6 +719,8 @@ void ULDControlsPanel::AskReset()
         Scope=FString::Printf(TEXT("战斗特效降低 %s、镜头震动 %s、文字大小 %.0f%%、小地图朝向 %s、网络诊断 %s、FPS 显示 %s。"),
             OnOff(Defaults->bReduceCombatEffects),OnOff(Defaults->bCameraShake),100*Defaults->TextScale,
             *ULDControlSettings::MinimapOrientationLabel(Defaults->MinimapOrientation),OnOff(Defaults->bShowNetworkDiagnostics),OnOff(Defaults->bShowFPS));break;
+    case ECategory::Effects:
+        Scope=TEXT("全部特效调参恢复试玩初值。");break;
     }
     ResetPrompt->SetText(FText::FromString(FString::Printf(TEXT("恢复“%s”页的默认值？%s\n其他页、名称与本局进度不变。"),CategoryTitle(Category),*Scope)));
     ShowChild(EChildConfirmation::LocalReset);
@@ -832,6 +876,13 @@ void ULDControlsPanel::ApplyDisplayAndReturn()
 void ULDControlsPanel::ConfirmResetDefaults()
 {
     ShowChild(EChildConfirmation::None);
+    if(ResetCategory==ECategory::Effects)
+    {
+        LDHitFeel::ResetAll();
+        SetFeedback(TEXT("恢复“特效”页默认值：已恢复试玩初值。"),false);
+        PopulateEffects();PopulateFooter();
+        return;
+    }
     auto* Instance=SettingsInstance.Get();
     if(!Instance){SetFeedback(TEXT("本地设置的所有者不可用，没有恢复任何默认值。"),true);return;}
     const FString Prefix=FString::Printf(TEXT("恢复“%s”页默认值："),CategoryTitle(ResetCategory));

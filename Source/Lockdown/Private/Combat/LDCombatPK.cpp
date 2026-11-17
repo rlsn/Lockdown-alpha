@@ -46,7 +46,9 @@ bool ALDCombatDirector::ApplyEnvironmentDamage(const FLDCombatBodyRef& Ref, int6
     const int64 Before=Body->Resources.HpP2;
     Body->Resources.HpP2=AmountP2>=Before ? 0 : Before-AmountP2;
     ++Body->Resources.Revision;
+    const FGuid HitId=FGuid::NewGuid();
     Body->Cues.LastHitAtMs=Mode->GetAuthorityNowMs();
+    Body->Cues.LastHitId=HitId;
     Body->Cues.LastHitLook=0;
     Body->Cues.LastHitFlags=0;
     MarkViewChanged(Ref.Victim.EntityId);
@@ -55,7 +57,7 @@ bool ALDCombatDirector::ApplyEnvironmentDamage(const FLDCombatBodyRef& Ref, int6
     if (Body->Resources.HpP2>0) { Error.Reset(); return true; }
     // An unowned environmental death: the normal life commit, no credit, no assist, no reward.
     FLDCombatHit Hit;
-    Hit.HitId=FGuid::NewGuid();
+    Hit.HitId=HitId;
     Hit.EffectId=Hit.HitId;
     Hit.Target=Ref;
     return LockDeath(*Actor,*Body,Hit,Error);
@@ -86,6 +88,7 @@ bool ALDCombatDirector::ApplyThrowHit(const FLDCombatBodyRef& Ref, const FGuid& 
     if (!LDMatchLifecycle::AddDurationMs(NowMs,ExposeMs,ExposedUntil,Error)) { return false; }
     Body->ExposedUntilMs=ExposedUntil;
     Body->Cues.LastHitAtMs=NowMs;
+    Body->Cues.LastHitId=FGuid::NewGuid();
     Body->Cues.LastHitLook=0;
     Body->Cues.LastHitFlags=0;
     ++Body->StateRevision;

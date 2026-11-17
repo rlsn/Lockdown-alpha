@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Vision/LDViewTypes.h"
+#include "Character/LDHitFeel.h"
 #include "LDCharacter.generated.h"
 
 class USpringArmComponent;
@@ -37,7 +38,7 @@ public:
     UPROPERTY(ReplicatedUsing=OnRep_Presentation) uint8 PresentationKey = 0;
     static constexpr int32 ContenderPresentations = 6;
     // The humanoid presentation code of an action cue and public statuses, shared by the own body and observed
-    // proxies: pose Attack 1, Cast 2, Hit 4; markers root 16, camp_returning 32, shield 64, respawn_protection 128.
+    // proxies: pose Attack 1, Cast 2; markers root 16, camp_returning 32, shield 64, respawn_protection 128.
     static uint8 PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses);
     static bool PresentationKnockback(const TArray<FLDObservedStatus>& Statuses);
     static bool PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock);
@@ -48,7 +49,15 @@ private:
     // The local owner and life this body was last shown for: its removal after that life's death leaves a fall.
     TWeakObjectPtr<class ALDPlayerController> ShownOwner;
     uint32 ShownLife = 0;
-    // A restrained shake of the own camera from the start of each hit the own body takes.
-    int64 ShakeHitAtMs = 0;
-    float ShakeAge = 1.f;
+    // The last own hit receipt seen (LDHitFeel) and the camera kick it started along the facing.
+    int64 ConfirmedAtMs = 0;
+    float KickAge = 1.f;
+    float KickCm = 0.f;
+    // The own predicted swing (LDHitFeel::AdvanceSwing) for SwingLife, and the content's basic windup it shows until the
+    // authority reports one.
+    LDHitFeel::FSwingPrediction Swing;
+    uint32 SwingLife = 0;
+    int64 PredictWindupMs = 0;
+    // The last tick showed the predicted swing rather than the authority's cue.
+    bool bShownPredicted = false;
 };

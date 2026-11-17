@@ -3,10 +3,14 @@
 #include "Character/LDCameraSettings.h"
 #include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
+#include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Camera/CameraComponent.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GameFramework/PlayerState.h"
 #include "Components/CapsuleComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
@@ -18,6 +22,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Region/LDMapRegistry.h"
+#include "Navigation/LDNavigationComponent.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -116,6 +121,7 @@ void ALDCharacter::BeginPlay()
         return;
     }
     if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
+    PredictWindupMs=Content->Get().Parameters.BasicAttackWindupMs;
     OnRep_Presentation();
 }
 
@@ -148,28 +154,82 @@ void ALDCharacter::Tick(float Delta)
         { Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,PC->OwnerState.ProtectedUntilMs}); }
     }
     const bool bCue=Selected.Cue!=ELDObservedActionCue::None;
-    const int64 ImpactAtMs=Selected.Cue==ELDObservedActionCue::Hit ? 0
-        : View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActingReleaseAtMs
+    const int64 ImpactAtMs=View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActingReleaseAtMs
         : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
-    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
-        bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,
-        Selected.HitLook,PresentationKnockback(Statuses));
+    // The own swing prediction (LDHitFeel::AdvanceSwing): once the standing attack order is in reach and the cadence is
+    // due, the swing starts now and holds short of its impact until the authority's start confirms it, else rewinds.
+    if (SwingLife!=ShownLife) { Swing={}; SwingLife=ShownLife; bShownPredicted=false; }
+    const FLDCombatCueFacts& Facts=View.Cues;
+    if (bCurrentView && Facts.bActingBasic && Facts.ActingReleaseAtMs>Facts.ActingStartedAtMs)
+    { PredictWindupMs=Facts.ActingReleaseAtMs-Facts.ActingStartedAtMs; }
+    else if (bCurrentView && Facts.bReleasedBasic && Facts.ReleasedAtMs>Facts.ReleasedStartedAtMs)
+    { PredictWindupMs=Facts.ReleasedAtMs-Facts.ReleasedStartedAtMs; }
+    const LDHitFeel::FTuning Feel=LDHitFeel::Read();
+    LDHitFeel::FSwingFacts SwingFacts;
+    SwingFacts.bEnabled=Feel.bPredictSwing && PredictWindupMs>0;
+    SwingFacts.bCurrent=bCurrentView;
+    SwingFacts.NowMs=NowMs;
+    SwingFacts.NextAttackAtMs=View.NextAttackAtMs;
+    SwingFacts.LastBasicStartMs=FMath::Max(Facts.bActingBasic ? Facts.ActingStartedAtMs : 0, Facts.bReleasedBasic ? Facts.ReleasedStartedAtMs : 0);
+    SwingFacts.bBusy=(Facts.bActing && !Facts.bActingBasic) || NowMs<Facts.DashUntilMs;
+    for (const FLDCombatStatusView& Status : View.Statuses)
+    {
+        if ((Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs) && (Status.ControlBlocks & uint8(ELDCombatControlBlock::Basic)))
+        { SwingFacts.bBlocked=true; }
+    }
+    SwingFacts.bEngaged=bCurrentView && PC->Navigation && PC->Navigation->ReadBasicEngagement(PresentedLocation(),View.AttackRangeCm);
+    SwingFacts.GraceMs=Feel.PredictGraceMs+(PC->PlayerState ? int64(PC->PlayerState->GetPingInMilliseconds()) : 0);
+    const LDHitFeel::ESwingStep Step=LDHitFeel::AdvanceSwing(Swing,SwingFacts);
+    if (Step!=LDHitFeel::ESwingStep::None)
+    {
+        UE_LOG(LogLDCombat,Log,TEXT("LD_SWING_PREDICT step=%s key=%lld started=%lld now=%lld grace=%lld"),
+            LDHitFeel::SwingStepName(Step),Swing.KeyAtMs,Swing.StartedAtMs,NowMs,SwingFacts.GraceMs);
+    }
+    if (Step==LDHitFeel::ESwingStep::Withdrawn) { Body->Retract(); }
+    const bool bPredicted=Swing.bActive && (!bCue || (Selected.Cue==ELDObservedActionCue::Attack && Selected.AtMs<Swing.KeyAtMs));
+    Body->SetHold(bPredicted ? LDHitFeel::SwingHoldSeconds(PredictWindupMs) : -1.f);
+    if (bPredicted)
+    {
+        Body->SetCue(PresentationCue(ELDObservedActionCue::Attack,Statuses),float(NowMs-Swing.StartedAtMs)/1000.f,
+            float(PredictWindupMs)/1000.f,PresentationKnockback(Statuses));
+    }
+    else
+    {
+        // The swing the prediction showed is now the authority's: take its start, earlier or later, not the jitter filter.
+        const bool bHandover=bShownPredicted && Selected.Cue==ELDObservedActionCue::Attack;
+        Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
+            bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
+    }
+    bShownPredicted=bPredicted;
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
-        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags); }
-    Body->Animate(GetVelocity(),Delta);
-    // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
-    if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs
-        && NowMs-View.Cues.LastHitAtMs<160 && View.Cues.LastHitAtMs!=ShakeHitAtMs)
+        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags,View.Cues.LastHitId,View.Cues.LastHitAtMs); }
+    // The own hit confirmation (LDHitFeel): each fresh receipt of a hit this body landed holds its striking pose, flares
+    // its hand and kicks its camera along its facing. Hits it takes never move this camera or its pose.
+    const bool bReduced=PC->Controls && PC->Controls->bReduceCombatEffects;
+    if (bCurrentView)
     {
-        ShakeHitAtMs=View.Cues.LastHitAtMs;
-        ShakeAge=float(NowMs-View.Cues.LastHitAtMs)/1000.f;
+        if (LDHitFeel::TakeFreshReceipt(ConfirmedAtMs,View.Cues.LastDealtAtMs,NowMs))
+        {
+            const LDHitFeel::FConfirm Confirm=LDHitFeel::ConfirmOf(LDHitFeel::Read(),View.Cues.LastDealtFlags);
+            // The server time only judges the receipt; the layers start now, together with the confirmation sounds.
+            Body->SetConfirm(0.f,Confirm.StopSeconds,Confirm.SparkScale);
+            KickAge=0.f;
+            KickCm=Confirm.KickCm*(bReduced ? .45f : 1.f);
+            UGameInstance* Instance=GetGameInstance();
+            ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
+            if (Audio)
+            {
+                Audio->Play(ELDAudioCue::SelfDealtImpact,Feel.ConfirmVolume);
+                Audio->Play(ELDAudioCue::SelfDealtAccent,Feel.ConfirmVolume);
+            }
+            else { UE_LOG(LogLDContent,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE confirmed hit layers not played.")); }
+        }
     }
-    ShakeAge+=Delta;
-    constexpr float ShakeSeconds=.16f, ShakeCm=4.f;
-    const float Amplitude=PC->Controls && PC->Controls->bCameraShake && ShakeAge<ShakeSeconds
-        ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
-    Camera->SetRelativeLocation(FVector(0,Amplitude*FMath::Sin(190.f*ShakeAge),.7f*Amplitude*FMath::Sin(150.f*ShakeAge+1.f)));
+    Body->Animate(GetVelocity(),Delta);
+    KickAge+=Delta;
+    const float Kick=PC->Controls && PC->Controls->bCameraShake ? LDBodyMotion::KickOffset(KickAge,KickCm,LDHitFeel::Read().KickSeconds) : 0.f;
+    Camera->SetRelativeLocation(CameraArm->GetComponentRotation().UnrotateVector(GetActorForwardVector().GetSafeNormal2D()*Kick));
 }
 
 bool ALDCharacter::PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock)
@@ -191,7 +251,7 @@ void ALDCharacter::EndPlay(const EEndPlayReason::Type Reason)
 
 uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses)
 {
-    uint8 Code=Cue==ELDObservedActionCue::Attack ? 1 : Cue==ELDObservedActionCue::Cast ? 2 : Cue==ELDObservedActionCue::Hit ? 4 : 0;
+    uint8 Code=Cue==ELDObservedActionCue::Attack ? 1 : Cue==ELDObservedActionCue::Cast ? 2 : 0;
     for (const FLDObservedStatus& Status : Statuses)
     {
         switch (static_cast<ELDDemoStatusId>(Status.StatusId))

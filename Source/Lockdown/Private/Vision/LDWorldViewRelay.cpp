@@ -306,6 +306,27 @@ float LDObservedPresentation::HitAgeSeconds(uint16 AgePlusOneMs, double ElapsedS
     return AgePlusOneMs ? float(double(AgePlusOneMs - 1) / 1000.0 + FMath::Max(0.0, ElapsedSinceSample)) : -1.f;
 }
 
+bool LDObservedPresentation::ImmediateHitAge(const FLDObservedFrameRead& Read, const FLDObservedHitReceipt& Hit,
+    double AuthorityNowSeconds, float& OutAgeSeconds)
+{
+    const FLDWorldView* Frame = Read.Frame;
+    if (Read.Status != ELDObservedViewStatus::Current || !Frame || Frame->MatchGeneration != Hit.MatchGeneration
+        || Frame->ObserverLife != Hit.ObserverLife || Frame->Generation != Hit.Generation
+        || !Hit.Handle.IsValid() || Hit.ObservationEpoch == 0 || !Hit.HitId.IsValid() || Hit.OccurredAtMs <= 0
+        || uint8(Hit.HitLook) > uint8(ELDObservedHitLook::Electric)
+        || (Hit.HitFlags & ~LDObservation::HitFlagsMask) != 0
+        || ((Hit.HitFlags & LDObservation::ShieldBroken) && !(Hit.HitFlags & LDObservation::ShieldAbsorbed))
+        || !FMath::IsFinite(AuthorityNowSeconds))
+    { return false; }
+    if (!Frame->Units.ContainsByPredicate([&Hit](const FLDObservedUnitView& Unit)
+        { return Unit.Handle == Hit.Handle && Unit.ObservationEpoch == Hit.ObservationEpoch; }))
+    { return false; }
+    const double Age = AuthorityNowSeconds - double(Hit.OccurredAtMs) / 1000.0;
+    if (Age < -.05 || Age >= .3) { return false; }
+    OutAgeSeconds = float(FMath::Max(Age, 0.0));
+    return true;
+}
+
 double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds)
 {
     const double Candidate = ArrivalLocalSeconds - SampledAtServerSeconds;
@@ -448,6 +469,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.HitLook = Unit.HitLook;
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
+    Shown.RecentHitId = Unit.RecentHitId;
     Shown.HitFlags = Unit.HitFlags;
     Shown.Statuses = Unit.Statuses;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
@@ -480,11 +502,11 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
-            Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f, Reached.HitLook,
-            ALDCharacter::PresentationKnockback(Reached.Statuses));
+            float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
-            AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags); }
+            AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags, Reached.RecentHitId,
+            FMath::RoundToInt64(Points[Pose.Reached].At * 1000.0) - (Reached.RecentHitAgePlusOneMs - 1)); }
         ShownAt = Points[Pose.Reached].At;
     }
     if (Pose.Reached > 0)
@@ -501,6 +523,17 @@ void ALDObservedEntityProxy::PlayDeathFall() const
     {
         UE_LOG(LogLDWorld, Warning, TEXT("LD_OBSERVATION_DEATH_FALL_UNAVAILABLE The observed death is shown without a falling body."));
     }
+}
+
+bool ALDObservedEntityProxy::PresentImmediateHit(float AgeSeconds, ELDObservedHitLook HitLook, uint8 HitFlags,
+    const FGuid& HitId, int64 HitAtMs)
+{
+    if (bPlaced && IsValid(Body) && !IsHidden())
+    {
+        Body->SetHitReaction(AgeSeconds, HitLook, HitFlags, HitId, HitAtMs);
+        return true;
+    }
+    return false;
 }
 
 bool ALDObservedEntityProxy::TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const
@@ -844,6 +877,26 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
         Receiver.SetStaleAfter(TrackTimeout(Receiver.GetStaleAfter(), Target.StaleAfterSeconds, SinceUpdate));
     }
     Present(Cleared);
+}
+
+void ALDWorldViewRelay::ClientPresentedHit_Implementation(const FLDObservedHitReceipt& Hit)
+{
+    if (!bClock) { return; }
+    const double Arrival = FPlatformTime::Seconds();
+    TArray<FLDObservedClear> Cleared;
+    if (Receiver.Tick(Arrival, Cleared))
+    {
+        ++Timeouts;
+        Present(Cleared);
+    }
+    float Age = 0.f;
+    if (!LDObservedPresentation::ImmediateHitAge(Receiver.Read(), Hit, Arrival - ClockOffset, Age)) { return; }
+    const TObjectPtr<ALDObservedEntityProxy>* Found = Proxies.Find(Hit.Handle);
+    ALDObservedEntityProxy* Proxy = Found ? Found->Get() : nullptr;
+    if (IsValid(Proxy) && Proxy->ObservedHandle == Hit.Handle && Proxy->ObservedEpoch == Hit.ObservationEpoch)
+    {
+        if (Proxy->PresentImmediateHit(Age, Hit.HitLook, Hit.HitFlags, Hit.HitId, Hit.OccurredAtMs)) { ++AcceptedImmediateHits; }
+    }
 }
 
 void ALDWorldViewRelay::ClientConceal_Implementation(const FLDObservedConceal& Notice)

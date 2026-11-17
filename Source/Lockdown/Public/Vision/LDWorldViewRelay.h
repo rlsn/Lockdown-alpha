@@ -127,6 +127,7 @@ namespace LDObservedPresentation
         uint16 CueImpactDelayMs = 0;
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
+        FGuid RecentHitId;
         uint8 HitFlags = 0;
         TArray<FLDObservedStatus> Statuses;
     };
@@ -134,6 +135,8 @@ namespace LDObservedPresentation
     // the newest: the newest with zero velocity. A snap point is reached without sweeping toward it.
     LOCKDOWN_API FPose Sample(TConstArrayView<FPoint> Points, double At);
     LOCKDOWN_API float HitAgeSeconds(uint16 AgePlusOneMs, double ElapsedSinceSample);
+    LOCKDOWN_API bool ImmediateHitAge(const FLDObservedFrameRead& Read, const FLDObservedHitReceipt& Hit,
+        double AuthorityNowSeconds, float& OutAgeSeconds);
     // Local-minus-authority clock offset from one arrival: an earlier arrival lowers it at once, later ones raise it by at
     // most OffsetGrowthPerSecond, and a jump beyond ReseedSeconds (another authority clock) re-seeds it.
     LOCKDOWN_API double TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds);
@@ -211,6 +214,7 @@ public:
     void Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec);
     // Poses the body at the relay's delayed presentation time; the relay drives every proxy from one clock.
     void Present(double AtServerSec, float Delta);
+    bool PresentImmediateHit(float AgeSeconds, ELDObservedHitLook HitLook, uint8 HitFlags, const FGuid& HitId, int64 HitAtMs);
     // An authorized observed death: leaves a client-only falling copy of this body before the proxy is removed.
     void PlayDeathFall() const;
     bool TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const;
@@ -295,6 +299,7 @@ public:
     virtual void Tick(float Delta) override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     UFUNCTION(Client,Unreliable) void ClientFullView(const FLDWorldView& View);
+    UFUNCTION(Client,Unreliable) void ClientPresentedHit(const FLDObservedHitReceipt& Hit);
     UFUNCTION(Client,Reliable) void ClientConceal(const FLDObservedConceal& Notice);
     UFUNCTION(Client,Reliable) void ClientTermination(const FLDObservedTerminationNotice& Notice);
     FLDObservedFrameRead ReadObservedFrame() const { return Receiver.Read(); }
@@ -302,6 +307,7 @@ public:
     { return Receiver.FindUnit(Handle, ObservationEpoch, Out); }
     const TArray<FLDObservedClear>& RecentClears() const { return LastClears; }
     int32 ProxyCount() const { return Proxies.Num(); }
+    uint32 ImmediateHitCount() const { return AcceptedImmediateHits; }
     int32 ProjectileProxyCount() const { return ProjectileProxies.Num(); }
     // Display location (body centre) of a unit presented right now: its proxy's interpolated pose. False unless the
     // current frame lists this handle and epoch and its proxy is placed, so callers never label a hidden or stale unit.
@@ -321,6 +327,7 @@ public:
     uint32 TimeoutCount() const { return Timeouts; }
 private:
     uint32 Timeouts = 0;
+    uint32 AcceptedImmediateHits = 0;
     void Present(const TArray<FLDObservedClear>& Cleared);
     void Refuse(const FString& Error);
     bool EnsureCatalog(FString& Error);

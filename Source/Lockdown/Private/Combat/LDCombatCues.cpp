@@ -4,13 +4,12 @@
 
 LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 NowMs)
 {
-    FCue Cast, Attack, Hit;
-    const auto Offer=[NowMs](FCue& Slot, ELDObservedActionCue Cue, int64 StartedAtMs, int64 ImpactAtMs, int64 EndAtMs,
-        ELDObservedHitLook HitLook=ELDObservedHitLook::None)
+    FCue Cast, Attack;
+    const auto Offer=[NowMs](FCue& Slot, ELDObservedActionCue Cue, int64 StartedAtMs, int64 ImpactAtMs, int64 EndAtMs)
     {
         if (StartedAtMs<=0 || NowMs<StartedAtMs || NowMs>=EndAtMs) { return; }
         if (Slot.Cue==ELDObservedActionCue::None || StartedAtMs>Slot.AtMs)
-        { Slot={Cue,StartedAtMs,ImpactAtMs,HitLook}; }
+        { Slot={Cue,StartedAtMs,ImpactAtMs}; }
     };
     const auto Kind=[&Cast,&Attack](bool bBasic) -> FCue& { return bBasic?Attack:Cast; };
     if (Facts.bActing)
@@ -25,12 +24,13 @@ LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 No
         Offer(Kind(Facts.bReleasedBasic),Facts.bReleasedBasic?ELDObservedActionCue::Attack:ELDObservedActionCue::Cast,
             Facts.ReleasedStartedAtMs,Facts.ReleasedAtMs,EndAtMs);
     }
-    if (Facts.LastHitAtMs>0 && Facts.LastHitAtMs<=MAX_int64-HitHoldMs)
-    {
-        Offer(Hit,ELDObservedActionCue::Hit,Facts.LastHitAtMs,0,Facts.LastHitAtMs+HitHoldMs,
-            static_cast<ELDObservedHitLook>(Facts.LastHitLook));
-    }
-    return Cast.Cue!=ELDObservedActionCue::None ? Cast : Hit.Cue!=ELDObservedActionCue::None ? Hit : Attack;
+    return Cast.Cue!=ELDObservedActionCue::None ? Cast : Attack;
+}
+
+bool LDCombatCues::ConfirmsDealt(const FLDCombatHit& Hit, int64 DamageP2)
+{
+    return DamageP2>0 && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bReflect
+        && !Hit.bDebtPayment && !Hit.bLedgerCashOut;
 }
 
 ELDObservedHitLook LDCombatCues::ClassifyHit(const FLDCombatHit& Hit)
@@ -49,4 +49,14 @@ uint8 LDCombatCues::ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const F
     if (LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2))
     { Flags|=LDObservation::ShieldBroken; }
     return Flags;
+}
+
+uint8 LDCombatCues::ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal)
+{
+    return ClassifyImpact(bCritical,ShieldBeforeP2,Damage) | (bLethal && Damage.DamageP2>0 ? DealtLethal : 0);
+}
+
+int32 LDCombatCues::DealtRank(uint8 DealtFlags)
+{
+    return (DealtFlags & DealtLethal) ? 3 : (DealtFlags & LDObservation::Critical) ? 2 : (DealtFlags & LDObservation::ShieldBroken) ? 1 : 0;
 }

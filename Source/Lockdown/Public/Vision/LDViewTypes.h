@@ -16,7 +16,7 @@ namespace LDObservation
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 15;
+    constexpr uint32 Schema = 16;
     constexpr uint16 RecentHitWindowMs = 300;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
@@ -47,7 +47,8 @@ namespace LDObservation
 
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
 // Combat owns visible action cues; adding one is a schema change.
-UENUM() enum class ELDObservedActionCue : uint8 { None = 0, Attack = 1, Cast = 2, Hit = 3 };
+// 3 (the retired Hit reaction cue) is a hole: a landed hit is only the RecentHit fields and never poses the body.
+UENUM() enum class ELDObservedActionCue : uint8 { None = 0, Attack = 1, Cast = 2 };
 UENUM() enum class ELDObservedHitLook : uint8 { None = 0, Magic = 1, Fire = 2, Water = 3, Electric = 4 };
 // Declared before the wire projectile record that carries it; Combat maps each projectile source to one look.
 UENUM() enum class ELDObservedProjectileLook : uint8
@@ -101,6 +102,7 @@ struct FLDObservedUnitView
     UPROPERTY() uint16 ActionCueImpactDelayMs = 0; // action start to authoritative release; 0 for an immediate action or no impact
     UPROPERTY() ELDObservedHitLook HitLook = ELDObservedHitLook::None; // current visible hit cue, never its source or target
     UPROPERTY() uint16 RecentHitAgePlusOneMs = 0; // 0 = no recent hit; otherwise 1 + age on the authority clock
+    UPROPERTY() FGuid RecentHitId; // observer-local identity of the visible hit
     UPROPERTY() uint8 HitFlags = 0; // LDObservation::EHitFlags for the recent hit
     // The source of a Cast cue, so a visible cast can show its display name at that moment (user-approved amendment of
     // CB-P10): an ELDDemoAbilityId for Q/W, 0 otherwise. No rank, cooldown or learned list is ever carried.
@@ -112,6 +114,22 @@ struct FLDObservedUnitView
     UPROPERTY() FLDObservedResource Mana;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
+};
+
+// Owner-only presentation of a committed hit on a currently visible target; it never names a canonical body.
+USTRUCT()
+struct FLDObservedHitReceipt
+{
+    GENERATED_BODY()
+    UPROPERTY() uint32 MatchGeneration = 0;
+    UPROPERTY() uint32 ObserverLife = 0;
+    UPROPERTY() uint32 Generation = 0;
+    UPROPERTY() FGuid Handle;
+    UPROPERTY() uint32 ObservationEpoch = 0;
+    UPROPERTY() FGuid HitId;
+    UPROPERTY() int64 OccurredAtMs = 0;
+    UPROPERTY() ELDObservedHitLook HitLook = ELDObservedHitLook::None;
+    UPROPERTY() uint8 HitFlags = 0;
 };
 
 USTRUCT()
@@ -212,6 +230,7 @@ struct FLDObservedPublicFacts
     int64 ActionCueAtMs = 0;
     int64 ActionCueImpactAtMs = 0;
     int64 LastHitAtMs = 0;
+    FGuid LastHitId;
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
     uint8 HitFlags = 0;
     // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.

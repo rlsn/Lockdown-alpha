@@ -5,6 +5,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Character/LDHitFeel.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/EditableTextBox.h"
@@ -202,6 +203,26 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         Heading(TEXT("五维加点（用自己的未分配点数，不需要安全窗）"));
         PointList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(PointList);
 
+        // Local presentation tunables (ld.Feel.*), stepped on this client for this run; they send nothing to the server.
+        Heading(TEXT("打击感与特效（只在本机、本次运行；试玩初值，不是批准值）"));
+        FeelValues.Reset();
+        const TConstArrayView<LDHitFeel::FField> Feel=LDHitFeel::Fields();
+        for(int32 Index=0;Index<Feel.Num();++Index)
+        {
+            UHorizontalBox* Line=Row();
+            Line->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("%s · %s"),Feel[Index].Section,Feel[Index].Label),LDHUDStyle::TypeBody,DevPanelBright,false))
+                ->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            UTextBlock* Value=MakeText(LDHitFeel::Current(Index),LDHUDStyle::TypeBody,DevPanelSecondary,false);
+            UHorizontalBoxSlot* ValueSlot=Line->AddChildToHorizontalBox(Value);ValueSlot->SetPadding(FMargin(10,0,0,0));ValueSlot->SetVerticalAlignment(VAlign_Center);
+            AddButton(Line,TEXT("-"),[this,Index](){LDHitFeel::Step(Index,-1);PresentFeel();},FName(*FString::Printf(TEXT("DevTestFeel_%d_Down"),Index)));
+            AddButton(Line,TEXT("+"),[this,Index](){LDHitFeel::Step(Index,1);PresentFeel();},FName(*FString::Printf(TEXT("DevTestFeel_%d_Up"),Index)));
+            FeelValues.Add(Value);
+        }
+        {
+            UHorizontalBox* Line=Row();
+            AddButton(Line,TEXT("全部恢复初值"),[this](){LDHitFeel::ResetAll();PresentFeel();},TEXT("DevTestFeelReset"));
+        }
+
         auto* Host=WidgetTree->ConstructWidget<UVerticalBox>();
         Host->AddChildToVerticalBox(MakeText(TEXT("整局（只限房主）"),LDHUDStyle::TypeText,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));
         auto* HostLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(HostLine);
@@ -296,10 +317,16 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
     }
 }
 
+void ULDDevTestPanel::PresentFeel()
+{
+    for(int32 Index=0;Index<FeelValues.Num();++Index){DevPanelSetText(FeelValues[Index],LDHitFeel::Current(Index));}
+}
+
 void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content,bool bHost)
 {
     if(!MainPanel){return;}
     if(Content){BuildCatalog(*Content);}
+    PresentFeel();
     const auto* PC = Cast<ALDPlayerController>(GetOwningPlayer());
     DevPanelSetText(StatusText,LDDevPanel::StatusLine(Progression)
         + (PC && PC->bDevPeaceful ? TEXT(" · 和平模式：开") : TEXT(" · 和平模式：关")));
