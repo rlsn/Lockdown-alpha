@@ -28,7 +28,9 @@ if ($ImportTests -eq 'Skip') { $selection += '--skip-import' }
 $planText = & python -B (Join-Path $PSScriptRoot 'CheckRuleReport.py') --plan @selection | Out-String
 if ($LASTEXITCODE -ne 0) { throw 'CheckRuleReport.py could not plan the selected rule tests.' }
 $plan = $planText | ConvertFrom-Json
-if (-not $Full -and -not $plan.partial) { throw 'This selection is the complete suite; choose explicit -Full instead.' }
+if (-not $Full -and $plan.count -ge ($plan.required - @($plan.skipped_import).Count)) {
+    throw 'This selection is the complete suite for the import mode; choose explicit -Full instead.'
+}
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
 $buffer = [byte[]]::new(7)

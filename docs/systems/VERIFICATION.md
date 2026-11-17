@@ -277,6 +277,7 @@ PR 前仅在改动涉及必须由真实拥有连接证明的行为或 Issue 明�
 
 `RunTests.ps1 -Filter <具体前缀>` 执行局部规则；完整 `Lockdown.Rules` 套件必须显式 `-Full`。
 不带选择、只给 `-ImportTests Run`、把根 `Lockdown.Rules` 当筛选或混用 `-Full` 与 `-Filter` 都会在加载引擎前拒绝。
+多个具体前缀合起来达到当前导入模式的完整集合也会拒绝；判定使用实际选择数，包含 Skip 模式的非导入完整集合，不以 `partial` 标签代替。
 `-ImportTests Auto|Skip|Run` 只控制导入组，不代替全量授权；`-Full -ImportTests Run` 才是完整导入门禁。
 由 `CheckRuleReport.py` 核对明确的当前必需用例集合。
 缺报告、失败、未完成、缺用例或重复结果都不能通过；新增或迁移原生测试时同步维护此集合，

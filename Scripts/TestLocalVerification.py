@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import CheckRuleReport as rules
 import LocalVerification as verify
 
 
@@ -139,6 +140,36 @@ class LocalVerificationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "failed"):
                 verify.run_step(self.root, step, force=True)
         self.assertIsNone(verify.cached_result(self.root, step))
+
+    def run_native_to_engine_boundary(self, *args):
+        source = Path(__file__).parent
+        self.write("Scripts/RunTests.ps1", (source / "RunTests.ps1").read_text(encoding="utf-8"))
+        self.write("Scripts/CheckRuleReport.py",
+                   f"import runpy\nrunpy.run_path({str(source / 'CheckRuleReport.py')!r}, run_name='__main__')\n")
+        self.write("Scripts/Common.ps1", 'function Resolve-LDEngine { throw "TEST_ENGINE_BOUNDARY_REACHED" }\n')
+        return subprocess.run(["pwsh", "-NoProfile", "-File", str(self.root / "Scripts/RunTests.ps1"), *args],
+                              capture_output=True, text=True, encoding="utf-8", timeout=30)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 required")
+    def test_combined_prefixes_cannot_select_complete_run_or_skip_gate(self):
+        prefixes = sorted({".".join(name.split(".")[:3]) for name in rules.REQUIRED_TESTS})
+        for mode in ("Run", "Skip"):
+            with self.subTest(mode=mode):
+                selected = rules.select_tests(prefixes, skip_import=mode == "Skip")
+                self.assertEqual(selected, rules.REQUIRED_TESTS - (rules.IMPORT_TESTS if mode == "Skip" else set()))
+                done = self.run_native_to_engine_boundary("-Filter", ",".join(prefixes), "-ImportTests", mode)
+                self.assertNotEqual(done.returncode, 0)
+                self.assertIn("choose explicit -Full", done.stderr)
+                self.assertNotIn("TEST_ENGINE_BOUNDARY_REACHED", done.stderr)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 required")
+    def test_specific_partial_prefix_still_reaches_engine_boundary(self):
+        for mode in ("Run", "Skip"):
+            with self.subTest(mode=mode):
+                done = self.run_native_to_engine_boundary("-Filter", "Lockdown.Rules.DemoMatchIdentity",
+                                                         "-ImportTests", mode)
+                self.assertNotEqual(done.returncode, 0)
+                self.assertIn("TEST_ENGINE_BOUNDARY_REACHED", done.stderr)
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell 7 required")
     def test_unfiltered_native_refuses_before_loading_engine(self):
