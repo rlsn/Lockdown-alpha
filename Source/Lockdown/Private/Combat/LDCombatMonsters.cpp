@@ -84,9 +84,13 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
             P.DamageType=S.Payload.DamageType;P.SourceADP2=S.Payload.SourceADP2;P.ADRatioBp=S.Payload.ADRatioBp;
             P.OriginCm=S.Area.Origin;P.Direction=S.Area.Direction;P.RangeCm=S.Area.Range;P.RadiusCm=S.Area.Radius;
             P.SpeedCmPerSec=double(Monster->Skill.ProjectileSpeedCmPerSec.Numerator)/Monster->Skill.ProjectileSpeedCmPerSec.Denominator;P.AdvancedThroughMs=NowMs;P.SlowBp=S.Payload.SlowBp;P.SlowDurationMs=S.Payload.SlowDurationMs;
+            P.bTelegraphed=true;
             Projectiles.Add(P);continue;
         }
         const auto* Source=FindBody(S.Payload.SourceBody);
+        // A camp warning resolves here; a contender who dashed out of it in time dodged perfectly (spec §4.4).
+        if(!ResolvePerfectDodges(S.Key,S.Payload.SourceEntity,[&S](const FVector& Point){return LDMonsterRules::Contains(S.Area,Point);},NowMs,Error))
+        {return false;}
         TArray<FLDCombatBodyRef> Targets;
         const double Radius=S.Area.Shape==ELDMonsterShape::Circle?S.Area.Radius:
             S.Area.Shape==ELDMonsterShape::Line?FMath::Sqrt(FMath::Square(S.Area.Range)+FMath::Square(S.Area.Radius)):S.Area.Range;

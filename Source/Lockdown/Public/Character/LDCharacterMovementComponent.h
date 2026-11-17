@@ -88,6 +88,9 @@ public:
     // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
     bool IsDashing() const;
     void StopDemoDash();
+    // A skill branch's ghost window (S11 B): this body's own moves pass through other bodies for Seconds from now, the dash
+    // included; static geometry still stops them.
+    void SetBodyPassThroughSeconds(double Seconds);
     virtual void PhysWalking(float DeltaSeconds, int32 Iterations) override;
     virtual void PhysFalling(float DeltaSeconds, int32 Iterations) override;
     virtual void MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult) override;
@@ -129,6 +132,7 @@ private:
     void RememberStationarySupport();
     bool bKnockbackMotion=false;
     bool bWatchKnockbackBlock=false;
+    double BodyPassThroughUntilSeconds=0;
     TOptional<FKnockbackBlock> KnockbackBlock;
     TWeakObjectPtr<UPrimitiveComponent> StationaryFloor;
     FTransform StationaryFloorTransform;

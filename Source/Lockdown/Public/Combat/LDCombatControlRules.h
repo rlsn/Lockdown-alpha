@@ -58,6 +58,11 @@ struct FLDCombatEmpower
     int32 Charges = 1;
     // The timed bonus (keyed by EffectId) held while charges remain; ended with the last charge.
     bool bChargeBonus = false;
+    // Skill branch terms (S11, S17): momentum per empowered basic, breach stacks, a stun on the last charge, certain crits.
+    int64 MomentumP2 = 0;
+    int32 BreachStacks = 0;
+    int64 LastStunMs = 0;
+    bool bAlwaysCrit = false;
 };
 
 // #198 B12: a voluntary dash (the innate D or an active's dash) in flight. It completes naturally at EndMs; a knockback,

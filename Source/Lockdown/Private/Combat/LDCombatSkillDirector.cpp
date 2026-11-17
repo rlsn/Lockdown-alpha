@@ -110,6 +110,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Channel.Remaining=Cone->Count;
         Channel.FinalSlowBp=Cone->SecondaryRatioBp;
         Channel.FinalSlowMs=Cone->SecondaryDurationMs;
+        // S22 A2: the last waves (not only the final one) slow.
+        Channel.SlowWaves=FMath::Max(Cone->BasicCount,1);
         if (Terms.FinalKnockbackTerms.IsSet())
         {
             // M18: the final wave pushes everything it hits away from the caster instead of slowing it.
@@ -157,6 +159,15 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Ground.Origin=Trap ? ELDCombatGroundOrigin::Trap : ELDCombatGroundOrigin::Impact;
         // M15: the landing or detonation echoes once (AdvanceSkillContent).
         Ground.Echo=Terms.EchoImpact;
+        // Skill branches: S18 B1's center stun and S20 B2's wet area; S19 A1's wire.
+        Ground.CenterStunMs=Impact ? Shape.ExtraDurationMs : 0;
+        Ground.LingerMs=Impact ? Shape.SecondaryDurationMs : 0;
+        if (Trap && Shape.ExtraDistanceCm.Denominator>0 && Shape.ExtraDistanceCm.Numerator>0)
+        {
+            Ground.WireCm=Cm(Shape.ExtraDistanceCm);
+            Ground.WireBaseP2=Shape.BaseP2;
+            Ground.WireAPRatioBp=Shape.APRatioBp;
+        }
         if (Trap)
         {
             // S19 (spec §9): armed from its placement for its life; a trigger starts its own fuse (AdvanceSkillContent).
@@ -168,9 +179,15 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             || !LDMatchLifecycle::AddDurationMs(Ground.ReadyAtMs, Shape.DurationMs, Ground.ExpiresAtMs, Error)) { return false; }
         if (Trap)
         {
-            // One trap per owner (content §4): a newer one ends the old one, armed or fusing, without its blast.
-            GroundEffects.RemoveAll([&Body](const auto& Existing)
-            { return Existing.bTrap && Existing.Payload.SourceEntity == Body.Victim.EntityId; });
+            // One trap per owner (content §4; S19 A raises it): a newer one ends the oldest, armed or fusing, without its blast.
+            const int32 Allowed=FMath::Max(Shape.Count,1);
+            TArray<int32> Owned;
+            for (int32 Index=0; Index < GroundEffects.Num(); ++Index)
+            {
+                if (GroundEffects[Index].bTrap && GroundEffects[Index].Payload.SourceEntity == Body.Victim.EntityId) { Owned.Add(Index); }
+            }
+            Owned.Sort([this](int32 Left, int32 Right) { return GroundEffects[Left].CreatedSerial < GroundEffects[Right].CreatedSerial; });
+            for (int32 Drop=Owned.Num()-Allowed; Drop >= 0; --Drop) { GroundEffects.RemoveAt(Owned[Drop]); }
             Ground.CreatedSerial=++NextAreaSerial;
         }
         GroundEffects.Add(MoveTemp(Ground));
@@ -212,6 +229,16 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             TArray<FLDCombatBodyRef> Targets;
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
+            // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
+            {
+                const FVector Facing=Channel.Direction;
+                const double Range=Channel.RangeCm;
+                if (!ResolvePerfectDodges(Channel.Payload.EffectId, Channel.Payload.SourceEntity, [&Origin, &Facing, Range, CosHalfAngle](const FVector& Point)
+                {
+                    const FVector Offset(Point.X-Origin.X, Point.Y-Origin.Y, 0);
+                    return Offset.Size() <= Range && (Offset.IsNearlyZero() || FVector::DotProduct(Facing, Offset.GetSafeNormal()) >= CosHalfAngle);
+                }, NowMs, Error)) { return false; }
+            }
             for (const auto& Ref : Targets)
             {
                 ALDCharacter* Target=nullptr;
@@ -221,7 +248,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 auto Hit=Channel.Payload;
                 Hit.HitId=FGuid::NewGuid();
                 Hit.Target=Ref;
-                if (Channel.Remaining == 1) { Hit.SlowBp=Channel.FinalSlowBp; Hit.SlowDurationMs=Channel.FinalSlowMs; }
+                if (Channel.Remaining <= Channel.SlowWaves) { Hit.SlowBp=Channel.FinalSlowBp; Hit.SlowDurationMs=Channel.FinalSlowMs; }
                 if (Channel.Remaining == 1 && Channel.FinalKnockbackCm > 0)
                 {
                     Hit.KnockbackCm=Channel.FinalKnockbackCm;
@@ -273,6 +300,13 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
         }
         // C06 (#198 F) answers the natural completion; the blast record is copied first because the list may grow.
         const FLDCombatGroundEffect Completed=Ground;
+        // A landing or a trap blast is telegraphed: it can be perfectly dodged (spec §4.4).
+        {
+            const FVector Centre=Ground.CentreCm;
+            const double Radius=Ground.RadiusCm;
+            if (!ResolvePerfectDodges(Ground.Payload.EffectId, Ground.Payload.SourceEntity,
+                [&Centre, Radius](const FVector& Point) { return FVector::Dist2D(Centre, Point) <= Radius; }, NowMs, Error)) { return false; }
+        }
         if (!CollectAreaTargets(Ground.CentreCm, Ground.RadiusCm, Holder, Ground.Payload.SourceEntity, Targets, Error)) { return false; }
         for (const auto& Ref : Targets)
         {
@@ -286,9 +320,14 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 Hit.DeliveryScaleBp=Hit.DeliveryScaleBp/10000*Ground.OuterRatioBp+Hit.DeliveryScaleBp%10000*Ground.OuterRatioBp/10000;
                 Hit.RootDurationMs=0;
             }
+            else if (Ground.CenterStunMs > 0) { Hit.StunDurationMs=FMath::Max(Hit.StunDurationMs, Ground.CenterStunMs); }
+            // A blast pushes away from its own point.
+            if (Hit.KnockbackCm > 0 && !Hit.bKnockbackPull) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Ground.CentreCm; }
             PendingHits.Add(MoveTemp(Hit));
         }
         GroundEffects.RemoveAt(Index);
+        if (Completed.LingerMs > 0
+            && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }
         if ((Completed.Origin==ELDCombatGroundOrigin::Impact || Completed.Origin==ELDCombatGroundOrigin::Trap
                 || Completed.Origin==ELDCombatGroundOrigin::CompressedZone)
             && !TriggerAftershock(Completed.Payload.SourceBody, Completed.Payload.Source, Completed.Payload.EffectId,

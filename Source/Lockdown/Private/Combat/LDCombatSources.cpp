@@ -162,7 +162,7 @@ namespace LDCombatSourcesDetail
             const int32 Slot=LearnedSlot(Learned.Entry);
             const FLDDemoAbilityDefinition* Ability=nullptr;
             const bool bKnown=!Learned.AbilityId.IsNone() && Content.FindAbility(Learned.AbilityId.ToString(),Ability,LookupError)
-                && Ability && Content.FindValues(*Ability,Input.Level);
+                && Ability && Content.FindValues(*Ability,Input.Level,Learned.Branch);
             bool bDuplicate=false;
             for (int32 Earlier=0; Earlier<Index; ++Earlier)
             {
@@ -180,7 +180,7 @@ namespace LDCombatSourcesDetail
             FLDGrowthBuild Build;
             Build.Level=Input.Level;
             for (const FLDLearnedActiveValue& Active : Input.Actives)
-            { Build.Actives.Add({Active.AbilityId,uint8(LearnedSlot(Active.Entry))}); }
+            { Build.Actives.Add({Active.AbilityId,uint8(LearnedSlot(Active.Entry)),Active.Branch}); }
             for (const FLDInstalledComponentValue& InstalledComponent : Input.Components)
             {
                 FLDComponentInstance& Component=Build.Components.AddDefaulted_GetRef();
@@ -423,10 +423,16 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
     const FLDDemoAbilityValues* Values=nullptr;
     if (Ability && Content)
     {
-        Values=Content->FindValues(*Ability,Record.Build.Level);
-        if (!Values) { return false; }
-        Out.Target=Ability->Target;
-        Out.WindupMs=Ability->WindupMs;
+        // The release snapshot (issue #287 spec §5.2): the learned branch's variant, grown for the level and its rank.
+        const FLDLearnedActiveValue* Learned=Record.Build.Actives.FindByPredicate([&Source](const FLDLearnedActiveValue& Row)
+            { return Row.AbilityId==Source.DefinitionId; });
+        const ELDSkillBranch Branch=Learned ? Learned->Branch : ELDSkillBranch::None;
+        const FLDDemoAbilityBranch* Variant=Ability->FindBranch(Branch);
+        Values=Content->FindValues(*Ability,Record.Build.Level,Branch);
+        if (!Values || (Branch!=ELDSkillBranch::None && !Variant)) { return false; }
+        Out.Target=Variant ? Variant->Target : Ability->Target;
+        Out.WindupMs=Variant ? Variant->WindupMs : Ability->WindupMs;
+        Out.Branch=Branch;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
     {
@@ -888,6 +894,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;
+        Out.PerfectDodges=Body->PerfectDodges;
+        Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);

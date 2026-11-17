@@ -82,5 +82,9 @@ enum class ELDDemoEffectOp : uint8
     ProjectileReturn=152, ProjectilePierce=153, ChainExtra=154, EchoImpact=155,
     HitHasteOther=156, SetupMark=157, ReactionHaste=158, MultiHitMomentum=159,
     ZoneTether=160, DefenseShove=161, FinalKnockback=162, EmpowerReach=163, Pull=164,
-    ZoneRelocate=165, StoredForce=166, EmpowerSpend=167, ControlWiden=168, ZoneDetonate=169
+    ZoneRelocate=165, StoredForce=166, EmpowerSpend=167, ControlWiden=168, ZoneDetonate=169,
+    Vulnerable=170, NextBasicAmp=171, MomentumGain=172, MomentumSteal=173, FollowUp=174, Recast=175, DashBack=176, SelfBuff=177,
+    BurnBurst=178, Pulse=179, ZoneGuard=180, ZoneMomentum=181, Overcharge=182, FollowBasic=183, ShieldBurstBreak=184,
+    BasicRider=185, DelayedBurst=186, ShieldReflect=187, ShieldEndHeal=188, ShieldHitBonus=189, BraceStun=190, BraceHeal=191,
+    BraceStack=192, BraceShove=193, BraceShield=194, ProjectileZone=195
 };

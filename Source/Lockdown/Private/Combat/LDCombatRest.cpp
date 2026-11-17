@@ -218,6 +218,7 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.ComboStep=0;
     Body.OverdriveCharge.Reset();
     Body.DashStartedAtMs.Reset();
+    ClearBranchState(Body);
     // Component rests are cooldowns too: every one is ready in the new phase.
     Body.RetortReadyAtMs=0;
     Body.DamagedShieldReadyAtMs=0;

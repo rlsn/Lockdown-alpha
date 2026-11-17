@@ -268,6 +268,7 @@ void ALDCombatDirector::RemoveRegisteredBody(const FLDCombatBodyRef& Ref)
         {
             const FGuid Entity=Ref.Victim.EntityId;
             LogMomentumLedger(It.Value());
+            ClearBranchState(It.Value());
             // Unreleased work dies with the life; released independent effects stay in Projectiles/PendingHits.
             It.RemoveCurrent();
             MarkViewChanged(Entity);

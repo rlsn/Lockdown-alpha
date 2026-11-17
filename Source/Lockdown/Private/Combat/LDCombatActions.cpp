@@ -743,9 +743,11 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (!Track) { Error=TEXT("A held active source has no persistent cooldown track."); return false; }
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
-    Gate.ReadyAtMs=Track->ReadyAtMs;
+    // Skill branches: an open recast window releases without cooldown or momentum; a free cast without momentum.
+    const bool bRecastOpen=BranchRecastOpen(*Body,Source,Now);
+    Gate.ReadyAtMs=bRecastOpen ? Now : Track->ReadyAtMs;
     Gate.MomentumP2=Body->Resources.MomentumP2;
-    Gate.MomentumCostP2=ValuesDef->MomentumCostP2;
+    Gate.MomentumCostP2=bRecastOpen || BranchFreeCast(*Body,Source,Now) ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body->Roots;
@@ -1043,6 +1045,24 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     if (bChargeBonusEnded && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
     // One critical sample per AttackId, at the successful release only.
     Hit.bCritical=Final.CritChanceBp>0 && CritRandom.RandRange(0,9999)<Final.CritChanceBp;
+    // Skill branches: a pending next-basic bonus joins this hit once; basic riders shock or breach; the empowered packages'
+    // own terms (S11, S17) add momentum, breach, a last-charge stun or a certain crit.
+    if (Body.Branch.NextBasicAmpBp>0 && Body.Branch.NextBasicAmpUntilMs>Now) { Hit.BranchAmpBp=Body.Branch.NextBasicAmpBp; }
+    Body.Branch.NextBasicAmpBp=0;
+    Body.Branch.NextBasicAmpUntilMs=0;
+    if (Body.Branch.RiderUntilMs>Now)
+    {
+        Hit.bApplyElectric|=Body.Branch.bRiderElectric;
+        Hit.BreachStacks+=Body.Branch.RiderBreach;
+        if (Body.Branch.bRiderElectric && !StampElementSnapshot(Body,Hit,Error)) { return false; }
+    }
+    for (const FLDCombatEmpower& Package : Taken)
+    {
+        Hit.bCritical|=Package.bAlwaysCrit;
+        Hit.BreachStacks+=Package.BreachStacks;
+        if (Package.MomentumP2>0) { GrantMomentum(Body,Package.MomentumP2,ELDMomentumBook::Skill); }
+        if (Package.Charges==0 && Package.LastStunMs>0) { Hit.StunDurationMs=FMath::Max(Hit.StunDurationMs,Package.LastStunMs); }
+    }
     // A B06 push leaves from the holder's foot (this one if the holder is gone when it lands).
     Hit.KnockbackAnchorCm=FootOf(Actor);
     if (!OnBasicLanded(Body,Hit,Error)) { return false; }
@@ -1169,9 +1189,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // A stun or taunt that landed during the windup ends it (normally already abandoned at the hit).
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
-    Gate.ReadyAtMs=Track->ReadyAtMs;
+    const bool bRecast=!bInnate && BranchRecastOpen(Body,Source,Now);
+    const bool bFreeCast=!bInnate && !bRecast && BranchFreeCast(Body,Source,Now);
+    Gate.ReadyAtMs=bRecast ? Now : Track->ReadyAtMs;
     Gate.MomentumP2=Body.Resources.MomentumP2;
-    Gate.MomentumCostP2=bInnate ? 0 : ValuesDef->MomentumCostP2;
+    Gate.MomentumCostP2=bInnate || bRecast || bFreeCast ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body.Roots;
@@ -1202,6 +1224,14 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if (DashEffect && (!Movement || !Movement->CanStartDash(Action.Direction,LDCA::DashProbeCm)))
     { Reject=ELDCombatReject::Blocked; return true; }
     FLDCombatAction DeliveryAction=Action;
+    // S02 B / S12 B: the recast takes its own terms over this release's snapshot.
+    TOptional<FLDCombatRecastWindow> RecastWindow;
+    if (bRecast)
+    {
+        RecastWindow=Body.Branch.Recast.GetValue();
+        Body.Branch.Recast.Reset();
+        ApplyRecastTerms(RecastWindow.GetValue(),Terms,DeliveryAction);
+    }
     if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint
         && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap)))
     {
@@ -1282,9 +1312,14 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             *Source.DefinitionId.ToString(),PaidP2);
     }
     if (Body.OverdriveCharge.IsSet()) { EndOverdriveCharge(Body); }
+    if (bFreeCast) { Body.Branch.FreeCastUntilMs=0; }
     ++Body.Resources.Revision;
-    Track->ReadyAtMs=ReadyAt;
-    Track->LastDurationMs=DurationMs;
+    // A recast keeps the first release's cooldown.
+    if (!bRecast)
+    {
+        Track->ReadyAtMs=ReadyAt;
+        Track->LastDurationMs=DurationMs;
+    }
     const auto& Final=Body.AttributeProjection.Final;
     const FGuid EffectId=FGuid::NewGuid();
     Track->LastEffectId=EffectId;
@@ -1294,6 +1329,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     CastLedger->PaidMomentumP2=PaidP2;
     CastLedger->bOverdrive=bOverdrive;
     CastLedger->AlternateAmpBp=AlternateBp;
+    if (RecastWindow.IsSet())
+    {
+        CastLedger->bRecast=true;
+        if (RecastWindow->FirstLedger) { CastLedger->RecastFirst=RecastWindow->FirstLedger->RiderStruck; }
+    }
     if (AlternateBp>0)
     {
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_ALTERNATE_AMP t=%lld src=%s active=%s previous=%s gap_ms=%lld amp_bp=%lld"),Now,
@@ -1351,9 +1391,15 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         {
             const double Seconds=double(Effect.DurationMs)/1000.;
             const double Distance=LDCA::ToDouble(bInnate ? Innate.DistanceCm : Effect.DistanceCm);
-            if (!Movement->StartDemoDash(Action.Direction,Distance,Seconds,Error)) { return false; }
+            if (!Movement->StartDemoDash(DeliveryAction.Direction,Distance,Seconds,Error)) { return false; }
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
             Body.DashContact.Reset();
+            // Perfect dodge (spec §4.4) reads where and when a D started.
+            if (bInnate)
+            {
+                Body.DashStartedAtMs=Now;
+                Body.DashStartFootCm=ReleaseFoot;
+            }
             // B12: a voluntary dash (D or an active's) that completes naturally arms DashComplete empowers.
             FLDCombatVoluntaryDash& Voluntary=Body.VoluntaryDash.Emplace();
             Voluntary.EffectId=EffectId;
@@ -1384,7 +1430,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Body.DashContact->bCanDamage=bDamage;
                 Body.DashContact->bCanRefund=bRefund;
                 Body.DashContact->bCanKnock=bKnock;
-                Body.DashContact->Direction=Action.Direction;
+                Body.DashContact->Direction=DeliveryAction.Direction;
                 Body.DashContact->ContactScaleBp=Terms.ContactScaleBp;
             }
             break;
@@ -1447,6 +1493,19 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Hit.bKnockbackPull=true;
                 Hit.KnockbackStopCm=LDCA::ToDouble(Pull.RadiusCm);
             }
+            // S15 B1: when the pull gathers two or more bodies, each takes the pull's physical package.
+            if (Taunted.Num()>=2 && (Pull.BaseP2>0 || Pull.ADRatioBp>0))
+            {
+                for (int32 Index=PendingHits.Num()-Taunted.Num(); Index<PendingHits.Num(); ++Index)
+                {
+                    FLDCombatHit& Pulled=PendingHits[Index];
+                    Pulled.BaseP2=Pull.BaseP2;
+                    Pulled.ADRatioBp=Pull.ADRatioBp;
+                    Pulled.SourceADP2=Final.ADP2;
+                    Pulled.DamageType=ELDDemoDamageType::Physical;
+                    Pulled.bAddedDamage=true;
+                }
+            }
             if (!Taunted.IsEmpty()) { LedgerComponentTriggered(Body,Terms.Pull->Source.DefinitionId); }
             break;
         }
@@ -1458,6 +1517,35 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Grievous:
         case ELDDemoEffectOp::ChainBounce:
             // Carried by the hit payload (and the S10 chain) below.
+            break;
+        // Skill branch operations: hit riders on the cast ledger and self terms (ArmBranchRelease), pulses and shield
+        // bonuses (ArmBranchHostile), zone terms (ReleaseMechanics), trap terms and lingering areas (StartSkillDelivery).
+        case ELDDemoEffectOp::Vulnerable:
+        case ELDDemoEffectOp::NextBasicAmp:
+        case ELDDemoEffectOp::MomentumGain:
+        case ELDDemoEffectOp::MomentumSteal:
+        case ELDDemoEffectOp::FollowUp:
+        case ELDDemoEffectOp::Recast:
+        case ELDDemoEffectOp::DashBack:
+        case ELDDemoEffectOp::SelfBuff:
+        case ELDDemoEffectOp::BurnBurst:
+        case ELDDemoEffectOp::Pulse:
+        case ELDDemoEffectOp::ZoneGuard:
+        case ELDDemoEffectOp::ZoneMomentum:
+        case ELDDemoEffectOp::Overcharge:
+        case ELDDemoEffectOp::FollowBasic:
+        case ELDDemoEffectOp::ShieldBurstBreak:
+        case ELDDemoEffectOp::BasicRider:
+        case ELDDemoEffectOp::DelayedBurst:
+        case ELDDemoEffectOp::ShieldReflect:
+        case ELDDemoEffectOp::ShieldEndHeal:
+        case ELDDemoEffectOp::ShieldHitBonus:
+        case ELDDemoEffectOp::BraceStun:
+        case ELDDemoEffectOp::BraceHeal:
+        case ELDDemoEffectOp::BraceStack:
+        case ELDDemoEffectOp::BraceShove:
+        case ELDDemoEffectOp::BraceShield:
+        case ELDDemoEffectOp::ProjectileZone:
             break;
         case ELDDemoEffectOp::Brace:
             if (!ReleaseBrace(Body,Effect,Source,EffectId,Action.Token,Now,Error,CastLedger)) { return false; }
@@ -1486,6 +1574,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             return false;
         }
     }
+    if (!ArmBranchRelease(Actor,Body,Source,Terms,EffectId,CastLedger,DeliveryAction,Now,Error)) { return false; }
     if (bHostile)
     {
         // One hit payload per target, snapshotted at release; a skill's own delivery takes it, or the standard one does.
@@ -1494,8 +1583,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         if (Template.bKnockbackPull) { LedgerComponentTriggered(Body,Terms.Pull->Source.DefinitionId); }
         bool bHandled=false;
         if (!StartSkillDelivery(Body,Terms,DeliveryAction,Template,Now,bHandled,Error)) { return false; }
-        if (!bHandled && !DeliverReleasePayload(Actor,Body,Terms,Action,Template,UnitTarget,TargetFoot,ReleaseFoot,AreaTargets,Now,Error))
+        if (!bHandled && !DeliverReleasePayload(Actor,Body,Terms,DeliveryAction,Template,UnitTarget,TargetFoot,ReleaseFoot,AreaTargets,Now,Error))
         { return false; }
+        if (!ArmBranchHostile(Body,Terms,Template,AreaTargets,Now,Error)) { return false; }
     }
     // A ground zone sits at the requested point, clamped to the authored reach.
     FVector ZonePoint=Action.TargetPoint;
@@ -1577,8 +1667,9 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     // Abilities trigger no on-hit effects.
     if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
     FillMechanicsTemplate(Values,ReleaseFoot,Template);
-    // #198 F C02 reads the push of this exit.
+    // #198 F C02 reads the push of this exit; a branch's wall stun rides on it.
     if (Template.KnockbackCm>0) { Template.KnockbackSource=Source; }
+    if (const FLDDemoEffectDefinition* Push=LDCA::FindEffect(Values,ELDDemoEffectOp::Knockback)) { Template.KnockbackWallStunMs=Push->ExtraDurationMs; }
     if (Template.KnockbackCm>0 && Terms.PullTerms.IsSet())
     {
         // M20: toward the caster's current foot (the release foot if the caster is gone), clamped short of it.
@@ -1641,7 +1732,10 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         {
             Projectile.ReturnScaleBp=Terms.ProjectileReturn->Effect.MultiplierBp;
             Projectile.ReturnComponent=Terms.ProjectileReturn->Source.DefinitionId;
+            Projectile.ReturnElement=Terms.ProjectileReturn->Effect.Element;
         }
+        Projectile.bTelegraphed=Terms.WindupMs>=150;
+        if (const FLDDemoEffectDefinition* Landing=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::ProjectileZone)) { Projectile.LandingZone=*Landing; }
         Projectile.Payload=Template;
         Projectiles.Add(Projectile);
     }
@@ -1664,6 +1758,18 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         if (!CollectLineTargets(ReleaseFoot,Action.Direction,LDCA::ToDouble(TargetDef.RangeCm),
             LDCA::ToDouble(TargetDef.LineHalfWidthCm),Body,Line,Error)) { return false; }
         const FVector Along=FVector(Action.Direction.X,Action.Direction.Y,0).GetSafeNormal();
+        // A telegraphed line can be perfectly dodged at its resolution (spec §4.4).
+        if (Terms.WindupMs>=150)
+        {
+            const double Range=LDCA::ToDouble(TargetDef.RangeCm), Half=LDCA::ToDouble(TargetDef.LineHalfWidthCm);
+            const auto InBand=[&ReleaseFoot,&Along,Range,Half](const FVector& Point)
+            {
+                const FVector Offset(Point.X-ReleaseFoot.X,Point.Y-ReleaseFoot.Y,0);
+                const double Ahead=FVector::DotProduct(Offset,Along);
+                return Ahead>=0 && Ahead<=Range && FVector::CrossProduct(Along,Offset).Size()<=Half;
+            };
+            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,InBand,NowMs,Error)) { return false; }
+        }
         for (const TPair<FLDCombatBodyRef,FVector>& Struck : Line)
         {
             FLDCombatHit Hit=Template;
@@ -1675,6 +1781,14 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     }
     else
     {
+        // A telegraphed self area can be perfectly dodged at its resolution (spec §4.4).
+        const FLDDemoEffectDefinition* Around=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
+        if (Around && Terms.WindupMs>=150)
+        {
+            const double Radius=LDCA::ToDouble(Around->RadiusCm);
+            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,
+                [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
+        }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
         // M15 on S07: a blast of the same radius at the release foot after the delay, with one burn stack.
         const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);

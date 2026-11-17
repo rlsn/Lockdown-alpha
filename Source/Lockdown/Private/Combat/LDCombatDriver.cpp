@@ -40,6 +40,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     const FLDDemoContentSnapshot* Content=Catalog();
     const int64 RecoveryDelayMs=Content ? Content->Get().Parameters.OutOfCombatRegenDelayMs : -1;
     const int64 DormDelayMs=Content ? Content->Get().Parameters.DormRegenDelayMs : -1;
+    Consider(NextBranchDueMs(NowMs));
     for (const auto& Pair : Bodies)
     {
         const auto& Body=Pair.Value;
@@ -335,6 +336,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Effects)!=ELDCommitReject::None)
     { Error=TEXT("Combat effects require the current Effects permit."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
+    // Skill branch follow-ups, pulses and bursts due now (a shield's natural end heals before statuses expire).
+    if (!AdvanceBranches(Now,Error)) { return false; }
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
     // B12: voluntary dashes that completed by now (motion already ran to this boundary) arm their empowered packages.
@@ -443,7 +446,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
         if (!BuildOwnerView(Caller,View)) { Error=TEXT("A present contender has no Combat owner projection."); return false; }
         // These owner-only facts can change without another resource mutation. Advance the revision so clients
         // accept the publication instead of discarding it as an older view of the same life.
-        if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.SkillPoints!=PC->CombatView.SkillPoints
+        if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
             || View.PreviewWideToken!=PC->CombatView.PreviewWideToken || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {

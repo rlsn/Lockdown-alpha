@@ -510,12 +510,18 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
     for (int32 Index = 0; Index < Build.Actives.Num(); ++Index)
     {
         const FLDLearnedActive& Active = Build.Actives[Index];
-        if (Active.Slot >= Content.Progression.ActiveSlots || !ProgressionFindAbility(Content, Active.Id)
+        const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Active.Id);
+        if (Active.Slot >= Content.Progression.ActiveSlots || !Ability
+            || (Active.Branch != ELDSkillBranch::None && !Ability->FindBranch(Active.Branch))
             || (Index > 0 && Build.Actives[Index - 1].Slot >= Active.Slot)
             || Build.Actives.ContainsByPredicate([&Active](const FLDLearnedActive& Other) { return &Other != &Active && Other.Id == Active.Id; }))
         {
             return ELDGrowthReason::DataInvalid;
         }
+    }
+    if (SkillPoints(Content, Build) < 0)
+    {
+        return ELDGrowthReason::DataInvalid;
     }
     for (int32 Index = 0; Index < Build.PendingBlueprints.Num(); ++Index)
     {
@@ -765,6 +771,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::FillGap:
     case ELDBuildCommandKind::Dismantle:
     case ELDBuildCommandKind::FinalMod:
+    case ELDBuildCommandKind::RankUpSkill:
         break;
     default:
         return ELDGrowthReason::InvalidRequest;
@@ -787,6 +794,8 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::AllocatePoints:
     case ELDBuildCommandKind::InstallComponent:
     case ELDBuildCommandKind::UninstallComponent:
+    // Issue #287 spec §4.5: a rank-up is open any time of a running match, in combat and in the death wait alike.
+    case ELDBuildCommandKind::RankUpSkill:
         return ELDGrowthReason::None;
     // The NPC services keep their rest build window (the build and payout steps), their NPC and a living body.
     case ELDBuildCommandKind::BuyNpcOffer:
@@ -1290,6 +1299,54 @@ ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Co
     Out.FinalMod.TargetKind = Target.Kind;
     Out.FinalMod.TargetId = Target.Definition;
     OutProgression.FinalMod.bLocked = true;
+    return ELDGrowthReason::None;
+}
+
+int32 LDProgression::SkillPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
+{
+    int32 Points = 0;
+    for (const int64 Level : Content.Parameters.SkillRanks.PointLevels)
+    {
+        Points += Level <= int64(Build.Level) ? 1 : 0;
+    }
+    for (const FLDLearnedActive& Active : Build.Actives)
+    {
+        Points -= int32(LDSkillBranch::RankOf(Active.Branch)) - 1;
+    }
+    return Points;
+}
+
+ELDGrowthReason LDProgression::ApplyRankUpSkill(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    uint8 Slot, ELDSkillBranch Branch, const FBuildContext& Context, FLDGrowthBuild& Out)
+{
+    Out = Current;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Slot >= 3)
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::RankUpSkill, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const int32 Index = Current.ActiveInSlot(Slot);
+    if (Index == INDEX_NONE)
+    {
+        return ELDGrowthReason::SlotEmpty;
+    }
+    const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Current.Actives[Index].Id);
+    if (!Ability || !LDSkillBranch::IsNext(Current.Actives[Index].Branch, Branch) || !Ability->FindBranch(Branch))
+    {
+        return ELDGrowthReason::BranchUnavailable;
+    }
+    if (SkillPoints(Content, Current) < 1)
+    {
+        return ELDGrowthReason::NoSkillPoint;
+    }
+    Out.Actives[Index].Branch = Branch;
     return ELDGrowthReason::None;
 }
 
@@ -2063,7 +2120,7 @@ FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Con
     }
     for (const FLDActiveSlotView& Active : View.Actives)
     {
-        Build.Actives.Add({Active.DefinitionId, Active.Slot});
+        Build.Actives.Add({Active.DefinitionId, Active.Slot, Active.Branch});
     }
     Build.PendingBlueprints = View.PendingBlueprints;
     for (const FLDComponentInstanceView& Row : View.Components)
@@ -2105,6 +2162,7 @@ FLDBuildProjectionInput LDProgression::CombatProjectionInput(const FLDDemoConten
     {
         FLDLearnedActiveValue& Value = Input.Actives.AddDefaulted_GetRef();
         Value.AbilityId = Active.Id;
+        Value.Branch = Active.Branch;
         Value.Entry = Active.Slot == 0 ? ELDCombatEntry::Q
             : Active.Slot == 1 ? ELDCombatEntry::W
             : Active.Slot == 2 ? ELDCombatEntry::E

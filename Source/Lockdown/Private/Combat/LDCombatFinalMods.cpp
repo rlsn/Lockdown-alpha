@@ -238,6 +238,10 @@ bool ALDCombatDirector::EmitZonePulse(const FLDCombatZone& Zone, FString& Error)
         Hit.ElementAPP2=Zone.ElementAPP2;
         Hit.SlowBp=Zone.PulseSlowBp;
         Hit.SlowDurationMs=Zone.PulseSlowMs;
+        Hit.AttackSlowBp=Zone.PulseAttackSlowBp;
+        Hit.AttackSlowMs=Zone.PulseAttackSlowMs;
+        Hit.GrievousBp=Zone.PulseGrievousBp;
+        Hit.GrievousMs=Zone.PulseGrievousMs;
         Hit.CastLedger=Zone.CastLedger;
     }
     return true;

@@ -163,32 +163,48 @@ FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) :
     GrownValues.SetNum(Definitions.Abilities.Num());
     for (int32 Index = 0; Index < Definitions.Abilities.Num(); ++Index)
     {
-        const FLDDemoAbilityValues& Authored = Definitions.Abilities[Index].Values;
-        TArray<TOptional<FLDDemoAbilityValues>>& Grown = GrownValues[Index];
-        Grown.SetNum(MaxLevel);
-        for (int32 Level = 1; Level <= MaxLevel; ++Level)
+        const FLDDemoAbilityDefinition& Ability = Definitions.Abilities[Index];
+        // Variant 0 is the level-1 definition at rank 1; variants 1..6 are its branches at their own rank.
+        TArray<TArray<TOptional<FLDDemoAbilityValues>>>& Variants = GrownValues[Index];
+        Variants.SetNum(1 + Ability.Branches.Num());
+        for (int32 Variant = 0; Variant < Variants.Num(); ++Variant)
         {
-            // Content validation proves every grown amount fits; a level that does not stays unset so FindValues refuses
-            // it instead of guessing.
-            FLDDemoAbilityValues Row;
-            if (LDSkillGrowth::GrowValues(Authored, Definitions.Parameters.SkillRanks, Definitions.Parameters.SkillGrowthPerLevelBp,
-                uint8(Level), 1, Row))
+            const FLDDemoAbilityValues& Authored = Variant == 0 ? Ability.Values : Ability.Branches[Variant - 1].Values;
+            const uint8 Rank = Variant == 0 ? 1 : LDSkillBranch::RankOf(Ability.Branches[Variant - 1].Path);
+            TArray<TOptional<FLDDemoAbilityValues>>& Grown = Variants[Variant];
+            Grown.SetNum(MaxLevel);
+            for (int32 Level = 1; Level <= MaxLevel; ++Level)
             {
-                Grown[Level - 1] = MoveTemp(Row);
+                // Content validation proves every grown amount fits; a level that does not stays unset so FindValues refuses
+                // it instead of guessing.
+                FLDDemoAbilityValues Row;
+                if (LDSkillGrowth::GrowValues(Authored, Definitions.Parameters.SkillRanks, Definitions.Parameters.SkillGrowthPerLevelBp,
+                    uint8(Level), Rank, Row))
+                {
+                    Grown[Level - 1] = MoveTemp(Row);
+                }
             }
         }
     }
 }
 
-const FLDDemoAbilityValues* FLDDemoContentSnapshot::FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level) const
+const FLDDemoAbilityValues* FLDDemoContentSnapshot::FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level,
+    ELDSkillBranch Branch) const
 {
     // Membership by address first: Ability may belong to another snapshot or be a free-standing object.
     const int32 Index = Definitions.Abilities.IndexOfByPredicate([&Ability](const FLDDemoAbilityDefinition& Row) { return &Row == &Ability; });
-    if (Index == INDEX_NONE || Level < 1 || int32(Level) > GrownValues[Index].Num())
+    if (Index == INDEX_NONE)
     {
         return nullptr;
     }
-    const TOptional<FLDDemoAbilityValues>& Row = GrownValues[Index][Level - 1];
+    const int32 Variant = Branch == ELDSkillBranch::None ? 0
+        : 1 + Ability.Branches.IndexOfByPredicate([Branch](const FLDDemoAbilityBranch& Row) { return Row.Path == Branch; });
+    if (Variant < 0 || Variant >= GrownValues[Index].Num() || (Branch != ELDSkillBranch::None && Variant == 0)
+        || Level < 1 || int32(Level) > GrownValues[Index][Variant].Num())
+    {
+        return nullptr;
+    }
+    const TOptional<FLDDemoAbilityValues>& Row = GrownValues[Index][Variant][Level - 1];
     return Row.IsSet() ? &Row.GetValue() : nullptr;
 }
 

@@ -17,6 +17,9 @@ struct FLDLearnedActive
     FName Id;
     // 0 = Q, 1 = W, 2 = E.
     uint8 Slot = 0;
+    // The branch path chosen by RankUpSkill; its rank follows from it (None = rank 1). Forgetting or replacing the active
+    // drops the entry, so its spent skill points come back (LDProgression::SkillPoints).
+    ELDSkillBranch Branch = ELDSkillBranch::None;
 };
 
 // #198 B: where an installed component sits and its install parameters. Base components take Kind None; an ActiveElement
@@ -310,6 +313,13 @@ namespace LDProgression
     // The active in Slot 0..2 forgotten and its attachments reclaimed in the same step (OutReclaimed); it is eligible for
     // later offers again. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer is
     // outstanding, SlotEmpty.
+    // Skill points (issue #287 spec §4.5): one per SKILL.PointLevels entry the build's level reached, minus one per rank above
+    // 1 of each learned skill. Forgetting or replacing a skill drops its ranks, so their points come back. Negative is a
+    // corrupt build (ValidateBuild refuses it).
+    LOCKDOWN_API int32 SkillPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // RankUpSkill: the skill in Slot takes Branch, its next rank, for one skill point; open like AllocatePoints.
+    LOCKDOWN_API ELDGrowthReason ApplyRankUpSkill(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        uint8 Slot, ELDSkillBranch Branch, const FBuildContext& Context, FLDGrowthBuild& Out);
     LOCKDOWN_API ELDGrowthReason ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
         TArray<FName>& OutReclaimed);

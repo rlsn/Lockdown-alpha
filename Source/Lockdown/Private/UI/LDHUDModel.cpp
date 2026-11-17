@@ -2637,6 +2637,8 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::TargetConflict: return LDTerms::TargetConflict;
     case ELDGrowthReason::WorkshopFull: return LDTerms::WorkshopFullReason;
     case ELDGrowthReason::ComponentColumnFull: return LDTerms::ComponentColumnFullReason;
+    case ELDGrowthReason::NoSkillPoint: return LDTerms::NoSkillPointReason;
+    case ELDGrowthReason::BranchUnavailable: return LDTerms::BranchUnavailableReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");

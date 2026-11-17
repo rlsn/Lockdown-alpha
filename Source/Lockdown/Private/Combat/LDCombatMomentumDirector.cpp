@@ -11,6 +11,36 @@
 // Momentum (劲), overdrive charges and the momentum income hooks of Combat (docs/systems/COMBAT_AND_GROWTH.md
 // "劲、连击、爆劲与完美闪避"). The pure rules are LDMomentum; this file owns the body records they change.
 
+bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea,
+    int64 NowMs, FString& Error)
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content) { Error=TEXT("A perfect dodge needs the approved momentum terms."); return false; }
+    const FLDDemoMomentumParameters& M=Content->Get().Parameters.Momentum;
+    PerfectDodgeMarks.RemoveAll([NowMs,&M](const TTuple<FGuid,FGuid,int64>& Mark) { return NowMs-Mark.Get<2>()>M.PerfectDodgeWindowMs*4; });
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        ALDCharacter* Actor=Pair.Key.Get();
+        if (!Actor || Body.bPendingDeath || Body.Victim.Kind!=ELDVictimKind::Contender || Body.Victim.EntityId==SourceEntity
+            || !Body.DashStartedAtMs.IsSet()) { continue; }
+        const bool bStartInside=InArea(Body.DashStartFootCm);
+        const bool bNowInside=InArea(FootOf(*Actor));
+        if (!LDMomentum::IsPerfectDodge(M.PerfectDodgeWindowMs,Body.DashStartedAtMs.GetValue(),NowMs,bStartInside,bNowInside)) { continue; }
+        const FGuid Dodger=Body.Victim.EntityId;
+        if (PerfectDodgeMarks.ContainsByPredicate([&EffectId,&Dodger](const TTuple<FGuid,FGuid,int64>& Mark)
+            { return Mark.Get<0>()==EffectId && Mark.Get<1>()==Dodger; })) { continue; }
+        PerfectDodgeMarks.Emplace(EffectId,Dodger,NowMs);
+        GrantMomentum(Body,M.PerfectDodgeP2,ELDMomentumBook::Dodge);
+        ++Body.PerfectDodges;
+        Body.LastPerfectDodgeAtMs=NowMs;
+        MarkViewChanged(Dodger);
+        UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
+            Body.Victim.Life,*LDLog::Id(EffectId),*LDLog::Id(SourceEntity),*LDLog::P2(Body.Resources.MomentumP2));
+    }
+    return true;
+}
+
 int64 ALDCombatDirector::GrantMomentum(FLDBodyCombatState& Body, int64 AmountP2, ELDMomentumBook Kind)
 {
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -141,8 +171,8 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
         else if (FLDDemoEffectDefinition* ZoneBurn=Find(ELDDemoEffectOp::ZoneBurn))
         {
             const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone);
-            const int64 Pulses=Zone && Zone->Count>0 ? Zone->Count : 1;
-            ZoneBurn->Count+=int32(FMath::Max<int64>(1,O.FireBurnStacks/Pulses));
+            const int64 PulseCount=Zone && Zone->Count>0 ? Zone->Count : 1;
+            ZoneBurn->Count+=int32(FMath::Max<int64>(1,O.FireBurnStacks/PulseCount));
         }
         break;
     case ELDDemoSkillElement::Water:

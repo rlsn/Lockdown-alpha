@@ -455,6 +455,18 @@ enum class ELDDemoSkillElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 
 UENUM()
 enum class ELDDemoHitType : uint8 { Targeted = 0, Projectile = 1, Area = 2, Dash = 3, Self = 4 };
 
+// A skill's branch path (issue #287 spec §3.6): rank 2 is A or B, rank 3 is A1/A2 under A or B1/B2 under B; rank 1 has none.
+UENUM()
+enum class ELDSkillBranch : uint8 { None = 0, A = 1, B = 2, A1 = 3, A2 = 4, B1 = 5, B2 = 6 };
+
+// Which hits a vulnerable target takes more from: every hit, skill hits only or basic hits only.
+UENUM()
+enum class ELDDemoDamageScope : uint8 { All = 0, Skill = 1, Basic = 2 };
+
+// The control a recast lands: the first release's own control, a root or a disarm.
+UENUM()
+enum class ELDDemoRecastControl : uint8 { Same = 0, Root = 1, Disarm = 2 };
+
 // #198 workshop material kinds (基础构件 / 改装件 / 连接件).
 UENUM()
 enum class ELDDemoComponentKind : uint8 { Base = 0, Mod = 1, Connector = 2 };
@@ -616,6 +628,19 @@ struct FLDDemoEffectDefinition
     // #198 F workshop terms: a cone angle (spread_unit, compress_cone) and a momentum-cost multiplier (cooldown_cost).
     UPROPERTY() FLDDemoRational AngleDegrees;
     UPROPERTY() int64 CostRatioBp = 0;
+    // Skill branch terms (issue #287 spec §5.1; field use per op in docs/systems/COMBAT_AND_GROWTH.md): a third duration
+    // (wall/center/recast stun, last-charge stun, dash ghost, free cast window), a second distance (trap wire), the scope and
+    // caster-only flag of a vulnerability, a recast's control and the remaining branch switches.
+    UPROPERTY() int64 ExtraDurationMs = 0;
+    UPROPERTY() FLDDemoRational ExtraDistanceCm;
+    UPROPERTY() ELDDemoDamageScope Scope = ELDDemoDamageScope::All;
+    UPROPERTY() ELDDemoRecastControl RecastControl = ELDDemoRecastControl::Same;
+    UPROPERTY() bool bOwnOnly = false;
+    UPROPERTY() bool bOnCatch = false;
+    UPROPERTY() bool bCenterOnly = false;
+    UPROPERTY() bool bAsDash = false;
+    UPROPERTY() bool bFreeDirection = false;
+    UPROPERTY() bool bAlwaysCrit = false;
     // #198 F workshop field use (content.json key -> field): damage_ratio MultiplierBp (a damage multiplier of the target's
     // package), ratio RatioBp (a geometry/time multiplier or a share), cooldown_ratio SecondaryRatioBp, cost_ratio CostRatioBp,
     // angle AngleDegrees, range_cap and radius RadiusCm, distance DistanceCm, stun_duration/root_duration SecondaryDurationMs,
@@ -681,6 +706,54 @@ struct FLDDemoAbilityValues
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 };
 
+// Branch path helpers: the rank a path belongs to, its rank step key (2a, 2b, 3a1, 3a2, 3b1, 3b2) and its display row id.
+namespace LDSkillBranch
+{
+    inline uint8 RankOf(ELDSkillBranch Path)
+    {
+        return Path == ELDSkillBranch::None ? 1 : (Path == ELDSkillBranch::A || Path == ELDSkillBranch::B) ? 2 : 3;
+    }
+    inline const TCHAR* StepKey(ELDSkillBranch Path)
+    {
+        switch (Path)
+        {
+        case ELDSkillBranch::A: return TEXT("2a");
+        case ELDSkillBranch::B: return TEXT("2b");
+        case ELDSkillBranch::A1: return TEXT("3a1");
+        case ELDSkillBranch::A2: return TEXT("3a2");
+        case ELDSkillBranch::B1: return TEXT("3b1");
+        case ELDSkillBranch::B2: return TEXT("3b2");
+        default: return TEXT("");
+        }
+    }
+    inline FString DisplayId(const FString& AbilityId, ELDSkillBranch Path) { return AbilityId + TEXT("_") + StepKey(Path); }
+    // The rank-2 parent of a rank-3 path (A1/A2 -> A, B1/B2 -> B); None for any other path.
+    inline ELDSkillBranch ParentOf(ELDSkillBranch Path)
+    {
+        return (Path == ELDSkillBranch::A1 || Path == ELDSkillBranch::A2) ? ELDSkillBranch::A
+            : (Path == ELDSkillBranch::B1 || Path == ELDSkillBranch::B2) ? ELDSkillBranch::B : ELDSkillBranch::None;
+    }
+    // Whether Next is a legal rank-up from Current: None -> A|B, A -> A1|A2, B -> B1|B2.
+    inline bool IsNext(ELDSkillBranch Current, ELDSkillBranch Next)
+    {
+        return Current == ELDSkillBranch::None ? (Next == ELDSkillBranch::A || Next == ELDSkillBranch::B) : ParentOf(Next) == Current && Next != ELDSkillBranch::None;
+    }
+}
+
+// One branch variant of an active: its own target, windup, element, hit type and value set.
+USTRUCT()
+struct FLDDemoAbilityBranch
+{
+    GENERATED_BODY()
+
+    UPROPERTY() ELDSkillBranch Path = ELDSkillBranch::None;
+    UPROPERTY() FLDDemoTargetDefinition Target;
+    UPROPERTY() int64 WindupMs = 0;
+    UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
+    UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
+    UPROPERTY() FLDDemoAbilityValues Values;
+};
+
 // #198: every ability is a single-level active learned into Q/W/E.
 USTRUCT()
 struct FLDDemoAbilityDefinition
@@ -697,8 +770,16 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
     UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
     UPROPERTY() FLDDemoAbilityValues Values;
+    // The six branch variants in path order A, B, A1, A2, B1, B2: each is the level-1 definition with its rank steps'
+    // patches applied (the content compiler resolves them); level growth and the rank scales apply on top.
+    UPROPERTY() TArray<FLDDemoAbilityBranch> Branches;
 
     ELDDemoAbilityId GetNativeId() const { return static_cast<ELDDemoAbilityId>(NativeId); }
+    // The variant a branch path names; null for None or a missing path.
+    const FLDDemoAbilityBranch* FindBranch(ELDSkillBranch Path) const
+    {
+        return Branches.FindByPredicate([Path](const FLDDemoAbilityBranch& Row) { return Row.Path == Path && Path != ELDSkillBranch::None; });
+    }
 };
 
 // #198: one of the five point-bought stats; each allocated point adds PerPoint (flat and additive percent terms).

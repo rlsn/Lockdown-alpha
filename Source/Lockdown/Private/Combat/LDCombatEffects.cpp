@@ -223,8 +223,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!SetupMarkBonus(*Source,Hit,NowMs,SetupBp,SetupTaken,Error)) { return false; }
         PoolBp+=SetupBp;
     }
+    // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
+    PoolBp+=BranchVulnerableBp(*Body,Hit,NowMs)+FMath::Max<int64>(Hit.BranchAmpBp,0);
     Evaluation.DamageBonusBp=PoolBp;
     Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
+    // A branch's self damage cut (S15 A1, S08 A2) on hits from other bodies.
+    if (Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment)
+    {
+        if (const int64 Guard=BranchGuardBp(*Body,NowMs); Guard>0)
+        { Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp/10000*(10000-Guard)+Evaluation.DeliveryScaleBp%10000*(10000-Guard)/10000; }
+    }
     if(Body->MonsterGuardUntilMs>NowMs && SourceActor
         && FVector::DotProduct(Actor->GetActorForwardVector(),(FootOf(*SourceActor)-FootOf(*Actor)).GetSafeNormal2D())>0)
     {
@@ -559,12 +567,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // release's first native direct hit on each body gains MOMENTUM.SkillHit once.
         if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId && !OnMomentumHit(*Source,Hit,*Body,bNativeDirect,Error))
         { return false; }
+        // Skill branch riders of the release on each of its native direct hits.
+        if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
+            && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
         // B13 and B16 on a hostile native direct hit that dealt positive damage (a shield's share counts).
         if (bNativeDirect && Damage.DamageP2>0 && !Hit.bDebtPayment && !OnNativeDirectHit(*Source,Hit,NowMs,Error)) { return false; }
         // A lethal hit ends the target life and with it every ledger on it.
         if (!Ledgers.IsEmpty() && Body->Resources.HpP2>0 && !RecordLedgerEntries(*Body,Hit,*Source,Ledgers,NowMs,Error)) { return false; }
     }
     if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
+    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
     // #198 F connectors and mods on this committed hit (C01, C08 memory, M11, C11, C12, M12 debt, C10).
     if (!ApplyWorkshopHit(Hit,*Body,Source,Damage,bShieldBroken,ShieldGrantedP2,NowMs,Error)) { return false; }
     if (!OnFinalHit(Hit,*Body,Source,bEffective,bControlled,NowMs,Error)) { return false; }
@@ -894,6 +906,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             }
             if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn
                 && !LaunchReturn(Projectile,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
+            if (!EndBranchProjectile(Projectile,At,false,Error)) { return false; }
             bEnded=true;
             break;
         }
@@ -906,6 +919,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         {
             // M13: terrain or the end of the reach still sends the return home.
             if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(Projectile,Stop,bReachesRange,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }

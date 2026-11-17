@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Algo/Find.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
@@ -70,6 +71,9 @@ namespace LDCombatWorkshopDetail
         ELDDemoEffectOp::SpreadUnit,ELDDemoEffectOp::SpreadProjectile,ELDDemoEffectOp::ChainExtra,ELDDemoEffectOp::CompressChain,
         ELDDemoEffectOp::ProjectileReturn,ELDDemoEffectOp::ProjectilePierce,ELDDemoEffectOp::EchoImpact,ELDDemoEffectOp::ZoneTether,
         ELDDemoEffectOp::DefenseShove,ELDDemoEffectOp::EmpowerReach};
+    // The mod operations a skill branch variant may carry itself (DemoContent.BRANCH_MOD_OPS).
+    constexpr ELDDemoEffectOp BranchModOps[]={ELDDemoEffectOp::Pull,ELDDemoEffectOp::ProjectileReturn,ELDDemoEffectOp::ProjectilePierce,
+        ELDDemoEffectOp::EchoImpact,ELDDemoEffectOp::ZoneTether,ELDDemoEffectOp::FinalKnockback,ELDDemoEffectOp::EmpowerReach};
 }
 
 bool ALDCombatDirector::WorkshopOn(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, const FLDCombatSourceRef& Exit,
@@ -99,12 +103,32 @@ bool LDCombatSourceRules::CompileWorkshopActive(const FLDAttributeProjection& Pr
         if (Source.Kind==ELDCombatSourceKind::Innate) { Terms.CooldownScaleBp=Share(Terms.CooldownScaleBp,Bp); }
         else { Values.CooldownMs=Share(Values.CooldownMs,Bp); }
     };
+    // Skill branches (issue #287 spec §5.1): a variant's own pull, return, pierce, echo, tether, finisher or reach leaves the
+    // value set and runs through the same mod handler, ahead of the installed mods of that operation. It names no component,
+    // so the blueprint ledger never counts it as a component trigger.
+    TArray<FLDDemoEffectDefinition> BranchMods;
+    for (int32 Index=Values.Effects.Num()-1; Index>=0; --Index)
+    {
+        if (Algo::Find(BranchModOps,Values.Effects[Index].GetOp()))
+        {
+            BranchMods.Add(Values.Effects[Index]);
+            Values.Effects.RemoveAt(Index);
+        }
+    }
     // Spec §12.3: eligibility first, then coverage/range/motion, then timing, then cost/multipliers; every mod on this exit.
     for (const ELDDemoEffectOp Op : ActiveMods)
     {
         TArray<FLDPassiveEffectRef> Mods;
         if (!CollectWorkshopEffects(Projection,Op,Content,Mods,Error)) { return false; }
         Mods.RemoveAll([&Source](const FLDPassiveEffectRef& Ref) { return !Ref.Targets(Source); });
+        for (const FLDDemoEffectDefinition& Own : BranchMods)
+        {
+            if (Own.GetOp()!=Op) { continue; }
+            FLDPassiveEffectRef Branch;
+            Branch.Source.Kind=Source.Kind;
+            Branch.Effect=Own;
+            Mods.Insert(MoveTemp(Branch),0);
+        }
         for (const FLDPassiveEffectRef& Mod : Mods)
         {
             const FLDDemoEffectDefinition& Effect=Mod.Effect;
@@ -377,6 +401,13 @@ bool ALDCombatDirector::ScheduleEcho(const FLDCombatBodyRef& OwnerRef, const FLD
     Repeat.OuterRatioBp=Blast.OuterRatioBp;
     Repeat.Origin=ELDCombatGroundOrigin::Echo;
     Repeat.ObservedKey=FGuid::NewGuid();
+    // Skill branches (S18 A1/A2): the echo's center hits harder and it shocks.
+    if (Echo.Effect.RatioBp>0)
+    {
+        Repeat.Payload.DeliveryScaleBp=LDCombatWorkshopDetail::Share(Repeat.Payload.DeliveryScaleBp,Echo.Effect.RatioBp);
+        Repeat.OuterRatioBp=FMath::Clamp<int64>(Repeat.OuterRatioBp*10000/Echo.Effect.RatioBp,1,10000);
+    }
+    Repeat.Payload.bApplyElectric|=Echo.Effect.Element==ELDDemoElement::Electric;
     if (Repeat.Payload.DeliveryScaleBp<=0 || !LDMatchLifecycle::AddDurationMs(NowMs,Echo.Effect.DelayMs,Repeat.ReadyAtMs,Error))
     {
         if (Error.IsEmpty()) { Error=TEXT("An echo needs a positive share."); }
@@ -426,6 +457,10 @@ bool ALDCombatDirector::LaunchReturn(const FLDCombatProjectile& Outbound, const 
     Payload.SilenceDurationMs=Payload.AttackSlowBp=Payload.AttackSlowMs=Payload.KnockbackMs=0;
     Payload.KnockbackCm=0;
     Payload.KnockbackSource=FLDCombatSourceRef();
+    // Skill branches (S06 B1, S21 B2): the return shocks or wets.
+    Payload.bApplyElectric|=Outbound.ReturnElement==ELDDemoElement::Electric;
+    Payload.bApplyWet|=Outbound.ReturnElement==ELDDemoElement::Water;
+    Return.LandingZone.Reset();
     if (Payload.DeliveryScaleBp<=0) { Error=TEXT("A return flight needs a positive share."); return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_PROJECTILE_RETURN owner=%s exit=%s length=%.0f share_bp=%lld"),
         *LDLog::Id(Return.SourceEntity),*LDLog::Source(Return.Source),Length,ShareBp);
@@ -934,8 +969,9 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
     if (!FinalModOf(Hit.SourceEntity,Card,Error)) { return false; }
     const bool bBowling=Card && Card->GetNativeId()==ELDDemoFinalModId::FinalBowling && !Hit.bFinalModDerived
         && FinalModTargetsSource(Hit.SourceEntity,Hit.KnockbackSource);
-    if (Impacts.IsEmpty() && !bBowling) { return true; }
+    if (Impacts.IsEmpty() && !bBowling && Hit.KnockbackWallStunMs<=0) { return true; }
     FLDCombatKnockbackImpact& Impact=Body.PendingImpact.Emplace();
+    Impact.WallStunMs=Hit.KnockbackWallStunMs;
     Impact.EffectId=Hit.EffectId;
     Impact.Holder=Hit.SourceBody;
     Impact.CreditOwner=Hit.CreditOwner;
@@ -1412,6 +1448,23 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             {
                 const ALDCharacter* Blocker=Cast<ALDCharacter>(Block->Blocker.Get());
                 if (Impact.bWorkshopImpact && !ResolveKnockbackImpact(Body,Impact,Block->bBody,Blocker,NowMs,Error)) { return false; }
+                // A skill branch's push stuns the body a wall stopped (S01 B1, S09 B1, S20 B1).
+                if (!Block->bBody && Impact.WallStunMs>0)
+                {
+                    FLDCombatHit Stun;
+                    Stun.HitId=FGuid::NewGuid();
+                    Stun.EffectId=Impact.EffectId;
+                    Stun.Target=SelfRef;
+                    Stun.SourceBody=Impact.Holder;
+                    Stun.SourceEntity=Impact.Holder.Victim.EntityId;
+                    Stun.CreditOwner=Impact.CreditOwner;
+                    Stun.Source=Impact.PushSource;
+                    Stun.HitClass=ELDCombatHitClass::Ability;
+                    Stun.StunDurationMs=Impact.WallStunMs;
+                    PendingHits.Add(MoveTemp(Stun));
+                    UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_WALL_STUN t=%lld target=%s stun_ms=%lld"),NowMs,
+                        *LDLog::Id(Body.Victim.EntityId),Impact.WallStunMs);
+                }
                 if (Block->bBody && !ResolveFinalBowlingImpact(Impact,Blocker,Block->Direction,NowMs,Error)) { return false; }
             }
         }

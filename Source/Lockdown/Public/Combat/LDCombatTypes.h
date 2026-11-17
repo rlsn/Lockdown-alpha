@@ -269,6 +269,8 @@ struct FLDLearnedActiveValue
 {
     FName AbilityId;
     ELDCombatEntry Entry=ELDCombatEntry::None;   // Q, W or E
+    // The skill's branch path; its rank follows from it (None = rank 1).
+    ELDSkillBranch Branch=ELDSkillBranch::None;
 };
 
 // Complete post-change build. Empty arrays mean "none held"; nothing is merged with the previous build.
@@ -530,8 +532,9 @@ struct FLDCombatOwnerView
     // The combo step of the last released basic (0 = none) and its AttackStart; a start after COMBO.ResetSec is step 1.
     UPROPERTY() uint8 ComboStep=0;
     UPROPERTY() int64 ComboStartMs=0;
-    // Unspent skill points (derived from the level and the ranks bought, LDProgression::UnspentSkillPoints).
-    UPROPERTY() uint8 SkillPoints=0;
+    // Perfect dodges of this life (MOMENTUM.PerfectDodge) and the authority ms of the last: the owner's one-line notice.
+    UPROPERTY() uint32 PerfectDodges=0;
+    UPROPERTY() int64 LastPerfectDodgeAtMs=0;
     UPROPERTY() uint64 SourceRevision=0;
     // Inputs needed to reproduce this owner's build and temporary projection without mutating authority state.
     UPROPERTY() uint64 InstalledBuildRevision=0;

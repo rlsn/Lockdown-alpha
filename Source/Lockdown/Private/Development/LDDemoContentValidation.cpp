@@ -78,6 +78,13 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             if (!CheckGrown(Effect, Ability.Id)) { return false; }
         }
+        for (const auto& Branch : Ability.Branches)
+        {
+            for (const auto& Effect : Branch.Values.Effects)
+            {
+                if (!CheckGrown(Effect, LDSkillBranch::DisplayId(Ability.Id, Branch.Path))) { return false; }
+            }
+        }
     }
     // #198 B: a component's fixed amounts grow with its holder's level like an active's.
     for (const auto& Component : D.Components)
