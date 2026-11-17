@@ -93,7 +93,8 @@ git lfs pull                     # 新工作区的 Content 只有 LFS 指针，�
 | `Source`、`*.uproject` | 一次增量 `BuildEditor.ps1`；计划同时列出反向 include 图推导的规则名，`-Rules Auto` 可选执行 |
 | 其他（`Config`、资产、PowerShell 脚本） | 不运行；按[验证手册](systems/VERIFICATION.md#最小验证选择)选对应检查 |
 
-验证阶梯：一批连贯改动跑一次 Verify → 按 `-Filter` / `RunPythonTests.py --pattern <文件名>` 定向检查 →
+验证阶梯：一批连贯改动跑一次 Verify → 本批新增或修改了测试时，用这些测试的全名 `-Filter` /
+`RunPythonTests.py --pattern <文件名>` 定向检查 →
 失败后只重跑失败项（Python 用 `--failed`；原生用失败项的 `-Filter`）→ 非草稿 PR CI 完整门禁 → 里程碑全量。
 不因为没有同名测试、未知依赖或局部失败就升级为本地完整套件。
 
@@ -112,7 +113,8 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
 本地静态输入指纹不证明外部引擎/SDK 安装未被修改，切换或维护外部工具后用 `-Force`，不能把本机缓存当作 CI 门禁。
 
 - 规则测试的门禁是 PR 的 CI（[CI 与发布](systems/CI_AND_RELEASE.md#pr-检查与每日试玩包)），本地不重复跑整套。
-  新增或改了规则测试、或在排查失败用例时，才加 `-Filter`（可给多个前缀）；它是部分运行，不算门禁。
+  只有新增或改了规则测试、或在排查失败用例时，才加 `-Filter`，且只写这些测试的全名（可给多个），
+  不按 `Lockdown.Rules.Combat` 这类领域前缀成组跑；它是部分运行，不算门禁。只改产品代码、没改测试时不跑规则测试，交 CI。
   新增的原生测试同步登记到 `CheckRuleReport.py`，并在 PR 里写明测试名。
 - 先完成一批连贯开发，再集中做一次增量、定向验证收尾，不在每次小编辑后构建或测试。
   提前检查仅用于定位具体缺陷或验证高风险实现假设；保留 `Binaries`、`Intermediate` 与构建缓存，不为验证清理重建。
@@ -136,6 +138,7 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
   不复制别的工作区的 Binaries/Intermediate 来承诺增量复用；只改文档、数据或 Python 的任务不需要构建。
 - Python 测试失败时看输出结尾 `Log:` 指向的日志，修复后用 `python -B .\Scripts\RunPythonTests.py --failed` 只重跑失败项。
 - PR 保持 Draft 到改动稳定，攒一批再推：Ready PR 每次推送都触发 CI；需要 native 门禁时会占用自托管 runner。
+  已 Ready 的 PR 修评审意见或合并 main 时，只跑 `Verify.ps1` 再推，规则测试交给这次推送触发的 CI。
 - 共用机器的并发上限见[验证手册](systems/VERIFICATION.md#多人共用一台机器)。
 
 ## 工程目录
