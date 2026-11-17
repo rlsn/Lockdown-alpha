@@ -168,10 +168,11 @@ ELDRestService ALDGameMode::NearbyRestService(const FGuid& Contender) const
     const double Range = double(Radius.Numerator) / double(Radius.Denominator);
     for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
     {
+        if (RestServiceAtAnchor(Index) == ELDRestService::None) { continue; }
         const auto* Anchor = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation);
         if (Anchor && FVector::DistSquared2D(Life->MotionLastFoot, Anchor->Position) <= Range * Range)
         {
-            return static_cast<ELDRestService>(Index);
+            return RestServiceAtAnchor(Index);
         }
     }
     return ELDRestService::None;
@@ -508,6 +509,7 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
     for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
     {
+        if (RestServiceAtAnchor(Index) == ELDRestService::None) { continue; }
         const auto* Anchor = Registry ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation) : nullptr;
         if (!Anchor)
         {
@@ -516,7 +518,7 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
         }
         auto* NPC = GetWorld()->SpawnActor<ALDRestServiceNPC>(Anchor->Position + FVector(0, 0, 80), FRotator::ZeroRotator);
         if (!NPC) { Error = TEXT("The shared rest service NPC could not spawn."); return false; }
-        NPC->SetService(static_cast<ELDRestService>(Index));
+        NPC->SetService(RestServiceAtAnchor(Index));
         RestServiceNPCs.Add(NPC);
     }
     ALDTrainingRoomDisplay* Display = GetWorld()->SpawnActor<ALDTrainingRoomDisplay>();

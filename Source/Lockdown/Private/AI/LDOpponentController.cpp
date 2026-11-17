@@ -162,6 +162,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     TArray<FLDOpponentPOI> Services;
     for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
     {
+        if (RestServiceAtAnchor(Index) == ELDRestService::None) { continue; }
         const FLDMapBinding* Anchor = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation);
         if (!Anchor || Anchor->Surface.IsNone())
         {
@@ -171,7 +172,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         FLDOpponentPOI& Place = Services.AddDefaulted_GetRef();
         Place.Id = Anchor->Id;
         Place.Kind = ELDOpponentPOIKind::RestService;
-        Place.RestService = static_cast<ELDRestService>(Index);
+        Place.RestService = RestServiceAtAnchor(Index);
         Place.SurfaceId = Anchor->Surface;
         Place.FootCm = Anchor->Position;
     }

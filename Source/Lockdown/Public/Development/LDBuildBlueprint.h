@@ -12,7 +12,7 @@ struct FLDDemoContentDefinitions;
 namespace LDBuildBlueprint
 {
     inline constexpr TCHAR Schema[] = TEXT("lockdown.build-blueprint");
-    inline constexpr int32 SchemaVersion = 2;
+    inline constexpr int32 SchemaVersion = 3;
     inline constexpr TCHAR Extension[] = TEXT(".ldbuild.json");
     inline constexpr TCHAR OriginAuto[] = TEXT("auto");
     inline constexpr TCHAR OriginExport[] = TEXT("export");
@@ -43,11 +43,10 @@ enum class ELDBlueprintFact : uint8
     ShieldGranted,
     // Released basic swings and ability releases.
     BasicAttacks, AbilityCasts,
-    // HP natural (and dorm) regeneration actually restored; M12 debt heals actually repaid; what the player's own cuts
-    // (S16 stance, primary guard) took off hostile hits; procs of installed components that committed a real result;
-    // own combat requests refused for a gameplay gate (busy, cooldown, cadence, momentum, control, target, direction, range,
-    // sight).
-    Regeneration, DebtRepaid, DamageReduced, Triggers, Rejections,
+    // HP natural (and dorm) regeneration actually restored; what the player's own cuts (S16 stance) took off hostile hits;
+    // triggers of installed cards that committed a real result; own combat requests refused for a gameplay gate (busy,
+    // cooldown, cadence, momentum, control, target, direction, range, sight).
+    Regeneration, DamageReduced, Triggers, Rejections,
     Count
 };
 
@@ -74,42 +73,30 @@ struct FLDBlueprintActive
     bool operator==(const FLDBlueprintActive& Other) const { return Slot == Other.Slot && Ability == Other.Ability; }
 };
 
-struct FLDBlueprintParameter
+// One installed card: its definition, where it sits (basic, skill, dash or body), the skill it sits on and a chosen element
+// (Y25); copies of one card are separate rows.
+struct FLDBlueprintCard
 {
-    FString Key;
-    FString Value;
-    bool operator==(const FLDBlueprintParameter& Other) const { return Key == Other.Key && Value == Other.Value; }
-};
-
-struct FLDBlueprintComponent
-{
-    FString Component;
-    // What the install sits on: the learned active of a mod/connector on an active or of a B18 binding, or the host
-    // component of a mod/connector on a component; empty for a base without binding, the innate D or the holder itself.
+    FString Card;
+    FString Target;
     FString Host;
-    // The install parameters, sorted by key, only those the install has: target_kind (active, component or dash, when a
-    // mod/connector names one; a base and a holder-self mod have none, their definition tells which), element (B18: fire,
-    // water or electric) and bound_component (C12's repeated base).
-    TArray<FLDBlueprintParameter> Parameters;
-    bool operator==(const FLDBlueprintComponent& Other) const
-    { return Component == Other.Component && Host == Other.Host && Parameters == Other.Parameters; }
+    FString Element;
+    bool operator==(const FLDBlueprintCard& Other) const
+    { return Card == Other.Card && Target == Other.Target && Host == Other.Host && Element == Other.Element; }
 };
 
 // The committed build structure a version stands for: allocated stat points (positive counts, by stat id), the Q/W/E
-// actives (by slot) and the installed components (by id) with their binding parameters. Level is not structure; an
-// install, move, rebinding or uninstall is, so it starts a new version.
+// actives (by slot) and the installed cards (by card, target, host and element). Level is not structure; an install, move
+// or uninstall is, so it starts a new version.
 struct FLDBlueprintStructure
 {
     TArray<FLDBlueprintStat> Stats;
     TArray<FLDBlueprintActive> Actives;
-    // A record written before components were recorded states false and null items; this build always writes true.
-    bool bComponentsCollected = false;
-    TArray<FLDBlueprintComponent> Components;
+    TArray<FLDBlueprintCard> Cards;
     FLDFinalModSelection FinalMod;
     bool operator==(const FLDBlueprintStructure& Other) const
     {
-        return Stats == Other.Stats && Actives == Other.Actives && bComponentsCollected == Other.bComponentsCollected
-            && Components == Other.Components && FinalMod == Other.FinalMod;
+        return Stats == Other.Stats && Actives == Other.Actives && Cards == Other.Cards && FinalMod == Other.FinalMod;
     }
     bool operator!=(const FLDBlueprintStructure& Other) const { return !(*this == Other); }
 };
