@@ -35,9 +35,8 @@ public:
     // silent. False when the catalog or the audio device is unavailable (reported once, as for cues).
     bool SetMusic(const FLDMusicRequest& Request);
     ELDMusicTrack GetMusicTrack() const { return MusicTrack; }
-    // False when the catalog failed to resolve (reported once as an error) or no audio device exists
-    // (for example -nosound automation, reported once as a display line).
-    bool Play(ELDAudioCue Cue);
+    // The local multiplier is clamped to 0..2; false for a non-finite multiplier, a missing catalog or no audio device.
+    bool Play(ELDAudioCue Cue, float VolumeMultiplier = 1.f);
     bool IsCatalogReady() const { return Catalog != nullptr; }
     const FString& GetCatalogError() const { return CatalogError; }
 private:

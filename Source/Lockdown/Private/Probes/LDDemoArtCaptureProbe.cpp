@@ -11,7 +11,9 @@
 #include "Camera/CameraComponent.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCameraSettings.h"
+#include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDImpactFx.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -34,11 +36,14 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "NavigationSystem.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapGeometry.h"
 #include "Serialization/JsonSerializer.h"
 #include "ShaderCompiler.h"
 #include "UnrealClient.h"
+#include "Vision/LDWorldViewRelay.h"
 
 namespace
 {
@@ -49,6 +54,11 @@ namespace
         float ArmCm = LDCamera::DefaultArmLength;
         // Straight down from ArmCm above Focus, +X to the right, +Y down (the editor top view).
         bool bTopDown = false;
+        uint8 Action = 0;
+        ELDObservedHitLook HitLook = ELDObservedHitLook::None;
+        uint8 HitFlags = 0;
+        bool bHit = false;
+        float HitAgeSeconds = .08f;
     };
 
     // Floor points a body can stand on, with the camera arm lengths the player can zoom between.
@@ -62,12 +72,15 @@ namespace
         TWeakObjectPtr<UWorld> World;
         TWeakObjectPtr<ACameraActor> Camera;
         TWeakObjectPtr<ALDPlayerController> CaptureController;
+        TWeakObjectPtr<ULDHumanoidVisualComponent> VfxAttacker, VfxVictim;
         FString Directory, PendingImage;
         TArray<TSharedPtr<FJsonValue>> Checks, Images, Bodies, Decorations, Occluders, OccludedPoints;
         TArray<FArtShot> Shots;
-        double StartedAt = FPlatformTime::Seconds(), NextAt = FPlatformTime::Seconds() + 3.;
+        double StartedAt = FPlatformTime::Seconds(), NextAt = FPlatformTime::Seconds() + 3., VfxCaptureAt = 0.;
         int32 Stage = 0, Shot = 0;
-        bool Failed = false;
+        uint64 VfxCaptureFrame = 0;
+        bool bVfxPrepared = false;
+        bool Failed = false, bCombatVfx = false;
 
         bool Check(bool Passed, const FString& Name)
         {
@@ -86,7 +99,9 @@ namespace
             if (auto* Controller = CaptureController.Get()) { Controller->SetDevArtCaptureCamera(nullptr); }
             auto Report = MakeShared<FJsonObject>();
             Report->SetBoolField(TEXT("passed"), !Failed);
-            Report->SetStringField(TEXT("scope"), TEXT("DEV art fixture in the Demo map Lobby: catalog bodies posed per clip and the decorated field rendered from the game camera angle; decoration collision, sight-trace and navigation checks on the Listen Host. Not a gameplay, combat wiring or network acceptance."));
+            Report->SetStringField(TEXT("scope"), bCombatVfx
+                ? TEXT("DEV visual fixture: actual body presentation components receive timed attack and hit cues at the normal game camera distance. Not gameplay, network or artistic acceptance.")
+                : TEXT("DEV art fixture in the Demo map Lobby: catalog bodies posed per clip and the decorated field rendered from the game camera angle; decoration collision, sight-trace and navigation checks on the Listen Host. Not a gameplay, combat wiring or network acceptance."));
             Report->SetArrayField(TEXT("checks"), Checks);
             Report->SetArrayField(TEXT("screenshots"), Images);
             Report->SetArrayField(TEXT("bodies"), Bodies);
@@ -339,10 +354,147 @@ namespace
                 Points, int32(UE_ARRAY_COUNT(ArtSweepArms)), Hidden));
         }
 
+        ULDHumanoidVisualComponent* SpawnVfxBody(UWorld& Target, const FVector& Foot, float Yaw, uint8 Slot)
+        {
+            FActorSpawnParameters Spawn;
+            Spawn.ObjectFlags |= RF_Transient;
+            AActor* Actor = Target.SpawnActor<AActor>(Spawn);
+            if (!Actor) { return nullptr; }
+            auto* Visual = NewObject<ULDHumanoidVisualComponent>(Actor, NAME_None, RF_Transient);
+            Actor->SetRootComponent(Visual);
+            Actor->AddInstanceComponent(Visual);
+            Visual->RegisterComponent();
+            const float HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+            Actor->SetActorLocationAndRotation(Foot + FVector(0, 0, HalfHeight), FRotator(0, Yaw, 0));
+            Visual->ApplyPalette(Slot);
+            Visual->Animate(FVector::ZeroVector, 0.f);
+            return Visual;
+        }
+
+        bool SetupVfx(UWorld& Target)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            const ULDCombatVfxCatalog* Effects = Impacts ? Impacts->GetCatalog() : nullptr;
+            UNiagaraSystem* Impact = Effects ? Effects->Impact.Get() : nullptr;
+            if (!Check(Impact != nullptr, TEXT("The authored impact effect is available"))) { return false; }
+            Impact->WaitForCompilationComplete(true, false);
+            if (!Check(Impact->IsReadyToRun(), TEXT("The authored impact effect compiled"))) { return false; }
+            UNiagaraSystem* Trail = Effects ? Effects->SwingTrail.Get() : nullptr;
+            if (!Check(Trail != nullptr, TEXT("The authored swing trail is available"))) { return false; }
+            Trail->WaitForCompilationComplete(true, false);
+            if (!Check(Trail->IsReadyToRun(), TEXT("The authored swing trail compiled"))) { return false; }
+            UNiagaraSystem* Charge = Effects ? Effects->CastCharge.Get() : nullptr;
+            if (!Check(Charge != nullptr, TEXT("The authored cast charge is available"))) { return false; }
+            Charge->WaitForCompilationComplete(true, false);
+            if (!Check(Charge->IsReadyToRun(), TEXT("The authored cast charge compiled"))) { return false; }
+            const FVector Focus(0., -1100., 0.);
+            const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
+            VfxAttacker = SpawnVfxBody(Target, Focus - Across * 95., 45.f, 0);
+            VfxVictim = SpawnVfxBody(Target, Focus + Across * 95., 225.f, 1);
+            if (!Check(VfxAttacker.IsValid() && VfxVictim.IsValid(), TEXT("Combat VFX bodies spawned"))) { return false; }
+            VfxAttacker->SetCue(2, .2f, .4f);
+            VfxAttacker->Animate(FVector::ZeroVector, .04f);
+            TInlineComponentArray<UNiagaraComponent*> EffectsOnAttacker;
+            VfxAttacker->GetOwner()->GetComponents(EffectsOnAttacker);
+            UNiagaraComponent* CastEffect = nullptr;
+            for (UNiagaraComponent* Effect : EffectsOnAttacker)
+            {
+                if (Effect && Effect->GetAsset() == Charge) { CastEffect = Effect; break; }
+            }
+            Check(CastEffect && CastEffect->IsActive(), TEXT("A visible cast starts its authored hand effect"));
+            if (!Check(CastEffect && CastEffect->GetComponentScale().Equals(FVector::OneVector, .001f),
+                TEXT("The cast effect uses world scale independently of the hand bone"))) { return false; }
+            VfxAttacker->SetVisibility(false, true);
+            Check(CastEffect && !CastEffect->IsActive(), TEXT("Hiding the caster immediately clears its cast effect"));
+            VfxAttacker->SetVisibility(true, true);
+            VfxAttacker->SetCue(0);
+            VfxAttacker->SetHitReaction(.03f);
+            VfxAttacker->Animate(FVector::ZeroVector, 0.f);
+            const int32 OtherParticles = Impacts ? Impacts->LiveCount() : 0;
+            VfxVictim->SetHitReaction(.03f);
+            VfxVictim->Animate(FVector::ZeroVector, 0.f);
+            const int32 BothParticles = Impacts ? Impacts->LiveCount() : 0;
+            Check(OtherParticles > 0 && BothParticles > OtherParticles, TEXT("Two visible bodies produce independent impact effects"));
+            VfxVictim->SetVisibility(false, true);
+            Check(Impacts && Impacts->LiveCount() == OtherParticles,
+                TEXT("Hiding one body immediately clears only its impact effects"));
+            VfxVictim->SetVisibility(true, true);
+
+            auto* Proxy = Target.SpawnActor<ALDObservedEntityProxy>();
+            if (Check(Proxy != nullptr, TEXT("Observed proxy spawned for impact lifecycle")))
+            {
+                FLDObservedUnitView Unit;
+                Unit.Handle = FGuid::NewGuid();
+                Unit.ObservationEpoch = 1;
+                Unit.RecentHitAgePlusOneMs = 31;
+                Unit.RecentHitId = FGuid::NewGuid();
+                Proxy->Apply(Unit, GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 100.);
+                Proxy->Present(100., 0.f);
+                const int32 BeforeConceal = Impacts ? Impacts->LiveCount() : 0;
+                Proxy->Destroy();
+                Check(Impacts && BeforeConceal > OtherParticles && Impacts->LiveCount() == OtherParticles,
+                    TEXT("Removing an observed proxy immediately clears only its impact effects"));
+            }
+            if (Impacts)
+            {
+                Impacts->ClearFor(*VfxAttacker.Get());
+                Impacts->ClearFor(*VfxVictim.Get());
+            }
+            Shots = {
+                {TEXT("VFX-Idle"), Focus, LDCamera::DefaultArmLength},
+                {TEXT("VFX-Swing"), Focus, LDCamera::DefaultArmLength, false, 1},
+                {TEXT("VFX-Impact"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, 0, true, .04f},
+                {TEXT("VFX-ImpactLate"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, 0, true, .16f},
+                {TEXT("VFX-Critical"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, LDObservation::Critical, true},
+                {TEXT("VFX-ShieldBreak"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None,
+                    LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken, true},
+                {TEXT("VFX-Fire"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Fire, 0, true},
+                {TEXT("VFX-Cast"), Focus, LDCamera::DefaultArmLength, false, 2},
+            };
+            if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoCastVfxCapture")))
+            {
+                Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle") && Shot.Name != TEXT("VFX-Cast"); });
+            }
+            FActorSpawnParameters Spawn;
+            Spawn.ObjectFlags |= RF_Transient;
+            ACameraActor* View = Target.SpawnActor<ACameraActor>(Spawn);
+            auto* Controller = Cast<ALDPlayerController>(Target.GetFirstPlayerController());
+            if (!Check(View && Controller, TEXT("Combat VFX capture has a camera and local controller"))) { return false; }
+            const UCameraComponent* Game = GetDefault<ALDCharacter>()->Camera;
+            View->GetCameraComponent()->SetFieldOfView(Game->FieldOfView);
+            View->GetCameraComponent()->PostProcessSettings = Game->PostProcessSettings;
+            View->GetCameraComponent()->PostProcessBlendWeight = 1.f;
+            View->GetCameraComponent()->bConstrainAspectRatio = false;
+            Camera = View;
+            CaptureController = Controller;
+            Controller->SetDevArtCaptureCamera(View);
+            return true;
+        }
+
+        bool PrepareVfxShot(const FArtShot& Current)
+        {
+            auto* Attacker = VfxAttacker.Get();
+            auto* Victim = VfxVictim.Get();
+            if (!Attacker || !Victim) { return Check(false, TEXT("Combat VFX bodies remain available")); }
+            auto* Impacts = World->GetSubsystem<ULDImpactFxSubsystem>();
+            if (Impacts) { Impacts->ClearFor(*Victim); }
+            Victim->Animate(FVector::ZeroVector, .5f);
+            Attacker->SetCue(Current.Action, Current.Action ? (Current.bHit ? .36f : .22f) : -1.f, .4f);
+            Attacker->Animate(FVector::ZeroVector, 0.f);
+            if (Current.bHit)
+            {
+                Victim->SetHitReaction(Current.HitAgeSeconds, Current.HitLook, Current.HitFlags);
+                Victim->Animate(FVector::ZeroVector, 0.f);
+                if (!Check(Impacts && Impacts->LiveCount() == 1, TEXT("A fresh shown hit creates one impact effect"))) { return false; }
+            }
+            return true;
+        }
+
         bool Setup(UWorld& Target)
         {
             const FLDArtResolved* Art = ULDArtSubsystem::Get(&Target);
             if (!Check(Art != nullptr, TEXT("The art catalog resolved at startup"))) { return false; }
+            if (bCombatVfx) { return SetupVfx(Target); }
             CheckDecorations(Target);
 #if WITH_EDITORONLY_DATA
             // The art master is authored by the import commandlet; its graph must load where shaders are compiled.
@@ -426,13 +578,18 @@ namespace
             const double Now = FPlatformTime::Seconds();
             if (Now - StartedAt > 600.) { return Finish(TEXT("Art capture timed out")); }
             if (!World.IsValid()) { return Finish(TEXT("The Demo world ended before the art capture completed")); }
+            if (bCombatVfx)
+            {
+                if (auto* Body = VfxAttacker.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
+                if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
+            }
             if (!PendingImage.IsEmpty())
             {
                 if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
                 Check(true, TEXT("Rendered screenshot: ") + FPaths::GetCleanFilename(PendingImage));
                 PendingImage.Reset();
                 ++Shot;
-                NextAt = Now + .5;
+                NextAt = Now + (bCombatVfx ? 1. : .5);
                 return true;
             }
             if (Now < NextAt) { return true; }
@@ -445,7 +602,14 @@ namespace
                 return true;
             }
             // Wait for the new art materials to compile so that no screenshot shows the default material.
-            if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()) { NextAt = Now + 1.; return true; }
+            if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())
+            {
+                // A just-spawned effect may start compiling a material. Re-create the shot after compilation instead
+                // of capturing its already-expired particles.
+                if (bCombatVfx) { bVfxPrepared = false; }
+                NextAt = Now + 1.;
+                return true;
+            }
             if (Shot >= Shots.Num()) { return Finish(); }
             auto* Controller = Cast<ALDPlayerController>(Target.GetFirstPlayerController());
             if (!Camera.IsValid() || !Controller || Controller != CaptureController.Get())
@@ -461,10 +625,20 @@ namespace
                 NextAt = Now + 2.;
                 return true;
             }
+            if (bCombatVfx && !bVfxPrepared)
+            {
+                if (!PrepareVfxShot(Current)) { return Finish(); }
+                bVfxPrepared = true;
+                VfxCaptureFrame = GFrameCounter + 2;
+                VfxCaptureAt = Current.Action == 1 && !Current.bHit ? Now + .17 : Current.Action == 2 ? Now + .11 : Now;
+                return true;
+            }
+            if (bCombatVfx && (GFrameCounter < VfxCaptureFrame || Now < VfxCaptureAt)) { return true; }
+            bVfxPrepared = false;
             PendingImage = Directory / (Current.Name + TEXT(".png"));
             Images.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(PendingImage)));
             FScreenshotRequest::RequestScreenshot(PendingImage, false, false);
-            Stage = 1;
+            if (!bCombatVfx) { Stage = 1; }
             return true;
         }
     };
@@ -483,6 +657,7 @@ void LDDemoTests::StartArtCaptureProbe(UWorld& World)
     }
     auto Probe = MakeShared<FArtCaptureProbe>();
     Probe->World = &World;
+    Probe->bCombatVfx = FParse::Param(FCommandLine::Get(), TEXT("LDDemoCombatVfxCapture"));
     Probe->Directory = FPaths::ConvertRelativePathToFull(Directory);
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta) { return Probe->Tick(Delta); }));
 }

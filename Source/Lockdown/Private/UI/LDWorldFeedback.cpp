@@ -1,5 +1,6 @@
 #include "UI/LDWorldFeedback.h"
 #include "Core/LDLog.h"
+#include "Character/LDHitFeel.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -97,6 +98,12 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
         // merely reached its end is silent.
         else if(DeltaShield<0&&(Shield||DeltaHP<0||ShieldEndsAtMs>Combat->AsOfMs)){WorldFeedbackAdd(Out,EKind::ShieldAbsorbed,-DeltaShield);}
     }
+    // A new own hit receipt is one confirmation word; the first view of a life only primes it.
+    if(!bNewLife&&Sample.LifePhase==ELDLifePhase::Alive&&Combat->Cues.LastDealtAtMs>0&&Combat->Cues.LastDealtAtMs!=DealtAtMs)
+    {
+        FEvent& Dealt=Out.AddDefaulted_GetRef();Dealt.Kind=EKind::DealtConfirm;Dealt.Amount=1;Dealt.HitFlags=Combat->Cues.LastDealtFlags;
+    }
+    DealtAtMs=Combat->Cues.LastDealtAtMs;
     bBody=true;BodyLife=Combat->Life;BodyRevision=Combat->Revision;BodyAsOfMs=Combat->AsOfMs;
     HPP2=Combat->HPP2;MaxHPP2=Combat->MaxHPP2;ShieldP2=Combat->ShieldP2;ShieldEndsAtMs=Shield?Shield->ExpiresAtMs:0;
 }
@@ -224,6 +231,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::LevelUp: return LDTerms::LevelUp(Event.Level);
     case EKind::Kill: return LDTerms::KillFloat(Event.Name.IsEmpty()?FString(LDTerms::UnknownVictim):Event.Name);
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
+    case EKind::DealtConfirm: return LDHitFeel::Word(Event.HitFlags);
     }
     return FString();
 }
@@ -278,6 +286,12 @@ constexpr int32 WorldFeedbackUnitSteps=3;
 constexpr float WorldFeedbackBannerClearance=80.f;
 constexpr float WorldFeedbackBannerGap=6.f;
 constexpr float WorldFeedbackCullMargin=160.f;
+// The own confirmation word: ahead of the own body along its facing at chest height, short-lived with a hard pop.
+constexpr double WorldFeedbackWordAheadCm=90.;
+constexpr double WorldFeedbackWordCm=70.;
+constexpr double WorldFeedbackWordSeconds=.45;
+constexpr double WorldFeedbackWordPopSeconds=.08;
+constexpr float WorldFeedbackWordRise=14.f;
 // Level-up effect around the own feet: two expanding rings and rising light streaks.
 constexpr double WorldFeedbackRingSeconds=.9;
 constexpr double WorldFeedbackRingDelay=.25;
@@ -346,6 +360,16 @@ void ULDWorldFeedback::ClearShown()
 void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
 {
     using LDWorldFeedback::EKind;
+    // A confirmation word never merges or takes a number lane: each receipt pops its own word in front of the body.
+    if(Event.Kind==EKind::DealtConfirm)
+    {
+        if(!LDHitFeel::Read().bWords){return;}
+        Floaters.RemoveAll([](const LDWorldFeedback::FFloater& Shown){return Shown.Event.Kind==EKind::DealtConfirm;});
+        LDWorldFeedback::FFloater& Word=Floaters.AddDefaulted_GetRef();
+        Word.Event=Event;Word.Text=LDWorldFeedback::Text(Event);Word.BornAt=Now;Word.PopAt=Now;
+        while(Floaters.Num()>WorldFeedbackMaxFloaters){Floaters.RemoveAt(0);}
+        return;
+    }
     if(Event.Kind==EKind::LevelUp||Event.Kind==EKind::Kill)
     {
         if(Event.Kind==EKind::LevelUp){LevelUpAt=Now;}
@@ -531,8 +555,8 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
         return Extent;
     };
     const ACharacter* Body=Cast<ACharacter>(PC->GetPawn());
-    FVector2f NumberAt=FVector2f::ZeroVector,RewardAt=FVector2f::ZeroVector,BannerAt=FVector2f::ZeroVector;
-    bool bNumbers=false,bRewards=false,bBanners=false;
+    FVector2f NumberAt=FVector2f::ZeroVector,RewardAt=FVector2f::ZeroVector,BannerAt=FVector2f::ZeroVector,WordAt=FVector2f::ZeroVector;
+    bool bNumbers=false,bRewards=false,bBanners=false,bWords=false;
     if(Body)
     {
         // Own numbers start just above the block of own bars and readiness pips, whose bottom rests on the +120 cm anchor,
@@ -543,6 +567,7 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
         if(bNumbers){NumberAt=FVector2f(BarsAt.X,BarsAt.Y-WorldFeedbackOwnBarsHeight-WorldFeedbackClearGap);}
         bRewards=Project(Centre+FVector(0.,0.,WorldFeedbackRewardCm),RewardAt)&&OnScreen(RewardAt);
         bBanners=bNumbers&&Project(Centre+FVector(0.,0.,WorldFeedbackBannerCm),BannerAt);
+        bWords=Project(Centre+Body->GetActorForwardVector().GetSafeNormal2D()*WorldFeedbackWordAheadCm+FVector(0.,0.,WorldFeedbackWordCm),WordAt)&&OnScreen(WordAt);
     }
     const ALDWorldViewRelay* Relay=PC->LocalView();
     const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
@@ -594,6 +619,19 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
     for(const LDWorldFeedback::FFloater& Floater:Floaters)
     {
         const double Age=Now-Floater.BornAt;
+        if(Floater.Event.Kind==LDWorldFeedback::EKind::DealtConfirm)
+        {
+            // A confirmation word slams in large, settles and fades quickly while drifting up a little.
+            if(!bWords||Age<0.||Age>=WorldFeedbackWordSeconds){continue;}
+            const float WordProgress=float(Age/WorldFeedbackWordSeconds);
+            const float WordAlpha=WordProgress<.55f?1.f:FMath::Clamp((1.f-WordProgress)/.45f,0.f,1.f);
+            const bool bCritical=(Floater.Event.HitFlags&LDObservation::Critical)!=0;
+            FLinearColor WordInk=bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);WordInk.A*=WordAlpha;
+            const FSlateFontInfo WordFont=WorldFeedbackFont(bCritical?LDHUDStyle::TypeBanner:LDHUDStyle::TypeTitle,TextScale,3,WordAlpha);
+            const FVector2f WordAnchor(WordAt.X,WordAt.Y-WorldFeedbackWordRise*TextScale*WorldFeedbackEaseOut(WordProgress));
+            Draw(3,Floater.Text,WordFont,WordInk,WordAnchor,.5f,WorldFeedbackPop(Age,WorldFeedbackWordPopSeconds,bCritical?2.f:1.7f));
+            continue;
+        }
         if(Age<0.||Age>=LDHUDStyle::FloatSeconds){continue;}
         const bool bReward=WorldFeedbackIsReward(Floater.Event.Kind);
         FVector2f Anchor=bReward?RewardAt:NumberAt;

@@ -147,13 +147,18 @@ UWorld* ULDAudioSubsystem::ReadyWorld(const FString& What)
     return World;
 }
 
-bool ULDAudioSubsystem::Play(ELDAudioCue Cue)
+bool ULDAudioSubsystem::Play(ELDAudioCue Cue, float VolumeMultiplier)
 {
     if (!LDAudio::IsPlayableCue(Cue)) { return false; }
+    if (!FMath::IsFinite(VolumeMultiplier))
+    {
+        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_CUE_REJECTED %s has a non-finite volume multiplier."), *LDAudio::CueId(Cue));
+        return false;
+    }
     UWorld* World = ReadyWorld(LDAudio::CueId(Cue));
     if (!World) { return false; }
     const float Pitch = Cue == ELDAudioCue::SelfShieldBreak ? 1.35f : Cue == ELDAudioCue::SelfDash ? 1.55f : 1.f;
-    UGameplayStatics::PlaySound2D(World, CueSounds[int32(Cue)], 1.f, Pitch, 0.f, nullptr, nullptr, true);
+    UGameplayStatics::PlaySound2D(World, CueSounds[int32(Cue)], FMath::Clamp(VolumeMultiplier, 0.f, 2.f), Pitch, 0.f, nullptr, nullptr, true);
     return true;
 }
 

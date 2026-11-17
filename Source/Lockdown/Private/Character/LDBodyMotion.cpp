@@ -7,30 +7,6 @@ FRotator LDBodyMotion::KnockbackLean(const FVector& LocalVelocity)
         -FMath::Clamp(LocalVelocity.Y / 300.0, -1.0, 1.0) * 14.0);
 }
 
-float LDBodyMotion::ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds)
-{
-    return (Action==EAction::Attack || Action==EAction::Cast) && HitAgeSeconds>=0.f && HitAgeSeconds<HitPoseHoldSeconds
-        ? FMath::Max(0.f,AgeSeconds-HitAgeSeconds) : AgeSeconds;
-}
-
-LDBodyMotion::FChannels LDBodyMotion::WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds, float ImpactSeconds)
-{
-    FChannels Result=Evaluate(Action,AgeSeconds,ImpactSeconds);
-    if (Action==EAction::Hit)
-    {
-        Result.HitBurst=Result.Burst;
-        Result.Burst=0.f;
-    }
-    else
-    {
-        const FChannels Hit=Evaluate(EAction::Hit,HitAgeSeconds);
-        Result.Flash=FMath::Max(Result.Flash,Hit.Flash);
-        Result.HitBurst=Hit.Burst;
-        Result.Lunge+=Hit.Lunge;
-    }
-    return Result;
-}
-
 namespace LDBodyMotionDetail
 {
     float Smooth(float X)
@@ -68,16 +44,45 @@ LDBodyMotion::FChannels LDBodyMotion::Evaluate(EAction Action, float T, float Im
         C.Lunge = 6.f * Pulse(T, Impact * .75f, Impact + .02f * TimingScale, Impact + .3f * TimingScale);
         C.Burst = Pulse(T, Impact - .03f * TimingScale, Impact, Impact + .14f * TimingScale);
         break;
-    case EAction::Hit:
-        // A short white-to-red flash and an impact spark, knocked back and recovering within the 300 ms cue.
-        C.Lunge = -16.f * Pulse(T, 0.f, .05f, .3f);
-        C.Flash = T < .18f ? 1.f - T / .18f : 0.f;
-        C.Burst = Pulse(T, 0.f, .03f, .14f);
-        break;
     default:
         break;
     }
     return C;
+}
+
+LDBodyMotion::FChannels LDBodyMotion::HitOverlay(float T)
+{
+    FChannels C;
+    if (!FMath::IsFinite(T) || T < 0.f) { return C; }
+    C.Flash = T < HitOverlaySeconds ? 1.f - T / HitOverlaySeconds : 0.f;
+    return C;
+}
+
+LDBodyMotion::FChannels LDBodyMotion::WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds, float ImpactSeconds)
+{
+    FChannels Result = Evaluate(Action, AgeSeconds, ImpactSeconds);
+    const FChannels Hit = HitOverlay(HitAgeSeconds);
+    Result.Flash = FMath::Max(Result.Flash, Hit.Flash);
+    return Result;
+}
+
+float LDBodyMotion::HitStopPoseAge(float T, float A, float Stop)
+{
+    if (!FMath::IsFinite(T) || !FMath::IsFinite(A) || !FMath::IsFinite(Stop) || A < 0.f || Stop <= 0.f) { return T; }
+    // The deficit grows with the hold, then shrinks linearly while the pose plays at 1.5x.
+    const float Deficit = A < Stop ? A : Stop * FMath::Max(0.f, 1.f - (A - Stop) / (2.f * Stop));
+    return FMath::Max(0.f, T - Deficit);
+}
+
+float LDBodyMotion::KickOffset(float A, float KickCm, float KickSeconds)
+{
+    if (!FMath::IsFinite(A) || !FMath::IsFinite(KickCm) || !FMath::IsFinite(KickSeconds) || KickSeconds <= 0.f) { return 0.f; }
+    return KickCm * LDBodyMotionDetail::Pulse(A, 0.f, KickSeconds * .25f, KickSeconds);
+}
+
+float LDBodyMotion::ConfirmSpark(float A)
+{
+    return FMath::IsFinite(A) ? LDBodyMotionDetail::Pulse(A, 0.f, .025f, ConfirmSparkSeconds) : 0.f;
 }
 
 float LDBodyMotion::ClipTime(EAction Action, float T, float ClipImpactSeconds, float ActionImpactSeconds, float AuthoredRate)
@@ -97,6 +102,13 @@ bool LDBodyMotion::IsNewInstance(EAction Previous, double PreviousOnset, EAction
     if (Next == EAction::None) { return false; }
     if (Next != Previous) { return true; }
     return bAgeKnown && NextOnset - PreviousOnset > SameInstanceSeconds;
+}
+
+float LDBodyMotion::RetractAge(float FromAgeSeconds, float SinceSeconds)
+{
+    if (!FMath::IsFinite(FromAgeSeconds) || !FMath::IsFinite(SinceSeconds) || SinceSeconds < 0.f || SinceSeconds >= RetractSeconds)
+    { return -1.f; }
+    return FMath::Max(FromAgeSeconds, 0.f) * (1.f - SinceSeconds / RetractSeconds);
 }
 
 LDBodyMotion::FLife LDBodyMotion::Appear(float T)

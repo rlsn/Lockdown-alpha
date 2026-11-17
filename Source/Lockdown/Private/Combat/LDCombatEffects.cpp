@@ -10,6 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDSkillGrowth.h"
+#include "Framework/LDGameMode.h"
 #include "Framework/LDLifeAuthority.h"
 #include "World/LDAirdrop.h"
 #include "World/LDDormZones.h"
@@ -147,6 +148,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     FLDBodyCombatState* Body=FindBody(Hit.Target,&Actor);
     // A retired, replaced or already lethal life cannot be hit again.
     if (!Body || !Actor || Body->bPendingDeath) { return true; }
+    if (!Hit.HitId.IsValid())
+    {
+        Error=TEXT("A combat hit requires a unique hit identity.");
+        return false;
+    }
     // #198: a frozen world body or another contender's rest group is out of reach (no hit, no event).
     if (IsIsolated(Hit.SourceEntity,*Body)) { return true; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
@@ -456,17 +462,31 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (bControllable && Damage.DamageP2>0 && !TryDischarge(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
     if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error)) { return false; }
     if (bControllable) { for (const FName& Component : ElementTriggers) { LedgerComponentTriggered(*Source,Component); } }
-    // A hit that harmed, controlled or slowed the body is its visible Hit cue (LDCombatCues).
+    bool bSendOwnHit=false;
+    ELDObservedHitLook OwnHitLook=ELDObservedHitLook::None;
+    uint8 OwnHitFlags=0;
+    // A hit that harmed, controlled or slowed the body shows its flash and spark (LDCombatCues); the body never reacts.
     if (Damage.DamageP2>0 || bControlled)
     {
         // A zone's periodic slow refresh is not a visible hit.
         if (!Hit.bSilent || Damage.DamageP2>0)
         {
             Body->Cues.LastHitAtMs=NowMs;
+            Body->Cues.LastHitId=Hit.HitId;
             Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
             Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage);
         }
         MarkViewChanged(Body->Victim.EntityId);
+        if (Source && LDCombatCues::ConfirmsDealt(Hit,Damage.DamageP2))
+        {
+            Source->Cues.LastDealtAtMs=NowMs;
+            Source->Cues.LastDealtLook=uint8(LDCombatCues::ClassifyHit(Hit));
+            Source->Cues.LastDealtFlags=LDCombatCues::ClassifyDealt(bCritical,ShieldBeforeP2,Damage,HPBefore>0 && Body->Resources.HpP2==0);
+            MarkViewChanged(Source->Victim.EntityId);
+            bSendOwnHit=true;
+            OwnHitLook=static_cast<ELDObservedHitLook>(Body->Cues.LastHitLook);
+            OwnHitFlags=Body->Cues.LastHitFlags;
+        }
         // Committed positive damage (absorbed included) is the owner's assist contribution; controls record in CommitControl.
         if (Damage.DamageP2>0) { RecordAssistContribution(*Body,Hit.CreditOwner,NowMs); }
     }
@@ -592,6 +612,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // The reaction's setters hear of it only now that its hit on this body fully committed with an effect.
     if (Hit.ReactionKind!=ELDCombatReaction::None && (Damage.DamageP2>0 || bControlled)
         && !NotifyReactionAssists(Hit,Error)) { return false; }
+    if (bSendOwnHit)
+    {
+        ALDGameMode* GameMode=Core();
+        if (GameMode && GameMode->Vision)
+        { GameMode->Vision->SendOwnHit(Hit.SourceBody,Hit.Target,Hit.HitId,NowMs,OwnHitLook,OwnHitFlags); }
+    }
     return true;
 }
 

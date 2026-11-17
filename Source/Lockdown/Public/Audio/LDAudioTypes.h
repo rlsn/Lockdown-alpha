@@ -47,6 +47,9 @@ enum class ELDAudioCue : uint8
     UIAddPoint,
     UIHoldCharge,
     UIFinalLock,
+    // Two local layers of the owner's confirmed hit, not the sound of the owner's body being hit.
+    SelfDealtImpact,
+    SelfDealtAccent,
     Count UMETA(Hidden)
 };
 

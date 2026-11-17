@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=600)
+param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=600,[switch]$CombatVfx,[switch]$CastOnly)
+if($CastOnly -and -not $CombatVfx){throw '-CastOnly requires -CombatVfx.'}
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -8,12 +9,15 @@ Assert-LDEditorModules
 Set-LDPlatformValidation Skip
 $binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
 $project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
-$output=New-LDArtifactDirectory ('DemoArt-Capture-'+$Width+'x'+$Height)
+$output=New-LDArtifactDirectory ($(if($CombatVfx){'DemoCombatVfx-Capture-'}else{'DemoArt-Capture-'})+$Width+'x'+$Height)
 $user=Join-Path $output 'User'
 New-Item -ItemType Directory -Path $user | Out-Null
 $world=(Get-LDDemoMaps)[1]+'?listen'
 $arguments='"{0}" {1} -game -windowed -RenderOffScreen -ForceRes -ResX={2} -ResY={3} -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -UserDir="{4}" -LDDemoArtCapture -LDDemoArtCaptureOutput="{5}" -abslog="{6}"' -f $project,$world,$Width,$Height,$user,$output,(Join-Path $output 'Art.log')
-@{display=(Get-LDDisplayEnvironment);sourceRevision=(git rev-parse HEAD);sourceDirty=[bool](git status --porcelain);width=$Width;height=$Height;method='DEV art fixture in the Demo map Lobby (Listen Host): catalog bodies and clips posed, decorated field rendered from the game camera angle, decoration collision/sight-trace/navmesh checks; not gameplay or combat wiring acceptance'}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $output 'Environment.json') -Encoding utf8
+if($CombatVfx){$arguments+=' -LDDemoCombatVfxCapture'}
+if($CastOnly){$arguments+=' -LDDemoCastVfxCapture'}
+$method=if($CastOnly){'DEV visual fixture in the Demo map: the actual body presentation component receives a timed cast cue at the game camera distance; not gameplay, network or artistic acceptance'}elseif($CombatVfx){'DEV visual fixture in the Demo map: the actual body presentation components receive timed swing and hit cues at the game camera distance; not gameplay, network or artistic acceptance'}else{'DEV art fixture in the Demo map Lobby (Listen Host): catalog bodies and clips posed, decorated field rendered from the game camera angle, decoration collision/sight-trace/navmesh checks; not gameplay or combat wiring acceptance'}
+@{display=(Get-LDDisplayEnvironment);sourceRevision=(git rev-parse HEAD);sourceDirty=[bool](git status --porcelain);width=$Width;height=$Height;method=$method}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $output 'Environment.json') -Encoding utf8
 $process=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru
 try {
     if(-not $process.WaitForExit($TimeoutSeconds*1000)){throw "Art capture timed out: $output"}
@@ -25,7 +29,9 @@ try {
         $image=Join-Path $output $name
         if(-not(Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -eq 0){throw "Missing rendered capture: $image"}
     }
-    & python -B (Join-Path $PSScriptRoot 'DrawDemoArtLayout.py') --report $reportPath --out (Join-Path $output 'Layout.png')
-    if($LASTEXITCODE -ne 0){throw "Layout map could not be drawn: $output"}
-    Write-Host "Demo art captured; inspect visually: $output"
+    if(-not $CombatVfx){
+        & python -B (Join-Path $PSScriptRoot 'DrawDemoArtLayout.py') --report $reportPath --out (Join-Path $output 'Layout.png')
+        if($LASTEXITCODE -ne 0){throw "Layout map could not be drawn: $output"}
+    }
+    Write-Host "Demo $(if($CombatVfx){'combat VFX'}else{'art'}) captured; inspect visually: $output"
 } finally {if(-not $process.HasExited){Stop-Process -Id $process.Id;$process.WaitForExit()}}

@@ -39,6 +39,8 @@ namespace LDObservation
         default: return ELDObservedResolve::AuthorityFault;
         }
     }
+    // A hit identity is scoped to one fresh observation handle, so observers cannot correlate server hit identities.
+    LOCKDOWN_API FGuid ScopedHitId(const FGuid& Handle, const FGuid& HitId);
 }
 
 // Valid only inside the calling authority phase; never cached, serialized or shown.
@@ -259,6 +261,9 @@ public:
     ELDSightResult TraceObservation(const FVector& SourceFootCm, const ALDCharacter& Target, const FLDWorldRevision& Expected) const;
     // The caller's current observer-local handle of Body, only while Body is bound in its latest sample.
     bool FindObservedHandle(const ALDPlayerController& Caller, const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const;
+    // Sends only to the attacking life, after revalidating its current presentation permission.
+    void SendOwnHit(const FLDCombatBodyRef& Attacker, const FLDCombatBodyRef& Target, const FGuid& HitId,
+        int64 OccurredAtMs, ELDObservedHitLook HitLook, uint8 HitFlags);
     static constexpr int64 SamplePeriodMs = 50;
     static constexpr int64 PublishPeriodMs = 50;
 private:

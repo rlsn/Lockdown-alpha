@@ -17,8 +17,8 @@ class LOCKDOWN_API ULDControlsPanel : public ULDPanel
     GENERATED_BODY()
 public:
     // Pages in tab order. Each keeps its own scroll position; switching pages keeps the display draft.
-    enum class ECategory : uint8 {Display,Audio,Controls,Camera,Interface};
-    static constexpr int32 CategoryCount=5;
+    enum class ECategory : uint8 {Display,Audio,Controls,Camera,Interface,Effects};
+    static constexpr int32 CategoryCount=6;
     void Open();
     // True only when the panel actually closed; a capture, child confirmation or unapplied draft is handled instead.
     bool Close();
@@ -121,6 +121,9 @@ private:
     void Populate();
     void PopulatePreferences();
     void PopulateBindings();
+    // The effects tab steps the session-only hit-feel tunables (LDHitFeel); they never enter the settings file.
+    void PopulateEffects();
+    void StepEffect(int32 Field,int32 Direction);
     void PopulateDisplay();
     void PopulateFooter();
     void FooterActions(bool& bRetrySave, bool& bRecover) const;

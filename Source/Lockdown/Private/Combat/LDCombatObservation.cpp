@@ -48,6 +48,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCueAtMs=0;
     InOut.ActionCueImpactAtMs=0;
     InOut.LastHitAtMs=0;
+    InOut.LastHitId.Invalidate();
     InOut.HitLook=ELDObservedHitLook::None;
     InOut.HitFlags=0;
     InOut.ActionAbility=0;
@@ -69,6 +70,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         && NowMs-State->Cues.LastHitAtMs<LDCombatCues::HitHoldMs)
     {
         InOut.LastHitAtMs=State->Cues.LastHitAtMs;
+        InOut.LastHitId=State->Cues.LastHitId;
         InOut.HitLook=static_cast<ELDObservedHitLook>(State->Cues.LastHitLook);
         InOut.HitFlags=State->Cues.LastHitFlags;
     }

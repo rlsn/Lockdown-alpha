@@ -521,15 +521,19 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
             for (const TCHAR* Forbidden : {TEXT("LastSeen"), TEXT("Explored"), TEXT("Gold"), TEXT("Xp"), TEXT("Cooldown"), TEXT("Skill"),
                 TEXT("Build"), TEXT("Inventory"), TEXT("Instance"), TEXT("Attribute"), TEXT("Body"), TEXT("Victim"), TEXT("Life")})
             {
-                if (Struct != FLDWorldView::StaticStruct() || FCString::Strcmp(Forbidden, TEXT("Life")) != 0)
+                const bool bOwnObserverLife = (Struct == FLDWorldView::StaticStruct() || Struct == FLDObservedHitReceipt::StaticStruct())
+                    && Name == TEXT("ObserverLife") && FCString::Strcmp(Forbidden, TEXT("Life")) == 0;
+                if (!bOwnObserverLife)
                 { TestFalse(*FString::Printf(TEXT("%s does not carry %s"), *Name, Forbidden), Name.Contains(Forbidden, ESearchCase::CaseSensitive)); }
             }
         }
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
+    Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
+        TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
         TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees"), TEXT("LengthCm"), TEXT("bOwn"), TEXT("WarningRemainingMs")});
@@ -750,12 +754,23 @@ bool FLDDemoVisionHandlesTest::RunTest(const FString& Parameters)
     One.Presented.Health.CurrentP2 -= 100;
     TestTrue(TEXT("Presented field change advances only the state revision"), Ledger.Sample({&One}, Removed, Units, Error)
         && Units[0].Handle == FirstHandle && Units[0].StateRevision == 2);
+    const FGuid ServerHit = FGuid::NewGuid();
+    One.Presented.RecentHitAgePlusOneMs = 1;
+    One.Presented.RecentHitId = ServerHit;
+    TestTrue(TEXT("A visible hit has an interval-scoped identity"), Ledger.Sample({&One}, Removed, Units, Error)
+        && Units[0].StateRevision == 3 && Units[0].RecentHitId.IsValid()
+        && Units[0].RecentHitId != ServerHit && Units[0].RecentHitId == LDObservation::ScopedHitId(FirstHandle, ServerHit));
+    const FGuid FirstScopedHit = Units[0].RecentHitId;
+    One.Presented.RecentHitId = FGuid::NewGuid();
+    TestTrue(TEXT("A second hit advances the presentation even while a hit is already visible"),
+        Ledger.Sample({&One}, Removed, Units, Error) && Units[0].StateRevision == 4 && Units[0].RecentHitId != FirstScopedHit);
+    One.Presented.RecentHitId = ServerHit;
     TestTrue(TEXT("Losing sight conceals the handle"), Ledger.Sample({}, Removed, Units, Error) && Removed.Num() == 1
         && Removed[0] == FirstHandle && Units.Num() == 0);
     FLDCombatBodyRef Bound;
     TestFalse(TEXT("No LastSeen binding survives concealment"), Ledger.FindBinding(FirstHandle, FirstEpoch, Bound));
     TestTrue(TEXT("Reappearance never reuses the hidden interval"), Ledger.Sample({&One}, Removed, Units, Error)
-        && Units[0].Handle != FirstHandle && Units[0].ObservationEpoch > FirstEpoch);
+        && Units[0].Handle != FirstHandle && Units[0].ObservationEpoch > FirstEpoch && Units[0].RecentHitId != FirstScopedHit);
     const FGuid SecondHandle = Units[0].Handle;
     FLDObservedTarget Reborn = One;
     Reborn.Body.Victim.Life = 2;
@@ -1142,35 +1157,38 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units[0].ActionCueImpactDelayMs = 300;
     View.Units[0].HitLook = ELDObservedHitLook::Water;
     View.Units[0].RecentHitAgePlusOneMs = 21;
+    View.Units[0].RecentHitId = FGuid::NewGuid();
     View.Units[0].HitFlags = LDObservation::ShieldAbsorbed;
-    View.Units[1].ActionCue = ELDObservedActionCue::Hit;
-    View.Units[1].ActionCueAgeMs = 40;
     View.Units[1].HitLook = ELDObservedHitLook::Electric;
     View.Units[1].RecentHitAgePlusOneMs = 41;
+    View.Units[1].RecentHitId = FGuid::NewGuid();
     View.Units[1].HitFlags = LDObservation::Critical | LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken;
     View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
     TestTrue(TEXT("Cues, their ages and release timing round-trip"), Wire(View, Read) && Read.Units.Num() == 2
         && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
         && Read.Units[0].ActionCueImpactDelayMs == 300 && Read.Units[0].HitLook == ELDObservedHitLook::Water
-        && Read.Units[0].RecentHitAgePlusOneMs == 21 && Read.Units[0].HitFlags == LDObservation::ShieldAbsorbed
-        && Read.Units[0].ActionAbility == 7 && Read.Units[1].ActionCue == ELDObservedActionCue::Hit
-        && Read.Units[1].ActionCueAgeMs == 40 && Read.Units[1].HitLook == ELDObservedHitLook::Electric
-        && Read.Units[1].RecentHitAgePlusOneMs == 41
+        && Read.Units[0].RecentHitAgePlusOneMs == 21 && Read.Units[0].RecentHitId == View.Units[0].RecentHitId
+        && Read.Units[0].HitFlags == LDObservation::ShieldAbsorbed
+        && Read.Units[0].ActionAbility == 7 && Read.Units[1].ActionCue == ELDObservedActionCue::None
+        && Read.Units[1].ActionCueAgeMs == 0 && Read.Units[1].HitLook == ELDObservedHitLook::Electric
+        && Read.Units[1].RecentHitAgePlusOneMs == 41 && Read.Units[1].RecentHitId == View.Units[1].RecentHitId
         && Read.Units[1].HitFlags == (LDObservation::Critical | LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken));
     FString Error;
-    for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
+    for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast})
     {
         FLDObservedUnitView Unit = ContenderUnit();
         Unit.ActionCue = Cue;
         Unit.ActionCueAgeMs = Cue == ELDObservedActionCue::None ? 0 : 250;
-        Unit.ActionCueImpactDelayMs = Cue == ELDObservedActionCue::Attack || Cue == ELDObservedActionCue::Cast ? 300 : 0;
-        Unit.RecentHitAgePlusOneMs = Cue == ELDObservedActionCue::Hit ? 251 : 0;
+        Unit.ActionCueImpactDelayMs = Cue == ELDObservedActionCue::None ? 0 : 300;
         TestTrue(*FString::Printf(TEXT("Cue %d is a public cue"), int32(Cue)), LDObservation::ValidateUnit(Unit, Error));
+        Unit.RecentHitAgePlusOneMs = 251;
+        Unit.RecentHitId = FGuid::NewGuid();
+        TestTrue(*FString::Printf(TEXT("A hit is visible with cue %d"), int32(Cue)), LDObservation::ValidateUnit(Unit, Error));
     }
     FLDObservedUnitView Unknown = ContenderUnit();
-    Unknown.ActionCue = static_cast<ELDObservedActionCue>(4);
-    TestFalse(TEXT("Cue 4 is not defined"), LDObservation::ValidateUnit(Unknown, Error));
+    Unknown.ActionCue = static_cast<ELDObservedActionCue>(3);
+    TestFalse(TEXT("Cue 3 is retired: being hit is never a pose"), LDObservation::ValidateUnit(Unknown, Error));
     FLDObservedUnitView Aged = ContenderUnit();
     Aged.ActionCueAgeMs = 1;
     TestFalse(TEXT("No cue carries no age"), LDObservation::ValidateUnit(Aged, Error));
@@ -1178,18 +1196,16 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     DelayedWithoutCue.ActionCueImpactDelayMs = 1;
     TestFalse(TEXT("No cue carries no impact delay"), LDObservation::ValidateUnit(DelayedWithoutCue, Error));
     FLDObservedUnitView DelayedHit = ContenderUnit();
-    DelayedHit.ActionCue = ELDObservedActionCue::Hit;
-    DelayedHit.ActionCueAgeMs = 1;
     DelayedHit.RecentHitAgePlusOneMs = 2;
+    DelayedHit.RecentHitId = FGuid::NewGuid();
     DelayedHit.ActionCueImpactDelayMs = 1;
-    TestFalse(TEXT("A hit reaction has no future action-release time"), LDObservation::ValidateUnit(DelayedHit, Error));
+    TestFalse(TEXT("A hit alone has no action-release time"), LDObservation::ValidateUnit(DelayedHit, Error));
     FLDObservedUnitView UncuedHitLook=ContenderUnit();
     UncuedHitLook.HitLook=ELDObservedHitLook::Fire;
-    TestFalse(TEXT("An uncued unit cannot carry a hit look"), LDObservation::ValidateUnit(UncuedHitLook,Error));
+    TestFalse(TEXT("A unit without a recent hit cannot carry a hit look"), LDObservation::ValidateUnit(UncuedHitLook,Error));
     FLDObservedUnitView UnknownHitLook=ContenderUnit();
-    UnknownHitLook.ActionCue=ELDObservedActionCue::Hit;
-    UnknownHitLook.ActionCueAgeMs=1;
     UnknownHitLook.RecentHitAgePlusOneMs=2;
+    UnknownHitLook.RecentHitId=FGuid::NewGuid();
     UnknownHitLook.HitLook=static_cast<ELDObservedHitLook>(255);
     TestFalse(TEXT("An unknown hit look is refused"), LDObservation::ValidateUnit(UnknownHitLook,Error));
     FLDObservedUnitView UnknownHitFlags = UnknownHitLook;
@@ -1200,10 +1216,18 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A shield cannot break without absorbing this hit"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
     UnknownHitFlags.HitFlags = LDObservation::Critical;
     UnknownHitFlags.RecentHitAgePlusOneMs = 0;
+    UnknownHitFlags.RecentHitId.Invalidate();
     TestFalse(TEXT("Impact flags require a recent hit"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
+    FLDObservedUnitView MissingHitId = ContenderUnit();
+    MissingHitId.RecentHitAgePlusOneMs = 1;
+    TestFalse(TEXT("A visible hit requires its identity"), LDObservation::ValidateUnit(MissingHitId,Error));
+    MissingHitId.RecentHitAgePlusOneMs = 0;
+    MissingHitId.RecentHitId = FGuid::NewGuid();
+    TestFalse(TEXT("A hit identity cannot outlive its visible cue"), LDObservation::ValidateUnit(MissingHitId,Error));
     FLDObservedUnitView CastHit = ContenderUnit();
     CastHit.ActionCue = ELDObservedActionCue::Cast;
     CastHit.RecentHitAgePlusOneMs = 1;
+    CastHit.RecentHitId = FGuid::NewGuid();
     TestTrue(TEXT("A generic hit at the current instant is visible while casting"), LDObservation::ValidateUnit(CastHit,Error));
     CastHit.RecentHitAgePlusOneMs = LDObservation::RecentHitWindowMs;
     TestTrue(TEXT("The last millisecond of the visible hit window is allowed"), LDObservation::ValidateUnit(CastHit,Error));
@@ -1211,10 +1235,36 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A stale hit is rejected"), LDObservation::ValidateUnit(CastHit,Error));
     CastHit.ActionCue = ELDObservedActionCue::None;
     CastHit.RecentHitAgePlusOneMs = 1;
-    TestFalse(TEXT("An uncued unit cannot carry a recent hit"), LDObservation::ValidateUnit(CastHit,Error));
-    CastHit.ActionCue = ELDObservedActionCue::Hit;
-    CastHit.ActionCueAgeMs = 10;
-    TestFalse(TEXT("A hit cue and its independently carried age must agree"), LDObservation::ValidateUnit(CastHit,Error));
+    TestTrue(TEXT("An idle unit shows a hit without changing pose"), LDObservation::ValidateUnit(CastHit,Error));
+    FLDObservedHitReceipt Receipt;
+    Receipt.MatchGeneration = View.MatchGeneration;
+    Receipt.ObserverLife = View.ObserverLife;
+    Receipt.Generation = View.Generation;
+    Receipt.Handle = View.Units[0].Handle;
+    Receipt.ObservationEpoch = View.Units[0].ObservationEpoch;
+    Receipt.HitId = View.Units[0].RecentHitId;
+    Receipt.OccurredAtMs = 12500;
+    FLDObservedFrameRead Current{&View, ELDObservedViewStatus::Current, 1};
+    float Age = -1.f;
+    TestTrue(TEXT("A fresh hit for the current visible interval is accepted"),
+        LDObservedPresentation::ImmediateHitAge(Current,Receipt,12.52,Age) && FMath::IsNearlyEqual(Age,.02f));
+    FLDObservedFrameRead Stale{&View, ELDObservedViewStatus::Stale, 1};
+    TestFalse(TEXT("A stale frame cannot show an immediate hit"), LDObservedPresentation::ImmediateHitAge(Stale,Receipt,12.52,Age));
+    FLDObservedHitReceipt Wrong = Receipt;
+    Wrong.MatchGeneration++;
+    TestFalse(TEXT("A prior match cannot show a hit"), LDObservedPresentation::ImmediateHitAge(Current,Wrong,12.52,Age));
+    Wrong = Receipt; Wrong.ObserverLife++;
+    TestFalse(TEXT("A different observer life cannot show a hit"), LDObservedPresentation::ImmediateHitAge(Current,Wrong,12.52,Age));
+    Wrong = Receipt; Wrong.Generation++;
+    TestFalse(TEXT("A reset observation generation cannot show a hit"), LDObservedPresentation::ImmediateHitAge(Current,Wrong,12.52,Age));
+    Wrong = Receipt; Wrong.ObservationEpoch++;
+    TestFalse(TEXT("An old target interval cannot show a hit"), LDObservedPresentation::ImmediateHitAge(Current,Wrong,12.52,Age));
+    Wrong = Receipt; Wrong.Handle = FGuid::NewGuid();
+    TestFalse(TEXT("A hidden or unknown target cannot show a hit"), LDObservedPresentation::ImmediateHitAge(Current,Wrong,12.52,Age));
+    Wrong = Receipt; Wrong.HitId.Invalidate();
+    TestFalse(TEXT("An immediate hit needs an identity"), LDObservedPresentation::ImmediateHitAge(Current,Wrong,12.52,Age));
+    TestFalse(TEXT("An expired immediate hit is not replayed"), LDObservedPresentation::ImmediateHitAge(Current,Receipt,12.81,Age));
+    TestFalse(TEXT("A future hit is not shown"), LDObservedPresentation::ImmediateHitAge(Current,Receipt,12.4,Age));
     // A cast may name its public ability at that moment (user-approved CB-P10 amendment); nothing else may.
     FLDObservedUnitView Named = ContenderUnit();
     Named.ActionCue = ELDObservedActionCue::Cast;

@@ -61,6 +61,9 @@ struct FLDDemoVisionReactionAccess
             Result.DamageType = ELDDemoDamageType::Magical;
             return Result;
         };
+        FLDCombatHit Strike = Hit(Setter);
+        Strike.BaseP2 = 100;
+        Combat.PendingHits.Add(MoveTemp(Strike));
         FLDCombatHit Wet = Hit(Setter);
         Wet.bApplyWet = true;
         FLDCombatHit Electric = Hit(Trigger);
@@ -174,6 +177,7 @@ public:
     bool bControlObserved = false, bControlViolated = false, bEmulating = false, DisconnectVerified = false;
     bool bReactionReady = false, bReactionQueued = false, bReactionLeaveRequested = false;
     uint64 ReactionBaseline = 0;
+    uint32 HitReceiptBaseline = 0;
     EStall Stall = EStall::Waiting;
     FLDCombatBodyRef OwnBody;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -680,6 +684,7 @@ public:
             if (Role != TEXT("Host") && OtherContenders(*Frame, Owner.OwnerState.ContenderId) >= 2
                 && !Mark(Role + TEXT("ReactionSight.json"))) { return Finish(); }
             ReactionBaseline = Owner.ReactionAssistSerial;
+            HitReceiptBaseline = Relay->ImmediateHitCount();
             if (!Owner.OwnerState.ContenderId.IsValid())
             { return Fail(TEXT("#Reaction"), TEXT("The owning connection has no contender identity")); }
             auto Ready = MakeShared<FJsonObject>();
@@ -752,6 +757,13 @@ public:
         if (!Check(bCorrect, TEXT("#Reaction"), bRecipient
             ? TEXT("The wet setter alone receives the named conduct prompt over its owning connection")
             : TEXT("A non-setter receives no reaction prompt"))) { return Finish(); }
+        const ALDWorldViewRelay* Relay = nullptr;
+        const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+        const bool bHitReceiptCorrect = Frame && Relay
+            && Relay->ImmediateHitCount() == HitReceiptBaseline + (bRecipient ? 1u : 0u);
+        if (!Check(bHitReceiptCorrect, TEXT("#HitReceipt"), bRecipient
+            ? TEXT("The visible hit reaches only its owning connection immediately")
+            : TEXT("A different owner receives no immediate hit receipt"))) { return Finish(); }
         if (!Mark(Role + TEXT("ReactionDone.json"))) { return Finish(); }
         Stage = 7;
         return true;
@@ -873,7 +885,7 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
-            ? TEXT("DEV-only owned-connection reaction scenario: three normal-start participants, with fixture hits queued into the native Effects phase. Checks the setter's RPC and non-recipient isolation; not player input, hidden sight cases, combat balance or full-match acceptance.")
+            ? TEXT("DEV-only owned-connection reaction scenario: three normal-start participants, with fixture hits queued into the native Effects phase. Checks the setter's reaction and visible-hit RPCs and non-recipient isolation; not player input, hidden sight cases, combat balance or full-match acceptance.")
             : TEXT("DEV-only owned-connection observation scenario: a rendered, participating Listen Host and two owning clients started through the normal lobby. Carries checks #1, #9, #15, #23 and #28 of the retired view network probe plus Listen Host presentation (#15H). Not combat balance, death or termination, AI or full-match acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
