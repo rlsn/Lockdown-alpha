@@ -55,7 +55,7 @@ FName CampOf(const FLDFieldMarkerState& State, const FLDFieldMarker& Marker)
 }
 
 // #198 outer §5 camp markers (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175, comment
-// 6752628806: "批准整套方案，按票内参数实施"): one High and one Elite camp marked at T = 15/195/375 s, the Elite camp
+// 6752628806: "批准整套方案，按票内参数实施"): one High and one Elite camp marked REST.CampMarkRevealSec into each timed field segment, the Elite camp
 // preferred in the quadrant opposite the High camp, never the previous segment's camp, taken once by the first clear
 // and gone at the segment's end; none in the final field.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFieldMarkersTest, "Lockdown.Rules.DemoFieldMarkers",
@@ -70,6 +70,8 @@ bool FLDFieldMarkersTest::RunTest(const FString& Parameters)
         P.CampMarkRevealMs == 11000 && P.FieldSegmentMs == 130000);
     FLDFieldMarkerState State = MakeState(P);
     if (!TestTrue(TEXT("The test schedule is valid"), State.IsActive())) { return false; }
+    // Every instant below follows from the approved segment length and reveal offset.
+    const int64 Reveal = P.CampMarkRevealMs, Seg = P.FieldSegmentMs;
     int64 At = 0;
     bGood &= TestTrue(TEXT("Reveals at T=11/141/271 s, segment ends at 130/260/390 s, no fourth segment"),
         State.Schedule.RevealAtMs(1, At) && At == 11000 && State.Schedule.RevealAtMs(2, At) && At == 141000
@@ -116,19 +118,19 @@ bool FLDFieldMarkersTest::RunTest(const FString& Parameters)
     // Segment 1: nothing before the reveal, then both markers at once.
     TArray<FLDFieldMarker> Revealed, Expired;
     bGood &= TestTrue(TEXT("Before the first reveal nothing is public and the reveal is the next instant"),
-        State.NextDueMs(0) == 15000 && !State.Advance(14999, Revealed, Expired) && State.Segment == 0);
+        State.NextDueMs(0) == Reveal && !State.Advance(Reveal - 1, Revealed, Expired) && State.Segment == 0);
     TArray<FLDFieldMarkerView> Rows;
     State.View(Rows);
     bGood &= TestTrue(TEXT("No marker before the first reveal"), Rows.IsEmpty());
-    bGood &= TestTrue(TEXT("At T=15 s one High and one Elite camp are revealed"), State.Advance(15000, Revealed, Expired)
+    bGood &= TestTrue(TEXT("At the first reveal one High and one Elite camp are revealed"), State.Advance(Reveal, Revealed, Expired)
         && State.Segment == 1 && Revealed.Num() == 2 && Expired.IsEmpty() && State.High.Phase == ELDFieldMarkerPhase::Revealed
         && State.Elite.Phase == ELDFieldMarkerPhase::Revealed);
     const FName High1 = CampOf(State, State.High), Elite1 = CampOf(State, State.Elite);
-    const FLDFieldMarkerState Again = [&P]()
+    const FLDFieldMarkerState Again = [&P, Reveal]()
     {
         FLDFieldMarkerState Copy = MakeState(P);
         TArray<FLDFieldMarker> R, E;
-        Copy.Advance(15000, R, E);
+        Copy.Advance(Reveal, R, E);
         return Copy;
     }();
     bGood &= TestTrue(TEXT("The same server seed draws the same camps"),
@@ -136,15 +138,15 @@ bool FLDFieldMarkersTest::RunTest(const FString& Parameters)
     State.View(Rows);
     bGood &= TestTrue(TEXT("The public view lists High then Elite with their camp, segment and instants"),
         Rows.Num() == 2 && Rows[0].Kind == ELDFieldMarkerKind::High && Rows[0].CampId == High1 && Rows[1].Kind == ELDFieldMarkerKind::Elite
-        && Rows[1].CampId == Elite1 && Rows[0].Segment == 1 && Rows[0].RevealAtMs == 15000 && Rows[0].EndAtMs == 180000);
+        && Rows[1].CampId == Elite1 && Rows[0].Segment == 1 && Rows[0].RevealAtMs == Reveal && Rows[0].EndAtMs == Seg);
     FString Error;
     bGood &= TestTrue(TEXT("Revealed markers are a valid public view: ") + Error, LDCapture::ValidatePublicMatchView(ViewAt(State, 20000), Error));
-    bGood &= TestFalse(TEXT("A marker cannot be public before its reveal"), LDCapture::ValidatePublicMatchView(ViewAt(State, 14999), Error));
+    bGood &= TestFalse(TEXT("A marker cannot be public before its reveal"), LDCapture::ValidatePublicMatchView(ViewAt(State, Reveal - 1), Error));
 
     // The first clear takes it once; a camp that is not marked takes nothing.
     bGood &= TestTrue(TEXT("Only the marked camps are open, inside their segment"),
         State.OpenMarkerFor(High1, 20000) == &State.High && State.OpenMarkerFor(Elite1, 20000) == &State.Elite
-        && !State.OpenMarkerFor(TEXT("h_unmarked"), 20000) && !State.OpenMarkerFor(High1, 180000) && !State.OpenMarkerFor(High1, 14999));
+        && !State.OpenMarkerFor(TEXT("h_unmarked"), 20000) && !State.OpenMarkerFor(High1, Seg) && !State.OpenMarkerFor(High1, Reveal - 1));
     const FGuid First(1, 0, 0, 0), Second(2, 0, 0, 0);
     bGood &= TestTrue(TEXT("The first clear claims the High marker"), State.Claim(ELDFieldMarkerKind::High, First, 30000)
         && State.High.Phase == ELDFieldMarkerPhase::Claimed && State.High.ClaimedBy == First);
@@ -153,37 +155,37 @@ bool FLDFieldMarkersTest::RunTest(const FString& Parameters)
     State.View(Rows);
     bGood &= TestTrue(TEXT("The public view only says it is taken"), Rows[0].Phase == ELDFieldMarkerPhase::Claimed
         && LDCapture::ValidatePublicMatchView(ViewAt(State, 31000), Error));
-    bGood &= TestTrue(TEXT("While the Elite marker is open the segment end is due"), State.NextDueMs(31000) == 180000);
+    bGood &= TestTrue(TEXT("While the Elite marker is open the segment end is due"), State.NextDueMs(31000) == Seg);
 
     // Segment end (the rest entry): the unclaimed marker expires without any reward.
     State.EndSegment(Expired);
     bGood &= TestTrue(TEXT("At the segment end the unclaimed marker expires"), Expired.Num() == 1
         && Expired[0].Kind == ELDFieldMarkerKind::Elite && State.Elite.Phase == ELDFieldMarkerPhase::Expired
-        && !State.Claim(ELDFieldMarkerKind::Elite, Second, 180000) && !State.OpenMarkerFor(Elite1, 179999));
+        && !State.Claim(ELDFieldMarkerKind::Elite, Second, Seg) && !State.OpenMarkerFor(Elite1, Seg - 1));
     bGood &= TestTrue(TEXT("Expired and claimed markers are a valid rest view: ") + Error,
-        LDCapture::ValidatePublicMatchView(ViewAt(State, 180000, ELDMatchStage::Rest), Error));
+        LDCapture::ValidatePublicMatchView(ViewAt(State, Seg, ELDMatchStage::Rest), Error));
     {
         FLDFieldMarkerState Open = MakeState(P);
-        Open.Advance(15000, Revealed, Expired);
+        Open.Advance(Reveal, Revealed, Expired);
         bGood &= TestFalse(TEXT("A revealed marker cannot outlive its segment into the rest"),
-            LDCapture::ValidatePublicMatchView(ViewAt(Open, 180000, ELDMatchStage::Rest), Error));
+            LDCapture::ValidatePublicMatchView(ViewAt(Open, Seg, ELDMatchStage::Rest), Error));
         bGood &= TestTrue(TEXT("Reaching the segment end in the field expires both open markers"),
-            Open.Advance(180000, Revealed, Expired) && Expired.Num() == 2 && Open.Segment == 1);
+            Open.Advance(Seg, Revealed, Expired) && Expired.Num() == 2 && Open.Segment == 1);
     }
 
     // Segments 2 and 3: a new draw each, never the previous segment's camps.
-    bGood &= TestTrue(TEXT("The next reveal is T=195 s"), State.NextDueMs(180000) == 195000);
-    bGood &= TestTrue(TEXT("At T=195 s segment 2 is revealed"), State.Advance(195000, Revealed, Expired) && State.Segment == 2
+    bGood &= TestTrue(TEXT("The next reveal is one offset into segment 2"), State.NextDueMs(Seg) == Seg + Reveal);
+    bGood &= TestTrue(TEXT("At that instant segment 2 is revealed"), State.Advance(Seg + Reveal, Revealed, Expired) && State.Segment == 2
         && State.High.Phase == ELDFieldMarkerPhase::Revealed && State.Elite.Phase == ELDFieldMarkerPhase::Revealed);
     const FName High2 = CampOf(State, State.High), Elite2 = CampOf(State, State.Elite);
     bGood &= TestTrue(TEXT("Segment 2 marks other camps than segment 1"), High2 != High1 && Elite2 != Elite1);
     State.EndSegment(Expired);
-    bGood &= TestTrue(TEXT("At T=375 s segment 3 is revealed"), State.Advance(375000, Revealed, Expired) && State.Segment == 3);
+    bGood &= TestTrue(TEXT("One offset into segment 3 it is revealed"), State.Advance(2 * Seg + Reveal, Revealed, Expired) && State.Segment == 3);
     const FName High3 = CampOf(State, State.High), Elite3 = CampOf(State, State.Elite);
     bGood &= TestTrue(TEXT("Segment 3 marks other camps than segment 2"), High3 != High2 && Elite3 != Elite2);
     State.EndSegment(Expired);
     bGood &= TestTrue(TEXT("The final field has no marker: nothing more is due or revealed"),
-        State.NextDueMs(540000) == MAX_int64 && !State.Advance(900000, Revealed, Expired) && State.Segment == 3
+        State.NextDueMs(3 * Seg) == MAX_int64 && !State.Advance(900000, Revealed, Expired) && State.Segment == 3
         && State.High.Phase == ELDFieldMarkerPhase::Expired && State.Elite.Phase == ELDFieldMarkerPhase::Expired);
 
     FLDFieldMarkerState Invalid = MakeState(P);
