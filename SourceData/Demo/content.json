@@ -1,11 +1,11 @@
 {
   "identity": {
-    "schema_version": 3,
-    "handler_revision": 10,
-    "projection_revision": 9,
+    "schema_version": 4,
+    "handler_revision": 11,
+    "projection_revision": 10,
     "approval": {
       "status": "approved",
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance."
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards approved: 不用管schedule， fix doc and approve all numbers."
     }
   },
   "parameters": {
@@ -142,9 +142,16 @@
     "GROWTH.ActiveSkipPoints": 5,
     "GROWTH.NpcActiveSkipPoints": 3,
     "GROWTH.BuildSafeWindowSec": {"unit": "s", "value": 4},
-    "GROWTH.EmptyComponentPoolPoints": 3,
-    "GROWTH.FillGapPoints": 4,
-    "GROWTH.DismantleInputCount": 2,
+    "CARDS.CapacityBase": 6,
+    "CARDS.LevelsPerSlot": 5,
+    "CARDS.OfferSize": 3,
+    "CARDS.FreeRerolls": 3,
+    "CARDS.RerollsPerRest": 1,
+    "CARDS.LockSlots": 1,
+    "CARDS.VocabWeight": 2,
+    "DAMAGE.FactorTechCap": {"unit": "ratio", "value": 1000},
+    "CHAIN.MaxDepth": 16,
+    "CHAIN.MaxEffectsPerStep": 256,
     "CAMP.ResetArrivalRadiusCm": {"unit": "cm", "value": 100},
     "CAMP.ReturnDeadEndPlans": 3,
     "CAMP.ReturnDeadEndSec": {"unit": "s", "value": 6},
@@ -186,6 +193,9 @@
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
     "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
     "AI.DodgeChance": {"unit": "ratio", "value": 0.5},
+    "AI.CardVocabScore": 2,
+    "AI.BreakoutChance": {"unit": "ratio", "value": 0.25},
+    "AI.BreakoutCardScore": 5,
     "COMBAT.BreachPerStack": {"unit": "points", "value": 3},
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachSec": {"unit": "s", "value": 4},
@@ -194,7 +204,6 @@
     "COMBAT.BurnTickSec": {"unit": "s", "value": 0.5},
     "COMBAT.BurnSec": {"unit": "s", "value": 3},
     "COMBAT.BurnMaxStacks": 5,
-    "COMBAT.LifestealCap": {"unit": "ratio", "value": 0.35},
     "COMBAT.KeystonePhysiqueHealToShieldRatio": {"unit": "ratio", "value": 0.25},
     "COMBAT.KeystonePhysiqueShieldMaxHPRatio": {"unit": "ratio", "value": 0.035},
     "COMBAT.KeystonePhysiqueShieldDurationSec": {"unit": "s", "value": 3},
@@ -638,304 +647,226 @@
     {"id": "stat_brains", "per_point": {"APFlat": {"unit": "points", "value": 6}, "CooldownHasteFlat": {"unit": "points", "value": 1}, "MomentumRegenFlat": {"unit": "momentum/s", "value": 0.06}}},
     {"id": "stat_agility", "per_point": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.02}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.005}}}
   ],
-  "components": [
+  "cards": [
     {
-      "id": "component_fist_fire", "kind": "base", "pool": "common", "tags": ["basic", "element"], "opening": "always",
-      "effects": [{"op": "burn", "basic_stacks": 1}]
+      "id": "card_third_breath", "form": "basic", "type": "trigger", "vocab": ["combo3", "momentum"],
+      "effects": [{"op": "combo_momentum", "momentum": {"unit": "momentum", "value": 10}}]
     },
     {
-      "id": "component_tab_ledger", "kind": "base", "pool": "common", "tags": ["ledger", "basic", "spell"], "opening": "always",
-      "effects": [{"op": "ledger", "base": {"unit": "points", "value": 10}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.08}, "damage_type": "Magical", "count": 5, "duration": {"unit": "s", "value": 6}}]
+      "id": "card_punch_think", "form": "basic", "type": "trigger", "vocab": ["basic_hit", "skill_cast"],
+      "effects": [{"op": "basic_cooldown_cut", "cooldown": {"unit": "s", "value": 0.5}}]
     },
     {
-      "id": "component_spiky_hide", "kind": "base", "pool": "common", "tags": ["defense"], "opening": "always",
-      "effects": [{"op": "thorns", "base": {"unit": "points", "value": 10}, "max_hp_ratio": {"unit": "ratio", "value": 0.01}, "armor_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 600}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic"}]
+      "id": "card_solid_punch", "form": "basic", "type": "trigger", "vocab": ["combo3", "skill_hit"],
+      "effects": [{"op": "combo_skill_hit"}]
     },
     {
-      "id": "component_punch_heal", "kind": "base", "pool": "common", "tags": ["basic", "defense"], "opening": "always",
-      "effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.12}}]
+      "id": "card_third_shove", "form": "basic", "type": "trigger", "vocab": ["combo3", "knockback"],
+      "effects": [{"op": "combo_knockback", "distance": {"unit": "cm", "value": 150}, "duration": {"unit": "s", "value": 0.12}}]
     },
     {
-      "id": "component_dash_bump", "kind": "base", "pool": "common", "tags": ["collision"], "opening": "always",
-      "effects": [{"op": "dash_contact_damage", "base": {"unit": "points", "value": 30}, "ad_ratio": {"unit": "ratio", "value": 0.25}, "ap_ratio": {"unit": "ratio", "value": 0.25}, "damage_type": "Physical"}]
+      "id": "card_both_hands", "form": "basic", "type": "modify", "vocab": ["combo3", "basic_hit"],
+      "effects": [{"op": "combo_double", "damage_ratio": {"unit": "ratio", "value": 0.8}}]
     },
     {
-      "id": "component_third_punch", "kind": "base", "pool": "common", "tags": ["basic", "collision"], "opening": "always",
-      "effects": [{"op": "nth_basic_bonus", "count": 3, "distance": {"unit": "cm", "value": 120}, "duration": {"unit": "s", "value": 0.12}}]
+      "id": "card_quick_hands", "form": "basic", "type": "convert", "vocab": ["attack_speed", "basic_hit"],
+      "effects": [{"op": "overcap_extra_hit", "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.1}}]
     },
     {
-      "id": "component_kick_down", "kind": "base", "pool": "common", "tags": ["control"], "opening": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_quick_meeting", "active_apology_slide", "active_open_mic", "active_hose_down", "active_dirty_puddle"]},
-      "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.12}}]
+      "id": "card_scholar_punch", "form": "basic", "type": "convert", "vocab": ["basic_hit"],
+      "effects": [{"op": "basic_ap_rider", "ap_ratio": {"unit": "ratio", "value": 0.4}, "damage_type": "Magical"}]
     },
     {
-      "id": "component_breach_fist", "kind": "base", "pool": "common", "tags": ["basic"],
+      "id": "card_heated_up", "form": "basic", "type": "grow", "vocab": ["attack_speed", "basic_hit"],
+      "effects": [{"op": "focus_attack_speed", "ratio": {"unit": "ratio", "value": 0.04}, "duration": {"unit": "s", "value": 3}}]
+    },
+    {
+      "id": "card_breach_fist", "form": "basic", "type": "grow", "vocab": ["basic_hit", "armor"],
       "effects": [{"op": "breach", "basic_stacks": 1}]
     },
     {
-      "id": "component_hard_skin", "kind": "base", "pool": "common", "tags": ["defense"], "opening": "always",
-      "effects": [{"op": "triggered_shield", "trigger": "Damaged", "base": {"unit": "hp", "value": 45}, "max_hp_ratio": {"unit": "ratio", "value": 0.035}, "duration": {"unit": "s", "value": 3}, "interval": {"unit": "s", "value": 10}}]
+      "id": "card_fire_fist", "form": "basic", "type": "element", "vocab": ["element", "basic_hit"],
+      "effects": [{"op": "burn", "basic_stacks": 1}]
     },
     {
-      "id": "component_fist_water", "kind": "base", "pool": "common", "tags": ["basic", "element"], "opening": "always",
+      "id": "card_water_fist", "form": "basic", "type": "element", "vocab": ["element", "basic_hit"],
       "effects": [{"op": "basic_element", "element": "water"}]
     },
     {
-      "id": "component_fist_shock", "kind": "base", "pool": "common", "tags": ["basic", "element"], "opening": {"actives": ["active_seethe", "active_quick_meeting", "active_hose_down", "active_dirty_puddle"]},
+      "id": "card_shock_fist", "form": "basic", "type": "element", "vocab": ["element", "basic_hit"],
       "effects": [{"op": "basic_element", "element": "electric"}]
     },
     {
-      "id": "component_dash_punch", "kind": "base", "pool": "common", "tags": ["basic", "collision"], "opening": "always",
-      "effects": [{"op": "empower_basic", "trigger": "DashComplete", "base": {"unit": "points", "value": 25}, "ad_ratio": {"unit": "ratio", "value": 0.25}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}, "charges": 1}]
+      "id": "card_next_up", "form": "skill", "type": "trigger", "vocab": ["skill_hit", "skill_cast"],
+      "effects": [{"op": "hit_haste_other", "cooldown": {"unit": "s", "value": 1}}]
     },
     {
-      "id": "component_catch_breath", "kind": "base", "pool": "common", "tags": ["spell", "tempo"],
-      "effects": [{"op": "cast_hit_refund", "ratio": {"unit": "ratio", "value": 0.3}}]
+      "id": "card_pay_back", "form": "skill", "type": "trigger", "vocab": ["skill_hit", "momentum"],
+      "effects": [{"op": "skill_hit_momentum", "momentum": {"unit": "momentum", "value": 6}}]
     },
     {
-      "id": "component_long_arm", "kind": "base", "pool": "common", "tags": ["projectile", "spell"],
-      "effects": [{"op": "distance_amp", "distance": {"unit": "cm", "value": 550}, "ratio": {"unit": "ratio", "value": 0.2}}]
+      "id": "card_setup_line", "form": "skill", "type": "trigger", "vocab": ["skill_hit"],
+      "effects": [{"op": "setup_mark", "duration": {"unit": "s", "value": 4}, "ratio": {"unit": "ratio", "value": 0.35}}]
     },
     {
-      "id": "component_seeing_red", "kind": "base", "pool": "common", "tags": ["spell", "tempo"],
-      "effects": [{"op": "alternate_amp", "duration": {"unit": "s", "value": 4}, "ratio": {"unit": "ratio", "value": 0.2}}]
+      "id": "card_encore", "form": "skill", "type": "modify", "vocab": ["skill_cast"],
+      "effects": [{"op": "auto_recast", "delay": {"unit": "s", "value": 0.6}, "damage_ratio": {"unit": "ratio", "value": 0.6}}]
     },
     {
-      "id": "component_thick_hide", "kind": "base", "pool": "common", "tags": ["spell", "defense"],
-      "effects": [{"op": "triggered_shield", "trigger": "AbilityHit", "base": {"unit": "hp", "value": 40}, "max_hp_ratio": {"unit": "ratio", "value": 0.03}, "duration": {"unit": "s", "value": 3}, "interval": {"unit": "s", "value": 8}}]
+      "id": "card_again_now", "form": "skill", "type": "modify", "vocab": ["skill_cast", "momentum"],
+      "effects": [{"op": "cooldown_cost", "cooldown_ratio": {"unit": "ratio", "value": 0.65}, "cost_ratio": {"unit": "ratio", "value": 1.5}}]
     },
     {
-      "id": "component_held_shot", "kind": "base", "pool": "common", "tags": ["spell", "projectile"], "opening": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_dirty_puddle", "active_sock_shot"]},
-      "effects": [{"op": "idle_ready_amp", "delay": {"unit": "s", "value": 2}, "ratio": {"unit": "ratio", "value": 0.2}}]
+      "id": "card_big_one", "form": "skill", "type": "modify", "vocab": ["skill_hit"],
+      "effects": [{"op": "cooldown_cost", "cooldown_ratio": {"unit": "ratio", "value": 1.5}, "cost_ratio": {"unit": "ratio", "value": 1}}, {"op": "skill_damage_factor", "ratio": {"unit": "ratio", "value": 0.8}}]
     },
     {
-      "id": "component_dirty_trick", "kind": "base", "pool": "common", "tags": ["spell", "element"], "opening": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_dirty_puddle", "active_sock_shot"]},
-      "binding": {"kind": "active_element", "actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"], "elements": ["fire", "water", "electric"]},
-      "effects": [{"op": "active_element"}]
+      "id": "card_blood_price", "form": "skill", "type": "convert", "vocab": ["low_hp", "heal"],
+      "effects": [{"op": "hp_cost", "ratio": {"unit": "ratio", "value": 0.006}}, {"op": "skill_damage_factor", "ratio": {"unit": "ratio", "value": 0.2}}]
     },
     {
-      "id": "component_crowd_hit", "kind": "mod", "pool": "common", "tags": ["spell", "area"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_sock_shot"], "components": ["component_tab_ledger", "component_spiky_hide", "component_breath_strike"]},
-      "effects": [{"op": "spread_unit", "angle": {"unit": "degrees", "value": 60}, "damage_ratio": {"unit": "ratio", "value": 0.7}}, {"op": "spread_projectile", "radius": {"unit": "cm", "value": 180}, "damage_ratio": {"unit": "ratio", "value": 0.7}}, {"op": "spread_ledger", "radius": {"unit": "cm", "value": 220}, "damage_ratio": {"unit": "ratio", "value": 0.7}}, {"op": "spread_counter", "radius": {"unit": "cm", "value": 250}, "damage_ratio": {"unit": "ratio", "value": 0.8}}]
+      "id": "card_lend_fist", "form": "skill", "type": "convert", "vocab": ["skill_hit"],
+      "effects": [{"op": "skill_ad_rider", "ad_ratio": {"unit": "ratio", "value": 0.6}, "damage_type": "Physical"}]
     },
     {
-      "id": "component_settle_later", "kind": "mod", "pool": "common", "tags": ["ledger", "defense"],
-      "targets": {"components": ["component_tab_ledger", "component_spiky_hide", "component_breath_strike"]},
-      "effects": [{"op": "delay_ledger", "delay": {"unit": "s", "value": 2}, "damage_ratio": {"unit": "ratio", "value": 1.3}, "distance": {"unit": "cm", "value": 800}}, {"op": "delay_counter", "delay": {"unit": "s", "value": 0.6}, "damage_ratio": {"unit": "ratio", "value": 1.3}, "radius": {"unit": "cm", "value": 180}}]
+      "id": "card_hurt_heal", "form": "skill", "type": "convert", "vocab": ["heal", "skill_hit"],
+      "effects": [{"op": "skill_lifesteal", "ratio": {"unit": "ratio", "value": 0.25}}]
     },
     {
-      "id": "component_long_kick", "kind": "mod", "pool": "common", "tags": ["collision"],
-      "targets": {"actives": ["active_elbow", "active_hose_down", "active_triple_combo", "active_stare_down"], "components": ["component_third_punch"]},
-      "effects": [{"op": "knockback_scale", "ratio": {"unit": "ratio", "value": 1.6}, "damage_ratio": {"unit": "ratio", "value": 0.8}}]
+      "id": "card_held_shot", "form": "skill", "type": "grow", "vocab": ["idle"],
+      "effects": [{"op": "idle_ready_amp", "interval": {"unit": "s", "value": 1}, "ratio": {"unit": "ratio", "value": 0.15}}]
     },
     {
-      "id": "component_hold_down", "kind": "mod", "pool": "common", "tags": ["control"],
-      "targets": {"actives": ["active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_stare_down"]},
-      "effects": [{"op": "control_scale", "ratio": {"unit": "ratio", "value": 1.25}, "cooldown_ratio": {"unit": "ratio", "value": 1.25}}]
+      "id": "card_practice", "form": "skill", "type": "grow", "vocab": ["skill_hit"],
+      "effects": [{"op": "skill_growth", "ratio": {"unit": "ratio", "value": 0.02}}]
     },
     {
-      "id": "component_reach_out", "kind": "mod", "pool": "common", "tags": ["projectile", "spell"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_quick_meeting", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_dirty_puddle", "active_sock_shot"], "components": ["component_spiky_hide", "component_breath_strike"]},
-      "effects": [{"op": "range_bonus", "distance": {"unit": "cm", "value": 200}, "range_cap": {"unit": "cm", "value": 1000}, "damage_ratio": {"unit": "ratio", "value": 0.8}}, {"op": "counter_range_bonus", "distance": {"unit": "cm", "value": 200}, "damage_ratio": {"unit": "ratio", "value": 0.8}}]
+      "id": "card_add_fire", "form": "skill", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "skill_element", "element": "fire", "stacks": 2}]
     },
     {
-      "id": "component_again_now", "kind": "mod", "pool": "common", "tags": ["tempo"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_bail_out", "active_apology_slide", "active_not_mad", "active_stare_down", "active_triple_combo", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"]},
-      "effects": [{"op": "cooldown_cost", "cooldown_ratio": {"unit": "ratio", "value": 0.8}, "cost_ratio": {"unit": "ratio", "value": 1.25}}]
+      "id": "card_add_water", "form": "skill", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "skill_element", "element": "water", "stacks": 1}]
     },
     {
-      "id": "component_one_slam", "kind": "mod", "pool": "common", "tags": ["area", "spell"], "form": "zone_shape",
-      "targets": {"actives": ["active_quick_meeting", "active_open_mic", "active_dirty_puddle", "active_zap"]},
-      "effects": [{"op": "compress_cone", "delay": {"unit": "s", "value": 0.6}, "angle": {"unit": "degrees", "value": 35}, "damage_ratio": {"unit": "ratio", "value": 1.15}}, {"op": "compress_zone", "delay": {"unit": "s", "value": 0.9}, "ratio": {"unit": "ratio", "value": 0.75}, "damage_ratio": {"unit": "ratio", "value": 1.1}}, {"op": "compress_chain", "damage_ratio": {"unit": "ratio", "value": 0.8}}]
+      "id": "card_add_shock", "form": "skill", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "skill_element", "element": "electric", "stacks": 1}]
     },
     {
-      "id": "component_ram_through", "kind": "mod", "pool": "common", "tags": ["collision"], "form": "dash_shape",
-      "targets": {"actives": ["active_bail_out", "active_apology_slide", "active_charged_ram"], "dash": true},
-      "effects": [{"op": "dash_scale", "ratio": {"unit": "ratio", "value": 1.5}, "damage_ratio": {"unit": "ratio", "value": 1.3}, "cooldown_ratio": {"unit": "ratio", "value": 1.25}}]
-    },
-    {
-      "id": "component_quick_hop", "kind": "mod", "pool": "common", "tags": ["collision", "tempo"], "form": "dash_shape",
-      "targets": {"actives": ["active_bail_out", "active_apology_slide", "active_charged_ram"], "dash": true},
-      "effects": [{"op": "dash_scale", "ratio": {"unit": "ratio", "value": 0.7}, "damage_ratio": {"unit": "ratio", "value": 1}, "cooldown_ratio": {"unit": "ratio", "value": 0.75}}]
-    },
-    {
-      "id": "component_big_tab", "kind": "mod", "pool": "common", "tags": ["ledger"],
-      "targets": {"components": ["component_tab_ledger"]},
-      "effects": [{"op": "ledger_variant", "count": 8, "damage_ratio": {"unit": "ratio", "value": 1.25}, "duration": {"unit": "s", "value": 4}}]
-    },
-    {
-      "id": "component_pick_you", "kind": "mod", "pool": "scarce", "tags": ["defense"],
-      "targets": {"components": ["component_spiky_hide", "component_breath_strike", "component_fist_shock", "component_dirty_trick"], "actives": ["active_zap", "active_charged_ram"]},
-      "effects": [{"op": "marked_counter", "duration": {"unit": "s", "value": 3}, "damage_ratio": {"unit": "ratio", "value": 0.85}}]
-    },
-    {
-      "id": "component_owe_it", "kind": "mod", "pool": "scarce", "tags": ["defense"],
-      "targets": {"self": true},
-      "effects": [{"op": "damage_defer", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 3}}]
-    },
-    {
-      "id": "component_fire_skin", "kind": "connector", "pool": "common", "tags": ["element", "defense"],
-      "targets": {"actives": ["active_seethe", "active_quick_meeting"], "components": ["component_fist_fire", "component_dirty_trick", "component_dirty_fist"]},
-      "effects": [{"op": "fire_shield", "interval": {"unit": "s", "value": 1}, "base": {"unit": "hp", "value": 12}, "ratio": {"unit": "ratio", "value": 0.6}, "cap_ratio": {"unit": "ratio", "value": 0.12}, "duration": {"unit": "s", "value": 2}}]
-    },
-    {
-      "id": "component_ball_kick", "kind": "connector", "pool": "common", "tags": ["collision"],
-      "targets": {"actives": ["active_elbow", "active_hose_down", "active_charged_ram", "active_not_mad", "active_brace", "active_triple_combo", "active_open_mic"], "components": ["component_third_punch", "component_roll_bump"]},
-      "effects": [{"op": "knockback_impact", "base": {"unit": "points", "value": 30}, "ad_ratio": {"unit": "ratio", "value": 0.2}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "stun_duration": {"unit": "s", "value": 0.6}}]
-    },
-    {
-      "id": "component_bump_again", "kind": "connector", "pool": "common", "tags": ["collision", "tempo"],
-      "targets": {"actives": ["active_bail_out", "active_apology_slide", "active_charged_ram"], "dash": true},
-      "effects": [{"op": "dash_contact_refund", "cooldown": {"unit": "s", "value": 1.5}, "interval": {"unit": "s", "value": 4}}]
-    },
-    {
-      "id": "component_roll_bump", "kind": "connector", "pool": "common", "tags": ["collision"],
-      "targets": {"actives": ["active_bail_out", "active_apology_slide", "active_charged_ram"], "dash": true},
-      "effects": [{"op": "contact_knockback", "distance": {"unit": "cm", "value": 120}, "duration": {"unit": "s", "value": 0.12}}]
-    },
-    {
-      "id": "component_pin_punch", "kind": "connector", "pool": "common", "tags": ["control"],
-      "targets": {"actives": ["active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_stare_down"], "components": ["component_ball_kick", "component_after_pin"]},
-      "effects": [{"op": "control_mark", "duration": {"unit": "s", "value": 3}, "base": {"unit": "points", "value": 70}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "ap_ratio": {"unit": "ratio", "value": 0.4}, "damage_type": "Physical"}]
-    },
-    {
-      "id": "component_after_pin", "kind": "connector", "pool": "common", "tags": ["area", "control"],
-      "targets": {"actives": ["active_quick_meeting", "active_calculus_drop", "active_flyer_trap", "active_dirty_puddle"]},
-      "effects": [{"op": "aftershock", "delay": {"unit": "s", "value": 0.45}, "base": {"unit": "points", "value": 35}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.25}, "damage_type": "Magical", "root_duration": {"unit": "s", "value": 0.75}}]
-    },
-    {
-      "id": "component_control_momentum", "kind": "connector", "pool": "common", "tags": ["control", "tempo"],
-      "targets": {"actives": ["active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_stare_down"], "components": ["component_ball_kick", "component_after_pin"]},
-      "effects": [{"op": "control_momentum", "momentum": {"unit": "momentum", "value": 4}, "momentum_cap": {"unit": "momentum", "value": 12}}]
-    },
-    {
-      "id": "component_breath_strike", "kind": "connector", "pool": "common", "tags": ["defense"],
-      "targets": {"components": ["component_punch_heal", "component_hurt_heal"]},
-      "effects": [{"op": "heal_counter", "ratio": {"unit": "ratio", "value": 0.5}, "interval": {"unit": "s", "value": 1}, "radius": {"unit": "cm", "value": 600}, "base": {"unit": "points", "value": 60}, "duration": {"unit": "s", "value": 4}, "damage_type": "Magical"}]
-    },
-    {
-      "id": "component_blast_chase", "kind": "connector", "pool": "common", "tags": ["element", "basic"],
-      "targets": {"actives": ["active_seethe", "active_quick_meeting", "active_hose_down", "active_zap", "active_charged_ram", "active_dirty_puddle"], "components": ["component_fist_fire", "component_fist_water", "component_fist_shock", "component_dirty_trick", "component_dirty_fist"]},
-      "effects": [{"op": "reaction_empower", "base": {"unit": "points", "value": 25}, "ad_ratio": {"unit": "ratio", "value": 0.2}, "ap_ratio": {"unit": "ratio", "value": 0.2}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]
-    },
-    {
-      "id": "component_shell_burst", "kind": "connector", "pool": "common", "tags": ["defense", "area"],
-      "targets": {"actives": ["active_not_mad", "active_charged_ram"], "components": ["component_hard_skin", "component_fire_skin"]},
-      "effects": [{"op": "shield_burst", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 250}}]
-    },
-    {
-      "id": "component_hurt_heal", "kind": "connector", "pool": "common", "tags": ["spell", "defense"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"], "components": ["component_spiky_hide", "component_dash_bump", "component_ball_kick", "component_pin_punch", "component_after_pin", "component_breath_strike", "component_shell_burst"]},
-      "effects": [{"op": "skill_lifesteal", "ratio": {"unit": "ratio", "value": 0.08}, "base": {"unit": "hp", "value": 30}}]
-    },
-    {
-      "id": "component_dirty_fist", "kind": "connector", "pool": "scarce", "tags": ["basic", "spell"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_bail_out", "active_apology_slide", "active_triple_combo", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"], "components": ["component_spiky_hide", "component_dash_bump", "component_ball_kick", "component_pin_punch", "component_after_pin", "component_breath_strike", "component_shell_burst"], "bases": ["component_fist_fire", "component_tab_ledger", "component_spiky_hide", "component_punch_heal", "component_dash_bump", "component_third_punch", "component_kick_down", "component_hard_skin", "component_fist_water", "component_fist_shock", "component_dash_punch", "component_held_shot", "component_dirty_trick"]},
-      "effects": [{"op": "extra_base"}]
-    },
-    {
-      "id": "component_boomerang", "kind": "mod", "pool": "common", "tags": ["projectile"],
-      "targets": {"actives": ["active_snark_bolt", "active_sock_shot"]},
-      "effects": [{"op": "projectile_return", "damage_ratio": {"unit": "ratio", "value": 0.5}}]
-    },
-    {
-      "id": "component_skewer", "kind": "mod", "pool": "common", "tags": ["projectile"],
-      "targets": {"actives": ["active_snark_bolt", "active_zap", "active_sock_shot"]},
-      "effects": [{"op": "projectile_pierce", "count": 1, "damage_ratio": {"unit": "ratio", "value": 0.7}}, {"op": "chain_extra", "count": 1}]
-    },
-    {
-      "id": "component_encore", "kind": "mod", "pool": "common", "tags": ["area", "spell"],
-      "targets": {"actives": ["active_seethe", "active_calculus_drop", "active_flyer_trap"]},
-      "effects": [{"op": "echo_impact", "delay": {"unit": "s", "value": 0.8}, "damage_ratio": {"unit": "ratio", "value": 0.5}, "cooldown_ratio": {"unit": "ratio", "value": 1.15}}]
-    },
-    {
-      "id": "component_next_up", "kind": "connector", "pool": "common", "tags": ["tempo", "spell"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"], "dash": true},
-      "effects": [{"op": "hit_haste_other", "cooldown": {"unit": "s", "value": 1.5}}]
-    },
-    {
-      "id": "component_setup_line", "kind": "connector", "pool": "common", "tags": ["spell"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"]},
-      "effects": [{"op": "setup_mark", "duration": {"unit": "s", "value": 4}, "ratio": {"unit": "ratio", "value": 0.25}}]
-    },
-    {
-      "id": "component_blast_reload", "kind": "connector", "pool": "common", "tags": ["element", "tempo"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"]},
+      "id": "card_blast_reload", "form": "skill", "type": "element", "vocab": ["reaction"],
       "effects": [{"op": "reaction_haste", "cooldown": {"unit": "s", "value": 3}}]
     },
     {
-      "id": "component_group_refund", "kind": "connector", "pool": "common", "tags": ["area", "tempo"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide", "active_calculus_drop", "active_flyer_trap", "active_open_mic", "active_hose_down", "active_zap", "active_charged_ram", "active_brace", "active_dirty_puddle", "active_sock_shot"]},
-      "effects": [{"op": "multi_hit_momentum", "momentum": {"unit": "momentum", "value": 8}, "momentum_cap": {"unit": "momentum", "value": 24}}]
+      "id": "card_bump_reset", "form": "dash", "type": "trigger", "vocab": ["dash_contact"],
+      "effects": [{"op": "dash_contact_reset"}]
     },
     {
-      "id": "component_clear_head", "kind": "base", "pool": "common", "tags": ["spell", "tempo"],
-      "effects": [{"op": "stat_bonus", "stats": {"CooldownHasteFlat": {"unit": "points", "value": 15}}}, {"op": "basic_damage_scale", "ratio": {"unit": "ratio", "value": 0.85}}]
+      "id": "card_bump_again", "form": "dash", "type": "trigger", "vocab": ["dash_contact", "skill_cast"],
+      "effects": [{"op": "hit_haste_other", "cooldown": {"unit": "s", "value": 1.5}}]
     },
     {
-      "id": "component_run_away", "kind": "base", "pool": "common", "tags": ["defense"],
-      "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.4}, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.2}, "CooldownHasteFlat": {"unit": "points", "value": 20}}}]
+      "id": "card_dash_punch", "form": "dash", "type": "trigger", "vocab": ["dash", "basic_hit"],
+      "effects": [{"op": "empower_basic", "trigger": "DashComplete", "base": {"unit": "points", "value": 0}, "ad_ratio": {"unit": "ratio", "value": 1}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}, "charges": 1}]
     },
     {
-      "id": "component_guard_up", "kind": "base", "pool": "common", "tags": ["defense"],
-      "effects": [{"op": "primary_guard", "base": {"unit": "points", "value": 12}, "ratio": {"unit": "ratio", "value": 0.25}}]
+      "id": "card_double_dash", "form": "dash", "type": "modify", "vocab": ["dash"],
+      "effects": [{"op": "dash_split", "distance": {"unit": "cm", "value": 200}, "duration": {"unit": "s", "value": 1}}]
     },
     {
-      "id": "component_zone_tether", "kind": "mod", "pool": "common", "tags": ["area"], "form": "zone_shape",
-      "targets": {"actives": ["active_quick_meeting", "active_dirty_puddle"]},
-      "effects": [{"op": "zone_tether", "radius_ratio": {"unit": "ratio", "value": 0.8}}]
+      "id": "card_pass_through", "form": "dash", "type": "modify", "vocab": ["dash_contact", "basic_hit"],
+      "effects": [{"op": "dash_phase"}]
     },
     {
-      "id": "component_shove_off", "kind": "mod", "pool": "common", "tags": ["defense", "collision"],
-      "targets": {"actives": ["active_charged_ram", "active_not_mad", "active_brace"]},
-      "effects": [{"op": "defense_shove", "distance": {"unit": "cm", "value": 220}, "duration": {"unit": "s", "value": 0.2}, "radius": {"unit": "cm", "value": 250}, "shield_ratio": {"unit": "ratio", "value": 0.85}}]
+      "id": "card_shock_dash", "form": "dash", "type": "element", "vocab": ["element", "dash_contact"],
+      "effects": [{"op": "dash_contact_element", "element": "electric"}]
     },
     {
-      "id": "component_finisher", "kind": "mod", "pool": "common", "tags": ["basic", "collision"],
-      "targets": {"actives": ["active_triple_combo", "active_open_mic"]},
-      "effects": [{"op": "final_knockback", "distance": {"unit": "cm", "value": 250}, "duration": {"unit": "s", "value": 0.2}, "cost_ratio": {"unit": "ratio", "value": 0.5}}]
+      "id": "card_spiky_hide", "form": "body", "type": "trigger", "vocab": ["damaged"],
+      "effects": [{"op": "thorns", "ratio": {"unit": "ratio", "value": 0.25}, "damage_type": "Magical"}]
     },
     {
-      "id": "component_long_handle", "kind": "mod", "pool": "common", "tags": ["basic"],
-      "targets": {"actives": ["active_bail_out", "active_triple_combo"]},
-      "effects": [{"op": "empower_reach", "range": {"unit": "cm", "value": 250}, "damage_ratio": {"unit": "ratio", "value": 0.7}}]
+      "id": "card_takedown", "form": "body", "type": "trigger", "vocab": ["kill", "momentum"],
+      "effects": [{"op": "takedown_reset"}]
     },
     {
-      "id": "component_come_here", "kind": "mod", "pool": "common", "tags": ["collision", "control"],
-      "targets": {"actives": ["active_elbow", "active_hose_down", "active_stare_down"]},
-      "effects": [{"op": "pull", "distance": {"unit": "cm", "value": 150}, "duration": {"unit": "s", "value": 0.15}, "min_distance": {"unit": "cm", "value": 120}}]
+      "id": "card_hang_on", "form": "body", "type": "trigger", "vocab": ["low_hp"],
+      "effects": [{"op": "last_stand", "threshold": {"unit": "ratio", "value": 0.15}, "duration": {"unit": "s", "value": 2}}]
     },
     {
-      "id": "component_move_meeting", "kind": "connector", "pool": "common", "tags": ["area"],
-      "targets": {"actives": ["active_bail_out", "active_apology_slide", "active_charged_ram"], "dash": true},
-      "draw_requires_actives": ["active_quick_meeting", "active_dirty_puddle", "active_flyer_trap"],
-      "effects": [{"op": "zone_relocate"}]
+      "id": "card_reaction_refund", "form": "body", "type": "trigger", "vocab": ["reaction", "momentum"],
+      "effects": [{"op": "reaction_momentum", "momentum": {"unit": "momentum", "value": 15}}]
     },
     {
-      "id": "component_bottled_up", "kind": "connector", "pool": "common", "tags": ["defense", "spell"],
-      "targets": {"actives": ["active_charged_ram", "active_not_mad", "active_brace"]},
-      "effects": [{"op": "stored_force", "ratio": {"unit": "ratio", "value": 0.5}, "duration": {"unit": "s", "value": 5}}]
+      "id": "card_wave_after", "form": "body", "type": "trigger", "vocab": ["reaction", "element"],
+      "effects": [{"op": "reaction_element"}]
     },
     {
-      "id": "component_spend_fist", "kind": "connector", "pool": "common", "tags": ["basic", "spell"],
-      "targets": {"actives": ["active_bail_out", "active_triple_combo"], "components": ["component_dash_punch"]},
-      "effects": [{"op": "empower_spend"}]
+      "id": "card_hard_skin", "form": "body", "type": "trigger", "vocab": ["damaged", "shield"],
+      "effects": [{"op": "triggered_shield", "trigger": "Damaged", "base": {"unit": "hp", "value": 45}, "max_hp_ratio": {"unit": "ratio", "value": 0.04}, "duration": {"unit": "s", "value": 3}, "interval": {"unit": "s", "value": 8}}]
     },
     {
-      "id": "component_wide_open", "kind": "connector", "pool": "common", "tags": ["control", "area"],
-      "targets": {"actives": ["active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_stare_down"]},
-      "effects": [{"op": "control_widen", "ratio": {"unit": "ratio", "value": 0.35}, "duration": {"unit": "s", "value": 3}}]
+      "id": "card_ball_kick", "form": "body", "type": "trigger", "vocab": ["knockback", "wall_impact"],
+      "effects": [{"op": "knockback_impact", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0.5}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "stun_duration": {"unit": "s", "value": 0.8}}]
     },
     {
-      "id": "component_set_it_off", "kind": "connector", "pool": "common", "tags": ["area", "spell"],
-      "targets": {"actives": ["active_seethe", "active_zap", "active_calculus_drop"]},
-      "draw_requires_actives": ["active_quick_meeting", "active_dirty_puddle"],
-      "effects": [{"op": "zone_detonate", "ratio": {"unit": "ratio", "value": 0.8}}]
+      "id": "card_skill_crit", "form": "body", "type": "modify", "vocab": ["crit", "skill_hit"],
+      "effects": [{"op": "skill_crit"}]
     },
     {
-      "id": "component_meet_here", "kind": "connector", "pool": "common", "tags": ["area", "spell"],
-      "targets": {"actives": ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug", "active_snark_bolt", "active_open_mic", "active_hose_down", "active_zap", "active_sock_shot"]},
-      "draw_requires_actives": ["active_quick_meeting", "active_dirty_puddle", "active_flyer_trap"],
-      "effects": [{"op": "zone_relocate"}]
+      "id": "card_skill_drain", "form": "body", "type": "modify", "vocab": ["heal", "skill_hit"],
+      "effects": [{"op": "lifesteal_skills"}]
+    },
+    {
+      "id": "card_thick_hide", "form": "body", "type": "convert", "vocab": ["armor", "max_hp"],
+      "effects": [{"op": "armor_to_hp", "max_hp": {"unit": "hp", "value": 6}}]
+    },
+    {
+      "id": "card_overfed", "form": "body", "type": "convert", "vocab": ["heal", "shield"],
+      "effects": [{"op": "overheal_shield", "cap_ratio": {"unit": "ratio", "value": 0.3}, "duration": {"unit": "s", "value": 5}}]
+    },
+    {
+      "id": "card_berserk", "form": "body", "type": "convert", "vocab": ["low_hp", "attack_speed"],
+      "effects": [{"op": "missing_hp_attack_speed", "ratio": {"unit": "ratio", "value": 0.01}}]
+    },
+    {
+      "id": "card_quick_brain", "form": "body", "type": "convert", "vocab": ["momentum", "skill_hit"],
+      "effects": [{"op": "haste_momentum", "haste": {"unit": "points", "value": 10}, "momentum": {"unit": "momentum", "value": 1}}]
+    },
+    {
+      "id": "card_punch_heal", "form": "body", "type": "convert", "vocab": ["heal", "basic_hit"],
+      "effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.15}}]
+    },
+    {
+      "id": "card_grow_fat", "form": "body", "type": "grow", "vocab": ["heal", "max_hp"],
+      "effects": [{"op": "heal_growth", "heal": {"unit": "hp", "value": 200}, "max_hp": {"unit": "hp", "value": 10}}]
+    },
+    {
+      "id": "card_kill_streak", "form": "body", "type": "grow", "vocab": ["kill"],
+      "effects": [{"op": "kill_growth", "stats": {"ADFlat": {"unit": "points", "value": 4}, "APFlat": {"unit": "points", "value": 6}}, "assist_ratio": {"unit": "ratio", "value": 0.5}}]
+    },
+    {
+      "id": "card_tough_skin", "form": "body", "type": "grow", "vocab": ["controlled", "armor"],
+      "effects": [{"op": "control_growth", "stats": {"ArmorFlat": {"unit": "points", "value": 3}, "MagicResistFlat": {"unit": "points", "value": 3}}}]
+    },
+    {
+      "id": "card_charge_up", "form": "body", "type": "grow", "vocab": ["idle"],
+      "effects": [{"op": "idle_charge", "interval": {"unit": "s", "value": 1}, "ratio": {"unit": "ratio", "value": 0.2}}]
+    },
+    {
+      "id": "card_live_wire", "form": "body", "type": "element", "vocab": ["element", "damaged"], "choose_element": ["fire", "water", "electric"],
+      "effects": [{"op": "element_aura", "radius": {"unit": "cm", "value": 200}}]
+    },
+    {
+      "id": "card_long_soak", "form": "body", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "element_duration", "multiplier": {"unit": "ratio", "value": 2}}]
+    },
+    {
+      "id": "card_louder_blast", "form": "body", "type": "element", "vocab": ["reaction"],
+      "effects": [{"op": "reaction_factor", "ratio": {"unit": "ratio", "value": 0.6}}]
+    },
+    {
+      "id": "card_endless_burn", "form": "body", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "burn_cap", "count": 10}]
     }
   ],
   "camps": {
@@ -1000,14 +931,7 @@
   "progression": {
     "max_level": 16, "active_slots": 3, "xp_start": 0,
     "xp_thresholds": [0, 48, 108, 180, 264, 360, 468, 588, 720, 864, 1020, 1188, 1368, 1560, 1764, 1980],
-    "active_offer_levels": [3, 6],
-    "bonus_component_levels": [2, 4, 6, 8, 10, 12, 14, 16],
-    "workshop_capacity": {"base": 5, "levels_per_slot": 2, "body_column": 4, "dash_column": 2},
-    "component_category_weights": [
-      {"levels": [2, 6], "base": 45, "mod": 30, "connector": 25},
-      {"levels": [7, 11], "base": 35, "mod": 35, "connector": 30},
-      {"levels": [12, 16], "base": 25, "mod": 35, "connector": 40}
-    ]
+    "active_offer_levels": [3, 6]
   },
   "world": {
     "map_id": "demo_world",
@@ -1018,6 +942,61 @@
     "pk_throw_id": "pk_throw"
   },
   "display": [
+    {"id": "card_third_breath", "namespace": "DemoContent", "name_key": "card_third_breath.name", "name_text": "第三拳回口气", "description_key": "card_third_breath.description", "description_text": "第三拳命中时回 [combo_momentum.limit] 劲。", "icon_id": "icon_card_third_breath"},
+    {"id": "card_punch_think", "namespace": "DemoContent", "name_key": "card_punch_think.name", "name_text": "边打边想", "description_key": "card_punch_think.description", "description_text": "普攻命中时，随机一个还在冷却的技能冷却减少 [basic_cooldown_cut.refund] 秒。", "icon_id": "icon_card_punch_think"},
+    {"id": "card_solid_punch", "namespace": "DemoContent", "name_key": "card_solid_punch.name", "name_text": "拳拳到肉", "description_key": "card_solid_punch.description", "description_text": "第三拳命中同时算一次技能命中：触发技能命中类的牌和劲，不触发技能本身的效果。", "icon_id": "icon_card_solid_punch"},
+    {"id": "card_third_shove", "namespace": "DemoContent", "name_key": "card_third_shove.name", "name_text": "第三拳滚蛋", "description_key": "card_third_shove.description", "description_text": "第三拳把主目标推开 [combo_knockback.distance] 厘米，撞到墙或人会停下。", "icon_id": "icon_card_third_shove"},
+    {"id": "card_both_hands", "namespace": "DemoContent", "name_key": "card_both_hands.name", "name_text": "左右开弓", "description_key": "card_both_hands.description", "description_text": "第三拳变成两下，每下 [combo_double.multiplier]% 伤害，两下都算普攻命中；每多一张多打一下。", "icon_id": "icon_card_both_hands"},
+    {"id": "card_quick_hands", "namespace": "DemoContent", "name_key": "card_quick_hands.name", "name_text": "手快有手慢无", "description_key": "card_quick_hands.description", "description_text": "攻速超过上限的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。", "icon_id": "icon_card_quick_hands"},
+    {"id": "card_scholar_punch", "namespace": "DemoContent", "name_key": "card_scholar_punch.name", "name_text": "读书人打架", "description_key": "card_scholar_punch.description", "description_text": "普攻额外造成 [basic_ap_rider.amount] 魔法伤害，跟着这一拳一起结算。", "icon_id": "icon_card_scholar_punch"},
+    {"id": "card_heated_up", "namespace": "DemoContent", "name_key": "card_heated_up.name", "name_text": "越打越上头", "description_key": "card_heated_up.description", "description_text": "连续打同一个人，每下攻速 +[focus_attack_speed.ratio]%，没有上限；换人或 [focus_attack_speed.duration] 秒没打就清零。", "icon_id": "icon_card_heated_up"},
+    {"id": "card_breach_fist", "namespace": "DemoContent", "name_key": "card_breach_fist.name", "name_text": "越揍越不经打", "description_key": "card_breach_fist.description", "description_text": "普攻命中施加 [breach.basic_count] 层破防。", "icon_id": "icon_card_breach_fist"},
+    {"id": "card_fire_fist", "namespace": "DemoContent", "name_key": "card_fire_fist.name", "name_text": "拳头冒火", "description_key": "card_fire_fist.description", "description_text": "普攻命中施加 [burn.basic_count] 层灼烧。", "icon_id": "icon_card_fire_fist"},
+    {"id": "card_water_fist", "namespace": "DemoContent", "name_key": "card_water_fist.name", "name_text": "拳头甩脏水", "description_key": "card_water_fist.description", "description_text": "普攻命中让目标潮湿。", "icon_id": "icon_card_water_fist"},
+    {"id": "card_shock_fist", "namespace": "DemoContent", "name_key": "card_shock_fist.name", "name_text": "拳头漏电", "description_key": "card_shock_fist.description", "description_text": "普攻命中让目标感电。", "icon_id": "icon_card_shock_fist"},
+    {"id": "card_next_up", "namespace": "DemoContent", "name_key": "card_next_up.name", "name_text": "打完换下一招", "description_key": "card_next_up.description", "description_text": "这个技能命中时，你其他技能的冷却各减少 [hit_haste_other.refund] 秒。", "icon_id": "icon_card_next_up"},
+    {"id": "card_pay_back", "namespace": "DemoContent", "name_key": "card_pay_back.name", "name_text": "一招回本", "description_key": "card_pay_back.description", "description_text": "这个技能每次命中回 [skill_hit_momentum.limit] 劲。", "icon_id": "icon_card_pay_back"},
+    {"id": "card_setup_line", "namespace": "DemoContent", "name_key": "card_setup_line.name", "name_text": "先垫一句", "description_key": "card_setup_line.description", "description_text": "这个技能命中给目标挂 [setup_mark.duration] 秒记号；你别的技能打中有记号的人伤害 +[setup_mark.ratio]% 并消耗记号。", "icon_id": "icon_card_setup_line"},
+    {"id": "card_encore", "namespace": "DemoContent", "name_key": "card_encore.name", "name_text": "再来一遍", "description_key": "card_encore.description", "description_text": "这个技能放完 [auto_recast.delay] 秒后朝同一目标或方向自动再放一次，[auto_recast.multiplier]% 效果，不耗劲；每多一张多放一次。", "icon_id": "icon_card_encore"},
+    {"id": "card_again_now", "namespace": "DemoContent", "name_key": "card_again_now.name", "name_text": "再来一下别喘", "description_key": "card_again_now.description", "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。", "icon_id": "icon_card_again_now"},
+    {"id": "card_big_one", "namespace": "DemoContent", "name_key": "card_big_one.name", "name_text": "攒够一顿狠的", "description_key": "card_big_one.description", "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，伤害 +[skill_damage_factor.ratio]%。", "icon_id": "icon_card_big_one"},
+    {"id": "card_blood_price", "namespace": "DemoContent", "name_key": "card_blood_price.name", "name_text": "拿命换", "description_key": "card_blood_price.description", "description_text": "这个技能改用生命支付，每点劲换成 [hp_cost.ratio]% 生命上限，不再耗劲；伤害 +[skill_damage_factor.ratio]%；生命不够时放不出。", "icon_id": "icon_card_blood_price"},
+    {"id": "card_lend_fist", "namespace": "DemoContent", "name_key": "card_lend_fist.name", "name_text": "拳头借给技能", "description_key": "card_lend_fist.description", "description_text": "这个技能每次直接命中额外造成 [skill_ad_rider.amount] 物理伤害。", "icon_id": "icon_card_lend_fist"},
+    {"id": "card_hurt_heal", "namespace": "DemoContent", "name_key": "card_hurt_heal.name", "name_text": "打疼了我回血", "description_key": "card_hurt_heal.description", "description_text": "这个技能实际造成的生命伤害的 [skill_lifesteal.ratio]% 治疗自己。", "icon_id": "icon_card_hurt_heal"},
+    {"id": "card_held_shot", "namespace": "DemoContent", "name_key": "card_held_shot.name", "name_text": "憋着一发狠的", "description_key": "card_held_shot.description", "description_text": "这个技能就绪后每闲置 [idle_ready_amp.interval] 秒，下一次伤害 +[idle_ready_amp.ratio]%，没有上限，放出后清零。", "icon_id": "icon_card_held_shot"},
+    {"id": "card_practice", "namespace": "DemoContent", "name_key": "card_practice.name", "name_text": "越用越顺手", "description_key": "card_practice.description", "description_text": "这个技能每命中参赛者一次，本局伤害 +[skill_growth.ratio]%，没有上限。", "icon_id": "icon_card_practice"},
+    {"id": "card_add_fire", "namespace": "DemoContent", "name_key": "card_add_fire.name", "name_text": "掺点火", "description_key": "card_add_fire.description", "description_text": "这个技能命中施加 [skill_element.count] 层灼烧。", "icon_id": "icon_card_add_fire"},
+    {"id": "card_add_water", "namespace": "DemoContent", "name_key": "card_add_water.name", "name_text": "掺点水", "description_key": "card_add_water.description", "description_text": "这个技能命中让目标潮湿。", "icon_id": "icon_card_add_water"},
+    {"id": "card_add_shock", "namespace": "DemoContent", "name_key": "card_add_shock.name", "name_text": "掺点电", "description_key": "card_add_shock.description", "description_text": "这个技能命中让目标感电。", "icon_id": "icon_card_add_shock"},
+    {"id": "card_blast_reload", "namespace": "DemoContent", "name_key": "card_blast_reload.name", "name_text": "炸了接着放", "description_key": "card_blast_reload.description", "description_text": "这个技能触发反应时，它的冷却减少 [reaction_haste.refund] 秒。", "icon_id": "icon_card_blast_reload"},
+    {"id": "card_bump_reset", "namespace": "DemoContent", "name_key": "card_bump_reset.name", "name_text": "撞着就刷新", "description_key": "card_bump_reset.description", "description_text": "冲刺撞到敌人时，冲刺冷却立刻刷新；每次冲刺一次。", "icon_id": "icon_card_bump_reset"},
+    {"id": "card_bump_again", "namespace": "DemoContent", "name_key": "card_bump_again.name", "name_text": "撞着了再撞", "description_key": "card_bump_again.description", "description_text": "冲刺撞到敌人时，所有技能冷却减少 [hit_haste_other.refund] 秒。", "icon_id": "icon_card_bump_again"},
+    {"id": "card_dash_punch", "namespace": "DemoContent", "name_key": "card_dash_punch.name", "name_text": "蹿过去抡一拳", "description_key": "card_dash_punch.description", "description_text": "冲刺结束后 [empower_basic.duration] 秒内，下一次普攻多造成 [empower_basic.amount] 物理伤害。", "icon_id": "icon_card_dash_punch"},
+    {"id": "card_double_dash", "namespace": "DemoContent", "name_key": "card_double_dash.name", "name_text": "两段冲刺", "description_key": "card_double_dash.description", "description_text": "冲刺分成两段，每段 [dash_split.distance] 厘米；第一段后 [dash_split.duration] 秒内再按冲刺放第二段，冷却不变。", "icon_id": "icon_card_double_dash"},
+    {"id": "card_pass_through", "namespace": "DemoContent", "name_key": "card_pass_through.name", "name_text": "穿人而过", "description_key": "card_pass_through.description", "description_text": "冲刺穿过敌人身体，对每个穿过的人打一次普攻（不推进连击）。", "icon_id": "icon_card_pass_through"},
+    {"id": "card_shock_dash", "namespace": "DemoContent", "name_key": "card_shock_dash.name", "name_text": "冲刺挂麻", "description_key": "card_shock_dash.description", "description_text": "冲刺撞到的敌人感电。", "icon_id": "icon_card_shock_dash"},
+    {"id": "card_spiky_hide", "namespace": "DemoContent", "name_key": "card_spiky_hide.name", "name_text": "打我也硌手", "description_key": "card_spiky_hide.description", "description_text": "受到敌人的直接伤害（含被护盾挡下的）时，把其中 [thorns.ratio]% 作为魔法伤害反弹给出手的人；反弹可以吸血，不会暴击。", "icon_id": "icon_card_spiky_hide"},
+    {"id": "card_takedown", "namespace": "DemoContent", "name_key": "card_takedown.name", "name_text": "人头刷新", "description_key": "card_takedown.description", "description_text": "击杀或助攻参赛者时，全部技能冷却刷新，劲回满。", "icon_id": "icon_card_takedown"},
+    {"id": "card_hang_on", "namespace": "DemoContent", "name_key": "card_hang_on.name", "name_text": "死扛", "description_key": "card_hang_on.description", "description_text": "生命低于 [last_stand.ratio]% 时，接下来 [last_stand.duration] 秒每次受到的伤害降为一点；每条命一次。", "icon_id": "icon_card_hang_on"},
+    {"id": "card_reaction_refund", "namespace": "DemoContent", "name_key": "card_reaction_refund.name", "name_text": "反应回本", "description_key": "card_reaction_refund.description", "description_text": "你触发反应时回 [reaction_momentum.limit] 劲。", "icon_id": "icon_card_reaction_refund"},
+    {"id": "card_wave_after", "namespace": "DemoContent", "name_key": "card_wave_after.name", "name_text": "一波接一波", "description_key": "card_wave_after.description", "description_text": "你触发反应后，给目标挂上一个和刚被消耗的不同的随机元素。", "icon_id": "icon_card_wave_after"},
+    {"id": "card_hard_skin", "namespace": "DemoContent", "name_key": "card_hard_skin.name", "name_text": "挨揍起硬皮", "description_key": "card_hard_skin.description", "description_text": "受到敌人伤害后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；之后 [triggered_shield.interval] 秒内不再起盾。", "icon_id": "icon_card_hard_skin"},
+    {"id": "card_ball_kick", "namespace": "DemoContent", "name_key": "card_ball_kick.name", "name_text": "拿你当球踢", "description_key": "card_ball_kick.description", "description_text": "你造成的击退撞上墙时眩晕 [knockback_impact.secondary_duration] 秒；撞上另一个敌人时两人各受 [knockback_impact.amount] 物理伤害。", "icon_id": "icon_card_ball_kick"},
+    {"id": "card_skill_crit", "namespace": "DemoContent", "name_key": "card_skill_crit.name", "name_text": "技能也能暴击", "description_key": "card_skill_crit.description", "description_text": "你的技能伤害也能暴击，用你的暴击率。", "icon_id": "icon_card_skill_crit"},
+    {"id": "card_skill_drain", "namespace": "DemoContent", "name_key": "card_skill_drain.name", "name_text": "吸血对技能生效", "description_key": "card_skill_drain.description", "description_text": "你的吸血也按技能实际造成的生命伤害生效。", "icon_id": "icon_card_skill_drain"},
+    {"id": "card_thick_hide", "namespace": "DemoContent", "name_key": "card_thick_hide.name", "name_text": "皮糙肉厚", "description_key": "card_thick_hide.description", "description_text": "每点护甲给你 [armor_to_hp.amount] 生命上限。", "icon_id": "icon_card_thick_hide"},
+    {"id": "card_overfed", "namespace": "DemoContent", "name_key": "card_overfed.name", "name_text": "吃撑了", "description_key": "card_overfed.description", "description_text": "溢出的治疗变成护盾，最多 [overheal_shield.multiplier]% 生命上限，持续 [overheal_shield.duration] 秒。", "icon_id": "icon_card_overfed"},
+    {"id": "card_berserk", "namespace": "DemoContent", "name_key": "card_berserk.name", "name_text": "残血狂暴", "description_key": "card_berserk.description", "description_text": "每少百分之一的生命，攻速 +[missing_hp_attack_speed.ratio]%。", "icon_id": "icon_card_berserk"},
+    {"id": "card_quick_brain", "namespace": "DemoContent", "name_key": "card_quick_brain.name", "name_text": "脑子转得快", "description_key": "card_quick_brain.description", "description_text": "技能急速每 [haste_momentum.amount] 点，你每次技能命中多回 [haste_momentum.limit] 劲。", "icon_id": "icon_card_quick_brain"},
+    {"id": "card_punch_heal", "namespace": "DemoContent", "name_key": "card_punch_heal.name", "name_text": "揍人续命", "description_key": "card_punch_heal.description", "description_text": "普攻吸血 [lifesteal.ratio]%。", "icon_id": "icon_card_punch_heal"},
+    {"id": "card_grow_fat", "namespace": "DemoContent", "name_key": "card_grow_fat.name", "name_text": "越吃越壮", "description_key": "card_grow_fat.description", "description_text": "你每回复 [heal_growth.amount] 生命，本局生命上限 +[heal_growth.limit]，没有上限。", "icon_id": "icon_card_grow_fat"},
+    {"id": "card_kill_streak", "namespace": "DemoContent", "name_key": "card_kill_streak.name", "name_text": "越杀越猛", "description_key": "card_kill_streak.description", "description_text": "每次击杀参赛者，本局攻击力 +[kill_growth.ADFlat]、法强 +[kill_growth.APFlat]；助攻给 [kill_growth.ratio]%。", "icon_id": "icon_card_kill_streak"},
+    {"id": "card_tough_skin", "namespace": "DemoContent", "name_key": "card_tough_skin.name", "name_text": "越挨越硬", "description_key": "card_tough_skin.description", "description_text": "每被控制一次，本局护甲 +[control_growth.ArmorFlat]、魔抗 +[control_growth.MagicResistFlat]，没有上限。", "icon_id": "icon_card_tough_skin"},
+    {"id": "card_charge_up", "namespace": "DemoContent", "name_key": "card_charge_up.name", "name_text": "攒个大的", "description_key": "card_charge_up.description", "description_text": "不造成伤害的每 [idle_charge.interval] 秒，下一次伤害 +[idle_charge.ratio]%，没有上限；造成伤害后清零（持续伤害不清零）。", "icon_id": "icon_card_charge_up"},
+    {"id": "card_live_wire", "namespace": "DemoContent", "name_key": "card_live_wire.name", "name_text": "浑身带电", "description_key": "card_live_wire.description", "description_text": "装上时选一种元素；在你身边 [element_aura.radius] 厘米内对你造成直接伤害的人被挂上它。", "icon_id": "icon_card_live_wire"},
+    {"id": "card_long_soak", "namespace": "DemoContent", "name_key": "card_long_soak.name", "name_text": "久泡", "description_key": "card_long_soak.description", "description_text": "你施加的元素持续时间变为 [element_duration.multiplier]%。", "icon_id": "icon_card_long_soak"},
+    {"id": "card_louder_blast", "namespace": "DemoContent", "name_key": "card_louder_blast.name", "name_text": "炸得更响", "description_key": "card_louder_blast.description", "description_text": "你触发的反应伤害 +[reaction_factor.ratio]%。", "icon_id": "icon_card_louder_blast"},
+    {"id": "card_endless_burn", "namespace": "DemoContent", "name_key": "card_endless_burn.name", "name_text": "烧不完", "description_key": "card_endless_burn.description", "description_text": "你施加的灼烧最多叠到 [burn_cap.count] 层。", "icon_id": "icon_card_endless_burn"},
     {"id": "final_bowling", "namespace": "DemoContent", "name_key": "final_bowling.name", "name_text": "人肉保龄球", "description_key": "final_bowling.description", "description_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。原来源位移距离降低；二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "effect_key": "final_bowling.effect", "effect_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。", "cost_key": "final_bowling.cost", "cost_text": "原来源位移距离降低。", "notes_key": "final_bowling.notes", "notes_text": "二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "icon_id": "icon_final_bowling"},
     {"id": "final_forced_exit", "namespace": "DemoContent", "name_key": "final_forced_exit.name", "name_text": "强制退场", "description_key": "final_forced_exit.description", "description_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。原硬控时间降低，仍吃递减；提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "effect_key": "final_forced_exit.effect", "effect_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。", "cost_key": "final_forced_exit.cost", "cost_text": "原硬控时间降低，仍吃递减。", "notes_key": "final_forced_exit.notes", "notes_text": "提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "icon_id": "icon_final_forced_exit"},
     {"id": "final_traffic", "namespace": "DemoContent", "name_key": "final_traffic.name", "name_text": "交通管制", "description_key": "final_traffic.description", "description_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。该冲刺基础冷却增加；新带替换旧带，不伤害、不挡路。", "effect_key": "final_traffic.effect", "effect_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。", "cost_key": "final_traffic.cost", "cost_text": "该冲刺基础冷却增加。", "notes_key": "final_traffic.notes", "notes_text": "新带替换旧带，不伤害、不挡路。", "icon_id": "icon_final_traffic"},
@@ -1054,69 +1033,6 @@
     {"id": "stat_strength", "namespace": "DemoContent", "name_key": "stat_strength.name", "name_text": "力道", "description_key": "stat_strength.description", "description_text": "每点攻击力 +[per_point.ADFlat]、暴击率 +[per_point.CritChanceBonusRatio]%。", "icon_id": "icon_stat_strength"},
     {"id": "stat_brains", "namespace": "DemoContent", "name_key": "stat_brains.name", "name_text": "脑力", "description_key": "stat_brains.description", "description_text": "每点法术强度 +[per_point.APFlat]、技能急速 +[per_point.CooldownHasteFlat]、交战时劲回复 +[per_point.MomentumRegenFlat]/秒。", "icon_id": "icon_stat_brains"},
     {"id": "stat_agility", "namespace": "DemoContent", "name_key": "stat_agility.name", "name_text": "身手", "description_key": "stat_agility.description", "description_text": "每点攻速 +[per_point.AttackSpeedBonusRatio]%、移速 +[per_point.MoveSpeedBonusRatio]%。", "icon_id": "icon_stat_agility"},
-    {"id": "component_fist_fire", "namespace": "DemoContent", "name_key": "component_fist_fire.name", "name_text": "拳头冒火", "description_key": "component_fist_fire.description", "description_text": "本体普攻命中时施加 [burn.basic_count] 层灼烧。", "icon_id": "icon_component_fist_fire"},
-    {"id": "component_tab_ledger", "namespace": "DemoContent", "name_key": "component_tab_ledger.name", "name_text": "揍一下记一笔", "description_key": "component_tab_ledger.description", "description_text": "普攻或技能伤害每命中一次记一笔；攒满 [ledger.count] 笔自动兑现，每笔造成 [ledger.amount] 魔法伤害。[ledger.duration] 秒没有新账就清空。", "icon_id": "icon_component_tab_ledger"},
-    {"id": "component_spiky_hide", "namespace": "DemoContent", "name_key": "component_spiky_hide.name", "name_text": "打我也硌手", "description_key": "component_spiky_hide.description", "description_text": "挨了敌人的普攻后，向 [thorns.radius] 厘米内的出手者反击 [thorns.amount] 魔法伤害。", "icon_id": "icon_component_spiky_hide"},
-    {"id": "component_punch_heal", "namespace": "DemoContent", "name_key": "component_punch_heal.name", "name_text": "揍人续命", "description_key": "component_punch_heal.description", "description_text": "本体普攻主击自身伤害份额造成的实际生命伤害的 [lifesteal.ratio]% 治疗自己；并入的强化包与护盾吸收不算。", "icon_id": "icon_component_punch_heal"},
-    {"id": "component_dash_bump", "namespace": "DemoContent", "name_key": "component_dash_bump.name", "name_text": "撞你个趔趄", "description_key": "component_dash_bump.description", "description_text": "冲刺或主动冲刺真的撞到敌人时，追加 [dash_contact_damage.amount] 物理伤害；每次冲刺对每个敌人一次。", "icon_id": "icon_component_dash_bump"},
-    {"id": "component_third_punch", "namespace": "DemoContent", "name_key": "component_third_punch.name", "name_text": "第三拳滚蛋", "description_key": "component_third_punch.description", "description_text": "每第 [nth_basic_bonus.count] 次本体普攻命中，把目标推开 [nth_basic_bonus.distance] 厘米。", "icon_id": "icon_component_third_punch"},
-    {"id": "component_kick_down", "namespace": "DemoContent", "name_key": "component_kick_down.name", "name_text": "逮住就往狠了打", "description_key": "component_kick_down.description", "description_text": "对出手前已被减速、控制或击退的目标，伤害提高 [control_damage_amp.ratio]%。", "icon_id": "icon_component_kick_down"},
-    {"id": "component_breach_fist", "namespace": "DemoContent", "name_key": "component_breach_fist.name", "name_text": "越揍越不经打", "description_key": "component_breach_fist.description", "description_text": "本体普攻命中时施加 [breach.basic_count] 层破防。", "icon_id": "icon_component_breach_fist"},
-    {"id": "component_hard_skin", "namespace": "DemoContent", "name_key": "component_hard_skin.name", "name_text": "挨揍起硬皮", "description_key": "component_hard_skin.description", "description_text": "受到敌人伤害后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；成功起盾后 [triggered_shield.interval] 秒内不再起盾。", "icon_id": "icon_component_hard_skin"},
-    {"id": "component_fist_water", "namespace": "DemoContent", "name_key": "component_fist_water.name", "name_text": "拳头甩脏水", "description_key": "component_fist_water.description", "description_text": "本体普攻命中时让目标潮湿。", "icon_id": "icon_component_fist_water"},
-    {"id": "component_fist_shock", "namespace": "DemoContent", "name_key": "component_fist_shock.name", "name_text": "拳头漏电", "description_key": "component_fist_shock.description", "description_text": "本体普攻命中时让目标感电。", "icon_id": "icon_component_fist_shock"},
-    {"id": "component_dash_punch", "namespace": "DemoContent", "name_key": "component_dash_punch.name", "name_text": "蹿过去抡一拳", "description_key": "component_dash_punch.description", "description_text": "冲刺完成后 [empower_basic.duration] 秒内，下一次本体普攻多造成 [empower_basic.amount] 物理伤害。", "icon_id": "icon_component_dash_punch"},
-    {"id": "component_catch_breath", "namespace": "DemoContent", "name_key": "component_catch_breath.name", "name_text": "喘口气接着干", "description_key": "component_catch_breath.description", "description_text": "主动的原生命中第一次命中敌人时，返还本次释放实际花费劲的 [cast_hit_refund.ratio]%；每次释放一次。", "icon_id": "icon_component_catch_breath"},
-    {"id": "component_long_arm", "namespace": "DemoContent", "name_key": "component_long_arm.name", "name_text": "离远点才好抽", "description_key": "component_long_arm.description", "description_text": "主动伤害命中时，若你与目标相距至少 [distance_amp.distance] 厘米，伤害 +[distance_amp.ratio]%。", "icon_id": "icon_component_long_arm"},
-    {"id": "component_seeing_red", "namespace": "DemoContent", "name_key": "component_seeing_red.name", "name_text": "一招接一招", "description_key": "component_seeing_red.description", "description_text": "放完一个主动后 [alternate_amp.duration] 秒内放出另一个不同的主动，它的伤害 +[alternate_amp.ratio]%。", "icon_id": "icon_component_seeing_red"},
-    {"id": "component_thick_hide", "namespace": "DemoContent", "name_key": "component_thick_hide.name", "name_text": "打完就缩脖", "description_key": "component_thick_hide.description", "description_text": "你的主动命中敌人后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；[triggered_shield.interval] 秒最多一次。", "icon_id": "icon_component_thick_hide"},
-    {"id": "component_held_shot", "namespace": "DemoContent", "name_key": "component_held_shot.name", "name_text": "憋着一发狠的", "description_key": "component_held_shot.description", "description_text": "主动技能就绪后闲置满 [idle_ready_amp.delay] 秒，下次放它的直接伤害提高 [idle_ready_amp.ratio]%。", "icon_id": "icon_component_held_shot"},
-    {"id": "component_dirty_trick", "namespace": "DemoContent", "name_key": "component_dirty_trick.name", "name_text": "招里掺点脏的", "description_key": "component_dirty_trick.description", "description_text": "绑定一个伤害主动和一种元素：它每次直接命中额外施加一层灼烧，或让目标潮湿、感电。", "icon_id": "icon_component_dirty_trick"},
-    {"id": "component_crowd_hit", "namespace": "DemoContent", "name_key": "component_crowd_hit.name", "name_text": "一群人一起挨", "description_key": "component_crowd_hit.description", "description_text": "装在单体伤害上：点选技能改成 [spread_unit.angle]° 扇形，伤害只剩 [spread_unit.multiplier]%；飞弹首击改成落点 [spread_projectile.radius] 厘米范围，伤害 [spread_projectile.multiplier]%；账目兑现波及目标周围 [spread_ledger.radius] 厘米，伤害 [spread_ledger.multiplier]%；自动反击改成打自身周围 [spread_counter.radius] 厘米，伤害 [spread_counter.multiplier]%。控制和减益仍只给原目标。", "icon_id": "icon_component_crowd_hit"},
-    {"id": "component_settle_later", "namespace": "DemoContent", "name_key": "component_settle_later.name", "name_text": "等会儿一起算", "description_key": "component_settle_later.description", "description_text": "装在账目上：攒满后锁定，[delay_ledger.delay] 秒后以 [delay_ledger.multiplier]% 伤害兑现，届时目标须在 [delay_ledger.distance] 厘米内可见；装在自动反击上：冻结落点，[delay_counter.delay] 秒后在 [delay_counter.radius] 厘米范围以 [delay_counter.multiplier]% 伤害爆开。", "icon_id": "icon_component_settle_later"},
-    {"id": "component_long_kick", "namespace": "DemoContent", "name_key": "component_long_kick.name", "name_text": "一脚踹出老远", "description_key": "component_long_kick.description", "description_text": "装在一个击退上：击退距离和用时变为 [knockback_scale.ratio]%，相应伤害变为 [knockback_scale.multiplier]%。", "icon_id": "icon_component_long_kick"},
-    {"id": "component_hold_down", "namespace": "DemoContent", "name_key": "component_hold_down.name", "name_text": "按住多揍一会", "description_key": "component_hold_down.description", "description_text": "装在一个主动的硬控上：控制时间变为 [control_scale.ratio]%，该主动冷却变为 [control_scale.secondary_ratio]%。", "icon_id": "icon_component_hold_down"},
-    {"id": "component_reach_out", "namespace": "DemoContent", "name_key": "component_reach_out.name", "name_text": "站远点照样抽你", "description_key": "component_reach_out.description", "description_text": "装在有射程的伤害主动上：射程 +[range_bonus.distance] 厘米，最远 [range_bonus.radius] 厘米，伤害变为 [range_bonus.multiplier]%；或让自动反击的索敌距离 +[counter_range_bonus.distance] 厘米，伤害变为 [counter_range_bonus.multiplier]%。", "icon_id": "icon_component_reach_out"},
-    {"id": "component_again_now", "namespace": "DemoContent", "name_key": "component_again_now.name", "name_text": "再来一下别喘", "description_key": "component_again_now.description", "description_text": "装在一个主动上：冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。", "icon_id": "icon_component_again_now"},
-    {"id": "component_one_slam", "namespace": "DemoContent", "name_key": "component_one_slam.name", "name_text": "合一块砸你", "description_key": "component_one_slam.description", "description_text": "连喷改成等 [compress_cone.delay] 秒后一次 [compress_cone.angle]° 扇形，合计原伤害的 [compress_cone.multiplier]%；多跳区域改成 [compress_zone.delay] 秒后一次固定爆炸，半径 [compress_zone.ratio]%，合计原伤害的 [compress_zone.multiplier]%；弹射电击不再弹，首个目标承受原各跳合计的 [compress_chain.multiplier]%。", "icon_id": "icon_component_one_slam"},
-    {"id": "component_ram_through", "namespace": "DemoContent", "name_key": "component_ram_through.name", "name_text": "闷头撞到底", "description_key": "component_ram_through.description", "description_text": "装在冲刺上：距离和用时变为 [dash_scale.ratio]%，接触伤害变为 [dash_scale.multiplier]%，冷却变为 [dash_scale.secondary_ratio]%。不能和蹿两步就回头装在同一处。", "icon_id": "icon_component_ram_through"},
-    {"id": "component_quick_hop", "namespace": "DemoContent", "name_key": "component_quick_hop.name", "name_text": "蹿两步就回头", "description_key": "component_quick_hop.description", "description_text": "装在冲刺上：距离和用时变为 [dash_scale.ratio]%，冷却变为 [dash_scale.secondary_ratio]%，接触伤害不降。不能和闷头撞到底装在同一处。", "icon_id": "icon_component_quick_hop"},
-    {"id": "component_big_tab", "namespace": "DemoContent", "name_key": "component_big_tab.name", "name_text": "攒够一顿狠的", "description_key": "component_big_tab.description", "description_text": "你的账目改为攒满 [ledger_variant.count] 笔一批，每笔伤害变为 [ledger_variant.multiplier]%，[ledger_variant.duration] 秒没有新账就清空。", "icon_id": "icon_component_big_tab"},
-    {"id": "component_pick_you", "namespace": "DemoContent", "name_key": "component_pick_you.name", "name_text": "就逮着你揍", "description_key": "component_pick_you.description", "description_text": "装在自动反击上：优先打最近 [marked_counter.duration] 秒被你主动技能直接命中的目标，伤害变为 [marked_counter.multiplier]%。", "icon_id": "icon_component_pick_you"},
-    {"id": "component_owe_it", "namespace": "DemoContent", "name_key": "component_owe_it.name", "name_text": "这顿打先欠着", "description_key": "component_owe_it.description", "description_text": "受到的敌方伤害有 [damage_defer.ratio]% 延后 [damage_defer.duration] 秒再扣；治疗先还最早的欠款，再回血。", "icon_id": "icon_component_owe_it"},
-    {"id": "component_fire_skin", "namespace": "DemoContent", "name_key": "component_fire_skin.name", "name_text": "烧着还挺扛揍", "description_key": "component_fire_skin.description", "description_text": "接一个火源：每 [fire_shield.interval] 秒汇总它造成的生命伤害，给你 [fire_shield.amount] 加该伤害 [fire_shield.ratio]% 的护盾，持续 [fire_shield.duration] 秒，最多为生命上限的 [fire_shield.multiplier]%；没伤害就不给盾。", "icon_id": "icon_component_fire_skin"},
-    {"id": "component_ball_kick", "namespace": "DemoContent", "name_key": "component_ball_kick.name", "name_text": "拿你当球踢", "description_key": "component_ball_kick.description", "description_text": "接一个击退：被推的人首次撞上固定障碍，追加 [knockback_impact.amount] 物理伤害并眩晕 [knockback_impact.secondary_duration] 秒；首次撞上另一个敌人，两人各受同额物理伤害。需要本技能会击退。", "icon_id": "icon_component_ball_kick"},
-    {"id": "component_bump_again", "namespace": "DemoContent", "name_key": "component_bump_again.name", "name_text": "撞着了再撞", "description_key": "component_bump_again.description", "description_text": "接一个冲刺：首次撞到敌人时，退还这次冲刺 [dash_contact_refund.refund] 秒剩余冷却；每 [dash_contact_refund.interval] 秒最多一次。", "icon_id": "icon_component_bump_again"},
-    {"id": "component_roll_bump", "namespace": "DemoContent", "name_key": "component_roll_bump.name", "name_text": "滚过去撞他", "description_key": "component_roll_bump.description", "description_text": "接一个冲刺：真的撞到的敌人沿冲刺方向被推开 [contact_knockback.distance] 厘米。", "icon_id": "icon_component_roll_bump"},
-    {"id": "component_pin_punch", "namespace": "DemoContent", "name_key": "component_pin_punch.name", "name_text": "摁住再补一拳", "description_key": "component_pin_punch.description", "description_text": "接一个硬控：控住目标后给他 [control_mark.duration] 秒追打标记；期间你再用另一种硬控控住他，追加 [control_mark.amount] 物理伤害。", "icon_id": "icon_component_pin_punch"},
-    {"id": "component_after_pin", "namespace": "DemoContent", "name_key": "component_after_pin.name", "name_text": "炸完再摁住", "description_key": "component_after_pin.description", "description_text": "接一个区域、陷阱或落点：它正常结束或爆开后 [aftershock.delay] 秒，在原处再炸一次，造成 [aftershock.amount] 魔法伤害并定身 [aftershock.secondary_duration] 秒。", "icon_id": "icon_component_after_pin"},
-    {"id": "component_control_momentum", "namespace": "DemoContent", "name_key": "component_control_momentum.name", "name_text": "控住薅点劲", "description_key": "component_control_momentum.description", "description_text": "接一个硬控：每控住一个目标回 [control_momentum.amount] 劲，同一次动作最多回 [control_momentum.limit] 劲。", "icon_id": "icon_component_control_momentum"},
-    {"id": "component_breath_strike", "namespace": "DemoContent", "name_key": "component_breath_strike.name", "name_text": "回口气就抽你", "description_key": "component_breath_strike.description", "description_text": "接一个治疗来源：实际回血和还款的 [heal_counter.ratio]% 存成反击量，每 [heal_counter.interval] 秒打向 [heal_counter.radius] 厘米内最近打过你的敌人；最多存 [heal_counter.amount]，[heal_counter.duration] 秒没有新增就清空。", "icon_id": "icon_component_breath_strike"},
-    {"id": "component_blast_chase", "namespace": "DemoContent", "name_key": "component_blast_chase.name", "name_text": "炸完追着揍", "description_key": "component_blast_chase.description", "description_text": "接一个元素来源：它触发元素反应后 [reaction_empower.duration] 秒内，下一次本体普攻多造成 [reaction_empower.amount] 物理伤害。", "icon_id": "icon_component_blast_chase"},
-    {"id": "component_shell_burst", "namespace": "DemoContent", "name_key": "component_shell_burst.name", "name_text": "壳碎了也崩你", "description_key": "component_shell_burst.description", "description_text": "接一个护盾来源：它给的护盾被打破时，对自身 [shield_burst.radius] 厘米内的敌人造成该护盾原量 [shield_burst.ratio]% 的魔法伤害。", "icon_id": "icon_component_shell_burst"},
-    {"id": "component_hurt_heal", "namespace": "DemoContent", "name_key": "component_hurt_heal.name", "name_text": "打疼了我回血", "description_key": "component_hurt_heal.description", "description_text": "接一个技能伤害：它造成的实际生命伤害有 [skill_lifesteal.ratio]% 治疗自己；同一次动作最多治疗 [skill_lifesteal.amount]。", "icon_id": "icon_component_hurt_heal"},
-    {"id": "component_dirty_fist", "namespace": "DemoContent", "name_key": "component_dirty_fist.name", "name_text": "拳上的脏活也算", "description_key": "component_dirty_fist.description", "description_text": "选一个技能伤害和一个已启用的拳头构件：该技能每次有效命中，额外执行一次那个构件的效果，不算普攻。", "icon_id": "icon_component_dirty_fist"},
-    {"id": "component_boomerang", "namespace": "DemoContent", "name_key": "component_boomerang.name", "name_text": "鞋还得捡回来", "description_key": "component_boomerang.description", "description_text": "装在甩你一鞋或馊水糊脸上：弹道结束后飞回你身边，途中命中的第一个敌人受 [projectile_return.multiplier]% 伤害与元素，不带减速和控制；回程不再折返或穿透。", "icon_id": "icon_component_boomerang"},
-    {"id": "component_skewer", "namespace": "DemoContent", "name_key": "component_skewer.name", "name_text": "一鞋串俩", "description_key": "component_skewer.description", "description_text": "甩你一鞋或馊水糊脸命中第一个敌人后继续飞，再多打穿 [projectile_pierce.count] 个不同的敌人，受 [projectile_pierce.multiplier]% 伤害，同样减速；电你个哆嗦多弹 [chain_extra.count] 次。", "icon_id": "icon_component_skewer"},
-    {"id": "component_encore", "namespace": "DemoContent", "name_key": "component_encore.name", "name_text": "再来一遍", "description_key": "component_encore.description", "description_text": "宿主冷却变为 [echo_impact.secondary_ratio]%。板砖糊脸落地、踩一脚试试爆开或烫你屁股放出后 [echo_impact.delay] 秒，原处再来一次 [echo_impact.multiplier]% 伤害：板砖同样范围与外圈衰减，陷阱不减速，烫屁股在释放处炸开并加一层灼烧；回响不再回响。", "icon_id": "icon_component_encore"},
-    {"id": "component_next_up", "namespace": "DemoContent", "name_key": "component_next_up.name", "name_text": "打完换下一招", "description_key": "component_next_up.description", "description_text": "宿主第一次命中敌人后（接冲刺时为第一次撞到敌人），你其他主动的剩余冷却各减少 [hit_haste_other.refund] 秒；每次释放一次。", "icon_id": "icon_component_next_up"},
-    {"id": "component_setup_line", "namespace": "DemoContent", "name_key": "component_setup_line.name", "name_text": "先垫一句", "description_key": "component_setup_line.description", "description_text": "宿主命中敌人时给它挂一个 [setup_mark.duration] 秒的记号；你别的主动下一次命中它多造成 [setup_mark.ratio]% 伤害并消耗记号。", "icon_id": "icon_component_setup_line"},
-    {"id": "component_blast_reload", "namespace": "DemoContent", "name_key": "component_blast_reload.name", "name_text": "炸了接着放", "description_key": "component_blast_reload.description", "description_text": "宿主触发元素反应时，宿主的剩余冷却减少 [reaction_haste.refund] 秒；每次释放一次。", "icon_id": "icon_component_blast_reload"},
-    {"id": "component_group_refund", "namespace": "DemoContent", "name_key": "component_group_refund.name", "name_text": "一锅端回本", "description_key": "component_group_refund.description", "description_text": "宿主一次释放每多命中一个不同的敌人，回 [multi_hit_momentum.amount] 劲；每次释放最多回 [multi_hit_momentum.limit] 劲。", "icon_id": "icon_component_group_refund"},
-    {"id": "component_clear_head", "namespace": "DemoContent", "name_key": "component_clear_head.name", "name_text": "脑子转得快", "description_key": "component_clear_head.description", "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]；本体普攻伤害 ×[basic_damage_scale.ratio]%。", "icon_id": "icon_component_clear_head"},
-    {"id": "component_run_away", "namespace": "DemoContent", "name_key": "component_run_away.name", "name_text": "撒腿就跑", "description_key": "component_run_away.description", "description_text": "生命低于 [low_hp_stat_bonus.ratio]% 时，移速 +[low_hp_stat_bonus.MoveSpeedBonusRatio]%，技能急速 +[low_hp_stat_bonus.CooldownHasteFlat]。", "icon_id": "icon_component_run_away"},
-    {"id": "component_guard_up", "namespace": "DemoContent", "name_key": "component_guard_up.name", "name_text": "护住要害", "description_key": "component_guard_up.description", "description_text": "受到的本体普攻主击伤害减少 [primary_guard.amount] 点，最多减少该次伤害的 [primary_guard.ratio]%。", "icon_id": "icon_component_guard_up"},
-    {"id": "component_zone_tether", "namespace": "DemoContent", "name_key": "component_zone_tether.name", "name_text": "拖着会开", "description_key": "component_zone_tether.description", "description_text": "区域不再留在原地，而是以你为中心跟着你走；半径 ×[zone_tether.ratio]%。", "icon_id": "icon_component_zone_tether"},
-    {"id": "component_shove_off", "namespace": "DemoContent", "name_key": "component_shove_off.name", "name_text": "别挨着我", "description_key": "component_shove_off.description", "description_text": "护盾 ×[defense_shove.ratio]%；护盾被敌人打破时，把 [defense_shove.radius] 厘米内的敌人推开 [defense_shove.distance] 厘米。装在顶着揍上：反震时把反震范围内的敌人推开同样距离。", "icon_id": "icon_component_shove_off"},
-    {"id": "component_finisher", "namespace": "DemoContent", "name_key": "component_finisher.name", "name_text": "最后一下抡出去", "description_key": "component_finisher.description", "description_text": "左右开抽：最后一次强化普攻把目标抡开 [final_knockback.distance] 厘米，攻速加成 ×[final_knockback.cost_ratio]%。扯嗓子喷你：末波把命中的敌人推开同样距离，不再减速。", "icon_id": "icon_component_finisher"},
-    {"id": "component_long_handle", "namespace": "DemoContent", "name_key": "component_long_handle.name", "name_text": "隔空三连", "description_key": "component_long_handle.description", "description_text": "有本技能的强化普攻未用完时，普攻距离 +[empower_reach.distance] 厘米；每次强化 ×[empower_reach.multiplier]%。", "icon_id": "icon_component_long_handle"},
-    {"id": "component_come_here", "namespace": "DemoContent", "name_key": "component_come_here.name", "name_text": "过来吧你", "description_key": "component_come_here.description", "description_text": "本技能的击退改为把目标拉向你；嘲讽命中的敌人被拉近 [pull.distance] 厘米。拉到离你 [pull.radius] 厘米为止。", "icon_id": "icon_component_come_here"},
-    {"id": "component_move_meeting", "namespace": "DemoContent", "name_key": "component_move_meeting.name", "name_text": "换个地方开会", "description_key": "component_move_meeting.description", "description_text": "本冲刺结束时，把你最近放下的一个区域或未触发的传单陷阱挪到你脚下；跟着你走的区域不挪，每个区域一生只能挪一次。", "icon_id": "icon_component_move_meeting"},
-    {"id": "component_bottled_up", "namespace": "DemoContent", "name_key": "component_bottled_up.name", "name_text": "憋着的气", "description_key": "component_bottled_up.description", "description_text": "本技能的护盾结束或顶住自然结束时，把实际挡下伤害的 [stored_force.ratio]% 存起来 [stored_force.duration] 秒；你另一个主动下一次命中敌人时，按同类伤害一次打出去。", "icon_id": "icon_component_bottled_up"},
-    {"id": "component_spend_fist", "namespace": "DemoContent", "name_key": "component_spend_fist.name", "name_text": "拳头借给技能", "description_key": "component_spend_fist.description", "description_text": "本技能的强化普攻未用完时，你其他主动命中敌人，花掉一次强化，直接打在那个敌人身上（物理，不算普攻）；每次释放一次。", "icon_id": "icon_component_spend_fist"},
-    {"id": "component_wide_open", "namespace": "DemoContent", "name_key": "component_wide_open.name", "name_text": "按住了就放大", "description_key": "component_wide_open.description", "description_text": "本技能硬控命中后 [control_widen.duration] 秒内，你下一个其他主动的范围 +[control_widen.ratio]%（区域、落点、陷阱、扇形、弹道宽度、弹跳）；单体技能也会用掉它。", "icon_id": "icon_component_wide_open"},
-    {"id": "component_set_it_off", "namespace": "DemoContent", "name_key": "component_set_it_off.name", "name_text": "一点就炸", "description_key": "component_set_it_off.description", "description_text": "本技能命中站在你区域里的敌人时，引爆那个区域：剩余每跳伤害的 [zone_detonate.ratio]% 一次结算给区域内的敌人，区域消失；每次释放一次。", "icon_id": "icon_component_set_it_off"},
-    {"id": "component_meet_here", "namespace": "DemoContent", "name_key": "component_meet_here.name", "name_text": "就在这儿开会", "description_key": "component_meet_here.description", "description_text": "宿主每次释放第一次直接命中敌人时，把你最近放下、还没挪过的一个区域或未触发的传单陷阱挪到那个敌人脚下；跟着你走的区域不挪，每个区域一生只能挪一次（和换个地方开会共用）。", "icon_id": "icon_component_meet_here"},
     {"id": "attack_slowed", "namespace": "DemoContent", "name_key": "attack_slowed.name", "name_text": "攻速降低", "description_key": "attack_slowed.description", "description_text": "挥拳暂时变慢，不是缴械，仍可攻击和施法。", "icon_id": "icon_attack_slowed"},
     {"id": "knockback", "namespace": "DemoContent", "name_key": "knockback.name", "name_text": "击退", "description_key": "knockback.description", "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、冲刺、普攻和放技能。", "icon_id": "icon_knockback"},
     {"id": "silence", "namespace": "DemoContent", "name_key": "silence.name", "name_text": "沉默", "description_key": "silence.description", "description_text": "号被封了：不能放技能，但仍可以移动、冲刺和普攻；正在准备的技能会被打断。", "icon_id": "icon_silence"},
