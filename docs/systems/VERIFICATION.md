@@ -3,57 +3,224 @@
 日常该跑什么见[开发指南](../DEVELOPMENT.md#验证)（`Scripts\Verify.ps1`）。本页是参考资料：每个检查与场景覆盖什么、
 里程碑清单、规则测试集合的维护方式，以及多人共用一台机器时的限制。
 
+按需跳转：[最小验证选择](#最小验证选择) · [里程碑检查](#合并前与里程碑检查) ·
+[规则测试集合](#规则测试集合) · [数据导入组](#数据导入测试组) · [共用机器](#多人共用一台机器)。
+
 ## 最小验证选择
 
-先完成一批连贯开发，再集中验证收尾。以下是按改动选择检查的索引，不是每次任务都要执行的清单：
-只覆盖实际改动及其直接依赖，优先增量构建、规则前缀和已有场景定向模式。
+以下是覆盖范围索引，不是每次任务都要执行的清单；先按[日常验证流程](../DEVELOPMENT.md#验证)确定是否需要运行，再读对应小节。
+定向场景的开关、覆盖与不覆盖项在同一小节；运行前核对实际脚本参数。
 新增测试只覆盖本批引入或修复的行为、直接依赖及必要边界；优先扩展已有用例，不为覆盖率增加无关或重复测试。
-复用 `Binaries`、`Intermediate` 与构建缓存，不做例行清理重建；未受后续改动影响的通过结果不重复验证。
-整局、全量导入、`-FullUnity` 与全套场景不是日常默认步骤。
 
-检查失败先保留本次 `Artifacts`，查看日志与失败断言，结果标记为未通过；不原样重复长测来判断偶发性。
-修复相关原因后只重跑失败项与受影响检查；没有定向入口时报告覆盖缺口，
-仅在明确要求专项验证时重跑长测。不因长场景附带的无关失败扩展任务，也不把未确认归因写成既有问题。
-
-| 改动 | 起点 |
+| 改动 | 覆盖与限制 |
 | --- | --- |
-| 文字与导航 | 链接、代码入口与当前事实，`git diff --check` |
-| SourceData / 编译器 | 对应 Sync `--check`、`Test*Import.py`，核对载荷与 contract |
-| Demo 世界 / 资产 | `BootstrapAssets.ps1 -Mode Generate/Regenerate/RefreshDefinitions/RegenerateFrontend/Validate`（`RegenerateFrontend` 只重建空白的 `L_Frontend`；每次都拒绝前端地图里出现世界设置以外的任何 Actor）；`Lockdown.Rules.DemoWorld` 的精确有符号几何、typed 投影与资产往返；真实拥有连接和完整移动/观测另行验收 |
-| Demo 世界 / 拥有连接 | `RunDemoWorldRoomCheck.ps1`；实际 Listen Host 加两个拥有客户端校验同一 Lobby/内容根/原生地面与导航，隔离 UserDir；没有 AI 或玩法身体，不代替完整对局 |
-| Demo 核心 / 拥有身体 | `RunDemoCoreCheck.ps1`；DEV-only 三拥有身体、地面/Stop/重放与原生 CMC 执行夹具，调用同一核心提交路径且不改变普通 Start 门禁；开局身体按名册位落在公共休息室锚点并像普通开局一样进入 R0，地面与原生审计在 R0 返回后的第一条野外生命上进行。分别检查攻击移动待受理时保留已接受身份、远端普通地面单立即预测新身份。可选 `-EarlyRestReady` 在三端观察其他真人与共享假人、远端走近和离开两类服务 NPC 后提交准备，检查最后 10 秒并提前进入野外；训练目标按权威夹具记录的实体身份在各自获准观察帧中查找，不按距离或外观猜测。该模式的 Client1 使用离屏真实渲染以取得工坊服务布局，其他端及默认模式使用 NullRHI；开局点数不足购买时，远端通过跳过开局候选取得点数再购买。`-ReplayFieldReturn` 用真实放置路径重放一次捕获的坡缝返场脚点，要求原脚点能够精确准备并撤回该夹具请求；`-FinalEntryOnly` 只检查六个终局入口经权威出生路径准备成功，不模拟完整休息时间线；营地成员只计数不受检；不代替完整战斗、随机出生、完整视野或 CT06 |
-| 喷漆守护 / 终局 / 新局 | `Lockdown.Rules.DemoCapture` 与 `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` 覆盖守护、打断、贡献及复活配置；`DemoFinalMod` 覆盖独立候选/绑定/锁定、真实命中触发、延迟与重复命中、硬控结束推送、撞击包、双区域代价和交通带逐段时效。`RunDemoCaptureCheck.ps1` 默认用 Listen Host、两个拥有客户端和三个生产 AI 经正常大厅开局；`-AllHuman` 用 Host 与五个拥有客户端，不添加 AI，并在选卡后通过真实前端按钮断线恢复同一角色、身体、资源、Build 请求水位及锁定的 FIN。终局发出普通 D 意图；候选包含交通管制时优先选择并绑定 D，`C16` 要求该绑定在拥有者获准读取的画面产生实际已走交通带，报告明确记录是否选到该卡及是否观察到交通带，不把未选卡当作效果证明。`-RenderHost` 用实际 RHI 保存三选一卡面、所需来源选择、已锁定卡，并在拥有身体进入核心圈后保存旗杆主视图。两种名额模式检查三段野外、六人的独立 FIN 选择与锁定、六入口、目标结束、成长冻结、返回 Lobby 与第二局。各角色必须恰好报告对应稳定检查 id。它不证明全部卡的图形品质或所有复活/截止细节；通过只认当次 Artifacts |
-| Demo 纯值战斗 / 时间许可 | `Lockdown.Rules.DemoCombatEvaluation`、`Lockdown.Rules.DemoCore`；伤害/时长使用当前 producer 的 `approved_base`，合成 `base` 保留供导入拒绝和变异测试；纯值成功不等于实际命中提交 |
-| 营地纯决策 | `Lockdown.Rules.CampDecision` 使用同一 `approved_base` 内容夹具，覆盖授权读取完成、身份/世界/时间拒绝、只在已攻击本营的参赛者中稳定选敌、从当前脚点量的感知半径、只约束成员自身的活动范围和成员回位；不创建 Actor 或执行移动/攻击/重置，不代替 N03 真实接线 |
-| 营地 / 拥有连接 | `Lockdown.Rules.DemoCamp` 覆盖名册、每生命死亡记账与清营计时、整组反击来源、回营重置键和观察事实；`DemoCamp.Species` 覆盖固定档位抽种、失败重试固定抽签和隐藏种类不泄露，`DemoCamp.SkillGeometry` 覆盖固定预警几何与整次预算，`DemoCamp.SkillDelivery` 经真实 Combat 检查预警、躲避、死亡后追加段归因和原生冲刺接触去重；`RunDemoCampCheck.ps1` 在全部提供者接入、普通 Start 门禁打开后，以实际 Listen Host 加两个拥有客户端经正常大厅开局，覆盖批准名册的全部营地落点、不先手、整组反击、最后一击每生命一次收益、清空后按内容计时整组刷新、拴绳回营的公开提示与不发奖重置。当前布局的夹具选择 `l09`/`h05`：接近点为盆地内开阔、可达的近战位置，目标搜索范围内没有同档位的其他营地；逃离点距 `h05` 约 14.7m，超过 High 拴绳距离，并避开老板巡逻与旗杆。#C5 按批准内容核对小野营全部成员的奖励；#C10 在刷新截图完成后继续用普攻清空同一营地的新一组，核对拥有客户端的奖励投影达到2级。它覆盖当次随机结果，不代表三种小野的平衡对照。R0 返回随机抽取野外出生点，客户端沿避开营地成员家点与老板巡逻的夹具路线走到营地接近点，整个场景须在野外 1 内完成。唯一渲染的 Client2 另存 `CampGuardianReturning.png`（回位的高档野怪、名字与回位标记）和 `CampLowPair.png`（刷新后的小野三只与名字）供表现审阅，不做像素比对，两档分两张记录。不代替 3+3、AI、SpawnBlocked/动态占位或网络异常 |
-| 对手 AI / 拥有连接 | `Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与受理时被拒订单有界（准入时被拒的订单逐个 AI 报告为 `orders_rejected`，不计入）、每个 AI 在开局休息 R0 的配装步骤内处理开局三选一且 R0 不开放 PK 报名，公共休息室构筑时不离开起始位置，R1/R2 报名窗口内走向本人站位并在 R1 PK 锁定时核对 AI 签名与参赛名单、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；可加 `-PackageRoot` 对打包版运行。每个角色在开局一分钟时按一次试玩标记，供 `SummarizePlaytestLog.py` 核对标记前后的事件（不是检查项）。本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；渲染的 Host 另存供人工审阅的截图（不是检查）：`HostMatch*.png`，以及 `HostChoices.png`（开局主动三选一）、`HostOpponentCard.png`（可见 AI 的 Q/W/E 卡）、`HostKillAssist.png`（带助攻者的击杀播报，本局出现时）、`HostSpray.png`/`HostGuard.png`（镜头移到旗杆的喷漆与守护 HUD、涂鸦板）、`HostResults.png`（含助攻列的结算）。“至少一个 AI 实际完成 D 冲刺”（报告逐个 AI 记录 `dashes` 与 `dashes_landed`）只作报告项：未出现时记为 NotExercised，不卡门槛，多局与打包版稳定后再定是否升为硬门槛；不代替隐藏状态非干扰、字段白名单、真人离开或网络异常 |
-| Demo 属性 / 原生记录 | `Lockdown.Rules.DemoAttributeProjection` 覆盖批准属性、五维点数投影、构件条件项和资源比例；`Lockdown.Rules.DemoMotionProbe` 用隔离原生物理验证时间分数、回滚、接地转换和缺失记录拒绝；真实拥有身体夹具显式审计保留前缀，不代替最终提供者 Fence |
-| 原生代码 / 反射 | Editor/Game 构建、Bootstrap Validate、相关原生规则 |
-| 入口 / 房间 | `TestDemoEntry.ps1`、`Lockdown.Rules.DemoEntryContract/DemoInputByteIntegrity/DemoMatchIdentity/DemoSessionReceipts/DemoLobbyAuthority` |
-| 休息与外层流程 | `Lockdown.Rules.DemoRest.Timeline` 覆盖纯时间线：批准时长、R1/R2 PK 报名窗口（截止时刻含在内）、R0/R3 不举行 PK、锁定保持、报名不足 2 人跳过 PK、野外进度 T 在休息与 PK 中冻结而在野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按死亡时 T 固定的复活等待与客户端 T 推导；`Lockdown.Rules.DemoRest.PhasePolicy` 覆盖隔离组、冻结身体、阶段边界清理与补满；`Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务（见[成长事务](GROWTH_TRANSACTIONS.md)）；`Lockdown.Rules.DemoRest.EntryHold` 覆盖入场未就绪时 PKReady→PK 与返回→野外停在边界、就绪后按实际时刻进入，`Lockdown.Rules.DemoRest.SpawnIdentity` 覆盖撤回的出生请求以新序号重试、不触发 `RequestConflict`，`Lockdown.Rules.DemoPK.RingOutsideTime` 覆盖按真实圈外时长切分圈伤，`Lockdown.Rules.DemoVision.EffectAccess` 覆盖观众与同队共享视野中飞行物的可见权限。拥有连接场景探针按新规则检查 AI 在 R0 选择开局主动且不报名、在 R1/R2 报名并核对 R1 PK 名单；另检查假人槽位并尝试触发 `Lives` 扩容，实际未扩容时记为未覆盖，以夹具制造 R1 PK 出生点全被占与返场部分阻挡，见[对手 AI](OPPONENT_AI.md) §8.2 |
-| 原生旧入口拒绝 | `RunDemoEntryCheck.ps1`，要求真实 URL 被拒绝后回前端，累计 Pawn/旧模式/服务/子系统激活为零 |
-| 前端设置实际渲染 | `RunDemoFrontendCheck.ps1`，新 `UserDir` 下的 windowed RHI、合成 UMG 点击与 Slate 按键事件：经命名页签逐个打开五个分类页（隐藏页不进焦点顺序），100/125% 各页图像、诊断开关与文本偏好保存/回读、设置页无窗口模式/分辨率、显示草稿撤销、在别页返回时确认卡回到画面页、再按返回即放弃、VSync 应用保存回读、行内改绑（占用键被拒仍在捕获、空闲键保存回读、Esc 只取消捕获、经 Slate 指针路由在捕获中点页签即结束捕获并切页）、按页恢复默认只影响本页、引擎锁定画质组时应用失败后改走再改回或撤销仍需应用、打开设置时在途的镜头距离延迟保存失败后底栏立即出现“立即保存”；不修改 OS 显示模式 |
-| Lobby 设置实际渲染 | `RunDemoFrontendCheck.ps1 -LobbyOnly` 在真实单人房间验证五分类页签、偏好保存回读与重开、画面草稿确认与 Esc 放弃、返回后名单及准备修订不变；设置保持打开时经正常开局命令进入对局，验证输入持续抑制、局内提示刷新及关闭后输入恢复，并保存 `Lobby-SettingsEntry.png`、`Lobby-Settings.png`、`Lobby-Returned.png`。不覆盖前端建房旅行、远端客户端或跨机器联机 |
-| 建房后布局稳定性 | `RunDemoFrontendCheck.ps1 -MotionOnly` 经前端的开始、创建房间按钮进入真实 Listen 房间，再切换为 3 个 AI；等拥有者视图确认席位变更后，在 100% 与 125% 文字下检查六个席位等宽、各不小于 100 像素，并各采样连续 120 帧“准备”按钮的位置，要求垂直波动不超过 1 像素；报告保留逐帧位置、席位宽度和祖先布局尺寸，不以静态截图代替动效检查。脚本同时拒绝原生错误与 handled ensure；引擎 Python 错误另行提示 |
-| 输入 / 导航 / HUD | `Lockdown.Rules.ControlMappings/IssuedCommandLiveness`、`Lockdown.Rules.LocalSettings*/LocalDisplay*/LocalControlRegistryIsolation`、`Lockdown.Rules.HUD*`；拥有连接下的订单与输入路由见 `RunDemoCombatCheck.ps1`，HUD 观测投影见 `RunDemoVisionCheck.ps1` |
-| 音效 / 音量 | `ImportDemoAudio.ps1 -Mode Validate`（Bootstrap Validate 也执行）；`Lockdown.Rules.Audio*`（含 `AudioMusicSelection`）与 `LocalSettingsMasterVolume`、`LocalSettingsMusicVolume`。`-nosound` 场景只证明无错误日志，实际听感、换曲、设备输出与音量需在有声卡的可视运行中确认 |
-| 美术 / 装饰 | `ImportDemoArt.ps1 -Mode Validate`（Bootstrap Validate 也执行，含标题/房间背景图的清单、哈希、尺寸与 UI 纹理设置）；`Lockdown.Rules.ArtCatalog/ArtCatalogAsset/ArtDecorations`；`CaptureDemoArt.ps1` 在 Demo 地图大厅渲染全部身体、各动画姿势与装饰后的场地截图，并核对装饰无碰撞、不挡视线追踪、不改 navmesh。不代替身体接线、战斗或联机验收 |
-| 战斗 / 观测复制 | `RunDemoCombatCheck.ps1` 为 DEV 拥有连接的战斗与订单场景：经普通大厅 Start，决斗点与技能点避开老板巡逻警戒范围和营地家点，收缩边外脚点作为点选地面被拒、作为追击终点可规划，已接受行走上打开设置超过订单租约（订单与心跳继续、关闭后不重放）、远程攻击移动与 S、右键击杀与击杀播报、死亡静态镜头随小地图平移、随机复活的精确保护及空 Q 解除保护；随后 Host 用 DEV 成长夹具预置候选并给 Client1 发放经验，双方经普通构筑命令学会主动（Host：扒裤子；Client1：锅盖挡脸与甩你一鞋），实战覆盖定身被观察者看到、锅盖挡脸的护盾与解除定身、甩你一鞋的 `Chalk` 飞行表现/命中/减速公开状态和基础射程内的追击普攻；Host 离屏渲染主视图并保存 `HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png` 供人工审画面，不做像素比对；双方报告操作手感实测，只报告不设门槛（不含营地/AI/终局）。`RunDemoVisionCheck.ps1` 是观测场景，覆盖拓扑、受限注册表、拥有连接与权限清除，不含AI、战斗数值或完整对局验收 |
-| 成长 / 奖励 | `RunTests.ps1` 中的 `DemoGrowth*`、`DemoDevTestCommands`、`DemoAssist*` 规则（含地图事件奖励按事件与序号去重）；`RunDemoGrowthCheck.ps1` 为 DEV 拥有连接的击杀奖励/构筑场景，Host 带 DEV 成长夹具预置拥有客户端的候选，先在第一局开局休息 R0 核对拥有客户端在配装步骤把开局主动学到 Q 并分配开局点数、在返回倒计时内攻击移动（含 Shift 排队）与 Q 被拒，以及两端看到同一开局与野外 1 开始时刻（`Rest0`），且第一局击杀跨越野外中段休息时两端在休息中暂停、核对每次休息只让野外生命退场而不计死亡（公开死亡数不变）并在返回后放回下一条野外生命（`Rest`），覆盖击杀后交战窗口仍在时选到的等级候选当场学到 W 并加点，死亡中选择学到 E 并加点、不复活不治疗、复活后 E 仍在，Listen Host 作为击杀者（击杀拥有客户端与低档营地野怪）在本人视图、HUD 与渲染的“+X 经验”飘字中看到精确奖励，并结束本局后开第二局核对新局隔离（上一局的构筑请求以 OldMatch 拒绝、回执查询为 InvalidContext；不含 AI/喷漆守护） |
-| 网络异常 / 拥有连接 | `RunDemoSessionFaultCheck.ps1`（可加 `-PackageRoot` 对打包版运行）分七段：Leave 中客户端先打开并取消 Lobby 离开确认（说明返回主菜单、房间继续且其他成员仍留在 Lobby），再经局内菜单确认“离开房间并返回主菜单”，提示其不能重加入、本局记录保留且其他玩家继续；Host 结束后结果表记其离局且无击杀/死亡，Host/加入者的结算退出按钮分别说明关闭房间或仅离开；HostLoss 结束 Host 进程，客户端回到主菜单并显示“会话中断”，不出现结果表；Join 对关闭端口和无法解析的地址显示“连接失败：原因”，仍停在前端且可再次加入；Refuse 用真实加入按钮依次遇到版本不兼容（DEV 参数让该客户端声明另一产品版本）、三真人加三 AI 满员和对局已开始，各自显示中文原因与原因码，始终未进入房间；Race 中一次加入已通过 PreLogin，Host 在它载入房间时开局，最终准入检查拒绝它，客户端显示“对局已开始”而不是会话中断；HostLeave 中 Host 经局内菜单确认关闭整个房间并离开，客户端回到主菜单并显示“房主已离开”，不显示会话中断或结果表，Host 自己的主菜单也不显示失败；HostQuit 中 Host 进程在客户端仍连接时正常退出（与直接关窗口相同，引擎走 PreExit 拆除世界而不是换图），Host 须以 0 退出且日志无 `LD_DEMO_AUTHORITY_FAULT`，客户端回到主菜单并显示“会话中断”，不出现结果表。全部在同机回环上运行，不代表跨机器局域网或公网直连 |
-| 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
-| 构筑评估 Harness | `Lockdown.Rules.BuildEvaluation`（种子与生产默认、评估画像、工坊构筑计划、原生输入、对决时限）与 `python -B -m unittest discover -s .\Scripts -p "TestBuildEvaluation*.py"`；改到原生驱动、种子挂点或 Adapter 判读时，用 `RunBuildEvaluation.ps1 -Manifest <示例清单>` 跑一次真实小规模运行，并用 `-ReplayRun <运行目录> -Case <id>` 核对重放一致。它是 DEV 实验工具，结果只描述所覆盖的构筑、固定策略、场景与预算，不是验收或平衡结论，见[构筑评估 Harness](BUILD_EVALUATION.md) |
+| 文字与导航 | [查看](#文字与导航) |
+| SourceData / 编译器 | [查看](#sourcedata--编译器) |
+| Demo 世界 / 资产 | [查看](#demo-世界--资产) |
+| Demo 世界 / 拥有连接 | [查看](#demo-世界--拥有连接) |
+| Demo 核心 / 拥有身体 | [查看](#demo-核心--拥有身体) |
+| 喷漆守护 / 终局 / 新局 | [查看](#喷漆守护--终局--新局) |
+| Demo 纯值战斗 / 时间许可 | [查看](#demo-纯值战斗--时间许可) |
+| 营地纯决策 | [查看](#营地纯决策) |
+| 营地 / 拥有连接 | [查看](#营地--拥有连接) |
+| 对手 AI / 拥有连接 | [查看](#对手-ai--拥有连接) |
+| Demo 属性 / 原生记录 | [查看](#demo-属性--原生记录) |
+| 原生代码 / 反射 | [查看](#原生代码--反射) |
+| 入口 / 房间 | [查看](#入口--房间) |
+| 休息与外层流程 | [查看](#休息与外层流程) |
+| 原生旧入口拒绝 | [查看](#原生旧入口拒绝) |
+| 前端设置实际渲染 | [查看](#前端设置实际渲染) |
+| Lobby 设置实际渲染 | [查看](#lobby-设置实际渲染) |
+| 建房后布局稳定性 | [查看](#建房后布局稳定性) |
+| 输入 / 导航 / HUD | [查看](#输入--导航--hud) |
+| 音效 / 音量 | [查看](#音效--音量) |
+| 美术 / 装饰 | [查看](#美术--装饰) |
+| 战斗 / 观测复制 | [查看](#战斗--观测复制) |
+| 成长 / 奖励 | [查看](#成长--奖励) |
+| 网络异常 / 拥有连接 | [查看](#网络异常--拥有连接) |
+| 全新检出 | [查看](#全新检出) |
+| 构筑评估 Harness | [查看](#构筑评估-harness) |
+
+### 文字与导航
+
+链接、代码入口与当前事实，`git diff --check`
+
+### SourceData / 编译器
+
+对应 Sync `--check`、`Test*Import.py`，核对载荷与 contract
+
+### Demo 世界 / 资产
+
+`BootstrapAssets.ps1 -Mode Generate/Regenerate/RefreshDefinitions/RegenerateFrontend/Validate`（`RegenerateFrontend` 只重建空白的 `L_Frontend`；
+每次都拒绝前端地图里出现世界设置以外的任何 Actor）；`Lockdown.Rules.DemoWorld` 的精确有符号几何、typed 投影与资产往返；
+真实拥有连接和完整移动/观测另行验收
+
+### Demo 世界 / 拥有连接
+
+`RunDemoWorldRoomCheck.ps1`；
+实际 Listen Host 加两个拥有客户端校验同一 Lobby/内容根/原生地面与导航，隔离 UserDir；
+没有 AI 或玩法身体，不代替完整对局
+
+### Demo 核心 / 拥有身体
+
+`RunDemoCoreCheck.ps1`；
+DEV-only 三拥有身体、地面/Stop/重放与原生 CMC 执行夹具，调用同一核心提交路径且不改变普通 Start 门禁；
+开局身体按名册位落在公共休息室锚点并像普通开局一样进入 R0，地面与原生审计在 R0 返回后的第一条野外生命上进行。
+分别检查攻击移动待受理时保留已接受身份、远端普通地面单立即预测新身份。
+可选 `-EarlyRestReady` 在三端观察其他真人与共享假人、远端走近和离开两类服务 NPC 后提交准备，检查最后 10 秒并提前进入野外；
+训练目标按权威夹具记录的实体身份在各自获准观察帧中查找，不按距离或外观猜测。
+该模式的 Client1 使用离屏真实渲染以取得工坊服务布局，其他端及默认模式使用 NullRHI；
+开局点数不足购买时，远端通过跳过开局候选取得点数再购买。`-ReplayFieldReturn` 用真实放置路径重放一次捕获的坡缝返场脚点，要求原脚点能够精确准备并撤回该夹具请求；`-FinalEntryOnly` 只检查六个终局入口经权威出生路径准备成功，不模拟完整休息时间线；
+营地成员只计数不受检；
+不代替完整战斗、随机出生、完整视野或 CT06
+
+Core 场景收尾由两个拥有客户端经正式离开房间入口退出，再校验服务器退休身体与资源所有权。
+它不把直接结束进程当作正式离开；意外断线保留参赛者的重连路径由对应会话检查覆盖。
+
+### 喷漆守护 / 终局 / 新局
+
+`Lockdown.Rules.DemoCapture` 与 `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` 覆盖守护、打断、贡献及复活配置；`DemoFinalMod` 覆盖独立候选/绑定/锁定、真实命中触发、延迟与重复命中、硬控结束推送、撞击包、双区域代价和交通带逐段时效。`RunDemoCaptureCheck.ps1` 默认用 Listen Host、两个拥有客户端和三个生产 AI 经正常大厅开局；`-AllHuman` 用 Host 与五个拥有客户端，不添加 AI，并在选卡后通过真实前端按钮断线恢复同一角色、身体、资源、Build 请求水位及锁定的 FIN。
+终局发出普通 D 意图；
+候选包含交通管制时优先选择并绑定 D，`C16` 要求该绑定在拥有者获准读取的画面产生实际已走交通带，报告明确记录是否选到该卡及是否观察到交通带，不把未选卡当作效果证明。`-RenderHost` 用实际 RHI 保存三选一卡面、所需来源选择、已锁定卡，并在拥有身体进入核心圈后保存旗杆主视图。
+两种名额模式检查三段野外、六人的独立 FIN 选择与锁定、六入口、目标结束、成长冻结、返回 Lobby 与第二局。
+各角色必须恰好报告对应稳定检查 id。
+它不证明全部卡的图形品质或所有复活/截止细节；
+通过只认当次 Artifacts
 
 `RunDemoCaptureCheck.ps1 -RenderHost` 为所有拥有者启用 720p 离屏 RHI，使远端也能经实际构建的界面处理主动与终局候选；只有 Host 保存截图。
 截图等待入场布局与动效稳定，结算另等待表格逐行及操作区入场完成，覆盖终局候选、所需来源选择、选定后规则板、旗杆、结算和返回后的房间。
 等待只作用于 DEV 探针的取图与后续操作，不暂停服务器时钟，也不延迟产品中的输入或提交。
 
-交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。
+交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。
+终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。
+
+### Demo 纯值战斗 / 时间许可
+
+`Lockdown.Rules.DemoCombatEvaluation`、`Lockdown.Rules.DemoCore`；
+伤害/时长使用当前 producer 的 `approved_base`，合成 `base` 保留供导入拒绝和变异测试；
+纯值成功不等于实际命中提交
+
+### 营地纯决策
+
+`Lockdown.Rules.CampDecision` 使用同一 `approved_base` 内容夹具，覆盖授权读取完成、身份/世界/时间拒绝、只在已攻击本营的参赛者中稳定选敌、从当前脚点量的感知半径、只约束成员自身的活动范围和成员回位；
+不创建 Actor 或执行移动/攻击/重置，不代替 N03 真实接线
+
+### 营地 / 拥有连接
+
+`Lockdown.Rules.DemoCamp` 覆盖名册、每生命死亡记账与清营计时、整组反击来源、回营重置键和观察事实；`DemoCamp.Species` 覆盖固定档位抽种、失败重试固定抽签和隐藏种类不泄露，`DemoCamp.SkillGeometry` 覆盖固定预警几何与整次预算，`DemoCamp.SkillDelivery` 经真实 Combat 检查预警、躲避、死亡后追加段归因和原生冲刺接触去重；`RunDemoCampCheck.ps1` 在全部提供者接入、普通 Start 门禁打开后，以实际 Listen Host 加两个拥有客户端经正常大厅开局，覆盖批准名册的全部营地落点、不先手、整组反击、最后一击每生命一次收益、清空后按内容计时整组刷新、拴绳回营的公开提示与不发奖重置。
+当前布局的夹具选择 `l09`/`h05`：接近点为盆地内开阔、可达的近战位置，目标搜索范围内没有同档位的其他营地；
+逃离点距 `h05` 约 14.7m，超过 High 拴绳距离，并避开老板巡逻与旗杆。
+#C5 按批准内容核对小野营全部成员的奖励；
+#C10 在刷新截图完成后继续用普攻清空同一营地的新一组，核对拥有客户端的奖励投影达到2级。
+它覆盖当次随机结果，不代表三种小野的平衡对照。
+R0 返回随机抽取野外出生点，客户端沿避开营地成员家点与老板巡逻的夹具路线走到营地接近点，整个场景须在野外 1 内完成。
+唯一渲染的 Client2 另存 `CampGuardianReturning.png`（回位的高档野怪、名字与回位标记）和 `CampLowPair.png`（刷新后的小野三只与名字）供表现审阅，不做像素比对，两档分两张记录。
+不代替 3+3、AI、SpawnBlocked/动态占位或网络异常
+
+### 对手 AI / 拥有连接
+
+`Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。
+它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与受理时被拒订单有界（准入时被拒的订单逐个 AI 报告为 `orders_rejected`，不计入）、每个 AI 在开局休息 R0 的配装步骤内处理开局三选一且 R0 不开放 PK 报名，公共休息室构筑时不离开起始位置，R1/R2 报名窗口内走向本人站位并在 R1 PK 锁定时核对 AI 签名与参赛名单、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；
+可加 `-PackageRoot` 对打包版运行。
+每个角色在开局一分钟时按一次试玩标记，供 `SummarizePlaytestLog.py` 核对标记前后的事件（不是检查项）。
+本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；
+渲染的 Host 另存供人工审阅的截图（不是检查）：`HostMatch*.png`，以及 `HostChoices.png`（开局主动三选一）、`HostOpponentCard.png`（可见 AI 的 Q/W/E 卡）、`HostKillAssist.png`（带助攻者的击杀播报，本局出现时）、`HostSpray.png`/`HostGuard.png`（镜头移到旗杆的喷漆与守护 HUD、涂鸦板）、`HostResults.png`（含助攻列的结算）。
+“至少一个 AI 实际完成 D 冲刺”（报告逐个 AI 记录 `dashes` 与 `dashes_landed`）只作报告项：未出现时记为 NotExercised，不卡门槛，多局与打包版稳定后再定是否升为硬门槛；
+不代替隐藏状态非干扰、字段白名单、真人离开或网络异常
+
+### Demo 属性 / 原生记录
+
+`Lockdown.Rules.DemoAttributeProjection` 覆盖批准属性、五维点数投影、构件条件项和资源比例；`Lockdown.Rules.DemoMotionProbe` 用隔离原生物理验证时间分数、回滚、接地转换和缺失记录拒绝；
+真实拥有身体夹具显式审计保留前缀，不代替最终提供者 Fence
+
+### 原生代码 / 反射
+
+Editor/Game 构建、Bootstrap Validate、相关原生规则
+
+### 入口 / 房间
+
+`TestDemoEntry.ps1`、`Lockdown.Rules.DemoEntryContract/DemoInputByteIntegrity/DemoMatchIdentity/DemoSessionReceipts/DemoLobbyAuthority`
+
+### 休息与外层流程
+
+`Lockdown.Rules.DemoRest.Timeline` 覆盖纯时间线：批准时长、R1/R2 PK 报名窗口（截止时刻含在内）、R0/R3 不举行 PK、锁定保持、报名不足 2 人跳过 PK、野外进度 T 在休息与 PK 中冻结而在野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按死亡时 T 固定的复活等待与客户端 T 推导；`Lockdown.Rules.DemoRest.PhasePolicy` 覆盖隔离组、冻结身体、阶段边界清理与补满；`Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务（见[成长事务](GROWTH_TRANSACTIONS.md)）；`Lockdown.Rules.DemoRest.EntryHold` 覆盖入场未就绪时 PKReady→PK 与返回→野外停在边界、就绪后按实际时刻进入，`Lockdown.Rules.DemoRest.SpawnIdentity` 覆盖撤回的出生请求以新序号重试、不触发 `RequestConflict`，`Lockdown.Rules.DemoPK.RingOutsideTime` 覆盖按真实圈外时长切分圈伤，`Lockdown.Rules.DemoVision.EffectAccess` 覆盖观众与同队共享视野中飞行物的可见权限。
+拥有连接场景探针按新规则检查 AI 在 R0 选择开局主动且不报名、在 R1/R2 报名并核对 R1 PK 名单；
+另检查假人槽位并尝试触发 `Lives` 扩容，实际未扩容时记为未覆盖，以夹具制造 R1 PK 出生点全被占与返场部分阻挡，见[对手 AI](OPPONENT_AI.md) §8.2
+
+### 原生旧入口拒绝
+
+`RunDemoEntryCheck.ps1`，要求真实 URL 被拒绝后回前端，累计 Pawn/旧模式/服务/子系统激活为零
+
+### 前端设置实际渲染
+
+`RunDemoFrontendCheck.ps1`，新 `UserDir` 下的 windowed RHI、合成 UMG 点击与 Slate 按键事件：经命名页签逐个打开五个分类页（隐藏页不进焦点顺序），100/125% 各页图像、诊断开关与文本偏好保存/回读、设置页无窗口模式/分辨率、显示草稿撤销、在别页返回时确认卡回到画面页、再按返回即放弃、VSync 应用保存回读、行内改绑（占用键被拒仍在捕获、空闲键保存回读、Esc 只取消捕获、经 Slate 指针路由在捕获中点页签即结束捕获并切页）、按页恢复默认只影响本页、引擎锁定画质组时应用失败后改走再改回或撤销仍需应用、打开设置时在途的镜头距离延迟保存失败后底栏立即出现“立即保存”；
+不修改 OS 显示模式
+
+### Lobby 设置实际渲染
+
+`RunDemoFrontendCheck.ps1 -LobbyOnly` 在真实单人房间验证五分类页签、偏好保存回读与重开、画面草稿确认与 Esc 放弃、返回后名单及准备修订不变；
+设置保持打开时经正常开局命令进入对局，验证输入持续抑制、局内提示刷新及关闭后输入恢复，并保存 `Lobby-SettingsEntry.png`、`Lobby-Settings.png`、`Lobby-Returned.png`。
+不覆盖前端建房旅行、远端客户端或跨机器联机
+
+### 建房后布局稳定性
+
+`RunDemoFrontendCheck.ps1 -MotionOnly` 经前端的开始、创建房间按钮进入真实 Listen 房间，再切换为 3 个 AI；
+等拥有者视图确认席位变更后，在 100% 与 125% 文字下检查六个席位等宽、各不小于 100 像素，并各采样连续 120 帧“准备”按钮的位置，要求垂直波动不超过 1 像素；
+报告保留逐帧位置、席位宽度和祖先布局尺寸，不以静态截图代替动效检查。
+脚本同时拒绝原生错误与 handled ensure；
+引擎 Python 错误另行提示
+
+### 输入 / 导航 / HUD
+
+`Lockdown.Rules.ControlMappings/IssuedCommandLiveness`、`Lockdown.Rules.LocalSettings*/LocalDisplay*/LocalControlRegistryIsolation`、`Lockdown.Rules.HUD*`；
+拥有连接下的订单与输入路由见 `RunDemoCombatCheck.ps1`，HUD 观测投影见 `RunDemoVisionCheck.ps1`
+
+### 音效 / 音量
+
+`ImportDemoAudio.ps1 -Mode Validate`（Bootstrap Validate 也执行）；`Lockdown.Rules.Audio*`（含 `AudioMusicSelection`）与 `LocalSettingsMasterVolume`、`LocalSettingsMusicVolume`。`-nosound` 场景只证明无错误日志，实际听感、换曲、设备输出与音量需在有声卡的可视运行中确认
+
+### 美术 / 装饰
+
+`ImportDemoArt.ps1 -Mode Validate`（Bootstrap Validate 也执行，含标题/房间背景图的清单、哈希、尺寸与 UI 纹理设置）；`Lockdown.Rules.ArtCatalog/ArtCatalogAsset/ArtDecorations`；`CaptureDemoArt.ps1` 在 Demo 地图大厅渲染全部身体、各动画姿势与装饰后的场地截图，并核对装饰无碰撞、不挡视线追踪、不改 navmesh。
+不代替身体接线、战斗或联机验收
+
+### 战斗 / 观测复制
+
+`RunDemoCombatCheck.ps1` 为 DEV 拥有连接的战斗与订单场景：经普通大厅 Start，决斗点与技能点避开老板巡逻警戒范围和营地家点，收缩边外脚点作为点选地面被拒、作为追击终点可规划，已接受行走上打开设置超过订单租约（订单与心跳继续、关闭后不重放）、远程攻击移动与 S、右键击杀与击杀播报、死亡静态镜头随小地图平移、随机复活的精确保护及空 Q 解除保护；
+随后 Host 用 DEV 成长夹具预置候选并给 Client1 发放经验，双方经普通构筑命令学会主动（Host：扒裤子；
+Client1：锅盖挡脸与甩你一鞋），实战覆盖定身被观察者看到、锅盖挡脸的护盾与解除定身、甩你一鞋的 `Chalk` 飞行表现/命中/减速公开状态和基础射程内的追击普攻；
+Host 离屏渲染主视图并保存 `HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png` 供人工审画面，不做像素比对；
+双方报告操作手感实测，只报告不设门槛（不含营地/AI/终局）。`RunDemoVisionCheck.ps1` 是观测场景，覆盖拓扑、受限注册表、拥有连接与权限清除，不含AI、战斗数值或完整对局验收
+
+### 成长 / 奖励
+
+`RunTests.ps1` 中的 `DemoGrowth*`、`DemoDevTestCommands`、`DemoAssist*` 规则（含地图事件奖励按事件与序号去重）；`RunDemoGrowthCheck.ps1` 为 DEV 拥有连接的击杀奖励/构筑场景，Host 带 DEV 成长夹具预置拥有客户端的候选，先在第一局开局休息 R0 核对拥有客户端在配装步骤把开局主动学到 Q 并分配开局点数、在返回倒计时内攻击移动（含 Shift 排队）与 Q 被拒，以及两端看到同一开局与野外 1 开始时刻（`Rest0`），且第一局击杀跨越野外中段休息时两端在休息中暂停、核对每次休息只让野外生命退场而不计死亡（公开死亡数不变）并在返回后放回下一条野外生命（`Rest`），覆盖击杀后交战窗口仍在时选到的等级候选当场学到 W 并加点，死亡中选择学到 E 并加点、不复活不治疗、复活后 E 仍在，Listen Host 作为击杀者（击杀拥有客户端与低档营地野怪）在本人视图、HUD 与渲染的“+X 经验”飘字中看到精确奖励，并结束本局后开第二局核对新局隔离（上一局的构筑请求以 OldMatch 拒绝、回执查询为 InvalidContext；
+不含 AI/喷漆守护）
+
+### 网络异常 / 拥有连接
+
+`RunDemoSessionFaultCheck.ps1`（可加 `-PackageRoot` 对打包版运行）分七段：Leave 中客户端先打开并取消 Lobby 离开确认（说明返回主菜单、房间继续且其他成员仍留在 Lobby），再经局内菜单确认“离开房间并返回主菜单”，提示其不能重加入、本局记录保留且其他玩家继续；
+Host 结束后结果表记其离局且无击杀/死亡，Host/加入者的结算退出按钮分别说明关闭房间或仅离开；
+HostLoss 结束 Host 进程，客户端回到主菜单并显示“会话中断”，不出现结果表；
+Join 对关闭端口和无法解析的地址显示“连接失败：原因”，仍停在前端且可再次加入；
+Refuse 用真实加入按钮依次遇到版本不兼容（DEV 参数让该客户端声明另一产品版本）、三真人加三 AI 满员和对局已开始，各自显示中文原因与原因码，始终未进入房间；
+Race 中一次加入已通过 PreLogin，Host 在它载入房间时开局，最终准入检查拒绝它，客户端显示“对局已开始”而不是会话中断；
+HostLeave 中 Host 经局内菜单确认关闭整个房间并离开，客户端回到主菜单并显示“房主已离开”，不显示会话中断或结果表，Host 自己的主菜单也不显示失败；
+HostQuit 中 Host 进程在客户端仍连接时正常退出（与直接关窗口相同，引擎走 PreExit 拆除世界而不是换图），Host 须以 0 退出且日志无 `LD_DEMO_AUTHORITY_FAULT`，客户端回到主菜单并显示“会话中断”，不出现结果表。
+全部在同机回环上运行，不代表跨机器局域网或公网直连
 
 `RunDemoSessionFaultCheck.ps1 -RefuseOnly` 只运行版本不兼容、六席满房和开局后的拒绝场景，不覆盖其他网络异常。
 
-Core 场景收尾由两个拥有客户端经正式离开房间入口退出，再校验服务器退休身体与资源所有权。
-它不把直接结束进程当作正式离开；意外断线保留参赛者的重连路径由对应会话检查覆盖。
+### 全新检出
+
+`VerifyCleanCheckout.ps1`；
+它验证本地 LFS 缓存检出，不证明远程分发
+
+### 构筑评估 Harness
+
+`Lockdown.Rules.BuildEvaluation`（种子与生产默认、评估画像、工坊构筑计划、原生输入、对决时限）与 `python -B -m unittest discover -s .\Scripts -p "TestBuildEvaluation*.py"`；
+改到原生驱动、种子挂点或 Adapter 判读时，用 `RunBuildEvaluation.ps1 -Manifest <示例清单>` 跑一次真实小规模运行，并用 `-ReplayRun <运行目录> -Case <id>` 核对重放一致。
+它是 DEV 实验工具，结果只描述所覆盖的构筑、固定策略、场景与预算，不是验收或平衡结论，见[构筑评估 Harness](BUILD_EVALUATION.md)
 
 ## 合并前与里程碑检查
 

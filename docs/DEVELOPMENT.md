@@ -1,12 +1,51 @@
 # 开发指南
 
 产品目标见 [App Spec](APP_SPEC.md)，协作约束见 [AGENTS](../AGENTS.md)，验收状态见[实施就绪评估](demo/READINESS.md)。
-本页按章节查阅，不需要通读。
+本页按章节查阅，不需要通读。先用任务索引选一份手册，再从手册的入口表定位实际实现；不要顺读全部系统。
+
+流程直达：[环境与首次启动](#环境与首次启动) · [验证](#验证) · [工程目录](#工程目录) ·
+[数据修改](#数据修改) · [运行与联机](#运行与联机) · [试玩问题排查](#试玩问题排查) · [任务管理](#任务管理issuemilestoneproject)。
+
+## 按任务读取系统手册
+
+| 工作 | 技术说明 |
+| --- | --- |
+| 关卡、地编、美术、TA 与场景相关功能（必读） | [关卡创作自由与开发约束](LEVEL_AUTHORING_CONTRACT.md)，再按下表读具体接口 |
+| 模块、Lobby、IP 联机、阶段与休息、生命代次、喷漆与结果、回执 | [架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md) |
+| 操作表、订单、点击移动、预测、取消、输入层、镜头、本地设置 | [移动、输入与镜头](systems/MOVEMENT_INPUT_AND_CAMERA.md) |
+| 伤害/状态、属性、时序、效果来源、构筑、死亡事实 | [战斗与成长](systems/COMBAT_AND_GROWTH.md) |
+| 奖励、经验、选择、去重、原子事务 | [成长事务](systems/GROWTH_TRANSACTIONS.md) |
+| 对手 AI 的接口与策略 | [对手 AI](systems/OPPONENT_AI.md) |
+| 战争迷雾、观测句柄、HUD、界面页面、设置页与隐私 | [视野与 UI](systems/VISION_AND_UI.md) |
+| 地形、碰撞、世界查询、营地、SourceData、资产 | [世界与数据管线](systems/WORLD_AND_DATA_PIPELINE.md) |
+| 每个检查与场景覆盖什么、规则测试集合、里程碑清单、共用机器 | [验证手册](systems/VERIFICATION.md) |
+| 打包、产品版本、PR 检查、每日试玩包、自托管 runner | [CI 与发布](systems/CI_AND_RELEASE.md) |
+| 构筑评估（DEV 实验编排、原生重放、合法成长与反事实报告） | [构筑评估 Harness](systems/BUILD_EVALUATION.md) |
+
+每个玩法域只有这里的一份手册，开头的表给出文件、入口函数、不变量与检查入口；跨域语义在[共享契约](demo/SHARED_CONTRACTS.md)，数值在[内容与数值](demo/CONTENT_AND_BALANCE.md)。
+
+### 文档维护归属
+
+| 事实 | 唯一维护位置 |
+| --- | --- |
+| 常驻安全、协作、实现边界与阅读路由 | [AGENTS](../AGENTS.md) |
+| 产品规则、显示术语与完成标准 | [App Spec](APP_SPEC.md#按任务查规则) |
+| 内容、公式与批准数值 | [内容与数值](demo/CONTENT_AND_BALANCE.md#按任务查内容)；运行输入沿 SourceData → Sync → Content 生成 |
+| 跨领域所有权、身份、时间与交接语义 | [共享契约](demo/SHARED_CONTRACTS.md) |
+| 本领域接口、文件、入口函数与不变量 | 上表对应的系统手册 |
+| 环境、日常命令、数据修改与 Issue/PR 流程 | 本页对应章节 |
+| 检查覆盖范围、限制、测试集合与里程碑清单 | [验证手册](systems/VERIFICATION.md#最小验证选择) |
+| 打包、版本、runner 与 CI 门禁 | [CI 与发布](systems/CI_AND_RELEASE.md) |
+| 验收证据、未运行和未实现 | [就绪评估](demo/READINESS.md) |
+
+README 只作项目概览与入口。新增说明写入所属章节，其他位置链接过去，不复制整套规则或测试清单。
+Issue/PR 保存任务进度、决策原话与本次验证结果，不将这些记录写入系统手册。
 
 ## 环境与首次启动
 
-使用 PowerShell 7、Python 3、Git LFS、Unreal **5.8.4** 及兼容的 MSVC/Windows SDK。
+使用 Windows 10/11、PowerShell 7、Python 3、Git LFS、Unreal **5.8.4** 及兼容的 MSVC/Windows SDK。
 精确引擎基线在 `Config\PlatformLock.json`。需要 .NET Framework SDK，只有现代 .NET runtime 或 targeting pack 不够。
+`.uasset`、`.umap` 以及 `SourceData\Audio`、`SourceData\Art` 下的音频与 3D 源文件由 Git LFS 管理。
 
 在工作区根目录执行：
 
@@ -58,35 +97,20 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
   冲突涉及生成文件（`Content/Lockdown/Data`、生成资产、`*Contract.h`）时沿 Sync 入口重新生成，不手工拼接。
 - 场景（`RunDemo*Check.ps1`）只在改动涉及网络、交易、成长、胜负等必须用真实拥有连接证明的行为，
   或 Issue 明确要求时才在 PR 前跑；只选覆盖实际改动及其直接依赖的最小场景或已有定向模式。
-  同一模块不等于需要整局回归；没有定向入口时报告覆盖缺口，不默认启动长测，其余集中到里程碑验收。
+  不用仅有 Host 的调试场景替代拥有连接证据；同一模块不等于需要整局回归。
+  没有定向入口时报告覆盖缺口，不默认启动长测，其余集中到里程碑验收。
 - 失败先看本次 `Artifacts`、日志与断言并标记未通过，不原样重跑来碰运气通过或判断偶发性。
   修复相关原因后只重跑失败项及受影响检查；没有定向入口的长测仅在明确要求专项验证时重跑。
   无关失败保留证据和未确认归因，不扩大开发范围。
 - `-FullUnity`、`RunTests.ps1 -ImportTests Run`、全套场景只用于里程碑、发布和全新检出，
-  清单见[验证手册](systems/VERIFICATION.md#合并前与里程碑检查)。
+  或明确要求的专项验证；清单见[验证手册](systems/VERIFICATION.md#合并前与里程碑检查)。
+- fork PR 不跑 CI 的原生任务：改了 `Source` 的 fork PR 在本地用 `Verify.ps1 -Filter` 跑受影响的规则前缀并在 PR 里写明结果；
+  合并前由维护者在本仓库分支上补跑原生门禁。
 - 新工作区没有 `Binaries` 与 `Intermediate`，第一次构建要 3–6 分钟（之后的增量构建约 20 秒）。
   只改文档、数据或 Python 的任务不需要构建。
 - Python 测试失败时看输出结尾 `Log:` 指向的日志，修复后用 `python -B .\Scripts\RunPythonTests.py --failed` 只重跑失败项。
 - PR 保持 Draft 到改动稳定：转 Ready 后每次推送都占用自托管 runner。
 - 共用机器的并发上限见[验证手册](systems/VERIFICATION.md#多人共用一台机器)。
-
-## 按任务读取系统手册
-
-| 工作 | 技术说明 |
-| --- | --- |
-| 关卡、地编、美术、TA 与场景相关功能（必读） | [关卡创作自由与开发约束](LEVEL_AUTHORING_CONTRACT.md)，再按下表读具体接口 |
-| 模块、Lobby、IP 联机、阶段与休息、生命代次、喷漆与结果、回执 | [架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md) |
-| 操作表、订单、点击移动、预测、取消、输入层、镜头、本地设置 | [移动、输入与镜头](systems/MOVEMENT_INPUT_AND_CAMERA.md) |
-| 伤害/状态、属性、时序、效果来源、构筑、死亡事实 | [战斗与成长](systems/COMBAT_AND_GROWTH.md) |
-| 奖励、经验、选择、去重、原子事务 | [成长事务](systems/GROWTH_TRANSACTIONS.md) |
-| 对手 AI 的接口与策略 | [对手 AI](systems/OPPONENT_AI.md) |
-| 战争迷雾、观测句柄、HUD、界面页面、设置页与隐私 | [视野与 UI](systems/VISION_AND_UI.md) |
-| 地形、碰撞、世界查询、营地、SourceData、资产 | [世界与数据管线](systems/WORLD_AND_DATA_PIPELINE.md) |
-| 每个检查与场景覆盖什么、规则测试集合、里程碑清单、共用机器 | [验证手册](systems/VERIFICATION.md) |
-| 打包、产品版本、PR 检查、每日试玩包、自托管 runner | [CI 与发布](systems/CI_AND_RELEASE.md) |
-| 构筑评估（DEV 实验编排、原生重放、合法成长与反事实报告） | [构筑评估 Harness](systems/BUILD_EVALUATION.md) |
-
-每个玩法域只有这里的一份手册，开头的表给出文件、入口函数、不变量与检查入口；跨域语义在[共享契约](demo/SHARED_CONTRACTS.md)，数值在[内容与数值](demo/CONTENT_AND_BALANCE.md)。
 
 ## 工程目录
 
@@ -281,3 +305,35 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
   `-Trace` 额外录 Unreal Insights CPU 追踪 `PerfBudget.utrace`；`-ExtraArguments '-ExecCmds="<cvar> <值>"'` 做单项 A/B。
   无界面导出计时表：`Start-Process -Wait UnrealInsights.exe -ArgumentList '-OpenTraceFile="<utrace>" -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics <csv> -threads=GameThread" -AutoQuit -NoUI'`。
   游戏线程上权威阶段（`LDPhase_*`）、视野发布、HUD 读模型等已有 `LD*` 命名的追踪区段。
+
+## 任务管理：Issue、Milestone、Project
+
+仅在建票、改期、提交 PR 或合并时读取本节；开发中的常驻约束见 [AGENTS](../AGENTS.md)。
+
+- **合并同类**：同一系统、同一类型的工作合成一张票，子项用 checklist 列出，由一个人连续做完。
+  发现新问题时先搜现有的票：能并入就在原票里加子项，不能并入才新建。
+- **票的内容**：只写三部分：目标；范围（checklist）；验收标准。引用相关规格章节和已批准决定的原话，
+  不写个人上手步骤或环境教学。
+- **标签**：每张票打一个类型标签，可选：`类型:逻辑`、`类型:数值数据`、`类型:表现`、
+  `类型:工具工程`、`类型:测试`、`类型:流程`。
+  另外按情况加：本期不做的加 `12/31之后`；缺陷加 `bug`；需要用户拍板的加 `question`。
+- **Milestone**：每两周一个，依次是 M1、M2、M3、M4、交付；截止日期以 GitHub Milestone 为准。
+  排期越偏逻辑越早、越偏视觉越晚；M4 只做试玩、打磨和迭代，不加新功能。
+  带 `12/31之后` 的票不挂 milestone。
+- **看板**：[Lockdown 12/31 内部版](https://github.com/users/sinmentis/projects/4)。“排期”视图按“开始日期”和“结束日期”显示。
+  PR 关联票后状态自动变为 In Progress，票关闭后自动变为 Done；开工但还没有 PR 时，手动改为 In Progress。
+- **新建票必做**：打类型标签、指派负责人、挂 Milestone 或打 `12/31之后` 标签；
+  加入看板，状态设为 Todo，填写开始日期和结束日期，结束日期不晚于 Milestone 的截止日。漏掉任何一项就不会出现在排期里。
+- **改期**：更换 Milestone 或负责人时，同步更新结束日期。票过了结束日期还没完成，在票里写明原因并改期。
+- **重复的票**：用 `gh issue close <N> --duplicate-of <M>` 关闭，目标票在“合并来源”里列出原票。
+- **产品决定**：决定原话记在对应 Issue；落地后的规格归属见 [AGENTS：任务管理](../AGENTS.md#任务管理issuemilestoneproject)。
+
+从开工到关闭：
+
+1. 把票指派给自己。
+2. 从最新的 `main` 建独立分支与工作区。
+3. 提 PR，描述里写 `Fixes #N`、改动内容和验证结果，通过、失败、未运行要分开写，并写明新增的测试名。
+4. 验证通过后以 merge commit 合并，并删除分支；禁止 force push，不改写共享提交。
+5. 确认票已经关闭。
+
+一张票可以拆成多个 PR：前面的 PR 写 `Part of #N`，最后一个写 `Fixes #N`。
