@@ -13,7 +13,7 @@
 
 // Skill branch mechanics (issue #287 spec §5.1; docs/systems/COMBAT_AND_GROWTH.md "技能等级与分支"). A branch variant is an
 // ordinary value set: its known operations run through their usual handlers, the workshop mod operations it carries through
-// CompileWorkshopActive, and the branch-only operations here. Hit riders ride on the release's cast ledger, so every native
+// CompileCardActive, and the branch-only operations here. Hit riders ride on the release's cast ledger, so every native
 // direct hit of that release (projectile, chain hop, zone pulse, impact, echo, return) applies them.
 
 namespace LDCombatBranchDetail
@@ -233,7 +233,7 @@ void ALDCombatDirector::ApplyRecastTerms(const FLDCombatRecastWindow& Window, FL
 
 int64 ALDCombatDirector::BranchVulnerableBp(const FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs) const
 {
-    if (Hit.SourceEntity==Target.Victim.EntityId || Hit.bDebtPayment) { return 0; }
+    if (Hit.SourceEntity==Target.Victim.EntityId) { return 0; }
     int64 Bp=0;
     for (const FLDCombatVulnerability& Row : Target.Branch.Vulnerabilities)
     {
@@ -566,10 +566,10 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
     int64 NowMs, FString& Error)
 {
     using namespace LDCombatBranchDetail;
-    if (Hit.SourceEntity==Target.Victim.EntityId || Hit.bDebtPayment) { return true; }
+    if (Hit.SourceEntity==Target.Victim.EntityId) { return true; }
     FLDCombatBranchState& Branch=Target.Branch;
     const FLDCombatBodyRef TargetRef{Target.Victim,Target.Identity};
-    const bool bOrdinary=!Hit.bReflect && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bLedgerCashOut;
+    const bool bOrdinary=!Hit.bReflect && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bRider;
     // S10 B1: every damaging hit on an overcharged body discharges once more for its applier.
     if (Branch.OverchargeUntilMs>NowMs && DamageP2>0 && !Hit.bOverchargeDischarge && !Hit.bBurnTick)
     {

@@ -24,6 +24,7 @@ bool IsGameplayRefusal(ELDCombatReject Reason)
     case ELDCombatReject::Cooldown:
     case ELDCombatReject::AttackNotReady:
     case ELDCombatReject::MomentumShort:
+    case ELDCombatReject::HealthShort:
     case ELDCombatReject::ControlBlocked:
     case ELDCombatReject::TargetUnavailable:
     case ELDCombatReject::InvalidDirection:
@@ -114,13 +115,6 @@ void ALDCombatDirector::LedgerShieldGranted(const FLDBodyCombatState& Body, int6
     if (Version!=INDEX_NONE) { BuildLedger.Add(Body.Victim.EntityId,Version,ELDBlueprintFact::ShieldGranted,AmountP2); }
 }
 
-void ALDCombatDirector::LedgerDebtRepaid(const FLDBodyCombatState& Body, int64 RepaidP2)
-{
-    if (Body.Victim.Kind!=ELDVictimKind::Contender || RepaidP2<=0 || LDCombatBlueprintLedgerDetail::IsTraining(Body)) { return; }
-    const int32 Version=LedgerVersion(Body.Victim.EntityId);
-    if (Version!=INDEX_NONE) { BuildLedger.Add(Body.Victim.EntityId,Version,ELDBlueprintFact::DebtRepaid,RepaidP2); }
-}
-
 void ALDCombatDirector::LedgerRegenerated(const FLDBodyCombatState& Body, int64 RestoredP2)
 {
     if (Body.Victim.Kind!=ELDVictimKind::Contender || RestoredP2<=0 || LDCombatBlueprintLedgerDetail::IsTraining(Body)) { return; }
@@ -128,9 +122,9 @@ void ALDCombatDirector::LedgerRegenerated(const FLDBodyCombatState& Body, int64 
     if (Version!=INDEX_NONE) { BuildLedger.Add(Body.Victim.EntityId,Version,ELDBlueprintFact::Regeneration,RestoredP2); }
 }
 
-void ALDCombatDirector::LedgerComponentTriggered(const FLDBodyCombatState& Holder, FName Component)
+void ALDCombatDirector::LedgerCardTriggered(const FLDBodyCombatState& Holder, FName Card)
 {
-    if (Holder.Victim.Kind!=ELDVictimKind::Contender || Component.IsNone() || LDCombatBlueprintLedgerDetail::IsTraining(Holder))
+    if (Holder.Victim.Kind!=ELDVictimKind::Contender || Card.IsNone() || LDCombatBlueprintLedgerDetail::IsTraining(Holder))
     {
         return;
     }

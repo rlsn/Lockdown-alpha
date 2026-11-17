@@ -990,15 +990,6 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     }
     Hit.SourceAPP2=Final.APP2;
     if (!StampSourceTerms(Body,Hit,Error) || !SnapshotOnHit(Body,10000,Hit,Error)) { return false; }
-    // B14: only the primary basic's own AD package scales; the empowered packages added below never do.
-    TArray<FLDPassiveEffectRef> Scales;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::BasicDamageScale,Scales,Error)) { return false; }
-    for (const FLDPassiveEffectRef& Scale : Scales)
-    {
-        if (Scale.Effect.RatioBp<0 || Scale.Effect.RatioBp>10000)
-        { Error=FString::Printf(TEXT("basic_damage_scale of %s is outside 0..1."),*Scale.Key); return false; }
-        Hit.ADRatioBp=Hit.ADRatioBp*Scale.Effect.RatioBp/10000;
-    }
     const int64 Now=Mode->GetAuthorityNowMs();
     // COMBO.StepRatios: the contender's combo step scales the basic's own raw package (not the merged empowered ones)
     // before its critical roll. The released step is the body's combo from now on.
@@ -1033,8 +1024,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     bool bChargeBonusEnded=false;
     for (const FLDCombatEmpower& Package : Taken)
     {
-        // §10: a component's package (B12, C09) is one trigger when a landed basic consumes it; arming it is none.
-        if (Package.Source.Kind==ELDCombatSourceKind::Component) { LedgerComponentTriggered(Body,Package.Source.DefinitionId); }
+        // A card's package (D03) is one trigger when a landed basic consumes it; arming it is none.
+        if (Package.Source.Kind==ELDCombatSourceKind::Card) { LedgerCardTriggered(Body,Package.Source.DefinitionId); }
         // The stats held while charges remain end with the last charge.
         if (Package.Charges==0 && Package.bChargeBonus)
         {
@@ -1063,32 +1054,14 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
         if (Package.MomentumP2>0) { GrantMomentum(Body,Package.MomentumP2,ELDMomentumBook::Skill); }
         if (Package.Charges==0 && Package.LastStunMs>0) { Hit.StunDurationMs=FMath::Max(Hit.StunDurationMs,Package.LastStunMs); }
     }
-    // A B06 push leaves from the holder's foot (this one if the holder is gone when it lands).
+    // An A04 push leaves from the holder's foot (this one if the holder is gone when it lands).
     Hit.KnockbackAnchorCm=FootOf(Actor);
-    if (!OnBasicLanded(Body,Hit,Error)) { return false; }
-    // M18: the last package of its host (S17) pushes the target away from the holder (after B06, which it replaces).
-    for (const FLDCombatEmpower& Package : Taken)
-    {
-        if (Package.Charges!=0 || Package.Source.Kind!=ELDCombatSourceKind::Learned) { continue; }
-        TArray<FLDPassiveEffectRef> Finals, Farther;
-        if (!WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::FinalKnockback,Package.Source,Finals,Error)
-            || !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::KnockbackScale,Package.Source,Farther,Error)) { return false; }
-        if (Finals.IsEmpty()) { continue; }
-        const FLDDemoEffectDefinition& Push=Finals[0].Effect;
-        Hit.KnockbackCm=LDCA::ToDouble(Push.DistanceCm);
-        Hit.KnockbackMs=Push.DurationMs;
-        for (const FLDPassiveEffectRef& Mod : Farther)
-        {
-            Hit.KnockbackCm=Hit.KnockbackCm*double(Mod.Effect.RatioBp)/10000.;
-            Hit.KnockbackMs=Hit.KnockbackMs*Mod.Effect.RatioBp/10000;
-        }
-        Hit.bKnockbackFromAnchor=false;
-        Hit.KnockbackSource=Package.Source;
-        LedgerComponentTriggered(Body,Finals[0].Source.DefinitionId);
-        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_FINAL_KNOCKBACK src=%s host=%s cm=%.0f"),*LDLog::Id(Body.Victim.EntityId),
-            *Package.Source.DefinitionId.ToString(),Hit.KnockbackCm);
-    }
+    // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
+    TArray<FLDCombatHit> Extra;
+    if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
     PendingHits.Add(Hit);
+    PendingHits.Append(MoveTemp(Extra));
+    LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);    PendingHits.Add(Hit);
     LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
     if (!Taken.IsEmpty() || Body.Empowers.Num()!=PendingBefore)
     {
@@ -1096,52 +1069,6 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
         MarkViewChanged(Body.Victim.EntityId);
     }
     FinishAction(Body,ELDCombatReject::None,true);
-    return true;
-}
-
-bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, FString& Error)
-{
-    const ALDGameMode* Mode=Core();
-    if (!Mode) { Error=TEXT("A landed basic requires the current core."); return false; }
-    const FGuid& Entity=Body.Victim.EntityId;
-    // cooldown_refund (BasicHit): every landed basic cuts all three learned actives.
-    {
-        TArray<FLDPassiveEffectRef> Refunds;
-        if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::CooldownRefund,Refunds,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Ref : Refunds)
-        {
-            if (Ref.Effect.Trigger!=ELDDemoEffectTrigger::BasicHit) { continue; }
-            ReduceCooldown(Entity,ELDCombatEntry::Q,Ref.Effect.AmountMs);
-            ReduceCooldown(Entity,ELDCombatEntry::W,Ref.Effect.AmountMs);
-            ReduceCooldown(Entity,ELDCombatEntry::E,Ref.Effect.AmountMs);
-        }
-    }
-    // B06 (nth_basic_bonus): every Count-th landed primary basic of this life pushes its primary target DistanceCm over
-    // DurationMs away from the holder; no damage. The count survives target changes and ends with the life.
-    TArray<FLDPassiveEffectRef> Counters;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::NthBasicBonus,Counters,Error)) { return false; }
-    if (!Counters.IsEmpty()) { ++Body.LandedBasics; }
-    for (const FLDPassiveEffectRef& Ref : Counters)
-    {
-        const FLDDemoRational& Distance=Ref.Effect.DistanceCm;
-        if (Ref.Effect.Count<=0 || Ref.Effect.DurationMs<=0 || Distance.Denominator<=0 || Distance.Numerator<=0)
-        { Error=FString::Printf(TEXT("nth_basic_bonus of %s needs a positive count, distance and duration."),*Ref.Key); return false; }
-        if (Body.LandedBasics%Ref.Effect.Count!=0) { continue; }
-        Primary.KnockbackCm=double(Distance.Numerator)/double(Distance.Denominator);
-        Primary.KnockbackMs=Ref.Effect.DurationMs;
-        Primary.bKnockbackFromAnchor=false;
-        // #198 F: C02 reads this push as B06's; M03 on B06 pushes farther for a lighter third hit.
-        Primary.KnockbackSource=Ref.Source;
-        TArray<FLDPassiveEffectRef> Farther;
-        if (!WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::KnockbackScale,Ref.Source,Farther,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Mod : Farther)
-        {
-            Primary.KnockbackCm=Primary.KnockbackCm*double(Mod.Effect.RatioBp)/10000.;
-            Primary.KnockbackMs=Primary.KnockbackMs*Mod.Effect.RatioBp/10000;
-            Primary.PackageScaleBp=Primary.PackageScaleBp*Mod.Effect.MultiplierBp/10000;
-        }
-    }
-    MarkViewChanged(Entity);
     return true;
 }
 
@@ -1169,9 +1096,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
         && LDMomentum::OverdriveReady(OverdriveTerms,Body.Resources.MomentumP2);
     if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
-    // C20: a live wide token of another host widens this release's area terms (consumed only if it is paid).
-    bool bWidened=false;
-    if (!WidenTerms(Body,Source,Terms,Mode->GetAuthorityNowMs(),bWidened,Error)) { return false; }
+    // K06: a repeat releases at its share of the damage.
+    if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
     const FLDDemoAbilityValues* ValuesDef=&Terms.Values;
     const FLDDemoTargetDefinition& TargetDef=Terms.Target;
     // The caster's foot before any displacement of this release (areas, zones and pushes centre here).
@@ -1180,7 +1106,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
     FLDInnateDashTerms Innate;
     if (bInnate && !InnateDashFor(Innate,Error)) { return false; }
-    // #198 F M08/M09 on D: its distance and issued cooldown scale like a learned dash's (Terms).
+    // K08 and D05 on D: its issued cooldown and segment distance follow the cards (Terms).
     if (bInnate)
     {
         if (!FinalCooldownCost(*Record,Source,Innate.CooldownMs,Error)) { return false; }
@@ -1189,11 +1115,19 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // A stun or taunt that landed during the windup ends it (normally already abandoned at the hit).
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
-    const bool bRecast=!bInnate && BranchRecastOpen(Body,Source,Now);
+    // A K06 repeat and an open D05 second segment cost nothing and issue no cooldown, like a branch recast.
+    const bool bSplitSegment=bInnate && Body.SplitDashLeft>0 && Now<=Body.SplitDashUntilMs;
+    const bool bBranchRecast=!bInnate && !Action.bAutoRecast && BranchRecastOpen(Body,Source,Now);
+    const bool bRecast=bBranchRecast || Action.bAutoRecast || bSplitSegment;
     const bool bFreeCast=!bInnate && !bRecast && BranchFreeCast(Body,Source,Now);
+    // K12: the release pays health instead of momentum (refused while the body cannot pay it and live).
+    const bool bHealthCost=!bInnate && !bRecast && !bFreeCast && Terms.HPCostBpPerMomentum>0;
+    const int64 HealthCostP2=bHealthCost ? Body.Resources.MaxHpP2/10000*Terms.HPCostBpPerMomentum*ValuesDef->MomentumCostP2/100
+        +Body.Resources.MaxHpP2%10000*Terms.HPCostBpPerMomentum/10000*ValuesDef->MomentumCostP2/100 : 0;
+    if (bHealthCost && Body.Resources.HpP2<=HealthCostP2) { Reject=ELDCombatReject::HealthShort; return true; }
     Gate.ReadyAtMs=bRecast ? Now : Track->ReadyAtMs;
     Gate.MomentumP2=Body.Resources.MomentumP2;
-    Gate.MomentumCostP2=bInnate || bRecast || bFreeCast ? 0 : ValuesDef->MomentumCostP2;
+    Gate.MomentumCostP2=bInnate || bRecast || bFreeCast || bHealthCost ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body.Roots;
@@ -1226,7 +1160,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     FLDCombatAction DeliveryAction=Action;
     // S02 B / S12 B: the recast takes its own terms over this release's snapshot.
     TOptional<FLDCombatRecastWindow> RecastWindow;
-    if (bRecast)
+    if (bBranchRecast)
     {
         RecastWindow=Body.Branch.Recast.GetValue();
         Body.Branch.Recast.Reset();
@@ -1296,15 +1230,26 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // SKILL.CooldownFloorSec: the technical floor of a hasted Q/W/E (animation and network), not a gameplay cap.
     if (!bInnate) { DurationMs=FMath::Max(DurationMs,Content->Get().Parameters.SkillRanks.CooldownFloorMs); }
     if (!LDMatchLifecycle::AddDurationMs(Now,DurationMs,ReadyAt,Error)) { return false; }
-    // B17: read from the track's real ReadyAt before this release issues the next one (the wait restarts after it).
-    int64 IdleAmpBp=0;
-    if (!IdleReadyAmpBp(Body,*Track,Now,IdleAmpBp,Error)) { return false; }
-    // B15: a different learned active released within the window after the previous Q/W/E release locks its amplification.
-    int64 AlternateBp=0;
-    if (!AlternateAmpBp(Body,Source,Now,AlternateBp,Error)) { return false; }
+    // The release's locked damage factors (K09/K12/K16/K17), read from the track's real ReadyAt before this release issues
+    // the next one (K16's wait restarts after it).
+    TArray<FLDDamageFactor> ReleaseFactorsNow;
+    if (!ReleaseFactors(Body,*Record,Source,Track,Now,ReleaseFactorsNow,Error)) { return false; }
     // Every fallible step is done: pay once and register the effects (an overdrive pays the whole bar).
     const int64 PaidP2=bOverdrive ? Body.Resources.MomentumP2 : Gate.MomentumCostP2;
     GrantMomentum(Body,-PaidP2,ELDMomentumBook::Spent);
+    if (bHealthCost)
+    {
+        Body.Resources.HpP2-=HealthCostP2;
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_HEALTH_COST t=%lld src=%s active=%s paid=%s"),Now,*LDLog::Id(Body.Victim.EntityId),
+            *Source.DefinitionId.ToString(),*LDLog::P2(HealthCostP2));
+    }
+    // D05: the first segment opens the next ones; each later segment uses one.
+    if (bInnate && Terms.SplitSegments>1)
+    {
+        if (bSplitSegment) { --Body.SplitDashLeft; }
+        else { Body.SplitDashLeft=Terms.SplitSegments-1; }
+        if (!LDMatchLifecycle::AddDurationMs(Now,Terms.SplitWindowMs+Innate.DurationMs,Body.SplitDashUntilMs,Error)) { return false; }
+    }
     if (bOverdrive)
     {
         ++Body.MomentumLedger.Overdrives;
@@ -1328,27 +1273,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
     CastLedger->PaidMomentumP2=PaidP2;
     CastLedger->bOverdrive=bOverdrive;
-    CastLedger->AlternateAmpBp=AlternateBp;
+    CastLedger->Factors=MoveTemp(ReleaseFactorsNow);
+    CastLedger->bAutoRecast=Action.bAutoRecast;
     if (RecastWindow.IsSet())
     {
         CastLedger->bRecast=true;
         if (RecastWindow->FirstLedger) { CastLedger->RecastFirst=RecastWindow->FirstLedger->RiderStruck; }
-    }
-    if (AlternateBp>0)
-    {
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_ALTERNATE_AMP t=%lld src=%s active=%s previous=%s gap_ms=%lld amp_bp=%lld"),Now,
-            *LDLog::Id(Body.Victim.EntityId),*Source.DefinitionId.ToString(),*Body.LastActiveRelease.ToString(),
-            Now-Body.LastActiveReleaseAtMs,AlternateBp);
-    }
-    NoteActiveRelease(Body,Source,Now);
-    if (bWidened)
-    {
-        // §10: C20 is one trigger when this paid release spends the token (a unit-target active spends it for nothing).
-        const FName WideComponent=Body.WideToken->Component;
-        Body.WideToken.Reset();
-        LedgerComponentTriggered(Body,WideComponent);
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_WIDE_SPENT t=%lld src=%s active=%s"),Now,*LDLog::Id(Body.Victim.EntityId),
-            *Source.DefinitionId.ToString());
     }
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
     bool bDealsDamage=false;
@@ -1406,19 +1336,15 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Voluntary.Source=Source;
             Voluntary.StartFootCm=ReleaseFoot;
             Voluntary.EndMs=Body.DashUntilMs;
-            TOptional<FLDPassiveEffectRef> ContactDamage;
-            TArray<FLDPassiveEffectRef> ContactRefunds, ContactKnocks, ContactHastes;
-            if (!FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactDamage,ContactDamage,Error)
-                || !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactRefund,Source,ContactRefunds,Error)
-                || !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::ContactKnockback,Source,ContactKnocks,Error)
-                || !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::HitHasteOther,Source,ContactHastes,Error))
+            // Dash cards that read a contact of this dash (D01 reset, D02 cuts, D06 phase strikes, D12 shock).
+            TArray<FLDPassiveEffectRef> Resets, Hastes, Phases, Shocks;
+            if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactReset,Source,Resets,Error)
+                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::HitHasteOther,Source,Hastes,Error)
+                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashPhase,Source,Phases,Error)
+                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactElement,Source,Shocks,Error))
             { return false; }
-            const bool bDamage=ContactDamage.IsSet();
-            // #198 F C03/C04: installed on this dash (D or the active) only.
-            const bool bRefund=!ContactRefunds.IsEmpty();
-            const bool bKnock=!ContactKnocks.IsEmpty();
-            const bool bHaste=!ContactHastes.IsEmpty();
-            if (bDamage || bRefund || bKnock || bHaste || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
+            const bool bCards=!Resets.IsEmpty() || !Hastes.IsEmpty() || !Phases.IsEmpty() || !Shocks.IsEmpty();
+            if (bCards || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
             {
                 Body.DashContact=MakeShared<FLDCombatDashContact>();
                 Body.DashContact->EffectId=EffectId;
@@ -1427,11 +1353,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Body.DashContact->StartMs=Now;
                 Body.DashContact->EndMs=Body.DashUntilMs;
                 Body.DashContact->PaidMomentumP2=PaidP2;
-                Body.DashContact->bCanDamage=bDamage;
-                Body.DashContact->bCanRefund=bRefund;
-                Body.DashContact->bCanKnock=bKnock;
+                Body.DashContact->bCanDamage=false;
+                Body.DashContact->bPhase=!Phases.IsEmpty();
+                Body.DashContact->bReset=!Resets.IsEmpty();
                 Body.DashContact->Direction=DeliveryAction.Direction;
-                Body.DashContact->ContactScaleBp=Terms.ContactScaleBp;
             }
             break;
         }
@@ -1449,7 +1374,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 FLDDemoStatBonus& Reach=ChargeStats.AddDefaulted_GetRef();
                 Reach.Stat=ELDDemoBonusStat::AttackRangeCmFlat;
                 Reach.Cm=Terms.EmpowerReach->Effect.DistanceCm;
-                LedgerComponentTriggered(Body,Terms.EmpowerReach->Source.DefinitionId);
             }
             // #147: several charges and the stats held while charges remain (they end with the last charge or the window).
             if (!ChargeStats.IsEmpty())
@@ -1506,7 +1430,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                     Pulled.bAddedDamage=true;
                 }
             }
-            if (!Taunted.IsEmpty()) { LedgerComponentTriggered(Body,Terms.Pull->Source.DefinitionId); }
             break;
         }
         case ELDDemoEffectOp::Silence:
@@ -1579,8 +1502,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     {
         // One hit payload per target, snapshotted at release; a skill's own delivery takes it, or the standard one does.
         FLDCombatHit Template;
-        if (!BuildReleasePayload(Body,Source,Terms,ReleaseFoot,EffectId,Action.Token,IdleAmpBp,CastLedger,Template,Error)) { return false; }
-        if (Template.bKnockbackPull) { LedgerComponentTriggered(Body,Terms.Pull->Source.DefinitionId); }
+        if (!BuildReleasePayload(Body,Source,Terms,ReleaseFoot,EffectId,Action.Token,CastLedger,Template,Error)) { return false; }
         bool bHandled=false;
         if (!StartSkillDelivery(Body,Terms,DeliveryAction,Template,Now,bHandled,Error)) { return false; }
         if (!bHandled && !DeliverReleasePayload(Actor,Body,Terms,DeliveryAction,Template,UnitTarget,TargetFoot,ReleaseFoot,AreaTargets,Now,Error))
@@ -1595,12 +1517,14 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const double Reach=LDCA::ToDouble(TargetDef.RangeCm);
         ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
     }
-    if (!ReleaseMechanics(Body,Source,Terms,ReleaseFoot,ZonePoint,Action.Direction,EffectId,Action.Token,IdleAmpBp,CastLedger,Error)) { return false; }
-    // B17: every damage pulse of this release's zone carries its locked amplification.
+    if (!ReleaseMechanics(Body,Source,Terms,ReleaseFoot,ZonePoint,Action.Direction,EffectId,Action.Token,CastLedger,Error)) { return false; }
+    // Every damage pulse of this release's zone carries its package (its factors ride on the cast ledger).
     for (FLDCombatZone& Zone : Zones)
     {
-        if (Zone.EffectId==EffectId && Zone.bDamage) { Zone.IdleReadyAmpBp=IdleAmpBp; Zone.PackageScaleBp=Terms.PackageScaleBp; }
+        if (Zone.EffectId==EffectId && Zone.bDamage) { Zone.PackageScaleBp=Terms.PackageScaleBp; }
     }
+    // K06: the repeats of this release.
+    if (!ScheduleAutoRecasts(Body,Source,Terms,Action,Now,Error)) { return false; }
     if (bDealsDamage) { Body.LastCombatAtMs=Now; Body.MomentumEngagedAtMs=Now; }
     // #198: an offensive release is a combat action of the build safe window; a self buff, shield or plain dash is not.
     if (LDCombatSourceRules::IsOffensive(*ValuesDef)) { MarkBuildUnsafe(Body.Victim.EntityId,Now); }
@@ -1611,7 +1535,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
 }
 
 bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
-    const FLDCombatActiveTerms& Terms, const FVector& ReleaseFoot, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+    const FLDCombatActiveTerms& Terms, const FVector& ReleaseFoot, const FGuid& EffectId, uint64 Token,
     const TSharedPtr<FLDCombatCastLedger>& CastLedger, FLDCombatHit& Out, FString& Error) const
 {
     const FLDDemoAbilityValues& Values=Terms.Values;
@@ -1635,12 +1559,8 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.HitClass=ELDCombatHitClass::Ability;
     Template.CastLedger=CastLedger;
     Template.bDirectAbilityDamage=DamageEffect!=nullptr;
-    // B17's locked amplification rides only on this release's native direct damage.
-    Template.IdleReadyAmpBp=DamageEffect ? IdleAmpBp : 0;
-    // #198 F: the mods' package multiplier of this native damage (M01/M03/M05); a dash's contact adds M08's.
+    // The release's package multiplier of this native damage (a K06 repeat's share).
     Template.PackageScaleBp=Terms.PackageScaleBp;
-    if (LDCA::FindEffect(Values,ELDDemoEffectOp::DashContact))
-    { Template.PackageScaleBp=Template.PackageScaleBp/10000*Terms.ContactScaleBp+Template.PackageScaleBp%10000*Terms.ContactScaleBp/10000; }
     Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
     Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
     Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
@@ -1667,7 +1587,7 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     // Abilities trigger no on-hit effects.
     if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
     FillMechanicsTemplate(Values,ReleaseFoot,Template);
-    // #198 F C02 reads the push of this exit; a branch's wall stun rides on it.
+    // Y08 reads the push of this exit; a branch's wall stun rides on it.
     if (Template.KnockbackCm>0) { Template.KnockbackSource=Source; }
     if (const FLDDemoEffectDefinition* Push=LDCA::FindEffect(Values,ELDDemoEffectOp::Knockback)) { Template.KnockbackWallStunMs=Push->ExtraDurationMs; }
     if (Template.KnockbackCm>0 && Terms.PullTerms.IsSet())
@@ -1719,19 +1639,15 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         Projectile.AdvancedThroughMs=NowMs;
         Projectile.SlowBp=Template.SlowBp;
         Projectile.SlowDurationMs=Template.SlowDurationMs;
-        // #198 F M01: the first contact spreads its damage around the struck body.
-        Projectile.SpreadRadiusCm=Terms.SpreadProjectile.IsSet() ? LDCA::ToDouble(Terms.SpreadProjectile->RadiusCm) : 0.;
-        // M14 (extra distinct bodies) and M13 (a return flight where it ends).
+        // A branch pierce (extra distinct bodies) and return (a flight home where it ends).
         if (Terms.ProjectilePierce.IsSet())
         {
             Projectile.PierceRemaining=Terms.ProjectilePierce->Effect.Count;
             Projectile.PierceScaleBp=Terms.ProjectilePierce->Effect.MultiplierBp;
-            Projectile.PierceComponent=Terms.ProjectilePierce->Source.DefinitionId;
         }
         if (Terms.ProjectileReturn.IsSet())
         {
             Projectile.ReturnScaleBp=Terms.ProjectileReturn->Effect.MultiplierBp;
-            Projectile.ReturnComponent=Terms.ProjectileReturn->Source.DefinitionId;
             Projectile.ReturnElement=Terms.ProjectileReturn->Effect.Element;
         }
         Projectile.bTelegraphed=Terms.WindupMs>=150;
@@ -1742,14 +1658,8 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     else if (TargetDef.Mode==ELDDemoTargetMode::Unit)
     {
         Deliver(UnitTarget);
-        // #198 F M01: a cone of the final range toward the primary target; controls stay on the primary target.
-        if (Terms.SpreadUnit.IsSet() && !SpreadUnitHits(Body,Terms,ReleaseFoot,TargetFoot,UnitTarget,Template,Error)) { return false; }
-        // #198 F M07: a compressed chain lands its whole budget on the first body (Terms) and bounces no further.
         const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::ChainBounce);
-        if (ChainEffect && !Terms.CompressChain.IsSet() && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,NowMs,Error))
-        { return false; }
-        // M14: its extra hops are already in the chain's count (CompileActive); one trigger per release.
-        if (ChainEffect && Terms.ChainExtra.IsSet()) { LedgerComponentTriggered(Body,Terms.ChainExtra->Source.DefinitionId); }
+        if (ChainEffect && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,NowMs,Error)) { return false; }
     }
     else if (TargetDef.Mode==ELDDemoTargetMode::DirectionLine)
     {

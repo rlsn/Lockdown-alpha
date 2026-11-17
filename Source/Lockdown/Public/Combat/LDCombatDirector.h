@@ -372,9 +372,8 @@ struct FLDBodyCombatState
     // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
     TArray<FLDCombatRoot> Disarms;
     TArray<FLDCombatRoot> Stuns;
-    // The pending empowered-basic packages, at most one per source (spec §10.2), and this life's thorns repeat windows.
+    // The pending empowered-basic packages, at most one per source (spec §10.2).
     TArray<FLDCombatEmpower> Empowers;
-    TArray<FLDThornsMark> ThornsMarks;
     // Assist contributions other contenders made to this life (LDAssist); read once when the life locks its death.
     TArray<FLDAssistContribution> AssistContributions;
     // Positive hits this contender life took from other bodies within the recap window (LDDamageRecap); summed into the
@@ -803,8 +802,7 @@ struct FLDCombatZone
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
     int64 SourceADP2=0, SourceAPP2=0;
-    // The release's locked damage factors and package multiplier, carried by every damage pulse.
-    TArray<FLDDamageFactor> Factors;
+    // The release's package multiplier, carried by every damage pulse (its locked factors ride on CastLedger).
     int64 PackageScaleBp=10000;
     // #147 zone_burn: BurnStacks layers (at the owner's level and AP snapshotted at release) on every enemy inside,
     // every BurnIntervalMs from the zone's start while it lasts. #198 S08: a damaging zone's burn beats with its pulses,
@@ -1169,9 +1167,6 @@ private:
     bool AdvanceProjectiles(FString& Error);
     // The root and slow cleanses of one released value set on its caster; true when slows (a temporary term) ended.
     bool ApplyCleanses(FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int64 NowMs);
-    // The victim's thorns reflections of one committed hit (B03: an enemy primary basic with positive damage, the holder
-    // alive, the attacker within reach and observed with clear sight).
-    bool QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2, bool bCritical, FString& Error);
     void ExpireStatuses(int64 NowMs);
     // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
     bool RefreshTaunts(FString& Error);
@@ -1383,6 +1378,8 @@ private:
     bool LastStandActive(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     // Y14: the overflow of a heal becomes a shield (capped, never weaker than the current one).
     bool OverhealShield(FLDBodyCombatState& Body, int64 OverflowP2, int64 NowMs, FString& Error);
+    // D06: one basic hit of Body on Target outside the combo (no step, no empowered package), with its own crit sample.
+    bool MakeBasicStrike(const FLDBodyCombatState& Body, const FLDCombatBodyRef& Target, FLDCombatHit& Out, FString& Error);
     // Chain guard (spec §3.8): whether Hit may derive another effect (its depth below CHAIN.MaxDepth); logs LD_CHAIN_GUARD.
     bool ChainAllows(const FLDCombatHit& Hit, const TCHAR* What) const;
     // Skill branches (issue #287 spec §5.1; LDCombatBranchDirector.cpp). The release copies its hit riders onto the cast ledger

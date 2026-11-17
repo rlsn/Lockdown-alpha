@@ -151,7 +151,9 @@ enum class ELDCombatReject : uint8
     MomentumShort, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
     MatchClosed, AuthorityDataUnavailable, CapacityUnavailable,
     // #198: the rest return countdown locks every attack, ability and dash.
-    NotStarted
+    NotStarted,
+    // K12: the release costs health the body cannot pay and live.
+    HealthShort
 };
 
 // Owner-only receipt. A Rejected receipt may still carry bProtectionRemoved: the intent broke protection.

@@ -76,7 +76,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     // #112 mechanics: zone pulses and their records' ends.
     for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
     Consider(NextMechanicsDueMs(NowMs));
-    Consider(NextWorkshopDueMs(NowMs));
+    Consider(NextCardsDueMs(NowMs));
     Consider(NextFinalModDueMs(NowMs));
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
@@ -291,6 +291,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     if (!RefreshAllTemporary(Mode->GetAuthorityNowMs(),Error)) { return false; }
     // A taunt whose taunter died, left or went out of the victim's observation ends before any intent is judged.
     if (!RefreshTaunts(Error)) { return false; }
+    // K06: repeats due now release before this boundary's intents.
+    if (!RunAutoRecasts(Mode->GetAuthorityNowMs(),Error)) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
     // #198: camps stay idle (no aggro, chase or attack) while a rest freezes the world.
@@ -349,7 +351,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
         || !AdvanceProjectiles(Error))
     { return false; }
     // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.
-    if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceWorkshop(Now,Error) || !AdvanceFinalMods(Now,Error)) { return false; }
+    if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceCards(Now,Error) || !AdvanceFinalMods(Now,Error)) { return false; }
     // Every hit of this boundary, then the C01 windows it closed.
     if (!ApplyPendingHits(Now,Error)) { return false; }
     // Slows and HP changes of this boundary reach the effective attributes before the next motion step.
@@ -448,7 +450,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
         // accept the publication instead of discarding it as an older view of the same life.
         if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
-            || View.PreviewWideToken!=PC->CombatView.PreviewWideToken || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
+            || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {
             MarkViewChanged(Pair.Value.Session);
             View.Revision=Record->ViewRevision;

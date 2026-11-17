@@ -2740,6 +2740,7 @@ FString LDHUD::CombatRejectText(ELDCombatReject Reject)
     case ELDCombatReject::MatchClosed: return TEXT("对局已结束");
     case ELDCombatReject::AuthorityDataUnavailable: return TEXT("服务器数据不可用");
     case ELDCombatReject::CapacityUnavailable: return TEXT("服务器容量不足");
+    case ELDCombatReject::HealthShort: return TEXT("生命不够");
     case ELDCombatReject::NotStarted: return LDTerms::NotStartedYet;
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reject));
     }

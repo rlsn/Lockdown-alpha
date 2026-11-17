@@ -47,7 +47,7 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
     };
     // The hit's own stacks (an active's payload, a zone pulse or an overload). Fire is an element (ApplyElements).
     Breach(Hit.BreachStacks,Hit.CreditOwner);
-    // The living source's held breach trigger on a primary basic hit (basic_stacks: B08). Ticks, pulses, settles,
+    // The living source's held breach trigger on a primary basic hit (basic_stacks: A14). Ticks, pulses, settles,
     // reflections, added damage and shield-triggered answers are none.
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
     if (Source && !Source->bPendingDeath && bBasic && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic && !Hit.bStatusSettle
@@ -57,8 +57,8 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Breach,Passives,Error)) { return false; }
         for (const FLDPassiveEffectRef& Ref : Passives)
         {
-            // §10: B08 is one trigger when its stacks apply or restart the shared breach.
-            if (Breach(Ref.Effect.BasicCount,Hit.CreditOwner)) { LedgerComponentTriggered(*Source,Ref.Source.DefinitionId); }
+            // A14 is one trigger when its stacks apply or restart the shared breach.
+            if (Breach(Ref.Effect.BasicCount,Hit.CreditOwner)) { LedgerCardTriggered(*Source,Ref.Key); }
         }
     }
     if (bChanged)
@@ -99,12 +99,6 @@ bool ALDCombatDirector::AdvanceBurns(int64 NowMs, FString& Error)
                 Tick.DamageType=ELDDemoDamageType::Magical;
                 Tick.bPeriodic=true;
                 Tick.bBurnTick=true;
-                // A burn takes its living applier's control amplification (B07) in the damage bonus pool; nothing else of it.
-                if (const FLDBodyCombatState* Applier=FindBody(Share.SourceBody); Applier && !Applier->bPendingDeath
-                    && Applier->AttributeProjection.ControlAmp.IsSet())
-                {
-                    Tick.ControlAmpBp=Applier->AttributeProjection.ControlAmp->RatioBp;
-                }
             }
             bChanged=true;
         }
@@ -122,61 +116,21 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     if (Body.bPendingDeath || NowMs<Body.DamagedShieldReadyAtMs) { return true; }
     TArray<FLDPassiveEffectRef> Shields;
     if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::TriggeredShield,Shields,Error)) { return false; }
-    const FLDPassiveEffectRef* Ref=Shields.FindByPredicate([](const FLDPassiveEffectRef& Row)
-    { return Row.Effect.Trigger==ELDDemoEffectTrigger::Damaged; });
-    if (!Ref) { return true; }
+    Shields.RemoveAll([](const FLDPassiveEffectRef& Row) { return Row.Effect.Trigger!=ELDDemoEffectTrigger::Damaged; });
+    if (Shields.IsEmpty()) { return true; }
+    const FLDPassiveEffectRef* Ref=&Shields[0];
     const FLDDemoEffectDefinition& Effect=Ref->Effect;
-    // B09: the fixed amount already arrives grown for the holder's level (CollectPassiveEffects), plus its max-HP share now.
-    const int64 Amount=Effect.BaseP2
-        +LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Effect.MaxHPRatioBp);
+    // Y07: the fixed amount already arrives grown for the holder's level (CollectPassiveEffects), plus its max-HP share now;
+    // copies add into one shield.
+    int64 Amount=0;
+    for (const FLDPassiveEffectRef& Copy : Shields)
+    { Amount+=Copy.Effect.BaseP2+LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Copy.Effect.MaxHPRatioBp); }
     const FGuid ShieldId=FGuid::NewGuid();
     if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error,Ref->Source)) { return false; }
     // A weaker shield than the one held is not granted (no fake grant, no refresh), and then the rest does not start.
     if (!Body.Shield.IsSet() || Body.Shield->EffectId!=ShieldId) { return true; }
-    LedgerComponentTriggered(Body,Ref->Source.DefinitionId);
+    LedgerCardTriggered(Body,Ref->Key);
     return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error);
-}
-
-bool ALDCombatDirector::OnNativeDirectHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error)
-{
-    if (Source.bPendingDeath) { return true; }
-    // B13: a share of the momentum this release really paid (after M06), once per release EffectId, at its first native hit.
-    TArray<FLDPassiveEffectRef> Refunds;
-    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::CastHitRefund,Refunds,Error)) { return false; }
-    const int64 PaidP2=Hit.CastLedger ? Hit.CastLedger->PaidMomentumP2 : 0;
-    for (const FLDPassiveEffectRef& Refund : Refunds)
-    {
-        if (PaidP2<=0 || !Hit.EffectId.IsValid()) { break; }
-        if (Source.EffectBudgets.ContainsByPredicate([&](const FLDCombatEffectBudget& Row)
-            { return Row.EffectId==Hit.EffectId && Row.Component==Refund.Source.DefinitionId; }))
-        { continue; }
-        const int64 AmountP2=LDCombatKeywordsDetail::Share(PaidP2,Refund.Effect.RatioBp);
-        Source.EffectBudgets.Add({Hit.EffectId,Refund.Source.DefinitionId,AmountP2,NowMs});
-        const int64 MomentumBeforeP2=Source.Resources.MomentumP2;
-        GrantMomentum(Source,AmountP2);
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_CAST_REFUND t=%lld src=%s active=%s paid=%s refund=%s momentum=%s->%s"),NowMs,
-            *LDLog::Id(Source.Victim.EntityId),*Hit.Source.DefinitionId.ToString(),*LDLog::P2(PaidP2),*LDLog::P2(AmountP2),
-            *LDLog::P2(MomentumBeforeP2),*LDLog::P2(Source.Resources.MomentumP2));
-        LedgerComponentTriggered(Source,Refund.Source.DefinitionId);
-    }
-    // C13 (cut the other actives), C14 (set the mark) and C16 (distinct-enemy momentum) on the host's hit.
-    if (!HasteOtherActives(Source,Hit.Source,Hit.EffectId,NowMs,Error) || !OnHostDirectHit(Source,Hit,NowMs,Error)) { return false; }
-    // C18 (the stored force), C19 (another host's package) and C21 (the zone detonation) on this hit.
-    if (!SpendOnNativeHit(Source,Hit,NowMs,Error)) { return false; }
-    // B16: the ability-hit shield, by B09's rules (no weaker grant; the rest starts only on a granted shield).
-    if (NowMs<Source.AbilityHitShieldReadyAtMs) { return true; }
-    TArray<FLDPassiveEffectRef> Shields;
-    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::TriggeredShield,Shields,Error)) { return false; }
-    const FLDPassiveEffectRef* Ref=Shields.FindByPredicate([](const FLDPassiveEffectRef& Row)
-    { return Row.Effect.Trigger==ELDDemoEffectTrigger::AbilityHit; });
-    if (!Ref) { return true; }
-    const FLDDemoEffectDefinition& Effect=Ref->Effect;
-    const int64 Amount=Effect.BaseP2+LDCombatKeywordsDetail::Share(Source.Resources.MaxHpP2,Effect.MaxHPRatioBp);
-    const FGuid ShieldId=FGuid::NewGuid();
-    if (!GrantShieldTo(Source,Amount,Effect.DurationMs,ShieldId,Source.Victim.EntityId,NowMs,Error,Ref->Source)) { return false; }
-    if (!Source.Shield.IsSet() || Source.Shield->EffectId!=ShieldId) { return true; }
-    LedgerComponentTriggered(Source,Ref->Source.DefinitionId);
-    return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Source.AbilityHitShieldReadyAtMs,Error);
 }
 
 void ALDCombatDirector::AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const

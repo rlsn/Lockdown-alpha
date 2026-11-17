@@ -83,8 +83,8 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     FString& Error)
 {
     using namespace LDCombatElementsDirectorDetail;
-    // Fire first: the hit's own layers, then the living source's held burn triggers (basic_stacks on a primary basic, B01)
-    // and a component's fire on this hit (B18, ApplyComponentElement), at the living source's level and AP now. Ticks,
+    // Fire first: the hit's own layers, then the living source's held burn triggers (basic_stacks on a primary basic, A15)
+    // and a card's fire on this hit (K19, ApplyCardElement), at the living source's level and AP now. Ticks,
     // settles, reflections, added damage and shield answers carry none of the source's triggers.
     if (Hit.BurnStacks>0
         && !ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error)) { return false; }
@@ -111,21 +111,21 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
             if (Ref.Effect.BasicCount<=0) { continue; }
             if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Ref.Source),Ref.Effect.BasicCount,Hit.HitId,NowMs,Error))
             { return false; }
-            // §10: B01's layers on this primary basic are one trigger.
-            LedgerComponentTriggered(*Source,Ref.Source.DefinitionId);
+            // A15's layers on this primary basic are one trigger.
+            LedgerCardTriggered(*Source,Ref.Key);
         }
     }
-    if (bLivingSource && Hit.ComponentBurnStacks>0
-        && !ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.ComponentBurnSource),Hit.ComponentBurnStacks,Hit.HitId,
+    if (bLivingSource && Hit.CardBurnStacks>0
+        && !ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource),Hit.CardBurnStacks,Hit.HitId,
             NowMs,Error)) { return false; }
-    // Water, then electric: the hit's native element (its release snapshot) before a component's own application (B10/B11/
-    // B18 at the living source's level and AP now, credited to that component).
+    // Water, then electric: the hit's native element (its release snapshot) before a card's own application (A16/A17/K20/K21
+    // at the living source's level and AP now, credited to that card).
     if (Hit.bApplyWet && !ApplyElement(Target,ELDCombatElement::Water,ApplierOf(Hit),0,Hit.HitId,NowMs,Error)) { return false; }
-    if (bLivingSource && Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None
-        && !ApplyElement(Target,ELDCombatElement::Water,SourceApplier(Hit.ComponentWetSource),0,Hit.HitId,NowMs,Error)) { return false; }
+    if (bLivingSource && Hit.CardWetSource.Kind!=ELDCombatSourceKind::None
+        && !ApplyElement(Target,ELDCombatElement::Water,SourceApplier(Hit.CardWetSource),0,Hit.HitId,NowMs,Error)) { return false; }
     if (Hit.bApplyElectric && !ApplyElement(Target,ELDCombatElement::Electric,ApplierOf(Hit),0,Hit.HitId,NowMs,Error)) { return false; }
-    if (bLivingSource && Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None
-        && !ApplyElement(Target,ELDCombatElement::Electric,SourceApplier(Hit.ComponentElectricSource),0,Hit.HitId,NowMs,Error))
+    if (bLivingSource && Hit.CardElectricSource.Kind!=ELDCombatSourceKind::None
+        && !ApplyElement(Target,ELDCombatElement::Electric,SourceApplier(Hit.CardElectricSource),0,Hit.HitId,NowMs,Error))
     { return false; }
     return true;
 }
@@ -138,6 +138,25 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     FLDElementTerms Terms;
     FLDKeywordTerms Keywords;
     if (!ElementTerms(Terms,Error) || !KeywordTerms(Keywords,Error)) { return false; }
+    // The applier's element cards: Y26 lengthens what it applies (copies add), Y28 raises the layer cap of its fire (copies
+    // add their raise).
+    if (const FLDBodyCombatState* ApplierBody=FindBody(Applier.SourceBody); ApplierBody && !ApplierBody->bPendingDeath)
+    {
+        TArray<FLDPassiveEffectRef> Soaks, Caps;
+        if (!CollectPassiveEffects(ApplierBody->AttributeProjection,ELDDemoEffectOp::ElementDuration,Soaks,Error)
+            || !CollectPassiveEffects(ApplierBody->AttributeProjection,ELDDemoEffectOp::BurnCap,Caps,Error)) { return false; }
+        int64 DurationBp=10000;
+        for (const FLDPassiveEffectRef& Ref : Soaks) { DurationBp+=Ref.Effect.MultiplierBp-10000; }
+        if (DurationBp!=10000)
+        {
+            const auto Longer=[DurationBp](int64 Ms) { return Ms/10000*DurationBp+Ms%10000*DurationBp/10000; };
+            Terms.WetMs=Longer(Terms.WetMs);
+            Terms.ElectrifiedMs=Longer(Terms.ElectrifiedMs);
+            Keywords.BurnMs=Longer(Keywords.BurnMs);
+        }
+        const int32 BaseCap=Keywords.BurnMaxStacks;
+        for (const FLDPassiveEffectRef& Ref : Caps) { Keywords.BurnMaxStacks+=FMath::Max(Ref.Effect.Count-BaseCap,0); }
+    }
     if (Kind==ELDCombatElement::Fire && FireStacks<=0) { Error=TEXT("A fire application needs at least one layer."); return false; }
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
     // Who applied the held element, the setters of a reaction's rule chain: the mark's latest applier for water and
@@ -327,8 +346,8 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Fact.HitId=HitId;
     Fact.AtMs=NowMs;
     OnReactionCompleted(Fact);
-    // #198 F C09: the trigger's connector on this applier arms its next primary basic.
-    if (!ArmReactionEmpower(Fact,NowMs,Error) || !ReactionHaste(Fact,NowMs,Error)) { return false; }
+    // The trigger's cards on this reaction (Y04, Y05, K25).
+    if (!OnCardReaction(Fact,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_REACTION t=%lld kind=%s trigger=%s via=%s primary=%s struck=%d r=%s fire_settles=%d"),
         NowMs,LDCombatElements::ReactionName(Reaction),*LDLog::Id(Applier.SourceEntity),*LDLog::Source(Applier.Source),
         *LDLog::Id(Target.Victim.EntityId),Struck.Num(),*LDLog::P2(R),FireShares.Num());
@@ -408,34 +427,9 @@ bool ALDCombatDirector::TryDischarge(FLDBodyCombatState& Target, const FVector& 
         const double Squared=FVector::DistSquared2D(TargetFoot,FootOf(*Actor));
         if (!Nearest || Squared<NearestSquared) { Nearest=&Ref; NearestSquared=Squared; }
     }
-    // #198 F M11 on this electric source: the applier's most recent direct active target among the legal ones, at x0.85.
-    int64 MarkedScaleBp=10000;
-    if (const FLDBodyCombatState* ApplierBody=FindBody(Applier.SourceBody); ApplierBody && !ApplierBody->bPendingDeath)
-    {
-        TArray<FLDPassiveEffectRef> Marked;
-        if (!WorkshopOn(ApplierBody->AttributeProjection,ELDDemoEffectOp::MarkedCounter,Applier.Source,Marked,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Mod : Marked)
-        {
-            MarkedScaleBp=MarkedScaleBp/10000*Mod.Effect.MultiplierBp+MarkedScaleBp%10000*Mod.Effect.MultiplierBp/10000;
-            for (int32 Index=ApplierBody->DirectHitMarks.Num()-1; Index>=0; --Index)
-            {
-                const FLDCombatBodyMark& Mark=ApplierBody->DirectHitMarks[Index];
-                const FLDCombatBodyRef* Legal=Around.FindByPredicate([&Mark,&Self](const FLDCombatBodyRef& Ref)
-                { return Ref==Mark.Body && Ref!=Self; });
-                if (NowMs-Mark.AtMs<=Mod.Effect.DurationMs && Legal)
-                {
-                    // §10: M11 is one trigger when the discharge goes to the marked body.
-                    Nearest=Legal;
-                    LedgerComponentTriggered(*ApplierBody,Mod.Source.DefinitionId);
-                    break;
-                }
-            }
-        }
-    }
     if (!Nearest) { return true; }
     if (!LDMatchLifecycle::AddDurationMs(NowMs,Terms.DischargeIntervalMs,Target.DischargeReadyAtMs,Error)) { return false; }
     FLDCombatHit Discharge=SettleHit(Applier,*Nearest,FGuid::NewGuid(),LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms));
-    Discharge.PackageScaleBp=MarkedScaleBp;
     PendingHits.Add(MoveTemp(Discharge));
     UE_LOG(LogLDCombat,Log,TEXT("LD_DISCHARGE t=%lld from=%s to=%s applier=%s"),NowMs,*LDLog::Id(Target.Victim.EntityId),
         *LDLog::Id(Nearest->Victim.EntityId),*LDLog::Id(Applier.SourceEntity));
@@ -608,10 +602,6 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
         if (!CollectAreaTargets(FootOf(*Actor),Brace.RadiusCm,&Body,Body.Victim.EntityId,Around,Error))
         { Error=TEXT("Brace answer: ")+Error; return false; }
         const int64 Amount=LDCombatElements::BraceAnswerP2(Brace);
-        // M17: an answer of a recorded amount also shoves every body it reaches away from the holder.
-        TArray<FLDPassiveEffectRef> Shoves;
-        if (Brace.RecordedP2>0
-            && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::DefenseShove,Brace.Source,Shoves,Error)) { return false; }
         const FVector HolderFoot=FootOf(*Actor);
         for (const FLDCombatBodyRef& Ref : Around)
         {
@@ -629,14 +619,6 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
             Hit.DamageType=ELDDemoDamageType::Magical;
             Hit.bDirectAbilityDamage=true;
             Hit.CastLedger=Brace.CastLedger;
-            if (!Shoves.IsEmpty())
-            {
-                Hit.KnockbackCm=LDCombatElementsDirectorDetail::Cm(Shoves[0].Effect.DistanceCm);
-                Hit.KnockbackMs=Shoves[0].Effect.DurationMs;
-                Hit.bKnockbackFromAnchor=true;
-                Hit.KnockbackAnchorCm=HolderFoot;
-                Hit.KnockbackSource=Brace.Source;
-            }
             if (bBranch && Branched.BraceShoveCm>0)
             {
                 Hit.KnockbackCm=Branched.BraceShoveCm;
@@ -648,12 +630,6 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
             if (bBranch && Branched.BraceStunMs>0) { Hit.StunDurationMs=Branched.BraceStunMs; }
             if (!StampSourceTerms(Body,Hit,Error) || !StampElementSnapshot(Body,Hit,Error)) { return false; }
         }
-        if (!Shoves.IsEmpty() && !Around.IsEmpty()) { LedgerComponentTriggered(Body,Shoves[0].Source.DefinitionId); }
-        // C18: a share of the recorded amount is also stored for a different active's next native hit.
-        TArray<FLDPassiveEffectRef> Stores;
-        if (Brace.RecordedP2>0
-            && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::StoredForce,Brace.Source,Stores,Error)) { return false; }
-        if (!Stores.IsEmpty() && !StoreForce(Body,Stores[0],Brace.RecordedP2,NowMs,Error)) { return false; }
         // S16 A2 heals a share of the record; S16 B2 turns the record into a shield.
         if (bBranch && Branched.BraceHealBp>0 && Brace.RecordedP2>0)
         {

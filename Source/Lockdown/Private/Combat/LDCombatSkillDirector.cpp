@@ -56,21 +56,20 @@ bool ALDCombatDirector::IsAggressiveEntry(const FLDCombatBodyRef& Ref, ELDCombat
     if (Entry != ELDCombatEntry::Dash) { return true; }
     const auto* Body=FindBody(Ref);
     if (!Body) { return false; }
-    // B05 (and #198 F C04 on D): a D that can hurt or push on contact is an offensive entry.
-    TOptional<FLDPassiveEffectRef> Contact;
-    TArray<FLDPassiveEffectRef> Pushes;
+    // D06 and D12: a D that strikes or shocks on contact is an offensive entry.
+    TArray<FLDPassiveEffectRef> Phases, Shocks;
     FString Error;
     FLDCombatSourceRef Innate;
     Innate.Kind=ELDCombatSourceKind::Innate;
     Innate.DefinitionId=LDCombatSourceRules::InnateDashId();
-    if (!FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage, Contact, Error)
-        || !WorkshopOn(Body->AttributeProjection, ELDDemoEffectOp::ContactKnockback, Innate, Pushes, Error))
+    if (!CardsOn(Body->AttributeProjection, ELDDemoEffectOp::DashPhase, Innate, Phases, Error)
+        || !CardsOn(Body->AttributeProjection, ELDDemoEffectOp::DashContactElement, Innate, Shocks, Error))
     {
         UE_LOG(LogLDCombat, Error, TEXT("LD_COMBAT_TRIGGER_UNRESOLVED body=%s op=dash_contact error=%s"),
             *LDLog::Id(Ref.Victim.EntityId), *Error);
         return true;
     }
-    return Contact.IsSet() || !Pushes.IsEmpty();
+    return !Phases.IsEmpty() || !Shocks.IsEmpty();
 }
 
 void ALDCombatDirector::CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch)
@@ -114,22 +113,11 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Channel.SlowWaves=FMath::Max(Cone->BasicCount,1);
         if (Terms.FinalKnockbackTerms.IsSet())
         {
-            // M18: the final wave pushes everything it hits away from the caster instead of slowing it.
+            // A branch's final wave (S22) pushes everything it hits away from the caster instead of slowing it.
             Channel.FinalKnockbackCm=Cm(Terms.FinalKnockbackTerms->DistanceCm);
             Channel.FinalKnockbackMs=Terms.FinalKnockbackTerms->DurationMs;
             Channel.FinalSlowBp=0;
             Channel.FinalSlowMs=0;
-        }
-        // #198 F M07: the waves become one narrower cone after the delay carrying their summed package times its multiplier;
-        // the same channel rules cancel it, and its one wave is the last (it carries the final slow once).
-        if (Terms.CompressCone.IsSet())
-        {
-            const FLDDemoEffectDefinition& Compress=Terms.CompressCone.GetValue();
-            if (!LDMatchLifecycle::AddDurationMs(NowMs, Compress.DelayMs, Channel.NextPulseMs, Error)) { return false; }
-            Channel.AngleDegrees=Cm(Compress.AngleDegrees);
-            Channel.Remaining=1;
-            const int64 Scale=int64(Cone->Count)*Compress.MultiplierBp;
-            Channel.Payload.PackageScaleBp=Channel.Payload.PackageScaleBp/10000*Scale+Channel.Payload.PackageScaleBp%10000*Scale/10000;
         }
         Body.ChannelEffectId=Payload.EffectId;
         Body.ChannelDirectSequence=Action.Key.DirectSequence;
@@ -264,12 +252,6 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (Channel.Remaining > 0
                 && !LDMatchLifecycle::AddDurationMs(Channel.NextPulseMs, Channel.IntervalMs, Channel.NextPulseMs, Error)) { return false; }
         }
-        if (bFinalPushed)
-        {
-            TArray<FLDPassiveEffectRef> Finals;
-            if (!WorkshopOn(Body->AttributeProjection, ELDDemoEffectOp::FinalKnockback, Channel.Payload.Source, Finals, Error)) { return false; }
-            if (!Finals.IsEmpty()) { LedgerComponentTriggered(*Body, Finals[0].Source.DefinitionId); }
-        }
         if (Channel.Remaining == 0)
         {
             Body->ChannelEffectId.Invalidate();
@@ -329,11 +311,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }
-        if ((Completed.Origin==ELDCombatGroundOrigin::Impact || Completed.Origin==ELDCombatGroundOrigin::Trap
-                || Completed.Origin==ELDCombatGroundOrigin::CompressedZone)
-            && !TriggerAftershock(Completed.Payload.SourceBody, Completed.Payload.Source, Completed.Payload.EffectId,
-                Completed.CentreCm, Completed.RadiusCm, NowMs, Error)) { return false; }
-        // M15: S18's echo keeps the impact's outline and falloff; S19's is a plain blast of the trap's radius
+        // A branch echo (S18 A): it keeps the impact's outline and falloff; S19's is a plain blast of the trap's radius
         // without its slow. Only a host's own completion carries Echo, so an echo never echoes.
         if (Completed.Echo.IsSet() && (Completed.Origin==ELDCombatGroundOrigin::Impact || Completed.Origin==ELDCombatGroundOrigin::Trap))
         {
@@ -431,65 +409,38 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             --Dash.NativeHitsRemaining;
         }
         if (Body->Victim.Kind==ELDVictimKind::CampMember) { continue; }
-        // B05: the holder's own added package for each real contact, once per dash per body.
-        TOptional<FLDPassiveEffectRef> Held;
-        if (Dash.bCanDamage && !FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage, Held, Error)) { return false; }
-        if (Held.IsSet())
+        // D06: a phasing dash strikes every body it passes with a basic (no combo step); D12 shocks it.
+        if (Dash.bPhase)
         {
-            const FLDDemoEffectDefinition& Damage=Held->Effect;
-            FLDCombatHit Hit;
-            Hit.HitId=FGuid::NewGuid();
-            Hit.EffectId=Dash.EffectId;
-            Hit.SourceBody=Dash.Body;
-            Hit.SourceEntity=Hit.CreditOwner=Body->Victim.EntityId;
-            Hit.Source=Held->Source;
-            Hit.Target=Contact.Target;
-            Hit.HitClass=ELDCombatHitClass::Ability;
-            Hit.BaseP2=Damage.BaseP2;
-            Hit.ADRatioBp=Damage.ADRatioBp;
-            Hit.APRatioBp=Damage.APRatioBp;
-            Hit.SourceADP2=Body->AttributeProjection.Final.ADP2;
-            Hit.SourceAPP2=Body->AttributeProjection.Final.APP2;
-            Hit.DamageType=Damage.DamageType;
-            Hit.bAddedDamage=Hit.bDashContactHit=true;
-            // #198 F M08: the action's contact package and B05 grow together.
-            Hit.PackageScaleBp=Dash.ContactScaleBp;
-            if (!StampSourceTerms(*Body, Hit, Error)) { return false; }
-            PendingHits.Add(MoveTemp(Hit));
-            // §10: one B05 trigger per contacted body (the contact is its proc).
-            LedgerComponentTriggered(*Body, Held->Source.DefinitionId);
+            FLDCombatHit Strike;
+            if (!MakeBasicStrike(*Body, Contact.Target, Strike, Error)) { return false; }
+            PendingHits.Add(MoveTemp(Strike));
+            LedgerCardTriggered(*Body, FName(TEXT("card_pass_through")));
         }
-        // #198 F C04: the contacted body is pushed along the dash, once per action and target (Struck).
-        if (Dash.bCanKnock)
+        TArray<FLDPassiveEffectRef> Shocks;
+        if (!CardsOn(Body->AttributeProjection, ELDDemoEffectOp::DashContactElement, Dash.Source, Shocks, Error)) { return false; }
+        FLDBodyCombatState* Struck=FindBody(Contact.Target);
+        for (const FLDPassiveEffectRef& Shock : Shocks)
         {
-            TArray<FLDPassiveEffectRef> Knocks;
-            ALDCharacter* TargetActor=nullptr;
-            if (!WorkshopOn(Body->AttributeProjection, ELDDemoEffectOp::ContactKnockback, Dash.Source, Knocks, Error)) { return false; }
-            if (!Knocks.IsEmpty() && FindBody(Contact.Target, &TargetActor) && TargetActor && !Dash.Direction.IsNearlyZero())
-            {
-                const FLDDemoEffectDefinition& Push=Knocks[0].Effect;
-                FLDCombatHit Hit;
-                Hit.HitId=FGuid::NewGuid();
-                Hit.EffectId=Dash.EffectId;
-                Hit.SourceBody=Dash.Body;
-                Hit.SourceEntity=Hit.CreditOwner=Body->Victim.EntityId;
-                Hit.Source=Knocks[0].Source;
-                Hit.Target=Contact.Target;
-                Hit.HitClass=ELDCombatHitClass::Ability;
-                Hit.KnockbackCm=Cm(Push.DistanceCm);
-                Hit.KnockbackMs=Push.DurationMs;
-                Hit.bKnockbackFromAnchor=true;
-                Hit.KnockbackAnchorCm=FootOf(*TargetActor)-Dash.Direction.GetSafeNormal2D()*100.;
-                Hit.KnockbackSource=Knocks[0].Source;
-                PendingHits.Add(MoveTemp(Hit));
-            }
+            if (!Struck || Struck->bPendingDeath) { break; }
+            FLDElementApplier Applier;
+            Applier.SourceEntity=Body->Victim.EntityId;
+            Applier.SourceBody=Dash.Body;
+            Applier.CreditOwner=Body->Victim.Kind==ELDVictimKind::Contender ? Body->Victim.EntityId : FGuid();
+            Applier.Source=Shock.Source;
+            Applier.Level=GrowthLevelOf(*Body);
+            Applier.SourceAPP2=FMath::Max<int64>(Body->AttributeProjection.Final.APP2, 0);
+            const ELDCombatElement Kind=Shock.Effect.Element==ELDDemoElement::Fire ? ELDCombatElement::Fire
+                : Shock.Effect.Element==ELDDemoElement::Water ? ELDCombatElement::Water : ELDCombatElement::Electric;
+            if (!ApplyElement(*Struck, Kind, Applier, Kind==ELDCombatElement::Fire ? 1 : 0, FGuid::NewGuid(), NowMs, Error)) { return false; }
+            LedgerCardTriggered(*Body, Shock.Key);
         }
-        // C13: the hosted dash's first real contact cuts the holder's other actives (once per action).
+        // D02: the hosted dash's first real contact cuts the holder's skills (once per action).
         if (!HasteOtherActives(*Body, Dash.Source, Dash.EffectId, NowMs, Error)) { return false; }
         if (!OnDashContact(*Body, Dash, NowMs, Error)) { return false; }
-        UE_LOG(LogLDCombat,Log,TEXT("LD_DASH_CONTACT t=%lld src=%s target=%s effect=%s native=%d added=%d"),
+        UE_LOG(LogLDCombat,Log,TEXT("LD_DASH_CONTACT t=%lld src=%s target=%s effect=%s native=%d phase=%d"),
             NowMs,*LDLog::Id(Body->Victim.EntityId),*LDLog::Id(Contact.Target.Victim.EntityId),
-            *LDLog::Id(Dash.EffectId),bNativeHit,Dash.bCanDamage);
+            *LDLog::Id(Dash.EffectId),bNativeHit,Dash.bPhase);
     }
     ContactMotion.Reset();
     return true;
@@ -500,37 +451,20 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
     using namespace LDCombatSkillDetail;
     if (Dash.Body!=FLDCombatBodyRef{Body.Victim,Body.Identity})
     { Error=TEXT("Dash contact belongs to another body life."); return false; }
-    if (Dash.bCanRefund && !Dash.bRefunded && NowMs >= Body.ContactRefundReadyAtMs)
+    // D01: the dash's first enemy contact makes it ready again (once per dash).
+    if (Dash.bReset && !Dash.bRefunded)
     {
-        // #198 F C03: the refund installed on this dash.
-        TArray<FLDPassiveEffectRef> Refunds;
-        if (!WorkshopOn(Body.AttributeProjection, ELDDemoEffectOp::DashContactRefund, Dash.Source, Refunds, Error)) { return false; }
-        TOptional<FLDPassiveEffectRef> Held;
-        if (!Refunds.IsEmpty()) { Held=Refunds[0]; }
-        if (Held.IsSet())
+        auto* Record=FindRecord(Body.Victim.EntityId);
+        auto* Track=Record ? Record->Tracks.FindByPredicate([&Dash](const auto& Row)
+        { return Row.Kind == Dash.Source.Kind && Row.DefinitionId == Dash.Source.DefinitionId; }) : nullptr;
+        if (!Track) { Error=TEXT("A dash refresh lost its issuing cooldown track."); return false; }
+        Dash.bRefunded=true;
+        if (Track->LastEffectId==Dash.EffectId && Track->ReadyAtMs>NowMs)
         {
-            const FLDDemoEffectDefinition* Refund=&Held->Effect;
-            auto* Record=FindRecord(Body.Victim.EntityId);
-            auto* Track=Record ? Record->Tracks.FindByPredicate([&Dash](const auto& Row)
-            { return Row.Kind == Dash.Source.Kind && Row.DefinitionId == Dash.Source.DefinitionId; }) : nullptr;
-            if (!Track) { Error=TEXT("A dash contact refund lost its issuing cooldown track."); return false; }
-            if (Track->LastEffectId!=Dash.EffectId)
-            {
-                Dash.bRefunded=true;
-                UE_LOG(LogLDCombat,Verbose,TEXT("LD_DASH_REFUND_IGNORED src=%s reason=superseded_cast"),
-                    *LDLog::Id(Body.Victim.EntityId));
-            }
-            else
-            {
-                int64 Ready=0;
-                if (!LDMatchLifecycle::AddDurationMs(NowMs, Refund->IntervalMs, Ready, Error)) { return false; }
-                Dash.bRefunded=true;
-                Track->ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track->ReadyAtMs, NowMs, Refund->AmountMs);
-                Body.ContactRefundReadyAtMs=Ready;
-                GrantMomentum(Body, FMath::Min(Share(Dash.PaidMomentumP2, Refund->SecondaryRatioBp), Refund->LimitP2));
-                MarkViewChanged(Body.Victim.EntityId);
-                LedgerComponentTriggered(Body, Held->Source.DefinitionId);
-            }
+            Track->ReadyAtMs=NowMs;
+            MarkViewChanged(Body.Victim.EntityId);
+            LedgerCardTriggered(Body, FName(TEXT("card_bump_reset")));
+            UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_DASH_RESET t=%lld src=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId));
         }
     }
     return true;

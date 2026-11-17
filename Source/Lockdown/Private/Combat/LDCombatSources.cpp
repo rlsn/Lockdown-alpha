@@ -182,21 +182,10 @@ namespace LDCombatSourcesDetail
             Build.Level=Input.Level;
             for (const FLDLearnedActiveValue& Active : Input.Actives)
             { Build.Actives.Add({Active.AbilityId,uint8(LearnedSlot(Active.Entry)),Active.Branch}); }
-            for (const FLDInstalledComponentValue& InstalledComponent : Input.Components)
-            {
-                FLDComponentInstance& Component=Build.Components.AddDefaulted_GetRef();
-                Component.Id=InstalledComponent.ComponentId;
-                Component.bInstalled=true;
-                Component.Target.Kind=InstalledComponent.TargetKind;
-                Component.Target.Definition=InstalledComponent.TargetId;
-                Component.Target.BoundActive=InstalledComponent.BoundActive;
-                Component.Target.BoundComponent=InstalledComponent.BoundComponent;
-                Component.Target.Element=InstalledComponent.Element;
-            }
-            FLDComponentTarget Binding;
+            FLDFinalModTarget Binding;
             Binding.Kind=Input.FinalMod.TargetKind;
             Binding.Definition=Input.FinalMod.TargetId;
-            TArray<FLDComponentTarget> Legal;
+            TArray<FLDFinalModTarget> Legal;
             if (LDProgression::FinalModTargets(Content.Get(),Build,Input.FinalMod.DefinitionId,Legal)!=ELDGrowthReason::None
                 || !Legal.Contains(Binding))
             { Error=TEXT("InvalidInput: final rule has an unknown or non-executable source binding."); return false; }
@@ -343,8 +332,9 @@ FLDAttributeProjectionResult LDCombatSourceRules::ProjectBuildInput(const FLDBui
     const FLDDemoContentSnapshot& Content)
 {
     FLDAttributeBuildValues Values(Build.Level,Build.StatPoints);
-    Values.Components=Build.Components;
+    Values.Cards=Build.Cards;
     Values.DevBonuses=Build.DevBonuses;
+    Values.CardGrowth=Build.CardGrowth;
     return LDAttributeProjection::Project(Values,Content);
 }
 
@@ -604,11 +594,13 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCall
         return LDCombatSourcesDetail::PrepareFailure(EPrepare::StaleBuild,FString::Printf(
             TEXT("StaleBuild: expected %llu but Combat installed %llu."),Expected.BuildRevision,Record->Installed.BuildRevision));
     }
-    // Growth never names the DEV test layer; the installed one rides along with every build change.
-    if (!Input.DevBonuses.IsEmpty())
-    { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,TEXT("InvalidInput: only Combat holds the DEV test layer.")); }
+    // Growth never names the DEV test layer or the grow cards' match growth; the installed ones ride along with every build
+    // change (a removed grow card stops adding its growth when the next growth refresh runs).
+    if (!Input.DevBonuses.IsEmpty() || !Input.CardGrowth.IsEmpty())
+    { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,TEXT("InvalidInput: only Combat holds the DEV layer and card growth.")); }
     FLDBuildProjectionInput Effective=Input;
     Effective.DevBonuses=Record->Build.DevBonuses;
+    Effective.CardGrowth=Record->Build.CardGrowth;
     FString Reason;
     if (!LDCombatSourcesDetail::ValidateBuildInput(Effective,Record->Installed,*Content,Reason))
     { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,Reason); }
@@ -766,17 +758,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         }
     }
     Record->Installed.BuildRevision=Prepared.Input.ResultBuildRevision;
-    const FLDAttributeProjection PreviousProjection=Record->Projection;
     Record->Projection=Prepared.Projection;
-    {
-        FString Error;
-        if (!NoteWorkshopInstall(*Record,PreviousProjection,Body,Mode->GetAuthorityNowMs(),Error))
-        {
-            Mode->FaultAuthority(FString::Printf(TEXT("Combat build install for %s lost its connector terms: %s"),
-                *Prepared.Contender.ToString(),*Error));
-            return;
-        }
-    }
     for (const FLDCombatBindingPlan& Row : Prepared.BindingPlan)
     {
         FLDCombatTrack* Track=Row.bNewTrack ? &Record->Tracks.AddDefaulted_GetRef()
@@ -877,13 +859,6 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         };
         CopySlows(Body->Slows,Out.PreviewMoveSlows);
         CopySlows(Body->AttackSlows,Out.PreviewAttackSlows);
-        if (Body->WideToken.IsSet() && Body->WideToken->ExpiresAtMs>NowMs)
-        {
-            Out.PreviewWideToken.Component=Body->WideToken->Component;
-            Out.PreviewWideToken.Host=Body->WideToken->Host;
-            Out.PreviewWideToken.RatioBp=Body->WideToken->RatioBp;
-            Out.PreviewWideToken.ExpiresAtMs=Body->WideToken->ExpiresAtMs;
-        }
     }
     Out.NextAttackAtMs=Record->NextAttackAtMs;
     Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
@@ -1036,7 +1011,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Base=Row.Base;
         RowView.Level=Row.LevelGrowth.Flat;
         RowView.Choices=Row.PermanentChoices.Flat;
-        RowView.Components=Row.Components.Flat;
+        RowView.Cards=Row.Cards.Flat;
         RowView.Dev=Row.Dev.Flat;
         RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
@@ -1045,7 +1020,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.bClamped=Row.bClamped;
         FLDDemoRational BuildPercent;
         if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,BuildPercent)
-            || !LDCombatSourcesDetail::AddRatios(BuildPercent,Row.Components.AdditiveRatio,RowView.PercentBonus))
+            || !LDCombatSourcesDetail::AddRatios(BuildPercent,Row.Cards.AdditiveRatio,RowView.PercentBonus))
         {
             UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_OWNER_VIEW_RATIO contender=%s attribute=%u"),
                 *Caller.EntityId.ToString(),uint32(Row.Attribute));
@@ -1152,11 +1127,10 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Stuns.Reset();
     Body->Empowers.Reset();
     Body->Shield.Reset();
-    // #147 keyword records end with the reset too (the camp's burn clears on its return), and so do the ledgers on it.
+    // #147 keyword records end with the reset too (the camp's burn clears on its return).
     Body->Silences.Reset();
     Body->SharedBreach=FLDCombatSharedBreach();
     Body->Burn=FLDCombatBurn();
-    Body->Ledgers.Reset();
     // The #112 knockback window ends with the reset too.
     Body->Knockbacks.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);

@@ -1100,6 +1100,30 @@ bool ALDCombatDirector::OverhealShield(FLDBodyCombatState& Body, int64 OverflowP
     return true;
 }
 
+bool ALDCombatDirector::MakeBasicStrike(const FLDBodyCombatState& Body, const FLDCombatBodyRef& Target, FLDCombatHit& Out, FString& Error)
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content || Body.Victim.Kind!=ELDVictimKind::Contender) { Error=TEXT("A card's basic strike requires a contender and the Demo content."); return false; }
+    const auto& Final=Body.AttributeProjection.Final;
+    Out=FLDCombatHit();
+    Out.HitId=FGuid::NewGuid();
+    Out.EffectId=FGuid::NewGuid();
+    Out.Target=Target;
+    Out.SourceBody={Body.Victim,Body.Identity};
+    Out.SourceEntity=Body.Victim.EntityId;
+    Out.CreditOwner=Body.Victim.EntityId;
+    Out.Source.Kind=ELDCombatSourceKind::Basic;
+    Out.HitClass=ELDCombatHitClass::BasicPrimary;
+    Out.DamageType=ELDDemoDamageType::Physical;
+    Out.ADRatioBp=Content->Get().Character.BasicADRatioBp;
+    Out.SourceADP2=Final.ADP2;
+    Out.SourceAPP2=Final.APP2;
+    Out.bExtraStrike=true;
+    if (!StampSourceTerms(Body,Out,Error) || !SnapshotOnHit(Body,10000,Out,Error)) { return false; }
+    Out.bCritical=Final.CritChanceBp>0 && CritRandom.RandRange(0,9999)<Final.CritChanceBp;
+    return true;
+}
+
 // ---------------------------------------------------------------- K06 repeats
 
 bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
