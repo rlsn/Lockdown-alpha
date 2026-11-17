@@ -32,6 +32,8 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
     // The full world-command gate: under the menu, Settings, a child confirmation or a text edit no entry arms or
     // sends (MOVEMENT_INPUT_AND_CAMERA input ownership); the root already cancelled any older preview.
     if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
+    // Another entry takes over: an overdrive armed for a different skill ends with its charge.
+    if (bOverdriveArmed && OverdriveEntry!=Entry) { EndOverdriveHold(); }
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
     // An entry whose source does not resolve reports Self (0) and is sent as is for the server's explicit refusal.
@@ -89,21 +91,27 @@ void ALDPlayerController::ArmAttackMove()
     bAttackMoveArmed=true;
 }
 
-bool ALDPlayerController::CancelArmedCombat()
+bool ALDPlayerController::ClearArmedAim()
 {
     const bool bWasArmed=bAttackMoveArmed || ArmedEntry!=ELDCombatEntry::None;
-    // A cancelled aim drops its overdrive and the visible charge with it.
-    if (bOverdriveArmed && ArmedEntry==OverdriveEntry) { EndOverdriveHold(); }
     bAttackMoveArmed=false;
     ArmedEntry=ELDCombatEntry::None;
     return bWasArmed;
+}
+
+bool ALDPlayerController::CancelArmedCombat()
+{
+    // A real cancel (S, Escape, a menu, a move order, a new life or source revision) also ends a running or completed
+    // overdrive hold and the visible charge with it.
+    if (bOverdriveHolding || bOverdriveArmed) { EndOverdriveHold(); }
+    return ClearArmedAim();
 }
 
 bool ALDPlayerController::ConfirmArmedCombat()
 {
     if (bAttackMoveArmed)
     {
-        CancelArmedCombat();
+        ClearArmedAim();
         if (!IsLocalController() || !CanWorldCommand()) { return true; }
         FHitResult GroundHit;
         const bool bQueue=IsQueueModifierDown();
@@ -177,9 +185,11 @@ bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim, const FV
 {
     const ELDCombatEntry Entry=ArmedEntry;
     if (Entry==ELDCombatEntry::None) { return false; }
-    CancelArmedCombat();
-    if (!IsLocalController() || !CanWorldCommand()) { return true; }
+    ClearArmedAim();
+    if (!IsLocalController() || !CanWorldCommand()) { EndOverdriveHold(); return true; }
     SendCombatAction(Entry,Aim,IsQueueModifierDown(),AimCm);
+    // An overdrive the send neither consumed nor queued ends here instead of lingering as a visible charge.
+    if (bOverdriveArmed && OverdriveEntry==Entry && QueuedCombat.Entry!=Entry) { EndOverdriveHold(); }
     return true;
 }
 
@@ -366,9 +376,15 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
     const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
+    // Unavailable is the published snapshot: a cooldown or momentum reason in it can be stale, so readiness is judged on the
+    // current authority time and the current bar; any other reason (control, busy) still blocks. The server decides.
+    int64 NowMs=0;
+    const bool bClock=ReadDemoAuthorityTimeMs(NowMs);
+    const bool bStaleOnlyReason=View && (View->Unavailable==ELDCombatReject::None || View->Unavailable==ELDCombatReject::Cooldown
+        || View->Unavailable==ELDCombatReject::MomentumShort);
     if (IsLocalController() && CanWorldCommand() && Terms && View && !View->DefinitionId.IsNone()
-        && View->SourceKind==ELDCombatSourceKind::Learned && View->Unavailable==ELDCombatReject::None
-        && CombatView.MomentumP2>=Terms->ThresholdP2 && !bOverdriveHolding)
+        && View->SourceKind==ELDCombatSourceKind::Learned && bStaleOnlyReason && bClock && View->ReadyAtMs<=NowMs
+        && CombatView.MomentumP2>=Terms->ThresholdP2 && CombatView.MomentumP2>=View->MomentumCostP2 && !bOverdriveHolding)
     {
         if (bOverdriveArmed) { EndOverdriveHold(); }
         OverdriveEntry=Entry;

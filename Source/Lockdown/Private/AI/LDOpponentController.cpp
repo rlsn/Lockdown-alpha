@@ -207,6 +207,8 @@ void ALDOpponentController::ForgetBodyWork()
     Candidate = FOrderTrack();
     StopTrack = FStopTrack();
     Action = FActionTrack();
+    // A charge belongs to the body that started it; a new life starts its own.
+    Charge = FChargeTrack();
     bWasInDorm = false;
 }
 
@@ -733,7 +735,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         {
             const ELDCombatEntry Held = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
                 : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W : ELDCombatEntry::E;
-            if (!Charge.bHas || Charge.Entry != Held)
+            if (!Charge.bHas || Charge.Life != Life || Charge.Entry != Held)
             {
                 FLDCombatChargeRequest Start;
                 Start.Generation = Generation;
@@ -741,7 +743,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
                 Start.Entry = Held;
                 Start.bCharging = true;
                 Mode.Combat->SubmitCharge(Reads.CombatCaller, Start);
-                Charge = {true, Held, NowMs};
+                Charge = {true, Life, Held, NowMs};
                 return;
             }
             if (NowMs - Charge.StartMs < Content->Get().Parameters.Overdrive.HoldMs) { return; }

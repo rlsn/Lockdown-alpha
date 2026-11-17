@@ -111,6 +111,7 @@ private:
     struct FChargeTrack
     {
         bool bHas = false;
+        uint32 Life = 0;
         ELDCombatEntry Entry = ELDCombatEntry::None;
         int64 StartMs = 0;
     };

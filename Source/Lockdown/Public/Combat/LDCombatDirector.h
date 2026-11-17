@@ -780,10 +780,11 @@ struct FLDCombatGroundEffect
     // M15 on the host release (S18 impact, S19 trap): its echo follows this blast.
     TOptional<FLDPassiveEffectRef> Echo;
     // Skill branches: an impact's center stun (S18 B1) and the wet area it leaves (S20 B2); a trap's wire to its owner's
-    // other trap (S19 A1) and the last time the wire struck.
+    // next armed trap (S19 A1) and the enemies that wire already struck (each once).
     int64 CenterStunMs=0, LingerMs=0;
     double WireCm=0;
-    int64 WireBaseP2=0, WireAPRatioBp=0, NextWireMs=0;
+    int64 WireBaseP2=0, WireAPRatioBp=0;
+    TArray<FGuid> WireStruck;
     // Observers key a blast on its release EffectId; an echo, which shares it, carries its own key.
     FGuid ObservedKey;
     // C17 (traps only): moved once already; CreatedSerial orders the owner's zones and traps by creation.
@@ -1494,6 +1495,8 @@ private:
         FString& Error);
     // A flight ended at EndCm: a return that reached its thrower was caught (S06 B2); an outbound flight leaves its landing area.
     bool EndBranchProjectile(const FLDCombatProjectile& Projectile, const FVector& EndCm, bool bReachedRange, FString& Error);
+    // S19 A1: Ground's wire to its owner's next newer armed trap within WireCm strikes every enemy body on the segment once.
+    bool StrikeTrapWire(FLDCombatGroundEffect& Ground, const FLDBodyCombatState& Holder, FString& Error);
     // S20 B2: a wet area for LingerMs at Centre, owned like the impact's payload.
     bool SpawnLingerZone(const FLDCombatHit& Payload, const FVector& Centre, double RadiusCm, int64 LingerMs, int64 NowMs, FString& Error);
     bool ScheduleEcho(const FLDCombatBodyRef& Owner, const FLDPassiveEffectRef& Echo, const FLDCombatGroundEffect& Blast,

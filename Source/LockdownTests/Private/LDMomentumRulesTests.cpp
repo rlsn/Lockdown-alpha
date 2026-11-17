@@ -281,6 +281,27 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
             }
         }
     }
+    // A branch's momentum amount (momentum_gain, momentum_steal, zone_momentum) never grows with level, rank or overdrive.
+    int32 MomentumEffects = 0;
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        for (const FLDDemoAbilityBranch& Branch : Ability.Branches)
+        {
+            const FLDDemoAbilityValues* Grown = Catalog->FindValues(Ability, 16, Branch.Path);
+            for (int32 Index = 0; Grown && Index < Branch.Values.Effects.Num(); ++Index)
+            {
+                const ELDDemoEffectOp Op = Branch.Values.Effects[Index].GetOp();
+                if (Op != ELDDemoEffectOp::MomentumGain && Op != ELDDemoEffectOp::MomentumSteal && Op != ELDDemoEffectOp::ZoneMomentum) { continue; }
+                ++MomentumEffects;
+                FLDDemoAbilityValues Overdriven = *Grown;
+                TestTrue(FString::Printf(TEXT("%s %s keeps its authored momentum at level 16 and under overdrive"), *Ability.Id,
+                    LDSkillBranch::StepKey(Branch.Path)), Grown->Effects[Index].BaseP2 == Branch.Values.Effects[Index].BaseP2
+                    && LDSkillGrowth::ScaleValues(Overdriven, Content.Parameters.Overdrive.ScaleBp, Content.Parameters.Overdrive.ScaleBp)
+                    && Overdriven.Effects[Index].BaseP2 == Branch.Values.Effects[Index].BaseP2);
+            }
+        }
+    }
+    TestTrue(TEXT("The approved branches carry momentum grants"), MomentumEffects > 0);
     // Two concrete patches: S01 2B kicks 500 cm; S02 2A reaches 650 cm.
     const FLDDemoAbilityDefinition* Elbow = nullptr;
     const FLDDemoAbilityDefinition* Pants = nullptr;

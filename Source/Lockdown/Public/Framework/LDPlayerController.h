@@ -190,6 +190,8 @@ public:
     void ArmAttackMove();
     // Clears any armed entry or attack-move without sending anything; true if something was armed.
     bool CancelArmedCombat();
+    // A confirmed aim leaves its preview; any overdrive the hold armed rides on the request it sends.
+    bool ClearArmedAim();
     // Left-click confirmation of the armed entry or attack-move; false when nothing was armed. An armed attack-move on an
     // attackable visible unit under the pointer attacks that unit like a right click; elsewhere it attack-moves.
     bool ConfirmArmedCombat();

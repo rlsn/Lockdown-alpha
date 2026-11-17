@@ -138,6 +138,8 @@ void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out)
         Warning.RadiusCm = Seen.RadiusCm;
         Warning.LengthCm = Seen.LengthCm;
         Warning.AngleDegrees = Seen.AngleDegrees;
+        // A public cone carries its reach as RadiusCm; the dodge test reads a cone's reach from LengthCm.
+        if (Seen.AngleDegrees > 0 && Seen.LengthCm <= 0) { Warning.LengthCm = Seen.RadiusCm; }
         Warning.RemainingMs = Seen.WarningRemainingMs;
     }
 }

@@ -3277,6 +3277,73 @@ bool FLDCombatEventTrapFuseTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// S19 A1 (issue #287 spec §5.1): two armed traps of one owner within the wire distance strike each enemy body on the segment
+// between them once with the wire package; a body off the segment, or a pair farther apart than the wire, is not struck.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatSkillRankTrapWireTest, "Lockdown.Rules.Combat.SkillRank.TrapWire",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatSkillRankTrapWireTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Caster = F.AddBody(), Enemy = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Caster, 0, -1000);
+    F.Place(Enemy, 200, 600);
+    TArray<FLDCombatGroundEffect>& Ground = FAccess::Ground(*F.Driver);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    FLDCombatActiveTerms Trap;
+    FLDCombatHit Payload;
+    F.Now(1000);
+    if (!Released(*this, F, Caster, TEXT("active_flyer_trap"), Trap, Payload)) { return false; }
+    // Two armed traps 400 cm apart on the X axis, wired at the S19 A1 values (400 cm, 30 + 0.3 AP).
+    const auto Armed = [&](double X, uint64 Serial)
+    {
+        FLDCombatGroundEffect Row;
+        Row.Payload = Payload;
+        Row.CentreCm = F.Origin + FVector(X, 0, 0);
+        Row.RadiusCm = 180;
+        Row.InnerRadiusCm = 100;
+        Row.bTrap = true;
+        Row.Origin = ELDCombatGroundOrigin::Trap;
+        Row.ReadyAtMs = 1000;
+        Row.ExpiresAtMs = 7000;
+        Row.FuseMs = 450;
+        Row.WireCm = 400;
+        Row.WireBaseP2 = 3000;
+        Row.WireAPRatioBp = 3000;
+        Row.CreatedSerial = Serial;
+        return Row;
+    };
+    Ground.Add(Armed(0, 1));
+    Ground.Add(Armed(400, 2));
+    FString Error;
+    const auto Advance = [&](int64 AtMs)
+    {
+        F.Now(AtMs);
+        return TestTrue(FString::Printf(TEXT("Skill content at %lld: %s"), AtMs, *Error), FAccess::AdvanceSkillContent(*F.Driver, AtMs, Error));
+    };
+    if (!Advance(1100)) { return false; }
+    TestTrue(TEXT("A body off the wire is not struck"), Pending.IsEmpty() && Ground.Num() == 2);
+    // On the segment's middle, outside both trigger radii.
+    F.Place(Enemy, 200, 0);
+    if (!Advance(1200)) { return false; }
+    TestTrue(TEXT("Crossing the wire strikes once with the wire package, magic, without triggering a trap"),
+        Pending.Num() == 1 && Pending[0].Target == Enemy && Pending[0].BaseP2 == 3000 && Pending[0].APRatioBp == 3000
+        && Pending[0].DamageType == ELDDemoDamageType::Magical && !Ground[0].bTriggered && !Ground[1].bTriggered);
+    if (!Advance(1300)) { return false; }
+    TestTrue(TEXT("Staying on the wire does not strike again"), Pending.Num() == 1);
+    // A pair farther apart than the wire distance has no wire.
+    Pending.Reset();
+    Ground.Reset();
+    Ground.Add(Armed(0, 3));
+    Ground.Add(Armed(500, 4));
+    F.Place(Enemy, 250, 0);
+    if (!Advance(1400)) { return false; }
+    TestTrue(TEXT("Traps 500 cm apart are not wired"), Pending.IsEmpty());
+    return true;
+}
+
 // R09 (spec §9.1/§12.1): a due M12 debt is paid at its original amount through a live S16 stance and feeds no record.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventDebtBraceTest, "Lockdown.Rules.Combat.Events.DebtBypassesBrace",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

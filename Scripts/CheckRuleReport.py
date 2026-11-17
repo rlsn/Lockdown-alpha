@@ -151,6 +151,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Growth.SkillRank.Refund",
         "Lockdown.Rules.Combat.SkillRank.Patches",
         "Lockdown.Rules.Combat.SkillRank.Riders",
+        "Lockdown.Rules.Combat.SkillRank.TrapWire",
         "Lockdown.Rules.Combat.Components.ZoneTether",
         "Lockdown.Rules.Combat.Components.DefenseShove",
         "Lockdown.Rules.Combat.Components.FinalKnockback",

@@ -697,6 +697,41 @@ bool ALDCombatDirector::EndBranchProjectile(const FLDCombatProjectile& Projectil
     return true;
 }
 
+bool ALDCombatDirector::StrikeTrapWire(FLDCombatGroundEffect& Ground, const FLDBodyCombatState& Holder, FString& Error)
+{
+    using namespace LDCombatBranchDetail;
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content) { Error=TEXT("A trap wire requires the approved Demo content."); return false; }
+    // A body is on the wire when its capsule touches the segment between the two trap points.
+    const double HalfWidthCm=Cm(Content->Get().Parameters.CollisionRadiusCm);
+    for (const FLDCombatGroundEffect& Other : GroundEffects)
+    {
+        // Each pair is wired once: from the older trap to the owner's next newer armed one within reach.
+        if (&Other==&Ground || !Other.bTrap || Other.bTriggered || Other.Payload.SourceEntity!=Ground.Payload.SourceEntity
+            || Other.CreatedSerial<=Ground.CreatedSerial) { continue; }
+        const FVector Span(Other.CentreCm.X-Ground.CentreCm.X,Other.CentreCm.Y-Ground.CentreCm.Y,0);
+        const double LengthCm=Span.Size();
+        if (LengthCm<=0 || LengthCm>Ground.WireCm) { continue; }
+        TArray<TPair<FLDCombatBodyRef,FVector>> Crossing;
+        if (!CollectLineTargets(Ground.CentreCm,Span,LengthCm,HalfWidthCm,Holder,Crossing,Error)) { return false; }
+        for (const TPair<FLDCombatBodyRef,FVector>& Pair : Crossing)
+        {
+            const FGuid Struck=Pair.Key.Victim.EntityId;
+            if (Ground.WireStruck.Contains(Struck)) { continue; }
+            Ground.WireStruck.Add(Struck);
+            FLDCombatHit Wire=MakeHit(Holder,Ground.Payload.Source,Pair.Key,Ground.Payload.EffectId);
+            Wire.BaseP2=Ground.WireBaseP2;
+            Wire.APRatioBp=Ground.WireAPRatioBp;
+            Wire.DamageType=ELDDemoDamageType::Magical;
+            Wire.bAddedDamage=true;
+            PendingHits.Add(MoveTemp(Wire));
+            UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_TRAP_WIRE owner=%s target=%s"),*LDLog::Id(Ground.Payload.SourceEntity),*LDLog::Id(Struck));
+        }
+        break;
+    }
+    return true;
+}
+
 bool ALDCombatDirector::SpawnLingerZone(const FLDCombatHit& Payload, const FVector& Centre, double RadiusCm, int64 LingerMs,
     int64 NowMs, FString& Error)
 {

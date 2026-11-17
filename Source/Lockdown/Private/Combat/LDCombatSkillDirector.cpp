@@ -289,6 +289,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
         if (Ground.bTrap && !Ground.bTriggered)
         {
             if (NowMs >= Ground.ExpiresAtMs) { GroundEffects.RemoveAt(Index); continue; }
+            if (Ground.WireCm > 0 && Holder && !Holder->bPendingDeath && !StrikeTrapWire(Ground, *Holder, Error)) { return false; }
             if (!CollectAreaTargets(Ground.CentreCm, Ground.InnerRadiusCm, Holder,
                 Ground.Payload.SourceEntity, Targets, Error)) { return false; }
             if (Targets.IsEmpty()) { continue; }
