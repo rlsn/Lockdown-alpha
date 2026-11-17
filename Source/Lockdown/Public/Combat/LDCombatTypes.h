@@ -280,12 +280,15 @@ struct FLDBuildProjectionInput
     // #198: the allocated points of each stat that holds any (canonical stat id, positive count).
     TArray<FLDStatPointsValue> StatPoints;
     TArray<FLDLearnedActiveValue> Actives;
-    // #198 B: installed components (FLDAttributeBuildValues::Components), sorted by id.
-    TArray<FLDInstalledComponentValue> Components;
+    // Installed cards (FLDAttributeBuildValues::Cards), sorted by serial.
+    TArray<FLDInstalledCardValue> Cards;
     FLDFinalModSelection FinalMod;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;
+    // The grow cards' match growth (FLDAttributeBuildValues::CardGrowth). Combat owns it like DevBonuses: a Growth build
+    // change keeps the installed one; only Combat's growth handlers change it, without a build revision.
+    TArray<FLDDemoStatBonus> CardGrowth;
     uint64 ResultBuildRevision=0;      // strictly increasing
 };
 

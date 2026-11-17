@@ -6,10 +6,12 @@ namespace LDSkillGrowthDetail
 {
     // Momentum grants keep their authored amount in BaseP2 under level growth, skill rank and overdrive
     // (control_momentum, multi_hit_momentum and the branch gains momentum_gain, momentum_steal, zone_momentum).
-    bool IsMomentumGrant(ELDDemoEffectOp Op)
+    // Amounts that are rules rather than power: momentum grants and the card conversion steps (Y13 HP per armor, Y16 haste
+    // per momentum, Y19 heal per growth) keep their authored value at every level.
+    bool IsFixedBase(ELDDemoEffectOp Op)
     {
-        return Op == ELDDemoEffectOp::ControlMomentum || Op == ELDDemoEffectOp::MultiHitMomentum
-            || Op == ELDDemoEffectOp::MomentumGain || Op == ELDDemoEffectOp::MomentumSteal || Op == ELDDemoEffectOp::ZoneMomentum;
+        return Op == ELDDemoEffectOp::MomentumGain || Op == ELDDemoEffectOp::MomentumSteal || Op == ELDDemoEffectOp::ZoneMomentum
+            || Op == ELDDemoEffectOp::ArmorToHp || Op == ELDDemoEffectOp::HasteMomentum || Op == ELDDemoEffectOp::HealGrowth;
     }
 
     bool ScaleBp(int64 Value, int64 Bp, int64& Out)
@@ -44,7 +46,7 @@ bool LDSkillGrowth::GrowP2(int64 AmountP2, int64 Factor, int64& Out)
 bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Factor, FLDDemoEffectDefinition& Out)
 {
     Out = Authored;
-    if (!LDSkillGrowthDetail::IsMomentumGrant(Authored.GetOp()) && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
+    if (!LDSkillGrowthDetail::IsFixedBase(Authored.GetOp()) && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
     {
         return false;
     }
