@@ -405,6 +405,12 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             // The phase changes first: the retiring field lives leave the spray roster as a rest boundary.
             MatchPhase = ELDMatchPhase::Rest;
             if (!MoveContendersToRest(Permit, Error) || !EnterRestWorld(Permit, Error)) { return false; }
+            // Spec §6.4: every rest after the opening one adds its card rerolls.
+            if (Event.RestIndex > 0)
+            {
+                if (!Development) { Error = TEXT("rest without a development domain"); return false; }
+                if (!Development->GrantRestRerolls(Permit, Error)) { return false; }
+            }
             // Phase 9: the final rest opens every contender's final mod three-choice.
             if (Event.RestIndex == FLDTimelineParameters::TimedSegments)
             {

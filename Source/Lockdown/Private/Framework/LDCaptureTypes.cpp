@@ -153,21 +153,21 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
 {
     if (!Build.bAvailable)
     {
-        if (!Build.CatalogRoot.IsEmpty() || !Build.Actives.IsEmpty() || !Build.Components.IsEmpty()
+        if (!Build.CatalogRoot.IsEmpty() || !Build.Actives.IsEmpty() || !Build.Cards.IsEmpty()
             || !Build.FinalMod.IsNone() || Build.FinalTarget != ELDResultBuildTarget::Body || !Build.FinalTargetId.IsNone())
         { return FailCaptureView(Error, TEXT("An unavailable result build must not carry partial data.")); }
         Error.Reset();
         return true;
     }
     FLDDemoContentDigest Root;
-    if (!FLDDemoContentDigest::ParseHex(Build.CatalogRoot, Root, Error) || Build.Actives.Num() > 3 || Build.Components.Num() > 63)
+    if (!FLDDemoContentDigest::ParseHex(Build.CatalogRoot, Root, Error) || Build.Actives.Num() > 3 || Build.Cards.Num() > 32)
     { return FailCaptureView(Error, TEXT("Invalid result build catalog or size.")); }
     auto ValidId = [](FName Id)
     {
         FLDDefinitionWire Wire;
         return FLDDefinitionWire::Encode(Id, Wire);
     };
-    TSet<FName> ActiveIds, ComponentIds;
+    TSet<FName> ActiveIds;
     TSet<uint8> Slots;
     for (const FLDResultBuildActive& Active : Build.Actives)
     {
@@ -176,46 +176,24 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
         Slots.Add(Active.Slot);
         ActiveIds.Add(Active.DefinitionId);
     }
-    auto ValidTarget = [&ValidId](ELDResultBuildTarget Kind, FName Id)
+    for (const FLDResultBuildCard& Card : Build.Cards)
     {
-        switch (Kind)
-        {
-        case ELDResultBuildTarget::Body:
-        case ELDResultBuildTarget::Dash: return Id.IsNone();
-        case ELDResultBuildTarget::Active:
-        case ELDResultBuildTarget::EffectSegment:
-        case ELDResultBuildTarget::Component: return ValidId(Id);
-        }
-        return false;
+        const bool bTarget = Card.Target == ELDResultBuildTarget::Active ? ActiveIds.Contains(Card.TargetId)
+            : Card.Target != ELDResultBuildTarget::Body ? Card.TargetId.IsNone() : Card.TargetId.IsNone();
+        if (!ValidId(Card.DefinitionId) || !bTarget || uint8(Card.Element) > uint8(ELDDemoElement::Electric))
+        { return FailCaptureView(Error, TEXT("Invalid result build card.")); }
+    }
+    const auto ValidFinal = [&ActiveIds](ELDResultBuildTarget Kind, FName Id)
+    {
+        return Kind == ELDResultBuildTarget::Active ? ActiveIds.Contains(Id)
+            : (Kind == ELDResultBuildTarget::Body || Kind == ELDResultBuildTarget::Dash) && Id.IsNone();
     };
-    for (const FLDResultBuildComponent& Component : Build.Components)
-    {
-        if (!ValidId(Component.DefinitionId) || ComponentIds.Contains(Component.DefinitionId)
-            || !ValidTarget(Component.Target, Component.TargetId)
-            || (!Component.BoundActive.IsNone() && !ValidId(Component.BoundActive)))
-        { return FailCaptureView(Error, TEXT("Invalid or duplicate result build component.")); }
-        ComponentIds.Add(Component.DefinitionId);
-    }
-    for (const FLDResultBuildComponent& Component : Build.Components)
-    {
-        TSet<FName> Seen;
-        const FLDResultBuildComponent* Current = &Component;
-        while (Current && Current->Target == ELDResultBuildTarget::Component && Current->BoundActive.IsNone())
-        {
-            if (Seen.Contains(Current->DefinitionId))
-            { return FailCaptureView(Error, TEXT("Result build component hosts contain a cycle.")); }
-            Seen.Add(Current->DefinitionId);
-            Current = Build.Components.FindByPredicate([Current](const FLDResultBuildComponent& Host)
-            { return Host.DefinitionId == Current->TargetId; });
-            if (!Current) { return FailCaptureView(Error, TEXT("Result build component host is missing.")); }
-        }
-    }
     if (Build.FinalMod.IsNone())
     {
         if (Build.FinalTarget != ELDResultBuildTarget::Body || !Build.FinalTargetId.IsNone())
         { return FailCaptureView(Error, TEXT("An absent final mod cannot name a target.")); }
     }
-    else if (!ValidId(Build.FinalMod) || !ValidTarget(Build.FinalTarget, Build.FinalTargetId))
+    else if (!ValidId(Build.FinalMod) || !ValidFinal(Build.FinalTarget, Build.FinalTargetId))
     { return FailCaptureView(Error, TEXT("Invalid result final mod.")); }
     Error.Reset();
     return true;

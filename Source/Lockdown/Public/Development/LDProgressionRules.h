@@ -76,6 +76,8 @@ struct LOCKDOWN_API FLDGrowthBuild
     uint16 NextCardSerial = 1;
     // Independent of the ordinary workshop capacity, actives and pending blueprints.
     FLDFinalModSelection FinalMod;
+    // DEV breakout presets only (LDBreakoutPresets): extra skill points for ranks beyond the level's; 0 in play.
+    int32 DevSkillPoints = 0;
     uint64 Revision = 1;
 
     const FLDLearnedActive* FindActive(FName Id) const;

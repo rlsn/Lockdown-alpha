@@ -60,7 +60,7 @@ public:
     // match, contender or amount refuse it.
     uint64 DevGrantReward(const FGuid& ContenderId, int64 XP, FString& Error);
     // Only the armed evaluation's AI slots may replace their earned level-up draws; installation still uses build commands.
-    uint64 DevGrantEvaluationReward(const FGuid& ContenderId, int64 XP, const TArray<FName>& LevelComponents, FString& Error);
+    uint64 DevGrantEvaluationReward(const FGuid& ContenderId, int64 XP, const TArray<FName>& LevelCards, FString& Error);
     ELDDevGrantStatus DevGrantStatus(uint64 Ticket, FString& Detail) const;
     // DEV test command (LDDevTestProtocol.h) of ContenderId's own owning connection: refused unless the fixture admits
     // this authority, then admitted into that contender's DEV request stream. The pending command commits in the
@@ -94,7 +94,7 @@ private:
         FName Event;
         uint64 Serial = 0;
 #if WITH_DEV_AUTOMATION_TESTS
-        TArray<FName> DevLevelComponents;
+        TArray<FName> DevLevelCards;
 #endif
     };
     // The reward composite (GROWTH_TRANSACTIONS): the XP of every share with its levels, opportunities and Combat
@@ -118,7 +118,7 @@ private:
         uint64 Ticket = 0;
         FGuid Contender;
         int64 XP = 0;
-        TArray<FName> LevelComponents;
+        TArray<FName> LevelCards;
         ELDDevGrantStatus Status = ELDDevGrantStatus::Pending;
         FString Detail;
     };

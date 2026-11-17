@@ -993,7 +993,7 @@ ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Co
 
 int32 LDProgression::SkillPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
 {
-    int32 Points = 0;
+    int32 Points = Build.DevSkillPoints;
     for (const int64 Level : Content.Parameters.SkillRanks.PointLevels)
     {
         Points += Level <= int64(Build.Level) ? 1 : 0;

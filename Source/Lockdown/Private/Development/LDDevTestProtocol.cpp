@@ -29,6 +29,7 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::SkipPreparation:
     case ELDDevTestOp::SetPeaceful:
     case ELDDevTestOp::TeleportToCamera:
+    case ELDDevTestOp::ApplyBreakoutPreset:
         return true;
     default:
         return false;
@@ -53,6 +54,7 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::SkipPreparation: return TEXT("SkipPreparation");
     case ELDDevTestOp::SetPeaceful: return TEXT("SetPeaceful");
     case ELDDevTestOp::TeleportToCamera: return TEXT("TeleportToCamera");
+    case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("ApplyBreakoutPreset");
     default: return TEXT("Unknown");
     }
 }
@@ -81,7 +83,7 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
         return ELDGrowthReason::InvalidRequest;
     }
     const bool bNamesDefinition = Command.Op == ELDDevTestOp::GrantBlueprint || Command.Op == ELDDevTestOp::LearnActive
-        || Command.Op == ELDDevTestOp::AllocatePoints;
+        || Command.Op == ELDDevTestOp::AllocatePoints || Command.Op == ELDDevTestOp::ApplyBreakoutPreset;
     FName Decoded;
     if (bNamesDefinition ? !Command.Definition.Decode(Decoded) : !(Command.Definition == FLDDefinitionWire()))
     {
@@ -198,6 +200,7 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::SkipPreparation: return TEXT("跳过准备，进入场景");
     case ELDDevTestOp::SetPeaceful: return TEXT("和平模式");
     case ELDDevTestOp::TeleportToCamera: return TEXT("传送到镜头位置");
+    case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("质变样板");
     default: return TEXT("未知操作");
     }
 }

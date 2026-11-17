@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 
 #include "Combat/LDCombatDirector.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDGrowthDirector.h"
@@ -11,20 +12,17 @@
 
 namespace
 {
-// #198 B: the install target fields of a command, whitelisted and decoded; false when any of them is malformed.
-bool DevelopmentDecodeTarget(const FLDBuildCommand& Command, FLDComponentTarget& Out)
+// The card target fields of a command, whitelisted and decoded; false when any of them is malformed.
+bool DevelopmentDecodeCardTarget(const FLDBuildCommand& Command, FLDCardTarget& Out)
 {
-    Out = FLDComponentTarget();
-    if (!LDGrowthWire::IsKnownTargetKind(Command.TargetKind) || !LDGrowthWire::IsKnownElement(Command.Element)
-        || !LDGrowthWire::DecodeOptional(Command.TargetDefinition, Out.Definition)
-        || !LDGrowthWire::DecodeOptional(Command.BoundActive, Out.BoundActive)
-        || !LDGrowthWire::DecodeOptional(Command.BoundComponent, Out.BoundComponent))
+    Out = FLDCardTarget();
+    if (!LDGrowthWire::IsKnownCardTarget(Command.CardTarget) || !LDGrowthWire::IsKnownElement(Command.Element)
+        || !LDGrowthWire::DecodeOptional(Command.TargetDefinition, Out.Active))
     {
-        Out = FLDComponentTarget();
+        Out = FLDCardTarget();
         return false;
     }
-    Out.Kind = Command.TargetKind;
-    Out.Segment = Command.TargetSegment;
+    Out.Kind = Command.CardTarget;
     Out.Element = Command.Element;
     return true;
 }
@@ -32,74 +30,51 @@ bool DevelopmentDecodeTarget(const FLDBuildCommand& Command, FLDComponentTarget&
 bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
 {
     if (Command.Generation == 0 || Command.Life == 0 || Command.RequestId == 0 || Command.ExpectedBuildRevision == 0
-        || !LDGrowthWire::IsBuildLifePhase(Command.ExpectedLifePhase) || !LDGrowthWire::IsKnownBuildKind(Command.Kind))
+        || !LDGrowthWire::IsBuildLifePhase(Command.ExpectedLifePhase) || !LDGrowthWire::IsKnownBuildKind(Command.Kind)
+        || !LDGrowthWire::IsKnownFinalTarget(Command.FinalTargetKind))
     {
         return false;
     }
     FName Decoded;
-    FLDComponentTarget Target;
-    const bool bTarget = DevelopmentDecodeTarget(Command, Target);
+    FLDCardTarget Target;
+    const bool bTarget = DevelopmentDecodeCardTarget(Command, Target);
     const bool bNoOffer = !Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option == FLDDefinitionWire();
-    // The active and point kinds carry no component field; the component kinds carry only the component and its target.
-    const bool bNoComponent = Command.Component == FLDDefinitionWire() && !Command.bInstallIfPossible && bTarget && Target.IsEmpty();
-    const bool bOnlyComponent = bNoOffer && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
-        && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot && Command.Component.Decode(Decoded) && bTarget;
-    // #198 G: Filler belongs to FillGap and Surrendered to Dismantle only; Replacing to InstallComponent only.
-    if ((Command.Kind != ELDBuildCommandKind::FillGap && Command.Filler != FLDDefinitionWire())
-        || (Command.Kind != ELDBuildCommandKind::Dismantle && !Command.Surrendered.IsEmpty())
-        || (Command.Kind != ELDBuildCommandKind::InstallComponent && Command.Replacing != FLDDefinitionWire()))
-    {
-        return false;
-    }
-    const bool bServiceShape = Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
-        && Command.Slot == FLDBuildCommand::AnySlot && !Command.bInstallIfPossible && bTarget && Target.IsEmpty();
+    // The active and point kinds carry no card field; the card kinds no active or point field.
+    const bool bNoCard = !Command.bInstallIfPossible && Command.CardSerial == 0 && Command.ReplacingSerial == 0 && bTarget
+        && Target.IsEmpty() && Command.FinalTargetKind == ELDFinalModTargetKind::None;
+    const bool bNoActive = Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
+        && Command.Slot == FLDBuildCommand::AnySlot && Command.Branch == ELDSkillBranch::None
+        && Command.FinalTargetKind == ELDFinalModTargetKind::None;
+    const bool bOfferNamed = Command.OfferId.IsValid() && Command.OfferRevision != 0;
     switch (Command.Kind)
     {
-    case ELDBuildCommandKind::ComponentChoice:
-        return Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option == FLDDefinitionWire() && bServiceShape
-            && LDGrowthWire::DecodeOptional(Command.Component, Decoded);
-    case ELDBuildCommandKind::FillGap:
-        return bNoOffer && bServiceShape && Command.Component.Decode(Decoded) && Command.Filler.Decode(Decoded);
-    case ELDBuildCommandKind::Dismantle:
-    {
-        // A bounded list; its exact count is the content's rule, checked at the commit.
-        bool bDecoded = Command.Surrendered.Num() >= 1 && Command.Surrendered.Num() <= 16;
-        for (const FLDDefinitionWire& Wire : Command.Surrendered)
-        {
-            bDecoded &= Wire.Decode(Decoded);
-        }
-        return bNoOffer && bServiceShape && Command.Component == FLDDefinitionWire() && bDecoded;
-    }
     case ELDBuildCommandKind::ActiveChoice:
-        return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option.Decode(Decoded)
-            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
+        return bOfferNamed && Command.Option.Decode(Decoded) && Command.Blueprint == FLDDefinitionWire()
+            && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None
             && (Command.Slot == FLDBuildCommand::AnySlot || (Command.bLearnIfPossible && Command.Slot < 3));
     case ELDBuildCommandKind::SkipActiveOffer:
-        return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire()
-            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
-            && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot;
+        return bOfferNamed && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
     case ELDBuildCommandKind::FinalMod:
+        // The source rides on FinalTargetKind and TargetDefinition; no card field.
         return Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option.Decode(Decoded)
-            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
-            && Command.Component == FLDDefinitionWire() && !Command.bInstallIfPossible && bTarget
-            && Target.Segment == 0 && Target.BoundActive.IsNone() && Target.BoundComponent.IsNone()
-            && Target.Element == ELDDemoElement::None && Target.Kind != ELDComponentTargetKind::EffectSegment
-            && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot;
+            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
+            && Command.Slot == FLDBuildCommand::AnySlot && Command.Branch == ELDSkillBranch::None && !Command.bInstallIfPossible
+            && Command.CardSerial == 0 && Command.ReplacingSerial == 0 && Command.CardTarget == ELDCardTargetKind::None
+            && Command.Element == ELDDemoElement::None && LDGrowthWire::DecodeOptional(Command.TargetDefinition, Decoded);
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
-            && Command.PointCounts.IsEmpty() && bNoComponent;
+            && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
     case ELDBuildCommandKind::ForgetActive:
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
-            && Command.PointCounts.IsEmpty() && bNoComponent && Command.Branch == ELDSkillBranch::None;
+            && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
     case ELDBuildCommandKind::RankUpSkill:
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
-            && Command.PointCounts.IsEmpty() && bNoComponent && Command.Branch != ELDSkillBranch::None
+            && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch != ELDSkillBranch::None
             && uint8(Command.Branch) <= uint8(ELDSkillBranch::B2);
     case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
-        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible
-            && Command.Slot == FLDBuildCommand::AnySlot && Command.PointCounts.IsEmpty() && bNoComponent;
+        return bNoOffer && bNoActive && bNoCard;
     case ELDBuildCommandKind::AllocatePoints:
     {
         int32 Total = 0;
@@ -107,24 +82,36 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         {
             Total += Count;
         }
-        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && bNoComponent
-            && Command.Slot == FLDBuildCommand::AnySlot && Command.PointCounts.Num() == StatCount && Total >= 1;
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && bNoCard
+            && Command.Slot == FLDBuildCommand::AnySlot && Command.Branch == ELDSkillBranch::None
+            && Command.PointCounts.Num() == StatCount && Total >= 1;
     }
-    case ELDBuildCommandKind::OpeningBase:
-        return bOnlyComponent && (Command.bInstallIfPossible || Target.IsEmpty());
-    case ELDBuildCommandKind::InstallComponent:
-        return bOnlyComponent && !Command.bInstallIfPossible && LDGrowthWire::DecodeOptional(Command.Replacing, Decoded);
-    case ELDBuildCommandKind::UninstallComponent:
-        return bOnlyComponent && !Command.bInstallIfPossible && Target.IsEmpty();
+    case ELDBuildCommandKind::PickCard:
+        // Without bInstallIfPossible the card only goes to the library, so no target rides along.
+        return bOfferNamed && Command.Option.Decode(Decoded) && bNoActive && bTarget && Command.CardSerial == 0
+            && Command.ReplacingSerial == 0 && (Command.bInstallIfPossible ? !Target.IsEmpty() : Target.IsEmpty());
+    case ELDBuildCommandKind::SkipCards:
+    case ELDBuildCommandKind::RerollCards:
+        return bOfferNamed && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
+    case ELDBuildCommandKind::LockCard:
+        // An all-zero Option clears the lock.
+        return bOfferNamed && LDGrowthWire::DecodeOptional(Command.Option, Decoded) && bNoActive && bNoCard;
+    case ELDBuildCommandKind::InstallCard:
+        return bNoOffer && bNoActive && bTarget && !Target.IsEmpty() && Command.CardSerial != 0 && !Command.bInstallIfPossible
+            && Command.ReplacingSerial != Command.CardSerial;
+    case ELDBuildCommandKind::UninstallCard:
+        return bNoOffer && bNoActive && bTarget && Target.IsEmpty() && Command.CardSerial != 0 && !Command.bInstallIfPossible
+            && Command.ReplacingSerial == 0;
     default:
         return false;
     }
 }
 
-bool DevelopmentIsComponentKind(ELDBuildCommandKind Kind)
+bool DevelopmentIsCardKind(ELDBuildCommandKind Kind)
 {
-    return Kind == ELDBuildCommandKind::OpeningBase || Kind == ELDBuildCommandKind::InstallComponent
-        || Kind == ELDBuildCommandKind::UninstallComponent;
+    return Kind == ELDBuildCommandKind::PickCard || Kind == ELDBuildCommandKind::SkipCards || Kind == ELDBuildCommandKind::RerollCards
+        || Kind == ELDBuildCommandKind::LockCard || Kind == ELDBuildCommandKind::InstallCard
+        || Kind == ELDBuildCommandKind::UninstallCard;
 }
 
 void DevelopmentFillHeader(FLDGrowthReceiptHeader& Header, const FLDBuildCommand& Command, const FLDPendingReceiptInfo& Info,
@@ -146,22 +133,12 @@ void DevelopmentFillCommand(FLDBuildReceipt& Receipt, const FLDBuildCommand& Com
     Receipt.Kind = Command.Kind;
     Receipt.OfferId = Command.OfferId;
     FName Definition;
-    // #198 G: the received component (a Dismantle's is drawn at the commit).
-    if (Command.Kind == ELDBuildCommandKind::ComponentChoice || Command.Kind == ELDBuildCommandKind::FillGap
-        || Command.Kind == ELDBuildCommandKind::Dismantle)
+    if (DevelopmentIsCardKind(Command.Kind))
     {
-        const FLDDefinitionWire& Received = Command.Kind == ELDBuildCommandKind::FillGap ? Command.Filler : Command.Component;
-        if (LDGrowthWire::DecodeOptional(Received, Definition))
+        Receipt.CardSerial = Command.CardSerial;
+        if (LDGrowthWire::DecodeOptional(Command.Option, Definition))
         {
-            Receipt.ComponentId = Definition;
-        }
-        return;
-    }
-    if (DevelopmentIsComponentKind(Command.Kind))
-    {
-        if (Command.Component.Decode(Definition))
-        {
-            Receipt.ComponentId = Definition;
+            Receipt.CardId = Definition;
         }
         return;
     }
@@ -208,8 +185,8 @@ FLDPrepareGrowthResult DevelopmentPrepareFailure(ELDGrowthReason Reason, const T
     return Result;
 }
 
-// Level, allocated points, learned actives and installed components are what Combat projects; blueprints, inventory
-// components and opportunities are not.
+// Level, allocated points, learned actives (and their branches), installed cards and the final mod are what Combat
+// projects; blueprints, library cards and offers are not.
 bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& New)
 {
     if (Old.Level != New.Level || Old.StatPoints != New.StatPoints || Old.Actives.Num() != New.Actives.Num()
@@ -219,32 +196,34 @@ bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& N
     }
     for (int32 Index = 0; Index < Old.Actives.Num(); ++Index)
     {
-        if (Old.Actives[Index].Id != New.Actives[Index].Id || Old.Actives[Index].Slot != New.Actives[Index].Slot)
+        if (Old.Actives[Index].Id != New.Actives[Index].Id || Old.Actives[Index].Slot != New.Actives[Index].Slot
+            || Old.Actives[Index].Branch != New.Actives[Index].Branch)
         {
             return true;
         }
     }
     const auto Installed = [](const FLDGrowthBuild& Build)
     {
-        TArray<const FLDComponentInstance*> Out;
-        for (const FLDComponentInstance& Instance : Build.Components)
+        TArray<const FLDCardInstance*> Out;
+        for (const FLDCardInstance& Card : Build.Cards)
         {
-            if (Instance.bInstalled)
+            if (Card.IsInstalled())
             {
-                Out.Add(&Instance);
+                Out.Add(&Card);
             }
         }
         return Out;
     };
-    const TArray<const FLDComponentInstance*> OldInstalled = Installed(Old);
-    const TArray<const FLDComponentInstance*> NewInstalled = Installed(New);
+    const TArray<const FLDCardInstance*> OldInstalled = Installed(Old);
+    const TArray<const FLDCardInstance*> NewInstalled = Installed(New);
     if (OldInstalled.Num() != NewInstalled.Num())
     {
         return true;
     }
     for (int32 Index = 0; Index < OldInstalled.Num(); ++Index)
     {
-        if (OldInstalled[Index]->Id != NewInstalled[Index]->Id || !(OldInstalled[Index]->Target == NewInstalled[Index]->Target))
+        if (OldInstalled[Index]->Serial != NewInstalled[Index]->Serial || OldInstalled[Index]->Id != NewInstalled[Index]->Id
+            || !(OldInstalled[Index]->Target == NewInstalled[Index]->Target))
         {
             return true;
         }
@@ -252,35 +231,30 @@ bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& N
     return false;
 }
 
-FLDComponentInstanceView DevelopmentComponentView(const FLDComponentInstance& Instance)
+FLDCardInstanceView DevelopmentCardView(const FLDCardInstance& Card)
 {
-    FLDComponentInstanceView View;
-    View.DefinitionId = Instance.Id;
-    View.Source = Instance.Source;
-    View.SourceLevel = Instance.SourceLevel;
-    View.bInstalled = Instance.bInstalled;
-    View.bEverInstalled = Instance.bEverInstalled;
-    View.Target.Kind = Instance.Target.Kind;
-    View.Target.Definition = Instance.Target.Definition;
-    View.Target.Segment = Instance.Target.Segment;
-    View.Target.Element = Instance.Target.Element;
-    View.Target.BoundActive = Instance.Target.BoundActive;
-    View.Target.BoundComponent = Instance.Target.BoundComponent;
-    View.bGapFilled = Instance.bGapFilled;
+    FLDCardInstanceView View;
+    View.Serial = Card.Serial;
+    View.DefinitionId = Card.Id;
+    View.OfferOrdinal = Card.OfferOrdinal;
+    View.Target.Kind = Card.Target.Kind;
+    View.Target.Active = Card.Target.Active;
+    View.Target.Element = Card.Target.Element;
     return View;
 }
 
-FString DevelopmentBindingText(const FLDComponentTarget& Target)
+FString DevelopmentCardTargetText(const FLDCardTarget& Target)
 {
-    FString Text = Target.BoundActive.IsNone() ? FString(TEXT("-"))
-        : FString::Printf(TEXT("%s:%s"), *Target.BoundActive.ToString(), *LDLog::EnumName(Target.Element));
-    // #198 F: a mod/connector's target and C12's repeated base.
-    if (Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone())
-    {
-        Text += FString::Printf(TEXT(" on=%s:%s"), *LDLog::EnumName(Target.Kind), *Target.Definition.ToString());
-    }
-    if (!Target.BoundComponent.IsNone()) { Text += TEXT(" base=") + Target.BoundComponent.ToString(); }
+    if (Target.IsEmpty()) { return TEXT("-"); }
+    FString Text = LDLog::EnumName(Target.Kind);
+    if (!Target.Active.IsNone()) { Text += TEXT(":") + Target.Active.ToString(); }
+    if (Target.Element != ELDDemoElement::None) { Text += TEXT(":") + LDLog::EnumName(Target.Element); }
     return Text;
+}
+
+FString DevelopmentSerialsText(const TArray<uint16>& Serials)
+{
+    return Serials.IsEmpty() ? FString(TEXT("-")) : FString::JoinBy(Serials, TEXT(","), [](uint16 Serial) { return FString::FromInt(Serial); });
 }
 
 const TCHAR* DevelopmentSlotName(uint8 Slot)
@@ -347,23 +321,19 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     }
     const FLDGrowthBuild StartBuild = LDProgression::StartBuild(Definitions);
     int64 OpeningPoints = 0;
-    const ELDGrowthReason PointsReason = LDProgression::EarnedPoints(Definitions, 1, 0, 0, OpeningPoints);
+    const ELDGrowthReason PointsReason = LDProgression::EarnedPoints(Definitions, 1, 0, OpeningPoints);
     if (PointsReason != ELDGrowthReason::None)
     {
         Error = FString::Printf(TEXT("Growth points parameters are invalid (%s)."), LDGrowthWire::ReasonName(PointsReason));
         return false;
     }
-    // #198 B: every normal level-up draws its component from its level's category band; a table that cannot serve a level
-    // refuses the match instead of failing a later reward.
-    for (int32 Level = 2; Level <= Definitions.Progression.MaxLevel; ++Level)
+    // Spec §6.4: every card offer shows CARDS.OfferSize distinct cards; a catalog that cannot fill one refuses the match.
+    if (Definitions.Parameters.Cards.OfferSize <= 0 || Definitions.Cards.Num() < Definitions.Parameters.Cards.OfferSize
+        || LDProgression::CardCapacity(Definitions.Parameters, 1) <= 0)
     {
-        FName Probe;
-        const ELDGrowthReason SupplyReason = LDProgression::DrawLevelComponent(Definitions, StartBuild, uint8(Level), 0, Probe);
-        if (SupplyReason != ELDGrowthReason::None)
-        {
-            Error = FString::Printf(TEXT("The component supply of level %d is invalid (%s)."), Level, LDGrowthWire::ReasonName(SupplyReason));
-            return false;
-        }
+        Error = FString::Printf(TEXT("The approved catalog cannot fill a card offer: %d cards, offers of %d, capacity %d."),
+            Definitions.Cards.Num(), Definitions.Parameters.Cards.OfferSize, LDProgression::CardCapacity(Definitions.Parameters, 1));
+        return false;
     }
     // #198: the opening offer is three distinct actives of the opening pool; a short catalog refuses the match.
     TArray<FName> OpeningPool;
@@ -382,6 +352,14 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
         Record.Progression.Revision = 1;
         // Every contender enters the opening rest holding its opening opportunity; respawns never add another.
         Record.Progression.ActiveEarned = LDProgression::ActiveOpportunitiesAt(Definitions.Progression, 1);
+        // Spec §6.4: the R0 opening card offer (drawn once the opening active is chosen) and the match's free rerolls.
+        uint16 First = 0, Last = 0;
+        if (LDProgression::QueueCardOffers(Record.Progression, ELDCardOfferSource::Opening, 1, First, Last) != ELDGrowthReason::None)
+        {
+            Error = TEXT("The opening card offer could not be queued.");
+            return false;
+        }
+        Record.Progression.CardRerollsGranted = Definitions.Parameters.Cards.FreeRerolls;
         Record.CombatInstalled = FLDExpectedBuildVersions();
     }
     Match = InMatch;
@@ -418,27 +396,12 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     const FLDGrowthBuild& Build = Record->Build;
     const FLDProgressionState& Progression = Record->Progression;
     int64 Unspent = 0;
-    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Build, Progression.CumulativeXP,
-        Progression.EmptyPoolGrants, Unspent);
+    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Build, Progression.CumulativeXP, Unspent);
     if (PointsReason != ELDGrowthReason::None)
     {
         UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_VIEW_FAULT contender=%s: the points of the committed build do not derive (%s)"),
             *ContenderId.ToString(), LDGrowthWire::ReasonName(PointsReason));
         return View;
-    }
-    // #198 B: the opening base pick opens once the opening active is chosen and closes with the pick.
-    const FName OpeningActive = LDProgression::OpeningActive(Progression);
-    TArray<FName> OpeningOptions;
-    if (Progression.Records.ContainsByPredicate([](const FLDActiveOpportunityRecord& Row) { return Row.Ordinal == 1; })
-        && !LDProgression::OpeningBaseTaken(Build))
-    {
-        const ELDGrowthReason OptionsReason = LDProgression::OpeningBaseOptions(Definitions, Build, OpeningActive, OpeningOptions);
-        if (OptionsReason != ELDGrowthReason::None)
-        {
-            UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_VIEW_FAULT contender=%s: the opening base options do not derive (%s)"),
-                *ContenderId.ToString(), LDGrowthWire::ReasonName(OptionsReason));
-            return View;
-        }
     }
     View.bValid = true;
     View.Generation = Match.Generation;
@@ -463,7 +426,6 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.BuildRevision = Build.Revision;
     View.CombatInstalledRevision = Record->CombatInstalled.BuildRevision;
     View.UnspentPoints = Unspent;
-    View.EmptyPoolGrants = Progression.EmptyPoolGrants;
     View.StatPoints.Reserve(Definitions.Stats.Num());
     const TArray<const FLDDemoStatDefinition*> StatOrder = Definitions.StatsInDesignOrder();
     for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
@@ -495,16 +457,27 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         View.ActiveOffer.Options = Offer.Options;
         View.ActiveOffer.SkipPoints = Offer.bNpcPurchased ? Definitions.Parameters.NpcActiveSkipPoints : Definitions.Parameters.ActiveSkipPoints;
     }
-    View.Components.Reserve(Build.Components.Num());
-    for (const FLDComponentInstance& Instance : Build.Components)
+    View.Cards.Reserve(Build.Cards.Num());
+    for (const FLDCardInstance& Card : Build.Cards)
     {
-        View.Components.Add(DevelopmentComponentView(Instance));
+        View.Cards.Add(DevelopmentCardView(Card));
     }
-    View.bOpeningBasePending = !OpeningOptions.IsEmpty();
-    View.OpeningBaseOptions = MoveTemp(OpeningOptions);
+    View.CardCapacity = LDProgression::CardCapacity(Definitions.Parameters, Build.Level);
+    View.QueuedCardOffers = uint16(Progression.CardQueue.Num());
+    if (Progression.CardOffer.IsSet())
+    {
+        const FLDCardOfferState& Offer = Progression.CardOffer.GetValue();
+        View.bHasCardOffer = true;
+        View.CardOffer.OfferId = Offer.OfferId;
+        View.CardOffer.Ordinal = Offer.Ordinal;
+        View.CardOffer.OfferRevision = Offer.Revision;
+        View.CardOffer.Source = Offer.Source;
+        View.CardOffer.Options = Offer.Options;
+        View.CardOffer.Locked = Offer.Locked;
+    }
+    View.CardRerolls = LDProgression::CardRerollsLeft(Progression);
     View.CatalogDigest = Definitions.Identity.Root;
     View.PermanentSpentPoints = Build.PermanentSpentPoints;
-    View.ComponentChoices = Progression.ComponentChoices;
     View.HeldBlueprints = Progression.HeldBlueprints;
     View.FieldRewards = Progression.FieldRewards;
     View.bFinalModPending = Progression.FinalMod.IsPending();
@@ -521,7 +494,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     {
         for (FName Option : SourceOptions)
         {
-            TArray<FLDComponentTarget> Targets;
+            TArray<FLDFinalModTarget> Targets;
             const ELDGrowthReason Reason = LDProgression::FinalModTargets(Definitions, Build, Option, Targets);
             if (Reason != ELDGrowthReason::None)
             {
@@ -530,7 +503,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
                 View.bValid = false;
                 return View;
             }
-            for (const FLDComponentTarget& Target : Targets)
+            for (const FLDFinalModTarget& Target : Targets)
             { View.FinalModSources.Add({Option, Target.Kind, Target.Definition}); }
         }
     }
@@ -726,19 +699,15 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     FLDProgressionState NewProgression = Progression;
     bool bProgressionChanged = false;
     LDProgression::FChoiceOutcome Choice;
-    LDProgression::FInstallOutcome Install;
     FName Definition;
     FName Forgotten;
-    // ReplaceActive / ForgetActive: the components the forgotten active's attachments returned to the inventory.
-    TArray<FName> Reclaimed;
+    // ReplaceActive / ForgetActive / InstallCard with a replacement: the cards that went back to the library.
+    TArray<uint16> Reclaimed;
     int64 Refunded = 0;
     int64 NpcPaid = 0;
     int64 PointsAwarded = 0;
     uint8 Ordinal = 0;
-    // #198 G: FillGap's payment, Dismantle's draw and surrendered components.
-    int64 ServicePaid = 0;
-    LDProgression::FDismantleOutcome Dismantled;
-    TArray<FName> Removed;
+    LDProgression::FCardPickOutcome Picked;
     // The points of the committed record no longer derive: the boundary must fault.
     const auto PointsFault = [&]()
     {
@@ -810,7 +779,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::AllocatePoints:
     {
         const ELDGrowthReason PointsReason = LDProgression::ApplyAllocation(Definitions, Build, Progression.CumulativeXP,
-            Progression.EmptyPoolGrants, Command.PointCounts, Context, NewBuild);
+            Command.PointCounts, Context, NewBuild);
         if (PointsReason == ELDGrowthReason::AuthorityFault)
         {
             return PointsFault();
@@ -844,7 +813,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::Respec:
     {
         const ELDGrowthReason RespecReason = LDProgression::ApplyRespec(Definitions, Build, Progression.CumulativeXP,
-            Progression.EmptyPoolGrants, Context, NewBuild, Refunded);
+            Context, NewBuild, Refunded);
         if (RespecReason == ELDGrowthReason::AuthorityFault)
         {
             return PointsFault();
@@ -891,8 +860,9 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::FinalMod:
     {
         Command.Option.Decode(Definition);
-        FLDComponentTarget Target;
-        if (!DevelopmentDecodeTarget(Command, Target)) { return Reject(ELDGrowthReason::InvalidRequest); }
+        FLDFinalModTarget Target;
+        Target.Kind = Command.FinalTargetKind;
+        if (!LDGrowthWire::DecodeOptional(Command.TargetDefinition, Target.Definition)) { return Reject(ELDGrowthReason::InvalidRequest); }
         const ELDGrowthReason FinalReason = LDProgression::ApplyFinalMod(Definitions, Build, Progression, Command.OfferId,
             Definition, Target, Context, NewBuild, NewProgression);
         if (FinalReason != ELDGrowthReason::None)
@@ -902,95 +872,63 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         bProgressionChanged = true;
         break;
     }
-    case ELDBuildCommandKind::OpeningBase:
-    case ELDBuildCommandKind::InstallComponent:
-    case ELDBuildCommandKind::UninstallComponent:
+    case ELDBuildCommandKind::PickCard:
+    case ELDBuildCommandKind::SkipCards:
+    case ELDBuildCommandKind::RerollCards:
+    case ELDBuildCommandKind::LockCard:
     {
-        // Admission decoded these already; a stored command never changes.
-        FLDComponentTarget Target;
-        if (!Command.Component.Decode(Definition) || !DevelopmentDecodeTarget(Command, Target))
+        // The offer guards: the current offer by id, then its revision.
+        if (!Progression.CardOffer.IsSet() || Progression.CardOffer->OfferId != Command.OfferId)
         {
-            return Reject(ELDGrowthReason::InvalidRequest);
+            return Reject(ELDGrowthReason::NoCardOffer);
         }
-        ELDGrowthReason ComponentReason = ELDGrowthReason::None;
-        if (Command.Kind == ELDBuildCommandKind::OpeningBase)
+        if (Command.OfferRevision != Progression.CardOffer->Revision)
         {
-            ComponentReason = LDProgression::ApplyOpeningBase(Definitions, Build, Progression, Definition, Command.bInstallIfPossible,
-                Target, Context, NewBuild, Install);
+            return Reject(ELDGrowthReason::OfferGuardStale);
         }
-        else if (Command.Kind == ELDBuildCommandKind::InstallComponent)
+        LDGrowthWire::DecodeOptional(Command.Option, Definition);
+        ELDGrowthReason CardReason = ELDGrowthReason::None;
+        NewBuild = Build;
+        if (Command.Kind == ELDBuildCommandKind::PickCard)
         {
-            FName Replacing;
-            LDGrowthWire::DecodeOptional(Command.Replacing, Replacing);
-            ComponentReason = LDProgression::ApplyInstallComponent(Definitions, Build, Definition, Target, Context, NewBuild,
-                Replacing, &Reclaimed);
+            FLDCardTarget Target;
+            if (!DevelopmentDecodeCardTarget(Command, Target)) { return Reject(ELDGrowthReason::InvalidRequest); }
+            CardReason = LDProgression::ApplyPickCard(Definitions, Build, Progression, Command.OfferId, Definition,
+                Command.bInstallIfPossible, Target, Context, NewBuild, NewProgression, Picked);
+        }
+        else if (Command.Kind == ELDBuildCommandKind::SkipCards)
+        {
+            CardReason = LDProgression::ApplySkipCards(Definitions, Progression, Command.OfferId, Context, NewProgression);
+        }
+        else if (Command.Kind == ELDBuildCommandKind::RerollCards)
+        {
+            CardReason = LDProgression::ApplyRerollCards(Definitions, Build, Progression, Command.OfferId, MatchSecret, ContenderId,
+                Context, NewProgression);
         }
         else
         {
-            ComponentReason = LDProgression::ApplyUninstallComponent(Definitions, Build, Definition, Context, NewBuild);
+            CardReason = LDProgression::ApplyLockCard(Definitions, Progression, Command.OfferId, Definition, Context, NewProgression);
         }
-        if (ComponentReason != ELDGrowthReason::None)
+        if (CardReason != ELDGrowthReason::None)
         {
-            return Reject(ComponentReason);
-        }
-        break;
-    }
-    case ELDBuildCommandKind::ComponentChoice:
-    {
-        FName Option;
-        if (!LDGrowthWire::DecodeOptional(Command.Component, Option))
-        {
-            return Reject(ELDGrowthReason::InvalidRequest);
-        }
-        bool bPoints = false;
-        const ELDGrowthReason ChoiceReason = LDProgression::ApplyComponentChoice(Definitions, Build, Progression, Command.OfferId,
-            Option, Context, NewBuild, NewProgression, bPoints);
-        if (ChoiceReason != ELDGrowthReason::None)
-        {
-            return Reject(ChoiceReason);
+            return Reject(CardReason);
         }
         bProgressionChanged = true;
         break;
     }
-    case ELDBuildCommandKind::FillGap:
+    case ELDBuildCommandKind::InstallCard:
+    case ELDBuildCommandKind::UninstallCard:
     {
-        FName Target, Filler;
-        if (!Command.Component.Decode(Target) || !Command.Filler.Decode(Filler))
+        FLDCardTarget Target;
+        if (!DevelopmentDecodeCardTarget(Command, Target)) { return Reject(ELDGrowthReason::InvalidRequest); }
+        const ELDGrowthReason CardReason = Command.Kind == ELDBuildCommandKind::InstallCard
+            ? LDProgression::ApplyInstallCard(Definitions, Build, Command.CardSerial, Target, Context, NewBuild, Command.ReplacingSerial,
+                &Reclaimed)
+            : LDProgression::ApplyUninstallCard(Definitions, Build, Command.CardSerial, Context, NewBuild);
+        if (CardReason != ELDGrowthReason::None)
         {
-            return Reject(ELDGrowthReason::InvalidRequest);
+            return Reject(CardReason);
         }
-        const ELDGrowthReason FillReason = LDProgression::ApplyFillGap(Definitions, Build, Progression.CumulativeXP,
-            Progression.EmptyPoolGrants, Target, Filler, Context, NewBuild, ServicePaid);
-        if (FillReason == ELDGrowthReason::AuthorityFault)
-        {
-            return PointsFault();
-        }
-        if (FillReason != ELDGrowthReason::None)
-        {
-            return Reject(FillReason);
-        }
-        break;
-    }
-    case ELDBuildCommandKind::Dismantle:
-    {
-        TArray<FName> Surrendered;
-        for (const FLDDefinitionWire& Wire : Command.Surrendered)
-        {
-            FName Id;
-            if (!Wire.Decode(Id))
-            {
-                return Reject(ELDGrowthReason::InvalidRequest);
-            }
-            Surrendered.Add(Id);
-        }
-        // The random result is fixed by this request's identity: a retry replays the receipt, never a new draw.
-        const ELDGrowthReason DismantleReason = LDProgression::ApplyDismantle(Definitions, Build, Surrendered,
-            LDProgression::DismantleSeed(MatchSecret, ContenderId, Command.RequestId), Context, NewBuild, Dismantled);
-        if (DismantleReason != ELDGrowthReason::None)
-        {
-            return Reject(DismantleReason);
-        }
-        Removed = MoveTemp(Surrendered);
         break;
     }
     default:
@@ -1042,20 +980,21 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     Receipt.PointsRefunded = Refunded;
     Receipt.PointsAwarded = PointsAwarded;
     Receipt.NpcPointsPaid = NpcPaid;
-    Receipt.ServicePointsPaid = ServicePaid;
-    Receipt.RemovedComponents = Removed;
-    Receipt.UninstalledComponents = Command.Kind == ELDBuildCommandKind::InstallComponent ? Reclaimed : Dismantled.Uninstalled;
-    if (Command.Kind == ELDBuildCommandKind::Dismantle)
+    Receipt.UninstalledCards = Reclaimed;
+    if (Command.Kind == ELDBuildCommandKind::PickCard)
     {
-        Receipt.ComponentId = Dismantled.Received;
+        Receipt.CardSerial = Picked.Serial;
     }
-    const FLDComponentInstance* Committed = DevelopmentIsComponentKind(Command.Kind)
-        ? Record->Build.FindComponent(Receipt.ComponentId) : nullptr;
-    Receipt.bComponentInstalled = Committed && Committed->bInstalled;
-    Receipt.InstallStoredReason = LDGrowthWire::Raw(Install.StoredReason);
+    const FLDCardInstance* Committed = Receipt.CardSerial != 0 ? Record->Build.FindCard(Receipt.CardSerial) : nullptr;
+    if (Committed)
+    {
+        Receipt.CardId = Committed->Id;
+    }
+    Receipt.bCardInstalled = Committed && Committed->IsInstalled();
+    Receipt.InstallStoredReason = LDGrowthWire::Raw(Picked.StoredReason);
+    Receipt.CardRerollsAfter = LDProgression::CardRerollsLeft(Record->Progression);
     int64 Unspent = 0;
-    LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP, Record->Progression.EmptyPoolGrants,
-        Unspent);
+    LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP, Unspent);
     Receipt.UnspentPointsAfter = Unspent;
     if (Record->Progression.Offer.IsSet())
     {
@@ -1073,36 +1012,27 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             Choice.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Choice.StoredReason),
             uint32(Record->Build.Level), uint32(Record->Progression.QueuedActiveOpportunities()));
     }
+    else if (DevelopmentIsCardKind(Command.Kind))
+    {
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_CARD t=%lld contender=%s kind=%s card=%s serial=%u installed=%s target=%s stored=%s reclaimed=%s rerolls=%d capacity=%d/%d"),
+            GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
+            Receipt.CardId.IsNone() ? TEXT("-") : *Receipt.CardId.ToString(), uint32(Receipt.CardSerial),
+            Receipt.bCardInstalled ? TEXT("1") : TEXT("0"), Committed ? *DevelopmentCardTargetText(Committed->Target) : TEXT("-"),
+            Picked.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Picked.StoredReason),
+            *DevelopmentSerialsText(Reclaimed), Receipt.CardRerollsAfter, LDProgression::InstalledCards(Record->Build),
+            LDProgression::CardCapacity(Definitions.Parameters, Record->Build.Level));
+    }
     else
     {
-        const bool bMaterial = DevelopmentIsComponentKind(Command.Kind) || Command.Kind == ELDBuildCommandKind::ComponentChoice
-            || Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle;
-        const FName Card = bMaterial ? Receipt.ComponentId : Receipt.DefinitionId;
         const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
             || Command.Kind == ELDBuildCommandKind::ForgetActive || Command.Kind == ELDBuildCommandKind::RankUpSkill;
-        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s reclaimed=%s"),
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u reclaimed=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
-            Card.IsNone() ? TEXT("-") : *Card.ToString(),
+            Receipt.DefinitionId.IsNone() ? TEXT("-") : *Receipt.DefinitionId.ToString(),
             bNamesSlot ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
             Command.Kind == ELDBuildCommandKind::AllocatePoints ? *DevelopmentPointsText(Command.PointCounts) : TEXT("-"),
             Unspent, uint32(Record->Build.Level), Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString(), Refunded, NpcPaid,
-            uint32(Ordinal), !Committed ? TEXT("-") : Committed->bInstalled ? TEXT("1") : TEXT("0"),
-            Committed ? *DevelopmentBindingText(Committed->Target) : TEXT("-"),
-            Install.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Install.StoredReason),
-            Reclaimed.IsEmpty() ? TEXT("-") : *FString::JoinBy(Reclaimed, TEXT(","), [](FName Id) { return Id.ToString(); }));
-        if (Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle)
-        {
-            const auto Names = [](const TArray<FName>& Ids)
-            {
-                return Ids.IsEmpty() ? FString(TEXT("-")) : FString::JoinBy(Ids, TEXT(","), [](FName Id) { return Id.ToString(); });
-            };
-            FName Target;
-            Command.Component.Decode(Target);
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_MATERIAL_SERVICE t=%lld contender=%s kind=%s received=%s gap=%s paid=%lld removed=%s uninstalled=%s"),
-                GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind), *Receipt.ComponentId.ToString(),
-                Command.Kind == ELDBuildCommandKind::FillGap ? *Target.ToString() : TEXT("-"), ServicePaid, *Names(Removed),
-                *Names(Dismantled.Uninstalled));
-        }
+            uint32(Ordinal), *DevelopmentSerialsText(Reclaimed));
         if (Command.Kind == ELDBuildCommandKind::BuyNpcOffer && Record->Progression.Offer.IsSet())
         {
             // Host playtest record of the actives shown, like every drawn head (DrawHead).
@@ -1221,6 +1151,38 @@ bool ALDDevelopmentDirector::OpenFinalMods(const FLDGameplayWritePermit& Permit,
     return true;
 }
 
+bool ALDDevelopmentDirector::GrantRestRerolls(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Growth || !Content.IsValid() || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None)
+    {
+        Error = TEXT("rest rerolls need a world permit and the growth domain");
+        return false;
+    }
+    const int32 Grant = Content->Get().Parameters.Cards.RerollsPerRest;
+    if (Grant <= 0) { return true; }
+    for (TPair<FGuid, FRecord>& Pair : Records)
+    {
+        FLDProgressionState& Progression = Pair.Value.Progression;
+        if (Progression.Revision == MAX_uint64 || Progression.CardRerollsGranted > MAX_int32 - Grant)
+        {
+            Error = FString::Printf(TEXT("rest rerolls of %s overflow"), *LDLog::Id(Pair.Key));
+            return false;
+        }
+    }
+    for (TPair<FGuid, FRecord>& Pair : Records)
+    {
+        FLDProgressionState& Progression = Pair.Value.Progression;
+        Progression.CardRerollsGranted += Grant;
+        ++Progression.Revision;
+        GameMode->Growth->MarkDirty(Pair.Key);
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_CARD_REROLLS t=%lld contender=%s granted=%d left=%d"), GameMode->GetAuthorityNowMs(),
+            *LDLog::Id(Pair.Key), Grant, LDProgression::CardRerollsLeft(Progression));
+    }
+    return true;
+}
+
 bool ALDDevelopmentDirector::ReadBuildRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const
 {
     const FRecord* Record=Records.Find(ContenderId);
@@ -1282,8 +1244,7 @@ ELDGrowthReason ALDDevelopmentDirector::InstallBuild(const FGuid& ContenderId, F
         return BuildReason;
     }
     int64 Unspent = 0;
-    if (const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, NewBuild, NewProgression.CumulativeXP,
-            NewProgression.EmptyPoolGrants, Unspent);
+    if (const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, NewBuild, NewProgression.CumulativeXP, Unspent);
         PointsReason != ELDGrowthReason::None)
     {
         return PointsReason;
@@ -1397,27 +1358,18 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         }
         NewBuild.Level = Change.LevelAfter;
         ++NewBuild.Revision;
-        // #198 B: each normal level-up crossed grants its component (or the exhausted-pool points) in this same commit; the
-        // level is reached once per match, so no reward, death or reconnect ever grants it again.
-        FLDGrowthBuild Granted;
-        uint8 EmptyGrants = 0;
-        const ELDGrowthReason GrantReason = LDProgression::GrantLevelComponents(Content->Get(), NewBuild, Change.LevelBefore,
-            Change.LevelAfter, MatchSecret, ContenderId, Granted, EmptyGrants, Prepared.Grants);
-        if (GrantReason != ELDGrowthReason::None)
+        // Spec §6.4: each level crossed queues one card offer in this same commit; the level is reached once per match, so no
+        // reward, death or reconnect ever queues it again.
+        const ELDGrowthReason QueueReason = LDProgression::QueueCardOffers(NewProgression, ELDCardOfferSource::LevelUp,
+            int32(Change.LevelAfter) - int32(Change.LevelBefore), Prepared.OfferFirst, Prepared.OfferLast);
+        if (QueueReason != ELDGrowthReason::None)
         {
-            return DevelopmentPrepareFailure(GrantReason, TEXT("The level-up components do not draw from the approved supply."));
+            return DevelopmentPrepareFailure(QueueReason, TEXT("The level-up card offers do not fit the queue."));
         }
-        if (int32(NewProgression.EmptyPoolGrants) + int32(EmptyGrants) > int32(MAX_uint8))
-        {
-            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The exhausted-pool grants overflow."));
-        }
-        NewBuild = MoveTemp(Granted);
-        NewProgression.EmptyPoolGrants = uint8(NewProgression.EmptyPoolGrants + EmptyGrants);
     }
-    // The points follow from the new level, XP and exhausted-pool grants; their derivation must hold before anything installs.
+    // The points follow from the new level and XP; their derivation must hold before anything installs.
     int64 Unspent = 0;
-    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Content->Get(), NewBuild, NewProgression.CumulativeXP,
-        NewProgression.EmptyPoolGrants, Unspent);
+    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Content->Get(), NewBuild, NewProgression.CumulativeXP, Unspent);
     if (PointsReason != ELDGrowthReason::None)
     {
         return DevelopmentPrepareFailure(PointsReason, TEXT("The points of the new level and XP do not derive."));
@@ -1433,29 +1385,33 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
 
 #if WITH_DEV_AUTOMATION_TESTS
 FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareEvaluationExperience(const FGuid& ContenderId, int64 GrantXP,
-    const TArray<FName>& LevelComponents) const
+    const TArray<FName>& LevelCards) const
 {
     FLDPrepareGrowthResult Result = PrepareExperience(ContenderId, GrantXP);
     if (!Result.IsSuccess()) { return Result; }
     FLDPreparedGrowthChange& Prepared = Result.Value.GetValue();
-    const FRecord* Record = Records.Find(ContenderId);
-    if (!Record || Prepared.NewProgression.EmptyPoolGrants != Record->Progression.EmptyPoolGrants)
+    const int32 Crossed = Prepared.OfferLast >= Prepared.OfferFirst ? int32(Prepared.OfferLast) - int32(Prepared.OfferFirst) + 1 : 0;
+    if (LevelCards.Num() != Crossed)
     {
-        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, TEXT("An evaluation preset cannot replace an exhausted-pool grant."));
+        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid,
+            *FString::Printf(TEXT("An evaluation preset names %d level cards for %d levels crossed."), LevelCards.Num(), Crossed));
     }
-    FLDGrowthBuild WithoutNewGrants = Prepared.NewBuild;
-    WithoutNewGrants.Components.RemoveAll([&Prepared](const FLDComponentInstance& Instance)
-        { return Instance.Source == ELDComponentSource::LevelUp && Instance.SourceLevel > Prepared.OldLevel; });
-    FLDGrowthBuild Granted;
-    TArray<FLDComponentGrant> Grants;
-    FString Error;
-    if (!LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content->Get(), WithoutNewGrants, Prepared.OldLevel,
-            Prepared.NewBuild.Level, LevelComponents, Granted, Grants, Error))
+    // The preset replaces exactly the level-up offers this change queued: each crossed level receives its named card instead.
+    FLDProgressionState& Progression = Prepared.NewProgression;
+    Progression.CardQueue.SetNum(Progression.CardQueue.Num() - Crossed);
+    Progression.CardOffersEarned = uint16(Progression.CardOffersEarned - Crossed);
+    for (int32 Index = 0; Index < Crossed; ++Index)
     {
-        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, *Error);
+        uint16 Serial = 0;
+        if (const ELDGrowthReason Reason = LDProgression::ReceiveCard(Content->Get(), Prepared.NewBuild, LevelCards[Index], 0, Serial);
+            Reason != ELDGrowthReason::None)
+        {
+            return DevelopmentPrepareFailure(Reason, *FString::Printf(TEXT("'%s' is not a card of the approved catalog."),
+                *LevelCards[Index].ToString()));
+        }
     }
-    Prepared.NewBuild = MoveTemp(Granted);
-    Prepared.Grants = MoveTemp(Grants);
+    Prepared.OfferFirst = 1;
+    Prepared.OfferLast = 0;
     return Result;
 }
 #endif
@@ -1481,10 +1437,9 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& C
     {
         return DevelopmentPrepareFailure(DrawReason, TEXT("The field reward does not draw from the approved supply."));
     }
-    // A pending choice keeps one stable identity for its whole life, fixed when it is granted.
-    const FGuid ChoiceId = Grant.Result == ELDFieldRewardResult::ComponentChoice ? FGuid::NewGuid() : FGuid();
     const FLDGrowthBuild BuildBefore = Prepared.NewBuild;
-    const ELDGrowthReason GrantReason = LDProgression::ApplyFieldGrant(Definitions, Grant, Event, Serial, GrantXP, ChoiceId,
+    const uint16 EarnedBefore = Prepared.NewProgression.CardOffersEarned;
+    const ELDGrowthReason GrantReason = LDProgression::ApplyFieldGrant(Definitions, Grant, Event, Serial, GrantXP,
         Prepared.NewBuild, Prepared.NewProgression);
     if (GrantReason != ELDGrowthReason::None)
     {
@@ -1493,7 +1448,6 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& C
     // One revision step each for the whole reward, whether or not the XP part already moved it.
     if (Prepared.NewBuild.Revision == Prepared.ExpectedBuildRevision
         && (Prepared.NewBuild.PendingBlueprints != BuildBefore.PendingBlueprints
-            || Prepared.NewBuild.Components.Num() != BuildBefore.Components.Num()
             || Prepared.NewBuild.AwardedPoints != BuildBefore.AwardedPoints))
     {
         if (Prepared.NewBuild.Revision == MAX_uint64)
@@ -1516,9 +1470,15 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& C
         return DevelopmentPrepareFailure(Reason, TEXT("The field reward leaves an invalid build."));
     }
     if (const ELDGrowthReason Reason = LDProgression::UnspentPoints(Definitions, Prepared.NewBuild, Prepared.NewProgression.CumulativeXP,
-            Prepared.NewProgression.EmptyPoolGrants, Unspent); Reason != ELDGrowthReason::None)
+            Unspent); Reason != ELDGrowthReason::None)
     {
         return DevelopmentPrepareFailure(Reason, TEXT("The points of the field reward do not derive."));
+    }
+    // A field card offer joins the queue behind the level-up ones this change queued.
+    if (Prepared.NewProgression.CardOffersEarned != EarnedBefore)
+    {
+        if (Prepared.OfferLast < Prepared.OfferFirst) { Prepared.OfferFirst = Prepared.NewProgression.CardOffersEarned; }
+        Prepared.OfferLast = Prepared.NewProgression.CardOffersEarned;
     }
     Prepared.Field = MoveTemp(Grant);
     return Result;
@@ -1546,8 +1506,37 @@ void ALDDevelopmentDirector::ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepa
     GameMode->Growth->MarkDirty(Prepared.ContenderId);
 }
 
+void ALDDevelopmentDirector::DrawCardHead(const FGuid& ContenderId, FRecord& Record)
+{
+    if (!Content.IsValid())
+    {
+        return;
+    }
+    bool bDrawn = false;
+    const ELDGrowthReason Reason = LDProgression::RefreshCardOffer(Content->Get(), Record.Build, Record.Progression, MatchSecret,
+        ContenderId, bDrawn);
+    const ALDGameMode* GameMode = Mode();
+    const int64 NowMs = GameMode ? GameMode->GetAuthorityNowMs() : int64(0);
+    if (Reason != ELDGrowthReason::None)
+    {
+        // A validated catalog always fills an offer (BeginMatch); the queue keeps its head for the next change.
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_CARD_OFFER_FAULT t=%lld contender=%s reason=%s"), NowMs, *LDLog::Id(ContenderId),
+            LDGrowthWire::ReasonName(Reason));
+        return;
+    }
+    if (bDrawn)
+    {
+        const FLDCardOfferState& Offer = Record.Progression.CardOffer.GetValue();
+        // Host playtest record of the cards shown.
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_CARD_OFFER t=%lld contender=%s ordinal=%u source=%s level=%u cards=%s queued=%d"), NowMs,
+            *LDLog::Id(ContenderId), uint32(Offer.Ordinal), *LDLog::EnumName(Offer.Source), uint32(Record.Build.Level),
+            *FString::JoinBy(Offer.Options, TEXT(","), [](FName Id) { return Id.ToString(); }), Record.Progression.CardQueue.Num());
+    }
+}
+
 void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record)
 {
+    DrawCardHead(ContenderId, Record);
     FLDProgressionState& Progression = Record.Progression;
     if (!Content.IsValid() || Progression.Offer.IsSet() || Progression.QueuedActiveOpportunities() == 0)
     {
@@ -1763,7 +1752,7 @@ ELDGrowthReason ALDDevelopmentDirector::DevLearnActive(const FGuid& ContenderId,
             // cooldown track for a relearn.
             Forgotten = NewBuild.Actives[Occupied].Id;
             NewBuild.Actives.RemoveAt(Occupied);
-            TArray<FName> Reclaimed;
+            TArray<uint16> Reclaimed;
             LDProgression::ReclaimAttachments(NewBuild, Forgotten, Reclaimed);
         }
     }
@@ -1801,7 +1790,7 @@ ELDGrowthReason ALDDevelopmentDirector::DevAllocatePoints(const FGuid& Contender
     }
     int64 Unspent = 0;
     const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP,
-        Record->Progression.EmptyPoolGrants, Unspent);
+        Unspent);
     if (PointsReason != ELDGrowthReason::None)
     {
         Detail = TEXT("The committed points do not derive.");
@@ -1824,6 +1813,67 @@ ELDGrowthReason ALDDevelopmentDirector::DevAllocatePoints(const FGuid& Contender
     {
         Detail = FString::Printf(TEXT("%s %d points, %lld unspent"), *StatId.ToString(), Record->Build.StatPoints[StatIndex],
             Unspent - Amount);
+    }
+    return Reason;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::DevApplyBreakoutPreset(const FGuid& ContenderId, FName PresetId,
+    const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    FRecord* Record = Records.Find(ContenderId);
+    const FLDBreakoutPreset* Preset = LDBreakoutPresets::Find(PresetId);
+    if (!Record || !Content.IsValid())
+    {
+        Detail = TEXT("The contender has no growth record in this match.");
+        return ELDGrowthReason::NotContender;
+    }
+    if (!Preset)
+    {
+        Detail = FString::Printf(TEXT("'%s' is not a breakout preset."), *PresetId.ToString());
+        return ELDGrowthReason::InvalidOption;
+    }
+    const FLDDemoContentDefinitions& Definitions = Content->Get();
+    FLDGrowthBuild NewBuild;
+    int64 XP = 0;
+    if (!LDBreakoutPresets::Build(Definitions, *Preset, NewBuild, XP, Detail))
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    // Serials keep rising across the match, so no earlier command names one of these cards.
+    const uint16 Base = uint16(Record->Build.NextCardSerial - 1);
+    if (int32(NewBuild.NextCardSerial) + int32(Base) > int32(MAX_uint16))
+    {
+        Detail = TEXT("The card serials are exhausted.");
+        return ELDGrowthReason::CapacityExceeded;
+    }
+    for (FLDCardInstance& Card : NewBuild.Cards) { Card.Serial = uint16(Card.Serial + Base); }
+    NewBuild.NextCardSerial = uint16(NewBuild.NextCardSerial + Base);
+    FLDProgressionState NewProgression = Record->Progression;
+    NewProgression.CumulativeXP = XP;
+    NewProgression.ActiveEarned = uint8(LDProgression::ActiveOpportunitiesAt(Definitions.Progression, NewBuild.Level)
+        + NewProgression.NpcPurchased);
+    NewProgression.ActiveConsumed = NewProgression.ActiveEarned;
+    NewProgression.Offer.Reset();
+    NewProgression.Records.Reset();
+    for (uint8 Ordinal = 1; Ordinal <= NewProgression.ActiveEarned; ++Ordinal)
+    {
+        FLDActiveOpportunityRecord& Row = NewProgression.Records.AddDefaulted_GetRef();
+        Row.Ordinal = Ordinal;
+        Row.OfferId = FGuid::NewGuid();
+        Row.Chosen = NewBuild.Actives.IsValidIndex(Ordinal - 1) ? NewBuild.Actives[Ordinal - 1].Id : NAME_None;
+    }
+    NewProgression.CardQueue.Reset();
+    NewProgression.CardOffer.Reset();
+    NewProgression.CarriedLock = NAME_None;
+    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), true, Permit);
+    if (Reason == ELDGrowthReason::None)
+    {
+        Detail = FString::Printf(TEXT("%s: level %u, %d cards installed"), Preset->Label, uint32(Record->Build.Level),
+            LDProgression::InstalledCards(Record->Build));
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_DEV_BREAKOUT_PRESET contender=%s preset=%s level=%u cards=%d skill_points=%d"),
+            *LDLog::Id(ContenderId), Preset->Id, uint32(Record->Build.Level), LDProgression::InstalledCards(Record->Build),
+            LDProgression::SkillPoints(Definitions, Record->Build));
     }
     return Reason;
 }
@@ -1852,6 +1902,17 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareReset(const FGuid& Cont
     Prepared.NewProgression.Revision = Record->Progression.Revision + 1;
     Prepared.NewProgression.ActiveEarned = LDProgression::ActiveOpportunitiesAt(Content->Get().Progression, 1);
     Prepared.NewProgression.LastOfferRevision = Record->Progression.LastOfferRevision;
+    // The opening card offer and the free rerolls again; card serials and offer revisions keep rising, so no old command
+    // names a new card or offer.
+    Prepared.NewBuild.NextCardSerial = Record->Build.NextCardSerial;
+    Prepared.NewProgression.LastCardOfferRevision = Record->Progression.LastCardOfferRevision;
+    Prepared.NewProgression.CardOffersEarned = Record->Progression.CardOffersEarned;
+    if (LDProgression::QueueCardOffers(Prepared.NewProgression, ELDCardOfferSource::Opening, 1, Prepared.OfferFirst, Prepared.OfferLast)
+        != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::CapacityExceeded, TEXT("The card offer ordinals are exhausted."));
+    }
+    Prepared.NewProgression.CardRerollsGranted = Content->Get().Parameters.Cards.FreeRerolls;
     FLDPrepareGrowthResult Result;
     Result.Value.Emplace(MoveTemp(Prepared));
     return Result;
