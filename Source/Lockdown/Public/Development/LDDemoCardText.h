@@ -7,7 +7,7 @@
 // 秒，造成 [damage.amount] 物理伤害。". A placeholder names one effect op of the active's single value set (snake_case, as in
 // content.json) and one typed field, so every number on a card comes from the value set the owner actually uses. A stat's
 // description_text reads its per-point bonuses as [per_point.<Stat>]. The importer refuses a template whose placeholder
-// names no effect of its active or no per-point bonus of its stat. #198 B: a component's description_text reads its effects
+// names no effect of its active or no per-point bonus of its stat. A card's description_text reads its effects
 // the same way.
 namespace LDDemoCardText
 {
@@ -23,8 +23,10 @@ namespace LDDemoCardText
         Stat, Limit,
         // #198 F: MultiplierBp and CostRatioBp as percents, AngleDegrees in degrees.
         Multiplier, Angle, CostRatio,
-        // A skill branch's third duration (ExtraDurationMs) in seconds.
-        ExtraDuration
+        // A skill branch's third duration (ExtraDuration, StepMs) in seconds.
+        ExtraDuration,
+        // A card's attack-speed step (StepRate) in attacks per second.
+        Step
     };
 
     struct FToken

@@ -86,12 +86,12 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             }
         }
     }
-    // #198 B: a component's fixed amounts grow with its holder's level like an active's.
-    for (const auto& Component : D.Components)
+    // A card's fixed amounts grow with its holder's level like an active's.
+    for (const auto& Card : D.Cards)
     {
-        for (const auto& Effect : Component.Effects)
+        for (const auto& Effect : Card.Effects)
         {
-            if (!CheckGrown(Effect, Component.Id)) { return false; }
+            if (!CheckGrown(Effect, Card.Id)) { return false; }
         }
     }
     for(const auto& Card:D.FinalMods)
@@ -287,23 +287,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
-    // #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
-    int64 PerLevel = 0;
-    if (!N.Add64(P.PointsPerLevel, P.EmptyComponentPoolPoints, PerLevel, TEXT("GROWTH.EmptyComponentPoolPoints"))
-        || !N.Mul64(D.Progression.MaxLevel - 1, PerLevel, LevelPoints, TEXT("GROWTH.EmptyComponentPoolPoints"))
-        || !N.Add64(P.OpeningPoints, LevelPoints, TotalPoints, TEXT("GROWTH.EmptyComponentPoolPoints")))
-    {
-        return false;
-    }
     int64 TotalXP = 0;
-    // #198 G: a dismantle surrenders that many distinct common components, so the common pool must hold more than that.
-    const int32 CommonComponents = D.Components.FilterByPredicate(
-        [](const FLDDemoComponentDefinition& Row) { return Row.Pool == ELDDemoComponentPool::Common; }).Num();
-    if (!Check.Require(P.DismantleInputCount >= 1 && P.DismantleInputCount < CommonComponents && P.FillGapPoints >= 1,
-            TEXT("GROWTH.DismantleInputCount"), TEXT("a dismantle needs fewer distinct common components than the pool holds")))
-    {
-        return false;
-    }
     if (!Check.Require(D.Progression.XPThresholds[0] == 0, TEXT("progression"), TEXT("level one starts at zero XP")))
     {
         return false;
