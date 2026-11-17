@@ -88,3 +88,95 @@ function Complete-LDGameEvidence {
     Remove-Item -LiteralPath $Launch.ProbeOutput
     if (-not @(Get-ChildItem -LiteralPath $Launch.ProbeRoot -Force).Count) { Remove-Item -LiteralPath $Launch.ProbeRoot }
 }
+
+# The first process is the Listen Host. Scenarios own their arguments, assertions and failure wording;
+# this harness owns process lifetime and the shared evidence/leave handshake.
+function New-LDDemoHarness {
+    param([Parameter(Mandatory)]$Launch, [Parameter(Mandatory)][int]$TimeoutSeconds,
+        [Parameter(Mandatory)][scriptblock]$ExitError, [Parameter(Mandatory)][scriptblock]$TimeoutError,
+        [int]$PollMilliseconds=200)
+    $socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback, 0))
+    try { $port = $socket.Client.LocalEndPoint.Port } finally { $socket.Dispose() }
+    $root = Get-LDProjectRoot
+    $header = Get-Content -LiteralPath (Join-Path $root 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
+    if ($header -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
+    [pscustomobject]@{
+        Launch = $Launch
+        Processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+        Port = $port
+        Wire = [int]$Matches[1]
+        Version = Get-LDProjectVersion
+        Digest = (Get-FileHash -LiteralPath (Join-Path $root 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+        TimeoutSeconds = $TimeoutSeconds
+        PollMilliseconds = $PollMilliseconds
+        ExitError = $ExitError
+        TimeoutError = $TimeoutError
+    }
+}
+
+function Start-LDDemoRole {
+    param([Parameter(Mandatory)]$Harness, [Parameter(Mandatory)][string]$Role,
+        [Parameter(Mandatory)][string]$Url, [Parameter(Mandatory)][scriptblock]$Arguments)
+    $user = Join-Path $Harness.Launch.Output "$Role-User"
+    New-Item -ItemType Directory -Path $user | Out-Null
+    $log = Join-Path $Harness.Launch.Output "$Role.log"
+    $roleArguments = & $Arguments $user $log
+    $formatted = Format-LDGameArguments -Launch $Harness.Launch -Url $Url -Arguments $roleArguments
+    $Harness.Processes.Add((Start-Process -FilePath $Harness.Launch.Binary -ArgumentList $formatted -WindowStyle Hidden -PassThru))
+}
+
+function Wait-LDDemoEvidence {
+    param([Parameter(Mandatory)]$Harness, [Parameter(Mandatory)][string[]]$Names)
+    $evidence = $Harness.Launch.ProbeOutput
+    $deadline = [DateTime]::UtcNow.AddSeconds($Harness.TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        foreach ($process in $Harness.Processes) {
+            $process.Refresh()
+            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
+                $process.Id -eq $Harness.Processes[0].Id -or $process.ExitCode -ne 0)) {
+                throw (& $Harness.ExitError $process)
+            }
+        }
+        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
+        Start-Sleep -Milliseconds $Harness.PollMilliseconds
+    }
+    throw (& $Harness.TimeoutError)
+}
+
+function Read-LDDemoReport {
+    param([Parameter(Mandatory)]$Harness, [Parameter(Mandatory)][string]$Name)
+    Get-Content -LiteralPath (Join-Path $Harness.Launch.ProbeOutput $Name) -Raw | ConvertFrom-Json
+}
+
+function Stop-LDDemoClients {
+    param([Parameter(Mandatory)]$Harness, [Parameter(Mandatory)][string]$Message,
+        [Parameter(Mandatory)][string]$ExitError, [int[]]$GraceMilliseconds=@(30000))
+    Set-Content -LiteralPath (Join-Path $Harness.Launch.ProbeOutput 'FinishClients') -Value $Message
+    for ($index = 1; $index -lt $Harness.Processes.Count; $index++) {
+        $process = $Harness.Processes[$index]
+        $grace = $GraceMilliseconds[[Math]::Min($index - 1, $GraceMilliseconds.Length - 1)]
+        if (-not $process.WaitForExit($grace) -or $process.ExitCode -ne 0) { throw $ExitError }
+    }
+}
+
+function Stop-LDDemoHost {
+    param([Parameter(Mandatory)]$Harness)
+    Set-Content -LiteralPath (Join-Path $Harness.Launch.ProbeOutput 'Finish') -Value 'Complete'
+    $hostProcess = $Harness.Processes[0]
+    if (-not $hostProcess.WaitForExit(30000) -or $hostProcess.ExitCode -ne 0) { throw "Host did not exit cleanly: $($Harness.Launch.Output)" }
+}
+
+function Get-LDDemoLogErrors {
+    param([Parameter(Mandatory)]$Harness,
+        [string]$Pattern='Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    Get-ChildItem -LiteralPath $Harness.Launch.Output -Filter '*.log' -File | Select-String -Pattern $Pattern
+}
+
+function Close-LDDemoHarness {
+    param([Parameter(Mandatory)]$Harness)
+    foreach ($process in $Harness.Processes) {
+        $process.Refresh()
+        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
+    }
+    Complete-LDGameEvidence $Harness.Launch
+}

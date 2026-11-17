@@ -12,19 +12,14 @@ $output = New-LDArtifactDirectory ($(if ($PackageRoot) { 'DemoCombat-OwnedOrders
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }) + $(if ($Resolution -ne '720p') { "-$Resolution" } else { '' }))
 $resolutionArguments = if ($Resolution -eq '1080p') { '-ForceRes -ResX=1920 -ResY=1080' } else { '-ResX=1280 -ResY=720' }
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
-# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$harness = New-LDDemoHarness -Launch $launch -TimeoutSeconds ($TimeoutSeconds) -PollMilliseconds 200 `
+    -ExitError { param($process) "Combat scenario process exited before its evidence completed: PID $($process.Id). Evidence: $output" } `
+    -TimeoutError { "Combat scenario evidence timed out: $output" }
 $evidence = $launch.ProbeOutput
-$socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
-$port = $socket.Client.LocalEndPoint.Port
-$socket.Dispose()
-$projectRoot = Get-LDProjectRoot
-$digest = (Get-FileHash -LiteralPath (Join-Path $projectRoot 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
-$version = Get-LDProjectVersion
-# The wire version is read from the native source, so this runner cannot drift from the build it launches.
-$entryHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
-if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
-$wire = [int]$Matches[1]
-$processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+$port = $harness.Port
+$digest = $harness.Digest
+$version = $harness.Version
+$wire = $harness.Wire
 $roles = @('Host','Client1')
 # Every role must report each check group it owns; a skipped stage cannot pass silently.
 $requiredChecks = @{
@@ -40,42 +35,26 @@ $screenshots = @('HostSees-DuelSite.png','HostSees-MoveMarker.png','HostSees-Own
 
 function Start-CombatRole {
     param([string]$Role,[string]$Url)
-    $user = Join-Path $output "$Role-User"
-    New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host always renders. RenderClient also exercises the cooked skeletal data on the real owning client.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" }
-        elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
-    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
-    if ($NetEmulation) { $arguments += " $NetEmulation" }
-    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
-}
-
-function Wait-CombatFiles {
-    param([string[]]$Names)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        foreach ($process in $processes) {
-            $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
-                $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Combat scenario process exited before its evidence completed: PID $($process.Id). Evidence: $output"
-            }
-        }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
-        Start-Sleep -Milliseconds 200
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+        param($user, $log)
+        # The Host always renders. RenderClient also exercises the cooked skeletal data on the real owning client.
+        $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" }
+            elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
+        $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
+        if ($NetEmulation) { $arguments += " $NetEmulation" }
+        $arguments
     }
-    throw "Combat scenario evidence timed out: $output"
 }
 
 try {
     Start-CombatRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoCombatHost'
-    Wait-CombatFiles @('HostReady.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('HostReady.json')
     $url = '127.0.0.1:{0}?Name=DemoCombatClient1?LDWire={1}?LDProduct={2}?LDCatalog={3}' -f $port,$wire,$version,$digest
     Start-CombatRole 'Client1' $url
-    Wait-CombatFiles @('Host.json','Client1.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json')
     $reports = @{}
     foreach ($role in $roles) {
-        $report = Get-Content -LiteralPath (Join-Path $evidence "$role.json") -Raw | ConvertFrom-Json
+        $report = Read-LDDemoReport -Harness $harness -Name "$role.json"
         $failed = @($report.checks | Where-Object { -not $_.passed })
         if (-not $report.passed -or $report.role -ne $role -or -not $report.dev_probe -or -not $report.normal_start -or
             $report.catalog_sha256 -ne $digest -or $failed.Count -ne 0) {
@@ -101,12 +80,9 @@ try {
             throw "The participating Listen Host left no rendered capture $name of its observed skill moment: $output"
         }
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
-    if (-not $processes[1].WaitForExit(30000) -or $processes[1].ExitCode -ne 0) { throw "Owning client did not exit cleanly: $output" }
-    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
-    if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
+    Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Owning client did not exit cleanly: $output"
+    Stop-LDDemoHost -Harness $harness
+    $errors = @(Get-LDDemoLogErrors -Harness $harness -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
     if (-not (Select-String -LiteralPath (Join-Path $output 'Host.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet) -or
         (Select-String -LiteralPath (Join-Path $output 'Client1.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet)) {
@@ -144,9 +120,5 @@ try {
         "$captures. Not camps, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
-    foreach ($process in $processes) {
-        $process.Refresh()
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
-    }
-    Complete-LDGameEvidence $launch
+    Close-LDDemoHarness -Harness $harness
 }

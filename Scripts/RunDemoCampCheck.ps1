@@ -5,18 +5,14 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,900)][int]$T
 Assert-LDDemoInputs
 $output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoCamp-OwnedMatch-Packaged' } else { 'DemoCamp-OwnedMatch' })
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
-# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$harness = New-LDDemoHarness -Launch $launch -TimeoutSeconds ($TimeoutSeconds + 60) -PollMilliseconds 200 `
+    -ExitError { param($process) "Camp scenario process exited before evidence completed: PID $($process.Id); $(Get-CampFailure). Evidence: $output" } `
+    -TimeoutError { "Camp scenario evidence timed out: $output" }
 $evidence = $launch.ProbeOutput
-$socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
-$port = $socket.Client.LocalEndPoint.Port
-$socket.Dispose()
-$digest = (Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
-$version = Get-LDProjectVersion
-# The wire version is read from the native source, so this runner cannot drift from the build it launches.
-$entryHeader = Get-Content -LiteralPath (Join-Path (Get-LDProjectRoot) 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
-if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
-$wire = [int]$Matches[1]
-$processes = [Collections.Generic.List[Diagnostics.Process]]::new()
+$port = $harness.Port
+$digest = $harness.Digest
+$version = $harness.Version
+$wire = $harness.Wire
 # Each role must have reported every check it owns; a missing id is a failure, not a pass.
 $requiredChecks = @{
     Host = @('#C1','#C2','#C3','#C4','#C5','#C6','#C7')
@@ -28,13 +24,14 @@ $images = @('CampGuardianReturning.png','CampLowPair.png')
 
 function Start-CampRole {
     param([string]$Role,[string]$Url)
-    $user = Join-Path $output "$Role-User"
-    New-Item -ItemType Directory -Path $user | Out-Null
-    $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    # Client2 is the one rendered owner and takes the screenshots; the other roles need no renderer.
-    $render = if ($Role -eq 'Client2') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
-    $arguments = '-unattended -nop4 -nosound {6} -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCampProbe -LDDemoCampRole={2} -LDDemoCampTimeout={3} -LDDemoCampOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log"),$render
-    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+        param($user, $log)
+        $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
+        # Client2 is the one rendered owner and takes the screenshots; the other roles need no renderer.
+        $render = if ($Role -eq 'Client2') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
+        $arguments = '-unattended -nop4 -nosound {6} -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCampProbe -LDDemoCampRole={2} -LDDemoCampTimeout={3} -LDDemoCampOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log,$render
+        $arguments
+    }
 }
 
 function Test-CampPng {
@@ -56,34 +53,17 @@ function Get-CampFailure {
     return 'no role report explains it'
 }
 
-function Wait-CampReports {
-    param([string[]]$Names)
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + 60)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        foreach ($process in $processes) {
-            $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
-                $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Camp scenario process exited before evidence completed: PID $($process.Id); $(Get-CampFailure). Evidence: $output"
-            }
-        }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
-        Start-Sleep -Milliseconds 200
-    }
-    throw "Camp scenario evidence timed out: $output"
-}
-
 try {
     Start-CampRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoCampHost'
-    Wait-CampReports @('HostJoined.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('HostJoined.json')
     foreach ($index in 1..2) {
         $url = '127.0.0.1:{0}?Name=DemoCampClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
         Start-CampRole "Client$index" $url
     }
-    Wait-CampReports @('Host.json','Client1.json','Client2.json')
+    Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {
         $role = $_
-        $r = Get-Content -LiteralPath (Join-Path $evidence "$role.json") -Raw | ConvertFrom-Json
+        $r = Read-LDDemoReport -Harness $harness -Name "$role.json"
         if (-not $r.passed -or $r.role -ne $role -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
             throw "Owned camp evidence failed for $role`: $($r.detail). Evidence: $output"
         }
@@ -99,24 +79,13 @@ try {
             throw "Client2 kept no PNG screenshot $image. Evidence: $output"
         }
     }
-    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
-    foreach ($process in @($processes)[1..2]) {
-        # The rendered Client2 also flushes its shader cache writes before it exits.
-        $grace = if ($process.Id -eq $processes[2].Id) { 120000 } else { 30000 }
-        if (-not $process.WaitForExit($grace) -or $process.ExitCode -ne 0) { throw "Camp client did not exit cleanly: $output" }
-    }
-    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
-    if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Camp client did not exit cleanly: $output" -GraceMilliseconds @(30000,120000)
+    Stop-LDDemoHost -Harness $harness
+    $errors = @(Get-LDDemoLogErrors -Harness $harness)
     if ($errors.Count) { throw "Camp scenario logged an error: $($errors[0].Line). Evidence: $output" }
     $shots = ($images | ForEach-Object { Join-Path $output $_ }) -join '; '
     Write-Host "DEV-only normal-start camp scenario passed on real owned connections. Not 3+3, AI, capture or balance acceptance. Screenshots for presentation review (not pixel-compared): $shots. Evidence: $output"
 }
 finally {
-    foreach ($process in $processes) {
-        $process.Refresh()
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id }
-    }
-    Complete-LDGameEvidence $launch
+    Close-LDDemoHarness -Harness $harness
 }

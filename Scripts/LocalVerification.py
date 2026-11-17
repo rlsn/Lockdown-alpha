@@ -12,7 +12,7 @@ import subprocess
 import sys
 import uuid
 
-from CIChangeScope import INCLUDE, changed_paths
+from CIChangeScope import INCLUDE, changed_paths, dependency_closure, python_imports
 from CheckRuleReport import REGISTRATION
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,13 +22,7 @@ DATA_ROOTS = ("SourceData/", "Content/Lockdown/Data/")
 
 
 def closure(graph, roots):
-    found, pending = set(), list(roots)
-    while pending:
-        key = pending.pop()
-        if key not in found:
-            found.add(key)
-            pending.extend(graph.get(key, ()))
-    return found
+    return dependency_closure(roots, lambda key: graph.get(key, ()))
 
 
 class Dependencies:
@@ -44,7 +38,7 @@ class Dependencies:
         for path in sorted(scripts.glob("*.py")):
             key = path.relative_to(root).as_posix()
             tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=key)
-            imports = set()
+            imports = {f"Scripts/{name}.py" for name in python_imports(tree, scripts, keep_missing=True)}
             reads = set()
             values = {"ROOT": "", "root": "", "SCRIPTS": "Scripts"}
             parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
@@ -74,15 +68,6 @@ class Dependencies:
                             if isinstance(target, ast.Name):
                                 values[target.id] = text
             for node in ast.walk(tree):
-                names = []
-                if isinstance(node, ast.Import):
-                    names = [alias.name.split(".")[0] for alias in node.names]
-                elif isinstance(node, ast.ImportFrom) and node.module:
-                    names = [node.module.split(".")[0]]
-                for name in names:
-                    # Preserve missing local import edges for deleted/renamed modules.
-                    if (scripts / f"{name}.py").is_file() or name[:1].isupper():
-                        imports.add(f"Scripts/{name}.py")
                 text = value(node)
                 if text is None or "\n" in text:
                     continue

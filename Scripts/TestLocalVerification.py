@@ -39,6 +39,13 @@ class LocalVerificationTests(unittest.TestCase):
         self.assertIn("TestGone.py", graph.python_tests(["Scripts/Gone.py"]))
         self.assertIn("TestTool.py", graph.python_tests(["Scripts/Tool.py"]))
 
+    def test_shared_import_analysis_retains_relative_deleted_edges_and_cycles(self):
+        self.write("Scripts/TestImports.py", 'import Wrapper as alias\nfrom Wrapper.tools import item\n')
+        self.write("Scripts/Wrapper.py", 'import TestImports\nfrom .Gone import item\nimport json\n')
+        graph = verify.Dependencies(self.root)
+        self.assertIn("TestImports.py", graph.python_tests(["Scripts/Gone.py"]))
+        self.assertNotIn("Scripts/json.py", graph.python["Scripts/Wrapper.py"])
+
     def test_reverse_include_links_implementation_and_cycles(self):
         self.write("Source/Game/Public/Combat.h", '#include "Types.h"\n')
         self.write("Source/Game/Public/Types.h", '#include "Combat.h"\n')

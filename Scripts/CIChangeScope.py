@@ -40,27 +40,43 @@ def native_python_modules(scripts_dir: Path) -> set[str]:
     return python_closure(scripts_dir, pending, 'RunTests.ps1')
 
 
-def python_closure(scripts_dir: Path, roots: list[str], owner: str) -> set[str]:
-    """The named Scripts modules plus everything they import from Scripts, transitively."""
+def dependency_closure(roots, dependencies):
+    """Visit a dependency graph lazily; callers decide how missing nodes are handled."""
     pending = list(roots)
-    found: set[str] = set()
+    found = set()
     while pending:
         name = pending.pop()
         if name in found:
             continue
+        found.add(name)
+        pending.extend(dependencies(name))
+    return found
+
+
+def python_imports(tree, scripts_dir: Path, *, keep_missing=False) -> set[str]:
+    """Local module edges; local planning also retains deleted project module names."""
+    imports = set()
+    for node in ast.walk(tree):
+        names = []
+        if isinstance(node, ast.Import):
+            names = [alias.name.split('.')[0] for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and (keep_missing or node.level == 0):
+            names = [node.module.split('.')[0]]
+        imports.update(name for name in names
+                       if (scripts_dir / f'{name}.py').is_file() or (keep_missing and name[:1].isupper()))
+    return imports
+
+
+def python_closure(scripts_dir: Path, roots: list[str], owner: str) -> set[str]:
+    """The named Scripts modules plus everything they import from Scripts, transitively."""
+    def dependencies(name):
         path = scripts_dir / f'{name}.py'
         if not path.is_file():
             raise RuntimeError(f'{owner} depends on missing Scripts/{name}.py.')
-        found.add(name)
         tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
-        for node in ast.walk(tree):
-            names = []
-            if isinstance(node, ast.Import):
-                names = [alias.name.split('.')[0] for alias in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                names = [node.module.split('.')[0]]
-            pending.extend(n for n in names if (scripts_dir / f'{n}.py').is_file())
-    return found
+        return python_imports(tree, scripts_dir)
+
+    return dependency_closure(roots, dependencies)
 
 
 def classify(paths: list[str], native_modules: set[str]) -> tuple[str, list[str]]:
