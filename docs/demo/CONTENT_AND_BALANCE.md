@@ -190,11 +190,11 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `CAPTURE.SpraySec` | s/Sec | 3.5 | 喷漆区内独自累积满即喷上涂鸦；争夺暂停保留，离区/死亡/离局/硬控施加清零。时长短，主要靠在场的人进区争夺或硬控/击杀打断 |
 | `CAPTURE.GuardSec` | s/Sec | 20 | 主人独自在核心内累计守护；离圈、死亡暂停，他人进区冻结，只有对手喷成才清当前进度；历史独占守护贡献保留 |
 | `SHOWDOWN.UnlockDelaySec` | s/Sec | 10 | R3 返场至隔离封街战场后开始计时，到期解锁旗杆 |
-| `SHOWDOWN.DurationSec` | s/Sec | 150 | 解锁前等待10s后，终局最长150s；到期仅以存活合格者的历史守护、成功喷漆排序；完全并列或无人有贡献则无人胜 |
+| `SHOWDOWN.DurationSec` | s/Sec | 150 | 从终局开始计（含 10 s 解锁等待），终局最长 150 s；到期仅以存活合格者的历史守护、成功喷漆排序；完全并列或无人有贡献则无人胜 |
 | `SHOWDOWN.RespawnLimit` | count/int | 2 | 每人终局最多入队两次复活，不继承野外的无限复活 |
 | `SHOWDOWN.FirstRespawnSec` / `SecondRespawnSec` | s/Sec | 18 / 24 | 按已入队复活次数决定等待，合法队列可跨过截止点完成 |
-| `SHOWDOWN.RespawnCutoffSec` | s/Sec | 120 | 与封街开始时刻一致；之后死亡不再入队，已入队复活仍可完成 |
-| `SHOWDOWN.ClosureStartsSec` | s/Sec | 120 | 从初始圈向终圈线性封街；几何和圈伤复用 PK 的扫掠脚点规则，不复用 PK 判胜 |
+| `SHOWDOWN.RespawnCutoffSec` | s/Sec | 90 | 从终局开始计；之后死亡不再入队，已入队复活仍可完成 |
+| `SHOWDOWN.ClosureStartsSec` | s/Sec | 75 | 从终局开始计，到期从初始圈向终圈线性封街直到终局结束；几何和圈伤复用 PK 的扫掠脚点规则，不复用 PK 判胜 |
 | `MATCH.FieldSegmentSec` | s/Sec | 130 | 三段定时野外各130s；野外进度T只在野外推进，休息与PK暂停T；PK只在R1、R2举行，R0与R3不开放报名或举行PK；R3返场十秒后开放终局旗杆 |
 | `REST.OpeningBuildSec` | s/Sec | 75 | 开局R0构筑/试招窗；所有真人准备后可提前结束，不开放PK报名 |
 | `REST.BuildSec` | s/Sec | 50 | R1–R3构筑/试招窗；所有真人准备后可提前结束 |
@@ -673,7 +673,7 @@ S20 `active_dirty_puddle` 或 S19 `active_flyer_trap`；C21 `component_set_it_of
 随机流只由对局身份和刷新序号决定。上热搜没有额外奖励，击杀上热搜者只得正常击杀奖励。
 上热搜者死亡结束本次上热搜。是首轮试玩值，未经平衡验证。
 
-**画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=240` 秒
+**画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=173` 秒
 出现在 `boss_patrol_1`（原巡逻入口），整局仅一只，以 `move_speed=225` cm/s 沿 `boss_patrol_1..4` 循环巡逻；地图把四个巡逻点放在旗杆盆地内、
 围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
 `BossWaypoint` 锚点。生命 `hp=4500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
@@ -687,7 +687,7 @@ S20 `active_dirty_puddle` 或 S19 `active_flyer_trap`；C21 `component_set_it_of
 数值、前摇、巡逻点、出现/退场时刻、构筑奖励与移除增益均已批准。为试玩值，未经平衡验证。
 
 **标记营地（技术标识 camp marker）**：前三个野外段（段 s=1..3）各在 T = (s−1)×`MATCH.FieldSegmentSec` +
-`CAMPMARK.RevealSec=15` 秒（T=15/195/375）同时公开标记一处中野营地（h01–h08、h10、h12）和一处大野营地（e01–e04），
+`CAMPMARK.RevealSec=11` 秒（T=11/141/271）同时公开标记一处中野营地（h01–h08、h10、h12）和一处大野营地（e01–e04），
 绑定营地本身的生命与清场。远古不在构筑标记候选池中。中野营地在本档营地中均匀抽取，不连续选上一段的同一处；大野营地优先在与该中野营地
 相对的公开地图象限（以旗杆 `capture` 为中心，X、Y 符号都翻转）中、排除上一段大野营地均匀抽取，该象限没有合法候选时在全部大野营地中
 排除上一段那处均匀抽取。抽取用只在服务器的随机种子（由外卖种子派生），公开后固定，不重开面板重抽。本段第一次完成该营地清理（使营地
@@ -808,7 +808,7 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | 普攻射程，cm | 150 | 175 | 175 | 175 |
 | 移速，cm/s | 240 | 260 | 260 | 260 |
 | 碰撞半径，cm | 40 | 40 | 40 | 40 |
-| 拴绳 / 感知半径，cm | 900 | 1050 | 1050 | 1050 |
+| 拴绳 / 感知半径，cm | 900（HR）、1050（地推、骑手） | 1050 | 1050 | 1050 |
 | 失去目标宽限，s | 3 | 4 | 4 | 4 |
 | 清空后刷新，s | 25 | 65 | 90 | 120 |
 | 每只 / 整营基础XP | 14 / 42 | 40 / 80 | 180 / 180 | 300 / 300 |
@@ -892,8 +892,8 @@ $k=\min(\text{CAMP.GrowthMaxStage},\lfloor T_{生成}/\text{CAMP.GrowthStageSec}
 
 | 参数 ID（`content.json`） | 值 | 作用（各自按存储单位向下取整） |
 | --- | --- | --- |
-| `CAMP.GrowthStageSec` | 60 s | 每满 60 s 升一阶 |
-| `CAMP.GrowthMaxStage` | 10 | T=10:00 起不再升阶 |
+| `CAMP.GrowthStageSec` | 43 s | 每满 43 s 升一阶 |
+| `CAMP.GrowthMaxStage` | 10 | T=430 s 起不再升阶；野外进度最多 390 s，所以对局中最高为 9 阶 |
 | `CAMP.GrowthHPRatioPerStage` | .12 | 生命 = 基础 × (1 + .12k)，上限时 2.2 倍 |
 | `CAMP.GrowthAttackRatioPerStage` | .08 | 攻击 = 基础 × (1 + .08k)，上限时 1.8 倍 |
 | `CAMP.GrowthResistPerStage` | 2 点 | 护甲、魔抗各 + 2k，上限时 +20 |
