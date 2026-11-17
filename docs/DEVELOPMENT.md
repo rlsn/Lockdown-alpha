@@ -76,6 +76,9 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 .\Scripts\Verify.ps1                                    # 按改动决定跑什么
 .\Scripts\Verify.ps1 -Plan                              # 只列出会跑的检查
 .\Scripts\Verify.ps1 -Filter Lockdown.Rules.DemoGrowth  # 另跑这些前缀下的规则测试
+.\Scripts\Verify.ps1 -Plan -Rules Auto                  # include 图推导规则选择；仅计划
+.\Scripts\Verify.ps1 -Rules Auto                        # 执行有界的受影响规则子集
+.\Scripts\Verify.ps1 -Force                             # 不复用通过结果
 ```
 
 它比较工作区（含未提交与未跟踪文件）与 `origin/main` 的合并基点：
@@ -83,10 +86,27 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 改动 | 本地运行 |
 | --- | --- |
 | 只有 `docs`、`*.md`、工作流 | 不运行 |
-| `Scripts/*.py` | 对应的 `Test<模块>.py`；有模块找不到对应测试时跑全部 Python 测试 |
-| `SourceData`、`Content/Lockdown/Data` | 两个 Sync `--check` 和全部 Python 测试 |
-| `Source`、`*.uproject` | 一次增量 `BuildEditor.ps1` |
+| `Scripts/*.py` | 反向 Python 导入闭包中的 `Test*.py`，包含字面量脚本引用；无静态可达测试时报告缺口，不回退全量 |
+| `SourceData`、`Content/Lockdown/Data` | 两个 Sync `--check`；仅选择导入闭包中引用该数据路径的 Python 测试 |
+| `Source`、`*.uproject` | 一次增量 `BuildEditor.ps1`；计划同时列出反向 include 图推导的规则名，`-Rules Auto` 可选执行 |
 | 其他（`Config`、资产、PowerShell 脚本） | 不运行；按[验证手册](systems/VERIFICATION.md#最小验证选择)选对应检查 |
+
+验证阶梯：一批连贯改动跑一次 Verify → 按 `-Filter` / `RunPythonTests.py --pattern <文件名>` 定向检查 →
+失败后只重跑失败项（Python 用 `--failed`；原生用失败项的 `-Filter`）→ 非草稿 PR CI 完整门禁 → 里程碑全量。
+不因为没有同名测试、未知依赖或局部失败就升级为本地完整套件。
+
+`LocalVerification.py` 维护选择和缓存，`Verify.ps1` 只编排参数。静态分析识别 Python import、字面量脚本引用、
+数据路径与项目双引号 include；实现文件通过同名头文件关联使用者。它不运行 Python 测试来发现依赖。
+字面量目录引用会保守包含子目录；动态加载、运行时拼接、宏 include、跨编译单元隐藏接线可能缺失，CI 完整门禁兜底，局部通过不等于完整验收。
+超过 12 个 Python 测试模块或 80 项原生规则时，计划明确标为交 CI，不自动跑全量；
+这是本地工具的开销边界，不是产品规则。显式 `-Filter` 也不能通过 Verify 启动完整套件。
+需要检查选择结果可用 `-Plan -Json`；模拟路径只能用于计划，例如
+`.\Scripts\Verify.ps1 -Plan -Paths Scripts\SummarizePlaytestLog.py`，不会修改工作区或将模拟通过写入缓存。
+
+通过记录和独立日志位于忽略的 `Artifacts\Verification`。复用要求命令、输入文件内容/目录成员、
+Python/工具环境、构建输出（如适用）及日志摘要一致；计划和跳过信息显示上次通过时间与日志路径。
+删除证据、修改输入、失败或运行中输入变化都不能产生可复用的通过结果；`-Force` 强制重验。
+本地静态输入指纹不证明外部引擎/SDK 安装未被修改，切换或维护外部工具后用 `-Force`，不能把本机缓存当作 CI 门禁。
 
 - 规则测试的门禁是 PR 的 CI（[CI 与发布](systems/CI_AND_RELEASE.md#pr-检查与每日试玩包)），本地不重复跑整套。
   新增或改了规则测试、或在排查失败用例时，才加 `-Filter`（可给多个前缀）；它是部分运行，不算门禁。
@@ -102,14 +122,15 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 - 失败先看本次 `Artifacts`、日志与断言并标记未通过，不原样重跑来碰运气通过或判断偶发性。
   修复相关原因后只重跑失败项及受影响检查；没有定向入口的长测仅在明确要求专项验证时重跑。
   无关失败保留证据和未确认归因，不扩大开发范围。
-- `-FullUnity`、`RunTests.ps1 -ImportTests Run`、全套场景只用于里程碑、发布和全新检出，
+- `-FullUnity`、`RunTests.ps1 -Full -ImportTests Run`、全套场景只用于里程碑、发布和全新检出，
   或明确要求的专项验证；清单见[验证手册](systems/VERIFICATION.md#合并前与里程碑检查)。
 - fork PR 不跑 CI 的原生任务：改了 `Source` 的 fork PR 在本地用 `Verify.ps1 -Filter` 跑受影响的规则前缀并在 PR 里写明结果；
   合并前由维护者在本仓库分支上补跑原生门禁。
-- 新工作区没有 `Binaries` 与 `Intermediate`，第一次构建要 3–6 分钟（之后的增量构建约 20 秒）。
-  只改文档、数据或 Python 的任务不需要构建。
+- 新 worktree 不继承 `Binaries` 与 `Intermediate`，Content 还可能是 LFS 指针，需要 `git lfs pull`。
+  首次构建通常要 3–6 分钟，已有产物的增量构建约 20 秒，实际取决于机器与改动；因此串行任务优先复用已构建工作区。
+  不复制别的工作区的 Binaries/Intermediate 来承诺增量复用；只改文档、数据或 Python 的任务不需要构建。
 - Python 测试失败时看输出结尾 `Log:` 指向的日志，修复后用 `python -B .\Scripts\RunPythonTests.py --failed` 只重跑失败项。
-- PR 保持 Draft 到改动稳定：转 Ready 后每次推送都占用自托管 runner。
+- PR 保持 Draft 到改动稳定，攒一批再推：Ready PR 每次推送都触发 CI；需要 native 门禁时会占用自托管 runner。
 - 共用机器的并发上限见[验证手册](systems/VERIFICATION.md#多人共用一台机器)。
 
 ## 工程目录
@@ -331,7 +352,8 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 从开工到关闭：
 
 1. 把票指派给自己。
-2. 从最新的 `main` 建独立分支与工作区。
+2. 在干净且无人使用的现有工作区，从最新 `main` 切独立分支；同一任务跟进复用原会话与工作区。
+   仅确需并行时建新 worktree，协调者派生会话也须说明 LFS 和首次构建的冷启动成本。
 3. 提 PR，描述里写 `Fixes #N`、改动内容和验证结果，通过、失败、未运行要分开写，并写明新增的测试名。
 4. 验证通过后以 merge commit 合并，并删除分支；禁止 force push，不改写共享提交。
 5. 确认票已经关闭。

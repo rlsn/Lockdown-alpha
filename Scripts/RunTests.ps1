@@ -1,17 +1,19 @@
 # Runs the Lockdown.Rules automation tests in a headless editor and checks the report against CheckRuleReport.py.
-#   .\Scripts\RunTests.ps1                                  # change-scoped gate; heavy imports only when needed
+#   .\Scripts\RunTests.ps1 -Full                            # explicit gate; heavy imports only when needed
 #   .\Scripts\RunTests.ps1 -Filter Lockdown.Rules.DemoGrowth # development only: tests under these path prefixes
-#   .\Scripts\RunTests.ps1 -ImportTests Run                  # explicit complete gate, including data imports
+#   .\Scripts\RunTests.ps1 -Full -ImportTests Run            # explicit complete gate, including data imports
 # A -Filter run is partial and never a gate. -ImportTests Skip/Auto decide only the data-import group (CheckRuleReport
 # IMPORT_TESTS); Auto asks CIChangeScope.py whether this worktree changed any of its inputs since its merge base with
 # -Base, the same decision the PR check makes.
 [CmdletBinding()]
 param([string]$EngineRoot, [ValidateSet('Lockdown.Rules')][string]$Suite='Lockdown.Rules', [ValidateRange(30,1800)][int]$TimeoutSeconds=900,
-    [string[]]$Filter, [ValidateSet('Run','Skip','Auto')][string]$ImportTests='Auto', [string]$Base='origin/main')
+    [string[]]$Filter, [switch]$Full, [ValidateSet('Run','Skip','Auto')][string]$ImportTests='Auto', [string]$Base='origin/main')
+$ErrorActionPreference = 'Stop'
+$Filter = @($Filter | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+if (($Full -and $Filter.Count) -or (-not $Full -and -not $Filter.Count) -or $Filter -contains 'Lockdown.Rules') {
+    throw 'Choose explicit -Full for the full suite, or -Filter <specific prefixes> for a partial run; do not combine them.'
+}
 . (Join-Path $PSScriptRoot 'Common.ps1')
-$engine = Resolve-LDEngine $EngineRoot
-Assert-LDEditorModules
-Set-LDPlatformValidation Skip
 if ($ImportTests -eq 'Auto') {
     $decision = @(& python -B (Join-Path $PSScriptRoot 'CIChangeScope.py') --base $Base --worktree)
     if ($LASTEXITCODE -ne 0) { throw "CIChangeScope.py could not decide the data-import tests against $Base." }
@@ -26,6 +28,18 @@ if ($ImportTests -eq 'Skip') { $selection += '--skip-import' }
 $planText = & python -B (Join-Path $PSScriptRoot 'CheckRuleReport.py') --plan @selection | Out-String
 if ($LASTEXITCODE -ne 0) { throw 'CheckRuleReport.py could not plan the selected rule tests.' }
 $plan = $planText | ConvertFrom-Json
+if (-not $Full -and -not $plan.partial) { throw 'This selection is the complete suite; choose explicit -Full instead.' }
+$engine = Resolve-LDEngine $EngineRoot
+Assert-LDEditorModules
+$buffer = [byte[]]::new(7)
+foreach ($asset in Get-ChildItem -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content') -Recurse -File -Include '*.uasset', '*.umap') {
+    $stream = [IO.File]::OpenRead($asset.FullName)
+    try { $read = $stream.Read($buffer, 0, 7) } finally { $stream.Dispose() }
+    if ($read -eq 7 -and [Text.Encoding]::ASCII.GetString($buffer) -eq 'version') {
+        throw "Asset is a Git LFS pointer: $($asset.FullName). Run git lfs pull before rule tests."
+    }
+}
+Set-LDPlatformValidation Skip
 if ($plan.partial) { Write-Host "PARTIAL RUN, NOT A GATE: $($plan.count) of $($plan.required) required rule tests ($($Filter -join ', '))." }
 if (@($plan.skipped_import).Count) { Write-Host "Leaving out the data-import group: $($plan.skipped_import -join ', ')." }
 Write-Host "Native fixture profile: $($plan.fixture_profile)."

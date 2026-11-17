@@ -36,7 +36,7 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
   改到 `Source`、`Config`、`SourceData`、`Content`、PowerShell 脚本或 `RunTests.ps1` 加载的 Python 脚本
   （及其在 `Scripts` 内的全部 import）时需要原生门槛；只改其他 `Scripts/*.py` 或工作流时不需要。
   它同时输出 `import_tests=run|skip`：数据导入测试的输入（见[开发循环与验证节奏](VERIFICATION.md#数据导入测试组)）没有改动时，
-  原生任务以 `RunTests.ps1 -ImportTests Skip` 运行其余全部必需测试。
+  原生任务以 `RunTests.ps1 -Full -ImportTests Skip` 运行其余全部必需测试。
 - `python`（GitHub 托管 Windows，非纯文档 PR 才跑）：`Scripts/RunPythonTests.py` 以最多 4 个进程并行执行
   `Scripts` 下的 Python 测试（与 `unittest discover` 同一组测试和通过规则，带类级夹具的测试类整体留在一个进程里）。
   工作进程不是守护进程，测试可以再开进程：`ExportDemoNativeFixtures.py` 默认按 CPU 数并行编译夹具用例
@@ -48,7 +48,8 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
   输出标注“PARTIAL RUN (--failed), NOT A GATE”，不能代替 CI 门禁；没有失败记录时报错退出。
   该脚本自身的测试：`python -B -m unittest discover -s .\Scripts -p TestRunPythonTests.py`。
 - `native`（维护者本机的自托管 runner，仅在需要原生门槛且分支在本仓库内时）：增量 `BuildEditor.ps1` 与
-  `RunTests.ps1`，失败时上传 Artifacts 证据。runner 关闭时它在 GitHub 上排队；fork PR 不在这台 runner 上运行。
+  `RunTests.ps1 -Full`，失败时上传 Artifacts 证据，不使用本地 Verify 缓存或依赖筛选。
+  Ready PR 每次推送都会触发 CI；迭代保持 Draft，或攒一批再推。runner 关闭时它在 GitHub 上排队；fork PR 不在这台 runner 上运行。
   `CIResetWorkspace.ps1` 清空 Artifacts 时保留按输入哈希校验的夹具缓存 `Artifacts\DemoContentFixtureCache`。
 它覆盖每个 PR 的最低门槛，不代替改到场景时应跑的 `RunDemo*Check`。
 
@@ -64,7 +65,7 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
   每次发布都在 `main` 最新提交之上本地提交 `chore: release version X`（写入版本与 `bReleaseBuild=True`），打包这个提交。
   它不推送到 `main`（`main` ruleset 要求 PR，个人仓库也无法把 GitHub Actions 加入 bypass），
   只随 tag `vX` 推送；所以包内版本、清单与 tag 一致，`main` 上的 ini 保持基础版本，已发布的版本以 tag 为准。
-- 增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
+- 增量 `BuildEditor.ps1`、`RunTests.ps1 -Full -ImportTests Run`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
   把 Archive、manifest、`Package.log` 与 `README.txt` 启动说明打成 `Lockdown-vX-win64.zip`，
   调试符号 `Lockdown.pdb`（约占解压后包体的三分之一）不进主包，按原相对路径单独打成 `Lockdown-vX-win64-symbols.zip`，
   解压到同一目录即位于 exe 旁；本地 `PackageWin64.ps1` 的输出仍保留它。

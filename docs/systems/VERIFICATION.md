@@ -11,6 +11,8 @@
 以下是覆盖范围索引，不是每次任务都要执行的清单；先按[日常验证流程](../DEVELOPMENT.md#验证)确定是否需要运行，再读对应小节。
 定向场景的开关、覆盖与不覆盖项在同一小节；运行前核对实际脚本参数。
 新增测试只覆盖本批引入或修复的行为、直接依赖及必要边界；优先扩展已有用例，不为覆盖率增加无关或重复测试。
+验证工具自身（Python、PowerShell 或 CI 参数）改动时，按[开发指南的验证阶梯](../DEVELOPMENT.md#验证)
+跑对应 `Test*.py`、PowerShell 解析检查和无引擎的参数/计划拒绝路径；不要为验证编排而启动 Unreal 全量套件。
 
 | 改动 | 覆盖与限制 |
 | --- | --- |
@@ -230,7 +232,7 @@ HostQuit 中 Host 进程在客户端仍连接时正常退出（与直接关窗�
 ```powershell
 .\Scripts\BuildEditor.ps1 -FullUnity
 .\Scripts\BuildGame.ps1 -FullUnity
-.\Scripts\RunTests.ps1 -ImportTests Run
+.\Scripts\RunTests.ps1 -Full -ImportTests Run
 python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\BootstrapAssets.ps1
 .\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
@@ -273,7 +275,10 @@ PR 前仅在改动涉及必须由真实拥有连接证明的行为或 Issue 明�
 
 ## 规则测试集合
 
-`RunTests.ps1` 执行已有 `Lockdown.Rules` 套件，由 `CheckRuleReport.py` 核对明确的当前必需用例集合。
+`RunTests.ps1 -Filter <具体前缀>` 执行局部规则；完整 `Lockdown.Rules` 套件必须显式 `-Full`。
+不带选择、只给 `-ImportTests Run`、把根 `Lockdown.Rules` 当筛选或混用 `-Full` 与 `-Filter` 都会在加载引擎前拒绝。
+`-ImportTests Auto|Skip|Run` 只控制导入组，不代替全量授权；`-Full -ImportTests Run` 才是完整导入门禁。
+由 `CheckRuleReport.py` 核对明确的当前必需用例集合。
 缺报告、失败、未完成、缺用例或重复结果都不能通过；新增或迁移原生测试时同步维护此集合，
 并运行 `python -B -m unittest discover -s .\Scripts -p TestRuleReport.py` 核对源码注册与报告拒绝路径。
 带 `-Filter` 或跳过数据导入组时，`CheckRuleReport.py --plan` 先核对源码注册与必需集合完全一致，
