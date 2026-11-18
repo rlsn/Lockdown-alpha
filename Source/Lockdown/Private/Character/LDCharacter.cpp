@@ -202,9 +202,28 @@ void ALDCharacter::Tick(float Delta)
             bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
     }
     bShownPredicted=bPredicted;
+    // The shown cast's own skill look (LDHitVfx::SkillLookOf): the slot of the latest action names its ability.
+    uint8 CastAbility=0;
+    if (bCue && Selected.Cue==ELDObservedActionCue::Cast && View.ActionEntry!=ELDCombatEntry::None)
+    {
+        for (const FLDCombatEntryView& Entry : View.Entries)
+        {
+            if (Entry.Entry!=View.ActionEntry) { continue; }
+            if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Entry.DefinitionId)) { CastAbility=Skill->Ability; }
+            break;
+        }
+    }
+    Body->SetCastAbility(CastAbility);
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
-    { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
-        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags,View.Cues.LastHitId,View.Cues.LastHitAtMs); }
+    {
+        const bool bFresh=Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
+            static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags,View.Cues.LastHitId,View.Cues.LastHitAtMs);
+        // Taking a hit tints the screen edge faintly red; a stronger flash of the own hit still playing wins.
+        ULDImpactFxSubsystem* Hurt=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+        FLinearColor Playing;
+        if (bFresh && Hurt && NowMs-View.Cues.LastHitAtMs<200 && Hurt->ScreenFlashAlpha(Playing)<=0.f)
+        { Hurt->FlashScreen(LDHitVfx::HurtFlashOf(PC->Controls && PC->Controls->bReduceCombatEffects)); }
+    }
     // The own hit confirmation (LDHitFeel): each fresh receipt of a hit this body landed holds its striking pose, flares
     // its hand and kicks its camera along its facing. Hits it takes never move this camera or its pose.
     const bool bReduced=PC->Controls && PC->Controls->bReduceCombatEffects;

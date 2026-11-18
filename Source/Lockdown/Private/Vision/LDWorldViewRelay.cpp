@@ -1,4 +1,6 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Character/LDImpactFx.h"
+#include "NiagaraComponent.h"
 #include "Combat/LDCombatBagBlocker.h"
 #include "Combat/LDCombatElements.h"
 #include "Vision/LDFogDistanceField.h"
@@ -472,6 +474,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.Cue = Unit.ActionCue;
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
+    Shown.ActionAbility = Unit.ActionAbility;
     Shown.HitLook = Unit.HitLook;
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
     Shown.RecentHitId = Unit.RecentHitId;
@@ -508,6 +511,7 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
+        Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
             AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags, Reached.RecentHitId,
@@ -840,6 +844,12 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     ShownRadius=Effect.RadiusCm; ShownInnerRadius=Effect.InnerRadiusCm; ShownAngle=Effect.AngleDegrees;
     ShownLength=Effect.LengthCm;bShownOwn=Effect.bOwn;
     ShownColor=Color;
+    if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
+    {
+        USceneComponent* Anchor=bFlight ? static_cast<USceneComponent*>(Trail) : RootComponent.Get();
+        Particles=Impacts->ShowEffect(*Anchor,Particles,Effect.Look,Effect.RadiusCm,
+            FRotator(0,float(Effect.Heading)/65536.f*360.f,0));
+    }
     if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     Trail->SetReturning(IsObservedReturn(Effect.Look));
@@ -957,6 +967,8 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         Points.Reset();
         SetActorLocationAndRotation(Point.Location, FRotator(0, Point.Yaw, 0));
         bPlaced = true;
+        ShownLook = Projectile.Look;
+        PlayBurst(false);
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
         {
             EffectTint = UMaterialInstanceDynamic::Create(Material, this);
@@ -992,6 +1004,16 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
         AccentTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(ShownColor,FLinearColor::White,Pulse));
     }
     if (Pose.Reached > 0) { Points.RemoveAt(0, Pose.Reached); }
+}
+
+void ALDObservedProjectileProxy::PlayBurst(bool bEnd)
+{
+    if (bEnd && !bPlaced) { return; }
+    LDHitVfx::EBurst Kind;
+    FLinearColor Tint;
+    ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+    if (!Impacts || (!bEnd && IsHidden()) || !(bEnd ? LDHitVfx::EndBurstOf(ShownLook,Kind,Tint) : LDHitVfx::AppearBurstOf(ShownLook,Kind,Tint))) { return; }
+    Impacts->Kit(GetActorLocation(),LDHitVfx::BurstOf(Kind,Tint,Impacts->LocalEffectScale()));
 }
 
 void ALDObservedProjectileProxy::End(double LocalSeconds)
@@ -1330,7 +1352,8 @@ void ALDWorldViewRelay::PresentProxies(float Delta)
         ALDObservedProjectileProxy* Flight = It.Value();
         if (IsValid(Flight)) { Flight->Present(At); }
         if (IsValid(Flight) && !Flight->IsFinished(At, Local)) { continue; }
-        if (IsValid(Flight)) { Flight->Destroy(); }
+        // A naturally finished effect ends with its burst (a flight's hit, a dropped book's landing).
+        if (IsValid(Flight)) { Flight->PlayBurst(true); Flight->Destroy(); }
         It.RemoveCurrent();
     }
 }

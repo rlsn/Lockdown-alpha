@@ -54,6 +54,17 @@ public:
     float ScreenFlashAlpha(FLinearColor& OutColour) const;
     float ScreenFringe() const;
     UTexture2D* GetScreenEdge() const { return ScreenEdge; }
+    // One particle-kit burst at a world point. Bound to Source (cleared with it) or free-standing when Source is null.
+    void Kit(const FVector& At, const LDHitVfx::FBurst& Burst, const ULDHumanoidVisualComponent* Source = nullptr);
+    // 0.45 while the local player reduces combat effects, else 1.
+    float LocalEffectScale() const;
+    // The catalog's saved layer tuning times the live impact controls (LDHitVfx::TuningOf).
+    LDHitVfx::FLayerTuning LayerTuning() const;
+    // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
+    UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,
+        float RadiusCm, const FRotator& Heading);
+    UNiagaraSystem* GetBurstSystem() const { return BurstSystem; }
+    UNiagaraSystem* GetZoneSystem() const { return ZoneSystem; }
     void ClearFor(const ULDHumanoidVisualComponent& Source);
     int32 LiveCount() const { return Live.Num(); }
     int32 LiveLayerCount() const { return LiveLayers.Num(); }
@@ -62,7 +73,8 @@ public:
 private:
     struct FLive
     {
-        TWeakObjectPtr<ULDHumanoidVisualComponent> Source;
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        bool bBound = true;
         TWeakObjectPtr<UNiagaraComponent> Effect;
         float InitialAge = 0;
         float WaitingSeconds = 0;
@@ -76,11 +88,13 @@ private:
         LDHitVfx::FLayer Layer;
         float Age = 0;
         FVector At = FVector::ZeroVector;
+        FVector Normal = FVector::UpVector;  // a ground mark's supporting surface at spawn
     };
     void Release(int32 Index);
     void ReleaseLayer(int32 Index);
     bool LoadLayerAssets();
     int32 TakeSlot(bool bShell);
+    void Configure(UStaticMeshComponent& Mesh, bool bShell);
     void PlaceLayer(FLiveLayer& Live, float Brightness);
     UPROPERTY() TObjectPtr<ULDCombatVfxCatalog> Catalog;
     UPROPERTY() TObjectPtr<AActor> LayerHost;
@@ -99,5 +113,8 @@ private:
     LDHitVfx::FScreenFlash Flash;
     double FlashAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
+    UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
+    UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
+    void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds);
     TArray<FLive> Live;
 };

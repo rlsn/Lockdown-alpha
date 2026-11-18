@@ -67,6 +67,9 @@ public:
     // LDBodyMotion::RetractSeconds once the next cue ends it, instead of snapping to idle.
     void SetHold(float HoldSeconds);
     void Retract();
+    // The ability of the shown cast (ELDDemoAbilityId; 0 = none or the innate dash): its own tint on the cast charge,
+    // its release burst at the action's release and its dash trail colour (LDHitVfx::SkillLookOf).
+    void SetCastAbility(uint8 Ability) { CastAbility = Ability; }
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
     void PlayFall();
@@ -99,10 +102,13 @@ private:
     void QueueImpact(double Onset, ELDObservedHitLook HitLook, uint8 HitFlags);
     void UpdateSwingTrail(float AgeSeconds, float EffectScale);
     void UpdateCastCharge(float Charge, float EffectScale);
+    void UpdateRelease(float EffectScale);
+    void UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UNiagaraComponent> SwingTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
     // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
     // restore entries for subobjects that no longer exist.
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Parts;
@@ -124,6 +130,9 @@ private:
     FVector PreviousTrailPoint = FVector::ZeroVector;
     double TrailActionOnset = -1;
     double CastActionOnset = -1;
+    double ReleasedOnset = -1;
+    uint8 CastAbility = 0;
+    bool bDashing = false;
     uint8 Cue = 0;
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
     uint8 HitFlags = 0;

@@ -126,6 +126,7 @@ namespace LDObservedPresentation
         ELDObservedActionCue Cue = ELDObservedActionCue::None;
         uint16 CueAgeMs = 0;
         uint16 CueImpactDelayMs = 0;
+        uint8 ActionAbility = 0;  // the Cast cue's ability, 0 otherwise
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
         FGuid RecentHitId;
@@ -268,6 +269,8 @@ public:
     void Present(double AtServerSec);
     void End(double LocalSeconds);
     bool IsFinished(double AtServerSec, double LocalSeconds) const;
+    // The look's appear burst (a launch, a landing) or end burst (a flight's hit, a dropped book), free-standing.
+    void PlayBurst(bool bEnd);
     FGuid ObservedHandle;
     const ULDFlightTrailComponent* GetTrail() const { return Trail; }
 private:
@@ -279,6 +282,8 @@ private:
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> AccentTint;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ShapeLines;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
+    // The look's particles (LDHitVfx::TrailOf / ZoneOf), rebuilt with the look.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> Particles;
     void ApplyLook(const FLDObservedProjectileView& Effect);
     ELDObservedProjectileLook ShownLook=ELDObservedProjectileLook::Chalk;
     float ShownRadius=-1, ShownInnerRadius=-1, ShownAngle=-1;

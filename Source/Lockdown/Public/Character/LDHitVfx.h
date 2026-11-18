@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Vision/LDViewTypes.h"
 
+namespace LDHitFeel { struct FTuning; }
+
 // The shaped hit layers over the Niagara burst (LDImpactFx): a flash star facing the camera, a ground mark under the
 // struck body and the per-look signature (fire burn ring, water ripples, electric strike, magic sigil, shield shell),
 // plus the kill crack where a visible body falls and the own screen edge flash. Each tier and look has its own shape,
@@ -47,19 +49,31 @@ namespace LDHitVfx
     {
         TArray<FLayer, TFixedAllocator<MaxLayers>> Layers;
     };
+    // Size, duration and brightness multipliers of every layer: the catalog's saved values (DA_CombatVfx Layer*) times
+    // the live impact controls relative to their starting values (ld.Feel.ImpactScale / ImpactMs / ImpactGlow). An
+    // impact size or duration of zero turns the layers off, as it turns the Niagara burst off.
+    struct FLayerTuning
+    {
+        float Size = 1, Seconds = 1, Glow = 1;
+    };
+    LOCKDOWN_API FLayerTuning TuningOf(const LDHitFeel::FTuning& Feel, float AssetSize, float AssetSeconds, float AssetGlow);
     // One observed hit (LDObservation::EHitFlags): ordinary star and ring; critical cross star and a double gold ring;
     // a shield's cyan hex shell (a broken one bursts outwards over a wide ring); then the look's signature.
     // Reduced effects drop the optional layers and dim the rest; no layer that tells the tier or the look is removed.
-    LOCKDOWN_API FRecipe ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale);
+    LOCKDOWN_API FRecipe ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // A visible body's fall: a glowing ground crack that stays two seconds and a double shock ring.
-    LOCKDOWN_API FRecipe ForKill(float EffectScale);
+    LOCKDOWN_API FRecipe ForKill(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // 0 before DelaySeconds and from Seconds on; a quick rise to 1 at PeakAt, then an ease-out fade.
     LOCKDOWN_API float Brightness(const FLayer& Layer, float AgeSeconds);
     LOCKDOWN_API float ScaleAt(const FLayer& Layer, float AgeSeconds);
 
-    // The flash star keeps at least MinSpritePx of a 1080-line view whatever the camera distance.
+    // Distance compensation of the flash sprites: one factor for every sprite, set so the ordinary star
+    // (ReferenceSpriteCm, the full-size flash before its pop animation) keeps at least MinSpritePx of a 1080-line view.
+    // Every sprite is multiplied by the same factor after its recipe size and animation, so a critical cross stays 1.5x
+    // an ordinary star and a water star stays smaller at any distance. Never below 1.
     constexpr float MinSpritePx = 60.f;
-    LOCKDOWN_API float SpriteCm(float SizeCm, float DistanceCm, float FovDegrees);
+    constexpr float ReferenceSpriteCm = 120.f;
+    LOCKDOWN_API float SpriteCompensation(float DistanceCm, float FovDegrees);
 
     // The own screen edge flash and lens fringe for a receipt (LDCombatCues::DealtLethal over the observed flags):
     // a kill red, a critical hit gold, a broken shield cyan; an ordinary hit none. Reduced effects turn it off.
@@ -71,4 +85,66 @@ namespace LDHitVfx
     };
     LOCKDOWN_API FScreenFlash ScreenFlashOf(uint8 DealtFlags, bool bReduced);
     LOCKDOWN_API float ScreenFlashAlpha(const FScreenFlash& Flash, float AgeSeconds);
+    // The own body taking a hit: a short, faint red edge that never replaces a stronger flash still playing.
+    LOCKDOWN_API FScreenFlash HurtFlashOf(bool bReduced);
+
+    // Particle kit (Niagara NS_LDBurst, its user parameters): one burst of velocity-stretched sparks with a settable
+    // gravity and drag (rising embers, falling droplets, hanging motes, fast arcs), soft smoke, a core flash and mesh
+    // shards. Every skill release, element hit, landing, muzzle, dash and fall picks a preset tinted by its source.
+    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Kill, Count };
+    struct FBurst
+    {
+        int32 Sparks = 0, Smoke = 0, Shards = 0;
+        FLinearColor SparkColour = FLinearColor::Black, SmokeColour = FLinearColor::Black;
+        FLinearColor CoreColour = FLinearColor::Transparent, ShardColour = FLinearColor::Black;
+        float Speed = 1, Scale = 1, Life = 1, Drag = .75f;
+        FVector Gravity = FVector(0, 0, -980);
+        bool IsEmpty() const { return Sparks + Smoke + Shards <= 0 && CoreColour.A <= 0.f; }
+    };
+    // Reduced effects keep every preset and its colours but spawn fewer particles (x0.45).
+    LOCKDOWN_API FBurst BurstOf(EBurst Kind, const FLinearColor& Tint, float EffectScale);
+    // The extra particles an element hit throws over the impact burst: fire embers, water droplets, electric arcs,
+    // magic motes; none for an ordinary look.
+    LOCKDOWN_API bool HitBurstOf(ELDObservedHitLook Look, EBurst& Out, FLinearColor& Tint);
+
+    // Each active skill's own look: its tint (cast charge, release and dash trail) and its release burst. The table
+    // covers every ELDDemoAbilityId (Lockdown.Rules.DemoBodyMotion.HitLayers checks 26 distinct entries).
+    struct FSkillLook
+    {
+        uint8 Ability = 0;           // ELDDemoAbilityId
+        const TCHAR* Id = TEXT("");  // the content id ("active_elbow")
+        FLinearColor Tint = FLinearColor::White;
+        EBurst Release = EBurst::Strike;
+    };
+    LOCKDOWN_API TConstArrayView<FSkillLook> SkillLooks();
+    LOCKDOWN_API const FSkillLook* SkillLookOf(uint8 Ability);
+    LOCKDOWN_API const FSkillLook* SkillLookOf(FName Id);
+
+    // A visible skill effect (ELDObservedProjectileLook): a ground zone's looping particles (NS_LDZone) sized to its
+    // radius, a flight's ribbon trail (NS_LDSwingTrail), and the bursts it lands, launches and ends with.
+    struct FZone
+    {
+        bool bShow = false;
+        float Rate = 0, Lifetime = 0, Scale = 1;
+        FVector Velocity = FVector::ZeroVector;  // along the effect's heading (+X) and up (+Z)
+        FLinearColor Colour = FLinearColor::Black;
+    };
+    LOCKDOWN_API FZone ZoneOf(ELDObservedProjectileLook Look, float RadiusCm, float EffectScale);
+    struct FTrail
+    {
+        bool bShow = false;
+        float WidthCm = 0, Lifetime = 0, Rate = 0;
+        FLinearColor Colour = FLinearColor::Black;
+    };
+    LOCKDOWN_API FTrail TrailOf(ELDObservedProjectileLook Look, float EffectScale);
+    // The burst a visible effect shows when it first appears (a launch, a landing) and when it ends (a flight's hit,
+    // a dropped book); false when the look has none.
+    LOCKDOWN_API bool AppearBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinearColor& Tint);
+    LOCKDOWN_API bool EndBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinearColor& Tint);
+
+    // A body moving faster than any run (every dash, not a knock-back or a fall) streaks a trail from its chest and
+    // kicks dust where it starts.
+    constexpr float DashSpeedCmPerSec = 950.f;
+    LOCKDOWN_API bool IsDashing(float Speed2D, bool bKnockback, bool bFalling);
+    LOCKDOWN_API FTrail DashTrailOf(const FLinearColor& Tint, float EffectScale);
 }

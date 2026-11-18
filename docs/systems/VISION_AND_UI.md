@@ -140,13 +140,30 @@
   同一命中再叠加按档位和外观区分形状的分层（`LDHitVfx::ForHit`，`ULDImpactFxSubsystem::Layers`）：
   普通命中是朝向镜头的八芒星加脚下冲击环；暴击换成更大的金色四角十字星和两道金环（第二道延迟出现）；
   护盾吸收显出青色六角网格护罩，破盾时护罩向外炸开并有大号青环；火是脚下灼烧环，水是水冠涟漪，
-  电是一道竖直落雷，魔法是紫色四角星加旋转的六芒法阵。星芒按镜头距离补偿，在 1080 行画面上不小于 60 px（`SpriteCm`）。
+  电是一道竖直落雷，魔法是紫色四角星加旋转的六芒法阵。星芒按镜头距离补偿：所有星芒乘同一个系数，使普通星芒（`ReferenceSpriteCm`）在 1080 行画面上不小于 60 px，档位之间的大小比例不变（`SpriteCompensation`）。
   可见身体倒地（`ULDHumanoidVisualComponent::PlayFall`）时脚下留一道发光地裂两秒，并有两道击杀冲击环；地裂不随身体消失，其余分层跟随受击身体清除。
-  分层是本机网格组件池（平面与球体，`MaxLayers`=48），不碰撞、不投影、不影响导航和视线。
+  分层是本机网格组件池（平面与球体合计不超过 `MaxLayers`=48 个组件，没有同类空闲组件时改装另一类空闲组件），不碰撞、不投影、不影响导航和视线。
+  地面分层在生成时向下查询静态地面，贴着支撑面（含斜坡）沿法线抬起 2 cm 摆放。
+  大小、时长与亮度是 `DA_CombatVfx` 的 `LayerSize`、`LayerSeconds`、`LayerGlow`（保存的美术调参）乘以实时的
+  `ld.Feel.ImpactScale`、`ImpactMs`、`ImpactGlow` 相对初值（`LDHitVfx::TuningOf`）；命中粒子的整体大小或持续时间为 0 时分层也不显示。
   遮罩由 `SourceData\VFX\Blender\hit_textures.py` 在 Blender 里渲染进 `SourceData\VFX`，
   `ImportDemoArt.ps1 -Mode ImportVFX`（`LDDemoVfxImport`）导入为 `Art\VFX\Hit` 的纹理，并由代码重建
   `M_LDHitLayer`（半透明无光照：Glow × 遮罩 R + Ink，不透明度 = 遮罩 A × Fade）与 `M_LDHitShell`（叠加：网格 + 菲涅尔边缘）；
   改形状就改脚本重渲染、更新清单再导入，不手改资产。资产缺失时记录 `LD_HIT_LAYERS asset=missing` 错误并不显示分层。
+- 粒子套件（`LDHitVfx` 的 `FBurst`/`FZone`/`FTrail`，`ULDImpactFxSubsystem::Kit`/`ShowEffect`）：`DA_CombatVfx` 的 `Burst`、`Zone`
+  指向可编辑的 `NS_LDBurst`（由 `NS_LDImpact` 派生，另把火星的重力与阻力开放为 `User.Gravity`、`User.Drag`）与 `NS_LDZone`
+  （由 `NS_LDCastCharge` 派生的圆盘循环发射器：`User.Radius`、`User.Velocity`、`User.Lifetime`、`User.SparkRate`、`User.Scale`、`User.Colour`）；
+  目录项为空时用这两条默认路径，都缺失时记录 `LD_PARTICLE_KIT asset=missing`；`KitCount`、`KitSize` 是保存的粒子数量与大小倍数。预设（`EBurst`）有打击、喷口、火焰（火星上飘）、
+  水花（水滴下坠）、电弧（无重力高速）、霜、腐、风、奥术、冲刺扬尘、光环、砸地和击杀，各自带颜色、数量、速度、重力与寿命。
+  - 每个主动技能（`SkillLooks`，覆盖全部 26 个 `ELDDemoAbilityId`）有自己的色调和释放爆发：施法聚能按技能色调着色，
+    动作时间线到释放点时在出手手部（光环与冲刺在胸口）爆发一次；代理用公开的 `ActionAbility`，本人用当前动作槽位的技能。
+  - 元素命中在命中粒子之外再加该元素的粒子（火、水、电、魔法）；可见倒地加击杀爆发。
+  - 任何身体的水平速度超过 `DashSpeedCmPerSec`=950 cm/s（快于所有跑动，击退和倒地除外）时，胸口拖出冲刺带并在起点扬尘，颜色取当前技能或默认蓝。
+  - 可见技能效果（`ALDObservedProjectileProxy`）：飞行物带缎带拖尾，出现时喷口烟，正常结束时按外观爆发（粉笔打击、袜子腐烂、书本落地砸地）；
+    地面区域按外观循环粒子（火焰上窜、水泡、电火花、紫色光点、尘土），密度随面积变化，出现时落地爆发；喊话锥体与风向前吹出粒子。
+    视野清除或重置时随代理立即消失，不播结束爆发。
+  - 本人受到命中时屏幕边缘淡红闪 0.2 秒（`HurtFlashOf`），不覆盖仍在播放的更强屏幕闪。
+  - 降低特效：粒子数量和区域密度乘 0.45，拖尾变窄；颜色、形状和预设不变，受击边缘闪关闭。
   `DA_CombatVfx` 指向可编辑的 `NS_LDImpact`、`NS_LDSwingTrail`、`NS_LDCastCharge` 与挥击/施法颜色；美术可替换系统、材质和发射器，
   运行时通过用户参数传入本机调参。命中效果限制同时存活数并使用 Niagara 池；隐藏、倒地或代理销毁时立即清除对应效果，
   降低特效时减少粒子数量和尺寸。
@@ -165,7 +182,7 @@
   破盾“破盾！”镜头 1.25 倍；其余普通“啪！”，护盾吸收为“铛！”。暴击与击杀用较大的手部火花。
   拟声字弹出过冲普通 1.35 倍；暴击和击杀 1.8 倍、用大字号并在最初约两帧抖动。
   击杀、暴击、破盾的回执还让屏幕边缘闪一下（红、金、青，`LDHitVfx::ScreenFlashOf`，由 `ULDWorldFeedback` 画在所有文字之下）并给镜头短暂色差
-  （`SceneFringeIntensity`）；普通命中没有；降低特效时两者都关闭。
+  （`SceneFringeIntensity`）；普通命中没有；降低特效时两者都关闭。屏幕闪开始时加载边缘遮罩，不依赖此前出现过可见命中。
   全部数值是本机控制台变量 `ld.Feel.*`（`LDHitFeel::Fields` 列出名称、分组、初值、步长与上限），在 DEV 测试面板的
   “打击感与特效”区与设置页“特效”页实时步进；只在本次运行有效、不写盘，默认值只是试玩起点，未经批准。
   全部只改本机画面与音量，不暂停输入、位移、权威时间或服务器判定，也不公开目标。

@@ -7,7 +7,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Framework/LDPlayerController.h"
+#include "UI/LDControlSettings.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -93,12 +96,21 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     Super::OnWorldBeginPlay(World);
     Catalog = LoadObject<ULDCombatVfxCatalog>(nullptr, ULDCombatVfxCatalog::AssetPath);
     ImpactSystem = Catalog ? Catalog->Impact.Get() : nullptr;
+    BurstSystem = Catalog && Catalog->Burst ? Catalog->Burst.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultBurst);
+    ZoneSystem = Catalog && Catalog->Zone ? Catalog->Zone.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultZone);
 #if WITH_EDITOR
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
     if (Catalog && Catalog->SwingTrail) { Catalog->SwingTrail->RequestCompile(false); }
     if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
+    if (BurstSystem) { BurstSystem->RequestCompile(false); }
+    if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
 #endif
+    if (!BurstSystem || !ZoneSystem)
+    {
+        UE_LOG(LogLDContent, Error, TEXT("LD_PARTICLE_KIT asset=missing burst=%s zone=%s"),
+            BurstSystem ? TEXT("ok") : ULDCombatVfxCatalog::DefaultBurst, ZoneSystem ? TEXT("ok") : ULDCombatVfxCatalog::DefaultZone);
+    }
     if (!ImpactSystem)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
@@ -123,6 +135,8 @@ void ULDImpactFxSubsystem::Deinitialize()
     SlotShell.Reset();
     FreeSlots.Reset();
     ImpactSystem = nullptr;
+    BurstSystem = nullptr;
+    ZoneSystem = nullptr;
     Catalog = nullptr;
     Super::Deinitialize();
 }
@@ -157,15 +171,50 @@ void ULDImpactFxSubsystem::Burst(ULDHumanoidVisualComponent& Source, const FVect
     Effect->SetVariableLinearColor(TEXT("User.SmokeColor"), Plan.SmokeColour);
     Effect->SetVariableLinearColor(TEXT("User.ShardColor"), Plan.ShardColour);
     Effect->Activate(true);
+    Track(Effect, &Source, AgeSeconds);
+}
+
+void ULDImpactFxSubsystem::Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds)
+{
     FLive& Spawned = Live.AddDefaulted_GetRef();
-    Spawned.Source = &Source;
+    Spawned.Source = Source;
+    Spawned.bBound = Source != nullptr;
     Spawned.Effect = Effect;
     Spawned.InitialAge = FMath::Max(AgeSeconds, 0.f);
     if (Effect->IsActive())
     {
         Spawned.bStarted = true;
-        Effect->AdvanceSimulationByTime(Spawned.InitialAge, 1.f / 60.f);
+        if (Spawned.InitialAge > 0.f) { Effect->AdvanceSimulationByTime(Spawned.InitialAge, 1.f / 60.f); }
     }
+}
+
+void ULDImpactFxSubsystem::Kit(const FVector& At, const LDHitVfx::FBurst& Burst, const ULDHumanoidVisualComponent* Source)
+{
+    if (!FApp::CanEverRender() || !BurstSystem || Burst.IsEmpty() || At.ContainsNaN() || (Source && !Source->CanShowImpact())) { return; }
+    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
+    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BurstSystem, At,
+        FRotator::ZeroRotator, FVector(1.f), false, false, ENCPoolMethod::ManualRelease, false);
+    if (!Effect)
+    {
+        UE_LOG(LogLDContent, Warning, TEXT("LD_PARTICLE_KIT spawn=failed"));
+        return;
+    }
+    const float Count = Catalog ? FMath::Max(Catalog->KitCount, 0.f) : 1.f;
+    const float Size = Catalog ? FMath::Max(Catalog->KitSize, 0.f) : 1.f;
+    Effect->SetVariableInt(TEXT("User.SparkCount"), FMath::RoundToInt(float(Burst.Sparks) * Count));
+    Effect->SetVariableInt(TEXT("User.SmokeCount"), FMath::RoundToInt(float(Burst.Smoke) * Count));
+    Effect->SetVariableInt(TEXT("User.ShardCount"), FMath::RoundToInt(float(Burst.Shards) * Count));
+    Effect->SetVariableFloat(TEXT("User.Scale"), Burst.Scale * Size);
+    Effect->SetVariableFloat(TEXT("User.LifeScale"), Burst.Life);
+    Effect->SetVariableFloat(TEXT("User.SpeedScale"), Burst.Speed);
+    Effect->SetVariableFloat(TEXT("User.Drag"), Burst.Drag);
+    Effect->SetVariableVec3(TEXT("User.Gravity"), Burst.Gravity);
+    Effect->SetVariableLinearColor(TEXT("User.SparkColor"), Burst.SparkColour);
+    Effect->SetVariableLinearColor(TEXT("User.CoreColor"), Burst.CoreColour);
+    Effect->SetVariableLinearColor(TEXT("User.SmokeColor"), Burst.SmokeColour);
+    Effect->SetVariableLinearColor(TEXT("User.ShardColor"), Burst.ShardColour);
+    Effect->Activate(true);
+    Track(Effect, Source, 0.f);
 }
 
 void ULDImpactFxSubsystem::Release(int32 Index)
@@ -233,19 +282,37 @@ bool ULDImpactFxSubsystem::LoadLayerAssets()
     return true;
 }
 
+void ULDImpactFxSubsystem::Configure(UStaticMeshComponent& Mesh, bool bShell)
+{
+    Mesh.SetStaticMesh(bShell ? SphereMesh.Get() : PlaneMesh.Get());
+    Mesh.CreateDynamicMaterialInstance(0, bShell ? ShellMaterial.Get() : LayerMaterial.Get());
+}
+
 int32 ULDImpactFxSubsystem::TakeSlot(bool bShell)
 {
+    // An idle slot of the same kind first; then an idle slot of the other kind, re-meshed, so the pool never holds
+    // more than MaxLayers components whatever the mix of hits.
+    int32 Other = INDEX_NONE;
     for (int32 Index = FreeSlots.Num() - 1; Index >= 0; --Index)
     {
         const int32 Slot = FreeSlots[Index];
-        if (SlotShell[Slot] == bShell && IsValid(Slots[Slot]))
+        if (!IsValid(Slots[Slot])) { continue; }
+        if (SlotShell[Slot] == bShell)
         {
             FreeSlots.RemoveAtSwap(Index, EAllowShrinking::No);
             return Slot;
         }
+        if (Other == INDEX_NONE) { Other = Index; }
+    }
+    if (Other != INDEX_NONE && Slots.Num() >= MaxLayers)
+    {
+        const int32 Slot = FreeSlots[Other];
+        FreeSlots.RemoveAtSwap(Other, EAllowShrinking::No);
+        Configure(*Slots[Slot], bShell);
+        SlotShell[Slot] = bShell;
+        return Slot;
     }
     auto* Mesh = NewObject<UStaticMeshComponent>(LayerHost, NAME_None, RF_Transient);
-    Mesh->SetStaticMesh(bShell ? SphereMesh.Get() : PlaneMesh.Get());
     Mesh->SetMobility(EComponentMobility::Movable);
     Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     Mesh->SetGenerateOverlapEvents(false);
@@ -257,7 +324,7 @@ int32 ULDImpactFxSubsystem::TakeSlot(bool bShell)
     Mesh->SetUsingAbsoluteScale(true);
     Mesh->SetHiddenInGame(true);
     Mesh->RegisterComponent();
-    Mesh->CreateDynamicMaterialInstance(0, bShell ? ShellMaterial.Get() : LayerMaterial.Get());
+    Configure(*Mesh, bShell);
     SlotShell.Add(bShell);
     return Slots.Add(Mesh);
 }
@@ -287,7 +354,18 @@ void ULDImpactFxSubsystem::Layers(const ULDHumanoidVisualComponent* Source, cons
         Added.Slot = Slot;
         Added.Layer = Layer;
         Added.Age = FMath::Max(AgeSeconds, 0.f);
-        Added.At = Layer.Place == LDHitVfx::EPlace::Ground ? Feet + FVector(0, 0, 2.f) : Chest;
+        Added.At = Chest;
+        if (Layer.Place == LDHitVfx::EPlace::Ground)
+        {
+            // Lay the mark on the supporting surface under the feet (slopes included), lifted along its normal.
+            FHitResult Ground;
+            FCollisionQueryParams Query(SCENE_QUERY_STAT(LDHitLayerGround), false);
+            Query.bTraceComplex = false;
+            const bool bGround = GetWorld()->LineTraceSingleByObjectType(Ground, Feet + FVector(0, 0, 60.f), Feet - FVector(0, 0, 120.f),
+                FCollisionObjectQueryParams(ECC_WorldStatic), Query);
+            Added.Normal = bGround && Ground.ImpactNormal.Z > .3f ? FVector(Ground.ImpactNormal) : FVector::UpVector;
+            Added.At = (bGround ? FVector(Ground.ImpactPoint) : Feet) + Added.Normal * 2.f;
+        }
         PlaceLayer(Added, LDHitVfx::Brightness(Layer, Added.Age));
     }
 }
@@ -306,7 +384,7 @@ void ULDImpactFxSubsystem::PlaceLayer(FLiveLayer& Shown, float Brightness)
     const APlayerController* Viewer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
     const APlayerCameraManager* Camera = Viewer ? Viewer->PlayerCameraManager.Get() : nullptr;
     FVector Location = Shown.At;
-    FQuat Rotation(FVector::UpVector, Spin);
+    FQuat Rotation = FQuat::FindBetweenNormals(FVector::UpVector, Shown.Normal) * FQuat(FVector::UpVector, Spin);
     FVector Scale = Layer.Place == LDHitVfx::EPlace::Shell ? FVector(Size / 100.f) : FVector(Size / 100.f, Size / 100.f, 1.f);
     if ((Layer.Place == LDHitVfx::EPlace::Sprite || Layer.Place == LDHitVfx::EPlace::Upright) && Camera)
     {
@@ -318,7 +396,7 @@ void ULDImpactFxSubsystem::PlaceLayer(FLiveLayer& Shown, float Brightness)
             Location = Shown.At + ToEye * 35.f;
             if (Layer.Place == LDHitVfx::EPlace::Sprite)
             {
-                Size = LDHitVfx::SpriteCm(Size, FVector::Dist(Eye, Location), Camera->GetFOVAngle());
+                Size *= LDHitVfx::SpriteCompensation(FVector::Dist(Eye, Location), Camera->GetFOVAngle());
                 Scale = FVector(Size / 100.f, Size / 100.f, 1.f);
                 Rotation = FRotationMatrix::MakeFromZ(ToEye).ToQuat() * FQuat(FVector::UpVector, Spin);
             }
@@ -349,6 +427,8 @@ void ULDImpactFxSubsystem::ReleaseLayer(int32 Index)
 void ULDImpactFxSubsystem::FlashScreen(const LDHitVfx::FScreenFlash& InFlash)
 {
     if (InFlash.Seconds <= 0.f || !GetWorld()) { return; }
+    // The edge mask may be needed before any visible hit has loaded the layer assets.
+    LoadLayerAssets();
     Flash = InFlash;
     FlashAt = GetWorld()->GetRealTimeSeconds();
 }
@@ -374,7 +454,7 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
         FLive& Burst = Live[Index];
         const ULDHumanoidVisualComponent* Source = Burst.Source.Get();
         UNiagaraComponent* Effect = Burst.Effect.Get();
-        if (!Source || !Source->CanShowImpact() || !Effect)
+        if ((Burst.bBound && (!Source || !Source->CanShowImpact())) || !Effect)
         {
             Release(Index);
             continue;
@@ -407,4 +487,64 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
         }
         PlaceLayer(Shown, LDHitVfx::Brightness(Shown.Layer, Shown.Age));
     }
+}
+
+LDHitVfx::FLayerTuning ULDImpactFxSubsystem::LayerTuning() const
+{
+    return LDHitVfx::TuningOf(LDHitFeel::Read(), Catalog ? Catalog->LayerSize : 1.f, Catalog ? Catalog->LayerSeconds : 1.f,
+        Catalog ? Catalog->LayerGlow : 1.f);
+}
+
+float ULDImpactFxSubsystem::LocalEffectScale() const
+{
+    const UWorld* World = GetWorld();
+    const ALDPlayerController* Local = Cast<ALDPlayerController>(GEngine && World ? GEngine->GetFirstLocalPlayerController(World) : nullptr);
+    return Local && Local->Controls && Local->Controls->bReduceCombatEffects ? .45f : 1.f;
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing,
+    ELDObservedProjectileLook Look, float RadiusCm, const FRotator& Heading)
+{
+    if (!FApp::CanEverRender()) { return Existing; }
+    const float Thin = LocalEffectScale();
+    const LDHitVfx::FTrail Trail = LDHitVfx::TrailOf(Look, Thin);
+    const LDHitVfx::FZone Zone = LDHitVfx::ZoneOf(Look, RadiusCm, Thin);
+    UNiagaraSystem* Wanted = Trail.bShow && Catalog ? Catalog->SwingTrail.Get() : Zone.bShow ? ZoneSystem.Get() : nullptr;
+    if (IsValid(Existing) && (!Wanted || Existing->GetAsset() != Wanted))
+    {
+        Existing->DestroyComponent();
+        Existing = nullptr;
+    }
+    if (!Wanted) { return nullptr; }
+    UNiagaraComponent* Effect = Existing;
+    if (!IsValid(Effect))
+    {
+        Effect = NewObject<UNiagaraComponent>(Owner.GetOwner(), NAME_None, RF_Transient);
+        if (!Effect) { return nullptr; }
+        Effect->SetAutoActivate(false);
+        Effect->SetAsset(Wanted);
+        Effect->SetupAttachment(&Owner);
+        Effect->RegisterComponent();
+    }
+    if (Trail.bShow)
+    {
+        Effect->SetVariableFloat(TEXT("User.Width"), Trail.WidthCm);
+        Effect->SetVariableFloat(TEXT("User.Lifetime"), Trail.Lifetime);
+        Effect->SetVariableFloat(TEXT("User.SpawnRate"), Trail.Rate);
+        Effect->SetVariableLinearColor(TEXT("User.Colour"), Trail.Colour);
+    }
+    else
+    {
+        // A cone streams outwards from its near third; every other zone fills its disc.
+        const bool bCone = Look == ELDObservedProjectileLook::SpeechCone;
+        Effect->SetRelativeLocation(FVector(bCone ? RadiusCm * .3f : 0.f, 0, 6.f));
+        Effect->SetVariableFloat(TEXT("User.Radius"), bCone ? RadiusCm * .25f : RadiusCm * .9f);
+        Effect->SetVariableVec3(TEXT("User.Velocity"), Heading.RotateVector(Zone.Velocity));
+        Effect->SetVariableFloat(TEXT("User.Lifetime"), Zone.Lifetime);
+        Effect->SetVariableFloat(TEXT("User.SparkRate"), Zone.Rate);
+        Effect->SetVariableFloat(TEXT("User.Scale"), Zone.Scale);
+        Effect->SetVariableLinearColor(TEXT("User.Colour"), Zone.Colour);
+    }
+    if (!Effect->IsActive()) { Effect->Activate(true); }
+    return Effect;
 }
