@@ -882,11 +882,11 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: piece(data, "card_fire_fist")["effects"][0].update(stacks=1), "ObjectShape"),
             # Y25 alone names its element choices, distinct.
             (lambda data: piece(data, "card_live_wire").pop("choose_element"), "CardElementChoice"),
-            (lambda data: piece(data, "card_fire_fist").update(choose_element=["fire"]), "CardElementChoice"),
+            (lambda data: piece(data, "card_fire_fist").update(choose_element=["fire", "water"]), "CardElementChoice"),
             (lambda data: piece(data, "card_live_wire")["choose_element"].append("fire"), "InvalidReference"),
             # A card operation never sits on an active.
             (lambda data: bolt(data)["effects"].append({"op": "auto_recast", "delay": {"unit": "s", "value": 0.5},
-                                                        "damage_ratio": {"unit": "ratio", "value": 0.5}}), "SchemaVariant"),
+                                                        "damage_ratio": {"unit": "ratio", "value": 0.5}}), "CardOnlyEffect"),
             (lambda data: next(row for row in data["display"] if row["id"] == "card_fire_fist").update(
                 description_text="点火 [root.duration]"), "CardTemplate"),
             (lambda data: data["display"].remove(next(row for row in data["display"] if row["id"] == "card_encore")),

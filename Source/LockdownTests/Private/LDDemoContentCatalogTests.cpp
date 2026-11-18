@@ -1343,7 +1343,7 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         ++Forms[int32(Row.Form)];
         ++Types[int32(Row.Type)];
         TestTrue(Row.Id + TEXT(" has one to four vocabulary keys and an effect"),
-            FMath::CountBits(uint64(Row.VocabMask)) >= 1 && FMath::CountBits(uint64(Row.VocabMask)) <= 4 && !Row.Effects.IsEmpty());
+            FMath::CountBits64(uint64(Row.VocabMask)) >= 1 && FMath::CountBits64(uint64(Row.VocabMask)) <= 4 && !Row.Effects.IsEmpty());
         TestEqual(Row.Id + TEXT(": only Y25 chooses an element"), !Row.ChooseElements.IsEmpty(),
             Row.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::ElementAura; }));
         const FLDDemoCardDefinition* Found = nullptr;

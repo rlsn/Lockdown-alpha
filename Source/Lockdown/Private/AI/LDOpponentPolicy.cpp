@@ -1935,7 +1935,7 @@ bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catal
         }
         // The jitter in [0, 1): a deterministic draw of this offer and card, so a retry picks the same card.
         const uint32 Hash = HashCombine(GetTypeHash(Self.CardOffer->OfferId), GetTypeHash(Option));
-        double Score = double(AI.CardVocabScore) * double(FMath::CountBits(uint64(Card->VocabMask & Vocab))) + double(Hash % 10000) / 10000.;
+        double Score = double(AI.CardVocabScore) * double(FMath::CountBits64(uint64(Card->VocabMask & Vocab))) + double(Hash % 10000) / 10000.;
         if (Preset && LDBreakoutPresets::HasCard(*Preset, FName(*Option))) { Score += double(AI.BreakoutCardScore); }
         if (Score > Best)
         {
@@ -2146,7 +2146,7 @@ bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catal
             const auto Shared = [Ability, CardVocab](ELDSkillBranch Path)
             {
                 const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Path);
-                return Branch ? FMath::CountBits(uint64(Branch->VocabMask & CardVocab)) : -1;
+                return Branch ? FMath::CountBits64(uint64(Branch->VocabMask & CardVocab)) : -1;
             };
             OutBranch = Shared(Second) > Shared(First) ? Second : First;
         }

@@ -1191,7 +1191,7 @@ bool LDProgression::DefaultCardTarget(const FLDDemoContentDefinitions& Content, 
         for (const FLDLearnedActive& Active : Build.Actives)
         {
             const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Active.Id);
-            const int32 Shared = Ability ? FMath::CountBits(uint64(Ability->VocabMask & Definition->VocabMask)) : 0;
+            const int32 Shared = Ability ? FMath::CountBits64(uint64(Ability->VocabMask & Definition->VocabMask)) : 0;
             if (Shared > Best)
             {
                 Best = Shared;
