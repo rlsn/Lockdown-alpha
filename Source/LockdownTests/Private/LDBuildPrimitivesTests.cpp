@@ -3746,10 +3746,14 @@ bool FLDCardRuleA18Test::RunTest(const FString& Parameters)
         [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
         {
             const FLDCombatBodyRef Target = F.AddBody();
+            F.Place(Holder, 0, 0);
+            F.Place(Target, 150, 0);
             FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
             Basic.HitClass = ELDCombatHitClass::BasicPrimary;
+            Basic.DamageType = ELDDemoDamageType::Physical;
             FString Error;
-            return TestTrue(TEXT("A primary basic chills its target"), F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
+            const bool bApplied = F.Apply(Basic, Error);
+            return TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A primary basic chills its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
                 && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_ice_fist")));
         });
 }
@@ -3762,10 +3766,14 @@ bool FLDCardRuleA19Test::RunTest(const FString& Parameters)
         [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
         {
             const FLDCombatBodyRef Target = F.AddBody();
+            F.Place(Holder, 0, 0);
+            F.Place(Target, 150, 0);
             FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
             Basic.HitClass = ELDCombatHitClass::BasicPrimary;
+            Basic.DamageType = ELDDemoDamageType::Physical;
             FString Error;
-            return TestTrue(TEXT("A primary basic rots its target"), F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
+            const bool bApplied = F.Apply(Basic, Error);
+            return TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A primary basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
         });
 }
 

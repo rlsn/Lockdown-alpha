@@ -325,9 +325,9 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     struct FRetiredRange { int64 First; int64 Last; };
     static const FRetiredRange RetiredAbilities[] = {{0, 91}, {104, 113}, {119, 125}};
     static const FRetiredRange RetiredStats[] = {{0, 26}};
-    static const FRetiredRange RetiredStatuses[] = {{7, 8}, {11, 11}, {15, 19}, {21, 24}, {28, 29}};
+    static const FRetiredRange RetiredStatuses[] = {{7, 8}, {11, 11}, {15, 19}, {21, 24}, {28, 29}, {33, 33}};
     static const FRetiredRange RetiredCards[] = {{0, 199}};
-    static const FRetiredRange RetiredEffectOps[] = {{5, 6}, {9, 11}, {15, 17}, {19, 19}, {23, 23}, {25, 30}, {32, 36}, {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 68}, {72, 76}, {83, 89}, {100, 100}, {102, 102}, {104, 104}, {120, 129}, {131, 137}, {139, 145}, {147, 151}, {154, 154}, {159, 159}, {161, 161}, {165, 169}};
+    static const FRetiredRange RetiredEffectOps[] = {{5, 6}, {9, 11}, {15, 17}, {19, 19}, {23, 23}, {25, 30}, {32, 36}, {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 68}, {72, 76}, {83, 89}, {96, 96}, {100, 100}, {102, 102}, {104, 104}, {120, 129}, {131, 137}, {139, 145}, {147, 151}, {154, 154}, {159, 159}, {161, 161}, {165, 169}, {195, 195}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
     for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
         {TEXT("stats"), RetiredStats}, {TEXT("cards"), RetiredCards}, {TEXT("statuses"), RetiredStatuses},
@@ -2203,7 +2203,7 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
     if (F.Has(TEXT("choose_element")))
     {
         const TArray<FValue>* Rows;
-        if (!Array(F.Take(TEXT("choose_element")), Rows, Check, Path + TEXT(".choose_element"), 2, 3))
+        if (!Array(F.Take(TEXT("choose_element")), Rows, Check, Path + TEXT(".choose_element"), 2, 5))
         {
             return false;
         }
@@ -2580,7 +2580,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Dash.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), DashMove.DurationMs, 1)
         || !Check.Require(DashMove.DurationMs < InnateDash.Values.CooldownMs, Dash.Path, TEXT("dash outlasts its cooldown"))
         || !Dash.Done() || !Character.Done()
-        || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 22, Ability)
+        || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 25, Ability)
         || !Definitions(F.Take(TEXT("stats")), Out.Stats, Check, TEXT("content.stats"), 5, 5, StatDefinition)
         || !Cards(F.Take(TEXT("cards")), Out.Cards, Check)
         || !Definitions(F.Take(TEXT("final_mods")), Out.FinalMods, Check, TEXT("content.final_mods"), 8, 8, FinalMod)
