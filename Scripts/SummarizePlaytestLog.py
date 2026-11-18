@@ -455,8 +455,10 @@ LOW_PICK_RATE = 0.04
 # along the nearest segment outside them. --baseline-dps replaces it (for example with duel_site results).
 DEFAULT_BASELINE_DPS = ((1, 72.0), (10, 154.0))
 DEFAULT_BASELINE_SOURCE = "spec §3.9 estimate (L1 860 HP / 11.9 s, L10 1580 HP / about 10.25 s)"
-DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card/component"), ("reaction", "reaction"),
-                     ("other", "other"))
+# A reaction's settle hit carries its applier's own source and LD_HIT has no reaction field, so reaction damage stays in
+# its applier's category; a separate reaction share would need an authority field on LD_HIT.
+DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card/component"), ("other", "other"))
+DAMAGE_NOTE = "reaction settles count under their applier's source; reaction share: no data (LD_HIT has no reaction field)"
 MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "dodge", "other")
 NO_DATA = "no data"
 
@@ -505,33 +507,6 @@ def hit_category(event):
     if via.startswith(("card:", "component:")):
         return "card"
     return "other"
-
-
-def reaction_hits(events):
-    """LD_HIT lines that settle a reaction. A reaction resolves inside the triggering hit's commit (ApplyHit applies the
-    elements first) and queues its settle hits, which carry the applier's own source: so LD_REACTION is written first, the
-    next LD_HIT of that log is the triggering hit itself, and the trigger's next struck + fire_settles hits of the same
-    authority time are the settles. LD_HIT has no reaction field, so this follows that commit order."""
-    marked = set()
-    for index, event in enumerate(events):
-        if event.tag != "LD_REACTION":
-            continue
-        want = int(number(event, "struck")) + int(number(event, "fire_settles"))
-        trigger_seen = False
-        for other in events[index + 1:]:
-            if want <= 0:
-                break
-            if other.source != event.source or other.tag != "LD_HIT":
-                continue
-            if other.get("t") != event.get("t"):
-                break
-            if not trigger_seen:
-                trigger_seen = True
-                continue
-            if other.get("src") == event.get("trigger") and id(other) not in marked:
-                marked.add(id(other))
-                want -= 1
-    return marked
 
 
 def training_scope(events, roster):
@@ -698,7 +673,6 @@ def match_metrics(events, baseline):
     levels = LevelTrack(events)
     out = {"has_hits": bool(hits), "has_casts": bool(casts), "contenders": sorted(contenders)}
 
-    reactions = reaction_hits(events)
     share = {"contender": defaultdict(float), "camp": defaultdict(float)}
     for event in hits:
         if event.get("src") not in contenders or event.get("src") == event.get("victim") or event.get("protected") == "1":
@@ -706,7 +680,7 @@ def match_metrics(events, baseline):
         group = "camp" if event.get("victim_kind") == "camp" else "contender" if event.get("victim") in contenders else None
         if group is None:
             continue
-        share[group]["reaction" if id(event) in reactions else hit_category(event)] += number(event, "dmg")
+        share[group][hit_category(event)] += number(event, "dmg")
     out["damage_share"] = share
 
     fights = [fight for contender in sorted(contenders) for fight in contender_fights(contender, casts, hits, deaths, contenders)]
@@ -720,14 +694,22 @@ def match_metrics(events, baseline):
     def field_life(event):
         return event.get("entity") not in dummies and (event.get("entity"), event.get("life")) not in rest_lives
 
+    # LD_MOMENTUM is written when a body leaves (death, rest, retirement); a life still alive when the match ends or the log
+    # stops has none. Dodges are counted over the same lives, and the field lives without a ledger are reported.
     ledgers = [event for event in events if event.tag == "LD_MOMENTUM" and field_life(event)]
+    ledger_lives = {(event.get("entity"), event.get("life")) for event in ledgers}
+    field_lives = {(event.get("contender"), event.get("life")) for event in events if event.tag == "LD_HEARTBEAT"
+                   and event.get("contender") in contenders and field_life({"entity": event.get("contender"),
+                                                                               "life": event.get("life")})}
+    out["lives_without_ledger"] = len(field_lives - ledger_lives)
     momentum = defaultdict(float)
     for event in ledgers:
         for key in (*MOMENTUM_INCOME, "idle", "spent", "overdrive"):
             momentum[key] += number(event, key)
     out["momentum"] = dict(momentum) if ledgers else None
     out["momentum_lives"] = len(ledgers)
-    out["perfect_dodges"] = sum(1 for event in events if event.tag == "LD_PERFECT_DODGE" and field_life(event))
+    out["perfect_dodges"] = sum(1 for event in events if event.tag == "LD_PERFECT_DODGE" and field_life(event)
+                                and (event.get("entity"), event.get("life")) in ledger_lives)
     out["training_lines"] = sum(1 for event in events if event.tag in ("LD_MOMENTUM", "LD_PERFECT_DODGE")
                                 and not field_life(event))
 
@@ -784,8 +766,19 @@ def match_metrics(events, baseline):
     summary = next((event for event in events if event.tag == "LD_MATCH_SUMMARY"), None)
     rows = [event for event in events if event.tag == "LD_MATCH_SUMMARY_ROW" and summary is not None
             and event.get("contender") == summary.get("winner")]
-    out["winner_build"] = rows[0].get("skills") if rows and rows[0].get("skills") else None
+    out["winner_build"] = build_fingerprint(rows[0]) if rows else None
     return out
+
+
+def build_fingerprint(row):
+    """A winner's build: its Q/W/E actives, allocated points and installed components or cards with their bindings (the
+    LD_MATCH_SUMMARY_ROW build text). None when the row predates the points and components fields."""
+    if not row.get("skills") or "points" not in row.fields or not ({"components", "cards"} & row.fields.keys()):
+        return None
+    actives = sorted(item.partition("/")[0] for item in row.get("skills").split(",") if item and item != "-")
+    installed = sorted(item[1:] for key in ("components", "cards") for item in row.get(key, "-").split(",")
+                       if item.startswith("+"))
+    return (tuple(actives), row.get("points"), tuple(installed))
 
 
 def share_line(amounts):
@@ -820,7 +813,8 @@ def metric_lines(metrics, names, baseline_source):
     if not metrics["has_hits"]:
         return [f"- {NO_DATA}: the metrics need the Host log (LD_HIT, LD_CAST, LD_DEATH_RECEIPT, LD_MOMENTUM)."]
     lines = [f"- Damage share, hits on contenders: {share_line(metrics['damage_share']['contender'])}",
-             f"- Damage share, hits on camps: {share_line(metrics['damage_share']['camp'])}"]
+             f"- Damage share, hits on camps: {share_line(metrics['damage_share']['camp'])}",
+             f"  - {DAMAGE_NOTE}"]
     fights, kills = metrics["fights"], metrics["kills"]
     lines.append(f"- Casts per person per fight (Q/W/E releases): {casts_text(fights, metrics['has_casts'])}")
     lines.append(f"  - same-level fights: {casts_text([fight for fight in fights if fight.same_level], metrics['has_casts'])}")
@@ -828,7 +822,9 @@ def metric_lines(metrics, names, baseline_source):
     for level in sorted({kill["level"] for kill in kills if kill["same_level"]}):
         lines.append(f"  - same level L{level}: {ttk_text([kill for kill in kills if kill['same_level'] and kill['level'] == level])}")
     lines.append(f"- Momentum income: {momentum_text(metrics['momentum'], metrics['momentum_lives'], metrics['perfect_dodges'])}"
-                 + (f" ({metrics['training_lines']} rest-training ledger/dodge lines left out)" if metrics["training_lines"] else ""))
+                 + (f" ({metrics['training_lines']} rest-training ledger/dodge lines left out)" if metrics["training_lines"] else "")
+                 + (f"; incomplete: {metrics['lives_without_ledger']} field lives have no ledger (alive at the match end)"
+                    if metrics["lives_without_ledger"] else ""))
     ratios = metrics["output_ratio"]
     breakouts = sum(1 for ratio in ratios.values() if ratio >= BREAKOUT_RATIO)
     ranked = ", ".join(f"{names(contender)} x{ratio:.2f}" for contender, ratio in sorted(ratios.items(), key=lambda row: -row[1]))
@@ -904,6 +900,8 @@ def aggregate_lines(all_metrics, baseline_source):
     moments = [len(metrics["outrageous"]) + sum(1 for steps in (metrics["chains"] or []) if steps >= CHAIN_OUTRAGEOUS_STEPS)
                for metrics in host]
     winners = [metrics["winner_build"] for metrics in host if metrics["winner_build"]]
+    winner_text = (f"{len(set(winners))} in {len(winners)} decided matches" if winners
+                   else f"{NO_DATA} (no winner row with points and components)")
     lines += ["| Metric | Target | Result |", "| --- | --- | --- |",
               f"| Same-level L1 time to kill | 10–12 s | {ttk_text([kill for kill in same_kills if kill['level'] == 1])} |",
               f"| Same-level time to kill, any level | — | {ttk_text(same_kills)} |",
@@ -912,7 +910,7 @@ def aggregate_lines(all_metrics, baseline_source):
               f"{casts_text([fight for fight in fights if fight.same_level], has_casts)} |",
               f"| Casts per person per fight, any level | — | {casts_text(fights, has_casts)} |",
               f"| Breakout builds per match (x{BREAKOUT_RATIO:g} the same-level bare build) | 1–2 | {stats_text(breakouts, 2)} |",
-              f"| Distinct winner builds (Q/W/E sets) | ≥ 8 per 50 matches | {len(set(winners))} in {len(winners)} decided matches |",
+              f"| Distinct winner builds (actives, points, installed components or cards) | ≥ 8 per 50 matches | {winner_text} |",
               f"| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | "
               f"{sum(1 for count in moments if count)} of {len(host)} |",
               f"| Reaction kinds per match | ≥ 6 (after P4) | {stats_text([len(metrics['reaction_kinds']) for metrics in host])} |",
@@ -920,7 +918,7 @@ def aggregate_lines(all_metrics, baseline_source):
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
               f"Breakout baseline: {baseline_source}.", ""]
     totals = {"contender": defaultdict(float), "camp": defaultdict(float)}
-    momentum, lives, dodges = defaultdict(float), 0, 0
+    momentum, lives, dodges, missing = defaultdict(float), 0, 0, 0
     for metrics in host:
         for group, amounts in metrics["damage_share"].items():
             for key, value in amounts.items():
@@ -929,9 +927,12 @@ def aggregate_lines(all_metrics, baseline_source):
             momentum[key] += value
         lives += metrics["momentum_lives"]
         dodges += metrics["perfect_dodges"]
+        missing += metrics["lives_without_ledger"]
     lines.append(f"- Damage share, hits on contenders: {share_line(totals['contender'])}")
     lines.append(f"- Damage share, hits on camps: {share_line(totals['camp'])}")
-    lines.append(f"- Momentum income: {momentum_text(momentum, lives, dodges)}")
+    lines.append(f"  - {DAMAGE_NOTE}")
+    lines.append(f"- Momentum income: {momentum_text(momentum, lives, dodges)}"
+                 + (f"; incomplete: {missing} field lives have no ledger (alive at the match end)" if missing else ""))
     for level in sorted({kill["level"] for kill in same_kills}):
         lines.append(f"- Same-level time to kill at L{level}: {ttk_text([kill for kill in same_kills if kill['level'] == level])}")
     chains = [steps for metrics in host for steps in (metrics["chains"] or [])]
@@ -953,11 +954,18 @@ def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_a
                     DEFAULT_BASELINE_DPS if baseline is None else baseline, source, metrics_only)
     report.out("# Lockdown playtest summary")
     report.out()
+    # A generation is unique only inside one Host process. When several Host logs reuse one, each Host log's match stays
+    # apart and the client logs of that generation, which cannot be tied to one of them, are listed on their own.
+    hosts = defaultdict(set)
+    for event in events:
+        if event.generation is not None and event.tag in ("LD_MATCH_HEADER", "LD_MATCH_STARTED", "LD_MATCH_STARTING"):
+            hosts[event.generation].add(event.source)
     by_generation = defaultdict(list)
     for event in events:
-        by_generation[event.generation].append(event)
-    for generation in sorted(key for key in by_generation if key is not None):
-        report.match(generation, by_generation[generation])
+        run = event.source if event.generation is not None and len(hosts.get(event.generation, ())) > 1 else ""
+        by_generation[(event.generation, run) if event.generation is not None else None].append(event)
+    for key in sorted(key for key in by_generation if key is not None):
+        report.match(f"{key[0]} ({key[1]})" if key[1] else key[0], by_generation[key])
     if report.metrics:
         for text in aggregate_lines(report.metrics, source):
             report.out(text)

@@ -214,7 +214,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         text = summarize(collect([str(self.root / "Host.log")]))
         metrics = text.split("## Match 7")[1].split("### Metrics (spec §16)")[1].split("###")[0]
         # Hits on contenders: the basic 60 and the skill 450; on camps the basic 5. Old LD_HIT carries amp_bp, no factors.
-        self.assertIn("hits on contenders: 510 dmg: basic 11.8%, skill 88.2%, card/component 0.0%, reaction 0.0%", metrics)
+        self.assertIn("hits on contenders: 510 dmg: basic 11.8%, skill 88.2%, card/component 0.0%, other 0.0%", metrics)
+        self.assertIn("reaction share: no data (LD_HIT has no reaction field)", metrics)
         self.assertIn("hits on camps: 5 dmg: basic 100.0%", metrics)
         self.assertIn("Casts per person per fight (Q/W/E releases): no data (no LD_CAST line", metrics)
         # The victim never hit back: a one-sided kill is counted but is no time to kill of a fight.
@@ -229,7 +230,9 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         across = text.split("## Metrics across 1 matches with Host lines")[1]
         self.assertIn("| Same-level L1 time to kill | 10–12 s | no data (+1 one-sided kills) |", across)
         self.assertIn("| Casts per person per same-level fight | 7–10 | no data (no LD_CAST line", across)
-        self.assertIn("| Distinct winner builds (Q/W/E sets) | ≥ 8 per 50 matches | 1 in 1 decided matches |", across)
+        # The old summary row has no components field: winner builds are not comparable.
+        self.assertIn("| Distinct winner builds (actives, points, installed components or cards) | ≥ 8 per 50 matches | "
+                      "no data (no winner row with points and components) |", across)
         self.assertIn("Actives pick rate (picked / offered), 4 ids, 3 below 4%:", across)
         self.assertIn("| active_snark_bolt | 1 | 1 | 100.0% |", across)
         self.assertIn("Cards pick rate: no data (none offered)", across)
@@ -286,14 +289,16 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertNotIn("### Roster", text)
         self.assertNotIn("### Deaths", text)
         metrics = text.split("### Metrics (spec §16)")[1].split("## Metrics across")[0]
-        # 910 on contenders: skill 100 + 60 (the trigger) + 600, card 40, the Overload settle 60 (reaction), basic 50.
-        self.assertIn("hits on contenders: 910 dmg: basic 5.5%, skill 83.5%, card/component 4.4%, reaction 6.6%, other 0.0%", metrics)
+        # 910 on contenders: skill 100 + 60 + 60 + 600 (the Overload settle stays under its applier's skill), card 40, basic 50.
+        self.assertIn("hits on contenders: 910 dmg: basic 5.5%, skill 90.1%, card/component 4.4%, other 0.0%", metrics)
         # A's fight holds its three releases; B's fight its one (it died at 13000).
         self.assertIn("Casts per person per fight (Q/W/E releases): n=2 mean 2.0 median 2.0 min 1.0 max 3.0", metrics)
         self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 2.9 s", metrics)
         self.assertIn("Momentum income: 110 over 2 field lives (basic 18.2%, combat 18.2%, skill 40.9%, reaction 9.1%, dodge 13.6%, "
                       "other 0.0%); idle drift -5, spent 130, overdrives 1, perfect dodges 1 "
                       "(3 rest-training ledger/dodge lines left out)", metrics)
+        # Both field lives with a heartbeat closed their ledgers.
+        self.assertNotIn("incomplete:", metrics)
         # A dealt 860 in 3.0 s of fight (10000..13000); the L1 bare build would deal 72 x 3.0 = 216.
         self.assertIn("Breakout builds (output / same-level bare build >= 3, baseline spec §3.9 estimate", metrics)
         self.assertIn("): 1 (A x3.98, B x0.24)", metrics)
@@ -316,6 +321,45 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         # A measured baseline replaces the estimate and is named in the report.
         measured = summarize(collect([str(self.root / "P2.log")]), baseline=parse_baseline("1=300"), metrics_only=True)
         self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.96, B x0.06)", measured)
+
+    def test_winner_builds_lives_without_ledgers_and_reused_generations(self):
+        def run(name, points, components, with_ledger):
+            rows = [
+                line(1, "LogLDMatch", "Display", "LD_MATCH_STARTED generation=1 contenders=2 started_at_ms=0"),
+                line(1, "LogLDMatch", "Display", f"LD_MATCH_HEADER generation=1 ledger={name} product=0.11.0"),
+                line(1, "LogLDMatch", "Display", f"LD_MATCH_ROSTER generation=1 slot=0 contender={AI} name=A kind=AI host=0 character=c address=ai"),
+                line(1, "LogLDMatch", "Display", f"LD_MATCH_ROSTER generation=1 slot=1 contender={CLIENT} name=B kind=AI host=0 character=c address=ai"),
+                line(2, "LogLDTrace", "Log", f"LD_HEARTBEAT t=2000 contender={AI} phase=Alive life=1 pos=0,0,0"),
+                line(2, "LogLDTrace", "Log", f"LD_HEARTBEAT t=2000 contender={CLIENT} phase=Alive life=1 pos=0,0,0"),
+                line(3, "LogLDCombat", "Log",
+                     f"LD_HIT t=3000 src={AI} src_kind=contender src_monster=- credit={AI} victim={CLIENT} victim_life=1 "
+                     "victim_kind=contender victim_monster=- via=basic class=basic type=physical dmg=10.00 absorbed=0.00 "
+                     "hp_lost=10.00 hp=860.00->850.00 max_hp=860.00 shield=0.00->0.00 amp_bp=10000 resist=0.00 crit=0 "
+                     "protected=0 periodic=0 reflect=0 added=0 controls=- vamp=0.00 lethal=0 pool_bp=0"),
+                line(9, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY generation=1 reason=GuardSucceeded winner={AI} duration_ms=9000"),
+                line(9, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY_ROW generation=1 contender={AI} name=A kind=AI left=0 winner=1 "
+                     f"level=3 xp=1 kills=0 deaths=0 assists=0 choices=1 skills=active_zap/Q blueprints=- points={points} "
+                     f"components={components}"),
+            ]
+            if with_ledger:
+                rows.append(line(9, "LogLDCombat", "Log", f"LD_MOMENTUM entity={CLIENT} life=1 basic=10.00 combat=0.00 skill=0.00 "
+                                 "reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=0 end=60.00"))
+            (self.root / f"{name}.log").write_text("\n".join(rows) + "\n", encoding="utf-8")
+            return str(self.root / f"{name}.log")
+
+        first = run("RunA", "3,0,0,0,0", "+component_fist_fire,component_long_kick", True)
+        second = run("RunB", "0,0,3,0,0", "+component_fist_fire", False)
+        text = summarize(collect([first, second]), metrics_only=True)
+        # Both Host processes started at generation 1: two matches, not one merged match.
+        self.assertIn("## Match 1 (RunA)", text)
+        self.assertIn("## Match 1 (RunB)", text)
+        across = text.split("## Metrics across 2 matches with Host lines")[1]
+        # Same actives, different points: two builds; an owned but uninstalled component does not count.
+        self.assertIn("| 2 in 2 decided matches |", across)
+        # RunA closed B's ledger and left A alive; RunB closed none.
+        self.assertIn("incomplete: 3 field lives have no ledger (alive at the match end)", across)
+        same = summarize(collect([first, run("RunC", "3,0,0,0,0", "+component_fist_fire", True)]), metrics_only=True)
+        self.assertIn("| 1 in 2 decided matches |", same)
 
     def test_baseline_points_interpolate_and_extend(self):
         points = parse_baseline("10=154,1=72")
