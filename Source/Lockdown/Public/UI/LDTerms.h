@@ -98,19 +98,13 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
 inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
-// #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件。#222 起随时可以安装、拆下和搬动；
-// #227 起拿到的构件进 HUD 右侧的构件库，拖到技能列上安装。
-inline constexpr TCHAR Component[]=TEXT("构件");
-inline constexpr TCHAR TakeAndEquip[]=TEXT("装到本体");
-inline constexpr TCHAR TakeToStorage[]=TEXT("放进构件库");
-// #227 构件库的放下选择：B18 放到技能上选元素，C12 选要重复的已安装基础构件。
-inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
+// 构筑牌（APP_SPEC §4）：形式（普攻、技能、冲刺、本体）× 类型（触发、改造、转化、成长、元素）；三选一拿到的牌进牌库，
+// 拖到对应的列上安装。
+inline constexpr TCHAR Card[]=TEXT("牌");
+inline constexpr TCHAR TakeToStorage[]=TEXT("放进牌库");
+inline constexpr TCHAR PickElement[]=TEXT("选哪种元素：");
 inline constexpr TCHAR CancelBinding[]=TEXT("取消");
-// #198 F 改装件 / 连接件的安装位置：已学的技能、已安装的构件、冲刺(D) 或自身。
-inline constexpr TCHAR PickRepeatedBase[]=TEXT("重复哪个基础构件：");
 inline constexpr TCHAR TargetDash[]=TEXT("冲刺(D)");
-inline constexpr TCHAR TargetSelf[]=TEXT("自身");
-inline constexpr TCHAR TargetConflict[]=TEXT("同形态的构件不能装在同一处，拖到它上面替换");
 inline constexpr TCHAR WorkshopPreview[]=TEXT("数值变化");
 inline constexpr TCHAR WorkshopPreviewPartial[]=TEXT("数值变化 · 部分");
 inline constexpr TCHAR WorkshopPreviewSnapshot[]=TEXT("当前快照 · 未列出的效果以规则说明和实际结算为准");
@@ -135,68 +129,69 @@ inline constexpr TCHAR WorkshopCooldown[]=TEXT("冷却");
 inline constexpr TCHAR WorkshopRange[]=TEXT("射程");
 inline constexpr TCHAR WorkshopProjectileRadius[]=TEXT("投射物半径");
 inline constexpr TCHAR WorkshopLineHalfWidth[]=TEXT("判定半宽");
-inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（装在：%s）"),*Target);}
-inline FString InstalledRepeating(const FString& Target,const FString& Base){return FString::Printf(TEXT("（%s · 重复 %s）"),*Target,*Base);}
+inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（%s）"),*Target);}
 inline constexpr TCHAR ElementFire[]=TEXT("火");
 inline constexpr TCHAR ElementWater[]=TEXT("水");
 inline constexpr TCHAR ElementElectric[]=TEXT("电");
-inline FString ComponentTaken(const FString& Name){return FString::Printf(TEXT("已拿到%s：%s"),Component,*Name);}
-inline FString ComponentInstalled(const FString& Name){return FString::Printf(TEXT("已启用%s：%s"),Component,*Name);}
-inline FString ComponentStored(const FString& Name,const FString& Why)
-{return Why.IsEmpty()?ComponentTaken(Name):FString::Printf(TEXT("已拿到%s：%s，先存着（%s）"),Component,*Name,*Why);}
-inline FString ComponentRemoved(const FString& Name){return FString::Printf(TEXT("已拆下%s：%s"),Component,*Name);}
-// 升级横幅的第二行：这次升级得到的属性点、主动机会与构件（构件名用顿号连接，空表示没有）。
-inline FString LevelUpGains(int64 Points,int32 Offers,const FString& NewComponents)
+inline FString CardTaken(const FString& Name){return FString::Printf(TEXT("已拿到牌：%s"),*Name);}
+inline FString CardInstalled(const FString& Name){return FString::Printf(TEXT("已装上：%s"),*Name);}
+inline FString CardStored(const FString& Name,const FString& Why)
+{return Why.IsEmpty()?CardTaken(Name):FString::Printf(TEXT("已拿到牌：%s，先放牌库（%s）"),*Name,*Why);}
+inline FString CardRemoved(const FString& Name){return FString::Printf(TEXT("已拆下：%s"),*Name);}
+inline constexpr TCHAR CardsSkipped[]=TEXT("已跳过这组牌");
+inline FString CardsRerolled(int32 Left){return FString::Printf(TEXT("已重抽，还剩 %d 次"),Left);}
+inline FString CardLocked(const FString& Name){return FString::Printf(TEXT("已锁定：%s"),*Name);}
+inline constexpr TCHAR CardUnlocked[]=TEXT("已取消锁定");
+// 升级横幅的第二行：这次升级得到的属性点、主动机会与牌三选一。
+inline FString LevelUpGains(int64 Points,int32 Offers,int32 CardOffers)
 {
     TArray<FString> Parts;
     if(Points>0){Parts.Add(FString::Printf(TEXT("%lld %s"),Points,StatPoints));}
     if(Offers>0){Parts.Add(OfferChance(Offers));}
-    if(!NewComponents.IsEmpty()){Parts.Add(FString(Component)+TEXT("「")+NewComponents+TEXT("」"));}
+    if(CardOffers>0){Parts.Add(CardOffers>1?FString::Printf(TEXT("%d 次选牌"),CardOffers):FString(TEXT("一次选牌")));}
     return Parts.IsEmpty()?FString():TEXT("获得 ")+FString::Join(Parts,TEXT(" · "));
 }
 inline FString LearnInto(const FString& Key){return FString(TEXT("学到 "))+Key;}
 inline FString LearnedInto(const FString& Name,const FString& Key){return FString::Printf(TEXT("已学到 %s：%s"),*Key,*Name);}
 inline FString StoredAsBlueprint(const FString& Name,const FString& Why)
 {return Why.IsEmpty()?FString::Printf(TEXT("已存为%s：%s"),Blueprint,*Name):FString::Printf(TEXT("已存为%s：%s（%s）"),Blueprint,*Name,*Why);}
-// 不能学习、加点或使用休息服务的原因（#222：学习、加点与构件随时可用，休息服务仍要活着、在配装窗口和 NPC 旁边）。
+// 不能学习、加点或使用休息服务的原因（学习、加点与装牌随时可用，休息服务仍要活着、在配装窗口和 NPC 旁边）。
 inline constexpr TCHAR DeadNoLearn[]=TEXT("阵亡中");
 inline constexpr TCHAR SlotsFull[]=TEXT("Q/W/E 已满");
 inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
-// #227 构件库（HUD 中央右侧的牌堆）与展开后的安装列：本体、Q/W/E 与冲刺(D) 各一列。
-inline constexpr TCHAR Storage[]=TEXT("构件库");
-inline constexpr TCHAR StorageEmpty[]=TEXT("构件库为空");
-inline constexpr TCHAR StorageNoMatches[]=TEXT("没有符合的构件");
-inline constexpr TCHAR StorageNoRoom[]=TEXT("构件库空间不足，暂时无法显示");
+// 牌库（HUD 右侧的牌堆）与展开后的安装列：普攻、Q/W/E、冲刺(D) 与本体各一列。
+inline constexpr TCHAR Storage[]=TEXT("牌库");
+inline constexpr TCHAR StorageEmpty[]=TEXT("牌库为空");
+inline constexpr TCHAR StorageNoMatches[]=TEXT("没有符合的牌");
+inline constexpr TCHAR StorageNoRoom[]=TEXT("牌库空间不足，暂时无法显示");
 inline constexpr TCHAR StoragePreviousPage[]=TEXT("上一页");
 inline constexpr TCHAR StorageNextPage[]=TEXT("下一页");
 inline constexpr TCHAR PendingNoRoom[]=TEXT("待处理区空间不足，暂时无法完整显示");
+inline constexpr TCHAR ColumnBasic[]=TEXT("普攻");
 inline constexpr TCHAR ColumnBody[]=TEXT("本体");
 inline constexpr TCHAR ColumnEmptySlot[]=TEXT("空技能槽");
 inline constexpr TCHAR DropHere[]=TEXT("放这里");
 inline FString StorageFresh(int32 Count){return FString::Printf(TEXT("新 %d"),Count);}
-inline FString RepeatingNote(const FString& Base){return FString::Printf(TEXT("重复 %s"),*Base);}
+inline FString CopiesBadge(int32 Copies){return FString::Printf(TEXT("×%d"),Copies);}
 inline FString CannotGoThere(const FString& Name,const FString& Where){return FString::Printf(TEXT("%s不能装在%s"),*Name,*Where);}
-inline FString MovingDetaches(const FString& Names){return FString::Printf(TEXT("装在它上面的%s一起回到构件库"),*Names);}
-// 构件悬停弹层：库中构件现在能装到哪些列（本体、Q/W/E、D），没有就直说。
+// 牌的悬停弹层：库里的牌现在能装到哪些列，没有就直说。
 inline FString CanGoOn(const FString& Columns){return FString::Printf(TEXT("可装：%s"),*Columns);}
 inline constexpr TCHAR NoPlaceNow[]=TEXT("现在没有可装的位置");
-// Every installed base, mod and connector takes one workshop slot; the level sets how many there are.
+// 每张装上的牌占一格容量；等级决定格数。
 inline constexpr TCHAR WorkshopFullReason[]=TEXT("工坊已满");
-inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，拖到一件已装构件上替换它"),Capacity,Capacity);}
+inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，拖到一张已装的牌上替换它"),Capacity,Capacity);}
 inline FString WorkshopFullNoPlace(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，现在没有可替换的位置"),Capacity,Capacity);}
-inline constexpr TCHAR ComponentColumnFullReason[]=TEXT("该列已达安装上限");
 inline constexpr TCHAR NoSkillPointReason[]=TEXT("没有技能点");
 inline constexpr TCHAR SkillRank[]=TEXT("等级");
 inline constexpr TCHAR Close[]=TEXT("关闭");
 inline constexpr TCHAR BranchUnavailableReason[]=TEXT("不能升到这个分支");
-inline constexpr TCHAR ReplaceAvailable[]=TEXT("拖到可替换的已装构件上");
-// 拖动构件时跟随的一行预览：放下会装到哪里，替换谁、连带拆下谁；联动行列出已拥有的相关技能和构件，同形态行列出互斥的构件。
+inline constexpr TCHAR ReplaceAvailable[]=TEXT("拖到可替换的已装牌上");
+// 拖动牌时跟随的一行预览：放下会装到哪里、替换谁；联动行列出词汇相通的技能和牌。
 inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT("装到 %s"),*Place);}
-inline FString DropReplaces(const FString& Replaced,const FString& With,const FString& Place)
-{return With.IsEmpty()?FString::Printf(TEXT("替换 %s · 装到 %s"),*Replaced,*Place):FString::Printf(TEXT("替换 %s · 连带拆下 %s · 装到 %s"),*Replaced,*With,*Place);}
+inline FString DropReplaces(const FString& Replaced,const FString& Place){return FString::Printf(TEXT("替换 %s · 装到 %s"),*Replaced,*Place);}
 inline constexpr TCHAR DropNowhere[]=TEXT("不能装在这里");
-// 工坊台（构筑的全屏视图）：规则板、容量条、构件库分组、角色栏、待处理与信息坞。
+// 工坊台（构筑的全屏视图）：规则板、容量条、牌库分组、角色栏、待处理与信息坞。
 inline constexpr TCHAR WorkshopCapacityTitle[]=TEXT("工坊容量");
 inline FString WorkshopUnlockAt(int32 Level){return FString::Printf(TEXT("Lv %d 解锁下一格"),Level);}
 inline constexpr TCHAR WorkshopPending[]=TEXT("待处理");
@@ -221,11 +216,6 @@ inline FString ReactionExplanation(const FString& Name)
     return Name==ReactionFog?FString(ReactionFogRule):Name==ReactionConduct?FString(ReactionConductRule)
         :Name==ReactionOverload?FString(ReactionOverloadRule):FString();
 }
-// 基础规则的触发来源（内容效果的触发字段）。
-inline constexpr TCHAR TriggerBasicHit[]=TEXT("普攻命中");
-inline constexpr TCHAR TriggerAbilityHit[]=TEXT("主动命中");
-inline constexpr TCHAR TriggerDamaged[]=TEXT("受到伤害");
-inline constexpr TCHAR TriggerDashComplete[]=TEXT("冲刺完成");
 // 构筑时刻：主动三选一页与终局改装页。
 inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
 inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
@@ -245,20 +235,23 @@ inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
 inline constexpr TCHAR FinalPickSource[]=TEXT("此列有多个来源");
 inline const TCHAR* FinalPartLabel(int32 Part){return Part==0?TEXT("效果"):Part==1?TEXT("代价"):TEXT("须知");}
 inline constexpr TCHAR FinalLock[]=TEXT("按住选定改装");
-inline constexpr TCHAR FinalTakenNote[]=TEXT("改装只选一次；技能和构件仍可随时调整。");
+inline constexpr TCHAR FinalTakenNote[]=TEXT("改装只选一次；技能和牌仍可随时调整。");
 inline constexpr TCHAR FinalDormant[]=TEXT("未生效 · 来源已拆下");
 inline constexpr TCHAR FinalRebind[]=TEXT("重新绑定");
 inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
-inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
-inline const TCHAR* ComponentKindName(uint8 Kind){return Kind==0?TEXT("基础规则"):Kind==1?TEXT("技能改装"):TEXT("联动规则");}
-inline const TCHAR* ComponentTagName(uint8 Tag)
-{
-    static const TCHAR* const Names[]={TEXT("弹道"),TEXT("法术"),TEXT("控制"),TEXT("元素"),TEXT("区域"),TEXT("冲撞"),TEXT("普攻"),TEXT("防御"),
-        TEXT("节奏"),TEXT("记账")};
-    return Tag<UE_ARRAY_COUNT(Names)?Names[Tag]:TEXT("");
-}
+// 牌的形式与类型（APP_SPEC §4）。
+inline const TCHAR* CardFormName(uint8 Form)
+{return Form==0?TEXT("普攻"):Form==1?TEXT("技能"):Form==2?TEXT("冲刺"):Form==3?TEXT("本体"):TEXT("");}
+inline const TCHAR* CardTypeName(uint8 Type)
+{return Type==0?TEXT("触发"):Type==1?TEXT("改造"):Type==2?TEXT("转化"):Type==3?TEXT("成长"):Type==4?TEXT("元素"):TEXT("");}
+// 牌三选一（APP_SPEC §4）：开局 R0 一组，之后每升一级一组，野外奖励也给一组；可重抽、锁一张带到下一组、跳过。
+inline constexpr TCHAR CardStageTitle[]=TEXT("选一张牌");
+inline FString CardOfferOf(int32 Ordinal,int32 Queued){return Queued>1?FString::Printf(TEXT("还有 %d 组"),Queued-1):FString();}
+inline FString CardReroll(int32 Left){return FString::Printf(TEXT("重抽 %d"),Left);}
+inline constexpr TCHAR CardLock[]=TEXT("锁定");
+inline constexpr TCHAR CardSkip[]=TEXT("跳过");
 inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("已加 %lld 点，还剩 %lld 点"),Spent,Left);}
 
 // 休息服务（#198，APP_SPEC §4.4/§5）：只在休息的配装窗口（配装与派奖）可用，服务器裁决每一条命令。
@@ -278,43 +271,11 @@ inline FString Respecced(int64 Refunded,int64 Left){return FString::Printf(TEXT(
 inline FString Replaced(const FString& NewName,const FString& Key,const FString& OldName)
 {return FString::Printf(TEXT("已在 %s 用 %s 替换 %s"),*Key,*NewName,*OldName);}
 inline FString Forgotten(const FString& Name){return FString::Printf(TEXT("已遗忘：%s（之后还能再抽到）"),*Name);}
-// #198 G 材料服务（APP_SPEC §4.5）：补缺花点数给从未启用、完全没有能装位置的改装件/连接件补一个能提供入口的普通基础构件；
-// 拆解交出几件不同的普通构件换 1 件随机普通构件（稀缺件不收，随机结果在支付时固定，池空时什么都不拆）。
-inline FString FillGapService(int64 Points){return FString::Printf(TEXT("补缺（%lld 点）"),Points);}
-inline FString DismantleService(int64 Count){return FString::Printf(TEXT("拆解（%lld 换 1）"),Count);}
-inline constexpr TCHAR PickGapTarget[]=TEXT("给哪个构件补缺：");
-inline constexpr TCHAR PickGapFiller[]=TEXT("补哪个基础构件：");
-inline constexpr TCHAR NoGapTarget[]=TEXT("没有缺口：每个没启用的改装件/连接件都有能装的位置");
-inline constexpr TCHAR NoGapFillerLeft[]=TEXT("缺口没有能补的未持有普通基础构件");
-inline FString PickDismantle(int64 Count){return FString::Printf(TEXT("选 %lld 件不同的普通构件交出（稀缺件不收）："),Count);}
-inline FString DismantleTooFew(int64 Count){return FString::Printf(TEXT("普通构件不足 %lld 件"),Count);}
-inline FString DismantlePicked(int32 Picked,int64 Count){return FString::Printf(TEXT("已选 %d/%lld"),Picked,Count);}
-inline constexpr TCHAR DismantleResult[]=TEXT("随机普通构件");
-inline FString FillGapConfirm(int64 Points,const FString& Target,const FString& Filler)
-{return FString::Printf(TEXT("花 %lld 点：为 %s 补 %s？点数不退还，同一构件只能补一次"),Points,*Target,*Filler);}
-inline FString DismantleConfirm(const FString& Removed,const FString& Detached)
-{
-    return Detached.IsEmpty()?FString::Printf(TEXT("交出 %s，换 1 件随机普通构件？交出的构件会删除"),*Removed)
-        :FString::Printf(TEXT("交出 %s，换 1 件随机普通构件？交出的构件会删除，%s 退回背包"),*Removed,*Detached);
-}
-inline FString GapFilled(int64 Points,const FString& Name){return FString::Printf(TEXT("已花 %lld 点补缺：拿到%s「%s」"),Points,Component,*Name);}
-inline FString Dismantled(const FString& Removed,const FString& Name,const FString& Detached)
-{
-    return Detached.IsEmpty()?FString::Printf(TEXT("已拆解 %s，换到%s「%s」"),*Removed,Component,*Name)
-        :FString::Printf(TEXT("已拆解 %s，换到%s「%s」；%s 退回背包"),*Removed,Component,*Name,*Detached);
-}
-// #198 G 精英营地奖励：两个已知普通构件二选一（只剩一个时如实只给一个）；全都已持有时改领点数。
-inline FString ComponentChoicePoints(int64 Points){return FString::Printf(TEXT("都已持有，改领 %lld 点"),Points);}
-inline constexpr TCHAR ComponentChoiceOwned[]=TEXT("已持有");
-inline constexpr TCHAR ComponentChoiceTookPoints[]=TEXT("精英营地奖励的构件都已持有，已改领点数");
-// #198 G 野外奖励（天降外卖、画饼老板、高档/精英营地标记）的提示。
+// 野外奖励（天降外卖、画饼老板、高档/精英营地标记）的提示。
 inline constexpr TCHAR FieldRewardHighCamp[]=TEXT("高档营地标记");
 inline constexpr TCHAR FieldRewardEliteCamp[]=TEXT("精英营地标记");
 inline FString FieldRewardBlueprint(const FString& Name){return FString::Printf(TEXT("获得%s「%s」"),Blueprint,*Name);}
-inline FString FieldRewardScarce(const FString& Name){return FString::Printf(TEXT("获得稀缺%s「%s」"),Component,*Name);}
-inline FString FieldRewardCommon(const FString& Name){return FString::Printf(TEXT("获得%s「%s」"),Component,*Name);}
-inline FString FieldRewardPoolPoints(int64 Points){return FString::Printf(TEXT("%s池已空，改得 %lld 点"),Component,Points);}
-inline FString FieldRewardChoiceReady(){return FString(TEXT("普通"))+Component+TEXT("二选一已就绪，打开")+Choice+TEXT("选择");}
+inline FString FieldRewardCards(){return FString(TEXT("一组牌三选一已就绪，打开"))+Choice+TEXT("选择");}
 inline FString FieldRewardBlueprintHeld(){return FString(Blueprint)+TEXT("池已空，奖励保留，之后有能给的技能时补发");}
 
 // 阶段与旗杆（喷漆守护终局）
