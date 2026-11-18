@@ -71,7 +71,7 @@ bool FLDCombatSlowCleanseTest::RunTest(const FString& Parameters)
     FLDCombatSlow Bottle{FGuid::NewGuid(), FGuid::NewGuid(), 3500, 2500};
     TestTrue(TEXT("A slow applies"), ApplySlow(Slows, Short, 0));
     TestTrue(TEXT("Another slow applies"), ApplySlow(Slows, Bottle, 0));
-    const FLDTemporaryAttributeTerms Terms = TemporaryTerms({}, Slows, {}, 100, 100, 1000);
+    const FLDTemporaryAttributeTerms Terms = TemporaryTerms({}, Slows, 1000);
     TestEqual(TEXT("The strongest move cut projects"), Terms.MoveSlowBp, int64(3500));
     TestEqual(TEXT("A cleanse counts only active slows"), DispelSlows(Slows, 2000), 1);
     TestTrue(TEXT("and removes every instance"), Slows.IsEmpty());

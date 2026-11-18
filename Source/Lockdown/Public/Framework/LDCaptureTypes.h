@@ -6,6 +6,7 @@
 #include "Framework/LDShowdownSettings.h"
 #include "PK/LDPKTypes.h"
 #include "Character/LDNativeMotionTypes.h"
+#include "Development/LDDemoContentDefinitions.h"
 #include "LDCaptureTypes.generated.h"
 
 // Spray zone state. Solo: exactly one effective contender is inside and he is not the graffiti owner, so he sprays.
@@ -140,7 +141,9 @@ struct FLDPublicMatchView
 };
 
 UENUM()
-enum class ELDResultBuildTarget : uint8 { Body, Active, EffectSegment, Component, Dash };
+// Where a card or the final mod sits: the body (a final mod without a source), a learned skill, the D dash or the basic.
+// 2 and 3 are retired.
+enum class ELDResultBuildTarget : uint8 { Body = 0, Active = 1, Dash = 4, Basic = 5 };
 
 USTRUCT()
 struct FLDResultBuildActive
@@ -151,13 +154,14 @@ struct FLDResultBuildActive
 };
 
 USTRUCT()
-struct FLDResultBuildComponent
+struct FLDResultBuildCard
 {
    GENERATED_BODY()
    UPROPERTY() FName DefinitionId;
    UPROPERTY() ELDResultBuildTarget Target = ELDResultBuildTarget::Body;
+   // Active: the skill the card sits on.
    UPROPERTY() FName TargetId;
-   UPROPERTY() FName BoundActive;
+   UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
 };
 
 // Only the installed rule-board identities and their placement, frozen after the result closes.
@@ -168,7 +172,8 @@ struct FLDResultBuild
    UPROPERTY() bool bAvailable = false;
    UPROPERTY() FString CatalogRoot;
    UPROPERTY() TArray<FLDResultBuildActive> Actives;
-   UPROPERTY() TArray<FLDResultBuildComponent> Components;
+   // Installed cards by serial; copies of one card are separate rows.
+   UPROPERTY() TArray<FLDResultBuildCard> Cards;
    UPROPERTY() FName FinalMod;
    UPROPERTY() ELDResultBuildTarget FinalTarget = ELDResultBuildTarget::Body;
    UPROPERTY() FName FinalTargetId;

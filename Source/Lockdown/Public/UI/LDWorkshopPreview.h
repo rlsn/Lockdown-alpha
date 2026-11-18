@@ -30,10 +30,10 @@ namespace LDWorkshopPreview
         bool bClock=false;
         int64 NowMs=0;
         bool bFinalField=false;
+        // The card's key (LDHUD::CardKey).
         FName Component;
-        LDHUD::FComponentDrop Drop;
+        LDHUD::FCardDrop Drop;
         ELDDemoElement Element=ELDDemoElement::None;
-        FName Base;
     };
 
     struct FResult

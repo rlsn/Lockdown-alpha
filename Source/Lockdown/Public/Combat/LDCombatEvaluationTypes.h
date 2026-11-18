@@ -15,6 +15,14 @@ struct FLDCombatEvaluationFailure
     FString Message;
 };
 
+// Spec §3.7: one damage factor source of a hit. Every source is its own multiplier (1 + Bp/10000); entries with the same
+// Key (copies of one card, or one fixed source) add into one multiplier first (LDTactical::DamageFactorProduct).
+struct FLDDamageFactor
+{
+    FName Key;
+    int64 Bp = 0;
+};
+
 struct FLDDamageDefinitionValues
 {
     // P2 points and R4 coefficients from an already-resolved definition/rank.
@@ -45,21 +53,13 @@ struct FLDDamageEvaluationInput
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
-    // #147 D21 damage bonus pool: every "damage +X%" of this hit (the control/low-HP amplification) summed into one factor
-    // (1 + pool) applied once to the raw amount before resistance; a basic critical multiplies by STAT.CritMultiplier
-    // before it. Only a primary basic crits.
-    int64 DamageBonusBp = 0;
+    // Spec §3.7: the product of the hit's damage factors (LDTactical::DamageFactorProduct), 10000 = x1, applied once to the
+    // raw amount after the critical multiplier and before resistance. A primary basic crits; an ability only under Y09.
+    int64 DamageFactorBp = 10000;
     // Delivery share of the raw amount (a ground impact's outer ring); 10000 = all of it.
     int64 DeliveryScaleBp = 10000;
-    // #198 F workshop package multiplier of the raw amount (M01/M03/M05/M08 below 1, M02/M07 above), applied with the
-    // delivery share; 1..100000.
+    // A package multiplier of the raw amount (a skill branch's share), applied with the delivery share; 1..100000.
     int64 PackageScaleBp = 10000;
-    // #198 F M12: this share of the mitigated damage (after resistance and the guard, before the shield) is deferred:
-    // reported as DeferredP2 and kept out of the shield/HP split. 0..9999.
-    int64 DeferRatioBp = 0;
-    // primary_guard: a flat cut of a primary basic after resistance, at most PrimaryGuardCapBp of it.
-    int64 PrimaryGuardP2 = 0;
-    int64 PrimaryGuardCapBp = 0;
     // The activated thick-skin keystone cuts after the ordinary primary guard.
     int64 KeystoneGuardP2 = 0;
     int64 KeystoneGuardCapBp = 0;
@@ -78,12 +78,7 @@ struct FLDDamageEvaluation
     int64 RemainingShieldP2 = 0;
     // The amount BraceCutBp actually took off (floored P2; zero for a protected target).
     int64 BraceCutP2 = 0;
-    // The amount the primary guard actually took off a primary basic (the floored damage before it minus the floored damage
-    // after it; zero for a protected target).
-    int64 GuardCutP2 = 0;
     int64 KeystoneGuardCutP2 = 0;
-    // #198 F M12: the deferred part of DamageP2's mitigated amount (DamageP2 is what this hit applies now).
-    int64 DeferredP2 = 0;
 };
 
 struct FLDDamageEvaluationResult

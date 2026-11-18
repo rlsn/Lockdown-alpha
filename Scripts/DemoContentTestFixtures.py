@@ -93,7 +93,7 @@ def content_fixture():
         ("AI.EngagementBudgetSec", "s", 30),
         ("COMBAT.BreachPerStack", "points", 2), ("COMBAT.BreachSec", "s", 3),
         ("COMBAT.BurnPerSec", "points", 4), ("COMBAT.BurnAPRatioPerSec", "ratio", 0.05),
-        ("COMBAT.BurnTickSec", "s", 0.25), ("COMBAT.BurnSec", "s", 2), ("COMBAT.LifestealCap", "ratio", 0.4),
+        ("COMBAT.BurnTickSec", "s", 0.25), ("COMBAT.BurnSec", "s", 2),
         ("COMBAT.KeystonePhysiqueHealToShieldRatio", "ratio", 0.25),
         ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", 0.035),
         ("COMBAT.KeystonePhysiqueShieldDurationSec", "s", 3), ("COMBAT.KeystonePhysiqueIntervalSec", "s", 6),
@@ -129,8 +129,11 @@ def content_fixture():
         "GROWTH.NpcActivePoints": 5,
         "GROWTH.ActiveSkipPoints": 5, "GROWTH.NpcActiveSkipPoints": 3,
         "PK.ParticipationPoints": 2, "PK.WinnerPointsMax": 4, "PK.BettingPoolMaxPoints": 3,
-        "GROWTH.EmptyComponentPoolPoints": 2,
-        "GROWTH.FillGapPoints": 6, "GROWTH.DismantleInputCount": 2, "GROWTH.KeystoneThresholdPoints": 18,
+        "GROWTH.KeystoneThresholdPoints": 18,
+        "CARDS.CapacityBase": 5, "CARDS.LevelsPerSlot": 4, "CARDS.OfferSize": 3, "CARDS.FreeRerolls": 2,
+        "CARDS.RerollsPerRest": 1, "CARDS.LockSlots": 1, "CARDS.VocabWeight": 3,
+        "DAMAGE.FactorTechCap": q("ratio", 500), "CHAIN.MaxDepth": 8, "CHAIN.MaxEffectsPerStep": 64,
+        "AI.CardVocabScore": 3, "AI.BreakoutChance": q("ratio", 0.5), "AI.BreakoutCardScore": 4,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
@@ -196,19 +199,16 @@ def content_fixture():
         {"id": "stat_brains", "per_point": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2), "MomentumRegenFlat": q("momentum/s", 0.25)}},
         {"id": "stat_agility", "per_point": {"AttackSpeedBonusRatio": q("ratio", 0.02), "MoveSpeedBonusRatio": q("ratio", 0.01)}},
     ]
-    # Synthetic #198 B components in native ID order: an always-opening burn, a conditional opening, a dash-armed empowered
-    # basic and the active/element binding.
-    components = [
-        {"id": "component_fist_fire", "kind": "base", "pool": "common", "tags": ["basic", "element"], "opening": "always",
+    # Synthetic P2 cards in native ID order: a basic burn, a skill repeat, a dash contact element and Y25's element choice.
+    cards = [
+        {"id": "card_fire_fist", "form": "basic", "type": "element", "vocab": ["element", "basic_hit"],
          "effects": [{"op": "burn", "basic_stacks": 2}]},
-        {"id": "component_kick_down", "kind": "base", "pool": "common", "tags": ["control"], "opening": {"actives": ["active_pants_down"]},
-         "effects": [{"op": "control_damage_amp", "ratio": q("ratio", 0.1)}]},
-        {"id": "component_dash_punch", "kind": "base", "pool": "common", "tags": ["basic", "collision"],
-         "effects": [{"op": "empower_basic", "trigger": "DashComplete", "base": q("points", 6), "ad_ratio": q("ratio", 0.125),
-                      "ap_ratio": q("ratio", 0), "damage_type": "Physical", "duration": q("s", 1.5), "charges": 1}]},
-        {"id": "component_dirty_trick", "kind": "base", "pool": "common", "tags": ["spell", "element"], "opening": {"actives": ["active_snark_bolt"]},
-         "binding": {"kind": "active_element", "actives": ["active_snark_bolt", "active_pants_down"], "elements": ["fire", "water"]},
-         "effects": [{"op": "active_element"}]},
+        {"id": "card_encore", "form": "skill", "type": "modify", "vocab": ["skill_cast"],
+         "effects": [{"op": "auto_recast", "delay": q("s", 0.5), "damage_ratio": q("ratio", 0.5)}]},
+        {"id": "card_shock_dash", "form": "dash", "type": "element", "vocab": ["element", "dash_contact"],
+         "effects": [{"op": "dash_contact_element", "element": "electric"}]},
+        {"id": "card_live_wire", "form": "body", "type": "element", "vocab": ["element", "damaged"],
+         "choose_element": ["fire", "water"], "effects": [{"op": "element_aura", "radius": q("cm", 150)}]},
     ]
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
@@ -273,7 +273,7 @@ def content_fixture():
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, stats, components, finals, monsters, [boss]) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, stats, cards, finals, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
@@ -287,21 +287,17 @@ def content_fixture():
     # Card templates: an active reads [op.field] of its effects, a stat [per_point.<Stat>] of one point.
     next(row for row in display if row["id"] == "active_snark_bolt")["description_text"] += " [damage.amount] [slow.ratio] [slow.duration]"
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"
-    next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
+    next(row for row in display if row["id"] == "card_fire_fist")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 3, "handler_revision": 10, "projection_revision": 9,
+        "identity": {"schema_version": 4, "handler_revision": 11, "projection_revision": 10,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "stats": stats, "components": components, "final_mods": finals, "camps": camps, "boss": boss,
+        "abilities": abilities, "stats": stats, "cards": cards, "final_mods": finals, "camps": camps, "boss": boss,
         "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
-                        "active_offer_levels": [4, 9],
-                        "bonus_component_levels": [2, 4, 6, 8, 10, 12, 14, 16],
-                        "workshop_capacity": {"base": 5, "levels_per_slot": 2, "body_column": 4, "dash_column": 2},
-                        "component_category_weights": [{"levels": [2, 8], "base": 60, "mod": 20, "connector": 20},
-                                                       {"levels": [9, 16], "base": 30, "mod": 30, "connector": 40}]},
+                        "active_offer_levels": [4, 9]},
         "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture",
                   "pk_spawn_ids": [f"pk_spawn_{n}" for n in range(6)], "pk_throw_id": "pk_throw"},
         "display": display,

@@ -75,6 +75,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -135,6 +138,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -217,6 +223,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -311,6 +321,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -383,6 +396,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -451,6 +467,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -510,6 +529,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "control"
+      ],
       "windup": {
         "ms": 250,
         "unit": "ms"
@@ -581,6 +603,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact",
+            "control"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -671,6 +698,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -753,6 +784,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact",
+            "control"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -826,6 +862,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact",
+            "control"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -920,6 +961,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -1011,6 +1056,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -1087,6 +1136,10 @@
       "target": {
         "mode": "DirectionDash"
       },
+      "vocab": [
+        "dash",
+        "dash_contact"
+      ],
       "windup": {
         "ms": 150,
         "unit": "ms"
@@ -1159,6 +1212,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1219,6 +1276,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1293,6 +1354,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1380,6 +1445,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1466,6 +1535,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1527,6 +1601,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1586,6 +1664,10 @@
       "target": {
         "mode": "DirectionDash"
       },
+      "vocab": [
+        "basic_hit",
+        "dash"
+      ],
       "windup": {
         "ms": 0,
         "unit": "ms"
@@ -1639,6 +1721,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1698,6 +1783,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1757,6 +1845,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1816,6 +1907,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1888,6 +1982,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1955,6 +2052,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2009,6 +2109,9 @@
       "target": {
         "mode": "Self"
       },
+      "vocab": [
+        "shield"
+      ],
       "windup": {
         "ms": 100,
         "unit": "ms"
@@ -2097,6 +2200,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2167,6 +2273,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2257,6 +2366,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2344,6 +2456,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2418,6 +2533,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2497,6 +2615,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2570,6 +2691,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "ground"
+      ],
       "windup": {
         "ms": 250,
         "unit": "ms"
@@ -2657,6 +2781,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2742,6 +2872,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2844,6 +2980,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2938,6 +3080,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -3031,6 +3179,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -3133,6 +3287,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -3221,6 +3381,12 @@
       "target": {
         "mode": "DirectionDash"
       },
+      "vocab": [
+        "element",
+        "dash",
+        "dash_contact",
+        "shield"
+      ],
       "windup": {
         "ms": 100,
         "unit": "ms"
@@ -3279,6 +3445,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3348,6 +3517,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3426,6 +3598,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3495,6 +3670,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3565,6 +3743,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3648,6 +3829,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3707,6 +3891,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "control"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -3795,6 +3982,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -3882,6 +4073,11 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -3984,6 +4180,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4078,6 +4278,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4169,6 +4373,11 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4260,6 +4469,11 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4341,6 +4555,10 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "element",
+        "ground"
+      ],
       "windup": {
         "ms": 250,
         "unit": "ms"
@@ -4422,6 +4640,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4483,6 +4704,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4574,6 +4798,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4657,6 +4884,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4722,6 +4953,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4796,6 +5030,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4860,6 +5097,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "knockback"
+      ],
       "windup": {
         "ms": 150,
         "unit": "ms"
@@ -4945,6 +5185,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5027,6 +5270,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5123,6 +5369,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5210,6 +5459,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5305,6 +5558,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5383,6 +5640,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control",
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5468,6 +5729,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "ground"
+      ],
       "windup": {
         "ms": 150,
         "unit": "ms"
@@ -5558,6 +5822,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5628,6 +5896,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5729,6 +6001,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5821,6 +6097,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5895,6 +6175,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5973,6 +6257,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6046,6 +6334,10 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "element",
+        "knockback"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -6098,6 +6390,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6191,6 +6486,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6249,6 +6548,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6307,6 +6609,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6408,6 +6713,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6509,6 +6818,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6562,6 +6875,9 @@
       "target": {
         "mode": "Self"
       },
+      "vocab": [
+        "shield"
+      ],
       "windup": {
         "ms": 0,
         "unit": "ms"
@@ -6634,6 +6950,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6704,6 +7023,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6782,6 +7104,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6853,6 +7178,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6940,6 +7268,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7018,6 +7349,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7091,6 +7426,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "element"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -7149,6 +7487,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7222,6 +7563,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7292,6 +7636,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7362,6 +7709,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7443,6 +7793,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7516,6 +7869,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7575,6 +7931,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "control"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -7676,6 +8035,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -7751,6 +8114,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -7858,6 +8225,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -7965,6 +8336,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8056,6 +8431,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8131,6 +8510,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8225,6 +8608,10 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "element",
+        "ground"
+      ],
       "windup": {
         "ms": 250,
         "unit": "ms"
@@ -8284,6 +8671,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8354,6 +8744,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8424,6 +8817,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8481,6 +8877,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8555,6 +8954,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8633,6 +9035,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8693,6 +9098,9 @@
       "target": {
         "mode": "Self"
       },
+      "vocab": [
+        "element"
+      ],
       "windup": {
         "ms": 250,
         "unit": "ms"
@@ -8765,6 +9173,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -8843,6 +9252,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -8944,6 +9354,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9018,6 +9431,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9097,6 +9513,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9188,6 +9605,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9261,6 +9679,7 @@
           "unit": "cm"
         }
       },
+      "vocab": [],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -9345,6 +9764,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9444,6 +9866,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9526,6 +9951,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9625,6 +10053,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9724,6 +10155,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9824,6 +10258,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9909,6 +10346,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "element"
+      ],
       "windup": {
         "ms": 150,
         "unit": "ms"
@@ -9964,6 +10404,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10035,6 +10478,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10100,6 +10547,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10162,6 +10612,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10241,6 +10694,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10326,6 +10783,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10382,6 +10843,9 @@
       "target": {
         "mode": "Self"
       },
+      "vocab": [
+        "control"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -10434,6 +10898,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10484,6 +10951,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10538,6 +11008,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10589,6 +11062,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10643,6 +11119,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10694,6 +11173,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10747,6 +11229,9 @@
       "target": {
         "mode": "Self"
       },
+      "vocab": [
+        "basic_hit"
+      ],
       "windup": {
         "ms": 0,
         "unit": "ms"
@@ -10805,6 +11290,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10873,6 +11361,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10950,6 +11441,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11020,6 +11514,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11088,6 +11585,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11160,6 +11660,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11219,6 +11722,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "control"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -11291,6 +11797,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11343,6 +11852,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11418,6 +11930,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11496,6 +12011,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11556,6 +12074,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11608,6 +12129,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11681,6 +12205,9 @@
           "unit": "cm"
         }
       },
+      "vocab": [
+        "element"
+      ],
       "windup": {
         "ms": 250,
         "unit": "ms"
@@ -13822,6 +14349,1177 @@
       }
     ]
   },
+  "cards": [
+    {
+      "effects": [
+        {
+          "momentum": {
+            "p2": 1000,
+            "unit": "momentum"
+          },
+          "op": "combo_momentum",
+          "opcode": 196
+        }
+      ],
+      "form": "basic",
+      "id": "card_third_breath",
+      "native_id": 200,
+      "type": "trigger",
+      "vocab": [
+        "combo3",
+        "momentum"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "op": "basic_cooldown_cut",
+          "opcode": 197
+        }
+      ],
+      "form": "basic",
+      "id": "card_punch_think",
+      "native_id": 201,
+      "type": "trigger",
+      "vocab": [
+        "basic_hit",
+        "skill_cast"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "combo_skill_hit",
+          "opcode": 198
+        }
+      ],
+      "form": "basic",
+      "id": "card_solid_punch",
+      "native_id": 202,
+      "type": "trigger",
+      "vocab": [
+        "combo3",
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 150,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "combo_knockback",
+          "opcode": 199
+        }
+      ],
+      "form": "basic",
+      "id": "card_third_shove",
+      "native_id": 203,
+      "type": "trigger",
+      "vocab": [
+        "combo3",
+        "knockback"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "damage_ratio": {
+            "bp": 8000,
+            "unit": "ratio"
+          },
+          "op": "combo_double",
+          "opcode": 200
+        }
+      ],
+      "form": "basic",
+      "id": "card_both_hands",
+      "native_id": 205,
+      "type": "modify",
+      "vocab": [
+        "combo3",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "overcap_extra_hit",
+          "opcode": 201,
+          "ratio": {
+            "bp": 1000,
+            "unit": "ratio"
+          },
+          "step": {
+            "denominator": 10,
+            "numerator": 1,
+            "unit": "attacks/s"
+          }
+        }
+      ],
+      "form": "basic",
+      "id": "card_quick_hands",
+      "native_id": 208,
+      "type": "convert",
+      "vocab": [
+        "attack_speed",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "ap_ratio": {
+            "bp": 4000,
+            "unit": "ratio"
+          },
+          "damage_type": "Magical",
+          "op": "basic_ap_rider",
+          "opcode": 202
+        }
+      ],
+      "form": "basic",
+      "id": "card_scholar_punch",
+      "native_id": 210,
+      "type": "convert",
+      "vocab": [
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "focus_attack_speed",
+          "opcode": 203,
+          "ratio": {
+            "bp": 400,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "basic",
+      "id": "card_heated_up",
+      "native_id": 211,
+      "type": "grow",
+      "vocab": [
+        "attack_speed",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "basic_stacks": 1,
+          "op": "breach",
+          "opcode": 70
+        }
+      ],
+      "form": "basic",
+      "id": "card_breach_fist",
+      "native_id": 213,
+      "type": "grow",
+      "vocab": [
+        "basic_hit",
+        "armor"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "basic_stacks": 1,
+          "op": "burn",
+          "opcode": 71
+        }
+      ],
+      "form": "basic",
+      "id": "card_fire_fist",
+      "native_id": 214,
+      "type": "element",
+      "vocab": [
+        "element",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "water",
+          "op": "basic_element",
+          "opcode": 101
+        }
+      ],
+      "form": "basic",
+      "id": "card_water_fist",
+      "native_id": 215,
+      "type": "element",
+      "vocab": [
+        "element",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "electric",
+          "op": "basic_element",
+          "opcode": 101
+        }
+      ],
+      "form": "basic",
+      "id": "card_shock_fist",
+      "native_id": 216,
+      "type": "element",
+      "vocab": [
+        "element",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "op": "hit_haste_other",
+          "opcode": 156
+        }
+      ],
+      "form": "skill",
+      "id": "card_next_up",
+      "native_id": 219,
+      "type": "trigger",
+      "vocab": [
+        "skill_hit",
+        "skill_cast"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "momentum": {
+            "p2": 600,
+            "unit": "momentum"
+          },
+          "op": "skill_hit_momentum",
+          "opcode": 204
+        }
+      ],
+      "form": "skill",
+      "id": "card_pay_back",
+      "native_id": 220,
+      "type": "trigger",
+      "vocab": [
+        "skill_hit",
+        "momentum"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "op": "setup_mark",
+          "opcode": 157,
+          "ratio": {
+            "bp": 3500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_setup_line",
+      "native_id": 222,
+      "type": "trigger",
+      "vocab": [
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "damage_ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          },
+          "delay": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "op": "auto_recast",
+          "opcode": 205
+        }
+      ],
+      "form": "skill",
+      "id": "card_encore",
+      "native_id": 224,
+      "type": "modify",
+      "vocab": [
+        "skill_cast"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown_ratio": {
+            "bp": 6500,
+            "unit": "ratio"
+          },
+          "cost_ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "op": "cooldown_cost",
+          "opcode": 130
+        }
+      ],
+      "form": "skill",
+      "id": "card_again_now",
+      "native_id": 226,
+      "type": "modify",
+      "vocab": [
+        "skill_cast",
+        "momentum"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown_ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "cost_ratio": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "op": "cooldown_cost",
+          "opcode": 130
+        },
+        {
+          "op": "skill_damage_factor",
+          "opcode": 206,
+          "ratio": {
+            "bp": 8000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_big_one",
+      "native_id": 227,
+      "type": "modify",
+      "vocab": [
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "hp_cost",
+          "opcode": 207,
+          "ratio": {
+            "bp": 60,
+            "unit": "ratio"
+          }
+        },
+        {
+          "op": "skill_damage_factor",
+          "opcode": 206,
+          "ratio": {
+            "bp": 2000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_blood_price",
+      "native_id": 230,
+      "type": "convert",
+      "vocab": [
+        "low_hp",
+        "heal"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          },
+          "damage_type": "Physical",
+          "op": "skill_ad_rider",
+          "opcode": 208
+        }
+      ],
+      "form": "skill",
+      "id": "card_lend_fist",
+      "native_id": 231,
+      "type": "convert",
+      "vocab": [
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "skill_lifesteal",
+          "opcode": 146,
+          "ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_hurt_heal",
+      "native_id": 233,
+      "type": "convert",
+      "vocab": [
+        "heal",
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "interval": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "op": "idle_ready_amp",
+          "opcode": 103,
+          "ratio": {
+            "bp": 1500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_held_shot",
+      "native_id": 234,
+      "type": "grow",
+      "vocab": [
+        "idle"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "skill_growth",
+          "opcode": 209,
+          "ratio": {
+            "bp": 200,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_practice",
+      "native_id": 235,
+      "type": "grow",
+      "vocab": [
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "fire",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 2
+        }
+      ],
+      "form": "skill",
+      "id": "card_add_fire",
+      "native_id": 237,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "water",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "skill",
+      "id": "card_add_water",
+      "native_id": 238,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "electric",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "skill",
+      "id": "card_add_shock",
+      "native_id": 239,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "reaction_haste",
+          "opcode": 158
+        }
+      ],
+      "form": "skill",
+      "id": "card_blast_reload",
+      "native_id": 243,
+      "type": "element",
+      "vocab": [
+        "reaction"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "dash_contact_reset",
+          "opcode": 211
+        }
+      ],
+      "form": "dash",
+      "id": "card_bump_reset",
+      "native_id": 244,
+      "type": "trigger",
+      "vocab": [
+        "dash_contact"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown": {
+            "ms": 1500,
+            "unit": "ms"
+          },
+          "op": "hit_haste_other",
+          "opcode": 156
+        }
+      ],
+      "form": "dash",
+      "id": "card_bump_again",
+      "native_id": 245,
+      "type": "trigger",
+      "vocab": [
+        "dash_contact",
+        "skill_cast"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 0,
+            "unit": "points"
+          },
+          "charges": 1,
+          "damage_type": "Physical",
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "empower_basic",
+          "opcode": 22,
+          "trigger": "DashComplete"
+        }
+      ],
+      "form": "dash",
+      "id": "card_dash_punch",
+      "native_id": 246,
+      "type": "trigger",
+      "vocab": [
+        "dash",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 200,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "op": "dash_split",
+          "opcode": 212
+        }
+      ],
+      "form": "dash",
+      "id": "card_double_dash",
+      "native_id": 248,
+      "type": "modify",
+      "vocab": [
+        "dash"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "dash_phase",
+          "opcode": 213
+        }
+      ],
+      "form": "dash",
+      "id": "card_pass_through",
+      "native_id": 249,
+      "type": "modify",
+      "vocab": [
+        "dash_contact",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "electric",
+          "op": "dash_contact_element",
+          "opcode": 214
+        }
+      ],
+      "form": "dash",
+      "id": "card_shock_dash",
+      "native_id": 255,
+      "type": "element",
+      "vocab": [
+        "element",
+        "dash_contact"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "damage_type": "Magical",
+          "op": "thorns",
+          "opcode": 24,
+          "ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_spiky_hide",
+      "native_id": 256,
+      "type": "trigger",
+      "vocab": [
+        "damaged"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "takedown_reset",
+          "opcode": 215
+        }
+      ],
+      "form": "body",
+      "id": "card_takedown",
+      "native_id": 257,
+      "type": "trigger",
+      "vocab": [
+        "kill",
+        "momentum"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 2000,
+            "unit": "ms"
+          },
+          "op": "last_stand",
+          "opcode": 216,
+          "threshold": {
+            "bp": 1500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_hang_on",
+      "native_id": 258,
+      "type": "trigger",
+      "vocab": [
+        "low_hp"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "momentum": {
+            "p2": 1500,
+            "unit": "momentum"
+          },
+          "op": "reaction_momentum",
+          "opcode": 217
+        }
+      ],
+      "form": "body",
+      "id": "card_reaction_refund",
+      "native_id": 259,
+      "type": "trigger",
+      "vocab": [
+        "reaction",
+        "momentum"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "reaction_element",
+          "opcode": 218
+        }
+      ],
+      "form": "body",
+      "id": "card_wave_after",
+      "native_id": 260,
+      "type": "trigger",
+      "vocab": [
+        "reaction",
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "base": {
+            "p2": 4500,
+            "unit": "hp"
+          },
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "interval": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "max_hp_ratio": {
+            "bp": 400,
+            "unit": "ratio"
+          },
+          "op": "triggered_shield",
+          "opcode": 31,
+          "trigger": "Damaged"
+        }
+      ],
+      "form": "body",
+      "id": "card_hard_skin",
+      "native_id": 262,
+      "type": "trigger",
+      "vocab": [
+        "damaged",
+        "shield"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 6000,
+            "unit": "points"
+          },
+          "damage_type": "Physical",
+          "op": "knockback_impact",
+          "opcode": 138,
+          "stun_duration": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_ball_kick",
+      "native_id": 263,
+      "type": "trigger",
+      "vocab": [
+        "knockback",
+        "wall_impact"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "skill_crit",
+          "opcode": 219
+        }
+      ],
+      "form": "body",
+      "id": "card_skill_crit",
+      "native_id": 264,
+      "type": "modify",
+      "vocab": [
+        "crit",
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "lifesteal_skills",
+          "opcode": 220
+        }
+      ],
+      "form": "body",
+      "id": "card_skill_drain",
+      "native_id": 265,
+      "type": "modify",
+      "vocab": [
+        "heal",
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "max_hp": {
+            "p2": 600,
+            "unit": "hp"
+          },
+          "op": "armor_to_hp",
+          "opcode": 221
+        }
+      ],
+      "form": "body",
+      "id": "card_thick_hide",
+      "native_id": 268,
+      "type": "convert",
+      "vocab": [
+        "armor",
+        "max_hp"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cap_ratio": {
+            "bp": 3000,
+            "unit": "ratio"
+          },
+          "duration": {
+            "ms": 5000,
+            "unit": "ms"
+          },
+          "op": "overheal_shield",
+          "opcode": 222
+        }
+      ],
+      "form": "body",
+      "id": "card_overfed",
+      "native_id": 269,
+      "type": "convert",
+      "vocab": [
+        "heal",
+        "shield"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "missing_hp_attack_speed",
+          "opcode": 223,
+          "ratio": {
+            "bp": 100,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_berserk",
+      "native_id": 270,
+      "type": "convert",
+      "vocab": [
+        "low_hp",
+        "attack_speed"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "haste": {
+            "p2": 1000,
+            "unit": "points"
+          },
+          "momentum": {
+            "p2": 100,
+            "unit": "momentum"
+          },
+          "op": "haste_momentum",
+          "opcode": 224
+        }
+      ],
+      "form": "body",
+      "id": "card_quick_brain",
+      "native_id": 271,
+      "type": "convert",
+      "vocab": [
+        "momentum",
+        "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "lifesteal",
+          "opcode": 7,
+          "ratio": {
+            "bp": 1500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_punch_heal",
+      "native_id": 272,
+      "type": "convert",
+      "vocab": [
+        "heal",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "heal": {
+            "p2": 20000,
+            "unit": "hp"
+          },
+          "max_hp": {
+            "p2": 1000,
+            "unit": "hp"
+          },
+          "op": "heal_growth",
+          "opcode": 225
+        }
+      ],
+      "form": "body",
+      "id": "card_grow_fat",
+      "native_id": 274,
+      "type": "grow",
+      "vocab": [
+        "heal",
+        "max_hp"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "assist_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "op": "kill_growth",
+          "opcode": 226,
+          "stats": {
+            "ADFlat": {
+              "p2": 400,
+              "unit": "points"
+            },
+            "APFlat": {
+              "p2": 600,
+              "unit": "points"
+            }
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_kill_streak",
+      "native_id": 275,
+      "type": "grow",
+      "vocab": [
+        "kill"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "control_growth",
+          "opcode": 227,
+          "stats": {
+            "ArmorFlat": {
+              "p2": 300,
+              "unit": "points"
+            },
+            "MagicResistFlat": {
+              "p2": 300,
+              "unit": "points"
+            }
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_tough_skin",
+      "native_id": 276,
+      "type": "grow",
+      "vocab": [
+        "controlled",
+        "armor"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "interval": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "op": "idle_charge",
+          "opcode": 228,
+          "ratio": {
+            "bp": 2000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_charge_up",
+      "native_id": 277,
+      "type": "grow",
+      "vocab": [
+        "idle"
+      ]
+    },
+    {
+      "choose_element": [
+        "fire",
+        "water",
+        "electric"
+      ],
+      "effects": [
+        {
+          "op": "element_aura",
+          "opcode": 229,
+          "radius": {
+            "denominator": 1,
+            "numerator": 200,
+            "unit": "cm"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_live_wire",
+      "native_id": 280,
+      "type": "element",
+      "vocab": [
+        "element",
+        "damaged"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "multiplier": {
+            "bp": 20000,
+            "unit": "ratio"
+          },
+          "op": "element_duration",
+          "opcode": 230
+        }
+      ],
+      "form": "body",
+      "id": "card_long_soak",
+      "native_id": 281,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "reaction_factor",
+          "opcode": 231,
+          "ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_louder_blast",
+      "native_id": 282,
+      "type": "element",
+      "vocab": [
+        "reaction"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "count": 10,
+          "op": "burn_cap",
+          "opcode": 232
+        }
+      ],
+      "form": "body",
+      "id": "card_endless_burn",
+      "native_id": 283,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    }
+  ],
   "character": {
     "basic_attack": {
       "ad_ratio": {
@@ -13850,2322 +15548,6 @@
     "id": "character_demo",
     "native_id": 1
   },
-  "components": [
-    {
-      "effects": [
-        {
-          "basic_stacks": 1,
-          "op": "burn",
-          "opcode": 71
-        }
-      ],
-      "id": "component_fist_fire",
-      "kind": "base",
-      "native_id": 1,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "basic",
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 0,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 800,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 1000,
-            "unit": "points"
-          },
-          "count": 5,
-          "damage_type": "Magical",
-          "duration": {
-            "ms": 6000,
-            "unit": "ms"
-          },
-          "op": "ledger",
-          "opcode": 100
-        }
-      ],
-      "id": "component_tab_ledger",
-      "kind": "base",
-      "native_id": 2,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "ledger",
-        "basic",
-        "spell"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "armor_ratio": {
-            "bp": 0,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 1000,
-            "unit": "points"
-          },
-          "critical_multiplier": {
-            "bp": 10000,
-            "unit": "ratio"
-          },
-          "damage_type": "Magical",
-          "max_hp_ratio": {
-            "bp": 100,
-            "unit": "ratio"
-          },
-          "op": "thorns",
-          "opcode": 24,
-          "radius": {
-            "denominator": 1,
-            "numerator": 600,
-            "unit": "cm"
-          },
-          "trigger": "Basic"
-        }
-      ],
-      "id": "component_spiky_hide",
-      "kind": "base",
-      "native_id": 3,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "defense"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "op": "lifesteal",
-          "opcode": 7,
-          "ratio": {
-            "bp": 1200,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_punch_heal",
-      "kind": "base",
-      "native_id": 4,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "basic",
-        "defense"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 3000,
-            "unit": "points"
-          },
-          "damage_type": "Physical",
-          "op": "dash_contact_damage",
-          "opcode": 87
-        }
-      ],
-      "id": "component_dash_bump",
-      "kind": "base",
-      "native_id": 5,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "collision"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "count": 3,
-          "distance": {
-            "denominator": 1,
-            "numerator": 120,
-            "unit": "cm"
-          },
-          "duration": {
-            "ms": 120,
-            "unit": "ms"
-          },
-          "op": "nth_basic_bonus",
-          "opcode": 35
-        }
-      ],
-      "id": "component_third_punch",
-      "kind": "base",
-      "native_id": 6,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "basic",
-        "collision"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "op": "control_damage_amp",
-          "opcode": 17,
-          "ratio": {
-            "bp": 1200,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_kick_down",
-      "kind": "base",
-      "native_id": 7,
-      "opening": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_open_mic",
-          "active_hose_down",
-          "active_dirty_puddle"
-        ]
-      },
-      "pool": "common",
-      "tags": [
-        "control"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "basic_stacks": 1,
-          "op": "breach",
-          "opcode": 70
-        }
-      ],
-      "id": "component_breach_fist",
-      "kind": "base",
-      "native_id": 8,
-      "pool": "common",
-      "tags": [
-        "basic"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "base": {
-            "p2": 4500,
-            "unit": "hp"
-          },
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "interval": {
-            "ms": 10000,
-            "unit": "ms"
-          },
-          "max_hp_ratio": {
-            "bp": 350,
-            "unit": "ratio"
-          },
-          "op": "triggered_shield",
-          "opcode": 31,
-          "trigger": "Damaged"
-        }
-      ],
-      "id": "component_hard_skin",
-      "kind": "base",
-      "native_id": 9,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "defense"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "water",
-          "op": "basic_element",
-          "opcode": 101
-        }
-      ],
-      "id": "component_fist_water",
-      "kind": "base",
-      "native_id": 10,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "basic",
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "electric",
-          "op": "basic_element",
-          "opcode": 101
-        }
-      ],
-      "id": "component_fist_shock",
-      "kind": "base",
-      "native_id": 11,
-      "opening": {
-        "actives": [
-          "active_seethe",
-          "active_quick_meeting",
-          "active_hose_down",
-          "active_dirty_puddle"
-        ]
-      },
-      "pool": "common",
-      "tags": [
-        "basic",
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 0,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 2500,
-            "unit": "points"
-          },
-          "charges": 1,
-          "damage_type": "Physical",
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "empower_basic",
-          "opcode": 22,
-          "trigger": "DashComplete"
-        }
-      ],
-      "id": "component_dash_punch",
-      "kind": "base",
-      "native_id": 12,
-      "opening": "always",
-      "pool": "common",
-      "tags": [
-        "basic",
-        "collision"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "op": "cast_hit_refund",
-          "opcode": 149,
-          "ratio": {
-            "bp": 3000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_catch_breath",
-      "kind": "base",
-      "native_id": 13,
-      "pool": "common",
-      "tags": [
-        "spell",
-        "tempo"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "distance": {
-            "denominator": 1,
-            "numerator": 550,
-            "unit": "cm"
-          },
-          "op": "distance_amp",
-          "opcode": 150,
-          "ratio": {
-            "bp": 2000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_long_arm",
-      "kind": "base",
-      "native_id": 14,
-      "pool": "common",
-      "tags": [
-        "projectile",
-        "spell"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "duration": {
-            "ms": 4000,
-            "unit": "ms"
-          },
-          "op": "alternate_amp",
-          "opcode": 151,
-          "ratio": {
-            "bp": 2000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_seeing_red",
-      "kind": "base",
-      "native_id": 15,
-      "pool": "common",
-      "tags": [
-        "spell",
-        "tempo"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "base": {
-            "p2": 4000,
-            "unit": "hp"
-          },
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "interval": {
-            "ms": 8000,
-            "unit": "ms"
-          },
-          "max_hp_ratio": {
-            "bp": 300,
-            "unit": "ratio"
-          },
-          "op": "triggered_shield",
-          "opcode": 31,
-          "trigger": "AbilityHit"
-        }
-      ],
-      "id": "component_thick_hide",
-      "kind": "base",
-      "native_id": 16,
-      "pool": "common",
-      "tags": [
-        "spell",
-        "defense"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "delay": {
-            "ms": 2000,
-            "unit": "ms"
-          },
-          "op": "idle_ready_amp",
-          "opcode": 103,
-          "ratio": {
-            "bp": 2000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_held_shot",
-      "kind": "base",
-      "native_id": 17,
-      "opening": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ]
-      },
-      "pool": "common",
-      "tags": [
-        "spell",
-        "projectile"
-      ]
-    },
-    {
-      "binding": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ],
-        "elements": [
-          "fire",
-          "water",
-          "electric"
-        ],
-        "kind": "active_element"
-      },
-      "effects": [
-        {
-          "op": "active_element",
-          "opcode": 104
-        }
-      ],
-      "id": "component_dirty_trick",
-      "kind": "base",
-      "native_id": 18,
-      "opening": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ]
-      },
-      "pool": "common",
-      "tags": [
-        "spell",
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "angle": {
-            "denominator": 1,
-            "numerator": 60,
-            "unit": "degrees"
-          },
-          "damage_ratio": {
-            "bp": 7000,
-            "unit": "ratio"
-          },
-          "op": "spread_unit",
-          "opcode": 120
-        },
-        {
-          "damage_ratio": {
-            "bp": 7000,
-            "unit": "ratio"
-          },
-          "op": "spread_projectile",
-          "opcode": 121,
-          "radius": {
-            "denominator": 1,
-            "numerator": 180,
-            "unit": "cm"
-          }
-        },
-        {
-          "damage_ratio": {
-            "bp": 7000,
-            "unit": "ratio"
-          },
-          "op": "spread_ledger",
-          "opcode": 122,
-          "radius": {
-            "denominator": 1,
-            "numerator": 220,
-            "unit": "cm"
-          }
-        },
-        {
-          "damage_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          },
-          "op": "spread_counter",
-          "opcode": 123,
-          "radius": {
-            "denominator": 1,
-            "numerator": 250,
-            "unit": "cm"
-          }
-        }
-      ],
-      "id": "component_crowd_hit",
-      "kind": "mod",
-      "native_id": 19,
-      "pool": "common",
-      "tags": [
-        "spell",
-        "area"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_sock_shot"
-        ],
-        "components": [
-          "component_tab_ledger",
-          "component_spiky_hide",
-          "component_breath_strike"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "damage_ratio": {
-            "bp": 13000,
-            "unit": "ratio"
-          },
-          "delay": {
-            "ms": 2000,
-            "unit": "ms"
-          },
-          "distance": {
-            "denominator": 1,
-            "numerator": 800,
-            "unit": "cm"
-          },
-          "op": "delay_ledger",
-          "opcode": 124
-        },
-        {
-          "damage_ratio": {
-            "bp": 13000,
-            "unit": "ratio"
-          },
-          "delay": {
-            "ms": 600,
-            "unit": "ms"
-          },
-          "op": "delay_counter",
-          "opcode": 125,
-          "radius": {
-            "denominator": 1,
-            "numerator": 180,
-            "unit": "cm"
-          }
-        }
-      ],
-      "id": "component_settle_later",
-      "kind": "mod",
-      "native_id": 20,
-      "pool": "common",
-      "tags": [
-        "ledger",
-        "defense"
-      ],
-      "targets": {
-        "components": [
-          "component_tab_ledger",
-          "component_spiky_hide",
-          "component_breath_strike"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "damage_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          },
-          "op": "knockback_scale",
-          "opcode": 126,
-          "ratio": {
-            "bp": 16000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_long_kick",
-      "kind": "mod",
-      "native_id": 21,
-      "pool": "common",
-      "tags": [
-        "collision"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_hose_down",
-          "active_triple_combo",
-          "active_stare_down"
-        ],
-        "components": [
-          "component_third_punch"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown_ratio": {
-            "bp": 12500,
-            "unit": "ratio"
-          },
-          "op": "control_scale",
-          "opcode": 127,
-          "ratio": {
-            "bp": 12500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_hold_down",
-      "kind": "mod",
-      "native_id": 22,
-      "pool": "common",
-      "tags": [
-        "control"
-      ],
-      "targets": {
-        "actives": [
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_stare_down"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "damage_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          },
-          "distance": {
-            "denominator": 1,
-            "numerator": 200,
-            "unit": "cm"
-          },
-          "op": "range_bonus",
-          "opcode": 128,
-          "range_cap": {
-            "denominator": 1,
-            "numerator": 1000,
-            "unit": "cm"
-          }
-        },
-        {
-          "damage_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          },
-          "distance": {
-            "denominator": 1,
-            "numerator": 200,
-            "unit": "cm"
-          },
-          "op": "counter_range_bonus",
-          "opcode": 129
-        }
-      ],
-      "id": "component_reach_out",
-      "kind": "mod",
-      "native_id": 23,
-      "pool": "common",
-      "tags": [
-        "projectile",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_quick_meeting",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ],
-        "components": [
-          "component_spiky_hide",
-          "component_breath_strike"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          },
-          "cost_ratio": {
-            "bp": 12500,
-            "unit": "ratio"
-          },
-          "op": "cooldown_cost",
-          "opcode": 130
-        }
-      ],
-      "id": "component_again_now",
-      "kind": "mod",
-      "native_id": 24,
-      "pool": "common",
-      "tags": [
-        "tempo"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_bail_out",
-          "active_apology_slide",
-          "active_not_mad",
-          "active_stare_down",
-          "active_triple_combo",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "angle": {
-            "denominator": 1,
-            "numerator": 35,
-            "unit": "degrees"
-          },
-          "damage_ratio": {
-            "bp": 11500,
-            "unit": "ratio"
-          },
-          "delay": {
-            "ms": 600,
-            "unit": "ms"
-          },
-          "op": "compress_cone",
-          "opcode": 131
-        },
-        {
-          "damage_ratio": {
-            "bp": 11000,
-            "unit": "ratio"
-          },
-          "delay": {
-            "ms": 900,
-            "unit": "ms"
-          },
-          "op": "compress_zone",
-          "opcode": 132,
-          "ratio": {
-            "bp": 7500,
-            "unit": "ratio"
-          }
-        },
-        {
-          "damage_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          },
-          "op": "compress_chain",
-          "opcode": 148
-        }
-      ],
-      "form": "zone_shape",
-      "id": "component_one_slam",
-      "kind": "mod",
-      "native_id": 25,
-      "pool": "common",
-      "tags": [
-        "area",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_quick_meeting",
-          "active_open_mic",
-          "active_dirty_puddle",
-          "active_zap"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown_ratio": {
-            "bp": 12500,
-            "unit": "ratio"
-          },
-          "damage_ratio": {
-            "bp": 13000,
-            "unit": "ratio"
-          },
-          "op": "dash_scale",
-          "opcode": 133,
-          "ratio": {
-            "bp": 15000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "form": "dash_shape",
-      "id": "component_ram_through",
-      "kind": "mod",
-      "native_id": 26,
-      "pool": "common",
-      "tags": [
-        "collision"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_apology_slide",
-          "active_charged_ram"
-        ],
-        "dash": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown_ratio": {
-            "bp": 7500,
-            "unit": "ratio"
-          },
-          "damage_ratio": {
-            "bp": 10000,
-            "unit": "ratio"
-          },
-          "op": "dash_scale",
-          "opcode": 133,
-          "ratio": {
-            "bp": 7000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "form": "dash_shape",
-      "id": "component_quick_hop",
-      "kind": "mod",
-      "native_id": 27,
-      "pool": "common",
-      "tags": [
-        "collision",
-        "tempo"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_apology_slide",
-          "active_charged_ram"
-        ],
-        "dash": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "count": 8,
-          "damage_ratio": {
-            "bp": 12500,
-            "unit": "ratio"
-          },
-          "duration": {
-            "ms": 4000,
-            "unit": "ms"
-          },
-          "op": "ledger_variant",
-          "opcode": 134
-        }
-      ],
-      "id": "component_big_tab",
-      "kind": "mod",
-      "native_id": 28,
-      "pool": "common",
-      "tags": [
-        "ledger"
-      ],
-      "targets": {
-        "components": [
-          "component_tab_ledger"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "damage_ratio": {
-            "bp": 8500,
-            "unit": "ratio"
-          },
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "marked_counter",
-          "opcode": 135
-        }
-      ],
-      "id": "component_pick_you",
-      "kind": "mod",
-      "native_id": 29,
-      "pool": "scarce",
-      "tags": [
-        "defense"
-      ],
-      "targets": {
-        "actives": [
-          "active_zap",
-          "active_charged_ram"
-        ],
-        "components": [
-          "component_spiky_hide",
-          "component_breath_strike",
-          "component_fist_shock",
-          "component_dirty_trick"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "damage_defer",
-          "opcode": 136,
-          "ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_owe_it",
-      "kind": "mod",
-      "native_id": 30,
-      "pool": "scarce",
-      "tags": [
-        "defense"
-      ],
-      "targets": {
-        "self": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "base": {
-            "p2": 1200,
-            "unit": "hp"
-          },
-          "cap_ratio": {
-            "bp": 1200,
-            "unit": "ratio"
-          },
-          "duration": {
-            "ms": 2000,
-            "unit": "ms"
-          },
-          "interval": {
-            "ms": 1000,
-            "unit": "ms"
-          },
-          "op": "fire_shield",
-          "opcode": 137,
-          "ratio": {
-            "bp": 6000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_fire_skin",
-      "kind": "connector",
-      "native_id": 31,
-      "pool": "common",
-      "tags": [
-        "element",
-        "defense"
-      ],
-      "targets": {
-        "actives": [
-          "active_seethe",
-          "active_quick_meeting"
-        ],
-        "components": [
-          "component_fist_fire",
-          "component_dirty_trick",
-          "component_dirty_fist"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 2000,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 0,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 3000,
-            "unit": "points"
-          },
-          "damage_type": "Physical",
-          "op": "knockback_impact",
-          "opcode": 138,
-          "stun_duration": {
-            "ms": 600,
-            "unit": "ms"
-          }
-        }
-      ],
-      "id": "component_ball_kick",
-      "kind": "connector",
-      "native_id": 32,
-      "pool": "common",
-      "tags": [
-        "collision"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_hose_down",
-          "active_charged_ram",
-          "active_not_mad",
-          "active_brace",
-          "active_triple_combo",
-          "active_open_mic"
-        ],
-        "components": [
-          "component_third_punch",
-          "component_roll_bump"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown": {
-            "ms": 1500,
-            "unit": "ms"
-          },
-          "interval": {
-            "ms": 4000,
-            "unit": "ms"
-          },
-          "op": "dash_contact_refund",
-          "opcode": 88
-        }
-      ],
-      "id": "component_bump_again",
-      "kind": "connector",
-      "native_id": 33,
-      "pool": "common",
-      "tags": [
-        "collision",
-        "tempo"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_apology_slide",
-          "active_charged_ram"
-        ],
-        "dash": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "distance": {
-            "denominator": 1,
-            "numerator": 120,
-            "unit": "cm"
-          },
-          "duration": {
-            "ms": 120,
-            "unit": "ms"
-          },
-          "op": "contact_knockback",
-          "opcode": 139
-        }
-      ],
-      "id": "component_roll_bump",
-      "kind": "connector",
-      "native_id": 34,
-      "pool": "common",
-      "tags": [
-        "collision"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_apology_slide",
-          "active_charged_ram"
-        ],
-        "dash": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 4000,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 4000,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 7000,
-            "unit": "points"
-          },
-          "damage_type": "Physical",
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "control_mark",
-          "opcode": 140
-        }
-      ],
-      "id": "component_pin_punch",
-      "kind": "connector",
-      "native_id": 35,
-      "pool": "common",
-      "tags": [
-        "control"
-      ],
-      "targets": {
-        "actives": [
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_stare_down"
-        ],
-        "components": [
-          "component_ball_kick",
-          "component_after_pin"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 0,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 3500,
-            "unit": "points"
-          },
-          "damage_type": "Magical",
-          "delay": {
-            "ms": 450,
-            "unit": "ms"
-          },
-          "op": "aftershock",
-          "opcode": 141,
-          "root_duration": {
-            "ms": 750,
-            "unit": "ms"
-          }
-        }
-      ],
-      "id": "component_after_pin",
-      "kind": "connector",
-      "native_id": 36,
-      "pool": "common",
-      "tags": [
-        "area",
-        "control"
-      ],
-      "targets": {
-        "actives": [
-          "active_quick_meeting",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_dirty_puddle"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "momentum": {
-            "p2": 400,
-            "unit": "momentum"
-          },
-          "momentum_cap": {
-            "p2": 1200,
-            "unit": "momentum"
-          },
-          "op": "control_momentum",
-          "opcode": 142
-        }
-      ],
-      "id": "component_control_momentum",
-      "kind": "connector",
-      "native_id": 37,
-      "pool": "common",
-      "tags": [
-        "control",
-        "tempo"
-      ],
-      "targets": {
-        "actives": [
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_stare_down"
-        ],
-        "components": [
-          "component_ball_kick",
-          "component_after_pin"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "base": {
-            "p2": 6000,
-            "unit": "points"
-          },
-          "damage_type": "Magical",
-          "duration": {
-            "ms": 4000,
-            "unit": "ms"
-          },
-          "interval": {
-            "ms": 1000,
-            "unit": "ms"
-          },
-          "op": "heal_counter",
-          "opcode": 143,
-          "radius": {
-            "denominator": 1,
-            "numerator": 600,
-            "unit": "cm"
-          },
-          "ratio": {
-            "bp": 5000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_breath_strike",
-      "kind": "connector",
-      "native_id": 38,
-      "pool": "common",
-      "tags": [
-        "defense"
-      ],
-      "targets": {
-        "components": [
-          "component_punch_heal",
-          "component_hurt_heal"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "ad_ratio": {
-            "bp": 2000,
-            "unit": "ratio"
-          },
-          "ap_ratio": {
-            "bp": 2000,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 2500,
-            "unit": "points"
-          },
-          "damage_type": "Physical",
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "reaction_empower",
-          "opcode": 144
-        }
-      ],
-      "id": "component_blast_chase",
-      "kind": "connector",
-      "native_id": 39,
-      "pool": "common",
-      "tags": [
-        "element",
-        "basic"
-      ],
-      "targets": {
-        "actives": [
-          "active_seethe",
-          "active_quick_meeting",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_dirty_puddle"
-        ],
-        "components": [
-          "component_fist_fire",
-          "component_fist_water",
-          "component_fist_shock",
-          "component_dirty_trick",
-          "component_dirty_fist"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "op": "shield_burst",
-          "opcode": 145,
-          "radius": {
-            "denominator": 1,
-            "numerator": 250,
-            "unit": "cm"
-          },
-          "ratio": {
-            "bp": 3500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_shell_burst",
-      "kind": "connector",
-      "native_id": 40,
-      "pool": "common",
-      "tags": [
-        "defense",
-        "area"
-      ],
-      "targets": {
-        "actives": [
-          "active_not_mad",
-          "active_charged_ram"
-        ],
-        "components": [
-          "component_hard_skin",
-          "component_fire_skin"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "base": {
-            "p2": 3000,
-            "unit": "hp"
-          },
-          "op": "skill_lifesteal",
-          "opcode": 146,
-          "ratio": {
-            "bp": 800,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_hurt_heal",
-      "kind": "connector",
-      "native_id": 41,
-      "pool": "common",
-      "tags": [
-        "spell",
-        "defense"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ],
-        "components": [
-          "component_spiky_hide",
-          "component_dash_bump",
-          "component_ball_kick",
-          "component_pin_punch",
-          "component_after_pin",
-          "component_breath_strike",
-          "component_shell_burst"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "op": "extra_base",
-          "opcode": 147
-        }
-      ],
-      "id": "component_dirty_fist",
-      "kind": "connector",
-      "native_id": 42,
-      "pool": "scarce",
-      "tags": [
-        "basic",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_bail_out",
-          "active_apology_slide",
-          "active_triple_combo",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ],
-        "bases": [
-          "component_fist_fire",
-          "component_tab_ledger",
-          "component_spiky_hide",
-          "component_punch_heal",
-          "component_dash_bump",
-          "component_third_punch",
-          "component_kick_down",
-          "component_hard_skin",
-          "component_fist_water",
-          "component_fist_shock",
-          "component_dash_punch",
-          "component_held_shot",
-          "component_dirty_trick"
-        ],
-        "components": [
-          "component_spiky_hide",
-          "component_dash_bump",
-          "component_ball_kick",
-          "component_pin_punch",
-          "component_after_pin",
-          "component_breath_strike",
-          "component_shell_burst"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "damage_ratio": {
-            "bp": 5000,
-            "unit": "ratio"
-          },
-          "op": "projectile_return",
-          "opcode": 152
-        }
-      ],
-      "id": "component_boomerang",
-      "kind": "mod",
-      "native_id": 43,
-      "pool": "common",
-      "tags": [
-        "projectile"
-      ],
-      "targets": {
-        "actives": [
-          "active_snark_bolt",
-          "active_sock_shot"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "count": 1,
-          "damage_ratio": {
-            "bp": 7000,
-            "unit": "ratio"
-          },
-          "op": "projectile_pierce",
-          "opcode": 153
-        },
-        {
-          "count": 1,
-          "op": "chain_extra",
-          "opcode": 154
-        }
-      ],
-      "id": "component_skewer",
-      "kind": "mod",
-      "native_id": 44,
-      "pool": "common",
-      "tags": [
-        "projectile"
-      ],
-      "targets": {
-        "actives": [
-          "active_snark_bolt",
-          "active_zap",
-          "active_sock_shot"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown_ratio": {
-            "bp": 11500,
-            "unit": "ratio"
-          },
-          "damage_ratio": {
-            "bp": 5000,
-            "unit": "ratio"
-          },
-          "delay": {
-            "ms": 800,
-            "unit": "ms"
-          },
-          "op": "echo_impact",
-          "opcode": 155
-        }
-      ],
-      "id": "component_encore",
-      "kind": "mod",
-      "native_id": 45,
-      "pool": "common",
-      "tags": [
-        "area",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_seethe",
-          "active_calculus_drop",
-          "active_flyer_trap"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown": {
-            "ms": 1500,
-            "unit": "ms"
-          },
-          "op": "hit_haste_other",
-          "opcode": 156
-        }
-      ],
-      "id": "component_next_up",
-      "kind": "connector",
-      "native_id": 46,
-      "pool": "common",
-      "tags": [
-        "tempo",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ],
-        "dash": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "duration": {
-            "ms": 4000,
-            "unit": "ms"
-          },
-          "op": "setup_mark",
-          "opcode": 157,
-          "ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_setup_line",
-      "kind": "connector",
-      "native_id": 47,
-      "pool": "common",
-      "tags": [
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cooldown": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "reaction_haste",
-          "opcode": 158
-        }
-      ],
-      "id": "component_blast_reload",
-      "kind": "connector",
-      "native_id": 48,
-      "pool": "common",
-      "tags": [
-        "element",
-        "tempo"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "momentum": {
-            "p2": 800,
-            "unit": "momentum"
-          },
-          "momentum_cap": {
-            "p2": 2400,
-            "unit": "momentum"
-          },
-          "op": "multi_hit_momentum",
-          "opcode": 159
-        }
-      ],
-      "id": "component_group_refund",
-      "kind": "connector",
-      "native_id": 49,
-      "pool": "common",
-      "tags": [
-        "area",
-        "tempo"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_seethe",
-          "active_quick_meeting",
-          "active_apology_slide",
-          "active_calculus_drop",
-          "active_flyer_trap",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_charged_ram",
-          "active_brace",
-          "active_dirty_puddle",
-          "active_sock_shot"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "op": "stat_bonus",
-          "opcode": 5,
-          "stats": {
-            "CooldownHasteFlat": {
-              "p2": 1500,
-              "unit": "points"
-            }
-          }
-        },
-        {
-          "op": "basic_damage_scale",
-          "opcode": 102,
-          "ratio": {
-            "bp": 8500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_clear_head",
-      "kind": "base",
-      "native_id": 50,
-      "pool": "common",
-      "tags": [
-        "spell",
-        "tempo"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "op": "low_hp_stat_bonus",
-          "opcode": 15,
-          "stats": {
-            "CooldownHasteFlat": {
-              "p2": 2000,
-              "unit": "points"
-            },
-            "MoveSpeedBonusRatio": {
-              "bp": 2000,
-              "unit": "ratio"
-            }
-          },
-          "threshold": {
-            "bp": 4000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_run_away",
-      "kind": "base",
-      "native_id": 51,
-      "pool": "common",
-      "tags": [
-        "defense"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "base": {
-            "p2": 1200,
-            "unit": "points"
-          },
-          "op": "primary_guard",
-          "opcode": 86,
-          "ratio": {
-            "bp": 2500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_guard_up",
-      "kind": "base",
-      "native_id": 52,
-      "pool": "common",
-      "tags": [
-        "defense"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "op": "zone_tether",
-          "opcode": 160,
-          "radius_ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "form": "zone_shape",
-      "id": "component_zone_tether",
-      "kind": "mod",
-      "native_id": 53,
-      "pool": "common",
-      "tags": [
-        "area"
-      ],
-      "targets": {
-        "actives": [
-          "active_quick_meeting",
-          "active_dirty_puddle"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "distance": {
-            "denominator": 1,
-            "numerator": 220,
-            "unit": "cm"
-          },
-          "duration": {
-            "ms": 200,
-            "unit": "ms"
-          },
-          "op": "defense_shove",
-          "opcode": 161,
-          "radius": {
-            "denominator": 1,
-            "numerator": 250,
-            "unit": "cm"
-          },
-          "shield_ratio": {
-            "bp": 8500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_shove_off",
-      "kind": "mod",
-      "native_id": 54,
-      "pool": "common",
-      "tags": [
-        "defense",
-        "collision"
-      ],
-      "targets": {
-        "actives": [
-          "active_charged_ram",
-          "active_not_mad",
-          "active_brace"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "cost_ratio": {
-            "bp": 5000,
-            "unit": "ratio"
-          },
-          "distance": {
-            "denominator": 1,
-            "numerator": 250,
-            "unit": "cm"
-          },
-          "duration": {
-            "ms": 200,
-            "unit": "ms"
-          },
-          "op": "final_knockback",
-          "opcode": 162
-        }
-      ],
-      "id": "component_finisher",
-      "kind": "mod",
-      "native_id": 55,
-      "pool": "common",
-      "tags": [
-        "basic",
-        "collision"
-      ],
-      "targets": {
-        "actives": [
-          "active_triple_combo",
-          "active_open_mic"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "damage_ratio": {
-            "bp": 7000,
-            "unit": "ratio"
-          },
-          "op": "empower_reach",
-          "opcode": 163,
-          "range": {
-            "denominator": 1,
-            "numerator": 250,
-            "unit": "cm"
-          }
-        }
-      ],
-      "id": "component_long_handle",
-      "kind": "mod",
-      "native_id": 56,
-      "pool": "common",
-      "tags": [
-        "basic"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_triple_combo"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "distance": {
-            "denominator": 1,
-            "numerator": 150,
-            "unit": "cm"
-          },
-          "duration": {
-            "ms": 150,
-            "unit": "ms"
-          },
-          "min_distance": {
-            "denominator": 1,
-            "numerator": 120,
-            "unit": "cm"
-          },
-          "op": "pull",
-          "opcode": 164
-        }
-      ],
-      "id": "component_come_here",
-      "kind": "mod",
-      "native_id": 57,
-      "pool": "common",
-      "tags": [
-        "collision",
-        "control"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_hose_down",
-          "active_stare_down"
-        ]
-      }
-    },
-    {
-      "draw_requires_actives": [
-        "active_quick_meeting",
-        "active_dirty_puddle",
-        "active_flyer_trap"
-      ],
-      "effects": [
-        {
-          "op": "zone_relocate",
-          "opcode": 165
-        }
-      ],
-      "id": "component_move_meeting",
-      "kind": "connector",
-      "native_id": 58,
-      "pool": "common",
-      "tags": [
-        "area"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_apology_slide",
-          "active_charged_ram"
-        ],
-        "dash": true
-      }
-    },
-    {
-      "effects": [
-        {
-          "duration": {
-            "ms": 5000,
-            "unit": "ms"
-          },
-          "op": "stored_force",
-          "opcode": 166,
-          "ratio": {
-            "bp": 5000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_bottled_up",
-      "kind": "connector",
-      "native_id": 59,
-      "pool": "common",
-      "tags": [
-        "defense",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_charged_ram",
-          "active_not_mad",
-          "active_brace"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "op": "empower_spend",
-          "opcode": 167
-        }
-      ],
-      "id": "component_spend_fist",
-      "kind": "connector",
-      "native_id": 60,
-      "pool": "common",
-      "tags": [
-        "basic",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_bail_out",
-          "active_triple_combo"
-        ],
-        "components": [
-          "component_dash_punch"
-        ]
-      }
-    },
-    {
-      "effects": [
-        {
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "control_widen",
-          "opcode": 168,
-          "ratio": {
-            "bp": 3500,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_wide_open",
-      "kind": "connector",
-      "native_id": 61,
-      "pool": "common",
-      "tags": [
-        "control",
-        "area"
-      ],
-      "targets": {
-        "actives": [
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_stare_down"
-        ]
-      }
-    },
-    {
-      "draw_requires_actives": [
-        "active_quick_meeting",
-        "active_dirty_puddle"
-      ],
-      "effects": [
-        {
-          "op": "zone_detonate",
-          "opcode": 169,
-          "ratio": {
-            "bp": 8000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "id": "component_set_it_off",
-      "kind": "connector",
-      "native_id": 62,
-      "pool": "common",
-      "tags": [
-        "area",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_seethe",
-          "active_zap",
-          "active_calculus_drop"
-        ]
-      }
-    },
-    {
-      "draw_requires_actives": [
-        "active_quick_meeting",
-        "active_dirty_puddle",
-        "active_flyer_trap"
-      ],
-      "effects": [
-        {
-          "op": "zone_relocate",
-          "opcode": 165
-        }
-      ],
-      "id": "component_meet_here",
-      "kind": "connector",
-      "native_id": 63,
-      "pool": "common",
-      "tags": [
-        "area",
-        "spell"
-      ],
-      "targets": {
-        "actives": [
-          "active_elbow",
-          "active_pants_down",
-          "active_crotch_grab",
-          "active_account_banned",
-          "active_unplug",
-          "active_snark_bolt",
-          "active_open_mic",
-          "active_hose_down",
-          "active_zap",
-          "active_sock_shot"
-        ]
-      }
-    }
-  ],
   "display": [
     {
       "description_key": "active_account_banned.description",
@@ -17608,581 +16990,509 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_add_fire.description",
+      "description_text": "这个技能命中施加 [skill_element.count] 层灼烧。",
+      "icon_id": "icon_card_add_fire",
+      "id": "card_add_fire",
+      "name_key": "card_add_fire.name",
+      "name_text": "掺点火",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_add_shock.description",
+      "description_text": "这个技能命中让目标感电。",
+      "icon_id": "icon_card_add_shock",
+      "id": "card_add_shock",
+      "name_key": "card_add_shock.name",
+      "name_text": "掺点电",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_add_water.description",
+      "description_text": "这个技能命中让目标潮湿。",
+      "icon_id": "icon_card_add_water",
+      "id": "card_add_water",
+      "name_key": "card_add_water.name",
+      "name_text": "掺点水",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_again_now.description",
+      "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。",
+      "icon_id": "icon_card_again_now",
+      "id": "card_again_now",
+      "name_key": "card_again_now.name",
+      "name_text": "再来一下别喘",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_ball_kick.description",
+      "description_text": "你造成的击退撞上墙时眩晕 [knockback_impact.secondary_duration] 秒；撞上另一个敌人时两人各受 [knockback_impact.amount] 物理伤害。",
+      "icon_id": "icon_card_ball_kick",
+      "id": "card_ball_kick",
+      "name_key": "card_ball_kick.name",
+      "name_text": "拿你当球踢",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_berserk.description",
+      "description_text": "每少百分之一的生命，攻速 +[missing_hp_attack_speed.ratio]%。",
+      "icon_id": "icon_card_berserk",
+      "id": "card_berserk",
+      "name_key": "card_berserk.name",
+      "name_text": "残血狂暴",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_big_one.description",
+      "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，伤害 +[skill_damage_factor.ratio]%。",
+      "icon_id": "icon_card_big_one",
+      "id": "card_big_one",
+      "name_key": "card_big_one.name",
+      "name_text": "攒够一顿狠的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_blast_reload.description",
+      "description_text": "这个技能触发反应时，它的冷却减少 [reaction_haste.refund] 秒。",
+      "icon_id": "icon_card_blast_reload",
+      "id": "card_blast_reload",
+      "name_key": "card_blast_reload.name",
+      "name_text": "炸了接着放",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_blood_price.description",
+      "description_text": "这个技能改用生命支付，每点劲换成 [hp_cost.ratio]% 生命上限，不再耗劲；伤害 +[skill_damage_factor.ratio]%；生命不够时放不出。",
+      "icon_id": "icon_card_blood_price",
+      "id": "card_blood_price",
+      "name_key": "card_blood_price.name",
+      "name_text": "拿命换",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_both_hands.description",
+      "description_text": "第三拳变成两下，每下 [combo_double.multiplier]% 伤害，两下都算普攻命中；每多一张多打一下。",
+      "icon_id": "icon_card_both_hands",
+      "id": "card_both_hands",
+      "name_key": "card_both_hands.name",
+      "name_text": "左右开弓",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_breach_fist.description",
+      "description_text": "普攻命中施加 [breach.basic_count] 层破防。",
+      "icon_id": "icon_card_breach_fist",
+      "id": "card_breach_fist",
+      "name_key": "card_breach_fist.name",
+      "name_text": "越揍越不经打",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_bump_again.description",
+      "description_text": "冲刺撞到敌人时，所有技能冷却减少 [hit_haste_other.refund] 秒。",
+      "icon_id": "icon_card_bump_again",
+      "id": "card_bump_again",
+      "name_key": "card_bump_again.name",
+      "name_text": "撞着了再撞",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_bump_reset.description",
+      "description_text": "冲刺撞到敌人时，冲刺冷却立刻刷新；每次冲刺一次。",
+      "icon_id": "icon_card_bump_reset",
+      "id": "card_bump_reset",
+      "name_key": "card_bump_reset.name",
+      "name_text": "撞着就刷新",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_charge_up.description",
+      "description_text": "不造成伤害的每 [idle_charge.interval] 秒，下一次伤害 +[idle_charge.ratio]%，没有上限；造成伤害后清零（持续伤害不清零）。",
+      "icon_id": "icon_card_charge_up",
+      "id": "card_charge_up",
+      "name_key": "card_charge_up.name",
+      "name_text": "攒个大的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_dash_punch.description",
+      "description_text": "冲刺结束后 [empower_basic.duration] 秒内，下一次普攻多造成 [empower_basic.amount] 物理伤害。",
+      "icon_id": "icon_card_dash_punch",
+      "id": "card_dash_punch",
+      "name_key": "card_dash_punch.name",
+      "name_text": "蹿过去抡一拳",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_double_dash.description",
+      "description_text": "冲刺分成两段，每段 [dash_split.distance] 厘米；第一段后 [dash_split.duration] 秒内再按冲刺放第二段，冷却不变。",
+      "icon_id": "icon_card_double_dash",
+      "id": "card_double_dash",
+      "name_key": "card_double_dash.name",
+      "name_text": "两段冲刺",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_encore.description",
+      "description_text": "这个技能放完 [auto_recast.delay] 秒后朝同一目标或方向自动再放一次，[auto_recast.multiplier]% 效果，不耗劲；每多一张多放一次。",
+      "icon_id": "icon_card_encore",
+      "id": "card_encore",
+      "name_key": "card_encore.name",
+      "name_text": "再来一遍",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_endless_burn.description",
+      "description_text": "你施加的灼烧最多叠到 [burn_cap.count] 层。",
+      "icon_id": "icon_card_endless_burn",
+      "id": "card_endless_burn",
+      "name_key": "card_endless_burn.name",
+      "name_text": "烧不完",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_fire_fist.description",
+      "description_text": "普攻命中施加 [burn.basic_count] 层灼烧。",
+      "icon_id": "icon_card_fire_fist",
+      "id": "card_fire_fist",
+      "name_key": "card_fire_fist.name",
+      "name_text": "拳头冒火",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_grow_fat.description",
+      "description_text": "你每回复 [heal_growth.amount] 生命，本局生命上限 +[heal_growth.limit]，没有上限。",
+      "icon_id": "icon_card_grow_fat",
+      "id": "card_grow_fat",
+      "name_key": "card_grow_fat.name",
+      "name_text": "越吃越壮",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_hang_on.description",
+      "description_text": "生命低于 [last_stand.ratio]% 时，接下来 [last_stand.duration] 秒每次受到的伤害降为一点；每条命一次。",
+      "icon_id": "icon_card_hang_on",
+      "id": "card_hang_on",
+      "name_key": "card_hang_on.name",
+      "name_text": "死扛",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_hard_skin.description",
+      "description_text": "受到敌人伤害后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；之后 [triggered_shield.interval] 秒内不再起盾。",
+      "icon_id": "icon_card_hard_skin",
+      "id": "card_hard_skin",
+      "name_key": "card_hard_skin.name",
+      "name_text": "挨揍起硬皮",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_heated_up.description",
+      "description_text": "连续打同一个人，每下攻速 +[focus_attack_speed.ratio]%，没有上限；换人或 [focus_attack_speed.duration] 秒没打就清零。",
+      "icon_id": "icon_card_heated_up",
+      "id": "card_heated_up",
+      "name_key": "card_heated_up.name",
+      "name_text": "越打越上头",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_held_shot.description",
+      "description_text": "这个技能就绪后每闲置 [idle_ready_amp.interval] 秒，下一次伤害 +[idle_ready_amp.ratio]%，没有上限，放出后清零。",
+      "icon_id": "icon_card_held_shot",
+      "id": "card_held_shot",
+      "name_key": "card_held_shot.name",
+      "name_text": "憋着一发狠的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_hurt_heal.description",
+      "description_text": "这个技能实际造成的生命伤害的 [skill_lifesteal.ratio]% 治疗自己。",
+      "icon_id": "icon_card_hurt_heal",
+      "id": "card_hurt_heal",
+      "name_key": "card_hurt_heal.name",
+      "name_text": "打疼了我回血",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_kill_streak.description",
+      "description_text": "每次击杀参赛者，本局攻击力 +[kill_growth.ADFlat]、法强 +[kill_growth.APFlat]；助攻给 [kill_growth.ratio]%。",
+      "icon_id": "icon_card_kill_streak",
+      "id": "card_kill_streak",
+      "name_key": "card_kill_streak.name",
+      "name_text": "越杀越猛",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_lend_fist.description",
+      "description_text": "这个技能每次直接命中额外造成 [skill_ad_rider.amount] 物理伤害。",
+      "icon_id": "icon_card_lend_fist",
+      "id": "card_lend_fist",
+      "name_key": "card_lend_fist.name",
+      "name_text": "拳头借给技能",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_live_wire.description",
+      "description_text": "装上时选一种元素；在你身边 [element_aura.radius] 厘米内对你造成直接伤害的人被挂上它。",
+      "icon_id": "icon_card_live_wire",
+      "id": "card_live_wire",
+      "name_key": "card_live_wire.name",
+      "name_text": "浑身带电",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_long_soak.description",
+      "description_text": "你施加的元素持续时间变为 [element_duration.multiplier]%。",
+      "icon_id": "icon_card_long_soak",
+      "id": "card_long_soak",
+      "name_key": "card_long_soak.name",
+      "name_text": "久泡",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_louder_blast.description",
+      "description_text": "你触发的反应伤害 +[reaction_factor.ratio]%。",
+      "icon_id": "icon_card_louder_blast",
+      "id": "card_louder_blast",
+      "name_key": "card_louder_blast.name",
+      "name_text": "炸得更响",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_next_up.description",
+      "description_text": "这个技能命中时，你其他技能的冷却各减少 [hit_haste_other.refund] 秒。",
+      "icon_id": "icon_card_next_up",
+      "id": "card_next_up",
+      "name_key": "card_next_up.name",
+      "name_text": "打完换下一招",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_overfed.description",
+      "description_text": "溢出的治疗变成护盾，最多 [overheal_shield.multiplier]% 生命上限，持续 [overheal_shield.duration] 秒。",
+      "icon_id": "icon_card_overfed",
+      "id": "card_overfed",
+      "name_key": "card_overfed.name",
+      "name_text": "吃撑了",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_pass_through.description",
+      "description_text": "冲刺穿过敌人身体，对每个穿过的人打一次普攻（不推进连击）。",
+      "icon_id": "icon_card_pass_through",
+      "id": "card_pass_through",
+      "name_key": "card_pass_through.name",
+      "name_text": "穿人而过",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_pay_back.description",
+      "description_text": "这个技能每次命中回 [skill_hit_momentum.limit] 劲。",
+      "icon_id": "icon_card_pay_back",
+      "id": "card_pay_back",
+      "name_key": "card_pay_back.name",
+      "name_text": "一招回本",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_practice.description",
+      "description_text": "这个技能每命中参赛者一次，本局伤害 +[skill_growth.ratio]%，没有上限。",
+      "icon_id": "icon_card_practice",
+      "id": "card_practice",
+      "name_key": "card_practice.name",
+      "name_text": "越用越顺手",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_punch_heal.description",
+      "description_text": "普攻吸血 [lifesteal.ratio]%。",
+      "icon_id": "icon_card_punch_heal",
+      "id": "card_punch_heal",
+      "name_key": "card_punch_heal.name",
+      "name_text": "揍人续命",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_punch_think.description",
+      "description_text": "普攻命中时，随机一个还在冷却的技能冷却减少 [basic_cooldown_cut.refund] 秒。",
+      "icon_id": "icon_card_punch_think",
+      "id": "card_punch_think",
+      "name_key": "card_punch_think.name",
+      "name_text": "边打边想",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_quick_brain.description",
+      "description_text": "技能急速每 [haste_momentum.amount] 点，你每次技能命中多回 [haste_momentum.limit] 劲。",
+      "icon_id": "icon_card_quick_brain",
+      "id": "card_quick_brain",
+      "name_key": "card_quick_brain.name",
+      "name_text": "脑子转得快",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_quick_hands.description",
+      "description_text": "攻速超过上限的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。",
+      "icon_id": "icon_card_quick_hands",
+      "id": "card_quick_hands",
+      "name_key": "card_quick_hands.name",
+      "name_text": "手快有手慢无",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_reaction_refund.description",
+      "description_text": "你触发反应时回 [reaction_momentum.limit] 劲。",
+      "icon_id": "icon_card_reaction_refund",
+      "id": "card_reaction_refund",
+      "name_key": "card_reaction_refund.name",
+      "name_text": "反应回本",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_scholar_punch.description",
+      "description_text": "普攻额外造成 [basic_ap_rider.amount] 魔法伤害，跟着这一拳一起结算。",
+      "icon_id": "icon_card_scholar_punch",
+      "id": "card_scholar_punch",
+      "name_key": "card_scholar_punch.name",
+      "name_text": "读书人打架",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_setup_line.description",
+      "description_text": "这个技能命中给目标挂 [setup_mark.duration] 秒记号；你别的技能打中有记号的人伤害 +[setup_mark.ratio]% 并消耗记号。",
+      "icon_id": "icon_card_setup_line",
+      "id": "card_setup_line",
+      "name_key": "card_setup_line.name",
+      "name_text": "先垫一句",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_shock_dash.description",
+      "description_text": "冲刺撞到的敌人感电。",
+      "icon_id": "icon_card_shock_dash",
+      "id": "card_shock_dash",
+      "name_key": "card_shock_dash.name",
+      "name_text": "冲刺挂麻",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_shock_fist.description",
+      "description_text": "普攻命中让目标感电。",
+      "icon_id": "icon_card_shock_fist",
+      "id": "card_shock_fist",
+      "name_key": "card_shock_fist.name",
+      "name_text": "拳头漏电",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_skill_crit.description",
+      "description_text": "你的技能伤害也能暴击，用你的暴击率。",
+      "icon_id": "icon_card_skill_crit",
+      "id": "card_skill_crit",
+      "name_key": "card_skill_crit.name",
+      "name_text": "技能也能暴击",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_skill_drain.description",
+      "description_text": "你的吸血也按技能实际造成的生命伤害生效。",
+      "icon_id": "icon_card_skill_drain",
+      "id": "card_skill_drain",
+      "name_key": "card_skill_drain.name",
+      "name_text": "吸血对技能生效",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_solid_punch.description",
+      "description_text": "第三拳命中同时算一次技能命中：触发技能命中类的牌和劲，不触发技能本身的效果。",
+      "icon_id": "icon_card_solid_punch",
+      "id": "card_solid_punch",
+      "name_key": "card_solid_punch.name",
+      "name_text": "拳拳到肉",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_spiky_hide.description",
+      "description_text": "受到敌人的直接伤害（含被护盾挡下的）时，把其中 [thorns.ratio]% 作为魔法伤害反弹给出手的人；反弹可以吸血，不会暴击。",
+      "icon_id": "icon_card_spiky_hide",
+      "id": "card_spiky_hide",
+      "name_key": "card_spiky_hide.name",
+      "name_text": "打我也硌手",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_takedown.description",
+      "description_text": "击杀或助攻参赛者时，全部技能冷却刷新，劲回满。",
+      "icon_id": "icon_card_takedown",
+      "id": "card_takedown",
+      "name_key": "card_takedown.name",
+      "name_text": "人头刷新",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_thick_hide.description",
+      "description_text": "每点护甲给你 [armor_to_hp.amount] 生命上限。",
+      "icon_id": "icon_card_thick_hide",
+      "id": "card_thick_hide",
+      "name_key": "card_thick_hide.name",
+      "name_text": "皮糙肉厚",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_third_breath.description",
+      "description_text": "第三拳命中时回 [combo_momentum.limit] 劲。",
+      "icon_id": "icon_card_third_breath",
+      "id": "card_third_breath",
+      "name_key": "card_third_breath.name",
+      "name_text": "第三拳回口气",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_third_shove.description",
+      "description_text": "第三拳把主目标推开 [combo_knockback.distance] 厘米，撞到墙或人会停下。",
+      "icon_id": "icon_card_third_shove",
+      "id": "card_third_shove",
+      "name_key": "card_third_shove.name",
+      "name_text": "第三拳滚蛋",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_tough_skin.description",
+      "description_text": "每被控制一次，本局护甲 +[control_growth.ArmorFlat]、魔抗 +[control_growth.MagicResistFlat]，没有上限。",
+      "icon_id": "icon_card_tough_skin",
+      "id": "card_tough_skin",
+      "name_key": "card_tough_skin.name",
+      "name_text": "越挨越硬",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_water_fist.description",
+      "description_text": "普攻命中让目标潮湿。",
+      "icon_id": "icon_card_water_fist",
+      "id": "card_water_fist",
+      "name_key": "card_water_fist.name",
+      "name_text": "拳头甩脏水",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_wave_after.description",
+      "description_text": "你触发反应后，给目标挂上一个和刚被消耗的不同的随机元素。",
+      "icon_id": "icon_card_wave_after",
+      "id": "card_wave_after",
+      "name_key": "card_wave_after.name",
+      "name_text": "一波接一波",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "character_demo.description",
-      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、捡构件。",
+      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、抽牌。",
       "icon_id": "icon_character_demo",
       "id": "character_demo",
       "name_key": "character_demo.name",
       "name_text": "脆皮大学生",
       "namespace": "DemoContent",
       "portrait_icon_id": "portrait_character_demo"
-    },
-    {
-      "description_key": "component_after_pin.description",
-      "description_text": "接一个区域、陷阱或落点：它正常结束或爆开后 [aftershock.delay] 秒，在原处再炸一次，造成 [aftershock.amount] 魔法伤害并定身 [aftershock.secondary_duration] 秒。",
-      "icon_id": "icon_component_after_pin",
-      "id": "component_after_pin",
-      "name_key": "component_after_pin.name",
-      "name_text": "炸完再摁住",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_again_now.description",
-      "description_text": "装在一个主动上：冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。",
-      "icon_id": "icon_component_again_now",
-      "id": "component_again_now",
-      "name_key": "component_again_now.name",
-      "name_text": "再来一下别喘",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_ball_kick.description",
-      "description_text": "接一个击退：被推的人首次撞上固定障碍，追加 [knockback_impact.amount] 物理伤害并眩晕 [knockback_impact.secondary_duration] 秒；首次撞上另一个敌人，两人各受同额物理伤害。需要本技能会击退。",
-      "icon_id": "icon_component_ball_kick",
-      "id": "component_ball_kick",
-      "name_key": "component_ball_kick.name",
-      "name_text": "拿你当球踢",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_big_tab.description",
-      "description_text": "你的账目改为攒满 [ledger_variant.count] 笔一批，每笔伤害变为 [ledger_variant.multiplier]%，[ledger_variant.duration] 秒没有新账就清空。",
-      "icon_id": "icon_component_big_tab",
-      "id": "component_big_tab",
-      "name_key": "component_big_tab.name",
-      "name_text": "攒够一顿狠的",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_blast_chase.description",
-      "description_text": "接一个元素来源：它触发元素反应后 [reaction_empower.duration] 秒内，下一次本体普攻多造成 [reaction_empower.amount] 物理伤害。",
-      "icon_id": "icon_component_blast_chase",
-      "id": "component_blast_chase",
-      "name_key": "component_blast_chase.name",
-      "name_text": "炸完追着揍",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_blast_reload.description",
-      "description_text": "宿主触发元素反应时，宿主的剩余冷却减少 [reaction_haste.refund] 秒；每次释放一次。",
-      "icon_id": "icon_component_blast_reload",
-      "id": "component_blast_reload",
-      "name_key": "component_blast_reload.name",
-      "name_text": "炸了接着放",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_boomerang.description",
-      "description_text": "装在甩你一鞋或馊水糊脸上：弹道结束后飞回你身边，途中命中的第一个敌人受 [projectile_return.multiplier]% 伤害与元素，不带减速和控制；回程不再折返或穿透。",
-      "icon_id": "icon_component_boomerang",
-      "id": "component_boomerang",
-      "name_key": "component_boomerang.name",
-      "name_text": "鞋还得捡回来",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_bottled_up.description",
-      "description_text": "本技能的护盾结束或顶住自然结束时，把实际挡下伤害的 [stored_force.ratio]% 存起来 [stored_force.duration] 秒；你另一个主动下一次命中敌人时，按同类伤害一次打出去。",
-      "icon_id": "icon_component_bottled_up",
-      "id": "component_bottled_up",
-      "name_key": "component_bottled_up.name",
-      "name_text": "憋着的气",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_breach_fist.description",
-      "description_text": "本体普攻命中时施加 [breach.basic_count] 层破防。",
-      "icon_id": "icon_component_breach_fist",
-      "id": "component_breach_fist",
-      "name_key": "component_breach_fist.name",
-      "name_text": "越揍越不经打",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_breath_strike.description",
-      "description_text": "接一个治疗来源：实际回血和还款的 [heal_counter.ratio]% 存成反击量，每 [heal_counter.interval] 秒打向 [heal_counter.radius] 厘米内最近打过你的敌人；最多存 [heal_counter.amount]，[heal_counter.duration] 秒没有新增就清空。",
-      "icon_id": "icon_component_breath_strike",
-      "id": "component_breath_strike",
-      "name_key": "component_breath_strike.name",
-      "name_text": "回口气就抽你",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_bump_again.description",
-      "description_text": "接一个冲刺：首次撞到敌人时，退还这次冲刺 [dash_contact_refund.refund] 秒剩余冷却；每 [dash_contact_refund.interval] 秒最多一次。",
-      "icon_id": "icon_component_bump_again",
-      "id": "component_bump_again",
-      "name_key": "component_bump_again.name",
-      "name_text": "撞着了再撞",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_catch_breath.description",
-      "description_text": "主动的原生命中第一次命中敌人时，返还本次释放实际花费劲的 [cast_hit_refund.ratio]%；每次释放一次。",
-      "icon_id": "icon_component_catch_breath",
-      "id": "component_catch_breath",
-      "name_key": "component_catch_breath.name",
-      "name_text": "喘口气接着干",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_clear_head.description",
-      "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]；本体普攻伤害 ×[basic_damage_scale.ratio]%。",
-      "icon_id": "icon_component_clear_head",
-      "id": "component_clear_head",
-      "name_key": "component_clear_head.name",
-      "name_text": "脑子转得快",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_come_here.description",
-      "description_text": "本技能的击退改为把目标拉向你；嘲讽命中的敌人被拉近 [pull.distance] 厘米。拉到离你 [pull.radius] 厘米为止。",
-      "icon_id": "icon_component_come_here",
-      "id": "component_come_here",
-      "name_key": "component_come_here.name",
-      "name_text": "过来吧你",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_control_momentum.description",
-      "description_text": "接一个硬控：每控住一个目标回 [control_momentum.amount] 劲，同一次动作最多回 [control_momentum.limit] 劲。",
-      "icon_id": "icon_component_control_momentum",
-      "id": "component_control_momentum",
-      "name_key": "component_control_momentum.name",
-      "name_text": "控住薅点劲",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_crowd_hit.description",
-      "description_text": "装在单体伤害上：点选技能改成 [spread_unit.angle]° 扇形，伤害只剩 [spread_unit.multiplier]%；飞弹首击改成落点 [spread_projectile.radius] 厘米范围，伤害 [spread_projectile.multiplier]%；账目兑现波及目标周围 [spread_ledger.radius] 厘米，伤害 [spread_ledger.multiplier]%；自动反击改成打自身周围 [spread_counter.radius] 厘米，伤害 [spread_counter.multiplier]%。控制和减益仍只给原目标。",
-      "icon_id": "icon_component_crowd_hit",
-      "id": "component_crowd_hit",
-      "name_key": "component_crowd_hit.name",
-      "name_text": "一群人一起挨",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_dash_bump.description",
-      "description_text": "冲刺或主动冲刺真的撞到敌人时，追加 [dash_contact_damage.amount] 物理伤害；每次冲刺对每个敌人一次。",
-      "icon_id": "icon_component_dash_bump",
-      "id": "component_dash_bump",
-      "name_key": "component_dash_bump.name",
-      "name_text": "撞你个趔趄",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_dash_punch.description",
-      "description_text": "冲刺完成后 [empower_basic.duration] 秒内，下一次本体普攻多造成 [empower_basic.amount] 物理伤害。",
-      "icon_id": "icon_component_dash_punch",
-      "id": "component_dash_punch",
-      "name_key": "component_dash_punch.name",
-      "name_text": "蹿过去抡一拳",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_dirty_fist.description",
-      "description_text": "选一个技能伤害和一个已启用的拳头构件：该技能每次有效命中，额外执行一次那个构件的效果，不算普攻。",
-      "icon_id": "icon_component_dirty_fist",
-      "id": "component_dirty_fist",
-      "name_key": "component_dirty_fist.name",
-      "name_text": "拳上的脏活也算",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_dirty_trick.description",
-      "description_text": "绑定一个伤害主动和一种元素：它每次直接命中额外施加一层灼烧，或让目标潮湿、感电。",
-      "icon_id": "icon_component_dirty_trick",
-      "id": "component_dirty_trick",
-      "name_key": "component_dirty_trick.name",
-      "name_text": "招里掺点脏的",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_encore.description",
-      "description_text": "宿主冷却变为 [echo_impact.secondary_ratio]%。板砖糊脸落地、踩一脚试试爆开或烫你屁股放出后 [echo_impact.delay] 秒，原处再来一次 [echo_impact.multiplier]% 伤害：板砖同样范围与外圈衰减，陷阱不减速，烫屁股在释放处炸开并加一层灼烧；回响不再回响。",
-      "icon_id": "icon_component_encore",
-      "id": "component_encore",
-      "name_key": "component_encore.name",
-      "name_text": "再来一遍",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_finisher.description",
-      "description_text": "左右开抽：最后一次强化普攻把目标抡开 [final_knockback.distance] 厘米，攻速加成 ×[final_knockback.cost_ratio]%。扯嗓子喷你：末波把命中的敌人推开同样距离，不再减速。",
-      "icon_id": "icon_component_finisher",
-      "id": "component_finisher",
-      "name_key": "component_finisher.name",
-      "name_text": "最后一下抡出去",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_fire_skin.description",
-      "description_text": "接一个火源：每 [fire_shield.interval] 秒汇总它造成的生命伤害，给你 [fire_shield.amount] 加该伤害 [fire_shield.ratio]% 的护盾，持续 [fire_shield.duration] 秒，最多为生命上限的 [fire_shield.multiplier]%；没伤害就不给盾。",
-      "icon_id": "icon_component_fire_skin",
-      "id": "component_fire_skin",
-      "name_key": "component_fire_skin.name",
-      "name_text": "烧着还挺扛揍",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_fist_fire.description",
-      "description_text": "本体普攻命中时施加 [burn.basic_count] 层灼烧。",
-      "icon_id": "icon_component_fist_fire",
-      "id": "component_fist_fire",
-      "name_key": "component_fist_fire.name",
-      "name_text": "拳头冒火",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_fist_shock.description",
-      "description_text": "本体普攻命中时让目标感电。",
-      "icon_id": "icon_component_fist_shock",
-      "id": "component_fist_shock",
-      "name_key": "component_fist_shock.name",
-      "name_text": "拳头漏电",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_fist_water.description",
-      "description_text": "本体普攻命中时让目标潮湿。",
-      "icon_id": "icon_component_fist_water",
-      "id": "component_fist_water",
-      "name_key": "component_fist_water.name",
-      "name_text": "拳头甩脏水",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_group_refund.description",
-      "description_text": "宿主一次释放每多命中一个不同的敌人，回 [multi_hit_momentum.amount] 劲；每次释放最多回 [multi_hit_momentum.limit] 劲。",
-      "icon_id": "icon_component_group_refund",
-      "id": "component_group_refund",
-      "name_key": "component_group_refund.name",
-      "name_text": "一锅端回本",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_guard_up.description",
-      "description_text": "受到的本体普攻主击伤害减少 [primary_guard.amount] 点，最多减少该次伤害的 [primary_guard.ratio]%。",
-      "icon_id": "icon_component_guard_up",
-      "id": "component_guard_up",
-      "name_key": "component_guard_up.name",
-      "name_text": "护住要害",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_hard_skin.description",
-      "description_text": "受到敌人伤害后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；成功起盾后 [triggered_shield.interval] 秒内不再起盾。",
-      "icon_id": "icon_component_hard_skin",
-      "id": "component_hard_skin",
-      "name_key": "component_hard_skin.name",
-      "name_text": "挨揍起硬皮",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_held_shot.description",
-      "description_text": "主动技能就绪后闲置满 [idle_ready_amp.delay] 秒，下次放它的直接伤害提高 [idle_ready_amp.ratio]%。",
-      "icon_id": "icon_component_held_shot",
-      "id": "component_held_shot",
-      "name_key": "component_held_shot.name",
-      "name_text": "憋着一发狠的",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_hold_down.description",
-      "description_text": "装在一个主动的硬控上：控制时间变为 [control_scale.ratio]%，该主动冷却变为 [control_scale.secondary_ratio]%。",
-      "icon_id": "icon_component_hold_down",
-      "id": "component_hold_down",
-      "name_key": "component_hold_down.name",
-      "name_text": "按住多揍一会",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_hurt_heal.description",
-      "description_text": "接一个技能伤害：它造成的实际生命伤害有 [skill_lifesteal.ratio]% 治疗自己；同一次动作最多治疗 [skill_lifesteal.amount]。",
-      "icon_id": "icon_component_hurt_heal",
-      "id": "component_hurt_heal",
-      "name_key": "component_hurt_heal.name",
-      "name_text": "打疼了我回血",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_kick_down.description",
-      "description_text": "对出手前已被减速、控制或击退的目标，伤害提高 [control_damage_amp.ratio]%。",
-      "icon_id": "icon_component_kick_down",
-      "id": "component_kick_down",
-      "name_key": "component_kick_down.name",
-      "name_text": "逮住就往狠了打",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_long_arm.description",
-      "description_text": "主动伤害命中时，若你与目标相距至少 [distance_amp.distance] 厘米，伤害 +[distance_amp.ratio]%。",
-      "icon_id": "icon_component_long_arm",
-      "id": "component_long_arm",
-      "name_key": "component_long_arm.name",
-      "name_text": "离远点才好抽",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_long_handle.description",
-      "description_text": "有本技能的强化普攻未用完时，普攻距离 +[empower_reach.distance] 厘米；每次强化 ×[empower_reach.multiplier]%。",
-      "icon_id": "icon_component_long_handle",
-      "id": "component_long_handle",
-      "name_key": "component_long_handle.name",
-      "name_text": "隔空三连",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_long_kick.description",
-      "description_text": "装在一个击退上：击退距离和用时变为 [knockback_scale.ratio]%，相应伤害变为 [knockback_scale.multiplier]%。",
-      "icon_id": "icon_component_long_kick",
-      "id": "component_long_kick",
-      "name_key": "component_long_kick.name",
-      "name_text": "一脚踹出老远",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_meet_here.description",
-      "description_text": "宿主每次释放第一次直接命中敌人时，把你最近放下、还没挪过的一个区域或未触发的传单陷阱挪到那个敌人脚下；跟着你走的区域不挪，每个区域一生只能挪一次（和换个地方开会共用）。",
-      "icon_id": "icon_component_meet_here",
-      "id": "component_meet_here",
-      "name_key": "component_meet_here.name",
-      "name_text": "就在这儿开会",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_move_meeting.description",
-      "description_text": "本冲刺结束时，把你最近放下的一个区域或未触发的传单陷阱挪到你脚下；跟着你走的区域不挪，每个区域一生只能挪一次。",
-      "icon_id": "icon_component_move_meeting",
-      "id": "component_move_meeting",
-      "name_key": "component_move_meeting.name",
-      "name_text": "换个地方开会",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_next_up.description",
-      "description_text": "宿主第一次命中敌人后（接冲刺时为第一次撞到敌人），你其他主动的剩余冷却各减少 [hit_haste_other.refund] 秒；每次释放一次。",
-      "icon_id": "icon_component_next_up",
-      "id": "component_next_up",
-      "name_key": "component_next_up.name",
-      "name_text": "打完换下一招",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_one_slam.description",
-      "description_text": "连喷改成等 [compress_cone.delay] 秒后一次 [compress_cone.angle]° 扇形，合计原伤害的 [compress_cone.multiplier]%；多跳区域改成 [compress_zone.delay] 秒后一次固定爆炸，半径 [compress_zone.ratio]%，合计原伤害的 [compress_zone.multiplier]%；弹射电击不再弹，首个目标承受原各跳合计的 [compress_chain.multiplier]%。",
-      "icon_id": "icon_component_one_slam",
-      "id": "component_one_slam",
-      "name_key": "component_one_slam.name",
-      "name_text": "合一块砸你",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_owe_it.description",
-      "description_text": "受到的敌方伤害有 [damage_defer.ratio]% 延后 [damage_defer.duration] 秒再扣；治疗先还最早的欠款，再回血。",
-      "icon_id": "icon_component_owe_it",
-      "id": "component_owe_it",
-      "name_key": "component_owe_it.name",
-      "name_text": "这顿打先欠着",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_pick_you.description",
-      "description_text": "装在自动反击上：优先打最近 [marked_counter.duration] 秒被你主动技能直接命中的目标，伤害变为 [marked_counter.multiplier]%。",
-      "icon_id": "icon_component_pick_you",
-      "id": "component_pick_you",
-      "name_key": "component_pick_you.name",
-      "name_text": "就逮着你揍",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_pin_punch.description",
-      "description_text": "接一个硬控：控住目标后给他 [control_mark.duration] 秒追打标记；期间你再用另一种硬控控住他，追加 [control_mark.amount] 物理伤害。",
-      "icon_id": "icon_component_pin_punch",
-      "id": "component_pin_punch",
-      "name_key": "component_pin_punch.name",
-      "name_text": "摁住再补一拳",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_punch_heal.description",
-      "description_text": "本体普攻主击自身伤害份额造成的实际生命伤害的 [lifesteal.ratio]% 治疗自己；并入的强化包与护盾吸收不算。",
-      "icon_id": "icon_component_punch_heal",
-      "id": "component_punch_heal",
-      "name_key": "component_punch_heal.name",
-      "name_text": "揍人续命",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_quick_hop.description",
-      "description_text": "装在冲刺上：距离和用时变为 [dash_scale.ratio]%，冷却变为 [dash_scale.secondary_ratio]%，接触伤害不降。不能和闷头撞到底装在同一处。",
-      "icon_id": "icon_component_quick_hop",
-      "id": "component_quick_hop",
-      "name_key": "component_quick_hop.name",
-      "name_text": "蹿两步就回头",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_ram_through.description",
-      "description_text": "装在冲刺上：距离和用时变为 [dash_scale.ratio]%，接触伤害变为 [dash_scale.multiplier]%，冷却变为 [dash_scale.secondary_ratio]%。不能和蹿两步就回头装在同一处。",
-      "icon_id": "icon_component_ram_through",
-      "id": "component_ram_through",
-      "name_key": "component_ram_through.name",
-      "name_text": "闷头撞到底",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_reach_out.description",
-      "description_text": "装在有射程的伤害主动上：射程 +[range_bonus.distance] 厘米，最远 [range_bonus.radius] 厘米，伤害变为 [range_bonus.multiplier]%；或让自动反击的索敌距离 +[counter_range_bonus.distance] 厘米，伤害变为 [counter_range_bonus.multiplier]%。",
-      "icon_id": "icon_component_reach_out",
-      "id": "component_reach_out",
-      "name_key": "component_reach_out.name",
-      "name_text": "站远点照样抽你",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_roll_bump.description",
-      "description_text": "接一个冲刺：真的撞到的敌人沿冲刺方向被推开 [contact_knockback.distance] 厘米。",
-      "icon_id": "icon_component_roll_bump",
-      "id": "component_roll_bump",
-      "name_key": "component_roll_bump.name",
-      "name_text": "滚过去撞他",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_run_away.description",
-      "description_text": "生命低于 [low_hp_stat_bonus.ratio]% 时，移速 +[low_hp_stat_bonus.MoveSpeedBonusRatio]%，技能急速 +[low_hp_stat_bonus.CooldownHasteFlat]。",
-      "icon_id": "icon_component_run_away",
-      "id": "component_run_away",
-      "name_key": "component_run_away.name",
-      "name_text": "撒腿就跑",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_seeing_red.description",
-      "description_text": "放完一个主动后 [alternate_amp.duration] 秒内放出另一个不同的主动，它的伤害 +[alternate_amp.ratio]%。",
-      "icon_id": "icon_component_seeing_red",
-      "id": "component_seeing_red",
-      "name_key": "component_seeing_red.name",
-      "name_text": "一招接一招",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_set_it_off.description",
-      "description_text": "本技能命中站在你区域里的敌人时，引爆那个区域：剩余每跳伤害的 [zone_detonate.ratio]% 一次结算给区域内的敌人，区域消失；每次释放一次。",
-      "icon_id": "icon_component_set_it_off",
-      "id": "component_set_it_off",
-      "name_key": "component_set_it_off.name",
-      "name_text": "一点就炸",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_settle_later.description",
-      "description_text": "装在账目上：攒满后锁定，[delay_ledger.delay] 秒后以 [delay_ledger.multiplier]% 伤害兑现，届时目标须在 [delay_ledger.distance] 厘米内可见；装在自动反击上：冻结落点，[delay_counter.delay] 秒后在 [delay_counter.radius] 厘米范围以 [delay_counter.multiplier]% 伤害爆开。",
-      "icon_id": "icon_component_settle_later",
-      "id": "component_settle_later",
-      "name_key": "component_settle_later.name",
-      "name_text": "等会儿一起算",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_setup_line.description",
-      "description_text": "宿主命中敌人时给它挂一个 [setup_mark.duration] 秒的记号；你别的主动下一次命中它多造成 [setup_mark.ratio]% 伤害并消耗记号。",
-      "icon_id": "icon_component_setup_line",
-      "id": "component_setup_line",
-      "name_key": "component_setup_line.name",
-      "name_text": "先垫一句",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_shell_burst.description",
-      "description_text": "接一个护盾来源：它给的护盾被打破时，对自身 [shield_burst.radius] 厘米内的敌人造成该护盾原量 [shield_burst.ratio]% 的魔法伤害。",
-      "icon_id": "icon_component_shell_burst",
-      "id": "component_shell_burst",
-      "name_key": "component_shell_burst.name",
-      "name_text": "壳碎了也崩你",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_shove_off.description",
-      "description_text": "护盾 ×[defense_shove.ratio]%；护盾被敌人打破时，把 [defense_shove.radius] 厘米内的敌人推开 [defense_shove.distance] 厘米。装在顶着揍上：反震时把反震范围内的敌人推开同样距离。",
-      "icon_id": "icon_component_shove_off",
-      "id": "component_shove_off",
-      "name_key": "component_shove_off.name",
-      "name_text": "别挨着我",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_skewer.description",
-      "description_text": "甩你一鞋或馊水糊脸命中第一个敌人后继续飞，再多打穿 [projectile_pierce.count] 个不同的敌人，受 [projectile_pierce.multiplier]% 伤害，同样减速；电你个哆嗦多弹 [chain_extra.count] 次。",
-      "icon_id": "icon_component_skewer",
-      "id": "component_skewer",
-      "name_key": "component_skewer.name",
-      "name_text": "一鞋串俩",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_spend_fist.description",
-      "description_text": "本技能的强化普攻未用完时，你其他主动命中敌人，花掉一次强化，直接打在那个敌人身上（物理，不算普攻）；每次释放一次。",
-      "icon_id": "icon_component_spend_fist",
-      "id": "component_spend_fist",
-      "name_key": "component_spend_fist.name",
-      "name_text": "拳头借给技能",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_spiky_hide.description",
-      "description_text": "挨了敌人的普攻后，向 [thorns.radius] 厘米内的出手者反击 [thorns.amount] 魔法伤害。",
-      "icon_id": "icon_component_spiky_hide",
-      "id": "component_spiky_hide",
-      "name_key": "component_spiky_hide.name",
-      "name_text": "打我也硌手",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_tab_ledger.description",
-      "description_text": "普攻或技能伤害每命中一次记一笔；攒满 [ledger.count] 笔自动兑现，每笔造成 [ledger.amount] 魔法伤害。[ledger.duration] 秒没有新账就清空。",
-      "icon_id": "icon_component_tab_ledger",
-      "id": "component_tab_ledger",
-      "name_key": "component_tab_ledger.name",
-      "name_text": "揍一下记一笔",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_thick_hide.description",
-      "description_text": "你的主动命中敌人后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；[triggered_shield.interval] 秒最多一次。",
-      "icon_id": "icon_component_thick_hide",
-      "id": "component_thick_hide",
-      "name_key": "component_thick_hide.name",
-      "name_text": "打完就缩脖",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_third_punch.description",
-      "description_text": "每第 [nth_basic_bonus.count] 次本体普攻命中，把目标推开 [nth_basic_bonus.distance] 厘米。",
-      "icon_id": "icon_component_third_punch",
-      "id": "component_third_punch",
-      "name_key": "component_third_punch.name",
-      "name_text": "第三拳滚蛋",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_wide_open.description",
-      "description_text": "本技能硬控命中后 [control_widen.duration] 秒内，你下一个其他主动的范围 +[control_widen.ratio]%（区域、落点、陷阱、扇形、弹道宽度、弹跳）；单体技能也会用掉它。",
-      "icon_id": "icon_component_wide_open",
-      "id": "component_wide_open",
-      "name_key": "component_wide_open.name",
-      "name_text": "按住了就放大",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "component_zone_tether.description",
-      "description_text": "区域不再留在原地，而是以你为中心跟着你走；半径 ×[zone_tether.ratio]%。",
-      "icon_id": "icon_component_zone_tether",
-      "id": "component_zone_tether",
-      "name_key": "component_zone_tether.name",
-      "name_text": "拖着会开",
-      "namespace": "DemoContent"
     },
     {
       "description_key": "disarm.description",
@@ -18866,18 +18176,24 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards approved: 不用管schedule， fix doc and approve all numbers.",
       "status": "approved"
     },
-    "handler_revision": 10,
-    "projection_revision": 9,
-    "schema_version": 3
+    "handler_revision": 11,
+    "projection_revision": 10,
+    "schema_version": 4
   },
   "parameters": {
+    "AI.BreakoutCardScore": 5,
+    "AI.BreakoutChance": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
     "AI.CaptureReactionBudgetSec": {
       "ms": 2000,
       "unit": "ms"
     },
+    "AI.CardVocabScore": 2,
     "AI.DecisionIntervalSec": {
       "ms": 250,
       "unit": "ms"
@@ -19027,6 +18343,15 @@
       "ms": 3500,
       "unit": "ms"
     },
+    "CARDS.CapacityBase": 6,
+    "CARDS.FreeRerolls": 3,
+    "CARDS.LevelsPerSlot": 5,
+    "CARDS.LockSlots": 1,
+    "CARDS.OfferSize": 3,
+    "CARDS.RerollsPerRest": 1,
+    "CARDS.VocabWeight": 2,
+    "CHAIN.MaxDepth": 16,
+    "CHAIN.MaxEffectsPerStep": 256,
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachPerStack": {
       "p2": 300,
@@ -19140,10 +18465,6 @@
       "ms": 8000,
       "unit": "ms"
     },
-    "COMBAT.LifestealCap": {
-      "bp": 3500,
-      "unit": "ratio"
-    },
     "COMBAT.OverloadBreachStacks": 2,
     "COMBAT.OverloadRadiusCm": {
       "denominator": 1,
@@ -19188,6 +18509,10 @@
         "unit": "ratio"
       }
     ],
+    "DAMAGE.FactorTechCap": {
+      "bp": 10000000,
+      "unit": "ratio"
+    },
     "DORM.MaxHPRatioPerSec": {
       "bp": 1000,
       "unit": "ratio"
@@ -19206,9 +18531,6 @@
       "ms": 4000,
       "unit": "ms"
     },
-    "GROWTH.DismantleInputCount": 2,
-    "GROWTH.EmptyComponentPoolPoints": 3,
-    "GROWTH.FillGapPoints": 4,
     "GROWTH.KeystoneThresholdPoints": 18,
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.MaxLevelPointsXP": 240,
@@ -19765,52 +19087,7 @@
       6
     ],
     "active_slots": 3,
-    "bonus_component_levels": [
-      2,
-      4,
-      6,
-      8,
-      10,
-      12,
-      14,
-      16
-    ],
-    "component_category_weights": [
-      {
-        "base": 45,
-        "connector": 25,
-        "levels": [
-          2,
-          6
-        ],
-        "mod": 30
-      },
-      {
-        "base": 35,
-        "connector": 30,
-        "levels": [
-          7,
-          11
-        ],
-        "mod": 35
-      },
-      {
-        "base": 25,
-        "connector": 40,
-        "levels": [
-          12,
-          16
-        ],
-        "mod": 35
-      }
-    ],
     "max_level": 16,
-    "workshop_capacity": {
-      "base": 5,
-      "body_column": 4,
-      "dash_column": 2,
-      "levels_per_slot": 2
-    },
     "xp_start": 0,
     "xp_thresholds": [
       0,

@@ -185,25 +185,22 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.Knockbacks.Reset();
     Body.AttackSlows.Reset();
     Body.Empowers.Reset();
-    Body.Ledgers.Reset();
     Body.VoluntaryDash.Reset();
-    // #198 F workshop state of the old phase: watches, marks, budgets, memories, debts, windows and stores.
+    // The card state of the old phase: watches, marks, budgets, focus, idle and an open dash segment (Y03's stand stays
+    // used for the life).
     Body.PendingImpact.Reset();
-    Body.ControlMarks.Reset();
     Body.SetupMarks.Reset();
     Body.EffectBudgets.Reset();
-    Body.DirectHitMarks.Reset();
-    Body.RecentAttackers.Reset();
-    Body.Debts.Reset();
-    Body.FireWindowSumP2=Body.FireWindowEndMs=0;
-    Body.CounterStoreP2=Body.CounterLastAddMs=Body.CounterNextFireMs=0;
-    Body.CounterRootEffectId.Invalidate();
-    Body.ShieldGrantSource=FLDCombatSourceRef();
-    Body.StoredForceWatch.Reset();
-    Body.StoredForce.Reset();
-    Body.WideToken.Reset();
-    Body.LandedBasics=0;
-    Body.ThornsMarks.Reset();
+    Body.FocusTarget=FLDCombatBodyRef();
+    Body.FocusHits=0;
+    Body.FocusUntilMs=0;
+    Body.LastStandUntilMs=0;
+    Body.IdleSinceMs=NowMs;
+    Body.SplitDashLeft=0;
+    Body.SplitDashUntilMs=0;
+    // K06: a repeat queued in the old phase never fires into the new one.
+    const FGuid Entity=Body.Victim.EntityId;
+    AutoRecasts.RemoveAll([&Entity](const FLDCombatAutoRecast& Row) { return Row.Body.Victim.EntityId==Entity; });
     Body.AssistContributions.Reset();
     Body.DamageLog.Reset();
     Body.Taunt.Reset();
@@ -219,13 +216,8 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.OverdriveCharge.Reset();
     Body.DashStartedAtMs.Reset();
     ClearBranchState(Body);
-    // Component rests are cooldowns too: every one is ready in the new phase.
-    Body.RetortReadyAtMs=0;
+    // Card rests are cooldowns too: every one is ready in the new phase.
     Body.DamagedShieldReadyAtMs=0;
-    Body.AbilityHitShieldReadyAtMs=0;
-    Body.LastActiveRelease=NAME_None;
-    Body.LastActiveReleaseAtMs=0;
-    Body.ContactRefundReadyAtMs=0;
     Body.ChannelEffectId={};
     Body.ChannelDirectSequence=0;
     Body.ChannelStartedAtMs=0;

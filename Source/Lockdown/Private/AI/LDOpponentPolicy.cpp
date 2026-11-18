@@ -4,7 +4,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDProgressionRules.h"
-#include "Development/LDWorkshopRules.h"
+#include "Development/LDBreakoutPresets.h"
 
 // Unity builds merge translation units: every file-scope helper lives in this module-unique namespace.
 namespace LDOpponentPolicy::Detail
@@ -69,10 +69,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Grievous:
         Usage.bEngage |= !bSelfTarget;
         break;
-    case ELDDemoEffectOp::ControlDamageAmp:
-    case ELDDemoEffectOp::DashContactDamage:
-        Usage.bEngage = true;
-        break;
     case ELDDemoEffectOp::Disarm:
     case ELDDemoEffectOp::Stun:
         Usage.bEngage |= !bSelfTarget;
@@ -88,12 +84,10 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bSelfProtect |= bSelfTarget;
         break;
     case ELDDemoEffectOp::Dash:
-    case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
     // Survival, basic-attack, stat, cooldown, momentum and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
-    case ELDDemoEffectOp::CooldownRefund:
     default:
         break;
     }
@@ -1125,254 +1119,9 @@ FLDOpponentRetryKey BuildKey(ELDOpponentBuildKind Kind)
     return Key;
 }
 
-// #198 B: one component the AI could take or enable now, with its binding (B18) or its install target (#198 F).
-struct FComponentPick
-{
-    FString Component;
-    FString BoundActive;
-    ELDDemoElement Element = ELDDemoElement::None;
-    FLDOpponentComponentTarget Target;
-    // A form swap (FormSwaps): the installed same-form component the install replaces.
-    FString Replacing;
-};
-
-// The installed base sharing Definition's form (LDWorkshop::Conflicts), which growth refuses beside it (TargetConflict).
-const FLDOpponentComponent* InstalledFormMate(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-    const FLDDemoComponentDefinition& Definition)
-{
-    for (const FLDOpponentComponent& Other : Self.Components)
-    {
-        const FLDDemoComponentDefinition* OtherDefinition = nullptr;
-        FString Ignored;
-        if (Other.bInstalled && Catalog.FindComponent(Other.DefinitionId, OtherDefinition, Ignored) && OtherDefinition
-            && OtherDefinition->Kind == ELDDemoComponentKind::Base && LDWorkshop::Conflicts(Definition, *OtherDefinition))
-        {
-            return &Other;
-        }
-    }
-    return nullptr;
-}
-
-// Which components ComponentPicks lists: the open opening base options, the owned never-installed inventory (first installs)
-// or the owned once-installed inventory (a rest move back onto the build).
-enum class EPicks : uint8 { Opening, FirstInstall, Reinstall };
-
-// The listed components, in catalog order, that ComponentUsable accepts (a base) or WorkshopTarget places (a mod or
-// connector). False with Error when a listed id is not a catalog component.
-bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, EPicks Which, TArray<FComponentPick>& Out,
-    FString& Error)
-{
-    Out.Reset();
-    const bool bOpening = Which == EPicks::Opening;
-    const TArray<FLDDemoComponentDefinition>& Definitions = Catalog.Get().Components;
-    if (bOpening)
-    {
-        for (const FString& Id : Self.OpeningBaseOptions)
-        {
-            if (CatalogIndex(Definitions, Id) == INDEX_NONE)
-            {
-                Error = FString::Printf(TEXT("Opening base option %s is not a catalog component."), *Id);
-                return false;
-            }
-        }
-    }
-    for (const FLDOpponentComponent& Owned : Self.Components)
-    {
-        if (CatalogIndex(Definitions, Owned.DefinitionId) == INDEX_NONE)
-        {
-            Error = FString::Printf(TEXT("Owned component %s is not a catalog component."), *Owned.DefinitionId);
-            return false;
-        }
-    }
-    // Growth refuses an install past the level's workshop capacity (WorkshopFull); the AI keeps what it has installed.
-    const int32 Installed = Self.Components.FilterByPredicate([](const FLDOpponentComponent& Owned) { return Owned.bInstalled; }).Num();
-    if (!bOpening && Installed >= LDProgression::WorkshopCapacity(Catalog.Get().Progression, Self.Level)) { return true; }
-    for (const FLDDemoComponentDefinition& Definition : Definitions)
-    {
-        const auto Same = [&Definition](const FString& Id) { return Id.Equals(Definition.Id, ESearchCase::CaseSensitive); };
-        if (bOpening)
-        {
-            if (!Self.OpeningBaseOptions.ContainsByPredicate(Same)) { continue; }
-        }
-        else
-        {
-            const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
-                [&Same](const FLDOpponentComponent& Component) { return Same(Component.DefinitionId); });
-            if (!Owned || Owned->bInstalled || Owned->bEverInstalled != (Which == EPicks::Reinstall)) { continue; }
-        }
-        FComponentPick Pick;
-        Pick.Component = Definition.Id;
-        const bool bUsable = Definition.Kind == ELDDemoComponentKind::Base
-            ? LDOpponentPolicy::ComponentUsable(Self, Definition, Pick.BoundActive, Pick.Element) && !InstalledFormMate(Self, Catalog, Definition)
-            : !bOpening && LDOpponentPolicy::WorkshopTarget(Self, Catalog, Definition, Pick.Target);
-        if (bUsable) { Out.Add(MoveTemp(Pick)); }
-    }
-    return true;
-}
-
-// The first pick whose failure memory admits another attempt now.
-bool FirstAttemptable(const TArray<FComponentPick>& Picks, ELDOpponentBuildKind Kind, const FLDOpponentPolicyState& State,
-    uint64 Print, int64 Now, FLDOpponentBuildIntent& Out)
-{
-    for (const FComponentPick& Pick : Picks)
-    {
-        FLDOpponentRetryKey Key = BuildKey(Kind);
-        Key.POI = FName(*Pick.Component);
-        if (!State.Failures.CanAttempt(Key, Print, Now)) { continue; }
-        Out = FLDOpponentBuildIntent();
-        Out.Kind = Kind;
-        Out.Component = Pick.Component;
-        Out.BoundActive = Pick.BoundActive;
-        Out.Element = Pick.Element;
-        Out.TargetKind = Pick.Target.Kind;
-        Out.TargetId = Pick.Target.TargetId;
-        Out.BoundComponent = Pick.Target.BoundComponent;
-        Out.Replacing = Pick.Replacing;
-        Out.Key = Key;
-        return true;
-    }
-    return false;
-}
-
-bool SameId(const FString& A, const FString& B)
-{
-    return A.Equals(B, ESearchCase::CaseSensitive);
-}
-
-// Self after an uninstall of Component: it and everything installed on it (a mod or connector targeting it, C12 repeating
-// it, transitively, the closure growth applies) back in the inventory with their history.
-FLDOpponentSelf WithoutAttached(const FLDOpponentSelf& Self, const FString& Component)
-{
-    TArray<FString> Removing{Component};
-    const auto Removed = [&Removing](const FString& Id) { return Removing.ContainsByPredicate([&Id](const FString& R) { return SameId(R, Id); }); };
-    for (int32 Index = 0; Index < Removing.Num(); ++Index)
-    {
-        const FString Host = Removing[Index];
-        for (const FLDOpponentComponent& Attached : Self.Components)
-        {
-            const bool bOnIt = Attached.bInstalled && ((Attached.TargetKind == ELDComponentTargetKind::Component
-                && SameId(Attached.TargetId, Host)) || SameId(Attached.BoundComponent, Host));
-            if (bOnIt && !Removed(Attached.DefinitionId)) { Removing.Add(Attached.DefinitionId); }
-        }
-    }
-    FLDOpponentSelf Out = Self;
-    for (FLDOpponentComponent& Owned : Out.Components)
-    {
-        if (!Removed(Owned.DefinitionId)) { continue; }
-        Owned.bInstalled = false;
-        Owned.TargetKind = ELDComponentTargetKind::None;
-        Owned.TargetId.Reset();
-        Owned.BoundActive.Reset();
-        Owned.Element = ELDDemoElement::None;
-        Owned.BoundComponent.Reset();
-    }
-    return Out;
-}
-
-// An installed component away from the placement its rules prefer on the build its uninstall leaves: a binding (B18) other
-// than ComponentUsable's, or a target other than WorkshopTarget's. That build does not contain the component's own
-// placement, so the preferred placement is a pure function of the rest of the committed build and the reinstall reads the
-// same one. Without a preferred legal placement the component stays where it is.
-bool Misplaced(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDOpponentComponent& Owned,
-    const FLDDemoComponentDefinition& Definition)
-{
-    if (!Owned.bInstalled) { return false; }
-    const FLDOpponentSelf Without = WithoutAttached(Self, Owned.DefinitionId);
-    if (Definition.Kind == ELDDemoComponentKind::Base)
-    {
-        FString BoundActive;
-        ELDDemoElement Element = ELDDemoElement::None;
-        return LDOpponentPolicy::ComponentUsable(Without, Definition, BoundActive, Element)
-            && (!SameId(BoundActive, Owned.BoundActive) || Element != Owned.Element);
-    }
-    FLDOpponentComponentTarget Target;
-    return LDOpponentPolicy::WorkshopTarget(Without, Catalog, Definition, Target)
-        && (Target.Kind != Owned.TargetKind || !SameId(Target.TargetId, Owned.TargetId) || !SameId(Target.BoundComponent, Owned.BoundComponent));
-}
-
-// The installed components Misplaced finds, in catalog order. False with Error when an owned id is not a catalog component.
-bool ComponentMoves(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FString>& Out, FString& Error)
-{
-    Out.Reset();
-    const TArray<FLDDemoComponentDefinition>& Definitions = Catalog.Get().Components;
-    for (const FLDOpponentComponent& Owned : Self.Components)
-    {
-        if (CatalogIndex(Definitions, Owned.DefinitionId) == INDEX_NONE)
-        {
-            Error = FString::Printf(TEXT("Owned component %s is not a catalog component."), *Owned.DefinitionId);
-            return false;
-        }
-    }
-    for (const FLDDemoComponentDefinition& Definition : Definitions)
-    {
-        const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
-            [&Definition](const FLDOpponentComponent& Component) { return SameId(Component.DefinitionId, Definition.Id); });
-        if (Owned && Misplaced(Self, Catalog, *Owned, Definition)) { Out.Add(Definition.Id); }
-    }
-    return true;
-}
-
-// Form swaps: each owned never-installed form member that only an installed same-form component keeps off its target
-// (TargetConflict), placed as it would be on the build the replaced one's uninstall leaves, with that one as Replacing.
-// Only a swap onto the replaced one's own target counts. The replaced one is then once-installed, so it never swaps back.
-// In catalog order; the first conflicting installed one per member.
-void FormSwaps(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FComponentPick>& Out)
-{
-    Out.Reset();
-    for (const FLDDemoComponentDefinition& Definition : Catalog.Get().Components)
-    {
-        if (Definition.Form.IsEmpty()) { continue; }
-        const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
-            [&Definition](const FLDOpponentComponent& Component) { return SameId(Component.DefinitionId, Definition.Id); });
-        if (!Owned || Owned->bInstalled || Owned->bEverInstalled) { continue; }
-        for (const FLDOpponentComponent& Other : Self.Components)
-        {
-            const FLDDemoComponentDefinition* OtherDefinition = nullptr;
-            FString Ignored;
-            if (!Other.bInstalled || !Catalog.FindComponent(Other.DefinitionId, OtherDefinition, Ignored) || !OtherDefinition
-                || !LDWorkshop::Conflicts(Definition, *OtherDefinition))
-            {
-                continue;
-            }
-            const FLDOpponentSelf Without = WithoutAttached(Self, Other.DefinitionId);
-            FComponentPick Pick;
-            Pick.Component = Definition.Id;
-            Pick.Replacing = Other.DefinitionId;
-            const bool bSwap = Definition.Kind == ELDDemoComponentKind::Base
-                ? LDOpponentPolicy::ComponentUsable(Without, Definition, Pick.BoundActive, Pick.Element)
-                : LDOpponentPolicy::WorkshopTarget(Without, Catalog, Definition, Pick.Target)
-                    && Pick.Target.Kind == Other.TargetKind && SameId(Pick.Target.TargetId, Other.TargetId);
-            if (bSwap)
-            {
-                Out.Add(MoveTemp(Pick));
-                break;
-            }
-        }
-    }
-}
-
-// The first subject whose failure memory admits another attempt of Kind now, with its key.
-bool FirstAttemptableSubject(const TArray<FString>& Subjects, ELDOpponentBuildKind Kind, const FLDOpponentPolicyState& State,
-    uint64 Print, int64 Now, FString& OutSubject, FLDOpponentRetryKey& OutKey)
-{
-    for (const FString& Subject : Subjects)
-    {
-        OutKey = BuildKey(Kind);
-        OutKey.POI = FName(*Subject);
-        if (State.Failures.CanAttempt(OutKey, Print, Now))
-        {
-            OutSubject = Subject;
-            return true;
-        }
-    }
-    return false;
-}
-
-// §6.4 build order: the current offer's choice first, then the opening base pick (#198 B), the pending component choices
-// (#198 G) and a blueprint into an empty slot; in a rest build window the replacement, the once-installed components back on
-// the build and one misplaced component off it; the next owned component to enable for the first time (#198 B); in a rest
-// build window a gap fill and a dismantle (#198 G), a respec and (with the offer choice) the NPC purchase; then the unspent
-// points. Each is sent only when the growth domain would admit it now; one build request at a time. The NPC comes before
+// §6.4 build order: the current offer's choice first, then the card offer's pick and a blueprint into an empty slot; in a
+// rest build window the replacement; a stored card into a free slot; a respec and (with the offer choice) the NPC purchase;
+// then the skill points and the unspent points. Each is sent only when the growth domain would admit it now; one build request at a time. The NPC comes before
 // the points because the points step spends every unspent point.
 bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State,
     bool bChooseOffer, FLDOpponentBuildIntent& Out)
@@ -1397,35 +1146,32 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
-    // #198 B: the opening base right after the opening active (always asking to enable it now).
-    if (Self.bOpeningBasePending
-        && LDProgression::CommandGate(ELDBuildCommandKind::OpeningBase, Context) == ELDGrowthReason::None)
+    // Spec §13: the card offer is always resolved by a pick (installed on its default place when a slot is free).
+    if (!State.bBreakoutDrawn)
     {
-        TArray<FComponentPick> Picks;
-        if (ComponentPicks(Self, Catalog, EPicks::Opening, Picks, Error)
-            && FirstAttemptable(Picks, ELDOpponentBuildKind::OpeningBase, State, Print, Now, Out))
-        {
-            return true;
-        }
+        State.BreakoutGoal = LDOpponentPolicy::DrawBreakoutGoal(Self.ContenderId, Frame.Generation, Catalog.Get().Parameters.AI);
+        State.bBreakoutDrawn = true;
     }
-    // #198 G: every pending elite camp component choice is resolved (never left pending), oldest first, under the active
-    // choice's gate (field or rest, alive or dead).
-    if (!Self.ComponentChoices.IsEmpty()
-        && LDProgression::CommandGate(ELDBuildCommandKind::ComponentChoice, Context) == ELDGrowthReason::None)
+    if (Self.CardOffer.IsSet() && LDProgression::CommandGate(ELDBuildCommandKind::PickCard, Context) == ELDGrowthReason::None)
     {
-        for (const FLDOpponentComponentChoice& Choice : Self.ComponentChoices)
+        FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::PickCard);
+        Key.Target = Self.CardOffer->OfferId;
+        FString Card;
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::SelectCard(Self, Catalog, State.BreakoutGoal, Card, Error))
         {
-            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::ComponentChoice);
-            Key.Target = Choice.ChoiceId;
-            FString Option;
-            if (!State.Failures.CanAttempt(Key, Print, Now) || !LDOpponentPolicy::SelectComponentChoice(Self, Catalog, Choice, Option, Error))
-            {
-                continue;
-            }
             Out = FLDOpponentBuildIntent();
-            Out.Kind = ELDOpponentBuildKind::ComponentChoice;
-            Out.ChoiceId = Choice.ChoiceId;
-            Out.Component = Option;
+            Out.Kind = ELDOpponentBuildKind::PickCard;
+            Out.OfferId = Self.CardOffer->OfferId;
+            Out.OfferRevision = Self.CardOffer->OfferRevision;
+            Out.Option = Card;
+            const int32 Installed = Self.Cards.FilterByPredicate([](const FLDOpponentCard& Owned) { return Owned.IsInstalled(); }).Num();
+            FLDCardTarget Target;
+            if (Installed < Self.CardCapacity && LDOpponentPolicy::CardTarget(Self, Catalog, Card, Target))
+            {
+                Out.CardTarget = Target.Kind;
+                Out.TargetId = Target.Active.IsNone() ? FString() : Target.Active.ToString();
+                Out.Element = Target.Element;
+            }
             Out.Key = Key;
             return true;
         }
@@ -1472,85 +1218,23 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             }
         }
     }
-    // #198 rest moves: every once-installed inventory component (what a replacement or an uninstall returned) goes back
-    // where its rules place it, in catalog order; then one installed component away from its preferred placement comes off,
-    // to go back on at the next decision. #222 opened moves at any time; the AI still keeps them to the rest build window
-    // (its pacing), so it never takes its own build apart in a fight.
-    const bool bMoveWindow = LDProgression::IsRestWindow(Context);
-    if (bMoveWindow && LDProgression::InstallGate(Context) == ELDGrowthReason::None)
-    {
-        TArray<FComponentPick> Picks;
-        if (ComponentPicks(Self, Catalog, EPicks::Reinstall, Picks, Error)
-            && FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out))
-        {
-            return true;
-        }
-    }
-    if (bMoveWindow && LDProgression::CommandGate(ELDBuildCommandKind::UninstallComponent, Context) == ELDGrowthReason::None)
-    {
-        TArray<FString> Moves;
-        FString Component;
-        FLDOpponentRetryKey Key;
-        if (ComponentMoves(Self, Catalog, Moves, Error)
-            && FirstAttemptableSubject(Moves, ELDOpponentBuildKind::UninstallComponent, State, Print, Now, Component, Key))
-        {
-            Out = FLDOpponentBuildIntent();
-            Out.Kind = ELDOpponentBuildKind::UninstallComponent;
-            Out.Component = Component;
-            Out.Key = Key;
-            return true;
-        }
-    }
-    // #198 B: then every owned, never-installed component the first-install gate admits, in catalog order.
+    // A stored card goes into a free slot as soon as it has a place (a skill learned for a skill card, a slot freed by a level).
     if (LDProgression::InstallGate(Context) == ELDGrowthReason::None)
     {
-        TArray<FComponentPick> Picks;
-        if (ComponentPicks(Self, Catalog, EPicks::FirstInstall, Picks, Error)
-            && FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out))
+        uint16 Serial = 0;
+        FLDCardTarget Target;
+        if (LDOpponentPolicy::SelectCardInstall(Self, Catalog, Serial, Target))
         {
-            return true;
-        }
-    }
-    // Form swaps (rest build window, like the moves): a new form member takes the place of the installed one it conflicts with.
-    if (bMoveWindow && LDProgression::InstallGate(Context) == ELDGrowthReason::None
-        && LDProgression::CommandGate(ELDBuildCommandKind::UninstallComponent, Context) == ELDGrowthReason::None)
-    {
-        TArray<FComponentPick> Picks;
-        FormSwaps(Self, Catalog, Picks);
-        if (FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out)) { return true; }
-    }
-    // #198 G: in a rest window, the first gap the unspent points can pay to fill (it makes an owned mod or connector usable)
-    // before the points go to the stats.
-    const int64 FillGapPoints = Catalog.Get().Parameters.FillGapPoints;
-    if (!Self.GapFills.IsEmpty() && FillGapPoints > 0 && Self.UnspentPoints >= FillGapPoints
-        && LDProgression::CommandGate(ELDBuildCommandKind::FillGap, Context) == ELDGrowthReason::None)
-    {
-        for (const FLDOpponentGapFill& Fill : Self.GapFills)
-        {
-            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FillGap);
-            Key.POI = FName(*Fill.Target);
-            if (!State.Failures.CanAttempt(Key, Print, Now)) { continue; }
-            Out = FLDOpponentBuildIntent();
-            Out.Kind = ELDOpponentBuildKind::FillGap;
-            Out.Component = Fill.Target;
-            Out.Filler = Fill.Filler;
-            Out.Key = Key;
-            return true;
-        }
-    }
-    // #198 G rest dismantle: owned common components the build cannot use become one received common component.
-    if (LDProgression::CommandGate(ELDBuildCommandKind::Dismantle, Context) == ELDGrowthReason::None)
-    {
-        TArray<FString> Surrendered;
-        if (LDOpponentPolicy::SelectDismantle(Self, Catalog, Surrendered, Error))
-        {
-            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::Dismantle);
-            Key.POI = FName(*Surrendered[0]);
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::InstallCard);
+            Key.Slot = uint8(Serial & 0xFF);
             if (State.Failures.CanAttempt(Key, Print, Now))
             {
                 Out = FLDOpponentBuildIntent();
-                Out.Kind = ELDOpponentBuildKind::Dismantle;
-                Out.Surrendered = MoveTemp(Surrendered);
+                Out.Kind = ELDOpponentBuildKind::InstallCard;
+                Out.CardSerial = Serial;
+                Out.CardTarget = Target.Kind;
+                Out.TargetId = Target.Active.IsNone() ? FString() : Target.Active.ToString();
+                Out.Element = Target.Element;
                 Out.Key = Key;
                 return true;
             }
@@ -1630,7 +1314,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out.Kind = ELDOpponentBuildKind::FinalMod;
             Out.OfferId = Self.FinalModOfferId;
             Out.Option = *Option;
-            Out.TargetKind=Source->TargetKind;
+            Out.FinalTargetKind=Source->TargetKind;
             Out.TargetId=Source->TargetId.IsNone()?FString():Source->TargetId.ToString();
             Out.Key = Key;
             return true;
@@ -2191,247 +1875,96 @@ bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
     return Eligible >= 3;
 }
 
-bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component, FString& OutBoundActive,
-    ELDDemoElement& OutElement)
+FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI)
 {
-    OutBoundActive.Reset();
-    OutElement = ELDDemoElement::None;
-    // Mods and connectors take targets (#198 F).
-    if (Component.Kind != ELDDemoComponentKind::Base) { return false; }
-    if (Component.Binding == ELDDemoComponentBinding::None) { return true; }
-    if (Component.Binding != ELDDemoComponentBinding::ActiveElement || Component.BindElements.IsEmpty()) { return false; }
-    for (uint8 Slot = 0; Slot < 3; ++Slot)
-    {
-        const FLDOpponentActive* Active = Self.Actives.FindByPredicate([Slot](const FLDOpponentActive& A) { return A.Slot == Slot; });
-        if (Active && Component.BindActives.ContainsByPredicate([Active](const FString& Id)
-            { return Id.Equals(Active->DefinitionId, ESearchCase::CaseSensitive); }))
-        {
-            OutBoundActive = Active->DefinitionId;
-            OutElement = Component.BindElements[0];
-            return true;
-        }
-    }
-    return false;
+    const TArray<FLDBreakoutPreset>& Presets = LDBreakoutPresets::All();
+    if (Presets.IsEmpty() || AI.BreakoutChanceBp <= 0) { return NAME_None; }
+    // One deterministic draw per contender and match: the chance roll and the preset come from the same hash.
+    const uint32 Hash = HashCombine(GetTypeHash(Contender), GetTypeHash(Generation));
+    if (int64(Hash % 10000) >= AI.BreakoutChanceBp) { return NAME_None; }
+    return FName(Presets[(Hash / 10000) % uint32(Presets.Num())].Id);
 }
 
-bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDDemoComponentDefinition& Component,
-    FLDOpponentComponentTarget& Out)
+namespace
 {
-    Out = FLDOpponentComponentTarget();
-    if (Component.Kind == ELDDemoComponentKind::Base) { return false; }
-    const auto Same = [](const FString& A, const FString& B) { return A.Equals(B, ESearchCase::CaseSensitive); };
-    const auto Definition = [&Catalog](const FString& Id) -> const FLDDemoComponentDefinition*
+// The own build as growth reads it for a card's place: the learned actives (slot and branch) on a match-start build.
+FLDGrowthBuild OpponentBuild(const FLDOpponentSelf& Self, const FLDDemoContentDefinitions& Content)
+{
+    FLDGrowthBuild Build = LDProgression::StartBuild(Content);
+    Build.Level = Self.Level;
+    for (const FLDOpponentActive& Active : Self.Actives) { Build.Actives.Add({FName(*Active.DefinitionId), Active.Slot, Active.Branch}); }
+    LDProgression::NormalizeBuild(Build);
+    return Build;
+}
+
+// The vocabulary keys of the installed cards and learned skills (spec §6.3).
+uint32 OpponentVocab(const FLDOpponentSelf& Self, const FLDDemoContentDefinitions& Content)
+{
+    uint32 Vocab = 0;
+    for (const FLDOpponentCard& Owned : Self.Cards)
     {
-        const FLDDemoComponentDefinition* Found = nullptr;
-        FString Ignored;
-        return Catalog.FindComponent(Id, Found, Ignored) ? Found : nullptr;
-    };
-    // An installed component other than this one.
-    const auto Installed = [&Self, &Component, &Same](const FString& Id) -> const FLDOpponentComponent*
-    {
-        if (Same(Id, Component.Id)) { return nullptr; }
-        const FLDOpponentComponent* Held = Self.Components.FindByPredicate(
-            [&Id, &Same](const FLDOpponentComponent& Owned) { return Same(Owned.DefinitionId, Id); });
-        return Held && Held->bInstalled ? Held : nullptr;
-    };
-    // C12 repeats the first installed base of its list.
-    FString Base;
-    if (!Component.ExtraBases.IsEmpty())
-    {
-        const FString* Open = Component.ExtraBases.FindByPredicate([&](const FString& Id) { return Installed(Id) && Definition(Id); });
-        if (!Open) { return false; }
-        Base = *Open;
+        if (!Owned.IsInstalled()) { continue; }
+        if (const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([&Owned](const FLDDemoCardDefinition& Row) { return Row.Id == Owned.DefinitionId; }))
+        { Vocab |= Card->VocabMask; }
     }
-    // M08 and M09 never share one target (TargetConflict).
-    const auto Take = [&](ELDComponentTargetKind Kind, const FString& TargetId)
-    {
-        const bool bConflict = Self.Components.ContainsByPredicate([&](const FLDOpponentComponent& Other)
-        {
-            const FLDDemoComponentDefinition* OtherDefinition = Other.bInstalled && Other.TargetKind == Kind && Same(Other.TargetId, TargetId)
-                ? Definition(Other.DefinitionId) : nullptr;
-            return OtherDefinition && LDWorkshop::Conflicts(Component, *OtherDefinition);
-        });
-        if (bConflict) { return false; }
-        Out.Kind = Kind;
-        Out.TargetId = TargetId;
-        Out.BoundComponent = Base;
-        return true;
-    };
     for (const FLDOpponentActive& Active : Self.Actives)
     {
-        const FString& Id = Active.DefinitionId;
-        if (LDWorkshop::TargetsActive(Catalog.Get(), Component, FName(*Id)) && Take(ELDComponentTargetKind::Active, Id))
-        {
-            return true;
-        }
+        if (const FLDDemoAbilityDefinition* Ability = Content.Abilities.FindByPredicate([&Active](const FLDDemoAbilityDefinition& Row) { return Row.Id == Active.DefinitionId; }))
+        { Vocab |= Ability->VocabMask; }
     }
-    // C01 reads a fire source: a bound host (B18) counts only while it is bound to fire.
-    const bool bNeedsFire = LDWorkshop::FindOp(Component, ELDDemoEffectOp::FireShield) != nullptr;
-    for (const FString& Id : Component.TargetComponents)
+    return Vocab;
+}
+}
+
+bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, FString& OutCard, FString& Error)
+{
+    OutCard.Reset();
+    if (!Self.CardOffer.IsSet() || Self.CardOffer->Options.IsEmpty()) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    const FLDDemoAIParameters& AI = Content.Parameters.AI;
+    const uint32 Vocab = OpponentVocab(Self, Content);
+    const FLDBreakoutPreset* Preset = Goal.IsNone() ? nullptr : LDBreakoutPresets::Find(Goal);
+    double Best = -1.;
+    for (const FString& Option : Self.CardOffer->Options)
     {
-        const FLDOpponentComponent* Host = Installed(Id);
-        if (Host && (!bNeedsFire || Host->Element == ELDDemoElement::None || Host->Element == ELDDemoElement::Fire)
-            && Take(ELDComponentTargetKind::Component, Id))
+        const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([&Option](const FLDDemoCardDefinition& Row) { return Row.Id == Option; });
+        if (!Card)
         {
+            Error = FString::Printf(TEXT("Card option %s is not a catalog card."), *Option);
+            return false;
+        }
+        // The jitter in [0, 1): a deterministic draw of this offer and card, so a retry picks the same card.
+        const uint32 Hash = HashCombine(GetTypeHash(Self.CardOffer->OfferId), GetTypeHash(Option));
+        double Score = double(AI.CardVocabScore) * double(FMath::CountBits64(uint64(Card->VocabMask & Vocab))) + double(Hash % 10000) / 10000.;
+        if (Preset && LDBreakoutPresets::HasCard(*Preset, FName(*Option))) { Score += double(AI.BreakoutCardScore); }
+        if (Score > Best)
+        {
+            Best = Score;
+            OutCard = Option;
+        }
+    }
+    return !OutCard.IsEmpty();
+}
+
+bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FString& Card, FLDCardTarget& Out)
+{
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    return LDProgression::DefaultCardTarget(Content, OpponentBuild(Self, Content), FName(*Card), Out);
+}
+
+bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial, FLDCardTarget& OutTarget)
+{
+    const int32 Installed = Self.Cards.FilterByPredicate([](const FLDOpponentCard& Owned) { return Owned.IsInstalled(); }).Num();
+    if (Installed >= Self.CardCapacity) { return false; }
+    for (const FLDOpponentCard& Owned : Self.Cards)
+    {
+        if (!Owned.IsInstalled() && CardTarget(Self, Catalog, Owned.DefinitionId, OutTarget))
+        {
+            OutSerial = Owned.Serial;
             return true;
         }
     }
-    if (Component.bTargetDash && Take(ELDComponentTargetKind::Dash, FString())) { return true; }
-    if (Component.bTargetSelf && Take(ELDComponentTargetKind::None, FString())) { return true; }
-    Out = FLDOpponentComponentTarget();
     return false;
-}
-
-bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
-    FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error)
-{
-    using namespace Detail;
-    OutComponent.Reset();
-    OutBoundActive.Reset();
-    OutElement = ELDDemoElement::None;
-    if (!Self.bOpeningBasePending || Self.OpeningBaseOptions.IsEmpty())
-    {
-        Error = TEXT("No opening base pick is open.");
-        return false;
-    }
-    TArray<FComponentPick> Picks;
-    if (!ComponentPicks(Self, Catalog, EPicks::Opening, Picks, Error)) { return false; }
-    if (Picks.IsEmpty())
-    {
-        Error = TEXT("No opening base option can be enabled.");
-        return false;
-    }
-    OutComponent = Picks[0].Component;
-    OutBoundActive = Picks[0].BoundActive;
-    OutElement = Picks[0].Element;
-    return true;
-}
-
-bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
-    FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error)
-{
-    using namespace Detail;
-    OutComponent.Reset();
-    OutBoundActive.Reset();
-    OutElement = ELDDemoElement::None;
-    TArray<FComponentPick> Picks;
-    if (!ComponentPicks(Self, Catalog, EPicks::FirstInstall, Picks, Error)) { return false; }
-    if (Picks.IsEmpty())
-    {
-        Error = TEXT("No owned component waits for its first install.");
-        return false;
-    }
-    OutComponent = Picks[0].Component;
-    OutBoundActive = Picks[0].BoundActive;
-    OutElement = Picks[0].Element;
-    return true;
-}
-
-bool SelectComponentChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDOpponentComponentChoice& Choice,
-    FString& OutOption, FString& Error)
-{
-    OutOption.Reset();
-    const auto Owned = [&Self](const FString& Id)
-    {
-        return Self.Components.ContainsByPredicate([&Id](const FLDOpponentComponent& Held) { return Held.DefinitionId.Equals(Id, ESearchCase::CaseSensitive); });
-    };
-    FString FirstFree;
-    for (const FString& Option : Choice.Options)
-    {
-        const FLDDemoComponentDefinition* Definition = nullptr;
-        FString Ignored;
-        if (!Catalog.FindComponent(Option, Definition, Ignored) || !Definition)
-        {
-            Error = FString::Printf(TEXT("Component choice option %s is not a catalog component."), *Option);
-            return false;
-        }
-        if (Owned(Option)) { continue; }
-        // One it could enable right away first; otherwise the first one still free.
-        FString BoundActive;
-        ELDDemoElement Element = ELDDemoElement::None;
-        FLDOpponentComponentTarget Target;
-        const bool bUsable = Definition->Kind == ELDDemoComponentKind::Base
-            ? ComponentUsable(Self, *Definition, BoundActive, Element)
-            : WorkshopTarget(Self, Catalog, *Definition, Target);
-        if (bUsable)
-        {
-            OutOption = Option;
-            return true;
-        }
-        if (FirstFree.IsEmpty()) { FirstFree = Option; }
-    }
-    // Empty when every option is owned: the empty-pool points.
-    OutOption = FirstFree;
-    return true;
-}
-
-bool SelectComponentMove(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent, FString& Error)
-{
-    using namespace Detail;
-    OutComponent.Reset();
-    TArray<FString> Moves;
-    if (!ComponentMoves(Self, Catalog, Moves, Error)) { return false; }
-    if (Moves.IsEmpty())
-    {
-        Error = TEXT("Every installed component sits where its rules place it.");
-        return false;
-    }
-    OutComponent = Moves[0];
-    return true;
-}
-
-bool SelectDismantle(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FString>& Out, FString& Error)
-{
-    using namespace Detail;
-    Out.Reset();
-    const auto& Content = Catalog.Get();
-    const int64 Count = Content.Parameters.DismantleInputCount;
-    if (Count < 2)
-    {
-        Error = TEXT("A dismantle that does not leave fewer owned components is never chosen.");
-        return false;
-    }
-    for (const FLDOpponentComponent& Owned : Self.Components)
-    {
-        if (CatalogIndex(Content.Components, Owned.DefinitionId) == INDEX_NONE)
-        {
-            Error = FString::Printf(TEXT("Owned component %s is not a catalog component."), *Owned.DefinitionId);
-            return false;
-        }
-    }
-    bool bPoolLeft = false;
-    TArray<FString> Unusable;
-    for (const FLDDemoComponentDefinition& Definition : Content.Components)
-    {
-        if (Definition.Pool != ELDDemoComponentPool::Common) { continue; }
-        const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
-            [&Definition](const FLDOpponentComponent& Component) { return SameId(Component.DefinitionId, Definition.Id); });
-        if (!Owned)
-        {
-            bPoolLeft = true;
-            continue;
-        }
-        if (Owned->bInstalled || Owned->bEverInstalled
-            || Self.GapFills.ContainsByPredicate([&Definition](const FLDOpponentGapFill& Fill) { return SameId(Fill.Target, Definition.Id); }))
-        {
-            continue;
-        }
-        FString BoundActive;
-        ELDDemoElement Element = ELDDemoElement::None;
-        FLDOpponentComponentTarget Target;
-        const bool bUsable = Definition.Kind == ELDDemoComponentKind::Base
-            ? ComponentUsable(Self, Definition, BoundActive, Element)
-            : WorkshopTarget(Self, Catalog, Definition, Target);
-        if (!bUsable) { Unusable.Add(Definition.Id); }
-    }
-    if (!bPoolLeft || Unusable.Num() < Count)
-    {
-        Error = !bPoolLeft ? TEXT("No unowned common component is left to receive.")
-            : TEXT("Fewer owned common components than a dismantle takes are unusable on this build.");
-        return false;
-    }
-    Out.Append(Unusable.GetData(), int32(Count));
-    return true;
 }
 
 bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input)
@@ -2566,8 +2099,6 @@ ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind)
     switch (Kind)
     {
     case ELDOpponentBuildKind::BuyNpcOffer: return LDProgression::RestServiceFor(ELDBuildCommandKind::BuyNpcOffer);
-    case ELDOpponentBuildKind::FillGap: return LDProgression::RestServiceFor(ELDBuildCommandKind::FillGap);
-    case ELDOpponentBuildKind::Dismantle: return LDProgression::RestServiceFor(ELDBuildCommandKind::Dismantle);
     case ELDOpponentBuildKind::Respec: return LDProgression::RestServiceFor(ELDBuildCommandKind::Respec);
     case ELDOpponentBuildKind::ReplaceActive: return LDProgression::RestServiceFor(ELDBuildCommandKind::ReplaceActive);
     default: return ELDRestService::None;
@@ -2599,8 +2130,25 @@ bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catal
             Best = Damage;
             OutSlot = Active.Slot;
             bFound = true;
-            OutBranch = Active.Branch == ELDSkillBranch::None ? ELDSkillBranch::A
+            // Spec §13: the next branch sharing more vocabulary keys with the installed cards; A (or the first of the pair) on
+            // ties.
+            const ELDSkillBranch First = Active.Branch == ELDSkillBranch::None ? ELDSkillBranch::A
                 : Active.Branch == ELDSkillBranch::A ? ELDSkillBranch::A1 : ELDSkillBranch::B1;
+            const ELDSkillBranch Second = Active.Branch == ELDSkillBranch::None ? ELDSkillBranch::B
+                : Active.Branch == ELDSkillBranch::A ? ELDSkillBranch::A2 : ELDSkillBranch::B2;
+            uint32 CardVocab = 0;
+            for (const FLDOpponentCard& Owned : Self.Cards)
+            {
+                if (!Owned.IsInstalled()) { continue; }
+                if (const FLDDemoCardDefinition* Card = Catalog.Get().Cards.FindByPredicate([&Owned](const FLDDemoCardDefinition& Row) { return Row.Id == Owned.DefinitionId; }))
+                { CardVocab |= Card->VocabMask; }
+            }
+            const auto Shared = [Ability, CardVocab](ELDSkillBranch Path)
+            {
+                const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Path);
+                return Branch ? FMath::CountBits64(uint64(Branch->VocabMask & CardVocab)) : -1;
+            };
+            OutBranch = Shared(Second) > Shared(First) ? Second : First;
         }
     }
     return bFound;

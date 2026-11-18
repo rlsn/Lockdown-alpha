@@ -79,59 +79,6 @@ namespace LDCombatControl
         return AtMs >= Dash.EndMs && FVector::Dist2D(Dash.StartFootCm, FootCm) > DashDisplacementEpsilonCm;
     }
 
-    bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,
-        const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs)
-    {
-        if (Thorns.GetOp() != ELDDemoEffectOp::Thorns || Contact.bReflected || Contact.DamageP2 <= 0 || !Attacker.IsValid()) { return false; }
-        const double Reach = Thorns.RadiusCm.Denominator > 0 ? double(Thorns.RadiusCm.Numerator) / double(Thorns.RadiusCm.Denominator) : 0.;
-        if (Contact.HitClass != ELDCombatHitClass::BasicPrimary || !FMath::IsFinite(Contact.DistanceCm) || Contact.DistanceCm > Reach)
-        {
-            return false;
-        }
-        const FLDThornsMark* Last = Marks.FindByPredicate([&SourceKey, &Attacker](const FLDThornsMark& Mark)
-        { return Mark.Attacker == Attacker && Mark.SourceKey == SourceKey; });
-        return !Last || Thorns.IntervalMs <= 0 || AtMs - Last->AtMs >= Thorns.IntervalMs;
-    }
-
-    bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, int64 OwnerMaxHPP2, bool bCritical,
-        int64& OutP2, FString& Error)
-    {
-        OutP2 = 0;
-        const int64 Critical = bCritical ? Thorns.CriticalMultiplierBp : 10000;
-        if (Thorns.BaseP2 < 0 || Thorns.ArmorRatioBp < 0 || Thorns.MaxHPRatioBp < 0 || OwnerArmorP2 < 0 || OwnerMaxHPP2 < 0
-            || Critical < 10000 || Thorns.BaseP2 > MAX_int64 / 10000
-            || (Thorns.ArmorRatioBp > 0 && OwnerArmorP2 > MAX_int64 / Thorns.ArmorRatioBp)
-            || (Thorns.MaxHPRatioBp > 0 && OwnerMaxHPP2 > MAX_int64 / Thorns.MaxHPRatioBp))
-        {
-            Error = TEXT("Thorns scaling is outside the checked numeric domain.");
-            return false;
-        }
-        const int64 ScaledBase = Thorns.BaseP2 * 10000;
-        const int64 ScaledArmor = OwnerArmorP2 * Thorns.ArmorRatioBp;
-        const int64 ScaledHealth = OwnerMaxHPP2 * Thorns.MaxHPRatioBp;
-        if (ScaledBase > MAX_int64 - ScaledArmor || ScaledBase + ScaledArmor > MAX_int64 - ScaledHealth)
-        {
-            Error = TEXT("Thorns scaling overflowed.");
-            return false;
-        }
-        const int64 Plain = (ScaledBase + ScaledArmor + ScaledHealth) / 10000;
-        if (Plain > MAX_int64 / Critical)
-        {
-            Error = TEXT("Thorns critical scaling overflowed.");
-            return false;
-        }
-        OutP2 = Plain * Critical / 10000;
-        Error.Reset();
-        return true;
-    }
-
-    void MarkThorns(TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs, int64 IntervalMs)
-    {
-        Marks.RemoveAll([AtMs, IntervalMs, &SourceKey, &Attacker](const FLDThornsMark& Mark)
-        { return (Mark.SourceKey == SourceKey && Mark.Attacker == Attacker) || AtMs - Mark.AtMs >= IntervalMs; });
-        Marks.Add({SourceKey, Attacker, AtMs});
-    }
-
     bool IsHardControl(ELDControlKind Kind)
     {
         return Kind == ELDControlKind::Root || Kind == ELDControlKind::Stun || Kind == ELDControlKind::Disarm

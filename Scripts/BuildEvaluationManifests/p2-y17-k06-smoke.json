@@ -1,0 +1,216 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "p2-y17-k06-smoke",
+    "hypothesis": "固定的 Y17 与 K06 等级牌是否可以通过真实成长和装牌事务进入原生对决。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 45000,
+      "supply_xp": {
+        "subject": 180,
+        "opponent": 180
+      }
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方固定同一开局主动及 L3 主动；两组主角在 L2–L4 固定获得 Y17、K06、Y07 三张等级牌（跳过全部牌三选一）；对手不装牌；不代表自然抽取概率。",
+    "两组主角均把 Y17 装到本体、分配十二点力道；只有实验组把 K06 装到 L3 主动上。",
+    "仅用于检查事务、证据与跨进程重放；单个种子不支持强度结论。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "y17",
+    "arms": [
+      {
+        "id": "y17",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_triple_combo"
+              }
+            ],
+            "presets": [
+              [
+                "active_triple_combo"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 12
+                }
+              },
+              {
+                "step": "install",
+                "at": "field",
+                "card": "card_punch_heal",
+                "target": "body"
+              }
+            ],
+            "level_cards": [
+              "card_punch_heal",
+              "card_encore",
+              "card_hard_skin"
+            ]
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_triple_combo"
+              }
+            ],
+            "presets": [
+              [
+                "active_triple_combo"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 12
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "y17_k06",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_triple_combo"
+              }
+            ],
+            "presets": [
+              [
+                "active_triple_combo"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 12
+                }
+              },
+              {
+                "step": "install",
+                "at": "field",
+                "card": "card_punch_heal",
+                "target": "body"
+              },
+              {
+                "step": "install",
+                "at": "field",
+                "card": "card_encore",
+                "target": "active_triple_combo"
+              }
+            ],
+            "level_cards": [
+              "card_punch_heal",
+              "card_encore",
+              "card_hard_skin"
+            ]
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_triple_combo"
+              }
+            ],
+            "presets": [
+              [
+                "active_triple_combo"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 12
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261114",
+    "splits": {
+      "search": 0,
+      "confirm": 1
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "duel_score",
+    "secondary": [
+      "damage_dealt_hp",
+      "damage_taken_hp",
+      "subject_hp_end_bp",
+      "decision_time_ms"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "max_cases": 4,
+    "case_wall_timeout_s": 180,
+    "run_wall_timeout_s": 600,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944
+  }
+}

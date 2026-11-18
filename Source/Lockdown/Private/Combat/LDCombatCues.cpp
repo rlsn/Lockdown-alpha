@@ -30,14 +30,14 @@ LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 No
 bool LDCombatCues::ConfirmsDealt(const FLDCombatHit& Hit, int64 DamageP2)
 {
     return DamageP2>0 && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bReflect
-        && !Hit.bDebtPayment && !Hit.bLedgerCashOut;
+        && !Hit.bRider;
 }
 
 ELDObservedHitLook LDCombatCues::ClassifyHit(const FLDCombatHit& Hit)
 {
-    if (Hit.BurnStacks>0 || Hit.ComponentBurnStacks>0) { return ELDObservedHitLook::Fire; }
-    if (Hit.bApplyElectric || Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Electric; }
-    if (Hit.bApplyWet || Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Water; }
+    if (Hit.BurnStacks>0 || Hit.CardBurnStacks>0) { return ELDObservedHitLook::Fire; }
+    if (Hit.bApplyElectric || Hit.CardElectricSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Electric; }
+    if (Hit.bApplyWet || Hit.CardWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Water; }
     return Hit.DamageType==ELDDemoDamageType::Magical ? ELDObservedHitLook::Magic : ELDObservedHitLook::None;
 }
 

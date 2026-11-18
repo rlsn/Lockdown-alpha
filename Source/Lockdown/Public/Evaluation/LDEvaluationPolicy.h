@@ -44,9 +44,10 @@ enum class ELDEvaluationStepWindow : uint8
 };
 
 // One planned build command, sent as a player sends it (FLDOpponentBuildIntent) only when growth's gate admits it.
+// Every card offer is skipped before a planned step (a case's cards come from its level cards, never a random offer).
 enum class ELDEvaluationStepKind : uint8
 {
-    OpeningBase, AllocatePoints, InstallComponent, UninstallComponent, LearnBlueprint, ReplaceActive, Respec
+    AllocatePoints, InstallCard, UninstallCard, LearnBlueprint, ReplaceActive, Respec
 };
 
 // Engagement stance. Every stance reads only the authorized frame (own state and sources, the visible rival's foot,
@@ -95,18 +96,14 @@ namespace LDEvaluationPolicy
 
 struct FLDEvaluationBuildStep
 {
-    ELDEvaluationStepKind Kind = ELDEvaluationStepKind::OpeningBase;
+    ELDEvaluationStepKind Kind = ELDEvaluationStepKind::AllocatePoints;
     ELDEvaluationStepWindow Window = ELDEvaluationStepWindow::OpeningRest;
-    // OpeningBase / InstallComponent / UninstallComponent: the component.
-    FString Component;
-    // An ActiveElement binding (B18): the bound learned active and its element; empty / None otherwise.
-    FString BoundActive;
-    ELDDemoElement Element = ELDDemoElement::None;
-    // InstallComponent of a mod or connector: a learned active or an installed host (Active / Component with TargetId), the
-    // innate D (Dash) or the holder itself (None); C12 also names the installed base it repeats (BoundComponent).
-    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    // InstallCard / UninstallCard: the card definition (a stored copy installs, an installed copy comes off).
+    FString Card;
+    // InstallCard: its place (a learned skill names TargetId) and Y25's element.
+    ELDCardTargetKind TargetKind = ELDCardTargetKind::None;
     FString TargetId;
-    FString BoundComponent;
+    ELDDemoElement Element = ELDDemoElement::None;
     // LearnBlueprint / ReplaceActive: the pending blueprint and the slot 0..2 (Q/W/E).
     FString Blueprint;
     uint8 Slot = 0;

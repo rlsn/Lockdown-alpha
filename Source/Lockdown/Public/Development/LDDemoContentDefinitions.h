@@ -77,6 +77,30 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
     // An AI contender inside a visible telegraph with its D ready dodges out with this chance (AI.DodgeChance).
     UPROPERTY() int64 DodgeChanceBp = 0;
+    // Card picks (spec §13): a candidate scores CardVocabScore per vocabulary key it shares with the AI's installed cards
+    // and learned skills; with BreakoutChance an AI takes one breakout preset as its goal at match start and its cards
+    // score BreakoutCardScore more.
+    UPROPERTY() int64 CardVocabScore = 0;
+    UPROPERTY() int64 BreakoutChanceBp = 0;
+    UPROPERTY() int64 BreakoutCardScore = 0;
+};
+
+// Build cards (spec §3.12): capacity CapacityBase + floor((level - 1) / LevelsPerSlot); every offer shows OfferSize cards
+// drawn by weight without replacement (VocabWeight for a candidate sharing a vocabulary key with the installed cards or
+// learned skills, 1 otherwise); FreeRerolls rerolls at match start and RerollsPerRest more at each mid-match rest; LockSlots
+// cards of an offer may be kept for the next one.
+USTRUCT()
+struct FLDDemoCardParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 CapacityBase = 0;
+    UPROPERTY() int32 LevelsPerSlot = 0;
+    UPROPERTY() int32 OfferSize = 0;
+    UPROPERTY() int32 FreeRerolls = 0;
+    UPROPERTY() int32 RerollsPerRest = 0;
+    UPROPERTY() int32 LockSlots = 0;
+    UPROPERTY() int32 VocabWeight = 0;
 };
 
 // Momentum (劲), the one skill resource of a contender (CONTENT_AND_BALANCE §3.3, LDMomentum). Camp members hold none.
@@ -284,7 +308,7 @@ struct FLDDemoContentParameters
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
     // per stack, up to BreachMaxStacks, for BreachMs refreshed whole by every new stack; burn deals BurnPerSec plus
     // BurnAPRatio x the applier's AP per second per layer (snapshotted per layer), every BurnTickMs from the layer's own
-    // application for BurnMs, up to BurnMaxStacks layers (#198). Every lifesteal source of one hit adds up to at most LifestealCapBp.
+    // application for BurnMs, up to BurnMaxStacks layers (#198). Lifesteal has no cap.
     UPROPERTY() int64 BreachPerStackP2 = 0;
     UPROPERTY() int64 BreachMaxStacks = 0;
     UPROPERTY() int64 BreachMs = 0;
@@ -293,7 +317,6 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnTickMs = 0;
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
-    UPROPERTY() int64 LifestealCapBp = 0;
     UPROPERTY() int64 KeystonePhysiqueHealToShieldBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldMaxHPBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldDurationMs = 0;
@@ -349,14 +372,14 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ActiveSkipPoints = 0;
     UPROPERTY() int64 NpcActiveSkipPoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
-    // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
-    // (GROWTH.EmptyComponentPoolPoints).
-    UPROPERTY() int64 EmptyComponentPoolPoints = 0;
-    // #198 G (spec §4.5): the rest FillGap price (GROWTH.FillGapPoints) and the dismantle input count
-    // (GROWTH.DismantleInputCount distinct owned common components for one random common component).
-    UPROPERTY() int64 FillGapPoints = 0;
-    UPROPERTY() int64 DismantleInputCount = 0;
     UPROPERTY() FLDDemoAIParameters AI;
+    UPROPERTY() FLDDemoCardParameters Cards;
+    // Spec §3.7: the product of a hit's damage factors stops at DamageFactorTechCapBp (DAMAGE.FactorTechCap, a technical
+    // guard logged as LD_DAMAGE_FACTOR_CAPPED). Spec §3.8: an effect chain stops deriving past ChainMaxDepth steps and one
+    // authority step derives at most ChainMaxEffectsPerStep effects (the rest wait for the next step), logged LD_CHAIN_GUARD.
+    UPROPERTY() int64 DamageFactorTechCapBp = 0;
+    UPROPERTY() int32 ChainMaxDepth = 0;
+    UPROPERTY() int32 ChainMaxEffectsPerStep = 0;
 };
 
 UENUM()
@@ -467,29 +490,22 @@ enum class ELDDemoDamageScope : uint8 { All = 0, Skill = 1, Basic = 2 };
 UENUM()
 enum class ELDDemoRecastControl : uint8 { Same = 0, Root = 1, Disarm = 2 };
 
-// #198 workshop material kinds (基础构件 / 改装件 / 连接件).
+// Spec §6.1 card forms: where a card installs (the primary basic, one learned Q/W/E skill, the D dash or the body).
 UENUM()
-enum class ELDDemoComponentKind : uint8 { Base = 0, Mod = 1, Connector = 2 };
+enum class ELDCardForm : uint8 { Basic = 0, Skill = 1, Dash = 2, Body = 3, Count UMETA(Hidden) };
 
-// Which supply may hand a component out: Common (normal level-ups) or Scarce (boss/airdrop sources only).
+// Spec §6.2 card types; the interface draws each as its own shape.
 UENUM()
-enum class ELDDemoComponentPool : uint8 { Common = 0, Scarce = 1 };
+enum class ELDCardType : uint8 { Trigger = 0, Modify = 1, Convert = 2, Grow = 3, Element = 4, Count UMETA(Hidden) };
 
-// The player-facing use tags of a component (横向标签), in display order; authored as their lowercase names.
-UENUM()
-enum class ELDDemoComponentTag : uint8
+// Spec §6.3 vocabulary keys, one bit each of a card's or skill's VocabMask (hidden from the interface; offer weights and
+// the AI read them).
+enum class ELDCardVocab : uint8
 {
-    Projectile = 0, Spell = 1, Control = 2, Element = 3, Area = 4, Collision = 5, Basic = 6, Defense = 7, Tempo = 8, Ledger = 9,
-    Count UMETA(Hidden)
+    BasicHit, Combo3, SkillHit, SkillCast, Overdrive, Reaction, Element, Dash, DashContact, PerfectDodge, Knockback,
+    WallImpact, Shield, ShieldBreak, Controlled, Control, Damaged, LowHP, Kill, Idle, Ground, Heal, Momentum, AttackSpeed,
+    MoveSpeed, Crit, Armor, MaxHP, Count
 };
-
-// The install parameters a component takes besides its target: none, or one learned damaging active plus one element (B18).
-UENUM()
-enum class ELDDemoComponentBinding : uint8 { None = 0, ActiveElement = 1 };
-
-// Which cooldown tracks a cooldown_refund shortens: all learned actives (Q/W/E).
-UENUM()
-enum class ELDDemoCooldownEntries : uint8 { None, Actives };
 
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
@@ -606,8 +622,7 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 CriticalMultiplierBp = 0;
     // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield).
     UPROPERTY() ELDDemoEffectTrigger Trigger = ELDDemoEffectTrigger::None;
-    UPROPERTY() ELDDemoCooldownEntries Entries = ELDDemoCooldownEntries::None;
-    // cooldown_refund: the remaining-cooldown reduction.
+    // A cooldown cut (hit_haste_other, reaction_haste, basic_cooldown_cut).
     UPROPERTY() int64 AmountMs = 0;
     // lifesteal: multiplier against a low-HP target.
     UPROPERTY() int64 MultiplierBp = 0;
@@ -623,6 +638,8 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 LimitP2 = 0;
     // dash_contact: every body the dash actually touches takes the native hit once (otherwise only the first Count).
     UPROPERTY() bool bEveryContact = false;
+    // overcap_extra_hit (A09): every StepRate attacks per second past the attack-speed maximum adds RatioBp extra-hit chance.
+    UPROPERTY() FLDDemoRational StepRate;
     // #198 B basic_element: the element a primary basic applies (Water/Electric/Fire); None for every other operation.
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
     // #198 F workshop terms: a cone angle (spread_unit, compress_cone) and a momentum-cost multiplier (cooldown_cost).
@@ -751,6 +768,8 @@ struct FLDDemoAbilityBranch
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
     UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
+    // Spec §6.3: the vocabulary the compiler derives from element, delivery, control, displacement and shield (ELDCardVocab bits).
+    UPROPERTY() uint32 VocabMask = 0;
     UPROPERTY() FLDDemoAbilityValues Values;
 };
 
@@ -769,6 +788,8 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() FString CooldownFamily;
     UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
     UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
+    // Spec §6.3: the level-1 vocabulary (ELDCardVocab bits); a learned branch carries its own.
+    UPROPERTY() uint32 VocabMask = 0;
     UPROPERTY() FLDDemoAbilityValues Values;
     // The six branch variants in path order A, B, A1, A2, B1, B2: each is the level-1 definition with its rank steps'
     // patches applied (the content compiler resolves them); level growth and the rank scales apply on top.
@@ -795,47 +816,25 @@ struct FLDDemoStatDefinition
     ELDDemoStatId GetNativeId() const { return static_cast<ELDDemoStatId>(NativeId); }
 };
 
-// #198 B: one workshop material definition (component catalog row). A base component is a complete automatic ability
-// whose effects Combat reads while it is installed (ALDCombatDirector::CollectPassiveEffects); mods and connectors (#198 F)
-// install onto a target.
+// Spec §6-§7: one build card. A card has no rarity: every card is one slot of the workshop capacity and may be owned and
+// installed more than once (each copy its own slot; copies add their numbers and fire their triggers once each).
 USTRUCT()
-struct FLDDemoComponentDefinition
+struct FLDDemoCardDefinition
 {
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
-    UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() ELDDemoComponentKind Kind = ELDDemoComponentKind::Base;
-    UPROPERTY() ELDDemoComponentPool Pool = ELDDemoComponentPool::Common;
-    // One to three distinct use tags in display order (UI only; no rule reads them).
-    UPROPERTY() TArray<ELDDemoComponentTag> Tags;
-    // Opening base pick (spec §4.3): bOpeningAlways bases are always offered; otherwise the base is offered only when the
-    // opening active is one of OpeningActives (empty and not always = never an opening option).
-    UPROPERTY() bool bOpeningAlways = false;
-    UPROPERTY() TArray<FString> OpeningActives;
-    // ActiveElement: the install binds one learned active of BindActives and one element of BindElements.
-    UPROPERTY() ELDDemoComponentBinding Binding = ELDDemoComponentBinding::None;
-    UPROPERTY() TArray<FString> BindActives;
-    UPROPERTY() TArray<ELDDemoElement> BindElements;
-    // #198 F install targets of a mod or connector (a base component has none): learned actives whose target mode matches
-    // any TargetActives entry, installed components (TargetComponents), the innate D (bTargetDash) or the holder itself
-    // (bTargetSelf). ExtraBases (C12): the
-    // installed base component the install binds as its second parameter.
-    UPROPERTY() TArray<FString> TargetActives;
-    UPROPERTY() TArray<FString> TargetComponents;
-    UPROPERTY() bool bTargetDash = false;
-    UPROPERTY() bool bTargetSelf = false;
-    UPROPERTY() TArray<FString> ExtraBases;
-    // A common component with a non-empty DrawRequiresActives is a level-up draw candidate only while the holder has one of
-    // these actives learned.
-    UPROPERTY() TArray<FString> DrawRequiresActives;
-    // Workshop form (spec §4.4): two components of one form never sit on the same target at once (a base's target is the
-    // holder itself). None = no form. Every form names at least two components of one kind.
-    UPROPERTY() FString Form;
+    UPROPERTY() uint16 NativeId = 0;
+    UPROPERTY() ELDCardForm Form = ELDCardForm::Body;
+    UPROPERTY() ELDCardType Type = ELDCardType::Trigger;
+    // One bit per ELDCardVocab key.
+    UPROPERTY() uint32 VocabMask = 0;
+    // Y25: the elements an install may choose; empty for every other card.
+    UPROPERTY() TArray<ELDDemoElement> ChooseElements;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 
-    ELDDemoComponentId GetNativeId() const { return static_cast<ELDDemoComponentId>(NativeId); }
+    ELDDemoCardId GetNativeId() const { return static_cast<ELDDemoCardId>(NativeId); }
 };
 
 UENUM()
@@ -874,19 +873,6 @@ struct FLDDemoFinalModDefinition
 
     ELDDemoFinalModId GetNativeId() const { return static_cast<ELDDemoFinalModId>(NativeId); }
     bool IsUniversal() const { return Requirement == ELDDemoFinalModRequirement::Basic; }
-};
-
-// #198 B: the normal level-up component roll of one level band: category percentages (base + mod + connector = 100).
-USTRUCT()
-struct FLDDemoComponentCategoryWeights
-{
-    GENERATED_BODY()
-
-    UPROPERTY() int32 MinLevel = 0;
-    UPROPERTY() int32 MaxLevel = 0;
-    UPROPERTY() int32 BasePercent = 0;
-    UPROPERTY() int32 ModPercent = 0;
-    UPROPERTY() int32 ConnectorPercent = 0;
 };
 
 USTRUCT()
@@ -989,14 +975,6 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() TArray<int64> XPToNext;
     // #198: reaching each of these levels enqueues one more active opportunity (after the opening one), distinct and ascending.
     UPROPERTY() TArray<int32> ActiveOfferLevels;
-    // One additional ordinary component draw on each listed level.
-    UPROPERTY() TArray<int32> BonusComponentLevels;
-    UPROPERTY() int32 WorkshopCapacityBase = 0;
-    UPROPERTY() int32 WorkshopCapacityLevelsPerSlot = 0;
-    UPROPERTY() int32 WorkshopBodyColumnCapacity = 0;
-    UPROPERTY() int32 WorkshopDashColumnCapacity = 0;
-    // #198 B: one band per level range covering every level 2..MaxLevel exactly once, ascending.
-    UPROPERTY() TArray<FLDDemoComponentCategoryWeights> ComponentCategoryWeights;
 };
 
 USTRUCT()
@@ -1071,8 +1049,8 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoCharacterDefinition Character;
     UPROPERTY() TArray<FLDDemoAbilityDefinition> Abilities;
     UPROPERTY() TArray<FLDDemoStatDefinition> Stats;
-    // #198 B: the workshop material catalog (base B01–B18 now; mods/connectors by #198 F), in native id order.
-    UPROPERTY() TArray<FLDDemoComponentDefinition> Components;
+    // Spec §7: the build cards, in native id order.
+    UPROPERTY() TArray<FLDDemoCardDefinition> Cards;
     UPROPERTY() TArray<FLDDemoFinalModDefinition> FinalMods;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;

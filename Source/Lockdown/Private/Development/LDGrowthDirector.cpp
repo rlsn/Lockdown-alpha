@@ -5,6 +5,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDProgressionRules.h"
 #include "Engine/World.h"
@@ -366,7 +367,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitFieldReward(const FGuid& Recipient, FN
 {
     Reason = ELDGrowthReason::None;
     const bool bKnownKind = Kind == ELDFieldRewardKind::None || Kind == ELDFieldRewardKind::BuildDraw
-        || Kind == ELDFieldRewardKind::Blueprint || Kind == ELDFieldRewardKind::ComponentChoice;
+        || Kind == ELDFieldRewardKind::Blueprint || Kind == ELDFieldRewardKind::CardOffer;
     if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || !bKnownKind || (Kind == ELDFieldRewardKind::None && XP == 0))
     {
         Reason = ELDGrowthReason::DataInvalid;
@@ -446,8 +447,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
     {
         FLDPrepareGrowthResult Growth =
 #if WITH_DEV_AUTOMATION_TESTS
-            !Share.DevLevelComponents.IsEmpty()
-                ? M->Development->DevPrepareEvaluationExperience(Share.Recipient, Share.Amounts.XP, Share.DevLevelComponents)
+            !Share.DevLevelCards.IsEmpty()
+                ? M->Development->DevPrepareEvaluationExperience(Share.Recipient, Share.Amounts.XP, Share.DevLevelCards)
                 :
 #endif
             M->Development->PrepareFieldReward(Share.Recipient, Share.Amounts.XP, Share.FieldKind, Share.Event, Share.Serial);
@@ -511,7 +512,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
             Receipt.LevelAfter = GrowthPlan.Build().Level;
             Receipt.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
             Receipt.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
-            Receipt.ComponentGrants = GrowthPlan.ComponentGrants();
+            Receipt.CardOfferFirst = GrowthPlan.CardOfferFirst();
+            Receipt.CardOfferLast = GrowthPlan.CardOfferLast();
             Receipt.FieldResult = GrowthPlan.FieldGrant().Result;
             Receipt.FieldDefinition = GrowthPlan.FieldGrant().Definition;
             Receipt.Revisions.bHasProgression = true;
@@ -527,7 +529,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
         Part.LevelAfter = GrowthPlan.Build().Level;
         Part.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
         Part.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
-        Part.ComponentGrants = GrowthPlan.ComponentGrants();
+        Part.CardOfferFirst = GrowthPlan.CardOfferFirst();
+        Part.CardOfferLast = GrowthPlan.CardOfferLast();
     }
     for (int32 Index = 0; Index < Shares.Num(); ++Index)
     {
@@ -556,19 +559,17 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
         {
             int64 Unspent = 0;
             const FLDGrowthBuild* Build = M->Development->FindBuild(Share.Recipient);
-            if (!Build || !Progression || LDProgression::UnspentPoints(Content->Get(), *Build, Progression->CumulativeXP,
-                Progression->EmptyPoolGrants, Unspent) != ELDGrowthReason::None)
+            if (!Build || !Progression || LDProgression::UnspentPoints(Content->Get(), *Build, Progression->CumulativeXP, Unspent)
+                != ELDGrowthReason::None)
             {
                 Unspent = -1;
             }
-            // #198 B: the component of each level crossed; "-" marks a level whose exhausted pool paid points instead.
-            const TArray<FLDComponentGrant>& Grants = Index == 0 ? Receipt.ComponentGrants : Receipt.Assists[Index - 1].ComponentGrants;
-            const FString Components = FString::JoinBy(Grants, TEXT(","),
-                [](const FLDComponentGrant& Grant) { return Grant.Component.IsNone() ? FString(TEXT("-")) : Grant.Component.ToString(); });
-            const int32 EmptyPool = Grants.FilterByPredicate([](const FLDComponentGrant& Grant) { return Grant.Component.IsNone(); }).Num();
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d unspent_points=%lld components=%s empty_pool_grants=%d"),
+            const uint16 OfferFirst = Index == 0 ? Receipt.CardOfferFirst : Receipt.Assists[Index - 1].CardOfferFirst;
+            const uint16 OfferLast = Index == 0 ? Receipt.CardOfferLast : Receipt.Assists[Index - 1].CardOfferLast;
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d unspent_points=%lld card_offers=%d"),
                 Permit.GetBoundary().AtMs, *LDLog::Id(Share.Recipient), uint32(Before), uint32(After),
-                Last >= First ? int32(Last) - int32(First) + 1 : 0, Unspent, Components.IsEmpty() ? TEXT("-") : *Components, EmptyPool);
+                Last >= First ? int32(Last) - int32(First) + 1 : 0, Unspent,
+                OfferLast >= OfferFirst ? int32(OfferLast) - int32(OfferFirst) + 1 : 0);
         }
     }
     return ELDRewardOutcome::Granted;
@@ -765,18 +766,6 @@ bool ALDGrowthDirector::ReadResultBuild(const FGuid& ContenderId, FLDResultBuild
         Error = TEXT("The contender has no growth record for the result.");
         return false;
     }
-    auto Target = [](ELDComponentTargetKind Kind, ELDResultBuildTarget& Result)
-    {
-        switch (Kind)
-        {
-        case ELDComponentTargetKind::None: Result = ELDResultBuildTarget::Body; return true;
-        case ELDComponentTargetKind::Active: Result = ELDResultBuildTarget::Active; return true;
-        case ELDComponentTargetKind::EffectSegment: Result = ELDResultBuildTarget::EffectSegment; return true;
-        case ELDComponentTargetKind::Component: Result = ELDResultBuildTarget::Component; return true;
-        case ELDComponentTargetKind::Dash: Result = ELDResultBuildTarget::Dash; return true;
-        }
-        return false;
-    };
     FLDResultBuild View;
     View.bAvailable = true;
     View.CatalogRoot = Content->Get().Identity.Root.ToHex();
@@ -786,20 +775,31 @@ bool ALDGrowthDirector::ReadResultBuild(const FGuid& ContenderId, FLDResultBuild
         Row.DefinitionId = Active.Id;
         Row.Slot = Active.Slot;
     }
-    for (const FLDComponentInstance& Component : Build->Components)
+    for (const FLDCardInstance& Card : Build->Cards)
     {
-        if (!Component.bInstalled) { continue; }
-        FLDResultBuildComponent& Row = View.Components.AddDefaulted_GetRef();
-        Row.DefinitionId = Component.Id;
-        Row.TargetId = Component.Target.Definition;
-        Row.BoundActive = Component.Target.BoundActive;
-        if (!Target(Component.Target.Kind, Row.Target))
-        { Error = TEXT("An installed component has an unknown target."); return false; }
+        if (!Card.IsInstalled()) { continue; }
+        FLDResultBuildCard& Row = View.Cards.AddDefaulted_GetRef();
+        Row.DefinitionId = Card.Id;
+        Row.TargetId = Card.Target.Active;
+        Row.Element = Card.Target.Element;
+        switch (Card.Target.Kind)
+        {
+        case ELDCardTargetKind::Basic: Row.Target = ELDResultBuildTarget::Basic; break;
+        case ELDCardTargetKind::Skill: Row.Target = ELDResultBuildTarget::Active; break;
+        case ELDCardTargetKind::Dash: Row.Target = ELDResultBuildTarget::Dash; break;
+        case ELDCardTargetKind::Body: Row.Target = ELDResultBuildTarget::Body; break;
+        default: Error = TEXT("An installed card has an unknown target."); return false;
+        }
     }
     View.FinalMod = Build->FinalMod.DefinitionId;
     View.FinalTargetId = Build->FinalMod.TargetId;
-    if (!Target(Build->FinalMod.TargetKind, View.FinalTarget))
-    { Error = TEXT("The final mod has an unknown target."); return false; }
+    switch (Build->FinalMod.TargetKind)
+    {
+    case ELDFinalModTargetKind::None: View.FinalTarget = ELDResultBuildTarget::Body; break;
+    case ELDFinalModTargetKind::Active: View.FinalTarget = ELDResultBuildTarget::Active; break;
+    case ELDFinalModTargetKind::Dash: View.FinalTarget = ELDResultBuildTarget::Dash; break;
+    default: Error = TEXT("The final mod has an unknown target."); return false;
+    }
     if (!LDCapture::ValidateResultBuild(View, Error)) { return false; }
     Out = MoveTemp(View);
     return true;
@@ -837,23 +837,23 @@ uint64 ALDGrowthDirector::DevGrantReward(const FGuid& ContenderId, int64 XP, FSt
     return Grant.Ticket;
 }
 
-uint64 ALDGrowthDirector::DevGrantEvaluationReward(const FGuid& ContenderId, int64 XP, const TArray<FName>& LevelComponents,
+uint64 ALDGrowthDirector::DevGrantEvaluationReward(const FGuid& ContenderId, int64 XP, const TArray<FName>& LevelCards,
     FString& Error)
 {
     if (!LDDevGrowthFixture::Admit(GetWorld(), Error)) { return 0; }
     const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed();
-    if (LevelComponents.IsEmpty() || !GrowthEvaluationAI(Seeds, ContenderId))
+    if (LevelCards.IsEmpty() || !GrowthEvaluationAI(Seeds, ContenderId))
     {
         Error = TEXT("A component preset needs a nonempty grant list and an armed evaluation AI slot.");
         return 0;
     }
     const uint64 Ticket = DevGrantReward(ContenderId, XP, Error);
     if (!Ticket) { return 0; }
-    DevGrants[int32(Ticket - 1)].LevelComponents = LevelComponents;
+    DevGrants[int32(Ticket - 1)].LevelCards = LevelCards;
     const ALDGameMode* M = Mode();
-    UE_LOG(LogLDGrowth, Display, TEXT("LD_EVAL_COMPONENT_PRESET t=%lld contender=%s ticket=%llu components=%s"),
+    UE_LOG(LogLDGrowth, Display, TEXT("LD_EVAL_CARD_PRESET t=%lld contender=%s ticket=%llu cards=%s"),
         M ? M->GetAuthorityNowMs() : -1, *LDLog::Id(ContenderId), Ticket,
-        *FString::JoinBy(LevelComponents, TEXT(","), [](FName Id) { return Id.ToString(); }));
+        *FString::JoinBy(LevelCards, TEXT(","), [](FName Id) { return Id.ToString(); }));
     return Ticket;
 }
 
@@ -881,7 +881,7 @@ bool ALDGrowthDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, FS
         FLDRewardReceipt Receipt;
         ELDGrowthReason Reason = ELDGrowthReason::None;
         ELDRewardOutcome Outcome;
-        if (Grant.LevelComponents.IsEmpty())
+        if (Grant.LevelCards.IsEmpty())
         {
             Outcome = CommitRewardParts(Grant.Contender, Grant.XP, TEXT("dev_fixture"), Permit, Receipt, Reason);
         }
@@ -898,7 +898,7 @@ bool ALDGrowthDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, FS
             FRewardShare& Share = Shares.AddDefaulted_GetRef();
             Share.Recipient = Grant.Contender;
             Share.Amounts.XP = Grant.XP;
-            Share.DevLevelComponents = Grant.LevelComponents;
+            Share.DevLevelCards = Grant.LevelCards;
             Outcome = CommitRewardShares(Shares, TEXT("dev_fixture"), Permit, Receipt, Reason);
         }
         if (Reason == ELDGrowthReason::AuthorityFault)
@@ -1127,6 +1127,43 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
             Reason = LDGrowthWire::IsBuildLifePhase(Life.Phase)
                 ? CommitDevReset(ContenderId, Permit, Detail)
                 : ELDGrowthReason::LifePhaseChanged;
+            break;
+        case ELDDevTestOp::ApplyBreakoutPreset:
+            // The match start first (build, Combat tracks and DEV terms), then the sample's build, its haste and a full body.
+            if (!LDGrowthWire::IsBuildLifePhase(Life.Phase))
+            {
+                Reason = ELDGrowthReason::LifePhaseChanged;
+                break;
+            }
+            // An unknown sample is refused before the reset, so a typo never erases the build.
+            if (!LDBreakoutPresets::Find(Definition))
+            {
+                Reason = ELDGrowthReason::InvalidOption;
+                Detail = FString::Printf(TEXT("no breakout sample %s"), *Definition.ToString());
+                break;
+            }
+            Reason = CommitDevReset(ContenderId, Permit, Detail);
+            if (Reason == ELDGrowthReason::None)
+            {
+                Reason = M->Development->DevApplyBreakoutPreset(ContenderId, Definition, Permit, Detail);
+            }
+            if (Reason == ELDGrowthReason::None)
+            {
+                const FLDBreakoutPreset* Preset = LDBreakoutPresets::Find(Definition);
+                FString AttributeDetail;
+                Reason = M->Combat->DevSetAttribute(ContenderId, true, ELDDemoBonusStat::CooldownHasteFlat, 0, Permit, AttributeDetail);
+                if (Reason == ELDGrowthReason::None && Preset && Preset->CooldownHasteP2 > 0)
+                {
+                    Reason = M->Combat->DevSetAttribute(ContenderId, false, ELDDemoBonusStat::CooldownHasteFlat, Preset->CooldownHasteP2,
+                        Permit, AttributeDetail);
+                }
+                if (Reason == ELDGrowthReason::None && Life.Phase == ELDLifePhase::Alive
+                    && !M->Combat->DevRefillResources(ContenderId, Permit, AttributeDetail))
+                {
+                    Reason = ELDGrowthReason::DataInvalid;
+                }
+                if (Reason != ELDGrowthReason::None) { Detail = AttributeDetail; }
+            }
             break;
         case ELDDevTestOp::RefreshCamps:
         {

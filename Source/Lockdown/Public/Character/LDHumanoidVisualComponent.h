@@ -103,8 +103,10 @@ private:
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UNiagaraComponent> SwingTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
-    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;
-    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Edges;
+    // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
+    // restore entries for subobjects that no longer exist.
+    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Parts;
+    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Edges;
     // The catalog body's worn parts (FLDArtAttachment), rebuilt with every look; they hang from Mesh.
     UPROPERTY() TArray<TObjectPtr<UMeshComponent>> Worn;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Paints;

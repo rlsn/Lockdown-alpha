@@ -11,7 +11,7 @@ class UWidget;
 // painting widget's local space; Rect helpers map another widget's cached geometry into it.
 namespace LDUIShapes
 {
-    enum class EShape : uint8 { Rounded, Octagon, Circle };
+    enum class EShape : uint8 { Rounded, Octagon, Circle, Diamond, Hexagon };
 
     // The local rectangle of Widget inside Geometry (zero size when the widget is not laid out).
     inline FBox2D RectIn(const FGeometry& Geometry,const FGeometry& WidgetGeometry)
@@ -44,6 +44,18 @@ namespace LDUIShapes
             const float C=Chamfer(Box);
             Points={FVector2D(Min.X+C,Min.Y),FVector2D(Max.X-C,Min.Y),FVector2D(Max.X,Min.Y+C),FVector2D(Max.X,Max.Y-C),FVector2D(Max.X-C,Max.Y),
                 FVector2D(Min.X+C,Max.Y),FVector2D(Min.X,Max.Y-C),FVector2D(Min.X,Min.Y+C),FVector2D(Min.X+C,Min.Y)};
+            return Points;
+        }
+        if(Shape==EShape::Diamond)
+        {
+            Points={FVector2D(Center.X,Min.Y),FVector2D(Max.X,Center.Y),FVector2D(Center.X,Max.Y),FVector2D(Min.X,Center.Y),FVector2D(Center.X,Min.Y)};
+            return Points;
+        }
+        if(Shape==EShape::Hexagon)
+        {
+            const float C=float(Half.X)*.5f;
+            Points={FVector2D(Min.X+C,Min.Y),FVector2D(Max.X-C,Min.Y),FVector2D(Max.X,Center.Y),FVector2D(Max.X-C,Max.Y),FVector2D(Min.X+C,Max.Y),
+                FVector2D(Min.X,Center.Y),FVector2D(Min.X+C,Min.Y)};
             return Points;
         }
         const float R=FMath::Min(Radius,FMath::Min(Half.X,Half.Y));
@@ -82,18 +94,6 @@ namespace LDUIShapes
             Stroke(Elements,Layer,Geometry,Outline(Shape,Wider,Radius+Grow),Color.CopyWithNewOpacity(Color.A*.22f*float(4-Ring)/3.f),2.f);
         }
     }
-    // The scarce edge: the frame drawn in segments that step through the hues, plus a glow.
-    inline void Iridescent(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,EShape Shape,const FBox2D& Box,double Time,float Radius=8.f)
-    {
-        const TArray<FVector2D> Points=Outline(Shape,Box,Radius);
-        Glow(Elements,Layer,Geometry,Shape,Box,FLinearColor(1.f,.85f,.55f,.9f),7.f,Radius);
-        for(int32 Index=0;Index+1<Points.Num();++Index)
-        {
-            const float Hue=FMath::Fmod(float(Index)/float(FMath::Max(1,Points.Num()-1))*360.f+float(Time)*40.f,360.f);
-            const FLinearColor Color=FLinearColor::MakeFromHSV8(uint8(Hue/360.f*255.f),150,255);
-            Stroke(Elements,Layer+1,Geometry,{Points[Index],Points[Index+1]},Color,2.5f);
-        }
-    }
     // A dashed outline of Box (empty places and the next capacity cell).
     inline void Dashed(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Color,float Dash=6.f,float Gap=4.f,float Thickness=1.5f)
     {
@@ -124,6 +124,14 @@ namespace LDUIShapes
         const FSlateRoundedBoxBrush Brush(Color,Radius);
         FSlateDrawElement::MakeBox(Elements,Layer,Geometry.ToPaintGeometry(Box.GetSize(),FSlateLayoutTransform(Box.Min)),&Brush);
     }
-    inline FLinearColor KindColor(uint8 Kind){return Kind==0?LDHUDStyle::ComponentBase:Kind==1?LDHUDStyle::ComponentMod:LDHUDStyle::ComponentLink;}
-    inline EShape KindShape(uint8 Kind){return Kind==0?EShape::Rounded:Kind==1?EShape::Octagon:EShape::Circle;}
+    // A card type's colour and shape (ELDCardType order: trigger, modify, convert, grow, element).
+    inline FLinearColor KindColor(uint8 Type)
+    {
+        return Type==0?LDHUDStyle::CardTrigger:Type==1?LDHUDStyle::CardModify:Type==2?LDHUDStyle::CardConvert
+            :Type==3?LDHUDStyle::CardGrow:LDHUDStyle::CardElement;
+    }
+    inline EShape KindShape(uint8 Type)
+    {
+        return Type==0?EShape::Rounded:Type==1?EShape::Octagon:Type==2?EShape::Diamond:Type==3?EShape::Hexagon:EShape::Circle;
+    }
 }

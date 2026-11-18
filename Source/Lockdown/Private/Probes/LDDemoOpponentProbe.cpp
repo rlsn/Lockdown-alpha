@@ -176,7 +176,6 @@ public:
     bool bUISeeded = false, bUISignupSent = false, bUIRelationsChecked = false;
     int32 UIShot = 0;
     int32 UIBuildStage = 0;
-    int32 UIComponentRewardGrants=0;
     int32 UIOpeningIndex=INDEX_NONE,UIOpeningWheels=0,UIChoiceStep=0;
     bool bUIOpeningShot=false;
     bool bUIStorageShot=false;
@@ -186,13 +185,12 @@ public:
     FLDBuildCommand UIChoiceSubmitted;
     bool ReviewChoiceCards(ALDPlayerController& PC,double Now);
     FName UIInstalledComponent;
-    int32 UIServiceStep=0,UIServicePick=0,UIServiceWheels=0;
+    int32 UIServiceStep=0,UIServiceWheels=0;
     // A held confirmation: the pointer path pressed at UIHoldPressedAt, released once the hold has had time to fill.
     FWidgetPath UIHoldPath;FVector2D UIHoldAt=FVector2D::ZeroVector;double UIHoldPressedAt=-1.;
     int32 UIServiceObservedStep=INDEX_NONE;
     double UIServiceStepAt=0;
     uint64 UIServiceGrowthBefore=0;
-    int32 UIServiceInventoryBefore=0;
     FName UIReplacement;
     bool bUIOtherServicesDone=false,bUIPKShotsDone=false,bUIPayoutChecked=false,bUIPointsShot=false;
     int32 UIReadyOpenStep=0,UIPayoutStep=0,UIFieldStep=0;
@@ -1368,30 +1366,19 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if (UIBuildStage == 1)
             {
-                if (!Growth->bOpeningBasePending || Panel->HasPendingRequest()) { return true; }
-                for (int32 Index = 1; Index < Growth->OpeningBaseOptions.Num(); ++Index)
-                {
-                    const FString Id = Growth->OpeningBaseOptions[Index].ToString();
-                    const FLDDemoComponentDefinition* Definition = Content->Get().Components.FindByPredicate(
-                        [&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; });
-                    // A plain base is installed on 本体 by the same click; B18 would go to the storage instead.
-                    if (Definition && Definition->Kind == ELDDemoComponentKind::Base && Definition->BindElements.IsEmpty())
-                    {
-                        UIOpeningIndex=Index;UIOpeningComponent=Growth->OpeningBaseOptions[Index];UIOpeningOptions=Growth->OpeningBaseOptions;
-                        PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                        Panel->OpenPanel();
-                        UIBuildStage = 14;
-                        UIBuildDueAt = Now + .5;
-                        return true;
-                    }
-                }
-                Check(false, TEXT("UI: opening skill has a non-first installable base that needs no binding"));
-                return Finish();
+                // The R0 opening card offer follows the opening skill; the probe takes a non-first card.
+                if (!Growth->bHasCardOffer || Growth->CardOffer.Options.Num() < 2 || Panel->HasPendingRequest()) { return true; }
+                UIOpeningIndex=1;UIOpeningComponent=Growth->CardOffer.Options[1];UIOpeningOptions=Growth->CardOffer.Options;
+                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                Panel->OpenPanel();
+                UIBuildStage = 14;
+                UIBuildDueAt = Now + .5;
+                return true;
             }
             if(UIBuildStage==14)
             {
-                if(!Check(Panel->BaseCards.IsValidIndex(UIOpeningIndex),TEXT("UI: the non-first opening candidate has a rendered card"))){return Finish();}
-                const auto& Card=Panel->BaseCards[UIOpeningIndex];
+                if(!Check(Panel->CardCards.IsValidIndex(UIOpeningIndex),TEXT("UI: the non-first opening card has a rendered face"))){return Finish();}
+                const auto& Card=Panel->CardCards[UIOpeningIndex];
                 if(!LDSlateProbeInput::FullyVisible(Card.Frame,PC.HUDUI.Get()))
                 {
                     // The tray never scrolls: the card is on screen once the tray has laid it out.
@@ -1405,18 +1392,18 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                     bUIOpeningShot=true;return true;
                 }
                 if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                if(!Check(LDSlateProbeInput::SendClick(Card.Button),TEXT("UI: real pointer selects a non-first opening base at 720p125"))){return Finish();}
+                if(!Check(LDSlateProbeInput::SendClick(Card.Button),TEXT("UI: real pointer selects a non-first opening card at 720p125"))){return Finish();}
                 UIBuildStage=2;UIBuildDueAt=Now+.5;return true;
             }
             if (UIBuildStage == 2)
             {
-                if (Growth->Components.IsEmpty() || Panel->HasPendingRequest()) { return true; }
-                if(!Check(Growth->Components.ContainsByPredicate([this](const FLDComponentInstanceView& Row)
-                    {return Row.DefinitionId==UIOpeningComponent&&Row.bInstalled;}),
-                    TEXT("UI: authority installs the exact non-first pointer-selected opening base"))){return Finish();}
+                if (Growth->Cards.IsEmpty() || Panel->HasPendingRequest()) { return true; }
+                if(!Check(Growth->Cards.ContainsByPredicate([this](const FLDCardInstanceView& Row)
+                    {return Row.DefinitionId==UIOpeningComponent&&Row.IsInstalled();}),
+                    TEXT("UI: authority installs the exact non-first pointer-selected opening card"))){return Finish();}
                 if(UIChoiceStep<6){if(!ReviewChoiceCards(PC,Now)){return Finish();}return true;}
                 UIRewardTicket = Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId, Growth->NextThresholdXP - Growth->CumulativeXP, Error);
-                if (!Check(UIRewardTicket != 0, TEXT("UI: DEV XP queues a normal level-up inventory component"))) { return Finish(); }
+                if (!Check(UIRewardTicket != 0, TEXT("UI: DEV XP queues a normal level-up card offer"))) { return Finish(); }
                 UIBuildStage = 3;
                 UIBuildDueAt = Now + .5;
                 return true;
@@ -1427,10 +1414,8 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 const ELDDevGrantStatus Status = Mode->Growth->DevGrantStatus(UIRewardTicket, Detail);
                 if (Status == ELDDevGrantStatus::Pending) { return true; }
                 if (!Check(Status == ELDDevGrantStatus::Granted, TEXT("UI: DEV XP commits through the reward composite"))) { return Finish(); }
-                if (Growth->Components.Num() < 2) { return true; }
-                int32 Installed = 0;
-                for (const FLDComponentInstanceView& Component : Growth->Components) { Installed += Component.bInstalled ? 1 : 0; }
-                if (!Check(Installed > 0 && Installed < Growth->Components.Num(), TEXT("UI: real inventory has installed and uninstalled components"))) { return Finish(); }
+                if (!Growth->bHasCardOffer && Growth->QueuedCardOffers == 0) { return true; }
+                if (!Check(Growth->Level >= 2, TEXT("UI: the level-up queues its card offer"))) { return Finish(); }
                 UIBuildStage = 4;
                 UIBuildDueAt = Now + .5;
                 return true;
@@ -1469,37 +1454,31 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 if (!Check(Growth->UnspentPoints == UIPointsBefore - 1,
                     TEXT("UI: one click on + commits exactly one point, with no confirm"))) { return Finish(); }
                 Stats->PinHover(INDEX_NONE);
-                // #227: owned components live in the HUD storage right of the band, not in the panel.
+                // Owned cards live in the HUD storage right of the band, not in the panel.
                 UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
             }
             if(UIBuildStage==8)
             {
                 ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
-                if(!Check(Storage!=nullptr,TEXT("UI: the HUD has its component storage"))){return Finish();}
-                UIInstalledComponent=NAME_None;
-                for(const FLDComponentInstanceView& Owned:Growth->Components)
-                {
-                    if(!Owned.bInstalled&&!LDHUD::ComponentDrops(Owned.DefinitionId,*Growth,&Content->Get()).IsEmpty())
-                    {UIInstalledComponent=Owned.DefinitionId;break;}
-                }
-                if(UIInstalledComponent.IsNone())
-                {
-                    if(!Check(++UIComponentRewardGrants<=10&&Growth->Level<Content->Get().Progression.MaxLevel,
-                        TEXT("UI: normal level rewards supply an applicable stored component within a bound"))){return Finish();}
-                    UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
-                    if(!Check(UIRewardTicket!=0,TEXT("UI: applicable component fixture uses the ordinary level reward composite"))){return Finish();}
-                    UIBuildStage=81;UIBuildDueAt=Now+.5;return true;
-                }
-                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                Storage->PinOpen(true);
-                UIBuildStage=9;UIBuildDueAt=Now+.6;return true;
+                if(!Check(Storage!=nullptr,TEXT("UI: the HUD has its card storage"))){return Finish();}
+                // The opening card comes off first, so the storage holds it for the drop below.
+                const FLDCardInstanceView* Opening=Growth->Cards.FindByPredicate([this](const FLDCardInstanceView& Row)
+                    {return Row.DefinitionId==UIOpeningComponent;});
+                if(!Check(Opening!=nullptr,TEXT("UI: the opening card is owned"))){return Finish();}
+                UIInstalledComponent=LDHUD::CardKey(Opening->DefinitionId,Opening->Serial);
+                UIBuildRevisionBefore=Growth->BuildRevision;
+                if(Opening->IsInstalled()&&!Check(Storage->DropInStorage(UIInstalledComponent),
+                    TEXT("UI: dropping the installed opening card on the storage sends its uninstall"))){return Finish();}
+                UIBuildStage=81;UIBuildDueAt=Now+.5;return true;
             }
             if(UIBuildStage==81)
             {
-                FString Detail;const auto Status=Mode->Growth->DevGrantStatus(UIRewardTicket,Detail);
-                if(Status==ELDDevGrantStatus::Pending){return true;}
-                if(!Check(Status==ELDDevGrantStatus::Granted,TEXT("UI: additional normal component reward is committed"))){return Finish();}
-                UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
+                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
+                const FLDCardInstanceView* Owned=LDHUD::FindCard(*Growth,UIInstalledComponent);
+                if(Storage->HasPendingRequest()||!Owned||Owned->IsInstalled()){return true;}
+                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                Storage->PinOpen(true);
+                UIBuildStage=9;UIBuildDueAt=Now+.6;return true;
             }
             if(UIBuildStage==9)
             {
@@ -1511,16 +1490,16 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                         :LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
                             &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid();
                     if(!Check(Storage->IsExpanded()&&bShown,
-                        TEXT("UI: the open storage shows its components (workshop library, or stack and card list) at 720p125"))){return Finish();}
+                        TEXT("UI: the open storage shows its cards (workshop library, or stack and card list) at 720p125"))){return Finish();}
                     FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStorageOpen_1280x720_125.png")),true,false);
                     Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStorageOpen_1280x720_125.png")));
                     bUIStorageShot=true;return true;
                 }
                 if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(UIInstalledComponent,*Growth,&Content->Get());
+                const TArray<LDHUD::FCardDrop> Drops=LDHUD::CardDrops(UIInstalledComponent,*Growth,&Content->Get());
                 UIBuildRevisionBefore=Growth->BuildRevision;
                 if(!Check(!Drops.IsEmpty()&&Storage->DropOn(UIInstalledComponent,Drops[0].Column,Drops[0].Host),
-                    TEXT("UI: dropping a stored component on its first legal place sends the install or opens the chooser"))){return Finish();}
+                    TEXT("UI: dropping a stored card on its first legal place sends the install or opens the chooser"))){return Finish();}
                 UIBuildStage=10;UIBuildDueAt=Now+.3;return true;
             }
             if(UIBuildStage==10)
@@ -1529,27 +1508,29 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 if(Storage->IsChoosing())
                 {
                     if(!Check(LDSlateProbeInput::SendClick(Storage->GetWidgetFromName(TEXT("HUDStorageChoice0"))),
-                        TEXT("UI: actual pointer picks the first element or base in the drop chooser"))){return Finish();}
+                        TEXT("UI: actual pointer picks the first element in the drop chooser"))){return Finish();}
                     UIBuildDueAt=Now+.3;return true;
                 }
                 if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
-                const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
-                const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(*Growth,&Content->Get());
+                const FLDCardInstanceView* Owned=LDHUD::FindCard(*Growth,UIInstalledComponent);
+                const LDHUD::FStorageView Shown=LDHUD::CardStorage(*Growth,&Content->Get());
                 const bool bInColumn=Shown.Columns.ContainsByPredicate([this](const LDHUD::FStorageColumnView& Column)
-                {return Column.Entries.ContainsByPredicate([this](const LDHUD::FEquippedView& Entry){return Entry.Component==UIInstalledComponent;});});
-                if(!Check(Owned&&Owned->bInstalled&&bInColumn&&!Shown.Stored.Contains(UIInstalledComponent),
-                    TEXT("UI: authority installs the dropped component and the storage shows it in its column"))){return Finish();}
+                {return Column.Entries.ContainsByPredicate([this](const LDHUD::FEquippedView& Entry){return Entry.Keys.Contains(UIInstalledComponent);});});
+                const bool bStored=Shown.Stored.ContainsByPredicate([this](const LDHUD::FStoredView& Row){return Row.Keys.Contains(UIInstalledComponent);});
+                if(!Check(Owned&&Owned->IsInstalled()&&bInColumn&&!bStored,
+                    TEXT("UI: authority installs the dropped card and the storage shows it in its column"))){return Finish();}
                 UIBuildRevisionBefore=Growth->BuildRevision;
                 if(!Check(Storage->DropInStorage(UIInstalledComponent),
-                    TEXT("UI: dropping the installed component back on the storage sends its uninstall"))){return Finish();}
+                    TEXT("UI: dropping the installed card back on the storage sends its uninstall"))){return Finish();}
                 UIBuildStage=11;UIBuildDueAt=Now+.3;return true;
             }
             if(UIBuildStage==11)
             {
                 ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
                 if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
-                const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
-                if(!Check(Owned&&!Owned->bInstalled&&LDHUD::ComponentStorage(*Growth,&Content->Get()).Stored.Contains(UIInstalledComponent),
+                const FLDCardInstanceView* Owned=LDHUD::FindCard(*Growth,UIInstalledComponent);
+                if(!Check(Owned&&!Owned->IsInstalled()&&LDHUD::CardStorage(*Growth,&Content->Get()).Stored.ContainsByPredicate(
+                        [this](const LDHUD::FStoredView& Row){return Row.Keys.Contains(UIInstalledComponent);}),
                     TEXT("UI: authority uninstalls it and the storage holds it again"))){return Finish();}
                 Storage->PinOpen(false);
                 UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
@@ -1722,12 +1703,17 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
     {
         auto* Real=PC.HUDUI->ChoicesPanel.Get();
         FLDProgressionView Sample=Real->Latest;
-        Sample.bHasActiveOffer=false;Sample.bOpeningBasePending=false;Sample.PendingBlueprints.Reset();Sample.ComponentChoices.Reset();
-        FLDComponentChoiceView& Choice=Sample.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid::NewGuid();
-        for(const FName Id:UIOpeningOptions)
-        {if(!LDHUD::OwnsComponent(Sample,Id)&&Choice.Options.Num()<2){Choice.Options.Add(Id);}}
-        if(!Check(Choice.Options.Num()==2&&!Sample.Components.IsEmpty(),
-            TEXT("UI: isolated elite-choice fixture uses two known unowned candidates beside owned components"))){return false;}
+        // An isolated card offer of three catalog cards the build does not own yet.
+        Sample.bHasActiveOffer=false;Sample.PendingBlueprints.Reset();
+        Sample.bHasCardOffer=true;Sample.CardOffer=FLDCardOfferView();Sample.CardOffer.OfferId=FGuid::NewGuid();Sample.CardOffer.OfferRevision=1;
+        Sample.CardOffer.Ordinal=2;Sample.CardOffer.Source=ELDCardOfferSource::LevelUp;
+        for(const FLDDemoCardDefinition& Card:Real->LatestContent->Cards)
+        {
+            const FName Id(*Card.Id);
+            if(LDHUD::OwnedCopies(Sample,Id)==0&&Sample.CardOffer.Options.Num()<3){Sample.CardOffer.Options.Add(Id);}
+        }
+        if(!Check(Sample.CardOffer.Options.Num()==3&&!Sample.Cards.IsEmpty(),
+            TEXT("UI: isolated card offer fixture uses three unowned cards beside owned ones"))){return false;}
         Real->ClosePanel();
         UIChoiceFixture.Reset(CreateWidget<ULDChoicesPanel>(&PC));
         if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
@@ -1742,15 +1728,13 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
                 Real->LatestContent,Real->LatestStats,Real->SlotKeys);
         };
         PresentFixture();
-        Sample.ComponentChoices[0].Options.Swap(0,1);
+        Sample.CardOffer.Options.Swap(0,1);
         PresentFixture();
-        if(!Check(!Panel->IsPanelOpen()&&Panel->ChoiceRows.IsEmpty()&&Panel->HasCards(),
-            TEXT("UI: a closed tray retains current choices without building their rows"))){return false;}
+        if(!Check(!Panel->IsPanelOpen()&&Panel->HasCards(),TEXT("UI: a closed tray retains the current card offer"))){return false;}
         Panel->ApplyTextScale(1.25f);Panel->OpenPanel();
-        const auto LatestCard=LDHUD::ComponentCard(Sample.ComponentChoices[0].Options[1],Panel->LatestContent,Panel->LatestStats);
-        if(!Check(Panel->ChoiceRows.IsValidIndex(0)&&Panel->ChoiceRows[0].Options.IsValidIndex(1)
-            &&Panel->ChoiceRows[0].Options[1].Detail.Name==LatestCard.Name,
-            TEXT("UI: reopening the tray renders the latest choices received while closed"))){return false;}
+        const auto LatestCard=LDHUD::CardFace(Sample.CardOffer.Options[1],Panel->LatestContent,Panel->LatestStats);
+        if(!Check(Panel->CardCards.IsValidIndex(1)&&Panel->CardCards[1].Detail.Name==LatestCard.Name,
+            TEXT("UI: reopening the tray renders the latest card offer received while closed"))){return false;}
         // This isolated presentation fixture records the real button's command without granting a gameplay reward.
         Panel->PeekRequestId=[](){return uint64(900001);};
         Panel->SubmitBuild=[this](const FLDBuildCommand& Command,ELDGrowthReason& Reason)
@@ -1758,16 +1742,16 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         UIChoiceStep=1;return true;
     }
     auto* Panel=UIChoiceFixture.Get();
-    const auto& Candidate=Panel->ChoiceRows[0].Options[1];
-    const FName CandidateId=Panel->Latest.ComponentChoices[0].Options[1];
-    const auto Expected=LDHUD::ComponentCard(CandidateId,Panel->LatestContent,Panel->LatestStats);
+    const auto& Candidate=Panel->CardCards[1];
+    const FName CandidateId=Panel->Latest.CardOffer.Options[1];
+    const auto Expected=LDHUD::CardFace(CandidateId,Panel->LatestContent,Panel->LatestStats);
     if(UIChoiceStep==1)
     {
         // The card shows the icon and the name only; its full rules are the popup of the card under the pointer.
-        if(!Check(LDSlateProbeInput::FullyVisible(Panel->ChoiceRows[0].Options[0].Frame,Panel)
+        if(!Check(LDSlateProbeInput::FullyVisible(Panel->CardCards[0].Frame,Panel)
             &&LDSlateProbeInput::FullyVisible(Candidate.Frame,Panel)
             &&LDSlateProbeInput::Pointer(Candidate.Button,EKeys::LeftMouseButton,false,false),
-            TEXT("UI: both elite candidates fit without scrolling and the second receives actual pointer hover at 720p125"))){return false;}
+            TEXT("UI: the offered cards fit without scrolling and the second receives actual pointer hover at 720p125"))){return false;}
         UIChoiceStep=2;return true;
     }
     if(UIChoiceStep==2)
@@ -1776,22 +1760,22 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         const FVector2D Centre=Candidate.Frame->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5f,.5f));
         if(!Check(Panel->Hovered(Centre,Shown)==Candidate.Frame&&!Expected.SentencePlain.IsEmpty()&&Shown.Name==Expected.Name
             &&Shown.Body.StartsWith(Expected.SentencePlain)&&Candidate.Name->GetText().ToString()==Expected.Name,
-            TEXT("UI: the elite candidate card names it and its hover popup carries its exact rules"))){return false;}
-        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostEliteCandidateCards_720_125.png")),true,false);
-        Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostEliteCandidateCards_720_125.png")));
+            TEXT("UI: the offered card names it and its hover popup carries its exact rules"))){return false;}
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostCardOffer_720_125.png")),true,false);
+        Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostCardOffer_720_125.png")));
         UIChoiceStep=4;return true;
     }
     if(UIChoiceStep==4)
     {
         if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-        if(!Check(LDSlateProbeInput::SendClick(Candidate.Button),TEXT("UI: actual pointer selects the second elite candidate"))){return false;}
+        if(!Check(LDSlateProbeInput::SendClick(Candidate.Button),TEXT("UI: actual pointer selects the second offered card"))){return false;}
         UIChoiceStep=5;return true;
     }
     FName Selected;
-    if(!Check(UIChoiceSubmitted.Kind==ELDBuildCommandKind::ComponentChoice
-        &&UIChoiceSubmitted.OfferId==Panel->Latest.ComponentChoices[0].ChoiceId
-        &&UIChoiceSubmitted.Component.Decode(Selected)&&Selected==CandidateId,
-        TEXT("UI: isolated elite selection submits the exact second candidate"))){return false;}
+    if(!Check(UIChoiceSubmitted.Kind==ELDBuildCommandKind::PickCard
+        &&UIChoiceSubmitted.OfferId==Panel->Latest.CardOffer.OfferId
+        &&UIChoiceSubmitted.Option.Decode(Selected)&&Selected==CandidateId,
+        TEXT("UI: isolated card selection submits the exact second card"))){return false;}
     UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();UIChoiceStep=6;return true;
 }
 
@@ -2408,39 +2392,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
             TEXT("UI: closing the workshop leaves no hidden confirmation or trainer buttons behind"))){return false;}
         UIServiceStep=133;return true;
     case 133:
-        if(!PC.CanWorldCommand()){return true;}
-        if(!Walk(2)){return false;}UIServiceStep=14;return true;
-    case 14:
-        if(PC.OwnerState.NearbyRestService!=ELDRestService::ComponentArtisan){return true;}
-        if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-            TEXT("UI: the workshop opens beside the artisan with its services on the board"))){return false;}
-        ++UIServiceStep;UIActionDueAt=Now+.3;return true;
-    case 15:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestDismantle")))){return Passed;}
-        ++UIServiceStep;return true;
-    case 16:
-        if(UIServicePick<Panel->Materials.DismantleCount)
-        {
-            // The picks are made on the storage's service pick, as a click on a library or board face reports them.
-            ULDComponentStorage* PickStorage=PC.HUDUI?PC.HUDUI->Storage.Get():nullptr;
-            const TArray<FName> Selectable=Panel->DismantleSelectable();
-            if(PickStorage&&!PickStorage->IsServicePicking()){return true;}
-            if(!Check(PickStorage&&PickStorage->OnServicePick&&Selectable.IsValidIndex(int32(UIServicePick)),
-                TEXT("UI: actual inventory supplies the approved dismantle inputs on the storage"))){return false;}
-            PickStorage->OnServicePick(Selectable[int32(UIServicePick)]);
-            ++UIServicePick;UIActionDueAt=Now+.2;return true;
-        }
-        Capture(TEXT("HostArtisanDismantleConfirm.png"));++UIServiceStep;return true;
-    case 17:
-        UIServiceGrowthBefore=Growth->BuildRevision;UIServiceInventoryBefore=Growth->Components.Num();
-        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
-        ++UIServiceStep;UIActionDueAt=Now+.4;return true;
-    case 18:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
-        if(!Check(Growth->Components.Num()==UIServiceInventoryBefore-Panel->Materials.DismantleCount+1
-            &&!PC.HUDUI->Toast->GetText().IsEmpty(),
-            TEXT("UI: artisan consumes the selected real components and displays its authoritative result"))){return false;}
-        Capture(TEXT("HostArtisanDismantleApplied.png"));bUIOtherServicesDone=true;return true;
+        bUIOtherServicesDone=true;return true;
     default:Check(false,TEXT("UI: explicit service review has a valid step"));return false;
     }
 }

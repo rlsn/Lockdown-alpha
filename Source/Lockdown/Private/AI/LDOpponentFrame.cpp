@@ -196,8 +196,8 @@ bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const F
     return true;
 }
 
-bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out,
-    FString& Error)
+bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoStatBonus>& CardGrowth,
+    const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out, FString& Error)
 {
     using namespace Detail;
     if (!Progression.bValid || Progression.Level == 0)
@@ -209,11 +209,9 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     Out.Blueprints.Reset();
     Out.StatPoints.Reset();
     Out.Offer.Reset();
-    Out.Components.Reset();
-    Out.OpeningBaseOptions.Reset();
-    Out.bOpeningBasePending = false;
-    Out.ComponentChoices.Reset();
-    Out.GapFills.Reset();
+    Out.Cards.Reset();
+    Out.CardOffer.Reset();
+    Out.CardCapacity = Progression.CardCapacity;
     for (const FLDActiveSlotView& Active : Progression.Actives)
     {
         if (Active.Slot > 2 || Active.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own active is outside the Q/W/E slots.")); }
@@ -242,59 +240,37 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         for (const FName& Option : Progression.FinalModOptions) { Out.FinalModOptions.Add(CanonicalId(Option)); }
         Out.FinalModSources=Progression.FinalModSources;
     }
-    // #198 B: owned components; the installed ones (with their binding, and #198 F their target) also feed the own
-    // attribute projection.
-    TArray<FLDInstalledComponentValue> Installed;
-    for (const FLDComponentInstanceView& Owned : Progression.Components)
+    // Owned cards; the installed ones also feed the own attribute projection.
+    TArray<FLDInstalledCardValue> Installed;
+    for (const FLDCardInstanceView& Owned : Progression.Cards)
     {
-        if (Owned.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own component has no definition.")); }
-        FLDOpponentComponent& Component = Out.Components.AddDefaulted_GetRef();
-        Component.DefinitionId = CanonicalId(Owned.DefinitionId);
-        Component.bInstalled = Owned.bInstalled;
-        Component.bEverInstalled = Owned.bEverInstalled;
-        if (!Owned.bInstalled) { continue; }
-        Component.TargetKind = Owned.Target.Kind;
-        Component.TargetId = Owned.Target.Definition.IsNone() ? FString() : CanonicalId(Owned.Target.Definition);
-        Component.BoundActive = Owned.Target.BoundActive.IsNone() ? FString() : CanonicalId(Owned.Target.BoundActive);
-        Component.Element = Owned.Target.Element;
-        Component.BoundComponent = Owned.Target.BoundComponent.IsNone() ? FString() : CanonicalId(Owned.Target.BoundComponent);
-        FLDInstalledComponentValue& Value = Installed.AddDefaulted_GetRef();
-        Value.ComponentId = Owned.DefinitionId;
-        Value.BoundActive = Owned.Target.BoundActive;
-        Value.Element = Owned.Target.Element;
+        if (Owned.DefinitionId.IsNone() || Owned.Serial == 0) { return Fail(Error, TEXT("An own card has no definition or serial.")); }
+        FLDOpponentCard& Card = Out.Cards.AddDefaulted_GetRef();
+        Card.Serial = Owned.Serial;
+        Card.DefinitionId = CanonicalId(Owned.DefinitionId);
+        if (!Owned.IsInstalled()) { continue; }
+        Card.TargetKind = Owned.Target.Kind;
+        Card.TargetActive = Owned.Target.Active.IsNone() ? FString() : CanonicalId(Owned.Target.Active);
+        Card.Element = Owned.Target.Element;
+        FLDInstalledCardValue& Value = Installed.AddDefaulted_GetRef();
+        Value.CardId = Owned.DefinitionId;
+        Value.Serial = Owned.Serial;
         Value.TargetKind = Owned.Target.Kind;
-        Value.TargetId = Owned.Target.Definition;
-        Value.BoundComponent = Owned.Target.BoundComponent;
+        Value.Active = Owned.Target.Active;
+        Value.Element = Owned.Target.Element;
     }
-    Out.bOpeningBasePending = Progression.bOpeningBasePending;
-    for (const FName& Option : Progression.OpeningBaseOptions) { Out.OpeningBaseOptions.Add(CanonicalId(Option)); }
-    // #198 G: the pending component choices, and the gap fills growth's own rules allow over this view (first filler each).
-    for (const FLDComponentChoiceView& Pending : Progression.ComponentChoices)
+    if (Progression.bHasCardOffer)
     {
-        if (!Pending.ChoiceId.IsValid() || Pending.Options.IsEmpty() || Pending.Options.Contains(NAME_None))
-        {
-            return Fail(Error, TEXT("An own component choice has no id or no option."));
-        }
-        FLDOpponentComponentChoice& Choice = Out.ComponentChoices.AddDefaulted_GetRef();
-        Choice.ChoiceId = Pending.ChoiceId;
-        for (const FName& Option : Pending.Options) { Choice.Options.Add(CanonicalId(Option)); }
-    }
-    {
-        const FLDDemoContentDefinitions& Content = Catalog.Get();
-        const FLDGrowthBuild Build = LDProgression::BuildFromView(Content, Progression);
-        TArray<FName> Targets;
-        LDProgression::GapTargets(Content, Build, Targets);
-        for (const FName& Target : Targets)
-        {
-            TArray<FName> Fillers;
-            if (LDProgression::GapFillers(Content, Build, Target, Fillers) == ELDGrowthReason::None && !Fillers.IsEmpty())
-            {
-                Out.GapFills.Add({CanonicalId(Target), CanonicalId(Fillers[0])});
-            }
-        }
+        FLDOpponentCardOffer Offer;
+        Offer.OfferId = Progression.CardOffer.OfferId;
+        Offer.OfferRevision = Progression.CardOffer.OfferRevision;
+        for (const FName& Option : Progression.CardOffer.Options) { Offer.Options.Add(CanonicalId(Option)); }
+        if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own card offer has no option.")); }
+        Out.CardOffer = MoveTemp(Offer);
     }
     FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Points));
-    Values.Components = MoveTemp(Installed);
+    Values.Cards = MoveTemp(Installed);
+    Values.CardGrowth = CardGrowth;
     const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;

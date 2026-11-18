@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Core/LDLog.h"
 
 #include "Development/LDGrowthDirector.h"
@@ -407,6 +408,25 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestClearAttr(
                 return;
             }
             DevTestSend(World, ELDDevTestOp::ClearAttributes, 0, Ar);
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestBreakout(
+    TEXT("ld.Dev.Breakout"),
+    TEXT("DEV test session: reset yourself and apply one P2 breakout sample (spec 7.6): ld.Dev.Breakout <sample id>; "
+        "without an id it lists the samples."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            if (Args.Num() != 1)
+            {
+                for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All())
+                {
+                    Ar.Logf(TEXT("LD_DEV_TEST_LIST breakout %s %s"), Preset.Id, Preset.Label);
+                }
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Breakout <sample id>"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::ApplyBreakoutPreset, 0, Ar, FName(*Args[0].TrimStartAndEnd()));
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestReset(

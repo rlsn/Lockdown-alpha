@@ -27,8 +27,10 @@ public:
     const FLDProgressionState& Progression() const { return NewProgression; }
     bool ChangesBuild() const { return NewBuild.Revision != ExpectedBuildRevision; }
     uint8 LevelBefore() const { return OldLevel; }
-    // #198 B: the component of each normal level-up this change crosses, in level order (None: points instead).
-    const TArray<FLDComponentGrant>& ComponentGrants() const { return Grants; }
+    // The card offers this change queued (one per level crossed, then a field reward's), as offer ordinals; First > Last when
+    // none.
+    uint16 CardOfferFirst() const { return OfferFirst; }
+    uint16 CardOfferLast() const { return OfferLast; }
     // #198 G: the build part of a field reward this change installs (Result None when it carries none).
     const LDProgression::FFieldGrant& FieldGrant() const { return Field; }
 
@@ -44,7 +46,8 @@ private:
     uint8 OldLevel = 0;
     FLDGrowthBuild NewBuild;
     FLDProgressionState NewProgression;
-    TArray<FLDComponentGrant> Grants;
+    uint16 OfferFirst = 1;
+    uint16 OfferLast = 0;
     LDProgression::FFieldGrant Field;
     bool bCombatInstall = false;
     FLDExpectedBuildVersions CombatInstall;
@@ -75,8 +78,8 @@ struct FLDPendingGrowthIntent
 };
 
 // N04 growth owner (#198): level/XP, derived points, their allocation and the permanent rest spend, Q/W/E actives, pending
-// blueprints, the active opportunity queue (level and NPC opportunities) with its one current offer, and (#198 B) the owned
-// component instances with their install state and first-install history. Contender records persist across deaths and are
+// blueprints, the active opportunity queue (level and NPC opportunities) with its one current offer, and (spec §6) the owned
+// cards with their install targets and the card offer queue with its rerolls and lock. Contender records persist across deaths and are
 // rebuilt only by a new match.
 UCLASS()
 class LOCKDOWN_API ALDDevelopmentDirector : public AActor
@@ -104,9 +107,9 @@ public:
     FLDBuildReceipt CommitPendingBuild(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
     // ---- Composite-commit parts for rewards ----
-    // Cumulative XP, level, one active opportunity per active_offer_levels entry reached (NPC purchases carry over) and
-    // (#198 B) one component per normal level-up crossed (or the exhausted-pool points); BuildRevision advances only with the
-    // level. The points follow from the level, XP and exhausted-pool grants.
+    // Cumulative XP, level, one active opportunity per active_offer_levels entry reached (NPC purchases carry over) and one
+    // card offer per level crossed (spec §6.4); BuildRevision advances only with the level. The points follow from the level
+    // and XP.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
     // #198 G: PrepareExperience(GrantXP) followed by the build part Kind of map event Event/Serial, drawn on the post-XP build
     // from private per-event random material (LDProgression::DrawFieldReward / ApplyFieldGrant) and recorded in the field
@@ -132,6 +135,8 @@ public:
     // false (with Error) only for a lost permit or domain.
     bool OpenFinalMods(const FLDGameplayWritePermit& Permit, FString& Error);
     bool LockFinalMods(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Spec §6.4: every mid-match rest adds CARDS.RerollsPerRest card rerolls to every contender (either world permit).
+    bool GrantRestRerolls(const FLDGameplayWritePermit& Permit, FString& Error);
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
     const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
 
@@ -141,7 +146,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     // Prepared only; ALDGrowthDirector's evaluation-only entry and reward composite guard the actual commit.
     FLDPrepareGrowthResult DevPrepareEvaluationExperience(const FGuid& ContenderId, int64 GrantXP,
-        const TArray<FName>& LevelComponents) const;
+        const TArray<FName>& LevelCards) const;
     // DEV growth fixture (LDDevGrowthFixture.h): queues one active offer (one to three distinct actives) for this
     // contender's next drawn head offers, oldest first. Every id must be an active the build neither holds nor keeps as a
     // blueprint and an offer must still be left to draw; each head draw re-resolves its preset against that build. The
@@ -161,11 +166,15 @@ public:
     ELDGrowthReason DevAllocatePoints(const FGuid& ContenderId, FName StatId, int64 Amount, const FLDGameplayWritePermit& Permit,
         FString& Detail);
     // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no
-    // actives, blueprints, components, allocated or permanently spent points, the opening opportunity only (none consumed or
+    // actives, blueprints, cards, allocated or permanently spent points, the opening opportunity only (none consumed or
     // bought, no records) and a fresh opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer
     // revisions keep rising, so every in-flight command of the old state is refused as stale; request streams and receipts
     // stay.
     FLDPrepareGrowthResult DevPrepareReset(const FGuid& ContenderId) const;
+    // DEV breakout preset (LDBreakoutPresets) on a match-start record (after DevPrepareReset): its max-level build installed
+    // like a build command, every active opportunity consumed (the first skill as the opening one), no card offer pending.
+    ELDGrowthReason DevApplyBreakoutPreset(const FGuid& ContenderId, FName PresetId, const FLDGameplayWritePermit& Permit,
+        FString& Detail);
 #endif
 
 private:
@@ -185,8 +194,10 @@ private:
     // Draws the queue head's offer when the queue has an opportunity without one and an active is eligible for it; with
     // no eligible active the opportunity keeps waiting without an offer.
     void DrawHead(const FGuid& ContenderId, FRecord& Record);
+    // The card offer queue's head (spec §6.4): drawn when none is current, one is queued and the opening active is chosen.
+    void DrawCardHead(const FGuid& ContenderId, FRecord& Record);
     // Installs NewBuild (and NewProgression when bProgressionChanged) with the next revisions and the Combat projection
-    // when the build changes what Combat sees (level, points, learned actives or installed components), all prepared before
+    // when the build changes what Combat sees (level, points, learned actives or installed cards), all prepared before
     // anything is written,
     // then draws a due head. None when installed; a rejection reason when nothing changed; AuthorityFault when the domain
     // or the permit was lost before the install.

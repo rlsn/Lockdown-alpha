@@ -47,32 +47,38 @@ const TCHAR* ElementKey(ELDDemoElement Element)
     }
 }
 
-const TCHAR* TargetKindKey(ELDComponentTargetKind Kind)
+const TCHAR* CardTargetKey(ELDCardTargetKind Kind)
 {
     switch (Kind)
     {
-    case ELDComponentTargetKind::Active: return TEXT("active");
-    case ELDComponentTargetKind::Component: return TEXT("component");
-    case ELDComponentTargetKind::Dash: return TEXT("dash");
+    case ELDCardTargetKind::Basic: return TEXT("basic");
+    case ELDCardTargetKind::Skill: return TEXT("skill");
+    case ELDCardTargetKind::Dash: return TEXT("dash");
+    case ELDCardTargetKind::Body: return TEXT("body");
     default: return nullptr;
     }
 }
 
-// A recorded parameter is one of the keys StructureOf writes, with a value it can write.
-bool ValidParameter(const FLDBlueprintParameter& Parameter)
+const TCHAR* FinalTargetKey(ELDFinalModTargetKind Kind)
 {
-    if (Parameter.Key == TEXT("element"))
+    switch (Kind)
     {
-        return Parameter.Value == TEXT("fire") || Parameter.Value == TEXT("water") || Parameter.Value == TEXT("electric");
+    case ELDFinalModTargetKind::Active: return TEXT("active");
+    case ELDFinalModTargetKind::Dash: return TEXT("dash");
+    default: return nullptr;
     }
-    if (Parameter.Key == TEXT("target_kind"))
-    {
-        return Parameter.Value == TEXT("active") || Parameter.Value == TEXT("component") || Parameter.Value == TEXT("dash");
-    }
-    return Parameter.Key == TEXT("bound_component") && !Parameter.Value.IsEmpty();
 }
 
 bool Before(const FString& A, const FString& B) { return A.Compare(B, ESearchCase::CaseSensitive) < 0; }
+
+// Card rows sort by card, target, host and element; copies are equal rows next to each other.
+bool CardBefore(const FLDBlueprintCard& A, const FLDBlueprintCard& B)
+{
+    if (A.Card != B.Card) { return Before(A.Card, B.Card); }
+    if (A.Target != B.Target) { return Before(A.Target, B.Target); }
+    if (A.Host != B.Host) { return Before(A.Host, B.Host); }
+    return Before(A.Element, B.Element);
+}
 
 bool IsHex(const FString& Text, int32 Length)
 {
@@ -102,43 +108,26 @@ TSharedRef<FJsonObject> WriteStructure(const FLDBlueprintStructure& Structure, c
         Row->SetField(TEXT("ability"), JsonStr(Active.Ability));
         Actives.Add(JsonObj(Row));
     }
-    const TSharedRef<FJsonObject> Components = MakeShared<FJsonObject>();
-    Components->SetField(TEXT("collected"), JsonBool(Structure.bComponentsCollected));
-    if (Structure.bComponentsCollected)
+    TArray<FValue> Cards;
+    for (const FLDBlueprintCard& Card : Structure.Cards)
     {
-        TArray<FValue> Items;
-        for (const FLDBlueprintComponent& Component : Structure.Components)
-        {
-            const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
-            Row->SetField(TEXT("component"), JsonStr(Component.Component));
-            Row->SetField(TEXT("host"), JsonStr(Component.Host));
-            TArray<FValue> Parameters;
-            for (const FLDBlueprintParameter& Parameter : Component.Parameters)
-            {
-                const TSharedRef<FJsonObject> Pair = MakeShared<FJsonObject>();
-                Pair->SetField(TEXT("key"), JsonStr(Parameter.Key));
-                Pair->SetField(TEXT("value"), JsonStr(Parameter.Value));
-                Parameters.Add(JsonObj(Pair));
-            }
-            Row->SetField(TEXT("parameters"), JsonArr(Parameters));
-            Items.Add(JsonObj(Row));
-        }
-        Components->SetField(TEXT("items"), JsonArr(Items));
-    }
-    else
-    {
-        Components->SetField(TEXT("items"), JsonNull());
+        const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetField(TEXT("card"), JsonStr(Card.Card));
+        Row->SetField(TEXT("target"), JsonStr(Card.Target));
+        Row->SetField(TEXT("host"), JsonStr(Card.Host));
+        Row->SetField(TEXT("element"), JsonStr(Card.Element));
+        Cards.Add(JsonObj(Row));
     }
     Into->SetField(TEXT("stat_points"), JsonArr(Stats));
     Into->SetField(TEXT("actives"), JsonArr(Actives));
-    Into->SetField(TEXT("components"), JsonObj(Components));
+    Into->SetField(TEXT("cards"), JsonArr(Cards));
     if(Structure.FinalMod.IsEmpty()){Into->SetField(TEXT("final_mod"),JsonNull());}
     else
     {
         const auto& Selected=Structure.FinalMod;
         const TSharedRef<FJsonObject> Final=MakeShared<FJsonObject>();
         Final->SetField(TEXT("definition"),JsonStr(Selected.DefinitionId.ToString()));
-        const TCHAR* Kind=TargetKindKey(Selected.TargetKind);
+        const TCHAR* Kind=FinalTargetKey(Selected.TargetKind);
         Final->SetField(TEXT("target_kind"),JsonStr(Kind?Kind:TEXT("none")));
         Final->SetField(TEXT("target_id"),JsonStr(Selected.TargetId.IsNone()?FString():Selected.TargetId.ToString()));
         Into->SetField(TEXT("final_mod"),JsonObj(Final));
@@ -199,66 +188,37 @@ bool ReadStructure(FFields& Fields, FLDBlueprintStructure& Out)
         FFields Row(Check,Final,Path+TEXT(".final_mod"));
         FString Id,Kind,Target;
         if(!Row.Identifier(TEXT("definition"),Id)||!Row.Text(TEXT("target_kind"),Kind,1,9)){return false;}
-        if(Kind==TEXT("active")){Out.FinalMod.TargetKind=ELDComponentTargetKind::Active;}
-        else if(Kind==TEXT("component")){Out.FinalMod.TargetKind=ELDComponentTargetKind::Component;}
-        else if(Kind==TEXT("dash")){Out.FinalMod.TargetKind=ELDComponentTargetKind::Dash;}
+        if(Kind==TEXT("active")){Out.FinalMod.TargetKind=ELDFinalModTargetKind::Active;}
+        else if(Kind==TEXT("dash")){Out.FinalMod.TargetKind=ELDFinalModTargetKind::Dash;}
         else if(!Check.Require(Kind==TEXT("none"),Row.Path,TEXT("unknown final source kind"))){return false;}
-        const bool bNamed=Out.FinalMod.TargetKind==ELDComponentTargetKind::Active||Out.FinalMod.TargetKind==ELDComponentTargetKind::Component;
+        const bool bNamed=Out.FinalMod.TargetKind==ELDFinalModTargetKind::Active;
         if(!(bNamed?Row.Identifier(TEXT("target_id"),Target):Row.Text(TEXT("target_id"),Target,0,0))||!Row.Done()){return false;}
         Out.FinalMod.DefinitionId=FName(*Id);Out.FinalMod.TargetId=FName(*Target);
     }
-    FFields Components(Check, Fields.Take(TEXT("components")), Path + TEXT(".components"));
-    if (!Components.Flag(TEXT("collected"), Out.bComponentsCollected))
-    {
-        return false;
-    }
-    const FValue Items = Components.Take(TEXT("items"));
-    if (!Check.Good)
-    {
-        return false;
-    }
-    if (!Out.bComponentsCollected)
-    {
-        return Check.Require(Items && Items->Type == EJson::Null, Components.Path + TEXT(".items"),
-            TEXT("components that were not collected are null, never an empty list")) && Components.Done();
-    }
     const TArray<FValue>* Rows = nullptr;
-    if (!LDDemoContent::Array(Items, Rows, Check, Components.Path + TEXT(".items"), 0, 64))
+    if (!LDDemoContent::Array(Fields.Take(TEXT("cards")), Rows, Check, Path + TEXT(".cards"), 0, 32))
     {
         return false;
     }
     for (int32 Index = 0; Index < Rows->Num(); ++Index)
     {
-        FFields Row(Check, (*Rows)[Index], FString::Printf(TEXT("%s.items[%d]"), *Components.Path, Index));
-        FLDBlueprintComponent Component;
-        const TArray<FValue>* Parameters = nullptr;
-        if (!Row.Identifier(TEXT("component"), Component.Component) || !Row.Text(TEXT("host"), Component.Host, 0, 63)
-            || !LDDemoContent::Array(Row.Take(TEXT("parameters")), Parameters, Check, Row.Path + TEXT(".parameters"), 0, 32))
+        FFields Row(Check, (*Rows)[Index], FString::Printf(TEXT("%s.cards[%d]"), *Path, Index));
+        FLDBlueprintCard Card;
+        if (!Row.Identifier(TEXT("card"), Card.Card) || !Row.Text(TEXT("target"), Card.Target, 4, 5)
+            || !Row.Text(TEXT("host"), Card.Host, 0, 63) || !Row.Text(TEXT("element"), Card.Element, 0, 8) || !Row.Done()
+            || !Check.Require(Card.Target == TEXT("basic") || Card.Target == TEXT("skill") || Card.Target == TEXT("dash")
+                || Card.Target == TEXT("body"), Row.Path, TEXT("unknown card target"))
+            || !Check.Require((Card.Target == TEXT("skill")) != Card.Host.IsEmpty(), Row.Path, TEXT("only a skill card names its host"))
+            || !Check.Require(Card.Element.IsEmpty() || Card.Element == TEXT("fire") || Card.Element == TEXT("water")
+                || Card.Element == TEXT("electric"), Row.Path, TEXT("unknown card element"))
+            || !Check.Require(Out.Cards.IsEmpty() || !CardBefore(Card, Out.Cards.Last()), Row.Path,
+                TEXT("cards must be sorted by card, target, host and element")))
         {
             return false;
         }
-        for (int32 ParameterIndex = 0; ParameterIndex < Parameters->Num(); ++ParameterIndex)
-        {
-            FFields Pair(Check, (*Parameters)[ParameterIndex], FString::Printf(TEXT("%s.parameters[%d]"), *Row.Path, ParameterIndex));
-            FLDBlueprintParameter Parameter;
-            if (!Pair.Identifier(TEXT("key"), Parameter.Key) || !Pair.Text(TEXT("value"), Parameter.Value, 0, 256) || !Pair.Done()
-                || !Check.Require(ValidParameter(Parameter), Pair.Path, TEXT("unknown install parameter or value"))
-                || !Check.Require(Component.Parameters.IsEmpty() || Before(Component.Parameters.Last().Key, Parameter.Key), Pair.Path,
-                    TEXT("parameters must be unique and sorted by key")))
-            {
-                return false;
-            }
-            Component.Parameters.Add(MoveTemp(Parameter));
-        }
-        if (!Row.Done()
-            || !Check.Require(Out.Components.IsEmpty() || Before(Out.Components.Last().Component, Component.Component), Row.Path,
-                TEXT("components must be unique and sorted by id")))
-        {
-            return false;
-        }
-        Out.Components.Add(MoveTemp(Component));
+        Out.Cards.Add(MoveTemp(Card));
     }
-    return Components.Done();
+    return true;
 }
 
 bool ReadFacts(FFields& Version, FLDBlueprintVersion& Out)
@@ -329,7 +289,6 @@ const TCHAR* LDBuildBlueprint::FactKey(ELDBlueprintFact Fact)
     case ELDBlueprintFact::BasicAttacks: return TEXT("basic_attacks");
     case ELDBlueprintFact::AbilityCasts: return TEXT("ability_casts");
     case ELDBlueprintFact::Regeneration: return TEXT("regeneration_p2");
-    case ELDBlueprintFact::DebtRepaid: return TEXT("debt_repaid_p2");
     case ELDBlueprintFact::DamageReduced: return TEXT("damage_reduced_p2");
     case ELDBlueprintFact::Triggers: return TEXT("triggers");
     case ELDBlueprintFact::Rejections: return TEXT("rejections");
@@ -365,33 +324,21 @@ FLDBlueprintStructure FLDBuildLedger::StructureOf(const FLDBuildProjectionInput&
     }
     Out.Actives.Sort([](const FLDBlueprintActive& A, const FLDBlueprintActive& B)
     { return LDBuildBlueprintDetail::SlotOrder(A.Slot) < LDBuildBlueprintDetail::SlotOrder(B.Slot); });
-    // #198 §16.4: the installed components and their install parameters are structure: changing only an install, its
-    // target or its binding is a new version, so its contribution is never merged into the old one.
-    Out.bComponentsCollected = true;
+    // The installed cards and their targets are structure: changing only an install or its target is a new version, so its
+    // contribution is never merged into the old one.
     Out.FinalMod=Build.FinalMod;
-    for (const FLDInstalledComponentValue& Installed : Build.Components)
+    for (const FLDInstalledCardValue& Installed : Build.Cards)
     {
-        FLDBlueprintComponent& Row = Out.Components.AddDefaulted_GetRef();
-        Row.Component = Installed.ComponentId.ToString();
-        const bool bNamedTarget = Installed.TargetKind == ELDComponentTargetKind::Active
-            || Installed.TargetKind == ELDComponentTargetKind::Component;
-        Row.Host = bNamedTarget ? Installed.TargetId.ToString()
-            : Installed.BoundActive.IsNone() ? FString() : Installed.BoundActive.ToString();
-        if (!Installed.BoundComponent.IsNone())
-        {
-            Row.Parameters.Add({TEXT("bound_component"), Installed.BoundComponent.ToString()});
-        }
-        if (const TCHAR* Element = LDBuildBlueprintDetail::ElementKey(Installed.Element))
-        {
-            Row.Parameters.Add({TEXT("element"), Element});
-        }
-        if (const TCHAR* Kind = LDBuildBlueprintDetail::TargetKindKey(Installed.TargetKind))
-        {
-            Row.Parameters.Add({TEXT("target_kind"), Kind});
-        }
+        const TCHAR* Target = LDBuildBlueprintDetail::CardTargetKey(Installed.TargetKind);
+        if (!Target) { continue; }
+        FLDBlueprintCard& Row = Out.Cards.AddDefaulted_GetRef();
+        Row.Card = Installed.CardId.ToString();
+        Row.Target = Target;
+        Row.Host = Installed.TargetKind == ELDCardTargetKind::Skill ? Installed.Active.ToString() : FString();
+        const TCHAR* Element = LDBuildBlueprintDetail::ElementKey(Installed.Element);
+        Row.Element = Element ? Element : TEXT("");
     }
-    Out.Components.Sort([](const FLDBlueprintComponent& A, const FLDBlueprintComponent& B)
-    { return LDBuildBlueprintDetail::Before(A.Component, B.Component); });
+    Out.Cards.Sort([](const FLDBlueprintCard& A, const FLDBlueprintCard& B) { return LDBuildBlueprintDetail::CardBefore(A, B); });
     return Out;
 }
 
@@ -819,18 +766,13 @@ void LDBuildBlueprint::Notices(const FLDBlueprintRecord& Record, const FLDDemoCo
             if (!Local->Abilities.ContainsByPredicate([&Active](const FLDDemoAbilityDefinition& Row) { return Row.Id == Active.Ability; }))
             { Missing.Add(Active.Ability); }
         }
-        const auto IsComponent = [Local](const FString& Id)
-        { return Local->Components.ContainsByPredicate([&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; }); };
         const auto IsActive = [Local](const FString& Id)
         { return Local->Abilities.ContainsByPredicate([&Id](const FLDDemoAbilityDefinition& Row) { return Row.Id == Id; }); };
-        for (const FLDBlueprintComponent& Component : Structure.Components)
+        for (const FLDBlueprintCard& Card : Structure.Cards)
         {
-            if (!IsComponent(Component.Component)) { Missing.Add(Component.Component); }
-            if (!Component.Host.IsEmpty() && !IsComponent(Component.Host) && !IsActive(Component.Host)) { Missing.Add(Component.Host); }
-            for (const FLDBlueprintParameter& Parameter : Component.Parameters)
-            {
-                if (Parameter.Key == TEXT("bound_component") && !IsComponent(Parameter.Value)) { Missing.Add(Parameter.Value); }
-            }
+            if (!Local->Cards.ContainsByPredicate([&Card](const FLDDemoCardDefinition& Row) { return Row.Id == Card.Card; }))
+            { Missing.Add(Card.Card); }
+            if (!Card.Host.IsEmpty() && !IsActive(Card.Host)) { Missing.Add(Card.Host); }
         }
     };
     CheckStructure(Record.FinalBuild);

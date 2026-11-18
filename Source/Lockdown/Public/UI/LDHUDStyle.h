@@ -67,9 +67,12 @@ namespace LDHUDStyle
     inline const FLinearColor UILegal=FLinearColor(FColor(0x57,0xE3,0x89));
     inline const FLinearColor UIReplace=FLinearColor(FColor(0xFF,0x9A,0x3D));
     inline const FLinearColor UIReject=FLinearColor(FColor(0xFF,0x6A,0x5D));
-    inline const FLinearColor ComponentBase=FLinearColor(FColor(0xDF,0xE4,0xEE));
-    inline const FLinearColor ComponentMod=FLinearColor(FColor(0x3F,0xD8,0xF0));
-    inline const FLinearColor ComponentLink=FLinearColor(FColor(0xB5,0x8C,0xFF));
+    // Card types (ELDCardType): each its own colour beside its own shape (LDUIShapes::KindShape).
+    inline const FLinearColor CardTrigger=FLinearColor(FColor(0xDF,0xE4,0xEE));
+    inline const FLinearColor CardModify=FLinearColor(FColor(0x3F,0xD8,0xF0));
+    inline const FLinearColor CardConvert=FLinearColor(FColor(0xB5,0x8C,0xFF));
+    inline const FLinearColor CardGrow=FLinearColor(FColor(0x7E,0xE0,0x81));
+    inline const FLinearColor CardElement=FLinearColor(FColor(0xFF,0xA4,0x4D));
     constexpr float RadiusPanel=6.f;
     constexpr float RadiusButton=5.f;
 

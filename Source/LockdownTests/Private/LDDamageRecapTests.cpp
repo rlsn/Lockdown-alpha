@@ -44,7 +44,7 @@ bool FLDDamageRecapWindowTest::RunTest(const FString& Parameters)
 {
     const FLDCombatSourceRef Basic = Source(ELDCombatSourceKind::Basic);
     const FLDCombatSourceRef Bolt = Source(ELDCombatSourceKind::Learned, TEXT("ability_bolt"));
-    const FLDCombatSourceRef Thorns = Source(ELDCombatSourceKind::Component, TEXT("component_thorns"));
+    const FLDCombatSourceRef Thorns = Source(ELDCombatSourceKind::Card, TEXT("card_spiky_hide"));
     TArray<FLDDamageSample> Log;
     TestFalse(TEXT("A hit without positive damage is not a sample"), LDDamageRecap::Record(Log, Line(Killer, Basic, 0), 1000, 15000));
     TestFalse(TEXT("No window, no sample"), LDDamageRecap::Record(Log, Line(Killer, Basic, 500), 1000, 0));
@@ -520,7 +520,7 @@ bool FLDDamageRecapDisplayTest::RunTest(const FString& Parameters)
     const FLDCombatSourceRef Dash = Source(ELDCombatSourceKind::Innate, TEXT("innate_dash"));
     const FLDCombatSourceRef Bolt = Source(ELDCombatSourceKind::Learned, TEXT("ability_bolt"));
     const FLDCombatSourceRef Wave = Source(ELDCombatSourceKind::Learned, TEXT("ability_wave"));
-    const FLDCombatSourceRef Thorns = Source(ELDCombatSourceKind::Component, TEXT("component_thorns"));
+    const FLDCombatSourceRef Thorns = Source(ELDCombatSourceKind::Card, TEXT("card_spiky_hide"));
     TestEqual(TEXT("A basic reads the basic attack term"), LDHUD::DamageSourceName(nullptr, Basic), FString(LDTerms::BasicAttack));
     TestEqual(TEXT("The innate dash reads the dash term"), LDHUD::DamageSourceName(nullptr, Dash), FString(LDTerms::Dash));
     TestEqual(TEXT("Without display text an ability reads its id, never another name"), LDHUD::DamageSourceName(nullptr, Bolt), FString(TEXT("ability_bolt")));
@@ -598,7 +598,7 @@ bool FLDDamageRecapDisplayTest::RunTest(const FString& Parameters)
     FLDDamageSummaryView Many = Summary;
     Many.Lines.Reset();
     for (int32 Index = 0; Index < LDHUD::DamageSummarySourcesMax + 2; ++Index)
-    { Many.Lines.Add(Line(FGuid(), Source(ELDCombatSourceKind::Component, *FString::Printf(TEXT("component_%02d"), Index)), 100 * (20 - Index))); }
+    { Many.Lines.Add(Line(FGuid(), Source(ELDCombatSourceKind::Card, *FString::Printf(TEXT("card_%02d"), Index)), 100 * (20 - Index))); }
     View = LDHUD::DamageSummary(Many, Result, nullptr);
     TestTrue(TEXT("More sources than cells: the last cell sums the rest"), View.Rows.Num() == LDHUD::DamageSummarySourcesMax
         && View.Rows.Last() == TEXT("其他 36") && View.Heading == TEXT("你造成的伤害 155"));

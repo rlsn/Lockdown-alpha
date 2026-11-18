@@ -218,9 +218,9 @@ bool FLDDemoContentSnapshot::FindStat(const FString& Id, const FLDDemoStatDefini
     return Find(Definitions.Stats, Id, Out, Error);
 }
 
-bool FLDDemoContentSnapshot::FindComponent(const FString& Id, const FLDDemoComponentDefinition*& Out, FString& Error) const
+bool FLDDemoContentSnapshot::FindCard(const FString& Id, const FLDDemoCardDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Components, Id, Out, Error);
+    return Find(Definitions.Cards, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindFinalMod(const FString& Id, const FLDDemoFinalModDefinition*& Out, FString& Error) const

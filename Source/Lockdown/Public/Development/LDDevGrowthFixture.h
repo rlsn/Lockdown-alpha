@@ -45,11 +45,6 @@ namespace LDDevGrowthFixture
     // Evaluation opening overrides must also belong to the normal opening pool.
     LOCKDOWN_API bool ResolveEvaluationOpening(const FLDDemoContentDefinitions& Content, const TArray<FName>& DefinitionIds,
         FString& Error);
-    // Replace exactly the earned normal level-up draws with distinct, eligible common components. No result is committed
-    // here; the evaluation-only reward entry applies the prepared build through the ordinary composite.
-    LOCKDOWN_API bool PrepareEvaluationLevelGrants(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        uint8 LevelBefore, uint8 LevelAfter, const TArray<FName>& DefinitionIds, FLDGrowthBuild& Out,
-        TArray<FLDComponentGrant>& OutGrants, FString& Error);
     // Evaluation-only: the armed seed's future AI identities replace Lobby slots at match start.
     LOCKDOWN_API bool StageEvaluationOpening(const UWorld* World, const FGuid& Contender, const TArray<FName>& DefinitionIds,
         FString& Error);

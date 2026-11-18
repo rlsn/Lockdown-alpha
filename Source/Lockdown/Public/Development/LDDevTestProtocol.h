@@ -50,6 +50,9 @@ enum class ELDDevTestOp : uint8
     SkipPreparation = 16,
     SetPeaceful = 17,
     TeleportToCamera = 18,
+    // Definition = a breakout preset id (LDBreakoutPresets): the caller back to the match start, then that sample's max-level
+    // build (skills with branches, attribute points, installed cards) and its DEV cooldown haste; a living body full.
+    ApplyBreakoutPreset = 19,
 };
 
 USTRUCT()

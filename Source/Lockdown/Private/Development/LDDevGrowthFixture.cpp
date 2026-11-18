@@ -167,62 +167,6 @@ bool LDDevGrowthFixture::ResolveEvaluationOpening(const FLDDemoContentDefinition
     return true;
 }
 
-bool LDDevGrowthFixture::PrepareEvaluationLevelGrants(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-    uint8 LevelBefore, uint8 LevelAfter, const TArray<FName>& DefinitionIds, FLDGrowthBuild& Out,
-    TArray<FLDComponentGrant>& OutGrants, FString& Error)
-{
-    Out = Current;
-    OutGrants.Reset();
-    Error.Reset();
-    TArray<uint8> DrawLevels;
-    for (int32 Level = int32(LevelBefore) + 1; Level <= int32(LevelAfter); ++Level)
-    {
-        for (uint8 Draw = 0; Draw < LDProgression::LevelComponentDraws(Content.Progression, uint8(Level)); ++Draw)
-        {
-            DrawLevels.Add(uint8(Level));
-        }
-    }
-    if (LevelBefore < 1 || LevelAfter <= LevelBefore || LevelAfter > Content.Progression.MaxLevel
-        || Current.Level != LevelAfter || DefinitionIds.Num() != DrawLevels.Num()
-        || Current.Components.ContainsByPredicate([LevelBefore](const FLDComponentInstance& Instance)
-            { return Instance.Source == ELDComponentSource::LevelUp && Instance.SourceLevel > LevelBefore; }))
-    {
-        Error = TEXT("A component preset must name exactly the new normal level-up draws of the crossed levels.");
-        return false;
-    }
-
-    FLDGrowthBuild Prepared = Current;
-    TArray<FLDComponentGrant> Grants;
-    for (int32 Index = 0; Index < DefinitionIds.Num(); ++Index)
-    {
-        const uint8 Level = DrawLevels[Index];
-        const FName Id = DefinitionIds[Index];
-        bool bEligible = false;
-        const ELDGrowthReason Reason = LDProgression::LevelComponentEligible(Content, Prepared, Level, Id, bEligible);
-        if (Reason != ELDGrowthReason::None || !bEligible)
-        {
-            Error = FString::Printf(TEXT("'%s' is not eligible for the level-%u component draw (%s)."),
-                *Id.ToString(), uint32(Level), LDGrowthWire::ReasonName(Reason));
-            return false;
-        }
-        FLDComponentInstance& Instance = Prepared.Components.AddDefaulted_GetRef();
-        Instance.Id = Id;
-        Instance.Source = ELDComponentSource::LevelUp;
-        Instance.SourceLevel = Level;
-        Prepared.Components.Sort([](const FLDComponentInstance& A, const FLDComponentInstance& B)
-            { return A.Id.ToString().Compare(B.Id.ToString(), ESearchCase::CaseSensitive) < 0; });
-        Grants.Add({Level, Id});
-    }
-    if (LDProgression::ValidateBuild(Content, Prepared) != ELDGrowthReason::None)
-    {
-        Error = TEXT("The preset would leave an invalid growth build.");
-        return false;
-    }
-    Out = MoveTemp(Prepared);
-    OutGrants = MoveTemp(Grants);
-    return true;
-}
-
 bool LDDevGrowthFixture::StageEvaluationOpening(const UWorld* World, const FGuid& Contender, const TArray<FName>& DefinitionIds,
     FString& Error)
 {

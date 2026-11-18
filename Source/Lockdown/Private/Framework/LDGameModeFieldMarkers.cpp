@@ -87,7 +87,7 @@ bool ALDGameMode::ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 
     UE_LOG(LogLDWorld, Display, TEXT("LD_MARKER_CLAIM segment=%u kind=%s camp=%s contender=%s field_t_ms=%lld"),
         uint32(FieldMarkers.Segment), LDFieldMarkers::KindName(Kind), *CampId.ToString(), *LDLog::Id(ClearOwner), FieldMs);
     return PayFieldReward(ClearOwner, LDFieldMarkers::RewardEvent(Kind), FieldMarkers.Segment, 0,
-        Kind == ELDFieldMarkerKind::High ? ELDFieldRewardKind::Blueprint : ELDFieldRewardKind::ComponentChoice, Permit, Error);
+        Kind == ELDFieldMarkerKind::High ? ELDFieldRewardKind::Blueprint : ELDFieldRewardKind::CardOffer, Permit, Error);
 }
 
 bool ALDGameMode::PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,

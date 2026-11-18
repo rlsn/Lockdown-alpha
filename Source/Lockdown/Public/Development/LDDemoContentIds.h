@@ -23,25 +23,20 @@ enum class ELDDemoFinalModId : uint8
     FinalBowling=2, FinalForcedExit=5, FinalTraffic=11, FinalSplit=15,
     FinalLandlord=21, FinalBreach=22, FinalComeback=23, FinalOpenMic=24
 };
-// #198 B: workshop materials. Base components B01-B18 are 1-18; mods M01-M12 take 19-30 and connectors C01-C12 31-42 (#198 F);
-// Mods M13-M15 take 43-45 and connectors C13-C16 46-49; bases B19-B21 take 50-52, mods M16-M20 53-57 and
-// connectors C17-C21 58-62.
-enum class ELDDemoComponentId : uint8
+// Issue #287 spec §7 build cards: A01-A19 take 200-218, K01-K25 219-243, D01-D12 244-255 and Y01-Y29 256-284; the P4/P5
+// numbers stay free until their cards exist. The #198 components 0-199 are retired and never reused.
+enum class ELDDemoCardId : uint16
 {
-    ComponentFistFire=1, ComponentTabLedger=2, ComponentSpikyHide=3, ComponentPunchHeal=4, ComponentDashBump=5,
-    ComponentThirdPunch=6, ComponentKickDown=7, ComponentBreachFist=8, ComponentHardSkin=9, ComponentFistWater=10,
-    ComponentFistShock=11, ComponentDashPunch=12, ComponentCatchBreath=13, ComponentLongArm=14, ComponentSeeingRed=15,
-    ComponentThickHide=16, ComponentHeldShot=17, ComponentDirtyTrick=18,
-    ComponentCrowdHit=19, ComponentSettleLater=20, ComponentLongKick=21, ComponentHoldDown=22, ComponentReachOut=23, ComponentAgainNow=24,
-    ComponentOneSlam=25, ComponentRamThrough=26, ComponentQuickHop=27, ComponentBigTab=28, ComponentPickYou=29, ComponentOweIt=30,
-    ComponentFireSkin=31, ComponentBallKick=32, ComponentBumpAgain=33, ComponentRollBump=34, ComponentPinPunch=35, ComponentAfterPin=36,
-    ComponentControlMomentum=37, ComponentBreathStrike=38, ComponentBlastChase=39, ComponentShellBurst=40, ComponentHurtHeal=41, ComponentDirtyFist=42,
-    ComponentBoomerang=43, ComponentSkewer=44, ComponentEncore=45,
-    ComponentNextUp=46, ComponentSetupLine=47, ComponentBlastReload=48, ComponentGroupRefund=49,
-    ComponentClearHead=50, ComponentRunAway=51, ComponentGuardUp=52, ComponentZoneTether=53,
-    ComponentShoveOff=54, ComponentFinisher=55, ComponentLongHandle=56, ComponentComeHere=57,
-    ComponentMoveMeeting=58, ComponentBottledUp=59, ComponentSpendFist=60, ComponentWideOpen=61, ComponentSetItOff=62,
-    ComponentMeetHere=63
+    CardThirdBreath=200, CardPunchThink=201, CardSolidPunch=202, CardThirdShove=203, CardBothHands=205, CardQuickHands=208,
+    CardScholarPunch=210, CardHeatedUp=211, CardBreachFist=213, CardFireFist=214, CardWaterFist=215, CardShockFist=216,
+    CardNextUp=219, CardPayBack=220, CardSetupLine=222, CardEncore=224, CardAgainNow=226, CardBigOne=227,
+    CardBloodPrice=230, CardLendFist=231, CardHurtHeal=233, CardHeldShot=234, CardPractice=235, CardAddFire=237,
+    CardAddWater=238, CardAddShock=239, CardBlastReload=243, CardBumpReset=244, CardBumpAgain=245, CardDashPunch=246,
+    CardDoubleDash=248, CardPassThrough=249, CardShockDash=255, CardSpikyHide=256, CardTakedown=257, CardHangOn=258,
+    CardReactionRefund=259, CardWaveAfter=260, CardHardSkin=262, CardBallKick=263, CardSkillCrit=264, CardSkillDrain=265,
+    CardThickHide=268, CardOverfed=269, CardBerserk=270, CardQuickBrain=271, CardPunchHeal=272, CardGrowFat=274,
+    CardKillStreak=275, CardToughSkin=276, CardChargeUp=277, CardLiveWire=280, CardLongSoak=281, CardLouderBlast=282,
+    CardEndlessBurn=283
 };
 enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4, MonsterPromoter=5, MonsterCourier=6, MonsterAgent=7, MonsterGuard=8, MonsterAuditor=9, MonsterClient=10, MonsterDirector=11, MonsterFinalClient=12, MonsterProperty=13 };
 // Public status ids stay below 64 (the observation uniqueness check is a 64-bit mask; #112 C2 uses 20, #147 v7 25..26,
@@ -52,39 +47,27 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
     Disarm=12, Stun=13, Empowered=14,
     Knockback=20, Silence=25, Burn=26, AttackSlowed=27,
     Wet=30, Electrified=31, Braced=32, Soured=33, CampEnraged=34, CampGuarding=35 };
-// #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md); #198 keeps the passive-form operations for base
-// components. Retired operation identities must never be reused: 6, 9..11, 16, 19, 23, 25, 27..30, 32..34, 36, 38..39,
-// 41..49, 51, 53, 55..66, 68, 72..76, 83..85, 89 (native_ids.json). #198 B owns 100..119 for component-only operations;
-// 90..96 are the #198 elements, reactions and the S09/S10/S13/S16/S20/S21 actives; #198 F owns 120..149 (mods 120..136,
-// connectors 137..147; C03 reuses DashContactRefund); then 149..151 (B13-B15), 152..155 (M13-M15) and
-// 156..159 (C13-C16); 160..164 (M16-M20) and 165..169 (C17-C21).
+// Effect operations of the actives, their skill branches (170..195) and the build cards (196..232; issue #287 spec §7).
+// Retired operation identities must never be reused (native_ids.json retired_ranges): 5..6, 9..11, 15..17, 19, 23,
+// 25..30, 32..36, 38..39, 41..49, 51, 53, 55..68, 72..76, 83..89, 100, 102, 104, 120..129, 131..137, 139..145, 147..151,
+// 154, 159, 161, 165..169.
 enum class ELDDemoEffectOp : uint8
 {
-    Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
-    Lifesteal=7, Dash=8,
-    Slow=12, TimedStatBonus=13, SelfArea=14, LowHpStatBonus=15, ControlDamageAmp=17,
-    Taunt=18, Disarm=20, Stun=21, EmpowerBasic=22, Thorns=24,
-    CooldownRefund=26, TriggeredShield=31,
-    NthBasicBonus=35, DispelSlow=37,
-    Knockback=40, Zone=50, ZoneSlow=52, ZoneDamage=54,
-    ShieldBreakRetort=67,
-    Silence=69, Breach=70, Burn=71, ZoneBurn=77,
-    ChannelCone=78, GroundImpact=79, AttackSlow=80, ContactTrap=81, DashContact=82,
-    PrimaryGuard=86, DashContactDamage=87, DashContactRefund=88,
-    Wet=90, Electrify=91, ChainBounce=92, Brace=93, ZoneWet=94, ZoneHaste=95, Grievous=96,
-    Ledger=100, BasicElement=101, BasicDamageScale=102, IdleReadyAmp=103, ActiveElement=104,
-    SpreadUnit=120, SpreadProjectile=121, SpreadLedger=122, SpreadCounter=123, DelayLedger=124, DelayCounter=125,
-    KnockbackScale=126, ControlScale=127, RangeBonus=128, CounterRangeBonus=129, CooldownCost=130, CompressCone=131,
-    CompressZone=132, DashScale=133, LedgerVariant=134, MarkedCounter=135, DamageDefer=136, FireShield=137,
-    KnockbackImpact=138, ContactKnockback=139, ControlMark=140, Aftershock=141, ControlMomentum=142, HealCounter=143,
-    ReactionEmpower=144, ShieldBurst=145, SkillLifesteal=146, ExtraBase=147, CompressChain=148,
-    CastHitRefund=149, DistanceAmp=150, AlternateAmp=151,
-    ProjectileReturn=152, ProjectilePierce=153, ChainExtra=154, EchoImpact=155,
-    HitHasteOther=156, SetupMark=157, ReactionHaste=158, MultiHitMomentum=159,
-    ZoneTether=160, DefenseShove=161, FinalKnockback=162, EmpowerReach=163, Pull=164,
-    ZoneRelocate=165, StoredForce=166, EmpowerSpend=167, ControlWiden=168, ZoneDetonate=169,
-    Vulnerable=170, NextBasicAmp=171, MomentumGain=172, MomentumSteal=173, FollowUp=174, Recast=175, DashBack=176, SelfBuff=177,
-    BurnBurst=178, Pulse=179, ZoneGuard=180, ZoneMomentum=181, Overcharge=182, FollowBasic=183, ShieldBurstBreak=184,
-    BasicRider=185, DelayedBurst=186, ShieldReflect=187, ShieldEndHeal=188, ShieldHitBonus=189, BraceStun=190, BraceHeal=191,
-    BraceStack=192, BraceShove=193, BraceShield=194, ProjectileZone=195
+    Damage=1, Shield=2, DispelRoot=3, Root=4, Lifesteal=7, Dash=8, Slow=12, TimedStatBonus=13, SelfArea=14, Taunt=18,
+    Disarm=20, Stun=21, EmpowerBasic=22, Thorns=24, TriggeredShield=31, DispelSlow=37, Knockback=40, Zone=50, ZoneSlow=52,
+    ZoneDamage=54, Silence=69, Breach=70, Burn=71, ZoneBurn=77, ChannelCone=78, GroundImpact=79, AttackSlow=80,
+    ContactTrap=81, DashContact=82, Wet=90, Electrify=91, ChainBounce=92, Brace=93, ZoneWet=94, ZoneHaste=95, Grievous=96,
+    BasicElement=101, IdleReadyAmp=103, CooldownCost=130, KnockbackImpact=138, SkillLifesteal=146, ProjectileReturn=152,
+    ProjectilePierce=153, EchoImpact=155, HitHasteOther=156, SetupMark=157, ReactionHaste=158, ZoneTether=160,
+    FinalKnockback=162, EmpowerReach=163, Pull=164, Vulnerable=170, NextBasicAmp=171, MomentumGain=172, MomentumSteal=173,
+    FollowUp=174, Recast=175, DashBack=176, SelfBuff=177, BurnBurst=178, Pulse=179, ZoneGuard=180, ZoneMomentum=181,
+    Overcharge=182, FollowBasic=183, ShieldBurstBreak=184, BasicRider=185, DelayedBurst=186, ShieldReflect=187,
+    ShieldEndHeal=188, ShieldHitBonus=189, BraceStun=190, BraceHeal=191, BraceStack=192, BraceShove=193, BraceShield=194,
+    ProjectileZone=195, ComboMomentum=196, BasicCooldownCut=197, ComboSkillHit=198, ComboKnockback=199, ComboDouble=200,
+    OvercapExtraHit=201, BasicApRider=202, FocusAttackSpeed=203, SkillHitMomentum=204, AutoRecast=205,
+    SkillDamageFactor=206, HpCost=207, SkillAdRider=208, SkillGrowth=209, SkillElement=210, DashContactReset=211,
+    DashSplit=212, DashPhase=213, DashContactElement=214, TakedownReset=215, LastStand=216, ReactionMomentum=217,
+    ReactionElement=218, SkillCrit=219, LifestealSkills=220, ArmorToHp=221, OverhealShield=222, MissingHpAttackSpeed=223,
+    HasteMomentum=224, HealGrowth=225, KillGrowth=226, ControlGrowth=227, IdleCharge=228, ElementAura=229,
+    ElementDuration=230, ReactionFactor=231, BurnCap=232
 };

@@ -36,19 +36,6 @@ namespace LDCombatControlTestDetail
         return Policies;
     }
 
-    FLDDemoEffectDefinition Thorns()
-    {
-        FLDDemoEffectDefinition Effect;
-        Effect.Opcode = uint8(ELDDemoEffectOp::Thorns);
-        Effect.BaseP2 = 1500;
-        Effect.ArmorRatioBp = 1500;
-        Effect.RadiusCm = Rational(300);
-        Effect.IntervalMs = 500;
-        Effect.CriticalMultiplierBp = 20000;
-        Effect.DamageType = ELDDemoDamageType::Magical;
-        return Effect;
-    }
-
     const FLDDemoEffectDefinition* FindOp(const TArray<FLDDemoEffectDefinition>& Effects, ELDDemoEffectOp Op)
     { return Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == Op; }); }
 }
@@ -117,64 +104,6 @@ bool FLDCombatEmpowerTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("At its deadline it has expired and gives nothing"), LDCombatControl::ConsumeEmpowers(Armed, 3100, Taken, SumP2)
         && Taken.IsEmpty() && SumP2 == 0);
     TestTrue(TEXT("An expired bonus is dropped, not kept for later"), Armed.IsEmpty());
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatThornsTest, "Lockdown.Rules.DemoControl.ThornsRules",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDCombatThornsTest::RunTest(const FString& Parameters)
-{
-    using namespace LDCombatControlTestDetail;
-    const FLDDemoEffectDefinition Both = Thorns();
-    const FLDDemoEffectDefinition BasicOnly = Thorns();
-    const FGuid Attacker = FGuid::NewGuid(), Other = FGuid::NewGuid();
-    const FString Key(TEXT("thorns_source_a"));
-    TArray<FLDThornsMark> Marks;
-    FLDThornsContact Basic;
-    Basic.HitClass = ELDCombatHitClass::BasicPrimary;
-    Basic.DamageP2 = 5000;
-    Basic.DistanceCm = 200;
-    TestTrue(TEXT("A primary basic hit in reach triggers"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Attacker, 1000));
-    FLDThornsContact Ability = Basic;
-    Ability.HitClass = ELDCombatHitClass::Ability;
-    TestFalse(TEXT("An ability hit never triggers a reflection"), LDCombatControl::ThornsTriggers(BasicOnly, Ability, Marks, Key, Attacker, 1000));
-
-    FLDThornsContact Reflected = Basic;
-    Reflected.bReflected = true;
-    TestFalse(TEXT("A reflection never triggers another reflection"), LDCombatControl::ThornsTriggers(Both, Reflected, Marks, Key, Attacker, 1000));
-    FLDThornsContact Far = Basic;
-    Far.DistanceCm = 300.5;
-    TestFalse(TEXT("Beyond reach does not trigger"), LDCombatControl::ThornsTriggers(Both, Far, Marks, Key, Attacker, 1000));
-    Far.DistanceCm = 300;
-    TestTrue(TEXT("Exactly at reach triggers"), LDCombatControl::ThornsTriggers(Both, Far, Marks, Key, Attacker, 1000));
-    FLDThornsContact Zero = Basic;
-    Zero.DamageP2 = 0;
-    TestFalse(TEXT("A hit that dealt nothing does not trigger"), LDCombatControl::ThornsTriggers(Both, Zero, Marks, Key, Attacker, 1000));
-
-    LDCombatControl::MarkThorns(Marks, Key, Attacker, 1000, Both.IntervalMs);
-    TestFalse(TEXT("The same attacker is answered at most once per window"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Attacker, 1499));
-    TestTrue(TEXT("Another attacker has its own window"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Other, 1499));
-    TestTrue(TEXT("Another source has its own window"), LDCombatControl::ThornsTriggers(BasicOnly, Basic, Marks, TEXT("thorns_source_b"), Attacker, 1499));
-    TestTrue(TEXT("The window is half-open"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Attacker, 1500));
-    LDCombatControl::MarkThorns(Marks, Key, Other, 1700, Both.IntervalMs);
-    TestTrue(TEXT("Expired marks are forgotten"), Marks.Num() == 1 && Marks[0].Attacker == Other);
-
-    int64 Amount = 0;
-    FString Error;
-    TestTrue(TEXT("Base plus armor scaling"), LDCombatControl::ThornsBaseP2(Both, 4000, 0, false, Amount, Error) && Amount == 1500 + 4000 * 1500 / 10000);
-    TestTrue(TEXT("A critical hit applies the critical multiplier"), LDCombatControl::ThornsBaseP2(Both, 4000, 0, true, Amount, Error) && Amount == (1500 + 600) * 2);
-    FLDDemoEffectDefinition Health = Both;
-    Health.MaxHPRatioBp = 150;
-    TestTrue(TEXT("Armor and max-HP coefficients add (祖传铁裆 #112)"),
-        LDCombatControl::ThornsBaseP2(Health, 4000, 100000, false, Amount, Error) && Amount == 1500 + 600 + 1500);
-    TestTrue(TEXT("A multiplier of one leaves a critical reflection unchanged"),
-        LDCombatControl::ThornsBaseP2(Thorns(), 0, 0, true, Amount, Error) && Amount == 1500 * 2);
-    FLDDemoEffectDefinition Plain = BasicOnly;
-    Plain.CriticalMultiplierBp = 10000;
-    TestTrue(TEXT("No critical doubling without a multiplier"), LDCombatControl::ThornsBaseP2(Plain, 0, 0, true, Amount, Error) && Amount == 1500);
-    TestFalse(TEXT("Negative armor is refused"), LDCombatControl::ThornsBaseP2(Both, -1, 0, false, Amount, Error));
-    TestFalse(TEXT("Negative max HP is refused"), LDCombatControl::ThornsBaseP2(Health, 0, -1, false, Amount, Error));
     return true;
 }
 

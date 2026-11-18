@@ -12,10 +12,10 @@ namespace
 {
     ELDObservedProjectileLook AreaLookOf(const FLDCombatHit& Hit)
     {
-        if (Hit.BurnStacks>0 || Hit.ComponentBurnStacks>0) { return ELDObservedProjectileLook::AreaFire; }
-        if (Hit.bApplyElectric || Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None)
+        if (Hit.BurnStacks>0 || Hit.CardBurnStacks>0) { return ELDObservedProjectileLook::AreaFire; }
+        if (Hit.bApplyElectric || Hit.CardElectricSource.Kind!=ELDCombatSourceKind::None)
         { return ELDObservedProjectileLook::AreaElectric; }
-        if (Hit.bApplyWet || Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedProjectileLook::AreaWater; }
+        if (Hit.bApplyWet || Hit.CardWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedProjectileLook::AreaWater; }
         return Hit.DamageType==ELDDemoDamageType::Magical
             ? ELDObservedProjectileLook::AreaMagic : ELDObservedProjectileLook::AreaPlain;
     }

@@ -90,11 +90,12 @@ def validate_schema(value, schema, path="catalog"):
 
 def native_ids(root, relative_path, name):
     source = (Path(root) / relative_path).read_text(encoding="utf-8-sig")
-    match = re.search(r"enum class " + re.escape(name) + r"\s*:\s*uint8\s*\{([^}]+)\}", source)
+    match = re.search(r"enum class " + re.escape(name) + r"\s*:\s*(uint8|uint16)\s*\{([^}]+)\}", source)
     require(match is not None, f"Missing native enum: {name}")
     result = {}
     next_id = 0
-    for entry in match[1].split(","):
+    limit = 256 if match[1] == "uint8" else 65536
+    for entry in match[2].split(","):
         entry = entry.strip()
         if not entry:
             continue
@@ -106,7 +107,7 @@ def native_ids(root, relative_path, name):
             next_id = int(number.strip())
         require(identifier not in result and next_id not in result.values(),
                 f"{name}: duplicate native identity")
-        require(0 <= next_id < 256, f"{name}: identity outside uint8")
+        require(0 <= next_id < limit, f"{name}: identity outside {match[1]}")
         result[identifier] = next_id
         next_id += 1
     return result

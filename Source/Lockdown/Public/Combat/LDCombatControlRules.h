@@ -75,24 +75,6 @@ struct FLDCombatVoluntaryDash
     int64 EndMs = 0;
 };
 
-// The last reflection one thorns source of a body dealt to one attacker.
-struct FLDThornsMark
-{
-    FString SourceKey;
-    FGuid Attacker;
-    int64 AtMs = 0;
-};
-
-// What one committed hit offers a thorns source of its victim.
-struct FLDThornsContact
-{
-    ELDCombatHitClass HitClass = ELDCombatHitClass::None;
-    bool bReflected = false;
-    bool bCritical = false;
-    int64 DamageP2 = 0;
-    double DistanceCm = 0;
-};
-
 namespace LDCombatControl
 {
     // Matrix: Root blocks the POLICY.RootBlocks actions (Move, Dash as Displacement); Disarm blocks Basic; Silence
@@ -127,19 +109,6 @@ namespace LDCombatControl
     // DashDisplacementEpsilonCm from where it started); a dash not yet due never completes.
     LOCKDOWN_API bool DashCompleted(const FLDCombatVoluntaryDash& Dash, int64 AtMs, const FVector& FootCm);
     constexpr double DashDisplacementEpsilonCm = 0.01;
-
-    // Whether this contact may trigger the thorns effect: positive damage (shield absorption included), not itself a
-    // reflection, a primary basic hit within reach, and, for a source with IntervalMs > 0, at least IntervalMs after this
-    // source's last reflection to the same attacker (B03 has no interval).
-    LOCKDOWN_API bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,
-        const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs);
-    // Reflection base in P2: (Base + Armor x ArmorRatio + MaxHP x MaxHPRatio), multiplied by CriticalMultiplier when the
-    // hit was critical.
-    LOCKDOWN_API bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, int64 OwnerMaxHPP2, bool bCritical,
-        int64& OutP2, FString& Error);
-    // Records a reflection and forgets marks whose window has passed.
-    LOCKDOWN_API void MarkThorns(TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker,
-        int64 AtMs, int64 IntervalMs);
 
     LOCKDOWN_API bool IsHardControl(ELDControlKind Kind);
     // Duration of a hard control landing at NowMs after the chain's diminishing returns; advances the chain.

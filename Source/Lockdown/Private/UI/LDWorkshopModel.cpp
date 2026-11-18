@@ -1,17 +1,10 @@
 #include "UI/LDWorkshopModel.h"
 #include "Development/LDProgressionRules.h"
-#include "Development/LDWorkshopRules.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
 
 namespace
 {
-const FLDDemoComponentDefinition* WorkshopComponent(const FLDDemoContentDefinitions* Content,FName Id)
-{
-    if(!Content||Id.IsNone()){return nullptr;}
-    const FString Text=Id.ToString();
-    return Content->Components.FindByPredicate([&Text](const FLDDemoComponentDefinition& D){return D.Id==Text;});
-}
 const FLDDemoAbilityDefinition* WorkshopAbility(const FLDDemoContentDefinitions* Content,FName Id)
 {
     if(!Content||Id.IsNone()){return nullptr;}
@@ -47,26 +40,24 @@ FString WorkshopSeconds(int64 Ms)
 }
 }
 
-LDWorkshop::FComponentFacts LDWorkshop::ComponentFacts(FName Component,const FLDDemoContentDefinitions* Content)
+LDWorkshop::FCardFacts LDWorkshop::CardFacts(FName Card,const FLDDemoContentDefinitions* Content)
 {
-    FComponentFacts Facts;
-    if(const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Component))
+    FCardFacts Facts;
+    if(const FLDDemoCardDefinition* Definition=LDHUD::CardDefinitionOf(Content,Card))
     {
-        Facts.bKnown=true;Facts.Kind=Definition->Kind;Facts.bScarce=Definition->Pool==ELDDemoComponentPool::Scarce;Facts.Tags=Definition->Tags;
+        Facts.bKnown=true;Facts.Form=Definition->Form;Facts.Type=Definition->Type;
     }
     return Facts;
 }
-LDWorkshop::FLibraryGroups LDWorkshop::CollectLibrary(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,int32 TagFilter)
+LDWorkshop::FLibraryGroups LDWorkshop::CollectLibrary(const LDHUD::FStorageView& Storage,const FLDDemoContentDefinitions* Content,int32 TypeFilter)
 {
     FLibraryGroups Groups;
-    if(!Progression.bValid){return Groups;}
-    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    for(const LDHUD::FStoredView& Stored:Storage.Stored)
     {
-        if(Owned.bInstalled){continue;}
-        const FComponentFacts Facts=ComponentFacts(Owned.DefinitionId,Content);
-        const int32 Kind=int32(Facts.Kind);
-        if(Kind<0||Kind>=3||(TagFilter!=INDEX_NONE&&!Facts.Tags.Contains(static_cast<ELDDemoComponentTag>(TagFilter)))){continue;}
-        Groups.Items[Kind].Add(Owned.DefinitionId);
+        const FCardFacts Facts=CardFacts(Stored.Card,Content);
+        const int32 Form=int32(Facts.Form);
+        if(!Facts.bKnown||Form<0||Form>=LibraryGroupCount||(TypeFilter!=INDEX_NONE&&int32(Facts.Type)!=TypeFilter)){continue;}
+        Groups.Items[Form].Add(Stored.Card);
     }
     return Groups;
 }
@@ -83,14 +74,14 @@ float WorkshopLibraryLabelHeight(float TextScale)
 {
     return FMath::CeilToFloat(12.f*TextScale*2.7f);
 }
-float WorkshopLibraryHeight(FIntVector Counts,int32 PerRow,float Icon,float TextScale,bool bCompact)
+float WorkshopLibraryHeight(FIntVector4 Counts,int32 PerRow,float Icon,float TextScale,bool bCompact)
 {
     if(PerRow<1){return TNumericLimits<float>::Max();}
     const float Head=FMath::Max(12.f,FMath::CeilToFloat(13.f*TextScale*1.35f));
     const float Label=WorkshopLibraryLabelHeight(TextScale);
     const float Row=Icon+(bCompact?3.f:6.f)+Label;
     float Height=0.f;
-    for(int32 Kind=0;Kind<3;++Kind)
+    for(int32 Kind=0;Kind<LDWorkshop::LibraryGroupCount;++Kind)
     {
         const int32 Count=Counts[Kind];
         if(Count<=0){continue;}
@@ -101,10 +92,10 @@ float WorkshopLibraryHeight(FIntVector Counts,int32 PerRow,float Icon,float Text
     return Height;
 }
 }
-LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector Counts,float Width,float Height,float MinIcon,float TextScale)
+LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector4 Counts,float Width,float Height,float MinIcon,float TextScale)
 {
     FLibraryFit Result;
-    const int32 Total=Counts.X+Counts.Y+Counts.Z;
+    const int32 Total=Counts.X+Counts.Y+Counts.Z+Counts.W;
     Result.LabelHeight=WorkshopLibraryLabelHeight(TextScale);
     const float Tier=FMath::Max(LibraryTier(Total).Icon,MinIcon);
     Result.Icon=Tier;
@@ -133,16 +124,16 @@ LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector Counts,float Width,flo
     Result.PerRow=FMath::FloorToInt((Width+4.f)/(Result.Icon+14.f));
     Result.RequiredHeight=0.f;
     if(Result.PerRow<1){return Result;}
-    FIntVector Cursor(0,0,0);
+    FIntVector4 Cursor(0,0,0,0);
     while(Cursor!=Counts)
     {
         FLibraryPage Page;
         Page.First=Cursor;
-        for(int32 Kind=0;Kind<3;++Kind)
+        for(int32 Kind=0;Kind<LibraryGroupCount;++Kind)
         {
             while(Cursor[Kind]<Counts[Kind])
             {
-                FIntVector Next=Page.Counts;
+                FIntVector4 Next=Page.Counts;
                 ++Next[Kind];
                 if(WorkshopLibraryHeight(Next,Result.PerRow,Result.Icon,TextScale,true)>Height){break;}
                 Page.Counts=Next;
@@ -150,22 +141,22 @@ LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector Counts,float Width,flo
             }
             if(Cursor[Kind]<Counts[Kind]){break;}
         }
-        if(Page.Counts==FIntVector::ZeroValue){Result.Pages.Reset();return Result;}
+        if(Page.Counts==FIntVector4(0,0,0,0)){Result.Pages.Reset();return Result;}
         Result.RequiredHeight=FMath::Max(Result.RequiredHeight,WorkshopLibraryHeight(Page.Counts,Result.PerRow,Result.Icon,TextScale,true));
         Result.Pages.Add(Page);
     }
     Result.bFits=true;
     return Result;
 }
-float LDWorkshop::StackedTrayLimit(FIntVector Counts,float Width,float AvailableHeight,float MinIcon,float TextScale)
+float LDWorkshop::StackedTrayLimit(FIntVector4 Counts,float Width,float AvailableHeight,float MinIcon,float TextScale)
 {
-    FIntVector First=FIntVector::ZeroValue;
-    for(int32 Kind=0;Kind<3;++Kind)
+    FIntVector4 First(0,0,0,0);
+    for(int32 Kind=0;Kind<LibraryGroupCount;++Kind)
     {
         if(Counts[Kind]>0){First[Kind]=1;break;}
     }
     float Reserve=36.f;
-    if(First!=FIntVector::ZeroValue)
+    if(First!=FIntVector4(0,0,0,0))
     {
         const FLibraryFit Minimum=FitLibrary(First,Width,TNumericLimits<float>::Max(),MinIcon,TextScale);
         if(!Minimum.bFits){return 0.f;}
@@ -220,6 +211,11 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     const FLDDemoContentDefinitions* Content)
 {
     FColumnHead Head;
+    if(Column==LDHUD::EStorageColumn::Basic)
+    {
+        Head.Name=LDTerms::ColumnBasic;Head.Glyph=TEXT("拳");
+        return Head;
+    }
     if(Column==LDHUD::EStorageColumn::Body)
     {
         Head.Name=LDTerms::ColumnBody;Head.Glyph=HolderName.IsEmpty()?FString(TEXT("?")):HolderName.Left(1);
@@ -251,24 +247,15 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     }
     return Head;
 }
-FString LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn Column,int32 Installed,const FLDDemoContentDefinitions* Content)
-{
-    if(!Content){return FString();}
-    const int32 Limit=Column==LDHUD::EStorageColumn::Body?Content->Progression.WorkshopBodyColumnCapacity
-        :Column==LDHUD::EStorageColumn::Dash?Content->Progression.WorkshopDashColumnCapacity:0;
-    if(Limit<1){return FString();}
-    const TCHAR* Name=Column==LDHUD::EStorageColumn::Body?LDTerms::ColumnBody:LDTerms::Dash;
-    return FString::Printf(TEXT("%s %d/%d"),Name,FMath::Max(0,Installed),Limit);
-}
 TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     TArray<ELDDemoElement> Out;
     for(const FLDActiveSlotView& Held:Progression.Actives){for(ELDDemoElement Element:ActiveElements(Held.DefinitionId,Content)){WorkshopAddElement(Out,Element);}}
-    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    for(const FLDCardInstanceView& Owned:Progression.Cards)
     {
-        if(!Owned.bInstalled){continue;}
+        if(!Owned.IsInstalled()){continue;}
         WorkshopAddElement(Out,Owned.Target.Element);
-        if(const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Owned.DefinitionId))
+        if(const FLDDemoCardDefinition* Definition=LDHUD::CardDefinitionOf(Content,Owned.DefinitionId))
         {
             for(const FLDDemoEffectDefinition& Effect:Definition->Effects){WorkshopAddElement(Out,WorkshopEffectElement(Effect));}
         }
@@ -301,75 +288,30 @@ LDWorkshop::FCapacityView LDWorkshop::Capacity(const FLDProgressionView& Progres
 {
     FCapacityView View;
     View.Capacity=Storage.Capacity;
-    for(const LDHUD::FStorageColumnView& Column:Storage.Columns)
+    for(int32 Position=0;Position<LDHUD::StorageColumnCount;++Position)
     {
-        for(const LDHUD::FEquippedView& Entry:Column.Entries)
+        const int32 Column=int32(LDHUD::BoardColumn(Position));
+        if(!Storage.Columns.IsValidIndex(Column)){continue;}
+        for(const LDHUD::FEquippedView& Entry:Storage.Columns[Column].Entries)
         {
-            View.Used.Add(ComponentFacts(Entry.Component,Content).Kind);View.Components.Add(Entry.Component);
+            for(const FName& Key:Entry.Keys){View.Used.Add(CardFacts(Key,Content).Type);View.Cards.Add(Key);}
         }
     }
     if(Content)
     {
         for(int32 Level=int32(Progression.Level)+1;Level<=int32(Progression.MaxLevel)&&Level<=255;++Level)
         {
-            if(LDProgression::WorkshopCapacity(Content->Progression,uint8(Level))>View.Capacity){View.UnlockLevel=Level;break;}
+            if(LDProgression::CardCapacity(Content->Parameters,uint8(Level))>View.Capacity){View.UnlockLevel=Level;break;}
         }
     }
     return View;
 }
-FString LDWorkshop::MissingPlace(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+FString LDWorkshop::MissingPlace(FName Card,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
-    const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Component);
-    if(!Definition||(Definition->Kind==ELDDemoComponentKind::Base&&Definition->Binding==ELDDemoComponentBinding::None)){return FString();}
-    if(Definition->bTargetDash||Definition->bTargetSelf){return FString();}
-    for(const FString& Host:Definition->TargetComponents)
-    {
-        const FName HostId(*Host);
-        if(Progression.Components.ContainsByPredicate([HostId](const FLDComponentInstanceView& C){return C.DefinitionId==HostId&&C.bInstalled;})){return FString();}
-    }
-    TArray<FString> Needed;
-    for(const FLDActiveSlotView& Active:Progression.Actives)
-    {
-        if(LDWorkshop::TargetsActive(*Content,*Definition,Active.DefinitionId)){return FString();}
-    }
-    for(const FString& Active:Definition->BindActives)
-    {
-        const FName ActiveId(*Active);
-        if(Progression.Actives.ContainsByPredicate([ActiveId](const FLDActiveSlotView& A){return A.DefinitionId==ActiveId;})){return FString();}
-        Needed.AddUnique(LDHUD::ContentName(Content,Active));
-    }
-    for(const FString& Active:Definition->TargetActives)
-    {
-        Needed.AddUnique(LDHUD::ContentName(Content,Active));
-    }
-    return Needed.IsEmpty()?FString():LDTerms::NeedsLearned(FString::Join(Needed,TEXT("、")));
+    const FCardFacts Facts=CardFacts(Card,Content);
+    return Facts.bKnown&&Facts.Form==ELDCardForm::Skill&&Progression.Actives.IsEmpty()?FString(TEXT("需要先学会一个技能")):FString();
 }
-TArray<FString> LDWorkshop::TriggerChips(FName Component,const FLDDemoContentDefinitions* Content)
-{
-    TArray<FString> Out;
-    const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Component);
-    if(!Definition||Definition->Kind!=ELDDemoComponentKind::Base){return Out;}
-    for(const FLDDemoEffectDefinition& Effect:Definition->Effects)
-    {
-        switch(Effect.Trigger)
-        {
-        case ELDDemoEffectTrigger::BasicHit: Out.AddUnique(LDTerms::TriggerBasicHit);break;
-        case ELDDemoEffectTrigger::AbilityHit: Out.AddUnique(LDTerms::TriggerAbilityHit);break;
-        case ELDDemoEffectTrigger::Damaged: Out.AddUnique(LDTerms::TriggerDamaged);break;
-        case ELDDemoEffectTrigger::DashComplete: Out.AddUnique(LDTerms::TriggerDashComplete);break;
-        default: break;
-        }
-        switch(Effect.GetOp())
-        {
-        case ELDDemoEffectOp::BasicElement: case ELDDemoEffectOp::NthBasicBonus: Out.AddUnique(LDTerms::TriggerBasicHit);break;
-        case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::Breach: if(Effect.BasicCount>0){Out.AddUnique(LDTerms::TriggerBasicHit);}break;
-        case ELDDemoEffectOp::Thorns: Out.AddUnique(LDTerms::TriggerDamaged);break;
-        default: break;
-        }
-    }
-    return Out;
-}
-LDWorkshop::FOfferLinks LDWorkshop::LinkableComponents(FName Active,const FLDProgressionView& Progression,
+LDWorkshop::FOfferLinks LDWorkshop::LinkableCards(FName Active,const FLDProgressionView& Progression,
     const FLDDemoContentDefinitions* Content,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
 {
     FOfferLinks Out;
@@ -384,37 +326,21 @@ LDWorkshop::FOfferLinks LDWorkshop::LinkableComponents(FName Active,const FLDPro
     Out.Failure=LDProgression::ApplyActiveChoice(*Content,Current,Active,true,FLDBuildCommand::AnySlot,Context,Chosen,Choice);
     if(Out.Failure!=ELDGrowthReason::None||Choice.Result!=ELDBuildChoiceResult::Learned){return Out;}
     Out.bLearned=true;
-    FLDProgressionView Projected=Progression;
-    FLDActiveSlotView& Learned=Projected.Actives.AddDefaulted_GetRef();Learned.DefinitionId=Active;Learned.Slot=Choice.Slot;
-    const LDHUD::EStorageColumn Column=LDHUD::SlotColumn(Choice.Slot);
-    const FString ActiveId=Active.ToString();
-    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    const FLDDemoAbilityDefinition* Ability=WorkshopAbility(Content,Active);
+    const uint32 ActiveVocab=Ability?Ability->VocabMask:0;
+    for(const FLDCardInstanceView& Owned:Progression.Cards)
     {
-        const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Owned.DefinitionId);
-        if(!Definition||(!LDWorkshop::TargetsActive(*Content,*Definition,Active)&&!Definition->BindActives.Contains(ActiveId))){continue;}
-        FLDGrowthBuild Available=Chosen;
-        if(Owned.bInstalled&&LDProgression::ApplyUninstallComponent(*Content,Chosen,Owned.DefinitionId,Context,Available)!=ELDGrowthReason::None){continue;}
-        TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(Owned.DefinitionId,Projected,Content);
-        if(!Owned.bInstalled){Drops.Append(LDHUD::ReplaceDrops(Owned.DefinitionId,Projected,Content));}
-        bool bLegal=false;
-        for(const LDHUD::FComponentDrop& Drop:Drops)
+        const FLDDemoCardDefinition* Definition=LDHUD::CardDefinitionOf(Content,Owned.DefinitionId);
+        if(!Definition){continue;}
+        FLDCardTarget Target;Target.Kind=ELDCardTargetKind::Skill;Target.Active=Active;
+        Target.Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
+        const bool bTakes=Definition->Form==ELDCardForm::Skill&&!Owned.IsInstalled()
+            &&LDProgression::CardTargetReason(*Content,Chosen,Owned.DefinitionId,Target)==ELDGrowthReason::None;
+        if((bTakes||(Definition->VocabMask&ActiveVocab)!=0)
+            &&!Out.Cards.ContainsByPredicate([&Owned](const FName& Key){return LDHUD::CardDefinition(Key)==Owned.DefinitionId;}))
         {
-            if(Drop.Column!=Column){continue;}
-            for(int32 Element=0;Element<FMath::Max(1,Drop.Elements.Num())&&!bLegal;++Element)
-            {
-                for(int32 Base=0;Base<FMath::Max(1,Drop.Bases.Num())&&!bLegal;++Base)
-                {
-                    FLDComponentTarget Target;Target.Kind=Drop.Kind;Target.Definition=Drop.TargetId;Target.BoundActive=Drop.BindActive;
-                    Target.Element=Drop.Elements.IsValidIndex(Element)?Drop.Elements[Element]:ELDDemoElement::None;
-                    Target.BoundComponent=Drop.Bases.IsValidIndex(Base)?Drop.Bases[Base]:NAME_None;
-                    FLDGrowthBuild Installed;
-                    bLegal=LDProgression::ApplyInstallComponent(*Content,Available,Owned.DefinitionId,Target,Context,Installed,Drop.Replacing)
-                        ==ELDGrowthReason::None;
-                }
-            }
-            if(bLegal){break;}
+            Out.Cards.Add(LDHUD::CardKey(Owned.DefinitionId,Owned.Serial));
         }
-        if(bLegal){Out.Components.Add(Owned.DefinitionId);}
     }
     return Out;
 }

@@ -367,7 +367,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PromptBadgeText;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptBadgeSlot;
     int32 PromptOffers=0;
-    int32 PromptComponents=0;
+    int32 PromptCardOffers=0;
     double PromptPulseAt=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Toast;

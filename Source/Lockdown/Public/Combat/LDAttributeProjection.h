@@ -29,23 +29,21 @@ struct FLDStatPointsValue
     int32 Points;
 };
 
-// #198 B: one installed (enabled) component of a build as Combat executes it. BoundActive/Element are the install
-// parameters of an ActiveElement binding (B18) and empty/None otherwise.
-struct FLDInstalledComponentValue
+// One installed card of a build as Combat executes it (spec §6.1): its definition, serial and install target.
+struct FLDInstalledCardValue
 {
-    FName ComponentId;
-    FName BoundActive;
+    FName CardId;
+    uint16 Serial = 0;
+    ELDCardTargetKind TargetKind = ELDCardTargetKind::None;
+    // Skill: the learned active it sits on.
+    FName Active;
+    // Y25: the chosen element.
     ELDDemoElement Element = ELDDemoElement::None;
-    // #198 F: a mod/connector's install target (an active, a component, the innate D or the holder itself) and C12's
-    // repeated base component.
-    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
-    FName TargetId;
-    FName BoundComponent;
 
-    bool operator==(const FLDInstalledComponentValue& Other) const
+    bool operator==(const FLDInstalledCardValue& Other) const
     {
-        return ComponentId == Other.ComponentId && BoundActive == Other.BoundActive && Element == Other.Element
-            && TargetKind == Other.TargetKind && TargetId == Other.TargetId && BoundComponent == Other.BoundComponent;
+        return CardId == Other.CardId && Serial == Other.Serial && TargetKind == Other.TargetKind && Active == Other.Active
+            && Element == Other.Element;
     }
 };
 
@@ -58,10 +56,13 @@ struct FLDAttributeBuildValues
     uint8 Level;
     // Each catalog stat at most once; a positive count of points.
     TArray<FLDStatPointsValue> StatPoints;
-    // #198 B: installed components, each definition at most once, sorted by id. Their stat_bonus effects form the
-    // Components term; low_hp_stat_bonus/control_damage_amp become conditional terms; every component is listed in
-    // FLDAttributeProjection::InstalledComponents for Combat's trigger handlers.
-    TArray<FLDInstalledComponentValue> Components;
+    // Installed cards, distinct serials sorted ascending (copies of one definition are separate rows). Y13 converts the
+    // projected armor into the Cards term of max HP; every card is listed in FLDAttributeProjection::InstalledCards for
+    // Combat's handlers.
+    TArray<FLDInstalledCardValue> Cards;
+    // The match growth of grow cards (Y19 max HP, Y20 attack and power, Y21 resistances), owned by Combat like DevBonuses:
+    // one nonnegative flat term per stat, added to the Cards term.
+    TArray<FLDDemoStatBonus> CardGrowth;
     // DEV test layer (#78): one extra additive term per stat on top of base, growth and the allocated points, reported
     // as its own contribution row. Empty outside a DEV test session. Each stat at most once, nonnegative, never
     // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value past its catalog
@@ -109,8 +110,8 @@ struct FLDAttributeContributions
     FLDAttributeTerms LevelGrowth;
     // #198: the allocated stat points times their per-point bonuses.
     FLDAttributeTerms PermanentChoices;
-    // #198 B: the always-on stat_bonus effects of installed components (grown fixed amounts).
-    FLDAttributeTerms Components;
+    // Installed cards: Y13's armor conversion and the grow cards' match growth.
+    FLDAttributeTerms Cards;
     // The DEV test layer (FLDAttributeBuildValues::DevBonuses); zero outside a DEV test session.
     FLDAttributeTerms Dev;
     // Timed self bonuses, an active conditional low-HP bonus and the strongest slow (a negative ratio); zero in a build
@@ -131,32 +132,14 @@ struct FLDKeystoneActivation
     bool bAgility = false;
 };
 
-// A held low-HP trigger (low_hp_stat_bonus, B15): its stats apply only while current HP is strictly below ThresholdBp of
-// max HP.
-struct FLDLowHPBonusTerm
+// One installed card as Combat reads it (CollectPassiveEffects): its definition, serial, target and the holder's level.
+struct FLDInstalledCardTerm
 {
-    int64 ThresholdBp = 0;
-    TArray<FLDDemoStatBonus> Stats;
-};
-
-// #198 B07: the holder's damage against a body that, before the hit, is move-slowed, hard-controlled or knocked back
-// gains RatioBp (one term of the unified damage bonus pool).
-struct FLDControlDamageAmpTerm
-{
-    FName ComponentId;
-    int64 RatioBp = 0;
-};
-
-// #198 B: one installed component as Combat reads it (CollectPassiveEffects): its effects grown for Level.
-struct FLDInstalledComponentTerm
-{
-    FName ComponentId;
-    FName BoundActive;
+    FName CardId;
+    uint16 Serial = 0;
+    ELDCardTargetKind TargetKind = ELDCardTargetKind::None;
+    FName Active;
     ELDDemoElement Element = ELDDemoElement::None;
-    // #198 F install target and C12's repeated base (FLDInstalledComponentValue).
-    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
-    FName TargetId;
-    FName BoundComponent;
     // The holder's level when projected; a level-up reprojects the build.
     uint8 Level = 0;
 };
@@ -168,11 +151,10 @@ struct FLDAttributeProjection
     FLDKeystoneActivation Keystones;
     // One row per ELDProjectedAttribute, in enum order.
     TArray<FLDAttributeContributions> Contributions;
-    // #198 B conditional component terms; Combat applies them from body state, the build projection never adds them.
-    TOptional<FLDLowHPBonusTerm> LowHPBonus;
-    TOptional<FLDControlDamageAmpTerm> ControlAmp;
-    // Every installed component, sorted by id.
-    TArray<FLDInstalledComponentTerm> InstalledComponents;
+    // Y15: attack-speed ratio per missing HP ratio (copies add); Combat applies it from current HP as a temporary term.
+    int64 MissingHPAttackSpeedBp = 0;
+    // Every installed card, sorted by serial.
+    TArray<FLDInstalledCardTerm> InstalledCards;
 };
 
 struct FLDAttributeProjectionResult
@@ -224,10 +206,9 @@ namespace LDAttributeProjection
 {
     // Pure projection over the borrowed catalog: no world, clock, randomness, resource store or commit. The allocated
     // points are summed as flat and additive-percent terms (never multiplied per point); bounding them by the points
-    // earned stays the growth domain's build validation. #198 B: each installed component is a catalog base component
-    // listed once (an unknown, duplicate, non-base or misbound one refuses); its stat_bonus effects (grown with
-    // LDSkillGrowth::GrowEffect for Level, which grows no stat_bonus amount) form the Components term, low_hp_stat_bonus and
-    // control_damage_amp become LowHPBonus/ControlAmp (at most one of each) and every component is listed, sorted by id.
+    // earned stays the growth domain's build validation. Each installed card is a catalog card on a target of its form, listed
+    // once by serial (an unknown, repeated or misplaced one refuses); the match growth and Y13's armor conversion form the
+    // Cards term, Y15 becomes MissingHPAttackSpeedBp and every card is listed, sorted by serial.
     LOCKDOWN_API FLDAttributeProjectionResult Project(
         const FLDAttributeBuildValues& Build, const FLDDemoContentSnapshot& Catalog);
     // The same formula over a build projection plus temporary terms: (Base + Flats + TemporaryFlat) x (1 + Ratios +

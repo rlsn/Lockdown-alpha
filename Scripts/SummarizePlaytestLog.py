@@ -7,7 +7,7 @@ death with the hits (Host) or own damage (client) before it, the growth timeline
 the frame-time and connection summaries, and the warnings and errors.
 
 From the Host's lines it also computes the gameplay metrics of the #287 spec §16 for each match and across all matches:
-damage share by source (basic / skill / card or component / reaction / other, on contenders and on camps), Q/W/E casts per
+damage share by source (basic / skill / card / reaction / other, on contenders and on camps), Q/W/E casts per
 person per fight (LD_CAST), time to kill, momentum income by kind (LD_MOMENTUM), breakout builds against a same-level
 bare-build DPS baseline (--baseline-dps), pick rates of offered actives and cards, outrageous hits (>= 60% of the
 target's max HP), the longest chain (LD_CHAIN) and damage factors (LD_HIT factor_bp). A metric whose lines are absent
@@ -37,7 +37,7 @@ ID = re.compile(r"\b[0-9A-F]{32}\b")
 HOST_ONLY_TAGS = frozenset(
     {
         "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
-        "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
+        "LD_CARD", "LD_CARD_OFFER", "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
         "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED", "LD_CAST", "LD_MOMENTUM",
     }
@@ -47,7 +47,7 @@ PERIODIC_TAGS = frozenset({"LD_HEARTBEAT", "LD_SELF_STATE", "LD_PERF", "LD_NET",
 # Routine AI and order bookkeeping: counted around a mark, listed only with --mark-all.
 ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED"})
 GROWTH_TAGS = (
-    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
+    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD", "LD_CARD_OFFER", "LD_CARD",
     "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD",
 )
 
@@ -360,6 +360,11 @@ class Report:
             elif event.tag == "LD_BUILD":
                 text = (f"{event.get('kind')} {event.get('card')} slot {event.get('slot')} points {event.get('points')} "
                         f"unspent {event.get('unspent')}")
+            elif event.tag == "LD_CARD_OFFER":
+                text = f"card offer #{event.get('ordinal')} ({event.get('source')}): {event.get('cards')}"
+            elif event.tag == "LD_CARD":
+                text = (f"{event.get('kind')} {event.get('card')}#{event.get('serial')} installed {event.get('installed')} "
+                        f"on {event.get('target')} capacity {event.get('capacity')}")
             elif event.tag == "LD_SELF_REWARD":
                 text = f"+{event.get('amount')} {event.get('kind')}"
             else:
@@ -457,7 +462,7 @@ DEFAULT_BASELINE_DPS = ((1, 72.0), (10, 154.0))
 DEFAULT_BASELINE_SOURCE = "spec §3.9 estimate (L1 860 HP / 11.9 s, L10 1580 HP / about 10.25 s)"
 # A reaction's settle hit carries its applier's own source and LD_HIT has no reaction field, so reaction damage stays in
 # its applier's category; a separate reaction share would need an authority field on LD_HIT.
-DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card/component"), ("other", "other"))
+DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card"), ("other", "other"))
 DAMAGE_NOTE = "reaction settles count under their applier's source; reaction share: no data (LD_HIT has no reaction field)"
 MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "dodge", "other")
 NO_DATA = "no data"
@@ -504,7 +509,7 @@ def hit_category(event):
         return "basic"
     if via.startswith("learned:"):
         return "skill"
-    if via.startswith(("card:", "component:")):
+    if via.startswith("card:"):
         return "card"
     return "other"
 
@@ -754,19 +759,19 @@ def match_metrics(events, baseline):
     out["reaction_kinds"] = sorted({event.get("kind") for event in events if event.tag == "LD_REACTION"
                                     and event.get("trigger") not in dummies and event.get("primary") not in dummies})
 
-    # Offers and picks: an LD_OFFER lists the offered ids; LD_CHOICE and an LD_BUILD of a *Choice kind is a pick; an
-    # LD_BUILD with installed=1 is an installation. Actives are active_*; every other offered id is a card or component.
+    # Offers and picks: an LD_OFFER (actives) or LD_CARD_OFFER (cards) lists the offered ids; LD_CHOICE and an LD_CARD
+    # PickCard is a pick; an LD_CARD with installed=1 is an installation. Actives are active_*; every other id is a card.
     offered, picked, installed = defaultdict(int), defaultdict(int), defaultdict(set)
     for event in events:
         card = event.get("card", "-")
-        if event.tag == "LD_OFFER":
+        if event.tag in ("LD_OFFER", "LD_CARD_OFFER"):
             for offer in event.get("cards", "").split(","):
                 if offer and offer != "-":
                     offered[offer] += 1
         elif event.tag == "LD_CHOICE" and card not in ("", "-"):
             picked[card] += 1
-        elif event.tag == "LD_BUILD" and card not in ("", "-"):
-            if event.get("kind", "").endswith("Choice"):
+        elif event.tag == "LD_CARD" and card not in ("", "-"):
+            if event.get("kind") == "PickCard":
                 picked[card] += 1
             if event.get("installed") == "1":
                 installed[card].add(event.get("contender"))
@@ -775,34 +780,22 @@ def match_metrics(events, baseline):
     summary = next((event for event in events if event.tag == "LD_MATCH_SUMMARY"), None)
     rows = [event for event in events if event.tag == "LD_MATCH_SUMMARY_ROW" and summary is not None
             and event.get("contender") == summary.get("winner")]
-    out["winner_build"] = build_fingerprint(rows[0], [event for event in events if event.tag == "LD_BUILD"
-                                                      and event.get("contender") == rows[0].get("contender")]) if rows else None
+    out["winner_build"] = build_fingerprint(rows[0]) if rows else None
     return out
 
 
-def build_fingerprint(row, builds):
-    """A winner's build: its Q/W/E actives and allocated points (LD_MATCH_SUMMARY_ROW) and every installed component or
-    card with its installation target and binding, from the last LD_BUILD that installed it (the row names a binding but
-    not the target). None when the row predates the points and components fields, or when an installed item of the row
-    has no LD_BUILD installation record in this log."""
-    if not row.get("skills") or "points" not in row.fields or not ({"components", "cards"} & row.fields.keys()):
+def build_fingerprint(row):
+    """A winner's build: its Q/W/E actives, allocated points and every installed card copy with its place, all from the
+    LD_MATCH_SUMMARY_ROW (`cards=+card_x#serial@Kind[:active][:Element]`; the serial is dropped, duplicates count). None when the
+    row has no points or cards field."""
+    if not row.get("skills") or "points" not in row.fields or "cards" not in row.fields:
         return None
     actives = sorted(item.partition("/")[0] for item in row.get("skills").split(",") if item and item != "-")
-    targets = {}
-    for event in builds:
-        card = event.get("card", "-")
-        if card in ("", "-") or event.get("installed") not in ("0", "1"):
-            continue
-        targets[card] = f"{event.get('bind', '-')}|{event.get('on', '-')}|{event.get('base', '-')}" \
-            if event.get("installed") == "1" else None
     installed = []
-    for key in ("components", "cards"):
-        for item in row.get(key, "-").split(","):
-            if item.startswith("+"):
-                card = item[1:].partition("@")[0]
-                if targets.get(card) is None:
-                    return None
-                installed.append(f"{card}:{targets[card]}")
+    for item in row.get("cards", "-").split(","):
+        if item.startswith("+"):
+            card, _, place = item[1:].partition("@")
+            installed.append(f"{card.partition('#')[0]}:{place}")
     return (tuple(actives), row.get("points"), tuple(sorted(installed)))
 
 
@@ -926,7 +919,7 @@ def aggregate_lines(all_metrics, baseline_source):
                for metrics in host]
     winners = [metrics["winner_build"] for metrics in host if metrics["winner_build"]]
     winner_text = (f"{len(set(winners))} in {len(winners)} decided matches" if winners
-                   else f"{NO_DATA} (no winner row with points and components)")
+                   else f"{NO_DATA} (no winner row with points and cards)")
     lines += ["| Metric | Target | Result |", "| --- | --- | --- |",
               f"| Same-level L1 time to kill | 10–12 s | {ttk_text([kill for kill in same_kills if kill['level'] == 1])} |",
               f"| Same-level time to kill, any level | — | {ttk_text(same_kills)} |",
@@ -935,7 +928,7 @@ def aggregate_lines(all_metrics, baseline_source):
               f"{casts_text([fight for fight in fights if fight.same_level], has_casts)} |",
               f"| Casts per person per fight, any level | — | {casts_text(fights, has_casts)} |",
               f"| Breakout builds per match (x{BREAKOUT_RATIO:g} the same-level bare build) | 1–2 | {stats_text(breakouts, 2)} |",
-              f"| Distinct winner builds (actives, points, installed components or cards) | ≥ 8 per 50 matches | {winner_text} |",
+              f"| Distinct winner builds (actives, points, installed cards) | ≥ 8 per 50 matches | {winner_text} |",
               f"| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | "
               f"{sum(1 for count in moments if count)} of {len(host)} |",
               f"| Reaction kinds per match | ≥ 6 (after P4) | {stats_text([len(metrics['reaction_kinds']) for metrics in host])} |",

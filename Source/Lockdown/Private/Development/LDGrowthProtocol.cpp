@@ -81,11 +81,10 @@ bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
         && RequestId == Other.RequestId && ExpectedBuildRevision == Other.ExpectedBuildRevision
         && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && Kind == Other.Kind && OfferId == Other.OfferId
         && OfferRevision == Other.OfferRevision && Option == Other.Option && bLearnIfPossible == Other.bLearnIfPossible
-        && Slot == Other.Slot && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts
-        && Component == Other.Component && bInstallIfPossible == Other.bInstallIfPossible && TargetKind == Other.TargetKind
-        && TargetDefinition == Other.TargetDefinition && TargetSegment == Other.TargetSegment && BoundActive == Other.BoundActive
-        && Element == Other.Element && BoundComponent == Other.BoundComponent && Filler == Other.Filler
-        && Surrendered == Other.Surrendered && Replacing == Other.Replacing && Branch == Other.Branch;
+        && Slot == Other.Slot && Branch == Other.Branch && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts
+        && bInstallIfPossible == Other.bInstallIfPossible && CardSerial == Other.CardSerial && CardTarget == Other.CardTarget
+        && TargetDefinition == Other.TargetDefinition && Element == Other.Element && ReplacingSerial == Other.ReplacingSerial
+        && FinalTargetKind == Other.FinalTargetKind;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
@@ -100,19 +99,19 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::AllocatePoints:
-    case ELDBuildCommandKind::OpeningBase:
-    case ELDBuildCommandKind::InstallComponent:
-    case ELDBuildCommandKind::UninstallComponent:
     case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
     case ELDBuildCommandKind::ReplaceActive:
     case ELDBuildCommandKind::ForgetActive:
-    case ELDBuildCommandKind::ComponentChoice:
-    case ELDBuildCommandKind::FillGap:
-    case ELDBuildCommandKind::Dismantle:
     case ELDBuildCommandKind::SkipActiveOffer:
     case ELDBuildCommandKind::FinalMod:
     case ELDBuildCommandKind::RankUpSkill:
+    case ELDBuildCommandKind::PickCard:
+    case ELDBuildCommandKind::SkipCards:
+    case ELDBuildCommandKind::RerollCards:
+    case ELDBuildCommandKind::LockCard:
+    case ELDBuildCommandKind::InstallCard:
+    case ELDBuildCommandKind::UninstallCard:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -120,15 +119,27 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     return false;
 }
 
-bool LDGrowthWire::IsKnownTargetKind(ELDComponentTargetKind Kind)
+bool LDGrowthWire::IsKnownCardTarget(ELDCardTargetKind Kind)
 {
     switch (Kind)
     {
-    case ELDComponentTargetKind::None:
-    case ELDComponentTargetKind::Active:
-    case ELDComponentTargetKind::EffectSegment:
-    case ELDComponentTargetKind::Component:
-    case ELDComponentTargetKind::Dash:
+    case ELDCardTargetKind::None:
+    case ELDCardTargetKind::Basic:
+    case ELDCardTargetKind::Skill:
+    case ELDCardTargetKind::Dash:
+    case ELDCardTargetKind::Body:
+        return true;
+    }
+    return false;
+}
+
+bool LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDFinalModTargetKind::None:
+    case ELDFinalModTargetKind::Active:
+    case ELDFinalModTargetKind::Dash:
         return true;
     }
     return false;
@@ -192,10 +203,6 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::AlreadyInstalled: return TEXT("AlreadyInstalled");
     case ELDGrowthReason::NotInstalled: return TEXT("NotInstalled");
     case ELDGrowthReason::InvalidTarget: return TEXT("InvalidTarget");
-    case ELDGrowthReason::OpeningBaseUnavailable: return TEXT("OpeningBaseUnavailable");
-    case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");
-    case ELDGrowthReason::OpeningActiveFirst: return TEXT("OpeningActiveFirst");
-    case ELDGrowthReason::TargetConflict: return TEXT("TargetConflict");
     case ELDGrowthReason::WorkshopFull: return TEXT("WorkshopFull");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
     case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
@@ -221,20 +228,15 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::StaleDeath: return TEXT("StaleDeath");
     case ELDGrowthReason::NoRewardPKArena: return TEXT("NoRewardPKArena");
     case ELDGrowthReason::PKAwardDuplicate: return TEXT("PKAwardDuplicate");
-    case ELDGrowthReason::NoComponentChoice: return TEXT("NoComponentChoice");
-    case ELDGrowthReason::ComponentOwned: return TEXT("ComponentOwned");
-    case ELDGrowthReason::NotAGap: return TEXT("NotAGap");
-    case ELDGrowthReason::NoGapFiller: return TEXT("NoGapFiller");
-    case ELDGrowthReason::GapAlreadyFilled: return TEXT("GapAlreadyFilled");
-    case ELDGrowthReason::DismantleInvalid: return TEXT("DismantleInvalid");
-    case ELDGrowthReason::DismantlePoolEmpty: return TEXT("DismantlePoolEmpty");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("FieldRewardDuplicate");
     case ELDGrowthReason::FinalLocked: return TEXT("FinalLocked");
     case ELDGrowthReason::NoFinalMod: return TEXT("NoFinalMod");
     case ELDGrowthReason::FinalModUnavailable: return TEXT("FinalModUnavailable");
-    case ELDGrowthReason::ComponentColumnFull: return TEXT("ComponentColumnFull");
     case ELDGrowthReason::NoSkillPoint: return TEXT("NoSkillPoint");
     case ELDGrowthReason::BranchUnavailable: return TEXT("BranchUnavailable");
+    case ELDGrowthReason::NoCardOffer: return TEXT("NoCardOffer");
+    case ELDGrowthReason::NoReroll: return TEXT("NoReroll");
+    case ELDGrowthReason::NotInOffer: return TEXT("NotInOffer");
     }
     return TEXT("Unknown");
 }

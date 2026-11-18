@@ -8,7 +8,7 @@
 
 **v0.11.0 Demo 的主流程已接入，完整验收尚未完成。** 流程为：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）
 → 开局休息 R0 → 三段野外各接一次休息 → 最终野外旗杆开放后喷漆、守护与围攻 → 唯一结果 → Host 带仍在线的房间回 Lobby 开新局。
-规则工坊、元素、构件、公共休息室、PK、野外奖励、蓝图与评估入口已接入；局部规则与同机拥有连接已验证。
+规则工坊、元素、构筑牌、公共休息室、PK、野外奖励、蓝图与评估入口已接入；局部规则与同机拥有连接已验证。
 运行入口只有前端与唯一 Demo 世界，旧 profile、旧地图与旧选择会被明确拒绝。
 
 - 运行输入是用户批准的内容与数值、唯一单层地图布局与操作规则，用于试玩。**批准不是平衡测试结果。**
@@ -66,7 +66,7 @@
 | 战斗原语 | 规则：`DemoCombatPrimitives.*`（硬控递减、冷却缩减、解除减速、唯一控制入口）、`DemoCombatEvaluation.ControlAmplify`、`DemoMechanics.*`（护盾打破、击退方向、区域脉冲）、`DemoBuildPrimitives.*`（沉默、共享破防与灼烧、伤害加成池、吸血上限、减速中仍被定身、交战窗口触发（只供 HUD 交战折叠）、区域脉冲次数、多次强化普攻）、`DemoGrowthSkillGrowth`（等级成长）、`DemoAttributeProjection.*`（五维点数与夹取）（部分规则已运行）。场景 Combat 改用扒裤子定身、锅盖挡脸护盾与解除定身、甩你一鞋命中与减速 | 相关规则与场景不能代替全部技能效果的拥有连接验收 |
 | 视野一致 | 场景 Opponent：`HostOpponentCard.png` 截图审阅可见 AI 的 Q/W 卡（截图早于当前目录，需重新截图）；规则 `DemoVision.OpponentActives`。场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
 | AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的喷漆进度持有者留区迎战，以喷漆守护获胜；遥测记录改漆与守护用时 | 当前版本的满员场景未通过：最近一次在 R1 返野外时权威故障，返场修复后未复跑完整场景；本局没有出现的情形报告为未覆盖，不计为通过 |
-| UI 完整 | 截图审阅：`HostChoices.png`、`HostKillAssist.png`（播报助攻者）、`HostResults.png`（助攻列）、`HostOpponentCard.png`、`HostSpray.png`/`HostGuard.png`。规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量 | 截图早于当前构筑界面与构件库；构件库没有截图或人工界面审阅；全部游戏状态的人工界面审阅与音效人工试听未完成 |
+| UI 完整 | 截图审阅：`HostChoices.png`、`HostKillAssist.png`（播报助攻者）、`HostResults.png`（助攻列）、`HostOpponentCard.png`、`HostSpray.png`/`HostGuard.png`。规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量 | 截图早于当前构筑界面与牌库；牌库与牌三选一没有人工界面审阅；全部游戏状态的人工界面审阅与音效人工试听未完成 |
 | 伤害统计 | 规则：`DamageRecap.Window`（承伤窗口、求和与排序、各来源总量、列表校验）、`DamageRecap.Display`（死亡承伤列表与结算页本人伤害的可用条件、行文与合并）、`DamageRecap.Chain`（反应规则链分行、链与引爆提示校验）、`DamageRecap.ChainDisplay`（规则链文字与图标链节点、击杀/助攻标签、状态引爆提示）、`DamageRecap.ChainSources`（施加者可读边界、溅射行、不具名触发者、首次观察前的提示、旧生命提示不播报）、`DamageRecap.AssistOrdering`（提示保留与乱序等待）、`DamageRecap.LiveSight`（命中时视野和隔离复核）；场景 `RunDemoVisionCheck.ps1 -ReactionOnly`：服务端夹具将潮湿和电命中排入原生 Effects，仅远端施加者经真实拥有连接收到具名导电提示 | 玩家操作触发、隐藏视野负例和远端客户端的承伤列表与伤害总量没有拥有连接场景；死亡横幅图标链、成长面板死因信息栏、状态引爆提示与结算页的新段落没有截图或人工界面审阅 |
 | 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、六席满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”；Host 进程在客户端仍连接时正常退出，Host 日志无权威故障，客户端回主菜单显示会话中断。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName）、`DemoOwnerViewTeardown`（拆除与关房期间不发布本人视图，对局中的真实投影不一致仍判故障） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断；六席满员场景待验证。意外断线当前保留身体以供重连，与 App Spec §8 的断线即离局规则不一致；普通 Vision 断线清理断言未通过，`-ReactionOnly` 的主动离房清理不能代替断线验证 |
 | 新局隔离 | 场景 Capture 与 Growth 的第二局：开局成长、构筑、冷却、营地与抢圈全部复位，旧代请求被拒。规则：`DemoOrders.BookIsolation`、`DemoMatchIdentity` | — |
@@ -77,7 +77,7 @@
 - **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#90](https://github.com/rlsn/Lockdown-alpha/issues/90)）。
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
   整蛊表现（被扒裤子等夸张的可见状态）未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)）。
-- **评估工具限制**：NPC 购买、单独遗忘、补缺、拆解、精英营地构件选择和选择时直接替换目前不能规划，明确报告 `UnsupportedDecision`；这不表示游戏内命令不支持。
+- **评估工具限制**：NPC 购买、单独遗忘、牌三选一和选择时直接替换目前不能规划，明确报告 `UnsupportedDecision`；这不表示游戏内命令不支持。
   Harness 只完成小型真实对决、野外加点计划和一个 Case 的重放，不能代表全部决策或平衡验证。
 - **未完成验收**：
   - 打包版已取得同机三拥有连接下的开局公共休息和构筑面板画面，以及前端真实渲染首帧；完整前端交互未验收。
@@ -85,7 +85,7 @@
   - 满员场景尚未按 R1/R2 才开放 PK 的当前规则重跑；R01 假人槽位通过但账本未实际增长（未覆盖），R02 检查通过；
     R1 返回野外时出现 `Prepared body does not occupy its exact registered placement` 权威故障。返场已改为按物理胶囊实际支撑中心预约出生，
     相关地面、出生、营地和休息规则通过，但完整满员对局未复跑。
-  - NPC 服务、构件安装、PK 与观战没有拥有连接场景；全套规则未在本页记为通过。
+  - NPC 服务、装牌、PK 与观战没有拥有连接场景；55 张牌的图标暂用退役构件的已批准美术（`ui_icons.json` 逐项写明来源），尚无专属美术；全套规则未在本页记为通过。
 - **未运行**：跨机器局域网与公网直连；三真人完整对局与系统性数值平衡；Shipping 配置打包（[#95](https://github.com/rlsn/Lockdown-alpha/issues/95)）；
   真实 OS 失焦与显示模式切换、完整人工 UI 验收；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行）。

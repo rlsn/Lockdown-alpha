@@ -41,6 +41,7 @@ bool Configured(const LDDemoCardText::FToken& Token, const FLDDemoEffectDefiniti
     case EField::Multiplier: return Effect.MultiplierBp != 0;
     case EField::Angle: return Effect.AngleDegrees.Numerator != 0;
     case EField::CostRatio: return Effect.CostRatioBp != 0;
+    case EField::Step: return Effect.StepRate.Numerator != 0;
     case EField::Stat:
     {
         const FLDDemoStatBonus* Stat = Effect.Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S) { return S.Stat == Token.Stat; });
@@ -71,17 +72,17 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    // Every active, stat and component of the approved catalog has exactly one display row, and every one of them is
+    // Every active, stat and card of the approved catalog has exactly one display row, and every one of them is
     // checked below (the catalog, not a pinned count, says how many cards there are).
     TSet<FString> Definitions;
     for (const FLDDemoAbilityDefinition& Ability : Content.Abilities) { Definitions.Add(Ability.Id); }
     for (const FLDDemoStatDefinition& Stat : Content.Stats) { Definitions.Add(Stat.Id); }
-    for (const FLDDemoComponentDefinition& Component : Content.Components) { Definitions.Add(Component.Id); }
-    TestTrue(TEXT("The approved catalog has actives, stats and components"),
-        !Content.Abilities.IsEmpty() && !Content.Stats.IsEmpty() && !Content.Components.IsEmpty());
-    TestEqual(TEXT("Every active, stat and component id is distinct"), Definitions.Num(),
-        Content.Abilities.Num() + Content.Stats.Num() + Content.Components.Num());
-    TestEqual(TEXT("Every active, stat and component has exactly one display row"),
+    for (const FLDDemoCardDefinition& Card : Content.Cards) { Definitions.Add(Card.Id); }
+    TestTrue(TEXT("The approved catalog has actives, stats and cards"),
+        !Content.Abilities.IsEmpty() && !Content.Stats.IsEmpty() && !Content.Cards.IsEmpty());
+    TestEqual(TEXT("Every active, stat and card id is distinct"), Definitions.Num(),
+        Content.Abilities.Num() + Content.Stats.Num() + Content.Cards.Num());
+    TestEqual(TEXT("Every active, stat and card has exactly one display row"),
         Content.Display.FilterByPredicate([&Definitions](const FLDDemoDisplayDefinition& Row) { return Definitions.Contains(Row.Id); }).Num(),
         Definitions.Num());
     TSet<FString> Checked;
@@ -141,33 +142,32 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
         TestTrue(Stat.Id + TEXT(": the card shows a per-point bonus"), Shown.Num() > 0);
         Checked.Add(Stat.Id);
     }
-    // #198 components: every placeholder reads a non-zero authored number of the component's own effects (a binding
-    // component may show none).
-    for (const FLDDemoComponentDefinition& Component : Content.Components)
+    // Cards: every placeholder reads a non-zero authored number of the card's own effects.
+    for (const FLDDemoCardDefinition& Card : Content.Cards)
     {
-        const FLDDemoDisplayDefinition* Display = DisplayOf(Content, Component.Id);
-        if (!TestTrue(Component.Id + TEXT(" has a named display row with a description"),
+        const FLDDemoDisplayDefinition* Display = DisplayOf(Content, Card.Id);
+        if (!TestTrue(Card.Id + TEXT(" has a named display row with a description"),
             Display && !Display->NameText.IsEmpty() && !Display->DescriptionText.IsEmpty()))
         {
             continue;
         }
-        TestFalse(Component.Id + TEXT(": ") + Display->DescriptionText, Forbidden(Display->DescriptionText) || Forbidden(Display->NameText));
+        TestFalse(Card.Id + TEXT(": ") + Display->DescriptionText, Forbidden(Display->DescriptionText) || Forbidden(Display->NameText));
         TArray<LDDemoCardText::FToken> Tokens;
         FString Error;
-        if (!TestTrue(Component.Id + TEXT(": the template parses ") + Error, LDDemoCardText::Parse(Display->DescriptionText, Tokens, Error)))
+        if (!TestTrue(Card.Id + TEXT(": the template parses ") + Error, LDDemoCardText::Parse(Display->DescriptionText, Tokens, Error)))
         {
             continue;
         }
         for (const LDDemoCardText::FToken& Token : Tokens)
         {
             if (!Token.bValue) { continue; }
-            const FLDDemoEffectDefinition* Effect = LDDemoCardText::FindEffect(Component.Effects, Token);
-            TestTrue(FString::Printf(TEXT("%s: every placeholder reads a non-zero authored number of its effects"), *Component.Id),
+            const FLDDemoEffectDefinition* Effect = LDDemoCardText::FindEffect(Card.Effects, Token);
+            TestTrue(FString::Printf(TEXT("%s: every placeholder reads a non-zero authored number of its effects"), *Card.Id),
                 !Token.bPerPoint && Effect && Configured(Token, *Effect));
         }
-        Checked.Add(Component.Id);
+        Checked.Add(Card.Id);
     }
-    TestTrue(TEXT("Every active, stat and component card of the approved catalog was checked"), Checked.Includes(Definitions)
+    TestTrue(TEXT("Every active, stat and card card of the approved catalog was checked"), Checked.Includes(Definitions)
         && Checked.Num() == Definitions.Num());
     return true;
 }

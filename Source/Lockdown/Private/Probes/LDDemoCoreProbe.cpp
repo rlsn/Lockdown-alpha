@@ -902,8 +902,8 @@ public:
                             {
                                 return Finish();
                             }
-                            const auto* Service=Registry->Resolve(TEXT("rest_service_2"),Registry->Generation);
-                            if (!Check(Service!=nullptr,TEXT("The second rest service is registered"))) { return Finish(); }
+                            const auto* Service=Registry->Resolve(TEXT("rest_service_3"),Registry->Generation);
+                            if (!Check(Service!=nullptr,TEXT("The trainer's rest service is registered"))) { return Finish(); }
                             Nav->NavigateGround(Service->Position,Service->Surface);
                             RestServiceOrder=Nav->LocalIdentity();
                             RestServiceStage=2;
@@ -962,10 +962,10 @@ public:
                         {
                             bServicePanelClosed |= !PC->HUDUI->ChoicesPanel->IsServiceShown();
                         }
-                        if (bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan)
+                        if (bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::Trainer)
                         {
                             Check(bLeftFirstService && bServicePanelOpened && bServicePanelClosed
-                                && bNpcPurchaseApplied && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan,
+                                && bNpcPurchaseApplied && PC->OwnerState.NearbyRestService==ELDRestService::Trainer,
                                 TEXT("The non-host owner completes an NPC purchase, then the services leave the workshop on leaving before the next service"));
                             if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
                             RestServiceStage=3;

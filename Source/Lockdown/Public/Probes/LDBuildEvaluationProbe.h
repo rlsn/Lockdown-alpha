@@ -21,7 +21,7 @@ struct FLDEvalContenderPlan
     // XP granted once at T=0 through the reward composite (a supply assumption of the plan, logged cause=dev_fixture).
     int64 SupplyXP = 0;
     // Diagnostic-only: exactly one common component for each level crossed by the XP supply.
-    TArray<FName> LevelComponents;
+    TArray<FName> LevelCards;
     // One rule per active opportunity ordinal from 1 (the opening offer).
     TArray<FLDEvaluationChoice> Choices;
     // Diagnostic-only opening offer, staged for the armed AI slot before match start; empty means ordinary draw.
@@ -75,10 +75,10 @@ struct FLDEvalOutcome
 namespace LDBuildEvaluation
 {
     inline constexpr TCHAR InputSchema[] = TEXT("lockdown.build_evaluation.native_input");
-    inline constexpr int32 InputSchemaVersion = 5;
+    inline constexpr int32 InputSchemaVersion = 6;
     inline constexpr TCHAR ResultSchema[] = TEXT("lockdown.build_evaluation.native_result");
     inline constexpr TCHAR RunSchema[] = TEXT("lockdown.build_evaluation.native_run");
-    inline constexpr int32 ResultSchemaVersion = 6;
+    inline constexpr int32 ResultSchemaVersion = 7;
     inline constexpr int32 MaxCases = 500;
     inline constexpr int32 MaxChoices = 16;
     inline constexpr int32 MaxBuildSteps = 32;

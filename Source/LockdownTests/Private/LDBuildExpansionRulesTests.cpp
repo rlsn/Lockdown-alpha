@@ -36,7 +36,7 @@ bool FLDBuildExpansionSlowTest::RunTest(const FString& Parameters)
     TArray<FLDCombatTimedBonus> NoBonuses;
     TestTrue(TEXT("Lapsed slows are removed"), ExpireTemporaryStatuses(Slows, NoBonuses, 2000) && Slows.Num() == 1);
     TestFalse(TEXT("Nothing more lapses before the next deadline"), ExpireTemporaryStatuses(Slows, NoBonuses, 2100));
-    const FLDTemporaryAttributeTerms Terms = TemporaryTerms(NoBonuses, Slows, {}, 100, 100, 2100);
+    const FLDTemporaryAttributeTerms Terms = TemporaryTerms(NoBonuses, Slows, 2100);
     TestTrue(TEXT("Temporary terms carry the strongest slow only"), Terms.MoveSlowBp == 2500 && Terms.Bonuses.IsEmpty());
     return true;
 }
@@ -54,17 +54,17 @@ bool FLDBuildExpansionTimedBonusTest::RunTest(const FString& Parameters)
     ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Frenzy, {Bonus(ELDDemoBonusStat::MoveSpeedBonusRatio, 5000)}, 3000});
     ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Combo, {Bonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 6000)}, 6000});
     TestEqual(TEXT("A recast of the same source replaces its bonus; other sources aggregate"), Bonuses.Num(), 2);
-    FLDTemporaryAttributeTerms Terms = TemporaryTerms(Bonuses, {}, {}, 100, 100, 2000);
+    FLDTemporaryAttributeTerms Terms = TemporaryTerms(Bonuses, {}, 2000);
     TestTrue(TEXT("Both active sources project their stats"), Terms.Bonuses.Num() == 2 && Terms.MoveSlowBp == 0
         && Terms.Bonuses.ContainsByPredicate([](const FLDDemoStatBonus& Stat) { return Stat.Amount == 6000; })
         && !Terms.Bonuses.ContainsByPredicate([](const FLDDemoStatBonus& Stat) { return Stat.Amount == 3000; }));
-    Terms = TemporaryTerms(Bonuses, {}, {}, 100, 100, 3000);
+    Terms = TemporaryTerms(Bonuses, {}, 3000);
     TestTrue(TEXT("A bonus ends exactly at its deadline"), Terms.Bonuses.Num() == 1
         && Terms.Bonuses[0].Stat == ELDDemoBonusStat::AttackSpeedBonusRatio);
     TArray<FLDCombatSlow> NoSlows;
     TestTrue(TEXT("Lapsed bonuses are removed"), ExpireTemporaryStatuses(NoSlows, Bonuses, 3000) && Bonuses.Num() == 1);
-    TestTrue(TEXT("Equal terms compare equal"), TemporaryTerms(Bonuses, {}, {}, 100, 100, 3500) == TemporaryTerms(Bonuses, {}, {}, 100, 100, 4000));
-    TestTrue(TEXT("Expired terms differ from active terms"), TemporaryTerms(Bonuses, {}, {}, 100, 100, 3500) != TemporaryTerms(Bonuses, {}, {}, 100, 100, 6000));
+    TestTrue(TEXT("Equal terms compare equal"), TemporaryTerms(Bonuses, {}, 3500) == TemporaryTerms(Bonuses, {}, 4000));
+    TestTrue(TEXT("Expired terms differ from active terms"), TemporaryTerms(Bonuses, {}, 3500) != TemporaryTerms(Bonuses, {}, 6000));
     return true;
 }
 
@@ -80,13 +80,6 @@ bool FLDBuildExpansionConditionalTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Exactly half HP is not below"), BelowHPThreshold(50000, 100000, 5000));
     TestFalse(TEXT("Zero HP never counts"), BelowHPThreshold(0, 100000, 5000));
     TestFalse(TEXT("A threshold outside the pool is refused"), BelowHPThreshold(1, 100000, 10000));
-    TOptional<FLDLowHPBonusTerm> LowHP;
-    LowHP.Emplace();
-    LowHP->ThresholdBp = 5000;
-    LowHP->Stats = {Bonus(ELDDemoBonusStat::ADBonusRatio, 2200)};
-    TestTrue(TEXT("The conditional bonus joins the terms below the threshold"),
-        TemporaryTerms({}, {}, LowHP, 40000, 100000, 0).Bonuses.Num() == 1);
-    TestTrue(TEXT("The conditional bonus resets when HP recovers"), TemporaryTerms({}, {}, LowHP, 60000, 100000, 0).IsEmpty());
     return true;
 }
 

@@ -642,56 +642,38 @@ namespace LDHUD
         FString FinalModBlocked;
         bool bCanForget=false;
         FString ForgetBlocked;
-        // #198 G: an elite camp's pending component choice (like the active choice: field or rest, alive or dead) and the
-        // rest material services FillGap and Dismantle (rest build window only, like the NPC).
-        bool bCanComponentChoice=false;
-        FString ComponentChoiceBlocked;
-        bool bCanFillGap=false;
-        FString FillGapBlocked;
-        bool bCanDismantle=false;
-        FString DismantleBlocked;
+        // A card offer's pick, skip, reroll and lock (like the active choice: field or rest, alive or dead).
+        bool bCanCardOffer=false;
+        FString CardOfferBlocked;
         // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
         bool bInRest=false;
-        // #198 B: installing, moving and uninstalling a component, as growth gates them (LDProgression::InstallGate). The
-        // opening base pick itself follows bCanChoose.
+        // Installing, moving and uninstalling a card, as growth gates them (LDProgression::InstallGate).
         bool bCanInstall=false;
         FString InstallBlocked;
     };
     LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
-    // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
-    // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or the component taken,
-    // enabled (已启用构件：名称), stored with the reason or removed; #198 G the component choice taken (or its points), the gap
-    // filled with its price, and the dismantle's removed, received and uninstalled components.
-    // Keys names a learned or replaced slot.
+    // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, a rest
+    // service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or a card taken (installed
+    // or kept with the reason), installed, removed, skipped or rerolled. Keys names a learned or replaced slot.
     LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys=FSlotKeys());
     // 火 / 水 / 电.
     LOCKDOWN_API FString ElementName(ELDDemoElement Element);
-    // The learned actives an ActiveElement component may bind (its BindActives), in Q/W/E order.
-    LOCKDOWN_API TArray<FName> BindableActives(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression);
-    // #198 F: one place an owned mod or connector may be installed now (a hint; the server decides): a learned active
-    // (Active, TargetId), another installed component (Component, TargetId), the innate D (Dash) or the holder (None).
-    struct FWorkshopTargetView
-    {
-        ELDComponentTargetKind Kind=ELDComponentTargetKind::None;
-        FName TargetId;
-        // The active's or component's display name, 冲刺(D) or 自身.
-        FString Label;
-    };
-    // The places Component takes now: each learned active whose target mode is represented by TargetActives, each installed other
-    // component of TargetComponents, then 冲刺(D) (bTargetDash) and 自身 (bTargetSelf). Empty for a base component.
-    LOCKDOWN_API TArray<FWorkshopTargetView> WorkshopTargets(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
-    // C12: the installed bases of its ExtraBases it may repeat, in list order, without a closed element (water and electric
-    // wait for #198 A). Empty for any other component.
-    LOCKDOWN_API TArray<FName> RepeatableBases(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
-    // What an installed component sits on, for its row: B18's "（技能 · 元素）", a mod or connector's "（装在：X）" and C12's
-    // "（X · 重复 Y）"; empty when it is not installed or a plain base.
-    LOCKDOWN_API FString InstalledTargetText(const FLDComponentInstanceView& Instance,const FLDDemoContentDefinitions* Content);
-    // A component's card: icon, name and its display sentence with the owner's level grown numbers (like an active's).
-    struct FComponentCardView
+    // A card's UI key: its definition id numbered with its serial (FName number), so copies of one definition stay apart
+    // while every widget keys on an FName. CardDefinition and CardSerial read a key back.
+    LOCKDOWN_API FName CardKey(FName Definition,uint16 Serial);
+    LOCKDOWN_API FName CardDefinition(FName Key);
+    LOCKDOWN_API uint16 CardSerial(FName Key);
+    LOCKDOWN_API const FLDCardInstanceView* FindCard(const FLDProgressionView& Progression,FName Key);
+    LOCKDOWN_API const FLDDemoCardDefinition* CardDefinitionOf(const FLDDemoContentDefinitions* Content,FName KeyOrId);
+    // How many copies of Definition the own view owns.
+    LOCKDOWN_API int32 OwnedCopies(const FLDProgressionView& Progression,FName Definition);
+    // What an installed card sits on, for its row: "（技能名）", "（技能名 · 元素）" or "（元素）"; empty when stored or plain.
+    LOCKDOWN_API FString CardTargetText(const FLDCardInstanceView& Card,const FLDDemoContentDefinitions* Content);
+    // A card's face: icon, name, its form and type (the frame's shape) and its display sentence with the owner's level grown
+    // numbers (like an active's).
+    struct FCardFaceView
     {
         FName DefinitionId;
         FString Name;
@@ -700,142 +682,138 @@ namespace LDHUD
         FString Sentence;
         FString SentencePlain;
         TArray<FString> Keywords;
-        // Its kind and use tags for the popup's category line: "技能改装 · 弹道 · 法术".
+        // The popup's category line: "普攻 · 触发".
         FString KindLine;
-        // Enabling it asks for a learned active and an element first (B18).
-        bool bBinding=false;
-        // False when the catalog has no such component or display row.
+        ELDCardForm Form=ELDCardForm::Body;
+        ELDCardType Type=ELDCardType::Trigger;
+        // Installing it asks for an element first (Y25).
+        bool bChooseElement=false;
+        // False when the catalog has no such card or display row.
         bool bKnown=false;
     };
-    LOCKDOWN_API FComponentCardView ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    LOCKDOWN_API FCardFaceView CardFace(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
     // The 构筑 tray's hover popup of a card (the HUD's slot popup; the card face shows only the icon and the name): the name,
     // the kind ("技能 · <target> · <cost>", "图纸 · …" or "构件"), then the full rule with this level's numbers and its
     // keyword explanations, and Outcome (what a click does besides the plain take, or why it cannot be taken now) when not
     // empty.
     LOCKDOWN_API FActionDetailView ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome);
-    LOCKDOWN_API FActionDetailView ComponentChoiceDetail(const FComponentCardView& Card,const FString& Outcome);
+    LOCKDOWN_API FActionDetailView CardChoiceDetail(const FCardFaceView& Card,const FString& Outcome);
 
-    // #227 component storage (APP_SPEC §7): the owned components not installed, and the equipped columns 本体 (base components
-    // and the holder's own mods), Q, W and E by server slot, and 冲刺(D). Each installed component sits in the column of what it
-    // is installed on; one installed on another component nests under that host (Depth + 1), right after it. Local
-    // presentation over the own progression view only; the server decides every install, move and uninstall.
-    enum class EStorageColumn : uint8 { Body=0, SlotQ=1, SlotW=2, SlotE=3, Dash=4 };
-    constexpr int32 StorageColumnCount=5;
+    // The card storage (APP_SPEC §7): the owned cards not installed, and the equipped columns 普攻, Q, W and E by server slot,
+    // 冲刺(D) and 本体; each installed card sits in the column of its target. Copies of one card in one place show as one
+    // face with a ×n badge. Local presentation over the own progression view only; the server decides every command.
+    enum class EStorageColumn : uint8 { Body=0, SlotQ=1, SlotW=2, SlotE=3, Dash=4, Basic=5 };
+    constexpr int32 StorageColumnCount=6;
+    // The board's left-to-right order: 普攻, Q, W, E, 冲刺, 本体.
+    LOCKDOWN_API EStorageColumn BoardColumn(int32 Position);
+    LOCKDOWN_API int32 BoardPosition(EStorageColumn Column);
+    // The column's short label: 普攻, Q, W, E, D, 本体.
+    LOCKDOWN_API FString ColumnLabel(EStorageColumn Column);
     // The column of a learned active's server slot 0..2.
     LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);
-    // The column containing the final mod's currently legal source, including an installed component's host chain.
+    // The column of a card form (a skill card: the learned skill's slot column).
+    LOCKDOWN_API bool CardColumn(const FLDProgressionView& Progression,ELDCardTargetKind Kind,FName Active,EStorageColumn& OutColumn);
+    // The column containing the final mod's currently legal source.
     LOCKDOWN_API bool FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn);
-    // The board column a final-mod source sits in: 本体 for none, the slot of a learned active, D, or an installed
-    // component's column; false when the source is not on the board.
-    LOCKDOWN_API bool FinalSourceColumn(const FLDProgressionView& Progression,ELDComponentTargetKind Kind,FName TargetId,EStorageColumn& OutColumn);
+    // The board column a final-mod source sits in: 本体 for none, the slot of a learned active or D; false when the source is
+    // not on the board.
+    LOCKDOWN_API bool FinalSourceColumn(const FLDProgressionView& Progression,ELDFinalModTargetKind Kind,FName TargetId,EStorageColumn& OutColumn);
     struct FEquippedView
     {
-        FName Component;
-        // The installed component it sits on (None: the column itself) and how deep it nests.
-        FName Host;
-        int32 Depth=0;
-        // B18's bound element ("火") and C12's "重复 X"; empty otherwise.
+        // The first copy's key; Keys lists every copy in the place (serial order), Copies their count.
+        FName Card;
+        TArray<FName> Keys;
+        int32 Copies=1;
+        // Y25's chosen element ("火"); empty otherwise.
         FString Note;
     };
     struct FStorageColumnView
     {
         EStorageColumn Column=EStorageColumn::Body;
-        // 本体, 冲刺, or 空技能槽 for an empty slot; empty for a held slot, whose place is its Active's name. Names the place
-        // in notices; only 本体 shows it as a caption, the other columns stand on their own slot.
+        // 普攻, 本体, 冲刺, or 空技能槽 for an empty slot; empty for a held slot, whose place is its Active's name.
         FString Title;
-        // A slot column: its learned active; None for an empty slot (which takes nothing), the body and the dash.
+        // A slot column: its learned active; None for an empty slot (which takes nothing), the basic, the body and the dash.
         FName Active;
         TArray<FEquippedView> Entries;
     };
+    struct FStoredView
+    {
+        // The first copy's key and every copy's.
+        FName Card;
+        TArray<FName> Keys;
+        int32 Copies=1;
+        // Received since the player last looked (the stack's badge).
+        bool bFresh=false;
+    };
     struct FStorageView
     {
-        // Owned components not installed, in the view's order.
-        TArray<FName> Stored;
-        // Of those, the ones never enabled yet (the stack's badge).
+        // Owned cards not installed, one entry per definition, in serial order of their first copy.
+        TArray<FStoredView> Stored;
+        // Of those, the entries never looked at yet.
         int32 Fresh=0;
-        // Installed components and the level's workshop capacity (LDProgression::WorkshopCapacity); every install takes one.
+        // Installed cards and the level's capacity (LDProgression::CardCapacity); every copy takes one.
         int32 Installed=0;
         int32 Capacity=0;
         // StorageColumnCount columns in EStorageColumn order.
         TArray<FStorageColumnView> Columns;
+        // Every stored card key (all copies).
+        int32 StoredCards() const {int32 N=0;for(const FStoredView& S:Stored){N+=S.Copies;}return N;}
     };
-    LOCKDOWN_API FStorageView ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+    LOCKDOWN_API FStorageView CardStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
         const TSet<FName>* Seen=nullptr);
-    // One place a component may be dropped now: a column, or an installed host component in it, with the install target the
-    // command carries. B18 still asks for one of Elements (bound to BindActive); C12 for one of Bases.
-    struct FComponentDrop
+    // One place a card may be dropped now: a column with its install target. Y25 still asks for one of Elements. A replace
+    // drop lands on the tile of the installed card Replacing (Host), which goes back to the library in the same commit.
+    struct FCardDrop
     {
         EStorageColumn Column=EStorageColumn::Body;
         FName Host;
-        ELDComponentTargetKind Kind=ELDComponentTargetKind::None;
+        ELDCardTargetKind Kind=ELDCardTargetKind::None;
         FName TargetId;
-        FName BindActive;
         TArray<ELDDemoElement> Elements;
-        TArray<FName> Bases;
-        // A replace drop (ReplaceDrops): the installed component the install takes off first, on whose tile Host it lands, and
-        // everything that comes off with it (Replacing first, then DetachedWith(Replacing)).
         FName Replacing;
-        TArray<FName> Lost;
     };
-    // Every place Component may be dropped now, from the same lists the server's install rules read (BindableActives,
-    // WorkshopTargets, RepeatableBases): a base on 本体; B18 on each bindable learned active's column; a mod or connector on
-    // each learned active, installed host, D or 本体 it takes. A component dragged out of a column never lands on itself or on
-    // anything installed on it (those come off with it), nor where an installed component of its form sits (TargetConflict).
-    // Empty for an unknown component. A hint only.
-    LOCKDOWN_API TArray<FComponentDrop> ComponentDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    // The installed component of Component's form on the place a drop names (any installed base of its form for a base), the
-    // one the server's TargetConflict names; None when there is none.
-    LOCKDOWN_API FName FormMateAt(FName Component,ELDComponentTargetKind Kind,FName TargetId,const FLDProgressionView& Progression,
+    // Every place the card Key may be dropped now (its form's columns: the basic, each learned skill, the dash or the body),
+    // judged by growth's own target rule (LDProgression::CardTargetReason); none past the capacity for a stored card (a move
+    // frees its own slot). Empty for an unknown card. A hint only.
+    LOCKDOWN_API TArray<FCardDrop> CardDrops(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // The atomic replace drops of a stored card on a full workshop (the server's InstallCard with ReplacingSerial): one on the
+    // tile of each installed card in a column the card takes.
+    LOCKDOWN_API TArray<FCardDrop> ReplaceDrops(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // What letting go of Key on Drop does, for the drag caption: "装到 Q", "替换 X · 装到 Q".
+    LOCKDOWN_API FString DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
-    // The atomic replace drops of a stored Component (the server's InstallComponent with Replacing): one on the tile of each
-    // installed component R where the plain drops take nothing, landing in R's column on the build with R and what sits on it
-    // taken off. A full workshop or a form-mate on the place is the usual reason. Empty for an installed component.
-    LOCKDOWN_API TArray<FComponentDrop> ReplaceDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    // What letting go of Component on Drop does, for the drag caption: "装到 Q", "替换 X · 连带拆下 Y、Z".
-    LOCKDOWN_API FString DropPreviewText(FName Component,const FComponentDrop& Drop,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
-    struct FComponentConnections
+    // The learned skills and owned cards sharing a vocabulary key with the card (spec §6.3), for the popup's 联动 line and
+    // the workshop's link lines.
+    struct FCardConnections
     {
-        TArray<FName> Actives,Components,SameForm;
+        TArray<FName> Actives,Cards;
     };
-    // The same owned connections used by the popup and the workshop's link-line preview.
-    LOCKDOWN_API FComponentConnections ComponentConnections(FName Component,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
-    // The owned components and learned actives Component works with, for the popup's 联动 line: what it installs on or
-    // repeats (learned actives, owned host components, C12's bases), the owned mods and connectors that install on it, and its
-    // owned form-mates (one per place). Empty when it names none.
-    LOCKDOWN_API FString ConnectionsText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    LOCKDOWN_API FCardConnections CardConnections(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    LOCKDOWN_API FString ConnectionsText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The drop of Drops a pointer over Column (and over the installed Host there, or None) selects: the host's own drop when
     // it takes one, else the column's own; null when neither does.
-    LOCKDOWN_API const FComponentDrop* FindDrop(const TArray<FComponentDrop>& Drops,EStorageColumn Column,FName Host);
-    // The hover line of a stored component: the columns its Drops reach, once each in column order ("可装：本体、Q、D"), or
-    // that it has no place now.
-    LOCKDOWN_API FString DropColumnsText(const TArray<FComponentDrop>& Drops);
-    // Whether a stored component cannot be installed anywhere now because every workshop slot is taken (moving an installed
-    // one is still open: it frees its own slot first).
+    LOCKDOWN_API const FCardDrop* FindDrop(const TArray<FCardDrop>& Drops,EStorageColumn Column,FName Host);
+    // The hover line of a stored card: the columns its Drops reach ("可装：普攻、Q"), or that it has no place now.
+    LOCKDOWN_API FString DropColumnsText(const TArray<FCardDrop>& Drops);
+    // Whether every capacity slot holds an installed card.
     LOCKDOWN_API bool WorkshopFull(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    // The where line of a stored component's popup: the columns it reaches, or that the workshop is full.
-    LOCKDOWN_API FString StoredPlaceText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    // The installed components that come off with Component (installed on it, transitively, or repeating it), in the view's
-    // order; empty when it is not installed.
-    LOCKDOWN_API TArray<FName> DetachedWith(FName Component,const FLDProgressionView& Progression);
+    // The where line of a stored card's popup: the columns it reaches, or that the workshop is full.
+    LOCKDOWN_API FString StoredPlaceText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
 
     // What the 构筑 tray has cards for in the own view of Match: the shown active offer, blueprints while a Q/W/E slot is
-    // empty, the opening base pick and pending elite camp component choices (#198 G). The 构筑 button is lit while any is
-    // pending and greyed out (unclickable) otherwise. Offers counts the queued active opportunities, so a new one pulses the
-    // button. #227: owned components wait in the storage stack instead; unspent points wait on the HUD's stat icons and the
-    // portrait's badge.
+    // empty, the current card offer and the final mod. The 构筑 button is lit while any is pending and greyed out (unclickable)
+    // otherwise. Offers counts the queued active opportunities and CardOffers the queued card offers, so a new one pulses the
+    // button. Owned cards wait in the storage stack; unspent points wait on the HUD's stat icons and the portrait's badge.
     struct FGrowthPending
     {
         bool bOffer=false;
         int32 Offers=0;
         int32 Blueprints=0;
-        bool bOpeningBase=false;
-        // #198 G: pending elite camp component choices.
-        int32 ComponentChoices=0;
+        bool bCardOffer=false;
+        int32 CardOffers=0;
         // Phase 9: an untaken final mod three-choice.
         bool bFinalMod=false;
-        bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0||bFinalMod;}
+        bool Any() const {return bOffer||Blueprints>0||bCardOffer||bFinalMod;}
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // The current opportunity is included in Queued; the first dot represents it.
@@ -850,46 +828,8 @@ namespace LDHUD
         ELDBuildCommandKind Kind=ELDBuildCommandKind::ActiveChoice;
         LOCKDOWN_API bool Matches(const FLDBuildReceipt& Receipt,uint32 CurrentMatch,uint32 CurrentLife) const;
     };
-    // The 构筑 tray shows its component rows (the opening base pick and the elite choices) as icon-only tiles instead of
-    // named cards once they hold more than ChoiceTrayCardLimit cards together (an all-owned choice counts its points card).
-    constexpr int32 ChoiceTrayCardLimit=6;
-    LOCKDOWN_API bool ChoiceTrayTiles(const FLDProgressionView& Progression);
-    // #198 G: the own view already owns a component of this definition.
-    LOCKDOWN_API bool OwnsComponent(const FLDProgressionView& Progression,FName Component);
-    // #198 G: every option of a pending component choice is already owned, so only the empty-pool points remain to take.
-    LOCKDOWN_API bool ComponentChoiceAllOwned(const FLDComponentChoiceView& Choice,const FLDProgressionView& Progression);
-    // #198 G rest material services (APP_SPEC §4.5) as the panel offers them, judged with growth's own rules over the owner
-    // view (LDProgression::BuildFromView): a hint only, the server decides each command.
-    struct FGapTargetView
-    {
-        // A never-enabled mod or connector without any compatible entry, and the unowned common bases that would give it one.
-        FName Target;
-        TArray<FName> Fillers;
-    };
-    struct FMaterialServicesView
-    {
-        // FillGap: the price (GROWTH.FillGapPoints), the targets with at least one filler in catalog order, and why it is
-        // refused now (empty when it may be sent).
-        int64 FillGapPoints=0;
-        TArray<FGapTargetView> Gaps;
-        FString FillGapBlocked;
-        // Dismantle: the input count (GROWTH.DismantleInputCount), the owned common components in the view's order, and why it
-        // is refused now.
-        int64 DismantleCount=0;
-        TArray<FName> DismantleCandidates;
-        FString DismantleBlocked;
-    };
-    LOCKDOWN_API FMaterialServicesView MaterialServices(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
-        const FBuildGateView& Gate);
-    // Why a dismantle of exactly these components would be refused (LDProgression::DismantleInputReason); empty when legal.
-    LOCKDOWN_API FString DismantleSelectionRefusal(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
-        const TArray<FName>& Surrendered);
-    // The installed components a dismantle of Surrendered sends back to the inventory: every installed one that sits on a
-    // surrendered (or thereby uninstalled) host component or repeats such a base (C12), in the view's order.
-    LOCKDOWN_API TArray<FName> DismantleDetached(const FLDProgressionView& Progression,const TArray<FName>& Surrendered);
-    // #198 G field reward notices: the toast line of one field reward ("天降外卖：+200 流量，获得图纸「X」"), naming the event,
-    // its XP and what its build part gave (a blueprint, a scarce or common component, the empty-pool points, a ready
-    // two-choice or a held blueprint).
+    // Field reward notices: the toast line of one field reward ("天降外卖：+200 流量，获得图纸「X」"), naming the event, its XP
+    // and what its build part gave (a blueprint, a card offer or a held blueprint).
     LOCKDOWN_API FString FieldRewardEventName(FName Event);
     LOCKDOWN_API FString FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content);
     // The field rewards listed past the first Known entries of the own view (the list only grows within a match).
@@ -1016,19 +956,19 @@ namespace LDHUD
         double OpenedAt=0;
     };
     // D10/APP_SPEC §4.2: the growth panel opens by itself once per match, when the opening active offer (opportunity 1) is
-    // first seen in a valid view of the current match, and (#198 B) once when the opening base pick first opens. Later
-    // offers, new points and new components never open it (they only light the 开盲盒 button's count), so it does not
+    // first seen in a valid view of the current match, and once when the opening card offer first shows. Later offers, new
+    // points and new cards never open it (they only light the 开盲盒 button's count), so it does not
     // cover a fight. The caller still never opens it over the player's own panel or captured input. Local presentation only.
     class LOCKDOWN_API FGrowthAutoOpen
     {
     public:
         // True once per match for the first view that shows the opening offer, and once for the first showing the opening
-        // base pick.
+        // card offer.
         bool Observe(const FLDProgressionView& View,uint32 Match);
     private:
         uint32 SeenMatch=0;
         bool bOpeningShown=false;
-        bool bOpeningBaseShown=false;
+        bool bOpeningCardsShown=false;
     };
 
     // The top-left event feed: room-public events as short lines, oldest first, so the newest sits at the bottom. Each line

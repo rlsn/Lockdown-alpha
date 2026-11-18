@@ -55,33 +55,18 @@ FString BlueprintName(const FLDDemoContentDefinitions* Definitions,const FString
     // ContentText leaves the stable id when the local catalog has no display row, so a stale id stays visible.
     return Definitions?LDHUD::ContentName(Definitions,Id):Id;
 }
-void BlueprintInstall(const FLDBlueprintComponent& Component,const FLDDemoContentDefinitions* Definitions,
-    FString& Where,TArray<FString>& Parameters)
+// Where a recorded card sat: 普攻, a skill's name, 冲刺 or 本体, with Y25's element.
+FString BlueprintPlace(const FLDBlueprintCard& Card,const FLDDemoContentDefinitions* Definitions)
 {
-    Where=Component.Host.IsEmpty()?FString(TEXT("角色")):BlueprintName(Definitions,Component.Host);
-    for(const FLDBlueprintParameter& Parameter:Component.Parameters)
+    FString Where=Card.Target==TEXT("basic")?FString(LDTerms::ColumnBasic):Card.Target==TEXT("dash")?FString(TEXT("冲刺（D）"))
+        :Card.Target==TEXT("skill")?BlueprintName(Definitions,Card.Host):FString(LDTerms::ColumnBody);
+    if(!Card.Element.IsEmpty())
     {
-        if(Parameter.Key==TEXT("target_kind"))
-        {
-            if(Parameter.Value==TEXT("dash")){Where=TEXT("冲刺（D）");}
-            else if(Component.Host.IsEmpty()&&Parameter.Value==TEXT("active")){Where=TEXT("未记录的技能");}
-            else if(Component.Host.IsEmpty()&&Parameter.Value==TEXT("component")){Where=TEXT("未记录的构件");}
-            continue;
-        }
-        if(Parameter.Key==TEXT("element"))
-        {
-            const ELDDemoElement Element=Parameter.Value==TEXT("fire")?ELDDemoElement::Fire:Parameter.Value==TEXT("water")
-                ?ELDDemoElement::Water:Parameter.Value==TEXT("electric")?ELDDemoElement::Electric:ELDDemoElement::None;
-            Parameters.Add(TEXT("绑定元素：")+(Element==ELDDemoElement::None?Parameter.Value:LDHUD::ElementName(Element)));
-            continue;
-        }
-        if(Parameter.Key==TEXT("bound_component"))
-        {
-            Parameters.Add(TEXT("复用构件：")+BlueprintName(Definitions,Parameter.Value));
-            continue;
-        }
-        Parameters.Add(Parameter.Key+TEXT("=")+Parameter.Value);
+        const ELDDemoElement Element=Card.Element==TEXT("fire")?ELDDemoElement::Fire:Card.Element==TEXT("water")
+            ?ELDDemoElement::Water:Card.Element==TEXT("electric")?ELDDemoElement::Electric:ELDDemoElement::None;
+        Where+=TEXT(" · ")+(Element==ELDDemoElement::None?Card.Element:LDHUD::ElementName(Element));
     }
+    return Where;
 }
 FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoContentDefinitions* Definitions)
 {
@@ -93,32 +78,17 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
     }
     TArray<FString> Stats;
     for(const FLDBlueprintStat& Stat:Structure.Stats){Stats.Add(FString::Printf(TEXT("%s %d"),*BlueprintName(Definitions,Stat.Stat),Stat.Points));}
-    FString Components;
-    if(!Structure.bComponentsCollected){Components=LDTerms::NotCollected;}
-    else if(Structure.Components.IsEmpty()){Components=TEXT("无");}
-    else
-    {
-        TArray<FString> Rows;
-        for(const FLDBlueprintComponent& Component:Structure.Components)
-        {
-            TArray<FString> Parameters;
-            FString Where;
-            BlueprintInstall(Component,Definitions,Where,Parameters);
-            FString Row=BlueprintName(Definitions,Component.Component);
-            Row+=TEXT(" → ")+Where;
-            if(!Parameters.IsEmpty()){Row+=TEXT("（")+FString::Join(Parameters,TEXT("，"))+TEXT("）");}
-            Rows.Add(MoveTemp(Row));
-        }
-        Components=FString::Join(Rows,TEXT(" · "));
-    }
+    TArray<FString> Rows;
+    for(const FLDBlueprintCard& Card:Structure.Cards){Rows.Add(BlueprintName(Definitions,Card.Card)+TEXT(" → ")+BlueprintPlace(Card,Definitions));}
+    const FString Cards=Rows.IsEmpty()?FString(TEXT("无")):FString::Join(Rows,TEXT(" · "));
     FString Final=Structure.FinalMod.IsEmpty()?TEXT("无"):BlueprintName(Definitions,Structure.FinalMod.DefinitionId.ToString());
-    if(!Structure.FinalMod.IsEmpty()&&Structure.FinalMod.TargetKind!=ELDComponentTargetKind::None)
+    if(!Structure.FinalMod.IsEmpty()&&Structure.FinalMod.TargetKind!=ELDFinalModTargetKind::None)
     {
-        Final+=TEXT(" → ")+(Structure.FinalMod.TargetKind==ELDComponentTargetKind::Dash
+        Final+=TEXT(" → ")+(Structure.FinalMod.TargetKind==ELDFinalModTargetKind::Dash
             ?FString(TEXT("冲刺")):BlueprintName(Definitions,Structure.FinalMod.TargetId.ToString()));
     }
-    return FString::Printf(TEXT("  主动：%s\n  %s：%s\n  构件：%s\n  终局改装：%s"),*FString::Join(Slots,TEXT(" · ")),LDTerms::StatPoints,
-        Stats.IsEmpty()?TEXT("无"):*FString::Join(Stats,TEXT(" · ")),*Components,*Final);
+    return FString::Printf(TEXT("  主动：%s\n  %s：%s\n  牌：%s\n  终局改装：%s"),*FString::Join(Slots,TEXT(" · ")),LDTerms::StatPoints,
+        Stats.IsEmpty()?TEXT("无"):*FString::Join(Stats,TEXT(" · ")),*Cards,*Final);
 }
 FString BlueprintFacts(const FLDBlueprintVersion& Version)
 {
@@ -329,19 +299,13 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
     Points->SetAutoWrapText(false);Points->SetWrapTextAt(720);ScaleNewText(Points);StructureList->AddChildToVerticalBox(Points)->SetPadding(FMargin(0,0,0,12));
     auto* Components=WidgetTree->ConstructWidget<UWrapBox>();Components->SetExplicitWrapSize(true);Components->SetWrapSize(730);Components->SetInnerSlotPadding(FVector2D(8,8));
     StructureList->AddChildToVerticalBox(Components);
-    if(!Record.FinalBuild.bComponentsCollected)
-    {auto* Missing=LDWidgets::Text(WidgetTree,TEXT("构件：未采集，不能视为没有构件。"),LDHUDStyle::TypeSmall);ScaleNewText(Missing);StructureList->AddChildToVerticalBox(Missing);}
-    for(const FLDBlueprintComponent& Component:Record.FinalBuild.Components)
+    for(const FLDBlueprintCard& Recorded:Record.FinalBuild.Cards)
     {
-        const FString Name=BlueprintName(Local,Component.Component);
-        const bool bHeld=Own&&LDHUD::OwnsComponent(*Own,FName(*Component.Component));
-        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(FName(*Component.Component),Local,CardStats);
-        FString Target;
-        TArray<FString> Parameters;
-        BlueprintInstall(Component,Local,Target,Parameters);
-        Components->AddChildToWrapBox(Tile(Component.Component,Name,!Own?TEXT("本局持有状态不可用"):bHeld?TEXT("本局已有"):TEXT("本局缺少"),
-            Name+TEXT("\n安装位置：")+Target+TEXT("\n")+Card.SentencePlain
-                +(Parameters.IsEmpty()?FString():TEXT("\n")+FString::Join(Parameters,TEXT("\n"))),138));
+        const FString Name=BlueprintName(Local,Recorded.Card);
+        const bool bHeld=Own&&LDHUD::OwnedCopies(*Own,FName(*Recorded.Card))>0;
+        const LDHUD::FCardFaceView Card=LDHUD::CardFace(FName(*Recorded.Card),Local,CardStats);
+        Components->AddChildToWrapBox(Tile(Recorded.Card,Name,!Own?TEXT("本局持有状态不可用"):bHeld?TEXT("本局已有"):TEXT("本局缺少"),
+            Name+TEXT("\n安装位置：")+BlueprintPlace(Recorded,Local)+TEXT("\n")+Card.SentencePlain,138));
     }
 }
 void ULDBlueprintPanel::ShowMatch()

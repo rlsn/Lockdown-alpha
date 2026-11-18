@@ -6,9 +6,9 @@
 | 文件 | `Development\LDGrowthDirector`、`LDDevelopmentDirector`、`LDProgressionRules.h`、`LDGrowthProtocol.h`、`LDGrowthRequests`、`LDGrowthProviders.cpp`、`LDDevGrowthFixture`；`Framework\LDPlayerGrowth.cpp` |
 | 入口函数 | `ALDGrowthDirector::CommitDeathReward` / `CommitFieldReward` / `ProcessTransactions` / `PublishGrowth`；`ALDDevelopmentDirector::PrepareExperience` / `ApplyPreparedGrowth`；`QueueBuild`（`ServerGrowthBuild`）、`QueryGrowthReceipt`；Combat `PrepareBuildChange` / `ApplyBuildChange` |
 | 不变量 | 一份参赛者成长、一条 Combat 来源链；奖励只在 DeathsAndRewards、成长命令只在 Transactions；Prepare 完成全部可失败工作，Apply 不失败；同一 DeathKey 只结算一次；请求窗口 64 条有界拒旧；只有 Combat 写 `ReadyAtMs`；拒绝的命令不扣点数、不消费机会、不改图纸 |
-| 检查 | `Lockdown.Rules.DemoGrowth*`、`DemoGrowthComponents.*`、`DemoRest.Services.*`、`DemoAssist.*`；场景 `RunDemoGrowthCheck.ps1`（见[检查入口](#检查入口)） |
+| 检查 | `Lockdown.Rules.DemoGrowth*`、`Growth.Cards.*`、`Dev.BreakoutPresets`、`DemoRest.Services.*`、`DemoAssist.*`；场景 `RunDemoGrowthCheck.ps1`（见[检查入口](#检查入口)） |
 
-Demo 没有装备、金钱与商店；成长由经验、等级、派生的五维点数、单级主动、主动机会、待学图纸、材料实例与构件组成，休息窗口另有 NPC 主动候选、洗点、替换与遗忘四项服务。
+Demo 没有装备、金钱与商店；成长由经验、等级、派生的五维点数、主动技能、主动机会、待学图纸与构筑牌组成，休息窗口另有 NPC 主动候选、洗点、替换与遗忘四项服务。
 构筑安装与来源冷却见[战斗、效果与成长](COMBAT_AND_GROWTH.md)。
 
 ## 状态与入口
@@ -16,49 +16,37 @@ Demo 没有装备、金钱与商店；成长由经验、等级、派生的五维
 | 入口 | 责任 |
 | --- | --- |
 | `Development\LDGrowthDirector` | 成长域枢纽：死亡奖励汇点、地图事件奖励、Transactions 分派与拥有者发布 |
-| `Development\LDDevelopmentDirector` | 等级/XP、主动机会队列与唯一持久候选组、Q/W/E、待学图纸、五维点数分配与休息服务 |
+| `Development\LDDevelopmentDirector` | 等级/XP、主动机会队列与唯一持久候选组、Q/W/E、待学图纸、五维点数分配、牌与牌三选一、休息服务 |
 | `Development\LDProgressionRules.h` | 纯规则：等级、派生点数、机会、候选抽取、构筑命令的合法性与 Apply（含休息服务） |
 | `Development\LDGrowthProtocol.h` | 构筑命令、回执、查询、提交结果与本人视图的线协议 |
 | `Development\LDGrowthProviders.cpp` | 向对局门禁注册 Progression 提供者及最终等级读取 |
 
-成长状态是 `FLDGrowthBuild`（等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`；目录本身按 id 排序）每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
-永久消费点数 `PermanentSpentPoints`、额外奖励点数 `AwardedPoints`、按 id 排序的材料实例、构筑修订）与 `FLDProgressionState`（累计 XP、已得/已用主动机会、其中 NPC 购买的机会数
-`NpcPurchased`、唯一队首候选组及其修订、已消费机会记录、材料池耗尽改给点数的升级次数 `EmptyPoolGrants`）。
-基础点数由 `LDProgression::EarnedPoints` 根据等级、XP 与 `EmptyPoolGrants` 派生（开局 `GROWTH.OpeningPoints`、每升一级
-`GROWTH.PointsPerLevel`，满级后每满 `GROWTH.MaxLevelPointsXP` 再加 `GROWTH.MaxLevelPoints`，每次池空升级再加
-`GROWTH.EmptyComponentPoolPoints`），未分配点数 = 派生值 + `AwardedPoints` − 已分配 − 永久消费；结果为负是
+成长状态是 `FLDGrowthBuild`（等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`；目录本身按 id 排序）每个五维一格的已分配点数、至多三个 `{Id, Slot, Branch}` 主动、按 id 排序的待学图纸、
+永久消费点数 `PermanentSpentPoints`、额外奖励点数 `AwardedPoints`、按序号排序的牌 `Cards` 与下一个序号 `NextCardSerial`、构筑修订、DEV 额外技能点 `DevSkillPoints`）与
+`FLDProgressionState`（累计 XP、已得/已用主动机会、其中 NPC 购买的机会数 `NpcPurchased`、唯一队首候选组及其修订、已消费机会记录、
+牌三选一队列 `CardQueue` 与 `CardOffersEarned`、当前牌组 `CardOffer`、带到下一组的锁定 `CarriedLock`、重抽 `CardRerollsGranted`/`CardRerollsUsed`）。
+基础点数由 `LDProgression::EarnedPoints` 根据等级与 XP 派生（开局 `GROWTH.OpeningPoints`、每升一级 `GROWTH.PointsPerLevel`，
+满级后每满 `GROWTH.MaxLevelPointsXP` 再加 `GROWTH.MaxLevelPoints`），未分配点数 = 派生值 + `AwardedPoints` − 已分配 − 永久消费；结果为负是
 `AuthorityFault`，永久消费为负是 `DataInvalid`。本人视图的 `UnspentPoints` 按此计算，`PermanentSpentPoints` 另列。
 主动机会按获得顺序编号 1..`ActiveEarned`：开局一次（`BeginMatch`），之后 `active_offer_levels` 中的等级各加一次（连升逐一排队），
 休息 NPC 每次付费再加一次；`ActiveEarned` 恒等于 `ActiveOpportunitiesAt(等级) + NpcPurchased`，`PlanExperience` 只接收等级部分，
 `PrepareExperience` 把 NPC 部分原样带过升级。
 
-材料实例 `FLDComponentInstance`是本局真实获得的一件材料：`{Id, Source, SourceLevel, bInstalled, bEverInstalled, Target}`，
-每个定义至多一件，库存与已安装合并去重。`ValidateBuild` 要求 id 已知且严格升序、来源合法（`OpeningPick` 为 1 级且整局至多一件，
-`LevelUp` 为 2..当前等级且每级至多 `LevelComponentDraws` 件：`bonus_component_levels` 上 2 件，其余 1 件）、已安装必有首次历史、
-库存实例没有目标、已安装件数不超过本级工坊容量（`LDProgression::WorkshopCapacity`），本体最多 4 件、冲刺最多 2 件（Q/W/E 没有单列上限）；已安装的按定义形状安装，
-带 `active_element` 绑定的（B18）绑定其列表内的主动与元素；安装所在的主动、宿主构件与 C12 复用的基础构件都必须仍然有效
-（已学会／已安装），否则构筑非法（`DataInvalid`），因为遗忘与卸下会在同一次提交里先回收它们（见下表 `ReplaceActive`/`ForgetActive`）。
-已安装实例按 id 排序进入 `FLDBuildProjectionInput::Components`，库存实例不进 Combat。死亡、复活与重连不改实例与首次历史。
+牌 `FLDCardInstance` 是本局真实获得的一张牌：`{Serial, Id, OfferOrdinal, Target{Kind, Active, Element}}`。序号整局递增、不复用；
+同名多份是不同序号的独立牌。`ValidateBuild` 要求 id 已知、序号互异且小于 `NextCardSerial` 并升序、已装的牌位置合法
+（`CardTargetReason`：普攻牌在 `Basic`、技能牌在已学的 `Skill` 主动上、冲刺牌在 `Dash`、本体牌在 `Body`；Y25 带它可选的一种元素，其他牌不带元素）、
+已装张数不超过本级容量（`LDProgression::CardCapacity` = `CARDS.CapacityBase` + ⌊(等级 − 1) / `CARDS.LevelsPerSlot`⌋）；没有分列上限，也没有形态互斥。
+技能牌所在的主动被遗忘或替换时，它们在同一次提交里先回到牌库（见下表 `ReplaceActive`/`ForgetActive`）。
+已装的牌按序号进入 `FLDBuildProjectionInput::Cards`，牌库里的不进 Combat。死亡、复活与重连不改牌。
 
-- **开局基础构件**：开局主动机会选定或放弃后、整局一次。候选是普通池里 `opening: always` 的基础构件加上
-  `opening.actives` 含开局主动的基础构件，排除已持有，目录顺序（`LDProgression::OpeningBaseOptions`；本人视图的
-  `bOpeningBasePending`/`OpeningBaseOptions`）。倒计时与发育期均可选，活着或死亡都可以。
-- **工坊容量**：`WorkshopCapacity(等级)` = `workshop_capacity.base` + ⌊(等级 − 1) / `levels_per_slot`⌋；每件已安装实例占 1 格。
-  本体最多 4 件，冲刺最多 2 件，Q/W/E 没有单列上限。`ApplyInstallComponent` 在目标合法之后检查全局与单列容量，
-  全局满为 `WorkshopFull` = 151，单列满为 `ComponentColumnFull` = 173，均不改构筑；开局基础构件的“顺手安装”遇满则存入库存
-  （`StoredReason` = `WorkshopFull`）。拆下、遗忘回收与拆解卸下都会空出格子；升级只增加格子，从不让已有构筑超限。
-- **升级材料**：每次正常升级（2..MaxLevel）与 XP 同一提交给 `LevelComponentDraws` 件（`bonus_component_levels` 上 2 件），逐件抽取，后一件看到前一件已入库：按新等级所在 `progression.component_category_weights`
-  档位的基础/改装/连接百分比抽类别，再在该类别尚未持有、且对当前构筑宿主合法的普通定义中按目录顺序等概率取一件。宿主合法：基础件总是合法，
-  但 `Binding` 需主动的基础件须已学 `BindActives` 之一；改装/连接须 `bTargetSelf`、`bTargetDash`、`TargetActives`
-  中任一主动的目标模式与已学主动相同，或 `TargetComponents` 与已持有构件有交集，且 `ExtraBases` 非空时须已持有其一（与安装校验一致）。
-  定义另列 `draw_requires_actives`（`DrawRequiresActives`，只用于普通池）时，还须已学其中之一才进入抽取；
-  这只影响抽取，不影响安装校验。
-  过滤后的空类别剔除、其余按原权重归一化；
-  全部为空时该次改给 `GROWTH.EmptyComponentPoolPoints` 点（`EmptyPoolGrants` 加一，上限为到当前等级的抽取次数
-  `LevelComponentDrawsThrough`）。随机材料由本局私有 `MatchSecret` 按参赛者、等级与抽取序号派生（`LDProgression::ComponentSeed`，
-  第一件沿用原种子，第二件换尾标，与同号的 `OfferSeed` 不同）；`DrawLevelComponent` 是单级纯规则，
-  `GrantLevelComponents` 逐级串联。满级后的 XP 不给材料。档位表缺级、重叠、百分比和不为 100 或只剩不可抽的类别时是
-  `DataInvalid`，不当作池空；`BeginMatch` 预检全部等级，失败拒绝开局。
+- **牌三选一队列**：开局（`BeginMatch`）入队一次（`ELDCardOfferSource::Opening`），每次升级（2..MaxLevel）入队一次（`LevelUp`），
+  空投/Boss 的牌奖励与精英营地标记各入队一次（`FieldReward`）。队首在开局机会处理（选定或放弃）之后才抽出（`RefreshCardOffer`），
+  一次只有一组；抽取 `DrawCardOffer`：`CARDS.OfferSize` 张互异的牌，锁定的牌在第一位，其余按权重无放回抽取——与本构筑词汇
+  （已装的牌与已学技能，`BuildVocab`）共享至少一个键的为 `CARDS.VocabWeight`，否则为 1；种子由本局私有 `MatchSecret`、参赛者、序号与重抽次数派生
+  （`CardOfferSeed`）。重抽次数：开局 `CARDS.FreeRerolls`，R1–R3 每次休息加 `CARDS.RerollsPerRest`（`GrantRestRerolls`）。
+- **容量**：每张已装的牌占 1 格；`ApplyInstallCard` 在位置合法之后检查容量，满为 `WorkshopFull` = 151，不改构筑；
+  可带 `Replacing`（另一张已装的牌）在同一提交里先把它卸回牌库再装。`PickCard` 的“顺手安装”遇满或位置不合法则只进牌库
+  （回执 `InstallStoredReason`）。升级只增加格子，从不让已有构筑超限。
 
 `ALDGrowthDirector::SpawnDomain` 在核心初始化时创建成长与发育两个 director，`RetireDomain` 随
 `ALDGameMode::RetireMatchDomains` 退休；Progression 提供者的 Prepare 以锁定名单（真人加 AI 槽）
@@ -89,41 +77,38 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `SkipActiveOffer` = 26 | `OfferId`、`OfferRevision` | 消费队首机会，不授予技能；开局或升级机会给 `GROWTH.ActiveSkipPoints`，NPC 购买机会给 `GROWTH.NpcActiveSkipPoints`，回执 `PointsAwarded`。按请求窗口重放原回执，不重复发点；过期候选被拒绝 |
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换走 `ReplaceActive`）为 `SlotOccupied`，图纸保留 |
 | `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
-| `OpeningBase` = 10 | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；目标合法就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `InvalidTarget`；开局主动机会未处理为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
-| `InstallComponent` = 11 | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件：不在该定义的 `targets` 内、主动未学、宿主构件未安装、C12 所选基础构件未安装、C01 装在未绑火的 B18 上）；与已安装的同形态构件冲突（`LDWorkshop::Conflicts`：`Form` 相同的不同定义；基础构件全局，改装件/连接件同一目标）为 `TargetConflict` = 150；目标合法但已安装件数达到本级工坊容量为 `WorkshopFull` = 151；本体超过 4 件或冲刺超过 2 件为 `ComponentColumnFull` = 173。可带 `Replacing`（另一件已安装构件）：它与装在它上面的件在同一提交里先卸回库存，目标、形态与容量按卸下后的构筑判断，`Replacing` 另需通过卸下的 CommandGate；`LD_BUILD` 的退回列表写出它们。卸下宿主构件时，装在它上面的改装件/连接件一起卸回库存 |
-| `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；装在它上面（或以它为 C12 基础）的改装件/连接件传递地一起卸回；时机同 `InstallComponent`（野外、死亡与 PK 中都可以） |
+| `PickCard` = 30 | `OfferId`、`OfferRevision`、`Option` = 当前牌组中的一张；`bInstallIfPossible` 时 `CardTarget`/`TargetDefinition`/`Element` 为位置 | 这张牌进牌库（新序号，`OfferOrdinal` 为本组序号）；带位置时位置合法且有空格就同次装上（`bCardInstalled`），否则留在牌库并写 `InstallStoredReason`；本组结束（锁定的另一张带到下一组）。没有该组为 `NoCardOffer` = 190，不在组内为 `NotInOffer` = 192，修订不符为 `OfferGuardStale` |
+| `SkipCards` = 31 | `OfferId`、`OfferRevision` | 本组结束，不给任何东西（P5 之前没有补偿）；锁定照样带到下一组 |
+| `RerollCards` = 32 | `OfferId`、`OfferRevision` | 花一次重抽：锁定的牌留在第一位，其余重抽，组换新 `OfferId` 与修订；没有剩余重抽为 `NoReroll` = 191 |
+| `LockCard` = 33 | `OfferId`、`OfferRevision`、`Option`（全零 = 解锁） | 锁定组内一张（只有一个锁位，`CARDS.LockSlots`）；不在组内为 `NotInOffer` |
+| `InstallCard` = 34 | `CardSerial`、位置（`CardTarget`/`TargetDefinition`/`Element`），可带 `ReplacingSerial` | 把一张库里的牌装到位置上：未持有 `NotOwned`，已装 `AlreadyInstalled`，位置不合法 `InvalidTarget`，满了 `WorkshopFull`；带 `ReplacingSerial` 时它先卸回牌库，容量按卸下后判断，回执 `UninstalledCards` 列出它。搬动是先卸后装两条命令 |
+| `UninstallCard` = 35 | `CardSerial` | 卸回牌库：未持有 `NotOwned`，未装 `NotInstalled` |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择或 `SkipActiveOffer` 放弃；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
-| `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；旧主动上的挂件同次回收（见 `ForgetActive`），不会自动绑到新主动；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
-| `ForgetActive` = 23 | 已占槽 `Slot` 0..2 | 遗忘该槽主动，回执 `ForgottenId`；它重新成为候选与 NPC 的合格主动，但只有新的来源才能再得到。同一次提交里，以它为目标的改装／连接、绑定它的 B18，以及（传递地）装在这些构件上或复用它们的构件，全部带首次历史退回库存（`LDProgression::ReclaimAttachments`），不复制、不丢失、不自动改绑；玩家可随时自行搬到合法对象。空槽为 `SlotEmpty`，有未完成候选组为 `OfferOutstanding` |
-| `ComponentChoice` = 13 | `OfferId` = 待选的精英营地二选一 `ChoiceId`；`Component` = 所选项，全零 = 改领点数 | 与 `ActiveChoice` 同表（对局进行中随时，存活或死亡）。所选项成为库存实例（`EliteChoice`），该二选一结束；没有该 `ChoiceId` 为 `NoComponentChoice` = 160，不是候选项为 `InvalidOption`，所选项已持有为 `ComponentOwned` = 161。只有全部候选都已持有时才能带全零 `Component` 改领 `GROWTH.EmptyComponentPoolPoints`（计入 `AwardedPoints`），否则也是 `ComponentOwned` |
-| `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未安装过、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 要求这些入口原生施加至少两种不同元素——主动的灼烧/潮湿/感电、B01/B10/B11 与 B18 已绑定的元素，两个火源不算），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`；C09 只列能补上一种缺少元素的，未绑定的 B18 按可绑元素计），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
-| `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
+| `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；旧主动上的技能牌同次回到牌库（见 `ForgetActive`），不会自动绑到新主动；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
+| `ForgetActive` = 23 | 已占槽 `Slot` 0..2 | 遗忘该槽主动，回执 `ForgottenId`；它重新成为候选与 NPC 的合格主动，但只有新的来源才能再得到。同一次提交里，装在它上面的技能牌全部回到牌库（`LDProgression::ReclaimAttachments`，回执 `UninstalledCards`），不复制、不丢失、不自动改绑；玩家可随时自行装到合法位置。空槽为 `SlotEmpty`，有未完成候选组为 `OfferOutstanding` |
 | `RankUpSkill` = 28 | 已学主动的 `Slot` 0..2、`Branch` = 下一步分支 | 花 1 个技能点把该技能升一级：1 级只能选 `A`/`B`，`A` 只能选 `A1`/`A2`，`B` 只能选 `B1`/`B2`（`LDSkillBranch::IsNext`）；技能点 = `SKILL.PointLevels` 中已达到的个数 − Σ（技能等级 − 1）（`LDProgression::SkillPoints`）。对局中随时受理（含交战与死亡等待；`CommandGate` 只拒绝 `Closed` 与非 Alive/Dead），成功后重新投影战斗构筑；回执 `Branch` 与 `SkillPointsAfter`，日志 `LD_SKILL_RANK`。空槽为 `SlotEmpty`，没有技能点为 `NoSkillPoint` = 180，分支不是下一步为 `BranchUnavailable` = 181。遗忘或替换主动会清空它的分支，花在它上面的点随之退回 |
-| `FinalMod` = 27 | `OfferId` = 本人 `FinalModOfferId`、`Option`、`TargetKind`/`TargetDefinition`；`Slot` 为 `AnySlot` | R3 进入时 `ALDDevelopmentDirector::OpenFinalMods` 按比赛私密种子与参赛者抽取三个互异的独立 FIN（`DrawFinalModOptions`）；候选与合法绑定由本人 `FinalModOptions`/`FinalModSources` 投影。选择在 `Rest` 构筑窗口、活着时受理，不需要 NPC；提交时重验来源，写入唯一的 `FLDGrowthBuild::FinalMod`（定义及绑定），同时置 `FLDFinalModState::bLocked`（这次选择已用掉）。不修改主动、图纸或构件，不占工坊容量；有普通主动候选也可选择。之后普通构筑命令照常受理；绑定的来源被拆下或遗忘时改装休眠（`LDProgression::FinalModBound` 为假，`ValidateBuild` 仍通过，战斗投影不带它），本人 `FinalModSources` 改为列出已选卡的合法来源；同一 `OfferId` 与 `Option` 的 `FinalMod` 在 `InstallGate` 开放时（任何阶段）只改绑定。再选或换卡为 `FinalLocked` = 170；没有该选择为 `NoFinalMod` = 171，不是候选为 `InvalidOption`，来源不合法为 `FinalModUnavailable` = 172。揭示后不重抽；最终野外入场边界 `LockFinalMods` 关闭全部未选者的这次选择 |
+| `FinalMod` = 27 | `OfferId` = 本人 `FinalModOfferId`、`Option`、`TargetKind`/`TargetDefinition`；`Slot` 为 `AnySlot` | R3 进入时 `ALDDevelopmentDirector::OpenFinalMods` 按比赛私密种子与参赛者抽取三个互异的独立 FIN（`DrawFinalModOptions`）；候选与合法绑定由本人 `FinalModOptions`/`FinalModSources` 投影。选择在 `Rest` 构筑窗口、活着时受理，不需要 NPC；提交时重验来源，写入唯一的 `FLDGrowthBuild::FinalMod`（定义及绑定），同时置 `FLDFinalModState::bLocked`（这次选择已用掉）。不修改主动、图纸或牌，不占容量；有普通主动候选也可选择。之后普通构筑命令照常受理；绑定的来源被遗忘时改装休眠（`LDProgression::FinalModBound` 为假，`ValidateBuild` 仍通过，战斗投影不带它），本人 `FinalModSources` 改为列出已选卡的合法来源；同一 `OfferId` 与 `Option` 的 `FinalMod` 在 `InstallGate` 开放时（任何阶段）只改绑定。再选或换卡为 `FinalLocked` = 170；没有该选择为 `NoFinalMod` = 171，不是候选为 `InvalidOption`，来源不合法为 `FinalModUnavailable` = 172。揭示后不重抽；最终野外入场边界 `LockFinalMods` 关闭全部未选者的这次选择 |
 
 野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
 XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分（`LDProgression::DrawFieldReward`，按比赛私密种子与事件身份固定）：
-`BuildDraw`（空投与 Boss）先公平抽类别，50% 一张未学且非待学的主动图纸、50% 一件未持有的稀缺构件，各自均匀；一类为空用另一类，
-两类都空按当前等级的普通升级抽一件普通构件（普通池也空则 `GROWTH.EmptyComponentPoolPoints`，计入 `AwardedPoints`）。
+`BuildDraw`（空投与 Boss）先公平抽类别，50% 一张未学且非待学的主动图纸、50% 一次牌三选一；没有合格主动时总是给牌。
 `Blueprint`（高档营地标记）给一张均匀的合格主动图纸，池空则保留为 `HeldBlueprints`，之后任何构筑提交让主动重新合格时逐张发放。
-`ComponentChoice`（精英营地标记）无放回抽两件未持有普通构件成为待选二选一（只剩一件就显示一件，全空给点数）。
-本人视图 `FLDProgressionView` 带 `ComponentChoices`、`HeldBlueprints` 与 `FieldRewards`（全部野外奖励记录，供 HUD 提示）。
+`CardOffer`（精英营地标记）给一次牌三选一。牌三选一入队（`ELDCardOfferSource::FieldReward`），与升级的牌组同一队列处理。
+本人视图 `FLDProgressionView` 带 `Cards`、`CardCapacity`、`QueuedCardOffers`、`CardOffer`、`CardRerolls`、`HeldBlueprints` 与 `FieldRewards`（全部野外奖励记录，供 HUD 提示）。
 
-组件命令的 `Component` 必须可解码，目标种类与元素按白名单解码（`LDGrowthWire::IsKnownTargetKind`/`IsKnownElement`），
-不需要目标的命令（主动、加点、卸下、不要求安装的 `OpeningBase`）带任何目标字段都在受理时 `InvalidRequest`；
-主动与加点命令带组件字段同样拒绝。B18 的绑定须为已学且列在 `binding.actives` 的主动加 `binding.elements` 的一种元素，
-否则 `InvalidTarget`；水与电（B18 的绑定、B10/B11 的普攻元素）与火一样可以安装，由 Combat 的元素状态施加（`ApplyComponentElement` → `ApplyElements`）。
+牌命令的位置与元素按白名单解码（`LDGrowthWire::IsKnownCardTarget`/`IsKnownElement`），不需要位置的命令（主动、加点、卸牌、不要求安装的 `PickCard`）
+带任何位置字段都在受理时 `InvalidRequest`；主动与加点命令带牌字段同样拒绝。
 
-客户端发送的 `Kind` 按白名单解码，未知编号（含 4–9、14–19、28 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
+客户端发送的 `Kind` 按白名单解码，未知编号（含 4–19、24、25、29、36 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
 每种 Kind 只接受上表的字段，其余字段必须为空。替换与遗忘之后 Combat 保留被遗忘主动的冷却轨道
 （`PlanTrackBindings` 按定义找回原轨道与就绪时刻），重学沿用原冷却债。
 
 合法性矩阵（`LDProgression::CommandGate`/`LearnGate`/`InstallGate`/`IsRestWindow`，提交时 `ALDDevelopmentDirector` 经
-`ALDGameMode::ReadBuildStage` 与时间线读阶段及本人生命阶段）。最终野外之外自己的构筑命令在对局进行中受理：`ActiveChoice`、`SkipActiveOffer`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
-`UninstallComponent`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
+`ALDGameMode::ReadBuildStage` 与时间线读阶段及本人生命阶段）。最终野外之外自己的构筑命令在对局进行中受理：`ActiveChoice`、`SkipActiveOffer`、`LearnBlueprint`、`AllocatePoints`、`PickCard`、`SkipCards`、`RerollCards`、`LockCard`、`InstallCard`、
+`UninstallCard`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
 
-| 阶段（`EMatchStage`） | 自己的构筑（含 `RankUpSkill`） | BuyNpcOffer / Respec / FillGap / Dismantle | ReplaceActive / ForgetActive |
+| 阶段（`EMatchStage`） | 自己的构筑（含 `RankUpSkill`） | BuyNpcOffer / Respec | ReplaceActive / ForgetActive |
 | --- | --- | --- | --- |
 | `Rest`（休息构筑窗口 Build/Payout：时长见内容与数值 `REST.*`），活着 | 允许 | 靠近对应NPC时允许 | 靠近训练师时允许 |
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许 | `Dead` | `Dead` |
@@ -137,15 +122,14 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 开局倒计时已退役，开局休息 R0 取代它：开局选择与开局点数在 `Rest` 中提交。野外满槽选择照旧存为图纸，
 野外不能遗忘、替换、洗点或办 NPC。`IsRestWindow(Context)` 即 `Stage == Rest`，只给休息服务作门。
 
-公共休息室的服务分为 `ELDRestService::SkillMerchant`（BuyNpcOffer）、`ComponentArtisan`（FillGap/Dismantle）与
-`Trainer`（Respec/ReplaceActive/ForgetActive）。GameMode 的 `NearbyRestService` 用本人当前休息生命的已提交脚点与
-`rest_service_1..3`、复用 `AIRDROP.PickupRadiusCm` 半径判定，只有 Build/Payout 返回服务类型；
+公共休息室的服务分为 `ELDRestService::SkillMerchant`（BuyNpcOffer）与 `Trainer`（Respec/ReplaceActive/ForgetActive），
+分别在 `rest_service_1` 与 `rest_service_3`（`RestServiceAtAnchor`）；`rest_service_2` 当前不承载服务（地图保留该定位点）。GameMode 的 `NearbyRestService` 用本人当前休息生命的已提交脚点与
+这些定位点、复用 `AIRDROP.PickupRadiusCm` 半径判定，只有 Build/Payout 返回服务类型；
 `CommitPendingBuild` 经 `CanUseRestService` 在扣费与构筑变更前重验，不在正确 NPC 旁为 `RestServiceUnavailable=76`。
 它不改变原有请求/生命/构筑修订和回执去重；重放已完成请求不重新收费。OwnerState 只发布本人的 NearbyRestService，不公开其他人成长。
 
-组件命令（`LDProgression::InstallGate(Context)` 即 `LearnGate`）：`OpeningBase` 的选取与同次安装、首次安装、重装曾经安装过的实例
-（搬动）与 `UninstallComponent` 都按上表“自己的构筑”判断，不再区分首次与重装；`OpeningBase` 的同次安装只看目标是否合法
-（`InstallTargetReason`），不合法时留在库存并写 `InstallStoredReason`。
+牌命令（`LDProgression::InstallGate(Context)` 即 `LearnGate`）：选牌、跳过、重抽、锁定、装牌、卸牌与搬动都按上表“自己的构筑”判断；
+`PickCard` 的同次安装只看位置是否合法与是否有空格，不满足时留在牌库并写 `InstallStoredReason`。
 
 交战窗口（不再是构筑门）：Combat 在实体记录上保存 `LastBuildUnsafeAtMs`（跨生命，不回退），普攻起手、进攻性主动释放、
 造成或受到敌方正伤害（含灼烧与区域跳伤）、被施加硬控（定身、眩晕、缴械、嘲讽、沉默）或击退时刷新；
@@ -200,13 +184,13 @@ Combat 投影与 HP 同比换算），在同一调用栈重验许可后进入不
 
 | 事务 | 同次提交 |
 | --- | --- |
-| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数、材料与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻。最终野外的死亡记为 NoReward，仍去重但不发成长奖励；其他成长奖励也在最终野外拒绝 |
+| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数、牌三选一与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻。最终野外的死亡记为 NoReward，仍去重但不发成长奖励；其他成长奖励也在最终野外拒绝 |
 | `CommitEventReward` | 地图事件（空投）以 (Event, Serial) 为业务身份，整局只付一次；同一事件的第二次领取以 `DataInvalid` 永久拒绝，不付任何经验 |
 | `CommitPendingBuild` | 许可 → 旧局/目录/上下文/离局/旧生命/生死阶段/`BuildStale` 重查 → 按 Kind 校验（`NoActiveOffer`、`OfferAlreadyCommitted`、`UnknownOffer`、`OfferGuardStale`、`InvalidOption`；休息服务的 `OfferOutstanding`、`NpcPoolTooSmall`、`NothingToRespec`、`SlotEmpty`、`NoBlueprint`；组件命令见上）→ 合法性矩阵 → 安装构筑（等级、点数、Q/W/E 或已安装组件变化时才重投影 Combat；只改图纸、库存实例、永久消费或机会时推进构筑修订而不重装 Combat；NPC 的付费与固定候选组同次安装）→ 抽下一组 |
 
 每笔装入的奖励都打一行 `LD_REWARD t=… contender=… cause=death|map_event|dev_fixture role=killer|assist|recipient xp=… xp_after=… level=a->b <来源>`，
-升级时另打 `LD_LEVEL_UP`（`components=` 列出每级所得材料，池空的级为 `-`，`empty_pool_grants=` 为其个数）；候选组打 `LD_OFFER`（没有合格主动时 `LD_OFFER_WAITING`；NPC 候选组另带 `source=npc`），主动选择打 `LD_CHOICE`，
-其余构筑命令打 `LD_BUILD`（`forgot=… refunded=… paid=… ordinal=…` 记录遗忘、洗点退回、NPC 付费与所购机会；组件命令的 `card=` 为组件 id，另有 `installed=`、`bind=主动:元素` 与 `install_stored=`；`reclaimed=` 为遗忘／替换同次退回库存的构件 id，逗号分隔，没有为 `-`）。`ProcessTransactions` 按服务器受理顺序处理构筑命令（DEV 构建另有测试命令）。
+升级时另打 `LD_LEVEL_UP`（`card_offers=` 为入队的牌三选一数）；候选组打 `LD_OFFER`（没有合格主动时 `LD_OFFER_WAITING`；NPC 候选组另带 `source=npc`），主动选择打 `LD_CHOICE`，
+其余构筑命令打 `LD_BUILD`（`forgot=… refunded=… paid=… ordinal=…` 记录遗忘、洗点退回、NPC 付费与所购机会；牌命令另打 `LD_CARD`（`kind card serial installed target stored reclaimed rerolls capacity`），抽出的牌组打 `LD_CARD_OFFER`，重抽次数变化打 `LD_CARD_REROLLS`；`reclaimed=` 为遗忘／替换同次退回牌库的牌 id，逗号分隔，没有为 `-`）。`ProcessTransactions` 按服务器受理顺序处理构筑命令（DEV 构建另有测试命令）。
 单条请求失败只形成拒绝回执；只有失去写许可等权威故障才返回 false。
 `PublishGrowth(Boundary)` 在 Close 之后执行，不需要许可，只对变化者调用 `SyncOwner` 并推送终态回执。
 
@@ -264,7 +248,7 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 全部原因只在 `ELDGrowthReason`（`LDGrowthProtocol.h`）声明一次；奖励专用原因只出现在服务器内部。错误详情只给有权的本人。
 
 **本人视图**：`FLDProgressionView`（随 `FLDOwnerState.Growth` 发布）提供生命与资格、Level/MaxLevel/CumulativeXP、当前与下一级阈值、修订、未分配与五维点数、Q/W/E、图纸、
-排队机会数、当前候选、材料与工坊状态及 CatalogDigest。技能冷却与 `BuildSafeAtMs` 只在 Combat 的本人视图。回执可以先于新快照到达：UI 显示“已提交，等待状态同步”，不自行补齐；
+排队机会数、当前候选、牌、牌组与重抽次数及 CatalogDigest。技能冷却与 `BuildSafeAtMs` 只在 Combat 的本人视图。回执可以先于新快照到达：UI 显示“已提交，等待状态同步”，不自行补齐；
 新快照先到则迟到回执只补提示。关闭面板不撤销已受理事实。正常结算只取冻结的 `Build.Level` 作为 FinalLevel，K/D 由核心按 DeathKey 归约，XP、构筑与 CD 不公开。
 
 **候选状态**：`Queued`（无合格主动，机会保留，构筑变化后重判，不阻挡加点）→ `Offered`（至多 3 个合格主动，保存一次；关闭、重开、死亡都读同组；真人开局候选在首次到达且无其他主面板或输入捕获时
@@ -273,15 +257,15 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 
 ## 对外信息
 
-普通客户端只接收自己的等级、经验、点数、候选组、图纸、材料实例（含安装与绑定）、开局基础构件候选与自身回执（交战窗口只在本人 Combat 视图里）。
-可见对手只经世界/视野发布获得等级与 Q/W/E 主动，不含冷却、XP、点数、候选、图纸或材料。拒绝原因只给有权的本人。
+普通客户端只接收自己的等级、经验、点数、候选组、图纸、牌（含位置与元素）、当前牌组与重抽次数、自身回执（交战窗口只在本人 Combat 视图里）。
+可见对手只经世界/视野发布获得等级与 Q/W/E 主动，不含冷却、XP、点数、候选、图纸或牌。拒绝原因只给有权的本人。
 
 ## 生命周期矩阵
 
 | 对象 | 取消或关窗 | 死亡/复活 | 普通离局 | 终局 | 新局 |
 | --- | --- | --- | --- | --- | --- |
-| XP/等级/点数/技能/图纸/材料 | 不变 | 全部保留，不再初始化 | 不转移 | 冻结 | 按初始输入重建 |
-| 主动机会/候选 | 只清本地草稿 | 保留；复活不再授开局点数或机会；Dead 可选择、学空槽、加点与安装构件，只更新持久 Build | 不再提交 | 冻结 | 重新授予开局点数、开局机会及候选 |
+| XP/等级/点数/技能/图纸/牌 | 不变 | 全部保留，不再初始化 | 不转移 | 冻结 | 按初始输入重建 |
+| 主动机会/候选 | 只清本地草稿 | 保留；复活不再授开局点数或机会；Dead 可选择、学空槽、加点、选牌与装牌，只更新持久 Build | 不再提交 | 冻结 | 重新授予开局点数、开局机会及候选 |
 | 来源/`IssuedCooldownId`/`ReadyAtMs` | 不因图标清除 | 时间继续；新身体重绑保留来源 | 取消未结效果，不改既成事实 | 只读 | 全部失效 |
 | 致死到奖励 | 不可取消 | 死者可收存续效果奖励 | 按致死时资格 | 无新提交 | 旧 DeathKey 拒绝 |
 | 已提交回执 | 可查不重 apply | 不写新身体 | 仅服务器诊断 | 可只读查 | 旧投影拒绝 |
@@ -291,14 +275,14 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 ## 内容键
 
 数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)；作者源 `SourceData\Demo\content.json`（`progression`：`max_level`、`active_slots`、`xp_start`、`xp_thresholds`、`active_offer_levels`、
-`component_category_weights`、`workshop_capacity`；参数 `XP.*`、`REWARD.PlayerXP.*`、`GROWTH.*`、`SKILL.GrowthPerLevel*`；`abilities[].opening`、`stats[].per_point`；营地 `reward_xp`），
+`cards`；参数 `XP.*`、`REWARD.PlayerXP.*`、`GROWTH.*`、`CARDS.*`、`SKILL.GrowthPerLevel*`；`abilities[].opening`、`stats[].per_point`；营地 `reward_xp`），
 由 `Scripts\SyncDemoContentData.py` 生成载荷与 `LDDemoContentContract.h`，经 `ULDDemoContentCatalog` 提供不可变快照（见[世界与数据管线](WORLD_AND_DATA_PIPELINE.md)）。
 
 | 键 | 消费者与必须验证 |
 | --- | --- |
 | `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | `PrepareExperience`：严格递增阈值、逐级跨阈值、16 级 MAX、无 17 级阈值 |
 | `REWARD.PlayerXP`、`CAMP.*.RewardXP` | `CommitDeathReward`；每成员每 Life 一次 |
-| `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints / EmptyComponentPoolPoints`、`active_offer_levels`、`abilities[].opening` | 点数派生、开局与 3/6 级机会、无放回抽样与排除 |
+| `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints`、`active_offer_levels`、`abilities[].opening` | 点数派生、开局与 3/6 级机会、无放回抽样与排除 |
 | `GROWTH.BuildSafeWindowSec` | Combat 交战窗口，只供 HUD 折叠，不限制成长命令 |
 | `stats[].per_point` | Combat 最终投影 |
 | `POLICY.MissingSourceCooldown=ContinueServerTime`、`POLICY.DeadChoiceCommit=Allowed`、`POLICY.ResourceMaxChange=PreserveRatio` | 失源/重学/死亡计时；死亡中成长只改持久 Build、不治疗；活体一次最终同比换算（`FORMULA.ResourceMaxChange=FloorFinalRatioRejectAliveUnderflow`） |
@@ -310,10 +294,10 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 开局机会与开局点数及 3、6 级机会（`DemoGrowthOpening`）、候选池与开局池排除、合格不足与空池排队（`DemoGrowthOpeningPool`）、
 本人视图白名单（`DemoGrowthPrivacySchema`）、合法性矩阵与三种命令的原子 Apply（`DemoGrowthBuildRules`）、
 director 提交链（受理形状、倒计时学习与加点、重放/冲突/旧修订、交战后立即选择学习与加点、满槽与图纸、死亡时选择学到空槽与加点、
-空池排队后再抽、关局，`DemoGrowthBuildCommands`；其中开局基础构件经拥有命令在开局休息 R0 同次安装进 Combat、重选 `OpeningBaseTaken`、
-野外卸下与重装、死亡中开局构件同次安装，升到 3 级各得一件库存材料）与技能等级成长 G(L)（`DemoGrowthSkillGrowth`）；
-`Lockdown.Rules.DemoGrowthComponents.*` 覆盖材料实例去重与形状（`InstanceDedupe`）、固定种子的升级材料、类别归一化与池空给点
-（`LevelGrantFixedSeed`）、安装/重装/卸下在野外、死亡与 PK 步骤受理而阶段关闭拒绝、B18 绑定与水电（`InstallGate`）、开局基础构件候选与选取（`OpeningBase`）；
+空池排队后再抽、关局，`DemoGrowthBuildCommands`；其中开局牌三选一在开局技能之后出现（放弃开局技能也出现）、锁定与重抽、选牌同次装进 Combat、
+重选同组 `NoCardOffer`、野外卸下与重装、升到 3 级各入队一组牌三选一）与技能等级成长 G(L)（`DemoGrowthSkillGrowth`）；
+`Lockdown.Rules.Growth.Cards.Offer/Reroll/Lock/Duplicates/Capacity` 覆盖牌组的抽取与词汇加权、开局机会之后才抽、选牌与跳过、重抽次数与锁定、
+同名多份各占一格与同位置叠放、容量 6–9 与满时替换；`Lockdown.Rules.Dev.BreakoutPresets` 覆盖九个质变样板都是合法的满级构筑并被 Combat 投影；
 `Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务的纯规则：每种命令在 Live/Rest/RestLocked/Closed 的合法性（自己的构筑在三个开放阶段都受理、NPC 服务在 RestLocked 为 `BuildLocked`）与 `IsRestWindow`、
 休息种类与原因的线编号（`Gates`），NPC 恰好收取 `GROWTH.NpcActivePoints` 并从全部主动池固定三个候选、有候选或排队机会/池不足三项/
 点数不足都不收费（`Npc`），洗点只退已分配点数（`Respec`），替换消费图纸并遗忘旧主动、遗忘清空槽位并让该主动重新合格，
@@ -357,7 +341,8 @@ DEV 构筑操作要求 Alive 或 Dead。
 | `LearnActive`（主动 id，槽 0..3） | `ALDDevelopmentDirector::DevLearnActive`：不需要机会或图纸；0 为最低空槽（满槽 `NoEmptySlot`），1..3 为 Q/W/E 并遗忘该槽原主动（Combat 保留其冷却轨道供重学）；已学为 `InvalidOption`；同名图纸一并移除 |
 | `AllocatePoints`（五维 id，数量 > 0） | `ALDDevelopmentDirector::DevAllocatePoints`：把未分配点数加到该五维；超过未分配为 `NotEnoughPoints`（明细写出请求与剩余） |
 | `SetAttribute`（Stat，数量 ≥ 0）/ `ClearAttributes`（数量 0） | `ALDCombatDirector::DevSetAttribute`：改 Combat 已安装构筑的测试层 `FLDBuildProjectionInput::DevBonuses`（每个属性至多一项、按属性排序；点数 P2、比例基点、射程整厘米；不接受只限临时项的 `ADBonusRatio`；0 去掉该项，Clear 全部去掉），经 `PrepareProjected`/`ApplyBuildChange` 重投影安装：资源上限按比例换算，活着的身体保留本命临时项，不推进构筑修订，成长域在途请求不失效；投影拒绝（最终值越界）为 `NumericDomain`、不改任何状态；Alive 或 Dead（首次出生前还没有 Combat 记录，为 `DataInvalid`） |
-| `ResetToMatchStart`（什么都不带） | `ALDGrowthDirector::CommitDevReset` 一笔复合提交：`ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无主动、图纸、材料实例、已分配与永久消费点数，没有 NPC 机会，只有开局机会与开局点数、Apply 时与 `BeginMatch` 一样抽开局候选；各修订继续递增，旧状态的在途命令按过期拒绝）与 `ALDCombatDirector::DevPrepareReset(Contender, ResultBuildRevision)`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层）都可行才依次安装，随后 `DevFinishReset` 丢弃全部技能冷却轨道、冲刺就绪、交战窗口清零、活着的身体补满；Alive 或 Dead |
+| `ResetToMatchStart`（什么都不带） | `ALDGrowthDirector::CommitDevReset` 一笔复合提交：`ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无主动、图纸、牌、已分配与永久消费点数，没有 NPC 机会，只有开局机会与开局点数、Apply 时与 `BeginMatch` 一样抽开局候选；各修订继续递增，旧状态的在途命令按过期拒绝）与 `ALDCombatDirector::DevPrepareReset(Contender, ResultBuildRevision)`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层）都可行才依次安装，随后 `DevFinishReset` 丢弃全部技能冷却轨道、冲刺就绪、交战窗口清零、活着的身体补满；Alive 或 Dead |
+| `ApplyBreakoutPreset`（样板 id） | 一笔复合提交：先同 `ResetToMatchStart` 重置，再 `ALDDevelopmentDirector::DevApplyBreakoutPreset` 把 `LDBreakoutPresets::Build` 的满级构筑装上（技能与分支、五维点数、全部牌与位置，DEV 额外技能点 `DevSkillPoints` 补足等级之外的技能等级），清空测试层后按样板写技能急速（技能永动机 100），补满资源；未知样板为 `InvalidOption`。DEV 面板与 `ld.Dev.Breakout <样板>` 一键配置 spec §7.6 的九个 P2 样板 |
 | `RefreshCamps`（只限 Host） | `ALDCampDirector::DevRefreshCleared` → `FLDCampMatchState::DevRefreshNow`：每个已清空、等待刷新的营地截止时间提前到本边界（不推迟更早的截止），下一个 RespawnsAndWorld 经 `AdvanceCamps` 正常整组刷新（含出生点被占时的等待）；存活营地不动；回执写出等待中的营地数；没有营地 director 为 `DataNotReady` |
 | `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放旗杆的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；喷漆、守护时长与全部规则不变；其他阶段为 `StaleContext` |
 

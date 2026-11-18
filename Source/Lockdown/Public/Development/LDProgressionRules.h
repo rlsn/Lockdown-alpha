@@ -22,41 +22,40 @@ struct FLDLearnedActive
     ELDSkillBranch Branch = ELDSkillBranch::None;
 };
 
-// #198 B: where an installed component sits and its install parameters. Base components take Kind None; an ActiveElement
-// binding (B18) names one learned active and one element. Empty while the instance is in the inventory.
-struct FLDComponentTarget
+// Spec §6.1: where an installed card sits (Kind None = in the library): the primary basic, one learned skill (by id), the D
+// dash or the body; Element is the chosen element of a card that offers element choices (Y25).
+struct FLDCardTarget
 {
-    ELDComponentTargetKind Kind = ELDComponentTargetKind::None;
-    // Active / EffectSegment: the learned active; Component: the host component (#198 F).
-    FName Definition;
-    uint8 Segment = 0;
-    FName BoundActive;
+    ELDCardTargetKind Kind = ELDCardTargetKind::None;
+    FName Active;
     ELDDemoElement Element = ELDDemoElement::None;
-    // #198 F C12 (extra_base): the installed base component whose effect the exit repeats.
-    FName BoundComponent;
 
-    bool operator==(const FLDComponentTarget& Other) const
+    bool operator==(const FLDCardTarget& Other) const
     {
-        return Kind == Other.Kind && Definition == Other.Definition && Segment == Other.Segment && BoundActive == Other.BoundActive
-            && Element == Other.Element && BoundComponent == Other.BoundComponent;
+        return Kind == Other.Kind && Active == Other.Active && Element == Other.Element;
     }
-    bool IsEmpty() const { return *this == FLDComponentTarget(); }
+    bool IsEmpty() const { return *this == FLDCardTarget(); }
 };
 
-// #198 B: one owned material instance; inventory and installed are one list, at most one instance per definition.
-struct FLDComponentInstance
+// One owned card; copies of one definition are separate cards (each its own serial and capacity slot).
+struct FLDCardInstance
 {
+    uint16 Serial = 0;
     FName Id;
-    ELDComponentSource Source = ELDComponentSource::None;
-    // OpeningPick: 1; LevelUp: the level whose normal reward granted it.
-    uint8 SourceLevel = 0;
-    bool bInstalled = false;
-    // First-time history (spec §5): once installed, a later re-install is a rest-window move; death, reconnect and
-    // uninstalling never clear it.
-    bool bEverInstalled = false;
-    // #198 G: this mod/connector received its one FillGap.
-    bool bGapFilled = false;
-    FLDComponentTarget Target;
+    // The offer ordinal that gave it; 0 for a DEV fixture card.
+    uint16 OfferOrdinal = 0;
+    FLDCardTarget Target;
+
+    bool IsInstalled() const { return Target.Kind != ELDCardTargetKind::None; }
+};
+
+// A final mod's source: one learned active or the innate D.
+struct FLDFinalModTarget
+{
+    ELDFinalModTargetKind Kind = ELDFinalModTargetKind::None;
+    FName Definition;
+
+    bool operator==(const FLDFinalModTarget& Other) const { return Kind == Other.Kind && Definition == Other.Definition; }
 };
 
 struct LOCKDOWN_API FLDGrowthBuild
@@ -70,22 +69,23 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FName> PendingBlueprints;
     // Points paid for rest services (the NPC active offer); never refunded, a respec only returns StatPoints.
     int64 PermanentSpentPoints = 0;
-    // #198 session D: points paid by PK settlements (participation, winner share, betting pool); #198 G: also the
-    // GROWTH.EmptyComponentPoolPoints of a field reward or elite choice that found its material pool empty. Unspent until
-    // allocated.
+    // #198 session D: points paid by PK settlements (participation, winner share, betting pool). Unspent until allocated.
     int64 AwardedPoints = 0;
-    // #198 B: owned components sorted by id, one per definition.
-    TArray<FLDComponentInstance> Components;
+    // Owned cards sorted by serial; NextCardSerial is the serial of the next card received (never reused in a match).
+    TArray<FLDCardInstance> Cards;
+    uint16 NextCardSerial = 1;
     // Independent of the ordinary workshop capacity, actives and pending blueprints.
     FLDFinalModSelection FinalMod;
+    // DEV breakout presets only (LDBreakoutPresets): extra skill points for ranks beyond the level's; 0 in play.
+    int32 DevSkillPoints = 0;
     uint64 Revision = 1;
 
     const FLDLearnedActive* FindActive(FName Id) const;
     // Index into Actives of the active in Slot, or INDEX_NONE.
     int32 ActiveInSlot(uint8 Slot) const;
     bool HasBlueprint(FName Id) const;
-    const FLDComponentInstance* FindComponent(FName Id) const;
-    FLDComponentInstance* FindComponent(FName Id);
+    const FLDCardInstance* FindCard(uint16 Serial) const;
+    FLDCardInstance* FindCard(uint16 Serial);
     // Sum of StatPoints; false on a negative count or an overflow.
     bool SpentPoints(int64& Out) const;
 };
@@ -110,6 +110,19 @@ struct FLDActiveOpportunityRecord
     uint64 RequestId = 0;
 };
 
+// Spec §6.4: the current card offer. Options are fixed until the offer is taken, skipped or rerolled (a reroll keeps the
+// locked card); Rerolls counts this ordinal's rerolls (its seed index).
+struct FLDCardOfferState
+{
+    FGuid OfferId;
+    uint16 Ordinal = 0;
+    ELDCardOfferSource Source = ELDCardOfferSource::None;
+    TArray<FName> Options;
+    FName Locked;
+    uint64 Revision = 0;
+    uint32 Rerolls = 0;
+};
+
 // One immutable final-rest offer; the selected rule and its binding live in FLDGrowthBuild.
 struct FLDFinalModState
 {
@@ -132,15 +145,21 @@ struct FLDProgressionState
     uint8 ActiveConsumed = 0;
     // Active opportunities bought from the rest NPC (BuyNpcOffer).
     uint8 NpcPurchased = 0;
-    // #198 B: normal level-ups whose component roll found the whole common pool owned; each earned
-    // GROWTH.EmptyComponentPoolPoints instead (LDProgression::EarnedPoints).
-    uint8 EmptyPoolGrants = 0;
     // The head's offer; unset while the queue is empty or no active is eligible for the head.
     TOptional<FLDActiveOfferState> Offer;
     uint64 LastOfferRevision = 0;
     TArray<FLDActiveOpportunityRecord> Records;
-    // #198 G: pending elite-camp component choices, oldest first (ChoiceId, event, serial and the fixed options).
-    TArray<FLDComponentChoiceView> ComponentChoices;
+    // Spec §6.4 card offer queue: the sources of the earned and unresolved offers, head first; CardOffersEarned numbers them
+    // (the head's ordinal is CardOffersEarned - CardQueue.Num() + 1). The head's offer is drawn once the opening opportunity is
+    // resolved. CarriedLock is the card a resolved offer locked; the next offer shows it.
+    TArray<ELDCardOfferSource> CardQueue;
+    uint16 CardOffersEarned = 0;
+    TOptional<FLDCardOfferState> CardOffer;
+    uint64 LastCardOfferRevision = 0;
+    FName CarriedLock;
+    // CARDS.FreeRerolls at match start plus CARDS.RerollsPerRest at each mid-match rest, and the ones used.
+    int32 CardRerollsGranted = 0;
+    int32 CardRerollsUsed = 0;
     // #198 G: high-tier camp blueprints held because no active was eligible, and how many were ever held (seed index).
     uint8 HeldBlueprints = 0;
     uint32 HeldBlueprintsEver = 0;
@@ -213,33 +232,20 @@ namespace LDProgression
         FRewardAmounts& Out);
 
     // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
-    // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold, and
-    // GROWTH.EmptyComponentPoolPoints for each of the EmptyPoolGrants level-ups that found the component pool exhausted.
-    LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, uint8 EmptyPoolGrants,
-        int64& Out);
+    // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
+    LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
     // Earned minus allocated minus permanently spent; AuthorityFault when they exceed what was earned.
     LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
-        uint8 EmptyPoolGrants, int64& Out);
-    // The level-1 build of a match start: no actives, blueprints, components, allocated or permanently spent points.
+        int64& Out);
+    // The level-1 build of a match start: no actives, blueprints, cards, allocated or permanently spent points.
     LOCKDOWN_API FLDGrowthBuild StartBuild(const FLDDemoContentDefinitions& Content);
-    // Actives by slot, blueprints and components by id, the order ValidateBuild requires.
+    // Actives by slot, blueprints by id and cards by serial, the order ValidateBuild requires.
     LOCKDOWN_API void NormalizeBuild(FLDGrowthBuild& Build);
     // Build has the shape this catalog allows: one point count per stat, no negative permanent spend, at most three distinct
-    // known actives in distinct slots 0..2, distinct known blueprints sorted by id that are not learned, and distinct known
-    // components sorted by id whose source, history and install target are legal (installed implies ever installed; an
-    // inventory instance has no target; an install has the shape its definition takes and sits only on a learned active, an
-    // installed host and an installed repeated base), at most LevelComponentDraws level-up instances per level, no more
-    // installs than WorkshopCapacity of its level, and the per-column limits in the progression content definition.
+    // known actives in distinct slots 0..2, distinct known blueprints sorted by id that are not learned, and known cards with
+    // distinct serials below NextCardSerial, sorted, each installed on a target of its form (CardTargetReason), no more installed
+    // than CardCapacity of its level.
     LOCKDOWN_API ELDGrowthReason ValidateBuild(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
-    // Workshop capacity at Level: progression.workshop_capacity base + floor((Level - 1) / levels_per_slot). Every installed
-    // base, mod and connector takes one slot; Body and Dash also have fixed per-column limits; 0 for a broken table.
-    LOCKDOWN_API int32 WorkshopCapacity(const FLDDemoProgressionDefinition& Progression, uint8 Level);
-    LOCKDOWN_API int32 InstalledComponents(const FLDGrowthBuild& Build);
-    // Ordinary component draws of the normal level-up to Level: one, two on a progression.bonus_component_levels level.
-    LOCKDOWN_API uint8 LevelComponentDraws(const FLDDemoProgressionDefinition& Progression, uint8 Level);
-    // Level-up draws of every level 2..Level, the bound on exhausted-pool grants.
-    LOCKDOWN_API int32 LevelComponentDrawsThrough(const FLDDemoProgressionDefinition& Progression, uint8 Level);
-
     // The actives opportunity Ordinal may draw for Build, in catalog order: the opening pool (abilities flagged opening)
     // for ordinal 1, every active afterwards (level and NPC opportunities alike); learned actives and pending blueprints
     // never. A forgotten active is eligible again.
@@ -256,10 +262,9 @@ namespace LDProgression
     // RestLocked), alive or dead. PhaseClosed or LifePhaseChanged otherwise.
     LOCKDOWN_API ELDGrowthReason LearnGate(const FBuildContext& Context);
     // The legality matrix of one command kind (GROWTH_TRANSACTIONS). #222: the own build commands (ActiveChoice,
-    // ComponentChoice, OpeningBase, LearnBlueprint, AllocatePoints, InstallComponent, UninstallComponent) are open in Live,
-    // Rest and RestLocked, alive or dead. The NPC services keep the rest window: BuyNpcOffer/Respec/FillGap/Dismantle are
-    // NotRestWindow on the field and ReplaceActive/ForgetActive ReplacementNotAllowed, all BuildLocked in RestLocked and Dead
-    // for a dead contender. Closed: PhaseClosed.
+    // LearnBlueprint, AllocatePoints, RankUpSkill and the card commands) are open in Live, Rest and RestLocked, alive or dead.
+    // The NPC services keep the rest window: BuyNpcOffer/Respec are NotRestWindow on the field and ReplaceActive/ForgetActive
+    // ReplacementNotAllowed, all BuildLocked in RestLocked and Dead for a dead contender. Closed: PhaseClosed.
     LOCKDOWN_API ELDGrowthReason CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context);
     // The shared-room NPC required by a command, or None when no NPC proximity is needed.
     LOCKDOWN_API ELDRestService RestServiceFor(ELDBuildCommandKind Kind);
@@ -281,7 +286,7 @@ namespace LDProgression
     // Unspent points allocated across the stats in one step: one count per stat (design order) summing to at least one and at
     // most the unspent points (NotEnoughPoints), gated by CommandGate.
     LOCKDOWN_API ELDGrowthReason ApplyAllocation(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        int64 XP, uint8 EmptyPoolGrants, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);
+        int64 XP, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);
 
     // ---- Rest services (#198 §4.4/§5); none changes Revision ----
 
@@ -302,14 +307,14 @@ namespace LDProgression
     // Every allocated stat point back to the unspent ones; PermanentSpentPoints stays. NotRestWindow outside a rest
     // window, NothingToRespec when nothing is allocated.
     LOCKDOWN_API ELDGrowthReason ApplyRespec(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
-        uint8 EmptyPoolGrants, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
+        const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
     // A pending blueprint learned into the occupied Slot 0..2, the active there forgotten (neither refunded nor kept as a
-    // blueprint) and its attachments reclaimed in the same step (ReclaimAttachments; OutReclaimed, sorted by id). Nothing
-    // moves to the new active on its own. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer
+    // blueprint) and its skill cards back in the library in the same step (ReclaimAttachments; OutReclaimed, by serial).
+    // Nothing moves to the new active on its own. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer
     // is outstanding, SlotEmpty for an empty slot (LearnBlueprint learns into it), NoBlueprint.
     LOCKDOWN_API ELDGrowthReason ApplyReplaceActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FName& OutForgotten, TArray<FName>& OutReclaimed);
+        FName& OutForgotten, TArray<uint16>& OutReclaimed);
     // The active in Slot 0..2 forgotten and its attachments reclaimed in the same step (OutReclaimed); it is eligible for
     // later offers again. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer is
     // outstanding, SlotEmpty.
@@ -322,14 +327,16 @@ namespace LDProgression
         uint8 Slot, ELDSkillBranch Branch, const FBuildContext& Context, FLDGrowthBuild& Out);
     LOCKDOWN_API ELDGrowthReason ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
-        TArray<FName>& OutReclaimed);
+        TArray<uint16>& OutReclaimed);
     // Three or four distinct final mods with legal sources, drawn deterministically from Seed. The first is a mechanic
     // card if available; the second is universal; remaining cards are drawn from all remaining legal options.
     LOCKDOWN_API ELDGrowthReason DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         uint64 Seed, TArray<FName>& Out, int32 Count = 3);
     LOCKDOWN_API uint64 FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender);
+    // The sources Option may bind now: none for a universal card (one empty target), else the innate D and the learned
+    // actives that carry its requirement.
     LOCKDOWN_API ELDGrowthReason FinalModTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        FName Option, TArray<FLDComponentTarget>& Out);
+        FName Option, TArray<FLDFinalModTarget>& Out);
     // True when Build has no final mod or its binding is one of the chosen card's legal sources now. The build stays
     // adjustable after the final pick, so removing the bound source leaves the card dormant (not projected into combat)
     // until ApplyFinalMod rebinds it.
@@ -340,108 +347,101 @@ namespace LDProgression
     // for a source that is not legal now. A dormant chosen card (FinalModBound false) is rebound with the same OfferId and
     // Option under InstallGate, any stage; FinalLocked otherwise once the card is taken or the offer closed.
     LOCKDOWN_API ELDGrowthReason ApplyFinalMod(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, const FLDComponentTarget& Target,
+        const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, const FLDFinalModTarget& Target,
         const FBuildContext& Context, FLDGrowthBuild& Out, FLDProgressionState& OutProgression);
-    // Spec §5 (换下即遗忘，挂件退库存): every installed component on the Forgotten active (a mod/connector targeting it, a B18
-    // bound to it) and, transitively, what sits on those (a host component, C12's repeated base) returns to the inventory
-    // with its install history; never duplicated, dropped or rebound. OutReclaimed lists them sorted by id.
-    LOCKDOWN_API void ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, TArray<FName>& OutReclaimed);
+    // Spec §6.1: every card installed on the Forgotten skill goes back to the library (never dropped or moved); OutReclaimed
+    // lists their serials ascending.
+    LOCKDOWN_API void ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, TArray<uint16>& OutReclaimed);
 
-    // ---- #198 B components ----
+    // ---- Cards (spec §6) ----
 
-    // The component of one normal level-up to Level (2..MaxLevel): a category rolled by the progression
-    // component_category_weights band of Level, then a uniform pick in catalog order among the unowned Common definitions of
-    // that kind the build can host now: a base (a B18 binding base only with one of its binding actives learned), or a mod or
-    // connector listing self, the innate D, a learned active or an owned component as a target (and owning one of its
-    // ExtraBases when it takes one), and with one of its DrawRequiresActives learned when it lists any. A category without such
-    // a definition is dropped and the others keep their relative weights.
-    // OutComponent is None when every category is empty (the caller grants GROWTH.EmptyComponentPoolPoints instead).
-    // Deterministic in Seed; DataInvalid for a level outside 2..MaxLevel or a broken band table (unowned definitions left
-    // only in categories the band never rolls), never an "empty" pool.
-    LOCKDOWN_API ELDGrowthReason DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
-        uint64 Seed, FName& OutComponent);
-    // Whether one definition belongs to a nonzero-weight pool for this exact build and level; uses the same rules as the draw.
-    LOCKDOWN_API ELDGrowthReason LevelComponentEligible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        uint8 Level, FName Component, bool& OutEligible);
-    // Private per-level random material of the component roll, distinct from OfferSeed of the same number. Draw 0 keeps the
-    // original first roll; draw 1 is a bonus level's second roll.
-    LOCKDOWN_API uint64 ComponentSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Level, uint8 Draw = 0);
-    // Every normal level-up LevelBefore+1..LevelAfter in order draws its LevelComponentDraws components into Out (Source
-    // LevelUp, inventory), each from the pool left by the previous draw; an exhausted pool adds one to OutEmptyPoolGrants
-    // instead. OutGrants lists each draw's result (None = points).
-    LOCKDOWN_API ELDGrowthReason GrantLevelComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        uint8 LevelBefore, uint8 LevelAfter, const FGuid& MatchSecret, const FGuid& Contender, FLDGrowthBuild& Out,
-        uint8& OutEmptyPoolGrants, TArray<FLDComponentGrant>& OutGrants);
-
-    // The active of the consumed opening opportunity (ordinal 1), None before the opening choice.
-    LOCKDOWN_API FName OpeningActive(const FLDProgressionState& Progression);
-    // Whether the build already took its opening base (an instance with Source OpeningPick).
-    LOCKDOWN_API bool OpeningBaseTaken(const FLDGrowthBuild& Build);
-    // Spec §4.3 opening base options for OpeningChoice (the opening active), in catalog order: Common base components flagged
-    // opening-always plus those listing OpeningChoice, without the owned ones.
-    LOCKDOWN_API ELDGrowthReason OpeningBaseOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        FName OpeningChoice, TArray<FName>& Out);
-
-    // Whether an owned component may be installed now: LearnGate (#222: a first install and a move alike).
+    // Whether a card may be installed, uninstalled or rebound now: LearnGate (open in every stage of a running match).
     LOCKDOWN_API ELDGrowthReason InstallGate(const FBuildContext& Context);
-    // Whether Target is a legal install of Component on Build: a base component takes no target; its binding needs a learned
-    // active of BindActives and an element of BindElements (InvalidTarget otherwise). Mods and connectors are InvalidTarget
-    // until #198 F adds their targets.
-    LOCKDOWN_API ELDGrowthReason InstallTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        FName Component, const FLDComponentTarget& Target);
 
-    // What an OpeningBase did with its component.
-    struct FInstallOutcome
+    // Workshop capacity at Level: CARDS.CapacityBase + floor((Level - 1) / CARDS.LevelsPerSlot); 0 for a broken table.
+    LOCKDOWN_API int32 CardCapacity(const FLDDemoContentParameters& Parameters, uint8 Level);
+    LOCKDOWN_API int32 InstalledCards(const FLDGrowthBuild& Build);
+    // The ELDCardVocab bits of the build: its installed cards and learned skills.
+    LOCKDOWN_API uint32 BuildVocab(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // Whether Target is a legal install of the card Id on Build: its form's target kind, a learned skill for a skill card, and
+    // one of its element choices exactly when it offers them (InvalidTarget otherwise).
+    LOCKDOWN_API ELDGrowthReason CardTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
+        const FLDCardTarget& Target);
+    // The place a picked card goes when the picker names none: its form's only place, or for a skill card the learned skill
+    // sharing the most vocabulary keys with it (Q/W/E order on ties); a Y25 card takes its first element. False when no legal
+    // place exists now (a skill card without a learned skill).
+    LOCKDOWN_API bool DefaultCardTarget(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
+        FLDCardTarget& Out);
+    // Up to CARDS.OfferSize distinct cards: Locked first when set, then a weighted draw without replacement over every other
+    // definition (CARDS.VocabWeight when it shares a vocabulary key with BuildVocab, else 1), deterministic in Seed.
+    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Locked,
+        uint64 Seed, TArray<FName>& Out);
+    // Private random material of one card offer ordinal and its Reroll-th reroll.
+    LOCKDOWN_API uint64 CardOfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint16 Ordinal, uint32 Reroll);
+    // Count more offers of Source join the queue; OutFirst..OutLast are their ordinals. CapacityExceeded past the uint16 range.
+    LOCKDOWN_API ELDGrowthReason QueueCardOffers(FLDProgressionState& Progression, ELDCardOfferSource Source, int32 Count,
+        uint16& OutFirst, uint16& OutLast);
+    // Draws the head offer when none is current, one is queued and the opening opportunity is resolved (bOutDrawn); the revision is
+    // the next card offer revision. The carried lock joins it and is consumed.
+    LOCKDOWN_API ELDGrowthReason RefreshCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, bool& bOutDrawn);
+    LOCKDOWN_API int32 CardRerollsLeft(const FLDProgressionState& Progression);
+    // A new card of definition Id in the library (OfferOrdinal 0 for DEV); OutSerial is its serial.
+    LOCKDOWN_API ELDGrowthReason ReceiveCard(const FLDDemoContentDefinitions& Content, FLDGrowthBuild& Build, FName Id,
+        uint16 OfferOrdinal, uint16& OutSerial);
+
+    struct FCardPickOutcome
     {
+        uint16 Serial = 0;
         bool bInstalled = false;
-        // Stored after bInstallIfPossible: why it was not installed (InstallGate or InstallTargetReason); None when not asked.
+        // Stored after bInstallIfPossible: why it was not installed; None when not asked.
         ELDGrowthReason StoredReason = ELDGrowthReason::None;
     };
+    // PickCard: Option of the current offer OfferId goes to the library (installed on Target in the same commit when asked,
+    // legal and a slot is free); the offer resolves (a lock on another card carries over). NoCardOffer, NotInOffer.
+    LOCKDOWN_API ELDGrowthReason ApplyPickCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, bool bInstallIfPossible, const FLDCardTarget& Target,
+        const FBuildContext& Context, FLDGrowthBuild& Out, FLDProgressionState& OutProgression, FCardPickOutcome& Outcome);
+    // SkipCards: the current offer resolves without a card (its lock carries over). NoCardOffer.
+    LOCKDOWN_API ELDGrowthReason ApplySkipCards(const FLDDemoContentDefinitions& Content, const FLDProgressionState& Progression,
+        const FGuid& OfferId, const FBuildContext& Context, FLDProgressionState& OutProgression);
+    // RerollCards: one reroll spent and the offer redrawn (the locked card stays; new OfferId and revision). NoCardOffer,
+    // NoReroll.
+    LOCKDOWN_API ELDGrowthReason ApplyRerollCards(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        const FLDProgressionState& Progression, const FGuid& OfferId, const FGuid& MatchSecret, const FGuid& Contender,
+        const FBuildContext& Context, FLDProgressionState& OutProgression);
+    // LockCard: Option (one of the offer's) becomes its locked card; None clears the lock. NoCardOffer, NotInOffer;
+    // InvalidRequest when locks are off (CARDS.LockSlots 0).
+    LOCKDOWN_API ELDGrowthReason ApplyLockCard(const FLDDemoContentDefinitions& Content, const FLDProgressionState& Progression,
+        const FGuid& OfferId, FName Option, const FBuildContext& Context, FLDProgressionState& OutProgression);
+    // InstallCard: the owned card Serial onto Target. NotOwned, AlreadyInstalled, InvalidTarget, WorkshopFull. A non-zero
+    // Replacing (another installed card) goes back to the library in the same commit and frees its slot (OutUninstalled).
+    LOCKDOWN_API ELDGrowthReason ApplyInstallCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        uint16 Serial, const FLDCardTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out, uint16 Replacing = 0,
+        TArray<uint16>* OutUninstalled = nullptr);
+    // UninstallCard: the installed card back to the library. NotOwned, NotInstalled.
+    LOCKDOWN_API ELDGrowthReason ApplyUninstallCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        uint16 Serial, const FBuildContext& Context, FLDGrowthBuild& Out);
 
-    // The opening base pick: once (OpeningBaseTaken), after the opening active was chosen (OpeningActiveFirst), one of
-    // OpeningBaseOptions (OpeningBaseUnavailable). Rest and live stages, alive or dead. With bInstallIfPossible the
-    // instance is installed on Target in the same commit when InstallGate and InstallTargetReason allow, otherwise stored.
-    LOCKDOWN_API ELDGrowthReason ApplyOpeningBase(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, FName Component, bool bInstallIfPossible, const FLDComponentTarget& Target,
-        const FBuildContext& Context, FLDGrowthBuild& Out, FInstallOutcome& Outcome);
-    // An owned, uninstalled component installed on Target: NotOwned, AlreadyInstalled, an InstallGate or an
-    // InstallTargetReason reason when refused. A non-None Replacing (an installed component other than Component) and
-    // everything sitting on it go back to the inventory in the same commit, listed in OutUninstalled; target, form and
-    // capacity are judged on the build without them. Replacing also passes the uninstall CommandGate.
-    LOCKDOWN_API ELDGrowthReason ApplyInstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        FName Component, const FLDComponentTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FName Replacing = NAME_None, TArray<FName>* OutUninstalled = nullptr);
-    // An installed component back to the inventory (its history stays): NotOwned, NotInstalled or a CommandGate reason.
-    LOCKDOWN_API ELDGrowthReason ApplyUninstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        FName Component, const FBuildContext& Context, FLDGrowthBuild& Out);
+    // ---- Field rewards (spec §6.4, outer parameters §5) ----
 
-    // ---- #198 G field rewards (spec §4.2/§4.4, outer parameters §5) and the rest material services (spec §4.5) ----
-
-    // The growth state an FLDProgressionView publishes, as a build (level, allocated stats, actives, blueprints and
-    // components with their install targets and history), so a client or the AI evaluates FillGap/Dismantle eligibility
-    // with the server's own rules. Revision and permanent spend are copied; nothing else is invented.
+    // The growth state an FLDProgressionView publishes, as a build (level, allocated stats, actives, blueprints and cards with
+    // their install targets), so a client or the AI evaluates installs with the server's own rules. Revision and permanent
+    // spend are copied; nothing else is invented.
     LOCKDOWN_API FLDGrowthBuild BuildFromView(const FLDDemoContentDefinitions& Content, const FLDProgressionView& View);
     // The complete Combat input for a growth build, including whether the selected final rule still has its source.
     LOCKDOWN_API FLDBuildProjectionInput CombatProjectionInput(const FLDDemoContentDefinitions* Content, const FLDGrowthBuild& Build);
     // Actives a field blueprint may give, in catalog order: every active neither learned nor kept as a blueprint.
     LOCKDOWN_API void EligibleBlueprints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out);
-    // Components of Pool the build does not own, in catalog order.
-    LOCKDOWN_API void UnownedComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        ELDDemoComponentPool Pool, TArray<FName>& Out);
-
     // What one field reward's build part gives (decided before anything installs).
     struct FFieldGrant
     {
         ELDFieldRewardResult Result = ELDFieldRewardResult::None;
         FName Definition;
-        // ComponentChoice: one or two distinct known common components.
-        TArray<FName> ChoiceOptions;
     };
-    // Kind's build part for Build, deterministic in Seed. BuildDraw: a fair class roll between an eligible active blueprint and
-    // an unowned scarce component, each uniform; one empty class uses the other; both empty: one common material drawn like a
-    // normal level-up of max(Build.Level, 2) (PoolPoints when the common pool is exhausted). Blueprint: one uniform eligible
-    // active, BlueprintHeld when none is. ComponentChoice: two distinct unowned common components uniformly without
-    // replacement (one when only one is left; PoolPoints when none is). DataInvalid for None.
+    // Kind's build part for Build, deterministic in Seed. BuildDraw: a fair roll between a uniform eligible active blueprint
+    // and one card offer (the card offer when no active is eligible). Blueprint: one uniform eligible active, BlueprintHeld
+    // when none is. CardOffer: one card offer. DataInvalid for None.
     LOCKDOWN_API ELDGrowthReason DrawFieldReward(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         ELDFieldRewardKind Kind, uint64 Seed, FFieldGrant& Out);
     // Private per-event random material of one recipient's field reward.
@@ -449,50 +449,11 @@ namespace LDProgression
     // Private random material of one held high-tier blueprint (the Index-th held grant of the match, 1-based).
     LOCKDOWN_API uint64 HeldBlueprintSeed(const FGuid& MatchSecret, const FGuid& Contender, uint32 Index);
     // Installs one drawn field grant on Build/Progression (Revision untouched) and records it in Progression.FieldRewards:
-    // a blueprint as a pending blueprint, a component as an owned inventory instance (Source BuildReward), PoolPoints as
-    // GROWTH.EmptyComponentPoolPoints added to AwardedPoints, a ComponentChoice as a pending choice ChoiceId, BlueprintHeld
-    // as one more held blueprint. DataInvalid when the grant does not fit Build.
+    // a blueprint as a pending blueprint, a card offer as one more queued offer, BlueprintHeld as one more held blueprint.
+    // DataInvalid when the grant does not fit Build.
     LOCKDOWN_API ELDGrowthReason ApplyFieldGrant(const FLDDemoContentDefinitions& Content, const FFieldGrant& Grant, FName Event,
-        uint64 Serial, int64 XP, const FGuid& ChoiceId, FLDGrowthBuild& Build, FLDProgressionState& Progression);
+        uint64 Serial, int64 XP, FLDGrowthBuild& Build, FLDProgressionState& Progression);
     // Grants every held blueprint that an eligible active now exists for (each its own uniform draw); true when any was.
     LOCKDOWN_API bool ReleaseHeldBlueprints(const FLDDemoContentDefinitions& Content, const FGuid& MatchSecret, const FGuid& Contender,
         FLDGrowthBuild& Build, FLDProgressionState& Progression);
-
-    // Spec §4.5 gap targets in catalog order: owned mods/connectors never installed, not yet filled, with no compatible
-    // entry among the owned components, learned actives and pending blueprints (the innate D and the holder itself always
-    // are one). A reaction connector (reaction_empower, C09) has an entry only once those entries apply two distinct element
-    // kinds (native burn/wet/electrify, B01/B10/B11 and B18's bound element).
-    LOCKDOWN_API void GapTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out);
-    // The unowned common base components that would give Target its missing entry (its component targets and extra bases),
-    // in catalog order; for C09 only those adding an element kind not yet applied (an unbound B18 adds any it may bind).
-    // NotAGap / GapAlreadyFilled when Target is no gap target (Out empty).
-    LOCKDOWN_API ELDGrowthReason GapFillers(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Target,
-        TArray<FName>& Out);
-    // FillGap: GROWTH.FillGapPoints moved to PermanentSpentPoints, Filler owned (Source FillGap, inventory) and Target marked
-    // filled, atomically. NotRestWindow outside a rest window, NotAGap/GapAlreadyFilled, NoGapFiller, NotEnoughPoints.
-    LOCKDOWN_API ELDGrowthReason ApplyFillGap(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
-        uint8 EmptyPoolGrants, FName Target, FName Filler, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPaid);
-    // Whether Surrendered is a legal dismantle input: GROWTH.DismantleInputCount distinct owned common components
-    // (DismantleInvalid otherwise).
-    LOCKDOWN_API ELDGrowthReason DismantleInputReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        const TArray<FName>& Surrendered);
-    struct FDismantleOutcome
-    {
-        FName Received;
-        // Installed mods/connectors whose host was surrendered, back in the inventory (history kept).
-        TArray<FName> Uninstalled;
-    };
-    // Dismantle: the surrendered components removed, every install left without its host component (or C12 base) returned
-    // to the inventory, and one uniform unowned common component outside the surrendered ones received (Source Dismantle),
-    // fixed by Seed. NotRestWindow outside a rest window, DismantleInvalid, DismantlePoolEmpty (nothing removed).
-    LOCKDOWN_API ELDGrowthReason ApplyDismantle(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const TArray<FName>& Surrendered, uint64 Seed, const FBuildContext& Context, FLDGrowthBuild& Out, FDismantleOutcome& Outcome);
-    // Private random material of one dismantle, fixed by its request.
-    LOCKDOWN_API uint64 DismantleSeed(const FGuid& MatchSecret, const FGuid& Contender, uint64 RequestId);
-    // ComponentChoice: the pending choice ChoiceId resolved with Option (owned, Source EliteChoice) or, when Option is None and
-    // every option is already owned, with GROWTH.EmptyComponentPoolPoints (OutEmptyPoolGrant). Gated like ActiveChoice.
-    // NoComponentChoice, InvalidOption (not an option), ComponentOwned (the option is owned, or None while one is free).
-    LOCKDOWN_API ELDGrowthReason ApplyComponentChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, const FGuid& ChoiceId, FName Option, const FBuildContext& Context,
-        FLDGrowthBuild& Out, FLDProgressionState& OutProgression, bool& OutEmptyPoolGrant);
 }

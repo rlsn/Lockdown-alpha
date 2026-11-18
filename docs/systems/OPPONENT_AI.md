@@ -104,7 +104,7 @@ NotGrounded 是明确否定结果，原域仍完成已处理边界，不是缺�
 | --- | --- | --- |
 | `ULDNavigationComponent::SubmitOrder(FLDOrderCaller, FLDSpatialOrderRequest)`；`CancelOrder`；`QueryOrder` | 绑定本人的 MatchContext/BodyRef；`FLDMoveIdentity{Match,Life,Order,Epoch}`；按 kind 为单一 Ground/ObservedUnit 目标。Ground 带脚点 cm、必要 MapRevision 和必填 SurfaceHint；POI 从注册记录给支持面，目标可显式 Missing，不补默认值。 | Submit 只收件。Actions 阶段的 `ProcessAuthorityOrders` 才可激活；Queued 不取消旧单，完整准入后才替换现役订单。OrderRevision/ReceiptSerial 单调，Query 只读且不延寿。 |
 | `ALDCombatDirector::SubmitAction`、`QueryActionReceipt`、`QueryAvailability`、`CancelAction` | `FLDCombatActionRequest{Generation,Life,DirectSequence,Entry(Q/W/E/Dash),Target(Missing/Self/Unit/Direction),ExpectedSourceRevision}`；DirectSequence 由 adapter 单调分配，Q/W/E/D 共用一个序列；Unit 目标是观察句柄。`FLDCombatRequestKey` 的 Direct 键由此生成，Nav 键只由服务器 Navigation 的攻击订单内部生成。 | 两种 RequestKey 不撞号；准入成功后由 Combat 统一分配 authority CombatToken:uint64，ActionId/AttackId 是该 Token 在 Match/Caller 下的身份，不另发序列。Queued 无已接受 Token；查询/取消用原 RequestKey。导航独占 AttackCycle，Combat 独占 NextAttackAt，AI 不另开普攻循环或伪造 Nav 键。 |
-| `ALDDevelopmentDirector::ReadProgression`、`QueueBuild`、`QueryBuildReceipt` | `FLDBuildCommand`：Generation、当前 Life、ExpectedLifePhase、独立 RequestId、ExpectedBuildRevision、CatalogDigest 与 Kind。ActiveChoice 带当前 OfferId/Revision、Option 和 `bLearnIfPossible=true`（Slot 为 AnySlot，由服务器取最低空槽）；LearnBlueprint 带图纸与最低空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数；UninstallComponent 带已安装的构件，ReplaceActive 带图纸与已学槽位，Dismantle 带恰好 `GROWTH.DismantleInputCount` 件互异、仍持有的普通构件（读目录判断池与数量），BuyNpcOffer 与 Respec 只带守卫字段。由 `LDOpponentRequests::BuildCommand` 从本人最新成长投影构造，候选、图纸、槽位或构件已不是当前状态时拒绝构造。 | 原候选不重抽；选择（学到空槽或存为图纸）与机会消费原子提交后才生成下一组。服务器提交时按阶段与生死重判（没有构筑安全窗）；死亡阶段合法的选择、学习与加点可成功，死前 Alive 请求不能冒充当前 Dead 请求。 |
+| `ALDDevelopmentDirector::ReadProgression`、`QueueBuild`、`QueryBuildReceipt` | `FLDBuildCommand`：Generation、当前 Life、ExpectedLifePhase、独立 RequestId、ExpectedBuildRevision、CatalogDigest 与 Kind。ActiveChoice 带当前 OfferId/Revision、Option 和 `bLearnIfPossible=true`（Slot 为 AnySlot，由服务器取最低空槽）；LearnBlueprint 带图纸与最低空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数；PickCard 带当前牌组与所选牌（有位置时带位置），InstallCard/UninstallCard 带序号，ReplaceActive 带图纸与已学槽位，BuyNpcOffer 与 Respec 只带守卫字段。由 `LDOpponentRequests::BuildCommand` 从本人最新成长投影构造，候选、牌组、图纸、槽位或牌已不是当前状态时拒绝构造。 | 原候选不重抽；选择（学到空槽或存为图纸）与机会消费原子提交后才生成下一组。服务器提交时按阶段与生死重判（没有构筑安全窗）；死亡阶段合法的选择、学习与加点可成功，死前 Alive 请求不能冒充当前 Dead 请求。 |
 | `LDTactical::EvaluateDamage(const FLDDamageEvaluationInput&, const FLDDemoContentSnapshot&) -> FLDDamageEvaluationResult`；`EvaluateBasicTiming(const FLDBasicTimingInput&, const FLDDemoContentSnapshot&) -> FLDBasicTimingResult` | 仅数值假设：公开编译定义、本人所需属性、显式非暴击假设、匿名模板抗性/HP/盾/保护；Timing 用对应单位普攻定义及已解析 AS。目录快照是批准编译的不可变内容。 | 位于 LDTacticalRules，成功给数值/时长，定义域失败显式返回错误；无 Actor/World/Bodies/Camp 查询、时钟、RNG、状态或 Token。真实 ApplyHit/AttackStart 也必须调用这两个同源纯函数，再经 Permit 提交；估计结果不是 Hit/Death/奖励事实。 |
 
 每域独立请求空间和有界回执窗口：同 ID 同条款只重放原结果；同 ID 异条款
@@ -217,10 +217,10 @@ AI 参数接入内容域唯一的生成输入/载荷/contract，不新增 AI 私
 | 优先级 / 状态 | 授权输入、进入条件与动作 | 退出、重规划与禁止捷径 |
 | --- | --- | --- |
 | P0 Stopped | Results/Closing/Faulted、非运行阶段、离局或绑定失效；停止新提交 | 只有核心发布合法新局才重新绑定；不是不断尝试旧局命令。 |
-| P1 DeadWaiting | 本人 Dead/RespawnAt、当前候选与未分配点数；等待身体，并在当前 Dead 阶段选择主动（有空槽即学到）、学图纸、首次安装构件与加点 | 新 BodyRef 到来才恢复身体动作；不移动、攻击，不恢复旧路线。 |
+| P1 DeadWaiting | 本人 Dead/RespawnAt、当前候选与未分配点数；等待身体，并在当前 Dead 阶段选择主动（有空槽即学到）、学图纸、选牌、装牌与加点 | 新 BodyRef 到来才恢复身体动作；不移动、攻击，不恢复旧路线。 |
 | P2 Disengage | 本人危险阈值、可见接触压力、自保 readiness、静态可达地面；停止继续投入，合法自保/撤离 | “正在脱险”才保持最高空间优先级：低于 RetreatHPRatio 且没有就绪自保屏障时，脱险压过回防，也不向公开喷漆者或涂鸦主人冲锋；回到这条线以上后的回血等待让位于紧急回防。已在喷漆区内参与争夺时留在区内对付区内对手，不因独自喷漆被打断、回防不再紧急就跑出区：一碰就走只会让持有者接着暂停的喷漆进度继续；只有跌破止损线又无就绪自保时才撤离。涂鸦主人恢复中（`bRecovering`）且未跌破止损线时仍回到并留在喷漆区内，因为守护只在他独自在区内时计时、离区即暂停，冻结期间走出区还会让守护清零；跌破止损线又无就绪自保时才脱离，因为他死亡会清除涂鸦。撤离选一个远离可见威胁、终点在其视野半径外的公共地面点，并走完这一程，只有到达或不再远离时才重选；威胁失去视野后也不原地停下，追兵忽隐忽现也不改道，到达后看不到威胁、又没有可走的躺平角时原地等待回复（`DemoOpponentPolicy.RecoveryEscapeKept`）。区内有合法余地时先在区内移动，不机械跑出区。 |
 | P3 DefendOrHold | 自己正持有喷漆进度（独自喷漆，或争夺暂停中的持有者，原因 `HoldCapture`）；自己是涂鸦主人且未跌破止损线（含恢复中；守护只在主人独自在区内时计时）（`GuardGraffiti`）；或公开的对手喷漆到期/对手守护获胜时刻即将达到自身回防预算（`PublicCaptureUrgent`，有对手涂鸦时为 `BesiegeOwner`）；走公开喷漆区入口、处理当前可见威胁 | 压过新的打野；阶段、CaptureEpoch、有效资格、路线或风险改变时重评；公开喷漆者或涂鸦主人的 ID 不能直接变成单位目标，只能匹配可见单位的授权 ContenderId。 |
-| P4 Choose（构筑） | 没有在途构筑请求时，每次决策按 §6.4 的顺序至多提出一个构筑请求（原因 `ChooseOffer`），与同节拍的身体意图并行：选择、开局基础构件、构件选择、学图纸，休息中的替换与构件装回/移动，首次安装，休息中的补缺、拆解、洗点与 NPC，最后加点。休息中只在构筑开放步骤（构筑/兑现）做构筑决定；需要 NPC 的服务先走向对应商人（`RestService`），无事可做时训练（§6.4）；开局休息 R0 内另要等到本 AI 的 `OpeningPickAtMs`（adapter 每局从服务器随机流抽一次，R0 开始后第 1–4 秒间）之后 | 不冻结、不替换发育期正在进行的合法运动或紧急反应；成功后才读下一组，冲突不重抽。 |
+| P4 Choose（构筑） | 没有在途构筑请求时，每次决策按 §6.4 的顺序至多提出一个构筑请求（原因 `ChooseOffer`），与同节拍的身体意图并行：选择、选牌、学图纸、装牌，休息中的替换、洗点与 NPC，最后加点。休息中只在构筑开放步骤（构筑/兑现）做构筑决定；需要 NPC 的服务先走向对应商人（`RestService`），无事可做时训练（§6.4）；开局休息 R0 内另要等到本 AI 的 `OpeningPickAtMs`（adapter 每局从服务器随机流抽一次，R0 开始后第 1–4 秒间）之后 | 不冻结、不替换发育期正在进行的合法运动或紧急反应；成功后才读下一组，冲突不重抽。 |
 | P5 Engage | 当前合法可见目标、本人可用资源/动作、未超投入预算；Nav 攻击订单与 §6.3 主动 | 失视野、无效目标、危险、回防、超预算或生命变化时退出；不读对手内部战力来保证击杀。 |
 | P6 Contest | 旗杆已开放，无更高可执行目标；自身风险门允许进入公开喷漆区（`ContestCapture`）；旗杆上是对手涂鸦时为不紧急的围攻/改漆（`BesiegeOwner`） | 到位后独自喷漆或争夺；不能有效入场时换静态合法入口或继续成长/探索，不用保护者骗争夺人数。 |
 | P7 Farm | 没有更高目标；根据公开档位与自身状态选择营地，观察到合法成员才攻击 | 无合法目标、止损、预算到期或紧急回防即结束。Returning 不等于无敌；只继续 §6.2 允许的当前射程内攻击，不新起回营追逐。 |
@@ -418,36 +418,27 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
 
 1. **选择**：有当前候选且允许选择（休息的构筑开放步骤、野外各段含交战中，存活或死亡）时，从候选中按下面的主动偏好选一个，
    总是带 `bLearnIfPossible`：服务器在有空槽时学到最低空槽，Q/W/E 已满时存为图纸。
-2. **开局基础构件**：开局基础构件选择开放时，按目录顺序选第一个 AI 能安装的选项（`SelectOpeningBase`），总是请求同次安装。
-3. **构件选择**：待定的精英营地构件选择按最早一项处理（`SelectComponentChoice`），与主动选择同闸。
-4. **学图纸**：有图纸、有空的 Q/W/E 且允许学习（休息的构筑开放步骤，或野外各段，存活或死亡）时，按同一偏好选一份图纸学到最低空槽。
+2. **选牌**（spec §13）：有当前牌组时（与主动选择同闸）用 `SelectCard` 选一张：每张牌的分数是 `AI.CardVocabScore` × 它与本构筑
+   （已装的牌与已学技能，`BuildVocab`）共享的词汇键数，加一个由参赛者、对局与牌决定的确定性小抖动；本局有**质变目标**时
+   （开局时以 `AI.BreakoutChance` 的概率从九个 P2 样板里抽一个，`DrawBreakoutGoal`，确定性哈希），目标样板里的牌再加 `AI.BreakoutCardScore`。
+   P5 之前 AI 从不跳过牌组，也不重抽或锁定。选中的牌在有空格且有合法位置时同次装上（`CardTarget`：形式的唯一位置；技能牌装在与它共享
+   词汇最多的已学技能上，同分按 Q/W/E；Y25 取第一种元素），否则进牌库。
+3. **学图纸**：有图纸、有空的 Q/W/E 且允许学习（休息的构筑开放步骤，或野外各段，存活或死亡）时，按同一偏好选一份图纸学到最低空槽。
    Q/W/E 已满时不学，图纸留待休息时的替换。
-5. **替换**（只在休息构筑窗口，且没有未决候选时）：Q/W/E 全满且有图纸时，每个已学主动只以另外两个已学主动覆盖的用途
+4. **替换**（只在休息构筑窗口，且没有未决候选时）：Q/W/E 全满且有图纸时，每个已学主动只以另外两个已学主动覆盖的用途
    按主动偏好排名，取排名最低的一个；图纸以同样那两个主动覆盖的用途排名，最好的一份严格排在它前面才用同一 `ReplaceActive`
    命令替换它（`SelectReplacement`）。被替换的主动被遗忘、不回到图纸，所以每次替换都用掉一份图纸，替换必然结束；
-   装在被遗忘主动上的构件由成长域同次退回构件库，由下一步装回。
-6. **装回与移动**（只在休息构筑窗口，`LDProgression::IsRestWindow`；服务器随时受理搬动，这里是 AI 的节奏取舍，避免交战中拆掉自己的构筑）：先把曾经安装过、现在在构件库里的构件按目录顺序装回规则选定的位置
-   （基础构件按 `ComponentUsable`，改装件/连接件按 `WorkshopTarget`）；都装回后，若某个已安装构件不在规则的首选位置
-   （B18 的绑定，或改装件/连接件的目标），先 `UninstallComponent` 卸下（装在它上面的构件一并退回），下一次决策再装回首选位置
-   （`SelectComponentMove`）。首选位置在“卸下它和装在它上面的构件之后的构筑”上判断，正是装回时读到的构筑，所以装回后不会再移动；
-   每次移动只会改善本构件在自身目标列表中的位置，互斥的同形态构件不会来回换位；没有合法首选位置的构件留在原处。
-7. **首次安装**：从未安装过的已持有构件按目录顺序安装到规则选定的位置（与学图纸同闸）。
-   **形态替换**（只在休息构筑窗口）：从未安装过的已持有构件若只因一件已安装的同形态构件而装不上（`TargetConflict`），
-   按卸下那件后的构筑选位，只有正好落在那件的原位置才用带 `Replacing` 的 `InstallComponent` 一步换下（`FormSwaps`，目录顺序）。
-   被换下的件已安装过，不会再换回来，所以替换必然结束。工坊已满时 AI 不做首次安装，也不按价值替换没有形态的构件。
-8. **补缺**（只在休息构筑窗口）：未分配点数够 `GROWTH.FillGapPoints` 时，为第一个可补的缺口补一件基础构件。
-9. **拆解**（只在休息构筑窗口）：按目录顺序交出 `GROWTH.DismantleInputCount` 件 AI 在已提交构筑上用不上的已持有普通构件
-   （`SelectDismantle`）：从未安装过（已安装或安装过的从不交出）、没有 `ComponentUsable`/`WorkshopTarget` 位置、
-   也不是构筑仍可补的缺口；稀缺件不交。只在持有这么多件、批准数量大于一（每次拆解后持有件数严格减少，拆解必然结束）、
-   且还有未持有的普通构件可领时才拆。AI 不读未来候选（规范 §16.4），“用不上”只按当前已提交的构筑判断。
-10. **洗点**（只在休息构筑窗口）：某个已分配属性不在下面加点的相关属性里（例如替换拿走了最后一个 AP 主动）时洗点一次（`WantsRespec`），
+   装在被遗忘主动上的技能牌由成长域同次退回牌库，由下一步装回。
+5. **装牌**：牌库里有牌、有空格时，按序号把第一张有合法位置的牌装上（`SelectCardInstall`，与学图纸同闸，野外与死亡中也可以）；
+   AI 不搬动或卸下已装的牌，容量满时不按价值替换。
+6. **洗点**（只在休息构筑窗口）：某个已分配属性不在下面加点的相关属性里（例如替换拿走了最后一个 AP 主动）时洗点一次（`WantsRespec`），
     下一步重新加点；加点只给相关属性，所以已学主动不变就不会再洗。
-11. **NPC**（只在中场休息 R1–R3 的构筑窗口，只由 `Decide` 提出）：没有候选也没有排队的主动机会、未分配点数不少于 `GROWTH.NpcActivePoints`、
+7. **NPC**（只在中场休息 R1–R3 的构筑窗口，只由 `Decide` 提出）：没有候选也没有排队的主动机会、未分配点数不少于 `GROWTH.NpcActivePoints`、
     至少三个既未学也非图纸的主动、并且有空的 Q/W/E 而没有图纸可学时，向 NPC 买一次主动三选一（`WantsNpcOffer`，`BuyNpcOffer`），
     下一次决策先选择。它排在加点之前，因为加点会用掉全部未分配点数。开局休息 R0 从不买 NPC：
     开局点数用于加点。
-    **升技能**：有技能点时，`PickRankUp` 选按本人当前攻击力/法强算一次释放直接伤害最高的已学技能（平局取靠前的槽），1 级升到 2A，2A 升到 3A1，2B 升到 3B1，经 `RankUpSkill` 提交；对局中随时可用。
-12. **加点**：有未分配点数且允许加点（休息的构筑开放步骤，或野外各段，存活或死亡）时，一次分配全部未分配点：
+    **升技能**：有技能点时，`PickRankUp` 选按本人当前攻击力/法强算一次释放直接伤害最高的已学技能（平局取靠前的槽），分支按词汇选（spec §13）：下一步的两个分支里，与已装牌共享词汇键更多的那个，同分取 A（或这一对的第一个），经 `RankUpSkill` 提交；对局中随时可用。
+8. **加点**：有未分配点数且允许加点（休息的构筑开放步骤，或野外各段，存活或死亡）时，一次分配全部未分配点：
    每一点给相关属性中当前点数最少的一项，平局按五维设计顺序（体格、脸皮、力道、脑力、身手）；相关属性固定含体格与脸皮，基础普攻或任一已学主动有 AD 系数时加力道，
    任一已学主动有 AP 系数时加脑力；身手不在其中。
 
@@ -462,7 +453,7 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
 
 休息中只在构筑开放步骤产生构筑意图（这是 AI 策略的取舍；服务器在 PK 等锁定步骤也受理自己的构筑命令），开局休息 R0 内还要等到本 AI 的 `OpeningPickAtMs`；
 adapter 每局只从服务器随机流抽一次这个时刻，策略不读隐藏技能，不看未来随机结果。
-补缺、拆解、洗点、替换与 NPC 购买须先走到对应商人附近：策略读取自己的 `NearbyRestService` 与已注册的公共商人锚点，
+洗点、替换与 NPC 购买须先走到对应商人附近：策略读取自己的 `NearbyRestService` 与已注册的公共商人锚点，
 复用普通移动订单及其失败退避；到达后才经原成长事务提交。R1、R2 的报名窗口优先走向公共报名圈内本人槽位的站位，NPC 交易留到之后；R0、R3 没有报名窗口。
 其余身体意图为下面的训练与 PK 步骤内的存活参赛者（§6.6）。
 
@@ -475,13 +466,13 @@ adapter 每局只从服务器随机流抽一次这个时刻，策略不读隐藏
 同一决策发出 PK 请求时不发身体意图（正在进行的训练订单继续），下一次决策再训练；构筑窗口关闭（锁定步骤）时仍在进行的训练订单
 由一次 Stop 结束，已受理的动作先完成。
 发育期和旗杆开放后，构筑意图与身体意图在同一决策里并行：AI 不为构筑停止交战、回防或撤离。
-交战中与死亡等待中都按上面的顺序选择、学图纸、首次安装构件与加点；装回与移动、替换和休息服务留到休息构筑窗口。
+交战中与死亡等待中都按上面的顺序选择、选牌、学图纸、装牌与加点；替换和休息服务留到休息构筑窗口。
 
-条款取自本人最新成长投影：Offer/OfferRevision、选项或图纸与槽位、点数、构件，以及 Build/LifePhase。
+条款取自本人最新成长投影：Offer/OfferRevision、牌组、选项或图纸与槽位、点数、牌，以及 Build/LifePhase。
 不同请求不得竞争消费同一机会；冲突后重新读原 Offer 和本人构筑，重新决定，
 不改卡、不跳过当前候选、不看未来随机结果。成功后才处理下一组，满级后仍可处理已积累的机会与点数。
 死时使用同一顺序但以当前 Dead 阶段提交（选择并学到空槽、学图纸、首次安装、加点）；属性改变由统一投影保持资源比例，不复活/治疗。
-失败按种类记入失败记录（选择另以 OfferId、学图纸与替换另以图纸、构件安装/卸下另以构件、拆解另以第一件交出的构件为键），
+失败按种类记入失败记录（选择另以 OfferId、学图纸与替换另以图纸、选牌以牌组为键），
 指纹是本人 BuildRevision 与当前候选修订，构筑或候选变化后重新计次；
 PhaseClosed、NoActiveOffer 的拒绝只丢弃该请求、不计失败（§3.3）。
 
@@ -582,9 +573,9 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | `Priorities` | §6.1 优先级、撤离与回防、有界争夺、开局选择与高档营地门槛、争夺暂停下的坚持与争夺；喷漆/守护/围攻：涂鸦主人守区（恢复中未到止损线也回区留守，离区守护暂停）、跌破止损线才脱离、守护暂停时对手不产生回防紧急度、区外围攻可见主人、区内先打喷漆者再打主人、对独自喷漆者用眩晕/嘲讽打断 |
 | `Projections` | 本人/观察帧映射与 FName 大小写规范化 |
 | `Outcomes` | 回执结算对失败记录与当前目标的影响 |
-| `Requests` | 意图→请求构造与回执归类；构件卸下与装回、休息服务（NPC、洗点、替换、拆解）的条款与过时/稀缺/重复/未持有构件的拒绝 |
+| `Requests` | 意图→请求构造与回执归类；选牌（当前牌组、带位置时同次安装）、装牌/卸牌、休息服务（NPC、洗点、替换）的条款与过时/未持有的拒绝 |
 | `PK` | §6.6 休息 PK：报名窗口内外、走进公共报名圈的本人站位（在途保持、已报名留圈、其他订单 Stop）、下注阵营、投掷目标（排除所押阵营、看不到的与超出投掷距离的参赛者）、队友排除、缩圈回撤与 PKReady 不发请求 |
-| `RestRebuild` | §6.4 休息决策：替换（排名最低的已学主动、图纸用尽即止）、替换退回构件后的装回、移到首选位置（M03、B18 重绑带着其上的 C01、M08/M09 不来回换位）、同形态替换（`FormSwaps`）、替换后洗点再加点、拆解（只交用不上的普通构件，不交稀缺/启用过/可补缺的）、NPC（空槽无图纸、点数够、无排队机会；排在加点前；`DecideFollowUpBuild` 不买）；野外与死亡时均不做；每次连续决策都到达不动点 |
+| `RestRebuild` | §6.4 休息决策：替换（排名最低的已学主动、图纸用尽即止）、替换后洗点再加点、NPC（空槽无图纸、点数够、无排队机会；排在加点前；`DecideFollowUpBuild` 不买）；野外与死亡时均不做；每次连续决策都到达不动点 |
 | `NpcGate` | NPC 只在中场休息 R1–R3 购买：R0 把开局点数加到属性；点数不够价格或 Q/W/E 已满时不买 |
 | `RestServiceTravel` | 对应商人寻路、靠近后交易、失败退避，以及报名优先 |
 | `Training` | §6.4 训练：只打名单外的本人假人（生产交战的主动顺序与普攻）、保持在途订单与引导；有构筑、构筑在途、`OpeningPickAtMs` 前、锁定步骤、名单未读、受保护或死亡时不训练；PK 请求的决策不发身体意图；报名窗口内走进报名圈并留圈而不训练（受理的动作先完成）；窗口关闭时 Stop |

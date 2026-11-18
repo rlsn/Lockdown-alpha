@@ -88,11 +88,6 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("bCritical"), TEXT("The critical-hit result must be explicit"));
         }
-        // #198: ability criticals are retired; only a primary basic crits.
-        if (Input.bCritical.GetValue() && Input.HitClass != ELDCombatHitClass::BasicPrimary)
-        {
-            return Fail(EError::Domain, TEXT("bCritical"), TEXT("Only a primary basic hit can be critical"));
-        }
         if (Definition.ADRatioBp != 0 && !Input.SourceADP2.IsSet())
         {
             return Fail(EError::Numeric, TEXT("SourceADP2"), TEXT("AD is required by the resolved coefficient"));
@@ -163,21 +158,20 @@ namespace LDTactical
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceMaxHPP2.GetValue()),
                 Numbers.Value(Definition.MaxHPRatioBp, 10000)));
         }
-        // A primary basic crits at STAT.CritMultiplier before the bonus pool.
+        // A critical hit multiplies by STAT.CritMultiplier before the damage factors.
         if (Input.bCritical.GetValue())
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
-        if (Input.DamageBonusBp < 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
-            || Input.PrimaryGuardP2 < 0 || Input.PrimaryGuardCapBp < 0 || Input.PrimaryGuardCapBp >= 10000
+        if (Input.DamageFactorBp <= 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
             || Input.KeystoneGuardP2 < 0 || Input.KeystoneGuardCapBp < 0 || Input.KeystoneGuardCapBp >= 10000
-            || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.DeferRatioBp < 0 || Input.DeferRatioBp >= 10000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
+            || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
         {
-            return Fail(EError::Domain, TEXT("DamageBonusBp"), TEXT("A damage bonus, delivery share or guard is outside its domain"));
+            return Fail(EError::Domain, TEXT("DamageFactorBp"), TEXT("A damage factor, delivery share or guard is outside its domain"));
         }
-        if (Input.DamageBonusBp != 0)
+        if (Input.DamageFactorBp != 10000)
         {
-            Damage = Numbers.Mul(Damage, Numbers.Value(10000 + Input.DamageBonusBp, 10000));
+            Damage = Numbers.Mul(Damage, Numbers.Value(Input.DamageFactorBp, 10000));
         }
         int64 ResistanceDenominatorP2;
         if (!Numbers.Add64(Formulas.ResistanceScaleP2, Input.TargetResistanceP2.GetValue(),
@@ -202,22 +196,6 @@ namespace LDTactical
             }
             Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
         }
-        int64 BeforeGuardP2 = 0, AfterGuardP2 = 0;
-        const bool bGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0;
-        if (bGuarded)
-        {
-            if (!QuantizeEvaluation(Damage, false, BeforeGuardP2, Check, TEXT("BeforeGuardP2")))
-            {
-                return Fail(EError::Overflow, TEXT("BeforeGuardP2"), MathError);
-            }
-            const auto Flat = Numbers.Value(Input.PrimaryGuardP2);
-            const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.PrimaryGuardCapBp, 10000));
-            Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
-            if (!QuantizeEvaluation(Damage, false, AfterGuardP2, Check, TEXT("AfterGuardP2")))
-            {
-                return Fail(EError::Overflow, TEXT("AfterGuardP2"), MathError);
-            }
-        }
         int64 BeforeKeystoneGuardP2 = 0;
         const bool bKeystoneGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.KeystoneGuardP2 > 0;
         if (bKeystoneGuarded)
@@ -235,18 +213,13 @@ namespace LDTactical
         {
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
-        int64 GuardCutP2 = bGuarded ? FMath::Max<int64>(0, BeforeGuardP2 - AfterGuardP2) : 0;
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
         const int64 KeystoneGuardCutP2 = bKeystoneGuarded
             ? FMath::Max<int64>(0, BeforeKeystoneGuardP2 - Value.DamageP2) : 0;
         if (Input.bTargetProtected.GetValue())
-        { Value.DamageP2 = 0; BraceCutP2 = 0; GuardCutP2 = 0; }
+        { Value.DamageP2 = 0; BraceCutP2 = 0; }
         Value.BraceCutP2 = BraceCutP2;
-        Value.GuardCutP2 = GuardCutP2;
         Value.KeystoneGuardCutP2 = Input.bTargetProtected.GetValue() ? 0 : KeystoneGuardCutP2;
-        // #198 F M12: the deferred share leaves before the shield; it is paid later at its original amount.
-        Value.DeferredP2 = Value.DamageP2 / 10000 * Input.DeferRatioBp + Value.DamageP2 % 10000 * Input.DeferRatioBp / 10000;
-        Value.DamageP2 -= Value.DeferredP2;
         Value.ShieldAbsorbedP2 = FMath::Min(Value.DamageP2, Input.TargetShieldP2.GetValue());
         const int64 AfterShieldP2 = Value.DamageP2 - Value.ShieldAbsorbedP2;
         Value.HPLostP2 = FMath::Min(AfterShieldP2, Input.TargetHPP2.GetValue());
@@ -256,6 +229,52 @@ namespace LDTactical
         FLDDamageEvaluationResult Result;
         Result.Value = Value;
         return Result;
+    }
+
+    bool DamageFactorProduct(const TArray<FLDDamageFactor>& Factors, int64 CapBp, int64& OutBp, bool& bOutCapped, FString& Error)
+    {
+        OutBp = 10000;
+        bOutCapped = false;
+        if (CapBp <= 10000)
+        {
+            Error = TEXT("The damage factor cap must sit above x1.");
+            return false;
+        }
+        // Copies of one source add into one multiplier; distinct sources multiply (spec §3.7).
+        TArray<FLDDamageFactor, TInlineAllocator<8>> Groups;
+        for (const FLDDamageFactor& Factor : Factors)
+        {
+            if (Factor.Bp < 0 || Factor.Key.IsNone())
+            {
+                Error = FString::Printf(TEXT("Damage factor %s is negative or unnamed."), *Factor.Key.ToString());
+                return false;
+            }
+            FLDDamageFactor* Group = Groups.FindByPredicate([&Factor](const FLDDamageFactor& Row) { return Row.Key == Factor.Key; });
+            if (!Group) { Group = &Groups.Add_GetRef({Factor.Key, 0}); }
+            if (Group->Bp > MAX_int64 - 10000 - Factor.Bp)
+            {
+                Error = FString::Printf(TEXT("Damage factor %s overflows int64."), *Factor.Key.ToString());
+                return false;
+            }
+            Group->Bp += Factor.Bp;
+        }
+        for (const FLDDamageFactor& Group : Groups)
+        {
+            const int64 Multiplier = 10000 + Group.Bp;
+            // The int64 pre-check: an overflow fails explicitly, it never saturates.
+            if (OutBp > MAX_int64 / Multiplier)
+            {
+                Error = FString::Printf(TEXT("Damage factor product overflows int64 at %s."), *Group.Key.ToString());
+                return false;
+            }
+            OutBp = OutBp * Multiplier / 10000;
+            if (OutBp > CapBp)
+            {
+                OutBp = CapBp;
+                bOutCapped = true;
+            }
+        }
+        return true;
     }
 
     FLDBasicTimingResult EvaluateBasicTiming(const FLDBasicTimingInput& Input, const FLDDemoContentSnapshot& Catalog)
@@ -461,14 +480,13 @@ namespace LDTactical
     }
 
     FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses, const TArray<FLDCombatSlow>& Slows,
-        const TOptional<FLDLowHPBonusTerm>& LowHP, int64 HPP2, int64 MaxHPP2, int64 AtMs)
+        int64 AtMs)
     {
         FLDTemporaryAttributeTerms Terms;
         for (const auto& Bonus : Bonuses)
         {
             if (Bonus.ExpiresAtMs > AtMs) { Terms.Bonuses.Append(Bonus.Stats); }
         }
-        if (LowHP.IsSet() && BelowHPThreshold(HPP2, MaxHPP2, LowHP->ThresholdBp)) { Terms.Bonuses.Append(LowHP->Stats); }
         Terms.MoveSlowBp = StrongestSlowBp(Slows, AtMs);
         return Terms;
     }

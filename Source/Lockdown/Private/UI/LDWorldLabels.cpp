@@ -366,8 +366,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         {
             const ELDRestService Service=It->GetService();
             const FString Name=Service==ELDRestService::SkillMerchant?TEXT("技能商人 · 主动技能")
-                :Service==ELDRestService::ComponentArtisan?TEXT("构件工匠 · 构件整理")
-                :Service==ELDRestService::Trainer?TEXT("训练师 · 属性与技能"):TEXT("");
+                                :Service==ELDRestService::Trainer?TEXT("训练师 · 属性与技能"):TEXT("");
             if(!Name.IsEmpty()){PublicLabel(It->GetActorLocation()+FVector(0,0,120),Name);}
         }
         for(TActorIterator<ALDTrainingRoomDisplay> It(World);It;++It)

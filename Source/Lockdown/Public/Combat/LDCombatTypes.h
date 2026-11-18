@@ -12,10 +12,10 @@ class AController;
 // ---------------------------------------------------------------- sources and entries
 
 // Innate: the D dash every contender has (D19); it is no learned source and is never forgotten.
-// 3 was the retired equipment (Gear) source (#144); Innate keeps its number. Component (#198 B): an installed workshop
-// component (DefinitionId = component id); it is never an entry or a cooldown track.
+// 3 was the retired equipment (Gear) source (#144); Innate keeps its number. Card: an installed build card (DefinitionId =
+// card id); it is never an entry or a cooldown track.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5, FinalMod = 6 };
+enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Card = 5, FinalMod = 6 };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
@@ -151,7 +151,9 @@ enum class ELDCombatReject : uint8
     MomentumShort, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
     MatchClosed, AuthorityDataUnavailable, CapacityUnavailable,
     // #198: the rest return countdown locks every attack, ability and dash.
-    NotStarted
+    NotStarted,
+    // K12: the release costs health the body cannot pay and live.
+    HealthShort
 };
 
 // Owner-only receipt. A Rejected receipt may still carry bProtectionRemoved: the intent broke protection.
@@ -280,12 +282,15 @@ struct FLDBuildProjectionInput
     // #198: the allocated points of each stat that holds any (canonical stat id, positive count).
     TArray<FLDStatPointsValue> StatPoints;
     TArray<FLDLearnedActiveValue> Actives;
-    // #198 B: installed components (FLDAttributeBuildValues::Components), sorted by id.
-    TArray<FLDInstalledComponentValue> Components;
+    // Installed cards (FLDAttributeBuildValues::Cards), sorted by serial.
+    TArray<FLDInstalledCardValue> Cards;
     FLDFinalModSelection FinalMod;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;
+    // The grow cards' match growth (FLDAttributeBuildValues::CardGrowth). Combat owns it like DevBonuses: a Growth build
+    // change keeps the installed one; only Combat's growth handlers change it, without a build revision.
+    TArray<FLDDemoStatBonus> CardGrowth;
     uint64 ResultBuildRevision=0;      // strictly increasing
 };
 
@@ -449,7 +454,7 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational Base;
     UPROPERTY() FLDDemoRational Level;
     UPROPERTY() FLDDemoRational Choices;             // #198: the allocated stat points' flat term
-    UPROPERTY() FLDDemoRational Components;          // #198 B: the installed components' stat_bonus flat term
+    UPROPERTY() FLDDemoRational Cards;               // the installed cards' flat term (Y13, grow cards)
     UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build, the DEV layer excluded
     UPROPERTY() FLDDemoRational Dev;                 // DEV test layer flat term; zero outside a DEV test session
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
@@ -502,22 +507,6 @@ struct FLDCombatPreviewSlow
     UPROPERTY() int64 ExpiresAtMs=0;
 };
 
-USTRUCT()
-struct FLDCombatPreviewWideToken
-{
-    GENERATED_BODY()
-    UPROPERTY() FName Component;
-    UPROPERTY() FName Host;
-    UPROPERTY() int64 RatioBp=0;
-    UPROPERTY() int64 ExpiresAtMs=0;
-
-    bool operator==(const FLDCombatPreviewWideToken& Other) const
-    {
-        return Component==Other.Component && Host==Other.Host && RatioBp==Other.RatioBp && ExpiresAtMs==Other.ExpiresAtMs;
-    }
-    bool operator!=(const FLDCombatPreviewWideToken& Other) const { return !(*this==Other); }
-};
-
 // Single owner publication of the Combat self projection; consumers reject an older Revision.
 USTRUCT()
 struct FLDCombatOwnerView
@@ -549,10 +538,13 @@ struct FLDCombatOwnerView
     UPROPERTY() bool bPreviewLiving=false;
     UPROPERTY() bool bPreviewFinalField=false;
     UPROPERTY() TArray<FLDDemoStatBonus> PreviewDevBonuses;
+    // The grow cards' match growth Combat installed (Y19-Y21, LDAttributeProjection's CardGrowth term), living or dead.
+    UPROPERTY() TArray<FLDDemoStatBonus> CardGrowth;
+    // A12: the focus stacks of this life while they last (0 when none); the preview adds their haste like the authority.
+    UPROPERTY() int32 PreviewFocusHits=0;
     UPROPERTY() TArray<FLDCombatPreviewBonus> PreviewBonuses;
     UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewMoveSlows;
     UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewAttackSlows;
-    UPROPERTY() FLDCombatPreviewWideToken PreviewWideToken;
     UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Dash
     UPROPERTY() TArray<FLDCombatStatusView> Statuses;
     UPROPERTY() int64 NextAttackAtMs=0;

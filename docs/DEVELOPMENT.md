@@ -152,7 +152,7 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
 | `Content\Lockdown\Data` | 已生成并校验的运行载荷 |
 | `Content\Lockdown\Generated` | 原生目录、派生碰撞网格与保存的正式关卡 |
 | `Content\Lockdown\Audio` | `ImportDemoAudio.ps1` 由 `SourceData\Audio` 清单导入的音效目录与声音资产 |
-| `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入的身体、动画、装饰道具与美术目录；`Art\UI` 是 `-Mode ImportUI` 由 `SourceData\UI\ui_images.json`（项目方提供的标题与房间背景图，不属于 CC0 美术包）与 `ui_icons.json`（`SourceData\UI\Icons` 的主动、五维属性、基础构件与状态图标，#85）导入的 UI 纹理，以及由 `ui_fonts.json`（`SourceData\UI\Fonts` 的思源黑体与 OFL 许可）导入的 `Art\UI\Fonts` 字体 |
+| `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入的身体、动画、装饰道具与美术目录；`Art\UI` 是 `-Mode ImportUI` 由 `SourceData\UI\ui_images.json`（项目方提供的标题与房间背景图，不属于 CC0 美术包）与 `ui_icons.json`（`SourceData\UI\Icons` 的主动、五维属性、构筑牌与状态图标，#85）导入的 UI 纹理，以及由 `ui_fonts.json`（`SourceData\UI\Fonts` 的思源黑体与 OFL 许可）导入的 `Art\UI\Fonts` 字体 |
 | `Config` | 项目、平台与布局配置；本机设置放忽略的 `Config\Local` |
 | `Scripts` | 构建、生成、运行和当前结果校验 |
 | `docs` | 当前产品规则与组件技术说明，不存构建输入或每次运行档案 |
@@ -326,13 +326,13 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 
 | 指标 | 口径 |
 | --- | --- |
-| 伤害占比 | 参赛者造成的 `LD_HIT dmg`，按 `via` 分普攻 / 技能（`learned:`）/ 牌或构件（`card:`、`component:`）/ 其他，打参赛者与打野怪分开；反应结算的命中带施加者自己的来源，`LD_HIT` 没有反应字段，所以反应伤害计在施加者的来源里，反应分项写 “no data” |
+| 伤害占比 | 参赛者造成的 `LD_HIT dmg`，按 `via` 分普攻 / 技能（`learned:`）/ 牌（`card:`）/ 其他，打参赛者与打野怪分开；反应结算的命中带施加者自己的来源，`LD_HIT` 没有反应字段，所以反应伤害计在施加者的来源里，反应分项写 “no data” |
 | 每场施法次数 | 一名参赛者的“一场”：它的 `LD_CAST` 与它和其他参赛者互相的命中，间隔超过 5 s（交战窗口）或它死亡即结束；死后 5 s 内它留下的效果（区域、飞行中的弹道）的命中仍算这一场（`LD_CAST` 记在提交释放的那次推进结束时，死亡后 50 ms 内的施法仍归这一场）；跨局汇总只用有 `LD_CAST` 的局；只计含参赛者互相命中的场；同级场 = 开场时它与所有交手者等级相同 |
 | 击杀时间 | 死者与凶手之间（任一方向）、间隔不超过 5 s 的连续命中中第一次命中到死亡回执；死者在这段里也打中过凶手才算互打击杀，没还手的只计“单方面击杀”条数；按死前一刻双方等级判同级 |
 | 劲的收入构成 | 野外生命的 `LD_MOMENTUM` 各项之和与占比，另列脱战漂移、花费、爆劲次数与这些生命里的 `LD_PERFECT_DODGE` 次数；账本在身体移除时才写，局末仍存活的生命没有账本，报告写明缺账本的野外生命条数 |
 | 质变 | 一名参赛者全部场内对参赛者的伤害 ÷（各场同级裸构筑 DPS × 场长，至少 1 s）≥ 3；裸构筑 DPS 默认是 §3.9 的估算（L1 72、L10 154，线性插值、两端沿最近一段外推），`--baseline-dps 1=..,6=..,10=..` 换成实测值，报告写明所用基线 |
-| 被选率 | `LD_OFFER` 出现次数中被 `LD_CHOICE` 或 `*Choice` 类 `LD_BUILD` 选中的比例，主动（`active_*`）与牌或构件分列；另列装上过的构件或牌占参赛者·局的比例 |
-| 胜者构筑种类 | 胜者 `LD_MATCH_SUMMARY_ROW` 的主动（不分槽位）与属性点，加上每件已安装构件或牌最后一条安装 `LD_BUILD` 的绑定与安装目标，都相同才算同一种；行里没有点数与构件字段，或已安装的件在本日志里没有安装记录时写 “no data” |
+| 被选率 | `LD_OFFER`（主动）与 `LD_CARD_OFFER`（牌）出现次数中被 `LD_CHOICE` 或 `LD_CARD kind=PickCard` 选中的比例，主动（`active_*`）与牌分列；另列装上过的牌（`LD_CARD installed=1`）占参赛者·局的比例 |
+| 胜者构筑种类 | 胜者 `LD_MATCH_SUMMARY_ROW` 的主动（不分槽位）、属性点与每张已装的牌及其位置（`cards=`，同名多份分别计），都相同才算同一种；行里没有点数或牌字段时写 “no data” |
 | 离谱时刻 | 单次命中 ≥ 目标生命上限 60% 的条数（列出最大的 5 条），或 `LD_CHAIN steps` ≥ 5 |
 | 最长连锁、伤害因子 | `LD_CHAIN`、`LD_HIT factor_bp`/`factors`；日志里没有这些行时写 “no data”，旧日志另报 `amp_bp` 峰值 |
 

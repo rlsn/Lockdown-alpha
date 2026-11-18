@@ -108,11 +108,9 @@ bool LDCombatSourceRules::FinalTargetsSource(const FLDFinalModSelection& Selecte
 {
     switch (Selected.TargetKind)
     {
-    case ELDComponentTargetKind::Active:
+    case ELDFinalModTargetKind::Active:
         return Source.Kind==ELDCombatSourceKind::Learned && Source.DefinitionId==Selected.TargetId;
-    case ELDComponentTargetKind::Component:
-        return Source.Kind==ELDCombatSourceKind::Component && Source.DefinitionId==Selected.TargetId;
-    case ELDComponentTargetKind::Dash:
+    case ELDFinalModTargetKind::Dash:
         return Source.Kind==ELDCombatSourceKind::Innate && Source.DefinitionId==LDCombatSourceRules::InnateDashId();
     default: return false;
     }
@@ -229,8 +227,6 @@ bool ALDCombatDirector::EmitZonePulse(const FLDCombatZone& Zone, FString& Error)
         Hit.bPeriodic=true;
         Hit.bDirectAbilityDamage=Zone.bDamage && !Zone.bFinalModDerived;
         Hit.bFinalModDerived=Zone.bFinalModDerived;
-        Hit.ControlAmpBp=Zone.ControlAmpBp;
-        Hit.IdleReadyAmpBp=Zone.IdleReadyAmpBp;
         Hit.PackageScaleBp=Zone.PackageScaleBp;
         Hit.bApplyWet=Zone.bWet;
         Hit.BurnStacks=Zone.PulseBurnStacks;
@@ -278,7 +274,6 @@ bool ALDCombatDirector::SpawnFinalZone(FLDBodyCombatState& Holder, const FLDDemo
     Zone.APRatioBp=Card.APRatioBp;
     Zone.SourceADP2=Holder.AttributeProjection.Final.ADP2;
     Zone.SourceAPP2=Holder.AttributeProjection.Final.APP2;
-    Zone.ControlAmpBp=Holder.AttributeProjection.ControlAmp.IsSet() ? Holder.AttributeProjection.ControlAmp->RatioBp : 0;
     Zone.PulseSlowBp=Card.SlowBp;
     Zone.PulseSlowMs=Card.SlowMs;
     if (bTether)
@@ -403,7 +398,7 @@ bool ALDCombatDirector::OnFinalHit(const FLDCombatHit& Hit, FLDBodyCombatState& 
     case ELDDemoFinalModId::FinalOpenMic:
     {
         // Status payments aggregate older contacts; they are not a new independent hit.
-        if (Hit.bLedgerCashOut || Hit.bBurnTick || Hit.bStatusSettle || Hit.bDebtPayment) { break; }
+        if (Hit.bRider || Hit.bBurnTick || Hit.bStatusSettle) { break; }
         TArray<FLDFinalModHitMark>& Hits=Source->FinalMod.Hits;
         Hits.RemoveAll([NowMs,Card](const FLDFinalModHitMark& Mark) { return Mark.AtMs<NowMs-Card->WindowMs; });
         if (!Hit.HitId.IsValid() || Hits.ContainsByPredicate([&Hit](const FLDFinalModHitMark& Mark) { return Mark.HitId==Hit.HitId; }))

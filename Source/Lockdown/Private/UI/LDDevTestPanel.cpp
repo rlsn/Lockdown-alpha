@@ -1,4 +1,5 @@
 #include "UI/LDDevTestPanel.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -171,6 +172,19 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::RefillResources),[this](){Send(ELDDevTestOp::RefillResources);},TEXT("DevTestRefill"));
             AddButton(Line,TEXT("重置冷却"),[this](){Send(ELDDevTestOp::ResetCooldowns);},TEXT("DevTestCooldowns"));
             AddButton(Line,TEXT("重置到开局"),[this](){Send(ELDDevTestOp::ResetToMatchStart);},TEXT("DevTestReset"));
+        }
+
+        // Spec §7.6: one click puts the own contender into a P2 breakout sample (reset, max level, its skills, points and cards).
+        Heading(TEXT("质变样板（重置后一键配好满级构筑）"));
+        {
+            UHorizontalBox* Line=nullptr;
+            int32 Count=0;
+            for(const FLDBreakoutPreset& Preset:LDBreakoutPresets::All())
+            {
+                if(Count++%3==0){Line=Row();}
+                const FName Id(Preset.Id);
+                AddButton(Line,Preset.Label,[this,Id](){Send(ELDDevTestOp::ApplyBreakoutPreset,0,Id);},FName(*(FString(TEXT("DevTestBreakout_"))+Preset.Id)));
+            }
         }
 
         Heading(TEXT("测试属性（叠加在构筑之上，0 去掉该项）"));

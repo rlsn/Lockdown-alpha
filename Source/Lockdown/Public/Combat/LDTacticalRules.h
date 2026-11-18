@@ -9,6 +9,10 @@ struct FLDDemoPolicies;
 
 namespace LDTactical
 {
+    // Spec §3.7: the product of Factors grouped by Key (one multiplier per key: 1 + the summed Bp), in basis points, stopped
+    // at CapBp (DAMAGE.FactorTechCap; bOutCapped). False with Error for a negative or unnamed factor or an int64 overflow.
+    LOCKDOWN_API bool DamageFactorProduct(const TArray<FLDDamageFactor>& Factors, int64 CapBp, int64& OutBp, bool& bOutCapped,
+        FString& Error);
     LOCKDOWN_API FLDDamageEvaluationResult EvaluateDamage(
         const FLDDamageEvaluationInput& Input, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API FLDBasicTimingResult EvaluateBasicTiming(
@@ -49,9 +53,9 @@ namespace LDTactical
     LOCKDOWN_API bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses, int64 AtMs);
     // HP strictly below ThresholdBp of MaxHP (a dead or empty pool never counts).
     LOCKDOWN_API bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp);
-    // Active timed bonuses (in apply order), the conditional low-HP bonus and the strongest slow at AtMs.
+    // Active timed bonuses (in apply order) and the strongest slow at AtMs.
     LOCKDOWN_API FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses,
-        const TArray<FLDCombatSlow>& Slows, const TOptional<FLDLowHPBonusTerm>& LowHP, int64 HPP2, int64 MaxHPP2, int64 AtMs);
+        const TArray<FLDCombatSlow>& Slows, int64 AtMs);
     // FORMULA.Regen with POLICY.RegenIntegration=CarrySubP2Remainder: integrates RatePerSec over ElapsedMs plus the
     // carried 1e-6 P2 remainder, commits whole P2 and discards overflow at MaxP2. Fails for unrepresentable rates.
     LOCKDOWN_API bool IntegrateRegen(const FLDDemoRational& RatePerSec, int64 ElapsedMs, int64 MaxP2,

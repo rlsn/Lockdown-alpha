@@ -70,59 +70,37 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     // #198 S21: a live grievous cuts every new heal once, before it lands.
     if (const ILDLifeAuthority* Mode=Authority()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
     if (AmountP2<=0) { return false; }
-    // #198 F M12: a heal repays the oldest debts first (spec §10.3); only the rest restores HP.
-    int64 Left=AmountP2, Repaid=0;
-    for (FLDCombatDebt& Debt : Body.Debts)
-    {
-        if (Left<=0) { break; }
-        const int64 Part=FMath::Min(Left,Debt.AmountP2);
-        Debt.AmountP2-=Part;
-        Left-=Part;
-        Repaid+=Part;
-    }
-    Body.Debts.RemoveAll([](const FLDCombatDebt& Debt) { return Debt.AmountP2<=0; });
     auto& Pool=Body.Resources;
     const int64 Before=Pool.HpP2;
-    if (Left>0)
-    {
-        Pool.HpP2=Left>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+Left;
-        if (Pool.HpP2>=Pool.MaxHpP2) { Body.HpRegenMicroP2=0; }
-    }
+    Pool.HpP2=AmountP2>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+AmountP2;
+    if (Pool.HpP2>=Pool.MaxHpP2) { Body.HpRegenMicroP2=0; }
     const int64 Healed=Pool.HpP2-Before;
-    if (Healed==0 && Repaid==0) { return false; }
-    if (OutApplied) { *OutApplied=Healed+Repaid; }
-    if (Repaid>0)
+    const int64 NowMs=Authority() ? Authority()->GetAuthorityNowMs() : 0;
+    // Y14: the overflow of this heal becomes a shield; Y19 counts what really healed.
     {
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_DEBT_REPAID body=%s repaid=%s healed=%s"),*LDLog::Id(Body.Victim.EntityId),
-            *LDLog::P2(Repaid),*LDLog::P2(Healed));
-    }
-    // #198 F C08: half of the real heal and repayment of the source it sits on joins its counter store.
-    if (HealSource.Kind!=ELDCombatSourceKind::None)
-    {
-        TArray<FLDPassiveEffectRef> Counters;
-        FString Error;
-        if (!WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::HealCounter,HealSource,Counters,Error))
+        FString CardError;
+        if (!OverhealShield(Body,AmountP2-Healed,NowMs,CardError))
         {
-            UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_WORKSHOP_UNRESOLVED body=%s op=heal_counter error=%s"),*LDLog::Id(Body.Victim.EntityId),*Error);
+            if (OutError) { *OutError=CardError; }
+            return false;
         }
-        else if (!Counters.IsEmpty())
+    }
+    if (Healed==0) { return false; }
+    if (OutApplied) { *OutApplied=Healed; }
+    if (FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId); Record && Body.Victim.Kind==ELDVictimKind::Contender)
+    {
+        TArray<FLDPassiveEffectRef> Fat;
+        FString CardError;
+        if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::HealGrowth,Fat,CardError)
+            || (!Fat.IsEmpty() && (Record->CardGrowth.HealedP2+=Healed, !RefreshCardGrowth(Body.Victim.EntityId,NowMs,CardError))))
         {
-            const FLDDemoEffectDefinition& Counter=Counters[0].Effect;
-            const int64 Stored=(Healed+Repaid)/10000*Counter.RatioBp+(Healed+Repaid)%10000*Counter.RatioBp/10000;
-            const int64 Now=Authority() ? Authority()->GetAuthorityNowMs() : 0;
-            if (Stored>0)
-            {
-                Body.CounterStoreP2=FMath::Min(Body.CounterStoreP2+Stored,Counter.BaseP2);
-                if (RootEffectId.IsValid()) { Body.CounterRootEffectId=RootEffectId; }
-                Body.CounterLastAddMs=Now;
-                if (Body.CounterNextFireMs<=Now) { Body.CounterNextFireMs=Now+Counter.IntervalMs; }
-            }
+            if (OutError) { *OutError=CardError; }
+            return false;
         }
     }
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
-    LedgerDebtRepaid(Body,Repaid);
     if (Healed>0 && HealSource.Kind!=ELDCombatSourceKind::None && Body.AttributeProjection.Keystones.bPhysique)
     {
         const auto* Mode=Authority();
@@ -133,7 +111,6 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
             else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*Message); }
             return false;
         }
-        const int64 NowMs=Mode->GetAuthorityNowMs();
         if (NowMs>=Body.KeystonePhysiqueReadyAtMs)
         {
             const auto* Content=Catalog();
@@ -185,41 +162,10 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     if (!LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,SourceEntity,Expires},AmountP2,NowMs))
     { return true; }
     Body.ShieldGrantedP2=AmountP2;
-    Body.ShieldGrantSource=GrantSource;
-    // C18: the replaced shield settles; a host shield of an installed connector is watched from now.
-    if (!SettleStoredForce(Body,NowMs,Error)) { return false; }
-    TArray<FLDPassiveEffectRef> Stores;
-    if (GrantSource.Kind==ELDCombatSourceKind::Learned
-        && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::StoredForce,GrantSource,Stores,Error)) { return false; }
-    if (!Stores.IsEmpty() && !(Body.StoredForceWatch.IsSet() && Body.StoredForceWatch->ShieldId==EffectId))
-    {
-        FLDCombatStoredForceWatch& Watch=Body.StoredForceWatch.Emplace();
-        Watch.ShieldId=EffectId;
-        Watch.Component=Stores[0].Source.DefinitionId;
-        Watch.Host=GrantSource.DefinitionId;
-    }
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerShieldGranted(Body,AmountP2);
-    return true;
-}
-
-bool ALDCombatDirector::OnShieldBroken(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 GrantedP2, int64 NowMs, FString& Error)
-{
-    TOptional<FLDPassiveEffectRef> Held;
-    if (!FindTrigger(Holder.AttributeProjection,ELDDemoEffectOp::ShieldBreakRetort,Held,Error)) { return false; }
-    const FLDBodyCombatState* Breaker=FindBody(Hit.SourceBody);
-    if (!Held.IsSet() || !Breaker || Breaker==&Holder || Breaker->bPendingDeath || Holder.bPendingDeath || NowMs<Holder.RetortReadyAtMs) { return true; }
-    const FLDDemoEffectDefinition& Retort=Held->Effect;
-    if (!LDMatchLifecycle::AddDurationMs(NowMs,Retort.IntervalMs,Holder.RetortReadyAtMs,Error)) { return false; }
-    FLDCombatHit Answer=LDCombatMechanicsDetail::MakeHit(Holder,Held->Source,Hit.SourceBody,FGuid());
-    Answer.BaseP2=LDCombatMechanicsDetail::Scale(GrantedP2,Retort.RatioBp);
-    Answer.DamageType=ELDDemoDamageType::Magical;
-    Answer.SlowBp=Retort.SecondaryRatioBp;
-    Answer.SlowDurationMs=Retort.SecondaryDurationMs;
-    Answer.bFromShieldTrigger=true;
-    PendingHits.Add(Answer);
     return true;
 }
 
@@ -389,10 +335,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         if (Zone.HasteBp>0) { UpdateZoneHaste(Zone,NowMs); }
         if (Zone.EndMs<=NowMs)
         {
-            // #198 F C06: a zone that ran its whole life completes naturally.
-            const FLDCombatZone Ended=Zone;
             Zones.RemoveAt(Index);
-            if (!TriggerAftershock(Ended.SourceBody,Ended.Source,Ended.EffectId,Ended.CentreCm,Ended.RadiusCm,NowMs,Error)) { return false; }
         }
     }
     return true;
@@ -455,7 +398,7 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoAbilityValues& Values
 }
 
 bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
-    const FVector& OriginFoot, const FVector& TargetPoint, const FVector& ReleaseDirection, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+    const FVector& OriginFoot, const FVector& TargetPoint, const FVector& ReleaseDirection, const FGuid& EffectId, uint64 Token,
     TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error)
 {
     using namespace LDCombatMechanicsDetail;
@@ -464,47 +407,6 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
     const int64 Now=Mode->GetAuthorityNowMs();
     const FLDDemoAbilityValues& Values=Terms.Values;
     const FLDDemoEffectDefinition* ZoneDef=FindOp(Values,ELDDemoEffectOp::Zone);
-    if (ZoneDef && Terms.CompressCone.IsSet())
-    {
-        Error=TEXT("A zone active compiled a cone compression.");
-        return false;
-    }
-    // #198 F M07: the pulses become one fixed blast after the delay: radius x ratio, the planned pulses' summed package x the
-    // multiplier, its slow, burn and native-hit triggers once; no lasting zone or in-zone haste.
-    if (ZoneDef && Terms.CompressZone.IsSet())
-    {
-        const FLDDemoEffectDefinition& Compress=Terms.CompressZone.GetValue();
-        const FLDDemoEffectDefinition* Damage=FindOp(Values,ELDDemoEffectOp::ZoneDamage);
-        if (!Damage) { Error=TEXT("A compressed zone has no zone damage to compress."); return false; }
-        FLDCombatGroundEffect Blast;
-        FLDCombatHit& Payload=Blast.Payload;
-        Payload=MakeHit(Body,Source,FLDCombatBodyRef(),EffectId);
-        Payload.Token=Token;
-        Payload.CastLedger=MoveTemp(CastLedger);
-        Payload.BaseP2=Damage->BaseP2;
-        Payload.ADRatioBp=Damage->ADRatioBp;
-        Payload.APRatioBp=Damage->APRatioBp;
-        Payload.DamageType=Damage->DamageType;
-        Payload.bDirectAbilityDamage=true;
-        Payload.IdleReadyAmpBp=IdleAmpBp;
-        const int64 Scale=int64(ZoneDef->Count)*Compress.MultiplierBp;
-        Payload.PackageScaleBp=Terms.PackageScaleBp/10000*Scale+Terms.PackageScaleBp%10000*Scale/10000;
-        if (const FLDDemoEffectDefinition* Slow=FindOp(Values,ELDDemoEffectOp::ZoneSlow))
-        { Payload.SlowBp=Slow->RatioBp; Payload.SlowDurationMs=Slow->DurationMs; }
-        // S20's wet once; its in-zone haste has no zone to live in. The burn and wet take the owner's element snapshot now.
-        Payload.bApplyWet=FindOp(Values,ELDDemoEffectOp::ZoneWet)!=nullptr;
-        if (!StampElementSnapshot(Body,Payload,Error)) { return false; }
-        if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn)) { Payload.BurnStacks=Burn->Count; }
-        if (!StampSourceTerms(Body,Payload,Error)) { return false; }
-        Blast.CentreCm=FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
-        Blast.RadiusCm=Cm(ZoneDef->RadiusCm)*double(Compress.RatioBp)/10000.;
-        Blast.InnerRadiusCm=Blast.RadiusCm;
-        Blast.Origin=ELDCombatGroundOrigin::CompressedZone;
-        if (!LDMatchLifecycle::AddDurationMs(Now,Compress.DelayMs,Blast.ReadyAtMs,Error)) { return false; }
-        Blast.ExpiresAtMs=Blast.ReadyAtMs;
-        GroundEffects.Add(MoveTemp(Blast));
-        return true;
-    }
     if (ZoneDef)
     {
         FLDCombatZone Zone;
@@ -518,12 +420,11 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         // its zone at the start foot.
         Zone.CentreCm=FindOp(Values,ELDDemoEffectOp::Dash) ? OriginFoot : FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
         Zone.RadiusCm=Cm(ZoneDef->RadiusCm);
-        // M16: the zone rides on the caster's foot (its radius already scaled by CompileActive).
+        // A branch tether: the zone rides on the caster's foot (its radius already scaled by CompileActive).
         if (Terms.ZoneTether.IsSet())
         {
             Zone.bTether=true;
             Zone.CentreCm=OriginFoot;
-            LedgerComponentTriggered(Body,Terms.ZoneTether->Source.DefinitionId);
         }
         Zone.StartMs=Now;
         Zone.DelayMs=ZoneDef->DelayMs;
@@ -532,9 +433,6 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         if (!LDMatchLifecycle::AddDurationMs(Now,ZoneDef->DurationMs,Zone.EndMs,Error)) { return false; }
         Zone.SourceADP2=Body.AttributeProjection.Final.ADP2;
         Zone.SourceAPP2=Body.AttributeProjection.Final.APP2;
-        FLDCombatHit SourceTerms;
-        if (!StampSourceTerms(Body,SourceTerms,Error)) { return false; }
-        Zone.ControlAmpBp=SourceTerms.ControlAmpBp;
         // #198: every interval from the zone's start, each enemy inside is slowed for DurationMs.
         if (const FLDDemoEffectDefinition* Slow=FindOp(Values,ELDDemoEffectOp::ZoneSlow))
         {

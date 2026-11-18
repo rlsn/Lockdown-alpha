@@ -249,7 +249,7 @@
         }
       },
       {
-        "id": "element_engine",
+        "id": "element_loop",
         "plan": {
           "subject": {
             "choices": [
@@ -257,7 +257,7 @@
               "ai_select",
               "ai_select"
             ],
-            "breakout_preset": "breakout_element_engine"
+            "breakout_preset": "breakout_element_loop"
           },
           "opponent": {
             "choices": [
@@ -351,7 +351,7 @@
         }
       },
       {
-        "id": "low_hp_rage",
+        "id": "berserk",
         "plan": {
           "subject": {
             "choices": [
@@ -359,7 +359,7 @@
               "ai_select",
               "ai_select"
             ],
-            "breakout_preset": "breakout_low_hp_rage"
+            "breakout_preset": "breakout_berserk"
           },
           "opponent": {
             "choices": [

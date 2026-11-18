@@ -128,19 +128,15 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     Input.TargetResistanceP2 = int64(20000);
     if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 83667, 0})) { return false; }
     Input = PrimaryInput(*Catalog);
-    Input.PrimaryGuardP2 = 100;
-    Input.PrimaryGuardCapBp = 5000;
     Input.KeystoneGuardP2 = 200;
     Input.KeystoneGuardCapBp = 5000;
     const FLDDamageEvaluationResult Guarded = LDTactical::EvaluateDamage(Input, *Catalog);
-    if (!TestTrue(TEXT("Ordinary and keystone primary guards evaluate"), Guarded.IsSuccess())) { return false; }
-    TestEqual(TEXT("Ordinary primary guard cuts first"), Guarded.Value->GuardCutP2, int64(100));
-    TestEqual(TEXT("Keystone guard cuts the post-component amount"), Guarded.Value->KeystoneGuardCutP2, int64(200));
-    TestEqual(TEXT("Both guard cuts precede shields"), Guarded.Value->DamageP2, int64(5632));
+    if (!TestTrue(TEXT("The keystone primary guard evaluates"), Guarded.IsSuccess())) { return false; }
+    TestEqual(TEXT("Keystone guard cuts the mitigated amount"), Guarded.Value->KeystoneGuardCutP2, int64(200));
+    TestEqual(TEXT("The guard cut precedes shields"), Guarded.Value->DamageP2, int64(5732));
     Input.bTargetProtected = true;
     const FLDDamageEvaluationResult Protected = LDTactical::EvaluateDamage(Input, *Catalog);
     if (!TestTrue(TEXT("Protection accepts the same valid guard inputs"), Protected.IsSuccess())) { return false; }
-    TestEqual(TEXT("Protection suppresses ordinary guard"), Protected.Value->GuardCutP2, int64(0));
     TestEqual(TEXT("Protection suppresses keystone guard"), Protected.Value->KeystoneGuardCutP2, int64(0));
 
     FString Error;
@@ -214,12 +210,12 @@ bool FLDDemoDamageDomainTest::RunTest(const FString& Parameters)
         CheckFailure(*this, TEXT("Basic hits cannot become magical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Definition);
     }
     {
-        // #198: ability crits are retired; only a primary basic crits.
+        // Y09 lets skills crit (and A11/K13 riders share the crit): a critical ability hit is evaluated, not refused.
         Input = PrimaryInput(*Catalog);
         Input.HitClass = ELDCombatHitClass::Ability;
         Input.Definition.Emplace(10000, 0, 0, ELDDemoDamageType::Physical);
         Input.bCritical = true;
-        CheckFailure(*this, TEXT("An ability hit cannot be critical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Domain);
+        TestTrue(TEXT("A critical ability hit is evaluated"), LDTactical::EvaluateDamage(Input, *Catalog).IsSuccess());
     }
     struct FRequiredP2 { const TCHAR* Name; TOptional<int64> FLDDamageEvaluationInput::* Member; };
     for (const auto& Field : {
@@ -476,8 +472,8 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     {
         return false;
     }
-    Input.DamageBonusBp = 1600;
-    if (!CheckDamage(*this, TEXT("A 16% control amplification multiplies the pre-resistance amount once"), Input, *Catalog,
+    Input.DamageFactorBp = 11600;
+    if (!CheckDamage(*this, TEXT("A x1.16 damage factor multiplies the pre-resistance amount once"), Input, *Catalog,
         {Amplified, 0, Amplified, 0, HP - Amplified, 0}))
     {
         return false;
@@ -486,8 +482,8 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.bTargetProtected = true;
     CheckDamage(*this, TEXT("Protection still zeroes an amplified hit"), Input, *Catalog, {0, 0, 0, 0, HP, 0});
     Input.bTargetProtected = false;
-    Input.DamageBonusBp = -1;
-    CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
+    Input.DamageFactorBp = 0;
+    CheckFailure(*this, TEXT("A zero or negative damage factor is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
 
     // active_seethe (#198 S07): base + 0.55 AP + 2% of the caster's max HP, the max-HP term beside AD/AP before one floor.
     FString Error;

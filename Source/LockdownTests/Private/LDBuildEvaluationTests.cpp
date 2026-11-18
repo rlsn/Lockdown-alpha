@@ -426,31 +426,26 @@ bool RunPolicy(FAutomationTestBase& Test)
     return bGood;
 }
 
-FLDOpponentComponent Owned(const TCHAR* Id, bool bInstalled, bool bEver, ELDDemoElement Element = ELDDemoElement::None,
-    ELDComponentTargetKind Kind = ELDComponentTargetKind::None, const TCHAR* TargetId = TEXT(""))
+FLDOpponentCard Card(uint16 Serial, const TCHAR* Id, ELDCardTargetKind Kind = ELDCardTargetKind::None, const TCHAR* Active = TEXT(""))
 {
-    FLDOpponentComponent Out;
+    FLDOpponentCard Out;
+    Out.Serial = Serial;
     Out.DefinitionId = Id;
-    Out.bInstalled = bInstalled;
-    Out.bEverInstalled = bEver;
-    Out.Element = Element;
-    // The tests bind B18 to the opening active.
-    Out.BoundActive = bInstalled && Element != ELDDemoElement::None ? TEXT("active_hose_down") : TEXT("");
     Out.TargetKind = Kind;
-    Out.TargetId = TargetId;
+    Out.TargetActive = Active;
     return Out;
 }
 
-FLDEvaluationBuildStep Step(ELDEvaluationStepKind Kind, ELDEvaluationStepWindow Window, const TCHAR* Component = TEXT(""))
+FLDEvaluationBuildStep Step(ELDEvaluationStepKind Kind, ELDEvaluationStepWindow Window, const TCHAR* Card = TEXT(""))
 {
     FLDEvaluationBuildStep Out;
     Out.Kind = Kind;
     Out.Window = Window;
-    Out.Component = Component;
+    Out.Card = Card;
     return Out;
 }
 
-// #198 workshop plan (review §4, spec §19): the planned build steps go out in order through the same build intents, only
+// Workshop plan (review §4, spec §19): the planned build steps go out in order through the same build intents, only
 // when growth's gate admits them and their subject is in the own build; the production follow-up rule never builds for a
 // planned side; anything the plan cannot do as written fails it with the reason.
 bool RunWorkshopPlan(FAutomationTestBase& Test)
@@ -461,8 +456,8 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     using EKind = ELDEvaluationStepKind;
     using EWindow = ELDEvaluationStepWindow;
     using EBuild = ELDOpponentBuildKind;
-    const TCHAR* Trick = TEXT("component_dirty_trick");
-    const TCHAR* Kick = TEXT("component_long_kick");
+    const TCHAR* Spiky = TEXT("card_spiky_hide");
+    const TCHAR* Encore = TEXT("card_encore");
     const TCHAR* Hose = TEXT("active_hose_down");
     const FGuid Opponent(0xED, 0, 0, 2);
 
@@ -478,74 +473,67 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     Field.Self.Actives = {Active(Hose, 0)};
     Field.Self.OffersConsumed = 1;
     Field.Units = {Rival(8, Opponent, 150, 0)};
-    // The opening rest R0 build window: the opening pick open and the three opening points unspent.
+    // The opening rest R0 build window: the level card stored and the three opening points unspent.
     auto Rest = Field;
     Rest.Public.Phase = ELDMatchPhase::Rest;
     Rest.Public.Timeline.Stage = ELDMatchStage::Rest;
     Rest.Public.Timeline.RestIndex = 0;
     Rest.Public.Timeline.Step = ELDRestStep::Build;
     Rest.Self.UnspentPoints = 3;
-    Rest.Self.bOpeningBasePending = true;
-    Rest.Self.OpeningBaseOptions = {TEXT("component_fist_fire"), Trick};
+    Rest.Self.Cards = {Card(1, Spiky)};
 
     FLDEvaluationProfile Plan;
     Plan.Opponent = Opponent;
     Plan.Site = TEXT("capture");
     Plan.Choices = {FLDEvaluationChoice()};
     Plan.SupplyLevel = 3;
-    FLDEvaluationBuildStep Pick = Step(EKind::OpeningBase, EWindow::OpeningRest, Trick);
-    Pick.BoundActive = Hose;
-    Pick.Element = ELDDemoElement::Water;
+    FLDEvaluationBuildStep Hide = Step(EKind::InstallCard, EWindow::OpeningRest, Spiky);
+    Hide.TargetKind = ELDCardTargetKind::Body;
     FLDEvaluationBuildStep Points = Step(EKind::AllocatePoints, EWindow::OpeningRest);
     Points.Points = {{TEXT("stat_strength"), 2}, {TEXT("stat_physique"), 1}};
-    FLDEvaluationBuildStep Rebind = Step(EKind::InstallComponent, EWindow::OpeningRest, Trick);
-    Rebind.BoundActive = Hose;
-    Rebind.Element = ELDDemoElement::Fire;
-    FLDEvaluationBuildStep Mod = Step(EKind::InstallComponent, EWindow::Field, Kick);
-    Mod.TargetKind = ELDComponentTargetKind::Active;
-    Mod.TargetId = Hose;
-    Plan.Build = {Pick, Points, Step(EKind::UninstallComponent, EWindow::OpeningRest, Trick), Rebind, Mod};
+    FLDEvaluationBuildStep Repeat = Step(EKind::InstallCard, EWindow::Field, Encore);
+    Repeat.TargetKind = ELDCardTargetKind::Skill;
+    Repeat.TargetId = Hose;
+    Plan.Build = {Hide, Points, Step(EKind::UninstallCard, EWindow::OpeningRest, Spiky), Hide, Repeat};
 
     FLDOpponentPolicyState Policy;
     FLDEvaluationProfileState State;
     FLDOpponentDecision Decision = LDEvaluationPolicy::Decide(Rest, C, Plan, Policy, State);
-    const FLDOpponentRetryKey PickKey = Decision.Build.Key;
-    bool bGood = Test.TestTrue(TEXT("R0: the planned opening base with its B18 binding, no body intent"),
-        Decision.Build.Kind == EBuild::OpeningBase && Decision.Build.Component == Trick && Decision.Build.BoundActive == Hose
-        && Decision.Build.Element == ELDDemoElement::Water && Decision.Build.TargetKind == ELDComponentTargetKind::None
-        && Decision.Body.Kind == ELDOpponentBodyKind::None && State.Phase == ELDEvaluationPhase::Building && State.bStepIssued);
+    const FLDOpponentRetryKey HideKey = Decision.Build.Key;
+    bool bGood = Test.TestTrue(TEXT("R0: the planned stored card onto the body, no body intent"),
+        Decision.Build.Kind == EBuild::InstallCard && Decision.Build.CardSerial == 1 && Decision.Build.CardTarget == ELDCardTargetKind::Body
+        && Decision.Build.TargetId.IsEmpty() && Decision.Body.Kind == ELDOpponentBodyKind::None
+        && State.Phase == ELDEvaluationPhase::Building && State.bStepIssued);
     auto Flight = Rest;
     Flight.bBuildChangeInFlight = true;
     Decision = LDEvaluationPolicy::Decide(Flight, C, Plan, Policy, State);
     bGood &= Test.TestTrue(TEXT("Nothing more while the step is in flight"), Decision.Build.Kind == EBuild::None && State.StepsCommitted == 0);
-    // The pick visible: the opening points go next, exactly as planned, in the stats' design order.
-    auto Picked = Rest;
-    Picked.Self.BuildRevision = 2;
-    Picked.Self.bOpeningBasePending = false;
-    Picked.Self.Components = {Owned(Trick, true, true, ELDDemoElement::Water)};
-    Decision = LDEvaluationPolicy::Decide(Picked, C, Plan, Policy, State);
+    // The install visible: the opening points go next, exactly as planned, in the stats' design order.
+    auto Placed = Rest;
+    Placed.Self.BuildRevision = 2;
+    Placed.Self.Cards = {Card(1, Spiky, ELDCardTargetKind::Body)};
+    Decision = LDEvaluationPolicy::Decide(Placed, C, Plan, Policy, State);
     bGood &= Test.TestTrue(TEXT("The planned points per stat (physique 1, strength 2)"), State.StepsCommitted == 1
         && Decision.Build.Kind == EBuild::AllocatePoints && Decision.Build.PointCounts == TArray<uint8>({1, 0, 2, 0, 0})
-        && !(Decision.Build.Key == PickKey));
-    auto Spent = Picked;
+        && !(Decision.Build.Key == HideKey));
+    auto Spent = Placed;
     Spent.Self.BuildRevision = 3;
     Spent.Self.StatPoints[0].Points = 1;
     Spent.Self.StatPoints[2].Points = 2;
     Spent.Self.UnspentPoints = 0;
     Decision = LDEvaluationPolicy::Decide(Spent, C, Plan, Policy, State);
-    bGood &= Test.TestTrue(TEXT("A rebuild in the rest window: the base comes off"), State.StepsCommitted == 2
-        && Decision.Build.Kind == EBuild::UninstallComponent && Decision.Build.Component == Trick);
+    bGood &= Test.TestTrue(TEXT("A rebuild in the rest window: the card comes off"), State.StepsCommitted == 2
+        && Decision.Build.Kind == EBuild::UninstallCard && Decision.Build.CardSerial == 1);
     auto Off = Spent;
     Off.Self.BuildRevision = 4;
-    Off.Self.Components = {Owned(Trick, false, true)};
+    Off.Self.Cards = {Card(1, Spiky)};
     Decision = LDEvaluationPolicy::Decide(Off, C, Plan, Policy, State);
-    bGood &= Test.TestTrue(TEXT("...and goes back with the other element (a rest-window move)"), State.StepsCommitted == 3
-        && Decision.Build.Kind == EBuild::InstallComponent && Decision.Build.Component == Trick && Decision.Build.BoundActive == Hose
-        && Decision.Build.Element == ELDDemoElement::Fire);
-    auto Rebound = Off;
-    Rebound.Self.BuildRevision = 5;
-    Rebound.Self.Components = {Owned(Trick, true, true, ELDDemoElement::Fire)};
-    Decision = LDEvaluationPolicy::Decide(Rebound, C, Plan, Policy, State);
+    bGood &= Test.TestTrue(TEXT("...and goes back on (a rest-window move)"), State.StepsCommitted == 3
+        && Decision.Build.Kind == EBuild::InstallCard && Decision.Build.CardSerial == 1);
+    auto Back = Off;
+    Back.Self.BuildRevision = 5;
+    Back.Self.Cards = {Card(1, Spiky, ELDCardTargetKind::Body)};
+    Decision = LDEvaluationPolicy::Decide(Back, C, Plan, Policy, State);
     bGood &= Test.TestTrue(TEXT("The field step waits through the rest"), State.StepsCommitted == 4 && Decision.Build.Kind == EBuild::None
         && Decision.Body.Kind == ELDOpponentBodyKind::None && State.Phase == ELDEvaluationPhase::Building);
     // On the field below the supply's level: the planned side still holds, and the production rule never spends its points.
@@ -554,19 +542,19 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     Early.Self.Level = 2;
     Early.Self.UnspentPoints = 3;
     Early.Self.StatPoints = Spent.Self.StatPoints;
-    Early.Self.Components = Rebound.Self.Components;
+    Early.Self.Cards = Back.Self.Cards;
     Decision = LDEvaluationPolicy::Decide(Early, C, Plan, Policy, State);
     bGood &= Test.TestTrue(TEXT("Below the supply level: no build of the production rule, no body intent"),
         Decision.Build.Kind == EBuild::None && Decision.Body.Kind == ELDOpponentBodyKind::None && State.Phase == ELDEvaluationPhase::Building);
-    auto Drawn = Early;
-    Drawn.Self.Level = 3;
-    Drawn.Self.Components.Add(Owned(Kick, false, false));
-    Decision = LDEvaluationPolicy::Decide(Drawn, C, Plan, Policy, State);
-    bGood &= Test.TestTrue(TEXT("The drawn mod goes onto the planned active"), Decision.Build.Kind == EBuild::InstallComponent
-        && Decision.Build.Component == Kick && Decision.Build.TargetKind == ELDComponentTargetKind::Active && Decision.Build.TargetId == Hose);
-    auto Done = Drawn;
+    auto Received = Early;
+    Received.Self.Level = 3;
+    Received.Self.Cards.Add(Card(2, Encore));
+    Decision = LDEvaluationPolicy::Decide(Received, C, Plan, Policy, State);
+    bGood &= Test.TestTrue(TEXT("The received level card goes onto the planned skill"), Decision.Build.Kind == EBuild::InstallCard
+        && Decision.Build.CardSerial == 2 && Decision.Build.CardTarget == ELDCardTargetKind::Skill && Decision.Build.TargetId == Hose);
+    auto Done = Received;
     Done.Self.BuildRevision = 7;
-    Done.Self.Components[1] = Owned(Kick, true, true, ELDDemoElement::None, ELDComponentTargetKind::Active, Hose);
+    Done.Self.Cards[1] = Card(2, Encore, ELDCardTargetKind::Skill, Hose);
     Decision = LDEvaluationPolicy::Decide(Done, C, Plan, Policy, State);
     bGood &= Test.TestTrue(TEXT("Every step committed: the duel starts, the unplanned points stay unspent"), State.StepsCommitted == 5
         && Decision.Build.Kind == EBuild::None && State.Phase == ELDEvaluationPhase::Engaging && Decision.Mode == ELDOpponentMode::Engage);
@@ -580,36 +568,18 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
         return Test.TestTrue(Label + TEXT(": ") + Start.Failure, Start.Phase == ELDEvaluationPhase::Failed
             && Start.Failure.Contains(Reason) && Out.Build.Kind == EBuild::None && Out.Body.Kind == ELDOpponentBodyKind::None);
     };
-    FLDEvaluationProfileState AtMod;
-    AtMod.StepsCommitted = 4;
-    auto Undrawn = Early;
-    Undrawn.Self.Level = 3;
-    bGood &= Fails(TEXT("The seeded supply did not grant the planned mod"), Undrawn, Plan, AtMod, TEXT("not owned"));
+    FLDEvaluationProfileState AtRepeat;
+    AtRepeat.StepsCommitted = 4;
+    auto Unreceived = Early;
+    Unreceived.Self.Level = 3;
+    bGood &= Fails(TEXT("The seeded level cards did not grant the planned card"), Unreceived, Plan, AtRepeat, TEXT("no stored copy"));
     bGood &= Fails(TEXT("An opening-rest step still open on the field"), Early, Plan, FLDEvaluationProfileState(), TEXT("opening rest ended"));
-    FLDEvaluationProfile Missing = Plan;
-    Missing.Build[0].Component = TEXT("component_kick_down");
-    bGood &= Fails(TEXT("A base that the opening pick does not offer"), Rest, Missing, FLDEvaluationProfileState(),
-        TEXT("not an option of the opening base pick"));
-    FLDEvaluationProfile Move = Plan;
-    Move.SupplyLevel = 1;
-    Move.Build = {Rebind};
-    Move.Build[0].Window = EWindow::Field;
-    auto Moved = Early;
-    Moved.Self.Components = {Owned(Trick, false, true)};
-    {
-        // #222: a once-installed component is installed again on the field as well.
-        FLDOpponentPolicyState Fresh;
-        FLDEvaluationProfileState Start;
-        const FLDOpponentDecision Out = LDEvaluationPolicy::Decide(Moved, C, Move, Fresh, Start);
-        bGood &= Test.TestTrue(TEXT("A once-installed component is installed again on the field: ") + Start.Failure,
-            Start.Phase != ELDEvaluationPhase::Failed && Out.Build.Kind == EBuild::InstallComponent);
-    }
-    FLDEvaluationProfileState Issued;
-    Issued.bStepIssued = true;
-    auto Kept = Rest;
-    Kept.Self.bOpeningBasePending = false;
-    Kept.Self.Components = {Owned(Trick, false, false)};
-    bGood &= Fails(TEXT("An opening base kept in the inventory"), Kept, Plan, Issued, TEXT("kept in the inventory"));
+    FLDEvaluationProfile Unlearned = Plan;
+    Unlearned.Build = {Repeat};
+    Unlearned.Build[0].TargetId = TEXT("active_seethe");
+    auto Stored = Received;
+    Stored.Self.Cards = {Card(2, Encore)};
+    bGood &= Fails(TEXT("A skill place the build has not learned"), Stored, Unlearned, FLDEvaluationProfileState(), TEXT("is not learned"));
     // A refused step backs off on its own key, and fails the plan once the retry policy gives up.
     FLDOpponentPolicyState Refusing;
     FLDEvaluationProfileState Refused;
@@ -626,7 +596,7 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     }
     Decision = LDEvaluationPolicy::Decide(Rest, C, Plan, Refusing, Refused);
     bGood &= Test.TestTrue(TEXT("Growth refusing the step until the retry policy gives up fails the plan: ") + Refused.Failure,
-        Refused.Phase == ELDEvaluationPhase::Failed && Refused.Failure.Contains(TEXT("build step 1 (OpeningBase"))
+        Refused.Phase == ELDEvaluationPhase::Failed && Refused.Failure.Contains(TEXT("build step 1 (InstallCard"))
         && Refused.Failure.Contains(TEXT("retry policy")) && Decision.Build.Kind == EBuild::None);
 
     // ---- Learning, replacement and respec go out as planned when their subject is there ----
@@ -689,7 +659,6 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     Cycle.Build = {One, Step(EKind::Respec, EWindow::OpeningRest), Again};
     auto Away = Rest;
     Away.RestServicePOIs = RestPending.RestServicePOIs;
-    Away.Self.bOpeningBasePending = false;
     Fresh = {};
     FreshPolicy = {};
     Decision = LDEvaluationPolicy::Decide(Away, C, Cycle, FreshPolicy, Fresh);
@@ -720,7 +689,7 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
 
 FString Input(const FString& Cases, const FString& Top = FString())
 {
-    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":5,\"run_id\":\"run-1\",")
+    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":6,\"run_id\":\"run-1\",")
         TEXT("\"content_root\":\"%s\"%s,\"cases\":[%s]}"), *FString::ChrN(64, TEXT('a')), *Top, *Cases);
 }
 
@@ -733,10 +702,10 @@ FString CaseJson(const FString& Subject, const FString& Opponent, const FString&
 
 FString Side(const TCHAR* Role, int32 Slot, const FString& Choices = TEXT("[{\"rule\":\"ai_select\"}]"),
     const FString& Presets = TEXT("[]"), const FString& Build = TEXT("[]"), const FString& Opening = TEXT("[]"),
-    const FString& Components = TEXT("[]"))
+    const FString& Cards = TEXT("[]"))
 {
     return FString::Printf(TEXT("{\"role\":\"%s\",\"slot\":%d,\"supply_xp\":440,\"choices\":%s,\"opening_preset\":%s,")
-        TEXT("\"presets\":%s,\"level_components\":%s,\"build\":%s}"), Role, Slot, *Choices, *Opening, *Presets, *Components, *Build);
+        TEXT("\"presets\":%s,\"level_cards\":%s,\"build\":%s}"), Role, Slot, *Choices, *Opening, *Presets, *Cards, *Build);
 }
 
 bool RunInput(FAutomationTestBase& Test)
@@ -745,7 +714,7 @@ bool RunInput(FAutomationTestBase& Test)
     const FString Subject = Side(TEXT("subject"), 0, TEXT("[{\"rule\":\"ai_select\"},{\"rule\":\"option_index\",\"index\":2},")
         TEXT("{\"rule\":\"definition\",\"definition\":\"active_elbow\"}]"),
         TEXT("[[\"active_elbow\",\"active_seethe\",\"active_not_mad\"]]"), TEXT("[]"), TEXT("[\"active_snark_bolt\"]"),
-        TEXT("[\"component_punch_heal\",\"component_breath_strike\"]"));
+        TEXT("[\"card_punch_heal\",\"card_punch_heal\",\"card_encore\"]"));
     const FString Opponent = Side(TEXT("opponent"), 1);
     FLDEvalRunInput Parsed;
     FString Error;
@@ -761,7 +730,7 @@ bool RunInput(FAutomationTestBase& Test)
             && Case.Contenders[0].Choices[2].Rule == ELDEvaluationChoiceRule::Definition
             && Case.Contenders[0].Choices[2].DefinitionId == TEXT("active_elbow")
             && Case.Contenders[0].OpeningPreset == TArray<FName>({FName(TEXT("active_snark_bolt"))})
-            && Case.Contenders[0].LevelComponents == TArray<FName>({FName(TEXT("component_punch_heal")), FName(TEXT("component_breath_strike"))})
+            && Case.Contenders[0].LevelCards == TArray<FName>({FName(TEXT("card_punch_heal")), FName(TEXT("card_punch_heal")), FName(TEXT("card_encore"))})
             && Case.Contenders[0].Presets.Num() == 1 && Case.Contenders[0].Presets[0][2] == FName(TEXT("active_not_mad"))
             && Case.Contenders[0].Stance == ELDEvaluationStance::Pursue && Case.Contenders[0].StandoffCm == 0);
     }
@@ -816,8 +785,8 @@ bool RunInput(FAutomationTestBase& Test)
         return Test.TestTrue(Label + TEXT(": ") + Why, !ParseInput(Json, Ignored, Why) && Why.Contains(Field));
     };
     bGood &= Refuse(TEXT("Not JSON"), TEXT("{"), TEXT("input"));
-    bGood &= Refuse(TEXT("The retired schema version 4 (no level components)"), Input(CaseJson(Subject, Opponent)).Replace(
-        TEXT("\"schema_version\":5"), TEXT("\"schema_version\":4")), TEXT("schema"));
+    bGood &= Refuse(TEXT("The retired schema version 5 (level components)"), Input(CaseJson(Subject, Opponent)).Replace(
+        TEXT("\"schema_version\":6"), TEXT("\"schema_version\":5")), TEXT("schema"));
     bGood &= Refuse(TEXT("An unknown top-level field"), Input(CaseJson(Subject, Opponent), TEXT(",\"budget\":1")), TEXT("budget"));
     bGood &= Refuse(TEXT("An unknown Case field"), Input(CaseJson(Subject, Opponent, TEXT("\"1\""), TEXT(",\"strategy\":\"x\""))),
         TEXT("strategy"));
@@ -846,9 +815,9 @@ bool RunInput(FAutomationTestBase& Test)
     bGood &= Refuse(TEXT("An opening preset with four actives"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
         TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[]"), TEXT("[]"),
         TEXT("[\"active_elbow\",\"active_seethe\",\"active_not_mad\",\"active_unplug\"]")))), TEXT("opening_preset"));
-    bGood &= Refuse(TEXT("A level preset naming one component twice"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
+    bGood &= Refuse(TEXT("A level card outside the definition subset"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
         TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[]"), TEXT("[]"), TEXT("[]"),
-        TEXT("[\"component_punch_heal\",\"component_punch_heal\"]")))), TEXT("level_components"));
+        TEXT("[\"Card-Punch\"]")))), TEXT("level_cards"));
     bGood &= Refuse(TEXT("A pursue stance is spelled by omission"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
         + TEXT(",\"stance\":{\"kind\":\"pursue\",\"standoff_cm\":650}}"))), TEXT("stance.kind"));
     bGood &= Refuse(TEXT("A kite standoff below the floor"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
@@ -866,19 +835,16 @@ bool RunInput(FAutomationTestBase& Test)
     bGood &= Refuse(TEXT("A contender without its build plan"), Input(CaseJson(Subject, Opponent.Replace(TEXT(",\"build\":[]"), TEXT("")))),
         TEXT("build"));
 
-    // ---- #198 workshop plan steps ----
-    const FString Plan = TEXT("[{\"step\":\"opening_base\",\"at\":\"opening_rest\",\"component\":\"component_dirty_trick\",")
-        TEXT("\"bind\":{\"active\":\"active_hose_down\",\"element\":\"water\"}},")
+    // ---- Workshop plan steps ----
+    const FString Plan = TEXT("[{\"step\":\"install\",\"at\":\"opening_rest\",\"card\":\"card_spiky_hide\",\"target\":\"body\"},")
         TEXT("{\"step\":\"allocate_points\",\"at\":\"opening_rest\",\"points\":{\"stat_strength\":2,\"stat_physique\":1}},")
-        TEXT("{\"step\":\"uninstall\",\"at\":\"opening_rest\",\"component\":\"component_dirty_trick\"},")
-        TEXT("{\"step\":\"install\",\"at\":\"opening_rest\",\"component\":\"component_dirty_trick\",")
-        TEXT("\"bind\":{\"active\":\"active_hose_down\",\"element\":\"fire\"}},")
+        TEXT("{\"step\":\"uninstall\",\"at\":\"opening_rest\",\"card\":\"card_spiky_hide\"},")
+        TEXT("{\"step\":\"install\",\"at\":\"opening_rest\",\"card\":\"card_live_wire\",\"target\":\"body\",\"element\":\"fire\"},")
         TEXT("{\"step\":\"respec\",\"at\":\"opening_rest\"},")
         TEXT("{\"step\":\"replace\",\"at\":\"opening_rest\",\"blueprint\":\"active_seethe\",\"slot\":\"Q\"},")
-        TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_long_kick\",\"target\":{\"kind\":\"active\",\"id\":\"active_hose_down\"}},")
-        TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_ram_through\",\"target\":{\"kind\":\"dash\"}},")
-        TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_dirty_fist\",\"target\":{\"kind\":\"component\",")
-        TEXT("\"id\":\"component_spiky_hide\"},\"base\":\"component_fist_fire\"},")
+        TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"card_encore\",\"target\":\"active_hose_down\"},")
+        TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"card_double_dash\",\"target\":\"dash\"},")
+        TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"card_third_breath\",\"target\":\"basic\"},")
         TEXT("{\"step\":\"learn\",\"at\":\"field\",\"blueprint\":\"active_seethe\",\"slot\":\"E\"}]");
     const auto Planned = [](const FString& Build) { return Side(TEXT("subject"), 0, TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[]"), Build); };
     Error.Reset();
@@ -889,21 +855,21 @@ bool RunInput(FAutomationTestBase& Test)
     {
         using EKind = ELDEvaluationStepKind;
         const TArray<FLDEvaluationBuildStep>& Steps = Parsed.Cases[0].Contenders[0].Build;
-        bGood &= Test.TestTrue(TEXT("The opening base keeps its B18 binding"), Steps[0].Kind == EKind::OpeningBase
-            && Steps[0].Window == ELDEvaluationStepWindow::OpeningRest && Steps[0].Component == TEXT("component_dirty_trick")
-            && Steps[0].BoundActive == TEXT("active_hose_down") && Steps[0].Element == ELDDemoElement::Water);
+        bGood &= Test.TestTrue(TEXT("A body install names its card and place"), Steps[0].Kind == EKind::InstallCard
+            && Steps[0].Window == ELDEvaluationStepWindow::OpeningRest && Steps[0].Card == TEXT("card_spiky_hide")
+            && Steps[0].TargetKind == ELDCardTargetKind::Body && Steps[0].TargetId.IsEmpty() && Steps[0].Element == ELDDemoElement::None);
         bGood &= Test.TestTrue(TEXT("Points keep exact counts per stat id"), Steps[1].Kind == EKind::AllocatePoints
             && Steps[1].Points.Num() == 2 && Steps[1].Points[0].StatId == TEXT("stat_physique") && Steps[1].Points[0].Points == 1
             && Steps[1].Points[1].StatId == TEXT("stat_strength") && Steps[1].Points[1].Points == 2);
-        bGood &= Test.TestTrue(TEXT("A rebuild: uninstall, then install the same base with another element"),
-            Steps[2].Kind == EKind::UninstallComponent && Steps[3].Kind == EKind::InstallComponent && Steps[3].Element == ELDDemoElement::Fire);
+        bGood &= Test.TestTrue(TEXT("An uninstall, then Y25 with its element"),
+            Steps[2].Kind == EKind::UninstallCard && Steps[2].Card == TEXT("card_spiky_hide")
+            && Steps[3].Kind == EKind::InstallCard && Steps[3].Element == ELDDemoElement::Fire);
         bGood &= Test.TestTrue(TEXT("Respec and replacement in the opening rest"), Steps[4].Kind == EKind::Respec
             && Steps[5].Kind == EKind::ReplaceActive && Steps[5].Blueprint == TEXT("active_seethe") && Steps[5].Slot == 0);
-        bGood &= Test.TestTrue(TEXT("Mod and connector targets"), Steps[6].Window == ELDEvaluationStepWindow::Field
-            && Steps[6].TargetKind == ELDComponentTargetKind::Active && Steps[6].TargetId == TEXT("active_hose_down")
-            && Steps[7].TargetKind == ELDComponentTargetKind::Dash && Steps[7].TargetId.IsEmpty()
-            && Steps[8].TargetKind == ELDComponentTargetKind::Component && Steps[8].TargetId == TEXT("component_spiky_hide")
-            && Steps[8].BoundComponent == TEXT("component_fist_fire"));
+        bGood &= Test.TestTrue(TEXT("Skill, dash and basic places"), Steps[6].Window == ELDEvaluationStepWindow::Field
+            && Steps[6].TargetKind == ELDCardTargetKind::Skill && Steps[6].TargetId == TEXT("active_hose_down")
+            && Steps[7].TargetKind == ELDCardTargetKind::Dash && Steps[7].TargetId.IsEmpty()
+            && Steps[8].TargetKind == ELDCardTargetKind::Basic && Steps[8].TargetId.IsEmpty());
         bGood &= Test.TestTrue(TEXT("A field learn into a named slot"), Steps[9].Kind == EKind::LearnBlueprint && Steps[9].Slot == 2);
     }
     const auto RefuseStep = [&](const FString& Label, const FString& Step, const TCHAR* Field)
@@ -912,29 +878,27 @@ bool RunInput(FAutomationTestBase& Test)
     };
     bGood &= RefuseStep(TEXT("An unknown step (NPC purchases are not plannable)"), TEXT("{\"step\":\"buy_npc_offer\",\"at\":\"opening_rest\"}"),
         TEXT("step"));
+    bGood &= RefuseStep(TEXT("A retired step"), TEXT("{\"step\":\"opening_base\",\"at\":\"opening_rest\",\"card\":\"card_spiky_hide\"}"),
+        TEXT("step"));
     bGood &= RefuseStep(TEXT("An unknown window"), TEXT("{\"step\":\"respec\",\"at\":\"rest_1\"}"), TEXT("at"));
-    bGood &= RefuseStep(TEXT("A field uninstall (rest-only)"), TEXT("{\"step\":\"uninstall\",\"at\":\"field\",\"component\":\"component_fist_fire\"}"),
-        TEXT("rest-window"));
     bGood &= RefuseStep(TEXT("A field replacement (rest-only)"),
         TEXT("{\"step\":\"replace\",\"at\":\"field\",\"blueprint\":\"active_seethe\",\"slot\":\"Q\"}"), TEXT("rest-window"));
-    bGood &= RefuseStep(TEXT("A field after an opening step order"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_fist_fire\"},")
+    bGood &= RefuseStep(TEXT("A field after an opening step order"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"card_spiky_hide\",\"target\":\"body\"},")
         TEXT("{\"step\":\"respec\",\"at\":\"opening_rest\"}"), TEXT("after a field step"));
     bGood &= RefuseStep(TEXT("A field that the step does not take"),
-        TEXT("{\"step\":\"uninstall\",\"at\":\"opening_rest\",\"component\":\"component_fist_fire\",\"target\":{\"kind\":\"dash\"}}"), TEXT("target"));
-    bGood &= RefuseStep(TEXT("An unknown element"), TEXT("{\"step\":\"opening_base\",\"at\":\"opening_rest\",\"component\":\"component_dirty_trick\",")
-        TEXT("\"bind\":{\"active\":\"active_hose_down\",\"element\":\"ice\"}}"), TEXT("element"));
-    bGood &= RefuseStep(TEXT("An active target without its id"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_long_kick\",")
-        TEXT("\"target\":{\"kind\":\"active\"}}"), TEXT("id"));
-    bGood &= RefuseStep(TEXT("A dash target naming a definition"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_ram_through\",")
-        TEXT("\"target\":{\"kind\":\"dash\",\"id\":\"active_elbow\"}}"), TEXT("id"));
-    bGood &= RefuseStep(TEXT("An unknown target kind"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"component_long_kick\",")
-        TEXT("\"target\":{\"kind\":\"segment\",\"id\":\"active_elbow\"}}"), TEXT("kind"));
+        TEXT("{\"step\":\"uninstall\",\"at\":\"opening_rest\",\"card\":\"card_spiky_hide\",\"target\":\"dash\"}"), TEXT("target"));
+    bGood &= RefuseStep(TEXT("An unknown element"), TEXT("{\"step\":\"install\",\"at\":\"opening_rest\",\"card\":\"card_live_wire\",")
+        TEXT("\"target\":\"body\",\"element\":\"ice\"}"), TEXT("element"));
+    bGood &= RefuseStep(TEXT("An install without its place"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"card_encore\"}"),
+        TEXT("target"));
+    bGood &= RefuseStep(TEXT("A place that is neither a column nor a definition"), TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"card_encore\",")
+        TEXT("\"target\":\"Wing-Slot\"}"), TEXT("target"));
     bGood &= RefuseStep(TEXT("Zero points"), TEXT("{\"step\":\"allocate_points\",\"at\":\"field\",\"points\":{\"stat_strength\":0}}"), TEXT("points"));
     bGood &= RefuseStep(TEXT("No stat"), TEXT("{\"step\":\"allocate_points\",\"at\":\"field\",\"points\":{}}"), TEXT("points"));
     bGood &= RefuseStep(TEXT("A slot other than Q/W/E"), TEXT("{\"step\":\"learn\",\"at\":\"field\",\"blueprint\":\"active_seethe\",\"slot\":\"D\"}"),
         TEXT("slot"));
-    bGood &= RefuseStep(TEXT("A component id outside the definition subset"),
-        TEXT("{\"step\":\"install\",\"at\":\"field\",\"component\":\"Component-Long\"}"), TEXT("component"));
+    bGood &= RefuseStep(TEXT("A card id outside the definition subset"),
+        TEXT("{\"step\":\"install\",\"at\":\"field\",\"card\":\"Card-Long\",\"target\":\"body\"}"), TEXT("card"));
     FString TooMany = TEXT("[");
     for (int32 Index = 0; Index <= MaxBuildSteps; ++Index)
     {

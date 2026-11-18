@@ -30,9 +30,9 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 3
-HANDLER_REVISION = 10
-PROJECTION_REVISION = 9
+SCHEMA_VERSION = 4
+HANDLER_REVISION = 11
+PROJECTION_REVISION = 10
 NATIVE_IDS_SCHEMA_VERSION = 2
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
@@ -41,17 +41,16 @@ ID_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,62}")
 HEX_PATTERN = re.compile(r"[0-9a-f]{64}")
 NATIVE_ENUMS = {
     "character": "ELDDemoCharacterId", "abilities": "ELDDemoAbilityId",
-    "stats": "ELDDemoStatId", "components": "ELDDemoComponentId",
+    "stats": "ELDDemoStatId", "cards": "ELDDemoCardId",
     "final_mods": "ELDDemoFinalModId",
     "monsters": "ELDDemoMonsterId", "statuses": "ELDDemoStatusId",
     "effect_ops": "ELDDemoEffectOp",
 }
 # Inclusive native numbers that are never reused (#198 retires the passives, cower, attribute cards, their statuses and
-# unused ops).
-RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]],
+# unused ops; #287 P2 retires the components 1-63 below the cards).
+RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]], "cards": [[0, 199]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29]],
-                  "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [36, 36],
-                                 [38, 39], [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
+                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 # The operations only a skill branch adds to an active (issue #287 spec §5.1); rank 1 never carries them.
@@ -67,52 +66,54 @@ BRANCH_MOD_OPS = frozenset(("pull", "projectile_return", "projectile_pierce", "e
 RANK_STEPS = ("2A", "3A1", "3A2", "2B", "3B1", "3B2")
 BRANCH_PATHS = {"A": ("2A",), "B": ("2B",), "A1": ("2A", "3A1"), "A2": ("2A", "3A2"), "B1": ("2B", "3B1"), "B2": ("2B", "3B2")}
 STEP_PATH = {"2A": "A", "2B": "B", "3A1": "A1", "3A2": "A2", "3B1": "B1", "3B2": "B2"}
-# Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
-# #198 base components; no active may use them.
-EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
-                       "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
-                       "control_damage_amp", "taunt", "disarm", "stun", "empower_basic", "thorns",
-                       "cooldown_refund", "triggered_shield", "nth_basic_bonus", "dispel_slow",
-                       "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
+# Every operation the importer accepts: the actives' own operations, the skill branch operations and the card operations.
+EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "dash",
+                       "slow", "timed_stat_bonus", "self_area",
+                       "taunt", "disarm", "stun", "empower_basic", "dispel_slow",
+                       "knockback", "zone", "zone_slow", "zone_damage",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
-                       "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
+                       "contact_trap", "dash_contact",
                        # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
                        "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste", "grievous",
-                       "ledger", "basic_element", "basic_damage_scale", "idle_ready_amp", "active_element",
-                       *("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
-                         "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
-                         "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
-                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_momentum",
-                         "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base", "compress_chain",
-                         "projectile_return", "projectile_pierce", "chain_extra", "echo_impact"),
-                       # Skill rules on native direct hits (B13-B15).
-                       "cast_hit_refund", "distance_amp", "alternate_amp",
-                       # Connectors C13-C16.
-                       "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_momentum",
-                       # Mods M16-M20 and connectors C17-C21.
-                       "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
-                       "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate",
+                       "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
+                       "empower_reach", "pull",
                        # Skill branch operations (issue #287 spec §5.1).
                        *BRANCH_OPS))
-# #198 F: the operations of mods (M01-M20) and connectors (C01-C21); they act on the install target the component names.
-WORKSHOP_OPS = frozenset(("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
-                          "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
-                          "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
-                          "fire_shield", "knockback_impact", "dash_contact_refund", "contact_knockback", "control_mark",
-                          "aftershock", "control_momentum", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
-                          "extra_base", "compress_chain", "projectile_return", "projectile_pierce", "chain_extra", "echo_impact",
-                          "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_momentum",
-                          "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
-                          "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
-# #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
-# and empower_basic also have an active form; the rest are component-only and no active may carry them.
-COMPONENT_OPS = frozenset(("burn", "breach", "empower_basic", "ledger", "thorns", "lifesteal", "dash_contact_damage",
-                           "nth_basic_bonus", "control_damage_amp", "triggered_shield", "basic_element", "stat_bonus",
-                           "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element",
-                           "cast_hit_refund", "distance_amp", "alternate_amp", *WORKSHOP_OPS))
-COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"} - BRANCH_MOD_OPS
+# Card operations (issue #287 spec §7); burn, breach and empower_basic also have an active form.
+CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_element", "idle_ready_amp", "cooldown_cost",
+                           "knockback_impact", "skill_lifesteal", "hit_haste_other", "setup_mark", "reaction_haste",
+                           "combo_momentum", "basic_cooldown_cut", "combo_skill_hit", "combo_knockback", "combo_double",
+                           "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed", "skill_hit_momentum", "auto_recast",
+                           "skill_damage_factor", "hp_cost", "skill_ad_rider", "skill_growth", "skill_element",
+                           "dash_contact_reset", "dash_split", "dash_phase", "dash_contact_element", "takedown_reset",
+                           "last_stand", "reaction_momentum", "reaction_element", "skill_crit", "lifesteal_skills",
+                           "armor_to_hp", "overheal_shield", "missing_hp_attack_speed", "haste_momentum", "heal_growth",
+                           "kill_growth", "control_growth", "idle_charge", "element_aura", "element_duration",
+                           "reaction_factor", "burn_cap"))
+CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic"}
+EFFECT_OPS = EFFECT_OPS | CARD_ONLY_OPS
+# The operations a card of each form may carry: skill cards change or answer their host skill, dash cards the D dash,
+# basic cards the primary basic and body cards the holder.
+FORM_OPS = {
+    "basic": frozenset(("burn", "breach", "basic_element", "combo_momentum", "basic_cooldown_cut", "combo_skill_hit",
+                        "combo_knockback", "combo_double", "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed")),
+    "skill": frozenset(("hit_haste_other", "skill_hit_momentum", "setup_mark", "auto_recast", "cooldown_cost",
+                        "skill_damage_factor", "hp_cost", "skill_ad_rider", "skill_lifesteal", "idle_ready_amp",
+                        "skill_growth", "skill_element", "reaction_haste")),
+    "dash": frozenset(("dash_contact_reset", "hit_haste_other", "empower_basic", "dash_split", "dash_phase",
+                       "dash_contact_element")),
+    "body": frozenset(("thorns", "takedown_reset", "last_stand", "reaction_momentum", "reaction_element", "triggered_shield",
+                       "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
+                       "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
+                       "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap")),
+}
+CARD_FORMS = ("basic", "skill", "dash", "body")
+CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
+# Spec §6.3 vocabulary keys in bit order (ELDCardVocab).
+CARD_VOCAB = ("basic_hit", "combo3", "skill_hit", "skill_cast", "overdrive", "reaction", "element", "dash", "dash_contact",
+              "perfect_dodge", "knockback", "wall_impact", "shield", "shield_break", "controlled", "control", "damaged",
+              "low_hp", "kill", "idle", "ground", "heal", "momentum", "attack_speed", "move_speed", "crit", "armor", "max_hp")
 ELEMENTS = ("fire", "water", "electric")
-CATEGORY_KEYS = ("base", "mod", "connector")
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Elements an active attaches to the bodies it hits (#198 CONTENT_AND_BALANCE §4.4).
@@ -490,7 +491,7 @@ def validate_native_ids(root, value):
         require(type(mapping) is dict and mapping, "NativeId", section, "missing ID mapping")
         for name, number in mapping.items():
             definition_id(name, section)
-            integer(number, name, 0, 255)
+            integer(number, name, 0, 65535 if section == "cards" else 255)
         require(len(set(mapping.values())) == len(mapping), "DuplicateId", section, "duplicate native number")
         declared = native_ids(root, NATIVE_IDS, enum_name)
         expected = {re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower(): number for name, number in declared.items()}
@@ -551,12 +552,9 @@ _NEW_OP_MAGNITUDES = {
 
 # #147 optional terms that only come in pairs (the native importer refuses the same shapes).
 _PAIRED_FIELDS = {
-    "lifesteal": (("hp_below", "low_hp_multiplier"),), "thorns": (("slow", "slow_duration"),),
+    "lifesteal": (("hp_below", "low_hp_multiplier"),),
     "triggered_shield": (("burst_ratio", "burst_radius"),),
     "channel_cone": (("slow", "slow_duration"),),
-    "dash_contact_damage": (("slow", "slow_duration"),),
-    "dash_contact_refund": (("momentum_ratio", "momentum_cap"),),
-    "primary_guard": (("slow_resistance", "duration"),),
 }
 
 
@@ -573,7 +571,7 @@ def _validate_new_effect(effect, path):
     if effect["op"] == "zone":
         require(effect["delay"]["ms"] + effect["interval"]["ms"] * (effect["count"] - 1) <= effect["duration"]["ms"],
                 "InvalidTiming", path, "zone pulses must fall inside its duration")
-    if effect["op"] in ("attack_slow", "primary_guard"):
+    if effect["op"] == "attack_slow":
         require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
                 "reduction ratio must be strictly between zero and one")
     if effect["op"] in ("ground_impact", "contact_trap"):
@@ -585,16 +583,8 @@ def _validate_new_effect(effect, path):
                 "outer damage must be a positive fraction of central damage")
     if effect["op"] == "channel_cone":
         checked_mul(effect["interval"]["ms"], effect["count"] - 1, path)
-    if effect["op"] == "dash_contact_damage":
-        require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
-                "IneffectiveEffect", path, "additional damage needs magnitude or scaling")
-    for field in ("slow", "slow_resistance", "momentum_ratio"):
-        if field in effect and effect["op"] in ("channel_cone", "dash_contact_damage", "primary_guard", "dash_contact_refund"):
-            require(0 < quantity(effect[field]) < 1, "NumericDomain", path, f"{field} must be a positive fraction")
-    if effect["op"] == "primary_guard":
-        require(quantity(effect["base"]) > 0, "IneffectiveEffect", path, "cap must be positive")
-    if effect["op"] == "dash_contact_refund" and "momentum_cap" in effect:
-        require(quantity(effect["momentum_cap"]) > 0, "IneffectiveEffect", path, "momentum cap must be positive")
+    if "slow" in effect and effect["op"] == "channel_cone":
+        require(0 < quantity(effect["slow"]) < 1, "NumericDomain", path, "slow must be a positive fraction")
     # #198 session A (CONTENT_AND_BALANCE §4.2).
     if effect["op"] in ("chain_bounce", "brace", "zone_haste", "grievous"):
         require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
@@ -631,8 +621,8 @@ def _validate_action(target, effects, path):
         "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence")),
     }[mode]
     ops = _effect_set(effects, path)
-    require(not ops & COMPONENT_ONLY_OPS, "ComponentOnlyEffect", path,
-            f"an active cannot carry component operations {sorted(ops & COMPONENT_ONLY_OPS)}")
+    require(not ops & CARD_ONLY_OPS, "CardOnlyEffect", path,
+            f"an active cannot carry card operations {sorted(ops & CARD_ONLY_OPS)}")
     require(not any("trigger" in effect for effect in effects if effect["op"] == "empower_basic"), "ObjectShape", path,
             "an active's empowered basic is armed by its release, not by a trigger")
     require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
@@ -715,164 +705,81 @@ def _validate_action(target, effects, path):
         require(quantity(target["half_width"]) > 0, "NumericDomain", path, "line half width must be positive")
 
 
-def _validate_component_effects(row, abilities, path):
-    """#198 B: a component carries only component operations, each in its component form."""
-    effects = row["effects"]
-    ops = _effect_set(effects, path)
-    require(ops <= COMPONENT_OPS, "ComponentEffect", path, f"not a component operation: {sorted(ops - COMPONENT_OPS)}")
-    for effect in effects:
-        _validate_new_effect(effect, path)
-        op = effect["op"]
-        if op in ("burn", "breach"):
-            require("basic_stacks" in effect and "stacks" not in effect, "ObjectShape", path,
-                    "a component applies its stacks with each primary basic hit")
-        if op == "thorns":
-            require(any(quantity(effect[key]) > 0 for key in ("base", "armor_ratio", "max_hp_ratio") if key in effect),
-                    "IneffectiveEffect", path, "a reflection needs magnitude or scaling")
-            require(quantity(effect["radius"]) > 0 and quantity(effect["critical_multiplier"]) >= 1, "NumericDomain", path,
-                    "a reflection needs a positive radius and a critical multiplier of at least one")
-        if op == "lifesteal":
-            require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "lifesteal ratio must be positive")
-        if op == "nth_basic_bonus":
-            require(quantity(effect["distance"]) > 0, "NumericDomain", path, "the knockback distance must be positive")
-        if op in ("control_damage_amp", "idle_ready_amp", "cast_hit_refund", "distance_amp", "alternate_amp", "setup_mark",
-                  "stored_force", "control_widen", "zone_detonate"):
-            require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "damage bonus must be positive")
-        if op == "multi_hit_momentum":
-            require(0 < quantity(effect["momentum"]) <= quantity(effect["momentum_cap"]), "NumericDomain", path,
-                    "a per-enemy refund must be positive and fit its per-release cap")
-        if op in ("defense_shove", "final_knockback", "empower_reach", "pull"):
-            require(quantity(effect["distance" if op != "empower_reach" else "range"]) > 0, "NumericDomain", path,
-                    "a forced move or reach bonus needs a positive distance")
-        if op in ("zone_tether", "defense_shove", "final_knockback", "empower_reach"):
-            ratio = {"zone_tether": "radius_ratio", "defense_shove": "shield_ratio", "final_knockback": "cost_ratio",
-                     "empower_reach": "damage_ratio"}[op]
-            require(quantity(effect[ratio]) > 0, "IneffectiveEffect", path, "the cost ratio must be positive")
-        if op == "defense_shove":
-            require(quantity(effect["radius"]) > 0, "NumericDomain", path, "a shove needs a positive radius")
-        if op == "distance_amp":
-            require(quantity(effect["distance"]) > 0, "NumericDomain", path, "the distance bonus needs a positive distance")
-        if op == "triggered_shield":
-            require(quantity(effect["base"]) > 0 or quantity(effect["max_hp_ratio"]) > 0, "IneffectiveEffect", path,
-                    "a shield needs magnitude or scaling")
-        if op == "empower_basic":
-            require(effect.get("trigger") == "DashComplete" and "charges" in effect, "ObjectShape", path,
-                    "a component's empowered basic needs its DashComplete trigger and its charges")
-            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect", path,
-                    "an empowered attack adds neither damage nor scaling")
-            require(effect["damage_type"] == "Physical", "NumericDomain", path, "an empowered basic stays physical")
-            if "stats" in effect:
-                require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "timed bonuses cannot change resource maxima")
-                _positive_stats(effect["stats"], path)
-        if op == "ledger":
-            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect", path,
-                    "a ledger entry needs magnitude or scaling")
-        if op == "basic_damage_scale":
-            require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
-                    "the primary basic's scale must be strictly between zero and one")
-        if op == "stat_bonus":
-            _positive_stats(effect["stats"], path)
-        if op == "low_hp_stat_bonus":
-            require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", path, "the HP threshold must be a fraction")
-            require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "conditional bonuses cannot change resource maxima")
-            _positive_stats(effect["stats"], path)
-    binding = row.get("binding")
-    require(("active_element" in ops) == (binding is not None), "ComponentBinding", path,
-            "active_element and its active/element binding come together")
-    if binding is not None:
-        actives = binding["actives"]
-        require(len(set(actives)) == len(actives) and set(actives) <= set(abilities), "InvalidReference", path,
-                "a binding names distinct known actives")
-        # S16's natural-end answer (brace) is its native direct damage (AI spec §10.1).
-        require(all({"damage", "zone_damage", "brace"} & {effect["op"] for effect in abilities[identity]["effects"]} for identity in actives),
-                "ComponentBinding", path, "a bound active needs native direct damage")
-        elements = binding["elements"]
-        require(len(set(elements)) == len(elements) and set(elements) <= set(ELEMENTS), "ComponentBinding", path,
-                "binding elements are distinct fire/water/electric")
+# Effect fields that make a card operation do something (the native importer refuses the same shapes).
+_CARD_MAGNITUDES = {
+    "combo_momentum": ("momentum",), "basic_cooldown_cut": ("cooldown",), "combo_knockback": ("distance",),
+    "combo_double": ("damage_ratio",), "overcap_extra_hit": ("step", "ratio"), "basic_ap_rider": ("ap_ratio",),
+    "focus_attack_speed": ("ratio",), "skill_hit_momentum": ("momentum",), "auto_recast": ("damage_ratio",),
+    "skill_damage_factor": ("ratio",), "hp_cost": ("ratio",), "skill_ad_rider": ("ad_ratio",), "skill_growth": ("ratio",),
+    "dash_split": ("distance",), "last_stand": ("threshold",), "reaction_momentum": ("momentum",), "armor_to_hp": ("max_hp",),
+    "overheal_shield": ("cap_ratio",), "missing_hp_attack_speed": ("ratio",), "haste_momentum": ("haste", "momentum"),
+    "heal_growth": ("heal", "max_hp"), "idle_charge": ("ratio",), "element_aura": ("radius",), "reaction_factor": ("ratio",),
+    "idle_ready_amp": ("ratio",), "thorns": ("ratio",), "skill_lifesteal": ("ratio",), "lifesteal": ("ratio",),
+}
 
 
-def _validate_components(data, abilities):
+def _validate_cards(data):
+    """Spec §6: one card row per definition in ascending native order; each carries only the operations of its form."""
     previous = 0
-    for row in data["components"]:
+    names = set()
+    for row in data["cards"]:
         identity = row["id"]
-        require(row["native_id"] > previous, "ComponentOrder", "components",
-                "components are authored once each in ascending native ID order")
+        require(row["native_id"] > previous, "CardOrder", "cards", "cards are authored once each in ascending native ID order")
         previous = row["native_id"]
-        opening = row.get("opening")
-        if opening is not None:
-            require(row["kind"] == "base" and row["pool"] == "common", "OpeningPool", identity,
-                    "only common base components are opening options")
-        if type(opening) is not str and opening is not None:
-            actives = opening["actives"]
-            require(len(set(actives)) == len(actives) and set(actives) <= set(abilities), "InvalidReference", identity,
-                    "opening actives are distinct known actives")
-            require(all(abilities[active]["opening"] for active in actives), "OpeningPool", identity,
-                    "an opening condition names actives of the opening pool")
-        require(len(set(row["tags"])) == len(row["tags"]), "InvalidReference", identity, "component tags are distinct")
-        required = row.get("draw_requires_actives")
-        if required is not None:
-            require(len(set(required)) == len(required) and set(required) <= set(abilities), "InvalidReference", identity,
-                    "a draw requirement names distinct known actives")
-            require(row["pool"] == "common", "DrawRequirement", identity,
-                    "only common components are level-up draws, so only they take a draw requirement")
-        _validate_component_effects(row, abilities, identity)
-    forms = {}
-    for row in data["components"]:
-        if "form" in row:
-            forms.setdefault(row["form"], []).append(row)
-    for form, members in forms.items():
-        require(len(members) >= 2 and len({row["kind"] for row in members}) == 1, "ComponentForm", form,
-                "a form groups at least two components of one kind")
-    _validate_component_targets(data, abilities)
+        require(len(set(row["vocab"])) == len(row["vocab"]), "InvalidReference", identity, "vocabulary keys are distinct")
+        ops = _effect_set(row["effects"], identity)
+        require(ops <= FORM_OPS[row["form"]], "CardForm", identity,
+                f"a {row['form']} card cannot carry {sorted(ops - FORM_OPS[row['form']])}")
+        require(("choose_element" in row) == ("element_aura" in ops), "CardElementChoice", identity,
+                "an element aura names its element choices and nothing else does")
+        if "choose_element" in row:
+            require(len(set(row["choose_element"])) == len(row["choose_element"]), "InvalidReference", identity,
+                    "element choices are distinct")
+        for effect in row["effects"]:
+            fields = _CARD_MAGNITUDES.get(effect["op"])
+            if fields is not None:
+                require(all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,
+                        f"{effect['op']} needs positive {', '.join(fields)}")
+            if effect["op"] in ("breach", "burn"):
+                require("basic_stacks" in effect and "stacks" not in effect, "ObjectShape", identity,
+                        "a card applies its stacks with each primary basic hit")
+            if effect["op"] == "empower_basic":
+                require(effect.get("trigger") == "DashComplete" and "charges" in effect, "ObjectShape", identity,
+                        "a card's empowered basic is armed by a completed dash and names its charges")
+                require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect",
+                        identity, "an empowered attack adds neither damage nor scaling")
+            if effect["op"] == "cooldown_cost":
+                require(quantity(effect["cooldown_ratio"]) > 0 and quantity(effect["cost_ratio"]) > 0, "NumericDomain",
+                        identity, "cooldown and cost ratios are positive")
+            if effect["op"] in ("kill_growth", "control_growth"):
+                _positive_stats(effect["stats"], identity)
+                require(set(effect["stats"]) <= {"ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat"}, "UnknownField",
+                        identity, "match growth adds flat attack, power or resistances")
+            if effect["op"] == "element_duration":
+                require(quantity(effect["multiplier"]) > 1, "NumericDomain", identity, "an element duration only grows")
 
 
-def _validate_component_targets(data, abilities):
-    """#198 F: a mod or connector names the install targets it accepts; a base component names none."""
-    kinds = {row["id"]: row["kind"] for row in data["components"]}
-    for row in data["components"]:
-        identity = row["id"]
-        targets = row.get("targets")
-        ops = {effect["op"] for effect in row["effects"]}
-        require((targets is not None) == (row["kind"] != "base"), "ComponentTargets", identity,
-                "mods and connectors name their install targets; base components take none")
-        require(row["kind"] == "base" or not ops - WORKSHOP_OPS, "ComponentEffect", identity,
-                "a mod or connector carries only workshop operations")
-        require(row["kind"] != "base" or not ops & WORKSHOP_OPS, "ComponentEffect", identity,
-                "a base component carries no workshop operation")
-        if targets is None:
-            continue
-        require("binding" not in row and "opening" not in row, "ComponentTargets", identity,
-                "a mod or connector has no opening condition or active/element binding")
-        for key, known in (("actives", abilities), ("components", kinds)):
-            names = targets.get(key, [])
-            require(len(set(names)) == len(names) and set(names) <= set(known) and identity not in names, "InvalidReference",
-                    identity, f"install {key} are distinct known definitions other than itself")
-        require(all(kinds[name] != "mod" for name in targets.get("components", [])), "ComponentTargets", identity,
-                "a mod is no install target")
-        bases = targets.get("bases", [])
-        require(("extra_base" in ops) == bool(bases), "ComponentTargets", identity, "extra_base and its base list come together")
-        require(len(set(bases)) == len(bases) and all(kinds.get(name) == "base" for name in bases), "InvalidReference", identity,
-                "extra_base names distinct base components")
-        require(not targets.get("self") or set(targets) == {"self"}, "ComponentTargets", identity,
-                "a self-installed mod takes no other target")
+def ability_vocab(ability):
+    """Spec §6.3: a skill's vocabulary follows from its element, delivery, control, displacement and shield."""
+    ops = {effect["op"] for effect in ability["effects"]}
+    vocab = set()
+    if ability["element"] != "none" or ops & {"wet", "electrify", "burn", "zone_burn", "zone_wet"}:
+        vocab.add("element")
+    if ability["target"]["mode"] == "DirectionDash":
+        vocab.update(("dash", "dash_contact") if "dash_contact" in ops else ("dash",))
+    if ops & {"zone", "contact_trap", "ground_impact"}:
+        vocab.add("ground")
+    if ops & {"root", "stun", "silence", "disarm", "taunt"}:
+        vocab.add("control")
+    if ops & {"knockback", "pull"}:
+        vocab.add("knockback")
+    if ops & {"shield", "brace"}:
+        vocab.add("shield")
+    if ops & {"empower_basic"}:
+        vocab.add("basic_hit")
+    return [key for key in CARD_VOCAB if key in vocab]
 
 
-def _validate_category_weights(progression):
-    """#198 B: one band per level range covering every level-up 2..max_level once, each a percentage split."""
-    expected = 2
-    for index, band in enumerate(progression["component_category_weights"]):
-        path = f"progression.component_category_weights[{index}]"
-        low, high = band["levels"]
-        require(low == expected and low <= high <= progression["max_level"], "CategoryWeights", path,
-                "bands must cover levels 2..max_level contiguously, ascending and exactly once")
-        require(sum(band[key] for key in CATEGORY_KEYS) == 100, "CategoryWeights", path,
-                "base, mod and connector percentages must add up to 100")
-        expected = high + 1
-    require(expected == progression["max_level"] + 1, "CategoryWeights", "progression.component_category_weights",
-            "bands must reach max_level")
-
-
-# #198 actives (CONTENT_AND_BALANCE §4.2): one value set each; (target mode, handlers).
 ACTIVE_CONTRACTS = {
     "active_elbow": ("Unit", {"damage", "knockback"}),
     "active_pants_down": ("Unit", {"damage", "root"}),
@@ -922,7 +829,7 @@ FINAL_MOD_CONTRACTS = {
 
 def validate_definitions(data, ids):
     collections = {"character": [data["character"]], "abilities": data["abilities"], "stats": data["stats"],
-                   "components": data["components"], "final_mods": data["final_mods"],
+                   "cards": data["cards"], "final_mods": data["final_mods"],
                    "monsters": data["camps"]["monsters"] + [data["boss"]]}
     all_ids = set()
     for section, rows in collections.items():
@@ -966,12 +873,11 @@ def validate_definitions(data, ids):
     require(levels == sorted(set(levels)) and all(2 <= level <= progression["max_level"] for level in levels),
             "ActiveOfferLevels", "progression.active_offer_levels",
             "active offer levels must be distinct, ascending and reachable by levelling up")
-    bonus_levels = progression["bonus_component_levels"]
-    require(bonus_levels == sorted(set(bonus_levels)) and all(2 <= level <= progression["max_level"] for level in bonus_levels),
-            "BonusComponentLevels", "progression.bonus_component_levels",
-            "bonus component levels must be distinct, ascending and reachable by levelling up")
-    _validate_category_weights(progression)
-    _validate_components(data, rows_by_id(data["abilities"], "abilities"))
+    _validate_cards(data)
+    for ability in data["abilities"]:
+        ability["vocab"] = ability_vocab(ability)
+        for branch in ability["branches"]:
+            branch["vocab"] = ability_vocab(branch)
     finals = rows_by_id(data["final_mods"], "final_mods")
     require(set(finals) == set(FINAL_MOD_CONTRACTS), "FinalModSet", "final_mods",
             "exactly the eight implemented final mods are required")
@@ -986,7 +892,7 @@ def validate_definitions(data, ids):
     require(quantity(finals["final_breach"]["rearm_outside"]) >= quantity(finals["final_breach"]["outside"]),
             "FinalModDomain", "final_breach", "rearming must not be faster than the first entry")
 
-    for row in (*data["abilities"], *data["components"]):
+    for row in (*data["abilities"], *data["cards"]):
         for effect in all_effects(row):
             effect["opcode"] = ids["effect_ops"][effect["op"]]
 
@@ -995,7 +901,7 @@ def validate_definitions(data, ids):
     expected_display = all_ids | set(ids["statuses"]) | set(branch_display)
     require(set(display) == expected_display, "DisplayReference", "display", "missing or extra display definition")
     abilities = rows_by_id(data["abilities"], "abilities")
-    components = rows_by_id(data["components"], "components")
+    cards = rows_by_id(data["cards"], "cards")
     names = set()
     for identity, row in display.items():
         icon = "icon_" + branch_display[identity][0]["id"] if identity in branch_display else "icon_" + identity
@@ -1022,8 +928,8 @@ def validate_definitions(data, ids):
             ability, step = branch_display[identity]
             variant = next(branch for branch in ability["branches"] if branch["path"] == STEP_PATH[step])
             card_template(row["description_text"], variant["effects"], f"{identity}.description_text")
-        elif identity in components:
-            card_template(row["description_text"], components[identity]["effects"], f"{identity}.description_text")
+        elif identity in cards:
+            card_template(row["description_text"], cards[identity]["effects"], f"{identity}.description_text")
         elif identity in stats:
             stat_template(row["description_text"], stats[identity]["per_point"], f"{identity}.description_text")
         require(row["name_text"] not in names, "DisplayText", identity, "duplicate display name")
@@ -1033,7 +939,7 @@ def validate_definitions(data, ids):
 
 CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
                          "secondary_ratio", "secondary_duration", "basic_count", "refund", "burst", "limit",
-                         "multiplier", "angle", "cost_ratio", "extra_duration"))
+                         "multiplier", "angle", "cost_ratio", "extra_duration", "step"))
 CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
 # A stat card names one bonus of its single point: [per_point.<Stat>].
 PER_POINT = "per_point"
@@ -1252,12 +1158,15 @@ def validate_numbers(data):
     # GROWTH.MaxLevelPointsXP beyond the top threshold grants GROWTH.MaxLevelPoints.
     checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
                 "GROWTH.OpeningPoints")
-    # #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
-    level_points = checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel")
-    pool_points = checked_mul(level_steps + len(data["progression"]["bonus_component_levels"]),
-                              params["GROWTH.EmptyComponentPoolPoints"], "GROWTH.EmptyComponentPoolPoints")
-    checked_add(params["GROWTH.OpeningPoints"], checked_add(level_points, pool_points, "GROWTH.EmptyComponentPoolPoints"),
-                "GROWTH.EmptyComponentPoolPoints")
+    # Spec §3.12: capacity grows one slot every CARDS.LevelsPerSlot levels; an offer shows CARDS.OfferSize distinct cards and
+    # a lock keeps at most one of them for the next offer.
+    require(params["CARDS.OfferSize"] <= len(data["cards"]), "CardPool", "CARDS.OfferSize", "an offer needs distinct cards")
+    require(params["CARDS.LockSlots"] < params["CARDS.OfferSize"], "CardPool", "CARDS.LockSlots",
+            "a locked card leaves room for new ones")
+    require(params["CARDS.CapacityBase"] + (data["progression"]["max_level"] - 1) // params["CARDS.LevelsPerSlot"] <= 32,
+            "CardCapacity", "CARDS.CapacityBase", "the workshop capacity stays within the build wire")
+    require(quantity(params["DAMAGE.FactorTechCap"]) > 1, "NumericDomain", "DAMAGE.FactorTechCap",
+            "the technical cap sits above one")
     require(params["GROWTH.NpcActiveSkipPoints"] < params["GROWTH.NpcActivePoints"], "InvalidPolicy",
             "GROWTH.NpcActiveSkipPoints", "declining a purchased offer must cost points overall")
 
@@ -1388,7 +1297,7 @@ def _validate_build_envelope(data):
         for field, maximum in (("ad_ratio", max_ad), ("ap_ratio", max_ap)):
             if field in row:
                 numerator = checked_add(numerator, checked_mul(maximum, row[field]["bp"], row["id"]), row["id"])
-    for row in (*data["abilities"], *data["components"]):
+    for row in (*data["abilities"], *data["cards"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
             base = grow(base, row["id"])
@@ -1397,7 +1306,7 @@ def _validate_build_envelope(data):
                     for storage in ("p2", "bp"):
                         if storage in stat:
                             grow(stat[storage], row["id"])
-            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage", "dash_contact_damage", "ledger"):
+            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage"):
                 numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] != "shield":
@@ -1728,50 +1637,3 @@ def verify_runtime_files(root, expected_digest):
             "CatalogIntegrity", "display", "display projection differs")
     validate_world(world_raw)
     return expected_digest
-
-
-# Whether a mod op changes a host active (ability mode and effect ops); None for ops without a compile gate.
-# Mirrors LDWorkshop::TargetsActive and the gates of LDCombatSourceRules::CompileWorkshopActive.
-def _mod_changes_host(op, mode, ops):
-    control = {"root", "stun", "silence", "disarm", "taunt"}
-    gates = {
-        "knockback_scale": "knockback" in ops,
-        "control_scale": bool(control & ops),
-        "range_bonus": mode != "Self",
-        "cooldown_cost": True,
-        "compress_cone": "channel_cone" in ops,
-        "compress_zone": {"zone", "zone_damage"} <= ops,
-        "dash_scale": "dash" in ops,
-        "spread_unit": mode == "Unit" and "damage" in ops,
-        "spread_projectile": mode == "DirectionProjectile" and "damage" in ops,
-        "projectile_return": mode == "DirectionProjectile" and "damage" in ops,
-        "projectile_pierce": mode == "DirectionProjectile" and "damage" in ops,
-        "chain_extra": "chain_bounce" in ops,
-        "compress_chain": "chain_bounce" in ops,
-        "echo_impact": "damage" in ops and bool({"self_area", "ground_impact", "contact_trap"} & ops),
-        "zone_tether": "zone" in ops,
-        "defense_shove": bool({"shield", "brace"} & ops),
-        "empower_reach": "empower_basic" in ops,
-        "final_knockback": bool({"empower_basic", "channel_cone"} & ops),
-        "pull": bool({"knockback", "taunt"} & ops),
-    }
-    return gates.get(op)
-
-
-def workshop_targets_active(listed, component_ops, hosts, active):
-    """Whether a mod or connector may go onto an active. listed: its targets.actives; component_ops: its effect ops;
-    hosts: active id -> (target mode, set of effect ops). A listed active always qualifies; another active of a listed
-    active's delivery mode only when the component changes it (a mod's gate, else every effect of a listed same-mode host)."""
-    if active in listed:
-        return True
-    if active not in hosts:
-        return False
-    mode, ops = hosts[active]
-    same_mode = [hosts[a][1] for a in listed if a in hosts and hosts[a][0] == mode]
-    if not same_mode:
-        return False
-    gated = [_mod_changes_host(op, mode, ops) for op in component_ops]
-    gated = [g for g in gated if g is not None]
-    if gated:
-        return any(gated)
-    return any(listed_ops <= ops for listed_ops in same_mode)

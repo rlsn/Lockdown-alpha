@@ -86,7 +86,7 @@ FLDActiveOfferState RestTestOffer(uint8 Ordinal, TArray<FName> Options)
 int64 RestTestUnspent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP)
 {
     int64 Unspent = -1;
-    return LDProgression::UnspentPoints(Content, Build, XP, 0, Unspent) == ELDGrowthReason::None ? Unspent : -1;
+    return LDProgression::UnspentPoints(Content, Build, XP, Unspent) == ELDGrowthReason::None ? Unspent : -1;
 }
 
 const TCHAR* RestTestKindName(ELDBuildCommandKind Kind)
@@ -335,23 +335,23 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     const int64 Before = RestTestUnspent(Content, Built, XP);
     bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated minus paid is unspent"), Before, 9 - 4 - Cost);
     bGood &= RestTestReason(Test, TEXT("A respec in the rest window"),
-        LDProgression::ApplyRespec(Content, Built, XP, 0, Rest, Out, Refunded), ELDGrowthReason::None);
+        LDProgression::ApplyRespec(Content, Built, XP, Rest, Out, Refunded), ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("Only the allocated points return; the permanent spend stays"),
         Refunded == 4 && Out.StatPoints == TArray<int32>({0, 0, 0, 0, 0}) && Out.PermanentSpentPoints == Cost
         && RestTestUnspent(Content, Out, XP) == 9 - Cost && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
     const FLDGrowthBuild Respecced = Out;
     bGood &= RestTestReason(Test, TEXT("A respec with nothing allocated"),
-        LDProgression::ApplyRespec(Content, Respecced, XP, 0, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
+        LDProgression::ApplyRespec(Content, Respecced, XP, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
     bGood &= Test.TestTrue(TEXT("A refused respec refunds nothing"), Refunded == 0 && Out.PermanentSpentPoints == Cost);
     bGood &= RestTestReason(Test, TEXT("A respec on the field"),
-        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out, Refunded),
+        LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out, Refunded),
         ELDGrowthReason::NotRestWindow);
     bGood &= Test.TestTrue(TEXT("A respec refused on the field changes nothing"), Refunded == 0 && Out.StatPoints == Built.StatPoints);
     bGood &= RestTestReason(Test, TEXT("A respec while builds are locked"),
-        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), Out,
+        LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), Out,
             Refunded), ELDGrowthReason::BuildLocked);
     bGood &= RestTestReason(Test, TEXT("A respec of a build that paid more than it earned"),
-        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {1, 0, 0, 0, 0}, 3), 0, 0, Rest, Out, Refunded),
+        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {1, 0, 0, 0, 0}, 3), 0, Rest, Out, Refunded),
         ELDGrowthReason::AuthorityFault);
     bGood &= RestTestReason(Test, TEXT("A negative permanent spend is a broken record"),
         LDProgression::ValidateBuild(Content, RestTestBuild(Content, 1, {}, {}, {}, -1)), ELDGrowthReason::DataInvalid);
@@ -378,7 +378,7 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     Offered.Offer.Emplace(RestTestOffer(2, {Later[0], Later[1], Later[2]}));
     FLDGrowthBuild Out;
     FName Forgotten;
-    TArray<FName> Reclaimed;
+    TArray<uint16> Reclaimed;
     const auto Replace = [&](const FLDGrowthBuild& From, const FLDProgressionState& Progression, FName Blueprint, uint8 Slot,
         const LDProgression::FBuildContext& Context)
     {
@@ -449,26 +449,20 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     return bGood;
 }
 
-FLDComponentInstance RestTestInstalled(FName Id, uint8 Level, ELDComponentTargetKind Kind = ELDComponentTargetKind::None,
-    FName Definition = NAME_None, FName BoundActive = NAME_None, ELDDemoElement Element = ELDDemoElement::None,
-    FName BoundComponent = NAME_None)
+FLDCardInstance RestTestCard(uint16 Serial, FName Id, ELDCardTargetKind Kind = ELDCardTargetKind::None, FName Active = NAME_None)
 {
-    FLDComponentInstance Instance;
+    FLDCardInstance Instance;
+    Instance.Serial = Serial;
     Instance.Id = Id;
-    Instance.Source = ELDComponentSource::LevelUp;
-    Instance.SourceLevel = Level;
-    Instance.bInstalled = Instance.bEverInstalled = true;
+    Instance.OfferOrdinal = Serial;
     Instance.Target.Kind = Kind;
-    Instance.Target.Definition = Definition;
-    Instance.Target.BoundActive = BoundActive;
-    Instance.Target.Element = Element;
-    Instance.Target.BoundComponent = BoundComponent;
+    Instance.Target.Active = Active;
     return Instance;
 }
 
-// #198 §5 (换下即遗忘，挂件退库存或迁往合法对象，不复制、不丢失、不自动错绑): forgetting or replacing an active returns
-// what sat on it (a mod on it, a B18 bound to it, a connector on that B18) to the inventory in the same commit, leaves every
-// other install alone, binds nothing to the new active, and a later move is the player's own rest-window install.
+// Spec §6.1 (换下即遗忘，挂件退回卡库，不复制、不丢失、不自动错绑): forgetting or replacing a skill returns every card on it to
+// the library in the same commit, leaves every other install alone, binds nothing to the new skill, and a later move is the
+// player's own install.
 bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -478,20 +472,15 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
         return false;
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    using EKind = ELDComponentTargetKind;
+    using EKind = ELDCardTargetKind;
     const FName Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out")), Zap(TEXT("active_zap")), Seethe(TEXT("active_seethe"));
-    const FName Trick(TEXT("component_dirty_trick")), Chase(TEXT("component_blast_chase")), Crowd(TEXT("component_crowd_hit"));
-    const FName Water(TEXT("component_fist_water")), DirtyFist(TEXT("component_dirty_fist")), Again(TEXT("component_again_now"));
-    const FName Spiky(TEXT("component_spiky_hide"));
+    const FName Encore(TEXT("card_encore")), Big(TEXT("card_big_one")), Practice(TEXT("card_practice"));
+    const FName Spiky(TEXT("card_spiky_hide")), Breath(TEXT("card_third_breath"));
     FLDGrowthBuild Built = RestTestBuild(Content, 8, {{Elbow, 0}, {BailOut, 1}, {Zap, 2}}, {Seethe});
-    FLDComponentInstance Stored;
-    Stored.Id = Spiky;
-    Stored.Source = ELDComponentSource::LevelUp;
-    Stored.SourceLevel = 8;
-    Built.Components = {RestTestInstalled(Trick, 2, EKind::None, NAME_None, Elbow, ELDDemoElement::Fire),
-        RestTestInstalled(Chase, 3, EKind::Component, Trick), RestTestInstalled(Crowd, 4, EKind::Active, Elbow),
-        RestTestInstalled(Water, 5), RestTestInstalled(DirtyFist, 6, EKind::Active, Zap, NAME_None, ELDDemoElement::None, Water),
-        RestTestInstalled(Again, 7, EKind::Active, BailOut), Stored};
+    Built.Cards = {RestTestCard(1, Encore, EKind::Skill, Elbow), RestTestCard(2, Encore, EKind::Skill, Elbow),
+        RestTestCard(3, Big, EKind::Skill, Zap), RestTestCard(4, Practice, EKind::Skill, BailOut), RestTestCard(5, Spiky, EKind::Body),
+        RestTestCard(6, Breath, EKind::Basic), RestTestCard(7, Practice)};
+    Built.NextCardSerial = 8;
     LDProgression::NormalizeBuild(Built);
     if (!RestTestReason(Test, TEXT("The reclaim fixture build"), LDProgression::ValidateBuild(Content, Built), ELDGrowthReason::None))
     {
@@ -502,23 +491,20 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
     const FLDProgressionState Settled = RestTestSettled(2000);
     FLDGrowthBuild Out;
     FName Forgotten;
-    TArray<FName> Reclaimed;
-    // The ids that left an install, in id order, must equal Expected; everything else keeps its exact install state.
-    const auto Exactly = [&](const TCHAR* What, const TArray<FName>& Expected)
+    TArray<uint16> Reclaimed;
+    // The serials that left an install, in serial order, must equal Expected; everything else keeps its exact place.
+    const auto Exactly = [&](const TCHAR* What, const TArray<uint16>& Expected)
     {
-        bool bSame = Out.Components.Num() == Built.Components.Num();
-        for (int32 Index = 0; bSame && Index < Built.Components.Num(); ++Index)
+        bool bSame = Out.Cards.Num() == Built.Cards.Num();
+        for (int32 Index = 0; bSame && Index < Built.Cards.Num(); ++Index)
         {
-            const FLDComponentInstance& Before = Built.Components[Index];
-            const FLDComponentInstance& After = Out.Components[Index];
-            bSame = After.Id == Before.Id && After.Source == Before.Source && After.SourceLevel == Before.SourceLevel
-                && After.bEverInstalled == Before.bEverInstalled
-                && (Expected.Contains(Before.Id) ? !After.bInstalled && After.Target.IsEmpty()
-                    : After.bInstalled == Before.bInstalled && After.Target == Before.Target);
+            const FLDCardInstance& Before = Built.Cards[Index];
+            const FLDCardInstance& After = Out.Cards[Index];
+            bSame = After.Serial == Before.Serial && After.Id == Before.Id && After.OfferOrdinal == Before.OfferOrdinal
+                && (Expected.Contains(Before.Serial) ? !After.IsInstalled() : After.Target == Before.Target);
         }
         bool bGood = Test.TestTrue(FString::Printf(TEXT("%s: the reclaimed list"), What), Reclaimed == Expected);
-        bGood &= Test.TestTrue(FString::Printf(TEXT("%s: reclaimed to the inventory with their history, the rest untouched, none lost or doubled"),
-            What), bSame);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s: reclaimed to the library, the rest untouched, none lost or doubled"), What), bSame);
         bGood &= RestTestReason(Test, FString::Printf(TEXT("%s: the committed build is valid"), What), LDProgression::ValidateBuild(Content, Out),
             ELDGrowthReason::None);
         return bGood;
@@ -526,42 +512,37 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
 
     bool bGood = RestTestReason(Test, TEXT("Forgetting Q (elbow)"),
         LDProgression::ApplyForgetActive(Content, Built, Settled, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
-    bGood &= Exactly(TEXT("Forgetting elbow"), {Chase, Crowd, Trick});
+    bGood &= Exactly(TEXT("Forgetting elbow"), {1, 2});
     bGood &= RestTestReason(Test, TEXT("Replacing Q (elbow) with seethe"),
         LDProgression::ApplyReplaceActive(Content, Built, Settled, Seethe, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
-    bGood &= Exactly(TEXT("Replacing elbow"), {Chase, Crowd, Trick});
-    bGood &= Test.TestTrue(TEXT("Nothing binds to the new active on its own"), Forgotten == Elbow && Out.ActiveInSlot(0) != INDEX_NONE
-        && Out.Actives[Out.ActiveInSlot(0)].Id == Seethe && !Out.Components.ContainsByPredicate([&Seethe](const FLDComponentInstance& Row)
-            { return Row.Target.Definition == Seethe || Row.Target.BoundActive == Seethe; }));
+    bGood &= Exactly(TEXT("Replacing elbow"), {1, 2});
+    bGood &= Test.TestTrue(TEXT("Nothing binds to the new skill on its own"), Forgotten == Elbow && Out.ActiveInSlot(0) != INDEX_NONE
+        && Out.Actives[Out.ActiveInSlot(0)].Id == Seethe
+        && !Out.Cards.ContainsByPredicate([&Seethe](const FLDCardInstance& Row) { return Row.Target.Active == Seethe; }));
     const FLDGrowthBuild Replaced = Out;
-    FLDComponentTarget OnZap;
-    OnZap.BoundActive = Zap;
-    OnZap.Element = ELDDemoElement::Water;
+    FLDCardTarget OnZap;
+    OnZap.Kind = EKind::Skill;
+    OnZap.Active = Zap;
     FLDGrowthBuild Moved;
-    bGood &= Test.TestTrue(TEXT("A reclaimed B18 can move to another legal active on the field too (#222)"),
-        LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Field, Moved) == ELDGrowthReason::None
-        && Moved.FindComponent(Trick)->bInstalled && Moved.FindComponent(Trick)->Target == OnZap);
-    bGood &= Test.TestTrue(TEXT("The player moves the reclaimed B18 to another legal active in the rest window"),
-        LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Rest, Moved) == ELDGrowthReason::None
-        && Moved.FindComponent(Trick)->bInstalled && Moved.FindComponent(Trick)->Target == OnZap
-        && LDProgression::ValidateBuild(Content, Moved) == ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("A reclaimed copy can move to another learned skill on the field too (#222)"),
+        LDProgression::ApplyInstallCard(Content, Replaced, 1, OnZap, Field, Moved) == ELDGrowthReason::None
+        && Moved.FindCard(1)->Target == OnZap && LDProgression::ValidateBuild(Content, Moved) == ELDGrowthReason::None);
 
     bGood &= RestTestReason(Test, TEXT("Forgetting E (zap)"),
         LDProgression::ApplyForgetActive(Content, Built, Settled, 2, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
-    bGood &= Exactly(TEXT("Forgetting zap"), {DirtyFist});
+    bGood &= Exactly(TEXT("Forgetting zap"), {3});
     bGood &= RestTestReason(Test, TEXT("Forgetting W (bail out)"),
         LDProgression::ApplyForgetActive(Content, Built, Settled, 1, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
-    bGood &= Exactly(TEXT("Forgetting bail out"), {Again});
+    bGood &= Exactly(TEXT("Forgetting bail out"), {4});
 
-    // A build that kept an install on a lost target is a broken record, never a quiet state.
+    // A build that kept a card on a lost skill is a broken record, never a quiet state.
     FLDGrowthBuild Lost = Built;
     Lost.Actives.RemoveAt(Lost.ActiveInSlot(0));
-    bGood &= RestTestReason(Test, TEXT("An install left on a forgotten active"), LDProgression::ValidateBuild(Content, Lost),
+    bGood &= RestTestReason(Test, TEXT("A card left on a forgotten skill"), LDProgression::ValidateBuild(Content, Lost),
         ELDGrowthReason::DataInvalid);
-    FLDGrowthBuild Orphan = Built;
-    Orphan.FindComponent(Trick)->bInstalled = false;
-    Orphan.FindComponent(Trick)->Target = FLDComponentTarget();
-    bGood &= RestTestReason(Test, TEXT("A connector left on an uninstalled host"), LDProgression::ValidateBuild(Content, Orphan),
+    FLDGrowthBuild Misplaced = Built;
+    Misplaced.FindCard(5)->Target.Kind = EKind::Dash;
+    bGood &= RestTestReason(Test, TEXT("A body card on the dash"), LDProgression::ValidateBuild(Content, Misplaced),
         ELDGrowthReason::DataInvalid);
     return bGood;
 }
@@ -658,7 +639,7 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
     }
     const auto* Universal=Content.FinalMods.FindByPredicate([&Options](const FLDDemoFinalModDefinition& Row){return FName(*Row.Id)==Options[1];});
     bGood &= TestTrue(TEXT("The second option is always universal"),Universal&&Universal->IsUniversal());
-    TArray<FLDComponentTarget> MechanicTargets;
+    TArray<FLDFinalModTarget> MechanicTargets;
     bGood &= RestTestReason(*this,TEXT("Resolving the mechanism source"),
         LDProgression::FinalModTargets(Content,Build,Options[0],MechanicTargets),ELDGrowthReason::None);
     if(MechanicTargets.IsEmpty()){return false;}
@@ -668,8 +649,8 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
     Open.FinalMod.Options = Options;
     FLDGrowthBuild Out;
     FLDProgressionState OutProgression;
-    const FLDComponentTarget Plain;
-    const auto Take = [&](const FLDProgressionState& Progression, const FGuid& Id, FName Option, const FLDComponentTarget& Target,
+    const FLDFinalModTarget Plain;
+    const auto Take = [&](const FLDProgressionState& Progression, const FGuid& Id, FName Option, const FLDFinalModTarget& Target,
         const LDProgression::FBuildContext& Context)
     {
         return LDProgression::ApplyFinalMod(Content, Build, Progression, Id, Option, Target, Context, Out, OutProgression);
@@ -681,16 +662,16 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
             && Out.FinalMod==Build.FinalMod && Out.PendingBlueprints==Build.PendingBlueprints
             && OutProgression.FinalMod.OfferId == Before.FinalMod.OfferId
             && OutProgression.FinalMod.Options == Before.FinalMod.Options && OutProgression.FinalMod.bLocked == Before.FinalMod.bLocked
-            && Out.Components.Num()==Build.Components.Num());
+            && Out.Cards.Num()==Build.Cards.Num());
         return bOk;
     };
 
     bGood &= RestTestReason(*this, TEXT("Taking an independent universal rule"), Take(Open, Open.FinalMod.OfferId, Options[1], Plain, Rest),
         ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("Ordinary actives, blueprints, components and the empty E slot are preserved"),
+    bGood &= TestTrue(TEXT("Ordinary actives, blueprints, cards and the empty E slot are preserved"),
         Out.Actives.Num()==Build.Actives.Num() && Out.FindActive(A) && Out.FindActive(B) && Out.ActiveInSlot(2)==INDEX_NONE
-        && Out.PendingBlueprints==Build.PendingBlueprints && Out.Components.Num()==Build.Components.Num()
-        && Out.FinalMod.DefinitionId==Options[1] && Out.FinalMod.TargetKind==ELDComponentTargetKind::None
+        && Out.PendingBlueprints==Build.PendingBlueprints && Out.Cards.Num()==Build.Cards.Num()
+        && Out.FinalMod.DefinitionId==Options[1] && Out.FinalMod.TargetKind==ELDFinalModTargetKind::None
         && OutProgression.FinalMod.bLocked
         && !OutProgression.FinalMod.IsPending() && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
     const FLDProgressionState Taken = OutProgression;
@@ -714,8 +695,8 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
     bGood &= Refused(TEXT("Taking it before it opened"), Take(BeforeOpen, Open.FinalMod.OfferId, Options[1], Plain, Rest),
         ELDGrowthReason::NoFinalMod, BeforeOpen);
     bGood &= Refused(TEXT("Taking an active outside the final options"), Take(Open, Open.FinalMod.OfferId, D, Plain, Rest), ELDGrowthReason::InvalidOption, Open);
-    FLDComponentTarget Wrong;
-    Wrong.Kind=ELDComponentTargetKind::Active;Wrong.Definition=A;
+    FLDFinalModTarget Wrong;
+    Wrong.Kind=ELDFinalModTargetKind::Active;Wrong.Definition=A;
     bGood &= Refused(TEXT("Binding a universal rule to an explicit active"),Take(Open,Open.FinalMod.OfferId,Options[1],Wrong,Rest),
         ELDGrowthReason::FinalModUnavailable,Open);
     FLDProgressionState Offered = Open;
@@ -732,7 +713,7 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
     // ---- The build stays adjustable: a taken card whose source left is dormant and rebinds anywhere an install is ----
     FLDGrowthBuild Dormant = Build;
     Dormant.FinalMod.DefinitionId = Options[0];
-    Dormant.FinalMod.TargetKind = ELDComponentTargetKind::Active;
+    Dormant.FinalMod.TargetKind = ELDFinalModTargetKind::Active;
     Dormant.FinalMod.TargetId = FName(TEXT("removed_source"));
     bGood &= TestTrue(TEXT("A card whose source was removed is dormant, not invalid"),
         !LDProgression::FinalModBound(Content, Dormant) && LDProgression::ValidateBuild(Content, Dormant) == ELDGrowthReason::None);

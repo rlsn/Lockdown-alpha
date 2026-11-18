@@ -214,7 +214,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         text = summarize(collect([str(self.root / "Host.log")]))
         metrics = text.split("## Match 7")[1].split("### Metrics (spec §16)")[1].split("###")[0]
         # Hits on contenders: the basic 60 and the skill 450; on camps the basic 5. Old LD_HIT carries amp_bp, no factors.
-        self.assertIn("hits on contenders: 510 dmg: basic 11.8%, skill 88.2%, card/component 0.0%, other 0.0%", metrics)
+        self.assertIn("hits on contenders: 510 dmg: basic 11.8%, skill 88.2%, card 0.0%, other 0.0%", metrics)
         self.assertIn("reaction share: no data (LD_HIT has no reaction field)", metrics)
         self.assertIn("hits on camps: 5 dmg: basic 100.0%", metrics)
         self.assertIn("Casts per person per fight (Q/W/E releases): no data (no LD_CAST line", metrics)
@@ -230,9 +230,9 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         across = text.split("## Metrics across 1 matches with Host lines")[1]
         self.assertIn("| Same-level L1 time to kill | 10–12 s | no data (+1 one-sided kills) |", across)
         self.assertIn("| Casts per person per same-level fight | 7–10 | no data (no LD_CAST line", across)
-        # The old summary row has no components field: winner builds are not comparable.
-        self.assertIn("| Distinct winner builds (actives, points, installed components or cards) | ≥ 8 per 50 matches | "
-                      "no data (no winner row with points and components) |", across)
+        # The old summary row has no cards field: winner builds are not comparable.
+        self.assertIn("| Distinct winner builds (actives, points, installed cards) | ≥ 8 per 50 matches | "
+                      "no data (no winner row with points and cards) |", across)
         self.assertIn("Actives pick rate (picked / offered), 4 ids, 3 below 4%:", across)
         self.assertIn("| active_snark_bolt | 1 | 1 | 100.0% |", across)
         self.assertIn("Cards pick rate: no data (none offered)", across)
@@ -293,7 +293,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         metrics = text.split("### Metrics (spec §16)")[1].split("## Metrics across")[0]
         # 930 on contenders: skill 100 + 60 + 60 + 600 + B's zone after its death 20 (the Overload settle stays under its
         # applier's skill), card 40, basic 50.
-        self.assertIn("hits on contenders: 930 dmg: basic 5.4%, skill 90.3%, card/component 4.3%, other 0.0%", metrics)
+        self.assertIn("hits on contenders: 930 dmg: basic 5.4%, skill 90.3%, card 4.3%, other 0.0%", metrics)
         # A's fight holds its three releases; B's fight its one (it died at 13000; its zone's later hit stays in that fight).
         self.assertIn("Casts per person per fight (Q/W/E releases): n=2 mean 2.0 median 2.0 min 1.0 max 3.0", metrics)
         self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 2.9 s", metrics)
@@ -326,7 +326,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.82, B x0.08)", measured)
 
     def test_winner_builds_lives_without_ledgers_and_reused_generations(self):
-        def run(name, points, components, with_ledger, on="Active:active_zap", folder=None):
+        def run(name, points, cards, with_ledger, folder=None):
             rows = [
                 line(1, "LogLDMatch", "Display", "LD_MATCH_STARTED generation=1 contenders=2 started_at_ms=0"),
                 line(1, "LogLDMatch", "Display", f"LD_MATCH_HEADER generation=1 ledger={name} product=0.11.0"),
@@ -342,10 +342,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
                 line(9, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY generation=1 reason=GuardSucceeded winner={AI} duration_ms=9000"),
                 line(9, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY_ROW generation=1 contender={AI} name=A kind=AI left=0 winner=1 "
                      f"level=3 xp=1 kills=0 deaths=0 assists=0 choices=1 skills=active_zap/Q blueprints=- points={points} "
-                     f"components={components}"),
-                # Where the installed component went: the summary row names bindings only.
-                line(2, "LogLDGrowth", "Log", f"LD_BUILD t=1500 contender={AI} kind=InstallComponent card=component_fist_fire "
-                     f"slot=- points=- unspent=0 level=1 installed=1 bind=- on={on}"),
+                     f"cards={cards}"),
             ]
             if with_ledger:
                 rows.append(line(9, "LogLDCombat", "Log", f"LD_MOMENTUM entity={CLIENT} life=1 basic=10.00 combat=0.00 skill=0.00 "
@@ -355,25 +352,33 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             target.write_text("\n".join(rows) + "\n", encoding="utf-8")
             return str(target)
 
-        first = run("RunA", "3,0,0,0,0", "+component_fist_fire,component_long_kick", True)
-        second = run("RunB", "0,0,3,0,0", "+component_fist_fire", False)
+        first = run("RunA", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap,card_spiky_hide#2", True)
+        second = run("RunB", "0,0,3,0,0", "+card_add_fire#1@Skill:active_zap", False)
         text = summarize(collect([first, second]), metrics_only=True)
         # Both Host processes started at generation 1: two matches, not one merged match.
         self.assertIn("## Match 1 (RunA)", text)
         self.assertIn("## Match 1 (RunB)", text)
         across = text.split("## Metrics across 2 matches with Host lines")[1]
-        # Same actives, different points: two builds; an owned but uninstalled component does not count.
+        # Same actives, different points: two builds; a card in the library does not count.
         self.assertIn("| 2 in 2 decided matches |", across)
         # RunA closed B's ledger and left A alive; RunB closed none.
         self.assertIn("incomplete: 3 field lives have no ledger (alive at the match end)", across)
-        same = summarize(collect([first, run("RunC", "3,0,0,0,0", "+component_fist_fire", True)]), metrics_only=True)
+        same = summarize(collect([first, run("RunC", "3,0,0,0,0", "+card_add_fire#7@Skill:active_zap", True)]), metrics_only=True)
         self.assertIn("| 1 in 2 decided matches |", same)
-        # The same component on another target is another build.
-        moved = summarize(collect([first, run("RunD", "3,0,0,0,0", "+component_fist_fire", True, on="Dash")]), metrics_only=True)
+        # The same card on another place is another build, and so is a second copy.
+        moved = summarize(collect([first, run("RunD", "3,0,0,0,0", "+card_add_fire#1@Skill:active_snark_bolt", True)]),
+                          metrics_only=True)
         self.assertIn("| 2 in 2 decided matches |", moved)
+        doubled = summarize(collect([first, run("RunE", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap,+card_add_fire#3@Skill:active_zap",
+                                                True)]), metrics_only=True)
+        self.assertIn("| 2 in 2 decided matches |", doubled)
+        # Y25 with another element is another build.
+        rewired = summarize(collect([run("RunF", "3,0,0,0,0", "+card_live_wire#1@Body:Fire", True),
+                                     run("RunG", "3,0,0,0,0", "+card_live_wire#1@Body:Water", True)]), metrics_only=True)
+        self.assertIn("| 2 in 2 decided matches |", rewired)
         # Two runs' logs of the same file name in different folders are two inputs, never one match.
-        apart = summarize(collect([run("Telemetry", "3,0,0,0,0", "+component_fist_fire", True, folder="run1"),
-                                   run("Telemetry", "3,0,0,0,0", "+component_fist_fire", True, folder="run2")]),
+        apart = summarize(collect([run("Telemetry", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap", True, folder="run1"),
+                                   run("Telemetry", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap", True, folder="run2")]),
                           metrics_only=True)
         self.assertIn("## Match 1 (Telemetry)", apart)
         self.assertIn("## Match 1 (Telemetry (run2))", apart)

@@ -129,21 +129,13 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
             FEvent& LevelEvent=Out.AddDefaulted_GetRef();LevelEvent.Kind=EKind::LevelUp;LevelEvent.Level=Progression->Level;
             LevelEvent.Amount=FMath::Max<int64>(0,WorldFeedbackPointsEarned(*Progression)-PointsEarned);
             LevelEvent.Offers=FMath::Max(0,int32(Progression->ActiveOpportunitiesEarned)-int32(OffersEarned));
-            // #198 B: the components the level-ups granted (never regranted, so a new id is a new reward).
-            TArray<FString> Granted;
-            for(const FLDComponentInstanceView& Owned:Progression->Components)
-            {
-                if(Owned.Source!=ELDComponentSource::LevelUp||ComponentsSeen.Contains(Owned.DefinitionId)){continue;}
-                Granted.Add(Sample.ComponentName?Sample.ComponentName(Owned.DefinitionId):Owned.DefinitionId.ToString());
-            }
-            LevelEvent.Name=FString::Join(Granted,TEXT("、"));
+            // Every level crossed queues one card offer.
+            LevelEvent.CardOffers=int32(Progression->Level)-int32(Level);
         }
     }
     bGrowth=bProgress;
     if(bProgress)
     {
-        ComponentsSeen.Reset();
-        for(const FLDComponentInstanceView& Owned:Progression->Components){ComponentsSeen.Add(Owned.DefinitionId);}
         Level=Progression->Level;OffersEarned=Progression->ActiveOpportunitiesEarned;
         PointsEarned=WorldFeedbackPointsEarned(*Progression);XP=Progression->CumulativeXP;
     }
@@ -240,7 +232,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
 
 FString LDWorldFeedback::Subline(const FEvent& Event)
 {
-    return Event.Kind==EKind::LevelUp?LDTerms::LevelUpGains(Event.Amount,Event.Offers,Event.Name):FString();
+    return Event.Kind==EKind::LevelUp?LDTerms::LevelUpGains(Event.Amount,Event.Offers,Event.CardOffers):FString();
 }
 
 LDWorldFeedback::EUnitHold LDWorldFeedback::UnitHold(bool bPresented,bool bPresentationClock,double PresentationAtServerSec,double SampledAtServerSec,double HeldSeconds)
@@ -456,7 +448,6 @@ void LDWorldFeedback::MakeSample(const ALDPlayerController& PC,const ALDGameStat
     Out.CastName=[Content](uint8 Ability){return LDHUD::AbilityName(Content,Ability);};
     Out.MonsterCastName=[Content](uint8 Creature)
     {if(Content){for(const auto& M:Content->Monsters){if(M.NativeId==Creature){return M.Skill.Name;}}}return FString();};
-    Out.ComponentName=[Content](FName Component){return LDHUD::ContentName(Content,Component.ToString());};
 }
 
 void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
