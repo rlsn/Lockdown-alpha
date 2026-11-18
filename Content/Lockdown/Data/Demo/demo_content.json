@@ -21093,8 +21093,13 @@
     "CARDS.RerollsPerRest": 1,
     "CARDS.SkipVouchers": 3,
     "CARDS.VocabWeight": 2,
+    "CHAIN.EndSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
     "CHAIN.MaxDepth": 16,
     "CHAIN.MaxEffectsPerStep": 256,
+    "CHAIN.MinKeySteps": 3,
     "COMBAT.BlizzardRatio": {
       "bp": 5000,
       "unit": "ratio"

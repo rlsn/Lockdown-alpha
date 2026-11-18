@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDChainRules.h"
 #include "LDDamageRecap.generated.h"
 
 // Owner-only recap of one field death: what the dead life took from other bodies within WindowMs before the fatal hit
@@ -44,6 +45,8 @@ struct FLDDamageSummaryView
     UPROPERTY() uint32 Match = 0;
     UPROPERTY() FGuid ResultId;
     UPROPERTY() TArray<FLDDamageLine> Lines;
+    // Spec §6.5 结算“本局最离谱”: every contender's longest chain and strongest hit, by contender id.
+    UPROPERTY() TArray<FLDResultHighlight> Highlights;
 };
 
 // One committed hit on a victim life, kept only while it can still fall inside the recap window.

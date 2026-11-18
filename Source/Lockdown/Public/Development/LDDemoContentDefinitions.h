@@ -503,6 +503,9 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 DamageFactorTechCapBp = 0;
     UPROPERTY() int32 ChainMaxDepth = 0;
     UPROPERTY() int32 ChainMaxEffectsPerStep = 0;
+    // Spec §6.5: a chain ends ChainEndMs after its last step (CHAIN.EndSec); its key counts from ChainMinKeySteps kinds.
+    UPROPERTY() int64 ChainEndMs = 0;
+    UPROPERTY() int32 ChainMinKeySteps = 0;
 };
 
 UENUM()

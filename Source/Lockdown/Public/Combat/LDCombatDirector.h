@@ -7,6 +7,7 @@
 #include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDDamageRecap.h"
+#include "Combat/LDChainRules.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDMonsterRules.h"
@@ -325,6 +326,8 @@ struct FLDCombatAction
     // K06: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
     bool bAutoRecast=false;
     int64 AutoRecastScaleBp=10000;
+    // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
+    FGuid ChainId;
 };
 
 // A K06 repeat of one release, due at DueMs: the same action toward the same target or direction (LDCombatCards.cpp).
@@ -585,6 +588,8 @@ struct FLDCombatHit
     TArray<FLDDamageFactor> Factors;
     // Spec §3.8: the steps of the effect chain this hit is (0 for an action's own hit; a hit derived from another is one more).
     uint8 ChainDepth=0;
+    // Spec §6.5: the chain this hit belongs to when it was derived from another; an action's own hits find theirs by EffectId.
+    FGuid ChainId;
     // A rider of another hit (A11, K13): its own damage type, the parent's crit and factors, never a trigger or a hit count.
     bool bRider=false;
     // A primary basic's extra strike (A06, A09): a basic hit for triggers, no combo advance.
@@ -951,6 +956,9 @@ public:
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
+    // Spec §6.5: the chain ends Entity's owner receives (its recent ones) and every contender's 本局最离谱 row.
+    void ReadOwnerChains(const FGuid& Entity, TArray<FLDChainEndView>& Out) const;
+    void ReadResultHighlights(TArray<FLDResultHighlight>& Out) const;
 
     // ---- Navigation and camp bodies (server, inside the current Actions permit).
     bool ReadCombatBody(const FLDCombatBodyRef& Body, FLDCombatBodyRead& Out) const;
@@ -1652,6 +1660,36 @@ private:
     uint64 NextAreaSerial=0;
     // K06 repeats waiting for their instant.
     TArray<FLDCombatAutoRecast> AutoRecasts;
+    // Spec §6.5 chains (LDCombatChains.cpp): the open chains by ChainId, the release effects that map to them, each owner's
+    // ended chains and highlights, and the chain current while an action releases or a hit of it resolves.
+    struct FChainTrack
+    {
+        FGuid Owner;
+        TArray<FName> Steps;
+        int64 DamageP2=0;
+        int64 LastStepMs=0;
+        TArray<FGuid> Effects;
+    };
+    struct FChainOwner
+    {
+        uint32 NextSerial=1;
+        TArray<FLDChainEndView> Recent;
+        TArray<int32> Logged;
+        FLDResultHighlight Best;
+    };
+    TMap<FGuid,FChainTrack> OpenChains;
+    TMap<FGuid,FGuid> EffectChains;
+    TMap<FGuid,FChainOwner> ChainOwners;
+    FGuid CurrentChain;
+    // A contender's action (EffectId) opens a chain or continues Inherit while it is open; none for camp members and dummies.
+    FGuid OpenChain(const FLDBodyCombatState& Body, const FGuid& EffectId, const FGuid& Inherit, int64 NowMs);
+    FGuid ChainOfHit(const FLDCombatHit& Hit) const;
+    // One step of the current chain when Entity owns it.
+    void ChainStep(const FGuid& Entity, FName Kind, int64 NowMs);
+    // Damage of a committed hit: its chain's total and its owner's strongest hit on a contender.
+    void ChainDamage(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, int64 DamageP2);
+    // Ends every chain CHAIN.EndSec past its last step: the counted ones reach their owner and the longest the log.
+    bool AdvanceChains(int64 NowMs, FString& Error);
     // Spec §3.8: effects derived in the current authority step (LD_CHAIN_GUARD reason=Step past CHAIN.MaxEffectsPerStep).
     int32 StepDerivedEffects=0;
     // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.

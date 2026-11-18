@@ -104,6 +104,8 @@ bool ALDCombatDirector::SpawnGround(ELDGroundStateKind Kind, const FLDElementApp
     UE_LOG(LogLDCombat,Log,TEXT("LD_GROUND t=%lld id=%u kind=%s owner=%s via=%s centre=%s radius=%.0f life=%lld"),NowMs,Ground.Id,
         LDCombatElements::GroundName(Kind),*LDLog::Id(GroundOwner.SourceEntity),*LDLog::Source(GroundOwner.Source),*Centre.ToString(),
         Ground.RadiusCm,Life);
+    // Spec §6.5: a ground state left by a chain's effect is one step of it.
+    ChainStep(GroundOwner.SourceEntity,LDChain::GroundStep(LDCombatElements::GroundName(Kind)),NowMs);
     GroundStates.Add(MoveTemp(Ground));
     return true;
 }

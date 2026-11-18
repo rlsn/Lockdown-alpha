@@ -1444,6 +1444,7 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         Repeat.Action.bOverdrive=false;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
         Repeat.Card=FName(TEXT("card_encore"));
+        Repeat.Action.ChainId=CurrentChain;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Terms.AutoRecastDelayMs*Index,Repeat.DueMs,Error)) { return false; }
     }
     return true;
@@ -1683,6 +1684,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     int64 ShareBp=0;
     for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }
     Cast.AutoRecastScaleBp=ShareBp;
+    Cast.ChainId=CurrentChain;
     FLDCombatAutoRecast& Repeat=AutoRecasts.AddDefaulted_GetRef();
     Repeat.Body={Body.Victim,Body.Identity};
     Repeat.Action=MoveTemp(Cast);

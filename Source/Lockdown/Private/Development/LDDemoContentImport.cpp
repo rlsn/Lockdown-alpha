@@ -815,7 +815,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CARDS.OfferSize"), &P.Cards.OfferSize}, {TEXT("CARDS.FreeRerolls"), &P.Cards.FreeRerolls},
         {TEXT("CARDS.RerollsPerRest"), &P.Cards.RerollsPerRest}, {TEXT("CARDS.LockSlots"), &P.Cards.LockSlots},
         {TEXT("CARDS.VocabWeight"), &P.Cards.VocabWeight}, {TEXT("CHAIN.MaxDepth"), &P.ChainMaxDepth},
-        {TEXT("CHAIN.MaxEffectsPerStep"), &P.ChainMaxEffectsPerStep}, {TEXT("CARDS.SkipVouchers"), &P.Cards.SkipVouchers},
+        {TEXT("CHAIN.MaxEffectsPerStep"), &P.ChainMaxEffectsPerStep}, {TEXT("CHAIN.MinKeySteps"), &P.ChainMinKeySteps},
+        {TEXT("CARDS.SkipVouchers"), &P.Cards.SkipVouchers},
         {TEXT("SHOP.CardSlots"), &P.Shop.CardSlots}, {TEXT("SHOP.VocabCardSlots"), &P.Shop.VocabCardSlots},
         {TEXT("SHOP.VocabWeight"), &P.Shop.VocabWeight}, {TEXT("SHOP.SkillSlots"), &P.Shop.SkillSlots},
         {TEXT("SHOP.SkillPointMaxPerMatch"), &P.Shop.SkillPointMaxPerMatch}})
@@ -833,6 +834,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         return false;
     }
+    if (!F.Fixed(TEXT("CHAIN.EndSec"), TEXT("ms"), TEXT("ms"), P.ChainEndMs, 1, 600000)) { return false; }
     // Spec §3.13 voucher amounts and shop prices (positive whole vouchers).
     for (const auto& Field : {
         TPair<const TCHAR*, int32*>(TEXT("VOUCHER.CampLow"), &P.Vouchers.CampLow), {TEXT("VOUCHER.CampHigh"), &P.Vouchers.CampHigh},

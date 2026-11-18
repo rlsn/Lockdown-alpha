@@ -509,6 +509,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
     }
     if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
+    // Spec §6.5: the hit's damage joins its chain and its owner's strongest hit.
+    if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
     // Issue #292 P5: Y06 bursts on a broken shield; Y29 shields a share of the burn its source dealt; K03 remembers the native
     // skill hits on a contender life (its takedown refresh reads them).
     if (!bProtected && bShieldBroken && Hit.SourceEntity!=Body->Victim.EntityId && !OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
@@ -578,9 +580,15 @@ bool ALDCombatDirector::ApplyPendingHits(int64 NowMs, FString& Error)
     {
         const FLDCombatHit Hit=PendingHits[Index];
         const int32 Before=PendingHits.Num();
-        if (!ApplyHit(Hit,Error)) { return false; }
+        // Spec §6.5: the hit's chain is current while it resolves; everything it derives inherits it.
+        const FGuid Chain=ChainOfHit(Hit);
+        {
+            TGuardValue<FGuid> ChainScope(CurrentChain,Chain);
+            if (!ApplyHit(Hit,Error)) { return false; }
+        }
         for (int32 Derived=PendingHits.Num()-1; Derived>=Before; --Derived)
         {
+            if (!PendingHits[Derived].ChainId.IsValid()) { PendingHits[Derived].ChainId=Chain; }
             PendingHits[Derived].ChainDepth=uint8(FMath::Min<int32>(FMath::Max<int32>(PendingHits[Derived].ChainDepth,Hit.ChainDepth+1),255));
             if (int32(PendingHits[Derived].ChainDepth)>MaxDepth)
             {
@@ -1118,6 +1126,8 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     if (Body.Victim.Kind==ELDVictimKind::Contender && Basis.bCreditOwnerEligibleAtDeath)
     {
         const int64 WindowMs=Content->Get().Parameters.AssistWindowMs;
+        // Spec §6.5: a contender kill is one step of the fatal hit's chain.
+        ChainStep(Hit.CreditOwner,LDChain::KillStep(),Death.OccurredAtMs);
         if (!OnCardTakedown(Hit.CreditOwner,true,Body,WindowMs,Death.OccurredAtMs,Error)) { return false; }
         for (const FGuid& Assister : Death.Assisters)
         {

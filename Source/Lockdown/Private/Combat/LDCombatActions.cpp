@@ -1059,6 +1059,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
     TArray<FLDCombatHit> Extra;
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
+    // Spec §6.5: a contender's basic opens its chain; the cards of its landing are steps of it.
+    TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,Hit.EffectId,FGuid(),Now));
     // A08: the third step also releases the Q skill (queued for the next authority step).
     if (!QueueComboCast(Body,Action,Hit,Now,Error)) { return false; }
     // A05: a contender's basic flies toward its target as a dodgeable projectile carrying its strikes and riders; it lands on
@@ -1332,6 +1334,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const auto& Final=Body.AttributeProjection.Final;
     const FGuid EffectId=FGuid::NewGuid();
     Track->LastEffectId=EffectId;
+    // Spec §6.5: the release opens its chain (a free repeat continues the chain of the action that queued it).
+    TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,EffectId,Action.ChainId,Now));
     // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();

@@ -96,6 +96,7 @@ void ALDGameMode::PublishDamageSummaries()
                 View.Match, *LDLog::Id(Contender.Session), View.Lines.Num());
             continue;
         }
+        Combat->ReadResultHighlights(View.Highlights);
         int64 TotalP2 = 0;
         for (const FLDDamageLine& Line : View.Lines) { TotalP2 += Line.DamageP2; }
         UE_LOG(LogLDMatch, Display, TEXT("LD_DAMAGE_SUMMARY generation=%u contender=%s lines=%d damage_p2=%lld"),
