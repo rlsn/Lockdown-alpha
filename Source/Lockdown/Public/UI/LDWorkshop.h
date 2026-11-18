@@ -280,7 +280,7 @@ private:
     FLDProgressionView View;
     FLDFinalModSelection PendingFinalFeedback;
     uint64 PendingFinalRevision=0;
-    TMap<FName,LDHUD::FComponentConnections> LinkConnections;
+    TMap<FName,LDHUD::FCardConnections> LinkConnections;
     FRects Rects;
     FVector2D LastSize=FVector2D::ZeroVector;
     FVector2D ActionsAt=FVector2D::ZeroVector;

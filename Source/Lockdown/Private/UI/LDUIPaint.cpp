@@ -183,6 +183,16 @@ TArray<FVector2D> LDUIPaint::Ring(EShape Shape,const FBox2D& Box,float Radius)
         return PaintSubdivide({FVector2D(Min.X+C,Min.Y),FVector2D(Max.X-C,Min.Y),FVector2D(Max.X,Min.Y+C),FVector2D(Max.X,Max.Y-C),FVector2D(Max.X-C,Max.Y),
             FVector2D(Min.X+C,Max.Y),FVector2D(Min.X,Max.Y-C),FVector2D(Min.X,Min.Y+C)},PaintEdgePoints);
     }
+    if(Shape==EShape::Diamond)
+    {
+        return PaintSubdivide({FVector2D(Centre.X,Min.Y),FVector2D(Max.X,Centre.Y),FVector2D(Centre.X,Max.Y),FVector2D(Min.X,Centre.Y)},PaintEdgePoints);
+    }
+    if(Shape==EShape::Hexagon)
+    {
+        const double C=Half.X*.5;
+        return PaintSubdivide({FVector2D(Min.X+C,Min.Y),FVector2D(Max.X-C,Min.Y),FVector2D(Max.X,Centre.Y),FVector2D(Max.X-C,Max.Y),
+            FVector2D(Min.X+C,Max.Y),FVector2D(Min.X,Centre.Y)},PaintEdgePoints);
+    }
     const double R=FMath::Clamp(double(Radius),0.,FMath::Min(Half.X,Half.Y));
     const FVector2D Corners[]={FVector2D(Max.X-R,Min.Y+R),FVector2D(Max.X-R,Max.Y-R),FVector2D(Min.X+R,Max.Y-R),FVector2D(Min.X+R,Min.Y+R)};
     for(int32 Corner=0;Corner<4;++Corner)
@@ -455,9 +465,9 @@ void LDUIPaint::Pill(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
     Edge(Elements,Layer,Geometry,EShape::Rounded,Box,Radius,Border,1.f);
 }
 
-float LDUIPaint::TileRadius(uint8 Kind,float Size){return Kind==2?Size*.5f:Kind==1?0.f:Size*.14f;}
+float LDUIPaint::TileRadius(uint8 Kind,float Size){return Kind==4?Size*.5f:Kind==0?Size*.14f:0.f;}
 
-void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,bool bScarce,ETileState State,UTexture2D* Icon,float Opacity,double Time)
+void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,ETileState State,UTexture2D* Icon,float Opacity,double Time)
 {
     const float Size=float(FMath::Min(Box.GetSize().X,Box.GetSize().Y));
     if(Size<4.f||Opacity<=0.f){return;}
@@ -472,7 +482,7 @@ void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
         return;
     }
     const float Fade=State==ETileState::Dim?.28f*Opacity:Opacity;
-    // filter: drop-shadow(0 4px 8px rgba(0,0,0,.55)), and the state or scarce glow.
+    // filter: drop-shadow(0 4px 8px rgba(0,0,0,.55)), and the state glow.
     Halo(Elements,Layer,Geometry,Form,Box,Radius,FLinearColor(0,0,0,.5f*Fade),8.f,FVector2D(0,4));
     FLinearColor Glow=FLinearColor::Transparent;float Reach=0.f;
     switch(State)
@@ -482,20 +492,15 @@ void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
     case ETileState::Legal: Glow=LDHUDStyle::UILegal.CopyWithNewOpacity(.7f);Reach=12.f;break;
     case ETileState::Replace: Glow=LDHUDStyle::UIReplace.CopyWithNewOpacity(.7f);Reach=10.f;break;
     case ETileState::Rejected: Glow=LDHUDStyle::UIReject.CopyWithNewOpacity(.8f);Reach=12.f;break;
-    default: if(bScarce){Glow=Hex(0xFFD66A,.55f);Reach=10.f;}break;
+    default: break;
     }
     if(Reach>0.f){Halo(Elements,Layer,Geometry,Form,Box,Radius,Glow.CopyWithNewOpacity(Glow.A*Fade),Reach);}
-    // The frame: a solid state colour, the conic iridescence of a scarce component, or the kind's lit gradient.
+    // The frame: a solid state colour or the type's lit gradient.
     FFill Frame;
     if(State==ETileState::Selected||State==ETileState::Hovered){Frame=FFill::Solid(LDHUDStyle::UIAction);}
     else if(State==ETileState::Legal){Frame=FFill::Solid(LDHUDStyle::UILegal);}
     else if(State==ETileState::Replace){Frame=FFill::Solid(LDHUDStyle::UIReplace);}
     else if(State==ETileState::Rejected){Frame=FFill::Solid(LDHUDStyle::UIReject);}
-    else if(bScarce)
-    {
-        Frame.bConic=true;Frame.Angle=210.f+float(FMath::Fmod(Time*40.,360.));
-        Frame.Stops={{0.f,Hex(0xFFF3C4)},{.25f,Hex(0xFFC94D)},{.5f,Hex(0xFF8FD0)},{.75f,Hex(0x8FE9FF)},{1.f,Hex(0xFFF3C4)}};
-    }
     else
     {
         const FLinearColor Dark=PaintLerp(KindColor,FLinearColor::Black,.55f);
@@ -505,7 +510,7 @@ void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
     const float Border=Size>=80.f?4.f:3.f;
     const FBox2D Face=Grow(Box,-Border);
     const float FaceSize=float(Face.GetSize().X);
-    const float FaceRadius=Kind==2?FaceSize*.5f:Kind==1?0.f:FaceSize*.10f;
+    const float FaceRadius=Kind==4?FaceSize*.5f:Kind==0?FaceSize*.10f:0.f;
     Shape(Elements,Layer+2,Geometry,Form,Face,FaceRadius,FFill::Solid(Hex(0x0A1220)),Fade);
     const float IconAlpha=State==ETileState::Replace?.55f:1.f;
     const FLinearColor Tint=State==ETileState::Dim?FLinearColor(.55f,.55f,.6f,Fade):FLinearColor(1,1,1,Fade*IconAlpha);

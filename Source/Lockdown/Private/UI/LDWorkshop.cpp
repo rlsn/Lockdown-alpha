@@ -750,8 +750,8 @@ void ULDWorkshop::Present(const FInput& Input)
         {
             for(const FLDComponentInstanceView& Owned:View.Components)
             {
-                if(LDWorkshop::ComponentFacts(Owned.DefinitionId,Input.Content).Kind==ELDDemoComponentKind::Connector)
-                {LinkConnections.Add(Owned.DefinitionId,LDHUD::ComponentConnections(Owned.DefinitionId,View,Input.Content));}
+                if(LDWorkshop::CardFacts(Owned.DefinitionId,Input.Content).Kind==ELDDemoComponentKind::Connector)
+                {LinkConnections.Add(Owned.DefinitionId,LDHUD::CardConnections(Owned.DefinitionId,View,Input.Content));}
             }
         }
     }
@@ -1113,8 +1113,8 @@ void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::F
     if(DockKey==Key){return;}
     DockKey=Key;
     ShowDockChains({});
-    const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Component,Content,Latest.Stats);
-    const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Component,Content);
+    const LDHUD::FCardFaceView Card=LDHUD::CardFace(Component,Content,Latest.Stats);
+    const LDWorkshop::FCardFacts Facts=LDWorkshop::CardFacts(Component,Content);
     DockKindValue=uint8(Facts.Kind);
     WorkshopText(DockName,Card.Name);
     WorkshopText(DockSummary,FString());WorkshopShown(DockSummary,false);
@@ -1536,7 +1536,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
             const ULDComponentStorage::FFocus& Focus=Storage->Focus();
             TArray<FName> Freed;
             if(Focus.bOverDrop&&!Focus.Drop.Replacing.IsNone()){Freed.Add(Focus.Drop.Replacing);Freed.Append(Focus.Drop.Lost);}
-            const bool bAdds=!Focus.Component.IsNone()&&!Focus.bInstalled&&Focus.Drops.ContainsByPredicate([](const LDHUD::FComponentDrop& Drop){return Drop.Replacing.IsNone();});
+            const bool bAdds=!Focus.Component.IsNone()&&!Focus.bInstalled&&Focus.Drops.ContainsByPredicate([](const LDHUD::FCardDrop& Drop){return Drop.Replacing.IsNone();});
             const float Pulse=.55f+.45f*LDTween::PingPong(Now,.8);
             const int32 Cells=Capacity.Capacity+(Capacity.UnlockLevel>0?1:0);
             const float Y=float(Rects.Capacity.GetCenter().Y),CellWidth=CapacityCellStep*40.f/45.f;
@@ -1582,8 +1582,8 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         // .col .bgc: the column's faint surface under its head; a column that takes the hovered or held component lights
         // green (a replacement orange). .rail: the line the sockets hang on.
         const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
-        const bool bTakes=Focus&&Focus->Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id&&Drop.Replacing.IsNone();});
-        const bool bSwaps=Focus&&!bTakes&&Focus->Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id;});
+        const bool bTakes=Focus&&Focus->Drops.ContainsByPredicate([Id](const LDHUD::FCardDrop& Drop){return Drop.Column==Id&&Drop.Replacing.IsNone();});
+        const bool bSwaps=Focus&&!bTakes&&Focus->Drops.ContainsByPredicate([Id](const LDHUD::FCardDrop& Drop){return Drop.Column==Id;});
         const FBox2D Back=WorkshopBox(Column.Min.X,Column.Min.Y+(bFull?44.f:Rects.HeadTop+Rects.HeadIcon*.5f),Column.Max.X,Column.Max.Y);
         if(bTakes||bSwaps)
         {
@@ -1643,7 +1643,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         for(int32 Index=0;Index<Heads.Num();++Index)
         {
             const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
-            if(Focus.Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id;})||!WorkshopHasArea(Rects.Column[Index])){continue;}
+            if(Focus.Drops.ContainsByPredicate([Id](const LDHUD::FCardDrop& Drop){return Drop.Column==Id;})||!WorkshopHasArea(Rects.Column[Index])){continue;}
             const FBox2D& Column=Rects.Column[Index];
             Paint.Shape(Top,LDUIShapes::EShape::Rounded,WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight),6.f,
                 LDUIPaint::FFill::Solid(LDUIPaint::Hex(0x0C1019,.7f)));
@@ -1657,7 +1657,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         const LDHUD::FStorageView& Model=Storage->Model();
         const auto DrawConnections=[&](FName Self,int32 ColumnIndex,FName Host,const FSlateRect& From,const TArray<FName>* Excluded,bool bLit)
         {
-            const LDHUD::FComponentConnections* Links=LinkConnections.Find(Self);
+            const LDHUD::FCardConnections* Links=LinkConnections.Find(Self);
             if(!Links||!Model.Columns.IsValidIndex(ColumnIndex)||From.Right<=From.Left||From.Bottom<=From.Top){return;}
             const FBox2D Start=LDUIShapes::AbsoluteIn(Geometry,From);
             const FName HostActive=Model.Columns[ColumnIndex].Active;
@@ -1705,11 +1705,11 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         {
             for(const LDHUD::FEquippedView& Entry:Model.Columns[ColumnIndex].Entries)
             {
-                if(Focus.Component!=Entry.Component){continue;}
-                if(bPreview&&Entry.Component==Focus.Component){continue;}
+                if(Focus.Component!=Entry.Card){continue;}
+                if(bPreview&&Entry.Card==Focus.Component){continue;}
                 FSlateRect From;
-                if(Storage->TileBox(Entry.Component,From))
-                {DrawConnections(Entry.Component,ColumnIndex,Entry.Host,From,nullptr,Focus.Component==Entry.Component);}
+                if(Storage->TileBox(Entry.Card,From))
+                {DrawConnections(Entry.Card,ColumnIndex,Entry.Host,From,nullptr,Focus.Component==Entry.Card);}
             }
         }
         if(bPreview)

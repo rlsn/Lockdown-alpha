@@ -59,7 +59,7 @@ UWidget* BoardIcon(UWidgetTree* Tree, const FLDDemoContentDefinitions* Content, 
     // Keep the brush's texture alive without painting a square behind the shaped tile.
     Image->SetVisibility(ESlateVisibility::Collapsed);
     Overlay->AddChildToOverlay(Image);
-    const LDWorkshop::FComponentFacts Facts = bComponent ? LDWorkshop::ComponentFacts(Id, Content) : LDWorkshop::FComponentFacts();
+    const LDWorkshop::FCardFacts Facts = bComponent ? LDWorkshop::CardFacts(Id, Content) : LDWorkshop::FCardFacts();
     auto* Face = Tree->ConstructWidget<ULDPaintLayer>();
     const TWeakObjectPtr<UImage> Icon(Image);
     Face->Painter = [Icon, bComponent, Kind = uint8(Facts.Kind), Scarce = Facts.bScarce, bHasIcon](const LDUIPaint::FContext& Paint)
@@ -119,7 +119,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         Row.Target.Definition = Component.TargetId;
         Row.Target.BoundActive = Component.BoundActive;
     }
-    const LDHUD::FStorageView Board = LDHUD::ComponentStorage(Progression, Content);
+    const LDHUD::FStorageView Board = LDHUD::CardStorage(Progression, Content);
     int32 Most = 0;
     for (const LDHUD::FStorageColumnView& Column : Board.Columns) { Most = FMath::Max(Most, Column.Entries.Num()); }
     const float ColumnWidth = Width / float(LDHUD::StorageColumnCount);
@@ -143,7 +143,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
                         && Column.Active == Build.FinalTargetId)
                     || (Build.FinalTarget == ELDResultBuildTarget::Component
                         && Column.Entries.ContainsByPredicate([&Build](const LDHUD::FEquippedView& Entry)
-                            { return Entry.Component == Build.FinalTargetId; })))
+                            { return Entry.Card == Build.FinalTargetId; })))
                 { FinalColumn = Index; break; }
             }
         }
@@ -190,7 +190,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         for (int32 EntryIndex = 0; EntryIndex < Visible; ++EntryIndex)
         {
             const LDHUD::FEquippedView& Entry = Column.Entries[EntryIndex];
-            UWidget* Tile = BoardIcon(Tree, Content, Entry.Component, TileSize, true);
+            UWidget* Tile = BoardIcon(Tree, Content, Entry.Card, TileSize, true);
             Grid->AddChildToWrapBox(Tile)->SetPadding(FMargin(Entry.Depth > 0 ? 1.f : 0.f, 0, 0, 0));
         }
         if (Visible < Column.Entries.Num())

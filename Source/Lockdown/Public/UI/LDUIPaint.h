@@ -88,10 +88,10 @@ namespace LDUIPaint
     // A dark round-ended chip (the momentum cost and cooldown pills).
     LOCKDOWN_API void Pill(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Border=FLinearColor(1,1,1,.075f),
         const FLinearColor& Fill=FLinearColor(0,0,0,.42f));
-    // A component tile: the kind's shape (base rounded square, mod octagon, link circle) with its gradient frame, the icon
-    // face inset by the frame, and the drop shadow. Scarce components take the conic iridescent frame and a gold glow.
+    // A card tile: the type's shape (LDUIShapes::KindShape) with its gradient frame, the icon face inset by the frame, and
+    // the drop shadow.
     enum class ETileState : uint8 { Normal, Hovered, Selected, Legal, Replace, Rejected, Dim, Hole };
-    LOCKDOWN_API void Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,bool bScarce,
+    LOCKDOWN_API void Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,
         ETileState State,UTexture2D* Icon,float Opacity=1.f,double Time=0.);
     LOCKDOWN_API float TileRadius(uint8 Kind,float Size);
     // A skill head: the gold (or, for the body and dash, silver) gradient frame with its shadow; the icon face inside.
@@ -134,8 +134,8 @@ namespace LDUIPaint
         {LDUIPaint::Panel(Elements,At,Geometry,Box,bFolds,Opacity*Alpha);}
         void Pill(int32 At,const FBox2D& Box,const FLinearColor& Border=FLinearColor(1,1,1,.075f),const FLinearColor& Fill=FLinearColor(0,0,0,.42f)) const
         {LDUIPaint::Pill(Elements,At,Geometry,Box,Fade(Border),Fade(Fill));}
-        void Tile(int32 At,const FBox2D& Box,uint8 Kind,bool bScarce,ETileState State,UTexture2D* Icon,float Alpha=1.f,double Time=0.) const
-        {LDUIPaint::Tile(Elements,At,Geometry,Box,Kind,bScarce,State,Icon,Opacity*Alpha,Time);}
+        void Tile(int32 At,const FBox2D& Box,uint8 Kind,ETileState State,UTexture2D* Icon,float Alpha=1.f,double Time=0.) const
+        {LDUIPaint::Tile(Elements,At,Geometry,Box,Kind,State,Icon,Opacity*Alpha,Time);}
         void SkillArt(int32 At,const FBox2D& Box,bool bSilver,bool bEmpty,UTexture2D* Icon,const FLinearColor& Glow=FLinearColor::Transparent) const
         {LDUIPaint::SkillArt(Elements,At,Geometry,Box,bSilver,bEmpty,Icon,Glow,Opacity);}
         void NewDot(int32 At,FVector2D Center) const {LDUIPaint::NewDot(Elements,At,Geometry,Center,Opacity);}

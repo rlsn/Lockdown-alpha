@@ -335,7 +335,7 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
     {
         const FString Name=BlueprintName(Local,Component.Component);
         const bool bHeld=Own&&LDHUD::OwnsComponent(*Own,FName(*Component.Component));
-        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(FName(*Component.Component),Local,CardStats);
+        const LDHUD::FCardFaceView Card=LDHUD::CardFace(FName(*Component.Component),Local,CardStats);
         FString Target;
         TArray<FString> Parameters;
         BlueprintInstall(Component,Local,Target,Parameters);

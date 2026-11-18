@@ -560,9 +560,9 @@ TArray<FName> ULDChoicesPanel::ConfirmWarnings() const
     if(RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive||RestConfirm.Kind==ELDBuildCommandKind::ForgetActive)
     {
         // What sits on the forgotten active goes back to the storage (APP_SPEC §4.4); it lights orange first.
-        const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(Latest,LatestContent);
+        const LDHUD::FStorageView Shown=LDHUD::CardStorage(Latest,LatestContent);
         const int32 Column=int32(LDHUD::SlotColumn(RestConfirm.Slot));
-        if(Shown.Columns.IsValidIndex(Column)){for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){Out.Add(Entry.Component);}}
+        if(Shown.Columns.IsValidIndex(Column)){for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){Out.Add(Entry.Card);}}
     }
     else if(RestConfirm.Kind==ELDBuildCommandKind::Dismantle)
     {
@@ -845,7 +845,7 @@ void ULDChoicesPanel::RefreshOffer()
             LDHUD::FActionDetailView Detail=LDHUD::ActiveChoiceDetail(View,false,Outcome);
             // The evidence for the choice: the owned components that go on it and the reactions with the learned actives.
             const LDWorkshop::FOfferLinks Preview=Gate.bCanChoose
-                ?LDWorkshop::LinkableComponents(Id,Latest,LatestContent,LatestStage,LatestLifePhase):LDWorkshop::FOfferLinks();
+                ?LDWorkshop::LinkableCards(Id,Latest,LatestContent,LatestStage,LatestLifePhase):LDWorkshop::FOfferLinks();
             const TArray<FName>& Links=Preview.Components;
             TArray<FString> Lines;
             FString LinksLine;
@@ -886,7 +886,7 @@ void ULDChoicesPanel::RefreshOffer()
             {
                 const bool bLink=Links.IsValidIndex(Link);
                 if(!bLink){GrowthShown(Card.LinkIcons[Link],false);continue;}
-                const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Links[Link],LatestContent).Kind);
+                const uint8 Kind=uint8(LDWorkshop::CardFacts(Links[Link],LatestContent).Kind);
                 LDUIIcons::Apply(Card.LinkIcons[Link],LDHUD::ContentIconId(LatestContent,Links[Link].ToString()),Kind==2?17.f:Kind==1?7.f:5.f);
             }
             Card.Links->SetToolTipText(FText::FromString(LinksLine));
@@ -921,7 +921,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         return Kind==ELDComponentTargetKind::None?FString(TEXT("本人"))
             :Kind==ELDComponentTargetKind::Dash?FString(TEXT("冲刺(D)"))
             :Kind==ELDComponentTargetKind::Active?LDHUD::ActiveCard(Id,LatestContent,LatestStats).Name
-            :LDHUD::ComponentCard(Id,LatestContent,LatestStats).Name;
+            :LDHUD::CardFace(Id,LatestContent,LatestStats).Name;
     };
     const bool bDormant=FinalDormant();
     if((!bFinal&&!bDormant)||(bFinal&&ShownFinalMod!=Latest.FinalModOfferId)){PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;}
@@ -1019,7 +1019,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         else if(Source.TargetKind==ELDComponentTargetKind::Active)
         {const auto Card=LDHUD::ActiveCard(Source.TargetId,LatestContent,LatestStats);Name=Card.Name;Icon=Card.IconId;Glyph=Card.Glyph;}
         else
-        {const auto Card=LDHUD::ComponentCard(Source.TargetId,LatestContent,LatestStats);Name=Card.Name;Icon=Card.IconId;Glyph=Card.Glyph;}
+        {const auto Card=LDHUD::CardFace(Source.TargetId,LatestContent,LatestStats);Name=Card.Name;Icon=Card.IconId;Glyph=Card.Glyph;}
         LDHUD::FActionDetailView Detail;
         Detail.Name=Name;
         Detail.Body=LDHUD::FinalModCard(PendingFinalOption,LatestContent,LatestStats).Name+TEXT("\n绑定此来源。");
@@ -1060,7 +1060,7 @@ void ULDChoicesPanel::RefreshFinalMod()
             const FLDFinalModSourceView& Source=ShownFinalSources[Index];
             Here.Add(Source.TargetKind==ELDComponentTargetKind::Dash?FString(TEXT("冲刺(D)"))
                 :Source.TargetKind==ELDComponentTargetKind::Active?LDHUD::ActiveCard(Source.TargetId,LatestContent,LatestStats).Name
-                :LDHUD::ComponentCard(Source.TargetId,LatestContent,LatestStats).Name);
+                :LDHUD::CardFace(Source.TargetId,LatestContent,LatestStats).Name);
         }
         Detail.Body=Here.IsEmpty()?FString(TEXT("这一列没有合法来源。")):LDTerms::FinalBindsTo(FString::Join(Here,TEXT(" / ")));
         const FString Key=TEXT("FINCOL|")+PendingFinalOption.ToString()+TEXT("|")+Name+TEXT("|")+Icon+TEXT("|")+Detail.Body;
@@ -1107,9 +1107,9 @@ void ULDChoicesPanel::RefreshOpeningBase(bool bTiles)
         {
             // A plain base is taken and installed on 本体 at once; B18 goes to the storage, to be dragged onto the skill it
             // binds (#227). The server decides.
-            const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Id,LatestContent,LatestStats);
+            const LDHUD::FCardFaceView View=LDHUD::CardFace(Id,LatestContent,LatestStats);
             const FString Outcome=!Gate.bCanChoose?Gate.ChooseBlocked:View.bBinding?FString(LDTerms::TakeToStorage):FString(LDTerms::TakeAndEquip);
-            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ComponentChoiceDetail(View,Outcome));
+            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,Outcome));
         }
         ShowLook(Card,bTiles,Gate.bCanChoose&&!PendingRequest,bVisible);
     }
@@ -1157,8 +1157,8 @@ void ULDChoicesPanel::RefreshComponentChoices(bool bTiles)
             const FString Key=Id.ToString()+TEXT("|")+Outcome;
             if(CardStale(Card,Key))
             {
-                const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Id,LatestContent,LatestStats);
-                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ComponentChoiceDetail(View,Outcome));
+                const LDHUD::FCardFaceView View=LDHUD::CardFace(Id,LatestContent,LatestStats);
+                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,Outcome));
             }
             ShowLook(Card,bTiles,Gate.bCanComponentChoice&&!bOwned&&!PendingRequest,bVisible);
         }
@@ -1171,7 +1171,7 @@ void ULDChoicesPanel::RefreshComponentChoices(bool bTiles)
         if(CardStale(Row.Points,Key))
         {
             LDHUD::FActionDetailView Detail;
-            Detail.Name=Points;Detail.Summary=LDTerms::Component;
+            Detail.Name=Points;Detail.Summary=LDTerms::Card;
             Detail.Body=PoolPoints>0?LDTerms::ComponentChoicePoints(PoolPoints):FString();
             if(!Outcome.IsEmpty()){Detail.Body+=(Detail.Body.IsEmpty()?TEXT(""):TEXT("\n\n"))+Outcome;}
             ShowFace(Row.Points,Key,Points,FString(),TEXT("+"),Detail);
@@ -1677,7 +1677,7 @@ void ULDChoicesPanel::PaintDismantle(const LDUIPaint::FContext& Paint) const
         if(Index<Inputs&&DismantlePicked.IsValidIndex(Index))
         {
             const FName Id=DismantlePicked[Index];
-            const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Id,LatestContent);
+            const LDWorkshop::FCardFacts Facts=LDWorkshop::CardFacts(Id,LatestContent);
             Paint.Tile(PaintAt,Box,uint8(Facts.Kind),Facts.bScarce,LDUIPaint::ETileState::Selected,
                 LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Id.ToString())),1.f,Now);
         }

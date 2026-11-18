@@ -1479,7 +1479,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 UIInstalledComponent=NAME_None;
                 for(const FLDComponentInstanceView& Owned:Growth->Components)
                 {
-                    if(!Owned.bInstalled&&!LDHUD::ComponentDrops(Owned.DefinitionId,*Growth,&Content->Get()).IsEmpty())
+                    if(!Owned.bInstalled&&!LDHUD::CardDrops(Owned.DefinitionId,*Growth,&Content->Get()).IsEmpty())
                     {UIInstalledComponent=Owned.DefinitionId;break;}
                 }
                 if(UIInstalledComponent.IsNone())
@@ -1517,7 +1517,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                     bUIStorageShot=true;return true;
                 }
                 if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(UIInstalledComponent,*Growth,&Content->Get());
+                const TArray<LDHUD::FCardDrop> Drops=LDHUD::CardDrops(UIInstalledComponent,*Growth,&Content->Get());
                 UIBuildRevisionBefore=Growth->BuildRevision;
                 if(!Check(!Drops.IsEmpty()&&Storage->DropOn(UIInstalledComponent,Drops[0].Column,Drops[0].Host),
                     TEXT("UI: dropping a stored component on its first legal place sends the install or opens the chooser"))){return Finish();}
@@ -1534,9 +1534,9 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 }
                 if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
                 const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
-                const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(*Growth,&Content->Get());
+                const LDHUD::FStorageView Shown=LDHUD::CardStorage(*Growth,&Content->Get());
                 const bool bInColumn=Shown.Columns.ContainsByPredicate([this](const LDHUD::FStorageColumnView& Column)
-                {return Column.Entries.ContainsByPredicate([this](const LDHUD::FEquippedView& Entry){return Entry.Component==UIInstalledComponent;});});
+                {return Column.Entries.ContainsByPredicate([this](const LDHUD::FEquippedView& Entry){return Entry.Card==UIInstalledComponent;});});
                 if(!Check(Owned&&Owned->bInstalled&&bInColumn&&!Shown.Stored.Contains(UIInstalledComponent),
                     TEXT("UI: authority installs the dropped component and the storage shows it in its column"))){return Finish();}
                 UIBuildRevisionBefore=Growth->BuildRevision;
@@ -1549,7 +1549,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
                 if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
                 const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
-                if(!Check(Owned&&!Owned->bInstalled&&LDHUD::ComponentStorage(*Growth,&Content->Get()).Stored.Contains(UIInstalledComponent),
+                if(!Check(Owned&&!Owned->bInstalled&&LDHUD::CardStorage(*Growth,&Content->Get()).Stored.Contains(UIInstalledComponent),
                     TEXT("UI: authority uninstalls it and the storage holds it again"))){return Finish();}
                 Storage->PinOpen(false);
                 UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
@@ -1747,7 +1747,7 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         if(!Check(!Panel->IsPanelOpen()&&Panel->ChoiceRows.IsEmpty()&&Panel->HasCards(),
             TEXT("UI: a closed tray retains current choices without building their rows"))){return false;}
         Panel->ApplyTextScale(1.25f);Panel->OpenPanel();
-        const auto LatestCard=LDHUD::ComponentCard(Sample.ComponentChoices[0].Options[1],Panel->LatestContent,Panel->LatestStats);
+        const auto LatestCard=LDHUD::CardFace(Sample.ComponentChoices[0].Options[1],Panel->LatestContent,Panel->LatestStats);
         if(!Check(Panel->ChoiceRows.IsValidIndex(0)&&Panel->ChoiceRows[0].Options.IsValidIndex(1)
             &&Panel->ChoiceRows[0].Options[1].Detail.Name==LatestCard.Name,
             TEXT("UI: reopening the tray renders the latest choices received while closed"))){return false;}
@@ -1760,7 +1760,7 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
     auto* Panel=UIChoiceFixture.Get();
     const auto& Candidate=Panel->ChoiceRows[0].Options[1];
     const FName CandidateId=Panel->Latest.ComponentChoices[0].Options[1];
-    const auto Expected=LDHUD::ComponentCard(CandidateId,Panel->LatestContent,Panel->LatestStats);
+    const auto Expected=LDHUD::CardFace(CandidateId,Panel->LatestContent,Panel->LatestStats);
     if(UIChoiceStep==1)
     {
         // The card shows the icon and the name only; its full rules are the popup of the card under the pointer.
