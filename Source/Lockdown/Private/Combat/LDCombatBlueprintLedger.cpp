@@ -71,7 +71,7 @@ void ALDCombatDirector::LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBod
     // Training never meets the field: isolation keeps both sides of a training hit inside the owner's group.
     if (LDCombatBlueprintLedgerDetail::IsTraining(Victim)) { return; }
     // The victim's own cuts count even when they leave nothing to apply.
-    const int64 CutP2=Damage.BraceCutP2+Damage.GuardCutP2;
+    const int64 CutP2=Damage.BraceCutP2;
     if (Victim.Victim.Kind==ELDVictimKind::Contender && CutP2>0 && Hit.SourceEntity!=Victim.Victim.EntityId)
     {
         const int32 Version=LedgerVersion(Victim.Victim.EntityId);

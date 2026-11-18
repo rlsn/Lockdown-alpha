@@ -820,15 +820,14 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     TArray<LDDemoCardText::FToken> Tokens;FString Error;
     TestFalse(TEXT("An unknown op is refused"),LDDemoCardText::Parse(TEXT("[teleport.amount]"),Tokens,Error));
     TestFalse(TEXT("A stray bracket is refused"),LDDemoCardText::Parse(TEXT("造成 ] 伤害"),Tokens,Error));
-    FLDBlueprintRecord BlueprintRecord;BlueprintRecord.FinalBuild.bComponentsCollected=true;
-    FLDBlueprintComponent& Installed=BlueprintRecord.FinalBuild.Components.AddDefaulted_GetRef();
-    Installed.Component=TEXT("component_quick_hop");
-    Installed.Parameters={{TEXT("bound_component"),TEXT("component_fist_water")},
-        {TEXT("element"),TEXT("fire")},{TEXT("target_kind"),TEXT("dash")}};
+    FLDBlueprintRecord BlueprintRecord;
+    BlueprintRecord.FinalBuild.Cards.Add({TEXT("card_shock_dash"),TEXT("dash"),FString(),FString()});
+    BlueprintRecord.FinalBuild.Cards.Add({TEXT("card_live_wire"),TEXT("body"),FString(),TEXT("fire")});
     const FString BlueprintHistory=ULDBlueprintPanel::Describe(BlueprintRecord,nullptr);
-    TestTrue(TEXT("Blueprint install details use readable targets, elements and reused components"),
-        BlueprintHistory.Contains(TEXT("冲刺（D）"))&&BlueprintHistory.Contains(TEXT("绑定元素：火"))
-        &&BlueprintHistory.Contains(TEXT("复用构件：component_fist_water"))&&!BlueprintHistory.Contains(TEXT("target_kind")));
+    TestTrue(TEXT("Blueprint card places read as columns and elements, never raw target keys"),
+        BlueprintHistory.Contains(TEXT("card_shock_dash → 冲刺（D）"))
+        &&BlueprintHistory.Contains(FString(TEXT("card_live_wire → "))+LDTerms::ColumnBody+TEXT(" · ")+LDHUD::ElementName(ELDDemoElement::Fire))
+        &&!BlueprintHistory.Contains(TEXT("body ·")));
     TestTrue(TEXT("Keyword lines explain each keyword in bold"),LDHUD::KeywordLines({TEXT("定身")}).Num()==1
         &&LDHUD::KeywordLines({TEXT("定身")})[0].StartsWith(TEXT("<b>定身</>：")));
     for(const TCHAR* Reaction:{LDTerms::ReactionFog,LDTerms::ReactionConduct,LDTerms::ReactionOverload})
@@ -954,9 +953,9 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     LDHUD::FCardStats Blueprint=L10;Blueprint.bShowScalingFormula=true;
     const auto Bad=[](const FString& Text){return Text.IsEmpty()||Text.Contains(TEXT("喷漆"))||Text.Contains(TEXT("守护"))||Text.Contains(TEXT("未知"))
         ||Text.Contains(TEXT("?"))||Text.Contains(TEXT("内容目录中找不到"))||Text.Contains(TEXT("同步中"));};
-    TestTrue(TEXT("The approved catalog has actives, stats and components"),
-        !Content.Abilities.IsEmpty()&&!Content.Stats.IsEmpty()&&!Content.Components.IsEmpty());
-    int32 ActiveFaces=0,StatFaces=0,ComponentFaces=0;
+    TestTrue(TEXT("The approved catalog has actives, stats and cards"),
+        !Content.Abilities.IsEmpty()&&!Content.Stats.IsEmpty()&&!Content.Cards.IsEmpty());
+    int32 ActiveFaces=0,StatFaces=0,CardFaces=0;
     for(const FLDDemoAbilityDefinition& Ability:Content.Abilities)
     {
         ++ActiveFaces;
@@ -985,37 +984,35 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         TestFalse(Stat.Id+TEXT(": per point ")+Row.PerPoint,Bad(Row.PerPoint));
         TestFalse(Stat.Id+TEXT(": the row has an icon"),Row.IconId.IsEmpty());
     }
-    for(const FLDDemoComponentDefinition& Component:Content.Components)
+    for(const FLDDemoCardDefinition& Row:Content.Cards)
     {
-        ++ComponentFaces;
+        ++CardFaces;
         for(const LDHUD::FCardStats& Stats:{L1,L10})
         {
-            const FString At=FString::Printf(TEXT("%s L%d"),*Component.Id,int32(Stats.Level));
-            const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(FName(*Component.Id),&Content,Stats);
+            const FString At=FString::Printf(TEXT("%s L%d"),*Row.Id,int32(Stats.Level));
+            const LDHUD::FCardFaceView Card=LDHUD::CardFace(FName(*Row.Id),&Content,Stats);
             TestTrue(At+TEXT(": the card reads every placeholder as a number"),Card.bKnown);
-            TestFalse(At+TEXT(": name ")+Card.Name,Bad(Card.Name)||Card.Name==Component.Id);
+            TestFalse(At+TEXT(": name ")+Card.Name,Bad(Card.Name)||Card.Name==Row.Id);
             TestFalse(At+TEXT(": sentence ")+Card.SentencePlain,Bad(Card.SentencePlain));
             for(const FString& Line:Card.Keywords){TestFalse(At+TEXT(": keyword ")+Line,Bad(Line));}
             TestFalse(At+TEXT(": the card has an icon"),Card.IconId.IsEmpty());
         }
-        const LDHUD::FComponentCardView BlueprintCard=LDHUD::ComponentCard(FName(*Component.Id),&Content,Blueprint);
-        TestTrue(Component.Id+TEXT(": the blueprint resolves every component placeholder"),
+        const LDHUD::FCardFaceView BlueprintCard=LDHUD::CardFace(FName(*Row.Id),&Content,Blueprint);
+        TestTrue(Row.Id+TEXT(": the blueprint resolves every card placeholder"),
             BlueprintCard.bKnown&&!BlueprintCard.SentencePlain.Contains(TEXT("["))&&!BlueprintCard.SentencePlain.Contains(TEXT("]")));
     }
-    TestTrue(TEXT("Every active, stat and component of the approved catalog has its face checked"),
-        ActiveFaces==Content.Abilities.Num()&&StatFaces==Content.Stats.Num()&&ComponentFaces==Content.Components.Num());
+    TestTrue(TEXT("Every active, stat and card of the approved catalog has its face checked"),
+        ActiveFaces==Content.Abilities.Num()&&StatFaces==Content.Stats.Num()&&CardFaces==Content.Cards.Num());
     if(!FSlateApplication::IsInitialized()||Content.Abilities.IsEmpty())
     {AddError(TEXT("Summary faces require Slate and an approved active."));return false;}
-    const FLDDemoComponentDefinition* BaseComponent=Content.Components.FindByPredicate(
-        [](const FLDDemoComponentDefinition& Row){return Row.Kind==ELDDemoComponentKind::Base;});
-    if(!TestNotNull(TEXT("The summary fixture has an approved base component"),BaseComponent)){return false;}
     FLDResultBuild Summary;Summary.bAvailable=true;Summary.CatalogRoot=Content.Identity.Root.ToHex();
     Summary.Actives.Add({FName(*Content.Abilities[0].Id),0});
-    for(const FLDDemoComponentDefinition& Component:Content.Components)
+    for(const FLDDemoCardDefinition& Row:Content.Cards)
     {
-        if(Component.Kind==ELDDemoComponentKind::Base&&Summary.Components.Num()<7)
-        {Summary.Components.Add({FName(*Component.Id),ELDResultBuildTarget::Body,NAME_None,NAME_None});}
+        if(Row.Form==ELDCardForm::Body&&Summary.Cards.Num()<7)
+        {Summary.Cards.Add({FName(*Row.Id),ELDResultBuildTarget::Body,NAME_None,ELDDemoElement::None});}
     }
+    if(!TestEqual(TEXT("The summary fixture has seven approved body cards"),Summary.Cards.Num(),7)){return false;}
     if(!Content.FinalMods.IsEmpty()){Summary.FinalMod=FName(*Content.FinalMods[0].Id);Summary.FinalTarget=ELDResultBuildTarget::Body;}
     for(const FVector2D Size:{FVector2D(520,90),FVector2D(218,66),FVector2D(760,184)})
     {
@@ -1041,8 +1038,8 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             FSlateRect(0,0,Size.X,Size.Y),Draw,0,FWidgetStyle(),true);
         for(UWidget* Widget:Widgets){if(auto* Face=Cast<ULDPaintLayer>(Widget)){Face->Painter=nullptr;}}
         const FString At=FString::Printf(TEXT("Frozen summary %.0fx%.0f"),Size.X,Size.Y);
-        TestTrue(At+TEXT(": approved active, dash and component textures are retained"),Textures>=3);
-        TestTrue(At+TEXT(": skill and component faces are painted"),PaintedSizes.Num()>=5);
+        TestTrue(At+TEXT(": approved active, dash and card textures are retained"),Textures>=3);
+        TestTrue(At+TEXT(": skill and card faces are painted"),PaintedSizes.Num()>=5);
         for(const FVector2D Painted:PaintedSizes)
         {TestTrue(At+TEXT(": every painted icon receives usable geometry ")+Painted.ToString(),Painted.X>=4.&&Painted.Y>=4.);}
         if(Size.Y>=180)
@@ -1053,9 +1050,9 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             for(UWidget* Widget:Widgets)
             {
                 if(const auto* Text=Cast<UTextBlock>(Widget))
-                {Overflow+=Text->GetText().ToString()==FString::Printf(TEXT("+%d"),Summary.Components.Num()-3);}
+                {Overflow+=Text->GetText().ToString()==FString::Printf(TEXT("+%d"),Summary.Cards.Num()-3);}
             }
-            TestEqual(At+TEXT(": a dense column exposes its omitted component count"),Overflow,1);
+            TestEqual(At+TEXT(": a dense column exposes its omitted card count"),Overflow,1);
         }
     }
     UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
@@ -1257,22 +1254,21 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     StorageSlot->SetHorizontalAlignment(HAlign_Fill);StorageSlot->SetVerticalAlignment(VAlign_Fill);
     Workshop->Storage=Storage;
     FLDProgressionView Dense;Dense.bValid=true;Dense.Generation=1;Dense.Life=1;Dense.Level=16;Dense.BuildRevision=2;
-    const int32 Count=FMath::Min(12,Content.Components.Num());
-    for(int32 Index=0;Index<Count;++Index)
+    // A full body column (the nine slots of level 16) and every other approved card stored once.
+    int32 Count=0;
+    for(const FLDDemoCardDefinition& Row:Content.Cards)
     {
-        FLDComponentInstanceView& Entry=Dense.Components.AddDefaulted_GetRef();
-        Entry.DefinitionId=FName(*Content.Components[Index].Id);Entry.bInstalled=true;Entry.bEverInstalled=true;
-        if(Index>=Count-3)
-        {Entry.Target.Kind=ELDComponentTargetKind::Component;Entry.Target.Definition=Dense.Components[0].DefinitionId;}
+        FLDCardInstanceView& Entry=Dense.Cards.AddDefaulted_GetRef();
+        Entry.Serial=uint16(Dense.Cards.Num());Entry.DefinitionId=FName(*Row.Id);
+        if(Row.Form==ELDCardForm::Body&&Count<9){Entry.Target.Kind=ELDCardTargetKind::Body;++Count;}
     }
-    for(int32 Index=Count;Index<FMath::Min(38,Content.Components.Num());++Index)
-    {Dense.Components.AddDefaulted_GetRef().DefinitionId=FName(*Content.Components[Index].Id);}
+    const auto KeyOf=[](const FLDCardInstanceView& Entry){return LDHUD::CardKey(Entry.DefinitionId,Entry.Serial);};
     Input.Progression=&Dense;Input.TrayDesired=FVector2D(200,100);Input.Pending=2;
     ULDComponentStorage::FAnchors NoAnchors;
     for(const ULDWorkshop::EMode Mode:{ULDWorkshop::EMode::Full,ULDWorkshop::EMode::Field})
     for(const float ScreenScale:{1.f,2.f/3.f})
     {
-        Input.Mode=Mode;Input.bServices=Mode==ULDWorkshop::EMode::Full;Input.bLibraryServices=Input.bServices;
+        Input.Mode=Mode;Input.bServices=Mode==ULDWorkshop::EMode::Full;
         Workshop->LibraryPage=0;
         const FGeometry Screen=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(ScreenScale));
         const auto DenseFrame=[&]()
@@ -1312,15 +1308,16 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
                     &&Face.Bottom<=Library.Bottom+1.f&&Face.Right-Face.Left>=35.5f&&Face.Bottom-Face.Top>=35.5f);
             }
         }
-        TestEqual(At+TEXT(": all owned stored components appear across the pages"),SeenCards.Num(),Dense.Components.Num()-Count);
+        TestEqual(At+TEXT(": all stored cards appear across the pages"),SeenCards.Num(),Dense.Cards.Num()-Count);
         const FSlateRect Column=Storage->Workshop.Columns[int32(LDHUD::EStorageColumn::Body)];
-        for(const FLDComponentInstanceView& Entry:Dense.Components)
+        for(const FLDCardInstanceView& Entry:Dense.Cards)
         {
-            if(!Entry.bInstalled){continue;}
+            if(!Entry.IsInstalled()){continue;}
+            const FName Key=KeyOf(Entry);
             FSlateRect Tile;
-            if(!TestTrue(At+TEXT(": installed face exists ")+Entry.DefinitionId.ToString(),Storage->TileBox(Entry.DefinitionId,Tile))){continue;}
+            if(!TestTrue(At+TEXT(": installed face exists ")+Entry.DefinitionId.ToString(),Storage->TileBox(Key,Tile))){continue;}
             const ULDComponentStorage::FTile* Face=Storage->Tiles.FindByPredicate(
-                [&Entry](const ULDComponentStorage::FTile& Candidate){return Candidate.Component==Entry.DefinitionId;});
+                [&Key](const ULDComponentStorage::FTile& Candidate){return Candidate.Component==Key;});
             if(!TestTrue(At+TEXT(": face widget exists"),Face&&Face->Face)){continue;}
             Tile=Face->Face->GetCachedGeometry().GetRenderBoundingRect();
             TestTrue(At+TEXT(": installed face fits its column ")+Entry.DefinitionId.ToString(),
@@ -1332,11 +1329,11 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             LDHUD::EStorageColumn HitColumn=LDHUD::EStorageColumn::Dash;FName Host;
             const FVector2D Center((Tile.Left+Tile.Right)*.5f,(Tile.Top+Tile.Bottom)*.5f);
             TestTrue(At+TEXT(": scaled face is its own drop target ")+Entry.DefinitionId.ToString(),
-                Storage->ColumnAt(Center,HitColumn,Host)&&HitColumn==LDHUD::EStorageColumn::Body&&Host==Entry.DefinitionId);
+                Storage->ColumnAt(Center,HitColumn,Host)&&HitColumn==LDHUD::EStorageColumn::Body&&Host==Key);
         }
-        if(Count>0)
+        if(const FLDCardInstanceView* Last=Dense.Cards.FindByPredicate([](const FLDCardInstanceView& Entry){return Entry.IsInstalled();}))
         {
-            const FName Id=Dense.Components[Count-1].DefinitionId;FSlateRect Tile;
+            const FName Id=KeyOf(*Last);FSlateRect Tile;
             if(Storage->TileBox(Id,Tile))
             {
                 const ULDComponentStorage::FTile* Face=Storage->Tiles.FindByPredicate(
@@ -1347,13 +1344,8 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
                 TestTrue(At+TEXT(": scaled face can be picked up"),
                     Storage->BeginPress(Center)&&Storage->Press.bArmed&&Storage->Press.Component==Id);
                 Storage->UpdateDrag(Center,false);
-                TestTrue(At+TEXT(": pickup retains the component"),Storage->IsHolding()&&Storage->Drag.Component==Id);
+                TestTrue(At+TEXT(": pickup retains the card"),Storage->IsHolding()&&Storage->Drag.Component==Id);
                 Storage->CancelInteraction();
-                FName Picked;Storage->OnServicePick=[&Picked](FName Value){Picked=Value;};
-                Storage->SetServicePick({Id},{});
-                Storage->BeginPress(Center);
-                TestTrue(At+TEXT(": service selection reaches the scaled face"),Picked==Id);
-                Storage->SetServicePick({},{});Storage->OnServicePick=nullptr;
             }
         }
     }
@@ -1879,7 +1871,7 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Header.Revisions.bHasBuild=false;
     TestFalse(TEXT("A final-mod receipt without a build revision cannot start feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,7,TEXT("final_test")));
     FLDProgressionView FinalView;FinalView.bValid=true;FinalView.BuildRevision=8;
-    FLDFinalModSelection Final;Final.DefinitionId=TEXT("final_test");Final.TargetKind=ELDComponentTargetKind::Active;Final.TargetId=TEXT("active_test");
+    FLDFinalModSelection Final;Final.DefinitionId=TEXT("final_test");Final.TargetKind=ELDFinalModTargetKind::Active;Final.TargetId=TEXT("active_test");
     FinalView.FinalMod=Final;
     TestFalse(TEXT("A final stamp waits for the confirmed revision"),LDHUD::FinalStampReady(FinalView,9,Final,true));
     FinalView.BuildRevision=9;
@@ -1961,294 +1953,6 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDComponentsTest,"Lockdown.Rules.HUDComponents",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
-{
-    // #198 B growth panel: the 启用 button of each owned component and its disabled reason, as growth would judge it (a hint
-    // only; the server decides each command). A private fixture catalog keeps the rule apart from the approved content.
-    FLDDemoContentDefinitions Content;
-    // A workshop of five slots at level 1, one more every two levels (every install takes one).
-    Content.Progression.WorkshopCapacityBase=5;Content.Progression.WorkshopCapacityLevelsPerSlot=2;
-    Content.Progression.WorkshopBodyColumnCapacity=4;Content.Progression.WorkshopDashColumnCapacity=2;
-    const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
-    {
-        FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
-        Row.Id=Id;Row.NativeId=uint8(Content.Components.Num());Row.Kind=Kind;
-        FLDDemoEffectDefinition& Effect=Row.Effects.AddDefaulted_GetRef();Effect.Element=Element;
-        return Row;
-    };
-    AddComponent(TEXT("hud_fixture_fist"),ELDDemoComponentKind::Base,ELDDemoElement::None);
-    AddComponent(TEXT("hud_fixture_wet"),ELDDemoComponentKind::Base,ELDDemoElement::Water);
-    AddComponent(TEXT("hud_fixture_shock"),ELDDemoComponentKind::Base,ELDDemoElement::Electric);
-    // The reference is used before the next row is added (adding may move the array).
-    FLDDemoComponentDefinition& Trick=AddComponent(TEXT("hud_fixture_trick"),ELDDemoComponentKind::Base,ELDDemoElement::None);
-    Trick.Binding=ELDDemoComponentBinding::ActiveElement;Trick.BindActives={TEXT("hud_fixture_bolt")};
-    Trick.BindElements={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric};
-    AddComponent(TEXT("hud_fixture_mod"),ELDDemoComponentKind::Mod,ELDDemoElement::None);
-    const auto Owned=[](const TCHAR* Id,bool bInstalled=false,bool bEver=false)
-    {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=bInstalled;View.bEverInstalled=bEver||bInstalled;return View;};
-    FLDProgressionView View;View.bValid=true;View.Generation=9;View.Level=1;
-    using EColumn=LDHUD::EStorageColumn;
-    {
-        // #222: installs, moves and uninstalls follow the learn gate: open on the field, in combat, in a PK and while dead.
-        using EStage=LDProgression::EMatchStage;
-        TestTrue(TEXT("Components install on the field and in every rest step, alive or dead"),
-            LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive).bCanInstall&&LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead).bCanInstall
-            &&LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive).bCanInstall&&LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Dead).bCanInstall);
-        TestFalse(TEXT("Results install nothing"),LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive).bCanInstall);
-    }
-    // #227 storage drops: a plain base goes on 本体 only; B18 on the column of each bindable learned active, with its elements.
-    View.Components={Owned(TEXT("hud_fixture_fist")),Owned(TEXT("hud_fixture_wet")),Owned(TEXT("hud_fixture_trick")),Owned(TEXT("hud_fixture_mod"))};
-    TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_fist"),View,&Content);
-    TestTrue(TEXT("A plain base drops on 本体 only"),Drops.Num()==1&&Drops[0].Column==EColumn::Body&&Drops[0].Kind==ELDComponentTargetKind::None
-        &&Drops[0].Host.IsNone()&&Drops[0].Elements.IsEmpty()&&Drops[0].Bases.IsEmpty());
-    TestTrue(TEXT("A water base drops on 本体 like any base"),LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),View,&Content).Num()==1);
-    TestTrue(TEXT("B18 without a bindable learned active has nowhere to go"),LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),View,&Content).IsEmpty());
-    FLDActiveSlotView& Bolt=View.Actives.AddDefaulted_GetRef();Bolt.DefinitionId=TEXT("hud_fixture_bolt");Bolt.Slot=1;
-    FLDActiveSlotView& Other=View.Actives.AddDefaulted_GetRef();Other.DefinitionId=TEXT("hud_fixture_other");Other.Slot=0;
-    Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),View,&Content);
-    TestTrue(TEXT("B18 drops on the W column of its bindable active and asks for one of its elements"),Drops.Num()==1&&Drops[0].Column==EColumn::SlotW
-        &&Drops[0].BindActive==FName(TEXT("hud_fixture_bolt"))&&Drops[0].Kind==ELDComponentTargetKind::None&&Drops[0].Elements.Num()==3);
-    TestTrue(TEXT("Only the learned actives its binding lists are offered"),LDHUD::BindableActives(Content.Components[3],View)==TArray<FName>{FName(TEXT("hud_fixture_bolt"))});
-    TestTrue(TEXT("Over Q nothing takes B18; over W its drop"),LDHUD::FindDrop(Drops,EColumn::SlotQ,NAME_None)==nullptr
-        &&LDHUD::FindDrop(Drops,EColumn::SlotW,NAME_None)==&Drops[0]&&LDHUD::FindDrop(Drops,EColumn::SlotW,TEXT("hud_fixture_fist"))==&Drops[0]);
-    TestTrue(TEXT("A mod without any place has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_mod"),View,&Content).IsEmpty());
-    TestTrue(TEXT("An unknown or unowned component has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_unknown"),View,&Content).IsEmpty()
-        &&LDHUD::ComponentDrops(TEXT("hud_fixture_shock"),View,&Content).IsEmpty());
-    {
-        FLDDemoContentDefinitions Linked=Content;
-        FLDDemoComponentDefinition& Mod=Linked.Components[4];
-        Mod.TargetActives={TEXT("hud_fixture_bolt"),TEXT("hud_fixture_unlearned")};
-        Mod.TargetComponents={TEXT("hud_fixture_fist")};Mod.ExtraBases={TEXT("hud_fixture_wet")};
-        const LDHUD::FComponentConnections Forward=LDHUD::ComponentConnections(TEXT("hud_fixture_mod"),View,&Linked);
-        const LDHUD::FComponentConnections Reverse=LDHUD::ComponentConnections(TEXT("hud_fixture_fist"),View,&Linked);
-        TestTrue(TEXT("Connection data includes only learned skills and owned targets"),
-            Forward.Actives==TArray<FName>{FName(TEXT("hud_fixture_bolt"))}
-            &&Forward.Components==TArray<FName>({FName(TEXT("hud_fixture_fist")),FName(TEXT("hud_fixture_wet"))}));
-        TestTrue(TEXT("Connection data includes owned components that target this one"),Reverse.Components.Contains(TEXT("hud_fixture_mod")));
-        TestTrue(TEXT("Unknown content has no inferred connections"),
-            LDHUD::ComponentConnections(TEXT("hud_fixture_unknown"),View,&Linked).Components.IsEmpty());
-    }
-    {
-        // The storage view: the stored ones in the view's order with the never-installed count; each installed one in its column.
-        FLDProgressionView Built=View;
-        Built.Components[0].bInstalled=Built.Components[0].bEverInstalled=true;
-        FLDComponentInstanceView& Bound=Built.Components[2];Bound.bInstalled=Bound.bEverInstalled=true;
-        Bound.Target.BoundActive=TEXT("hud_fixture_bolt");Bound.Target.Element=ELDDemoElement::Water;
-        Built.Components[3].bEverInstalled=true;
-        const LDHUD::FStorageView Storage=LDHUD::ComponentStorage(Built,&Content);
-        TestTrue(TEXT("Stored components in order; one was installed before, one never"),
-            Storage.Stored==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_mod"))})&&Storage.Fresh==1);
-        const TSet<FName> Seen{FName(TEXT("hud_fixture_wet"))};
-        TestEqual(TEXT("A previewed component no longer contributes to the fresh count"),
-            LDHUD::ComponentStorage(Built,&Content,&Seen).Fresh,0);
-        TestTrue(TEXT("Five columns: 本体, Q, W, E and D, each slot with its learned active"),Storage.Columns.Num()==LDHUD::StorageColumnCount
-            &&Storage.Columns[0].Title==LDTerms::ColumnBody&&Storage.Columns[4].Title==LDTerms::Dash
-            &&Storage.Columns[2].Title.IsEmpty()&&Storage.Columns[3].Title==LDTerms::ColumnEmptySlot
-            &&Storage.Columns[1].Active==FName(TEXT("hud_fixture_other"))&&Storage.Columns[2].Active==FName(TEXT("hud_fixture_bolt"))
-            &&Storage.Columns[3].Active.IsNone());
-        TestTrue(TEXT("The base sits on 本体 and B18 on W with its element"),Storage.Columns[0].Entries.Num()==1
-            &&Storage.Columns[0].Entries[0].Component==FName(TEXT("hud_fixture_fist"))&&Storage.Columns[2].Entries.Num()==1
-            &&Storage.Columns[2].Entries[0].Note==LDTerms::ElementWater&&Storage.Columns[1].Entries.IsEmpty());
-        {
-            FLDProgressionView Final=Built;
-            Final.FinalMod.DefinitionId=TEXT("final_test");Final.FinalMod.TargetKind=ELDComponentTargetKind::Component;
-            Final.FinalMod.TargetId=TEXT("hud_fixture_trick");
-            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
-            EColumn Column=EColumn::Body;
-            TestTrue(TEXT("A final mod bound to an installed component marks its skill column"),
-                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
-            Final.Components[3].bInstalled=true;
-            Final.Components[3].Target.Kind=ELDComponentTargetKind::Component;Final.Components[3].Target.Definition=Final.Components[2].DefinitionId;
-            Final.FinalMod.TargetId=Final.Components[3].DefinitionId;
-            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
-            TestTrue(TEXT("A nested component uses its host's column"),
-                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
-            Final.FinalMod.TargetId=Final.Components[2].DefinitionId;
-            Final.Components[2].bInstalled=false;
-            TestFalse(TEXT("A removed source has no final mod column"),LDHUD::FinalModColumn(Final,Column));
-            Final.Components[2].bInstalled=true;Final.FinalModSources.Reset();
-            TestFalse(TEXT("A dormant binding has no final mod column"),LDHUD::FinalModColumn(Final,Column));
-            Final.FinalMod.TargetKind=ELDComponentTargetKind::Active;Final.FinalMod.TargetId=TEXT("hud_fixture_bolt");
-            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
-            TestTrue(TEXT("A learned active source marks its skill column"),
-                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
-            Final.FinalMod.TargetKind=ELDComponentTargetKind::Dash;Final.FinalMod.TargetId=NAME_None;
-            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
-            TestTrue(TEXT("A dash source marks the dash column"),LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::Dash);
-            Final.FinalMod.TargetKind=ELDComponentTargetKind::None;
-            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
-            TestTrue(TEXT("A universal final mod marks the body column"),LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::Body);
-            Final.bValid=false;
-            TestFalse(TEXT("An invalid view cannot place a final mod"),LDHUD::FinalModColumn(Final,Column));
-        }
-        const TArray<LDHUD::FComponentDrop> Moves=LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Built,&Content);
-        TestTrue(TEXT("An installed B18 still drops (a move) on its bindable column"),Moves.Num()==1&&Moves[0].Column==EColumn::SlotW);
-        TestTrue(TEXT("Nothing comes off with a component nothing sits on, or with a stored one"),LDHUD::DetachedWith(TEXT("hud_fixture_trick"),Built).IsEmpty()
-            &&LDHUD::DetachedWith(TEXT("hud_fixture_wet"),Built).IsEmpty());
-        TestTrue(TEXT("An invalid view shows the columns and nothing in them"),LDHUD::ComponentStorage(FLDProgressionView(),&Content).Stored.IsEmpty()
-            &&LDHUD::ComponentStorage(FLDProgressionView(),&Content).Columns.Num()==LDHUD::StorageColumnCount);
-        TestTrue(TEXT("The storage counts the installs against the level's workshop capacity"),Storage.Installed==2&&Storage.Capacity==5);
-        // Every slot taken: a stored component has no drop and its hover says why; an installed one still moves.
-        FLDProgressionView Full=Built;
-        for(const TCHAR* Id:{TEXT("hud_fixture_full_a"),TEXT("hud_fixture_full_b"),TEXT("hud_fixture_full_c")}){Full.Components.Add(Owned(Id,true));}
-        TestTrue(TEXT("A full workshop leaves a stored base nowhere to go"),LDHUD::WorkshopFull(Full,&Content)
-            &&LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Full,&Content).IsEmpty()
-            &&LDHUD::StoredPlaceText(TEXT("hud_fixture_wet"),Full,&Content)==LDTerms::WorkshopFullHint(5));
-        TestTrue(TEXT("A full workshop does not promise a replacement when the card has no valid host"),
-            LDHUD::ReplaceDrops(TEXT("hud_fixture_mod"),Full,&Content).IsEmpty()
-            &&LDHUD::StoredPlaceText(TEXT("hud_fixture_mod"),Full,&Content)==LDTerms::WorkshopFullNoPlace(5));
-        TestTrue(TEXT("An installed component still moves in a full workshop"),LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Full,&Content).Num()==1);
-        Full.Level=3;
-        TestTrue(TEXT("A free global slot does not exceed the four-item body limit"),
-            !LDHUD::WorkshopFull(Full,&Content)&&LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Full,&Content).IsEmpty()
-            &&LDHUD::StoredPlaceText(TEXT("hud_fixture_wet"),Full,&Content)==LDTerms::ReplaceAvailable
-            &&!LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Full,&Content).IsEmpty());
-        Full.Level=1;
-        // A full workshop offers a replace on each installed tile whose removal makes room in that column; never on the move of
-        // an installed component, and never where the plain drop already lands.
-        const TArray<LDHUD::FComponentDrop> Replaces=LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Full,&Content);
-        const LDHUD::FComponentDrop* OverFist=Replaces.FindByPredicate([](const LDHUD::FComponentDrop& D){return D.Host==FName(TEXT("hud_fixture_fist"));});
-        TestTrue(TEXT("Over the installed base a full workshop replaces it on 本体"),OverFist&&OverFist->Column==EColumn::Body
-            &&OverFist->Replacing==FName(TEXT("hud_fixture_fist"))&&OverFist->Lost==TArray<FName>{FName(TEXT("hud_fixture_fist"))}
-            &&OverFist->Kind==ELDComponentTargetKind::None);
-        TestFalse(TEXT("No replace lands a base on B18's W column"),Replaces.ContainsByPredicate([](const LDHUD::FComponentDrop& D){return D.Column==EColumn::SlotW;}));
-        TestTrue(TEXT("An installed component has no replace drops; a free slot needs none on its column"),
-            LDHUD::ReplaceDrops(TEXT("hud_fixture_trick"),Full,&Content).IsEmpty()&&LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Built,&Content).IsEmpty());
-        TestEqualSensitive(TEXT("A plain drop previews its column"),LDHUD::DropPreviewText(TEXT("hud_fixture_wet"),LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Built,&Content)[0],Built,&Content),
-            LDTerms::DropInstallsOn(LDTerms::ColumnBody));
-        // A form: two bases of one form never share 本体, so the stored one has no plain drop and replaces the installed one.
-        AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_fixture_fist"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
-        FLDDemoContentDefinitions Formed=Content;Formed.Components[0].Form=TEXT("fist");Formed.Components[1].Form=TEXT("fist");
-        TestTrue(TEXT("An installed form-mate takes the base's only place"),LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Built,&Formed).IsEmpty()
-            &&LDHUD::FormMateAt(TEXT("hud_fixture_wet"),ELDComponentTargetKind::None,NAME_None,Built,&Formed)==FName(TEXT("hud_fixture_fist")));
-        const TArray<LDHUD::FComponentDrop> Swaps=LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Built,&Formed);
-        TestTrue(TEXT("It replaces its form-mate without a full workshop"),Swaps.Num()==1&&Swaps[0].Replacing==FName(TEXT("hud_fixture_fist"))&&Swaps[0].Column==EColumn::Body);
-        TestTrue(TEXT("The stored card explains the available form replacement"),
-            LDHUD::StoredPlaceText(TEXT("hud_fixture_wet"),Built,&Formed)==FString(LDTerms::ReplaceAvailable));
-        TestTrue(TEXT("The popup names the owned form-mate"),LDHUD::ConnectionsText(TEXT("hud_fixture_wet"),Built,&Formed).Contains(TEXT("同形态")));
-        TestTrue(TEXT("Without a form, nothing is named"),LDHUD::ConnectionsText(TEXT("hud_fixture_wet"),Built,&Content).IsEmpty());
-    }
-    {
-        // The popup's category line: the kind, then the use tags in their authored order.
-        AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_fixture_mod"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
-        FLDDemoContentDefinitions Tagged=Content;
-        Tagged.Components[4].Tags={ELDDemoComponentTag::Projectile,ELDDemoComponentTag::Spell};
-        FLDDemoDisplayDefinition& Shown=Tagged.Display.AddDefaulted_GetRef();Shown.Id=TEXT("hud_fixture_mod");Shown.DescriptionText=TEXT("改一下");
-        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(TEXT("hud_fixture_mod"),&Tagged,LDHUD::FCardStats());
-        TestEqualSensitive(TEXT("A mod's kind and tags"),Card.KindLine,FString(TEXT("技能改装 · 弹道 · 法术")));
-        TestEqualSensitive(TEXT("The choice popup summary is that line"),LDHUD::ComponentChoiceDetail(Card,FString()).Summary,Card.KindLine);
-    }
-    TestTrue(TEXT("Element names"),LDHUD::ElementName(ELDDemoElement::Fire)==LDTerms::ElementFire&&LDHUD::ElementName(ELDDemoElement::Water)==LDTerms::ElementWater
-        &&LDHUD::ElementName(ELDDemoElement::Electric)==LDTerms::ElementElectric);
-
-    // Every #198 B reason names itself; none falls through to the unknown line.
-    for(const ELDGrowthReason Reason:{ELDGrowthReason::NotOwned,ELDGrowthReason::AlreadyInstalled,ELDGrowthReason::NotInstalled,
-        ELDGrowthReason::InvalidTarget,ELDGrowthReason::OpeningBaseUnavailable,ELDGrowthReason::OpeningBaseTaken,
-        ELDGrowthReason::OpeningActiveFirst})
-    {
-        const FString Text=LDHUD::GrowthReasonText(Reason);
-        TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因")));
-    }
-
-    // Receipt lines: an opening pick enabled or kept with the reason, an install, an uninstall and a refusal.
-    FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Kind=ELDBuildCommandKind::OpeningBase;
-    Receipt.ComponentId=TEXT("hud_fixture_fist");Receipt.bComponentInstalled=true;
-    TestEqualSensitive(TEXT("An opening pick enabled at once"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
-    Receipt.bComponentInstalled=false;Receipt.InstallStoredReason=uint16(ELDGrowthReason::InvalidTarget);
-    TestEqualSensitive(TEXT("An opening pick kept in the storage names why"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        LDTerms::ComponentStored(TEXT("hud_fixture_fist"),LDHUD::BuildBlockedText(ELDGrowthReason::InvalidTarget)));
-    Receipt.Kind=ELDBuildCommandKind::InstallComponent;Receipt.bComponentInstalled=true;Receipt.InstallStoredReason=0;
-    TestEqualSensitive(TEXT("An install names the component"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
-    Receipt.bComponentInstalled=false;
-    TestEqualSensitive(TEXT("An applied install that installed nothing never claims success"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        FString(TEXT("回执缺少结果，请以当前状态为准。")));
-    Receipt.Kind=ELDBuildCommandKind::UninstallComponent;
-    TestEqualSensitive(TEXT("An uninstall names the component"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentRemoved(TEXT("hud_fixture_fist")));
-    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::OpeningActiveFirst);
-    TestEqualSensitive(TEXT("A refused component command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        TEXT("没有生效：")+LDHUD::GrowthReasonText(ELDGrowthReason::OpeningActiveFirst));
-
-    // The 构筑 button counts the opening pick; #227: owned components wait in the storage stack instead.
-    FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=9;
-    Pending.bOpeningBasePending=true;Pending.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
-    Pending.Components={Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_wet"))};
-    const LDHUD::FGrowthPending Counted=LDHUD::GrowthPending(&Pending,9,&Content);
-    TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase);
-    Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();
-    TestFalse(TEXT("Stored components never light the button"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
-
-    // Auto-open: the opening base pick once; a new component from a level-up only lights the button (no fight cover).
-    LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=11;
-    TestFalse(TEXT("An empty first view opens nothing"),AutoOpen.Observe(Growth,11));
-    Growth.bOpeningBasePending=true;Growth.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
-    TestTrue(TEXT("The opening base pick opens the panel"),AutoOpen.Observe(Growth,11));
-    TestFalse(TEXT("The same pick does not open it again"),AutoOpen.Observe(Growth,11));
-    Growth.bOpeningBasePending=false;Growth.OpeningBaseOptions.Reset();Growth.Components={Owned(TEXT("hud_fixture_fist"),true)};
-    TestFalse(TEXT("A pick enabled at once opens nothing"),AutoOpen.Observe(Growth,11));
-    Growth.Components.Add(Owned(TEXT("hud_fixture_trick")));
-    TestFalse(TEXT("A new component from a level-up opens nothing"),AutoOpen.Observe(Growth,11));
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLibraryPagesTest,"Lockdown.Rules.HUDLibraryPages",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDLibraryPagesTest::RunTest(const FString& Parameters)
-{
-    FLDDemoContentDefinitions Content;
-    Content.Progression.WorkshopBodyColumnCapacity=4;
-    Content.Progression.WorkshopDashColumnCapacity=2;
-    TestEqual(TEXT("The body caption shows installed components against its cap"),
-        LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn::Body,4,&Content),FString(TEXT("本体 4/4")));
-    TestEqual(TEXT("The dash caption shows installed components against its cap"),
-        LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn::Dash,1,&Content),FString(TEXT("冲刺 1/2")));
-    TestTrue(TEXT("Active columns do not show a per-column cap"),
-        LDWorkshop::ColumnCapacityLabel(LDHUD::EStorageColumn::SlotQ,1,&Content).IsEmpty());
-    FLDProgressionView View;View.bValid=true;
-    const auto Add=[&](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoComponentTag Tag,bool bInstalled)
-    {
-        FLDDemoComponentDefinition& Definition=Content.Components.AddDefaulted_GetRef();
-        Definition.Id=Id;Definition.Kind=Kind;Definition.Tags.Add(Tag);
-        FLDComponentInstanceView& Owned=View.Components.AddDefaulted_GetRef();
-        Owned.DefinitionId=Id;Owned.bInstalled=bInstalled;
-    };
-    Add(TEXT("library_base"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Projectile,false);
-    Add(TEXT("library_mod"),ELDDemoComponentKind::Mod,ELDDemoComponentTag::Spell,false);
-    Add(TEXT("library_link"),ELDDemoComponentKind::Connector,ELDDemoComponentTag::Projectile,false);
-    Add(TEXT("library_installed"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Projectile,true);
-    Add(TEXT("library_base_second"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Spell,false);
-    const LDWorkshop::FLibraryGroups All=LDWorkshop::CollectLibrary(View,&Content,INDEX_NONE);
-    TestTrue(TEXT("Stored components retain their order within each kind"),All.Counts()==FIntVector(2,1,1)
-        &&All.Items[0][0]==FName(TEXT("library_base"))&&All.Items[0][1]==FName(TEXT("library_base_second")));
-    const LDWorkshop::FLibraryGroups Filtered=LDWorkshop::CollectLibrary(View,&Content,int32(ELDDemoComponentTag::Projectile));
-    TestTrue(TEXT("The use tag hides non-matching and installed components"),Filtered.Counts()==FIntVector(1,0,1)
-        &&Filtered.Items[0][0]==FName(TEXT("library_base"))&&Filtered.Items[2][0]==FName(TEXT("library_link")));
-    TestTrue(TEXT("A tag with no matches is an empty library"),
-        LDWorkshop::CollectLibrary(View,&Content,int32(ELDDemoComponentTag::Defense)).Counts()==FIntVector(0,0,0));
-
-    const FIntVector Counts(21,20,22);
-    const LDWorkshop::FLibraryFit Fit=LDWorkshop::FitLibrary(Counts,412.f,325.f,54.f,1.25f);
-    TestTrue(TEXT("A dense 720p library fits by paging without icons below 36 pixels"),
-        Fit.bFits&&Fit.Pages.Num()>1&&Fit.Icon>=54.f&&Fit.RequiredHeight<=325.f);
-    FIntVector Cursor(0,0,0);
-    for(const LDWorkshop::FLibraryPage& Page:Fit.Pages)
-    {
-        TestTrue(TEXT("Each page continues the preceding group ranges"),Page.First==Cursor);
-        TestTrue(TEXT("Each page contains at least one component"),Page.Counts.X+Page.Counts.Y+Page.Counts.Z>0);
-        Cursor+=Page.Counts;
-        TestTrue(TEXT("Page ranges stay inside the filtered library"),Cursor.X<=Counts.X&&Cursor.Y<=Counts.Y&&Cursor.Z<=Counts.Z);
-    }
-    TestTrue(TEXT("All filtered components occur exactly once"),Cursor==Counts);
-    const LDWorkshop::FLibraryFit Empty=LDWorkshop::FitLibrary(FIntVector(0,0,0),412.f,325.f,54.f,1.25f);
-    TestTrue(TEXT("No matches produce one empty page"),Empty.bFits&&Empty.Pages.Num()==1&&Empty.Pages[0].Counts==FIntVector(0,0,0));
-    const LDWorkshop::FLibraryFit TooSmall=LDWorkshop::FitLibrary(FIntVector(1,0,0),20.f,20.f,54.f,1.25f);
-    TestTrue(TEXT("A rectangle too small for one card reports failure"),!TooSmall.bFits&&TooSmall.Pages.IsEmpty());
-    const float TrayLimit=LDWorkshop::StackedTrayLimit(Counts,412.f,400.f,54.f,1.25f);
-    const LDWorkshop::FLibraryFit Reserved=LDWorkshop::FitLibrary(Counts,412.f,400.f-TrayLimit,54.f,1.25f);
-    TestTrue(TEXT("A stacked pending tray leaves a usable library page at 720p and 125 percent text"),
-        TrayLimit>0.f&&Reserved.bFits&&!Reserved.Pages.IsEmpty()&&Reserved.Pages[0].Counts!=FIntVector::ZeroValue);
-    return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPendingPagesTest,"Lockdown.Rules.HUDPendingPages",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPendingPagesTest::RunTest(const FString& Parameters)
 {
@@ -2279,8 +1983,9 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     FLDProgressionView View;View.bValid=true;View.Generation=7;View.Life=3;View.LifePhase=ELDLifePhase::Dead;
     View.Level=1;View.BuildRevision=12;View.CombatInstalledRevision=11;View.CatalogDigest=Content.Identity.Root;
     FLDActiveSlotView& Active=View.Actives.AddDefaulted_GetRef();Active.DefinitionId=TEXT("active_pants_down");
-    FLDComponentInstanceView& Component=View.Components.AddDefaulted_GetRef();
-    Component.DefinitionId=TEXT("component_hold_down");Component.Source=ELDComponentSource::BuildReward;Component.SourceLevel=1;
+    // A stored X05 (cooldown x0.65, cost x1.5) and a stored X08 (a conditional idle bonus), both skill cards.
+    FLDCardInstanceView& Quick=View.Cards.AddDefaulted_GetRef();Quick.Serial=1;Quick.DefinitionId=TEXT("card_again_now");
+    FLDCardInstanceView& Held=View.Cards.AddDefaulted_GetRef();Held.Serial=2;Held.DefinitionId=TEXT("card_held_shot");
     const FLDGrowthBuild Build=LDProgression::BuildFromView(Content,View);
     const FLDAttributeProjectionResult Projected=LDCombatSourceRules::ProjectBuildInput(
         LDProgression::CombatProjectionInput(&Content,Build),*Catalog);
@@ -2293,15 +1998,14 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     }
     LDWorkshopPreview::FInput Input;Input.Content=Catalog.Get();Input.Progression=&View;Input.Combat=&Combat;
     Input.Match=7;Input.Stage=LDProgression::EMatchStage::Live;Input.bClock=true;Input.NowMs=1000;
-    Input.Component=Component.DefinitionId;Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
+    Input.Component=LDHUD::CardKey(Quick.DefinitionId,Quick.Serial);
+    Input.Drop.Column=LDHUD::EStorageColumn::SlotQ;Input.Drop.Kind=ELDCardTargetKind::Skill;Input.Drop.TargetId=Active.DefinitionId;
     using EStatus=LDWorkshopPreview::EStatus;
     const LDWorkshopPreview::FResult Preview=LDWorkshopPreview::Compare(Input);
-    TestTrue(TEXT("M04 compares the compiled control duration and cooldown without claiming a conditional effect"),
+    TestTrue(TEXT("X05 compares the compiled cooldown without claiming a conditional effect"),
         Preview.Status==EStatus::Ready&&!Preview.bPartial
         &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
-            {return Line.Label.Contains(LDTerms::Root)&&Line.Before==TEXT("1.2s")&&Line.After==TEXT("1.5s");})
-        &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
-            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("9s")&&Line.After==TEXT("11.25s");}));
+            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("9s")&&Line.After==TEXT("5.85s");}));
     ++View.CombatInstalledRevision;
     TestTrue(TEXT("Mismatched installed revisions wait for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
     --View.CombatInstalledRevision;
@@ -2311,14 +2015,13 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     Input.Drop.Elements={ELDDemoElement::Fire,ELDDemoElement::Water};
     TestTrue(TEXT("An unresolved element binding asks for a choice"),LDWorkshopPreview::Compare(Input).Status==EStatus::ChoiceRequired);
     Input.Drop.Elements.Reset();
-    Component.DefinitionId=TEXT("component_long_arm");Input.Component=Component.DefinitionId;Input.Drop=LDHUD::FComponentDrop();
+    Input.Component=LDHUD::CardKey(Held.DefinitionId,Held.Serial);
     const LDWorkshopPreview::FResult Conditional=LDWorkshopPreview::Compare(Input);
     TestTrue(TEXT("Target-dependent effects are explicitly marked partial"),
         Conditional.Status==EStatus::Ready&&Conditional.bPartial&&Conditional.Lines.IsEmpty());
 
     View.LifePhase=ELDLifePhase::Alive;
-    Component.DefinitionId=TEXT("component_hold_down");Input.Component=Component.DefinitionId;
-    Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
+    Input.Component=LDHUD::CardKey(Quick.DefinitionId,Quick.Serial);
     Combat.bPreviewLiving=true;
     Combat.MaxHPP2=Projected.Value->Final.MaxHPP2;Combat.HPP2=Combat.MaxHPP2/2;
     Combat.MaxMomentumP2=10000;Combat.MomentumP2=5000;
@@ -2337,7 +2040,7 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     int64 OldCooldown=0,NewCooldown=0;FString Error;
     if(!TestTrue(TEXT("Both expected cooldowns use the authority formula"),
         LDTactical::CooldownDurationMs(9000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
-        &&LDTactical::CooldownDurationMs(11250,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
+        &&LDTactical::CooldownDurationMs(5850,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
     {return false;}
     const LDWorkshopPreview::FResult Live=LDWorkshopPreview::Compare(Input);
     const LDWorkshopPreview::FLine* Cooldown=Live.Lines.FindByPredicate([](const LDWorkshopPreview::FLine& Line)
@@ -2346,222 +2049,6 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
         Live.Status==EStatus::Ready&&!Live.bPartial&&Cooldown
         &&FMath::IsNearlyEqual(FCString::Atod(*Cooldown->Before),double(OldCooldown)/1000.,.0001)
         &&FMath::IsNearlyEqual(FCString::Atod(*Cooldown->After),double(NewCooldown)/1000.,.0001));
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkshopTargetsTest,"Lockdown.Rules.HUDWorkshopTargets",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
-{
-    // #198 F growth panel: the places an owned mod or connector may go now (learned actives, installed components, D, self,
-    // in catalog list order), C12's repeatable bases, what an installed one sits on, and the conflict reason's text.
-    // The private fixture ids have no registered display text; their labels fall back to the stable ids (logged).
-    AddExpectedError(TEXT("LD_HUD_DISPLAY_TEXT_MISSING"),EAutomationExpectedErrorFlags::Contains,0);
-    FLDDemoContentDefinitions Content;
-    // A workshop of five slots at level 1, one more every two levels (every install takes one).
-    Content.Progression.WorkshopCapacityBase=5;Content.Progression.WorkshopCapacityLevelsPerSlot=2;
-    const auto AddActive=[&Content](const TCHAR* Id,ELDDemoTargetMode Mode)
-    {
-        FLDDemoAbilityDefinition& Active=Content.Abilities.AddDefaulted_GetRef();Active.Id=Id;Active.Target.Mode=Mode;
-    };
-    AddActive(TEXT("hud_fixture_kick"),ELDDemoTargetMode::Unit);
-    AddActive(TEXT("hud_fixture_bolt"),ELDDemoTargetMode::DirectionProjectile);
-    AddActive(TEXT("hud_fixture_other"),ELDDemoTargetMode::Unit);
-    const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
-    {
-        FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
-        Row.Id=Id;Row.NativeId=uint8(Content.Components.Num());Row.Kind=Kind;
-        FLDDemoEffectDefinition& Effect=Row.Effects.AddDefaulted_GetRef();Effect.Element=Element;
-        return Row;
-    };
-    AddComponent(TEXT("hud_fixture_fist"),ELDDemoComponentKind::Base,ELDDemoElement::None);
-    AddComponent(TEXT("hud_fixture_wet"),ELDDemoComponentKind::Base,ELDDemoElement::Water);
-    AddComponent(TEXT("hud_fixture_ledger"),ELDDemoComponentKind::Base,ELDDemoElement::None);
-    // Each reference is used before the next row is added (adding may move the array).
-    {
-        FLDDemoComponentDefinition& Reach=AddComponent(TEXT("hud_fixture_reach"),ELDDemoComponentKind::Mod,ELDDemoElement::None);
-        Reach.TargetActives={TEXT("hud_fixture_kick"),TEXT("hud_fixture_bolt")};Reach.TargetComponents={TEXT("hud_fixture_wet"),TEXT("hud_fixture_fist")};
-        Reach.bTargetDash=true;
-    }
-    AddComponent(TEXT("hud_fixture_owe"),ELDDemoComponentKind::Mod,ELDDemoElement::None).bTargetSelf=true;
-    {
-        FLDDemoComponentDefinition& Repeat=AddComponent(TEXT("hud_fixture_repeat"),ELDDemoComponentKind::Connector,ELDDemoElement::None);
-        Repeat.TargetActives={TEXT("hud_fixture_bolt")};Repeat.ExtraBases={TEXT("hud_fixture_wet"),TEXT("hud_fixture_ledger")};
-    }
-    {
-        FLDDemoComponentDefinition& Reaction=AddComponent(TEXT("hud_fixture_reaction"),ELDDemoComponentKind::Connector,ELDDemoElement::None);
-        Reaction.TargetActives={TEXT("hud_fixture_bolt")};Reaction.Effects[0].Opcode=uint8(ELDDemoEffectOp::ReactionEmpower);
-    }
-    const auto Owned=[](const TCHAR* Id,bool bInstalled)
-    {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=View.bEverInstalled=bInstalled;return View;};
-    FLDProgressionView View;View.bValid=true;View.Generation=9;View.Level=1;
-    const FLDDemoComponentDefinition& Reach=Content.Components[3];
-    const FLDDemoComponentDefinition& Repeat=Content.Components[5];
-    const auto Places=[&](const FLDDemoComponentDefinition& Component)
-    {
-        TArray<FString> Out;
-        for(const LDHUD::FWorkshopTargetView& Target:LDHUD::WorkshopTargets(Component,View,&Content))
-        {Out.Add(FString::Printf(TEXT("%d:%s:%s"),int32(Target.Kind),*Target.TargetId.ToString(),*Target.Label));}
-        return FString::Join(Out,TEXT("|"));
-    };
-    const auto Place=[&](ELDComponentTargetKind Kind,const TCHAR* Id,const FString& Label)
-    {return FString::Printf(TEXT("%d:%s:%s"),int32(Kind),Id,*Label);};
-    const FString Dash=Place(ELDComponentTargetKind::Dash,TEXT("None"),LDTerms::TargetDash);
-    TestEqualSensitive(TEXT("Without a learned active or installed host only D is offered"),Places(Reach),Dash);
-    View.Components={Owned(TEXT("hud_fixture_fist"),true),Owned(TEXT("hud_fixture_wet"),false),Owned(TEXT("hud_fixture_reach"),false)};
-    FLDActiveSlotView& Bolt=View.Actives.AddDefaulted_GetRef();Bolt.DefinitionId=TEXT("hud_fixture_bolt");Bolt.Slot=2;
-    TestEqualSensitive(TEXT("Learned actives, installed hosts, then D, in catalog list order"),Places(Reach),
-        Place(ELDComponentTargetKind::Active,TEXT("hud_fixture_bolt"),LDHUD::ContentName(&Content,TEXT("hud_fixture_bolt")))+TEXT("|")
-        +Place(ELDComponentTargetKind::Component,TEXT("hud_fixture_fist"),LDHUD::ContentName(&Content,TEXT("hud_fixture_fist")))+TEXT("|")+Dash);
-    TestEqualSensitive(TEXT("A self-installed mod goes on the holder"),Places(Content.Components[4]),
-        Place(ELDComponentTargetKind::None,TEXT("None"),LDTerms::TargetSelf));
-    {
-        // #227: each place is a drop: the active's column (E), the host in its column (本体) and D.
-        const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_reach"),View,&Content);
-        TestTrue(TEXT("A mod drops on each of its places"),Drops.Num()==3&&Drops[0].Column==LDHUD::EStorageColumn::SlotE
-            &&Drops[0].Kind==ELDComponentTargetKind::Active&&Drops[0].TargetId==FName(TEXT("hud_fixture_bolt"))
-            &&Drops[1].Column==LDHUD::EStorageColumn::Body&&Drops[1].Host==FName(TEXT("hud_fixture_fist"))
-            &&Drops[1].Kind==ELDComponentTargetKind::Component&&Drops[2].Column==LDHUD::EStorageColumn::Dash);
-        FLDProgressionView SameMode=View;
-        FLDActiveSlotView& SameModeActive=SameMode.Actives.AddDefaulted_GetRef();
-        SameModeActive.DefinitionId=TEXT("hud_fixture_other");SameModeActive.Slot=0;
-        const TArray<LDHUD::FComponentDrop> SameModeDrops=LDHUD::ComponentDrops(TEXT("hud_fixture_reach"),SameMode,&Content);
-        TestTrue(TEXT("The workbench previews every learned active with a listed target mode"),
-            SameModeDrops.Num()==4&&SameModeDrops[0].TargetId==FName(TEXT("hud_fixture_bolt"))
-            &&SameModeDrops[1].TargetId==FName(TEXT("hud_fixture_other"))
-            &&LDHUD::ComponentConnections(TEXT("hud_fixture_reach"),SameMode,&Content).Actives
-                ==TArray<FName>({FName(TEXT("hud_fixture_bolt")),FName(TEXT("hud_fixture_other"))}));
-        TestTrue(TEXT("Over its host the host's drop; over 本体 alone nothing (the mod is not a self mod)"),
-            LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,TEXT("hud_fixture_fist"))==&Drops[1]
-            &&LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,NAME_None)==nullptr);
-        TestEqualSensitive(TEXT("The hover line names each reachable column once, in column order"),LDHUD::DropColumnsText(Drops),
-            LDTerms::CanGoOn(FString(LDTerms::ColumnBody)+TEXT("、E、D")));
-        TestEqualSensitive(TEXT("No drop says there is no place now"),LDHUD::DropColumnsText({}),FString(LDTerms::NoPlaceNow));
-    }
-
-    // C12: a repeatable base must be installed (water and electric included since #198 A).
-    View.Components.Add(Owned(TEXT("hud_fixture_repeat"),false));
-    TestTrue(TEXT("C12 without an installed base has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_repeat"),View,&Content).IsEmpty());
-    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
-    TestTrue(TEXT("An installed water base is repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content)==TArray<FName>{FName(TEXT("hud_fixture_wet"))});
-    View.Components.Add(Owned(TEXT("hud_fixture_ledger"),true));
-    TestTrue(TEXT("Installed bases are offered in list order"),LDHUD::RepeatableBases(Repeat,View,&Content)
-        ==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_ledger"))}));
-    {
-        const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_repeat"),View,&Content);
-        TestTrue(TEXT("Then C12 drops on its active and asks for one of the bases"),Drops.Num()==1&&Drops[0].Column==LDHUD::EStorageColumn::SlotE
-            &&Drops[0].Bases==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_ledger"))}));
-    }
-    View.Components.Add(Owned(TEXT("hud_fixture_reaction"),false));
-    TestFalse(TEXT("C09 with a place drops there"),LDHUD::ComponentDrops(TEXT("hud_fixture_reaction"),View,&Content).IsEmpty());
-    {
-        // A mod on a host nests under it in the host's column; storing or moving the host takes the mod along.
-        FLDProgressionView Nest=View;
-        FLDComponentInstanceView& OnFist=*Nest.Components.FindByPredicate([](const FLDComponentInstanceView& C){return C.DefinitionId==FName(TEXT("hud_fixture_reach"));});
-        OnFist.bInstalled=OnFist.bEverInstalled=true;OnFist.Target.Kind=ELDComponentTargetKind::Component;OnFist.Target.Definition=TEXT("hud_fixture_fist");
-        const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(Nest,&Content);
-        const TArray<LDHUD::FEquippedView>& Body=Shown.Columns[0].Entries;
-        TestTrue(TEXT("The mod follows its host, one level deeper"),Body.Num()==4&&Body[0].Component==FName(TEXT("hud_fixture_fist"))
-            &&Body[1].Component==FName(TEXT("hud_fixture_reach"))&&Body[1].Host==FName(TEXT("hud_fixture_fist"))&&Body[1].Depth==1&&Body[2].Depth==0);
-        TestTrue(TEXT("Taking the host off takes the mod with it"),LDHUD::DetachedWith(TEXT("hud_fixture_fist"),Nest)==TArray<FName>{FName(TEXT("hud_fixture_reach"))});
-        const TArray<LDHUD::FComponentDrop> Moves=LDHUD::ComponentDrops(TEXT("hud_fixture_reach"),Nest,&Content);
-        TestTrue(TEXT("The installed mod may move to its other places"),Moves.Num()==4&&LDHUD::FindDrop(Moves,LDHUD::EStorageColumn::Body,TEXT("hud_fixture_wet"))!=nullptr);
-        const TArray<LDHUD::FComponentDrop> HostMoves=LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Nest,&Content);
-        TestTrue(TEXT("A base never drops on itself"),HostMoves.Num()==1&&HostMoves[0].Host.IsNone());
-    }
-
-    // Installed rows name their place.
-    FLDComponentInstanceView Shown=Owned(TEXT("hud_fixture_reach"),true);
-    Shown.Target.Kind=ELDComponentTargetKind::Component;Shown.Target.Definition=TEXT("hud_fixture_fist");
-    TestEqualSensitive(TEXT("A mod names its host"),LDHUD::InstalledTargetText(Shown,&Content),LDTerms::InstalledOn(LDHUD::ContentName(&Content,TEXT("hud_fixture_fist"))));
-    Shown.Target.Kind=ELDComponentTargetKind::Dash;Shown.Target.Definition=NAME_None;
-    TestEqualSensitive(TEXT("A mod on D names D"),LDHUD::InstalledTargetText(Shown,&Content),LDTerms::InstalledOn(LDTerms::TargetDash));
-    Shown=Owned(TEXT("hud_fixture_owe"),true);
-    TestEqualSensitive(TEXT("A self mod names the holder"),LDHUD::InstalledTargetText(Shown,&Content),LDTerms::InstalledOn(LDTerms::TargetSelf));
-    Shown=Owned(TEXT("hud_fixture_repeat"),true);
-    Shown.Target.Kind=ELDComponentTargetKind::Active;Shown.Target.Definition=TEXT("hud_fixture_bolt");Shown.Target.BoundComponent=TEXT("hud_fixture_ledger");
-    TestEqualSensitive(TEXT("C12 names its place and its repeated base"),LDHUD::InstalledTargetText(Shown,&Content),
-        LDTerms::InstalledRepeating(LDHUD::ContentName(&Content,TEXT("hud_fixture_bolt")),LDHUD::ContentName(&Content,TEXT("hud_fixture_ledger"))));
-    TestTrue(TEXT("A plain base or an inventory item names nothing"),LDHUD::InstalledTargetText(Owned(TEXT("hud_fixture_fist"),true),&Content).IsEmpty()
-        &&LDHUD::InstalledTargetText(Owned(TEXT("hud_fixture_reach"),false),&Content).IsEmpty());
-
-    // The refusal of M08 and M09 on one place reads as itself.
-    TestEqualSensitive(TEXT("TargetConflict has its own text"),LDHUD::GrowthReasonText(ELDGrowthReason::TargetConflict),FString(LDTerms::TargetConflict));
-    FLDBuildReceipt Receipt;Receipt.Kind=ELDBuildCommandKind::InstallComponent;
-    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::TargetConflict);
-    TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        TEXT("没有生效：")+FString(LDTerms::TargetConflict));
-    TestEqualSensitive(TEXT("A full body or dash column names its limits"),
-        LDHUD::GrowthReasonText(ELDGrowthReason::ComponentColumnFull),FString(LDTerms::ComponentColumnFullReason));
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDOfferLinksTest,"Lockdown.Rules.HUDOfferLinks",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDOfferLinksTest::RunTest(const FString& Parameters)
-{
-    AddExpectedError(TEXT("LD_HUD_DISPLAY_TEXT_MISSING"),EAutomationExpectedErrorFlags::Contains,0);
-    FLDDemoContentDefinitions Content;
-    Content.Progression.ActiveSlots=3;Content.Progression.MaxLevel=5;
-    Content.Progression.WorkshopCapacityBase=3;Content.Progression.WorkshopCapacityLevelsPerSlot=1;
-    Content.Progression.WorkshopBodyColumnCapacity=4;Content.Progression.WorkshopDashColumnCapacity=2;
-    for(const TCHAR* Id:{TEXT("offer_old"),TEXT("offer_new"),TEXT("offer_other1"),TEXT("offer_other2")})
-    {Content.Abilities.AddDefaulted_GetRef().Id=Id;}
-    const auto Add=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind)->FLDDemoComponentDefinition&
-    {FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();Row.Id=Id;Row.Kind=Kind;return Row;};
-    {
-        FLDDemoComponentDefinition& Bound=Add(TEXT("offer_bound"),ELDDemoComponentKind::Base);
-        Bound.Binding=ELDDemoComponentBinding::ActiveElement;Bound.BindActives={TEXT("offer_new")};
-        Bound.BindElements={ELDDemoElement::Fire};Bound.Form=TEXT("offer_form");
-    }
-    Add(TEXT("offer_mate"),ELDDemoComponentKind::Base).Form=TEXT("offer_form");
-    Add(TEXT("offer_host"),ELDDemoComponentKind::Base);
-    Add(TEXT("offer_direct"),ELDDemoComponentKind::Mod).TargetActives={TEXT("offer_old"),TEXT("offer_new")};
-    {
-        FLDDemoComponentDefinition& Repeat=Add(TEXT("offer_repeat"),ELDDemoComponentKind::Connector);
-        Repeat.TargetActives={TEXT("offer_new")};Repeat.ExtraBases={TEXT("offer_host")};
-    }
-    const auto Owned=[](const TCHAR* Id)
-    {FLDComponentInstanceView Row;Row.DefinitionId=Id;Row.Source=ELDComponentSource::BuildReward;Row.SourceLevel=1;return Row;};
-    FLDProgressionView View;View.bValid=true;View.Level=1;View.bHasActiveOffer=true;
-    View.ActiveOffer.Options={FName(TEXT("offer_new"))};
-    FLDActiveSlotView& Old=View.Actives.AddDefaulted_GetRef();Old.DefinitionId=TEXT("offer_old");Old.Slot=0;
-    View.Components={Owned(TEXT("offer_bound")),Owned(TEXT("offer_mate")),Owned(TEXT("offer_host")),
-        Owned(TEXT("offer_direct")),Owned(TEXT("offer_repeat"))};
-    const auto Preview=[&](const FLDProgressionView& From)
-    {return LDWorkshop::LinkableComponents(TEXT("offer_new"),From,&Content,LDProgression::EMatchStage::Live,ELDLifePhase::Alive);};
-    LDWorkshop::FOfferLinks Links=Preview(View);
-    TestTrue(TEXT("A learned offer lists only owned components with a legal install"),
-        Links.Failure==ELDGrowthReason::None&&Links.bLearned&&Links.Components.Contains(TEXT("offer_bound"))
-        &&Links.Components.Contains(TEXT("offer_direct"))&&!Links.Components.Contains(TEXT("offer_repeat")));
-    TestTrue(TEXT("The preview does not learn or install anything in the view"),
-        View.Actives.Num()==1&&!View.Components[0].bInstalled&&!View.Components[3].bInstalled);
-
-    View.Components[2].bInstalled=View.Components[2].bEverInstalled=true;
-    Links=Preview(View);
-    TestTrue(TEXT("A connector needs an installed repeatable base"),Links.Components.Contains(TEXT("offer_repeat")));
-    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
-    Links=Preview(View);
-    TestFalse(TEXT("A bound base cannot conflict with an installed form mate"),Links.Components.Contains(TEXT("offer_bound")));
-
-    Content.Progression.WorkshopCapacityBase=2;
-    Links=Preview(View);
-    TestTrue(TEXT("A full workshop offers no stored component on the newly learned slot"),Links.bLearned&&Links.Components.IsEmpty());
-    View.Components[1].bInstalled=false;
-    View.Components[3].bInstalled=View.Components[3].bEverInstalled=true;
-    View.Components[3].Target.Kind=ELDComponentTargetKind::Active;View.Components[3].Target.Definition=TEXT("offer_old");
-    Links=Preview(View);
-    TestTrue(TEXT("An installed component can move when its own slot is freed"),
-        Links.Components==TArray<FName>{FName(TEXT("offer_direct"))});
-    for(uint8 Slot=1;Slot<3;++Slot)
-    {
-        FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Slot;
-        Held.DefinitionId=Slot==1?FName(TEXT("offer_other1")):FName(TEXT("offer_other2"));
-    }
-    Links=Preview(View);
-    TestTrue(TEXT("A full set of active slots stores the choice and shows no links"),
-        Links.Failure==ELDGrowthReason::None&&!Links.bLearned&&Links.Components.IsEmpty());
-    TestTrue(TEXT("An unavailable catalog reports a failure rather than a valid empty result"),
-        LDWorkshop::LinkableComponents(TEXT("offer_new"),View,nullptr,LDProgression::EMatchStage::Live,ELDLifePhase::Alive).Failure
-            ==ELDGrowthReason::DataInvalid);
     return true;
 }
 
@@ -2575,27 +2062,18 @@ bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An airdrop blueprint names the event, the XP and the blueprint"),
         LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),1,200,ELDFieldRewardResult::Blueprint,TEXT("hud_fixture_bolt")),nullptr),
         FString(LDTerms::Airdrop)+TEXT("：")+XP+TEXT("，")+LDTerms::FieldRewardBlueprint(TEXT("hud_fixture_bolt")));
-    TestEqualSensitive(TEXT("A Boss scarce component without XP names only the component"),
-        LDHUD::FieldRewardNotice(Reward(TEXT("boss"),1,0,ELDFieldRewardResult::ScarceComponent,TEXT("hud_fixture_rare")),nullptr),
-        FString(LDTerms::Boss)+TEXT("：")+LDTerms::FieldRewardScarce(TEXT("hud_fixture_rare")));
-    TestEqualSensitive(TEXT("The common fallback names a plain component"),
-        LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),2,0,ELDFieldRewardResult::CommonComponent,TEXT("hud_fixture_fist")),nullptr),
-        FString(LDTerms::Airdrop)+TEXT("：")+LDTerms::FieldRewardCommon(TEXT("hud_fixture_fist")));
+    TestEqualSensitive(TEXT("A Boss card offer without XP readies its three-choice"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("boss"),1,0,ELDFieldRewardResult::CardOffer,TEXT("")),nullptr),
+        FString(LDTerms::Boss)+TEXT("：")+LDTerms::FieldRewardCards());
     TestEqualSensitive(TEXT("A high camp marker blueprint"),
         LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_high"),3,0,ELDFieldRewardResult::Blueprint,TEXT("hud_fixture_bolt")),nullptr),
         FString(LDTerms::FieldRewardHighCamp)+TEXT("：")+LDTerms::FieldRewardBlueprint(TEXT("hud_fixture_bolt")));
-    TestEqualSensitive(TEXT("An elite camp marker readies its two-choice"),
-        LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_elite"),4,0,ELDFieldRewardResult::ComponentChoice,TEXT("")),nullptr),
-        FString(LDTerms::FieldRewardEliteCamp)+TEXT("：")+LDTerms::FieldRewardChoiceReady());
+    TestEqualSensitive(TEXT("An elite camp marker readies its card three-choice"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_elite"),4,0,ELDFieldRewardResult::CardOffer,TEXT("")),nullptr),
+        FString(LDTerms::FieldRewardEliteCamp)+TEXT("：")+LDTerms::FieldRewardCards());
     TestEqualSensitive(TEXT("An empty active pool keeps the blueprint for later"),
         LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_high"),5,0,ELDFieldRewardResult::BlueprintHeld,TEXT("")),nullptr),
         FString(LDTerms::FieldRewardHighCamp)+TEXT("：")+LDTerms::FieldRewardBlueprintHeld());
-    {
-        FLDDemoContentDefinitions Content;Content.Parameters.EmptyComponentPoolPoints=2;
-        TestEqualSensitive(TEXT("An empty material pool names the approved points"),
-            LDHUD::FieldRewardNotice(Reward(TEXT("boss"),6,0,ELDFieldRewardResult::PoolPoints,TEXT("")),&Content),
-            FString(LDTerms::Boss)+TEXT("：")+LDTerms::FieldRewardPoolPoints(2));
-    }
     TestEqualSensitive(TEXT("XP alone is still told"),LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),7,200,ELDFieldRewardResult::None,TEXT("")),nullptr),
         FString(LDTerms::Airdrop)+TEXT("：")+XP);
     TestTrue(TEXT("A blueprint result without its definition never claims a name"),
@@ -2605,7 +2083,7 @@ bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
 
     // New entries since a known count, oldest first.
     FLDProgressionView View;View.bValid=true;View.Generation=3;
-    View.FieldRewards={Reward(TEXT("airdrop"),1,200,ELDFieldRewardResult::Blueprint,TEXT("a")),Reward(TEXT("boss"),1,0,ELDFieldRewardResult::ScarceComponent,TEXT("b"))};
+    View.FieldRewards={Reward(TEXT("airdrop"),1,200,ELDFieldRewardResult::Blueprint,TEXT("a")),Reward(TEXT("boss"),1,0,ELDFieldRewardResult::CardOffer,TEXT(""))};
     TArray<FLDFieldRewardView> Fresh=LDHUD::NewFieldRewards(View,1);
     TestTrue(TEXT("Entries past the known count"),Fresh.Num()==1&&Fresh[0].Event==FName(TEXT("boss")));
     TestTrue(TEXT("Nothing past the end"),LDHUD::NewFieldRewards(View,2).IsEmpty()&&LDHUD::NewFieldRewards(View,5).IsEmpty());
@@ -2614,7 +2092,7 @@ bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
     // The watch: the first view of a match primes, later entries are told once, another match's view tells nothing.
     LDHUD::FFieldRewardWatch Watch;
     TestTrue(TEXT("The first view primes and replays nothing"),Watch.Observe(&View,3).IsEmpty());
-    View.FieldRewards.Add(Reward(TEXT("camp_marker_elite"),2,0,ELDFieldRewardResult::ComponentChoice,TEXT("")));
+    View.FieldRewards.Add(Reward(TEXT("camp_marker_elite"),2,0,ELDFieldRewardResult::CardOffer,TEXT("")));
     Fresh=Watch.Observe(&View,3);
     TestTrue(TEXT("A new entry is told"),Fresh.Num()==1&&Fresh[0].Event==FName(TEXT("camp_marker_elite"))&&Fresh[0].Serial==2);
     TestTrue(TEXT("The same view tells it only once"),Watch.Observe(&View,3).IsEmpty());
@@ -2624,195 +2102,13 @@ bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
     View.Generation=4;
     TestTrue(TEXT("A new match primes again"),Watch.Observe(&View,4).IsEmpty());
 
-    // The 构筑 button is lit by pending component choices.
+    // The 构筑 button is lit by a pending card offer.
     FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=5;
-    FLDComponentChoiceView& Choice=Pending.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid(1,2,3,4);
-    Choice.Options={FName(TEXT("hud_fixture_a")),FName(TEXT("hud_fixture_b"))};
+    Pending.bHasCardOffer=true;Pending.CardOffer.OfferId=FGuid(1,2,3,4);Pending.QueuedCardOffers=2;
+    Pending.CardOffer.Options={FName(TEXT("hud_fixture_a")),FName(TEXT("hud_fixture_b")),FName(TEXT("hud_fixture_c"))};
     const LDHUD::FGrowthPending Counts=LDHUD::GrowthPending(&Pending,5,nullptr);
-    TestTrue(TEXT("A pending component choice lights the button"),Counts.Any()&&Counts.ComponentChoices==1);
-    TestFalse(TEXT("Options not owned leave the points closed"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
-    FLDComponentInstanceView& HeldA=Pending.Components.AddDefaulted_GetRef();HeldA.DefinitionId=TEXT("hud_fixture_a");
-    TestFalse(TEXT("One free option still leaves the points closed"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
-    FLDComponentInstanceView& HeldB=Pending.Components.AddDefaulted_GetRef();HeldB.DefinitionId=TEXT("hud_fixture_b");
-    TestTrue(TEXT("Every option owned opens the points"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
-    return true;
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMaterialServicesTest,"Lockdown.Rules.HUDMaterialServices",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
-{
-    // #198 G panel hints: the component choice follows the active choice's gate, FillGap and Dismantle the rest window.
-    using EStage=LDProgression::EMatchStage;
-    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive);
-    TestTrue(TEXT("A rest build window opens the choice and both material services"),Gate.bCanComponentChoice&&Gate.bCanFillGap&&Gate.bCanDismantle);
-    const LDHUD::FBuildGateView Field=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive);
-    TestTrue(TEXT("In combat the choice is still taken; the material services wait for a rest"),Field.bCanComponentChoice&&!Field.bCanFillGap&&!Field.bCanDismantle
-        &&Field.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Field.DismantleBlocked==Field.FillGapBlocked);
-    TestTrue(TEXT("A dead contender still takes the choice"),LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead).bCanComponentChoice);
-    const LDHUD::FBuildGateView Locked=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive);
-    TestTrue(TEXT("#222: a locked rest step still takes the choice and refuses both services with the lock"),Locked.bCanComponentChoice
-        &&!Locked.bCanFillGap&&!Locked.bCanDismantle&&Locked.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
-
-    // A private fixture: one mod whose only entry is an unowned common base, three common bases and a scarce one.
-    FLDDemoContentDefinitions Content;
-    Content.Parameters.FillGapPoints=4;Content.Parameters.DismantleInputCount=3;Content.Parameters.EmptyComponentPoolPoints=2;
-    const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoComponentPool Pool)->FLDDemoComponentDefinition&
-    {
-        FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
-        Row.Id=Id;Row.NativeId=uint8(Content.Components.Num());Row.Kind=Kind;Row.Pool=Pool;
-        return Row;
-    };
-    AddComponent(TEXT("hud_gap_base_a"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Common);
-    AddComponent(TEXT("hud_gap_base_b"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Common);
-    AddComponent(TEXT("hud_gap_base_c"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Common);
-    AddComponent(TEXT("hud_gap_rare"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Scarce);
-    AddComponent(TEXT("hud_gap_mod"),ELDDemoComponentKind::Mod,ELDDemoComponentPool::Common).TargetComponents={TEXT("hud_gap_base_a")};
-    const auto Owned=[](const TCHAR* Id){FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;return View;};
-    FLDProgressionView View;View.bValid=true;View.Generation=2;View.Level=3;View.UnspentPoints=5;
-    View.Components={Owned(TEXT("hud_gap_base_b")),Owned(TEXT("hud_gap_mod")),Owned(TEXT("hud_gap_rare"))};
-    LDHUD::FMaterialServicesView Services=LDHUD::MaterialServices(View,&Content,Gate);
-    TestTrue(TEXT("The never-enabled mod without an entry is the gap, filled by its unowned base"),Services.Gaps.Num()==1
-        &&Services.Gaps[0].Target==FName(TEXT("hud_gap_mod"))&&Services.Gaps[0].Fillers==TArray<FName>{FName(TEXT("hud_gap_base_a"))});
-    TestTrue(TEXT("FillGap may be sent with the price in unspent points"),Services.FillGapPoints==4&&Services.FillGapBlocked.IsEmpty());
-    TestTrue(TEXT("Only owned common components are dismantle candidates"),Services.DismantleCandidates==TArray<FName>{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_mod"))});
-    TestEqualSensitive(TEXT("Fewer than the approved count refuses the dismantle"),Services.DismantleBlocked,LDTerms::DismantleTooFew(3));
-    View.UnspentPoints=3;
-    TestEqualSensitive(TEXT("Not enough unspent points names the price"),LDHUD::MaterialServices(View,&Content,Gate).FillGapBlocked,
-        FString(TEXT("未分配点数不够（要 4 点）")));
-    TestEqualSensitive(TEXT("The field names the rest window first"),LDHUD::MaterialServices(View,&Content,Field).FillGapBlocked,Field.FillGapBlocked);
-    TestFalse(TEXT("Without the catalog nothing is offered"),LDHUD::MaterialServices(View,nullptr,Gate).FillGapBlocked.IsEmpty());
-    View.UnspentPoints=5;
-    View.Components.Add(Owned(TEXT("hud_gap_base_c")));
-    Services=LDHUD::MaterialServices(View,&Content,Gate);
-    TestTrue(TEXT("Three owned common components open the dismantle"),Services.DismantleCandidates.Num()==3&&Services.DismantleBlocked.IsEmpty());
-    TestTrue(TEXT("Three distinct owned common components are a legal input"),
-        LDHUD::DismantleSelectionRefusal(View,&Content,{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_base_c")),FName(TEXT("hud_gap_mod"))}).IsEmpty());
-    TestFalse(TEXT("A scarce component is not accepted"),
-        LDHUD::DismantleSelectionRefusal(View,&Content,{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_base_c")),FName(TEXT("hud_gap_rare"))}).IsEmpty());
-    TestFalse(TEXT("A repeated component is not accepted"),
-        LDHUD::DismantleSelectionRefusal(View,&Content,{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_mod"))}).IsEmpty());
-
-    // The dismantle preview: installs on a surrendered host (or on one thereby sent back) return to the inventory.
-    {
-        FLDProgressionView Built;Built.bValid=true;Built.Generation=2;
-        const auto Installed=[](const TCHAR* Id,const TCHAR* Host,const TCHAR* Base)
-        {
-            FLDComponentInstanceView Row;Row.DefinitionId=Id;Row.bInstalled=Row.bEverInstalled=true;
-            if(Host[0]){Row.Target.Kind=ELDComponentTargetKind::Component;Row.Target.Definition=Host;}
-            if(Base[0]){Row.Target.BoundComponent=Base;}
-            return Row;
-        };
-        Built.Components={Installed(TEXT("host"),TEXT(""),TEXT("")),Installed(TEXT("on_host"),TEXT("host"),TEXT("")),
-            Installed(TEXT("on_on_host"),TEXT("on_host"),TEXT("")),Installed(TEXT("repeats_host"),TEXT(""),TEXT("host")),
-            Installed(TEXT("elsewhere"),TEXT("other"),TEXT(""))};
-        TestTrue(TEXT("Every install depending on the surrendered host returns, in the view's order"),
-            LDHUD::DismantleDetached(Built,{FName(TEXT("host"))})==TArray<FName>{FName(TEXT("on_host")),FName(TEXT("on_on_host")),FName(TEXT("repeats_host"))});
-        TestTrue(TEXT("Surrendering a leaf sends nothing back"),LDHUD::DismantleDetached(Built,{FName(TEXT("on_on_host"))}).IsEmpty());
-    }
-
-    // Receipts name what was received, paid and removed; a missing field never reads as success.
-    FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    Receipt.Kind=ELDBuildCommandKind::ComponentChoice;Receipt.ComponentId=TEXT("hud_gap_base_a");
-    TestEqualSensitive(TEXT("A component choice names the component taken"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentTaken(TEXT("hud_gap_base_a")));
-    Receipt.ComponentId=NAME_None;
-    TestEqualSensitive(TEXT("A component choice without a component took the points"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        FString(LDTerms::ComponentChoiceTookPoints));
-    Receipt.Kind=ELDBuildCommandKind::FillGap;Receipt.ComponentId=TEXT("hud_gap_base_a");Receipt.ServicePointsPaid=4;
-    TestEqualSensitive(TEXT("A gap fill names the price and the base"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::GapFilled(4,TEXT("hud_gap_base_a")));
-    Receipt.ServicePointsPaid=0;
-    TestEqualSensitive(TEXT("A gap fill without its payment claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
-    Receipt.Kind=ELDBuildCommandKind::Dismantle;Receipt.ComponentId=TEXT("new");
-    Receipt.RemovedComponents={FName(TEXT("a")),FName(TEXT("b")),FName(TEXT("c"))};Receipt.UninstalledComponents={FName(TEXT("d"))};
-    TestEqualSensitive(TEXT("A dismantle names the removed, the received and the uninstalled"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        LDTerms::Dismantled(TEXT("a、b、c"),TEXT("new"),TEXT("d")));
-    Receipt.RemovedComponents.Reset();
-    TestEqualSensitive(TEXT("A dismantle without its removed list claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),
-        FString(TEXT("回执缺少结果，请以当前状态为准。")));
-    // Every #198 G reason names itself; none falls through to the unknown line or repeats another.
-    TSet<FString> Seen;
-    for(const ELDGrowthReason Reason:{ELDGrowthReason::NoComponentChoice,ELDGrowthReason::ComponentOwned,ELDGrowthReason::NotAGap,ELDGrowthReason::NoGapFiller,
-        ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate,
-        ELDGrowthReason::FinalLocked,ELDGrowthReason::NoFinalMod,ELDGrowthReason::FinalModUnavailable,ELDGrowthReason::ComponentColumnFull})
-    {
-        const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
-        TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);
-    }
-    return true;
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDChoiceTrayTest,"Lockdown.Rules.HUDChoiceTray",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDChoiceTrayTest::RunTest(const FString& Parameters)
-{
-    // A card shows only its icon and name; the popup carries the kind, the full rule, the keywords (as plain text) and what
-    // a click does when that is not the plain take.
-    LDHUD::FActiveCardView Card;Card.Name=TEXT("肘击");Card.Target=TEXT("单体");Card.Cost=TEXT("劲 30");Card.bKnown=true;
-    Card.SentencePlain=TEXT("造成 10 点伤害并减速");Card.Keywords={TEXT("<b>减速</>：移速降低 &lt;30%&gt;")};
-    const LDHUD::FActionDetailView Offer=LDHUD::ActiveChoiceDetail(Card,false,LDTerms::LearnInto(TEXT("Q")));
-    TestEqualSensitive(TEXT("An offer popup is named after the active"),Offer.Name,FString(TEXT("肘击")));
-    TestEqualSensitive(TEXT("An offer popup names the kind, the targeting and the cost"),Offer.Summary,FString(TEXT("技能 · 单体 · 劲 30")));
-    TestEqualSensitive(TEXT("The rule, its plain keyword lines and the outcome follow"),Offer.Body,
-        FString(TEXT("造成 10 点伤害并减速\n\n减速：移速降低 <30%>\n\n"))+LDTerms::LearnInto(TEXT("Q")));
-    TestTrue(TEXT("A blueprint card says it is a blueprint"),LDHUD::ActiveChoiceDetail(Card,true,FString()).Summary.StartsWith(LDTerms::Blueprint));
-    Card.bKnown=false;
-    TestEqualSensitive(TEXT("An unknown active invents no targeting or cost"),LDHUD::ActiveChoiceDetail(Card,false,FString()).Summary,FString(TEXT("技能")));
-    LDHUD::FComponentCardView Part;Part.Name=TEXT("铁拳");Part.SentencePlain=TEXT("普攻多打 5 点");
-    const LDHUD::FActionDetailView Taken=LDHUD::ComponentChoiceDetail(Part,FString());
-    TestTrue(TEXT("A plain take adds no outcome line"),Taken.Summary==LDTerms::Component&&Taken.Body==TEXT("普攻多打 5 点"));
-    TestTrue(TEXT("A component that cannot be taken says why"),LDHUD::ComponentChoiceDetail(Part,LDTerms::ComponentChoiceOwned).Body.EndsWith(LDTerms::ComponentChoiceOwned));
-
-    TestEqualSensitive(TEXT("One queued opportunity shows only the current dot"),LDHUD::OfferQueueDots(1),FString(TEXT("●")));
-    TestEqualSensitive(TEXT("Queued opportunities include the current one"),LDHUD::OfferQueueDots(3),FString(TEXT("● ○ ○")));
-    TestTrue(TEXT("No queued opportunities show no dots"),LDHUD::OfferQueueDots(0).IsEmpty());
-    LDHUD::FOfferMotionTicket Ticket;
-    Ticket.Match=3;Ticket.Life=2;Ticket.Request=17;Ticket.Offer=FGuid(1,2,3,4);Ticket.Option=TEXT("active_a");
-    FLDBuildReceipt Receipt;
-    Receipt.Header.Generation=3;Receipt.Header.OriginalLife=2;Receipt.Header.RequestId=17;
-    Receipt.Header.Family=ELDGrowthFamily::Build;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    Receipt.Kind=ELDBuildCommandKind::ActiveChoice;Receipt.OfferId=Ticket.Offer;Receipt.DefinitionId=Ticket.Option;
-    Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=1;
-    TestTrue(TEXT("The chosen card animates for its applied learned receipt"),Ticket.Matches(Receipt,3,2));
-    Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;
-    TestTrue(TEXT("The chosen card may animate to the blueprint area"),Ticket.Matches(Receipt,3,2));
-    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
-    TestFalse(TEXT("A rejected receipt cannot animate success"),Ticket.Matches(Receipt,3,2));
-    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Header.RequestId=18;
-    TestFalse(TEXT("Another request cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
-    Receipt.Header.RequestId=17;Receipt.OfferId=FGuid(4,3,2,1);
-    TestFalse(TEXT("Another opportunity cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
-    Receipt.OfferId=Ticket.Offer;Receipt.DefinitionId=TEXT("active_b");
-    TestFalse(TEXT("Another skill cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
-    Receipt.DefinitionId=Ticket.Option;
-    TestFalse(TEXT("A prior life cannot animate after respawn"),Ticket.Matches(Receipt,3,3));
-    Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=3;
-    TestFalse(TEXT("A learned receipt without a valid skill slot cannot animate"),Ticket.Matches(Receipt,3,2));
-    Ticket.Kind=ELDBuildCommandKind::SkipActiveOffer;Ticket.Option=NAME_None;
-    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsAwarded=5;
-    TestTrue(TEXT("A skipped offer is consumed only by its matching applied receipt"),Ticket.Matches(Receipt,3,2));
-    Receipt.PointsAwarded=0;
-    TestFalse(TEXT("A skip receipt without its award does not confirm the opportunity"),Ticket.Matches(Receipt,3,2));
-    Receipt.PointsAwarded=5;Receipt.Header.RequestId=18;
-    TestFalse(TEXT("A different request cannot confirm the skipped offer"),Ticket.Matches(Receipt,3,2));
-    Receipt.Header.RequestId=17;Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
-    TestFalse(TEXT("A rejected skip cannot animate points"),Ticket.Matches(Receipt,3,2));
-    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    TestFalse(TEXT("A skip from a prior life cannot animate points"),Ticket.Matches(Receipt,3,3));
-
-    // Component rows turn into icon tiles once they hold more than ChoiceTrayCardLimit cards together.
-    FLDProgressionView View;View.bValid=true;View.Generation=3;
-    for(int32 Index=0;Index<LDHUD::ChoiceTrayCardLimit;++Index){View.OpeningBaseOptions.Add(FName(*FString::Printf(TEXT("base_%d"),Index)));}
-    View.bOpeningBasePending=true;
-    TestFalse(TEXT("Up to the limit the cards keep their names"),LDHUD::ChoiceTrayTiles(View));
-    FLDComponentChoiceView& Choice=View.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid(1,2,3,4);Choice.Options={FName(TEXT("mod_a"))};
-    TestTrue(TEXT("One card past the limit makes a grid"),LDHUD::ChoiceTrayTiles(View));
-    View.bOpeningBasePending=false;
-    TestFalse(TEXT("A taken opening pick no longer counts"),LDHUD::ChoiceTrayTiles(View));
-    View.Components.AddDefaulted_GetRef().DefinitionId=TEXT("mod_a");
-    const FLDComponentChoiceView Owned=View.ComponentChoices[0];
-    for(int32 Index=0;Index<3;++Index){View.ComponentChoices.Add(Owned);}
-    TestTrue(TEXT("An all-owned choice counts its points card too"),LDHUD::ChoiceTrayTiles(View));
-    TestEqualSensitive(TEXT("Service admission refusal gives the exact proximity instruction"),
-        LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable),FString(TEXT("请靠近对应的服务NPC")));
-    TestTrue(TEXT("Window and lock refusals remain distinct from NPC proximity"),
-        LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)!=LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable)
-        &&LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked)!=LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable));
+    TestTrue(TEXT("A pending card offer lights the button and counts the queue"),Counts.Any()&&Counts.bCardOffer&&Counts.CardOffers==2);
+    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&Pending,6,nullptr).Any());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDevTestPanelTest,"Lockdown.Rules.HUDDevTestPanel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

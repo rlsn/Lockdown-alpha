@@ -124,7 +124,6 @@ inline constexpr TCHAR WorkshopRadius[]=TEXT("半径");
 inline constexpr TCHAR WorkshopCount[]=TEXT("次数");
 inline constexpr TCHAR WorkshopBase[]=TEXT("基础值");
 inline constexpr TCHAR WorkshopDamageScale[]=TEXT("伤害倍率");
-inline constexpr TCHAR WorkshopContactScale[]=TEXT("接触伤害倍率");
 inline constexpr TCHAR WorkshopCooldown[]=TEXT("冷却");
 inline constexpr TCHAR WorkshopRange[]=TEXT("射程");
 inline constexpr TCHAR WorkshopProjectileRadius[]=TEXT("投射物半径");
@@ -403,7 +402,7 @@ inline constexpr TCHAR NotCollected[]=TEXT("未采集");
 // 按构筑版本汇总的事实，顺序与 ELDBlueprintFact 一致（LDBlueprintPanel.cpp 静态核对数量）。
 inline constexpr const TCHAR* BlueprintFactLabels[]={
     TEXT("造成伤害"),TEXT("其中对玩家"),TEXT("承受伤害"),TEXT("自身护盾吸收"),TEXT("生命损失"),TEXT("一次性回复"),TEXT("获得护盾"),
-    TEXT("普攻"),TEXT("施法"),TEXT("自然回复"),TEXT("还款"),TEXT("减免"),TEXT("触发"),TEXT("拒绝"),
+    TEXT("普攻"),TEXT("施法"),TEXT("自然回复"),TEXT("减免"),TEXT("触发"),TEXT("拒绝"),
 };
 
 // 卡面关键词：卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。

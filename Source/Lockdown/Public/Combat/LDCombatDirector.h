@@ -418,9 +418,8 @@ struct FLDBodyCombatState
     TArray<FLDCombatRoot> Knockbacks;
     // Increments on every knockback that lands; Navigation drops the body's current order when it changes.
     uint64 KnockbackSerial=0;
-    // The amount the current shield record was granted with (item_privacy_screen answers a share of it).
+    // The amount the current shield record was granted with.
     int64 ShieldGrantedP2=0;
-    int64 RetortReadyAtMs=0;
     int64 KeystonePhysiqueReadyAtMs=0;
     int64 KeystoneThickSkinReadyAtMs=0;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
@@ -1139,7 +1138,7 @@ private:
     // The one hit payload a hostile release snapshots for every target of it (damage terms, source AD/AP, controls,
     // keyword and element payload, amplification and the mods' package multiplier), before its delivery.
     bool BuildReleasePayload(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
-        const FVector& ReleaseFoot, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+        const FVector& ReleaseFoot, const FGuid& EffectId, uint64 Token,
         const TSharedPtr<FLDCombatCastLedger>& CastLedger, FLDCombatHit& Out, FString& Error) const;
     // The standard deliveries of a released payload that StartSkillDelivery did not take: a projectile, a unit hit (with
     // M01's cone and S10's chain), an S09 line or every body of the self area named at release.
@@ -1251,8 +1250,6 @@ private:
     // records its amount (ShieldGrantedP2).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
-    // A shield emptied by Hit: item_privacy_screen's retort to the breaker.
-    bool OnShieldBroken(FLDBodyCombatState& Owner, const FLDCombatHit& Hit, int64 GrantedP2, int64 NowMs, FString& Error);
     // The forced displacement of one committed knockback (control kind Knockback): server root motion along the ground
     // that stops at the last legal position, every voluntary action blocked while it lasts, the unreleased action
     // abandoned and the current order dropped (KnockbackSerial).

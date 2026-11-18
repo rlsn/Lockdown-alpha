@@ -133,7 +133,7 @@ public:
     // The dragged card's currently visible face, in absolute coordinates.
     bool HeldBox(FSlateRect& Out) const;
     // The cards a pending service confirm would take off (a replaced or forgotten skill's): their faces light orange.
-    void SetWarnings(const TArray<FName>& Cards){Warnings=Cards;}
+    void SetWarnings(const TArray<FName>& Keys){Warnings=Keys;}
     // In an engagement window a newly received card only flies to the stack, without its name strip.
     void SetEngaged(bool bInEngaged){bEngaged=bInEngaged;}
     // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.

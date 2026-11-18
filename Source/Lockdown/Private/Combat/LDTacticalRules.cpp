@@ -480,14 +480,13 @@ namespace LDTactical
     }
 
     FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses, const TArray<FLDCombatSlow>& Slows,
-        const TOptional<FLDLowHPBonusTerm>& LowHP, int64 HPP2, int64 MaxHPP2, int64 AtMs)
+        int64 AtMs)
     {
         FLDTemporaryAttributeTerms Terms;
         for (const auto& Bonus : Bonuses)
         {
             if (Bonus.ExpiresAtMs > AtMs) { Terms.Bonuses.Append(Bonus.Stats); }
         }
-        if (LowHP.IsSet() && BelowHPThreshold(HPP2, MaxHPP2, LowHP->ThresholdBp)) { Terms.Bonuses.Append(LowHP->Stats); }
         Terms.MoveSlowBp = StrongestSlowBp(Slows, AtMs);
         return Terms;
     }

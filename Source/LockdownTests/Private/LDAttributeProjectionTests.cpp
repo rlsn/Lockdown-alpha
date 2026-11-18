@@ -836,39 +836,6 @@ bool RunTemporaryTerms(FAutomationTestBase& Test)
 
 // The conditional low-HP bonus (low_hp_stat_bonus, B15): its stats join the temporary terms only strictly below the
 // threshold, and never the build projection itself.
-bool RunLowHPTerm(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadAttributeFixture(Test, Catalog))
-    {
-        return false;
-    }
-    FLDAttributeProjection Plain;
-    if (!ProjectBuild(Test, TEXT("Level 6"), MakeBuild(6), *Catalog, Plain))
-    {
-        return false;
-    }
-    FLDLowHPBonusTerm Term;
-    Term.ThresholdBp = 5000;
-    Term.Stats = {TempBonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 2000), TempBonus(ELDDemoBonusStat::MoveSpeedBonusRatio, 1000)};
-    const TOptional<FLDLowHPBonusTerm> Held(Term);
-    FLDAttributeProjection Pushed;
-    const FLDTemporaryAttributeTerms Low = LDTactical::TemporaryTerms({}, {}, Held, 49, 100, 0);
-    if (!Apply(Test, TEXT("Below the threshold"), Plain, Low, *Catalog, Pushed)) { return false; }
-    const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    const int64 LevelSpeedBp = 5 * P.AttackSpeedPerLevelBp;
-    bool bGood = Test.TestTrue(TEXT("Below the threshold attack speed adds the term's ratio to the level ratio"),
-        SameRational(Pushed.Final.AttackSpeed, P.AttackSpeed.Base.Numerator * (10000 + LevelSpeedBp + 2000),
-            P.AttackSpeed.Base.Denominator * 10000));
-    bGood &= Test.TestTrue(TEXT("Below the threshold move speed rises by the term's ratio"),
-        SameRational(Pushed.Final.MoveSpeedCmPerSec, P.MoveSpeedCmPerSec.Base.Numerator * 11000, P.MoveSpeedCmPerSec.Base.Denominator * 10000));
-    bGood &= Test.TestTrue(TEXT("Exactly at the threshold the term adds nothing"),
-        LDTactical::TemporaryTerms({}, {}, Held, 50, 100, 0).Bonuses.IsEmpty());
-    bGood &= Test.TestTrue(TEXT("At full HP the term adds nothing"), LDTactical::TemporaryTerms({}, {}, Held, 100, 100, 0).Bonuses.IsEmpty());
-    bGood &= Test.TestTrue(TEXT("Without a held term nothing is added"),
-        LDTactical::TemporaryTerms({}, {}, TOptional<FLDLowHPBonusTerm>(), 1, 100, 0).Bonuses.IsEmpty());
-    return bGood;
-}
 }
 }
 
@@ -920,15 +887,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAttributeProjectionTemporaryTermsTest,
 bool FLDDemoAttributeProjectionTemporaryTermsTest::RunTest(const FString& Parameters)
 {
     return LDAttributeProjectionTests::RunTemporaryTerms(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAttributeProjectionLowHPTermTest,
-    "Lockdown.Rules.DemoAttributeProjection.LowHPTerm",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoAttributeProjectionLowHPTermTest::RunTest(const FString& Parameters)
-{
-    return LDAttributeProjectionTests::RunLowHPTerm(*this);
 }
 
 #endif

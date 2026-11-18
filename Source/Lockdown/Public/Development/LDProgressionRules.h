@@ -355,8 +355,6 @@ namespace LDProgression
 
     // ---- Cards (spec §6) ----
 
-    // The active of the consumed opening opportunity (ordinal 1), None before the opening choice.
-    LOCKDOWN_API FName OpeningActive(const FLDProgressionState& Progression);
     // Whether a card may be installed, uninstalled or rebound now: LearnGate (open in every stage of a running match).
     LOCKDOWN_API ELDGrowthReason InstallGate(const FBuildContext& Context);
 
@@ -383,7 +381,7 @@ namespace LDProgression
     // Count more offers of Source join the queue; OutFirst..OutLast are their ordinals. CapacityExceeded past the uint16 range.
     LOCKDOWN_API ELDGrowthReason QueueCardOffers(FLDProgressionState& Progression, ELDCardOfferSource Source, int32 Count,
         uint16& OutFirst, uint16& OutLast);
-    // Draws the head offer when none is current, one is queued and the opening active is chosen (bOutDrawn); the revision is
+    // Draws the head offer when none is current, one is queued and the opening opportunity is resolved (bOutDrawn); the revision is
     // the next card offer revision. The carried lock joins it and is consumed.
     LOCKDOWN_API ELDGrowthReason RefreshCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, bool& bOutDrawn);

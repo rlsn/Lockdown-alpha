@@ -171,8 +171,7 @@ bool Project(const FLDDemoContentSnapshot& Content,const FLDGrowthBuild& Build,c
     };
     const TArray<FLDCombatSlow> MoveSlows=CopySlows(Combat.PreviewMoveSlows);
     const TArray<FLDCombatSlow> AttackSlows=CopySlows(Combat.PreviewAttackSlows);
-    FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Bonuses,MoveSlows,Out.Build.LowHPBonus,
-        Out.HpP2,Out.Build.Final.MaxHPP2,Combat.AsOfMs);
+    FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Bonuses,MoveSlows,Combat.AsOfMs);
     Terms.AttackSlowBp=LDTactical::StrongestSlowBp(AttackSlows,Combat.AsOfMs);
     const FLDAttributeProjectionResult Effective=LDAttributeProjection::ApplyTemporary(Out.Build,Terms,Content);
     if(!Effective.IsSuccess())
@@ -269,10 +268,7 @@ bool Compiled(const FLDDemoContentSnapshot& Content,const FState& State,const FL
         Out.Target=Variant?Variant->Target:Ability->Target;Out.Values=*Values;Out.WindupMs=Variant?Variant->WindupMs:Ability->WindupMs;
         if(!LDCombatSourceRules::FinalCooldownCost(&Content,State.Input.FinalMod,Combat.bPreviewFinalField,Source,Out.Values.CooldownMs,Error)){return false;}
     }
-    if(!LDCombatSourceRules::CompileWorkshopActive(State.Build,Source,&Content,Out,Error)){return false;}
-    bool bWidened=false;
-    if(!LDCombatSourceRules::WidenWorkshopTerms(State.Effective,Source,&Content,Combat.PreviewWideToken,Combat.AsOfMs,Out,bWidened,Error))
-    {return false;}
+    if(!LDCombatSourceRules::CompileCardActive(State.Build,Source,&Content,Out,Error)){return false;}
     if(bInnate){LDCombatSourceRules::ScaleInnateDash(Dash,Out);}
     return true;
 }
@@ -327,8 +323,6 @@ bool Ability(const FLDDemoContentSnapshot& Content,const FState& Before,const FS
     }
     if(Old.PackageScaleBp!=New.PackageScaleBp)
     {Add(Lines,Label(LDTerms::WorkshopDamageScale),Percent(Old.PackageScaleBp),Percent(New.PackageScaleBp),Impact(Old.PackageScaleBp,New.PackageScaleBp,true));}
-    if(Old.ContactScaleBp!=New.ContactScaleBp)
-    {Add(Lines,Label(LDTerms::WorkshopContactScale),Percent(Old.ContactScaleBp),Percent(New.ContactScaleBp),Impact(Old.ContactScaleBp,New.ContactScaleBp,true));}
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
     int64 OldCooldown=OldDash.CooldownMs,NewCooldown=NewDash.CooldownMs;
     if(!bInnate&&(!LDTactical::CooldownDurationMs(Old.Values.CooldownMs,Before.Effective.Final.CooldownHasteP2,

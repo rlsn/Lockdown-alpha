@@ -848,8 +848,7 @@ void ULDChoicesPanel::RefreshOffer()
             {
                 const bool bLink=Links.IsValidIndex(Link);
                 if(!bLink){GrowthShown(Card.LinkIcons[Link],false);continue;}
-                const uint8 Kind=uint8(LDWorkshop::CardFacts(Links[Link],LatestContent).Kind);
-                LDUIIcons::Apply(Card.LinkIcons[Link],LDHUD::ContentIconId(LatestContent,Links[Link].ToString()),Kind==2?17.f:Kind==1?7.f:5.f);
+                LDUIIcons::Apply(Card.LinkIcons[Link],LDHUD::ContentIconId(LatestContent,Links[Link].ToString()),7.f);
             }
             Card.Links->SetToolTipText(FText::FromString(LinksLine));
         }

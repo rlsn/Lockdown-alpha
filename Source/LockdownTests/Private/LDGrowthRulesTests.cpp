@@ -182,43 +182,42 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         [](FLDBuildCommand& Mutated) { Mutated.PointCounts[4] = 1; });
     bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("PointCounts length"), Build,
         [](FLDBuildCommand& Mutated) { Mutated.PointCounts.Pop(); });
-    // #198 B component terms.
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Component"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.Component = GrowthTestRawWire(TEXT("component_dirty_trick")); });
+    // Spec §6.4 card terms.
     bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("bInstallIfPossible"), Build,
         [](FLDBuildCommand& Mutated) { Mutated.bInstallIfPossible = true; });
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("TargetKind"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.TargetKind = ELDComponentTargetKind::Dash; });
+    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("CardSerial"), Build, [](FLDBuildCommand& Mutated) { Mutated.CardSerial = 3; });
+    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("CardTarget"), Build,
+        [](FLDBuildCommand& Mutated) { Mutated.CardTarget = ELDCardTargetKind::Dash; });
     bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("TargetDefinition"), Build,
         [](FLDBuildCommand& Mutated) { Mutated.TargetDefinition = GrowthTestRawWire(TEXT("active_elbow")); });
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("TargetSegment"), Build, [](FLDBuildCommand& Mutated) { Mutated.TargetSegment = 1; });
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("BoundActive"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.BoundActive = GrowthTestRawWire(TEXT("active_elbow")); });
     bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Element"), Build,
         [](FLDBuildCommand& Mutated) { Mutated.Element = ELDDemoElement::Fire; });
-    // #198 G service terms.
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Filler"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.Filler = GrowthTestRawWire(TEXT("component_fist_fire")); });
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Surrendered"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.Surrendered.Add(GrowthTestRawWire(TEXT("component_fist_fire"))); });
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Replacing"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.Replacing = GrowthTestRawWire(TEXT("component_fist_water")); });
-    // Client-sent component enums are whitelisted, never mapped to a neighbour.
+    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("ReplacingSerial"), Build,
+        [](FLDBuildCommand& Mutated) { Mutated.ReplacingSerial = 2; });
+    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("FinalTargetKind"), Build,
+        [](FLDBuildCommand& Mutated) { Mutated.FinalTargetKind = ELDFinalModTargetKind::Dash; });
+    // Client-sent enums are whitelisted, never mapped to a neighbour.
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
-        ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::OpeningBase, ELDBuildCommandKind::InstallComponent,
-        ELDBuildCommandKind::UninstallComponent, ELDBuildCommandKind::ComponentChoice, ELDBuildCommandKind::FillGap,
-        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer, ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill})
+        ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::BuyNpcOffer, ELDBuildCommandKind::Respec,
+        ELDBuildCommandKind::ReplaceActive, ELDBuildCommandKind::ForgetActive, ELDBuildCommandKind::SkipActiveOffer,
+        ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill, ELDBuildCommandKind::PickCard, ELDBuildCommandKind::SkipCards,
+        ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::LockCard, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(29), uint8(255)})
+    // 10-13, 24 and 25 are the retired component commands.
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(24), uint8(25), uint8(29), uint8(36), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
     }
-    bGood &= Test.TestTrue(TEXT("Target kinds 0..4 are known, 5 is refused"),
-        LDGrowthWire::IsKnownTargetKind(ELDComponentTargetKind::Dash) && LDGrowthWire::IsKnownTargetKind(ELDComponentTargetKind::None)
-        && !LDGrowthWire::IsKnownTargetKind(static_cast<ELDComponentTargetKind>(5)));
+    bGood &= Test.TestTrue(TEXT("Card targets 0..4 are known, 5 is refused"),
+        LDGrowthWire::IsKnownCardTarget(ELDCardTargetKind::Body) && LDGrowthWire::IsKnownCardTarget(ELDCardTargetKind::None)
+        && !LDGrowthWire::IsKnownCardTarget(static_cast<ELDCardTargetKind>(5)));
+    bGood &= Test.TestTrue(TEXT("Final targets None, Active and Dash are known; the retired 2 and 3 are refused"),
+        LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Dash) && LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Active)
+        && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(2))
+        && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(3)));
     bGood &= Test.TestTrue(TEXT("Elements 0..3 are known, 4 is refused"),
         LDGrowthWire::IsKnownElement(ELDDemoElement::Electric) && LDGrowthWire::IsKnownElement(ELDDemoElement::None)
         && !LDGrowthWire::IsKnownElement(static_cast<ELDDemoElement>(4)));
@@ -237,7 +236,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
             LDGrowthWire::IsKnownFamily(static_cast<ELDGrowthFamily>(Retired)));
     }
     // Retired reasons keep their numbers reserved: none of them names a reason any more.
-    for (const uint16 Retired : {uint16(40), uint16(46), uint16(47), uint16(49), uint16(50), uint16(51), uint16(52), uint16(63), uint16(65)})
+    for (const uint16 Retired : {uint16(40), uint16(46), uint16(47), uint16(49), uint16(50), uint16(51), uint16(52), uint16(63), uint16(65), uint16(66), uint16(67), uint16(68)})
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Retired growth reason %u has no name"), uint32(Retired)),
             FString(LDGrowthWire::ReasonName(LDGrowthWire::Reason(Retired))), FString(TEXT("Unknown")));
@@ -246,8 +245,8 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         {ELDGrowthReason::SlotOccupied, 54}, {ELDGrowthReason::NoBlueprint, 55}, {ELDGrowthReason::NotEnoughPoints, 56},
         {ELDGrowthReason::NoActiveOffer, 57}, {ELDGrowthReason::PhaseClosed, 58}, {ELDGrowthReason::NotOwned, 60},
         {ELDGrowthReason::AlreadyInstalled, 61}, {ELDGrowthReason::NotInstalled, 62},
-        {ELDGrowthReason::InvalidTarget, 64}, {ELDGrowthReason::OpeningBaseUnavailable, 66},
-        {ELDGrowthReason::OpeningBaseTaken, 67}, {ELDGrowthReason::OpeningActiveFirst, 68}};
+        {ELDGrowthReason::InvalidTarget, 64}, {ELDGrowthReason::WorkshopFull, 151}, {ELDGrowthReason::NoCardOffer, 190},
+        {ELDGrowthReason::NoReroll, 191}, {ELDGrowthReason::NotInOffer, 192}};
     for (const TPair<ELDGrowthReason, uint16>& Row : NewReasons)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s travels as %u"), LDGrowthWire::ReasonName(Row.Key), uint32(Row.Value)),
@@ -492,7 +491,7 @@ bool GrowthTestPoints(FAutomationTestBase& Test, const FLDDemoContentDefinitions
     const TCHAR* What)
 {
     int64 Earned = -1;
-    const ELDGrowthReason Reason = LDProgression::EarnedPoints(Content, Level, XP, 0, Earned);
+    const ELDGrowthReason Reason = LDProgression::EarnedPoints(Content, Level, XP, Earned);
     return GrowthTestReason(Test, FString::Printf(TEXT("%s: outcome"), What), Reason, ELDGrowthReason::None)
         && Test.TestEqual(FString::Printf(TEXT("%s: earned points"), What), Earned, Expected);
 }
@@ -747,8 +746,8 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
             && StageError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("DevGrantReward is refused without the switch and issues no ticket"),
             Growth->DevGrantReward(Contender, 80, GrantError) == 0 && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
-        bGood &= Test.TestTrue(TEXT("Evaluation component grants are refused without the switch and issue no ticket"),
-            Growth->DevGrantEvaluationReward(Contender, 80, {FName(TEXT("component_punch_heal"))}, GrantError) == 0
+        bGood &= Test.TestTrue(TEXT("Evaluation level cards are refused without the switch and issue no ticket"),
+            Growth->DevGrantEvaluationReward(Contender, 80, {FName(TEXT("card_punch_heal"))}, GrantError) == 0
             && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("No ticket exists to poll after a refused grant"),
             Growth->DevGrantStatus(1, Detail) == ELDDevGrantStatus::Unknown);
@@ -891,25 +890,23 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= GrowthTestExactFields(Test, FLDProgressionView::StaticStruct(),
         {TEXT("bValid"), TEXT("Generation"), TEXT("Life"), TEXT("LifePhase"), TEXT("Level"), TEXT("MaxLevel"),
          TEXT("CumulativeXP"), TEXT("LevelThresholdXP"), TEXT("bHasNextThreshold"), TEXT("NextThresholdXP"),
-         TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("CombatInstalledRevision"), TEXT("UnspentPoints"), TEXT("EmptyPoolGrants"),
-         TEXT("StatPoints"), TEXT("Actives"),
+         TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("CombatInstalledRevision"), TEXT("UnspentPoints"),
+         TEXT("StatPoints"), TEXT("Actives"), TEXT("SkillPoints"),
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
-         TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Components"),
-         TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("CatalogDigest"),
-         TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
+         TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Cards"), TEXT("CardCapacity"),
+         TEXT("QueuedCardOffers"), TEXT("bHasCardOffer"), TEXT("CardOffer"), TEXT("CardRerolls"), TEXT("CatalogDigest"),
+         TEXT("PermanentSpentPoints"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
          TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
-         TEXT("bBuildLocked"), TEXT("SkillPoints")});
+         TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot"), TEXT("Branch")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
-    bGood &= GrowthTestExactFields(Test, FLDComponentInstanceView::StaticStruct(),
-        {TEXT("DefinitionId"), TEXT("Source"), TEXT("SourceLevel"), TEXT("bInstalled"), TEXT("bEverInstalled"), TEXT("Target"),
-         TEXT("bGapFilled")});
-    bGood &= GrowthTestExactFields(Test, FLDComponentTargetView::StaticStruct(),
-        {TEXT("Kind"), TEXT("Definition"), TEXT("Segment"), TEXT("Element"), TEXT("BoundActive"), TEXT("BoundComponent")});
-    bGood &= GrowthTestExactFields(Test, FLDComponentChoiceView::StaticStruct(),
-        {TEXT("ChoiceId"), TEXT("Event"), TEXT("Serial"), TEXT("Options")});
+    bGood &= GrowthTestExactFields(Test, FLDCardInstanceView::StaticStruct(),
+        {TEXT("Serial"), TEXT("DefinitionId"), TEXT("OfferOrdinal"), TEXT("Target")});
+    bGood &= GrowthTestExactFields(Test, FLDCardTargetView::StaticStruct(), {TEXT("Kind"), TEXT("Active"), TEXT("Element")});
+    bGood &= GrowthTestExactFields(Test, FLDCardOfferView::StaticStruct(),
+        {TEXT("OfferId"), TEXT("Ordinal"), TEXT("OfferRevision"), TEXT("Source"), TEXT("Options"), TEXT("Locked")});
     bGood &= GrowthTestExactFields(Test, FLDFieldRewardView::StaticStruct(),
         {TEXT("Event"), TEXT("Serial"), TEXT("XP"), TEXT("Result"), TEXT("Definition")});
     bGood &= GrowthTestExactFields(Test, FLDFinalModSourceView::StaticStruct(),
@@ -921,7 +918,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
 
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
-        FLDComponentInstanceView::StaticStruct(), FLDComponentTargetView::StaticStruct(), FLDComponentChoiceView::StaticStruct(),
+        FLDCardInstanceView::StaticStruct(), FLDCardTargetView::StaticStruct(), FLDCardOfferView::StaticStruct(),
         FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
@@ -1096,19 +1093,18 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     const FLDPrepareGrowthResult Six = Development->PrepareExperience(Human, 360);
     bGood &= Test.TestTrue(TEXT("Level 6 queues opportunity 3"), Six.IsSuccess() && Six.Value->Build().Level == 6
         && Six.Value->Progression().ActiveEarned == 3 && Six.Value->Progression().QueuedActiveOpportunities() == 3);
-    const TArray<FName> FixedComponents = {FName(TEXT("component_punch_heal")), FName(TEXT("component_breath_strike")),
-        FName(TEXT("component_fist_water")), FName(TEXT("component_fist_shock")), FName(TEXT("component_blast_chase")),
-        FName(TEXT("component_hard_skin")), FName(TEXT("component_catch_breath")), FName(TEXT("component_kick_down"))};
-    const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 360, FixedComponents);
-    bGood &= Test.TestTrue(TEXT("The evaluation XP preparation replaces exactly the earned level-up instances without committing"),
-        Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && Fixed.Value->ComponentGrants().Num() == 8
-        && Fixed.Value->ComponentGrants()[0].Component == FixedComponents[0]
-        && Fixed.Value->Build().FindComponent(FixedComponents[2])
-        && Fixed.Value->Build().FindComponent(FixedComponents[2])->SourceLevel == 3
-        && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Components.IsEmpty());
+    // Levels 2..6 each receive their named card instead of a level-up offer.
+    const TArray<FName> FixedCards = {FName(TEXT("card_third_breath")), FName(TEXT("card_third_breath")),
+        FName(TEXT("card_hard_skin")), FName(TEXT("card_thick_hide")), FName(TEXT("card_third_breath"))};
+    const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 360, FixedCards);
+    bGood &= Test.TestTrue(TEXT("The evaluation XP preparation replaces exactly the earned level-up offers without committing"),
+        Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && Fixed.Value->Build().Cards.Num() == 5
+        && Fixed.Value->Build().Cards[0].Id == FixedCards[0] && Fixed.Value->Build().Cards[2].Id == FixedCards[2]
+        && Fixed.Value->CardOfferLast() < Fixed.Value->CardOfferFirst()
+        && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
     bGood &= Test.TestTrue(TEXT("An incomplete evaluation level preset is refused without changing the existing build"),
-        !Development->DevPrepareEvaluationExperience(Human, 360, {FixedComponents[0]}).IsSuccess()
-        && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Components.IsEmpty());
+        !Development->DevPrepareEvaluationExperience(Human, 360, {FixedCards[0]}).IsSuccess()
+        && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
     const FLDPrepareGrowthResult Top = Development->PrepareExperience(Human, 7300);
     bGood &= Test.TestTrue(TEXT("Level 16 holds the opening opportunity and one per active offer level"), Top.IsSuccess()
         && Top.Value->Build().Level == 16 && Top.Value->Progression().CumulativeXP == 7300
@@ -1529,873 +1525,6 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
     return bGood;
 }
 
-// ---- #198 B components: instances, level grants, install gates and the opening base pick ----
-
-FLDComponentInstance GrowthTestInstance(FName Id, ELDComponentSource Source, uint8 SourceLevel, bool bInstalled = false,
-    const FLDComponentTarget& Target = FLDComponentTarget())
-{
-    FLDComponentInstance Instance;
-    Instance.Id = Id;
-    Instance.Source = Source;
-    Instance.SourceLevel = SourceLevel;
-    Instance.bInstalled = bInstalled;
-    Instance.bEverInstalled = bInstalled;
-    Instance.Target = Target;
-    return Instance;
-}
-
-FLDComponentTarget GrowthTestBinding(FName Active, ELDDemoElement Element)
-{
-    FLDComponentTarget Target;
-    Target.BoundActive = Active;
-    Target.Element = Element;
-    return Target;
-}
-
-FLDGrowthBuild GrowthTestComponentBuild(const FLDDemoContentDefinitions& Content, uint8 Level, TArray<FLDComponentInstance> Components,
-    TArray<FLDLearnedActive> Actives = {})
-{
-    FLDGrowthBuild Build = GrowthTestBuild(Content, Level, MoveTemp(Actives));
-    Build.Components = MoveTemp(Components);
-    LDProgression::NormalizeBuild(Build);
-    return Build;
-}
-
-bool GrowthTestSameComponents(const TArray<FLDComponentInstance>& A, const TArray<FLDComponentInstance>& B)
-{
-    if (A.Num() != B.Num())
-    {
-        return false;
-    }
-    for (int32 Index = 0; Index < A.Num(); ++Index)
-    {
-        if (A[Index].Id != B[Index].Id || A[Index].Source != B[Index].Source || A[Index].SourceLevel != B[Index].SourceLevel
-            || A[Index].bInstalled != B[Index].bInstalled || A[Index].bEverInstalled != B[Index].bEverInstalled
-            || !(A[Index].Target == B[Index].Target))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-const FLDDemoComponentDefinition* GrowthTestComponent(const FLDDemoContentDefinitions& Content, FName Id)
-{
-    return Content.Components.FindByPredicate([Id](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Id; });
-}
-
-// The approved B01–B18 catalog, its level bands and the exhausted-pool points; every component test reads them.
-bool GrowthTestReadComponents(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& OutCatalog)
-{
-    if (!GrowthTestReadFixture(Test, OutCatalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = OutCatalog->Get();
-    // #198 F: the 18 common bases come first; the mods and connectors follow them (B19-B21, M16-M20 and C17-C21 come last).
-    bool bApproved = Test.TestTrue(TEXT("Fixture carries the 18 common base components B01-B18 first, B01-B03 leading"),
-        Content.Components.Num() == 63 && Content.Components[0].Id == TEXT("component_fist_fire")
-        && Content.Components[1].Id == TEXT("component_tab_ledger") && Content.Components[2].Id == TEXT("component_spiky_hide")
-        && Algo::AllOf(TArrayView<const FLDDemoComponentDefinition>(Content.Components.GetData(), 18), [](const FLDDemoComponentDefinition& Row)
-            { return Row.Kind == ELDDemoComponentKind::Base && Row.Pool == ELDDemoComponentPool::Common; })
-        && !Content.Components.ContainsByPredicate([](const FLDDemoComponentDefinition& Row) { return Row.Kind == ELDDemoComponentKind::Base
-            && Row.Pool != ELDDemoComponentPool::Common; }));
-    bApproved &= Test.TestTrue(TEXT("Fixture carries GROWTH.EmptyComponentPoolPoints 3"), Content.Parameters.EmptyComponentPoolPoints == 3);
-    const int32 Bands[3][5] = {{2, 6, 45, 30, 25}, {7, 11, 35, 35, 30}, {12, 16, 25, 35, 40}};
-    bool bBands = Content.Progression.ComponentCategoryWeights.Num() == 3;
-    for (int32 Index = 0; bBands && Index < 3; ++Index)
-    {
-        const FLDDemoComponentCategoryWeights& Row = Content.Progression.ComponentCategoryWeights[Index];
-        bBands = Row.MinLevel == Bands[Index][0] && Row.MaxLevel == Bands[Index][1] && Row.BasePercent == Bands[Index][2]
-            && Row.ModPercent == Bands[Index][3] && Row.ConnectorPercent == Bands[Index][4];
-    }
-    bApproved &= Test.TestTrue(TEXT("Fixture carries the approved category bands 2-6 45/30/25, 7-11 35/35/30, 12-16 25/35/40"), bBands);
-    return bApproved;
-}
-
-// The catalog plus one test mod and one test connector, so the category roll has three non-empty pools.
-FLDDemoContentDefinitions GrowthTestMixedContent(const FLDDemoContentDefinitions& Content)
-{
-    // The approved bases plus one test mod and one test connector (the approved mods/connectors set aside), so a single owned
-    // mod empties its category. Both are hostable by any build (self, the innate D).
-    FLDDemoContentDefinitions Mixed = Content;
-    Mixed.Components.RemoveAll([](const FLDDemoComponentDefinition& Row) { return Row.Kind != ELDDemoComponentKind::Base; });
-    FLDDemoComponentDefinition& ModRow = Mixed.Components.AddDefaulted_GetRef();
-    ModRow.Id = TEXT("component_test_mod");
-    ModRow.Kind = ELDDemoComponentKind::Mod;
-    ModRow.bTargetSelf = true;
-    FLDDemoComponentDefinition& ConnectorRow = Mixed.Components.AddDefaulted_GetRef();
-    ConnectorRow.Id = TEXT("component_test_connector");
-    ConnectorRow.Kind = ELDDemoComponentKind::Connector;
-    ConnectorRow.bTargetDash = true;
-    return Mixed;
-}
-
-// One instance per definition (inventory and installed together), sorted by id, with a legal source, history and target;
-// a level-up never hands out a definition the build owns.
-bool GrowthTestRunComponentInstances(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadComponents(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    using ESource = ELDComponentSource;
-    const FName Fire(TEXT("component_fist_fire")), Ledger(TEXT("component_tab_ledger")), Spiky(TEXT("component_spiky_hide"));
-    const FName Dirty(TEXT("component_dirty_trick"));
-    const FName Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out"));
-    // A B18 is bound to a learned active; forgetting it reclaims the B18 (spec §5), so a lost bound active is never valid.
-    const FLDGrowthBuild Good = GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::LevelUp, 2),
-        GrowthTestInstance(Fire, ESource::OpeningPick, 1, true),
-        GrowthTestInstance(Dirty, ESource::LevelUp, 3, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))}, {{Elbow, 0}});
-    bool bGood = GrowthTestReason(Test, TEXT("An opening pick, two level-up grants and a bound B18"), LDProgression::ValidateBuild(Content, Good),
-        ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("NormalizeBuild orders the instances by id"), Good.Components.Num() == 3
-        && Good.Components[0].Id == Dirty && Good.Components[1].Id == Fire && Good.Components[2].Id == Spiky);
-
-    FLDGrowthBuild Unsorted = Good;
-    Unsorted.Components.Swap(0, 2);
-    FLDGrowthBuild NoHistory = Good;
-    NoHistory.Components[1].bEverInstalled = false;
-    FLDGrowthBuild StrayTarget = Good;
-    StrayTarget.Components[2].Target = GrowthTestBinding(Elbow, ELDDemoElement::Fire);
-    FLDComponentTarget OnActive;
-    OnActive.Kind = ELDComponentTargetKind::Active;
-    OnActive.Definition = Elbow;
-    const TPair<const TCHAR*, FLDGrowthBuild> BadBuilds[] = {
-        {TEXT("one definition held twice"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Fire, ESource::OpeningPick, 1), GrowthTestInstance(Fire, ESource::LevelUp, 2, true)})},
-        {TEXT("instances out of id order"), Unsorted},
-        {TEXT("an unknown component"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(FName(TEXT("component_unknown")), ESource::LevelUp, 2)})},
-        {TEXT("an installed instance without its first-install history"), NoHistory},
-        {TEXT("a target on an inventory instance"), StrayTarget},
-        {TEXT("two opening picks"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Fire, ESource::OpeningPick, 1), GrowthTestInstance(Spiky, ESource::OpeningPick, 1)})},
-        {TEXT("a level-up grant at level 1"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::LevelUp, 1)})},
-        {TEXT("a level-up grant above the build level"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::LevelUp, 4)})},
-        {TEXT("two grants of a level without a bonus draw"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Fire, ESource::LevelUp, 3), GrowthTestInstance(Spiky, ESource::LevelUp, 3)})},
-        {TEXT("three grants of a bonus draw level"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Fire, ESource::LevelUp, 2), GrowthTestInstance(Spiky, ESource::LevelUp, 2),
-                GrowthTestInstance(FName(TEXT("component_punch_heal")), ESource::LevelUp, 2)})},
-        {TEXT("an instance without a source"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::None, 2)})},
-        {TEXT("an installed B18 without its binding"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Dirty, ESource::LevelUp, 2, true)})},
-        {TEXT("an installed B18 bound to an active outside its list"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Dirty, ESource::LevelUp, 2, true, GrowthTestBinding(BailOut, ELDDemoElement::Fire))})},
-        {TEXT("an installed B18 whose bound active is not learned"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Dirty, ESource::LevelUp, 2, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))})},
-        {TEXT("a binding on a base that takes none"), GrowthTestComponentBuild(Content, 3,
-            {GrowthTestInstance(Fire, ESource::LevelUp, 2, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))})},
-        {TEXT("an installed base on a target"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::LevelUp, 2, true, OnActive)})}};
-    for (const TPair<const TCHAR*, FLDGrowthBuild>& Bad : BadBuilds)
-    {
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A build with %s"), Bad.Key), LDProgression::ValidateBuild(Content, Bad.Value),
-            ELDGrowthReason::DataInvalid);
-    }
-
-    // With B01-B03 only and two of them owned, every roll of every seed lands on the third.
-    FLDDemoContentDefinitions Small = Content;
-    Small.Components.SetNum(3);
-    const FLDGrowthBuild TwoOwned = GrowthTestComponentBuild(Small, 2,
-        {GrowthTestInstance(Fire, ESource::OpeningPick, 1, true), GrowthTestInstance(Spiky, ESource::LevelUp, 2)});
-    bool bOnlyUnowned = true;
-    for (uint64 Seed = 0; Seed < 64; ++Seed)
-    {
-        FName Drawn;
-        bOnlyUnowned &= LDProgression::DrawLevelComponent(Small, TwoOwned, 3, Seed, Drawn) == ELDGrowthReason::None && Drawn == Ledger;
-    }
-    bGood &= Test.TestTrue(TEXT("A level-up never hands out an owned definition, installed or not"), bOnlyUnowned);
-    FLDGrowthBuild Granted;
-    uint8 EmptyGrants = 9;
-    TArray<FLDComponentGrant> Grants;
-    FLDGrowthBuild TwoOwnedAt3 = TwoOwned;
-    TwoOwnedAt3.Level = 3;
-    bGood &= Test.TestTrue(TEXT("The level-3 grant adds the one unowned definition as a new inventory instance"),
-        LDProgression::GrantLevelComponents(Small, TwoOwnedAt3, 2, 3, FGuid(1, 2, 3, 4), FGuid(5, 6, 7, 8), Granted, EmptyGrants, Grants)
-            == ELDGrowthReason::None
-        && EmptyGrants == 0 && Grants.Num() == 1 && Grants[0].Level == 3 && Grants[0].Component == Ledger && Granted.Components.Num() == 3
-        && Granted.FindComponent(Ledger) && Granted.FindComponent(Ledger)->Source == ESource::LevelUp
-        && Granted.FindComponent(Ledger)->SourceLevel == 3 && !Granted.FindComponent(Ledger)->bInstalled
-        && Granted.FindComponent(Fire)->bInstalled && LDProgression::ValidateBuild(Small, Granted) == ELDGrowthReason::None);
-    return bGood;
-}
-
-// A level-up grant is reproducible from its private seed, renormalizes over the non-empty categories and pays
-// GROWTH.EmptyComponentPoolPoints once the whole common pool is owned.
-bool GrowthTestRunComponentGrants(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadComponents(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    using ESource = ELDComponentSource;
-    const FLDGrowthBuild Start = LDProgression::StartBuild(Content);
-    FName First, Again;
-    bool bGood = Test.TestTrue(TEXT("A fixed seed draws the same component twice"),
-        LDProgression::DrawLevelComponent(Content, Start, 2, 0x5EED, First) == ELDGrowthReason::None
-        && LDProgression::DrawLevelComponent(Content, Start, 2, 0x5EED, Again) == ELDGrowthReason::None && !First.IsNone() && First == Again);
-
-    // #198 F: the approved catalog rolls every category; a normal level-up never hands out a scarce one (M11, M12, C12).
-    // The draws only offer unowned common definitions that the build can host; some definitions require specific hosts.
-    const FLDGrowthBuild Host = GrowthTestComponentBuild(Content, 4,
-        {GrowthTestInstance(FName(TEXT("component_tab_ledger")), ESource::LevelUp, 2),
-            GrowthTestInstance(FName(TEXT("component_third_punch")), ESource::LevelUp, 3),
-            GrowthTestInstance(FName(TEXT("component_punch_heal")), ESource::LevelUp, 4)},
-        {{FName(TEXT("active_account_banned")), 0}, {FName(TEXT("active_quick_meeting")), 1}, {FName(TEXT("active_charged_ram")), 2}});
-    TSet<FName> Seen;
-    bool bAllCommon = true;
-    for (uint64 Seed = 1; Seed <= 1200; ++Seed)
-    {
-        FName Drawn;
-        const bool bDrawn = LDProgression::DrawLevelComponent(Content, Host, uint8(2 + Seed % 15), Seed, Drawn) == ELDGrowthReason::None;
-        const FLDDemoComponentDefinition* Row = GrowthTestComponent(Content, Drawn);
-        bAllCommon &= bDrawn && Row && Row->Pool == ELDDemoComponentPool::Common && !Host.FindComponent(Drawn);
-        Seen.Add(Drawn);
-    }
-    bGood &= Test.TestTrue(TEXT("Every band rolls an unowned common definition"), bAllCommon);
-    // 49: same-delivery actives only host components that change them (no skewer, encore, pull or empower reach here).
-    bGood &= Test.TestEqual(TEXT("The weighted picks reach every hostable unowned common definition"), Seen.Num(), 49);
-
-    // With all three categories present the band weights hold; 2000 fixed seeds land near the band percentages.
-    const FLDDemoContentDefinitions Mixed = GrowthTestMixedContent(Content);
-    const auto CountKinds = [&Mixed](const FLDGrowthBuild& Build, uint8 Level, int32 Samples, int32 (&Counts)[3])
-    {
-        Counts[0] = Counts[1] = Counts[2] = 0;
-        bool bAll = true;
-        for (int32 Seed = 1; Seed <= Samples; ++Seed)
-        {
-            FName Drawn;
-            const bool bDrawn = LDProgression::DrawLevelComponent(Mixed, Build, Level, uint64(Seed), Drawn) == ELDGrowthReason::None;
-            const FLDDemoComponentDefinition* Row = GrowthTestComponent(Mixed, Drawn);
-            bAll &= bDrawn && Row && !Build.FindComponent(Drawn);
-            if (Row)
-            {
-                ++Counts[int32(Row->Kind)];
-            }
-        }
-        return bAll;
-    };
-    int32 Counts[3] = {};
-    bGood &= Test.TestTrue(TEXT("Every mixed draw is an unowned definition"), CountKinds(Start, 2, 2000, Counts));
-    bGood &= Test.TestTrue(FString::Printf(TEXT("Band 2-6 rolls about 45/30/25 (%d/%d/%d of 2000)"), Counts[0], Counts[1], Counts[2]),
-        Counts[0] >= 800 && Counts[0] <= 1000 && Counts[1] >= 520 && Counts[1] <= 680 && Counts[2] >= 430 && Counts[2] <= 570);
-    CountKinds(Start, 12, 2000, Counts);
-    bGood &= Test.TestTrue(FString::Printf(TEXT("Band 12-16 rolls about 25/35/40 (%d/%d/%d of 2000)"), Counts[0], Counts[1], Counts[2]),
-        Counts[0] >= 420 && Counts[0] <= 580 && Counts[1] >= 610 && Counts[1] <= 790 && Counts[2] >= 700 && Counts[2] <= 900);
-    // Owning the only mod drops its category; base and connector keep their 45:25 ratio.
-    const FLDGrowthBuild ModOwned = GrowthTestComponentBuild(Mixed, 2,
-        {GrowthTestInstance(FName(TEXT("component_test_mod")), ESource::LevelUp, 2)});
-    bGood &= Test.TestTrue(TEXT("Every draw beside the owned mod is still unowned"), CountKinds(ModOwned, 2, 1100, Counts));
-    bGood &= Test.TestTrue(FString::Printf(TEXT("An empty mod category renormalizes base:connector to 45:25 (%d/%d/%d of 1100)"),
-        Counts[0], Counts[1], Counts[2]), Counts[1] == 0 && Counts[2] >= 330 && Counts[2] <= 460 && Counts[0] + Counts[2] == 1100);
-
-    const FName LinkActive(TEXT("active_elbow")), LinkBase(TEXT("component_tab_ledger"));
-    const FLDGrowthBuild LinkHost = GrowthTestComponentBuild(Content, 5,
-        {GrowthTestInstance(LinkBase, ESource::LevelUp, 2, true)}, {{LinkActive, 0}});
-    int32 LinkedMods = 0, UnlinkedMods = 0;
-    for (const FLDDemoComponentDefinition& Definition : Content.Components)
-    {
-        bool bEligible = false;
-        if (Definition.Kind != ELDDemoComponentKind::Mod
-            || LDProgression::LevelComponentEligible(Content, LinkHost, 3, FName(*Definition.Id), bEligible) != ELDGrowthReason::None
-            || !bEligible)
-        {
-            continue;
-        }
-        const bool bLinked = LDWorkshop::TargetsActive(Content, Definition, LinkActive)
-            || Definition.BindActives.Contains(LinkActive.ToString()) || Definition.DrawRequiresActives.Contains(LinkActive.ToString())
-            || Definition.TargetComponents.Contains(LinkBase.ToString()) || Definition.ExtraBases.Contains(LinkBase.ToString());
-        bLinked ? ++LinkedMods : ++UnlinkedMods;
-    }
-    int32 LinkedModDraws = 0, ModDraws = 0;
-    for (uint64 Seed = 1; Seed <= 12000; ++Seed)
-    {
-        FName Drawn;
-        if (LDProgression::DrawLevelComponent(Content, LinkHost, 3, Seed, Drawn) != ELDGrowthReason::None)
-        {
-            bGood = false;
-            break;
-        }
-        const FLDDemoComponentDefinition* Definition = GrowthTestComponent(Content, Drawn);
-        if (Definition && Definition->Kind == ELDDemoComponentKind::Mod)
-        {
-            ++ModDraws;
-            LinkedModDraws += LDWorkshop::TargetsActive(Content, *Definition, LinkActive)
-                || Definition->BindActives.Contains(LinkActive.ToString()) || Definition->DrawRequiresActives.Contains(LinkActive.ToString())
-                || Definition->TargetComponents.Contains(LinkBase.ToString()) || Definition->ExtraBases.Contains(LinkBase.ToString()) ? 1 : 0;
-        }
-    }
-    const double BaselineLinkShare = double(LinkedMods) / double(LinkedMods + UnlinkedMods);
-    const double WeightedLinkShare = double(LinkedMods * 3) / double(LinkedMods * 3 + UnlinkedMods);
-    const double ObservedLinkShare = ModDraws > 0 ? double(LinkedModDraws) / double(ModDraws) : 0.0;
-    bGood &= Test.TestTrue(FString::Printf(TEXT("An active- or installed-component-linked mod is weighted 3x (baseline %.3f, expected %.3f, observed %.3f)"),
-        BaselineLinkShare, WeightedLinkShare, ObservedLinkShare),
-        LinkedMods > 0 && UnlinkedMods > 0 && ModDraws > 100 && ObservedLinkShare > BaselineLinkShare + 0.1
-            && (ObservedLinkShare - WeightedLinkShare < 0.05) && (WeightedLinkShare - ObservedLinkShare < 0.05));
-
-    // GrantLevelComponents replays the per-level private seeds: same inputs, same instances, one per level crossed.
-    const FGuid Secret(0x5EC2E700, 1, 2, 3);
-    const FGuid Contender(0x0000A001, 0, 0, 1);
-    bGood &= Test.TestTrue(TEXT("The component seed is private per level and apart from the offer seed of the same number"),
-        LDProgression::ComponentSeed(Secret, Contender, 2) == LDProgression::ComponentSeed(Secret, Contender, 2)
-        && LDProgression::ComponentSeed(Secret, Contender, 2) != LDProgression::ComponentSeed(Secret, Contender, 3)
-        && LDProgression::ComponentSeed(Secret, Contender, 2) != LDProgression::OfferSeed(Secret, Contender, 2)
-        && LDProgression::ComponentSeed(Secret, Contender, 2) != LDProgression::ComponentSeed(Secret, FGuid(0x0000A002, 0, 0, 2), 2));
-    const FLDGrowthBuild AtFour = GrowthTestBuild(Content, 4);
-    FLDGrowthBuild Granted, GrantedAgain;
-    uint8 EmptyGrants = 9, EmptyAgain = 9;
-    TArray<FLDComponentGrant> Grants, GrantsAgain;
-    const bool bGranted = LDProgression::GrantLevelComponents(Content, AtFour, 1, 4, Secret, Contender, Granted, EmptyGrants, Grants)
-        == ELDGrowthReason::None;
-    FName ExpectedFirst;
-    LDProgression::DrawLevelComponent(Content, AtFour, 2, LDProgression::ComponentSeed(Secret, Contender, 2), ExpectedFirst);
-    // Levels 2 and 4 are bonus draw levels: two draws each, the second from its own seed after the first.
-    const uint8 DrawLevels[] = {2, 2, 3, 4, 4};
-    bool bShaped = bGranted && EmptyGrants == 0 && Grants.Num() == 5 && Granted.Components.Num() == 5 && Grants[0].Component == ExpectedFirst;
-    for (int32 Index = 0; bShaped && Index < 5; ++Index)
-    {
-        const FLDComponentInstance* Instance = Granted.FindComponent(Grants[Index].Component);
-        bShaped = Grants[Index].Level == DrawLevels[Index] && Instance && Instance->Source == ESource::LevelUp
-            && Instance->SourceLevel == DrawLevels[Index] && !Instance->bInstalled && !Instance->bEverInstalled;
-    }
-    bGood &= Test.TestTrue(TEXT("Levels 2-4 grant five distinct inventory instances (two on each bonus level), the first from the level-2 seed"),
-        bShaped);
-    bGood &= Test.TestTrue(TEXT("A bonus draw has its own seed; the first draw keeps the level's original seed"),
-        LDProgression::ComponentSeed(Secret, Contender, 2, 1) != LDProgression::ComponentSeed(Secret, Contender, 2)
-        && LDProgression::ComponentSeed(Secret, Contender, 2, 0) == LDProgression::ComponentSeed(Secret, Contender, 2));
-    const FName OpeningElbow(TEXT("active_elbow"));
-    const FName OpeningLedger(TEXT("component_tab_ledger"));
-    const FLDGrowthBuild OpeningPair = GrowthTestComponentBuild(Content, 2,
-        {GrowthTestInstance(OpeningLedger, ESource::OpeningPick, 1, true)}, {{OpeningElbow, 0}});
-    FLDGrowthBuild OpeningPairGranted;
-    TArray<FLDComponentGrant> OpeningPairGrants;
-    uint8 OpeningPairEmptyGrants = 0;
-    const bool bOpeningPairGranted = LDProgression::GrantLevelComponents(Content, OpeningPair, 1, 2, Secret, Contender,
-        OpeningPairGranted, OpeningPairEmptyGrants, OpeningPairGrants) == ELDGrowthReason::None;
-    const FLDDemoComponentDefinition* OpeningPairComponent = bOpeningPairGranted && OpeningPairGrants.Num() == 2
-        ? GrowthTestComponent(Content, OpeningPairGrants[1].Component) : nullptr;
-    bGood &= Test.TestTrue(TEXT("The second level-2 draw links both the opening active and opening base when a legal common target exists"),
-        bOpeningPairGranted && OpeningPairEmptyGrants == 0 && OpeningPairGrants.Num() == 2 && OpeningPairComponent
-        && (OpeningPairComponent->Kind == ELDDemoComponentKind::Mod || OpeningPairComponent->Kind == ELDDemoComponentKind::Connector)
-        && (OpeningPairComponent->Pool == ELDDemoComponentPool::Common
-            || (OpeningPairComponent->Id == TEXT("component_dirty_fist") && OpeningPairComponent->Pool == ELDDemoComponentPool::Scarce))
-        && OpeningPairComponent->TargetActives.Contains(OpeningElbow.ToString())
-        && (OpeningPairComponent->TargetComponents.Contains(OpeningLedger.ToString())
-            || OpeningPairComponent->ExtraBases.Contains(OpeningLedger.ToString()))
-        && OpeningPairGranted.FindComponent(OpeningPairGrants[1].Component)
-        && OpeningPairGranted.FindComponent(OpeningPairGrants[1].Component)->Source == ESource::LevelUp);
-    bGood &= Test.TestTrue(TEXT("The same reward replays to the same instances"),
-        LDProgression::GrantLevelComponents(Content, AtFour, 1, 4, Secret, Contender, GrantedAgain, EmptyAgain, GrantsAgain)
-            == ELDGrowthReason::None && GrantsAgain == Grants && EmptyAgain == 0 && GrowthTestSameComponents(GrantedAgain.Components, Granted.Components));
-
-    // The whole common pool owned: no component, GROWTH.EmptyComponentPoolPoints per level instead.
-    FLDDemoContentDefinitions Small = Content;
-    Small.Components.SetNum(3);
-    const FLDGrowthBuild Full = GrowthTestComponentBuild(Small, 5, {GrowthTestInstance(FName(TEXT("component_fist_fire")), ESource::OpeningPick, 1),
-        GrowthTestInstance(FName(TEXT("component_tab_ledger")), ESource::LevelUp, 2),
-        GrowthTestInstance(FName(TEXT("component_spiky_hide")), ESource::LevelUp, 3)});
-    FName Exhausted(TEXT("stale"));
-    bGood &= Test.TestTrue(TEXT("An exhausted pool draws no component and is no error"),
-        LDProgression::DrawLevelComponent(Small, Full, 4, 7, Exhausted) == ELDGrowthReason::None && Exhausted.IsNone());
-    bGood &= Test.TestTrue(TEXT("Levels 4 (two draws) and 5 with the pool exhausted grant points instead, and no instance"),
-        LDProgression::GrantLevelComponents(Small, Full, 3, 5, Secret, Contender, Granted, EmptyGrants, Grants) == ELDGrowthReason::None
-        && EmptyGrants == 3 && Grants.Num() == 3 && Grants[0].Level == 4 && Grants[0].Component.IsNone() && Grants[1].Level == 4
-        && Grants[1].Component.IsNone() && Grants[2].Level == 5 && Grants[2].Component.IsNone()
-        && GrowthTestSameComponents(Granted.Components, Full.Components));
-    int64 Earned = -1, Unspent = -1;
-    bGood &= Test.TestTrue(TEXT("Two exhausted-pool grants add 2 x 3 earned points at level 5"),
-        LDProgression::EarnedPoints(Small, 5, 264, 2, Earned) == ELDGrowthReason::None && Earned == 21
-        && LDProgression::UnspentPoints(Small, Full, 264, 2, Unspent) == ELDGrowthReason::None && Unspent == 21);
-    bGood &= GrowthTestReason(Test, TEXT("Both draws of bonus level 2 may find the pool exhausted"),
-        LDProgression::EarnedPoints(Content, 2, 48, 2, Earned), ELDGrowthReason::None);
-    bGood &= GrowthTestReason(Test, TEXT("More exhausted-pool grants than draws"), LDProgression::EarnedPoints(Content, 2, 48, 3, Earned),
-        ELDGrowthReason::DataInvalid);
-
-    // Broken supply data is refused, never mistaken for an exhausted pool.
-    FName Refused;
-    bGood &= GrowthTestReason(Test, TEXT("No component roll at level 1"), LDProgression::DrawLevelComponent(Content, Start, 1, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("No component roll past the top level"), LDProgression::DrawLevelComponent(Content, Start, 17, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    FLDDemoContentDefinitions Broken = Content;
-    Broken.Progression.ComponentCategoryWeights[0].BasePercent = 54;
-    bGood &= GrowthTestReason(Test, TEXT("A band that does not sum to 100"), LDProgression::DrawLevelComponent(Broken, Start, 2, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    Broken = Content;
-    Broken.Progression.ComponentCategoryWeights[0].MinLevel = 3;
-    bGood &= GrowthTestReason(Test, TEXT("A level no band covers"), LDProgression::DrawLevelComponent(Broken, Start, 2, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    Broken = Content;
-    Broken.Progression.ComponentCategoryWeights[1].MinLevel = 6;
-    bGood &= GrowthTestReason(Test, TEXT("A level two bands cover"), LDProgression::DrawLevelComponent(Broken, Start, 6, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    bGood &= Test.TestTrue(TEXT("A refused grant hands out nothing"),
-        LDProgression::GrantLevelComponents(Broken, GrowthTestBuild(Content, 6), 1, 6, Secret, Contender, Granted, EmptyGrants, Grants)
-            == ELDGrowthReason::DataInvalid
-        && Grants.IsEmpty() && EmptyGrants == 0 && Granted.Components.IsEmpty());
-
-    FString PresetError;
-    const TArray<FName> Fixed = {FName(TEXT("component_punch_heal")), FName(TEXT("component_breath_strike")),
-        FName(TEXT("component_fist_water")), FName(TEXT("component_fist_shock")), FName(TEXT("component_hard_skin"))};
-    bGood &= Test.TestTrue(TEXT("The five draws of levels 2-4 can be prepared with five distinct common component instances"),
-        LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, AtFour, 1, 4, Fixed, Granted, Grants, PresetError)
-        && Grants.Num() == 5 && Grants[0].Level == 2 && Grants[1].Level == 2 && Grants[4].Component == Fixed[4]
-        && Granted.FindComponent(Fixed[2]) && Granted.FindComponent(Fixed[2])->Source == ESource::LevelUp
-        && Granted.FindComponent(Fixed[2])->SourceLevel == 3 && !Granted.FindComponent(Fixed[2])->bInstalled
-        && LDProgression::ValidateBuild(Content, Granted) == ELDGrowthReason::None);
-    const TArray<TArray<FName>> BadPresets = {{Fixed[0], Fixed[1], Fixed[2]}, {Fixed[0], Fixed[0], Fixed[2], Fixed[3], Fixed[4]},
-        {Fixed[0], FName(TEXT("component_dirty_fist")), Fixed[2], Fixed[3], Fixed[4]}};
-    for (const TArray<FName>& Bad : BadPresets)
-    {
-        bGood &= Test.TestTrue(TEXT("An incomplete, duplicate, or scarce level preset is refused atomically"),
-            !LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, AtFour, 1, 4, Bad, Granted, Grants, PresetError)
-            && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
-    }
-    FLDDemoContentDefinitions NoConnector = Content;
-    NoConnector.Progression.ComponentCategoryWeights[0].BasePercent += NoConnector.Progression.ComponentCategoryWeights[0].ConnectorPercent;
-    NoConnector.Progression.ComponentCategoryWeights[0].ConnectorPercent = 0;
-    bGood &= Test.TestTrue(TEXT("A preset cannot choose a category with zero weight at its level"),
-        !LDDevGrowthFixture::PrepareEvaluationLevelGrants(NoConnector, AtFour, 1, 4, Fixed, Granted, Grants, PresetError)
-        && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
-
-    const FName BigTab(TEXT("component_big_tab")), Ledger(TEXT("component_tab_ledger"));
-    const FName Dirty(TEXT("component_dirty_trick")), Encore(TEXT("component_encore")), Move(TEXT("component_move_meeting"));
-    for (const FName Id : {BigTab, Dirty, Encore, Move})
-    {
-        TArray<FName> Ineligible = Fixed;
-        Ineligible[0] = Id;
-        bGood &= Test.TestTrue(FString::Printf(TEXT("Preset refuses %s without its host or required active"), *Id.ToString()),
-            !LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, AtFour, 1, 4, Ineligible, Granted, Grants, PresetError)
-            && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
-    }
-    TArray<FName> HostThenMod = Fixed;
-    HostThenMod[0] = Ledger;
-    HostThenMod[1] = BigTab;
-    bGood &= Test.TestTrue(TEXT("A prior preset draw makes its host-dependent mod eligible"),
-        LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, AtFour, 1, 4, HostThenMod, Granted, Grants, PresetError)
-        && Grants.Num() == 5 && Granted.FindComponent(Ledger) && Granted.FindComponent(BigTab));
-
-    const FLDGrowthBuild WithActives = GrowthTestBuild(Content, 4,
-        {{FName(TEXT("active_seethe")), 0}, {FName(TEXT("active_quick_meeting")), 1}});
-    for (const FName Id : {Dirty, Encore, Move})
-    {
-        TArray<FName> Eligible = Fixed;
-        Eligible[0] = Id;
-        Eligible[1] = Fixed[0];
-        const bool bPrepared = LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, WithActives, 1, 4, Eligible, Granted, Grants, PresetError);
-        bGood &= Test.TestTrue(FString::Printf(TEXT("Preset accepts %s with its learned active (%s)"), *Id.ToString(), *PresetError),
-            bPrepared && Grants.Num() == 5 && Granted.FindComponent(Id));
-    }
-    FLDDemoContentDefinitions ExtraBaseContent = Content;
-    FLDDemoComponentDefinition* ExtraBaseMod = ExtraBaseContent.Components.FindByPredicate(
-        [BigTab](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == BigTab; });
-    if (!Test.TestNotNull(TEXT("Extra-base fixture has its mod"), ExtraBaseMod)) { return false; }
-    ExtraBaseMod->ExtraBases = {TEXT("component_fist_water")};
-    bGood &= Test.TestTrue(TEXT("Preset refuses a hosted mod before its required extra base"),
-        !LDDevGrowthFixture::PrepareEvaluationLevelGrants(ExtraBaseContent, AtFour, 1, 4, HostThenMod, Granted, Grants, PresetError)
-        && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
-    TArray<FName> BaseThenMod = Fixed;
-    BaseThenMod[0] = Ledger;
-    BaseThenMod[1] = FName(TEXT("component_fist_water"));
-    BaseThenMod[2] = BigTab;
-    bGood &= Test.TestTrue(TEXT("A prior preset draw supplies the required extra base"),
-        LDDevGrowthFixture::PrepareEvaluationLevelGrants(ExtraBaseContent, AtFour, 1, 4, BaseThenMod, Granted, Grants, PresetError)
-        && Grants.Num() == 5 && Granted.FindComponent(BigTab));
-    return bGood;
-}
-
-// A level-up only draws what the build can host now. M10 (targets B02 only) never comes without B02 owned, B18 never
-// without a learned binding active; a mod on a learned active and a D mod still come, and owning B02 opens M10.
-bool GrowthTestRunHostLegalDraw(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadComponents(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    using ESource = ELDComponentSource;
-    const FName BigTab(TEXT("component_big_tab")), Ledger(TEXT("component_tab_ledger")), Dirty(TEXT("component_dirty_trick"));
-    const FName CrowdHit(TEXT("component_crowd_hit")), RamThrough(TEXT("component_ram_through")), HoldDown(TEXT("component_hold_down"));
-    const FLDDemoComponentDefinition* BigTabRow = GrowthTestComponent(Content, BigTab);
-    bool bGood = Test.TestTrue(TEXT("M10 is a common mod hosted only by B02"), BigTabRow && BigTabRow->Kind == ELDDemoComponentKind::Mod
-        && BigTabRow->Pool == ELDDemoComponentPool::Common && BigTabRow->TargetComponents == TArray<FString>{TEXT("component_tab_ledger")}
-        && BigTabRow->TargetActives.IsEmpty() && !BigTabRow->bTargetDash && !BigTabRow->bTargetSelf);
-    const auto Draws = [&Content](const FLDGrowthBuild& Build, TSet<FName>& OutSeen)
-    {
-        OutSeen.Reset();
-        bool bAll = true;
-        for (uint64 Seed = 1; Seed <= 1500; ++Seed)
-        {
-            FName Drawn;
-            bAll &= LDProgression::DrawLevelComponent(Content, Build, uint8(12 + Seed % 5), Seed, Drawn) == ELDGrowthReason::None
-                && !Drawn.IsNone();
-            OutSeen.Add(Drawn);
-        }
-        return bAll;
-    };
-    TSet<FName> Seen;
-    const FLDGrowthBuild Bare = LDProgression::StartBuild(Content);
-    bGood &= Test.TestTrue(TEXT("A bare build still draws every time"), Draws(Bare, Seen));
-    bGood &= Test.TestTrue(TEXT("A bare build never draws M10, B18 or a mod on an unlearned active, but draws a D mod"),
-        !Seen.Contains(BigTab) && !Seen.Contains(Dirty) && !Seen.Contains(CrowdHit) && !Seen.Contains(HoldDown) && Seen.Contains(RamThrough));
-
-    const FLDGrowthBuild Bolt = GrowthTestComponentBuild(Content, 12, {}, {{FName(TEXT("active_snark_bolt")), 0}});
-    bGood &= Test.TestTrue(TEXT("A snark-bolt build draws every time"), Draws(Bolt, Seen));
-    bGood &= Test.TestTrue(TEXT("Learning S06 opens M01 and B18 but not M10 or M04 (control actives only)"),
-        !Seen.Contains(BigTab) && !Seen.Contains(HoldDown) && Seen.Contains(CrowdHit) && Seen.Contains(Dirty) && Seen.Contains(RamThrough));
-
-    const FLDGrowthBuild BoltLedger = GrowthTestComponentBuild(Content, 12, {GrowthTestInstance(Ledger, ESource::LevelUp, 2)},
-        {{FName(TEXT("active_snark_bolt")), 0}});
-    bGood &= Test.TestTrue(TEXT("A snark-bolt build owning B02 draws every time"), Draws(BoltLedger, Seen));
-    bGood &= Test.TestTrue(TEXT("Owning B02, installed or not, opens M10 and never redraws B02"), Seen.Contains(BigTab) && !Seen.Contains(Ledger));
-    return bGood;
-}
-
-// A draw requirement keeps a hostable definition out of level-up draws until one of its listed actives is learned: C17 (hosted by
-// D) needs S08, S20 or S19; C21 (hosted by S07) needs S08 or S20.
-bool GrowthTestRunDrawRequirement(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadComponents(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    const FName Move(TEXT("component_move_meeting")), SetOff(TEXT("component_set_it_off"));
-    const FName Seethe(TEXT("active_seethe")), Meeting(TEXT("active_quick_meeting")), Trap(TEXT("active_flyer_trap"));
-    const FLDDemoComponentDefinition* MoveRow = GrowthTestComponent(Content, Move);
-    const FLDDemoComponentDefinition* SetOffRow = GrowthTestComponent(Content, SetOff);
-    bool bGood = Test.TestTrue(TEXT("C17 and C21 carry their authored draw requirements"), MoveRow && SetOffRow
-        && MoveRow->DrawRequiresActives == TArray<FString>{TEXT("active_quick_meeting"), TEXT("active_dirty_puddle"), TEXT("active_flyer_trap")}
-        && SetOffRow->DrawRequiresActives == TArray<FString>{TEXT("active_quick_meeting"), TEXT("active_dirty_puddle")}
-        && MoveRow->bTargetDash && SetOffRow->TargetActives.Contains(TEXT("active_seethe")));
-    const auto Draws = [&Content](const FLDGrowthBuild& Build, TSet<FName>& OutSeen)
-    {
-        OutSeen.Reset();
-        bool bAll = true;
-        for (uint64 Seed = 1; Seed <= 1500; ++Seed)
-        {
-            FName Drawn;
-            bAll &= LDProgression::DrawLevelComponent(Content, Build, uint8(12 + Seed % 5), Seed, Drawn) == ELDGrowthReason::None
-                && !Drawn.IsNone();
-            OutSeen.Add(Drawn);
-        }
-        return bAll;
-    };
-    TSet<FName> Seen;
-    bGood &= Test.TestTrue(TEXT("A bare build draws every time"), Draws(LDProgression::StartBuild(Content), Seen));
-    bGood &= Test.TestTrue(TEXT("Without a required active, C17 is never drawn although D hosts it"), !Seen.Contains(Move));
-    bGood &= Test.TestTrue(TEXT("An S07 build draws every time"), Draws(GrowthTestComponentBuild(Content, 12, {}, {{Seethe, 0}}), Seen));
-    bGood &= Test.TestTrue(TEXT("Hosting C21 without a zone active draws neither C21 nor C17"), !Seen.Contains(SetOff) && !Seen.Contains(Move));
-    bGood &= Test.TestTrue(TEXT("An S07 and S19 build draws every time"),
-        Draws(GrowthTestComponentBuild(Content, 12, {}, {{Seethe, 0}, {Trap, 1}}), Seen));
-    bGood &= Test.TestTrue(TEXT("S19 opens C17 but not C21"), Seen.Contains(Move) && !Seen.Contains(SetOff));
-    bGood &= Test.TestTrue(TEXT("An S07 and S08 build draws every time"),
-        Draws(GrowthTestComponentBuild(Content, 12, {}, {{Seethe, 0}, {Meeting, 1}}), Seen));
-    bGood &= Test.TestTrue(TEXT("S08 opens both C17 and C21"), Seen.Contains(Move) && Seen.Contains(SetOff));
-    return bGood;
-}
-
-// Installs and uninstalls follow the active-match gate; targets, bindings and atomic replacement are checked.
-bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadComponents(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    using EStage = LDProgression::EMatchStage;
-    using ESource = ELDComponentSource;
-    using EKind = ELDBuildCommandKind;
-    const LDProgression::FBuildContext RestAlive = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext RestDead = GrowthTestContext(EStage::Rest, ELDLifePhase::Dead);
-    const LDProgression::FBuildContext RestLocked = GrowthTestContext(EStage::RestLocked, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext Safe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext Dead = GrowthTestContext(EStage::Live, ELDLifePhase::Dead);
-    const LDProgression::FBuildContext Closed = GrowthTestContext(EStage::Closed, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext Unspawned = GrowthTestContext(EStage::Live, ELDLifePhase::Unspawned);
-    // #222: installs, moves, uninstalls and the opening pick are open in every stage of a running match, alive or dead.
-    struct FGateRow
-    {
-        const TCHAR* What;
-        const LDProgression::FBuildContext* Context;
-        ELDGrowthReason Expected;
-    };
-    const FGateRow Matrix[] = {
-        {TEXT("rest window, alive"), &RestAlive, ELDGrowthReason::None},
-        {TEXT("rest window, dead"), &RestDead, ELDGrowthReason::None},
-        {TEXT("rest PK or return steps"), &RestLocked, ELDGrowthReason::None},
-        {TEXT("live, alive"), &Safe, ELDGrowthReason::None},
-        {TEXT("live, dead"), &Dead, ELDGrowthReason::None},
-        {TEXT("closed"), &Closed, ELDGrowthReason::PhaseClosed},
-        {TEXT("unspawned"), &Unspawned, ELDGrowthReason::LifePhaseChanged}};
-    bool bGood = true;
-    for (const FGateRow& Row : Matrix)
-    {
-        bGood &= Test.TestEqual(FString::Printf(TEXT("The rest window is exactly the open rest stage, %s"), Row.What),
-            LDProgression::IsRestWindow(*Row.Context), Row.Context->Stage == EStage::Rest);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("An install, %s"), Row.What), LDProgression::InstallGate(*Row.Context),
-            Row.Expected);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("InstallComponent, %s"), Row.What),
-            LDProgression::CommandGate(EKind::InstallComponent, *Row.Context), Row.Expected);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("UninstallComponent, %s"), Row.What),
-            LDProgression::CommandGate(EKind::UninstallComponent, *Row.Context), Row.Expected);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("OpeningBase, %s"), Row.What),
-            LDProgression::CommandGate(EKind::OpeningBase, *Row.Context), Row.Expected);
-    }
-
-    const FName Fire(TEXT("component_fist_fire")), Spiky(TEXT("component_spiky_hide")), Heal(TEXT("component_punch_heal"));
-    const FName Water(TEXT("component_fist_water")), Shock(TEXT("component_fist_shock")), Dirty(TEXT("component_dirty_trick"));
-    const FName Bump(TEXT("component_dash_bump"));
-    const FName Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out")), Seethe(TEXT("active_seethe"));
-    FLDComponentInstance Uninstalled = GrowthTestInstance(Heal, ESource::LevelUp, 4);
-    Uninstalled.bEverInstalled = true;
-    const FLDGrowthBuild Owned = GrowthTestComponentBuild(Content, 6, {GrowthTestInstance(Fire, ESource::LevelUp, 2, true),
-        GrowthTestInstance(Spiky, ESource::LevelUp, 3), Uninstalled, GrowthTestInstance(Water, ESource::LevelUp, 5),
-        GrowthTestInstance(Dirty, ESource::OpeningPick, 1), GrowthTestInstance(Shock, ESource::LevelUp, 6)}, {{Elbow, 0}, {BailOut, 1}});
-    if (!GrowthTestReason(Test, TEXT("The install fixture build"), LDProgression::ValidateBuild(Content, Owned), ELDGrowthReason::None))
-    {
-        return false;
-    }
-    FLDGrowthBuild Out;
-    const auto Install = [&](FName Id, const FLDComponentTarget& Target, const LDProgression::FBuildContext& Context)
-    {
-        return LDProgression::ApplyInstallComponent(Content, Owned, Id, Target, Context, Out);
-    };
-    const auto Refused = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected)
-    {
-        const bool bReason = GrowthTestReason(Test, What, Actual, Expected);
-        return Test.TestTrue(FString::Printf(TEXT("%s changes nothing"), What), GrowthTestSameComponents(Out.Components, Owned.Components))
-            && bReason;
-    };
-    bGood &= Test.TestTrue(TEXT("A first install in the rest window enables the inventory instance and records its history"),
-        Install(Spiky, FLDComponentTarget(), RestAlive) == ELDGrowthReason::None && Out.FindComponent(Spiky)->bInstalled
-        && Out.FindComponent(Spiky)->bEverInstalled && Out.FindComponent(Spiky)->Target.IsEmpty() && Out.Revision == Owned.Revision);
-    bGood &= Test.TestTrue(TEXT("A first install alive and safe"), Install(Spiky, FLDComponentTarget(), Safe) == ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("A first install while dead (#222)"),
-        Install(Spiky, FLDComponentTarget(), Dead) == ELDGrowthReason::None && Out.FindComponent(Spiky)->bInstalled);
-    bGood &= Test.TestTrue(TEXT("A first install in a PK step (#222)"),
-        Install(Spiky, FLDComponentTarget(), RestLocked) == ELDGrowthReason::None && Out.FindComponent(Spiky)->bInstalled);
-    bGood &= Refused(TEXT("A first install after the match closed"), Install(Spiky, FLDComponentTarget(), Closed), ELDGrowthReason::PhaseClosed);
-    bGood &= Test.TestTrue(TEXT("Re-installing a once-installed instance in the field (#222)"),
-        Install(Heal, FLDComponentTarget(), Safe) == ELDGrowthReason::None && Out.FindComponent(Heal)->bInstalled
-        && Out.FindComponent(Heal)->bEverInstalled);
-    bGood &= Test.TestTrue(TEXT("Re-installing a once-installed instance in the rest window"),
-        Install(Heal, FLDComponentTarget(), RestAlive) == ELDGrowthReason::None && Out.FindComponent(Heal)->bInstalled);
-    bGood &= Refused(TEXT("Installing an installed instance"), Install(Fire, FLDComponentTarget(), Safe), ELDGrowthReason::AlreadyInstalled);
-    bGood &= Refused(TEXT("Installing an unowned definition"), Install(Bump, FLDComponentTarget(), Safe), ELDGrowthReason::NotOwned);
-    bGood &= Test.TestTrue(TEXT("Uninstalling in the field keeps the history (#222)"),
-        LDProgression::ApplyUninstallComponent(Content, Owned, Fire, Safe, Out) == ELDGrowthReason::None
-        && !Out.FindComponent(Fire)->bInstalled && Out.FindComponent(Fire)->bEverInstalled && Out.FindComponent(Fire)->Target.IsEmpty());
-    bGood &= Test.TestTrue(TEXT("Uninstalling while dead (#222)"),
-        LDProgression::ApplyUninstallComponent(Content, Owned, Fire, Dead, Out) == ELDGrowthReason::None && !Out.FindComponent(Fire)->bInstalled);
-    bGood &= Refused(TEXT("Uninstalling after the match closed"), LDProgression::ApplyUninstallComponent(Content, Owned, Fire, Closed, Out),
-        ELDGrowthReason::PhaseClosed);
-    bGood &= Refused(TEXT("Uninstalling an inventory instance"), LDProgression::ApplyUninstallComponent(Content, Owned, Spiky, Safe, Out),
-        ELDGrowthReason::NotInstalled);
-    bGood &= Refused(TEXT("Uninstalling an unowned definition"), LDProgression::ApplyUninstallComponent(Content, Owned, Bump, Safe, Out),
-        ELDGrowthReason::NotOwned);
-
-    // Targets: a base takes none; B18 binds one learned active of its list and one of its elements.
-    FLDComponentTarget OnActive;
-    OnActive.Kind = ELDComponentTargetKind::Active;
-    OnActive.Definition = Elbow;
-    bGood &= Refused(TEXT("A base installed on an active target"), Install(Spiky, OnActive, Safe), ELDGrowthReason::InvalidTarget);
-    bGood &= Refused(TEXT("A binding on a base that takes none"), Install(Spiky, GrowthTestBinding(Elbow, ELDDemoElement::Fire), Safe),
-        ELDGrowthReason::InvalidTarget);
-    bGood &= Test.TestTrue(TEXT("B10 water can be installed alongside the fire fist"),
-        Install(Water, FLDComponentTarget(), Safe) == ELDGrowthReason::None && Out.FindComponent(Fire)->bInstalled
-        && Out.FindComponent(Water)->bInstalled && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
-    const FLDGrowthBuild FireWater = Out;
-    bGood &= Test.TestTrue(TEXT("B11 electric can join both fists"),
-        LDProgression::ApplyInstallComponent(Content, FireWater, Shock, FLDComponentTarget(), Safe, Out) == ELDGrowthReason::None
-        && Out.FindComponent(Fire)->bInstalled && Out.FindComponent(Water)->bInstalled && Out.FindComponent(Shock)->bInstalled
-        && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
-    const auto Replace = [&](FName Id, FName Replacing, const LDProgression::FBuildContext& Context, TArray<FName>& Reclaimed)
-    {
-        Reclaimed.Reset();
-        return LDProgression::ApplyInstallComponent(Content, Owned, Id, FLDComponentTarget(), Context, Out, Replacing, &Reclaimed);
-    };
-    TArray<FName> Reclaimed;
-    bGood &= Test.TestTrue(TEXT("B10 water replaces the installed fist in one commit"),
-        Replace(Water, Fire, Safe, Reclaimed) == ELDGrowthReason::None && Out.FindComponent(Water)->bInstalled
-        && !Out.FindComponent(Fire)->bInstalled && Out.FindComponent(Fire)->bEverInstalled && Reclaimed == TArray<FName>{Fire}
-        && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("B11 electric replaces the installed fist in one commit"),
-        Replace(Shock, Fire, Safe, Reclaimed) == ELDGrowthReason::None && Out.FindComponent(Shock)->bInstalled
-        && !Out.FindComponent(Fire)->bInstalled);
-    bGood &= Refused(TEXT("Replacing the instance being installed"), Replace(Water, Water, Safe, Reclaimed), ELDGrowthReason::InvalidRequest);
-    bGood &= Refused(TEXT("Replacing an inventory instance"), Replace(Water, Spiky, Safe, Reclaimed), ELDGrowthReason::NotInstalled);
-    bGood &= Refused(TEXT("Replacing an unowned definition"), Replace(Water, Bump, Safe, Reclaimed), ELDGrowthReason::NotOwned);
-    bGood &= Refused(TEXT("Replacing after the match closed"), Replace(Water, Fire, Closed, Reclaimed), ELDGrowthReason::PhaseClosed);
-    bGood &= Refused(TEXT("Replacing with an installed instance"), Replace(Fire, Fire, Safe, Reclaimed), ELDGrowthReason::AlreadyInstalled);
-    FLDGrowthBuild Shown = Owned;
-    Shown.FindComponent(Water)->bInstalled = true;
-    Shown.FindComponent(Water)->bEverInstalled = true;
-    bGood &= GrowthTestReason(Test, TEXT("A stored build with fire and water fists"), LDProgression::ValidateBuild(Content, Shown),
-        ELDGrowthReason::None);
-    bGood &= Refused(TEXT("B18 without a binding"), Install(Dirty, FLDComponentTarget(), Safe), ELDGrowthReason::InvalidTarget);
-    for (const ELDDemoElement Element : {ELDDemoElement::Water, ELDDemoElement::Electric})
-    {
-        bGood &= Test.TestTrue(FString::Printf(TEXT("B18 bound to element %u installs with its binding"), uint32(Element)),
-            Install(Dirty, GrowthTestBinding(Elbow, Element), Safe) == ELDGrowthReason::None && Out.FindComponent(Dirty)->bInstalled
-            && Out.FindComponent(Dirty)->Target == GrowthTestBinding(Elbow, Element));
-    }
-    bGood &= Refused(TEXT("B18 bound without an element"), Install(Dirty, GrowthTestBinding(Elbow, ELDDemoElement::None), Safe),
-        ELDGrowthReason::InvalidTarget);
-    bGood &= Refused(TEXT("B18 bound to an active that is not learned"), Install(Dirty, GrowthTestBinding(Seethe, ELDDemoElement::Fire), Safe),
-        ELDGrowthReason::InvalidTarget);
-    bGood &= Refused(TEXT("B18 bound to a learned active without direct damage"),
-        Install(Dirty, GrowthTestBinding(BailOut, ELDDemoElement::Fire), Safe), ELDGrowthReason::InvalidTarget);
-    bGood &= Test.TestTrue(TEXT("B18 bound to fire on a learned damaging active installs with its binding"),
-        Install(Dirty, GrowthTestBinding(Elbow, ELDDemoElement::Fire), Safe) == ELDGrowthReason::None && Out.FindComponent(Dirty)->bInstalled
-        && Out.FindComponent(Dirty)->Target == GrowthTestBinding(Elbow, ELDDemoElement::Fire)
-        && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
-
-    // Mods and connectors get their targets with #198 F.
-    FLDDemoContentDefinitions Mixed = GrowthTestMixedContent(Content);
-    const FName TestMod(TEXT("component_test_mod"));
-    // The mixed fixture's mod targets self so it is drawable; this gate needs a mod with no target at all.
-    Mixed.Components.FindByPredicate([](const FLDDemoComponentDefinition& Row) { return Row.Id == TEXT("component_test_mod"); })
-        ->bTargetSelf = false;
-    const FLDGrowthBuild ModHeld = GrowthTestComponentBuild(Mixed, 2, {GrowthTestInstance(TestMod, ESource::LevelUp, 2)});
-    bGood &= GrowthTestReason(Test, TEXT("A mod has no install target yet"),
-        LDProgression::ApplyInstallComponent(Mixed, ModHeld, TestMod, FLDComponentTarget(), Safe, Out), ELDGrowthReason::InvalidTarget);
-    return bGood;
-}
-
-// The opening base pick: once, after the opening active, among the always-offered bases and those the opening active
-// unlocks (spec §4.3), installed in the same commit when allowed and stored with the reason otherwise.
-bool GrowthTestRunOpeningBase(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadComponents(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    using EStage = LDProgression::EMatchStage;
-    using ESource = ELDComponentSource;
-    const FName Elbow(TEXT("active_elbow")), Seethe(TEXT("active_seethe")), BailOut(TEXT("active_bail_out"));
-    const auto Ids = [](std::initializer_list<const TCHAR*> Names)
-    {
-        TArray<FName> Out;
-        for (const TCHAR* Name : Names)
-        {
-            Out.Add(FName(Name));
-        }
-        return Out;
-    };
-    const TArray<FName> Always = Ids({TEXT("component_fist_fire"), TEXT("component_tab_ledger"), TEXT("component_spiky_hide"),
-        TEXT("component_punch_heal"), TEXT("component_dash_bump"), TEXT("component_third_punch"), TEXT("component_hard_skin"),
-        TEXT("component_fist_water"), TEXT("component_dash_punch")});
-    const TArray<FName> ForElbow = Ids({TEXT("component_fist_fire"), TEXT("component_tab_ledger"), TEXT("component_spiky_hide"),
-        TEXT("component_punch_heal"), TEXT("component_dash_bump"), TEXT("component_third_punch"), TEXT("component_kick_down"),
-        TEXT("component_hard_skin"), TEXT("component_fist_water"), TEXT("component_dash_punch"), TEXT("component_held_shot"),
-        TEXT("component_dirty_trick")});
-    const TArray<FName> ForSeethe = Ids({TEXT("component_fist_fire"), TEXT("component_tab_ledger"), TEXT("component_spiky_hide"),
-        TEXT("component_punch_heal"), TEXT("component_dash_bump"), TEXT("component_third_punch"), TEXT("component_hard_skin"),
-        TEXT("component_fist_water"), TEXT("component_fist_shock"), TEXT("component_dash_punch"), TEXT("component_held_shot"),
-        TEXT("component_dirty_trick")});
-    const FLDGrowthBuild Start = GrowthTestBuild(Content, 1, {{Elbow, 0}});
-    TArray<FName> Options;
-    bool bGood = Test.TestTrue(TEXT("Without a qualifying opening active only the always-offered bases are options"),
-        LDProgression::OpeningBaseOptions(Content, Start, BailOut, Options) == ELDGrowthReason::None && Options == Always);
-    bGood &= Test.TestTrue(TEXT("S01 adds B07, B17 and B18 in catalog order"),
-        LDProgression::OpeningBaseOptions(Content, Start, Elbow, Options) == ELDGrowthReason::None && Options == ForElbow);
-    bGood &= Test.TestTrue(TEXT("S07 adds B11, B17 and B18 but not B07"),
-        LDProgression::OpeningBaseOptions(Content, Start, Seethe, Options) == ELDGrowthReason::None && Options == ForSeethe);
-    const FName Spiky(TEXT("component_spiky_hide"));
-    const FLDGrowthBuild SpikyOwned = GrowthTestComponentBuild(Content, 2, {GrowthTestInstance(Spiky, ESource::LevelUp, 2)}, {{Elbow, 0}});
-    bGood &= Test.TestTrue(TEXT("An owned base is no option"), LDProgression::OpeningBaseOptions(Content, SpikyOwned, Elbow, Options)
-        == ELDGrowthReason::None && Options.Num() == ForElbow.Num() - 1 && !Options.Contains(Spiky));
-
-    FLDProgressionState Fresh;
-    FLDProgressionState Opened;
-    FLDActiveOpportunityRecord& Opening = Opened.Records.AddDefaulted_GetRef();
-    Opening.Ordinal = 1;
-    Opening.Chosen = Elbow;
-    Opened.ActiveEarned = 1;
-    Opened.ActiveConsumed = 1;
-    bGood &= Test.TestTrue(TEXT("The opening active is the one chosen for opportunity 1"),
-        LDProgression::OpeningActive(Opened) == Elbow && LDProgression::OpeningActive(Fresh).IsNone());
-
-    const LDProgression::FBuildContext OpeningRest = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext Field = GrowthTestContext(EStage::Live, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext Dead = GrowthTestContext(EStage::Live, ELDLifePhase::Dead);
-    const LDProgression::FBuildContext Closed = GrowthTestContext(EStage::Closed, ELDLifePhase::Alive);
-    FLDGrowthBuild Out;
-    LDProgression::FInstallOutcome Outcome;
-    const auto Pick = [&](const FLDGrowthBuild& From, const FLDProgressionState& Progression, FName Id, bool bInstall,
-        const FLDComponentTarget& Target, const LDProgression::FBuildContext& Context)
-    {
-        return LDProgression::ApplyOpeningBase(Content, From, Progression, Id, bInstall, Target, Context, Out, Outcome);
-    };
-    const auto Refused = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected, const FLDGrowthBuild& From)
-    {
-        const bool bReason = GrowthTestReason(Test, What, Actual, Expected);
-        return Test.TestTrue(FString::Printf(TEXT("%s changes nothing"), What), GrowthTestSameComponents(Out.Components, From.Components))
-            && bReason;
-    };
-    bGood &= Refused(TEXT("A base pick before the opening active"), Pick(Start, Fresh, Spiky, true, FLDComponentTarget(), OpeningRest),
-        ELDGrowthReason::OpeningActiveFirst, Start);
-    FLDProgressionState Skipped = Opened;
-    Skipped.Records[0].Chosen = NAME_None;
-    bGood &= Test.TestTrue(TEXT("Skipping the opening active still allows an always-offered opening base"),
-        Pick(Start, Skipped, Spiky, true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && Outcome.bInstalled
-        && Out.FindComponent(Spiky));
-    bGood &= Refused(TEXT("A skipped opening does not unlock an active-specific base"),
-        Pick(Start, Skipped, FName(TEXT("component_fist_shock")), true, FLDComponentTarget(), OpeningRest),
-        ELDGrowthReason::OpeningBaseUnavailable, Start);
-    bGood &= Test.TestTrue(TEXT("The opening rest pick is granted as the opening instance and installed in the same commit"),
-        Pick(Start, Opened, Spiky, true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && Outcome.bInstalled
-        && Outcome.StoredReason == ELDGrowthReason::None && Out.Components.Num() == 1 && Out.Components[0].Id == Spiky
-        && Out.Components[0].Source == ESource::OpeningPick && Out.Components[0].SourceLevel == 1 && Out.Components[0].bInstalled
-        && Out.Components[0].bEverInstalled && LDProgression::OpeningBaseTaken(Out) && Out.Revision == Start.Revision);
-    const FLDGrowthBuild Taken = Out;
-    bGood &= Refused(TEXT("A second base pick"), Pick(Taken, Opened, FName(TEXT("component_fist_fire")), true, FLDComponentTarget(), OpeningRest),
-        ELDGrowthReason::OpeningBaseTaken, Taken);
-    bGood &= Refused(TEXT("A base that is never an opening option"),
-        Pick(Start, Opened, FName(TEXT("component_breach_fist")), true, FLDComponentTarget(), OpeningRest), ELDGrowthReason::OpeningBaseUnavailable,
-        Start);
-    bGood &= Refused(TEXT("A base the opening active does not unlock"),
-        Pick(Start, Opened, FName(TEXT("component_fist_shock")), true, FLDComponentTarget(), OpeningRest), ELDGrowthReason::OpeningBaseUnavailable,
-        Start);
-    bGood &= Refused(TEXT("An unknown base"), Pick(Start, Opened, FName(TEXT("component_unknown")), true, FLDComponentTarget(), OpeningRest),
-        ELDGrowthReason::OpeningBaseUnavailable, Start);
-    bGood &= Refused(TEXT("A base pick after the match closed"), Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Closed),
-        ELDGrowthReason::PhaseClosed, Start);
-    bGood &= Refused(TEXT("A binding without asking to install"),
-        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), false, GrowthTestBinding(Elbow, ELDDemoElement::Fire), OpeningRest),
-        ELDGrowthReason::InvalidRequest, Start);
-    bGood &= Test.TestTrue(TEXT("On the field the pick installs at once (#222)"),
-        Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Field) == ELDGrowthReason::None && Outcome.bInstalled
-        && Outcome.StoredReason == ELDGrowthReason::None && Out.Components.Num() == 1 && Out.Components[0].bInstalled
-        && Out.Components[0].bEverInstalled);
-    bGood &= Test.TestTrue(TEXT("While dead the pick installs at once (#222)"),
-        Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Dead) == ELDGrowthReason::None && Outcome.bInstalled
-        && Outcome.StoredReason == ELDGrowthReason::None && Out.FindComponent(Spiky) && Out.FindComponent(Spiky)->bInstalled);
-    bGood &= Test.TestTrue(TEXT("A pick that does not ask to install is stored without a reason"),
-        Pick(Start, Opened, Spiky, false, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && !Outcome.bInstalled
-        && Outcome.StoredReason == ELDGrowthReason::None && !Out.Components[0].bInstalled);
-    bGood &= Test.TestTrue(TEXT("B10 is a legal pick and installs at once"),
-        Pick(Start, Opened, FName(TEXT("component_fist_water")), true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None
-        && Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::None && Out.Components.Num() == 1);
-    bGood &= Test.TestTrue(TEXT("B18 without a binding is stored, saying InvalidTarget"),
-        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None
-        && !Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::InvalidTarget);
-    bGood &= Test.TestTrue(TEXT("B18 bound to fire on the learned opening active installs with its binding"),
-        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, GrowthTestBinding(Elbow, ELDDemoElement::Fire), OpeningRest)
-            == ELDGrowthReason::None && Outcome.bInstalled && Out.Components[0].Target == GrowthTestBinding(Elbow, ELDDemoElement::Fire)
-        && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
-    return bGood;
-}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthWireTest, "Lockdown.Rules.DemoGrowthWire",
@@ -2465,54 +1594,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthSkillGrowthTest, "Lockdown.Rules.D
 bool FLDDemoGrowthSkillGrowthTest::RunTest(const FString& Parameters)
 {
     return GrowthTestRunSkillGrowth(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsInstanceDedupeTest, "Lockdown.Rules.DemoGrowthComponents.InstanceDedupe",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsInstanceDedupeTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunComponentInstances(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsLevelGrantTest, "Lockdown.Rules.DemoGrowthComponents.LevelGrantFixedSeed",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsLevelGrantTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunComponentGrants(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsHostLegalDrawTest, "Lockdown.Rules.DemoGrowthComponents.HostLegalDraw",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsHostLegalDrawTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunHostLegalDraw(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsDrawRequirementTest, "Lockdown.Rules.DemoGrowthComponents.DrawRequirement",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsDrawRequirementTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunDrawRequirement(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsInstallGateTest, "Lockdown.Rules.DemoGrowthComponents.InstallGate",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsInstallGateTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunComponentInstall(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsOpeningBaseTest, "Lockdown.Rules.DemoGrowthComponents.OpeningBase",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsOpeningBaseTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunOpeningBase(*this);
 }
 
 // DEV test commands (#78): shape, the fixture gate, admission through the growth request stream, the Transactions commit
@@ -3730,12 +2811,13 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDBuildCommand SkipOpeningCommand = Skip(Skipper);
     const FLDBuildReceipt SkipOpeningReceipt = Commit(Skipper, SkipOpeningCommand, 101, TEXT("Skipping the opening offer"));
     const FLDProgressionView AfterSkipOpening = Development->ReadProgression(Skipper);
-    TestTrue(TEXT("Skipping consumes the offer once, awards points and opens the unconditional base choice"),
+    TestTrue(TEXT("Skipping consumes the offer once, awards points and still opens the opening card offer"),
         SkipOpeningReceipt.Header.Outcome == ELDReceiptOutcome::Applied && SkipOpeningReceipt.PointsAwarded == 5
         && SkipOpeningReceipt.OpportunityOrdinal == 1 && SkipOpeningReceipt.UnspentPointsAfter == 8
         && BuildOf(Skipper).Actives.IsEmpty() && ProgressionOf(Skipper).ActiveConsumed == 1
         && ProgressionOf(Skipper).Records.Num() == 1 && ProgressionOf(Skipper).Records[0].Chosen.IsNone()
-        && AfterSkipOpening.bOpeningBasePending && !AfterSkipOpening.OpeningBaseOptions.IsEmpty());
+        && AfterSkipOpening.bHasCardOffer && AfterSkipOpening.CardOffer.Source == ELDCardOfferSource::Opening
+        && AfterSkipOpening.CardOffer.Options.Num() == 3);
     const uint64 RevisionAfterSkip = BuildOf(Skipper).Revision;
     const FLDSubmitResult SkipReplay = Development->QueueBuild(Skipper, SkipOpeningCommand);
     TestTrue(TEXT("Replaying a skip returns the original award without awarding again"),
@@ -3878,64 +2960,116 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A refused allocation changes nothing"), BuildOf(Tester).Revision == RevisionAfterPoints
         && BuildOf(Tester).StatPoints == Allocated);
 
-    // ---- #198 B: the opening base pick after the opening active, installed in the same opening rest commit ----
-    const FName Spiky(TEXT("component_spiky_hide"));
+    // ---- Spec §6.4: the opening card offer follows the opening active; a pick installs in the same commit ----
     const FLDProgressionView Picking = Development->ReadProgression(Tester);
-    TestTrue(TEXT("The chosen opening active opens the opening base pick"), Picking.bOpeningBasePending
-        && Picking.OpeningBaseOptions.Contains(Spiky) && Picking.Components.IsEmpty());
-    const auto ComponentCommand = [&](const FGuid& Id, ELDBuildCommandKind Kind, FName Definition, bool bInstall)
+    if (!TestTrue(TEXT("The chosen opening active opens the opening card offer with the free rerolls and six slots"),
+        Picking.bHasCardOffer && Picking.CardOffer.Source == ELDCardOfferSource::Opening && Picking.CardOffer.Ordinal == 1
+        && Picking.CardOffer.Options.Num() == 3 && GrowthTestDistinct(Picking.CardOffer.Options) && Picking.CardOffer.Locked.IsNone()
+        && Picking.Cards.IsEmpty() && Picking.CardRerolls == Content.Parameters.Cards.FreeRerolls
+        && Picking.CardCapacity == Content.Parameters.Cards.CapacityBase)) { return false; }
+    // A card kind against the current card offer.
+    const auto CardOffer = [&](const FGuid& Id, ELDBuildCommandKind Kind, FName Option = NAME_None)
     {
+        const FLDProgressionView View = Development->ReadProgression(Id);
         FLDBuildCommand Out = Base(Id, Kind);
-        FLDDefinitionWire::Encode(Definition, Out.Component);
-        Out.bInstallIfPossible = bInstall;
+        Out.OfferId = View.CardOffer.OfferId;
+        Out.OfferRevision = View.CardOffer.OfferRevision;
+        if (!Option.IsNone()) { FLDDefinitionWire::Encode(Option, Out.Option); }
         return Out;
     };
-    Bad = ComponentCommand(Tester, ELDBuildCommandKind::OpeningBase, Spiky, false);
-    Bad.Element = ELDDemoElement::Fire;
-    Refused(TEXT("An opening base carrying a binding without asking to install"), Bad, ELDGrowthReason::InvalidRequest);
-    Bad = ComponentCommand(Tester, ELDBuildCommandKind::OpeningBase, Spiky, true);
+    const auto Place = [](FLDBuildCommand& Out, const FLDCardTarget& Target)
+    {
+        Out.CardTarget = Target.Kind;
+        if (!Target.Active.IsNone()) { FLDDefinitionWire::Encode(Target.Active, Out.TargetDefinition); }
+        Out.Element = Target.Element;
+    };
+    const FName Taken = Picking.CardOffer.Options[0];
+    FLDCardTarget TakenAt;
+    if (!TestTrue(TEXT("The offered card has a legal place in the opening build"),
+        LDProgression::DefaultCardTarget(Content, BuildOf(Tester), Taken, TakenAt))) { return false; }
+    Bad = CardOffer(Tester, ELDBuildCommandKind::PickCard, Taken);
+    Place(Bad, TakenAt);
+    Refused(TEXT("A pick naming a place without asking to install"), Bad, ELDGrowthReason::InvalidRequest);
+    Bad = CardOffer(Tester, ELDBuildCommandKind::PickCard, Taken);
+    Bad.bInstallIfPossible = true;
+    Refused(TEXT("A pick asking to install without a place"), Bad, ELDGrowthReason::InvalidRequest);
+    Bad = CardOffer(Tester, ELDBuildCommandKind::PickCard, Taken);
     Bad.PointCounts = {1, 0, 0, 0, 0};
-    Refused(TEXT("An opening base carrying points"), Bad, ELDGrowthReason::InvalidRequest);
-    Bad = ComponentCommand(Tester, ELDBuildCommandKind::UninstallComponent, Spiky, true);
-    Refused(TEXT("An uninstall asking to install"), Bad, ELDGrowthReason::InvalidRequest);
-    Bad = ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, Spiky, false);
-    Bad.TargetKind = static_cast<ELDComponentTargetKind>(9);
-    Refused(TEXT("An install naming an unknown target kind"), Bad, ELDGrowthReason::InvalidRequest);
-    Bad = ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, Spiky, false);
+    Refused(TEXT("A pick carrying points"), Bad, ELDGrowthReason::InvalidRequest);
+    Bad = CardOffer(Tester, ELDBuildCommandKind::RerollCards, Taken);
+    Refused(TEXT("A reroll naming a card"), Bad, ELDGrowthReason::InvalidRequest);
+    Bad = Base(Tester, ELDBuildCommandKind::InstallCard);
+    Bad.CardSerial = 1;
+    Bad.CardTarget = static_cast<ELDCardTargetKind>(9);
+    Refused(TEXT("An install naming an unknown place"), Bad, ELDGrowthReason::InvalidRequest);
+    Bad = Base(Tester, ELDBuildCommandKind::InstallCard);
+    Bad.CardSerial = 1;
+    Bad.CardTarget = ELDCardTargetKind::Body;
     Bad.Element = static_cast<ELDDemoElement>(7);
     Refused(TEXT("An install naming an unknown element"), Bad, ELDGrowthReason::InvalidRequest);
+    Bad = Base(Tester, ELDBuildCommandKind::UninstallCard);
+    Bad.CardSerial = 1;
+    Bad.CardTarget = ELDCardTargetKind::Body;
+    Refused(TEXT("An uninstall naming a place"), Bad, ELDGrowthReason::InvalidRequest);
     Bad = Good;
-    FLDDefinitionWire::Encode(Spiky, Bad.Component);
-    Refused(TEXT("An active choice naming a component"), Bad, ELDGrowthReason::InvalidRequest);
-    const FLDBuildReceipt Picked = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::OpeningBase, Spiky, true), 1005,
-        TEXT("The opening base pick in the opening rest"));
-    const FLDComponentInstance* PickedInstance = BuildOf(Tester).FindComponent(Spiky);
+    Bad.CardSerial = 1;
+    Refused(TEXT("An active choice naming a card"), Bad, ELDGrowthReason::InvalidRequest);
+    // Spec §6.4: one lock; a reroll spends one reroll, keeps the locked card and redraws the rest.
+    const FLDBuildReceipt Locked = Commit(Tester, CardOffer(Tester, ELDBuildCommandKind::LockCard, Taken), 1005, TEXT("Locking a card"));
+    const FLDProgressionView LockedView = Development->ReadProgression(Tester);
+    TestTrue(TEXT("The lock is applied and shown on the same offer"), Locked.Header.Outcome == ELDReceiptOutcome::Applied
+        && LockedView.CardOffer.OfferId == Picking.CardOffer.OfferId && LockedView.CardOffer.Locked == Taken
+        && LockedView.CardOffer.OfferRevision > Picking.CardOffer.OfferRevision);
+    FName Outside;
+    for (const FLDDemoCardDefinition& Row : Content.Cards)
+    {
+        if (!LockedView.CardOffer.Options.Contains(FName(*Row.Id))) { Outside = FName(*Row.Id); break; }
+    }
+    Rejected(Commit(Tester, CardOffer(Tester, ELDBuildCommandKind::LockCard, Outside), 1005,
+        TEXT("Locking a card outside the offer")), ELDGrowthReason::NotInOffer, TEXT("Locking a card outside the offer"));
+    const FLDBuildReceipt Rerolled = Commit(Tester, CardOffer(Tester, ELDBuildCommandKind::RerollCards), 1005, TEXT("Rerolling the offer"));
+    const FLDProgressionView RerolledView = Development->ReadProgression(Tester);
+    TestTrue(TEXT("A reroll spends one reroll, keeps the locked card and redraws three distinct cards"),
+        Rerolled.Header.Outcome == ELDReceiptOutcome::Applied && Rerolled.CardRerollsAfter == Picking.CardRerolls - 1
+        && RerolledView.CardRerolls == Picking.CardRerolls - 1 && RerolledView.CardOffer.Options.Num() == 3
+        && RerolledView.CardOffer.Options[0] == Taken && RerolledView.CardOffer.Locked == Taken
+        && GrowthTestDistinct(RerolledView.CardOffer.Options));
+    FLDBuildCommand Pick = CardOffer(Tester, ELDBuildCommandKind::PickCard, Taken);
+    Pick.bInstallIfPossible = true;
+    Place(Pick, TakenAt);
+    const FLDBuildReceipt Picked = Commit(Tester, Pick, 1006, TEXT("Picking the opening card"));
+    const FLDCardInstance* PickedInstance = BuildOf(Tester).FindCard(Picked.CardSerial);
     TestTrue(TEXT("The pick is installed in the same commit and Combat installs it"), Picked.Header.Outcome == ELDReceiptOutcome::Applied
-        && Picked.Kind == ELDBuildCommandKind::OpeningBase && Picked.ComponentId == Spiky && Picked.bComponentInstalled
-        && LDGrowthWire::Reason(Picked.InstallStoredReason) == ELDGrowthReason::None && PickedInstance
-        && PickedInstance->Source == ELDComponentSource::OpeningPick && PickedInstance->SourceLevel == 1 && PickedInstance->bInstalled
-        && PickedInstance->bEverInstalled && FightOf(Tester).Installed.BuildRevision == BuildOf(Tester).Revision
-        && FightOf(Tester).Build.Components.Num() == 1 && FightOf(Tester).Build.Components[0].ComponentId == Spiky);
+        && Picked.Kind == ELDBuildCommandKind::PickCard && Picked.CardId == Taken && Picked.CardSerial == 1 && Picked.bCardInstalled
+        && LDGrowthWire::Reason(Picked.InstallStoredReason) == ELDGrowthReason::None && PickedInstance && PickedInstance->OfferOrdinal == 1
+        && PickedInstance->Target == TakenAt && FightOf(Tester).Installed.BuildRevision == BuildOf(Tester).Revision
+        && FightOf(Tester).Build.Cards.Num() == 1 && FightOf(Tester).Build.Cards[0].CardId == Taken);
     const FLDProgressionView PickedView = Development->ReadProgression(Tester);
-    TestTrue(TEXT("The pick closes the opening base pick and the owner view lists the installed instance"),
-        !PickedView.bOpeningBasePending && PickedView.OpeningBaseOptions.IsEmpty() && PickedView.Components.Num() == 1
-        && PickedView.Components[0].DefinitionId == Spiky && PickedView.Components[0].bInstalled
-        && PickedView.Components[0].Source == ELDComponentSource::OpeningPick);
-    Rejected(Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::OpeningBase, FName(TEXT("component_fist_fire")), true), 1006,
-        TEXT("A second opening base pick")), ELDGrowthReason::OpeningBaseTaken, TEXT("A second opening base pick"));
-    const FLDBuildReceipt Removed = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::UninstallComponent, Spiky, false), 1007,
-        TEXT("Uninstalling in the opening rest"));
-    TestTrue(TEXT("The rest window uninstalls it back to the inventory, history kept"), Removed.Header.Outcome == ELDReceiptOutcome::Applied
-        && !Removed.bComponentInstalled && !BuildOf(Tester).FindComponent(Spiky)->bInstalled
-        && BuildOf(Tester).FindComponent(Spiky)->bEverInstalled && FightOf(Tester).Build.Components.IsEmpty());
-    const FLDBuildReceipt Reinstalled = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, Spiky, false), 1007,
-        TEXT("Re-installing in the opening rest"));
-    TestTrue(TEXT("The rest window re-installs a once-installed component"), Reinstalled.Header.Outcome == ELDReceiptOutcome::Applied
-        && Reinstalled.bComponentInstalled && FightOf(Tester).Build.Components.Num() == 1);
-    Rejected(Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, FName(TEXT("component_fist_fire")), false),
-        1008, TEXT("Installing an unowned component")), ELDGrowthReason::NotOwned, TEXT("Installing an unowned component"));
-    TestTrue(TEXT("The refused component commands changed nothing"), BuildOf(Tester).Components.Num() == 1
-        && BuildOf(Tester).Components[0].bInstalled && FightOf(Tester).Build.Components.Num() == 1);
+    TestTrue(TEXT("The pick closes the offer and the owner view lists the installed copy"),
+        !PickedView.bHasCardOffer && PickedView.Cards.Num() == 1 && PickedView.Cards[0].DefinitionId == Taken
+        && PickedView.Cards[0].IsInstalled() && PickedView.Cards[0].Serial == 1);
+    FLDBuildCommand SecondPick = Pick;
+    SecondPick.RequestId = NextRequest.FindRef(Tester) + 1;
+    SecondPick.ExpectedBuildRevision = BuildOf(Tester).Revision;
+    Rejected(Commit(Tester, SecondPick, 1007, TEXT("A second pick of the closed offer")), ELDGrowthReason::NoCardOffer,
+        TEXT("A second pick of the closed offer"));
+    FLDBuildCommand Off = Base(Tester, ELDBuildCommandKind::UninstallCard);
+    Off.CardSerial = 1;
+    const FLDBuildReceipt Removed = Commit(Tester, Off, 1007, TEXT("Uninstalling in the opening rest"));
+    TestTrue(TEXT("The rest window uninstalls it back to the library"), Removed.Header.Outcome == ELDReceiptOutcome::Applied
+        && !BuildOf(Tester).FindCard(1)->IsInstalled() && FightOf(Tester).Build.Cards.IsEmpty());
+    FLDBuildCommand On = Base(Tester, ELDBuildCommandKind::InstallCard);
+    On.CardSerial = 1;
+    Place(On, TakenAt);
+    const FLDBuildReceipt Reinstalled = Commit(Tester, On, 1007, TEXT("Re-installing in the opening rest"));
+    TestTrue(TEXT("The rest window re-installs a library card"), Reinstalled.Header.Outcome == ELDReceiptOutcome::Applied
+        && Reinstalled.bCardInstalled && FightOf(Tester).Build.Cards.Num() == 1);
+    FLDBuildCommand Unowned = Base(Tester, ELDBuildCommandKind::InstallCard);
+    Unowned.CardSerial = 9;
+    Place(Unowned, TakenAt);
+    Rejected(Commit(Tester, Unowned, 1008, TEXT("Installing an unowned card")), ELDGrowthReason::NotOwned, TEXT("Installing an unowned card"));
+    TestTrue(TEXT("The refused card commands changed nothing"), BuildOf(Tester).Cards.Num() == 1
+        && BuildOf(Tester).Cards[0].IsInstalled() && FightOf(Tester).Build.Cards.Num() == 1);
 
     // ---- Development: level 3 queues an offer of every active but the learned one ----
     Mode->MatchPhase = ELDMatchPhase::Development;
@@ -3961,28 +3095,21 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && Three.QueuedActiveOpportunities == 1 && Three.bHasActiveOffer && Three.ActiveOffer.OpportunityOrdinal == 2
         && Three.ActiveOffer.Options.Num() == 3 && GrowthTestDistinct(Three.ActiveOffer.Options)
         && !Three.ActiveOffer.Options.Contains(First) && Three.UnspentPoints == 6);
-    const TArray<FLDComponentInstance>& Owned = BuildOf(Tester).Components;
-    const auto GrantedAt = [&Owned](uint8 GrantLevel)
-    {
-        return Owned.FindByPredicate([GrantLevel](const FLDComponentInstance& Instance)
-            { return Instance.Source == ELDComponentSource::LevelUp && Instance.SourceLevel == GrantLevel; });
-    };
-    const int32 AtTwo = Owned.FilterByPredicate([](const FLDComponentInstance& Instance)
-        { return Instance.Source == ELDComponentSource::LevelUp && Instance.SourceLevel == 2; }).Num();
-    TestTrue(TEXT("Level 2 (a bonus draw level) grants two and level 3 one more unowned component into the inventory with the XP commit"),
-        Owned.Num() == 4 && AtTwo == 2 && GrantedAt(2) && GrantedAt(3) && !GrantedAt(2)->bInstalled && !GrantedAt(3)->bInstalled
-        && GrantedAt(2)->Id != Spiky && GrantedAt(3)->Id != Spiky && GrantedAt(2)->Id != GrantedAt(3)->Id
-        && Three.Components.Num() == 4 && ProgressionOf(Tester).EmptyPoolGrants == 0);
-    TestEqual(TEXT("Inventory components do not reach Combat"), FightOf(Tester).Build.Components.Num(), 1);
-    // #222: the field moves components too; Combat follows each commit.
-    const FLDBuildReceipt FieldOff = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::UninstallComponent, Spiky, false),
-        StepAtMs + 1, TEXT("Uninstalling on the field"));
-    TestTrue(TEXT("The field uninstalls it back to the inventory and Combat drops it"), FieldOff.Header.Outcome == ELDReceiptOutcome::Applied
-        && !BuildOf(Tester).FindComponent(Spiky)->bInstalled && FightOf(Tester).Build.Components.IsEmpty());
-    const FLDBuildReceipt FieldOn = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, Spiky, false),
-        StepAtMs + 1, TEXT("Re-installing on the field"));
-    TestTrue(TEXT("The field re-installs a once-installed component and Combat installs it"),
-        FieldOn.Header.Outcome == ELDReceiptOutcome::Applied && FieldOn.bComponentInstalled && FightOf(Tester).Build.Components.Num() == 1);
+    TestTrue(TEXT("Levels 2 and 3 each queue a level-up card offer; the head is drawn at once"),
+        Three.bHasCardOffer && Three.CardOffer.Source == ELDCardOfferSource::LevelUp && Three.CardOffer.Ordinal == 2
+        && Three.CardOffer.Options.Num() == 3 && Three.Cards.Num() == 1);
+    // #222: the field moves cards too; Combat follows each commit.
+    FLDBuildCommand FieldOffCommand = Base(Tester, ELDBuildCommandKind::UninstallCard);
+    FieldOffCommand.CardSerial = 1;
+    const FLDBuildReceipt FieldOff = Commit(Tester, FieldOffCommand, StepAtMs + 1, TEXT("Uninstalling on the field"));
+    TestTrue(TEXT("The field uninstalls it back to the library and Combat drops it"), FieldOff.Header.Outcome == ELDReceiptOutcome::Applied
+        && !BuildOf(Tester).FindCard(1)->IsInstalled() && FightOf(Tester).Build.Cards.IsEmpty());
+    FLDBuildCommand FieldOnCommand = Base(Tester, ELDBuildCommandKind::InstallCard);
+    FieldOnCommand.CardSerial = 1;
+    Place(FieldOnCommand, TakenAt);
+    const FLDBuildReceipt FieldOn = Commit(Tester, FieldOnCommand, StepAtMs + 1, TEXT("Re-installing on the field"));
+    TestTrue(TEXT("The field re-installs a library card and Combat installs it"),
+        FieldOn.Header.Outcome == ELDReceiptOutcome::Applied && FieldOn.bCardInstalled && FightOf(Tester).Build.Cards.Num() == 1);
     const uint64 BuildBeforeRefusals = BuildOf(Tester).Revision;
     FLDBuildCommand Stale = Allocate(Tester, {1, 0, 0, 0, 0});
     Stale.ExpectedBuildRevision -= 1;
@@ -4191,399 +3318,5 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
 // Every installed base, mod and connector takes one workshop slot of its level: a full workshop refuses the next install
 // (WorkshopFull, nothing changes) and the opening base stays in the inventory; an uninstall frees the slot; a stored
 // build past its capacity is invalid.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsWorkshopCapacityTest, "Lockdown.Rules.DemoGrowthComponents.WorkshopCapacity",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsWorkshopCapacityTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadFixture(*this, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    const LDProgression::FBuildContext Live = GrowthTestContext(LDProgression::EMatchStage::Live, ELDLifePhase::Alive);
-    const uint8 Level = 1;
-    const int32 Capacity = LDProgression::WorkshopCapacity(Content.Progression, Level);
-    TArray<FName> Bases;
-    TArray<FName> DashCandidates;
-    TSet<FString> Forms;
-    for (const FLDDemoComponentDefinition& Row : Content.Components)
-    {
-        if (Row.Kind == ELDDemoComponentKind::Base && Row.Binding == ELDDemoComponentBinding::None && Row.Pool == ELDDemoComponentPool::Common
-            && (Row.Form.IsEmpty() || !Forms.Contains(Row.Form)))
-        {
-            Bases.Add(FName(*Row.Id));
-            if (!Row.Form.IsEmpty())
-            {
-                Forms.Add(Row.Form);
-            }
-        }
-        else if (Row.Kind != ELDDemoComponentKind::Base
-            && LDWorkshop::TargetShape(Content, Row, ELDComponentTargetKind::Dash, NAME_None, NAME_None,
-                ELDDemoElement::None, NAME_None))
-        {
-            DashCandidates.Add(FName(*Row.Id));
-        }
-    }
-    if (!TestTrue(TEXT("The fixture can fill global capacity while respecting both column limits"),
-        Capacity == 5 && Bases.Num() > 3 && DashCandidates.Num() >= Content.Progression.WorkshopDashColumnCapacity))
-    {
-        return false;
-    }
-    TArray<FLDComponentInstance> Instances;
-    for (const FName Id : Bases)
-    {
-        Instances.Add(GrowthTestInstance(Id, ELDComponentSource::EliteChoice, 1));
-    }
-    for (const FName Id : DashCandidates)
-    {
-        Instances.Add(GrowthTestInstance(Id, ELDComponentSource::EliteChoice, 1));
-    }
-    FLDGrowthBuild Full = GrowthTestComponentBuild(Content, Level, MoveTemp(Instances));
-    int32 InstalledBases = 0;
-    for (int32 Index = 0; Index < 3; ++Index)
-    {
-        FLDGrowthBuild Candidate;
-        if (LDProgression::ApplyInstallComponent(Content, Full, Bases[Index], FLDComponentTarget(), Live, Candidate)
-            == ELDGrowthReason::None)
-        {
-            Full = MoveTemp(Candidate);
-            ++InstalledBases;
-        }
-    }
-    TArray<FName> InstalledDash;
-    FLDComponentTarget DashTarget;
-    DashTarget.Kind = ELDComponentTargetKind::Dash;
-    for (const FName Id : DashCandidates)
-    {
-        if (InstalledDash.Num() >= Content.Progression.WorkshopDashColumnCapacity)
-        {
-            break;
-        }
-        FLDGrowthBuild Candidate;
-        if (LDProgression::ApplyInstallComponent(Content, Full, Id, DashTarget, Live, Candidate) == ELDGrowthReason::None)
-        {
-            Full = MoveTemp(Candidate);
-            InstalledDash.Add(Id);
-        }
-    }
-    if (!TestTrue(TEXT("The test build fills body and dash columns without exceeding either limit"),
-        InstalledBases == 3 && InstalledDash.Num() == Content.Progression.WorkshopDashColumnCapacity))
-    {
-        return false;
-    }
-    bool bGood = GrowthTestReason(*this, TEXT("A build with every slot taken"), LDProgression::ValidateBuild(Content, Full),
-        ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("The view counts every install"), LDProgression::InstalledComponents(Full) == Capacity);
-    FLDGrowthBuild Out;
-    const FName Spare = Bases[3];
-    bGood &= GrowthTestReason(*this, TEXT("One more install past the capacity"),
-        LDProgression::ApplyInstallComponent(Content, Full, Spare, FLDComponentTarget(), Live, Out), ELDGrowthReason::WorkshopFull);
-    bGood &= TestTrue(TEXT("A refused install changes nothing"), GrowthTestSameComponents(Out.Components, Full.Components));
-    FLDGrowthBuild Freed;
-    bGood &= GrowthTestReason(*this, TEXT("Uninstalling one installed base"),
-        LDProgression::ApplyUninstallComponent(Content, Full, Bases[0], Live, Freed), ELDGrowthReason::None);
-    bGood &= GrowthTestReason(*this, TEXT("The freed slot takes the spare"),
-        LDProgression::ApplyInstallComponent(Content, Freed, Spare, FLDComponentTarget(), Live, Out), ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("The swap keeps the count at the capacity"), LDProgression::InstalledComponents(Out) == Capacity
-        && !Out.FindComponent(Bases[0])->bInstalled && Out.FindComponent(Bases[0])->bEverInstalled);
-    TArray<FName> Reclaimed;
-    bGood &= GrowthTestReason(*this, TEXT("A full workshop takes the spare by replacing one install"),
-        LDProgression::ApplyInstallComponent(Content, Full, Spare, FLDComponentTarget(), Live, Out, Bases[0], &Reclaimed),
-        ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("The replace frees exactly the replaced slot"), LDProgression::InstalledComponents(Out) == Capacity
-        && Out.FindComponent(Spare)->bInstalled && !Out.FindComponent(Bases[0])->bInstalled && Reclaimed == TArray<FName>{Bases[0]});
-    // A level up raises the capacity: the same installs plus the spare fit at the next capacity step.
-    uint8 Next = Level;
-    while (Next < Content.Progression.MaxLevel && LDProgression::WorkshopCapacity(Content.Progression, Next) == Capacity) { ++Next; }
-    FLDGrowthBuild Grown = Full;
-    Grown.Level = Next;
-    bGood &= GrowthTestReason(*this, FString::Printf(TEXT("Level %u adds a slot"), uint32(Next)),
-        LDProgression::ApplyInstallComponent(Content, Grown, Spare, FLDComponentTarget(), Live, Out), ELDGrowthReason::None);
-    FLDGrowthBuild Over = Full;
-    Over.FindComponent(Spare)->bInstalled = true;
-    Over.FindComponent(Spare)->bEverInstalled = true;
-    bGood &= GrowthTestReason(*this, TEXT("A stored build past its capacity"), LDProgression::ValidateBuild(Content, Over),
-        ELDGrowthReason::DataInvalid);
-    return bGood;
-}
-
 // #198 F: mod/connector install targets (spec §12.1, §13.1): the kinds a definition accepts, a learned active or an installed
 // host, C12's installed base, the M08/M09 conflict, element sources, and the uninstall cascade of a host.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsWorkshopTargetsTest, "Lockdown.Rules.DemoGrowthComponents.WorkshopTargets",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthComponentsWorkshopTargetsTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadFixture(*this, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    TestEqual(TEXT("The approved body column limit comes from content"), Content.Progression.WorkshopBodyColumnCapacity, 4);
-    TestEqual(TEXT("The approved dash column limit comes from content"), Content.Progression.WorkshopDashColumnCapacity, 2);
-    using ESource = ELDComponentSource;
-    using EKind = ELDComponentTargetKind;
-    using EStage = LDProgression::EMatchStage;
-    const LDProgression::FBuildContext Safe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive);
-    const LDProgression::FBuildContext Rest = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive);
-    const FName Ledger(TEXT("component_tab_ledger")), Water(TEXT("component_fist_water")), Crowd(TEXT("component_crowd_hit"));
-    const FName Ram(TEXT("component_ram_through")), Hop(TEXT("component_quick_hop")), Chase(TEXT("component_blast_chase"));
-    const FName Dirty(TEXT("component_dirty_fist")), Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out"));
-    const FLDGrowthBuild Owned = GrowthTestComponentBuild(Content, 8, {GrowthTestInstance(Ledger, ESource::LevelUp, 2, true),
-        GrowthTestInstance(Crowd, ESource::LevelUp, 3), GrowthTestInstance(Ram, ESource::LevelUp, 4), GrowthTestInstance(Hop, ESource::LevelUp, 5),
-        GrowthTestInstance(Chase, ESource::LevelUp, 6), GrowthTestInstance(Dirty, ESource::LevelUp, 7), GrowthTestInstance(Water, ESource::LevelUp, 8, true)},
-        {{Elbow, 0}, {BailOut, 1}});
-    if (!GrowthTestReason(*this, TEXT("The workshop fixture build"), LDProgression::ValidateBuild(Content, Owned), ELDGrowthReason::None))
-    {
-        return false;
-    }
-    const auto Target = [](EKind Kind, FName Definition = NAME_None, FName Base = NAME_None)
-    {
-        FLDComponentTarget Out;
-        Out.Kind = Kind;
-        Out.Definition = Definition;
-        Out.BoundComponent = Base;
-        return Out;
-    };
-    FLDGrowthBuild Out;
-    const auto Install = [&](const FLDGrowthBuild& From, FName Id, const FLDComponentTarget& On)
-    { return LDProgression::ApplyInstallComponent(Content, From, Id, On, Safe, Out); };
-    bool bGood = true;
-    {
-        TArray<FLDComponentInstance> Candidates;
-        TArray<FName> CandidateIds;
-        for (const FLDDemoComponentDefinition& Definition : Content.Components)
-        {
-            if (Definition.Kind == ELDDemoComponentKind::Base && Definition.Binding == ELDDemoComponentBinding::None)
-            {
-                const FName Id(*Definition.Id);
-                Candidates.Add(GrowthTestInstance(Id, ESource::BuildReward, 8));
-                CandidateIds.Add(Id);
-            }
-        }
-        FLDGrowthBuild Body = GrowthTestComponentBuild(Content, 8, MoveTemp(Candidates));
-        TArray<FName> InstalledBody;
-        for (const FName Id : CandidateIds)
-        {
-            if (InstalledBody.Num() == Content.Progression.WorkshopBodyColumnCapacity)
-            {
-                break;
-            }
-            if (Install(Body, Id, FLDComponentTarget()) == ELDGrowthReason::None)
-            {
-                Body = Out;
-                InstalledBody.Add(Id);
-            }
-        }
-        FName BodyOverflow;
-        for (const FName Id : CandidateIds)
-        {
-            const FLDComponentInstance* Instance = Body.FindComponent(Id);
-            if (InstalledBody.Num() == Content.Progression.WorkshopBodyColumnCapacity && Instance && !Instance->bInstalled
-                && Install(Body, Id, FLDComponentTarget()) == ELDGrowthReason::ComponentColumnFull)
-            {
-                BodyOverflow = Id;
-                break;
-            }
-        }
-        bGood &= TestEqual(TEXT("The catalog supplies four installable body bases"), InstalledBody.Num(),
-            Content.Progression.WorkshopBodyColumnCapacity);
-        FLDGrowthBuild SkillColumn = Body;
-        SkillColumn.Actives.Add({Elbow, 0});
-        SkillColumn.Components.Add(GrowthTestInstance(Crowd, ESource::BuildReward, 8));
-        LDProgression::NormalizeBuild(SkillColumn);
-        bGood &= GrowthTestReason(*this, TEXT("Active columns have no per-column component cap"),
-            Install(SkillColumn, Crowd, Target(EKind::Active, Elbow)), ELDGrowthReason::None);
-        bGood &= GrowthTestReason(*this, TEXT("A fifth body install is refused by the per-column limit"),
-            BodyOverflow.IsNone() ? ELDGrowthReason::None : Install(Body, BodyOverflow, FLDComponentTarget()),
-            ELDGrowthReason::ComponentColumnFull);
-        if (!BodyOverflow.IsNone())
-        {
-            bGood &= GrowthTestReason(*this, TEXT("Replacing a body component frees its column slot"),
-                LDProgression::ApplyInstallComponent(Content, Body, BodyOverflow, FLDComponentTarget(), Safe, Out,
-                    InstalledBody[0]), ELDGrowthReason::None);
-            FLDGrowthBuild Overfull = Body;
-            FLDComponentInstance* Extra = Overfull.FindComponent(BodyOverflow);
-            Extra->bInstalled = true;
-            Extra->bEverInstalled = true;
-            LDProgression::NormalizeBuild(Overfull);
-            bGood &= GrowthTestReason(*this, TEXT("ValidateBuild rejects more than four body components"),
-                LDProgression::ValidateBuild(Content, Overfull), ELDGrowthReason::DataInvalid);
-        }
-    }
-    {
-        TArray<FLDComponentInstance> Candidates;
-        TArray<FName> CandidateIds;
-        for (const FLDDemoComponentDefinition& Definition : Content.Components)
-        {
-            if (Definition.Kind != ELDDemoComponentKind::Base
-                && LDWorkshop::TargetShape(Content, Definition, EKind::Dash, NAME_None, NAME_None,
-                    ELDDemoElement::None, NAME_None))
-            {
-                const FName Id(*Definition.Id);
-                Candidates.Add(GrowthTestInstance(Id, ESource::BuildReward, 8));
-                CandidateIds.Add(Id);
-            }
-        }
-        FLDGrowthBuild DashBuild = GrowthTestComponentBuild(Content, 8, MoveTemp(Candidates));
-        TArray<FName> InstalledDash;
-        const FLDComponentTarget DashTarget = Target(EKind::Dash);
-        for (const FName Id : CandidateIds)
-        {
-            if (InstalledDash.Num() == Content.Progression.WorkshopDashColumnCapacity)
-            {
-                break;
-            }
-            if (Install(DashBuild, Id, DashTarget) == ELDGrowthReason::None)
-            {
-                DashBuild = Out;
-                InstalledDash.Add(Id);
-            }
-        }
-        FName DashOverflow;
-        for (const FName Id : CandidateIds)
-        {
-            const FLDComponentInstance* Instance = DashBuild.FindComponent(Id);
-            if (InstalledDash.Num() == Content.Progression.WorkshopDashColumnCapacity && Instance && !Instance->bInstalled
-                && Install(DashBuild, Id, DashTarget) == ELDGrowthReason::ComponentColumnFull)
-            {
-                DashOverflow = Id;
-                break;
-            }
-        }
-        bGood &= TestEqual(TEXT("The catalog supplies two compatible dash installs"), InstalledDash.Num(),
-            Content.Progression.WorkshopDashColumnCapacity);
-        bGood &= GrowthTestReason(*this, TEXT("A third dash install is refused by the per-column limit"),
-            DashOverflow.IsNone() ? ELDGrowthReason::None : Install(DashBuild, DashOverflow, DashTarget),
-            ELDGrowthReason::ComponentColumnFull);
-        if (!DashOverflow.IsNone())
-        {
-            bGood &= GrowthTestReason(*this, TEXT("Replacing a dash component frees its column slot"),
-                LDProgression::ApplyInstallComponent(Content, DashBuild, DashOverflow, DashTarget, Safe, Out,
-                    InstalledDash[0]), ELDGrowthReason::None);
-            FLDGrowthBuild Overfull = DashBuild;
-            FLDComponentInstance* Extra = Overfull.FindComponent(DashOverflow);
-            Extra->bInstalled = true;
-            Extra->bEverInstalled = true;
-            Extra->Target = DashTarget;
-            LDProgression::NormalizeBuild(Overfull);
-            bGood &= GrowthTestReason(*this, TEXT("ValidateBuild rejects more than two dash components"),
-                LDProgression::ValidateBuild(Content, Overfull), ELDGrowthReason::DataInvalid);
-        }
-    }
-    bGood &= GrowthTestReason(*this, TEXT("M01 on a learned single-target active"), Install(Owned, Crowd, Target(EKind::Active, Elbow)),
-        ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("The install stores its target"), Out.FindComponent(Crowd)->bInstalled
-        && Out.FindComponent(Crowd)->Target == Target(EKind::Active, Elbow));
-    const FLDDemoComponentDefinition* CrowdDefinition = Content.Components.FindByPredicate(
-        [Crowd](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Crowd; });
-    const FLDDemoAbilityDefinition* ElbowDefinition = Content.Abilities.FindByPredicate(
-        [Elbow](const FLDDemoAbilityDefinition& Row) { return FName(*Row.Id) == Elbow; });
-    const FLDDemoAbilityDefinition* SameDeliveryActive = CrowdDefinition && ElbowDefinition
-        ? Content.Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Row)
-        {
-            const FName Id(*Row.Id);
-            return Row.Target.Mode == ElbowDefinition->Target.Mode && Id != Elbow
-                && !LDWorkshop::Lists(CrowdDefinition->TargetActives, Id);
-        })
-        : nullptr;
-    if (!TestNotNull(TEXT("The catalog has a same-delivery active outside the exact target list"), SameDeliveryActive))
-    {
-        return false;
-    }
-    const FName SameDeliveryId(*SameDeliveryActive->Id);
-    const FLDGrowthBuild SameDeliveryBuild = GrowthTestComponentBuild(Content, 4,
-        {GrowthTestInstance(Crowd, ESource::LevelUp, 2)}, {{Elbow, 0}, {SameDeliveryId, 1}});
-    bGood &= TestTrue(TEXT("Same delivery mode is a valid active target"),
-        LDWorkshop::TargetsActive(Content, *CrowdDefinition, SameDeliveryId));
-    bGood &= GrowthTestReason(*this, TEXT("A mod installs on another active of the same delivery type"),
-        Install(SameDeliveryBuild, Crowd, Target(EKind::Active, SameDeliveryId)), ELDGrowthReason::None);
-    const FLDDemoComponentDefinition* SkewerDefinition = Content.Components.FindByPredicate(
-        [](const FLDDemoComponentDefinition& Row) { return Row.Id == TEXT("component_skewer"); });
-    bGood &= TestTrue(TEXT("A same-delivery active the mod cannot change is no target (skewer on a chainless, non-projectile unit active)"),
-        SkewerDefinition && LDWorkshop::TargetsActive(Content, *SkewerDefinition, FName(TEXT("active_zap")))
-        && !LDWorkshop::TargetsActive(Content, *SkewerDefinition, FName(TEXT("active_pants_down"))));
-    const FLDDemoAbilityDefinition* DifferentDeliveryActive = Content.Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Row)
-    {
-        return Row.Target.Mode != ElbowDefinition->Target.Mode
-            && !LDWorkshop::TargetsActive(Content, *CrowdDefinition, FName(*Row.Id));
-    });
-    if (!TestNotNull(TEXT("The catalog has an active with an incompatible delivery mode"), DifferentDeliveryActive))
-    {
-        return false;
-    }
-    const FName DifferentDeliveryId(*DifferentDeliveryActive->Id);
-    const FLDGrowthBuild DifferentDeliveryBuild = GrowthTestComponentBuild(Content, 4,
-        {GrowthTestInstance(Crowd, ESource::LevelUp, 2)}, {{Elbow, 0}, {DifferentDeliveryId, 1}});
-    bGood &= GrowthTestReason(*this, TEXT("A mod does not cross into an incompatible delivery type"),
-        Install(DifferentDeliveryBuild, Crowd, Target(EKind::Active, DifferentDeliveryId)), ELDGrowthReason::InvalidTarget);
-    bGood &= GrowthTestReason(*this, TEXT("M01 on an active not learned"),
-        Install(Owned, Crowd, Target(EKind::Active, FName(TEXT("active_pants_down")))), ELDGrowthReason::InvalidTarget);
-    bGood &= GrowthTestReason(*this, TEXT("M01 on the installed ledger"), Install(Owned, Crowd, Target(EKind::Component, Ledger)),
-        ELDGrowthReason::None);
-    bGood &= GrowthTestReason(*this, TEXT("M01 never on D"), Install(Owned, Crowd, Target(EKind::Dash)), ELDGrowthReason::InvalidTarget);
-    bGood &= GrowthTestReason(*this, TEXT("M01 needs a target"), Install(Owned, Crowd, FLDComponentTarget()), ELDGrowthReason::InvalidTarget);
-    if (!GrowthTestReason(*this, TEXT("M08 on D"), Install(Owned, Ram, Target(EKind::Dash)), ELDGrowthReason::None)) { return false; }
-    const FLDGrowthBuild Rammed = Out;
-    bGood &= GrowthTestReason(*this, TEXT("M09 beside M08 on D conflicts"), Install(Rammed, Hop, Target(EKind::Dash)),
-        ELDGrowthReason::TargetConflict);
-    bGood &= GrowthTestReason(*this, TEXT("M09 on another dash is fine"), Install(Rammed, Hop, Target(EKind::Active, BailOut)),
-        ELDGrowthReason::None);
-    {
-        const FName Bolt(TEXT("active_snark_bolt")), Bump(TEXT("component_dash_bump")), Punch(TEXT("component_dash_punch"));
-        const FName Refund(TEXT("component_bump_again")), Knock(TEXT("component_roll_bump"));
-        const FName Return(TEXT("component_boomerang")), Pierce(TEXT("component_skewer"));
-        FLDGrowthBuild Combined = GrowthTestComponentBuild(Content, 10,
-            {GrowthTestInstance(Bump, ESource::LevelUp, 2), GrowthTestInstance(Punch, ESource::LevelUp, 3),
-                GrowthTestInstance(Refund, ESource::LevelUp, 4), GrowthTestInstance(Knock, ESource::LevelUp, 5),
-                GrowthTestInstance(Return, ESource::LevelUp, 6), GrowthTestInstance(Pierce, ESource::LevelUp, 7)}, {{Bolt, 0}});
-        const TPair<FName, FLDComponentTarget> Installs[] = {
-            {Bump, FLDComponentTarget()}, {Punch, FLDComponentTarget()}, {Refund, Target(EKind::Dash)},
-            {Knock, Target(EKind::Dash)}, {Return, Target(EKind::Active, Bolt)}, {Pierce, Target(EKind::Active, Bolt)}};
-        for (const auto& Pair : Installs)
-        {
-            if (!GrowthTestReason(*this, TEXT("The open dash and projectile combinations install"),
-                Install(Combined, Pair.Key, Pair.Value), ELDGrowthReason::None)) { return false; }
-            Combined = Out;
-        }
-        bGood &= GrowthTestReason(*this, TEXT("The combined build is legal"), LDProgression::ValidateBuild(Content, Combined),
-            ELDGrowthReason::None);
-    }
-    {
-        const FName Meeting(TEXT("active_quick_meeting")), Slam(TEXT("component_one_slam")), Tether(TEXT("component_zone_tether"));
-        const FLDGrowthBuild ZoneBuild = GrowthTestComponentBuild(Content, 4,
-            {GrowthTestInstance(Slam, ESource::LevelUp, 2), GrowthTestInstance(Tether, ESource::LevelUp, 3)}, {{Meeting, 0}});
-        if (!GrowthTestReason(*this, TEXT("A zone may take the single-blast shape"),
-            Install(ZoneBuild, Slam, Target(EKind::Active, Meeting)), ELDGrowthReason::None)) { return false; }
-        const FLDGrowthBuild SingleBlast = Out;
-        bGood &= GrowthTestReason(*this, TEXT("The sustained-zone tether conflicts with the single blast"),
-            Install(SingleBlast, Tether, Target(EKind::Active, Meeting)), ELDGrowthReason::TargetConflict);
-    }
-    bGood &= GrowthTestReason(*this, TEXT("C09 on an installed water source"), Install(Owned, Chase, Target(EKind::Component, Water)),
-        ELDGrowthReason::None);
-    bGood &= GrowthTestReason(*this, TEXT("C12 repeating the installed water fist"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Water)),
-        ELDGrowthReason::None);
-    bGood &= GrowthTestReason(*this, TEXT("C12 needs its repeated base"), Install(Owned, Dirty, Target(EKind::Active, Elbow)),
-        ELDGrowthReason::InvalidTarget);
-    bGood &= GrowthTestReason(*this, TEXT("C12 repeating the installed ledger"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Ledger)),
-        ELDGrowthReason::None);
-    // Uninstalling a host (rest only) takes the mods and connectors on it, and the C12 repeating it, back to the inventory.
-    if (!GrowthTestReason(*this, TEXT("M01 on the ledger"), Install(Owned, Crowd, Target(EKind::Component, Ledger)), ELDGrowthReason::None))
-    { return false; }
-    const FLDGrowthBuild OnLedger = Out;
-    if (!GrowthTestReason(*this, TEXT("C12 on the ledger's M01"), Install(OnLedger, Dirty, Target(EKind::Active, Elbow, Ledger)),
-        ELDGrowthReason::None))
-    { return false; }
-    const FLDGrowthBuild Stacked = Out;
-    bGood &= GrowthTestReason(*this, TEXT("Uninstalling the ledger in the rest"),
-        LDProgression::ApplyUninstallComponent(Content, Stacked, Ledger, Rest, Out), ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("Its attachments come off with it, history kept"), !Out.FindComponent(Ledger)->bInstalled
-        && !Out.FindComponent(Crowd)->bInstalled && !Out.FindComponent(Dirty)->bInstalled && Out.FindComponent(Crowd)->bEverInstalled
-        && Out.FindComponent(Crowd)->Target.IsEmpty());
-    bGood &= GrowthTestReason(*this, TEXT("The cascaded build stays valid"), LDProgression::ValidateBuild(Content, Out), ELDGrowthReason::None);
-    return bGood;
-}
-

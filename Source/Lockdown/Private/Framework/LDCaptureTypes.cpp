@@ -179,7 +179,8 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
     for (const FLDResultBuildCard& Card : Build.Cards)
     {
         const bool bTarget = Card.Target == ELDResultBuildTarget::Active ? ActiveIds.Contains(Card.TargetId)
-            : Card.Target != ELDResultBuildTarget::Body ? Card.TargetId.IsNone() : Card.TargetId.IsNone();
+            : (Card.Target == ELDResultBuildTarget::Body || Card.Target == ELDResultBuildTarget::Dash
+                || Card.Target == ELDResultBuildTarget::Basic) && Card.TargetId.IsNone();
         if (!ValidId(Card.DefinitionId) || !bTarget || uint8(Card.Element) > uint8(ELDDemoElement::Electric))
         { return FailCaptureView(Error, TEXT("Invalid result build card.")); }
     }

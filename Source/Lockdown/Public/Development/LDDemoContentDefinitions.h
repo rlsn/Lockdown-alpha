@@ -788,6 +788,8 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() FString CooldownFamily;
     UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
     UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
+    // Spec §6.3: the level-1 vocabulary (ELDCardVocab bits); a learned branch carries its own.
+    UPROPERTY() uint32 VocabMask = 0;
     UPROPERTY() FLDDemoAbilityValues Values;
     // The six branch variants in path order A, B, A1, A2, B1, B2: each is the level-1 definition with its rank steps'
     // patches applied (the content compiler resolves them); level growth and the rank scales apply on top.

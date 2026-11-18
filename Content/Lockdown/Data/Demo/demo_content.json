@@ -75,6 +75,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -135,6 +138,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -217,6 +223,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -311,6 +321,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -383,6 +396,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -451,6 +467,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -584,6 +603,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact",
+            "control"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -674,6 +698,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -756,6 +784,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact",
+            "control"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -829,6 +862,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact",
+            "control"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -923,6 +961,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -1014,6 +1056,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -1166,6 +1212,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1226,6 +1276,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1300,6 +1354,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1387,6 +1445,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1473,6 +1535,11 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash",
+            "dash_contact"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1534,6 +1601,10 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "basic_hit",
+            "dash"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -1650,6 +1721,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1709,6 +1783,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1768,6 +1845,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1827,6 +1907,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1899,6 +1982,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -1966,6 +2052,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2111,6 +2200,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2181,6 +2273,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2271,6 +2366,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2358,6 +2456,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2432,6 +2533,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2511,6 +2615,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -2674,6 +2781,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2759,6 +2872,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2861,6 +2980,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -2955,6 +3080,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -3048,6 +3179,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -3150,6 +3287,12 @@
           "target": {
             "mode": "DirectionDash"
           },
+          "vocab": [
+            "element",
+            "dash",
+            "dash_contact",
+            "shield"
+          ],
           "windup": {
             "ms": 100,
             "unit": "ms"
@@ -3302,6 +3445,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3371,6 +3517,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3449,6 +3598,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3518,6 +3670,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3588,6 +3743,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3671,6 +3829,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -3821,6 +3982,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -3908,6 +4073,11 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4010,6 +4180,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4104,6 +4278,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4195,6 +4373,11 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4286,6 +4469,11 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -4452,6 +4640,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4513,6 +4704,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4604,6 +4798,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4687,6 +4884,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4752,6 +4953,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4826,6 +5030,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -4978,6 +5185,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5060,6 +5270,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5156,6 +5369,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5243,6 +5459,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5338,6 +5558,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback",
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5416,6 +5640,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control",
+            "ground"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -5594,6 +5822,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5664,6 +5896,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5765,6 +6001,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5857,6 +6097,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -5931,6 +6175,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6009,6 +6257,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6138,6 +6390,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6231,6 +6486,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6289,6 +6548,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6347,6 +6609,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6448,6 +6713,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6549,6 +6818,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "shield"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -6677,6 +6950,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6747,6 +7023,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6825,6 +7104,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6896,6 +7178,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -6983,6 +7268,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7061,6 +7349,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7195,6 +7487,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7268,6 +7563,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7338,6 +7636,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7408,6 +7709,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7489,6 +7793,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7562,6 +7869,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -7725,6 +8035,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -7800,6 +8114,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -7907,6 +8225,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8014,6 +8336,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8105,6 +8431,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8180,6 +8510,10 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element",
+            "ground"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8337,6 +8671,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8407,6 +8744,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8477,6 +8817,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8534,6 +8877,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8608,6 +8954,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8686,6 +9035,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -8821,6 +9173,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -8899,6 +9252,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9000,6 +9354,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "knockback"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9074,6 +9431,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9153,6 +9513,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9244,6 +9605,7 @@
               "unit": "cm"
             }
           },
+          "vocab": [],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -9402,6 +9764,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9501,6 +9866,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9583,6 +9951,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9682,6 +10053,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9781,6 +10155,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -9881,6 +10258,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 150,
             "unit": "ms"
@@ -10024,6 +10404,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10095,6 +10478,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10160,6 +10547,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10222,6 +10612,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10301,6 +10694,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10386,6 +10783,10 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "knockback",
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10497,6 +10898,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10547,6 +10951,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10601,6 +11008,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10652,6 +11062,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10706,6 +11119,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10757,6 +11173,9 @@
           "target": {
             "mode": "Self"
           },
+          "vocab": [
+            "basic_hit"
+          ],
           "windup": {
             "ms": 0,
             "unit": "ms"
@@ -10871,6 +11290,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10939,6 +11361,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11016,6 +11441,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11086,6 +11514,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11154,6 +11585,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11226,6 +11660,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "control"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11360,6 +11797,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11412,6 +11852,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11487,6 +11930,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11565,6 +12011,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11625,6 +12074,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"
@@ -11677,6 +12129,9 @@
               "unit": "cm"
             }
           },
+          "vocab": [
+            "element"
+          ],
           "windup": {
             "ms": 250,
             "unit": "ms"

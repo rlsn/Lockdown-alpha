@@ -335,7 +335,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         MarkViewChanged(Body->Victim.EntityId);
     }
     const bool bShieldBroken=LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
-    const int64 ShieldGrantedP2=Body->ShieldGrantedP2;
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
     const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
@@ -520,7 +519,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
     }
-    if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
     if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
     // Cards on this committed hit (both sides; LDCombatCards.cpp).
     if (!bProtected && !OnCardHit(Hit,*Body,Source,Damage,NowMs,Error)) { return false; }
@@ -808,8 +806,7 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
         Error=TEXT("Temporary attributes require the approved Demo content.");
         return false;
     }
-    FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,
-        Body.BuildProjection.LowHPBonus,Body.Resources.HpP2,Body.Resources.MaxHpP2,NowMs);
+    FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,NowMs);
     Terms.AttackSlowBp=LDTactical::StrongestSlowBp(Body.AttackSlows,NowMs);
     if(Body.Victim.Kind==ELDVictimKind::CampMember && !Body.MonsterId.IsNone())
     {

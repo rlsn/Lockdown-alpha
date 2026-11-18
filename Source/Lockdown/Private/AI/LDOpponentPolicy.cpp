@@ -69,10 +69,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Grievous:
         Usage.bEngage |= !bSelfTarget;
         break;
-    case ELDDemoEffectOp::ControlDamageAmp:
-    case ELDDemoEffectOp::DashContactDamage:
-        Usage.bEngage = true;
-        break;
     case ELDDemoEffectOp::Disarm:
     case ELDDemoEffectOp::Stun:
         Usage.bEngage |= !bSelfTarget;
@@ -88,12 +84,10 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bSelfProtect |= bSelfTarget;
         break;
     case ELDDemoEffectOp::Dash:
-    case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
     // Survival, basic-attack, stat, cooldown, momentum and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
-    case ELDDemoEffectOp::CooldownRefund:
     default:
         break;
     }

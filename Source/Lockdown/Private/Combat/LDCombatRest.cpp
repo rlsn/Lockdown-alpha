@@ -214,7 +214,6 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.DashStartedAtMs.Reset();
     ClearBranchState(Body);
     // Card rests are cooldowns too: every one is ready in the new phase.
-    Body.RetortReadyAtMs=0;
     Body.DamagedShieldReadyAtMs=0;
     Body.ChannelEffectId={};
     Body.ChannelDirectSequence=0;

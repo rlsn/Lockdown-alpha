@@ -17,6 +17,7 @@
 #include "Framework/LDCaptureTypes.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDWorkshopModel.h"

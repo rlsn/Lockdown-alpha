@@ -6,6 +6,7 @@
 #include "Framework/LDShowdownSettings.h"
 #include "PK/LDPKTypes.h"
 #include "Character/LDNativeMotionTypes.h"
+#include "Development/LDDemoContentDefinitions.h"
 #include "LDCaptureTypes.generated.h"
 
 // Spray zone state. Solo: exactly one effective contender is inside and he is not the graffiti owner, so he sprays.

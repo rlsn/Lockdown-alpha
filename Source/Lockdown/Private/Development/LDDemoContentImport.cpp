@@ -258,9 +258,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "element_duration", ELDDemoEffectOp, ElementDuration),
     DEMO_ID("effect_ops", "reaction_factor", ELDDemoEffectOp, ReactionFactor),
     DEMO_ID("effect_ops", "burn_cap", ELDDemoEffectOp, BurnCap),
-DEMO_ID("effect_ops", "cast_hit_refund", ELDDemoEffectOp, CastHitRefund),
-DEMO_ID("effect_ops", "distance_amp", ELDDemoEffectOp, DistanceAmp),
-DEMO_ID("effect_ops", "alternate_amp", ELDDemoEffectOp, AlternateAmp),
 };
 #undef DEMO_ID
 
@@ -1263,8 +1260,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         }
         break;
     }
-        break;
-    }
     // #112 handlers (LDCombatMechanics). Field use: see FLDDemoEffectDefinition and docs/systems/COMBAT_AND_GROWTH.md.
     case ELDDemoEffectOp::Knockback:
         // A push along the caster-to-target direction; a block ends it early, stunning for wall_stun when a branch names one.
@@ -1821,6 +1816,8 @@ bool HitTypeField(FFields& F, ELDDemoHitType& Out, FCheck& Check, const FString&
     return Check.Require(false, Path + TEXT(".hit_type"), TEXT("unknown hit type"));
 }
 
+bool VocabField(FFields& F, uint32& Out, int32 MinKeys, FCheck& Check, const FString& Path);
+
 // The six resolved branch variants of an active in path order A, B, A1, A2, B1, B2 (issue #287 spec §5.2). The content
 // compiler applied the registered patches and checked each variant's target form; the operations are any active form.
 bool Branches(const FValue& Value, TArray<FLDDemoAbilityBranch>& Out, FCheck& Check, const FString& Path)
@@ -1848,6 +1845,7 @@ bool Branches(const FValue& Value, TArray<FLDDemoAbilityBranch>& Out, FCheck& Ch
             || !F.Fixed(TEXT("momentum_cost"), TEXT("momentum"), TEXT("p2"), Branch.Values.MomentumCostP2)
             || !F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Branch.Values.CooldownMs, 1)
             || !Effects(F.Take(TEXT("effects")), Branch.Values.Effects, false, Mask, Check, RowPath + TEXT(".effects"))
+            || !VocabField(F, Branch.VocabMask, 0, Check, RowPath)
             || !F.Done())
         {
             return false;
@@ -2058,7 +2056,7 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
             return false;
         }
     }
-    return Check.Require((Mask & ~FormOps[FormIndex]).None(), Path, TEXT("an operation outside the card's form"))
+    return Check.Require(!(Mask & ~FormOps[FormIndex]).Any(), Path, TEXT("an operation outside the card's form"))
         && Check.Require(Out.ChooseElements.IsEmpty() != (Mask & OpBit(ELDDemoEffectOp::ElementAura)).Any(), Path,
             TEXT("an element aura names its element choices and nothing else does"))
         && F.Done();

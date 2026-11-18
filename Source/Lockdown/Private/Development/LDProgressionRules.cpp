@@ -1090,13 +1090,6 @@ void LDProgression::ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, T
     }
 }
 
-FName LDProgression::OpeningActive(const FLDProgressionState& Progression)
-{
-    const FLDActiveOpportunityRecord* Opening = Progression.Records.FindByPredicate(
-        [](const FLDActiveOpportunityRecord& Row) { return Row.Ordinal == 1; });
-    return Opening ? Opening->Chosen : NAME_None;
-}
-
 ELDGrowthReason LDProgression::InstallGate(const FBuildContext& Context)
 {
     // #222: installing, moving and uninstalling follow the same open matrix as a learn.
@@ -1290,7 +1283,10 @@ ELDGrowthReason LDProgression::RefreshCardOffer(const FLDDemoContentDefinitions&
     FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, bool& bOutDrawn)
 {
     bOutDrawn = false;
-    if (Progression.CardOffer.IsSet() || Progression.CardQueue.IsEmpty() || OpeningActive(Progression).IsNone())
+    // The opening opportunity resolves first (chosen or skipped), so the opening card offer follows the opening active.
+    const bool bOpeningResolved = Progression.Records.ContainsByPredicate(
+        [](const FLDActiveOpportunityRecord& Row) { return Row.Ordinal == 1; });
+    if (Progression.CardOffer.IsSet() || Progression.CardQueue.IsEmpty() || !bOpeningResolved)
     {
         return ELDGrowthReason::None;
     }

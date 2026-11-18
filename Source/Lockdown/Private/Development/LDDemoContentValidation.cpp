@@ -16,8 +16,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
         const ELDDemoEffectOp Op = Effect.GetOp();
-        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage
-            || Op == ELDDemoEffectOp::DashContactDamage || Op == ELDDemoEffectOp::Ledger;
+        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage;
         if (!bDamage && Op != ELDDemoEffectOp::Shield)
         {
             return true;

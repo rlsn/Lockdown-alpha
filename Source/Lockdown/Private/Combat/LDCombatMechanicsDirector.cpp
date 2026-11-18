@@ -100,8 +100,6 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     }
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
-    LedgerHealed(Body,Pool.HpP2-Before);    ++Pool.Revision;
-    MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
     if (Healed>0 && HealSource.Kind!=ELDCombatSourceKind::None && Body.AttributeProjection.Keystones.bPhysique)
     {
@@ -113,7 +111,6 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
             else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*Message); }
             return false;
         }
-        const int64 NowMs=Mode->GetAuthorityNowMs();
         if (NowMs>=Body.KeystonePhysiqueReadyAtMs)
         {
             const auto* Content=Catalog();
@@ -169,24 +166,6 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerShieldGranted(Body,AmountP2);
-    return true;
-}
-
-bool ALDCombatDirector::OnShieldBroken(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 GrantedP2, int64 NowMs, FString& Error)
-{
-    TOptional<FLDPassiveEffectRef> Held;
-    if (!FindTrigger(Holder.AttributeProjection,ELDDemoEffectOp::ShieldBreakRetort,Held,Error)) { return false; }
-    const FLDBodyCombatState* Breaker=FindBody(Hit.SourceBody);
-    if (!Held.IsSet() || !Breaker || Breaker==&Holder || Breaker->bPendingDeath || Holder.bPendingDeath || NowMs<Holder.RetortReadyAtMs) { return true; }
-    const FLDDemoEffectDefinition& Retort=Held->Effect;
-    if (!LDMatchLifecycle::AddDurationMs(NowMs,Retort.IntervalMs,Holder.RetortReadyAtMs,Error)) { return false; }
-    FLDCombatHit Answer=LDCombatMechanicsDetail::MakeHit(Holder,Held->Source,Hit.SourceBody,FGuid());
-    Answer.BaseP2=LDCombatMechanicsDetail::Scale(GrantedP2,Retort.RatioBp);
-    Answer.DamageType=ELDDemoDamageType::Magical;
-    Answer.SlowBp=Retort.SecondaryRatioBp;
-    Answer.SlowDurationMs=Retort.SecondaryDurationMs;
-    Answer.bFromShieldTrigger=true;
-    PendingHits.Add(Answer);
     return true;
 }
 
@@ -356,10 +335,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         if (Zone.HasteBp>0) { UpdateZoneHaste(Zone,NowMs); }
         if (Zone.EndMs<=NowMs)
         {
-            // #198 F C06: a zone that ran its whole life completes naturally.
-            const FLDCombatZone Ended=Zone;
             Zones.RemoveAt(Index);
-            if (!TriggerAftershock(Ended.SourceBody,Ended.Source,Ended.EffectId,Ended.CentreCm,Ended.RadiusCm,NowMs,Error)) { return false; }
         }
     }
     return true;

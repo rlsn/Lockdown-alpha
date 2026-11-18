@@ -6,6 +6,7 @@
 #include "Combat/LDCombatElements.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDControlRules.h"
 #include "Combat/LDMomentum.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"

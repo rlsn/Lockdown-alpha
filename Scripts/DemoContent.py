@@ -876,6 +876,8 @@ def validate_definitions(data, ids):
     _validate_cards(data)
     for ability in data["abilities"]:
         ability["vocab"] = ability_vocab(ability)
+        for branch in ability["branches"]:
+            branch["vocab"] = ability_vocab(branch)
     finals = rows_by_id(data["final_mods"], "final_mods")
     require(set(finals) == set(FINAL_MOD_CONTRACTS), "FinalModSet", "final_mods",
             "exactly the eight implemented final mods are required")
