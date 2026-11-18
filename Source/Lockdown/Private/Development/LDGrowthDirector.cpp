@@ -1135,6 +1135,13 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
                 Reason = ELDGrowthReason::LifePhaseChanged;
                 break;
             }
+            // An unknown sample is refused before the reset, so a typo never erases the build.
+            if (!LDBreakoutPresets::Find(Definition))
+            {
+                Reason = ELDGrowthReason::InvalidOption;
+                Detail = FString::Printf(TEXT("no breakout sample %s"), *Definition.ToString());
+                break;
+            }
             Reason = CommitDevReset(ContenderId, Permit, Detail);
             if (Reason == ELDGrowthReason::None)
             {
