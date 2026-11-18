@@ -657,7 +657,9 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
         const double H = Ground.ExtentCm;
         Arc(FVector(H, 0, 0), R, -90., 90., 6);
         Arc(FVector(-H, 0, 0), R, 90., 270., 6);
-        Out.Add(Out[0]);
+        // A copy: adding an element of the array to itself may reallocate under the reference.
+        const FVector First = Out[0];
+        Out.Add(First);
     }
     else if (Ground.Shape == ELDObservedGroundShape::Sector)
     {
