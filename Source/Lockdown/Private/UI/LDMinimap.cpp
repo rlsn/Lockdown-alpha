@@ -581,11 +581,17 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             const FLDAirdropView& Drop=Public->PublicMatch.Airdrop;
             // D27: the public 上热搜 circle, a dashed red ring of the approved radius around the published fuzzy centre.
             const FLDLeaderView& Notice=Public->PublicMatch.Leader;
-            if(Public->PublicMatch.Generation==Own.Match&&Notice.Leader.IsValid()&&Cache.LeaderRadiusCm>0)
+            // A rumor day's runner-up gets the same ring around its own fuzzy centre.
+            if(Public->PublicMatch.Generation==Own.Match&&Cache.LeaderRadiusCm>0)
             {
-                TArray<FVector2f> Ring;
-                for(int32 Step=0;Step<=40;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/40.;Ring.Add(Spot(Notice.CircleCentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Cache.LeaderRadiusCm));}
-                FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,FLinearColor(1.f,.32f,.28f,.95f),2.f,5.f);
+                const TPair<FGuid,FVector> Trending[]={{Notice.Leader,Notice.CircleCentreCm},{Notice.RunnerUp,Notice.RunnerUpCentreCm}};
+                for(const TPair<FGuid,FVector>& One:Trending)
+                {
+                    if(!One.Key.IsValid()){continue;}
+                    TArray<FVector2f> Ring;
+                    for(int32 Step=0;Step<=40;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/40.;Ring.Add(Spot(One.Value+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Cache.LeaderRadiusCm));}
+                    FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,FLinearColor(1.f,.32f,.28f,.95f),2.f,5.f);
+                }
             }
             if(Public->PublicMatch.Generation==Own.Match&&(Drop.Phase==ELDAirdropPhase::Announced||Drop.Phase==ELDAirdropPhase::Landed))
             {

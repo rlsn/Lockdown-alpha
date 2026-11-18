@@ -104,6 +104,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoSkillExpansion.DashCapsuleContact",
         "Lockdown.Rules.DemoSkillExpansion.MitigationAndAttackSlow",
         "Lockdown.Rules.DemoSkillExpansion.PublicEffects",
+        "Lockdown.Rules.DemoSkillExpansion.FlightLooks",
         "Lockdown.Rules.DemoSkillExpansion.CatalogGrowthBounds",
         "Lockdown.Rules.DemoBuildPrimitives.KeywordRules",
         "Lockdown.Rules.DemoBuildPrimitives.Silence",

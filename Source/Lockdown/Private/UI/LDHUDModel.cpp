@@ -642,8 +642,12 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 }
                 if(bExpired){Add(LDTerms::CampMarkExpired(),false);}
             }
-            if(Public.Leader.Leader.IsValid()&&Public.Leader.Leader!=Leader)
-            {Add(LeaderLine(Public.Leader,In.Self,Name(Public.Leader.Leader)),In.Self.IsValid()&&Public.Leader.Leader==In.Self);}
+            // Each newly named trending contender is announced once, the rumor day's runner-up included.
+            for(const FGuid& Named:{Public.Leader.Leader,Public.Leader.RunnerUp})
+            {
+                if(Named.IsValid()&&Named!=Leader&&Named!=RunnerUp)
+                {Add(LeaderLine(Named,In.Self,Name(Named)),In.Self.IsValid()&&Named==In.Self);}
+            }
             if(Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner!=GraffitiOwner)
             {
                 const bool bOwn=In.Self.IsValid()&&Public.GraffitiOwner==In.Self;
@@ -658,7 +662,7 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
             if(Marker.Kind==ELDFieldMarkerKind::High){MarkerPhases[0]=Marker.Phase;}
             else if(Marker.Kind==ELDFieldMarkerKind::Elite){MarkerPhases[1]=Marker.Phase;}
         }
-        Leader=Public.Leader.Leader;GraffitiOwner=Public.GraffitiOwner;GuardKeptMs=Public.GuardKeptMs;GuardDueAtMs=Public.GuardDueAtMs;
+        Leader=Public.Leader.Leader;RunnerUp=Public.Leader.RunnerUp;GraffitiOwner=Public.GraffitiOwner;GuardKeptMs=Public.GuardKeptMs;GuardDueAtMs=Public.GuardDueAtMs;
     }
     for(FEventLine& Line:Shown)
     {
@@ -678,10 +682,10 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
     Shown.RemoveAll([Now](const FEventLine& Line){return Now-Line.At>=LineSeconds;});
     if(Shown.Num()>MaxLines){Shown.RemoveAt(0,Shown.Num()-MaxLines);}
 }
-FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName)
+FString LDHUD::LeaderLine(const FGuid& Trending,const FGuid& Self,const FString& LeaderName)
 {
-    if(!Notice.Leader.IsValid()){return FString();}
-    if(Self.IsValid()&&Notice.Leader==Self){return LDTerms::LeaderSelf();}
+    if(!Trending.IsValid()){return FString();}
+    if(Self.IsValid()&&Trending==Self){return LDTerms::LeaderSelf();}
     return LDTerms::LeaderNamed(LeaderName.IsEmpty()?FString(TEXT("未列名参赛者")):LeaderName);
 }
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)

@@ -1495,6 +1495,52 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// Every flight a contender can throw has a public look: A05's flying basic (an unnamed basic source) and N3 used to stop
+// the match when the observation step met them.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFlightLookTest, "Lockdown.Rules.DemoSkillExpansion.FlightLooks",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDFlightLookTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody();
+    const auto Fly=[&](ELDCombatSourceKind Kind, const TCHAR* Definition)
+    {
+        FLDCombatProjectile Flight;
+        Flight.EffectId=FGuid::NewGuid();
+        Flight.FlightId=FGuid::NewGuid();
+        Flight.SourceBody=Source;
+        Flight.SourceEntity=Source.Victim.EntityId;
+        Flight.Source.Kind=Kind;
+        Flight.Source.DefinitionId=Definition ? FName(Definition) : NAME_None;
+        Flight.OriginCm=FVector::ZeroVector;
+        Flight.Direction=FVector(1,0,0);
+        Flight.SpeedCmPerSec=1800;
+        Flight.RangeCm=600;
+        Flight.RadiusCm=55;
+        FAccess::Projectiles(*F.Driver).Add(Flight);
+        return Flight.FlightId;
+    };
+    const FGuid Basic=Fly(ELDCombatSourceKind::Basic,nullptr);
+    const FGuid Takeout=Fly(ELDCombatSourceKind::Learned,TEXT("active_stale_takeout"));
+    const FGuid Shoe=Fly(ELDCombatSourceKind::Learned,TEXT("active_snark_bolt"));
+    TArray<FLDObservedProjectileFact> Facts;
+    FString Error;
+    if (!TestTrue(TEXT("Every contender flight is observable: ")+Error,F.Driver->ReadObservedProjectiles(Facts,Error))) { return false; }
+    const auto LookOf=[&Facts](const FGuid& Key)
+    {
+        const FLDObservedProjectileFact* Fact=Facts.FindByPredicate([&Key](const auto& One) { return One.Key==Key; });
+        return Fact ? Fact->Look : ELDObservedProjectileLook(0);
+    };
+    TestEqual(TEXT("A05's flying basic is drawn as a chalk throw"),LookOf(Basic),ELDObservedProjectileLook::Chalk);
+    TestEqual(TEXT("N3 shares the rot sock look with S21"),LookOf(Takeout),ELDObservedProjectileLook::Sock);
+    TestEqual(TEXT("S06 keeps its chalk look"),LookOf(Shoe),ELDObservedProjectileLook::Chalk);
+    Fly(ELDCombatSourceKind::Learned,TEXT("active_elbow"));
+    TestFalse(TEXT("A skill that never flies still has no projectile look"),F.Driver->ReadObservedProjectiles(Facts,Error));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedCatalogTest, "Lockdown.Rules.DemoSkillExpansion.CatalogGrowthBounds",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)

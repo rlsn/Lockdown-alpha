@@ -113,10 +113,14 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
                 : Boss.Phase == ELDBossPhase::Left ? (FieldNow < Boss.LeaveAtMs || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
                 : (Boss.DownAtMs < Boss.AppearAtMs || Boss.DownAtMs > FieldNow || Boss.DownAtMs > Boss.LeaveAtMs))))
     { return FailCaptureView(Error, TEXT("The Boss view does not match its phase or the field clock.")); }
+    // A rumor day names up to two; either may stand alone (the leader can die while the runner-up stays trending).
     const FLDLeaderView& Named = View.Leader;
-    if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= 0
-            || Named.RefreshedAtMs > FieldNow)
-        : (Named.RefreshedAtMs != 0 || !Named.CircleCentreCm.IsZero()))
+    const auto SlotMismatch = [](const FGuid& Id, const FVector& Centre)
+    { return Id.IsValid() ? Centre.ContainsNaN() : !Centre.IsZero(); };
+    const bool bNamed = Named.Leader.IsValid() || Named.RunnerUp.IsValid();
+    if (SlotMismatch(Named.Leader, Named.CircleCentreCm) || SlotMismatch(Named.RunnerUp, Named.RunnerUpCentreCm)
+        || (Named.Leader.IsValid() && Named.Leader == Named.RunnerUp)
+        || (bNamed ? (Named.RefreshedAtMs <= 0 || Named.RefreshedAtMs > FieldNow) : Named.RefreshedAtMs != 0))
     { return FailCaptureView(Error, TEXT("The leader notice does not match its leader or the field clock.")); }
     switch (View.Phase)
     {

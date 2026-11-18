@@ -160,11 +160,14 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
         const FLDDemoMonsterDefinition* Monster=nullptr;
-        const bool bMonster=Projectile.Source.Kind==ELDCombatSourceKind::Basic
+        // A05 makes a contender's basic fly: its source is the unnamed basic, never a catalog definition.
+        const bool bFlyingBasic=Projectile.Source.Kind==ELDCombatSourceKind::Basic && Projectile.Source.DefinitionId.IsNone();
+        const bool bMonster=!bFlyingBasic && Projectile.Source.Kind==ELDCombatSourceKind::Basic
             && Content->FindMonster(Projectile.Source.DefinitionId.ToString(),Monster,LookupError)
             && Monster->Skill.Pattern==ELDMonsterPattern::Projectile;
-        if ((!bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
-            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSockShot))))
+        if ((!bFlyingBasic && !bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
+            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSockShot)
+                && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveStaleTakeout))))
             || Heading.IsNearlyZero())
         {
             Out.Reset();
@@ -178,7 +181,9 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.SourceEntity=Projectile.SourceEntity;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
-        const bool bSock=Ability && Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot);
+        // The two rot throws (S21, N3) share the sock look; the shoe (S06), a flying basic (A05) and camp shots use chalk.
+        const bool bSock=Ability && (Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot)
+            || Ability->NativeId==uint8(ELDDemoAbilityId::ActiveStaleTakeout));
         Fact.Look=Projectile.bReturn
             ? (bSock ? ELDObservedProjectileLook::SockReturn : ELDObservedProjectileLook::ChalkReturn)
             : (bSock ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk);

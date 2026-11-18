@@ -269,7 +269,7 @@ namespace LDHUD
     LOCKDOWN_API FLinearColor MarkerColor();
     // D27 (#79): the public 上热搜 line: who is named; the own player is told directly.
     // Empty when nobody is named.
-    LOCKDOWN_API FString LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName);
+    LOCKDOWN_API FString LeaderLine(const FGuid& Trending,const FGuid& Self,const FString& LeaderName);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     // A contender kill lists its assisters after the line (AssisterNames in the notice's order).
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames=TArray<FString>());
@@ -998,6 +998,7 @@ namespace LDHUD
         uint8 MarkerSegment=0;
         ELDFieldMarkerPhase MarkerPhases[2]={ELDFieldMarkerPhase::None,ELDFieldMarkerPhase::None};
         FGuid Leader;
+        FGuid RunnerUp;
         FGuid GraffitiOwner;
         // The guard as last observed: frozen progress, or a running guard (GuardDueAtMs set).
         int64 GuardKeptMs=0;
