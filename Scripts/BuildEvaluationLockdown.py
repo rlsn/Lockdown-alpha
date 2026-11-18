@@ -174,6 +174,9 @@ def describe(project_root):
             "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
             "preset_offer": {"description": "a diagnostic opening offer or a later one-to-three-active offer prepared by DevQueueOffer",
                              "sample_classes": ["diagnostic"]},
+            "breakout_preset": {"description": "a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of "
+                                               "the side's XP supply: its max-level skills, branches, cards and points",
+                                "sample_classes": ["diagnostic"]},
             "preset_level_cards": {"description": "the card each level 2..level of the supply gives instead of its card offer "
                                                   "(a planned side skips every card offer)", "sample_classes": ["diagnostic"]},
             "allocate_points": {"description": "build step allocate_points: exact points per stat id in one command; a planned "
@@ -250,9 +253,13 @@ def _rule(rule, where):
 def _side_plan(plan, role):
     side = plan.get(role)
     if (not isinstance(side, dict) or "choices" not in side
-            or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent"}):
+            or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent",
+                            "breakout_preset"}):
         raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_cards, build, "
-                         "stance and keep_points_unspent)")
+                         "stance, keep_points_unspent and breakout_preset)")
+    preset = side.get("breakout_preset")
+    if preset is not None and (not isinstance(preset, str) or not preset.startswith("breakout_")):
+        raise ValueError(f"plan.{role}.breakout_preset: a DEV breakout sample id (breakout_*)")
     if not isinstance(side.get("keep_points_unspent", False), bool):
         raise ValueError(f"plan.{role}.keep_points_unspent: true or false")
     if not isinstance(side["choices"], list):
@@ -524,6 +531,8 @@ def requirements(scenario, plan, caps):
             mechanics |= needs[0]
             decisions |= needs[1]
             problems += needs[2]
+        if plan[role].get("breakout_preset"):
+            decisions.add("breakout_preset")
         if level_cards:
             decisions.add("preset_level_cards")
             mechanics.update(level_cards)
@@ -636,6 +645,8 @@ def native_input(run_id, manifest, caps, cases):
             stance = _stance(plan, role)
             if stance is not None:
                 row["stance"] = stance
+            if plan[role].get("breakout_preset"):
+                row["breakout_preset"] = plan[role]["breakout_preset"]
             contenders.append(row)
         out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
                     "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],

@@ -245,7 +245,7 @@ class CapabilitiesTest(AdapterCase):
                          "Y25 chooses an element")
         self.assertEqual(self.caps["content"]["cards"], len(cards))
         self.assertEqual(set(self.caps["decisions"]),
-                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards",
+                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards", "breakout_preset",
                           "allocate_points", "install_card", "uninstall_card", "respec_points", "learn_blueprint", "replace_active"})
         self.assertTrue(all(row["description"] for row in self.caps["decisions"].values()))
         for decision, reason in lockdown.UNPLANNABLE.values():
@@ -303,18 +303,16 @@ class PlanTest(AdapterCase):
                         self.caps, self.caps["scenarios"][value["scenario"]["kind"]], value, arm, lockdown), [],
                         "shipped experiments must use supported mechanics and decisions")
 
-    def test_pending_breakout_manifest_is_a_valid_experiment_waiting_for_its_presets(self):
-        # The #287 §7.6 samples need the breakout_preset side field and #289's DEV presets; until both exist the manifest
-        # stays outside the admitted set above, but its experiment shape is checked now.
-        paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests" / "pending-p2").glob("*.json"))
-        self.assertTrue(paths)
-        for path in paths:
-            value = core.validate_manifest(core.read_json(path))
-            arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
-            reference = arms.pop(value["design"]["reference"])
-            self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
-            self.assertEqual(len(arms), 9)
-            for arm, plan in arms.items():
+    def test_breakout_manifest_runs_every_sample_against_a_bare_build(self):
+        # #287 §7.6: each DEV breakout sample (breakout_preset) faces the same-level bare build.
+        value = core.validate_manifest(core.read_json(ROOT / "Scripts" / "BuildEvaluationManifests" / "p3-breakout-samples.json"))
+        arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
+        reference = arms.pop(value["design"]["reference"])
+        self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
+        self.assertEqual(len(arms), 10)
+        for arm, plan in arms.items():
+            with self.subTest(arm=arm):
+                self.assertEqual(lockdown.requirements(value["scenario"], plan, self.caps)["problems"], [])
                 self.assertEqual(plan["subject"].get("breakout_preset"), f"breakout_{arm}")
                 self.assertEqual(plan["opponent"], reference["opponent"], "every sample faces the same-level bare build")
 
