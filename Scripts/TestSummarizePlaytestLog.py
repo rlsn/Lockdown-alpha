@@ -217,9 +217,9 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("hits on contenders: 510 dmg: basic 11.8%, skill 88.2%, card/component 0.0%, reaction 0.0%", metrics)
         self.assertIn("hits on camps: 5 dmg: basic 100.0%", metrics)
         self.assertIn("Casts per person per fight (Q/W/E releases): no data (no LD_CAST line", metrics)
-        # First damage between the pair at t=10000, the death at t=15000; the killer levels up from that kill only.
-        self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 5.0 s", metrics)
-        self.assertIn("same level L1: n=1 mean 5.0 s", metrics)
+        # The victim never hit back: a one-sided kill is counted but is no time to kill of a fight.
+        self.assertIn("Time to kill (first damage between the pair to the death): no data (+1 one-sided kills)", metrics)
+        self.assertIn("same level L1: no data (+1 one-sided kills)", metrics)
         self.assertIn("Momentum income: no data (no LD_MOMENTUM line)", metrics)
         self.assertIn("Outrageous hits (>= 60% of the target's max HP): 1", metrics)
         self.assertIn("learned:active_crotch_grab 450.00 (90% of 500.00)", metrics)
@@ -227,7 +227,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("Damage factors: no data (LD_HIT has no factor_bp; old amp_bp peaks at 10000)", metrics)
         self.assertIn("Cards offered: no data (no card offer)", metrics)
         across = text.split("## Metrics across 1 matches with Host lines")[1]
-        self.assertIn("| Same-level L1 time to kill | 10–12 s | n=1 mean 5.0 s", across)
+        self.assertIn("| Same-level L1 time to kill | 10–12 s | no data (+1 one-sided kills) |", across)
         self.assertIn("| Casts per person per same-level fight | 7–10 | no data (no LD_CAST line", across)
         self.assertIn("| Distinct winner builds (Q/W/E sets) | ≥ 8 per 50 matches | 1 in 1 decided matches |", across)
         self.assertIn("Actives pick rate (picked / offered), 4 ids, 3 below 4%:", across)
@@ -267,6 +267,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             line(13, "LogLDCombat", "Log", f"LD_CHAIN owner={a} steps=6 key=card_k06>Overload>kill damage=700.00"),
             line(14, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=1 basic=0.00 combat=10.00 skill=45.00 reaction=10.00 dodge=0.00 other=0.00 idle=0.00 spent=100.00 overdrive=1 end=0.00"),
             line(14, "LogLDCombat", "Log", f"LD_PERFECT_DODGE t=11500 entity={b} life=1 effect=x source=y momentum=15.00"),
+            # A rest-room training dummy is a contender-kind body outside the roster: never a contender for the metrics.
+            hit(15, 15000, a, HOST, "learned:active_zap", "700.00"),
         ]
         (self.root / "P2.log").write_text("\n".join(rows) + "\n", encoding="utf-8")
         text = summarize(collect([str(self.root / "P2.log")]), metrics_only=True)
@@ -285,7 +287,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("): 1 (A x3.70, B x0.24)", metrics)
         self.assertIn("Outrageous hits (>= 60% of the target's max HP): 1", metrics)
         self.assertIn("Longest chain: 6 steps (1 of 1 chains >= 5)", metrics)
-        self.assertIn("Damage factors: 5 hits, max factor_bp 120000; sources card_k06 2, overdrive 1", metrics)
+        self.assertIn("Damage factors: 6 hits, max factor_bp 120000; sources card_k06 2, overdrive 1", metrics)
         self.assertIn("Reaction kinds: 1 (Overload)", metrics)
         self.assertIn("Cards offered: 3", metrics)
         across = text.split("## Metrics across 1 matches with Host lines")[1]

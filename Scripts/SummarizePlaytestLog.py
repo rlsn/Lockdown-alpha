@@ -570,13 +570,13 @@ class Fight:
     same_level: bool = True
 
 
-def contender_fights(contender, casts, hits, deaths):
+def contender_fights(contender, casts, hits, deaths, contenders):
     """One contender's fights: its LD_CAST releases and the hits it exchanged with other contenders, split where the gap
     exceeds FIGHT_GAP_MS (the combat window) and ended by its death. Fights without a hit between contenders are dropped."""
     timeline = [(authority_ms(event), 0, "cast", event) for event in casts if event.get("contender") == contender]
     timeline += [(authority_ms(event), 1, "hit", event) for event in hits
                  if event.get("protected") != "1" and event.get("src") != event.get("victim")
-                 and event.get("src_kind") == "contender" and event.get("victim_kind") == "contender"
+                 and event.get("src") in contenders and event.get("victim") in contenders
                  and contender in (event.get("src"), event.get("victim"))]
     timeline += [(authority_ms(event), 2, "death", event) for event in deaths if event.get("contender") == contender]
     timeline.sort(key=lambda row: (row[0], row[1]))
@@ -606,35 +606,41 @@ def contender_fights(contender, casts, hits, deaths):
 
 def kill_times(deaths, hits, contenders, levels):
     """Each contender death by another contender: from the first damage between the pair in the engagement that ended
-    in the death (their hits either way, no more than FIGHT_GAP_MS apart) to the death receipt."""
+    in the death (their hits either way, no more than FIGHT_GAP_MS apart) to the death receipt. A kill counts as mutual
+    only when the victim also hit the killer in that engagement; a one-sided kill (an idle or fleeing victim) is no time
+    to kill of a fight and is only counted."""
     kills = []
     for death in deaths:
         victim, killer, t_death = death.get("contender"), death.get("killer"), authority_ms(death)
         if killer in ("", "-", victim) or killer not in contenders:
             continue
-        pair = sorted((authority_ms(event) for event in hits if event.get("protected") != "1"
+        pair = sorted(((authority_ms(event), event.get("src")) for event in hits if event.get("protected") != "1"
                        and {event.get("src"), event.get("victim")} == {victim, killer} and authority_ms(event) <= t_death),
                       reverse=True)
         if not pair:
             continue
         start = last = t_death
-        for t in pair:
+        sources = set()
+        for t, source in pair:
             if last - t > FIGHT_GAP_MS:
                 break
             start = last = t
+            sources.add(source)
         # Levels just before the death: the killer's reward for it lands at the same authority time.
         level = levels(victim, t_death - 1)
         kills.append({"victim": victim, "killer": killer, "ttk_ms": t_death - start, "level": level,
-                      "same_level": levels(killer, t_death - 1) == level})
+                      "same_level": levels(killer, t_death - 1) == level, "mutual": victim in sources})
     return kills
 
 
 def match_metrics(events, baseline):
     """Every §16 number this match's Host lines support; a value is None (or empty) when its lines are absent."""
     hits = [event for event in events if event.tag == "LD_HIT" and authority_ms(event) is not None]
+    # The roster when the log has one: rest-room training dummies are contender-kind bodies outside it.
     contenders = {event.get("contender") for event in events if event.tag == "LD_MATCH_ROSTER"}
-    contenders |= {event.get("src") for event in hits if event.get("src_kind") == "contender"}
-    contenders |= {event.get("victim") for event in hits if event.get("victim_kind") == "contender"}
+    if not contenders:
+        contenders |= {event.get("src") for event in hits if event.get("src_kind") == "contender"}
+        contenders |= {event.get("victim") for event in hits if event.get("victim_kind") == "contender"}
     contenders.discard("")
     casts = [event for event in events if event.tag == "LD_CAST" and authority_ms(event) is not None]
     deaths = [event for event in events if event.tag == "LD_DEATH_RECEIPT" and authority_ms(event) is not None]
@@ -644,13 +650,15 @@ def match_metrics(events, baseline):
     reactions = reaction_hits(events)
     share = {"contender": defaultdict(float), "camp": defaultdict(float)}
     for event in hits:
-        if event.get("src_kind") != "contender" or event.get("src") == event.get("victim") or event.get("protected") == "1":
+        if event.get("src") not in contenders or event.get("src") == event.get("victim") or event.get("protected") == "1":
             continue
-        group = "camp" if event.get("victim_kind") == "camp" else "contender"
+        group = "camp" if event.get("victim_kind") == "camp" else "contender" if event.get("victim") in contenders else None
+        if group is None:
+            continue
         share[group]["reaction" if id(event) in reactions else hit_category(event)] += number(event, "dmg")
     out["damage_share"] = share
 
-    fights = [fight for contender in sorted(contenders) for fight in contender_fights(contender, casts, hits, deaths)]
+    fights = [fight for contender in sorted(contenders) for fight in contender_fights(contender, casts, hits, deaths, contenders)]
     for fight in fights:
         fight.level = levels(fight.contender, fight.start)
         fight.same_level = all(levels(other, fight.start) == fight.level for other in fight.opponents)
@@ -676,7 +684,7 @@ def match_metrics(events, baseline):
     out["output_ratio"] = ratios
 
     outrageous = [(number(event, "dmg") / number(event, "max_hp"), event) for event in hits
-                  if event.get("victim_kind") == "contender" and event.get("src") != event.get("victim")
+                  if event.get("victim") in contenders and event.get("src") != event.get("victim")
                   and number(event, "max_hp") > 0 and number(event, "dmg") >= OUTRAGEOUS_SHARE * number(event, "max_hp")]
     out["outrageous"] = sorted(outrageous, key=lambda row: -row[0])
 
@@ -735,7 +743,9 @@ def casts_text(fights, has_casts):
 
 
 def ttk_text(kills):
-    return stats_text([kill["ttk_ms"] / 1000 for kill in kills], 1, " s")
+    mutual = [kill["ttk_ms"] / 1000 for kill in kills if kill["mutual"]]
+    one_sided = len(kills) - len(mutual)
+    return stats_text(mutual, 1, " s") + (f" (+{one_sided} one-sided kills)" if one_sided else "")
 
 
 def momentum_text(momentum, lives, dodges):
@@ -835,6 +845,7 @@ def aggregate_lines(all_metrics, baseline_source):
     lines += ["| Metric | Target | Result |", "| --- | --- | --- |",
               f"| Same-level L1 time to kill | 10–12 s | {ttk_text([kill for kill in same_kills if kill['level'] == 1])} |",
               f"| Same-level time to kill, any level | — | {ttk_text(same_kills)} |",
+              f"| Time to kill, every kill between contenders | — | {ttk_text(kills)} |",
               f"| Casts per person per same-level fight | 7–10 | "
               f"{casts_text([fight for fight in fights if fight.same_level], has_casts)} |",
               f"| Casts per person per fight, any level | — | {casts_text(fights, has_casts)} |",
