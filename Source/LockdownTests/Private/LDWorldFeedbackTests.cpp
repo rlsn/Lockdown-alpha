@@ -495,4 +495,41 @@ bool FLDWorldFeedbackCastsTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An unknown source reads as a plain cast"),LDWorldFeedback::Text(Unknown),FString(TEXT("施法！")));
     return true;
 }
+// Spec §12 reaction text: the own body's reaction waits for its instant and shows once, inked by the incoming element; a
+// visible unit's repeated reaction of one kind shows again when it is a new occurrence, even at the same age.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldFeedbackReactionsTest,"Lockdown.Rules.WorldFeedback.Reactions",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDWorldFeedbackReactionsTest::RunTest(const FString& Parameters)
+{
+    using LDWorldFeedback::EKind;
+    const auto Reactions=[](const FWorldFeedbackTestEvents& Events)
+    {
+        FWorldFeedbackTestEvents Out;
+        for(const LDWorldFeedback::FEvent& Event:Events){if(Event.Kind==EKind::UnitReaction){Out.Add(Event);}}
+        return Out;
+    };
+    LDWorldFeedback::FTracker Own;
+    FLDCombatOwnerView Combat=WorldFeedbackTestBody(3,1,1,1000,50000);
+    LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.OwnCombat=&Combat;
+    TestTrue(TEXT("The first body view only primes"),Reactions(WorldFeedbackTestObserve(Own,Sample)).IsEmpty());
+    Combat.Cues.LastReaction=1;Combat.Cues.LastReactionAtMs=Sample.NowMs+100;Combat.Cues.LastReactionElement=1;
+    TestTrue(TEXT("A reaction ahead of the clock waits"),Reactions(WorldFeedbackTestObserve(Own,Sample)).IsEmpty());
+    Sample.NowMs+=150;
+    const FWorldFeedbackTestEvents Mine=Reactions(WorldFeedbackTestObserve(Own,Sample));
+    TestTrue(TEXT("Then it floats once over the own body, inked by its incoming element"),Mine.Num()==1&&Mine[0].bOwn&&Mine[0].Element==1
+        &&Mine[0].Amount==1);
+    TestTrue(TEXT("The same reaction never floats twice"),Reactions(WorldFeedbackTestObserve(Own,Sample)).IsEmpty());
+
+    LDWorldFeedback::FTracker Seen;
+    FLDObservedUnitView Rival=WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,50000,60000);
+    Rival.RecentReaction=1;Rival.RecentReactionAgePlusOneMs=1;Rival.RecentReactionElement=2;
+    FLDWorldView Frame=WorldFeedbackTestFrame(3,1,1,1,10.);Frame.Units={Rival};
+    LDWorldFeedback::FSample View=WorldFeedbackTestSample(3,1,FGuid::NewGuid());View.Frame=&Frame;
+    TestTrue(TEXT("A unit first seen with a reaction only primes"),Reactions(WorldFeedbackTestObserve(Seen,View)).IsEmpty());
+    Frame.Revision=2;Frame.SampledAtServerSec=10.1;
+    const FWorldFeedbackTestEvents Again=Reactions(WorldFeedbackTestObserve(Seen,View));
+    TestTrue(TEXT("The same kind again in the next frame at the same age is a new reaction"),Again.Num()==1&&!Again[0].bOwn&&Again[0].Element==2);
+    Frame.Revision=3;Frame.SampledAtServerSec=10.2;Frame.Units[0].RecentReactionAgePlusOneMs=101;
+    TestTrue(TEXT("The same occurrence seen older stays quiet"),Reactions(WorldFeedbackTestObserve(Seen,View)).IsEmpty());
+    return true;
+}
 #endif

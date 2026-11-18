@@ -371,7 +371,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             TArray<FLDCombatBodyRef> Targets;
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
-            HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs);
+            if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
             // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
             {
                 const FVector Facing=Channel.Direction;
@@ -474,7 +474,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (Hit.KnockbackCm > 0 && !Hit.bKnockbackPull) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Ground.CentreCm; }
             PendingHits.Add(MoveTemp(Hit));
         }
-        HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs);
+        if (!HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs, Error)) { return false; }
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }

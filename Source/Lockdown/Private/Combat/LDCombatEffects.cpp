@@ -405,7 +405,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // Spec §8.1: a shocked target counts the direct damage it takes (before this hit's own elements); status damage, ticks
     // and shock strikes never count. Then the hit's element batch applies.
     if (bControllable && Damage.DamageP2>0 && !Hit.bStatusSettle && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bOverchargeDischarge
-        && !CountShock(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
+        && !Hit.bRider && !CountShock(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
     if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error)) { return false; }
     if (bControllable) { for (const FName& Card : ElementTriggers) { LedgerCardTriggered(*Source,Card); } }
     bool bSendOwnHit=false;

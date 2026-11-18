@@ -401,6 +401,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.WorldFeedback.Kill",
         "Lockdown.Rules.WorldFeedback.Text",
         "Lockdown.Rules.WorldFeedback.Casts",
+        "Lockdown.Rules.WorldFeedback.Reactions",
         "Lockdown.Rules.WorldLabels.CampMemberName",
         "Lockdown.Rules.WorldLabels.ContenderName",
         "Lockdown.Rules.WorldLabels.StatusLine",

@@ -129,7 +129,7 @@ struct FLDBuildPrimitivesAccess
         const FVector& Centre, int64 NowMs, FString& Error) { return Driver.PlaceBag(Body, Payload, Effect, nullptr, Centre, NowMs, Error); }
     static bool AdvanceBags(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBags(NowMs, Error); }
     static void HitBags(ALDCombatDirector& Driver, const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs)
-    { Driver.HitBagsInCircle(Centre, RadiusCm, Payload, NowMs); }
+    { FString Error; Driver.HitBagsInCircle(Centre, RadiusCm, Payload, NowMs, Error); }
     static int32 BagOnSegment(const ALDCombatDirector& Driver, const FGuid& Source, const FVector& From, const FVector& To, double& At)
     { return Driver.FirstBagOnSegment(Source, From, To, 10., At); }
     static void GroundFactors(const ALDCombatDirector& Driver, const FLDBodyCombatState& Source, const FLDBodyCombatState& Target,

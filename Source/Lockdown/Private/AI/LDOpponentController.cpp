@@ -600,8 +600,12 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentD
             Incumbent = Candidate;
             Incumbent.Status = LDOpponentFrame::OrderStatus(Receipt.Status);
             Candidate = FOrderTrack();
-            if (Settle != ELDOpponentSettle::InFlight) { FinishIncumbent(Settle, Self, NowMs); }
-            return;
+            // A detour leg that already reached its waypoint is no arrival: it goes on to the final leg below.
+            if (!(Incumbent.bDetour && Receipt.Status == ELDOrderStatus::Completed))
+            {
+                if (Settle != ELDOpponentSettle::InFlight) { FinishIncumbent(Settle, Self, NowMs); }
+                return;
+            }
         }
     }
     if (Incumbent.bHas && !Incumbent.bFinal)

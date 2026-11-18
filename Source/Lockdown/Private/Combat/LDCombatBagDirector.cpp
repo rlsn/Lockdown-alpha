@@ -7,6 +7,8 @@
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Region/LDMapRegistry.h"
+#include "Vision/LDVisionDirector.h"
 
 // Spec §5 N4 占座书包 (CONTENT_AND_BALANCE §4.2): a Combat-owned obstacle, not a body. It blocks bodies (a server blocker
 // and, while seen, the owning client's observation proxy) and the enemy flights that reach it; enemy flights, ground blasts,
@@ -136,17 +138,41 @@ void ALDCombatDirector::DamageBag(FLDCombatBag& Bag, const FLDCombatHit& Hit, in
         *LDLog::Id(Hit.SourceEntity), *LDLog::Source(Hit.Source), Raw, Bag.HpP2);
 }
 
-void ALDCombatDirector::HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs)
+bool ALDCombatDirector::AreaSees(const FVector& Anchor, const FVector& Point, bool& bSees, FString& Error) const
+{
+    bSees = false;
+    const ILDLifeAuthority* Mode = Authority();
+    const UWorld* CurrentWorld = GetWorld();
+    const ULDMapRegistry* Registry = CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Mode || !Mode->GetVisionAuthority() || !Registry)
+    {
+        Error = TEXT("An area reaching a bag requires the observation owner and the registered world.");
+        return false;
+    }
+    const ELDSightResult Sight = Mode->GetVisionAuthority()->TraceSight(Anchor, Point, Registry->Revision());
+    if (Sight == ELDSightResult::Visible) { bSees = true; }
+    else if (Sight != ELDSightResult::Blocked && Sight != ELDSightResult::OutOfRange)
+    {
+        Error = TEXT("Area sight failed on a bag.");
+        return false;
+    }
+    return true;
+}
+
+bool ALDCombatDirector::HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs, FString& Error)
 {
     for (FLDCombatBag& Bag : Bags)
     {
-        if (BagIsEnemyOf(Bag, Payload.SourceEntity) && FVector::Dist2D(Bag.CentreCm, Centre) <= RadiusCm + Bag.BodyRadiusCm)
-        { DamageBag(Bag, Payload, NowMs); }
+        if (!BagIsEnemyOf(Bag, Payload.SourceEntity) || FVector::Dist2D(Bag.CentreCm, Centre) > RadiusCm + Bag.BodyRadiusCm) { continue; }
+        bool bSees = false;
+        if (!AreaSees(Centre, Bag.CentreCm, bSees, Error)) { return false; }
+        if (bSees) { DamageBag(Bag, Payload, NowMs); }
     }
+    return true;
 }
 
-void ALDCombatDirector::HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
-    const FLDCombatHit& Payload, int64 NowMs)
+bool ALDCombatDirector::HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
+    const FLDCombatHit& Payload, int64 NowMs, FString& Error)
 {
     const double CosHalf = FMath::Cos(FMath::DegreesToRadians(AngleDegrees * .5));
     for (FLDCombatBag& Bag : Bags)
@@ -154,8 +180,11 @@ void ALDCombatDirector::HitBagsInCone(const FVector& Origin, const FVector& Dire
         const FVector Offset(Bag.CentreCm.X - Origin.X, Bag.CentreCm.Y - Origin.Y, 0);
         if (!BagIsEnemyOf(Bag, Payload.SourceEntity) || Offset.Size() > RangeCm + Bag.BodyRadiusCm) { continue; }
         if (!Offset.IsNearlyZero() && FVector::DotProduct(Direction.GetSafeNormal2D(), Offset.GetSafeNormal()) < CosHalf) { continue; }
-        DamageBag(Bag, Payload, NowMs);
+        bool bSees = false;
+        if (!AreaSees(Origin, Bag.CentreCm, bSees, Error)) { return false; }
+        if (bSees) { DamageBag(Bag, Payload, NowMs); }
     }
+    return true;
 }
 
 int32 ALDCombatDirector::FirstBagOnSegment(const FGuid& Source, const FVector& From, const FVector& To, double RadiusCm,
@@ -222,7 +251,7 @@ bool ALDCombatDirector::ExplodeBag(const FLDCombatBag& Bag, int64 NowMs, FString
         if (Hit.KnockbackCm > 0 && !Hit.bKnockbackPull) { Hit.bKnockbackFromAnchor = true; Hit.KnockbackAnchorCm = Bag.CentreCm; }
         PendingHits.Add(MoveTemp(Hit));
     }
-    HitBagsInCircle(Bag.CentreCm, Bag.BlastRadiusCm, Bag.Payload, NowMs);
+    if (!HitBagsInCircle(Bag.CentreCm, Bag.BlastRadiusCm, Bag.Payload, NowMs, Error)) { return false; }
     UE_LOG(LogLDCombat, Log, TEXT("LD_BAG_BLAST t=%lld owner=%s via=%s centre=%s knocked_out=%d targets=%d fire_ms=%lld"), NowMs,
         *LDLog::Id(Bag.Payload.SourceEntity), *LDLog::Source(Bag.Payload.Source), *Bag.CentreCm.ToCompactString(), Bag.HpP2 <= 0 ? 1 : 0,
         Targets.Num(), Bag.FireFieldMs);

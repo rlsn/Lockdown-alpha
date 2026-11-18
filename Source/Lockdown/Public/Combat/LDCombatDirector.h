@@ -1443,9 +1443,12 @@ private:
     void RemoveBag(int32 Index);
     void RemoveBags(TFunctionRef<bool(const FLDCombatBag&)> Which);
     void DamageBag(FLDCombatBag& Bag, const FLDCombatHit& Hit, int64 NowMs);
-    void HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs);
-    void HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
-        const FLDCombatHit& Payload, int64 NowMs);
+    // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
+    bool HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs, FString& Error);
+    bool HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
+        const FLDCombatHit& Payload, int64 NowMs, FString& Error);
+    // Whether the world lets an area at Anchor reach Point (false: blocked or out of sight range); a fault fails.
+    bool AreaSees(const FVector& Anchor, const FVector& Point, bool& bSees, FString& Error) const;
     // The first live enemy bag a flight of RadiusCm meets on From -> To (its fraction in OutFraction), or INDEX_NONE.
     int32 FirstBagOnSegment(const FGuid& Source, const FVector& From, const FVector& To, double RadiusCm, double& OutFraction) const;
     bool BagIsEnemyOf(const FLDCombatBag& Bag, const FGuid& Source) const;

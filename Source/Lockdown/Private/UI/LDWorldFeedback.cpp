@@ -85,12 +85,11 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
     // Only the body of this match and life; anything else leaves the baseline alone until the current view arrives.
     if(!Combat||!Combat->bHasBody||Sample.Life==0||Combat->Generation!=Sample.Match||Combat->Life!=Sample.Life){return;}
     const bool bNewLife=!bBody||BodyLife!=Combat->Life;
-    // The confirmation word takes the receipt the body's confirmation layer takes (LDHitFeel::TakeFreshReceipt), checked
-    // on every sample rather than per revision: a receipt ahead of the clock waits, a stale one is only skipped and the
-    // first view of a life only primes it.
-    if(bNewLife){DealtAtMs=Combat->Cues.LastDealtAtMs;ReactionAtMs=Combat->Cues.LastReactionAtMs;}
-    // Spec §12: a reaction on the own body floats its name over it once, while fresh; the first view of a life only primes.
-    else if(Sample.bClock&&Combat->Cues.LastReaction!=0&&Combat->Cues.LastReactionAtMs>ReactionAtMs)
+    // Spec §12: a reaction on the own body floats its name over it once, while fresh, and waits for its instant; the first
+    // view of a life only primes. It is independent of the confirmation word below.
+    if(bNewLife){ReactionAtMs=Combat->Cues.LastReactionAtMs;}
+    else if(Sample.bClock&&Combat->Cues.LastReaction!=0&&Combat->Cues.LastReactionAtMs>ReactionAtMs
+        &&Combat->Cues.LastReactionAtMs<=Sample.NowMs)
     {
         ReactionAtMs=Combat->Cues.LastReactionAtMs;
         if(Sample.NowMs-ReactionAtMs<LDObservation::RecentReactionWindowMs)
@@ -100,6 +99,10 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
             Reaction.Element=Combat->Cues.LastReactionElement;Reaction.Name=LDTerms::ReactionTerm(Combat->Cues.LastReaction);
         }
     }
+    // The confirmation word takes the receipt the body's confirmation layer takes (LDHitFeel::TakeFreshReceipt), checked
+    // on every sample rather than per revision: a receipt ahead of the clock waits, a stale one is only skipped and the
+    // first view of a life only primes it.
+    if(bNewLife){DealtAtMs=Combat->Cues.LastDealtAtMs;}
     else if(Sample.bClock&&Sample.LifePhase==ELDLifePhase::Alive&&LDHitFeel::TakeFreshReceipt(DealtAtMs,Combat->Cues.LastDealtAtMs,Sample.NowMs))
     {
         FEvent& Dealt=Out.AddDefaulted_GetRef();Dealt.Kind=EKind::DealtConfirm;Dealt.Amount=1;Dealt.HitFlags=Combat->Cues.LastDealtFlags;
@@ -208,7 +211,10 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
             Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=Next.bCamp && Sample.MonsterCastName?Sample.MonsterCastName(Unit.CreatureId):Sample.CastName?Sample.CastName(Next.Ability):FString();
         }
         // A reaction on a visible unit floats its name once: when its cue appears, restarts (its age falls) or names another.
-        if(Last&&Next.Reaction!=0&&(Last->Reaction!=Next.Reaction||Next.ReactionAgePlusOneMs<Last->ReactionAgePlusOneMs))
+        // Its occurrence is the frame's sample time less its age, so two reactions of one kind in successive (or
+        // lost) frames stay apart.
+        const auto OccurredAt=[](const FUnit& Seen){return Seen.SampledAtSec-double(Seen.ReactionAgePlusOneMs-1)/1000.;};
+        if(Last&&Next.Reaction!=0&&(Last->Reaction==0||Last->Reaction!=Next.Reaction||OccurredAt(Next)>OccurredAt(*Last)+.0005))
         {
             FEvent& Event=Out.AddDefaulted_GetRef();
             Event.Kind=EKind::UnitReaction;Event.Amount=Next.Reaction;Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;
@@ -404,7 +410,8 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
     // Damage and heal numbers landing together read as one: a same-kind event at the same anchor within the merge window
     // adds up and pops the number again without restarting its rise. Each reward publication keeps its own lines.
     const bool bReward=WorldFeedbackIsReward(Event.Kind);
-    LDWorldFeedback::FFloater* Same=bReward?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
+    // A reaction is its own word: two reactions on one unit never add up.
+    LDWorldFeedback::FFloater* Same=bReward||Event.Kind==LDWorldFeedback::EKind::UnitReaction?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
     {return Shown.Event.Kind==Event.Kind&&WorldFeedbackSameAnchor(Shown.Event,Event)&&Now-Shown.BornAt<=WorldFeedbackMergeSeconds;});
     if(Same)
     {
