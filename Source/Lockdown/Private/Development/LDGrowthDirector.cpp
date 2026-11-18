@@ -357,6 +357,22 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(Outcome, Reason);
     }
+    // Spec §3.13: a contender kill pays the killer and each assister their vouchers with the same reward.
+    if (bContenderVictim)
+    {
+        const FLDDemoVoucherParameters& Vouchers = Content->Get().Parameters.Vouchers;
+        ELDGrowthReason VoucherReason = M->Development->GrantVouchers(Recipient, Vouchers.Kill, 0, TEXT("kill"), Permit);
+        for (int32 Index = 0; Index < Death.Assisters.Num() && VoucherReason == ELDGrowthReason::None; ++Index)
+        {
+            VoucherReason = M->Development->GrantVouchers(Death.Assisters[Index], Vouchers.Assist, 0, TEXT("assist"), Permit);
+        }
+        if (VoucherReason != ELDGrowthReason::None)
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_REWARD_FAULT victim=%s: kill vouchers refused (%s)"),
+                *LDLog::Id(Death.Key.Victim.EntityId), LDGrowthWire::ReasonName(VoucherReason));
+            return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::AuthorityFault);
+        }
+    }
     Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
     RecordReward(Receipt);
     return Receipt;

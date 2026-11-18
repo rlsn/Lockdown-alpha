@@ -211,8 +211,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 Box->SetVisibility(ESlateVisibility::Collapsed);
                 return Box;
             };
-            NpcButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){BuyNpcOffer();},false,TEXT("GrowthRestNpc"));
-            NpcBox=Boxed(NpcButton.Get(),NpcBlocked,420.f);
             RespecButton=LDWidgets::HoldButton(WidgetTree,LDTerms::Respec,[this](){Respec();},TEXT("GrowthRestRespec"));
             RespecBox=Boxed(RespecButton.Get(),RespecBlocked,300.f);
             // Mockup 05: 洗点 spans the foot of the character column; 遗忘 is the right click on a skill head.
@@ -311,7 +309,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         // workshop's rectangles.
         Layer=WidgetTree->ConstructWidget<UCanvasPanel>();Layer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Item:{StageBox.Get(),static_cast<UWidget*>(StageBack.Get()),FinalDesc.Get(),static_cast<UWidget*>(FinalLockButton.Get()),
-            static_cast<UWidget*>(FinalLockNote.Get()),RespecBox.Get(),NpcBox.Get(),static_cast<UWidget*>(TrainerPicks.Get()),ServiceDock.Get()})
+            static_cast<UWidget*>(FinalLockNote.Get()),RespecBox.Get(),static_cast<UWidget*>(TrainerPicks.Get()),ServiceDock.Get()})
         {UCanvasPanelSlot* ItemSlot=Layer->AddChildToCanvas(Item);ItemSlot->SetAutoSize(true);ItemSlot->SetZOrder(Item==ServiceDock.Get()?3:Item==StageBox.Get()?1:2);LayerSlots.Add(Item,ItemSlot);}
         auto* Layers=WidgetTree->ConstructWidget<UOverlay>();Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Each:{static_cast<UWidget*>(TrayFrame.Get()),static_cast<UWidget*>(Layer.Get())})
@@ -857,8 +855,8 @@ void ULDChoicesPanel::RefreshOffer()
         GrowthShown(Card.Links,Card.bBig&&Card.LinkIcons.Num()>0&&Card.LinkIcons[0]->GetVisibility()!=ESlateVisibility::Collapsed,ESlateVisibility::Visible);
     }
     if(!bOffer){GrowthShown(SkipCard.Frame,false);return;}
-    const int64 Points=Latest.ActiveOffer.SkipPoints;
-    const FString SkipName=Points>0?FString::Printf(TEXT("不选 +%lld 点"),Points):FString(TEXT("不选"));
+    const int64 Points=Latest.ActiveOffer.SkipVouchers;
+    const FString SkipName=Points>0?LDTerms::OfferSkipVouchers(Points):FString(TEXT("不选"));
     const FString SkipKey=SkipName+TEXT("|")+Gate.ChooseBlocked;
     if(CardStale(SkipCard,SkipKey))
     {
@@ -867,7 +865,7 @@ void ULDChoicesPanel::RefreshOffer()
         Detail.Body=Points>0?FString(TEXT("放弃本组技能，本次机会不再保留。")):FString(TEXT("奖励数据缺失。"));
         if(!Gate.bCanChoose){Detail.Body+=TEXT("\n\n")+Gate.ChooseBlocked;}
         ShowFace(SkipCard,SkipKey,SkipName,FString(),Points>0?FString::Printf(TEXT("+%lld"),Points):FString(TEXT("+")),Detail);
-        GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipPoints(Points):FString());
+        GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipVouchers(Points):FString());
     }
     ShowLook(SkipCard,bQuickShown&&bQuickCompact,Points>0&&Gate.bCanChoose&&!PendingRequest,bVisible);
     // The skip card's name is only 不选; its points are the glyph on a tile and the facts line on the stage.
@@ -1254,7 +1252,7 @@ bool ULDChoicesPanel::ChooseOffer(int32 Index)
 }
 bool ULDChoicesPanel::SkipOffer()
 {
-    if(!HasAvailableOffer()||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipPoints<=0){return false;}
+    if(!HasAvailableOffer()||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipVouchers<=0){return false;}
     if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
     if(!Gate.bCanChoose){Tell(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
     FLDBuildCommand Command;
@@ -1374,17 +1372,6 @@ bool ULDChoicesPanel::LearnBlueprint(int32 Index,uint8 Key)
     Command.Slot=Key;
     return Send(Command);
 }
-FString ULDChoicesPanel::NpcRefusal() const
-{
-    if(!Gate.bCanBuyNpc){return Gate.NpcBlocked;}
-    if(ServiceContext!=ELDRestService::SkillMerchant){return TEXT("请先靠近技能商人");}
-    if(!LatestContent){return TEXT("内容数据同步中");}
-    const int64 Price=LatestContent->Parameters.NpcActivePoints;
-    if(Price<=0){return TEXT("NPC 价格数据缺失");}
-    if(Latest.bHasActiveOffer||Latest.QueuedActiveOpportunities>0){return LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding);}
-    if(Latest.UnspentPoints<Price){return FString::Printf(TEXT("未分配点数不够（要 %lld 点）"),Price);}
-    return FString();
-}
 FString ULDChoicesPanel::RespecRefusal() const
 {
     if(!Gate.bCanRespec){return Gate.RespecBlocked;}
@@ -1433,18 +1420,14 @@ void ULDChoicesPanel::RefreshRest()
     GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
     const bool bServices=IsServiceShown();
     GrowthShown(ServiceDock,bServices&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
-    GrowthShown(NpcBox,bServices&&ServiceContext==ELDRestService::SkillMerchant);
     GrowthShown(RespecBox,bServices&&ServiceContext==ELDRestService::Trainer);
     if(!bShown){return;}
-    const int64 Price=LatestContent?LatestContent->Parameters.NpcActivePoints:0;
-    GrowthText(Cast<UTextBlock>(NpcButton->GetContent()),Price>0?LDTerms::NpcOffer(Price):FString(TEXT("NPC：价格数据缺失")));
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
     {
         GrowthEnabled(Button,Refusal.IsEmpty()&&!PendingRequest);
         GrowthText(Why,Refusal);
         GrowthShown(Why,!Refusal.IsEmpty(),ESlateVisibility::HitTestInvisible);
     };
-    Service(NpcButton,NpcBlocked,NpcRefusal());
     Service(RespecButton,RespecBlocked,RespecRefusal());
     {
         // The trainer's 洗点 says how many points it gives back.
@@ -1478,16 +1461,6 @@ void ULDChoicesPanel::RefreshRest()
         RestConfirmButton->SetHoldRequired(true);
         GrowthEnabled(RestConfirmButton,Refusal.IsEmpty()&&!PendingRequest);
     }
-}
-bool ULDChoicesPanel::BuyNpcOffer()
-{
-    if(!Usable()){return false;}
-    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
-    const FString Refusal=NpcRefusal();
-    if(!Refusal.IsEmpty()){Tell(TEXT("没有提交：")+Refusal);return false;}
-    FLDBuildCommand Command;
-    Command.Kind=ELDBuildCommandKind::BuyNpcOffer;
-    return Send(Command);
 }
 bool ULDChoicesPanel::Respec()
 {
@@ -1618,7 +1591,7 @@ void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
                 if(bOpen&&GrowthHasArea(OfferMotion.Chosen.Icon))
                 {
                     if(Receipt.Kind==ELDBuildCommandKind::SkipActiveOffer)
-                    {OfferMotion.Chosen.Glyph=FString::Printf(TEXT("+%lld"),Receipt.PointsAwarded);}
+                    {OfferMotion.Chosen.Glyph=FString::Printf(TEXT("+%d"),Receipt.VouchersDelta);}
                     OfferMotion.Result=Receipt.ChoiceResult;OfferMotion.Slot=Receipt.LearnedSlot;OfferMotion.StartedAt=UiNow();
                 }
             }
@@ -1851,7 +1824,6 @@ void ULDChoicesPanel::LayoutLayer()
     }
     if(!IsServiceShown()){return;}
     PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);
-    PlaceOnLayer(NpcBox,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);
     for(uint8 Key=0;Key<3;++Key)

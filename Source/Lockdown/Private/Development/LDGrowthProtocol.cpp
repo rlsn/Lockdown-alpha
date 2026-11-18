@@ -99,7 +99,6 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::AllocatePoints:
-    case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
     case ELDBuildCommandKind::ReplaceActive:
     case ELDBuildCommandKind::ForgetActive:
@@ -112,6 +111,10 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::LockCard:
     case ELDBuildCommandKind::InstallCard:
     case ELDBuildCommandKind::UninstallCard:
+    case ELDBuildCommandKind::ShopBuy:
+    case ELDBuildCommandKind::ShopRefresh:
+    case ELDBuildCommandKind::ShopSell:
+    case ELDBuildCommandKind::UsePickTicket:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -209,7 +212,6 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::WorkshopFull: return TEXT("WorkshopFull");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
     case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
-    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("NpcPoolTooSmall");
     case ELDGrowthReason::OfferOutstanding: return TEXT("OfferOutstanding");
     case ELDGrowthReason::NothingToRespec: return TEXT("NothingToRespec");
     case ELDGrowthReason::SlotEmpty: return TEXT("SlotEmpty");
@@ -240,6 +242,14 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NoCardOffer: return TEXT("NoCardOffer");
     case ELDGrowthReason::NoReroll: return TEXT("NoReroll");
     case ELDGrowthReason::NotInOffer: return TEXT("NotInOffer");
+    case ELDGrowthReason::NotEnoughVouchers: return TEXT("NotEnoughVouchers");
+    case ELDGrowthReason::ShopSoldOut: return TEXT("ShopSoldOut");
+    case ELDGrowthReason::ShopStale: return TEXT("ShopStale");
+    case ELDGrowthReason::SkillPointLimit: return TEXT("SkillPointLimit");
+    case ELDGrowthReason::NoShop: return TEXT("NoShop");
+    case ELDGrowthReason::NoPickTicket: return TEXT("NoPickTicket");
+    case ELDGrowthReason::NotSeen: return TEXT("NotSeen");
+    case ELDGrowthReason::CardInstalled: return TEXT("CardInstalled");
     }
     return TEXT("Unknown");
 }

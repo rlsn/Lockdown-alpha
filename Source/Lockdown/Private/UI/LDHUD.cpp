@@ -1633,7 +1633,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             if(ChoicesPanel&&In.bServices)
             {
                 const ELDRestService Service=ChoicesPanel->GetServiceContext();
-                In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):TEXT("训练师");
+                In.NpcName=TEXT("训练师");
                 In.bCharacterServices=Service==ELDRestService::Trainer;
             }
             Workshop->Present(In);

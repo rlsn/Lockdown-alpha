@@ -24,21 +24,25 @@ enum class ELDDemoFinalModId : uint8
     FinalBowling=2, FinalForcedExit=5, FinalTraffic=11, FinalSplit=15,
     FinalLandlord=21, FinalBreach=22, FinalComeback=23, FinalOpenMic=24
 };
-// Issue #287 spec §7 build cards: A01-A19 take 200-218, K01-K25 219-243, D01-D12 244-255 and Y01-Y29 256-284; the P5
-// numbers stay free until their cards exist. The #198 components 0-199 are retired and never reused.
+// Issue #287 spec §7 build cards: A01-A19 take 200-218, K01-K25 219-243, D01-D12 244-255 and Y01-Y29 256-284 (P2, P4 and the
+// #292 P5 cards). The #198 components 0-199 are retired and never reused.
 enum class ELDDemoCardId : uint16
 {
-    CardThirdBreath=200, CardPunchThink=201, CardSolidPunch=202, CardThirdShove=203, CardBothHands=205, CardQuickHands=208,
-    CardScholarPunch=210, CardHeatedUp=211, CardBreachFist=213, CardFireFist=214, CardWaterFist=215, CardShockFist=216,
-    CardIceFist=217, CardRotFist=218,
-    CardNextUp=219, CardPayBack=220, CardSetupLine=222, CardEncore=224, CardAgainNow=226, CardBigOne=227,
-    CardBloodPrice=230, CardLendFist=231, CardHurtHeal=233, CardHeldShot=234, CardPractice=235, CardAddFire=237,
-    CardAddWater=238, CardAddShock=239, CardAddChill=240, CardAddRot=241, CardAddGust=242, CardBlastReload=243, CardBumpReset=244, CardBumpAgain=245, CardDashPunch=246,
-    CardDoubleDash=248, CardPassThrough=249, CardIceTrail=253, CardMoveTurf=254, CardShockDash=255, CardSpikyHide=256, CardTakedown=257, CardHangOn=258,
-    CardReactionRefund=259, CardWaveAfter=260, CardHardSkin=262, CardBallKick=263, CardSkillCrit=264, CardSkillDrain=265,
-    CardDoubleStall=267, CardThickHide=268, CardOverfed=269, CardBerserk=270, CardQuickBrain=271, CardPunchHeal=272, CardGrowFat=274,
-    CardKillStreak=275, CardToughSkin=276, CardChargeUp=277, CardTurfGrowth=278, CardLiveWire=280, CardLongSoak=281, CardLouderBlast=282,
-    CardEndlessBurn=283
+    CardThirdBreath=200, CardPunchThink=201, CardSolidPunch=202, CardThirdShove=203, CardLongArm=204, CardBothHands=205,
+    CardWideSwing=206, CardFistSkill=207, CardQuickHands=208, CardSlowCraft=209, CardScholarPunch=210, CardHeatedUp=211,
+    CardMuscleMemory=212, CardBreachFist=213, CardFireFist=214, CardWaterFist=215, CardShockFist=216, CardIceFist=217,
+    CardRotFist=218, CardNextUp=219, CardPayBack=220, CardQuickTakedown=221, CardSetupLine=222, CardPinAmp=223,
+    CardEncore=224, CardCrowdHit=225, CardAgainNow=226, CardBigOne=227, CardLongReach=228, CardHoldLonger=229,
+    CardBloodPrice=230, CardLendFist=231, CardHeldBreath=232, CardHurtHeal=233, CardHeldShot=234, CardPractice=235,
+    CardComboChain=236, CardAddFire=237, CardAddWater=238, CardAddShock=239, CardAddChill=240, CardAddRot=241,
+    CardAddGust=242, CardBlastReload=243, CardBumpReset=244, CardBumpAgain=245, CardDashPunch=246, CardDodgeStrike=247,
+    CardDoubleDash=248, CardPassThrough=249, CardHeadDown=250, CardPaidDash=251, CardSlippery=252, CardIceTrail=253,
+    CardMoveTurf=254, CardShockDash=255, CardSpikyHide=256, CardTakedown=257, CardHangOn=258, CardReactionRefund=259,
+    CardWaveAfter=260, CardShellBurst=261, CardHardSkin=262, CardBallKick=263, CardSkillCrit=264, CardSkillDrain=265,
+    CardShortBreath=266, CardDoubleStall=267, CardThickHide=268, CardOverfed=269, CardBerserk=270, CardQuickBrain=271,
+    CardPunchHeal=272, CardRunHit=273, CardGrowFat=274, CardKillStreak=275, CardToughSkin=276, CardChargeUp=277,
+    CardTurfGrowth=278, CardTally=279, CardLiveWire=280, CardLongSoak=281, CardLouderBlast=282, CardEndlessBurn=283,
+    CardBurnGuard=284
 };
 enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4, MonsterPromoter=5, MonsterCourier=6, MonsterAgent=7, MonsterGuard=8, MonsterAuditor=9, MonsterClient=10, MonsterDirector=11, MonsterFinalClient=12, MonsterProperty=13 };
 // Public status ids stay below 64 (the observation uniqueness check is a 64-bit mask; #112 C2 uses 20, #147 v7 25..26,
@@ -50,7 +54,8 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
     Knockback=20, Silence=25, Burn=26, AttackSlowed=27,
     Wet=30, Electrified=31, Braced=32, CampEnraged=34, CampGuarding=35, Chilled=36, Rotten=37 };
 // Effect operations of the actives, their skill branches (170..195), the build cards (196..232; issue #287 spec §7) and
-// the P4 element, ground-state and N1-N3 operations (233..241).
+// the P4 element, ground-state and N1-N3 operations (233..241) and the #292 P5 card operations (242..255; the uint8
+// operation space is now full).
 // Retired operation identities must never be reused (native_ids.json retired_ranges): 5..6, 9..11, 15..17, 19, 23,
 // 25..30, 32..36, 38..39, 41..49, 51, 53, 55..68, 72..76, 83..89, 96, 100, 102, 104, 120..129, 131..137, 139..145, 147..151,
 // 154, 159, 161, 165..169, 195.
@@ -74,5 +79,7 @@ enum class ELDDemoEffectOp : uint8
     HasteMomentum=224, HealGrowth=225, KillGrowth=226, ControlGrowth=227, IdleCharge=228, ElementAura=229,
     ElementDuration=230, ReactionFactor=231, BurnCap=232,
     Rot=233, Chill=234, Gust=235, GroundState=236, Fan=237, DashIce=238, GroundRelocate=239, DoubleStall=240,
-    GroundGrowth=241
+    GroundGrowth=241,
+    BasicProjectile=242, ComboSweep=243, ComboCast=244, SpeedFactor=245, HitGrowth=246, ControlAmp=247, Reshape=248,
+    ShieldSpend=249, RecentCastAmp=250, DodgeFreeCast=251, DashRam=252, OverdriveShort=253, Tally=254, BurnShield=255
 };

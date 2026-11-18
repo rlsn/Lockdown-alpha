@@ -279,6 +279,20 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "ground_relocate", ELDDemoEffectOp, GroundRelocate),
     DEMO_ID("effect_ops", "double_stall", ELDDemoEffectOp, DoubleStall),
     DEMO_ID("effect_ops", "ground_growth", ELDDemoEffectOp, GroundGrowth),
+    DEMO_ID("effect_ops", "basic_projectile", ELDDemoEffectOp, BasicProjectile),
+    DEMO_ID("effect_ops", "combo_sweep", ELDDemoEffectOp, ComboSweep),
+    DEMO_ID("effect_ops", "combo_cast", ELDDemoEffectOp, ComboCast),
+    DEMO_ID("effect_ops", "speed_factor", ELDDemoEffectOp, SpeedFactor),
+    DEMO_ID("effect_ops", "hit_growth", ELDDemoEffectOp, HitGrowth),
+    DEMO_ID("effect_ops", "control_amp", ELDDemoEffectOp, ControlAmp),
+    DEMO_ID("effect_ops", "reshape", ELDDemoEffectOp, Reshape),
+    DEMO_ID("effect_ops", "shield_spend", ELDDemoEffectOp, ShieldSpend),
+    DEMO_ID("effect_ops", "recent_cast_amp", ELDDemoEffectOp, RecentCastAmp),
+    DEMO_ID("effect_ops", "dodge_free_cast", ELDDemoEffectOp, DodgeFreeCast),
+    DEMO_ID("effect_ops", "dash_ram", ELDDemoEffectOp, DashRam),
+    DEMO_ID("effect_ops", "overdrive_short", ELDDemoEffectOp, OverdriveShort),
+    DEMO_ID("effect_ops", "tally", ELDDemoEffectOp, Tally),
+    DEMO_ID("effect_ops", "burn_shield", ELDDemoEffectOp, BurnShield),
 };
 #undef DEMO_ID
 
@@ -451,6 +465,7 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AIRDROP.Momentum"), TEXT("momentum"), TEXT("p2"), &P.AirdropMomentumP2, 1, MAX_int64},
         {TEXT("AI.DodgeChance"), TEXT("ratio"), TEXT("bp"), &P.AI.DodgeChanceBp, 0, 10000},
         {TEXT("AI.BreakoutChance"), TEXT("ratio"), TEXT("bp"), &P.AI.BreakoutChanceBp, 0, 10000},
+        {TEXT("AI.CardSkipChance"), TEXT("ratio"), TEXT("bp"), &P.AI.CardSkipChanceBp, 0, 10000},
         {TEXT("DAMAGE.FactorTechCap"), TEXT("ratio"), TEXT("bp"), &P.DamageFactorTechCapBp, 10001, MAX_int64},
     };
     for (const auto& Field : Fixed)
@@ -785,8 +800,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
         {TEXT("GROWTH.KeystoneThresholdPoints"), &P.KeystoneThresholdPoints, 1},
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
-        {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1},
-        {TEXT("GROWTH.ActiveSkipPoints"), &P.ActiveSkipPoints, 1}, {TEXT("GROWTH.NpcActiveSkipPoints"), &P.NpcActiveSkipPoints, 1},
         {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1},
         {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
         {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
@@ -802,7 +815,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CARDS.OfferSize"), &P.Cards.OfferSize}, {TEXT("CARDS.FreeRerolls"), &P.Cards.FreeRerolls},
         {TEXT("CARDS.RerollsPerRest"), &P.Cards.RerollsPerRest}, {TEXT("CARDS.LockSlots"), &P.Cards.LockSlots},
         {TEXT("CARDS.VocabWeight"), &P.Cards.VocabWeight}, {TEXT("CHAIN.MaxDepth"), &P.ChainMaxDepth},
-        {TEXT("CHAIN.MaxEffectsPerStep"), &P.ChainMaxEffectsPerStep}})
+        {TEXT("CHAIN.MaxEffectsPerStep"), &P.ChainMaxEffectsPerStep}, {TEXT("CARDS.SkipVouchers"), &P.Cards.SkipVouchers},
+        {TEXT("SHOP.CardSlots"), &P.Shop.CardSlots}, {TEXT("SHOP.VocabCardSlots"), &P.Shop.VocabCardSlots},
+        {TEXT("SHOP.VocabWeight"), &P.Shop.VocabWeight}, {TEXT("SHOP.SkillSlots"), &P.Shop.SkillSlots},
+        {TEXT("SHOP.SkillPointMaxPerMatch"), &P.Shop.SkillPointMaxPerMatch}})
     {
         const bool bMayBeZero = FCString::Strcmp(Field.Key, TEXT("CARDS.FreeRerolls")) == 0
             || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0 || FCString::Strcmp(Field.Key, TEXT("CARDS.LockSlots")) == 0;
@@ -814,6 +830,24 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         }
     }
     if (!Check.Require(P.Cards.LockSlots < P.Cards.OfferSize, TEXT("CARDS.LockSlots"), TEXT("a locked card leaves room for new ones")))
+    {
+        return false;
+    }
+    // Spec §3.13 voucher amounts and shop prices (positive whole vouchers).
+    for (const auto& Field : {
+        TPair<const TCHAR*, int32*>(TEXT("VOUCHER.CampLow"), &P.Vouchers.CampLow), {TEXT("VOUCHER.CampHigh"), &P.Vouchers.CampHigh},
+        {TEXT("VOUCHER.CampElite"), &P.Vouchers.CampElite}, {TEXT("VOUCHER.CampAncient"), &P.Vouchers.CampAncient},
+        {TEXT("VOUCHER.Boss"), &P.Vouchers.Boss}, {TEXT("VOUCHER.Kill"), &P.Vouchers.Kill}, {TEXT("VOUCHER.Assist"), &P.Vouchers.Assist},
+        {TEXT("VOUCHER.Airdrop"), &P.Vouchers.Airdrop}, {TEXT("VOUCHER.ActiveSkip"), &P.Vouchers.ActiveSkip},
+        {TEXT("SHOP.CardPrice"), &P.Shop.CardPrice}, {TEXT("SHOP.SkillPrice"), &P.Shop.SkillPrice},
+        {TEXT("SHOP.RefreshPrice"), &P.Shop.RefreshPrice}, {TEXT("SHOP.RefreshStep"), &P.Shop.RefreshStep},
+        {TEXT("SHOP.SkillPointPrice"), &P.Shop.SkillPointPrice}, {TEXT("SHOP.SellPrice"), &P.Shop.SellPrice}})
+    {
+        if (!F.SmallInt(Field.Key, *Field.Value, 1, 10000)) { return false; }
+    }
+    if (!Check.Require(P.Shop.VocabCardSlots <= P.Shop.CardSlots && P.Shop.CardSlots + P.Shop.SkillSlots <= 8, TEXT("SHOP.CardSlots"),
+            TEXT("the weighted card slots are some of the card slots and the shelf holds at most eight"))
+        || !Check.Require(P.Shop.SellPrice < P.Shop.CardPrice, TEXT("SHOP.SellPrice"), TEXT("selling a card never pays more than buying one")))
     {
         return false;
     }
@@ -1135,7 +1169,8 @@ bool OptionalDamageType(FFields& F, ELDDemoDamageType& Out, FCheck& Check, const
 
 bool TriggerField(FFields& F, ELDDemoEffectTrigger& Out, std::initializer_list<ELDDemoEffectTrigger> Allowed)
 {
-    static const TCHAR* Names[] = {TEXT("None"), TEXT("BasicHit"), TEXT("AbilityHit"), TEXT("Damaged"), TEXT("DashComplete")};
+    static const TCHAR* Names[] = {TEXT("None"), TEXT("BasicHit"), TEXT("AbilityHit"), TEXT("Damaged"), TEXT("DashComplete"),
+        TEXT("PerfectDodge"), TEXT("AttackSpeedBelow"), TEXT("MoveSpeedAbove")};
     FString Name;
     if (!F.Text(TEXT("trigger"), Name))
     {
@@ -1178,24 +1213,37 @@ constexpr FOpMask CardOnlyOps = OpBit(ELDDemoEffectOp::Thorns) | OpBit(ELDDemoEf
     OpBit(ELDDemoEffectOp::IdleCharge) | OpBit(ELDDemoEffectOp::ElementAura) |
     OpBit(ELDDemoEffectOp::ElementDuration) | OpBit(ELDDemoEffectOp::ReactionFactor) |
     OpBit(ELDDemoEffectOp::BurnCap) | OpBit(ELDDemoEffectOp::DashIce) | OpBit(ELDDemoEffectOp::GroundRelocate) |
-    OpBit(ELDDemoEffectOp::DoubleStall) | OpBit(ELDDemoEffectOp::GroundGrowth);
-constexpr FOpMask CardOps = CardOnlyOps | OpBit(ELDDemoEffectOp::Burn) | OpBit(ELDDemoEffectOp::Breach) | OpBit(ELDDemoEffectOp::EmpowerBasic);
+    OpBit(ELDDemoEffectOp::DoubleStall) | OpBit(ELDDemoEffectOp::GroundGrowth) |
+    OpBit(ELDDemoEffectOp::BasicProjectile) | OpBit(ELDDemoEffectOp::ComboSweep) | OpBit(ELDDemoEffectOp::ComboCast) |
+    OpBit(ELDDemoEffectOp::SpeedFactor) | OpBit(ELDDemoEffectOp::HitGrowth) | OpBit(ELDDemoEffectOp::ControlAmp) |
+    OpBit(ELDDemoEffectOp::Reshape) | OpBit(ELDDemoEffectOp::ShieldSpend) | OpBit(ELDDemoEffectOp::RecentCastAmp) |
+    OpBit(ELDDemoEffectOp::DodgeFreeCast) | OpBit(ELDDemoEffectOp::DashRam) | OpBit(ELDDemoEffectOp::OverdriveShort) |
+    OpBit(ELDDemoEffectOp::Tally) | OpBit(ELDDemoEffectOp::BurnShield);
+// Y06 shares S13 A1's shield_burst_break.
+constexpr FOpMask CardOps = CardOnlyOps | OpBit(ELDDemoEffectOp::Burn) | OpBit(ELDDemoEffectOp::Breach) | OpBit(ELDDemoEffectOp::EmpowerBasic)
+    | OpBit(ELDDemoEffectOp::ShieldBurstBreak);
 // The operations each card form may carry (DemoContent.FORM_OPS), indexed by ELDCardForm.
 constexpr FOpMask FormOps[] = {
     OpBit(ELDDemoEffectOp::Burn) | OpBit(ELDDemoEffectOp::Breach) | OpBit(ELDDemoEffectOp::BasicElement) |
     OpBit(ELDDemoEffectOp::ComboMomentum) | OpBit(ELDDemoEffectOp::BasicCooldownCut) |
     OpBit(ELDDemoEffectOp::ComboSkillHit) | OpBit(ELDDemoEffectOp::ComboKnockback) |
     OpBit(ELDDemoEffectOp::ComboDouble) | OpBit(ELDDemoEffectOp::OvercapExtraHit) |
-    OpBit(ELDDemoEffectOp::BasicApRider) | OpBit(ELDDemoEffectOp::FocusAttackSpeed),
+    OpBit(ELDDemoEffectOp::BasicApRider) | OpBit(ELDDemoEffectOp::FocusAttackSpeed) |
+    OpBit(ELDDemoEffectOp::BasicProjectile) | OpBit(ELDDemoEffectOp::ComboSweep) | OpBit(ELDDemoEffectOp::ComboCast) |
+    OpBit(ELDDemoEffectOp::SpeedFactor) | OpBit(ELDDemoEffectOp::HitGrowth),
     OpBit(ELDDemoEffectOp::HitHasteOther) | OpBit(ELDDemoEffectOp::SkillHitMomentum) |
     OpBit(ELDDemoEffectOp::SetupMark) | OpBit(ELDDemoEffectOp::AutoRecast) | OpBit(ELDDemoEffectOp::CooldownCost) |
     OpBit(ELDDemoEffectOp::SkillDamageFactor) | OpBit(ELDDemoEffectOp::HpCost) |
     OpBit(ELDDemoEffectOp::SkillAdRider) | OpBit(ELDDemoEffectOp::SkillLifesteal) |
     OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::SkillGrowth) |
-    OpBit(ELDDemoEffectOp::SkillElement) | OpBit(ELDDemoEffectOp::ReactionHaste),
+    OpBit(ELDDemoEffectOp::SkillElement) | OpBit(ELDDemoEffectOp::ReactionHaste) | OpBit(ELDDemoEffectOp::TakedownReset) |
+    OpBit(ELDDemoEffectOp::ControlAmp) | OpBit(ELDDemoEffectOp::Reshape) | OpBit(ELDDemoEffectOp::ShieldSpend) |
+    OpBit(ELDDemoEffectOp::RecentCastAmp),
     OpBit(ELDDemoEffectOp::DashContactReset) | OpBit(ELDDemoEffectOp::HitHasteOther) |
     OpBit(ELDDemoEffectOp::EmpowerBasic) | OpBit(ELDDemoEffectOp::DashSplit) | OpBit(ELDDemoEffectOp::DashPhase) |
-    OpBit(ELDDemoEffectOp::DashContactElement) | OpBit(ELDDemoEffectOp::DashIce) | OpBit(ELDDemoEffectOp::GroundRelocate),
+    OpBit(ELDDemoEffectOp::DashContactElement) | OpBit(ELDDemoEffectOp::DashIce) | OpBit(ELDDemoEffectOp::GroundRelocate) |
+    OpBit(ELDDemoEffectOp::DodgeFreeCast) | OpBit(ELDDemoEffectOp::DashRam) | OpBit(ELDDemoEffectOp::CooldownCost) |
+    OpBit(ELDDemoEffectOp::HitGrowth),
     OpBit(ELDDemoEffectOp::Thorns) | OpBit(ELDDemoEffectOp::TakedownReset) | OpBit(ELDDemoEffectOp::LastStand) |
     OpBit(ELDDemoEffectOp::ReactionMomentum) | OpBit(ELDDemoEffectOp::ReactionElement) |
     OpBit(ELDDemoEffectOp::TriggeredShield) | OpBit(ELDDemoEffectOp::KnockbackImpact) |
@@ -1206,7 +1254,8 @@ constexpr FOpMask FormOps[] = {
     OpBit(ELDDemoEffectOp::ControlGrowth) | OpBit(ELDDemoEffectOp::IdleCharge) |
     OpBit(ELDDemoEffectOp::ElementAura) | OpBit(ELDDemoEffectOp::ElementDuration) |
     OpBit(ELDDemoEffectOp::ReactionFactor) | OpBit(ELDDemoEffectOp::BurnCap) | OpBit(ELDDemoEffectOp::DoubleStall) |
-    OpBit(ELDDemoEffectOp::GroundGrowth),
+    OpBit(ELDDemoEffectOp::GroundGrowth) | OpBit(ELDDemoEffectOp::ShieldBurstBreak) | OpBit(ELDDemoEffectOp::OverdriveShort) |
+    OpBit(ELDDemoEffectOp::SpeedFactor) | OpBit(ELDDemoEffectOp::Tally) | OpBit(ELDDemoEffectOp::BurnShield),
 };
 // Workshop mod operations a skill branch may also give an active (DemoContent.BRANCH_MOD_OPS).
 constexpr FOpMask BranchModOps = OpBit(ELDDemoEffectOp::Pull) | OpBit(ELDDemoEffectOp::ProjectileReturn)
@@ -1589,8 +1638,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         break;
     }
     case ELDDemoEffectOp::CooldownCost:
+        // D08: the D dash also takes a flat momentum cost (LimitP2).
         if (!F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)
-            || !F.Fixed(TEXT("cost_ratio"), TEXT("ratio"), TEXT("bp"), Out.CostRatioBp, 1)) { return false; }
+            || !F.Fixed(TEXT("cost_ratio"), TEXT("ratio"), TEXT("bp"), Out.CostRatioBp, 1)
+            || !OptionalFixed(F, TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)) { return false; }
         break;
     case ELDDemoEffectOp::KnockbackImpact:
         if (!DamageTerms(F, Out, Check, Path)
@@ -1772,8 +1823,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
     case ELDDemoEffectOp::FollowBasic:
         break;
     case ELDDemoEffectOp::ShieldBurstBreak:
+        // Y06 scales with its holder's max HP instead of AP.
         if (!F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
             || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+            || !OptionalFixed(F, TEXT("max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp, 0)
             || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)) { return false; }
         Out.DamageType = ELDDemoDamageType::Magical;
         break;
@@ -1914,6 +1967,92 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         break;
     case ELDDemoEffectOp::BurnCap:
         if (!IntInto(F, TEXT("count"), Out.Count, 1, 100)) { return false; }
+        break;
+    // Issue #292 P5 cards (spec §7; field use in docs/systems/COMBAT_AND_GROWTH.md).
+    case ELDDemoEffectOp::BasicProjectile:
+        // A05: range bonus DistanceCm, flight speed ExtraDistanceCm (cm per second), body radius RadiusCm.
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fraction(TEXT("speed"), TEXT("cm/s"), Out.ExtraDistanceCm, true)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)) { return false; }
+        break;
+    case ELDDemoEffectOp::ComboSweep:
+        if (!F.Fraction(TEXT("angle"), TEXT("degrees"), Out.AngleDegrees, true)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::ComboCast:
+        if (!F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::SpeedFactor:
+        // A10: below ExtraDistanceCm attacks/s, every StepRate adds RatioBp; Y18: every SecondaryRatioBp of move speed above
+        // the base adds RatioBp.
+        if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::AttackSpeedBelow, ELDDemoEffectTrigger::MoveSpeedAbove})
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
+        if (Out.Trigger == ELDDemoEffectTrigger::AttackSpeedBelow)
+        {
+            if (!F.Fraction(TEXT("threshold"), TEXT("attacks/s"), Out.ExtraDistanceCm, true)
+                || !F.Fraction(TEXT("step"), TEXT("attacks/s"), Out.StepRate, true)
+                || !Check.Require(Out.StepRate.Numerator > 0 && Out.ExtraDistanceCm.Numerator > 0, Path,
+                    TEXT("an attack-speed factor needs a positive threshold and step"))) { return false; }
+        }
+        else if (!F.Fixed(TEXT("step_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::HitGrowth:
+        if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::BasicHit, ELDDemoEffectTrigger::PerfectDodge})
+            || !IntInto(F, TEXT("count"), Out.Count, 1, 1000)
+            || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
+            || !Check.Require((StatMask(Out.Stats) & ~(Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::APFlat)
+                | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio))) == 0, Path,
+                TEXT("hit growth adds flat attack, power or move speed"))) { return false; }
+        break;
+    case ELDDemoEffectOp::ControlAmp:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::Reshape:
+        // K07 area MultiplierBp (x), K10 range RatioBp (+) and far DistanceCm + far_ratio SecondaryRatioBp, K11 control
+        // CostRatioBp (+).
+        if (!OptionalFixed(F, TEXT("area"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 10001)
+            || !OptionalFixed(F, TEXT("range"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !OptionalFixed(F, TEXT("far_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)
+            || !OptionalFixed(F, TEXT("control"), TEXT("ratio"), TEXT("bp"), Out.CostRatioBp, 1)) { return false; }
+        if (F.Has(TEXT("far")) && !F.Fraction(TEXT("far"), TEXT("cm"), Out.DistanceCm, true)) { return false; }
+        if (!Check.Require((Out.DistanceCm.Numerator > 0) == (Out.SecondaryRatioBp > 0), Path, TEXT("a far bonus names its distance"))
+            || !Check.Require(Out.MultiplierBp > 0 || Out.RatioBp > 0 || Out.SecondaryRatioBp > 0 || Out.CostRatioBp > 0, Path,
+                TEXT("a reshape changes at least one term"))) { return false; }
+        break;
+    case ELDDemoEffectOp::ShieldSpend:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::RecentCastAmp:
+        if (!F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::DodgeFreeCast:
+        break;
+    case ELDDemoEffectOp::DashRam:
+        // D07: dash distance +RatioBp; each contact takes BaseP2 + ADRatioBp x AD physical and a DistanceCm/DurationMs push.
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !F.Fixed(TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
+            || !F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        Out.DamageType = ELDDemoDamageType::Physical;
+        break;
+    case ELDDemoEffectOp::OverdriveShort:
+        // Y11: the overdrive threshold LimitP2 and scale MultiplierBp replace OVERDRIVE.Threshold / OVERDRIVE.Scale.
+        if (!F.Fixed(TEXT("momentum"), TEXT("momentum"), TEXT("p2"), Out.LimitP2, 1)
+            || !F.Fixed(TEXT("multiplier"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 10001)) { return false; }
+        break;
+    case ELDDemoEffectOp::Tally:
+        if (!IntInto(F, TEXT("count"), Out.Count, 1, 100)
+            || !F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        Out.DamageType = ELDDemoDamageType::Magical;
+        break;
+    case ELDDemoEffectOp::BurnShield:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
         break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
@@ -2194,7 +2333,7 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
     for (int32 I = 0; I < UE_ARRAY_COUNT(Types); ++I) { if (Type.Equals(Types[I], ESearchCase::CaseSensitive)) { TypeIndex = I; } }
     if (!Check.Require(FormIndex != INDEX_NONE, Path + TEXT(".form"), TEXT("unknown card form"))
         || !Check.Require(TypeIndex != INDEX_NONE, Path + TEXT(".type"), TEXT("unknown card type"))
-        || !VocabField(F, Out.VocabMask, 1, Check, Path))
+        || !VocabField(F, Out.VocabMask, 0, Check, Path))
     {
         return false;
     }
@@ -2219,6 +2358,29 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
             }
             Out.ChooseElements.Add(Element);
         }
+    }
+    // Spec §7.2: a skill card may fit only hosts of some deliveries or hosts that control.
+    if (F.Has(TEXT("host_hit_types")))
+    {
+        static const TCHAR* const HitTypes[] = {TEXT("targeted"), TEXT("projectile"), TEXT("area"), TEXT("dash"), TEXT("self")};
+        const TArray<FValue>* Rows;
+        if (!Array(F.Take(TEXT("host_hit_types")), Rows, Check, Path + TEXT(".host_hit_types"), 1, 4)) { return false; }
+        for (const FValue& Row : *Rows)
+        {
+            FString Name;
+            int32 Index = INDEX_NONE;
+            if (!String(Row, Name, Check, Path + TEXT(".host_hit_types"), 1, 63)) { return false; }
+            for (int32 I = 0; I < UE_ARRAY_COUNT(HitTypes); ++I) { if (Name.Equals(HitTypes[I], ESearchCase::CaseSensitive)) { Index = I; } }
+            if (!Check.Require(Index != INDEX_NONE && (Out.HostHitTypes & (1u << Index)) == 0, Path + TEXT(".host_hit_types"),
+                TEXT("unknown or repeated host hit type"))) { return false; }
+            Out.HostHitTypes |= uint8(1u << Index);
+        }
+    }
+    if (!OptionalFlag(F, TEXT("host_control"), Out.bHostControl)) { return false; }
+    if (!Check.Require(Out.Form == ELDCardForm::Skill || (Out.HostHitTypes == 0 && !Out.bHostControl), Path,
+        TEXT("only a skill card limits its host")))
+    {
+        return false;
     }
     FOpMask Mask;
     if (!Effects(F.Take(TEXT("effects")), Out.Effects, true, Mask, Check, Path + TEXT(".effects")))
@@ -2887,8 +3049,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     }
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
-        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 5, 5)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 12, 12)
+        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 6, 6)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 13, 13)
         || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 10, 10)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
@@ -2962,7 +3124,7 @@ bool LDDemoCardText::Parse(const FString& Template, TArray<FToken>& Out, FString
         {TEXT("secondary_duration"), EField::SecondaryDuration}, {TEXT("basic_count"), EField::BasicCount},
         {TEXT("refund"), EField::Refund}, {TEXT("burst"), EField::Burst}, {TEXT("limit"), EField::Limit},
         {TEXT("multiplier"), EField::Multiplier}, {TEXT("angle"), EField::Angle}, {TEXT("cost_ratio"), EField::CostRatio},
-        {TEXT("extra_duration"), EField::ExtraDuration}, {TEXT("step"), EField::Step}};
+        {TEXT("extra_duration"), EField::ExtraDuration}, {TEXT("step"), EField::Step}, {TEXT("threshold"), EField::Threshold}};
     int32 Index = 0;
     while (Index < Template.Len())
     {

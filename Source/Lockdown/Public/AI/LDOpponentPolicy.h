@@ -139,8 +139,11 @@ struct FLDOpponentSelf
     int64 UnspentPoints = 0;
     // Active opportunities consumed so far, the opening one included.
     uint8 OffersConsumed = 0;
-    // Active opportunities earned and not chosen yet, the current offer's included (the rest NPC charges for none meanwhile).
+    // Active opportunities earned and not chosen yet, the current offer's included.
     uint8 QueuedOpportunities = 0;
+    // Spec §3.13: the own vouchers and rest shop.
+    int32 Vouchers = 0;
+    FLDShopView Shop;
     // Owned cards by serial, the level's card capacity and the current card offer.
     TArray<FLDOpponentCard> Cards;
     int32 CardCapacity = 0;
@@ -329,7 +332,8 @@ struct FLDOpponentBodyIntent
 // attachments of the old one return to the inventory in the same commit).
 enum class ELDOpponentBuildKind : uint8
 {
-    None, ChooseActive, LearnBlueprint, AllocatePoints, BuyNpcOffer, Respec, ReplaceActive, FinalMod,
+    // ShopBuy: spec §13 rest shop purchase of shelf slot Slot (or the skill point) of stock OfferRevision.
+    None, ChooseActive, LearnBlueprint, AllocatePoints, ShopBuy, Respec, ReplaceActive, FinalMod,
     // Issue #287 spec §13: a skill point raises a learned skill (Slot) to its next branch (Branch).
     RankUpSkill,
     // Spec §13: a card of the current card offer (installed on its default place when one is free), and an owned card into a
@@ -537,16 +541,19 @@ namespace LDOpponentPolicy
     // until the learned actives change. False with Error when the stat rows are not the catalog's.
     LOCKDOWN_API bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error);
     // #198 rest NPC: buy one active offer exactly when growth would charge for it and it fills a gap: a mid rest (RestIndex
-    // 1..3; never the opening rest R0, whose opening points go to the stats), no offer and no queued opportunity, at least
-    // GROWTH.NpcActivePoints unspent, at least three catalog actives neither learned nor pending (the offer's draw), and an
-    // empty Q/W/E slot with no pending blueprint to fill it.
-    LOCKDOWN_API bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8 RestIndex);
+    // Spec §13 rest shop: with at least the skill point's price in vouchers and points left to buy this match, the skill point
+    // (OutSlot FLDBuildCommand::ShopSkillPointSlot); otherwise the affordable, unsold shelf card scoring highest like a card
+    // pick (SelectCard's score). The AI never buys skills and never sells. False when nothing qualifies.
+    LOCKDOWN_API bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint8& OutSlot);
+    // Spec §13: an offer none of whose cards shares a vocabulary key with the build is skipped for vouchers with
+    // AI.CardSkipChance (a deterministic draw of the offer).
+    LOCKDOWN_API bool WantsCardSkip(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog);
     // Spec §13 breakout goal: with AI.BreakoutChance an AI takes one breakout preset (LDBreakoutPresets) as its goal for the
     // match, drawn deterministically from its id and the match generation; None otherwise.
     LOCKDOWN_API FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI);
     // Spec §13 card pick: each option scores AI.CardVocabScore per vocabulary key it shares with the installed cards and
     // learned skills, AI.BreakoutCardScore more when it belongs to Goal, plus a jitter in [0, 1) drawn from the offer and the
-    // card; the highest score wins (the AI never skips before vouchers exist). False without an offer.
+    // card; the highest score wins (WantsCardSkip decides a skip first). False without an offer.
     LOCKDOWN_API bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, FString& OutCard,
         FString& Error);
     // The place the AI puts a card (LDProgression::DefaultCardTarget over the own build); false when none exists now.

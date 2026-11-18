@@ -1206,6 +1206,22 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         State.BreakoutGoal = LDOpponentPolicy::DrawBreakoutGoal(Self.ContenderId, Frame.Generation, Catalog.Get().Parameters.AI);
         State.bBreakoutDrawn = true;
     }
+    // Spec §13: an offer sharing nothing with the build goes for vouchers now and then.
+    if (Self.CardOffer.IsSet() && LDProgression::CommandGate(ELDBuildCommandKind::SkipCards, Context) == ELDGrowthReason::None
+        && LDOpponentPolicy::WantsCardSkip(Self, Catalog))
+    {
+        FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::SkipCards);
+        Key.Target = Self.CardOffer->OfferId;
+        if (State.Failures.CanAttempt(Key, Print, Now))
+        {
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::SkipCards;
+            Out.OfferId = Self.CardOffer->OfferId;
+            Out.OfferRevision = Self.CardOffer->OfferRevision;
+            Out.Key = Key;
+            return true;
+        }
+    }
     if (Self.CardOffer.IsSet() && LDProgression::CommandGate(ELDBuildCommandKind::PickCard, Context) == ELDGrowthReason::None)
     {
         FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::PickCard);
@@ -1306,17 +1322,23 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
-    // #198 rest NPC: in a mid rest, an offer bought to fill an empty slot; its choice comes first at the next decision.
-    if (bChooseOffer && LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer, Context) == ELDGrowthReason::None)
+    // Spec §13 rest shop: the skill point while affordable and not bought out, otherwise the best affordable card.
+    if (Self.Shop.bStocked && LDProgression::CommandGate(ELDBuildCommandKind::ShopBuy, Context) == ELDGrowthReason::None)
     {
-        const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::BuyNpcOffer);
-        if (State.Failures.CanAttempt(Key, Print, Now)
-            && LDOpponentPolicy::WantsNpcOffer(Self, Catalog, Frame.Public.Timeline.RestIndex))
+        uint8 ShopSlot = 0;
+        if (LDOpponentPolicy::SelectShopBuy(Self, Catalog, State.BreakoutGoal, ShopSlot))
         {
-            Out = FLDOpponentBuildIntent();
-            Out.Kind = ELDOpponentBuildKind::BuyNpcOffer;
-            Out.Key = Key;
-            return true;
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::ShopBuy);
+            Key.Slot = ShopSlot;
+            if (State.Failures.CanAttempt(Key, Print, Now))
+            {
+                Out = FLDOpponentBuildIntent();
+                Out.Kind = ELDOpponentBuildKind::ShopBuy;
+                Out.Slot = ShopSlot;
+                Out.OfferRevision = Self.Shop.Revision;
+                Out.Key = Key;
+                return true;
+            }
         }
     }
     // Issue #287 spec §13: a skill point goes to the learned skill that deals the most damage at once (branch A/1 on ties).
@@ -1906,28 +1928,6 @@ bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cata
     return false;
 }
 
-bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8 RestIndex)
-{
-    const auto& Content = Catalog.Get();
-    const int64 Cost = Content.Parameters.NpcActivePoints;
-    // Coordinator decision (#198 J2): the opening rest R0 spends its opening points on the stats, never on the NPC.
-    if (RestIndex == 0) { return false; }
-    // Growth refuses without a charge: OfferOutstanding, NotEnoughPoints (a cost below one is invalid data).
-    if (Self.Offer.IsSet() || Self.QueuedOpportunities > 0 || Cost < 1 || Self.UnspentPoints < Cost) { return false; }
-    // The gap it fills: an empty Q/W/E slot that no pending blueprint is waiting for.
-    bool bTaken[3] = {false, false, false};
-    for (const FLDOpponentActive& Active : Self.Actives) { if (Active.Slot < 3) { bTaken[Active.Slot] = true; } }
-    if (!Self.Blueprints.IsEmpty() || (bTaken[0] && bTaken[1] && bTaken[2])) { return false; }
-    // NpcPoolTooSmall: the offer draws three actives neither learned nor pending.
-    int32 Eligible = 0;
-    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
-    {
-        const bool bLearned = Self.Actives.ContainsByPredicate(
-            [&Ability](const FLDOpponentActive& Active) { return Active.DefinitionId.Equals(Ability.Id, ESearchCase::CaseSensitive); });
-        Eligible += bLearned ? 0 : 1;
-    }
-    return Eligible >= 3;
-}
 
 FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI)
 {
@@ -1999,6 +1999,60 @@ bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catal
         }
     }
     return !OutCard.IsEmpty();
+}
+
+bool WantsCardSkip(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog)
+{
+    if (!Self.CardOffer.IsSet() || Self.CardOffer->Options.IsEmpty()) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    const uint32 Vocab = OpponentVocab(Self, Content);
+    for (const FString& Option : Self.CardOffer->Options)
+    {
+        const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([&Option](const FLDDemoCardDefinition& Row) { return Row.Id == Option; });
+        if (!Card || (Card->VocabMask & Vocab) != 0) { return false; }
+    }
+    // A deterministic draw of the offer, so a retry decides the same.
+    const uint32 Hash = HashCombine(GetTypeHash(Self.CardOffer->OfferId), 0x534b4950u);
+    return int64(Hash % 10000) < Content.Parameters.AI.CardSkipChanceBp;
+}
+
+bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint8& OutSlot)
+{
+    OutSlot = 0;
+    const FLDShopView& Shop = Self.Shop;
+    if (!Shop.bStocked) { return false; }
+    if (Shop.SkillPointsBought < Shop.SkillPointsMax)
+    {
+        if (Shop.SkillPointPrice > 0 && Self.Vouchers >= Shop.SkillPointPrice)
+        {
+            OutSlot = FLDBuildCommand::ShopSkillPointSlot;
+            return true;
+        }
+        // Spec §13: the skill point comes first; the AI saves for it while it is still to be bought.
+        return false;
+    }
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    const FLDDemoAIParameters& AI = Content.Parameters.AI;
+    const uint32 Vocab = OpponentVocab(Self, Content);
+    const FLDBreakoutPreset* Preset = Goal.IsNone() ? nullptr : LDBreakoutPresets::Find(Goal);
+    double Best = -1.;
+    for (int32 Index = 0; Index < Shop.Slots.Num(); ++Index)
+    {
+        const FLDShopSlotView& Slot = Shop.Slots[Index];
+        if (Slot.Kind != ELDShopItemKind::Card || Slot.bSold || Slot.Price <= 0 || Self.Vouchers < Slot.Price) { continue; }
+        const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate(
+            [&Slot](const FLDDemoCardDefinition& Row) { return FName(*Row.Id) == Slot.DefinitionId; });
+        if (!Card) { continue; }
+        const uint32 Hash = HashCombine(GetTypeHash(Shop.Revision), GetTypeHash(Slot.DefinitionId));
+        double Score = double(AI.CardVocabScore) * double(FMath::CountBits64(uint64(Card->VocabMask & Vocab))) + double(Hash % 10000) / 10000.;
+        if (Preset && LDBreakoutPresets::HasCard(*Preset, Slot.DefinitionId)) { Score += double(AI.BreakoutCardScore); }
+        if (Score > Best)
+        {
+            Best = Score;
+            OutSlot = uint8(Index);
+        }
+    }
+    return Best >= 0.;
 }
 
 bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FString& Card, FLDCardTarget& Out)
@@ -2153,7 +2207,6 @@ ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind)
 {
     switch (Kind)
     {
-    case ELDOpponentBuildKind::BuyNpcOffer: return LDProgression::RestServiceFor(ELDBuildCommandKind::BuyNpcOffer);
     case ELDOpponentBuildKind::Respec: return LDProgression::RestServiceFor(ELDBuildCommandKind::Respec);
     case ELDOpponentBuildKind::ReplaceActive: return LDProgression::RestServiceFor(ELDBuildCommandKind::ReplaceActive);
     default: return ELDRestService::None;

@@ -106,7 +106,6 @@ public:
     // #198 rest services. BuyNpcOffer and Respec send at once; AskReplace (the blueprint at Index of the shown list into the
     // occupied slot Key) and AskForget (the active in slot Key) show the confirm line, which ConfirmRestAction sends and
     // CancelRestAction (or Back, or closing the panel) withdraws. Each refuses locally with the reason it toasts.
-    bool BuyNpcOffer();
     bool Respec();
     bool AskReplace(int32 Index,uint8 Key);
     bool AskForget(uint8 Key);
@@ -288,15 +287,12 @@ private:
     // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, and the dock box for
     // the confirm line.
     UPROPERTY() TObjectPtr<UWidget> RespecBox;
-    UPROPERTY() TObjectPtr<UWidget> NpcBox;
     UPROPERTY() TObjectPtr<UWrapBox> TrainerPicks;
     UPROPERTY() TObjectPtr<UWidget> ServiceDock;
     UPROPERTY() TObjectPtr<UScaleBox> ServiceFit;
     UPROPERTY() TObjectPtr<UVerticalBox> ServiceDockBody;
     // #198 rest services section.
     UPROPERTY() TObjectPtr<UWidget> RestSection;
-    UPROPERTY() TObjectPtr<ULDCommandButton> NpcButton;
-    UPROPERTY() TObjectPtr<UTextBlock> NpcBlocked;
     UPROPERTY() TObjectPtr<ULDCommandButton> RespecButton;
     UPROPERTY() TObjectPtr<UTextBlock> RespecBlocked;
     UPROPERTY() TObjectPtr<UTextBlock> ForgetBlocked;
@@ -390,7 +386,6 @@ private:
     void ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon);
     // Why a rest service is refused now: the gate's reason, then the local checks (price, unspent points, an outstanding
     // offer, nothing allocated); empty when it may be sent.
-    FString NpcRefusal() const;
     FString RespecRefusal() const;
     FString ReplaceRefusal() const;
     FString ForgetRefusal() const;

@@ -205,6 +205,10 @@ public:
     // DeathsAndRewards (camp owner, after the death that cleared CampId at field progress FieldMs): the first clear of a
     // revealed marker's camp gives its credit owner the marker reward once. Without an eligible contender owner it stays open.
     bool ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 FieldMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    // DeathsAndRewards (camp owner, after the death that cleared a camp of Tier): spec §3.13 pays the clear's credit owner the
+    // tier's vouchers and §11.3 a pick ticket on its first Ancient clear of the match. A clear without a contender owner pays
+    // nothing. False only on a fault.
+    bool PayCampClear(ELDDemoCampTier Tier, const FGuid& ClearOwner, const FLDGameplayWritePermit& Permit, FString& Error);
     // DeathsAndRewards or Transactions: pays one map event reward (#198 G) through the growth composite. A retryable
     // refusal stays owed and is retried at each later Transactions boundary; any other refusal is an authority fault.
     bool PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,

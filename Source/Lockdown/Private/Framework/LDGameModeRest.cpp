@@ -411,6 +411,8 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             {
                 if (!Development) { Error = TEXT("rest without a development domain"); return false; }
                 if (!Development->GrantRestRerolls(Permit, Error)) { return false; }
+                // Spec §3.13: each mid-match rest opens with a freshly stocked shop.
+                if (!Development->StockRestShops(Permit, Error)) { return false; }
             }
             // Phase 9: the final rest opens every contender's final mod three-choice.
             if (Event.RestIndex == FLDTimelineParameters::TimedSegments)

@@ -782,10 +782,13 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
         *State.GetRoster()->Camps[Camp].CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
         Result == ELDCampDeathResult::CampCleared, State.FindCamp(Camp)->RespawnDueMs);
-    // #198 outer §5: the first clear of a marked camp takes its segment's marker.
+    // #198 outer §5: the first clear of a marked camp takes its segment's marker. Spec §3.13/§11.3: every clear pays the last
+    // hit its tier's vouchers, and the first Ancient clear of each contender a pick ticket.
     if (Result == ELDCampDeathResult::CampCleared)
     {
-        return AuthorityMode()->ConsumeCampClear(State.GetRoster()->Camps[Camp].CampId, Fact.CreditOwner, FieldMs, Permit, Error);
+        const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
+        return AuthorityMode()->PayCampClear(Spec.Tier, Fact.CreditOwner, Permit, Error)
+            && AuthorityMode()->ConsumeCampClear(Spec.CampId, Fact.CreditOwner, FieldMs, Permit, Error);
     }
     Error.Reset();
     return true;
@@ -956,6 +959,13 @@ bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWrite
         return false;
     }
     if (!Mode->Development->GrantBossFinalModCard(Killer, Permit, Error)) { return false; }
+    // Spec §3.13: the Boss's last hit also pays its vouchers.
+    if (const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Killer, Content->Get().Parameters.Vouchers.Boss, 0,
+            TEXT("boss"), Permit); Reason != ELDGrowthReason::None)
+    {
+        Error = FString::Printf(TEXT("The Boss vouchers to %s were refused: %s."), *Killer.ToString(), LDGrowthWire::ReasonName(Reason));
+        return false;
+    }
     return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error);
 }
 

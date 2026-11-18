@@ -631,8 +631,9 @@ namespace LDHUD
         bool bCanAllocate=false;
         FString AllocateBlocked;
         // #198 rest services: open only in a rest build window (the build and payout steps), alive.
-        bool bCanBuyNpc=false;
-        FString NpcBlocked;
+        // Spec §3.13: the rest shop (buy, refresh, sell) is open in the rest build window.
+        bool bCanShop=false;
+        FString ShopBlocked;
         bool bCanRespec=false;
         FString RespecBlocked;
         bool bCanReplace=false;

@@ -274,8 +274,8 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
-    if (!Check.Require(P.NpcActiveSkipPoints > 0 && P.NpcActiveSkipPoints < P.NpcActivePoints && P.ActiveSkipPoints > 0,
-            TEXT("GROWTH.NpcActiveSkipPoints"), TEXT("declining a purchased offer must cost points overall")))
+    // Spec §3.13: a shelf of distinct cards and skills.
+    if (!Check.Require(P.Shop.CardSlots <= D.Cards.Num(), TEXT("SHOP.CardSlots"), TEXT("a shelf shows distinct cards")))
     {
         return false;
     }

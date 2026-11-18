@@ -24,14 +24,15 @@ enum class ELDReceiptLookup : uint8 { None = 0, Pending = 1, Final = 2, NotFound
 
 // Build commands: choose one active of the current active offer, learn a pending blueprint into an empty Q/W/E slot, rank up a
 // skill or allocate unspent points across the stats; take, skip, reroll or lock the current card offer and install or
-// uninstall an owned card (spec §6). In a rest window also the rest services: buy an NPC active offer, respec the
-// allocated points, replace a learned active with a pending blueprint, or forget a learned active.
+// uninstall an owned card (spec §6); spend a pick ticket. In a rest window also the rest shop (buy a shelf item or a skill
+// point, refresh the shelf, sell a library card) and the trainer: respec the allocated points, replace a learned active with
+// a pending blueprint, or forget a learned active.
 UENUM()
 enum class ELDBuildCommandKind : uint8
 {
-    // 10-13, 24 and 25 (the #198 component commands) are retired and never reused.
+    // 10-13, 24 and 25 (the #198 component commands) and 20 (the skill merchant's BuyNpcOffer) are retired and never reused.
     None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
-    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23,
+    Respec = 21, ReplaceActive = 22, ForgetActive = 23,
     SkipActiveOffer = 26,
     // One independent final rule rewrite; selection and the build lock commit together.
     FinalMod = 27,
@@ -40,8 +41,15 @@ enum class ELDBuildCommandKind : uint8
     // Spec §6.4: take one card of the current offer (installed in the same commit when a legal target was named and a slot
     // is free), skip the offer, reroll it (keeping a lock), lock one of its cards (or clear the lock); install or uninstall
     // an owned card.
-    PickCard = 30, SkipCards = 31, RerollCards = 32, LockCard = 33, InstallCard = 34, UninstallCard = 35
+    PickCard = 30, SkipCards = 31, RerollCards = 32, LockCard = 33, InstallCard = 34, UninstallCard = 35,
+    // Spec §3.13 rest shop: buy shelf slot Slot (or a skill point, Slot ShopSkillPointSlot), refresh the shelf, sell the library
+    // card CardSerial. Spec §11.3: spend a pick ticket on Option (an active, or a card seen this match).
+    ShopBuy = 36, ShopRefresh = 37, ShopSell = 38, UsePickTicket = 39
 };
+
+// What one rest shop slot holds (spec §3.13).
+UENUM()
+enum class ELDShopItemKind : uint8 { None = 0, Skill = 1, Card = 2 };
 
 // The source a final mod binds: one learned active or the innate D (2 and 3 are retired).
 UENUM()
@@ -114,9 +122,8 @@ enum class ELDGrowthReason : uint16
     // #198 rest: an NPC service in a rest step outside the build and payout windows (draw, betting, PK, settlement, return
     // countdown); #222 keeps the own build commands open there.
     BuildLocked = 70,
-    // Fewer than three actives are eligible for an NPC offer; nothing is charged.
-    NpcPoolTooSmall = 71,
-    // An active offer (or, for the NPC, any queued active opportunity) is outstanding.
+    // 71 (NpcPoolTooSmall, the retired skill merchant) is reserved.
+    // An active offer is outstanding.
     OfferOutstanding = 72,
     NothingToRespec = 73,
     // ReplaceActive/ForgetActive name an empty slot.
@@ -140,7 +147,13 @@ enum class ELDGrowthReason : uint16
     NoSkillPoint = 180, BranchUnavailable = 181,
     // Card offers (spec §6.4, allocated 190-199): NoCardOffer (no current offer of that id), NoReroll (no reroll left),
     // NotInOffer (the card is not one of the offer's).
-    NoCardOffer = 190, NoReroll = 191, NotInOffer = 192
+    NoCardOffer = 190, NoReroll = 191, NotInOffer = 192,
+    // Spec §3.13 vouchers and the rest shop, §11.3 pick tickets (allocated 200-209): NotEnoughVouchers, ShopSoldOut (the slot was
+    // bought already or holds nothing), ShopStale (the shelf was restocked since the command saw it), SkillPointLimit (the
+    // match's bought skill points are all taken), NoShop (no shelf stocked yet: the opening rest has none), NoPickTicket,
+    // NotSeen (a pick ticket names a card no offer or shelf showed this match), CardInstalled (only a library card sells).
+    NotEnoughVouchers = 200, ShopSoldOut = 201, ShopStale = 202, SkillPointLimit = 203, NoShop = 204, NoPickTicket = 205,
+    NotSeen = 206, CardInstalled = 207
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -241,7 +254,8 @@ struct LOCKDOWN_API FLDActiveOfferView
     UPROPERTY() uint64 OfferRevision = 0;
     // One to three distinct active ids, immutable for the offer's lifetime.
     UPROPERTY() TArray<FName> Options;
-    UPROPERTY() int64 SkipPoints = 0;
+    // Spec §6.4: vouchers paid for skipping it (VOUCHER.ActiveSkip).
+    UPROPERTY() int32 SkipVouchers = 0;
 };
 
 // Spec §6.1: a card install target on the wire and in views (ELDCardTargetKind; unused fields zero/None).
@@ -297,6 +311,36 @@ struct FLDFinalModSourceView
     UPROPERTY() FName Option;
     UPROPERTY() ELDFinalModTargetKind TargetKind = ELDFinalModTargetKind::None;
     UPROPERTY() FName TargetId;
+};
+
+// Spec §3.13: one slot of the rest shop shelf: a skill or a card, its price and whether it was bought.
+USTRUCT()
+struct LOCKDOWN_API FLDShopSlotView
+{
+    GENERATED_BODY()
+
+    UPROPERTY() ELDShopItemKind Kind = ELDShopItemKind::None;
+    UPROPERTY() FName DefinitionId;
+    UPROPERTY() int32 Price = 0;
+    UPROPERTY() bool bSold = false;
+};
+
+// The owner's rest shop: the shelf (skills first, then cards) of its current stock and the prices of its services. Stocked at
+// every mid-match rest start; usable in the rest build window.
+USTRUCT()
+struct LOCKDOWN_API FLDShopView
+{
+    GENERATED_BODY()
+
+    UPROPERTY() bool bStocked = false;
+    // Advances with every restock and purchase; ShopBuy and ShopRefresh name it (OfferRevision).
+    UPROPERTY() uint64 Revision = 0;
+    UPROPERTY() TArray<FLDShopSlotView> Slots;
+    UPROPERTY() int32 RefreshPrice = 0;
+    UPROPERTY() int32 SkillPointPrice = 0;
+    UPROPERTY() int32 SkillPointsBought = 0;
+    UPROPERTY() int32 SkillPointsMax = 0;
+    UPROPERTY() int32 SellPrice = 0;
 };
 
 // #198 G: one field reward this contender received (owner-only history, oldest first; at most the room's 13 opportunities).
@@ -360,8 +404,12 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() FLDCardOfferView CardOffer;
     UPROPERTY() int32 CardRerolls = 0;
     UPROPERTY() FLDDemoContentDigest CatalogDigest;
-    // Points paid for rest services (the NPC); a respec never returns them.
-    UPROPERTY() int64 PermanentSpentPoints = 0;
+    // Spec §3.13 vouchers (饭票, match-only, 0 at the start), the rest shop and §11.3 pick tickets with the cards this match
+    // showed (offers and shelves, sorted by id): what a ticket may name besides any active.
+    UPROPERTY() int32 Vouchers = 0;
+    UPROPERTY() FLDShopView Shop;
+    UPROPERTY() int32 PickTickets = 0;
+    UPROPERTY() TArray<FName> SeenCards;
     // #198 G: high-tier camp blueprints held because no active was eligible; each is granted once one becomes eligible.
     UPROPERTY() uint8 HeldBlueprints = 0;
     // #198 G: every field reward received, oldest first.
@@ -399,8 +447,12 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() FLDDefinitionWire Option;
     // ActiveChoice: learn it in the same commit when the contender may learn now and a slot is empty, else store it.
     UPROPERTY() bool bLearnIfPossible = false;
+    // ShopBuy: the skill point instead of a shelf slot.
+    static constexpr uint8 ShopSkillPointSlot = 0xFE;
+
     // ActiveChoice with bLearnIfPossible: the preferred slot 0..2 or AnySlot; LearnBlueprint: the empty slot 0..2;
-    // ReplaceActive, ForgetActive and RankUpSkill: the learned slot 0..2. BuyNpcOffer and Respec carry no further field.
+    // ReplaceActive, ForgetActive and RankUpSkill: the learned slot 0..2; ShopBuy: the shelf slot or ShopSkillPointSlot.
+    // Respec, ShopRefresh, ShopSell and UsePickTicket leave it at AnySlot.
     UPROPERTY() uint8 Slot = AnySlot;
     // RankUpSkill: the next branch path of the skill in Slot (A|B at rank 1, A1|A2 under A, B1|B2 under B).
     UPROPERTY() ELDSkillBranch Branch = ELDSkillBranch::None;
@@ -432,11 +484,11 @@ struct LOCKDOWN_API FLDBuildReceipt
 
     UPROPERTY() FLDGrowthReceiptHeader Header;
     UPROPERTY() ELDBuildCommandKind Kind = ELDBuildCommandKind::None;
-    // ActiveChoice: the consumed offer and its opportunity; BuyNpcOffer: the bought opportunity (OfferId stays unset,
-    // its drawn offer is NextOfferId).
+    // ActiveChoice: the consumed offer and its opportunity.
     UPROPERTY() FGuid OfferId;
     UPROPERTY() uint8 OpportunityOrdinal = 0;
-    // ActiveChoice: the chosen active; LearnBlueprint and ReplaceActive: the learned blueprint.
+    // ActiveChoice: the chosen active; LearnBlueprint and ReplaceActive: the learned blueprint; ShopBuy and UsePickTicket: the
+    // skill or card received (a card also names CardSerial/CardId).
     UPROPERTY() FName DefinitionId;
     UPROPERTY() ELDBuildChoiceResult ChoiceResult = ELDBuildChoiceResult::None;
     // Learned: its slot (0 = Q, 1 = W, 2 = E).
@@ -465,10 +517,11 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() int32 SkillPointsAfter = 0;
     // Respec: the allocated points returned to the unspent ones.
     UPROPERTY() int64 PointsRefunded = 0;
-    // SkipActiveOffer: points awarded for permanently giving up this opportunity.
-    UPROPERTY() int64 PointsAwarded = 0;
-    // BuyNpcOffer: the points permanently paid.
-    UPROPERTY() int64 NpcPointsPaid = 0;
+    // Spec §3.13: vouchers this commit paid out (skips, a sale) or spent (negative: the shop), the balance after it, and the pick
+    // tickets left.
+    UPROPERTY() int32 VouchersDelta = 0;
+    UPROPERTY() int32 VouchersAfter = 0;
+    UPROPERTY() int32 PickTicketsAfter = 0;
     // InstallCard with ReplacingSerial, ReplaceActive and ForgetActive: the cards that went back to the library.
     UPROPERTY() TArray<uint16> UninstalledCards;
 };

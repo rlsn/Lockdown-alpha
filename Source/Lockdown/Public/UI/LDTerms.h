@@ -259,7 +259,12 @@ inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(
 inline constexpr TCHAR OfferLinks[]=TEXT("可接");
 inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
 inline FString OfferLinksUnavailable(const FString& Reason){return FString::Printf(TEXT("可接预览不可用：%s"),*Reason);}
-inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
+inline FString OfferSkipVouchers(int64 Vouchers){return FString::Printf(TEXT("+%lld 饭票"),Vouchers);}
+// Spec §3.13 vouchers and the rest shop.
+inline FString VouchersGained(int32 Vouchers){return FString::Printf(TEXT("+%d 饭票"),Vouchers);}
+inline FString CardSold(const FString& Name,int32 Vouchers){return FString::Printf(TEXT("卖掉 %s，+%d 饭票"),*Name,Vouchers);}
+inline const TCHAR* const ShopRefreshed=TEXT("货架已刷新");
+inline const TCHAR* const SkillPointBought=TEXT("买到 1 个技能点");
 inline constexpr TCHAR OfferSkip[]=TEXT("不选");
 inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");
 inline constexpr TCHAR OfferWaiting[]=TEXT("现在没有合格的技能候选，这次机会保留，有合格候选时再出现。");
@@ -293,7 +298,6 @@ inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("
 
 // 休息服务（#198，APP_SPEC §4.4/§5）：只在休息的配装窗口（配装与派奖）可用，服务器裁决每一条命令。
 inline constexpr TCHAR RestServices[]=TEXT("休息服务");
-inline FString NpcOffer(int64 Points){return FString::Printf(TEXT("NPC：花 %lld 点抽 3 个主动"),Points);}
 inline constexpr TCHAR Respec[]=TEXT("洗点");
 inline FString ReplaceInto(const FString& Key){return FString(TEXT("替换 "))+Key;}
 inline FString ForgetSlot(const FString& Key,const FString& Name){return FString::Printf(TEXT("遗忘 %s：%s"),*Key,*Name);}
@@ -303,7 +307,6 @@ inline FString ForgetConfirm(const FString& Key,const FString& Name)
 {return FString::Printf(TEXT("遗忘 %s：%s？不退还，之后还能再抽到"),*Key,*Name);}
 inline constexpr TCHAR ConfirmAction[]=TEXT("确认");
 inline constexpr TCHAR CancelAction[]=TEXT("取消");
-inline FString NpcBought(int64 Points){return FString::Printf(TEXT("已花 %lld 点，NPC 端来 3 个主动，选一个"),Points);}
 inline FString Respecced(int64 Refunded,int64 Left){return FString::Printf(TEXT("已洗点：返还 %lld 点，现有 %lld 点未分配"),Refunded,Left);}
 inline FString Replaced(const FString& NewName,const FString& Key,const FString& OldName)
 {return FString::Printf(TEXT("已在 %s 用 %s 替换 %s"),*Key,*NewName,*OldName);}
