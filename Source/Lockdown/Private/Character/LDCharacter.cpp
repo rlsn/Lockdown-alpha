@@ -5,6 +5,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDImpactFx.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/GameInstance.h"
@@ -216,6 +217,9 @@ void ALDCharacter::Tick(float Delta)
             Body->SetConfirm(0.f,Confirm.StopSeconds,Confirm.SparkScale);
             KickAge=0.f;
             KickCm=Confirm.KickCm*(bReduced ? .45f : 1.f);
+            // A kill, critical hit or broken shield flashes the screen edge and fringes the lens (off when reduced).
+            if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
+            { Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(View.Cues.LastDealtFlags,bReduced)); }
             UGameInstance* Instance=GetGameInstance();
             ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
             if (Audio)
@@ -230,6 +234,10 @@ void ALDCharacter::Tick(float Delta)
     KickAge+=Delta;
     const float Kick=PC->Controls && PC->Controls->bCameraShake ? LDBodyMotion::KickOffset(KickAge,KickCm,LDHitFeel::Read().KickSeconds) : 0.f;
     Camera->SetRelativeLocation(CameraArm->GetComponentRotation().UnrotateVector(GetActorForwardVector().GetSafeNormal2D()*Kick));
+    const ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+    const float Fringe=Impacts && !bReduced ? Impacts->ScreenFringe() : 0.f;
+    Camera->PostProcessSettings.bOverride_SceneFringeIntensity=Fringe>0.f;
+    Camera->PostProcessSettings.SceneFringeIntensity=Fringe;
 }
 
 bool ALDCharacter::PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock)

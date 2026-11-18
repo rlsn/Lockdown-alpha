@@ -691,7 +691,7 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 `DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算，`DemoMechanics.ShieldEvents/Knockback/Periodic` 覆盖护盾打破判定、
 击退方向与区域脉冲时刻；`DemoControl.ActionMatrix/EmpowerOnce/ExpansionContent` 覆盖动作禁止矩阵、强化普攻消费与条目的类型化导入与显示；
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的单级数值；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
-`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、施法聚能、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
+`DemoBodyMotion.HitLayers` 覆盖命中分层的档位与外观形状、降低特效、地裂、星芒尺寸补偿与屏幕边缘闪；`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、施法聚能、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`覆盖关键词纯规则、沉默与解除、共享破防与灼烧、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/Brace`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震，
 `Combat.Skills.N4Bag`覆盖书包的生命、只挡敌方弹道、只受敌方伤害、到期与被打掉的爆炸、同技能数量与 3A1 墙及其公开记录，

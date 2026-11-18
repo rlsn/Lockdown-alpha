@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Styling/SlateBrush.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "LDWorldFeedback.generated.h"
 struct FLDCombatOwnerView;
@@ -201,6 +202,8 @@ private:
     TArray<LDWorldFeedback::FBanner> Banners;
     double LevelUpAt=-1;
     double LastTickAt=-1;
+    // The own screen edge flash (ULDImpactFxSubsystem::ScreenFlashAlpha), drawn under every line.
+    mutable FSlateBrush EdgeBrush;
     uint32 ShownMatch=0;
     uint32 ShownLife=0;
     // Approved public definitions, only for the display names of visible casts; loaded once per widget.

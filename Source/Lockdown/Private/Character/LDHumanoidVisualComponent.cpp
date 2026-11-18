@@ -735,6 +735,17 @@ float ULDHumanoidVisualComponent::ShownAge() const
 void ULDHumanoidVisualComponent::PlayFall()
 {
     ClearImpacts();
+    // A visible fall cracks the ground under it; the crack plays out on its own while the body sinks.
+    UWorld* World = GetWorld();
+    if (auto* Impacts = World && FallAt < 0 ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
+    {
+        const APlayerController* Viewer = GEngine ? GEngine->GetFirstLocalPlayerController(World) : nullptr;
+        const ALDPlayerController* LocalController = Cast<ALDPlayerController>(Viewer);
+        const float EffectScale = LocalController && LocalController->Controls && LocalController->Controls->bReduceCombatEffects ? .45f : 1.f;
+        const FTransform& Space = GetComponentTransform();
+        Impacts->Layers(nullptr, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
+            Space.TransformPosition(FVector(0, 0, -HalfHeight)), LDHitVfx::ForKill(EffectScale), 0.f);
+    }
     FallAt = Clock;
     Action = LDBodyMotion::EAction::None;
     RetractAt = -1;
@@ -899,8 +910,13 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         if (CanShowImpact() && Impacts)
         {
             const FVector At = Space.TransformPosition(FVector(18.f, 0, -HalfHeight + .72f * HeightCm));
+            const FVector Ground = Space.TransformPosition(Feet);
             for (const FPendingImpact& Impact : PendingImpacts)
-            { Impacts->Burst(*this, At, Impact.Look, Impact.Flags, float(Clock - Impact.Onset), EffectScale); }
+            {
+                const float Age = float(Clock - Impact.Onset);
+                Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
+                Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, Impact.Flags, EffectScale), Age);
+            }
         }
         PendingImpacts.Reset();
     }

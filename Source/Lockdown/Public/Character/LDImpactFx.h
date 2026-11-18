@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
+#include "Character/LDHitVfx.h"
 #include "Vision/LDViewTypes.h"
 #include "LDImpactFx.generated.h"
 
@@ -10,6 +11,10 @@ class ULDHumanoidVisualComponent;
 class ULDCombatVfxCatalog;
 class UNiagaraComponent;
 class UNiagaraSystem;
+class UMaterialInterface;
+class UStaticMesh;
+class UStaticMeshComponent;
+class UTexture2D;
 namespace LDHitFeel { struct FTuning; }
 
 namespace LDImpactFx
@@ -40,8 +45,19 @@ public:
     virtual TStatId GetStatId() const override;
     void Burst(ULDHumanoidVisualComponent& Source, const FVector& At, ELDObservedHitLook Look, uint8 HitFlags,
         float AgeSeconds, float EffectScale);
+    // The shaped layers (LDHitVfx) of one hit or fall: Chest is the struck point, Feet the ground under the body. A
+    // layer bound to Source goes with it (hidden, fallen or removed); an unbound one (a fall's crack) plays out alone.
+    void Layers(const ULDHumanoidVisualComponent* Source, const FVector& Chest, const FVector& Feet,
+        const LDHitVfx::FRecipe& Recipe, float AgeSeconds);
+    // The own screen edge flash and lens fringe of a fresh receipt (drawn by the world feedback layer).
+    void FlashScreen(const LDHitVfx::FScreenFlash& Flash);
+    float ScreenFlashAlpha(FLinearColor& OutColour) const;
+    float ScreenFringe() const;
+    UTexture2D* GetScreenEdge() const { return ScreenEdge; }
     void ClearFor(const ULDHumanoidVisualComponent& Source);
     int32 LiveCount() const { return Live.Num(); }
+    int32 LiveLayerCount() const { return LiveLayers.Num(); }
+    static constexpr int32 MaxLayers = 48;
     const ULDCombatVfxCatalog* GetCatalog() const { return Catalog; }
 private:
     struct FLive
@@ -52,8 +68,36 @@ private:
         float WaitingSeconds = 0;
         bool bStarted = false;
     };
+    struct FLiveLayer
+    {
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        bool bBound = false;
+        int32 Slot = INDEX_NONE;
+        LDHitVfx::FLayer Layer;
+        float Age = 0;
+        FVector At = FVector::ZeroVector;
+    };
     void Release(int32 Index);
+    void ReleaseLayer(int32 Index);
+    bool LoadLayerAssets();
+    int32 TakeSlot(bool bShell);
+    void PlaceLayer(FLiveLayer& Live, float Brightness);
     UPROPERTY() TObjectPtr<ULDCombatVfxCatalog> Catalog;
+    UPROPERTY() TObjectPtr<AActor> LayerHost;
+    UPROPERTY() TObjectPtr<UStaticMesh> PlaneMesh;
+    UPROPERTY() TObjectPtr<UStaticMesh> SphereMesh;
+    UPROPERTY() TObjectPtr<UMaterialInterface> LayerMaterial;
+    UPROPERTY() TObjectPtr<UMaterialInterface> ShellMaterial;
+    UPROPERTY() TArray<TObjectPtr<UTexture2D>> Masks;
+    UPROPERTY() TObjectPtr<UTexture2D> ScreenEdge;
+    // Pooled layer components; a slot is free while no live layer uses it.
+    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Slots;
+    TArray<bool> SlotShell;
+    TArray<int32> FreeSlots;
+    TArray<FLiveLayer> LiveLayers;
+    bool bLayerAssetsTried = false, bLayerAssetsReady = false;
+    LDHitVfx::FScreenFlash Flash;
+    double FlashAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
     TArray<FLive> Live;
 };

@@ -3,8 +3,16 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Core/LDLog.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/App.h"
+#include "Misc/PackageName.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -108,6 +116,12 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
 void ULDImpactFxSubsystem::Deinitialize()
 {
     while (!Live.IsEmpty()) { Release(Live.Num() - 1); }
+    while (!LiveLayers.IsEmpty()) { ReleaseLayer(LiveLayers.Num() - 1); }
+    if (IsValid(LayerHost)) { LayerHost->Destroy(); }
+    LayerHost = nullptr;
+    Slots.Reset();
+    SlotShell.Reset();
+    FreeSlots.Reset();
     ImpactSystem = nullptr;
     Catalog = nullptr;
     Super::Deinitialize();
@@ -171,6 +185,185 @@ void ULDImpactFxSubsystem::ClearFor(const ULDHumanoidVisualComponent& Source)
     {
         if (Live[Index].Source.Get() == &Source) { Release(Index); }
     }
+    for (int32 Index = LiveLayers.Num() - 1; Index >= 0; --Index)
+    {
+        if (LiveLayers[Index].bBound && LiveLayers[Index].Source.Get() == &Source) { ReleaseLayer(Index); }
+    }
+}
+
+bool ULDImpactFxSubsystem::LoadLayerAssets()
+{
+    if (bLayerAssetsTried) { return bLayerAssetsReady; }
+    bLayerAssetsTried = true;
+    auto LoadPackage = [](const FString& Package) -> UObject*
+    { return LoadObject<UObject>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package))); };
+    PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+    SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    LayerMaterial = Cast<UMaterialInterface>(LoadPackage(LDHitVfx::LayerMaterial));
+    ShellMaterial = Cast<UMaterialInterface>(LoadPackage(LDHitVfx::ShellMaterial));
+    Masks.Reset();
+    FString Missing;
+    for (int32 Mask = 0; Mask < int32(LDHitVfx::EMask::Count); ++Mask)
+    {
+        const FString Package = LDHitVfx::TexturePackage(LDHitVfx::MaskId(LDHitVfx::EMask(Mask)));
+        UTexture2D* Texture = Cast<UTexture2D>(LoadPackage(Package));
+        if (!Texture) { Missing += Package + TEXT(" "); }
+        Masks.Add(Texture);
+    }
+    ScreenEdge = Masks[int32(LDHitVfx::EMask::ScreenEdge)];
+    if (!PlaneMesh || !SphereMesh) { Missing += TEXT("/Engine/BasicShapes "); }
+    if (!LayerMaterial) { Missing += FString(LDHitVfx::LayerMaterial) + TEXT(" "); }
+    if (!ShellMaterial) { Missing += FString(LDHitVfx::ShellMaterial) + TEXT(" "); }
+    if (!Missing.IsEmpty())
+    {
+        UE_LOG(LogLDContent, Error, TEXT("LD_HIT_LAYERS asset=missing %s(run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), *Missing);
+        return false;
+    }
+    FActorSpawnParameters Parameters;
+    Parameters.ObjectFlags |= RF_Transient;
+    Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    LayerHost = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity, Parameters);
+    if (!LayerHost)
+    {
+        UE_LOG(LogLDContent, Error, TEXT("LD_HIT_LAYERS host=spawn_failed"));
+        return false;
+    }
+    LayerHost->SetActorEnableCollision(false);
+    bLayerAssetsReady = true;
+    return true;
+}
+
+int32 ULDImpactFxSubsystem::TakeSlot(bool bShell)
+{
+    for (int32 Index = FreeSlots.Num() - 1; Index >= 0; --Index)
+    {
+        const int32 Slot = FreeSlots[Index];
+        if (SlotShell[Slot] == bShell && IsValid(Slots[Slot]))
+        {
+            FreeSlots.RemoveAtSwap(Index, EAllowShrinking::No);
+            return Slot;
+        }
+    }
+    auto* Mesh = NewObject<UStaticMeshComponent>(LayerHost, NAME_None, RF_Transient);
+    Mesh->SetStaticMesh(bShell ? SphereMesh.Get() : PlaneMesh.Get());
+    Mesh->SetMobility(EComponentMobility::Movable);
+    Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Mesh->SetGenerateOverlapEvents(false);
+    Mesh->SetCanEverAffectNavigation(false);
+    Mesh->SetCastShadow(false);
+    Mesh->bReceivesDecals = false;
+    Mesh->SetUsingAbsoluteLocation(true);
+    Mesh->SetUsingAbsoluteRotation(true);
+    Mesh->SetUsingAbsoluteScale(true);
+    Mesh->SetHiddenInGame(true);
+    Mesh->RegisterComponent();
+    Mesh->CreateDynamicMaterialInstance(0, bShell ? ShellMaterial.Get() : LayerMaterial.Get());
+    SlotShell.Add(bShell);
+    return Slots.Add(Mesh);
+}
+
+void ULDImpactFxSubsystem::Layers(const ULDHumanoidVisualComponent* Source, const FVector& Chest, const FVector& Feet,
+    const LDHitVfx::FRecipe& Recipe, float AgeSeconds)
+{
+    if (!FApp::CanEverRender() || Recipe.Layers.IsEmpty() || Chest.ContainsNaN() || Feet.ContainsNaN() || !FMath::IsFinite(AgeSeconds)
+        || (Source && !Source->CanShowImpact()) || !LoadLayerAssets())
+    { return; }
+    for (const LDHitVfx::FLayer& Layer : Recipe.Layers)
+    {
+        if (LiveLayers.Num() >= MaxLayers) { ReleaseLayer(0); }
+        const int32 Slot = TakeSlot(Layer.Place == LDHitVfx::EPlace::Shell);
+        UStaticMeshComponent* Mesh = Slots[Slot];
+        if (auto* Paint = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0)))
+        {
+            Paint->SetTextureParameterValue(LDHitVfx::MaskParameter, Masks[int32(Layer.Mask)]);
+            Paint->SetVectorParameterValue(LDHitVfx::GlowParameter, Layer.Glow);
+            Paint->SetVectorParameterValue(LDHitVfx::InkParameter, Layer.Ink);
+        }
+        // Sprites draw after the ground marks and the shell so the flash stays on top.
+        Mesh->SetTranslucentSortPriority(Layer.Place == LDHitVfx::EPlace::Ground ? 1 : Layer.Place == LDHitVfx::EPlace::Shell ? 2 : 3);
+        FLiveLayer& Added = LiveLayers.AddDefaulted_GetRef();
+        Added.Source = Source;
+        Added.bBound = Source != nullptr;
+        Added.Slot = Slot;
+        Added.Layer = Layer;
+        Added.Age = FMath::Max(AgeSeconds, 0.f);
+        Added.At = Layer.Place == LDHitVfx::EPlace::Ground ? Feet + FVector(0, 0, 2.f) : Chest;
+        PlaceLayer(Added, LDHitVfx::Brightness(Layer, Added.Age));
+    }
+}
+
+void ULDImpactFxSubsystem::PlaceLayer(FLiveLayer& Shown, float Brightness)
+{
+    UStaticMeshComponent* Mesh = Slots.IsValidIndex(Shown.Slot) ? Slots[Shown.Slot].Get() : nullptr;
+    if (!Mesh) { return; }
+    const bool bVisible = Brightness > .002f;
+    Mesh->SetHiddenInGame(!bVisible);
+    if (!bVisible) { return; }
+    if (auto* Paint = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0))) { Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, Brightness); }
+    const LDHitVfx::FLayer& Layer = Shown.Layer;
+    float Size = Layer.SizeCm * LDHitVfx::ScaleAt(Layer, Shown.Age);
+    const float Spin = FMath::DegreesToRadians(Layer.SpinDegPerSec * Shown.Age);
+    const APlayerController* Viewer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+    const APlayerCameraManager* Camera = Viewer ? Viewer->PlayerCameraManager.Get() : nullptr;
+    FVector Location = Shown.At;
+    FQuat Rotation(FVector::UpVector, Spin);
+    FVector Scale = Layer.Place == LDHitVfx::EPlace::Shell ? FVector(Size / 100.f) : FVector(Size / 100.f, Size / 100.f, 1.f);
+    if ((Layer.Place == LDHitVfx::EPlace::Sprite || Layer.Place == LDHitVfx::EPlace::Upright) && Camera)
+    {
+        const FVector Eye = Camera->GetCameraLocation();
+        const FVector ToEye = (Eye - Shown.At).GetSafeNormal();
+        if (!ToEye.IsNearlyZero())
+        {
+            // Pulled towards the camera so the flash draws over the body it strikes.
+            Location = Shown.At + ToEye * 35.f;
+            if (Layer.Place == LDHitVfx::EPlace::Sprite)
+            {
+                Size = LDHitVfx::SpriteCm(Size, FVector::Dist(Eye, Location), Camera->GetFOVAngle());
+                Scale = FVector(Size / 100.f, Size / 100.f, 1.f);
+                Rotation = FRotationMatrix::MakeFromZ(ToEye).ToQuat() * FQuat(FVector::UpVector, Spin);
+            }
+            else
+            {
+                // The strike stands upright: the texture's height runs along the plane's X, turned to world up.
+                Rotation = FRotationMatrix::MakeFromZX(ToEye, FVector::UpVector).ToQuat();
+                Scale = FVector(Size * 4.f / 100.f, Size / 100.f, 1.f);
+                Location += FVector(0, 0, Size * 1.2f);
+            }
+        }
+    }
+    Mesh->SetWorldLocationAndRotation(Location, Rotation);
+    Mesh->SetWorldScale3D(Scale);
+}
+
+void ULDImpactFxSubsystem::ReleaseLayer(int32 Index)
+{
+    const int32 Slot = LiveLayers[Index].Slot;
+    if (Slots.IsValidIndex(Slot) && IsValid(Slots[Slot]))
+    {
+        Slots[Slot]->SetHiddenInGame(true);
+        FreeSlots.Add(Slot);
+    }
+    LiveLayers.RemoveAt(Index, EAllowShrinking::No);
+}
+
+void ULDImpactFxSubsystem::FlashScreen(const LDHitVfx::FScreenFlash& InFlash)
+{
+    if (InFlash.Seconds <= 0.f || !GetWorld()) { return; }
+    Flash = InFlash;
+    FlashAt = GetWorld()->GetRealTimeSeconds();
+}
+
+float ULDImpactFxSubsystem::ScreenFlashAlpha(FLinearColor& OutColour) const
+{
+    if (FlashAt < 0. || !GetWorld()) { return 0.f; }
+    OutColour = Flash.Colour;
+    return LDHitVfx::ScreenFlashAlpha(Flash, float(GetWorld()->GetRealTimeSeconds() - FlashAt));
+}
+
+float ULDImpactFxSubsystem::ScreenFringe() const
+{
+    FLinearColor Colour;
+    return Flash.Colour.A > 0.f ? Flash.Fringe * ScreenFlashAlpha(Colour) / Flash.Colour.A : 0.f;
 }
 
 void ULDImpactFxSubsystem::Tick(float DeltaTime)
@@ -201,5 +394,17 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             }
         }
         else if (Effect->IsComplete()) { Release(Index); }
+    }
+    for (int32 Index = LiveLayers.Num() - 1; Index >= 0; --Index)
+    {
+        FLiveLayer& Shown = LiveLayers[Index];
+        const ULDHumanoidVisualComponent* Source = Shown.Source.Get();
+        Shown.Age += Step;
+        if ((Shown.bBound && (!Source || !Source->CanShowImpact())) || Shown.Age >= Shown.Layer.DelaySeconds + Shown.Layer.Seconds)
+        {
+            ReleaseLayer(Index);
+            continue;
+        }
+        PlaceLayer(Shown, LDHitVfx::Brightness(Shown.Layer, Shown.Age));
     }
 }

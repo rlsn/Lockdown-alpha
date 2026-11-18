@@ -4,6 +4,7 @@
 #include "Art/LDDemoArtImport.h"
 #include "Art/LDStaticSceneEditor.h"
 #include "Art/LDDemoUIImageImport.h"
+#include "Art/LDDemoVfxImport.h"
 #include "Audio/LDDemoAudioImport.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -232,6 +233,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (!LDDemoUIImageImport::Validate(Error))
     {
         UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED UI backgrounds: %s"), *Error);
+        return 8;
+    }
+    // VFX: the hit-effect masks must match their rendered sources and both effect materials hold the importer's graph.
+    if (!LDDemoVfxImport::Validate(Error))
+    {
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Hit effects: %s"), *Error);
         return 8;
     }
     UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_BOOTSTRAP_SUCCESS Demo input bytes, native geometry/collision/navigation and root bindings validated; gameplay acceptance is separate."));

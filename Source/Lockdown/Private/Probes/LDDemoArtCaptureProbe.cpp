@@ -14,6 +14,7 @@
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDImpactFx.h"
+#include "Combat/LDCombatCues.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -59,6 +60,7 @@ namespace
         uint8 HitFlags = 0;
         bool bHit = false;
         float HitAgeSeconds = .08f;
+        bool bKill = false;
     };
 
     // Floor points a body can stand on, with the camera arm lengths the player can zoom between.
@@ -456,7 +458,13 @@ namespace
                 {TEXT("VFX-ShieldBreak"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None,
                     LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken, true},
                 {TEXT("VFX-Fire"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Fire, 0, true},
+                {TEXT("VFX-Water"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Water, 0, true},
+                {TEXT("VFX-Electric"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Electric, 0, true},
+                {TEXT("VFX-Magic"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Magic, 0, true},
+                {TEXT("VFX-Shield"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, LDObservation::ShieldAbsorbed, true},
                 {TEXT("VFX-Cast"), Focus, LDCamera::DefaultArmLength, false, 2},
+                // Last: the fall leaves the victim fallen.
+                {TEXT("VFX-Kill"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, 0, false, .08f, true},
             };
             if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoCastVfxCapture")))
             {
@@ -493,6 +501,16 @@ namespace
                 Victim->SetHitReaction(Current.HitAgeSeconds, Current.HitLook, Current.HitFlags);
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 if (!Check(Impacts && Impacts->LiveCount() == 1, TEXT("A fresh shown hit creates one impact effect"))) { return false; }
+                Check(Impacts->LiveLayerCount() == LDHitVfx::ForHit(Current.HitLook, Current.HitFlags, 1.f).Layers.Num(),
+                    TEXT("A fresh shown hit spawns its shaped layers"));
+                // The own receipt of the same tier flashes the screen edge (drawn by the world feedback layer).
+                Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(Current.HitFlags, false));
+            }
+            if (Current.bKill && Impacts)
+            {
+                Victim->PlayFall();
+                Check(Impacts->LiveLayerCount() == LDHitVfx::ForKill(1.f).Layers.Num(), TEXT("A visible fall cracks the ground"));
+                Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(LDCombatCues::DealtLethal, false));
             }
             return true;
         }

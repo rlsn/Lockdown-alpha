@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "generator": "Blender/hit_textures.py",
+  "generator_sha256": "b94e1ded7a62aed389789fa1fc2871e5faa51b8059266e4b0b45db404af93284",
+  "provenance": "Rendered for this project by SourceData/VFX/Blender/hit_textures.py in Blender 5.2.4 (EEVEE, orthographic, transparent film) with numpy softening; no third-party material.",
+  "textures": [
+    {
+      "id": "hit_star",
+      "sha256": "002b1f75466257e86931458a072155412d61a44a6c632053c88df9938d12471e",
+      "width": 256,
+      "height": 256,
+      "purpose": "Ordinary hit flash: eight-ray star with radial speed lines"
+    },
+    {
+      "id": "hit_cross",
+      "sha256": "696818c4fd8b362b754ebb7fea513cf773b85139698a65e9fd4e2c615926e501",
+      "width": 256,
+      "height": 256,
+      "purpose": "Critical and magic hit flash: four-point cross star"
+    },
+    {
+      "id": "hit_ring",
+      "sha256": "8b0aeb336ba8aaf79c64a116719157ae278e78c0d11c6abd746fa1dd43fc4d18",
+      "width": 256,
+      "height": 256,
+      "purpose": "Ground shock ring under a struck body"
+    },
+    {
+      "id": "hit_ripple",
+      "sha256": "fe73c28152a39ee7f92e10c7c718f60eea43eb76cfb2308c65f59d255242f921",
+      "width": 256,
+      "height": 256,
+      "purpose": "Water hit: ground crown and two ripples"
+    },
+    {
+      "id": "hit_burn",
+      "sha256": "b3c40d0f529f1f1fb373dc544bad56bc21fa62e7c486da8bc8b563f6a8a21b70",
+      "width": 256,
+      "height": 256,
+      "purpose": "Fire hit: scorched burn ring"
+    },
+    {
+      "id": "hit_sigil",
+      "sha256": "073a32fdd3c99a2ef34cbdfbf4232787a3fc33875e9021dcee1984fe7b1418e7",
+      "width": 512,
+      "height": 512,
+      "purpose": "Magic hit: double-circle hexagram ground sigil"
+    },
+    {
+      "id": "hit_crack",
+      "sha256": "f540fd1e1920f51f218ae8fb4d09e50b6ea2a9deb1433c86da2c28fe0862f3fd",
+      "width": 512,
+      "height": 512,
+      "purpose": "Kill: ground crack (RGB glowing seams, A dark crack)"
+    },
+    {
+      "id": "hit_bolt",
+      "sha256": "95e0bc52035324868c1c52b9a21fe7c232a3fece18a19dc0d9e0a9609315d3ea",
+      "width": 128,
+      "height": 512,
+      "purpose": "Electric hit: vertical lightning strike"
+    },
+    {
+      "id": "hit_hex",
+      "sha256": "1f04a37e576ecaeb24e98f2b62f4cc2df23d6c5e99954493d3c5240b1d664c42",
+      "width": 222,
+      "height": 384,
+      "purpose": "Shield absorb: tiling hex lattice for the shield shell"
+    },
+    {
+      "id": "screen_edge",
+      "sha256": "c69e9c4b77901d74c3cdc1e72f3944844741f343ae2d8f9f3d50f80eb1395401",
+      "width": 256,
+      "height": 256,
+      "purpose": "Screen edge flash mask for own critical, kill and shield-break hits"
+    }
+  ]
+}
