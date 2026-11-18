@@ -45,7 +45,7 @@ ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
 CANONICAL_TAGS = ("LD_EVAL_OPENING_PRESET", "LD_EVAL_COMPONENT_PRESET", "LD_EVAL_FIELD_SPAWN", "LD_OFFER", "LD_CHOICE",
-                  "LD_BUILD", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT")
+                  "LD_BUILD", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT", "LD_CAST")
 # Growth commands that mutate only their own contender's record, with any draw seeded by (match, contender, request)
 # (LDDevelopmentDirector.cpp ApplyBuild, DrawHead's OfferSeed(match, contender, ordinal)); two AI controllers'
 # commands in one tick follow engine actor-tick order.
@@ -1457,7 +1457,8 @@ def canonical_events(trace_text, result):
 
     for tag, fields, line in parse_trace(trace_text):
         t = int(fields["t"]) if fields.get("t", "").lstrip("-").isdigit() else None
-        if t is not None and end >= 0 and t > end:
+        # LD_CAST carries the end of the advance that committed the release, at most CAST_LAG_MS after it.
+        if t is not None and end >= 0 and t > end + (CAST_LAG_MS if tag == "LD_CAST" else 0):
             continue
         if tag in CANONICAL_TAGS:
             line = own_generation.sub("generation=case", GUID.sub(role_of, line))

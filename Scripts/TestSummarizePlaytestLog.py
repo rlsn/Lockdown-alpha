@@ -268,6 +268,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             hit(12, 12000, a, b, "learned:active_zap", "60.00"),
             hit(13, 13000, a, b, "learned:active_zap", "600.00", "factor_bp=120000 factors=card_k06:5000,overdrive:6000"),
             line(13, "LogLDMatch", "Display", f"LD_DEATH_RECEIPT contender={b} life=1 respawn_at_ms=1 t=13000 killer={a} cause=Contender fatal=learned:active_zap fatal_body={a} assisters=- no_reward=None victim_level=1"),
+            # B's released zone keeps hitting after its death: still B's last fight, not a new one.
+            hit(13, 13500, b, a, "learned:active_quick_meeting", "20.00"),
             line(13, "LogLDCombat", "Log", f"LD_MOMENTUM entity={b} life=1 basic=20.00 combat=10.00 skill=0.00 reaction=0.00 dodge=15.00 other=0.00 idle=-5.00 spent=30.00 overdrive=0 end=60.00"),
             line(13, "LogLDCombat", "Log", f"LD_CHAIN owner={a} steps=6 key=card_k06>Overload>kill damage=700.00"),
             line(14, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=1 basic=0.00 combat=10.00 skill=45.00 reaction=10.00 dodge=0.00 other=0.00 idle=0.00 spent=100.00 overdrive=1 end=0.00"),
@@ -289,9 +291,10 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertNotIn("### Roster", text)
         self.assertNotIn("### Deaths", text)
         metrics = text.split("### Metrics (spec §16)")[1].split("## Metrics across")[0]
-        # 910 on contenders: skill 100 + 60 + 60 + 600 (the Overload settle stays under its applier's skill), card 40, basic 50.
-        self.assertIn("hits on contenders: 910 dmg: basic 5.5%, skill 90.1%, card/component 4.4%, other 0.0%", metrics)
-        # A's fight holds its three releases; B's fight its one (it died at 13000).
+        # 930 on contenders: skill 100 + 60 + 60 + 600 + B's zone after its death 20 (the Overload settle stays under its
+        # applier's skill), card 40, basic 50.
+        self.assertIn("hits on contenders: 930 dmg: basic 5.4%, skill 90.3%, card/component 4.3%, other 0.0%", metrics)
+        # A's fight holds its three releases; B's fight its one (it died at 13000; its zone's later hit stays in that fight).
         self.assertIn("Casts per person per fight (Q/W/E releases): n=2 mean 2.0 median 2.0 min 1.0 max 3.0", metrics)
         self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 2.9 s", metrics)
         self.assertIn("Momentum income: 110 over 2 field lives (basic 18.2%, combat 18.2%, skill 40.9%, reaction 9.1%, dodge 13.6%, "
@@ -299,12 +302,12 @@ class SummarizePlaytestLogTest(unittest.TestCase):
                       "(3 rest-training ledger/dodge lines left out)", metrics)
         # Both field lives with a heartbeat closed their ledgers.
         self.assertNotIn("incomplete:", metrics)
-        # A dealt 860 in 3.0 s of fight (10000..13000); the L1 bare build would deal 72 x 3.0 = 216.
+        # A dealt 860 in 3.5 s of fight (10000..13500); the L1 bare build would deal 72 x 3.5 = 252. B dealt 70 in 2.9 s.
         self.assertIn("Breakout builds (output / same-level bare build >= 3, baseline spec §3.9 estimate", metrics)
-        self.assertIn("): 1 (A x3.98, B x0.24)", metrics)
+        self.assertIn("): 1 (A x3.41, B x0.34)", metrics)
         self.assertIn("Outrageous hits (>= 60% of the target's max HP): 1", metrics)
         self.assertIn("Longest chain: 6 steps (1 of 1 chains >= 5)", metrics)
-        self.assertIn("Damage factors: 6 hits, max factor_bp 120000; sources card_k06 2, overdrive 1", metrics)
+        self.assertIn("Damage factors: 7 hits, max factor_bp 120000; sources card_k06 2, overdrive 1", metrics)
         self.assertIn("Reaction kinds: 1 (Overload)", metrics)
         self.assertIn("Cards offered: 3", metrics)
         across = text.split("## Metrics across 1 matches with Host lines")[1]
@@ -320,10 +323,10 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("Casts leave out 1 matches without LD_CAST lines.", across)
         # A measured baseline replaces the estimate and is named in the report.
         measured = summarize(collect([str(self.root / "P2.log")]), baseline=parse_baseline("1=300"), metrics_only=True)
-        self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.96, B x0.06)", measured)
+        self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.82, B x0.08)", measured)
 
     def test_winner_builds_lives_without_ledgers_and_reused_generations(self):
-        def run(name, points, components, with_ledger):
+        def run(name, points, components, with_ledger, on="Active:active_zap", folder=None):
             rows = [
                 line(1, "LogLDMatch", "Display", "LD_MATCH_STARTED generation=1 contenders=2 started_at_ms=0"),
                 line(1, "LogLDMatch", "Display", f"LD_MATCH_HEADER generation=1 ledger={name} product=0.11.0"),
@@ -340,12 +343,17 @@ class SummarizePlaytestLogTest(unittest.TestCase):
                 line(9, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY_ROW generation=1 contender={AI} name=A kind=AI left=0 winner=1 "
                      f"level=3 xp=1 kills=0 deaths=0 assists=0 choices=1 skills=active_zap/Q blueprints=- points={points} "
                      f"components={components}"),
+                # Where the installed component went: the summary row names bindings only.
+                line(2, "LogLDGrowth", "Log", f"LD_BUILD t=1500 contender={AI} kind=InstallComponent card=component_fist_fire "
+                     f"slot=- points=- unspent=0 level=1 installed=1 bind=- on={on}"),
             ]
             if with_ledger:
                 rows.append(line(9, "LogLDCombat", "Log", f"LD_MOMENTUM entity={CLIENT} life=1 basic=10.00 combat=0.00 skill=0.00 "
                                  "reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=0 end=60.00"))
-            (self.root / f"{name}.log").write_text("\n".join(rows) + "\n", encoding="utf-8")
-            return str(self.root / f"{name}.log")
+            target = self.root / (folder or ".") / f"{name}.log"
+            target.parent.mkdir(exist_ok=True)
+            target.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            return str(target)
 
         first = run("RunA", "3,0,0,0,0", "+component_fist_fire,component_long_kick", True)
         second = run("RunB", "0,0,3,0,0", "+component_fist_fire", False)
@@ -360,6 +368,16 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("incomplete: 3 field lives have no ledger (alive at the match end)", across)
         same = summarize(collect([first, run("RunC", "3,0,0,0,0", "+component_fist_fire", True)]), metrics_only=True)
         self.assertIn("| 1 in 2 decided matches |", same)
+        # The same component on another target is another build.
+        moved = summarize(collect([first, run("RunD", "3,0,0,0,0", "+component_fist_fire", True, on="Dash")]), metrics_only=True)
+        self.assertIn("| 2 in 2 decided matches |", moved)
+        # Two runs' logs of the same file name in different folders are two inputs, never one match.
+        apart = summarize(collect([run("Telemetry", "3,0,0,0,0", "+component_fist_fire", True, folder="run1"),
+                                   run("Telemetry", "3,0,0,0,0", "+component_fist_fire", True, folder="run2")]),
+                          metrics_only=True)
+        self.assertIn("## Match 1 (Telemetry)", apart)
+        self.assertIn("## Match 1 (Telemetry (run2))", apart)
+        self.assertIn("## Metrics across 2 matches with Host lines", apart)
 
     def test_baseline_points_interpolate_and_extend(self):
         points = parse_baseline("10=154,1=72")

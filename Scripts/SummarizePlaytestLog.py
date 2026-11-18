@@ -587,6 +587,7 @@ class Fight:
     dealt: float = 0.0
     opponents: set = field(default_factory=set)
     died: bool = False
+    lingering: int = 0
     level: int = 1
     same_level: bool = True
 
@@ -605,6 +606,14 @@ def contender_fights(contender, casts, hits, deaths, contenders):
     for t, _, kind, event in timeline:
         if current and current.died and kind == "cast" and t - current.end <= CAST_LAG_MS:
             current.casts += max(int(number(event, "added", 1)), 1)
+            continue
+        # A released effect outlives its caster (a zone, a projectile in flight): its hits after the death, within the
+        # combat window, still belong to the fight that ended with that death instead of opening a fight of a dead body.
+        if (current and current.died and kind == "hit" and event.get("src") == contender
+                and t - current.end <= FIGHT_GAP_MS):
+            current.opponents.add(event.get("victim"))
+            current.dealt += number(event, "dmg")
+            current.lingering += 1
             continue
         if current and (t - current.end > FIGHT_GAP_MS or current.died):
             fights.append(current)
@@ -766,19 +775,35 @@ def match_metrics(events, baseline):
     summary = next((event for event in events if event.tag == "LD_MATCH_SUMMARY"), None)
     rows = [event for event in events if event.tag == "LD_MATCH_SUMMARY_ROW" and summary is not None
             and event.get("contender") == summary.get("winner")]
-    out["winner_build"] = build_fingerprint(rows[0]) if rows else None
+    out["winner_build"] = build_fingerprint(rows[0], [event for event in events if event.tag == "LD_BUILD"
+                                                      and event.get("contender") == rows[0].get("contender")]) if rows else None
     return out
 
 
-def build_fingerprint(row):
-    """A winner's build: its Q/W/E actives, allocated points and installed components or cards with their bindings (the
-    LD_MATCH_SUMMARY_ROW build text). None when the row predates the points and components fields."""
+def build_fingerprint(row, builds):
+    """A winner's build: its Q/W/E actives and allocated points (LD_MATCH_SUMMARY_ROW) and every installed component or
+    card with its installation target and binding, from the last LD_BUILD that installed it (the row names a binding but
+    not the target). None when the row predates the points and components fields, or when an installed item of the row
+    has no LD_BUILD installation record in this log."""
     if not row.get("skills") or "points" not in row.fields or not ({"components", "cards"} & row.fields.keys()):
         return None
     actives = sorted(item.partition("/")[0] for item in row.get("skills").split(",") if item and item != "-")
-    installed = sorted(item[1:] for key in ("components", "cards") for item in row.get(key, "-").split(",")
-                       if item.startswith("+"))
-    return (tuple(actives), row.get("points"), tuple(installed))
+    targets = {}
+    for event in builds:
+        card = event.get("card", "-")
+        if card in ("", "-") or event.get("installed") not in ("0", "1"):
+            continue
+        targets[card] = f"{event.get('bind', '-')}|{event.get('on', '-')}|{event.get('base', '-')}" \
+            if event.get("installed") == "1" else None
+    installed = []
+    for key in ("components", "cards"):
+        for item in row.get(key, "-").split(","):
+            if item.startswith("+"):
+                card = item[1:].partition("@")[0]
+                if targets.get(card) is None:
+                    return None
+                installed.append(f"{card}:{targets[card]}")
+    return (tuple(actives), row.get("points"), tuple(sorted(installed)))
 
 
 def share_line(amounts):
@@ -980,7 +1005,21 @@ def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_a
 
 
 def collect(paths):
-    logs = []
+    """(label, events) per log. The label is the given label=, else the file name; a label already taken by another file
+    (Telemetry.log of two runs, say) gets the parent folder's name, then a number, so independent logs never merge."""
+    logs, taken = [], {}
+
+    def unique(label, file):
+        key = str(Path(file).resolve()).lower()
+        if taken.get(label, key) == key:
+            taken[label] = key
+            return label
+        for candidate in (f"{label} ({Path(file).resolve().parent.name})", *(f"{label} ({n})" for n in range(2, 1000))):
+            if taken.get(candidate, key) == key:
+                taken[candidate] = key
+                return candidate
+        raise ValueError(f"too many logs named {label}")
+
     for path in paths:
         if "=" in path and not Path(path).exists():
             label, _, path = path.partition("=")
@@ -992,9 +1031,10 @@ def collect(paths):
             continue
         files = sorted(target.glob("*.log")) if target.is_dir() else [target]
         for file in files:
-            rows = read_log(file, label if not target.is_dir() else file.stem)
+            name = unique(label if not target.is_dir() else file.stem, file)
+            rows = read_log(file, name)
             if any(row.tag for row in rows):
-                logs.append((label if not target.is_dir() else file.stem, rows))
+                logs.append((name, rows))
     return logs
 
 

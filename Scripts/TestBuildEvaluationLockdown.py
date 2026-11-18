@@ -1334,6 +1334,18 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertEqual(spatial["opponent@6000"], (-100.0, 5.0, 0.0))
         self.assertNotIn("subject@21000", spatial)
 
+    def test_canonical_events_compare_cast_counts(self):
+        # A replay that differs only in its releases diverges; the end's own advance keeps its LD_CAST.
+        cast = f"LD_CAST t=12000 contender={S} life=2 casts=1 added=1"
+        late = f"LD_CAST t=20017 contender={S} life=2 casts=2 added=1"
+        with_casts, _ = lockdown.canonical_events(trace(cast, late), result())
+        without, _ = lockdown.canonical_events(trace(cast), result())
+        self.assertIn("LD_CAST t=12000 contender=subject life=2 casts=1 added=1", with_casts)
+        self.assertIn("LD_CAST t=20017 contender=subject life=2 casts=2 added=1", with_casts)
+        self.assertNotEqual(with_casts, without)
+        beyond, _ = lockdown.canonical_events(trace(cast, f"LD_CAST t=20100 contender={S} life=2 casts=2 added=1"), result())
+        self.assertEqual(beyond, without)
+
     @staticmethod
     def swapped(text, first, second):
         lines = text.splitlines()
