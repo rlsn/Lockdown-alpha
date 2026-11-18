@@ -878,6 +878,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
         Out.MomentumP2=Body->Resources.MomentumP2;
+        Out.OverdriveThresholdP2=OverdriveThresholdOf(*Body);
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;

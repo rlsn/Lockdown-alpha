@@ -524,6 +524,8 @@ struct FLDCombatOwnerView
     UPROPERTY() int64 MaxHPP2=0;
     UPROPERTY() int64 MomentumP2=0;
     UPROPERTY() int64 MaxMomentumP2=0;
+    // The bar an overdrive needs now (OVERDRIVE.Threshold, or Y11's lower one).
+    UPROPERTY() int64 OverdriveThresholdP2=0;
     UPROPERTY() int64 ShieldP2=0;
     // Current effective HP regeneration in points/second; owner-only display, not writable resource state.
     UPROPERTY() double HPRegenPerSec=0;

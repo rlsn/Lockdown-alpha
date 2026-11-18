@@ -35,6 +35,8 @@ bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid&
         ++Body.PerfectDodges;
         Body.LastPerfectDodgeAtMs=NowMs;
         MarkViewChanged(Dodger);
+        // D04 and D09 answer the dodge.
+        if (!OnPerfectDodgeCards(Body,NowMs,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
             Body.Victim.Life,*LDLog::Id(EffectId),*LDLog::Id(SourceEntity),*LDLog::P2(Body.Resources.MomentumP2));
     }
@@ -64,9 +66,7 @@ int64 ALDCombatDirector::GrantMomentum(FLDBodyCombatState& Body, int64 AmountP2,
     default: Ledger.OtherP2+=Applied; break;
     }
     // A bar that drops below the overdrive threshold ends a charge that waits for it.
-    if (Body.OverdriveCharge.IsSet()
-        && !LDMomentum::OverdriveReady(Content->Get().Parameters.Overdrive,Body.Resources.MomentumP2))
-    { EndOverdriveCharge(Body); }
+    if (Body.OverdriveCharge.IsSet() && Body.Resources.MomentumP2<OverdriveThresholdOf(Body)) { EndOverdriveCharge(Body); }
     ++Body.Resources.Revision;
     MarkViewChanged(Body.Victim.EntityId);
     return Applied;
@@ -138,7 +138,7 @@ void ALDCombatDirector::SubmitCharge(const FLDCombatCaller& Caller, const FLDCom
     const FLDDemoAbilityDefinition* Ability=nullptr;
     const int64 NowMs=Mode->GetAuthorityNowMs();
     if (!ResolveEntry(*Record,Request.Entry,Source,Ability) || Source.Kind!=ELDCombatSourceKind::Learned
-        || !LDMomentum::OverdriveReady(Content->Get().Parameters.Overdrive,Body->Resources.MomentumP2)
+        || OverdriveThresholdOf(*Body)<=0 || Body->Resources.MomentumP2<OverdriveThresholdOf(*Body)
         || IsCastBlocked(*Body,Source.Kind) || Mode->IsInputLocked(Caller.Match,Caller.EntityId)
         || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; }))
     { return; }
@@ -158,8 +158,9 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
     const FLDDemoContentParameters& P=Content->Get().Parameters;
     const FLDDemoOverdriveParameters& O=P.Overdrive;
     FLDDemoAbilityValues& Values=Terms.Values;
-    // OVERDRIVE.Scale on every base amount and ratio (damage, shield, heal, reflection); control times never scale.
-    if (!LDSkillGrowth::ScaleValues(Values,O.ScaleBp,O.ScaleBp))
+    // OVERDRIVE.Scale (Y11's own) on every base amount and ratio (damage, shield, heal, reflection); control times never scale.
+    const int64 ScaleBp=OverdriveScaleOf(Body);
+    if (!LDSkillGrowth::ScaleValues(Values,ScaleBp,ScaleBp))
     { Error=FString::Printf(TEXT("Overdrive of %s leaves the checked numeric domain."),*Ability.Id); return false; }
     const auto Find=[&Values](ELDDemoEffectOp Op)
     { return Values.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); };

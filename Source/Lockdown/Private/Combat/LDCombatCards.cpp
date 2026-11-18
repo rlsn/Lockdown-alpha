@@ -281,6 +281,66 @@ bool LDCombatSourceRules::CompileCardActive(const FLDAttributeProjection& Projec
         Terms.SplitDistanceCm=Splits[0].Effect.DistanceCm;
         Terms.SplitWindowMs=Splits[0].Effect.DurationMs;
     }
+    // D08: the D dash pays a flat momentum cost (copies add).
+    if (Source.Kind==ELDCombatSourceKind::Innate)
+    {
+        for (const FLDPassiveEffectRef& Ref : Costs) { Terms.DashMomentumCostP2+=Ref.Effect.LimitP2; }
+    }
+    // Issue #292 P5: K07 grows the host's areas, flight radius and line width; K10 its cast range; K11 its control times (still
+    // diminished); D07 lengthens the D dash. Copies add their deltas into one multiplier each.
+    TArray<FLDPassiveEffectRef> Reshapes, Rams;
+    if (!CollectCardEffects(Projection,ELDDemoEffectOp::Reshape,Content,Reshapes,Error)
+        || !CollectCardEffects(Projection,ELDDemoEffectOp::DashRam,Content,Rams,Error))
+    { return false; }
+    Reshapes.RemoveAll([&Source](const FLDPassiveEffectRef& Ref) { return !Ref.Targets(Source); });
+    Rams.RemoveAll([&Source](const FLDPassiveEffectRef& Ref) { return !Ref.Targets(Source); });
+    int64 AreaDeltaBp=0, RangeBp=0, ControlBp=0;
+    for (const FLDPassiveEffectRef& Ref : Reshapes)
+    {
+        AreaDeltaBp+=Ref.Effect.MultiplierBp>0 ? Ref.Effect.MultiplierBp-10000 : 0;
+        RangeBp+=Ref.Effect.RatioBp;
+        ControlBp+=Ref.Effect.CostRatioBp;
+    }
+    if (AreaDeltaBp>0)
+    {
+        const int64 AreaBp=10000+AreaDeltaBp;
+        FLDDemoTargetDefinition& Target=Terms.Target;
+        if (Target.ProjectileRadiusCm.Numerator>0) { Target.ProjectileRadiusCm=ScaleRational(Target.ProjectileRadiusCm,AreaBp); }
+        if (Target.LineHalfWidthCm.Numerator>0) { Target.LineHalfWidthCm=ScaleRational(Target.LineHalfWidthCm,AreaBp); }
+        // A cone's area is its reach.
+        if (Target.Mode==ELDDemoTargetMode::DirectionCone) { Target.RangeCm=ScaleRational(Target.RangeCm,AreaBp); }
+        for (FLDDemoEffectDefinition& Effect : Values.Effects)
+        {
+            const ELDDemoEffectOp Op=Effect.GetOp();
+            const bool bArea=Op==ELDDemoEffectOp::SelfArea || Op==ELDDemoEffectOp::Zone || Op==ELDDemoEffectOp::GroundImpact
+                || Op==ELDDemoEffectOp::ContactTrap || Op==ELDDemoEffectOp::GroundState;
+            if (!bArea) { continue; }
+            if (Effect.RadiusCm.Numerator>0) { Effect.RadiusCm=ScaleRational(Effect.RadiusCm,AreaBp); }
+            // An impact's inner ring and a trap's trigger ring grow with it.
+            if ((Op==ELDDemoEffectOp::GroundImpact || Op==ELDDemoEffectOp::ContactTrap) && Effect.DistanceCm.Numerator>0)
+            { Effect.DistanceCm=ScaleRational(Effect.DistanceCm,AreaBp); }
+        }
+    }
+    if (RangeBp>0 && (Terms.Target.Mode==ELDDemoTargetMode::Unit || Terms.Target.Mode==ELDDemoTargetMode::DirectionProjectile))
+    {
+        Terms.Target.RangeCm=ScaleRational(Terms.Target.RangeCm,10000+RangeBp);
+    }
+    if (ControlBp>0)
+    {
+        for (FLDDemoEffectDefinition& Effect : Values.Effects)
+        {
+            const ELDDemoEffectOp Op=Effect.GetOp();
+            if (Op==ELDDemoEffectOp::Root || Op==ELDDemoEffectOp::Stun || Op==ELDDemoEffectOp::Silence || Op==ELDDemoEffectOp::Disarm
+                || Op==ELDDemoEffectOp::Taunt)
+            { Effect.DurationMs=Share(Effect.DurationMs,10000+ControlBp); }
+        }
+    }
+    if (Source.Kind==ELDCombatSourceKind::Innate && !Rams.IsEmpty())
+    {
+        int64 RamBp=0;
+        for (const FLDPassiveEffectRef& Ref : Rams) { RamBp+=Ref.Effect.RatioBp; }
+        Terms.DashScaleBp=Share(Terms.DashScaleBp,10000+RamBp);
+    }
     if (Values.CooldownMs<0 || Terms.PackageScaleBp<=0 || Terms.DashScaleBp<=0 || Terms.CooldownScaleBp<0)
     {
         Error=FString::Printf(TEXT("The cards on %s compile to a negative cooldown or a non-positive multiplier."),*LDLog::Source(Source));
@@ -323,6 +383,23 @@ bool ALDCombatDirector::ReleaseFactors(const FLDBodyCombatState& Body, const FLD
         const int32* Hits=Record.CardGrowth.SkillHits.Find(Ref.Serial);
         if (Hits && *Hits>0) { Out.Add({Ref.Key,int64(*Hits)*Ref.Effect.RatioBp}); }
     }
+    // K18: every release of another skill within the card's window adds its share.
+    TArray<FLDPassiveEffectRef> Combos;
+    if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::RecentCastAmp,Source,Combos,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Combos)
+    {
+        int64 Others=0;
+        for (const TPair<FName,int64>& Cast : Body.RecentCasts)
+        {
+            Others+=Cast.Key!=Source.DefinitionId && Cast.Value<=NowMs && NowMs-Cast.Value<=Ref.Effect.IntervalMs ? 1 : 0;
+        }
+        if (Others>0) { Out.Add({Ref.Key,Others*Ref.Effect.RatioBp}); }
+    }
+    // K05: a control of a host armed the next skill's bonus (ReleaseAbility spends it).
+    if (!Body.ControlAmpCard.IsNone() && Body.ControlAmpBp>0 && Body.ControlAmpUntilMs>NowMs)
+    {
+        Out.Add({Body.ControlAmpCard,Body.ControlAmpBp});
+    }
     return true;
 }
 
@@ -357,6 +434,51 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     if (!Source) { return true; }
     // Ground states: N1 A1's ice vulnerability and Y23's standing growth.
     GroundFactors(*Source,Target,Out);
+    // Issue #292 P5 speed factors: A10 on a primary basic below its attack-speed threshold, Y18 on any damage per step of move
+    // speed above the base; K10's far hit of its host.
+    {
+        TArray<FLDPassiveEffectRef> Speeds;
+        if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::SpeedFactor,Speeds,Error)) { return false; }
+        const auto Value=[](const FLDDemoRational& V) { return V.Denominator>0 ? double(V.Numerator)/double(V.Denominator) : 0.; };
+        const FLDProjectedAttributes& Final=Source->AttributeProjection.Final;
+        const bool bPrimary=Hit.HitClass==ELDCombatHitClass::BasicPrimary && !Hit.bRider;
+        TMap<FName,int64> SpeedBp;
+        for (const FLDPassiveEffectRef& Ref : Speeds)
+        {
+            int64 Steps=0;
+            if (Ref.Effect.Trigger==ELDDemoEffectTrigger::AttackSpeedBelow)
+            {
+                const double Step=Value(Ref.Effect.StepRate), Below=Value(Ref.Effect.ExtraDistanceCm)-Value(Final.AttackSpeed);
+                if (!bPrimary || Step<=0 || Below<=0) { continue; }
+                Steps=int64(FMath::FloorToDouble(Below/Step+1e-9));
+            }
+            else if (Ref.Effect.Trigger==ELDDemoEffectTrigger::MoveSpeedAbove)
+            {
+                const double Base=Value(Content->Get().Parameters.MoveSpeedCmPerSec.Base), Step=double(Ref.Effect.SecondaryRatioBp)/10000.;
+                if (Base<=0 || Step<=0 || Hit.bBurnTick || Hit.bPeriodic) { continue; }
+                const double Above=Value(Final.MoveSpeedCmPerSec)/Base-1.;
+                if (Above<=0) { continue; }
+                Steps=int64(FMath::FloorToDouble(Above/Step+1e-9));
+            }
+            if (Steps>0) { SpeedBp.FindOrAdd(Ref.Key)+=Steps*Ref.Effect.RatioBp; }
+        }
+        for (const TPair<FName,int64>& Pair : SpeedBp) { Out.Add({Pair.Key,Pair.Value}); }
+        if (IsNativeDirectHit(Hit))
+        {
+            TArray<FLDPassiveEffectRef> Reaches;
+            if (!CardsOn(Source->AttributeProjection,ELDDemoEffectOp::Reshape,Hit.Source,Reaches,Error)) { return false; }
+            const ALDCharacter* SourceActor=ActorOf(*Source);
+            const ALDCharacter* TargetActor=ActorOf(Target);
+            int64 FarBp=0;
+            for (const FLDPassiveEffectRef& Ref : Reaches)
+            {
+                if (Ref.Effect.SecondaryRatioBp<=0 || !SourceActor || !TargetActor) { continue; }
+                if (FVector::Dist2D(FootOf(*SourceActor),FootOf(*TargetActor))>=LDCombatCardsDetail::Cm(Ref.Effect.DistanceCm))
+                { FarBp+=Ref.Effect.SecondaryRatioBp; }
+            }
+            if (FarBp>0) { Out.Add({Reaches[0].Key,FarBp}); }
+        }
+    }
     // K04: a different skill's native hit takes the holder's marks on this life (and consumes them).
     if (IsNativeDirectHit(Hit) && !Source->SetupMarks.IsEmpty())
     {
@@ -497,6 +619,45 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
             OutExtra.Add(MoveTemp(Strike));
         }
         if (Strikes>0) { LedgerCardTriggered(Body,Overcaps[0].Key); }
+    }
+    // A07: the third step also sweeps a cone in front of the holder: every other enemy in its reach takes the card's share
+    // (copies add their share), each a basic hit outside the combo.
+    if (bThird)
+    {
+        TArray<FLDPassiveEffectRef> Sweeps;
+        if (!CardsOn(Projection,ELDDemoEffectOp::ComboSweep,Basic,Sweeps,Error)) { return false; }
+        const ALDCharacter* HolderActor=ActorOf(Body);
+        ALDCharacter* TargetActor=nullptr;
+        FindBody(Primary.Target,&TargetActor);
+        if (!Sweeps.IsEmpty() && HolderActor && TargetActor)
+        {
+            int64 ShareBp=0;
+            for (const FLDPassiveEffectRef& Ref : Sweeps) { ShareBp+=Ref.Effect.RatioBp; }
+            const FVector Anchor=FootOf(*HolderActor);
+            const FVector Facing=(FootOf(*TargetActor)-Anchor).GetSafeNormal2D();
+            const double HalfAngle=FMath::DegreesToRadians(Cm(Sweeps[0].Effect.AngleDegrees)*.5);
+            const double Reach=Cm(Projection.Final.AttackRangeCm);
+            TArray<FLDCombatBodyRef> Around;
+            if (!CollectAreaTargets(Anchor,Reach,&Body,Body.Victim.EntityId,Around,Error)) { return false; }
+            bool bSwept=false;
+            for (const FLDCombatBodyRef& Other : Around)
+            {
+                ALDCharacter* OtherActor=nullptr;
+                if (Other==Primary.Target || !FindBody(Other,&OtherActor) || !OtherActor) { continue; }
+                const FVector Toward=(FootOf(*OtherActor)-Anchor).GetSafeNormal2D();
+                if (!Facing.IsNearlyZero() && !Toward.IsNearlyZero() && FVector::DotProduct(Facing,Toward)<FMath::Cos(HalfAngle)) { continue; }
+                FLDCombatHit Strike=Primary;
+                Strike.HitId=FGuid::NewGuid();
+                Strike.Target=Other;
+                Strike.bExtraStrike=true;
+                Strike.KnockbackCm=0;
+                Strike.KnockbackMs=0;
+                Strike.DeliveryScaleBp=Share(Primary.DeliveryScaleBp,FMath::Min<int64>(ShareBp,10000));
+                OutExtra.Add(MoveTemp(Strike));
+                bSwept=true;
+            }
+            if (bSwept) { LedgerCardTriggered(Body,Sweeps[0].Key); }
+        }
     }
     if (RiderAPBp>0)
     {
@@ -711,6 +872,29 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
     {
         if (GrantMomentum(Holder,Granted.Effect.LimitP2,ELDMomentumBook::Skill)>0) { LedgerCardTriggered(Holder,Granted.Key); }
     }
+    // K14: the host's hit spends a share of the holder's shield as damage of its own type (copies add their share).
+    TArray<FLDPassiveEffectRef> Spends;
+    if (!CardsOn(Holder.AttributeProjection,ELDDemoEffectOp::ShieldSpend,Host,Spends,Error)) { return false; }
+    if (!Spends.IsEmpty() && Holder.Shield.IsSet() && Holder.Resources.ShieldP2>0 && ChainAllows(Hit,TEXT("shield_spend")))
+    {
+        int64 ShareBp=0;
+        for (const FLDPassiveEffectRef& Ref : Spends) { ShareBp+=Ref.Effect.RatioBp; }
+        const int64 Spent=LDCombatCardsDetail::Share(Holder.Resources.ShieldP2,FMath::Min<int64>(ShareBp,10000));
+        if (Spent>0)
+        {
+            Holder.Resources.ShieldP2-=Spent;
+            if (Holder.Resources.ShieldP2<=0) { Holder.Shield.Reset(); Holder.Resources.ShieldP2=0; }
+            ++Holder.Resources.Revision;
+            ++Holder.StateRevision;
+            MarkViewChanged(Holder.Victim.EntityId);
+            FLDCombatHit Burst=LDCombatCardsDetail::MakeHit(Holder,Spends[0].Source,Hit.Target,Hit.EffectId);
+            Burst.BaseP2=Spent;
+            Burst.DamageType=Hit.DamageType;
+            Burst.bRider=true;
+            PendingHits.Add(MoveTemp(Burst));
+            LedgerCardTriggered(Holder,Spends[0].Key);
+        }
+    }
     // K17: every hit of the host on a contender grows that copy for the match.
     if (!Growths.IsEmpty() && Hit.Target.Victim.Kind==ELDVictimKind::Contender)
     {
@@ -889,6 +1073,20 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 LedgerCardTriggered(*Source,Ref.Key);
             }
         }
+        // A13: every primary basic hit on a contender counts toward its match growth.
+        if (Hit.Target.Victim.Kind==ELDVictimKind::Contender)
+        {
+            TArray<FLDPassiveEffectRef> Practice;
+            if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::HitGrowth,Practice,Error)) { return false; }
+            if (Practice.ContainsByPredicate([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.Trigger==ELDDemoEffectTrigger::BasicHit; }))
+            {
+                if (FLDCombatEntityRecord* Record=FindRecord(Source->Victim.EntityId))
+                {
+                    ++Record->CardGrowth.BasicHits;
+                    if (!RefreshCardGrowth(Source->Victim.EntityId,NowMs,Error)) { return false; }
+                }
+            }
+        }
         // A12: consecutive hits on the same life stack attack speed; another target or a pause restarts it.
         TArray<FLDPassiveEffectRef> Focus;
         if (!CardsOn(Source->AttributeProjection,ELDDemoEffectOp::FocusAttackSpeed,Basic,Focus,Error)) { return false; }
@@ -901,6 +1099,9 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             if (!RefreshTemporary(*Source,ActorOf(*Source),NowMs,Error)) { return false; }
         }
     }
+    // Y24: every direct hit records a mark toward the tally.
+    if (!Hit.bReflect && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bStatusSettle && !Hit.bRider && !Hit.bFromShieldTrigger
+        && !OnTallyHit(*Source,Hit,NowMs,Error)) { return false; }
     // K13: a physical rider of the host skill's native hit (copies add their AD ratio), sharing its crit and factors.
     if (bNative && ChainAllows(Hit,TEXT("skill_rider")))
     {
@@ -981,7 +1182,8 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
     return true;
 }
 
-bool ALDCombatDirector::OnCardTakedown(const FGuid& Entity, bool bKill, int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnCardTakedown(const FGuid& Entity, bool bKill, const FLDBodyCombatState& Victim, int64 WindowMs, int64 NowMs,
+    FString& Error)
 {
     FLDCombatEntityRecord* Record=FindRecord(Entity);
     if (!Record) { return true; }
@@ -1013,11 +1215,49 @@ bool ALDCombatDirector::OnCardTakedown(const FGuid& Entity, bool bKill, int64 No
         LedgerCardTriggered(*Body,Resets[0].Key);
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_TAKEDOWN_RESET t=%lld holder=%s kill=%d"),NowMs,*LDLog::Id(Entity),int32(bKill));
     }
+    // K03 (a skill card's takedown_reset): its host is refreshed when its native hit reached the victim within the window.
+    if (Body)
+    {
+        TArray<FLDPassiveEffectRef> Hosts;
+        if (!CollectPassiveEffects(Record->Projection,ELDDemoEffectOp::TakedownReset,Hosts,Error)) { return false; }
+        for (const FLDPassiveEffectRef& Ref : Hosts)
+        {
+            if (Ref.TargetKind!=ELDCardTargetKind::Skill) { continue; }
+            const bool bHostHit=Victim.SkillContributions.ContainsByPredicate([&](const FLDSkillContribution& Row)
+            { return Row.Contributor==Entity && Row.Skill==Ref.Active && Row.AtMs<=NowMs && NowMs-Row.AtMs<=WindowMs; });
+            FLDCombatTrack* Track=Record->Tracks.FindByPredicate([&Ref](const FLDCombatTrack& Row)
+            { return Row.Kind==ELDCombatSourceKind::Learned && Row.DefinitionId==Ref.Active; });
+            if (!bHostHit || !Track || Track->ReadyAtMs<=NowMs) { continue; }
+            Track->ReadyAtMs=NowMs;
+            MarkViewChanged(Entity);
+            LedgerCardTriggered(*Body,Ref.Key);
+            UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_HOST_REFRESH t=%lld holder=%s host=%s kill=%d"),NowMs,*LDLog::Id(Entity),
+                *Ref.Active.ToString(),int32(bKill));
+        }
+    }
     return true;
 }
 
 bool ALDCombatDirector::OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error)
 {
+    // K05: a hard control its host landed on another body arms the holder's next skill (copies add their bonus).
+    if (App.SourceBody.Victim.EntityId!=Victim.Victim.EntityId && App.Source.Kind==ELDCombatSourceKind::Learned)
+    {
+        if (FLDBodyCombatState* Holder=FindBody(App.SourceBody); Holder && !Holder->bPendingDeath)
+        {
+            TArray<FLDPassiveEffectRef> Amps;
+            if (!CardsOn(Holder->AttributeProjection,ELDDemoEffectOp::ControlAmp,App.Source,Amps,Error)) { return false; }
+            if (!Amps.IsEmpty())
+            {
+                int64 Bp=0;
+                for (const FLDPassiveEffectRef& Ref : Amps) { Bp+=Ref.Effect.RatioBp; }
+                Holder->ControlAmpCard=Amps[0].Key;
+                Holder->ControlAmpBp=Bp;
+                if (!LDMatchLifecycle::AddDurationMs(NowMs,Amps[0].Effect.DurationMs,Holder->ControlAmpUntilMs,Error)) { return false; }
+                LedgerCardTriggered(*Holder,Amps[0].Key);
+            }
+        }
+    }
     // Y21: a hard control from another body that actually landed on a contender grows its resistances for the match.
     if (Victim.Victim.Kind!=ELDVictimKind::Contender || App.SourceBody.Victim.EntityId==Victim.Victim.EntityId) { return true; }
     FLDCombatEntityRecord* Record=FindRecord(Victim.Victim.EntityId);
@@ -1034,10 +1274,11 @@ bool ALDCombatDirector::CardGrowthTerms(const FLDAttributeProjection& Projection
     TArray<FLDDemoStatBonus>& Growth, FString& Error) const
 {
     Growth.Reset();
-    TArray<FLDPassiveEffectRef> Fat, Streak, Tough;
+    TArray<FLDPassiveEffectRef> Fat, Streak, Tough, Counted;
     if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::HealGrowth,Fat,Error)
         || !CollectPassiveEffects(Projection,ELDDemoEffectOp::KillGrowth,Streak,Error)
-        || !CollectPassiveEffects(Projection,ELDDemoEffectOp::ControlGrowth,Tough,Error))
+        || !CollectPassiveEffects(Projection,ELDDemoEffectOp::ControlGrowth,Tough,Error)
+        || !CollectPassiveEffects(Projection,ELDDemoEffectOp::HitGrowth,Counted,Error))
     { return false; }
     TMap<ELDDemoBonusStat,int64> Totals;
     // Y19: every full heal threshold of the match adds its max HP (each copy).
@@ -1058,6 +1299,14 @@ bool ALDCombatDirector::CardGrowthTerms(const FLDAttributeProjection& Projection
     for (const FLDPassiveEffectRef& Ref : Tough)
     {
         for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Counters.ControlsTaken; }
+    }
+    // A13: every full count of basic hits on contenders, D09: every perfect dodge, adds the card's stats (each copy).
+    for (const FLDPassiveEffectRef& Ref : Counted)
+    {
+        const int32 Events=Ref.Effect.Trigger==ELDDemoEffectTrigger::BasicHit ? Counters.BasicHits
+            : Ref.Effect.Trigger==ELDDemoEffectTrigger::PerfectDodge ? Counters.PerfectDodges : 0;
+        const int32 Steps=Ref.Effect.Count>0 ? Events/Ref.Effect.Count : 0;
+        for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Steps; }
     }
     for (const TPair<ELDDemoBonusStat,int64>& Pair : Totals)
     {
@@ -1194,6 +1443,7 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         Repeat.Action.bAutoRecast=true;
         Repeat.Action.bOverdrive=false;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
+        Repeat.Card=FName(TEXT("card_encore"));
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Terms.AutoRecastDelayMs*Index,Repeat.DueMs,Error)) { return false; }
     }
     return true;
@@ -1213,8 +1463,231 @@ bool ALDCombatDirector::RunAutoRecasts(int64 NowMs, FString& Error)
         if (!ReleaseAbility(*Actor,*Body,Repeat.Action,Reject,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_AUTO_RECAST t=%lld src=%s active=%s share_bp=%lld result=%u"),NowMs,
             *LDLog::Id(Body->Victim.EntityId),*Repeat.Action.Source.DefinitionId.ToString(),Repeat.Action.AutoRecastScaleBp,uint32(Reject));
-        if (Reject==ELDCombatReject::None) { LedgerCardTriggered(*Body,FName(TEXT("card_encore"))); }
+        if (Reject==ELDCombatReject::None) { LedgerCardTriggered(*Body,Repeat.Card.IsNone() ? FName(TEXT("card_encore")) : Repeat.Card); }
     }
+    return true;
+}
+
+// ---------------------------------------------------------------- issue #292 P5 cards
+
+bool ALDCombatDirector::OnPerfectDodgeCards(FLDBodyCombatState& Body, int64 NowMs, FString& Error)
+{
+    TArray<FLDPassiveEffectRef> Frees, Counted;
+    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DodgeFreeCast,Frees,Error)
+        || !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::HitGrowth,Counted,Error))
+    { return false; }
+    // D04: each copy makes one next skill free.
+    if (!Frees.IsEmpty())
+    {
+        Body.FreeCasts+=Frees.Num();
+        ++Body.StateRevision;
+        MarkViewChanged(Body.Victim.EntityId);
+        LedgerCardTriggered(Body,Frees[0].Key);
+    }
+    // D09: every perfect dodge counts toward the match growth.
+    if (Counted.ContainsByPredicate([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.Trigger==ELDDemoEffectTrigger::PerfectDodge; }))
+    {
+        FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
+        if (!Record) { Error=TEXT("A perfect dodge's growth lost its entity record."); return false; }
+        ++Record->CardGrowth.PerfectDodges;
+        LedgerCardTriggered(Body,Counted[0].Key);
+        if (!RefreshCardGrowth(Body.Victim.EntityId,NowMs,Error)) { return false; }
+    }
+    return true;
+}
+
+bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error)
+{
+    using namespace LDCombatCardsDetail;
+    if (Holder.bPendingDeath) { return true; }
+    TArray<FLDPassiveEffectRef> Bursts;
+    if (!CollectPassiveEffects(Holder.AttributeProjection,ELDDemoEffectOp::ShieldBurstBreak,Bursts,Error)) { return false; }
+    const ALDCharacter* Actor=ActorOf(Holder);
+    if (Bursts.IsEmpty() || !Actor) { return true; }
+    // Y06: copies add their damage terms; the first copy's radius.
+    int64 BaseP2=0, APBp=0, MaxHPBp=0;
+    for (const FLDPassiveEffectRef& Ref : Bursts)
+    {
+        BaseP2+=Ref.Effect.BaseP2;
+        APBp+=Ref.Effect.APRatioBp;
+        MaxHPBp+=Ref.Effect.MaxHPRatioBp;
+    }
+    TArray<FLDCombatBodyRef> Around;
+    if (!CollectAreaTargets(FootOf(*Actor),Cm(Bursts[0].Effect.RadiusCm),&Holder,Holder.Victim.EntityId,Around,Error)) { return false; }
+    const FGuid BurstId=FGuid::NewGuid();
+    for (const FLDCombatBodyRef& Other : Around)
+    {
+        FLDCombatHit Blast=MakeHit(Holder,Bursts[0].Source,Other,BurstId);
+        Blast.BaseP2=BaseP2;
+        Blast.APRatioBp=APBp;
+        Blast.MaxHPRatioBp=MaxHPBp;
+        Blast.SourceMaxHPP2=Holder.Resources.MaxHpP2;
+        Blast.DamageType=ELDDemoDamageType::Magical;
+        Blast.bFromShieldTrigger=true;
+        if (!StampSourceTerms(Holder,Blast,Error)) { return false; }
+        PendingHits.Add(MoveTemp(Blast));
+    }
+    if (!Around.IsEmpty()) { LedgerCardTriggered(Holder,Bursts[0].Key); }
+    return true;
+}
+
+bool ALDCombatDirector::OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error)
+{
+    if (BurnDamageP2<=0 || Source.bPendingDeath) { return true; }
+    TArray<FLDPassiveEffectRef> Guards;
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::BurnShield,Guards,Error)) { return false; }
+    if (Guards.IsEmpty()) { return true; }
+    // Y29: copies add their share; the shield takes the stronger of the current one and this one.
+    int64 ShareBp=0;
+    for (const FLDPassiveEffectRef& Ref : Guards) { ShareBp+=Ref.Effect.RatioBp; }
+    const int64 Amount=LDCombatCardsDetail::Share(BurnDamageP2,ShareBp);
+    if (Amount<=0) { return true; }
+    if (!GrantShieldTo(Source,Amount,Guards[0].Effect.DurationMs,FGuid::NewGuid(),Source.Victim.EntityId,NowMs,Error,Guards[0].Source))
+    { return false; }
+    LedgerCardTriggered(Source,Guards[0].Key);
+    return true;
+}
+
+bool ALDCombatDirector::OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error)
+{
+    // A card's own hits (a cashed tally among them) never mark.
+    if (Hit.Source.Kind==ELDCombatSourceKind::Card || Source.bPendingDeath) { return true; }
+    TArray<FLDPassiveEffectRef> Tallies;
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::Tally,Tallies,Error)) { return false; }
+    if (Tallies.IsEmpty()) { return true; }
+    const FLDDemoEffectDefinition& First=Tallies[0].Effect;
+    // Y24: a pause longer than the card's window clears the open marks; the mark that fills the count cashes every mark.
+    if (Source.TallyMarks>0 && NowMs-Source.TallyAtMs>First.DurationMs) { Source.TallyMarks=0; }
+    ++Source.TallyMarks;
+    Source.TallyAtMs=NowMs;
+    if (Source.TallyMarks<FMath::Max(First.Count,1)) { return true; }
+    int64 BaseP2=0, APBp=0;
+    for (const FLDPassiveEffectRef& Ref : Tallies)
+    {
+        BaseP2+=Ref.Effect.BaseP2;
+        APBp+=Ref.Effect.APRatioBp;
+    }
+    const int64 Marks=Source.TallyMarks;
+    Source.TallyMarks=0;
+    if (!ChainAllows(Hit,TEXT("tally"))) { return true; }
+    FLDCombatHit Cash=LDCombatCardsDetail::MakeHit(Source,Tallies[0].Source,Hit.Target,FGuid::NewGuid());
+    Cash.BaseP2=BaseP2*Marks;
+    Cash.APRatioBp=APBp*Marks;
+    Cash.DamageType=ELDDemoDamageType::Magical;
+    if (!StampSourceTerms(Source,Cash,Error)) { return false; }
+    PendingHits.Add(MoveTemp(Cash));
+    LedgerCardTriggered(Source,Tallies[0].Key);
+    UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_TALLY t=%lld src=%s marks=%lld target=%s"),NowMs,*LDLog::Id(Source.Victim.EntityId),Marks,
+        *LDLog::Id(Hit.Target.Victim.EntityId));
+    return true;
+}
+
+int64 ALDCombatDirector::OverdriveThresholdOf(const FLDBodyCombatState& Body) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    int64 Threshold=Content ? Content->Get().Parameters.Overdrive.ThresholdP2 : 0;
+    TArray<FLDPassiveEffectRef> Shorts;
+    FString Error;
+    // Y11: the lowest threshold of the copies (they do not stack below it).
+    if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
+    {
+        for (const FLDPassiveEffectRef& Ref : Shorts) { if (Ref.Effect.LimitP2>0) { Threshold=FMath::Min(Threshold,Ref.Effect.LimitP2); } }
+    }
+    return Threshold;
+}
+
+int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    int64 Scale=Content ? Content->Get().Parameters.Overdrive.ScaleBp : 10000;
+    TArray<FLDPassiveEffectRef> Shorts;
+    FString Error;
+    if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
+    {
+        for (const FLDPassiveEffectRef& Ref : Shorts) { if (Ref.Effect.MultiplierBp>0) { Scale=FMath::Min(Scale,Ref.Effect.MultiplierBp); } }
+    }
+    return Scale;
+}
+
+bool ALDCombatDirector::DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target,
+    FString& Error)
+{
+    using namespace LDCombatCardsDetail;
+    if (Dash.Source.Kind!=ELDCombatSourceKind::Innate) { return true; }
+    TArray<FLDPassiveEffectRef> Rams;
+    if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashRam,Dash.Source,Rams,Error)) { return false; }
+    if (Rams.IsEmpty()) { return true; }
+    // D07: copies add their damage terms; the first copy's push.
+    FLDCombatHit Ram=MakeHit(Body,Rams[0].Source,Target,Dash.EffectId);
+    for (const FLDPassiveEffectRef& Ref : Rams)
+    {
+        Ram.BaseP2+=Ref.Effect.BaseP2;
+        Ram.ADRatioBp+=Ref.Effect.ADRatioBp;
+    }
+    Ram.DamageType=ELDDemoDamageType::Physical;
+    Ram.bAddedDamage=true;
+    Ram.KnockbackCm=Cm(Rams[0].Effect.DistanceCm);
+    Ram.KnockbackMs=Rams[0].Effect.DurationMs;
+    Ram.bKnockbackFromAnchor=false;
+    Ram.KnockbackSource=Dash.Source;
+    if (!StampSourceTerms(Body,Ram,Error)) { return false; }
+    PendingHits.Add(MoveTemp(Ram));
+    LedgerCardTriggered(Body,Rams[0].Key);
+    return true;
+}
+
+bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombatAction& Basic, const FLDCombatHit& Primary, int64 NowMs,
+    FString& Error)
+{
+    if (Primary.ComboStep!=3 || Primary.bExtraStrike || Body.Victim.Kind!=ELDVictimKind::Contender) { return true; }
+    TArray<FLDPassiveEffectRef> Casts;
+    if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::ComboCast,{ELDCombatSourceKind::Basic,NAME_None},Casts,Error)) { return false; }
+    if (Casts.IsEmpty()) { return true; }
+    const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
+    const FLDLearnedActiveValue* Q=Record ? Record->Build.Actives.FindByPredicate([](const FLDLearnedActiveValue& Row)
+    { return Row.Entry==ELDCombatEntry::Q; }) : nullptr;
+    const FLDDemoContentSnapshot* Content=Catalog();
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    FString LookupError;
+    ALDCharacter* HolderActor=ActorOf(Body);
+    ALDCharacter* TargetActor=nullptr;
+    FindBody(Primary.Target,&TargetActor);
+    // Without a Q skill or a body to aim at, the third step casts nothing.
+    if (!Q || !Content || !Content->FindAbility(Q->AbilityId.ToString(),Ability,LookupError) || !Ability || !HolderActor || !TargetActor)
+    { return true; }
+    // A08: the Q skill releases at once toward the struck body at the card's share (copies add), costing nothing, issuing no
+    // cooldown, never an overdrive and never repeated (a K06-style free release).
+    FLDCombatAction Cast;
+    Cast.Kind=ELDCombatActionKind::Ability;
+    Cast.Key=Basic.Key;
+    Cast.Token=Basic.Token;
+    Cast.Entry=ELDCombatEntry::Q;
+    Cast.Source={ELDCombatSourceKind::Learned,Q->AbilityId};
+    Cast.Target=Basic.Target;
+    Cast.TargetBody=Primary.Target;
+    const FVector HolderFoot=FootOf(*HolderActor), TargetFoot=FootOf(*TargetActor);
+    Cast.Direction=(TargetFoot-HolderFoot).GetSafeNormal2D();
+    Cast.TargetPoint=TargetFoot;
+    switch (Ability->Target.Mode)
+    {
+    case ELDDemoTargetMode::Unit: break;
+    case ELDDemoTargetMode::Self: Cast.Target.Kind=ELDCombatTargetKind::Self; break;
+    case ELDDemoTargetMode::GroundPoint: Cast.Target.Kind=ELDCombatTargetKind::Point; Cast.Target.Point=TargetFoot; break;
+    default: Cast.Target.Kind=ELDCombatTargetKind::Direction; Cast.Target.Direction=Cast.Direction; break;
+    }
+    Cast.StartedAtMs=NowMs;
+    Cast.ReleaseAtMs=NowMs;
+    Cast.SourceRevision=Record->SourceRevision;
+    Cast.bAutoRecast=true;
+    Cast.bOverdrive=false;
+    int64 ShareBp=0;
+    for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }
+    Cast.AutoRecastScaleBp=ShareBp;
+    FLDCombatAutoRecast& Repeat=AutoRecasts.AddDefaulted_GetRef();
+    Repeat.Body={Body.Victim,Body.Identity};
+    Repeat.Action=MoveTemp(Cast);
+    Repeat.DueMs=NowMs;
+    Repeat.Card=Casts[0].Key;
     return true;
 }
 

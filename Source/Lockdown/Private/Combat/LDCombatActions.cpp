@@ -1059,8 +1059,48 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
     TArray<FLDCombatHit> Extra;
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
-    PendingHits.Add(Hit);
-    PendingHits.Append(MoveTemp(Extra));
+    // A08: the third step also releases the Q skill (queued for the next authority step).
+    if (!QueueComboCast(Body,Action,Hit,Now,Error)) { return false; }
+    // A05: a contender's basic flies toward its target as a dodgeable projectile carrying its strikes and riders; it lands on
+    // the first legal body in its way instead of the target for certain.
+    TArray<FLDPassiveEffectRef> Flights;
+    if (Body.Victim.Kind==ELDVictimKind::Contender
+        && !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::BasicProjectile,{ELDCombatSourceKind::Basic,NAME_None},Flights,Error))
+    { return false; }
+    ALDCharacter* TargetActor=nullptr;
+    FindBody(Action.TargetBody,&TargetActor);
+    if (!Flights.IsEmpty() && TargetActor)
+    {
+        const FLDDemoEffectDefinition& Flight=Flights[0].Effect;
+        const auto Cm=[](const FLDDemoRational& V) { return V.Denominator>0 ? double(V.Numerator)/double(V.Denominator) : 0.; };
+        FLDCombatProjectile Projectile;
+        Projectile.EffectId=Hit.EffectId;
+        Projectile.FlightId=FGuid::NewGuid();
+        Projectile.Token=Action.Token;
+        Projectile.SourceBody=Hit.SourceBody;
+        Projectile.SourceEntity=Hit.SourceEntity;
+        Projectile.CreditOwner=Hit.CreditOwner;
+        Projectile.Source=Hit.Source;
+        Projectile.DamageType=Hit.DamageType;
+        Projectile.OriginCm=FootOf(Actor);
+        Projectile.Direction=(FootOf(*TargetActor)-Projectile.OriginCm).GetSafeNormal2D();
+        Projectile.SpeedCmPerSec=Cm(Flight.ExtraDistanceCm);
+        // It reaches as far as the holder's (card-extended) attack range plus the target's body.
+        Projectile.RangeCm=Cm(Final.AttackRangeCm)+TargetActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
+        Projectile.RadiusCm=Cm(Flight.RadiusCm);
+        Projectile.AdvancedThroughMs=Now;
+        Projectile.Payload=Hit;
+        Projectile.Riders=MoveTemp(Extra);
+        if (Projectile.Direction.IsNearlyZero() || Projectile.SpeedCmPerSec<=0)
+        { Error=TEXT("A flying basic has no direction or speed."); return false; }
+        Projectiles.Add(MoveTemp(Projectile));
+        LedgerCardTriggered(Body,Flights[0].Key);
+    }
+    else
+    {
+        PendingHits.Add(Hit);
+        PendingHits.Append(MoveTemp(Extra));
+    }
     LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
     if (!Taken.IsEmpty() || Body.Empowers.Num()!=PendingBefore)
     {
@@ -1092,8 +1132,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // Overdrive: a release admitted with a held charge whose bar still holds OVERDRIVE.Threshold scales its base amounts
     // and ratios and takes its element's bonus; otherwise it releases normally (never a refusal).
     const auto& OverdriveTerms=Content->Get().Parameters.Overdrive;
+    // Y11: the holder's own threshold.
+    FLDDemoOverdriveParameters BodyOverdrive=OverdriveTerms;
+    BodyOverdrive.ThresholdP2=OverdriveThresholdOf(Body);
     const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
-        && LDMomentum::OverdriveReady(OverdriveTerms,Body.Resources.MomentumP2);
+        && LDMomentum::OverdriveReady(BodyOverdrive,Body.Resources.MomentumP2);
     if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
     // K06: a repeat releases at its share of the damage.
     if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
@@ -1118,7 +1161,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bSplitSegment=bInnate && Body.SplitDashLeft>0 && Now<=Body.SplitDashUntilMs;
     const bool bBranchRecast=!bInnate && !Action.bAutoRecast && BranchRecastOpen(Body,Source,Now);
     const bool bRecast=bBranchRecast || Action.bAutoRecast || bSplitSegment;
-    const bool bFreeCast=!bInnate && !bRecast && BranchFreeCast(Body,Source,Now);
+    // S05 B2's window or D04's free cast of a perfect dodge.
+    const bool bFreeCast=!bInnate && !bRecast && (BranchFreeCast(Body,Source,Now) || Body.FreeCasts>0);
     // K12: the release pays health instead of momentum (refused while the body cannot pay it and live).
     const bool bHealthCost=!bInnate && !bRecast && !bFreeCast && Terms.HPCostBpPerMomentum>0;
     const int64 HealthCostP2=bHealthCost ? Body.Resources.MaxHpP2/10000*Terms.HPCostBpPerMomentum*ValuesDef->MomentumCostP2/100
@@ -1126,7 +1170,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if (bHealthCost && Body.Resources.HpP2<=HealthCostP2) { Reject=ELDCombatReject::HealthShort; return true; }
     Gate.ReadyAtMs=bRecast ? Now : Track->ReadyAtMs;
     Gate.MomentumP2=Body.Resources.MomentumP2;
-    Gate.MomentumCostP2=bInnate || bRecast || bFreeCast || bHealthCost ? 0 : ValuesDef->MomentumCostP2;
+    // D08: the innate dash pays its card's momentum (an open D05 segment costs nothing).
+    Gate.MomentumCostP2=bInnate ? (bSplitSegment ? 0 : Terms.DashMomentumCostP2)
+        : bRecast || bFreeCast || bHealthCost ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body.Roots;
@@ -1258,7 +1304,24 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             *Source.DefinitionId.ToString(),PaidP2);
     }
     if (Body.OverdriveCharge.IsSet()) { EndOverdriveCharge(Body); }
-    if (bFreeCast) { Body.Branch.FreeCastUntilMs=0; }
+    if (bFreeCast)
+    {
+        // A branch window spends first; otherwise one of D04's free casts.
+        if (BranchFreeCast(Body,Source,Now)) { Body.Branch.FreeCastUntilMs=0; }
+        else { Body.FreeCasts=FMath::Max(Body.FreeCasts-1,0); }
+    }
+    // K05: the next skill took the control bonus; K18: this release joins the recent ones (repeats and recasts do not).
+    if (Source.Kind==ELDCombatSourceKind::Learned && !Body.ControlAmpCard.IsNone())
+    {
+        Body.ControlAmpCard=NAME_None;
+        Body.ControlAmpBp=0;
+        Body.ControlAmpUntilMs=0;
+    }
+    if (Source.Kind==ELDCombatSourceKind::Learned && !bRecast)
+    {
+        Body.RecentCasts.RemoveAll([Now](const TPair<FName,int64>& Row) { return Now-Row.Value>10000; });
+        Body.RecentCasts.Emplace(Source.DefinitionId,Now);
+    }
     ++Body.Resources.Revision;
     // A recast keeps the first release's cooldown.
     if (!bRecast)

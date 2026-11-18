@@ -197,6 +197,8 @@ struct FLDCombatActiveTerms
     int64 SplitWindowMs=0;
     // A gust overdrive (spec §3.5): its hits leave the ground state of the element their target held where the push lands.
     bool bOverdriveGustGround=false;
+    // D08: the innate dash pays this much momentum (copies add).
+    int64 DashMomentumCostP2=0;
 };
 
 // Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun, final bowling).
@@ -331,6 +333,16 @@ struct FLDCombatAutoRecast
     FLDCombatBodyRef Body;
     FLDCombatAction Action;
     int64 DueMs=0;
+    // The card that queued it (K06 card_encore, A08 card_fist_skill).
+    FName Card;
+};
+
+// K03: a learned skill's latest native hit on a contender life by one contributor (the assist window decides).
+struct FLDSkillContribution
+{
+    FGuid Contributor;
+    FName Skill;
+    int64 AtMs=0;
 };
 
 struct FLDBodyCombatState
@@ -461,6 +473,15 @@ struct FLDBodyCombatState
     int64 IdleSinceMs=0;
     int32 SplitDashLeft=0;
     int64 SplitDashUntilMs=0;
+    // Issue #292 P5 cards: D04's free next casts, K05's next-skill bonus (its card and window), K18's recent releases (skill and
+    // instant), Y24's open tally (marks and the last mark's instant) and K03's skill contributions on this contender life.
+    int32 FreeCasts=0;
+    FName ControlAmpCard;
+    int64 ControlAmpBp=0, ControlAmpUntilMs=0;
+    TArray<TPair<FName,int64>> RecentCasts;
+    int32 TallyMarks=0;
+    int64 TallyAtMs=0;
+    TArray<FLDSkillContribution> SkillContributions;
     // Skill branch state (LDCombatBranchDirector.cpp).
     FLDCombatBranchState Branch;
 };
@@ -473,6 +494,8 @@ struct FLDCardGrowth
     int32 Kills=0, Assists=0, ControlsTaken=0;
     // K17: hits on contenders of each installed copy's host (by card serial).
     TMap<uint16,int32> SkillHits;
+    // A13: primary basic hits on contenders; D09: perfect dodges.
+    int32 BasicHits=0, PerfectDodges=0;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -819,6 +842,8 @@ struct FLDCombatProjectile
     FGuid StartContact;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
+    // A05's flying basic: the strikes and riders that land with its primary (A06, A09, A11), retargeted to the struck body.
+    TArray<FLDCombatHit> Riders;
 };
 
 // A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, and (#198) a slow check and a burn check
@@ -1445,10 +1470,24 @@ private:
         int64 NowMs, FString& Error);
     // A completed reaction: Y04 momentum, Y05's next element and K25's cut.
     bool OnCardReaction(const FLDCombatReactionFact& Fact, int64 NowMs, FString& Error);
-    // A contender kill or assist credited to Entity: Y02's refresh and Y20's growth.
-    bool OnCardTakedown(const FGuid& Entity, bool bKill, int64 NowMs, FString& Error);
-    // Y21: a hard control actually landed on Victim.
+    // A contender kill or assist credited to Entity: Y02's refresh, Y20's growth and K03's host refresh (a host whose native hit
+    // reached Victim within WindowMs, the fatal one included).
+    bool OnCardTakedown(const FGuid& Entity, bool bKill, const FLDBodyCombatState& Victim, int64 WindowMs, int64 NowMs, FString& Error);
+    // Y21: a hard control actually landed on Victim; K05: one from a host skill arms its holder's next-skill bonus.
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
+    // Issue #292 P5 cards: D04/D09 on a perfect dodge of Body; Y06 on a broken shield of Holder; Y29 a share of the burn damage
+    // Source dealt as its shield; Y24's tally of a hit of Source on Target.
+    bool OnPerfectDodgeCards(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error);
+    bool OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error);
+    bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // Y11: Body's overdrive threshold and scale (OVERDRIVE.Threshold / OVERDRIVE.Scale unless an overdrive_short card replaces them).
+    int64 OverdriveThresholdOf(const FLDBodyCombatState& Body) const;
+    int64 OverdriveScaleOf(const FLDBodyCombatState& Body) const;
+    // D07: an innate dash ramming Target deals the card's damage and pushes it away.
+    bool DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target, FString& Error);
+    // A08: a landed third basic step queues a free Q release toward its target at the card's share.
+    bool QueueComboCast(FLDBodyCombatState& Body, const FLDCombatAction& Basic, const FLDCombatHit& Primary, int64 NowMs, FString& Error);
     // The grow cards' match growth as projection terms (Y19, Y20, Y21): the counters times the grow cards Projection holds,
     // sorted by stat. A projection without grow cards gives none.
     bool CardGrowthTerms(const FLDAttributeProjection& Projection, const FLDCardGrowth& Counters, TArray<FLDDemoStatBonus>& Out,
