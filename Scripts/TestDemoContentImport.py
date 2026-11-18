@@ -845,100 +845,51 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(pattern=pattern, mutation=mutation):
                 self.assert_refused(mutation, pattern)
 
-    def test_components_project_kinds_openings_bindings_and_category_bands(self):
-        # #198 B: components keep their authored native ID order and carry their opcodes, openings and bindings.
+    def test_cards_project_forms_types_vocabulary_and_element_choices(self):
+        # Spec §6/§7: cards keep their authored native ID order and carry their opcodes, form, type, vocabulary and Y25's
+        # element choices.
         data = self.baseline.catalog.data
-        self.assertEqual([(row["id"], row["native_id"]) for row in data["components"]],
-                         [("component_fist_fire", 1), ("component_kick_down", 7), ("component_dash_punch", 12),
-                          ("component_dirty_trick", 18)])
-        fire = self.baseline.catalog.definition("component_fist_fire")
-        self.assertEqual((fire["kind"], fire["pool"], fire["opening"]), ("base", "common", "always"))
+        self.assertEqual([row["id"] for row in data["cards"]],
+                         ["card_fire_fist", "card_encore", "card_shock_dash", "card_live_wire"])
+        fire = self.baseline.catalog.definition("card_fire_fist")
+        self.assertEqual((fire["form"], fire["type"], fire["vocab"]), ("basic", "element", ("element", "basic_hit")))
         self.assertEqual(fire["effects"], ({"op": "burn", "opcode": 71, "basic_stacks": 2},))
-        self.assertEqual(self.baseline.catalog.definition("component_kick_down")["opening"]["actives"], ("active_pants_down",))
-        punch = self.baseline.catalog.definition("component_dash_punch")
-        self.assertNotIn("opening", punch)
-        self.assertEqual((punch["effects"][0]["trigger"], punch["effects"][0]["charges"]), ("DashComplete", 1))
-        trick = self.baseline.catalog.definition("component_dirty_trick")
-        self.assertEqual(trick["effects"], ({"op": "active_element", "opcode": 104},))
-        self.assertEqual(trick["binding"]["actives"], ("active_snark_bolt", "active_pants_down"))
-        self.assertEqual(trick["binding"]["elements"], ("fire", "water"))
-        self.assertNotIn("draw_requires_actives", trick)
-        self.edit(lambda value: next(row for row in value["components"] if row["id"] == "component_dash_punch").update(
-            draw_requires_actives=["active_snark_bolt", "active_pants_down"]))
-        required = demo.compile_content(self.root).catalog.definition("component_dash_punch")["draw_requires_actives"]
-        self.assertEqual(required, ("active_snark_bolt", "active_pants_down"))
-        self.edit(lambda value: [row.update(form="dash_shape") for row in value["components"]
-                                 if row["id"] in ("component_fist_fire", "component_kick_down")])
-        self.assertEqual(demo.compile_content(self.root).catalog.definition("component_kick_down")["form"], "dash_shape")
-        self.assertEqual([(band["levels"], band["base"], band["mod"], band["connector"])
-                          for band in data["progression"]["component_category_weights"]],
-                         [((2, 8), 60, 20, 20), ((9, 16), 30, 30, 40)])
-        self.assertEqual(self.baseline.catalog.parameter("GROWTH.EmptyComponentPoolPoints"), 2)
+        wire = self.baseline.catalog.definition("card_live_wire")
+        self.assertEqual(wire["choose_element"], ("fire", "water"))
+        self.assertNotIn("choose_element", self.baseline.catalog.definition("card_encore"))
+        for parameter, value in (("CARDS.CapacityBase", 5), ("CARDS.OfferSize", 3), ("CHAIN.MaxDepth", 8)):
+            self.assertEqual(self.baseline.catalog.parameter(parameter), value)
 
-    def test_component_rows_category_bands_and_component_ops_refuse_invalid_inputs(self):
+    def test_card_rows_and_ops_refuse_invalid_inputs(self):
         def piece(data, identity):
-            return next(row for row in data["components"] if row["id"] == identity)
+            return next(row for row in data["cards"] if row["id"] == identity)
 
         def bolt(data):
             return next(row for row in data["abilities"] if row["id"] == "active_snark_bolt")
 
-        bands = lambda data: data["progression"]["component_category_weights"]
         for mutation, code in (
-            # Level-up category bands: contiguous from 2 to max_level, each a 100 percent split with all three keys.
-            (lambda data: bands(data)[1]["levels"].__setitem__(0, 10), "CategoryWeights"),
-            (lambda data: bands(data)[1]["levels"].__setitem__(0, 8), "CategoryWeights"),
-            (lambda data: bands(data)[0]["levels"].__setitem__(0, 3), "CategoryWeights"),
-            (lambda data: bands(data)[1]["levels"].__setitem__(1, 15), "CategoryWeights"),
-            (lambda data: bands(data)[0].update(base=61), "CategoryWeights"),
-            (lambda data: bands(data)[0].pop("connector"), "MissingField"),
-            (lambda data: bands(data).reverse(), "CategoryWeights"),
-            (lambda data: data["progression"].pop("component_category_weights"), "MissingField"),
-            (lambda data: data["parameters"].pop("GROWTH.EmptyComponentPoolPoints"), "MissingField"),
-            (lambda data: data["parameters"].update({"GROWTH.EmptyComponentPoolPoints": 0}), "NumericDomain"),
-            # Bindings name known damaging actives and distinct fire/water/electric elements.
-            (lambda data: piece(data, "component_dirty_trick")["binding"]["actives"].append("active_missing"), "InvalidReference"),
-            (lambda data: piece(data, "component_dirty_trick")["binding"]["actives"].append("active_not_mad"), "ComponentBinding"),
-            (lambda data: piece(data, "component_dirty_trick")["binding"]["elements"].append("fire"), "ComponentBinding"),
-            (lambda data: piece(data, "component_dirty_trick")["binding"]["elements"].append("ice"), "UnknownEnum"),
-            (lambda data: piece(data, "component_dirty_trick").pop("binding"), "ComponentBinding"),
-            (lambda data: piece(data, "component_fist_fire").update(
-                binding={"kind": "active_element", "actives": ["active_snark_bolt"], "elements": ["fire"]}), "ComponentBinding"),
-            # Openings name actives of the opening pool, and only common base components open.
-            (lambda data: piece(data, "component_kick_down")["opening"]["actives"].append("active_missing"), "InvalidReference"),
-            (lambda data: piece(data, "component_kick_down")["opening"]["actives"].append("active_stare_down"), "OpeningPool"),
-            (lambda data: piece(data, "component_fist_fire").update(pool="scarce"), "OpeningPool"),
-            (lambda data: piece(data, "component_fist_fire").update(opening="never"), "SchemaVariant"),
-            (lambda data: piece(data, "component_fist_fire").update(kind="charm"), "UnknownEnum"),
-            # A draw requirement names distinct known actives on a common (level-up drawable) component.
-            (lambda data: piece(data, "component_dash_punch").update(draw_requires_actives=["active_missing"]), "InvalidReference"),
-            (lambda data: piece(data, "component_dash_punch").update(
-                draw_requires_actives=["active_snark_bolt", "active_snark_bolt"]), "InvalidReference"),
-            (lambda data: piece(data, "component_dash_punch").update(draw_requires_actives="active_snark_bolt"), "SchemaType"),
-            (lambda data: piece(data, "component_dash_punch").update(draw_requires_actives=[]), "ArrayLength"),
-            (lambda data: piece(data, "component_dash_punch").update(pool="scarce", draw_requires_actives=["active_snark_bolt"]),
-             "DrawRequirement"),
-            # A form groups at least two components of one kind.
-            (lambda data: piece(data, "component_kick_down").update(form="solo_form"), "UnknownEnum"),
-            (lambda data: piece(data, "component_kick_down").update(form="dash_shape"), "ComponentForm"),
-            # Component and active operation forms never cross.
-            (lambda data: bolt(data)["effects"].append({"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.1}}),
-             "ComponentOnlyEffect"),
-            (lambda data: piece(data, "component_fist_fire")["effects"].append({"op": "root", "duration": {"unit": "s", "value": 1}}),
-             "ComponentEffect"),
-            (lambda data: piece(data, "component_fist_fire")["effects"][0].update(stacks=1), "ObjectShape"),
-            (lambda data: piece(data, "component_dash_punch")["effects"][0].pop("trigger"), "ObjectShape"),
-            (lambda data: piece(data, "component_dash_punch")["effects"][0].pop("charges"), "ObjectShape"),
-            (lambda data: piece(data, "component_dash_punch")["effects"][0].update(damage_type="Magical"), "NumericDomain"),
-            (lambda data: piece(data, "component_kick_down")["effects"].append({"op": "basic_damage_scale", "ratio": {"unit": "ratio", "value": 1}}),
-             "NumericDomain"),
-            (lambda data: piece(data, "component_kick_down")["effects"].append(
-                {"op": "nth_basic_bonus", "count": 3, "base": {"unit": "points", "value": 5}, "damage_type": "Physical"}), "SchemaVariant"),
-            (lambda data: data["components"].reverse(), "ComponentOrder"),
-            (lambda data: data["components"].append(deepcopy(data["components"][0])), "DuplicateId"),
-            (lambda data: data["components"].append(dict(deepcopy(data["components"][0]), id="active_snark_bolt")), "UnknownId"),
-            (lambda data: next(row for row in data["display"] if row["id"] == "component_fist_fire").update(
+            (lambda data: data["cards"].reverse(), "CardOrder"),
+            (lambda data: data["cards"].append(deepcopy(data["cards"][0])), "DuplicateId"),
+            (lambda data: piece(data, "card_fire_fist").update(form="wing"), "UnknownEnum"),
+            (lambda data: piece(data, "card_fire_fist").update(type="rare"), "UnknownEnum"),
+            (lambda data: piece(data, "card_fire_fist")["vocab"].append("teleport"), "UnknownEnum"),
+            (lambda data: piece(data, "card_fire_fist")["vocab"].append("element"), "InvalidReference"),
+            (lambda data: piece(data, "card_fire_fist").update(vocab=[]), "ArrayLength"),
+            # A card's operations belong to its form.
+            (lambda data: piece(data, "card_fire_fist")["effects"].append(
+                {"op": "auto_recast", "delay": {"unit": "s", "value": 0.5}, "damage_ratio": {"unit": "ratio", "value": 0.5}}),
+             "CardForm"),
+            (lambda data: piece(data, "card_fire_fist")["effects"][0].update(stacks=1), "ObjectShape"),
+            # Y25 alone names its element choices, distinct.
+            (lambda data: piece(data, "card_live_wire").pop("choose_element"), "CardElementChoice"),
+            (lambda data: piece(data, "card_fire_fist").update(choose_element=["fire"]), "CardElementChoice"),
+            (lambda data: piece(data, "card_live_wire")["choose_element"].append("fire"), "InvalidReference"),
+            # A card operation never sits on an active.
+            (lambda data: bolt(data)["effects"].append({"op": "auto_recast", "delay": {"unit": "s", "value": 0.5},
+                                                        "damage_ratio": {"unit": "ratio", "value": 0.5}}), "SchemaVariant"),
+            (lambda data: next(row for row in data["display"] if row["id"] == "card_fire_fist").update(
                 description_text="点火 [root.duration]"), "CardTemplate"),
-            (lambda data: data["display"].remove(next(row for row in data["display"] if row["id"] == "component_kick_down")),
+            (lambda data: data["display"].remove(next(row for row in data["display"] if row["id"] == "card_encore")),
              "DisplayReference"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))

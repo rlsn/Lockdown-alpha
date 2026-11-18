@@ -137,13 +137,10 @@ def target(value=None):
 
 
 TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete")
-# ELDDemoElement, ELDDemoComponentKind, ELDDemoComponentPool and ELDDemoComponentBinding in declaration order.
+# ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
 ELEMENTS = ("none", "fire", "water", "electric")
-COMPONENT_KINDS = ("base", "mod", "connector")
-COMPONENT_POOLS = ("common", "scarce")
-COMPONENT_TAGS = ("projectile", "spell", "control", "element", "area", "collision", "basic", "defense", "tempo", "ledger")
-COMPONENT_BINDINGS = (None, "active_element")
-COOLDOWN_ENTRIES = ("None", "Actives")
+CARD_FORMS = ("basic", "skill", "dash", "body")
+CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 
 
 def effect(value):
@@ -152,7 +149,7 @@ def effect(value):
         "DurationMs": 0, "DelayMs": 0, "RatioBp": 0,
         "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
-        "Trigger": 0, "Entries": 0, "AmountMs": 0,
+        "Trigger": 0, "AmountMs": 0, "StepRate": rational(),
         "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
         "LimitP2": 0, "bEveryContact": False, "Element": 0, "AngleDegrees": rational(), "CostRatioBp": 0,
         "ExtraDurationMs": 0, "ExtraDistanceCm": rational(), "Scope": 0, "RecastControl": 0,
@@ -203,8 +200,6 @@ def effect(value):
     # A reflection answers primary basics only; its trigger names no native selector.
     if "trigger" in value and value.get("op") != "thorns":
         result["Trigger"] = TRIGGERS.index(value["trigger"])
-    if "entries" in value:
-        result["Entries"] = COOLDOWN_ENTRIES.index(value["entries"])
     if "element" in value:
         result["Element"] = ELEMENTS.index(value["element"])
     if value.get("op") == "channel_cone":
@@ -212,12 +207,35 @@ def effect(value):
         if "slow_waves" in value:
             result["BasicCount"] = value["slow_waves"]
     branch_terms(value, result)
+    card_terms(value, result)
     # #198 dash_contact: First touches one body (Count 1); Every touches each body once.
     if value.get("targets") == "First":
         result["Count"] = 1
     elif value.get("targets") == "Every":
         result["bEveryContact"] = True
     return result
+
+
+def card_terms(value, result):
+    """Card fields (spec §7) whose slot differs from the shared mapping, as the native importer reads them."""
+    op = value.get("op")
+    if op in ("combo_momentum", "skill_hit_momentum", "reaction_momentum"):
+        result["BaseP2"] = 0
+        result["LimitP2"] = scalar(value["momentum"])
+    elif op == "haste_momentum":
+        result["BaseP2"] = scalar(value["haste"])
+        result["LimitP2"] = scalar(value["momentum"])
+    elif op == "heal_growth":
+        result["BaseP2"] = scalar(value["heal"])
+        result["LimitP2"] = scalar(value["max_hp"])
+    elif op == "armor_to_hp":
+        result["BaseP2"] = scalar(value["max_hp"])
+    elif op == "overcap_extra_hit":
+        result["StepRate"] = rational(value["step"])
+    elif op == "element_duration":
+        result["MultiplierBp"] = scalar(value["multiplier"])
+    elif op == "kill_growth" and "assist_ratio" in value:
+        result["RatioBp"] = scalar(value["assist_ratio"])
 
 
 def branch_terms(value, result):
@@ -290,26 +308,16 @@ def values(value):
     }
 
 
-def component(row):
-    opening = row.get("opening")
-    binding = row.get("binding")
+def vocab_mask(keys):
+    return sum(1 << demo.CARD_VOCAB.index(key) for key in keys)
+
+
+def card(row):
     return {
-        "Id": row["id"], "NativeId": row["native_id"], "Kind": COMPONENT_KINDS.index(row["kind"]),
-        "Pool": COMPONENT_POOLS.index(row["pool"]), "Tags": [COMPONENT_TAGS.index(tag) for tag in row["tags"]],
-        "bOpeningAlways": opening == "always",
-        "OpeningActives": list(opening["actives"]) if type(opening) is dict else [],
-        "Binding": COMPONENT_BINDINGS.index(None if binding is None else binding["kind"]),
-        "BindActives": [] if binding is None else list(binding["actives"]),
-        "BindElements": [] if binding is None else [ELEMENTS.index(element) for element in binding["elements"]],
-        "TargetActives": list(row.get("targets", {}).get("actives", [])),
-        "TargetComponents": list(row.get("targets", {}).get("components", [])),
-        "bTargetDash": bool(row.get("targets", {}).get("dash", False)), "bTargetSelf": bool(row.get("targets", {}).get("self", False)),
-        "ExtraBases": list(row.get("targets", {}).get("bases", [])),
-        "DrawRequiresActives": list(row.get("draw_requires_actives", [])),
-        "Form": row.get("form", ""),
+        "Id": row["id"], "NativeId": row["native_id"], "Form": CARD_FORMS.index(row["form"]), "Type": CARD_TYPES.index(row["type"]),
+        "VocabMask": vocab_mask(row["vocab"]), "ChooseElements": [ELEMENTS.index(element) for element in row.get("choose_element", [])],
         "Effects": [effect(value) for value in row["effects"]],
     }
-
 
 def dash_definition(value):
     return {
@@ -372,7 +380,7 @@ def parameter_projection(parameters):
         ("AIRDROP.MoveSpeedRatio", "AirdropMoveSpeedBp"),
         ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
         ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
-        ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"), ("COMBAT.LifestealCap", "LifestealCapBp"),
+        ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"),
         ("COMBAT.KeystonePhysiqueHealToShieldRatio", "KeystonePhysiqueHealToShieldBp"),
         ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "KeystonePhysiqueShieldMaxHPBp"),
         ("COMBAT.KeystonePhysiqueShieldDurationSec", "KeystonePhysiqueShieldDurationMs"),
@@ -422,11 +430,13 @@ def parameter_projection(parameters):
         ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.NpcActiveSkipPoints", "NpcActiveSkipPoints"),
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
-        ("GROWTH.EmptyComponentPoolPoints", "EmptyComponentPoolPoints"),
         ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"),
-        ("GROWTH.FillGapPoints", "FillGapPoints"), ("GROWTH.DismantleInputCount", "DismantleInputCount"),
+        ("CHAIN.MaxDepth", "ChainMaxDepth"), ("CHAIN.MaxEffectsPerStep", "ChainMaxEffectsPerStep"),
     ):
         result[dest] = parameters[source]
+    result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
+    result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
+        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "LockSlots", "VocabWeight")}
     result["AI"] = {}
     for source, dest in (
         ("RetreatHPRatio", "RetreatHPBp"), ("ResumeFarmHPRatio", "ResumeFarmHPBp"),
@@ -438,6 +448,9 @@ def parameter_projection(parameters):
     ):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
+    result["AI"]["CardVocabScore"] = parameters["AI.CardVocabScore"]
+    result["AI"]["BreakoutChanceBp"] = scalar(parameters["AI.BreakoutChance"])
+    result["AI"]["BreakoutCardScore"] = parameters["AI.BreakoutCardScore"]
     result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])
     result["Momentum"] = {
         "MaxP2": scalar(parameters["MOMENTUM.Max"]), "StartP2": scalar(parameters["MOMENTUM.Start"]),
@@ -522,15 +535,17 @@ def expected_projection(compilation):
         "Abilities": [{
             "Id": row["id"], "NativeId": row["native_id"], "Opening": row["opening"], "Target": target(row["target"]),
             "WindupMs": scalar(row["windup"]), "CooldownFamily": row["cooldown_family"],
-            "Element": SKILL_ELEMENTS.index(row["element"]), "HitType": HIT_TYPES.index(row["hit_type"]), "Values": values(row),
+            "Element": SKILL_ELEMENTS.index(row["element"]), "HitType": HIT_TYPES.index(row["hit_type"]),
+            "VocabMask": vocab_mask(row.get("vocab", [])), "Values": values(row),
             "Branches": [{
                 "Path": ("None", "A", "B", "A1", "A2", "B1", "B2").index(branch["path"]), "Target": target(branch["target"]),
                 "WindupMs": scalar(branch["windup"]), "Element": SKILL_ELEMENTS.index(branch["element"]),
-                "HitType": HIT_TYPES.index(branch["hit_type"]), "Values": values(branch),
+                "HitType": HIT_TYPES.index(branch["hit_type"]), "VocabMask": vocab_mask(branch.get("vocab", [])),
+                "Values": values(branch),
             } for branch in row["branches"]],
         } for row in data["abilities"]],
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
-        "Components": [component(row) for row in data["components"]],
+        "Cards": [card(row) for row in data["cards"]],
         "FinalMods": [{
             "Id": row["id"], "NativeId": row["native_id"],
             "Requirement": ("Basic", "ForcedMove", "HardControl", "Dash", "PlacedZone").index(row["requirement"]),
@@ -551,15 +566,7 @@ def expected_projection(compilation):
         "Progression": {dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"), ("active_offer_levels", "ActiveOfferLevels"),
-            ("bonus_component_levels", "BonusComponentLevels"),
-        )} | {"WorkshopCapacityBase": data["progression"]["workshop_capacity"]["base"],
-              "WorkshopCapacityLevelsPerSlot": data["progression"]["workshop_capacity"]["levels_per_slot"],
-              "WorkshopBodyColumnCapacity": data["progression"]["workshop_capacity"]["body_column"],
-              "WorkshopDashColumnCapacity": data["progression"]["workshop_capacity"]["dash_column"],
-              "ComponentCategoryWeights": [{
-            "MinLevel": band["levels"][0], "MaxLevel": band["levels"][1], "BasePercent": band["base"],
-            "ModPercent": band["mod"], "ConnectorPercent": band["connector"],
-        } for band in data["progression"]["component_category_weights"]]},
+        )},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("capture_id", "CaptureId"),
             ("pk_spawn_ids", "PKSpawnIds"), ("pk_throw_id", "PKThrowId"),
@@ -950,30 +957,16 @@ def _export_cases(output, index, base, value_mutations, valid, written):
                 "active offer levels")
     bad_content("retired_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [5]}), "unknown field")
     bad_content("missing_opening", lambda d: d["abilities"][0].pop("opening"), "missing")
-    # #198 B: components, their bindings and the level-up category bands.
-    piece = lambda d, identity: next(row for row in d["components"] if row["id"] == identity)
-    bad_content("component_band_gap", lambda d: d["progression"]["component_category_weights"][1]["levels"].__setitem__(0, 10),
-                "category bands")
-    bad_content("component_band_sum", lambda d: d["progression"]["component_category_weights"][0].update({"base": 61}),
-                "add up to 100")
-    bad_content("component_band_short", lambda d: d["progression"]["component_category_weights"].pop(), "reach max_level")
-    bad_content("component_unknown_bind_active", lambda d: piece(d, "component_dirty_trick")["binding"]["actives"].append("active_missing"),
-                "active reference")
-    bad_content("component_bind_without_damage", lambda d: piece(d, "component_dirty_trick")["binding"]["actives"].append("active_not_mad"),
-                "native direct damage")
-    bad_content("component_closed_opening", lambda d: piece(d, "component_kick_down")["opening"]["actives"].append("active_stare_down"),
-                "opening pool")
-    bad_content("component_unbound_element", lambda d: piece(d, "component_dirty_trick").pop("binding"), "binding come together")
-    bad_content("component_unsorted", lambda d: d["components"].reverse(), "ascending native ID")
-    bad_content("component_op_on_active", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["effects"].append(
-        {"op": "lifesteal", "opcode": ids_data["effect_ops"]["lifesteal"], "ratio": {"unit": "ratio", "bp": 1000}}),
-        "component operation")
-    bad_content("active_op_on_component", lambda d: piece(d, "component_fist_fire")["effects"].append(
-        {"op": "root", "opcode": ids_data["effect_ops"]["root"], "duration": {"unit": "ms", "ms": 1000}}), "not a component operation")
-    bad_content("component_active_burn", lambda d: piece(d, "component_fist_fire")["effects"][0].update({"stacks": 1}),
-                "primary basic hit")
-    bad_content("component_untriggered_empower", lambda d: piece(d, "component_dash_punch")["effects"][0].pop("trigger"), "missing")
-    bad_content("zero_empty_pool_points", lambda d: d["parameters"].update({"GROWTH.EmptyComponentPoolPoints": 0}), "integer outside")
+    # Spec §6: cards, their vocabulary, forms and Y25's element choices.
+    piece = lambda d, identity: next(row for row in d["cards"] if row["id"] == identity)
+    bad_content("card_unsorted", lambda d: d["cards"].reverse(), "ascending native ID")
+    bad_content("card_unknown_vocab", lambda d: piece(d, "card_fire_fist")["vocab"].append("teleport"), "vocabulary key")
+    bad_content("card_unknown_form", lambda d: piece(d, "card_fire_fist").update({"form": "wing"}), "unknown card form")
+    bad_content("card_op_outside_form", lambda d: piece(d, "card_fire_fist")["effects"].append(
+        {"op": "auto_recast", "opcode": ids_data["effect_ops"]["auto_recast"], "delay": {"unit": "ms", "ms": 500},
+         "damage_ratio": {"unit": "ratio", "bp": 5000}}), "outside the card's form")
+    bad_content("card_aura_without_elements", lambda d: piece(d, "card_live_wire").pop("choose_element"), "element aura")
+    bad_content("card_active_burn", lambda d: piece(d, "card_fire_fist")["effects"][0].update({"stacks": 1}), "primary basic hit")
     bad_content("small_opening_pool", lambda d: [row.update({"opening": False}) for row in d["abilities"][:2]], "opening pool")
     bad_content("zero_points_per_level", lambda d: d["parameters"].update({"GROWTH.PointsPerLevel": 0}), "integer outside")
     bad_content("zero_build_safe_window", lambda d: d["parameters"]["GROWTH.BuildSafeWindowSec"].update({"ms": 0}), "integer outside")
@@ -1029,7 +1022,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
                 "card placeholder")
     bad_content("per_point_on_active", lambda d: display(d, "active_snark_bolt").update({"description_text": "[per_point.APFlat]"}),
                 "card placeholder")
-    bad_content("component_card_absent_effect", lambda d: display(d, "component_fist_fire").update({"description_text": "[root.duration]"}),
+    bad_content("card_absent_effect", lambda d: display(d, "card_fire_fist").update({"description_text": "[root.duration]"}),
                 "card placeholder")
     bad_content("unapproved_metadata", lambda d: d["identity"]["approval"].update({"status": "candidate"}), "approval metadata")
     bad_content("bad_policy", lambda d: d["policies"].update({"MissingSourceCooldown": "Disallowed"}), "unsupported constant")

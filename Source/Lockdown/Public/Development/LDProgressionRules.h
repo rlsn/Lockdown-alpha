@@ -150,8 +150,8 @@ struct FLDProgressionState
     uint64 LastOfferRevision = 0;
     TArray<FLDActiveOpportunityRecord> Records;
     // Spec §6.4 card offer queue: the sources of the earned and unresolved offers, head first; CardOffersEarned numbers them
-    // (the head's ordinal is CardOffersEarned - CardQueue.Num() + 1). The head's offer is drawn once the opening active is
-    // chosen. CarriedLock is the card a resolved offer locked; the next offer shows it.
+    // (the head's ordinal is CardOffersEarned - CardQueue.Num() + 1). The head's offer is drawn once the opening opportunity is
+    // resolved. CarriedLock is the card a resolved offer locked; the next offer shows it.
     TArray<ELDCardOfferSource> CardQueue;
     uint16 CardOffersEarned = 0;
     TOptional<FLDCardOfferState> CardOffer;

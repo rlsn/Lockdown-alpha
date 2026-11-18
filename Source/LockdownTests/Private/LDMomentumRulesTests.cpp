@@ -233,7 +233,7 @@ bool FLDSkillRankRefundTest::RunTest(const FString& Parameters)
     Rest.LifePhase = ELDLifePhase::Alive;
     FLDGrowthBuild Out;
     FName Forgotten;
-    TArray<FName> Reclaimed;
+    TArray<uint16> Reclaimed;
     if (!TestEqual(TEXT("The trainer forgets it"), LDProgression::ApplyForgetActive(Content, Build, Progression, 0, Rest, Out, Forgotten, Reclaimed),
         ELDGrowthReason::None)) { return false; }
     TestEqual(TEXT("Forgetting returns every point it spent"), LDProgression::SkillPoints(Content, Out), 3);

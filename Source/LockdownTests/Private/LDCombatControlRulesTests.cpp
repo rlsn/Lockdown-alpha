@@ -36,6 +36,8 @@ namespace LDCombatControlTestDetail
         return Policies;
     }
 
+    const FLDDemoEffectDefinition* FindOp(const TArray<FLDDemoEffectDefinition>& Effects, ELDDemoEffectOp Op)
+    { return Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == Op; }); }
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatControlMatrixTest, "Lockdown.Rules.DemoControl.ActionMatrix",

@@ -1,4 +1,5 @@
 #include "Combat/LDMomentum.h"
+#include "Algo/AllOf.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
@@ -96,7 +97,7 @@ struct FLDBuildPrimitivesAccess
     {
         FLDCombatActiveTerms Terms;
         Terms.Values = Values;
-        return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, (Point-Origin).GetSafeNormal2D(), FGuid::NewGuid(), 0, 0, MakeShared<FLDCombatCastLedger>(), Error);
+        return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, (Point-Origin).GetSafeNormal2D(), FGuid::NewGuid(), 0, MakeShared<FLDCombatCastLedger>(), Error);
     }
     static void Bind(ALDGameMode& Mode, ALDCombatDirector& Driver, const TSharedPtr<const FLDDemoContentSnapshot>& Catalog)
     {
@@ -139,7 +140,6 @@ struct FLDBuildPrimitivesAccess
         const FLDCombatAction& Action, FLDCombatHit& Hit, int64 Now, bool& Handled, FString& Error)
     { return Driver.StartSkillDelivery(Body, Terms, Action, Hit, Now, Handled, Error); }
     static TArray<FLDCombatChannel>& Channels(ALDCombatDirector& Driver) { return Driver.Channels; }
-    static TArray<FLDCombatLockedLedger>& Locked(ALDCombatDirector& Driver) { return Driver.LockedLedgers; }
     static bool Watch(ALDCombatDirector& Driver, ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs,
         FString& Error)
     { return Driver.WatchKnockbackImpact(Target, Body, Hit, FVector::ForwardVector, NowMs, Error); }
@@ -492,7 +492,6 @@ FLDKeywordTerms Terms()
     Out.BurnTickMs = 500;
     Out.BurnMs = 3000;
     Out.BurnMaxStacks = 5;
-    Out.LifestealCapBp = 3500;
     return Out;
 }
 
@@ -641,10 +640,6 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
         && !ExpireBurn(Fresh, 3000));
     TestTrue(TEXT("and ends after it"), !BurnActive(Fresh, 3001) && ExpireBurn(Fresh, 3001) && Fresh.Layers.IsEmpty());
 
-    // D22 lifesteal cap.
-    TestEqual(TEXT("Lifesteal adds up to the 35% cap"), CapLifestealBp(6000, T), int64(3500));
-    TestEqual(TEXT("below the cap it is kept"), CapLifestealBp(2000, T), int64(2000));
-
     // Charged empowerment.
     TArray<FLDCombatEmpower> Armed;
     FLDCombatEmpower Charged;
@@ -667,38 +662,6 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
     LDCombatControl::ArmEmpower(Armed, Charged);
     TestTrue(TEXT("An expired empowerment is dropped untaken"), LDCombatControl::ConsumeEmpowers(Armed, 1000, Taken, SumP2)
         && Taken.IsEmpty() && Armed.IsEmpty());
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildDamagePoolTest, "Lockdown.Rules.DemoBuildPrimitives.DamagePool",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDBuildDamagePoolTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
-    const auto Evaluate = [&Catalog](ELDCombatHitClass Class, bool bCritical, int64 PoolBp)
-    {
-        FLDDamageEvaluationInput Input;
-        const bool bBasic = Class != ELDCombatHitClass::Ability;
-        Input.Definition.Emplace(10000, 0, 0, bBasic ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical);
-        Input.HitClass = Class;
-        Input.bCritical = bCritical;
-        Input.TargetResistanceP2 = 0;
-        Input.TargetHPP2 = 1000000;
-        Input.TargetShieldP2 = 0;
-        Input.bTargetProtected = false;
-        Input.DamageBonusBp = PoolBp;
-        return LDTactical::EvaluateDamage(Input, *Catalog);
-    };
-    const auto Damage = [](const FLDDamageEvaluationResult& Result) { return Result.IsSuccess() ? Result.Value->DamageP2 : int64(-1); };
-    // D21: every "+X%" adds into one pool applied once; a basic crit x2 before it. #198: only a primary basic crits.
-    TestEqual(TEXT("A 30% pool"), Damage(Evaluate(ELDCombatHitClass::Ability, false, 3000)), int64(13000));
-    TestEqual(TEXT("A basic crit doubles before the pool"), Damage(Evaluate(ELDCombatHitClass::BasicPrimary, true, 3000)), int64(26000));
-    const FLDDamageEvaluationResult AbilityCrit = Evaluate(ELDCombatHitClass::Ability, true, 3000);
-    TestTrue(TEXT("An ability never crits: a critical ability hit is refused, not scaled"),
-        !AbilityCrit.IsSuccess() && AbilityCrit.Error.Code == ELDCombatEvaluationError::Domain);
-    TestFalse(TEXT("A negative pool is refused"), Evaluate(ELDCombatHitClass::Ability, false, -1).IsSuccess());
     return true;
 }
 
@@ -843,42 +806,6 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     F.Now(5000);
     FAccess::ExpireStatuses(*F.Driver, 5000);
     TestFalse(TEXT("The breach ended at its deadline"), Body.SharedBreach.Stacks > 0);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildPoolHitsTest, "Lockdown.Rules.DemoBuildPrimitives.PoolHits",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDBuildPoolHitsTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Source = F.AddBody(), Target = F.AddBody();
-    FLDBodyCombatState& Body = F.Body(Target);
-    FString Error;
-    const auto Lost = [&](const FLDCombatHit& Hit, int64 StartHPP2, bool bSlowed)
-    {
-        Body.Resources.HpP2 = StartHPP2;
-        Body.Slows.Reset();
-        if (bSlowed) { Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 9000}); }
-        if (!F.Apply(Hit, Error)) { AddError(Error); return int64(-1); }
-        return StartHPP2 - Body.Resources.HpP2;
-    };
-    FLDCombatHit Hit = FFixture::Hit(Source, Target, 10000);
-    Hit.ControlAmpBp = 1200;
-    TestEqual(TEXT("Neither slowed nor controlled: no bonus"), Lost(Hit, 100000, false), int64(10000));
-    TestEqual(TEXT("Slowed: +12%"), Lost(Hit, 40000, true), int64(11200));
-    TestEqual(TEXT("A low-HP body alone gains nothing (B07 reads controls only)"), Lost(Hit, 40000, false), int64(10000));
-    FLDCombatHit Idle = Hit;
-    Idle.IdleReadyAmpBp = 2000;
-    TestEqual(TEXT("B07 and B17 add into one pool, never multiplied"), Lost(Idle, 100000, true), int64(13200));
-    FLDCombatHit Basic = FFixture::Hit(Source, Target, 10000);
-    Basic.HitClass = ELDCombatHitClass::BasicPrimary;
-    Basic.DamageType = ELDDemoDamageType::Physical;
-    Basic.bCritical = true;
-    Basic.ControlAmpBp = 1200;
-    TestEqual(TEXT("A basic crit doubles before the pool"), Lost(Basic, 100000, true), int64(22400));
     return true;
 }
 
@@ -1237,16 +1164,10 @@ bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
     Hit.TargetShieldP2=2000;
     Hit.bTargetProtected=false;
     Hit.DeliveryScaleBp=4800;
-    Hit.PrimaryGuardP2=1200;
-    Hit.PrimaryGuardCapBp=2000;
     const auto Result=LDTactical::EvaluateDamage(Hit,*Catalog);
     if (!TestTrue(TEXT("Exact mitigation evaluates"),Result.IsSuccess())) { return false; }
-    TestEqual(TEXT("The primary guard cap follows the delivered amount"),Result.Value->DamageP2,int64(3840));
-    TestEqual(TEXT("Shield absorbs only after mitigation"),Result.Value->HPLostP2,int64(1840));
-    Hit.HitClass=ELDCombatHitClass::Ability;
-    const auto Ability=LDTactical::EvaluateDamage(Hit,*Catalog);
-    TestTrue(TEXT("Primary guard does not reduce a separate ability hit"),
-        Ability.IsSuccess() && Ability.Value->DamageP2==4800);
+    TestEqual(TEXT("The delivery scale applies to the mitigated amount"),Result.Value->DamageP2,int64(4800));
+    TestEqual(TEXT("Shield absorbs only after mitigation"),Result.Value->HPLostP2,int64(2800));
     Hit.DeliveryScaleBp=-1;
     TestFalse(TEXT("A negative delivery share is refused"),LDTactical::EvaluateDamage(Hit,*Catalog).IsSuccess());
 
@@ -2281,11 +2202,6 @@ bool FLDCombatSkillRankTrapWireTest::RunTest(const FString& Parameters)
 // Spec §13.3: a C08 counter fed by a C11 heal continues that root action, so C11 cannot reopen a new 30G budget for it.
 namespace LDBuildPrimitivesTests
 {
-const FLDCombatEffectBudget* BudgetOf(const FLDBodyCombatState& Body, const FGuid& EffectId, const TCHAR* Component)
-{
-    return Body.EffectBudgets.FindByPredicate([&](const FLDCombatEffectBudget& Row)
-    { return Row.EffectId == EffectId && Row.Component == FName(Component); });
-}
 }
 
 // Two C11 roots that feed one C08 store before it fires merge into one counter, spent once under the latest root;
@@ -2467,13 +2383,6 @@ const FLDCombatHit* PendingOn(FFixture& F, const FLDCombatBodyRef& Target)
 // native-hit entries of a fixture contender's installed build.
 namespace LDBuildPrimitivesTests
 {
-const FLDCombatHit* ComponentHitOn(FFixture& F, const FLDCombatBodyRef& Target, const TCHAR* Component)
-{
-    return FAccess::PendingHits(*F.Driver).FindByPredicate([&](const FLDCombatHit& Row)
-    {
-        return Row.Target == Target && Row.Source.Kind == ELDCombatSourceKind::Component && Row.Source.DefinitionId == FName(Component);
-    });
-}
 
 void StartDash(FFixture& F, const FLDCombatBodyRef& Ref, int64 EndMs)
 {
@@ -2806,6 +2715,638 @@ bool FLDSkillRankRidersTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Another hit of the release grants the per-hit rider again, never the skill hit"), Body.Resources.MomentumP2, 2000 + Hit);
     TestEqual(TEXT("A once-per-body rider does not stack its vulnerability"), F.Body(Target).Branch.Vulnerabilities.Num(), 1);
     return true;
+}
+
+
+// ---- Spec §7 P2 cards: one rule test per card (Lockdown.Rules.Combat.Cards.<code>). Each installs two copies of the card
+// on its form's place in a real Combat director, checks the projection takes them and Combat collects each copy as its own
+// effect under the card's factor key (copies stack), then checks the card's own compiled or committed result where Combat
+// exposes it without a match (terms, projection, a committed hit).
+namespace LDBuildPrimitivesTests
+{
+const TCHAR* const CardHost = TEXT("active_elbow");
+
+struct FCardRule
+{
+    const TCHAR* Id = nullptr;
+    ELDDemoEffectOp Op = ELDDemoEffectOp::Damage;
+    ELDCardTargetKind Target = ELDCardTargetKind::Body;
+    ELDDemoElement Element = ELDDemoElement::None;
+};
+
+// Installs Copies copies of Rule on Holder at level 6 and checks the projection and the collected effects.
+bool InstallRule(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Holder, const FCardRule& Rule, int32 Copies)
+{
+    TArray<FCard> Rows;
+    for (int32 Index = 0; Index < Copies; ++Index)
+    {
+        Rows.Add({Rule.Id, Rule.Target, Rule.Target == ELDCardTargetKind::Skill ? FName(CardHost) : NAME_None, Rule.Element});
+    }
+    if (!InstallCards(Test, F, Holder, 6, Rows)) { return false; }
+    TArray<FLDPassiveEffectRef> Refs;
+    FString Error;
+    if (!Test.TestTrue(FString::Printf(TEXT("%s: Combat collects its effects (%s)"), Rule.Id, *Error),
+        FAccess::Collect(*F.Driver, F.Body(Holder).AttributeProjection, Rule.Op, Refs, Error)))
+    {
+        return false;
+    }
+    TSet<uint16> Serials;
+    for (const FLDPassiveEffectRef& Ref : Refs) { Serials.Add(Ref.Serial); }
+    return Test.TestTrue(FString::Printf(TEXT("%s: each of %d copies is its own effect under the card's factor key, on its place"), Rule.Id, Copies),
+        Refs.Num() == Copies && Serials.Num() == Copies && Algo::AllOf(Refs, [&Rule](const FLDPassiveEffectRef& Ref)
+        {
+            return Ref.Key == FName(Rule.Id) && Ref.Source.Kind == ELDCombatSourceKind::Card && Ref.Source.DefinitionId == FName(Rule.Id)
+                && Ref.TargetKind == Rule.Target && (Rule.Target != ELDCardTargetKind::Skill || Ref.Active == FName(CardHost));
+        }));
+}
+
+// The host skill's terms compiled with Holder's cards.
+bool HostTerms(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Holder, FLDCombatActiveTerms& Out)
+{
+    FString Error;
+    if (!ActiveTerms(Test, F, CardHost, Out)) { return false; }
+    return Test.TestTrue(TEXT("The host skill compiles: ") + Error,
+        FAccess::Compile(*F.Driver, F.Body(Holder).AttributeProjection, SourceOf(ELDCombatSourceKind::Learned, CardHost), Out, Error));
+}
+
+// The installed rule plus Check(F, Holder) on one copy and on two.
+bool RunCardRule(FAutomationTestBase& Test, const FCardRule& Rule,
+    TFunction<bool(FFixture&, const FLDCombatBodyRef&, int32)> Check = nullptr)
+{
+    bool bGood = true;
+    for (const int32 Copies : {1, 2})
+    {
+        FFixture F;
+        if (!F.Init(Test)) { return false; }
+        const FLDCombatBodyRef Holder = F.AddBody();
+        if (!InstallRule(Test, F, Holder, Rule, Copies)) { return false; }
+        if (Check) { bGood &= Check(F, Holder, Copies); }
+    }
+    return bGood;
+}
+}
+
+// The basic cards.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA01Test, "Lockdown.Rules.Combat.Cards.A01",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA01Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_third_breath"), ELDDemoEffectOp::ComboMomentum, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA02Test, "Lockdown.Rules.Combat.Cards.A02",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA02Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_punch_think"), ELDDemoEffectOp::BasicCooldownCut, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA03Test, "Lockdown.Rules.Combat.Cards.A03",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA03Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_solid_punch"), ELDDemoEffectOp::ComboSkillHit, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA04Test, "Lockdown.Rules.Combat.Cards.A04",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA04Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_third_shove"), ELDDemoEffectOp::ComboKnockback, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA06Test, "Lockdown.Rules.Combat.Cards.A06",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA06Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_both_hands"), ELDDemoEffectOp::ComboDouble, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA09Test, "Lockdown.Rules.Combat.Cards.A09",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA09Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_quick_hands"), ELDDemoEffectOp::OvercapExtraHit, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA11Test, "Lockdown.Rules.Combat.Cards.A11",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA11Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_scholar_punch"), ELDDemoEffectOp::BasicApRider, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA12Test, "Lockdown.Rules.Combat.Cards.A12",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA12Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_heated_up"), ELDDemoEffectOp::FocusAttackSpeed, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA14Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_breach_fist"), ELDDemoEffectOp::Breach, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA15Test, "Lockdown.Rules.Combat.Cards.A15",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA15Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_fire_fist"), ELDDemoEffectOp::Burn, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA16Test, "Lockdown.Rules.Combat.Cards.A16",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA16Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_water_fist"), ELDDemoEffectOp::BasicElement, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA17Test, "Lockdown.Rules.Combat.Cards.A17",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA17Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_shock_fist"), ELDDemoEffectOp::BasicElement, ELDCardTargetKind::Basic});
+}
+
+// The skill cards (on the host skill).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK01Test, "Lockdown.Rules.Combat.Cards.K01",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK01Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_next_up"), ELDDemoEffectOp::HitHasteOther, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK02Test, "Lockdown.Rules.Combat.Cards.K02",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK02Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_pay_back"), ELDDemoEffectOp::SkillHitMomentum, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK04Test, "Lockdown.Rules.Combat.Cards.K04",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK04Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_setup_line"), ELDDemoEffectOp::SetupMark, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK06Test, "Lockdown.Rules.Combat.Cards.K06",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK06Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_encore"), ELDDemoEffectOp::AutoRecast, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    FLDCombatActiveTerms Terms;
+    return HostTerms(*this, F, Holder, Terms) && TestTrue(TEXT("K06: one repeat per copy, 0.6 s later at 60%"),
+        Terms.AutoRecasts == Copies && Terms.AutoRecastDelayMs == 600 && Terms.AutoRecastScaleBp == 6000);
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK08Test, "Lockdown.Rules.Combat.Cards.K08",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK08Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_again_now"), ELDDemoEffectOp::CooldownCost, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    FLDCombatActiveTerms Plain, Terms;
+    if (!ActiveTerms(*this, F, CardHost, Plain) || !HostTerms(*this, F, Holder, Terms)) { return false; }
+    // Copies add into one multiplier: x(1 - 0.35 n) on the cooldown, x(1 + 0.5 n) on the cost.
+    const int64 Cooldown = Plain.Values.CooldownMs * (10000 - 3500 * Copies) / 10000;
+    const int64 Cost = Plain.Values.MomentumCostP2 * (10000 + 5000 * Copies) / 10000;
+    return TestTrue(FString::Printf(TEXT("K08 x%d: cooldown %lld -> %lld (want %lld), cost %lld -> %lld (want %lld)"), Copies,
+        Plain.Values.CooldownMs, Terms.Values.CooldownMs, Cooldown, Plain.Values.MomentumCostP2, Terms.Values.MomentumCostP2, Cost),
+        FMath::Abs(Terms.Values.CooldownMs - Cooldown) <= 1 && FMath::Abs(Terms.Values.MomentumCostP2 - Cost) <= 1);
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK09Test, "Lockdown.Rules.Combat.Cards.K09",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK09Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_big_one"), ELDDemoEffectOp::CooldownCost, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    FLDCombatActiveTerms Plain, Terms;
+    if (!ActiveTerms(*this, F, CardHost, Plain) || !HostTerms(*this, F, Holder, Terms)) { return false; }
+    TArray<FLDPassiveEffectRef> Factors;
+    FString Error;
+    FAccess::Collect(*F.Driver, F.Body(Holder).AttributeProjection, ELDDemoEffectOp::SkillDamageFactor, Factors, Error);
+    const int64 Cooldown = Plain.Values.CooldownMs * (10000 + 5000 * Copies) / 10000;
+    return TestTrue(TEXT("K09: cooldown +50% per copy and one x1.8 factor per copy under the card's key"),
+        FMath::Abs(Terms.Values.CooldownMs - Cooldown) <= 1 && Factors.Num() == Copies
+        && Algo::AllOf(Factors, [](const FLDPassiveEffectRef& Ref) { return Ref.Key == FName(TEXT("card_big_one")) && Ref.Effect.RatioBp == 8000; }));
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK12Test, "Lockdown.Rules.Combat.Cards.K12",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK12Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_blood_price"), ELDDemoEffectOp::HpCost, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    FLDCombatActiveTerms Terms;
+    return HostTerms(*this, F, Holder, Terms) && TestTrue(TEXT("K12: the skill pays 0.6% max HP per momentum instead"),
+        Terms.HPCostBpPerMomentum == 60 * Copies);
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK13Test, "Lockdown.Rules.Combat.Cards.K13",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK13Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_lend_fist"), ELDDemoEffectOp::SkillAdRider, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK15Test, "Lockdown.Rules.Combat.Cards.K15",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK15Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_hurt_heal"), ELDDemoEffectOp::SkillLifesteal, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK16Test, "Lockdown.Rules.Combat.Cards.K16",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK16Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_held_shot"), ELDDemoEffectOp::IdleReadyAmp, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK17Test, "Lockdown.Rules.Combat.Cards.K17",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK17Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_practice"), ELDDemoEffectOp::SkillGrowth, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK19Test, "Lockdown.Rules.Combat.Cards.K19",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK19Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_add_fire"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK20Test, "Lockdown.Rules.Combat.Cards.K20",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK20Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_add_water"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK21Test, "Lockdown.Rules.Combat.Cards.K21",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK21Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_add_shock"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK25Test, "Lockdown.Rules.Combat.Cards.K25",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK25Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_blast_reload"), ELDDemoEffectOp::ReactionHaste, ELDCardTargetKind::Skill});
+}
+
+// The dash cards.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD01Test, "Lockdown.Rules.Combat.Cards.D01",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD01Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_bump_reset"), ELDDemoEffectOp::DashContactReset, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD02Test, "Lockdown.Rules.Combat.Cards.D02",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD02Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_bump_again"), ELDDemoEffectOp::HitHasteOther, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD03Test, "Lockdown.Rules.Combat.Cards.D03",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD03Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_dash_punch"), ELDDemoEffectOp::EmpowerBasic, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD05Test, "Lockdown.Rules.Combat.Cards.D05",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD05Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_double_dash"), ELDDemoEffectOp::DashSplit, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD06Test, "Lockdown.Rules.Combat.Cards.D06",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD06Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_pass_through"), ELDDemoEffectOp::DashPhase, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD12Test, "Lockdown.Rules.Combat.Cards.D12",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD12Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_shock_dash"), ELDDemoEffectOp::DashContactElement, ELDCardTargetKind::Dash});
+}
+
+// The body cards.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY01Test, "Lockdown.Rules.Combat.Cards.Y01",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY01Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_spiky_hide"), ELDDemoEffectOp::Thorns, ELDCardTargetKind::Body}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    // A direct hit on the holder queues one magic reflection to the attacker at 25% per copy of the damage it dealt.
+    const FLDCombatBodyRef Attacker = F.AddBody();
+    FString Error;
+    FAccess::PendingHits(*F.Driver).Reset();
+    const int64 Before = F.Body(Holder).Resources.HpP2;
+    if (!TestTrue(TEXT("Y01: the hit applies: ") + Error, F.Apply(FFixture::Hit(Attacker, Holder, 20000), Error))) { return false; }
+    const int64 Dealt = Before - F.Body(Holder).Resources.HpP2;
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const FLDCombatHit* Reflect = Pending.FindByPredicate([](const FLDCombatHit& Hit) { return Hit.bReflect; });
+    bool bGood = TestTrue(FString::Printf(TEXT("Y01 x%d: one magic reflection of 25%% per copy to the attacker"), Copies),
+        Reflect && Reflect->Target.Victim == Attacker.Victim && Reflect->DamageType == ELDDemoDamageType::Magical
+        && Reflect->BaseP2 == Dealt * 2500 * Copies / 10000);
+    // A reflection is never reflected back.
+    if (Reflect)
+    {
+        const FLDCombatHit Back = *Reflect;
+        FAccess::PendingHits(*F.Driver).Reset();
+        bGood &= TestTrue(TEXT("Y01: the reflection applies: ") + Error, F.Apply(Back, Error))
+            && TestFalse(TEXT("Y01: a reflection does not reflect"), FAccess::PendingHits(*F.Driver).ContainsByPredicate(
+                [](const FLDCombatHit& Hit) { return Hit.bReflect; }));
+    }
+    return bGood;
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY02Test, "Lockdown.Rules.Combat.Cards.Y02",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY02Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_takedown"), ELDDemoEffectOp::TakedownReset, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY03Test, "Lockdown.Rules.Combat.Cards.Y03",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY03Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_hang_on"), ELDDemoEffectOp::LastStand, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY04Test, "Lockdown.Rules.Combat.Cards.Y04",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY04Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_reaction_refund"), ELDDemoEffectOp::ReactionMomentum, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY05Test, "Lockdown.Rules.Combat.Cards.Y05",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY05Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_wave_after"), ELDDemoEffectOp::ReactionElement, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY07Test, "Lockdown.Rules.Combat.Cards.Y07",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY07Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_hard_skin"), ELDDemoEffectOp::TriggeredShield, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY08Test, "Lockdown.Rules.Combat.Cards.Y08",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY08Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_ball_kick"), ELDDemoEffectOp::KnockbackImpact, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY09Test, "Lockdown.Rules.Combat.Cards.Y09",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY09Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_skill_crit"), ELDDemoEffectOp::SkillCrit, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY10Test, "Lockdown.Rules.Combat.Cards.Y10",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY10Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_skill_drain"), ELDDemoEffectOp::LifestealSkills, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY13Test, "Lockdown.Rules.Combat.Cards.Y13",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY13Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_thick_hide"), ELDDemoEffectOp::ArmorToHp, ELDCardTargetKind::Body}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    const FLDAttributeProjectionResult Plain = ProjectCards(*F.Catalog, 6, {});
+    const FLDAttributeProjection& With = F.Body(Holder).AttributeProjection;
+    if (!TestTrue(TEXT("Y13: the bare build projects"), Plain.IsSuccess())) { return false; }
+    // Six max HP per armor point per copy (P2 units on both sides).
+    const int64 Expected = Plain.Value->Final.MaxHPP2 + Plain.Value->Final.ArmorP2 * 6 * Copies;
+    return TestTrue(FString::Printf(TEXT("Y13 x%d: max HP %lld -> %lld (want %lld)"), Copies, Plain.Value->Final.MaxHPP2,
+        With.Final.MaxHPP2, Expected), FMath::Abs(With.Final.MaxHPP2 - Expected) <= Copies);
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY14Test, "Lockdown.Rules.Combat.Cards.Y14",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY14Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_overfed"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY15Test, "Lockdown.Rules.Combat.Cards.Y15",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY15Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_berserk"), ELDDemoEffectOp::MissingHpAttackSpeed, ELDCardTargetKind::Body}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+{
+    return TestEqual(TEXT("Y15: +1% attack speed per missing 1% HP per copy"),
+        F.Body(Holder).AttributeProjection.MissingHPAttackSpeedBp, int64(100 * Copies));
+});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY16Test, "Lockdown.Rules.Combat.Cards.Y16",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY16Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_quick_brain"), ELDDemoEffectOp::HasteMomentum, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY17Test, "Lockdown.Rules.Combat.Cards.Y17",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY17Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_punch_heal"), ELDDemoEffectOp::Lifesteal, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY19Test, "Lockdown.Rules.Combat.Cards.Y19",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY19Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_grow_fat"), ELDDemoEffectOp::HealGrowth, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY20Test, "Lockdown.Rules.Combat.Cards.Y20",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY20Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_kill_streak"), ELDDemoEffectOp::KillGrowth, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY21Test, "Lockdown.Rules.Combat.Cards.Y21",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY21Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_tough_skin"), ELDDemoEffectOp::ControlGrowth, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY22Test, "Lockdown.Rules.Combat.Cards.Y22",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY22Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_charge_up"), ELDDemoEffectOp::IdleCharge, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY25Test, "Lockdown.Rules.Combat.Cards.Y25",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY25Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    // Y25 carries the element chosen at install; the projection refuses it without one.
+    bool bGood = RunCardRule(*this, {TEXT("card_live_wire"), ELDDemoEffectOp::ElementAura, ELDCardTargetKind::Body, ELDDemoElement::Water},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
+        {
+            TArray<FLDPassiveEffectRef> Refs;
+            FString Error;
+            FAccess::Collect(*F.Driver, F.Body(Holder).AttributeProjection, ELDDemoEffectOp::ElementAura, Refs, Error);
+            return TestTrue(TEXT("Y25: the aura carries the chosen element"),
+                Algo::AllOf(Refs, [](const FLDPassiveEffectRef& Ref) { return Ref.Element == ELDDemoElement::Water; }));
+        });
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    bGood &= TestFalse(TEXT("Y25 without a chosen element is refused"),
+        ProjectCards(*F.Catalog, 6, {{TEXT("card_live_wire"), ELDCardTargetKind::Body}}).IsSuccess());
+    return bGood;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY26Test, "Lockdown.Rules.Combat.Cards.Y26",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY26Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_long_soak"), ELDDemoEffectOp::ElementDuration, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY27Test, "Lockdown.Rules.Combat.Cards.Y27",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY27Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_louder_blast"), ELDDemoEffectOp::ReactionFactor, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY28Test, "Lockdown.Rules.Combat.Cards.Y28",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY28Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_endless_burn"), ELDDemoEffectOp::BurnCap, ELDCardTargetKind::Body});
+}
+
+// ---- Spec §3.7 multiplicative damage and §3.8 chain guard ----
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDamageFactorProductTest, "Lockdown.Rules.Combat.Damage.FactorProduct",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDamageFactorProductTest::RunTest(const FString& Parameters)
+{
+    int64 Bp = 0;
+    bool bCapped = false;
+    FString Error;
+    // Different sources multiply: x1.8 and x1.35 is x2.43.
+    bool bGood = TestTrue(TEXT("Different keys multiply"), LDTactical::DamageFactorProduct({{TEXT("card_big_one"), 8000},
+        {TEXT("card_setup_line"), 3500}}, 10000000, Bp, bCapped, Error) && Bp == 24300 && !bCapped);
+    bGood &= TestTrue(TEXT("No factor is x1"), LDTactical::DamageFactorProduct({}, 10000000, Bp, bCapped, Error) && Bp == 10000);
+    bGood &= TestFalse(TEXT("A negative factor is refused"), LDTactical::DamageFactorProduct({{TEXT("bad"), -1}}, 10000000, Bp, bCapped, Error));
+    bGood &= TestFalse(TEXT("An unnamed factor is refused"), LDTactical::DamageFactorProduct({{NAME_None, 100}}, 10000000, Bp, bCapped, Error));
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDamageSameCardAddsTest, "Lockdown.Rules.Combat.Damage.SameCardAdds",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDamageSameCardAddsTest::RunTest(const FString& Parameters)
+{
+    int64 Bp = 0;
+    bool bCapped = false;
+    FString Error;
+    // Two copies of one card add into one multiplier (1 + 0.8 + 0.8 = x2.6), not x1.8 x1.8 = x3.24.
+    bool bGood = TestTrue(TEXT("Copies of one card add"), LDTactical::DamageFactorProduct({{TEXT("card_big_one"), 8000},
+        {TEXT("card_big_one"), 8000}}, 10000000, Bp, bCapped, Error) && Bp == 26000);
+    bGood &= TestTrue(TEXT("Grouping ignores order"), LDTactical::DamageFactorProduct({{TEXT("card_big_one"), 8000},
+        {TEXT("card_setup_line"), 3500}, {TEXT("card_big_one"), 8000}}, 10000000, Bp, bCapped, Error) && Bp == 35100);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDamageTechCapTest, "Lockdown.Rules.Combat.Damage.TechCap",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDamageTechCapTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const int64 Cap = Catalog->Get().Parameters.DamageFactorTechCapBp;
+    bool bGood = TestEqual(TEXT("The technical cap is x1000"), Cap, int64(10000000));
+    // Twenty x4 sources overflow any real hit: the product stops at the cap and reports it, never wraps.
+    TArray<FLDDamageFactor> Many;
+    for (int32 Index = 0; Index < 20; ++Index) { Many.Add({FName(*FString::Printf(TEXT("factor_%d"), Index)), 30000}); }
+    int64 Bp = 0;
+    bool bCapped = false;
+    FString Error;
+    bGood &= TestTrue(TEXT("An extreme product stops at the cap"), LDTactical::DamageFactorProduct(Many, Cap, Bp, bCapped, Error)
+        && Bp == Cap && bCapped);
+    bGood &= TestTrue(TEXT("Below the cap nothing is capped"), LDTactical::DamageFactorProduct({{TEXT("one"), 30000}}, Cap, Bp, bCapped, Error)
+        && Bp == 40000 && !bCapped);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDChainGuardTest, "Lockdown.Rules.Combat.Chain.Guard",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDChainGuardTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDDemoContentParameters& P = F.Catalog->Get().Parameters;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, 100000000);
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_spiky_hide"), ELDCardTargetKind::Body}})) { return false; }
+    TArray<FLDCombatBodyRef> Attackers;
+    // Each hit on the holder derives one reflection: more derived effects than one step allows.
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    Pending.Reset();
+    const int32 Hits = P.ChainMaxEffectsPerStep + 4;
+    for (int32 Index = 0; Index < Hits; ++Index)
+    {
+        const FLDCombatBodyRef Attacker = F.AddBody(ELDVictimKind::Contender, 100000000);
+        Pending.Add(FFixture::Hit(Attacker, Holder, 1000));
+        Pending.Last().HitId = FGuid::NewGuid();
+    }
+    bool bGood = Drain(*this, F);
+    bGood &= TestEqual(TEXT("Past CHAIN.MaxEffectsPerStep the derived effects wait for the next step"), Pending.Num(), 4);
+    bGood &= Drain(*this, F) && TestEqual(TEXT("The next step takes the rest"), Pending.Num(), 0);
+    // A hit already at the depth limit derives nothing more.
+    const FLDCombatBodyRef Deep = F.AddBody(ELDVictimKind::Contender, 100000000);
+    FLDCombatHit AtLimit = FFixture::Hit(Deep, Holder, 1000);
+    AtLimit.HitId = FGuid::NewGuid();
+    AtLimit.ChainDepth = uint8(P.ChainMaxDepth);
+    Pending.Add(AtLimit);
+    bGood &= Drain(*this, F) && TestEqual(TEXT("Past CHAIN.MaxDepth nothing is derived"), Pending.Num(), 0)
+        && TestTrue(TEXT("The deep hit itself still landed"), F.Body(Holder).Resources.HpP2 < 100000000);
+    return bGood;
 }
 
 #endif

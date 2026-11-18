@@ -851,7 +851,7 @@ uint64 ALDGrowthDirector::DevGrantEvaluationReward(const FGuid& ContenderId, int
     if (!Ticket) { return 0; }
     DevGrants[int32(Ticket - 1)].LevelCards = LevelCards;
     const ALDGameMode* M = Mode();
-    UE_LOG(LogLDGrowth, Display, TEXT("LD_EVAL_COMPONENT_PRESET t=%lld contender=%s ticket=%llu components=%s"),
+    UE_LOG(LogLDGrowth, Display, TEXT("LD_EVAL_CARD_PRESET t=%lld contender=%s ticket=%llu cards=%s"),
         M ? M->GetAuthorityNowMs() : -1, *LDLog::Id(ContenderId), Ticket,
         *FString::JoinBy(LevelCards, TEXT(","), [](FName Id) { return Id.ToString(); }));
     return Ticket;

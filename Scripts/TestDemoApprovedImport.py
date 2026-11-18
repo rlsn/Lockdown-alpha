@@ -146,92 +146,63 @@ STAT_POINTS = {
 }
 
 
-# #198 B base components B01-B18: (display name, opening "always" / actives / None, effects in author units at G=1).
-DIRECT_DAMAGE_OPENING = ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug",
-                         "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide",
-                         "active_calculus_drop", "active_open_mic", "active_hose_down", "active_zap",
-                         "active_charged_ram", "active_dirty_puddle", "active_sock_shot"]
-COMPONENT_FRAMES = {
-    "component_fist_fire": ("拳头冒火", "always", [("burn", {"basic_stacks": 1})]),
-    "component_tab_ledger": ("揍一下记一笔", "always", [
-        ("ledger", {"ad_ratio": 0, "ap_ratio": r(".08"), "base": 10, "count": 5, "damage_type": "Magical", "duration": 6})]),
-    "component_spiky_hide": ("打我也硌手", "always", [
-        ("thorns", {"armor_ratio": 0, "base": 10, "critical_multiplier": 1, "damage_type": "Magical", "max_hp_ratio": r(".01"),
-                    "radius": 600, "trigger": "Basic"})]),
-    "component_punch_heal": ("揍人续命", "always", [("lifesteal", {"ratio": r(".12")})]),
-    "component_dash_bump": ("撞你个趔趄", "always", [
-        ("dash_contact_damage", {"ad_ratio": r(".25"), "ap_ratio": r(".25"), "base": 30, "damage_type": "Physical"})]),
-    "component_third_punch": ("第三拳滚蛋", "always", [("nth_basic_bonus", {"count": 3, "distance": 120, "duration": r(".12")})]),
-    "component_kick_down": ("逮住就往狠了打", ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned",
-                                       "active_unplug", "active_snark_bolt", "active_quick_meeting", "active_apology_slide",
-                                       "active_open_mic", "active_hose_down", "active_dirty_puddle"], [("control_damage_amp", {"ratio": r(".12")})]),
-    "component_breach_fist": ("越揍越不经打", None, [("breach", {"basic_stacks": 1})]),
-    "component_hard_skin": ("挨揍起硬皮", "always", [
-        ("triggered_shield", {"base": 45, "duration": 3, "interval": 10, "max_hp_ratio": r(".035"), "trigger": "Damaged"})]),
-    "component_fist_water": ("拳头甩脏水", "always", [("basic_element", {"element": "water"})]),
-    "component_fist_shock": ("拳头漏电", ["active_seethe", "active_quick_meeting", "active_hose_down", "active_dirty_puddle"],
-                     [("basic_element", {"element": "electric"})]),
-    "component_dash_punch": ("蹿过去抡一拳", "always", [
-        ("empower_basic", {"ad_ratio": r(".25"), "ap_ratio": 0, "base": 25, "charges": 1, "damage_type": "Physical", "duration": 3,
-                           "trigger": "DashComplete"})]),
-    "component_catch_breath": ("喘口气接着干", None, [("cast_hit_refund", {"ratio": r(".3")})]),
-    "component_long_arm": ("离远点才好抽", None, [("distance_amp", {"distance": 550, "ratio": r(".2")})]),
-    "component_seeing_red": ("一招接一招", None, [("alternate_amp", {"duration": 4, "ratio": r(".2")})]),
-    "component_thick_hide": ("打完就缩脖", None, [
-        ("triggered_shield", {"base": 40, "duration": 3, "interval": 8, "max_hp_ratio": r(".03"), "trigger": "AbilityHit"})]),
-    "component_held_shot": ("憋着一发狠的", DIRECT_DAMAGE_OPENING, [("idle_ready_amp", {"delay": 2, "ratio": r(".2")})]),
-    "component_dirty_trick": ("招里掺点脏的", DIRECT_DAMAGE_OPENING, [("active_element", {})]),
-}
-# #198 F mods M01-M12, connectors C01-C12 and mods M13-M15 in native ID order (catalog sections 8-10): name, kind, pool.
-WORKSHOP_FRAMES = {
-    "component_crowd_hit": ("一群人一起挨", "mod", "common"),
-    "component_settle_later": ("等会儿一起算", "mod", "common"),
-    "component_long_kick": ("一脚踹出老远", "mod", "common"),
-    "component_hold_down": ("按住多揍一会", "mod", "common"),
-    "component_reach_out": ("站远点照样抽你", "mod", "common"),
-    "component_again_now": ("再来一下别喘", "mod", "common"),
-    "component_one_slam": ("合一块砸你", "mod", "common"),
-    "component_ram_through": ("闷头撞到底", "mod", "common"),
-    "component_quick_hop": ("蹿两步就回头", "mod", "common"),
-    "component_big_tab": ("攒够一顿狠的", "mod", "common"),
-    "component_pick_you": ("就逮着你揍", "mod", "scarce"),
-    "component_owe_it": ("这顿打先欠着", "mod", "scarce"),
-    "component_fire_skin": ("烧着还挺扛揍", "connector", "common"),
-    "component_ball_kick": ("拿你当球踢", "connector", "common"),
-    "component_bump_again": ("撞着了再撞", "connector", "common"),
-    "component_roll_bump": ("滚过去撞他", "connector", "common"),
-    "component_pin_punch": ("摁住再补一拳", "connector", "common"),
-    "component_after_pin": ("炸完再摁住", "connector", "common"),
-    "component_control_momentum": ("控住薅点劲", "connector", "common"),
-    "component_breath_strike": ("回口气就抽你", "connector", "common"),
-    "component_blast_chase": ("炸完追着揍", "connector", "common"),
-    "component_shell_burst": ("壳碎了也崩你", "connector", "common"),
-    "component_hurt_heal": ("打疼了我回血", "connector", "common"),
-    "component_dirty_fist": ("拳上的脏活也算", "connector", "scarce"),
-    # Mods M13-M15 (native 43-45).
-    "component_boomerang": ("鞋还得捡回来", "mod", "common"),
-    "component_skewer": ("一鞋串俩", "mod", "common"),
-    "component_encore": ("再来一遍", "mod", "common"),
-    "component_next_up": ("打完换下一招", "connector", "common"),
-    "component_setup_line": ("先垫一句", "connector", "common"),
-    "component_blast_reload": ("炸了接着放", "connector", "common"),
-    "component_group_refund": ("一锅端回本", "connector", "common"),
-    # Bases B19-B21 and mods M16-M20 (native 50-57).
-    "component_clear_head": ("脑子转得快", "base", "common"),
-    "component_run_away": ("撒腿就跑", "base", "common"),
-    "component_guard_up": ("护住要害", "base", "common"),
-    "component_zone_tether": ("拖着会开", "mod", "common"),
-    "component_shove_off": ("别挨着我", "mod", "common"),
-    "component_finisher": ("最后一下抡出去", "mod", "common"),
-    "component_long_handle": ("隔空三连", "mod", "common"),
-    "component_come_here": ("过来吧你", "mod", "common"),
-    # Connectors C17-C21 (native 58-62).
-    "component_move_meeting": ("换个地方开会", "connector", "common"),
-    "component_bottled_up": ("憋着的气", "connector", "common"),
-    "component_spend_fist": ("拳头借给技能", "connector", "common"),
-    "component_wide_open": ("按住了就放大", "connector", "common"),
-    "component_set_it_off": ("一点就炸", "connector", "common"),
-    "component_meet_here": ("就在这儿开会", "connector", "common"),
+# Spec §7 P2 cards in native ID order: name, form and type.
+CARD_FRAMES = {
+    "card_third_breath": ("第三拳回口气", "basic", "trigger"),
+    "card_punch_think": ("边打边想", "basic", "trigger"),
+    "card_solid_punch": ("拳拳到肉", "basic", "trigger"),
+    "card_third_shove": ("第三拳滚蛋", "basic", "trigger"),
+    "card_both_hands": ("左右开弓", "basic", "modify"),
+    "card_quick_hands": ("手快有手慢无", "basic", "convert"),
+    "card_scholar_punch": ("读书人打架", "basic", "convert"),
+    "card_heated_up": ("越打越上头", "basic", "grow"),
+    "card_breach_fist": ("越揍越不经打", "basic", "grow"),
+    "card_fire_fist": ("拳头冒火", "basic", "element"),
+    "card_water_fist": ("拳头甩脏水", "basic", "element"),
+    "card_shock_fist": ("拳头漏电", "basic", "element"),
+    "card_next_up": ("打完换下一招", "skill", "trigger"),
+    "card_pay_back": ("一招回本", "skill", "trigger"),
+    "card_setup_line": ("先垫一句", "skill", "trigger"),
+    "card_encore": ("再来一遍", "skill", "modify"),
+    "card_again_now": ("再来一下别喘", "skill", "modify"),
+    "card_big_one": ("攒够一顿狠的", "skill", "modify"),
+    "card_blood_price": ("拿命换", "skill", "convert"),
+    "card_lend_fist": ("拳头借给技能", "skill", "convert"),
+    "card_hurt_heal": ("打疼了我回血", "skill", "convert"),
+    "card_held_shot": ("憋着一发狠的", "skill", "grow"),
+    "card_practice": ("越用越顺手", "skill", "grow"),
+    "card_add_fire": ("掺点火", "skill", "element"),
+    "card_add_water": ("掺点水", "skill", "element"),
+    "card_add_shock": ("掺点电", "skill", "element"),
+    "card_blast_reload": ("炸了接着放", "skill", "element"),
+    "card_bump_reset": ("撞着就刷新", "dash", "trigger"),
+    "card_bump_again": ("撞着了再撞", "dash", "trigger"),
+    "card_dash_punch": ("蹿过去抡一拳", "dash", "trigger"),
+    "card_double_dash": ("两段冲刺", "dash", "modify"),
+    "card_pass_through": ("穿人而过", "dash", "modify"),
+    "card_shock_dash": ("冲刺挂麻", "dash", "element"),
+    "card_spiky_hide": ("打我也硌手", "body", "trigger"),
+    "card_takedown": ("人头刷新", "body", "trigger"),
+    "card_hang_on": ("死扛", "body", "trigger"),
+    "card_reaction_refund": ("反应回本", "body", "trigger"),
+    "card_wave_after": ("一波接一波", "body", "trigger"),
+    "card_hard_skin": ("挨揍起硬皮", "body", "trigger"),
+    "card_ball_kick": ("拿你当球踢", "body", "trigger"),
+    "card_skill_crit": ("技能也能暴击", "body", "modify"),
+    "card_skill_drain": ("吸血对技能生效", "body", "modify"),
+    "card_thick_hide": ("皮糙肉厚", "body", "convert"),
+    "card_overfed": ("吃撑了", "body", "convert"),
+    "card_berserk": ("残血狂暴", "body", "convert"),
+    "card_quick_brain": ("脑子转得快", "body", "convert"),
+    "card_punch_heal": ("揍人续命", "body", "convert"),
+    "card_grow_fat": ("越吃越壮", "body", "grow"),
+    "card_kill_streak": ("越杀越猛", "body", "grow"),
+    "card_tough_skin": ("越挨越硬", "body", "grow"),
+    "card_charge_up": ("攒个大的", "body", "grow"),
+    "card_live_wire": ("浑身带电", "body", "element"),
+    "card_long_soak": ("久泡", "body", "element"),
+    "card_louder_blast": ("炸得更响", "body", "element"),
+    "card_endless_burn": ("烧不完", "body", "element"),
 }
 
 
@@ -278,9 +249,9 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (3, 10, 9))
-        self.assertEqual(self.data["progression"]["workshop_capacity"],
-                         {"base": 5, "levels_per_slot": 2, "body_column": 4, "dash_column": 2})
+                          self.data["identity"]["projection_revision"]), (4, 11, 10))
+        self.assertIn("#287 P2 build cards approved", approval["decision"])
+        self.assertFalse({"components", "workshop_capacity"} & (set(self.data) | set(self.data["progression"])))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -314,7 +285,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("OVERDRIVE.GustPushCm", "cm", "300"), ("OVERDRIVE.GustPushSec", "ms", ".25"),
-            ("AI.DodgeChance", "ratio", ".5"), ("AIRDROP.Momentum", "momentum", "40"),
+            ("AI.DodgeChance", "ratio", ".5"), ("AI.BreakoutChance", "ratio", ".25"),
+            ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
@@ -368,7 +340,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("AI.EngagementBudgetSec", "ms", "40"),
             ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
             ("COMBAT.BurnPerSec", "points", "4.5"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
-            ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"), ("COMBAT.LifestealCap", "ratio", ".35"),
+            ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"),
             ("COMBAT.KeystonePhysiqueHealToShieldRatio", "ratio", ".25"),
             ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", ".035"),
             ("COMBAT.KeystonePhysiqueShieldDurationSec", "ms", "3"),
@@ -401,10 +373,11 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROWTH.NpcActivePoints", 5), ("GROWTH.ActiveSkipPoints", 5), ("GROWTH.NpcActiveSkipPoints", 3),
             # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
-            # #198 B: a level-up whose component roll finds the common pool empty gives 3 points instead.
-            ("GROWTH.EmptyComponentPoolPoints", 3),
-            # #198 G (spec §4.5): FillGap costs 4 points; dismantle takes two distinct common components for one.
-            ("GROWTH.FillGapPoints", 4), ("GROWTH.DismantleInputCount", 2), ("GROWTH.KeystoneThresholdPoints", 18),
+            ("GROWTH.KeystoneThresholdPoints", 18),
+            # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
+            ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 5), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
+            ("CARDS.RerollsPerRest", 1), ("CARDS.LockSlots", 1), ("CARDS.VocabWeight", 2),
+            ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.BreakoutCardScore", 5),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
@@ -449,31 +422,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "knockback": 20, "silence": 25, "burn": 26,
                                            "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
                                            "soured": 33, "camp_enraged": 34, "camp_guarding": 35})
-        self.assertEqual(ids["effect_ops"], {
-            "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5, "lifesteal": 7, "dash": 8,
-            "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15,
-            "control_damage_amp": 17, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22,
-            "thorns": 24, "cooldown_refund": 26, "triggered_shield": 31,
-            "nth_basic_bonus": 35, "dispel_slow": 37,
-            "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "shield_break_retort": 67,
-            "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77,
-            "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82,
-            "primary_guard": 86, "dash_contact_damage": 87, "dash_contact_refund": 88,
-            "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "grievous": 96,
-            "ledger": 100, "basic_element": 101, "basic_damage_scale": 102, "idle_ready_amp": 103, "active_element": 104,
-            # #198 F mods and connectors.
-            "spread_unit": 120, "spread_projectile": 121, "spread_ledger": 122, "spread_counter": 123, "delay_ledger": 124,
-            "delay_counter": 125, "knockback_scale": 126, "control_scale": 127, "range_bonus": 128, "counter_range_bonus": 129,
-            "cooldown_cost": 130, "compress_cone": 131, "compress_zone": 132, "dash_scale": 133, "ledger_variant": 134,
-            "marked_counter": 135, "damage_defer": 136, "fire_shield": 137, "knockback_impact": 138, "contact_knockback": 139,
-            "control_mark": 140, "aftershock": 141, "control_momentum": 142, "heal_counter": 143, "reaction_empower": 144,
-            "shield_burst": 145, "skill_lifesteal": 146, "extra_base": 147, "compress_chain": 148,
-            "cast_hit_refund": 149, "distance_amp": 150, "alternate_amp": 151,
-            "projectile_return": 152, "projectile_pierce": 153, "chain_extra": 154, "echo_impact": 155,
-            "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "multi_hit_momentum": 159,
-            "zone_tether": 160, "defense_shove": 161, "final_knockback": 162, "empower_reach": 163, "pull": 164,
-            "zone_relocate": 165, "stored_force": 166, "empower_spend": 167, "control_widen": 168, "zone_detonate": 169,
-            "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "projectile_zone": 195})
+        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "grievous": 96, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "projectile_zone": 195, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -504,9 +453,8 @@ class ApprovedDemoData(unittest.TestCase):
             "active_charged_ram": "带电撞你", "active_brace": "顶着揍", "active_dirty_puddle": "满地泼脏水",
             "active_sock_shot": "馊水糊脸",
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
-            # #198 B base components B01-B18.
-            **{identity: frame[0] for identity, frame in COMPONENT_FRAMES.items()},
-            **{identity: frame[0] for identity, frame in WORKSHOP_FRAMES.items()},
+            # Spec §7 P2 cards.
+            **{identity: frame[0] for identity, frame in CARD_FRAMES.items()},
             "final_landlord": "旗杆房东", "final_breach": "破门而入", "final_comeback": "现场翻盘",
             "final_open_mic": "全城开麦", "final_bowling": "人肉保龄球", "final_forced_exit": "强制退场",
             "final_traffic": "交通管制", "final_split": "一分为二",
@@ -535,7 +483,7 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertFalse({"advanced_key", "advanced_text"} & set(row))
                 if row["id"] in ACTIVE_FRAMES or row["id"] in STAT_POINTS:
                     self.assertIn("[", row["description_text"])
-                if row["id"] in COMPONENT_FRAMES or row["id"] in WORKSHOP_FRAMES:
+                if row["id"] in CARD_FRAMES:
                     self.assertEqual(row["icon_id"], "icon_" + row["id"])
         # A final mod's effect, cost and notes lines reuse its description's own clauses, each exactly once.
         clauses = lambda *texts: sorted(part for text in texts for part in re.split("[。；，]", text) if part)
@@ -609,36 +557,22 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 18)
         self.assertEqual(self.data["progression"]["active_offer_levels"], (3, 6))
         self.assertEqual(set(self.data["progression"]),
-                         {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels",
-                          "bonus_component_levels", "workshop_capacity", "component_category_weights"})
-        self.assertEqual(self.data["progression"]["bonus_component_levels"], (2, 4, 6, 8, 10, 12, 14, 16))
-        self.assertEqual(dict(self.data["progression"]["workshop_capacity"]),
-                         {"base": 5, "levels_per_slot": 2, "body_column": 4, "dash_column": 2})
+                         {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
 
-    def test_all_base_component_values_openings_and_category_bands(self):
-        # #198 B: B01-B18 at G=1 in native ID order (issue #198 catalog section 7, AI spec section 4.3).
-        self.assertEqual([row["id"] for row in self.data["components"]], list(COMPONENT_FRAMES) + list(WORKSHOP_FRAMES))
-        for number, (identity, (_, kind, pool)) in enumerate(WORKSHOP_FRAMES.items(), len(COMPONENT_FRAMES) + 1):
+    def test_all_p2_cards_in_native_order(self):
+        # Spec §7: the 55 P2 cards in native ID order 200-284 with their form, type and one to four vocabulary keys; Y25 alone
+        # chooses an element.
+        self.assertEqual([row["id"] for row in self.data["cards"]], list(CARD_FRAMES))
+        previous = 199
+        for identity, (_, form, kind) in CARD_FRAMES.items():
             with self.subTest(identity=identity):
                 row = self.catalog.definition(identity)
-                self.assertEqual((row["native_id"], row["kind"], row["pool"], "opening" in row), (number, kind, pool, False))
-        for number, (identity, (name, opening, effects)) in enumerate(COMPONENT_FRAMES.items(), 1):
-            with self.subTest(identity=identity):
-                row = self.catalog.definition(identity)
-                self.assertEqual((row["native_id"], row["kind"], row["pool"]), (number, "base", "common"))
-                self.assertEqual(row.get("opening"), opening if type(opening) is not list else {"actives": tuple(opening)})
-                self.assertEqual([(effect["op"], author_units(effect)) for effect in row["effects"]], effects)
-        self.assertEqual({identity for identity, frame in COMPONENT_FRAMES.items() if frame[1] == "always"},
-                         {"component_fist_fire", "component_tab_ledger", "component_spiky_hide", "component_punch_heal",
-                          "component_dash_bump", "component_third_punch", "component_hard_skin", "component_fist_water",
-                          "component_dash_punch"})
-        binding = self.catalog.definition("component_dirty_trick")["binding"]
-        self.assertEqual((binding["kind"], binding["elements"]), ("active_element", ("fire", "water", "electric")))
-        self.assertEqual(set(binding["actives"]), set(ACTIVE_FRAMES) - {"active_bail_out", "active_not_mad", "active_stare_down",
-                                                                        "active_triple_combo"})
-        self.assertEqual([(band["levels"], band["base"], band["mod"], band["connector"])
-                          for band in self.data["progression"]["component_category_weights"]],
-                         [((2, 6), 45, 30, 25), ((7, 11), 35, 35, 30), ((12, 16), 25, 35, 40)])
+                self.assertTrue(previous < row["native_id"] <= 284)
+                previous = row["native_id"]
+                self.assertEqual((row["form"], row["type"]), (form, kind))
+                self.assertTrue(1 <= len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
+                self.assertEqual("choose_element" in row, identity == "card_live_wire")
+        self.assertEqual(len(CARD_FRAMES), 55)
 
     def test_retired_content_ids_stay_reserved_and_absent(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
@@ -803,72 +737,6 @@ class ApprovedDemoData(unittest.TestCase):
             next(item for item in row["effects"] if item["op"] == op)[field] = value
             with self.subTest(identity=identity, field=field), self.assertRaisesRegex(content.ContentError, "SchemaVariant"):
                 schema.validate(candidate)
-
-    def test_phase5_mod_ops_refuse_ineffective_or_misshapen_values(self):
-        author, schema, ids = self.approved_projection_inputs()
-        for identity, op, field in (
-            ("component_zone_tether", "zone_tether", "radius_ratio"),
-            ("component_shove_off", "defense_shove", "distance"), ("component_shove_off", "defense_shove", "radius"),
-            ("component_shove_off", "defense_shove", "shield_ratio"),
-            ("component_finisher", "final_knockback", "distance"), ("component_finisher", "final_knockback", "cost_ratio"),
-            ("component_long_handle", "empower_reach", "range"), ("component_long_handle", "empower_reach", "damage_ratio"),
-            ("component_come_here", "pull", "distance"),
-        ):
-            candidate = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
-            effect = next(item for item in next(row for row in candidate["components"] if row["id"] == identity)["effects"]
-                          if item["op"] == op)
-            effect[field] = dict(effect[field], value=0)
-            with self.subTest(op=op, field=field), self.assertRaises(content.ContentError):
-                content.validate_definitions(content.project_author(schema, candidate), ids)
-        for identity, op, field in (("component_come_here", "pull", "min_distance"),
-                                    ("component_finisher", "final_knockback", "duration")):
-            candidate = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
-            effect = next(item for item in next(row for row in candidate["components"] if row["id"] == identity)["effects"]
-                          if item["op"] == op)
-            del effect[field]
-            with self.subTest(op=op, missing=field), self.assertRaises(content.ContentError):
-                schema.validate(candidate)
-
-    def test_phase5_connector_ops_refuse_ineffective_or_misshapen_values(self):
-        author, schema, ids = self.approved_projection_inputs()
-
-        def component_effect(candidate, identity, op):
-            return next(item for item in next(row for row in candidate["components"] if row["id"] == identity)["effects"]
-                        if item["op"] == op)
-
-        def fresh():
-            return content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
-
-        def check(candidate):
-            schema.validate(candidate)
-            content.validate_definitions(content.project_author(schema, candidate), ids)
-
-        check(fresh())
-        for identity, op, field in (
-            ("component_bottled_up", "stored_force", "ratio"), ("component_bottled_up", "stored_force", "duration"),
-            ("component_wide_open", "control_widen", "ratio"), ("component_wide_open", "control_widen", "duration"),
-            ("component_set_it_off", "zone_detonate", "ratio"),
-        ):
-            for change in ("zero", "missing"):
-                candidate = fresh()
-                effect = component_effect(candidate, identity, op)
-                if change == "zero":
-                    effect[field] = dict(effect[field], value=0)
-                else:
-                    del effect[field]
-                with self.subTest(op=op, field=field, change=change), self.assertRaises(content.ContentError):
-                    check(candidate)
-        # The two field-less connectors take no numbers at all.
-        for identity, op in (("component_move_meeting", "zone_relocate"), ("component_spend_fist", "empower_spend")):
-            candidate = fresh()
-            component_effect(candidate, identity, op)["ratio"] = {"unit": "ratio", "value": 0.5}
-            with self.subTest(op=op), self.assertRaises(content.ContentError):
-                check(candidate)
-        # A connector op is component-only: no active may carry it.
-        projected = content.project_author(schema, author)
-        next(row for row in projected["abilities"] if row["id"] == "active_seethe")["effects"].append({"op": "zone_relocate"})
-        with self.assertRaises(content.ContentError):
-            content.validate_definitions(projected, ids)
 
     def test_only_seethe_damage_scales_with_the_casters_max_hp(self):
         scaled = {row["id"] for row in self.data["abilities"] for effect in row["effects"]

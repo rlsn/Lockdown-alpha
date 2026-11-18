@@ -131,7 +131,7 @@ bool FLDHUDPaintOpacityTest::RunTest(const FString& Parameters)
         const FBox2D Box(FVector2D(8,8),FVector2D(72,72));
         Paint.Shape(Paint.Layer,LDUIShapes::EShape::Rounded,Box,5.f,LDUIPaint::FFill::Solid(FLinearColor(1,1,1,.8f)));
         Paint.Edge(Paint.Layer+1,LDUIShapes::EShape::Rounded,Box,5.f,FLinearColor(1,1,1,.6f),2.f);
-        Paint.WithOpacity(.5f).Tile(Paint.Layer+2,Box,1,false,LDUIPaint::ETileState::Normal,nullptr);
+        Paint.WithOpacity(.5f).Tile(Paint.Layer+2,Box,1,LDUIPaint::ETileState::Normal,nullptr);
     };
     const TSharedRef<SWidget> Slate=Layer->TakeWidget();
     Layer->SetRenderOpacity(.5f);
@@ -1983,7 +1983,7 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     FLDProgressionView View;View.bValid=true;View.Generation=7;View.Life=3;View.LifePhase=ELDLifePhase::Dead;
     View.Level=1;View.BuildRevision=12;View.CombatInstalledRevision=11;View.CatalogDigest=Content.Identity.Root;
     FLDActiveSlotView& Active=View.Actives.AddDefaulted_GetRef();Active.DefinitionId=TEXT("active_pants_down");
-    // A stored X05 (cooldown x0.65, cost x1.5) and a stored X08 (a conditional idle bonus), both skill cards.
+    // A stored K08 (cooldown x0.65, cost x1.5) and a stored K16 (a conditional idle bonus), both skill cards.
     FLDCardInstanceView& Quick=View.Cards.AddDefaulted_GetRef();Quick.Serial=1;Quick.DefinitionId=TEXT("card_again_now");
     FLDCardInstanceView& Held=View.Cards.AddDefaulted_GetRef();Held.Serial=2;Held.DefinitionId=TEXT("card_held_shot");
     const FLDGrowthBuild Build=LDProgression::BuildFromView(Content,View);
@@ -2002,7 +2002,7 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     Input.Drop.Column=LDHUD::EStorageColumn::SlotQ;Input.Drop.Kind=ELDCardTargetKind::Skill;Input.Drop.TargetId=Active.DefinitionId;
     using EStatus=LDWorkshopPreview::EStatus;
     const LDWorkshopPreview::FResult Preview=LDWorkshopPreview::Compare(Input);
-    TestTrue(TEXT("X05 compares the compiled cooldown without claiming a conditional effect"),
+    TestTrue(TEXT("K08 compares the compiled cooldown without claiming a conditional effect"),
         Preview.Status==EStatus::Ready&&!Preview.bPartial
         &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
             {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("9s")&&Line.After==TEXT("5.85s");}));

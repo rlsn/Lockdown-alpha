@@ -9,7 +9,6 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
-#include "Development/LDWorkshopRules.h"
 #include "Algo/Accumulate.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"

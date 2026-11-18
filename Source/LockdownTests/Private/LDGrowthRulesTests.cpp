@@ -1,11 +1,12 @@
 #include "Development/LDProgressionRules.h"
-#include "Development/LDWorkshopRules.h"
 #include <limits>
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Algo/AllOf.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatSourceRules.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevGrowthFixture.h"
@@ -611,22 +612,22 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestPoints(Test, Approved, 16, 2460, 54, TEXT("The second full 240 XP grants 3 more"));
     bGood &= GrowthTestPoints(Test, Approved, 16, 4380, 78, TEXT("Ten full 240 XP past level 16"));
     int64 Earned = -1;
-    bGood &= GrowthTestReason(Test, TEXT("A level that does not match its XP"), LDProgression::EarnedPoints(Approved, 2, 0, 0, Earned),
+    bGood &= GrowthTestReason(Test, TEXT("A level that does not match its XP"), LDProgression::EarnedPoints(Approved, 2, 0, Earned),
         ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("Negative XP"), LDProgression::EarnedPoints(Approved, 1, -1, 0, Earned), ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("Negative XP"), LDProgression::EarnedPoints(Approved, 1, -1, Earned), ELDGrowthReason::DataInvalid);
     bGood &= Test.TestEqual(TEXT("A refused derivation reports no points"), Earned, int64(0));
     {
         FLDDemoContentDefinitions Broken = Approved;
         Broken.Parameters.MaxLevelPointsXP = 0;
-        bGood &= GrowthTestReason(Test, TEXT("A zero max-level XP step"), LDProgression::EarnedPoints(Broken, 16, 3700, 0, Earned),
+        bGood &= GrowthTestReason(Test, TEXT("A zero max-level XP step"), LDProgression::EarnedPoints(Broken, 16, 3700, Earned),
             ELDGrowthReason::DataInvalid);
         Broken.Parameters.MaxLevelPointsXP = 400;
         Broken.Parameters.PointsPerLevel = -1;
-        bGood &= GrowthTestReason(Test, TEXT("Negative points per level"), LDProgression::EarnedPoints(Broken, 2, 48, 0, Earned),
+        bGood &= GrowthTestReason(Test, TEXT("Negative points per level"), LDProgression::EarnedPoints(Broken, 2, 48, Earned),
             ELDGrowthReason::DataInvalid);
         Broken.Parameters.PointsPerLevel = 3;
         Broken.Parameters.MaxLevelPoints = MAX_int64 / 2;
-        bGood &= GrowthTestReason(Test, TEXT("Max-level grants past the int64 bound"), LDProgression::EarnedPoints(Broken, 16, 4100, 0, Earned),
+        bGood &= GrowthTestReason(Test, TEXT("Max-level grants past the int64 bound"), LDProgression::EarnedPoints(Broken, 16, 4100, Earned),
             ELDGrowthReason::ArithmeticOverflow);
     }
 
@@ -636,20 +637,20 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         && Start.PendingBlueprints.IsEmpty());
     int64 Unspent = -1;
     bGood &= Test.TestTrue(TEXT("The match-start build holds the 3 opening points unspent"),
-        LDProgression::UnspentPoints(Approved, Start, 0, 0, Unspent) == ELDGrowthReason::None && Unspent == 3);
+        LDProgression::UnspentPoints(Approved, Start, 0, Unspent) == ELDGrowthReason::None && Unspent == 3);
     bGood &= Test.TestTrue(TEXT("Allocated points are subtracted"),
-        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {1, 0, 2, 0, 0}), 0, 0, Unspent)
+        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {1, 0, 2, 0, 0}), 0, Unspent)
             == ELDGrowthReason::None && Unspent == 0);
     bGood &= Test.TestTrue(TEXT("Points earned past level 16 are unspent until allocated"),
-        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 16, {}, {}, {40, 0, 0, 0, 8}), 2220, 0, Unspent)
+        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 16, {}, {}, {40, 0, 0, 0, 8}), 2220, Unspent)
             == ELDGrowthReason::None && Unspent == 3);
     bGood &= GrowthTestReason(Test, TEXT("More allocated than earned is a broken authority record"),
-        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {2, 0, 2, 0, 0}), 0, 0, Unspent),
+        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {2, 0, 2, 0, 0}), 0, Unspent),
         ELDGrowthReason::AuthorityFault);
     bGood &= GrowthTestReason(Test, TEXT("A point row per stat is required"),
-        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {1, 0, 0, 0}), 0, 0, Unspent), ELDGrowthReason::DataInvalid);
+        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {1, 0, 0, 0}), 0, Unspent), ELDGrowthReason::DataInvalid);
     bGood &= GrowthTestReason(Test, TEXT("A negative point count is refused"),
-        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {-1, 0, 0, 0, 0}), 0, 0, Unspent),
+        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {-1, 0, 0, 0, 0}), 0, Unspent),
         ELDGrowthReason::DataInvalid);
 
     // ---- Build shape ----
@@ -1306,7 +1307,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
             LDProgression::CommandGate(EKind::AllocatePoints, *Row.Context), Row.Allocate);
     }
     // The NPC services keep the rest build window (#222: "NPC 服务仍受原有阶段、位置与费用约束").
-    for (const EKind Kind : {EKind::BuyNpcOffer, EKind::Respec, EKind::FillGap, EKind::Dismantle})
+    for (const EKind Kind : {EKind::BuyNpcOffer, EKind::Respec})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("NPC kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
             ELDGrowthReason::NotRestWindow);
@@ -1413,7 +1414,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     // ---- AllocatePoints: one atomic step within the unspent points ----
     const auto Allocate = [&](const FLDGrowthBuild& From, int64 XP, const TArray<uint8>& Counts, const LDProgression::FBuildContext& Context)
     {
-        return LDProgression::ApplyAllocation(Content, From, XP, 0, Counts, Context, Out);
+        return LDProgression::ApplyAllocation(Content, From, XP, Counts, Context, Out);
     };
     bGood &= Test.TestTrue(TEXT("The three opening points are allocated across two stats in one step"),
         Allocate(Empty, 0, {1, 0, 2, 0, 0}, RestAlive) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({1, 0, 2, 0, 0}));
@@ -1467,7 +1468,7 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
     Damage.Opcode = uint8(ELDDemoEffectOp::Damage);
     Damage.BaseP2 = 6000; Damage.ADRatioBp = 5000; Damage.DurationMs = 1000; Damage.RatioBp = 2500;
     FLDDemoEffectDefinition Grant;
-    Grant.Opcode = uint8(ELDDemoEffectOp::ControlMomentum);
+    Grant.Opcode = uint8(ELDDemoEffectOp::MomentumGain);
     Grant.BaseP2 = 1200;
     Grant.LimitP2 = 1200;
     FLDDemoEffectDefinition Timed;
@@ -3313,10 +3314,324 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
-// Every installed base, mod and connector takes one workshop slot of its level: a full workshop refuses the next install
-// (WorkshopFull, nothing changes) and the opening base stays in the inventory; an uninstall frees the slot; a stored
-// build past its capacity is invalid.
-// #198 F: mod/connector install targets (spec §12.1, §13.1): the kinds a definition accepts, a learned active or an installed
-// host, C12's installed base, the M08/M09 conflict, element sources, and the uninstall cascade of a host.
+// ---- Spec §6 P2 card rules (pure LDProgression over the approved catalog) ----
+namespace GrowthCardTests
+{
+LDProgression::FBuildContext Live()
+{
+    LDProgression::FBuildContext Context;
+    Context.Stage = LDProgression::EMatchStage::Live;
+    Context.LifePhase = ELDLifePhase::Alive;
+    return Context;
+}
+
+// A progression whose opening opportunity is resolved, with Count queued level-up offers and the free rerolls.
+FLDProgressionState Queued(const FLDDemoContentDefinitions& Content, int32 Count)
+{
+    FLDProgressionState Out;
+    FLDActiveOpportunityRecord& Opening = Out.Records.AddDefaulted_GetRef();
+    Opening.Ordinal = 1;
+    Out.ActiveEarned = Out.ActiveConsumed = 1;
+    Out.CardRerollsGranted = Content.Parameters.Cards.FreeRerolls;
+    uint16 First = 0, Last = 0;
+    LDProgression::QueueCardOffers(Out, ELDCardOfferSource::LevelUp, Count, First, Last);
+    return Out;
+}
+
+FLDGrowthBuild Learned(const FLDDemoContentDefinitions& Content, uint8 Level)
+{
+    FLDGrowthBuild Build = LDProgression::StartBuild(Content);
+    Build.Level = Level;
+    Build.Actives.Add({FName(TEXT("active_elbow")), 0});
+    LDProgression::NormalizeBuild(Build);
+    return Build;
+}
+
+const FGuid Secret(0x289, 1, 2, 3), Contender(0x289, 4, 5, 6);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthCardsOfferTest, "Lockdown.Rules.Growth.Cards.Offer",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthCardsOfferTest::RunTest(const FString& Parameters)
+{
+    using namespace GrowthCardTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDGrowthBuild Build = Learned(Content, 3);
+    // Spec §6.4: three distinct cards, fixed by the seed, weighted x2 toward the build's vocabulary.
+    TArray<FName> Options, Again;
+    bool bGood = GrowthTestReason(*this, TEXT("An offer draws"), LDProgression::DrawCardOffer(Content, Build, NAME_None, 7, Options),
+        ELDGrowthReason::None);
+    LDProgression::DrawCardOffer(Content, Build, NAME_None, 7, Again);
+    bGood &= TestTrue(TEXT("Three distinct cards, fixed by the seed"), Options.Num() == 3 && GrowthTestDistinct(Options) && Options == Again);
+    const uint32 Vocab = LDProgression::BuildVocab(Content, Build);
+    int32 Shared = 0, Total = 0;
+    for (uint64 Seed = 1; Seed <= 400; ++Seed)
+    {
+        LDProgression::DrawCardOffer(Content, Build, NAME_None, Seed, Options);
+        const FName First = Options[0];
+        const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([First](const FLDDemoCardDefinition& Row) { return FName(*Row.Id) == First; });
+        Shared += Card && (Card->VocabMask & Vocab) != 0;
+        ++Total;
+    }
+    int32 SharedDefinitions = 0;
+    for (const FLDDemoCardDefinition& Row : Content.Cards) { SharedDefinitions += (Row.VocabMask & Vocab) != 0; }
+    // A first pick shares the vocabulary with probability 2S / (2S + U); without weighting it would be S / (S + U).
+    const double Weighted = 2. * SharedDefinitions / (2. * SharedDefinitions + (Content.Cards.Num() - SharedDefinitions));
+    const double Plain = double(SharedDefinitions) / Content.Cards.Num();
+    bGood &= TestTrue(FString::Printf(TEXT("Vocabulary-sharing cards are drawn first about twice as often (%d of %d; weighted %.2f, plain %.2f)"),
+        Shared, Total, Weighted, Plain), Vocab != 0 && double(Shared) / Total > (Plain + Weighted) / 2.);
+    // The opening offer waits for the opening opportunity, then the head is drawn once.
+    FLDProgressionState Waiting = Queued(Content, 1);
+    Waiting.Records.Reset();
+    bool bDrawn = true;
+    LDProgression::RefreshCardOffer(Content, Build, Waiting, Secret, Contender, bDrawn);
+    bGood &= TestTrue(TEXT("No card offer before the opening opportunity resolves"), !bDrawn && !Waiting.CardOffer.IsSet());
+    FLDProgressionState Ready = Queued(Content, 2);
+    LDProgression::RefreshCardOffer(Content, Build, Ready, Secret, Contender, bDrawn);
+    const FGuid FirstOffer = Ready.CardOffer.IsSet() ? Ready.CardOffer->OfferId : FGuid();
+    LDProgression::RefreshCardOffer(Content, Build, Ready, Secret, Contender, bDrawn);
+    bGood &= TestTrue(TEXT("The head is drawn once; a current offer is never redrawn"), !bDrawn && Ready.CardOffer.IsSet()
+        && Ready.CardOffer->OfferId == FirstOffer && Ready.CardOffer->Ordinal == 1 && Ready.CardQueue.Num() == 2);
+    // Taking a card resolves the head; the next offer follows.
+    FLDGrowthBuild Out;
+    FLDProgressionState After;
+    LDProgression::FCardPickOutcome Outcome;
+    const FName Taken = Ready.CardOffer->Options[0];
+    bGood &= GrowthTestReason(*this, TEXT("Taking a card"), LDProgression::ApplyPickCard(Content, Build, Ready, FirstOffer, Taken, false,
+        FLDCardTarget(), Live(), Out, After, Outcome), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The card goes to the library and the offer resolves"), Out.Cards.Num() == 1 && Out.Cards[0].Id == Taken
+        && !Out.Cards[0].IsInstalled() && !After.CardOffer.IsSet() && After.CardQueue.Num() == 1 && Outcome.Serial == 1);
+    LDProgression::RefreshCardOffer(Content, Out, After, Secret, Contender, bDrawn);
+    bGood &= TestTrue(TEXT("The next queued offer is drawn"), bDrawn && After.CardOffer.IsSet() && After.CardOffer->Ordinal == 2);
+    // Skipping before P5 gives nothing.
+    FLDProgressionState Skipped;
+    bGood &= GrowthTestReason(*this, TEXT("Skipping the offer"), LDProgression::ApplySkipCards(Content, After, After.CardOffer->OfferId,
+        Live(), Skipped), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("A skip only resolves the offer"), !Skipped.CardOffer.IsSet() && Skipped.CardQueue.IsEmpty()
+        && Skipped.CardRerollsGranted == After.CardRerollsGranted);
+    bGood &= GrowthTestReason(*this, TEXT("Taking a card outside the offer"), LDProgression::ApplyPickCard(Content, Out, After,
+        After.CardOffer->OfferId, FName(TEXT("card_missing")), false, FLDCardTarget(), Live(), Out, Skipped, Outcome),
+        ELDGrowthReason::NotInOffer);
+    bGood &= GrowthTestReason(*this, TEXT("Taking from a resolved offer"), LDProgression::ApplyPickCard(Content, Build, Ready, FGuid(9, 9, 9, 9),
+        Taken, false, FLDCardTarget(), Live(), Out, Skipped, Outcome), ELDGrowthReason::NoCardOffer);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthCardsRerollTest, "Lockdown.Rules.Growth.Cards.Reroll",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthCardsRerollTest::RunTest(const FString& Parameters)
+{
+    using namespace GrowthCardTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDGrowthBuild Build = Learned(Content, 3);
+    FLDProgressionState Progression = Queued(Content, 1);
+    bool bDrawn = false;
+    LDProgression::RefreshCardOffer(Content, Build, Progression, Secret, Contender, bDrawn);
+    if (!TestTrue(TEXT("An offer is current"), bDrawn)) { return false; }
+    bool bGood = TestEqual(TEXT("Three free rerolls at match start"), LDProgression::CardRerollsLeft(Progression), 3);
+    TSet<FName> Seen(Progression.CardOffer->Options);
+    for (int32 Reroll = 1; Reroll <= 3; ++Reroll)
+    {
+        FLDProgressionState Out;
+        const FGuid Before = Progression.CardOffer->OfferId;
+        bGood &= GrowthTestReason(*this, FString::Printf(TEXT("Reroll %d"), Reroll), LDProgression::ApplyRerollCards(Content, Build,
+            Progression, Before, Secret, Contender, Live(), Out), ELDGrowthReason::None);
+        bGood &= TestTrue(FString::Printf(TEXT("Reroll %d spends one and draws a new offer of three"), Reroll),
+            Out.CardOffer.IsSet() && Out.CardOffer->OfferId != Before && Out.CardOffer->Options.Num() == 3
+            && Out.CardOffer->Revision > Progression.CardOffer->Revision && LDProgression::CardRerollsLeft(Out) == 3 - Reroll);
+        Seen.Append(Out.CardOffer->Options);
+        Progression = Out;
+    }
+    bGood &= TestTrue(TEXT("Rerolls show other cards"), Seen.Num() > 3);
+    FLDProgressionState Out;
+    bGood &= GrowthTestReason(*this, TEXT("No reroll left"), LDProgression::ApplyRerollCards(Content, Build, Progression,
+        Progression.CardOffer->OfferId, Secret, Contender, Live(), Out), ELDGrowthReason::NoReroll);
+    // Each mid-match rest grants one more (LDGrowthDirector::GrantRestRerolls adds CARDS.RerollsPerRest).
+    Progression.CardRerollsGranted += Content.Parameters.Cards.RerollsPerRest;
+    bGood &= TestEqual(TEXT("One more per rest"), Content.Parameters.Cards.RerollsPerRest, 1)
+        && GrowthTestReason(*this, TEXT("A rest reroll"), LDProgression::ApplyRerollCards(Content, Build, Progression,
+            Progression.CardOffer->OfferId, Secret, Contender, Live(), Out), ELDGrowthReason::None);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthCardsLockTest, "Lockdown.Rules.Growth.Cards.Lock",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthCardsLockTest::RunTest(const FString& Parameters)
+{
+    using namespace GrowthCardTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDGrowthBuild Build = Learned(Content, 3);
+    FLDProgressionState Progression = Queued(Content, 2);
+    bool bDrawn = false;
+    LDProgression::RefreshCardOffer(Content, Build, Progression, Secret, Contender, bDrawn);
+    if (!TestTrue(TEXT("An offer is current"), bDrawn)) { return false; }
+    const FName Kept = Progression.CardOffer->Options[2];
+    FLDProgressionState Locked;
+    bool bGood = GrowthTestReason(*this, TEXT("Locking one card"), LDProgression::ApplyLockCard(Content, Progression,
+        Progression.CardOffer->OfferId, Kept, Live(), Locked), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The lock is on the same offer with a new revision"), Locked.CardOffer->Locked == Kept
+        && Locked.CardOffer->OfferId == Progression.CardOffer->OfferId && Locked.CardOffer->Revision > Progression.CardOffer->Revision);
+    FLDProgressionState Rerolled;
+    LDProgression::ApplyRerollCards(Content, Build, Locked, Locked.CardOffer->OfferId, Secret, Contender, Live(), Rerolled);
+    bGood &= TestTrue(TEXT("A reroll keeps the locked card first"), Rerolled.CardOffer->Options.Num() == 3
+        && Rerolled.CardOffer->Options[0] == Kept && Rerolled.CardOffer->Locked == Kept);
+    // Taking another card carries the lock into the next offer.
+    FLDGrowthBuild Out;
+    FLDProgressionState Taken;
+    LDProgression::FCardPickOutcome Outcome;
+    const FName Other = Rerolled.CardOffer->Options[1];
+    LDProgression::ApplyPickCard(Content, Build, Rerolled, Rerolled.CardOffer->OfferId, Other, false, FLDCardTarget(), Live(), Out, Taken,
+        Outcome);
+    LDProgression::RefreshCardOffer(Content, Out, Taken, Secret, Contender, bDrawn);
+    bGood &= TestTrue(TEXT("The locked card is shown first in the next offer"), bDrawn && Taken.CardOffer->Options[0] == Kept
+        && Taken.CardOffer->Locked.IsNone() && Taken.CarriedLock.IsNone());
+    FLDProgressionState Cleared;
+    bGood &= GrowthTestReason(*this, TEXT("Clearing a lock"), LDProgression::ApplyLockCard(Content, Locked, Locked.CardOffer->OfferId,
+        NAME_None, Live(), Cleared), ELDGrowthReason::None) && TestTrue(TEXT("Cleared"), Cleared.CardOffer->Locked.IsNone());
+    bGood &= GrowthTestReason(*this, TEXT("Locking a card outside the offer"), LDProgression::ApplyLockCard(Content, Progression,
+        Progression.CardOffer->OfferId, FName(TEXT("card_missing")), Live(), Cleared), ELDGrowthReason::NotInOffer);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthCardsDuplicatesTest, "Lockdown.Rules.Growth.Cards.Duplicates",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthCardsDuplicatesTest::RunTest(const FString& Parameters)
+{
+    using namespace GrowthCardTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    // Spec §6.1: copies of one card are separate cards; each takes its own slot and any number may sit on one place.
+    FLDGrowthBuild Build = Learned(Content, 6);
+    uint16 A = 0, B = 0, C = 0;
+    bool bGood = GrowthTestReason(*this, TEXT("Receiving a copy"), LDProgression::ReceiveCard(Content, Build, TEXT("card_encore"), 2, A),
+        ELDGrowthReason::None);
+    LDProgression::ReceiveCard(Content, Build, TEXT("card_encore"), 3, B);
+    LDProgression::ReceiveCard(Content, Build, TEXT("card_encore"), 4, C);
+    bGood &= TestTrue(TEXT("Each copy has its own serial"), A == 1 && B == 2 && C == 3 && Build.Cards.Num() == 3);
+    FLDCardTarget Elbow;
+    Elbow.Kind = ELDCardTargetKind::Skill;
+    Elbow.Active = TEXT("active_elbow");
+    FLDGrowthBuild One, Two, Three;
+    bGood &= GrowthTestReason(*this, TEXT("The first copy on the skill"), LDProgression::ApplyInstallCard(Content, Build, A, Elbow, Live(), One),
+        ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("The second copy on the same skill"), LDProgression::ApplyInstallCard(Content, One, B, Elbow, Live(), Two),
+        ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("The third copy on the same skill"), LDProgression::ApplyInstallCard(Content, Two, C, Elbow, Live(), Three),
+        ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("Three copies take three slots on one place; no column cap"), LDProgression::InstalledCards(Three) == 3
+        && LDProgression::ValidateBuild(Content, Three) == ELDGrowthReason::None);
+    FLDGrowthBuild Again;
+    bGood &= GrowthTestReason(*this, TEXT("An installed copy is not installed again"),
+        LDProgression::ApplyInstallCard(Content, Three, A, Elbow, Live(), Again), ELDGrowthReason::AlreadyInstalled);
+    // Different forms side by side: no form excludes another.
+    uint16 Basic = 0, Body = 0;
+    LDProgression::ReceiveCard(Content, Three, TEXT("card_third_breath"), 5, Basic);
+    LDProgression::ReceiveCard(Content, Three, TEXT("card_spiky_hide"), 6, Body);
+    FLDCardTarget OnBasic, OnBody;
+    OnBasic.Kind = ELDCardTargetKind::Basic;
+    OnBody.Kind = ELDCardTargetKind::Body;
+    FLDGrowthBuild Mixed, Wrong;
+    bGood &= GrowthTestReason(*this, TEXT("A basic card beside the skill copies"), LDProgression::ApplyInstallCard(Content, Three, Basic, OnBasic,
+        Live(), Mixed), ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("A body card on the basic is refused"), LDProgression::ApplyInstallCard(Content, Mixed, Body, OnBasic,
+        Live(), Wrong), ELDGrowthReason::InvalidTarget);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthCardsCapacityTest, "Lockdown.Rules.Growth.Cards.Capacity",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthCardsCapacityTest::RunTest(const FString& Parameters)
+{
+    using namespace GrowthCardTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    // Spec §3.12: 6 slots at levels 1-5, then one more every five levels: 9 at level 16.
+    bool bGood = TestTrue(TEXT("Capacity 6 / 6 / 7 / 8 / 9 at levels 1 / 5 / 6 / 11 / 16"),
+        LDProgression::CardCapacity(Content.Parameters, 1) == 6 && LDProgression::CardCapacity(Content.Parameters, 5) == 6
+        && LDProgression::CardCapacity(Content.Parameters, 6) == 7 && LDProgression::CardCapacity(Content.Parameters, 11) == 8
+        && LDProgression::CardCapacity(Content.Parameters, 16) == 9);
+    FLDGrowthBuild Build = Learned(Content, 1);
+    FLDCardTarget OnBody;
+    OnBody.Kind = ELDCardTargetKind::Body;
+    for (int32 Index = 0; Index < 7; ++Index)
+    {
+        uint16 Serial = 0;
+        LDProgression::ReceiveCard(Content, Build, TEXT("card_spiky_hide"), uint16(Index + 2), Serial);
+    }
+    FLDGrowthBuild Out;
+    for (uint16 Serial = 1; Serial <= 6; ++Serial)
+    {
+        bGood &= GrowthTestReason(*this, FString::Printf(TEXT("Copy %u fits"), Serial),
+            LDProgression::ApplyInstallCard(Content, Build, Serial, OnBody, Live(), Out), ELDGrowthReason::None);
+        Build = Out;
+    }
+    bGood &= GrowthTestReason(*this, TEXT("The seventh at level 1 is refused"),
+        LDProgression::ApplyInstallCard(Content, Build, 7, OnBody, Live(), Out), ELDGrowthReason::WorkshopFull);
+    bGood &= TestEqual(TEXT("A refused install changes nothing"), LDProgression::InstalledCards(Out), 6);
+    TArray<uint16> Swapped;
+    bGood &= GrowthTestReason(*this, TEXT("A full workshop swaps one card for another"),
+        LDProgression::ApplyInstallCard(Content, Build, 7, OnBody, Live(), Out, 1, &Swapped), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The replaced card goes back to the library"), Swapped == TArray<uint16>({1}) && !Out.FindCard(1)->IsInstalled()
+        && Out.FindCard(7)->IsInstalled() && LDProgression::InstalledCards(Out) == 6);
+    FLDGrowthBuild Freed;
+    bGood &= GrowthTestReason(*this, TEXT("An uninstall frees a slot"), LDProgression::ApplyUninstallCard(Content, Build, 6, Live(), Freed),
+        ELDGrowthReason::None) && GrowthTestReason(*this, TEXT("The freed slot takes the next card"),
+        LDProgression::ApplyInstallCard(Content, Freed, 7, OnBody, Live(), Out), ELDGrowthReason::None);
+    FLDGrowthBuild Over = Build;
+    Over.FindCard(7)->Target = OnBody;
+    bGood &= GrowthTestReason(*this, TEXT("A stored build past its capacity is invalid"), LDProgression::ValidateBuild(Content, Over),
+        ELDGrowthReason::DataInvalid);
+    Over.Level = 6;
+    bGood &= GrowthTestReason(*this, TEXT("Level 6 holds seven"), LDProgression::ValidateBuild(Content, Over), ELDGrowthReason::None);
+    return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDevBreakoutPresetsTest, "Lockdown.Rules.Dev.BreakoutPresets",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDevBreakoutPresetsTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    // Spec §7.6: the nine P2 samples, each a valid max-level build that Combat projects with every card installed.
+    const TArray<FLDBreakoutPreset>& All = LDBreakoutPresets::All();
+    bool bGood = TestEqual(TEXT("Nine P2 samples"), All.Num(), 9);
+    TSet<FString> Ids;
+    for (const FLDBreakoutPreset& Preset : All)
+    {
+        Ids.Add(Preset.Id);
+        FLDGrowthBuild Build;
+        int64 XP = 0;
+        FString Error;
+        if (!TestTrue(FString::Printf(TEXT("%s builds: %s"), Preset.Id, *Error), LDBreakoutPresets::Build(Content, Preset, Build, XP, Error)))
+        {
+            bGood = false;
+            continue;
+        }
+        bGood &= TestTrue(FString::Printf(TEXT("%s: a valid build at the top level with every card installed"), Preset.Id),
+            LDProgression::ValidateBuild(Content, Build) == ELDGrowthReason::None && Build.Level == Content.Progression.MaxLevel
+            && LDProgression::InstalledCards(Build) == Preset.Cards.Num() && Build.Actives.Num() == Preset.Skills.Num()
+            && LDProgression::InstalledCards(Build) <= LDProgression::CardCapacity(Content.Parameters, Build.Level));
+        const FLDAttributeProjectionResult Projected = LDCombatSourceRules::ProjectBuildInput(
+            LDProgression::CombatProjectionInput(&Content, Build), *Catalog);
+        bGood &= TestTrue(FString::Printf(TEXT("%s: Combat projects it"), Preset.Id), Projected.IsSuccess()
+            && Projected.Value->InstalledCards.Num() == Preset.Cards.Num());
+        bGood &= TestTrue(FString::Printf(TEXT("%s: found by id and owns its cards"), Preset.Id),
+            LDBreakoutPresets::Find(FName(Preset.Id)) == &Preset && Algo::AllOf(Preset.Cards, [&Preset](const FLDBreakoutCard& Card)
+            { return LDBreakoutPresets::HasCard(Preset, FName(Card.Card)); }));
+    }
+    bGood &= TestEqual(TEXT("Distinct sample ids"), Ids.Num(), All.Num());
+    bGood &= TestNull(TEXT("An unknown sample is absent"), LDBreakoutPresets::Find(FName(TEXT("breakout_missing"))));
+    return bGood;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

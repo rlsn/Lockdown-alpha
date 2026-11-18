@@ -94,9 +94,9 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A direct hit with damage confirms to its attacker"), LDCombatCues::ConfirmsDealt(Direct,100));
     TestFalse(TEXT("A hit without damage confirms nothing"), LDCombatCues::ConfirmsDealt(Direct,0));
     const auto Indirect=[](bool FLDCombatHit::*Flag){FLDCombatHit Hit;Hit.*Flag=true;return LDCombatCues::ConfirmsDealt(Hit,100);};
-    TestFalse(TEXT("Periodic, burn, settle, reflect, debt and cash-out damage never confirm a hit"),
+    TestFalse(TEXT("Periodic, burn, settle and reflect damage never confirm a hit"),
         Indirect(&FLDCombatHit::bPeriodic) || Indirect(&FLDCombatHit::bBurnTick) || Indirect(&FLDCombatHit::bStatusSettle)
-        || Indirect(&FLDCombatHit::bReflect) || Indirect(&FLDCombatHit::bDebtPayment) || Indirect(&FLDCombatHit::bLedgerCashOut));
+        || Indirect(&FLDCombatHit::bReflect));
 
     FLDCombatHit Elemental;
     Elemental.DamageType=ELDDemoDamageType::Magical;

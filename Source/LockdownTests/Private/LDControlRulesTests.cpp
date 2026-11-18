@@ -396,7 +396,7 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
         int32 End = INDEX_NONE;
         return Rest.FindChar(TEXT(' '), End) ? Rest.Left(End) : Rest;
     };
-    // A 300-point hit with a full on-hit lifesteal; #147 D22 caps every lifesteal of one hit at COMBAT.LifestealCap.
+    // A 300-point hit with a full on-hit lifesteal; spec §3.7 leaves lifesteal uncapped (only the max HP clamps it).
     const auto Strike = [&](int64& OutHPLost, int64& OutHealed, FString& OutVamp)
     {
         FLDCombatHit Hit;
@@ -422,14 +422,14 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
         return true;
     };
 
-    // Room to heal: the line records the capped lifesteal the source regained.
+    // Room to heal: the line records the lifesteal the source regained.
     Source.Resources.HpP2 = 50000;
     int64 HPLost = 0, Healed = 0;
     FString Vamp;
     if (!Strike(HPLost, Healed, Vamp)) { return false; }
     TestTrue(TEXT("The hit took HP for the source's lifesteal"), HPLost > 0);
-    const int64 CapBp = Catalog->Get().Parameters.LifestealCapBp;
-    TestEqual(TEXT("The source regains the capped lifesteal"), Healed, HPLost * CapBp / 10000);
+    const int64 CapBp = 10000;
+    TestEqual(TEXT("The source regains the full uncapped lifesteal"), Healed, HPLost * CapBp / 10000);
     TestEqual(TEXT("vamp is the source's actual HP gain"), Vamp, LDLog::P2(Healed));
 
     // The source is near full HP: the line records the clamped gain.
