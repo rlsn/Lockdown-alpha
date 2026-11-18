@@ -123,6 +123,27 @@ const FNativeId NativeIds[] =
     DEMO_ID("cards", "card_move_turf", ELDDemoCardId, CardMoveTurf),
     DEMO_ID("cards", "card_double_stall", ELDDemoCardId, CardDoubleStall),
     DEMO_ID("cards", "card_turf_growth", ELDDemoCardId, CardTurfGrowth),
+    DEMO_ID("cards", "card_long_arm", ELDDemoCardId, CardLongArm),
+    DEMO_ID("cards", "card_wide_swing", ELDDemoCardId, CardWideSwing),
+    DEMO_ID("cards", "card_fist_skill", ELDDemoCardId, CardFistSkill),
+    DEMO_ID("cards", "card_slow_craft", ELDDemoCardId, CardSlowCraft),
+    DEMO_ID("cards", "card_muscle_memory", ELDDemoCardId, CardMuscleMemory),
+    DEMO_ID("cards", "card_quick_takedown", ELDDemoCardId, CardQuickTakedown),
+    DEMO_ID("cards", "card_pin_amp", ELDDemoCardId, CardPinAmp),
+    DEMO_ID("cards", "card_crowd_hit", ELDDemoCardId, CardCrowdHit),
+    DEMO_ID("cards", "card_long_reach", ELDDemoCardId, CardLongReach),
+    DEMO_ID("cards", "card_hold_longer", ELDDemoCardId, CardHoldLonger),
+    DEMO_ID("cards", "card_held_breath", ELDDemoCardId, CardHeldBreath),
+    DEMO_ID("cards", "card_combo_chain", ELDDemoCardId, CardComboChain),
+    DEMO_ID("cards", "card_dodge_strike", ELDDemoCardId, CardDodgeStrike),
+    DEMO_ID("cards", "card_head_down", ELDDemoCardId, CardHeadDown),
+    DEMO_ID("cards", "card_paid_dash", ELDDemoCardId, CardPaidDash),
+    DEMO_ID("cards", "card_slippery", ELDDemoCardId, CardSlippery),
+    DEMO_ID("cards", "card_shell_burst", ELDDemoCardId, CardShellBurst),
+    DEMO_ID("cards", "card_short_breath", ELDDemoCardId, CardShortBreath),
+    DEMO_ID("cards", "card_run_hit", ELDDemoCardId, CardRunHit),
+    DEMO_ID("cards", "card_tally", ELDDemoCardId, CardTally),
+    DEMO_ID("cards", "card_burn_guard", ELDDemoCardId, CardBurnGuard),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
@@ -2703,8 +2724,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields F(Check, Value, TEXT("content"));
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
-    if (!Identity.Int(TEXT("schema_version"), Revision, 5, 5)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 12, 12)
+    if (!Identity.Int(TEXT("schema_version"), Revision, 6, 6)
+        || !Identity.Int(TEXT("handler_revision"), Revision, 13, 13)
         || !Identity.Int(TEXT("projection_revision"), Revision, 10, 10))
     {
         return false;
@@ -3008,7 +3029,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 5\n#define LD_DEMO_CONTENT_HANDLER_REVISION 12\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 6\n#define LD_DEMO_CONTENT_HANDLER_REVISION 13\n")
         TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 10\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
