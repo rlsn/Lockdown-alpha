@@ -10,6 +10,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDChainCodex.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
@@ -268,11 +269,26 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     {
         auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
         ULDCommandButton* Settings=MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);});
+        ULDCommandButton* Codex=MakeButton(LDTerms::ChainCodex,TEXT("ChainCodex"),[this](){OpenCodex();});
         ULDCommandButton* Exit=MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);});
-        Glass(Settings);Glass(Exit);
+        Glass(Settings);Glass(Codex);Glass(Exit);
         Row->AddChildToHorizontalBox(Sign(Settings,203,58));
+        Row->AddChildToHorizontalBox(Sign(Codex,203,58))->SetPadding(FMargin(14,0,0,0));
         Row->AddChildToHorizontalBox(Sign(Exit,203,58))->SetPadding(FMargin(14,0,0,0));
         Stack(Row,0);
+    }
+    {
+        // Spec §6.5: the codex page lists every chain key found on this computer, newest first, with its longest length.
+        UVerticalBox* Codex=nullptr;
+        CodexPage=MakePage(Canvas,720,Codex);
+        CodexPage->SetVisibility(ESlateVisibility::Collapsed);
+        Add(Codex,Label(LDTerms::ChainCodex,LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
+        CodexCount=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted);
+        Add(Codex,CodexCount,2);
+        CodexRows=WidgetTree->ConstructWidget<UVerticalBox>();
+        Add(Codex,CodexRows,6);
+        CodexBack=MakeButton(TEXT("返回"),TEXT("ChainCodexBack"),[this](){CloseCodex();});
+        Add(Codex,CodexBack,8);
     }
 
     StartPage=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -995,6 +1011,37 @@ void ULDUIRoot::ShowStartPage(bool bShow)
     if(NameBox->GetText().IsEmpty()){NameBox->SetKeyboardFocus();}else{HostButton->SetKeyboardFocus();}
 }
 
+void ULDUIRoot::OpenCodex()
+{
+    if(!CodexPage||!FrontendPage||bCodexOpen){return;}
+    TArray<FLDChainCodexEntry> Entries=LDChainCodex::Load();
+    Entries.Sort([](const FLDChainCodexEntry& A,const FLDChainCodexEntry& B){return A.FirstSeenUnix>B.FirstSeenUnix;});
+    CodexRows->ClearChildren();
+    CodexCount->SetText(FText::FromString(LDTerms::ChainCodexCount(Entries.Num())));
+    for(const FLDChainCodexEntry& Entry:Entries)
+    {
+        UTextBlock* Row=Label(FString::Printf(TEXT("%s    %s"),*Entry.Key.Replace(TEXT(">"),TEXT(" → ")),*LDTerms::ChainLongest(Entry.LongestSteps)),
+            LDHUDStyle::TypeText,LDHUDStyle::UIText);
+        CodexRows->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,3));
+    }
+    bCodexOpen=true;
+    FrontendPage->SetVisibility(ESlateVisibility::Collapsed);
+    if(FrontendLogo){FrontendLogo->SetVisibility(ESlateVisibility::Collapsed);}
+    CodexPage->SetVisibility(ESlateVisibility::Visible);
+    CodexBack->SetKeyboardFocus();
+}
+
+bool ULDUIRoot::CloseCodex()
+{
+    if(!bCodexOpen){return false;}
+    bCodexOpen=false;
+    CodexPage->SetVisibility(ESlateVisibility::Collapsed);
+    FrontendPage->SetVisibility(ESlateVisibility::Visible);
+    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    if(StartButton){StartButton->SetKeyboardFocus();}
+    return true;
+}
+
 bool ULDUIRoot::CloseStartPage()
 {
     if(!bStartPage||bFrontendHidden){return false;}
@@ -1246,7 +1293,7 @@ bool ULDUIRoot::CloseTopPanel()
         Open->ClosePanel();
         return true;
     }
-    if(PC->IsFrontend()){return CloseStartPage();}
+    if(PC->IsFrontend()){return CloseCodex()||CloseStartPage();}
     if(bMenuOpen){CloseMenu();return true;}
     return false;
 }
@@ -1270,7 +1317,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     {
         // The main menu is the frontend's base page: Menu only closes Settings or the Start page and never quits.
         if(Panel!=ELDUIMainPanel::Menu){return;}
-        if(PanelOpen(SettingsPanel)){SettingsPanel->ClosePanel();}else{CloseStartPage();}
+        if(PanelOpen(SettingsPanel)){SettingsPanel->ClosePanel();}else if(!CloseCodex()){CloseStartPage();}
         return;
     }
     if(bInLobby){return;}

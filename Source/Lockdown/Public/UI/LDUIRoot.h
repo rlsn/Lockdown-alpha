@@ -128,6 +128,12 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LobbyBlocker;
     UPROPERTY() TObjectPtr<UTextBlock> LobbyFeedback;
     UPROPERTY() TObjectPtr<USizeBox> MenuPage;
+    // Spec §6.5 连锁图鉴: the main menu's page of the local codex (a menu page, so its list may scroll).
+    UPROPERTY() TObjectPtr<USizeBox> CodexPage;
+    UPROPERTY() TObjectPtr<UTextBlock> CodexCount;
+    UPROPERTY() TObjectPtr<UVerticalBox> CodexRows;
+    UPROPERTY() TObjectPtr<ULDCommandButton> CodexBack;
+    bool bCodexOpen = false;
     UPROPERTY() TObjectPtr<UTextBlock> MenuPhase;
     UPROPERTY() TObjectPtr<UTextBlock> MenuPause;
     UPROPERTY() TObjectPtr<UTextBlock> MenuFeedback;
@@ -179,6 +185,8 @@ private:
     void SetFrontendPage(bool bStart);
     void ShowStartPage(bool bShow);
     bool CloseStartPage();
+    void OpenCodex();
+    bool CloseCodex();
     void UpdateStartControls();
     void RestoreFrontendPage(ALDPlayerController& PC);
     void OpenMenu();
