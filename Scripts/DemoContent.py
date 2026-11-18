@@ -76,7 +76,7 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "dash",
                        # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
                        "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste",
                        # Issue #287 P4: chill, rot and gust, the ground states a skill leaves and N2's fan.
-                       "chill", "rot", "gust", "ground_state", "fan",
+                       "chill", "rot", "gust", "ground_state", "fan", "bag",
                        "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
                        "empower_reach", "pull",
                        # Skill branch operations (issue #287 spec §5.1).
@@ -95,7 +95,7 @@ CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_ele
                            # Issue #292 P5 cards (spec §7).
                            "basic_projectile", "combo_sweep", "combo_cast", "speed_factor", "hit_growth", "control_amp",
                            "reshape", "shield_spend", "recent_cast_amp", "dodge_free_cast", "dash_ram", "overdrive_short",
-                           "tally", "burn_shield"))
+                           "tally"))
 # burn, breach and empower_basic also have an active form; shield_burst_break is S13 A1's branch and Y06's card.
 CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic", "shield_burst_break"}
 EFFECT_OPS = EFFECT_OPS | CARD_ONLY_OPS
@@ -116,8 +116,7 @@ FORM_OPS = {
                        "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
                        "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
                        "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap",
-                       "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally",
-                       "burn_shield")),
+                       "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally")),
 }
 CARD_FORMS = ("basic", "skill", "dash", "body")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
@@ -616,6 +615,9 @@ def _validate_new_effect(effect, path):
         require(effect["kind"] in GROUND_KINDS, "InvalidReference", path, "unknown ground state")
         if "attack_slow" in effect:
             require(0 < quantity(effect["attack_slow"]) < 1, "NumericDomain", path, "an attack slow keeps something")
+    if effect["op"] == "bag":
+        require(quantity(effect["hp_base"]) > 0 and quantity(effect["radius"]) > 0 and quantity(effect["size"]) > 0,
+                "InvalidGeometry", path, "a bag has life, a body and a blast")
     if effect["op"] == "fan":
         require(effect["interval"]["ms"] <= effect["duration"]["ms"], "InvalidTiming", path, "a fan blows inside its life")
         require(quantity(effect["length"]) > 0 and quantity(effect["width"]) > 0 and quantity(effect["distance"]) > 0,
@@ -643,7 +645,8 @@ def _validate_action(target, effects, path):
                                     "shield_burst_break", "empower_reach", "final_knockback")),
         "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
                                   "ground_impact", "contact_trap", "damage", "root", "slow", "burn", "knockback", *ELEMENT_OPS,
-                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan")),
+                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan",
+                                  "bag", "ground_state")),
         "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence", *ELEMENT_OPS,
                                     "ground_state")),
     }[mode]
@@ -658,8 +661,8 @@ def _validate_action(target, effects, path):
                 "hit effects of a self or dash action need exactly one self_area to name their targets")
     if mode == "DirectionProjectile":
         require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
-    require("ground_state" not in ops or mode in ("DirectionProjectile", "DirectionCone"), "TargetEffectMismatch", path,
-            "a skill leaves its ground state where its projectile lands or over its cone")
+    require("ground_state" not in ops or mode in ("DirectionProjectile", "DirectionCone") or "bag" in ops, "TargetEffectMismatch",
+            path, "a skill leaves its ground state where its projectile lands, over its cone or where its bag blows")
     require(mode != "DirectionDash" or not ops & ELEMENT_OPS or "dash_contact" in ops, "TargetEffectMismatch", path,
             "a dash attaches its element to the bodies it actually touches")
     require("brace" not in ops or ops <= {"brace", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield"},
@@ -683,7 +686,7 @@ def _validate_action(target, effects, path):
     require("recast" not in ops or "damage" in ops, "MissingHandler", path, "a recast repeats a damaging release")
     require("follow_basic" not in ops or "dash_contact" in ops, "MissingHandler", path, "a follow-up basic needs a contact")
     require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
-    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan"}) == 1,
+    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan", "bag"}) == 1,
             "MissingHandler", path, "a ground point needs exactly one delivery handler")
     require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
             "MissingHandler", path, "a cone needs its channel and damage")
@@ -741,14 +744,14 @@ _CARD_MAGNITUDES = {
     "focus_attack_speed": ("ratio",), "skill_hit_momentum": ("momentum",), "auto_recast": ("damage_ratio",),
     "skill_damage_factor": ("ratio",), "hp_cost": ("ratio",), "skill_ad_rider": ("ad_ratio",), "skill_growth": ("ratio",),
     "dash_split": ("distance",), "last_stand": ("threshold",), "reaction_momentum": ("momentum",), "armor_to_hp": ("max_hp",),
-    "overheal_shield": ("cap_ratio",), "missing_hp_attack_speed": ("ratio",), "haste_momentum": ("haste", "momentum"),
+    "missing_hp_attack_speed": ("ratio",), "haste_momentum": ("haste", "momentum"),
     "heal_growth": ("heal", "max_hp"), "idle_charge": ("ratio",), "element_aura": ("radius",), "reaction_factor": ("ratio",),
     "dash_ice": ("width", "duration"), "ground_growth": ("ratio", "interval"),
     "idle_ready_amp": ("ratio",), "thorns": ("ratio",), "skill_lifesteal": ("ratio",), "lifesteal": ("ratio",),
     "basic_projectile": ("distance", "speed", "radius"), "combo_sweep": ("angle", "ratio"), "combo_cast": ("damage_ratio",),
     "speed_factor": ("ratio",), "control_amp": ("ratio",), "shield_spend": ("ratio",), "recent_cast_amp": ("ratio",),
     "dash_ram": ("ratio", "distance"), "overdrive_short": ("momentum", "multiplier"), "tally": ("base",),
-    "burn_shield": ("ratio",), "shield_burst_break": ("radius",),
+    "shield_burst_break": ("radius",),
 }
 # Spec §7 P5: skill cards that only fit some hosts name them (K07, K10 by delivery; K05, K11 a host that controls).
 CONTROL_OPS = frozenset(("root", "stun", "silence", "disarm", "taunt"))
@@ -783,6 +786,11 @@ def _validate_cards(data):
             require(set(row["choose_element"]) <= set(AURA_ELEMENTS), "InvalidReference", identity,
                     "an aura holds an element a target can hold (gust is never held)")
         for effect in row["effects"]:
+            if effect["op"] == "overheal_shield":
+                # Y14 shields overflowing heals (cap_ratio), Y29 the burn it deals (burn_ratio): exactly one, positive.
+                shares = [key for key in ("cap_ratio", "burn_ratio") if key in effect]
+                require(len(shares) == 1 and quantity(effect[shares[0]]) > 0, "IneffectiveEffect", identity,
+                        "an overheal shield names one positive cap_ratio or burn_ratio")
             fields = _CARD_MAGNITUDES.get(effect["op"])
             if fields is not None:
                 require(all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,
@@ -843,7 +851,7 @@ def ability_vocab(ability):
         vocab.add("ground")
     if ability["target"]["mode"] == "DirectionDash":
         vocab.update(("dash", "dash_contact") if "dash_contact" in ops else ("dash",))
-    if ops & {"zone", "contact_trap", "ground_impact"}:
+    if ops & {"zone", "contact_trap", "ground_impact", "bag"}:
         vocab.add("ground")
     if ops & {"root", "stun", "silence", "disarm", "taunt"}:
         vocab.add("control")
@@ -883,6 +891,7 @@ ACTIVE_CONTRACTS = {
     "active_cola_shake": ("DirectionCone", {"channel_cone", "damage", "chill"}),
     "active_desk_fan": ("GroundPoint", {"fan", "gust"}),
     "active_stale_takeout": ("DirectionProjectile", {"damage", "rot", "ground_state"}),
+    "active_school_bag": ("GroundPoint", {"bag", "damage"}),
 }
 TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
 # #198: the five point-bought stats and the bonuses one point of each adds (flat and additive percent terms).

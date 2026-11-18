@@ -123,6 +123,15 @@ struct FLDBuildPrimitivesAccess
     static bool ConvertGround(ALDCombatDirector& Driver, const FVector& Foot, ELDCombatElement Incoming, const FLDElementApplier& Applier,
         const FVector& Direction, int64 NowMs, FString& Error) { return Driver.ConvertGroundAt(Foot, Incoming, Applier, Direction, NowMs, Error); }
     static bool AdvanceGround(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceGround(NowMs, Error); }
+    // Spec §5 N4 bags.
+    static TArray<FLDCombatBag>& Bags(ALDCombatDirector& Driver) { return Driver.Bags; }
+    static bool PlaceBag(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatHit& Payload, const FLDDemoEffectDefinition& Effect,
+        const FVector& Centre, int64 NowMs, FString& Error) { return Driver.PlaceBag(Body, Payload, Effect, nullptr, Centre, NowMs, Error); }
+    static bool AdvanceBags(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBags(NowMs, Error); }
+    static void HitBags(ALDCombatDirector& Driver, const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs)
+    { FString Error; Driver.HitBagsInCircle(Centre, RadiusCm, Payload, NowMs, Error); }
+    static int32 BagOnSegment(const ALDCombatDirector& Driver, const FGuid& Source, const FVector& From, const FVector& To, double& At)
+    { return Driver.FirstBagOnSegment(Source, From, To, 10., At); }
     static void GroundFactors(const ALDCombatDirector& Driver, const FLDBodyCombatState& Source, const FLDBodyCombatState& Target,
         TArray<FLDDamageFactor>& Out) { Driver.GroundFactors(Source, Target, Out); }
     static TArray<FLDCombatChain>& Chains(ALDCombatDirector& Driver) { return Driver.Chains; }
@@ -3700,6 +3709,93 @@ bool FLDGroundStateCapsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// Spec §5 N4 占座书包: a bag of 150 + 20 x (L - 1) life stands at its point; it stops enemy flights (not the owner's),
+// takes their raw amount, and blows over its radius when it runs out or is knocked out; one skill keeps one live bag (two
+// with A), and A1 joins two bags with a wall; bags and the wall are public obstacles.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDSkillN4BagTest, "Lockdown.Rules.Combat.Skills.N4Bag",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDSkillN4BagTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    FString Error;
+    if (!TestTrue(TEXT("N4 is approved"), F.Catalog->FindAbility(TEXT("active_school_bag"), Ability, Error) && Ability)) { return false; }
+    const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, 1, ELDSkillBranch::None);
+    const FLDDemoEffectDefinition* BagDef = Values ? Values->Effects.FindByPredicate(
+        [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Bag; }) : nullptr;
+    if (!TestNotNull(TEXT("N4 carries its bag"), BagDef)) { return false; }
+    const FLDCombatBodyRef Owner = F.AddBody(), Enemy = F.AddBody(), Far = F.AddBody();
+    F.Place(Owner, 0, 0);
+    F.Place(Enemy, 150, 0);
+    F.Place(Far, 2000, 0);
+    FLDCombatHit Payload = FFixture::Hit(Owner, Owner, 8000);
+    Payload.Source.Kind = ELDCombatSourceKind::Learned;
+    Payload.Source.DefinitionId = FName(TEXT("active_school_bag"));
+    TArray<FLDCombatBag>& Bags = FAccess::Bags(*F.Driver);
+    const FVector Point = F.Foot(Owner) + FVector(100, 0, 0);
+    TestTrue(TEXT("A bag is placed: ") + Error, FAccess::PlaceBag(*F.Driver, F.Body(Owner), Payload, *BagDef, Point, 1000, Error));
+    TestTrue(TEXT("It has 150 life at level 1 and lasts four seconds"), Bags.Num() == 1 && Bags[0].HpP2 == 15000
+        && Bags[0].ExpiresAtMs == 5000 && Bags[0].BlastRadiusCm == 200 && Bags[0].Blocker.IsValid());
+    double At = 0;
+    TestTrue(TEXT("It stops an enemy's flight through it"),
+        FAccess::BagOnSegment(*F.Driver, Enemy.Victim.EntityId, Point - FVector(500, 0, 0), Point + FVector(500, 0, 0), At) == 0 && At > 0 && At < .5);
+    TestTrue(TEXT("The owner's own flight passes it"),
+        FAccess::BagOnSegment(*F.Driver, Owner.Victim.EntityId, Point - FVector(500, 0, 0), Point + FVector(500, 0, 0), At) == INDEX_NONE);
+    TArray<FLDObservedProjectileFact> Facts;
+    TestTrue(TEXT("The bag is a public obstacle"), F.Driver->ReadObservedProjectiles(Facts, Error)
+        && Facts.ContainsByPredicate([](const FLDObservedProjectileFact& Fact) { return Fact.Look == ELDObservedProjectileLook::Bag && Fact.RadiusCm == 40; }));
+    // An enemy blast of raw 100 takes 100 of its life; the owner's own does nothing.
+    const FLDCombatHit EnemyBlast = FFixture::Hit(Enemy, Owner, 10000);
+    FAccess::HitBags(*F.Driver, Point, 50, EnemyBlast, 1500);
+    FAccess::HitBags(*F.Driver, Point, 50, Payload, 1500);
+    TestEqual(TEXT("Only enemies damage it, by their raw amount"), Bags[0].HpP2, int64(5000));
+    // It runs out: the blast hits the enemy within 200 cm and not the far body or the owner.
+    const int64 EnemyBefore = F.Body(Enemy).Resources.HpP2, FarBefore = F.Body(Far).Resources.HpP2, OwnerBefore = F.Body(Owner).Resources.HpP2;
+    F.Now(5000);
+    TestTrue(TEXT("It blows when it runs out: ") + Error, FAccess::AdvanceBags(*F.Driver, 5000, Error) && Bags.IsEmpty() && F.Flush(Error));
+    TestTrue(TEXT("The blast hurts the enemy in reach only"), F.Body(Enemy).Resources.HpP2 < EnemyBefore
+        && F.Body(Far).Resources.HpP2 == FarBefore && F.Body(Owner).Resources.HpP2 == OwnerBefore);
+    // Knocked out: it blows at once.
+    F.Now(6000);
+    TestTrue(TEXT("A second bag"), FAccess::PlaceBag(*F.Driver, F.Body(Owner), Payload, *BagDef, Point, 6000, Error));
+    const FLDCombatHit Big = FFixture::Hit(Enemy, Owner, 100000);
+    FAccess::HitBags(*F.Driver, Point, 50, Big, 6100);
+    TestTrue(TEXT("Knocked out, it blows before its time"), FAccess::AdvanceBags(*F.Driver, 6100, Error) && Bags.IsEmpty());
+    F.Flush(Error);
+    // One live bag per skill; with A two, and A1 joins them with a wall.
+    FAccess::PlaceBag(*F.Driver, F.Body(Owner), Payload, *BagDef, Point, 7000, Error);
+    FAccess::PlaceBag(*F.Driver, F.Body(Owner), Payload, *BagDef, Point + FVector(0, 300, 0), 7000, Error);
+    TestTrue(TEXT("A skill keeps one live bag (the newer)"), Bags.Num() == 1 && Bags[0].CentreCm.Y > Point.Y + 200);
+    FLDDemoEffectDefinition Two = *BagDef;
+    Two.Count = 2;
+    Two.ExtraDistanceCm.Numerator = 60;
+    Two.ExtraDistanceCm.Denominator = 1;
+    FAccess::PlaceBag(*F.Driver, F.Body(Owner), Payload, Two, Point - FVector(0, 300, 0), 7000, Error);
+    TestTrue(TEXT("With A two bags stand, and A1 walls them together"), Bags.Num() == 2 && Bags[1].WallKey.IsValid()
+        && Bags[1].WallBlocker.IsValid() && Bags[1].WallHalfWidthCm == 30);
+    Facts.Reset();
+    TestTrue(TEXT("The wall is a public obstacle too"), F.Driver->ReadObservedProjectiles(Facts, Error)
+        && Facts.ContainsByPredicate([](const FLDObservedProjectileFact& Fact) { return Fact.Look == ELDObservedProjectileLook::BagWall && Fact.LengthCm > 500; }));
+    for (const FLDObservedProjectileFact& Fact : Facts)
+    {
+        if (Fact.Look != ELDObservedProjectileLook::Bag && Fact.Look != ELDObservedProjectileLook::BagWall) { continue; }
+        FLDObservedProjectileView View;
+        View.Handle = FGuid::NewGuid();
+        View.PositionCm = Fact.PositionCm;
+        View.Look = Fact.Look;
+        View.RadiusCm = Fact.RadiusCm;
+        View.LengthCm = Fact.LengthCm;
+        TestTrue(TEXT("A bag record validates: ") + Error, LDObservation::ValidateProjectile(View, Error));
+    }
+    FAccess::HitBags(*F.Driver, Bags[0].CentreCm, 10, Big, 7100);
+    TestTrue(TEXT("A wall goes with either of its bags"), FAccess::AdvanceBags(*F.Driver, 7100, Error) && Bags.Num() == 1
+        && !Bags[0].WallKey.IsValid() && !Bags[0].WallBlocker.IsValid());
+    return true;
+}
+
 // Spec §9 1v1: with nobody else near, the S10 bolt bounces back to its first target (70%, then 49%); with another enemy near
 // it bounces there first and then back.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOneVsOneBounceTest, "Lockdown.Rules.Combat.OneVsOne.Bounce",
@@ -4049,7 +4145,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY29Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleY29Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::BurnShield, ELDCardTargetKind::Body});
+    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA05Test, "Lockdown.Rules.Combat.Cards.A05",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -270,6 +270,8 @@ TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progr
 }
 FString LDWorkshop::ReactionName(ELDDemoElement First,ELDDemoElement Second)
 {
+    // The workshop names unordered pairs; gust is never held, so it always plays the incoming side of the combat rule.
+    if(First==ELDDemoElement::Gust){Swap(First,Second);}
     return LDTerms::ReactionTerm(uint8(LDCombatElements::ReactionOf(LDCombatElements::FromDemo(First),LDCombatElements::FromDemo(Second))));
 }
 TArray<LDWorkshop::FReactionRow> LDWorkshop::Reactions(const TArray<ELDDemoElement>& BuildApplies)

@@ -129,7 +129,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
         << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep
-        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs;
+        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs << Unit.RecentReactionElement;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -200,11 +200,11 @@ bool SerializeObservedGround(FArchive& Ar, FLDObservedGroundState& Ground)
     const double ExtentStep = Ground.Shape == ELDObservedGroundShape::Sector ? 2. : 8.;
     uint8 Extent = uint8(FMath::Clamp(FMath::RoundToDouble(Ground.ExtentCm / ExtentStep), 0., 255.));
     uint8 Remaining = uint8(FMath::Clamp((int64(Ground.RemainingMs) + 49) / 50, int64(0), int64(255)));
-    uint8 Life = uint8(FMath::Clamp((int64(Ground.LifeMs) + 49) / 50, int64(0), int64(255)));
+    uint8 Total = uint8(FMath::Clamp((int64(Ground.TotalMs) + 49) / 50, int64(0), int64(255)));
     uint8 XYZ[8] = {uint8(X), uint8(X >> 8), uint8(X >> 16), uint8(Y), uint8(Y >> 8), uint8(Y >> 16), uint8(uint16(Z)), uint8(uint16(Z) >> 8)};
     Ar << Ground.Id << KindShape << Ground.OwnerSeat;
     Ar.Serialize(XYZ, 8);
-    Ar << Radius << Extent << Ground.Heading << Remaining << Life;
+    Ar << Radius << Extent << Ground.Heading << Remaining << Total;
     if (Ar.IsLoading())
     {
         const auto Sign24 = [](uint32 Raw) { return int32(Raw << 8) >> 8; };
@@ -215,7 +215,7 @@ bool SerializeObservedGround(FArchive& Ar, FLDObservedGroundState& Ground)
         Ground.RadiusCm = float(Radius) * 4.f;
         Ground.ExtentCm = float(Extent) * (Ground.Shape == ELDObservedGroundShape::Sector ? 2.f : 8.f);
         Ground.RemainingMs = uint32(Remaining) * 50;
-        Ground.LifeMs = uint32(Life) * 50;
+        Ground.TotalMs = uint32(Total) * 50;
     }
     return !Ar.IsError();
 }
@@ -286,6 +286,7 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         || ((Unit.HitFlags & ShieldBroken) != 0 && (Unit.HitFlags & ShieldAbsorbed) == 0)
         || Unit.RecentHitAgePlusOneMs > RecentHitWindowMs || Unit.RecentReaction > 15
         || (Unit.RecentReaction != 0) != (Unit.RecentReactionAgePlusOneMs != 0) || Unit.RecentReactionAgePlusOneMs > RecentReactionWindowMs
+        || (Unit.RecentReaction != 0) != (Unit.RecentReactionElement != 0) || Unit.RecentReactionElement > 6
         || (Unit.RecentHitId.IsValid() != (Unit.RecentHitAgePlusOneMs != 0))
         || (Unit.RecentHitAgePlusOneMs == 0 && (Unit.HitLook != ELDObservedHitLook::None || Unit.HitFlags != 0))
         || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0)))
@@ -343,7 +344,7 @@ bool LDObservation::ValidateGround(const FLDObservedGroundState& Ground, FString
         || (Ground.OwnerSeat >= MaxPresentations && Ground.OwnerSeat != 255) || !IsFiniteObservedPoint(Ground.CentreCm)
         || !FMath::IsFinite(Ground.RadiusCm) || Ground.RadiusCm <= 0 || !FMath::IsFinite(Ground.ExtentCm) || Ground.ExtentCm < 0
         || (Ground.Shape == ELDObservedGroundShape::Circle) != (Ground.ExtentCm == 0)
-        || (Ground.Shape == ELDObservedGroundShape::Sector && Ground.ExtentCm > 360) || Ground.RemainingMs > Ground.LifeMs)
+        || (Ground.Shape == ELDObservedGroundShape::Sector && Ground.ExtentCm > 360) || Ground.RemainingMs > Ground.TotalMs)
     { return FailObservation(Error, TEXT("An observed ground state is outside its public domain.")); }
     Error.Reset();
     return true;
@@ -365,8 +366,8 @@ FLDObservedGroundState LDObservation::GroundView(const FLDObservedGroundFact& Fa
         : Out.Shape == ELDObservedGroundShape::Band ? FMath::Max(1.f, FMath::RoundToFloat(FMath::Min(Fact.HalfLengthCm, 2040.f) / 8.f)) * 8.f : 0.f;
     const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(Fact.Heading.Y, Fact.Heading.X));
     Out.Heading = uint8(int32(FMath::RoundToDouble(Yaw / 360. * 256.)) & 0xff);
-    Out.LifeMs = uint32(FMath::Clamp((int64(Fact.LifeMs) + 49) / 50, int64(1), int64(255))) * 50;
-    Out.RemainingMs = FMath::Min(Out.LifeMs, uint32(FMath::Clamp((int64(Fact.RemainingMs) + 49) / 50, int64(0), int64(255))) * 50);
+    Out.TotalMs = uint32(FMath::Clamp((int64(Fact.LifeMs) + 49) / 50, int64(1), int64(255))) * 50;
+    Out.RemainingMs = FMath::Min(Out.TotalMs, uint32(FMath::Clamp((int64(Fact.RemainingMs) + 49) / 50, int64(0), int64(255))) * 50);
     return Out;
 }
 
@@ -376,7 +377,8 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
     if (!FMath::IsFinite(Projectile.LengthCm) || Projectile.LengthCm<0
         || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.Look!=ELDObservedProjectileLook::LineWarning
-            && Projectile.Look!=ELDObservedProjectileLook::Wind && Projectile.LengthCm!=0)
+            && Projectile.Look!=ELDObservedProjectileLook::Wind && Projectile.Look!=ELDObservedProjectileLook::BagWall
+            && Projectile.LengthCm!=0)
         || !FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
         || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
         || Projectile.InnerRadiusCm < 0 || Projectile.InnerRadiusCm > Projectile.RadiusCm
@@ -392,8 +394,13 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
         if(Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0 || Projectile.AngleDegrees<=0)
         {return FailObservation(Error,TEXT("A cone warning needs its locked reach and angle."));}
         break;
+    case ELDObservedProjectileLook::Bag:
+        if(Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0 || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)
+        {return FailObservation(Error,TEXT("A bag needs its body radius, without a landing warning."));}
+        break;
     case ELDObservedProjectileLook::Road:
     case ELDObservedProjectileLook::Wind:
+    case ELDObservedProjectileLook::BagWall:
         if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0
             || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)
         {return FailObservation(Error,TEXT("A road needs its walked length and half-width, without a landing warning."));}

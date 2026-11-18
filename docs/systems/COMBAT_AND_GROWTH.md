@@ -570,6 +570,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   施加一次吹（推开 `distance`，带 3A1 撞墙眩晕；3A2 时带上主人最后施加给别人的元素 `LastAppliedElement`），吹到人时按 3B1 回劲，并对圆心在矩形内的
   地面状态做一次吹的转换（火场与毒雾被吹走、电场放电）；2B 的朝向按三角波左右摆。主人死亡或离局结束；同一技能只留 1 个（Y12 每份 +1）。
   观察者看到它当前吹的矩形（`Wind` 外观）。
+- **N4 书包**（`bag`，`FLDCombatBag`，`LDCombatBagDirector.cpp`）：放在目标点（不超过射程），不是身体，不能被普攻或单体技能选中。生命为 `base + per_level×(L−1)`（2B 乘 `hp_ratio`）；服务器放一个只挡身体的阻挡体 `ALDCombatBagBlocker`（Pawn 通道阻挡，不挡视线、镜头与导航，不复制），观察者看到的书包与书包墙（`Bag`、`BagWall` 外观）在拥有客户端上有同样的阻挡，使预测与权威一致。敌方弹道在 `AdvanceProjectiles` 里先撞到书包就停在书包上（`FirstBagOnSegment`，本人的弹道穿过）；敌方弹道、地面爆炸、扇形与释放范围按命中的原始量（`RawBagDamageP2`：基础 + 攻击/法强系数，乘投送比例，不计暴击、乘区与抗性）扣它的生命，持续区域的脉冲不打它。`AdvanceBags` 在到期或生命归零时移除它并在 `BlastRadiusCm` 内对主人的敌人结算释放时快照的载荷（击退从书包中心推开；3A2 挂冻），爆炸也打其他敌方书包；3B2 在原地留主人的火场。同一技能只留 `count` 个（2A 为 2，Y12 每份 +1），最旧的直接消失；3A1 让新书包与同技能的上一个书包之间连一道墙，任一书包消失墙就消失。主人离局时书包一起移除，日志为 `LD_BAG`、`LD_BAG_HIT`、`LD_BAG_BLAST`。
 - **N3 与 S21 3A2**：弹道去程终点（命中点或射程尽头）按 `ground_state` 生成毒雾（N3 2A 半径 ×1.5、3A1 攻速降低、3A2 7s）。N3 2B 的二次爆炸是
   `follow_up`（3B1 带 8s 馊，3B2 落下时回劲）。
 - **S16 顶着揍**（`brace`，`FLDCombatBrace`）：释放时固定减伤比例、记录上限（`limit`，随 G）与反震基础（`base`，随 G）；期间来源不是自己的伤害在
@@ -690,6 +691,7 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、施法聚能、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`覆盖关键词纯规则、沉默与解除、共享破防与灼烧、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/Brace`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震，
+`Combat.Skills.N4Bag`覆盖书包的生命、只挡敌方弹道、只受敌方伤害、到期与被打掉的爆炸、同技能数量与 3A1 墙及其公开记录，
 `Combat.Elements.Matrix/Shock/Rot`覆盖 6 × 6 表与十五种反应在真实目标上的伤害倍数、控制或状态、附带、地面状态与触发者回劲、麻的第三击与溅射、
 馊的削减、跳伤与刷新，`Combat.GroundState.Transitions/Caps`覆盖每条“再加元素”转换、元素命中引起的转换、各种站立效果只对敌人、冰面移动参数、
 每人 6 / 全场 40 与同一技能一份的淘汰、公开事实与线上记录，`Combat.OneVsOne.Bounce`覆盖 S10 单挑弹回与有他人时先弹他人，

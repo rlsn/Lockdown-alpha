@@ -34,6 +34,8 @@ struct FLDOpponentRequestTally
     uint32 DormEntries = 0;
     // D26 evidence: public airdrops this adapter's contender claimed, read from the public match view.
     uint32 AirdropClaims = 0;
+    // Spec §13 path cost: ground walks sent to a detour waypoint around a visible enemy ground state.
+    uint32 GroundDetours = 0;
     // D27 evidence: times this adapter's decisions turned to hunting a named 上热搜 leader.
     uint32 LeaderHunts = 0;
     // D26 evidence: times this adapter's decisions turned to stepping away from the Boss.
@@ -98,6 +100,9 @@ private:
         FLDSpatialOrderRequest Request;
         ELDOpponentOrderStatus Status = ELDOpponentOrderStatus::None;
         int64 SentAtMs = 0;
+        // Spec §13 path cost: this order walks to a detour waypoint; on completion the final leg to FinalGroundCm follows.
+        bool bDetour = false;
+        FVector FinalGroundCm = FVector::ZeroVector;
     };
     // A Stop awaiting the Actions phase that applies it; never re-sent for the same orders while unapplied.
     struct FStopTrack
@@ -146,7 +151,14 @@ private:
 
     bool BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& Reads, FLDOpponentDecisionFrame& Frame, FString& Error) const;
     bool ReadCapturePath(const FVector& FootCm, double& OutCm, FString& Error) const;
-    void SettleOrders(const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
+    void SettleOrders(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem);
+    // Spec §13 path cost: the cheapest of the direct walk and one detour around each enemy ground state in the way, by
+    // GroundWeightedCm over real registry paths. True when a detour waypoint replaced the goal (Out); false keeps it.
+    bool RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm, const FLDSpatialOrderRequest& Request,
+        FVector& Out) const;
+    // Sends one ground-walk leg of Intent and makes it the candidate; false when refused on receipt or out of identities.
+    bool SubmitWalk(const FReads& Reads, const FLDOpponentBodyIntent& Intent, FLDSpatialOrderRequest Request, bool bDetour,
+        const FVector& FinalGroundCm, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void FinishIncumbent(ELDOpponentSettle Settle, const FLDOpponentSelf& Self, int64 NowMs);
     void SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);

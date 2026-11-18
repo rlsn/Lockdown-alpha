@@ -376,6 +376,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 - 劲不足的来源由真实 readiness 报 `MomentumShort`，策略只等待或换动作，不另算劲。
 - 伤害档（第 2 档及以上）选中技能时，若本人劲不少于 `OVERDRIVE.Threshold` 且目标可见生命高于 40%，意图带 `bOverdrive`：`ALDOpponentController` 先经 `SubmitCharge` 开始蓄力，`OVERDRIVE.HoldSec` 后再提交带爆劲的释放（`FChargeTrack`），与真人同一服务器校验。蓄力只属于发起它的生命；策略改为其他意图（保持、停止、移动、换技能）时经 `AbandonCharge` 通知服务器结束蓄力；本人战斗视图的 `ChargingEntry` 显示服务器已结束蓄力（控制或劲不足）时，下次重新发起并重新计时。
 - 观察帧的 `Warnings` 列出可见的敌方预警（`ReadWarnings`：未结算的地面落点、陷阱、扇形与营地预警，只有公开轮廓与剩余时间）。D 就绪、某个预警剩余不超过 450 ms 且本人脚点在其轮廓内时，按 `AI.DodgeChance`（每个预警对每个 AI 一次稳定掷骰）向侧面或背离中心冲刺（`DodgeIntent`），优先于其他身体意图；完美闪避由服务器判定，AI 不自报。
+- 观察帧的 `Grounds` 是视线内的公开地面状态（`ReadGrounds`，主人座位与本人座位不同即为敌方）。野外步行订单发出前，`ALDOpponentController::RouteAroundGrounds` 用注册表的真实完整路径比较直走与绕开每个挡路敌方地面状态两侧的一个绕行点（`GroundDetours`，足迹外 `GroundDetourMarginCm`），路线落在敌方地面状态里的长度乘 `AI.EnemyGroundPathCost`（`GroundWeightedCm`，每 25 cm 取样）；绕行更省时先走到绕行点，这一段完成后控制器自行发出最后一段（再次比较），策略始终只看到这次步行，到达仍以最后一段完成为准。休息步行与追击（`AttackUnit`，由导航自行寻路）不绕行。被击退或推进敌方地面状态时，D 就绪即背离其中心冲出（`LeaveGroundIntent`）。
 施法用途全部由 typed 效果推出（`ReadEffects`），不按技能名称或构筑配方分支。
 同一时刻只送当前动作系统可接收的一项；前摇、控制、资源、来源和占用均不得绕过。
 成功 handoff 后旧运动不由 AI 私下恢复，按新合法观察重新决策；失败则消费真实回执。
@@ -578,6 +579,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | `ShopBuy` | 饭票够且未买满时买技能点，否则买得分最高的买得起的牌；没进货或不在构筑窗口时不买；命令带货架位与商店修订 |
 | `RestServiceTravel` | 训练师寻路、靠近后交易、失败退避，以及报名优先 |
 | `Training` | §6.4 训练：只打名单外的本人假人（生产交战的主动顺序与普攻）、保持在途订单与引导；有构筑、构筑在途、`OpeningPickAtMs` 前、锁定步骤、名单未读、受保护或死亡时不训练；PK 请求的决策不发身体意图；报名窗口内走进报名圈并留圈而不训练（受理的动作先完成）；窗口关闭时 Stop |
+| `GroundPathCost` | 敌方地面状态里的路线长度按 `AI.EnemyGroundPathCost` 计价、本人地面状态不加价；只为挡路的敌方足迹给两侧绕行点，绕行比穿过更便宜 |
 
 ### 8.2 满员联机场景
 

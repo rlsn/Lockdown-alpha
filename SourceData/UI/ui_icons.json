@@ -33,6 +33,10 @@
     {"id": "icon_active_triple_combo", "sha256": "f31950a16bef5e652ac756a7cce34823c32d5b5db77a64e64a6c793e21baa591", "width": 64, "height": 64},
     {"id": "icon_active_unplug", "sha256": "3f2c9ae5145ba5a8a3d7eca82486634777aa53d28900f820de4c232b5d643518", "width": 64, "height": 64},
     {"id": "icon_active_zap", "sha256": "3f2c9ae5145ba5a8a3d7eca82486634777aa53d28900f820de4c232b5d643518", "width": 64, "height": 64},
+    {"id": "icon_active_cola_shake", "sha256": "bec769c7b71094c031ddeaa8ba9aebfb0e6f0aaa6d7be1708e92d670db0b4bea", "width": 64, "height": 64, "provenance": "Reuses the approved icon_chilled art for the skill."},
+    {"id": "icon_active_desk_fan", "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872", "width": 64, "height": 64, "provenance": "Reuses the approved icon_knockback art for the skill."},
+    {"id": "icon_active_stale_takeout", "sha256": "61b28f7043c3855af7cdf1fe2b16c8ad2febaec22ba361d1863a9494e666fbc0", "width": 64, "height": 64, "provenance": "Reuses the approved icon_rotten art for the skill."},
+    {"id": "icon_active_school_bag", "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf", "width": 64, "height": 64, "provenance": "Reuses the approved icon_braced art for the skill."},
     {"id": "icon_attack_slowed", "sha256": "df22b3726a7b2648e3dc4ca3fa92f0c217033cf405f516e09d639fce5bfd192b", "width": 64, "height": 64},
     {"id": "icon_braced", "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf", "width": 64, "height": 64},
     {"id": "icon_burn", "sha256": "72250aef64026afdd796d6dc1de1e4cebb7505266b3aa57e7face1d02b2cb179", "width": 64, "height": 64},
@@ -117,6 +121,15 @@
     {"id": "icon_card_third_shove", "sha256": "b599de2a0c609f22d961d532ae290073ec4471fdef8841f422b71c64e831bc42", "width": 64, "height": 64, "provenance": "Reuses the approved icon_component_shove_off art for the build card."},
     {"id": "icon_card_tough_skin", "sha256": "9eb9c16a51844f1c16c885a66e905605145c7200edd97377e300dce17722595c", "width": 64, "height": 64, "provenance": "Reuses the approved icon_component_guard_up art for the build card."},
     {"id": "icon_card_water_fist", "sha256": "62b84ebb6dca90aa3acdaa289a7f12d375b32a69e0b6f3aaed62acfa51757d5f", "width": 64, "height": 64, "provenance": "Reuses the approved icon_component_fist_water art for the build card."},
+    {"id": "icon_card_ice_fist", "sha256": "bec769c7b71094c031ddeaa8ba9aebfb0e6f0aaa6d7be1708e92d670db0b4bea", "width": 64, "height": 64, "provenance": "Reuses the approved icon_chilled art for the build card."},
+    {"id": "icon_card_rot_fist", "sha256": "61b28f7043c3855af7cdf1fe2b16c8ad2febaec22ba361d1863a9494e666fbc0", "width": 64, "height": 64, "provenance": "Reuses the approved icon_rotten art for the build card."},
+    {"id": "icon_card_add_chill", "sha256": "bec769c7b71094c031ddeaa8ba9aebfb0e6f0aaa6d7be1708e92d670db0b4bea", "width": 64, "height": 64, "provenance": "Reuses the approved icon_chilled art for the build card."},
+    {"id": "icon_card_add_rot", "sha256": "61b28f7043c3855af7cdf1fe2b16c8ad2febaec22ba361d1863a9494e666fbc0", "width": 64, "height": 64, "provenance": "Reuses the approved icon_rotten art for the build card."},
+    {"id": "icon_card_add_gust", "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872", "width": 64, "height": 64, "provenance": "Reuses the approved icon_knockback art for the build card."},
+    {"id": "icon_card_ice_trail", "sha256": "9eacdba37cddf2869393216b9caf3a443c26671aa2d70f9ef6a552f0c540e6f7", "width": 64, "height": 64, "provenance": "Reuses the approved icon_dash art for the build card."},
+    {"id": "icon_card_move_turf", "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f", "width": 64, "height": 64, "provenance": "Reuses the approved icon_final_split art for the build card."},
+    {"id": "icon_card_double_stall", "sha256": "f274e8870dbe1a7a19f688d7750678ed8e3b03f4a83204d7c26b3eedb54db8f8", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_flyer_trap art for the build card."},
+    {"id": "icon_card_turf_growth", "sha256": "1e0ccf203331355924ff77473251f2c80f0204ec1c4816817fea68dcff4f2553", "width": 64, "height": 64, "provenance": "Reuses the approved icon_stat_boost art for the build card."},
     {"id": "icon_card_wave_after", "sha256": "ec055ee3f18a03cfea20ff06647e98bbd045138603a5d08f9f510ec1bf1e1542", "width": 64, "height": 64, "provenance": "Reuses the approved icon_component_meet_here art for the build card."}
   ]
 }

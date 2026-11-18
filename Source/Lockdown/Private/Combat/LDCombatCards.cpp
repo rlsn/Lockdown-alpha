@@ -423,9 +423,10 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
     if (const int64 Vulnerable=BranchVulnerableBp(Target,Hit,NowMs); Vulnerable>0) { Out.Add({FName(TEXT("branch_vulnerable")),Vulnerable}); }
     if (Hit.BranchAmpBp>0) { Out.Add({FName(TEXT("branch_next_basic")),Hit.BranchAmpBp}); }
-    // Shatter (shock + chill): the next skill hit on this life within its window takes more, then the shatter is spent.
-    if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bStatusSettle
-        && !Hit.bBurnTick && !Hit.bPeriodic)
+    // Shatter (shock + chill): the next damaging native skill hit on this life within its window takes more, then the
+    // shatter is spent. Zero-damage blows (fans, pushes), riders, reflections, settles and ticks neither take nor spend it.
+    const bool bDamaging=Hit.BaseP2>0 || Hit.ADRatioBp>0 || Hit.APRatioBp>0 || Hit.MaxHPRatioBp>0;
+    if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && IsNativeDirectHit(Hit) && bDamaging && !Hit.bPeriodic)
     {
         Out.Add({FName(TEXT("reaction_shatter")),Target.ShatterBp});
         Target.ShatterBp=0;
@@ -1394,6 +1395,8 @@ bool ALDCombatDirector::OverhealShield(FLDBodyCombatState& Body, int64 OverflowP
     if (OverflowP2<=0 || Body.bPendingDeath) { return true; }
     TArray<FLDPassiveEffectRef> Fed;
     if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverhealShield,Fed,Error)) { return false; }
+    // Y29 shares the op with a burn share and no cap; only the heal caps shield overflowing heals.
+    Fed.RemoveAll([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.MultiplierBp<=0; });
     if (Fed.IsEmpty()) { return true; }
     // Copies add their cap; the shield takes the stronger of the current one and the capped overflow.
     int64 CapBp=0;
@@ -1536,7 +1539,8 @@ bool ALDCombatDirector::OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnD
 {
     if (BurnDamageP2<=0 || Source.bPendingDeath) { return true; }
     TArray<FLDPassiveEffectRef> Guards;
-    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::BurnShield,Guards,Error)) { return false; }
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::OverhealShield,Guards,Error)) { return false; }
+    Guards.RemoveAll([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.RatioBp<=0; });
     if (Guards.IsEmpty()) { return true; }
     // Y29: copies add their share; the shield takes the stronger of the current one and this one.
     int64 ShareBp=0;

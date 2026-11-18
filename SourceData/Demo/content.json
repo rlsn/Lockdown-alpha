@@ -214,6 +214,7 @@
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
     "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
     "AI.DodgeChance": {"unit": "ratio", "value": 0.5},
+    "AI.EnemyGroundPathCost": {"unit": "ratio", "value": 3},
     "AI.CardVocabScore": 2,
     "AI.BreakoutChance": {"unit": "ratio", "value": 0.25},
     "AI.BreakoutCardScore": 5,
@@ -708,6 +709,20 @@
         "3B1": {"name": "加倍馊", "text": "二次爆炸挂上双倍时长的馊。", "patches": [{"op": "set", "effect": "follow_up", "field": "rot_duration", "value": {"unit": "s", "value": 8}}]},
         "3B2": {"name": "到付回本", "text": "二次爆炸回 [follow_up.limit] 劲。", "patches": [{"op": "set", "effect": "follow_up", "field": "momentum", "value": {"unit": "momentum", "value": 15}}]}
       }
+    },
+    {
+      "id": "active_school_bag", "opening": false, "cooldown_family": "cd_school_bag", "element": "none", "hit_type": "area",
+      "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 450}}, "windup": {"unit": "s", "value": 0.2},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 11},
+      "effects": [{"op": "bag", "duration": {"unit": "s", "value": 4}, "count": 1, "hp_base": {"unit": "hp", "value": 150}, "hp_per_level": {"unit": "hp", "value": 20}, "radius": {"unit": "cm", "value": 200}, "size": {"unit": "cm", "value": 40}}, {"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
+      "ranks": {
+        "2A": {"name": "两个书包", "text": "同时可以放 [bag.count] 个书包。", "patches": [{"op": "set", "effect": "bag", "field": "count", "value": 2}]},
+        "3A1": {"name": "书包连墙", "text": "两个书包之间连起一道墙，跟书包一起消失。", "patches": [{"op": "set", "effect": "bag", "field": "wall_width", "value": {"unit": "cm", "value": 60}}]},
+        "3A2": {"name": "冰镇书包", "text": "书包爆炸挂冻。", "patches": [{"op": "add", "effect": {"op": "chill"}}]},
+        "2B": {"name": "炸药包", "text": "书包生命减半，爆炸伤害翻倍，半径 [bag.radius] 厘米。", "patches": [{"op": "set", "effect": "bag", "field": "hp_ratio", "value": {"unit": "ratio", "value": 0.5}}, {"op": "scale", "effect": "damage", "fields": ["base", "ad_ratio", "ap_ratio", "max_hp_ratio"], "ratio": 2}, {"op": "set", "effect": "bag", "field": "radius", "value": {"unit": "cm", "value": 260}}]},
+        "3B1": {"name": "书包炸飞", "text": "爆炸把敌人击退 [knockback.distance] 厘米。", "patches": [{"op": "add", "effect": {"op": "knockback", "distance": {"unit": "cm", "value": 250}, "duration": {"unit": "s", "value": 0.2}}}]},
+        "3B2": {"name": "炸出火场", "text": "爆炸后留下火场 [ground_state.duration] 秒。", "patches": [{"op": "add", "effect": {"op": "ground_state", "kind": "fire", "duration": {"unit": "s", "value": 3}}}]}
+      }
     }
   ],
   "final_mods": [
@@ -1108,7 +1123,7 @@
     },
     {
       "id": "card_burn_guard", "form": "body", "type": "element", "vocab": ["element", "shield"],
-      "effects": [{"op": "burn_shield", "ratio": {"unit": "ratio", "value": 0.3}, "duration": {"unit": "s", "value": 3}}]
+      "effects": [{"op": "overheal_shield", "burn_ratio": {"unit": "ratio", "value": 0.3}, "duration": {"unit": "s", "value": 3}}]
     }
   ],
   "camps": {
@@ -1268,7 +1283,7 @@
     {"id": "card_long_soak", "namespace": "DemoContent", "name_key": "card_long_soak.name", "name_text": "久泡", "description_key": "card_long_soak.description", "description_text": "你施加的元素持续时间变为 [element_duration.multiplier]%。", "icon_id": "icon_card_long_soak"},
     {"id": "card_louder_blast", "namespace": "DemoContent", "name_key": "card_louder_blast.name", "name_text": "炸得更响", "description_key": "card_louder_blast.description", "description_text": "你触发的反应伤害 +[reaction_factor.ratio]%。", "icon_id": "icon_card_louder_blast"},
     {"id": "card_endless_burn", "namespace": "DemoContent", "name_key": "card_endless_burn.name", "name_text": "烧不完", "description_key": "card_endless_burn.description", "description_text": "你施加的灼烧最多叠到 [burn_cap.count] 层。", "icon_id": "icon_card_endless_burn"},
-    {"id": "card_burn_guard", "namespace": "DemoContent", "name_key": "card_burn_guard.name", "name_text": "烧着还挺扛揍", "description_key": "card_burn_guard.description", "description_text": "你造成的灼烧伤害的 [burn_shield.ratio]% 变成护盾，持续 [burn_shield.duration] 秒，与现有护盾取强。", "icon_id": "icon_card_burn_guard"},
+    {"id": "card_burn_guard", "namespace": "DemoContent", "name_key": "card_burn_guard.name", "name_text": "烧着还挺扛揍", "description_key": "card_burn_guard.description", "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒，与现有护盾取强。", "icon_id": "icon_card_burn_guard"},
     {"id": "final_bowling", "namespace": "DemoContent", "name_key": "final_bowling.name", "name_text": "人肉保龄球", "description_key": "final_bowling.description", "description_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。原来源位移距离降低；二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "effect_key": "final_bowling.effect", "effect_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。", "cost_key": "final_bowling.cost", "cost_text": "原来源位移距离降低。", "notes_key": "final_bowling.notes", "notes_text": "二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "icon_id": "icon_final_bowling"},
     {"id": "final_forced_exit", "namespace": "DemoContent", "name_key": "final_forced_exit.name", "name_text": "强制退场", "description_key": "final_forced_exit.description", "description_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。原硬控时间降低，仍吃递减；提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "effect_key": "final_forced_exit.effect", "effect_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。", "cost_key": "final_forced_exit.cost", "cost_text": "原硬控时间降低，仍吃递减。", "notes_key": "final_forced_exit.notes", "notes_text": "提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "icon_id": "icon_final_forced_exit"},
     {"id": "final_traffic", "namespace": "DemoContent", "name_key": "final_traffic.name", "name_text": "交通管制", "description_key": "final_traffic.description", "description_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。该冲刺基础冷却增加；新带替换旧带，不伤害、不挡路。", "effect_key": "final_traffic.effect", "effect_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。", "cost_key": "final_traffic.cost", "cost_text": "该冲刺基础冷却增加。", "notes_key": "final_traffic.notes", "notes_text": "新带替换旧带，不伤害、不挡路。", "icon_id": "icon_final_traffic"},
@@ -1303,6 +1318,7 @@
     {"id": "active_cola_shake", "namespace": "DemoContent", "name_key": "active_cola_shake.name", "name_text": "冰可乐摇一摇", "description_key": "active_cola_shake.description", "description_text": "朝前喷一口冰可乐，扇形内敌人受 [damage.amount] 魔法伤害并挂上冻。", "icon_id": "icon_active_cola_shake"},
     {"id": "active_desk_fan", "namespace": "DemoContent", "name_key": "active_desk_fan.name", "name_text": "电风扇", "description_key": "active_desk_fan.description", "description_text": "放下一台电风扇朝施放方向吹 [fan.duration] 秒，每 [fan.interval] 秒把前方的敌人推开 [fan.distance] 厘米并吹一下；风会推动火场和毒雾。", "icon_id": "icon_active_desk_fan"},
     {"id": "active_stale_takeout", "namespace": "DemoContent", "name_key": "active_stale_takeout.name", "name_text": "过期外卖", "description_key": "active_stale_takeout.description", "description_text": "甩出一份过期外卖，首个敌人受 [damage.amount] 魔法伤害并挂上馊；落点留下毒雾。", "icon_id": "icon_active_stale_takeout"},
+    {"id": "active_school_bag", "namespace": "DemoContent", "name_key": "active_school_bag.name", "name_text": "占座书包", "description_key": "active_school_bag.description", "description_text": "放下一个书包挡路挡弹道，[bag.duration] 秒后或被打掉时爆炸，周围敌人受 [damage.amount] 魔法伤害。", "icon_id": "icon_active_school_bag"},
     {"id": "stat_physique", "namespace": "DemoContent", "name_key": "stat_physique.name", "name_text": "体格", "description_key": "stat_physique.description", "description_text": "每点最大生命 +[per_point.MaxHPFlat]、生命回复 +[per_point.HPRegenFlat]/秒。", "icon_id": "icon_stat_physique"},
     {"id": "stat_thick_skin", "namespace": "DemoContent", "name_key": "stat_thick_skin.name", "name_text": "脸皮", "description_key": "stat_thick_skin.description", "description_text": "每点护甲和魔抗各 +[per_point.ArmorFlat]。", "icon_id": "icon_stat_thick_skin"},
     {"id": "stat_strength", "namespace": "DemoContent", "name_key": "stat_strength.name", "name_text": "力道", "description_key": "stat_strength.description", "description_text": "每点攻击力 +[per_point.ADFlat]、暴击率 +[per_point.CritChanceBonusRatio]%。", "icon_id": "icon_stat_strength"},

@@ -3059,4 +3059,45 @@ bool FLDDemoOpponentTrainingTest::RunTest(const FString& Parameters)
     return LDOpponentComponentTests::RunTraining(*this);
 }
 
+// Issue #287 spec §13: a walk weighs its length inside a visible enemy ground state ×3; detours are offered only around
+// enemy footprints in the way, and an own ground state costs nothing extra.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentGroundPathCostTest, "Lockdown.Rules.DemoOpponentPolicy.GroundPathCost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentGroundPathCostTest::RunTest(const FString& Parameters)
+{
+    FLDOpponentGround Enemy;
+    Enemy.Kind = 3;
+    Enemy.bEnemy = true;
+    Enemy.View.Kind = 3;
+    Enemy.View.Shape = ELDObservedGroundShape::Circle;
+    Enemy.View.CentreCm = FVector(500, 0, 0);
+    Enemy.View.RadiusCm = 200;
+    FLDOpponentGround Own = Enemy;
+    Own.bEnemy = false;
+    const TArray<FVector> Straight = {FVector(0, 0, 0), FVector(1000, 0, 0)};
+    const double Clean = LDOpponentPolicy::GroundWeightedCm(Straight, {}, 30000);
+    const double Through = LDOpponentPolicy::GroundWeightedCm(Straight, {Enemy}, 30000);
+    const double ThroughOwn = LDOpponentPolicy::GroundWeightedCm(Straight, {Own}, 30000);
+    TestTrue(TEXT("A clean walk costs its length"), FMath::IsNearlyEqual(Clean, 1000., 1.));
+    // 400 cm inside the circle weigh 1200: 600 outside + 1200 = 1800.
+    TestTrue(FString::Printf(TEXT("The 400 cm inside an enemy fire field weigh three times (%.1f)"), Through),
+        FMath::IsNearlyEqual(Through, 1800., 26.));
+    TestTrue(TEXT("An own ground state adds nothing"), FMath::IsNearlyEqual(ThroughOwn, 1000., 1.));
+    TArray<FVector> Detours;
+    LDOpponentPolicy::GroundDetours(Straight[0], Straight[1], {Enemy}, Detours);
+    TestTrue(TEXT("One detour on either side, just outside the footprint"), Detours.Num() == 2
+        && FMath::IsNearlyEqual(FMath::Abs(Detours[0].Y), 200. + LDOpponentPolicy::GroundDetourMarginCm, 1.)
+        && Detours[0].Y * Detours[1].Y < 0 && FMath::IsNearlyEqual(Detours[0].X, 500., 1.));
+    const double Around = LDOpponentPolicy::GroundWeightedCm({Straight[0], Detours[0], Straight[1]}, {Enemy}, 30000);
+    TestTrue(FString::Printf(TEXT("Going around (%.1f) is cheaper than through (%.1f)"), Around, Through), Around < Through);
+    LDOpponentPolicy::GroundDetours(Straight[0], Straight[1], {Own}, Detours);
+    TestTrue(TEXT("No detour around an own ground state"), Detours.IsEmpty());
+    FLDOpponentGround Aside = Enemy;
+    Aside.View.CentreCm = FVector(500, 600, 0);
+    LDOpponentPolicy::GroundDetours(Straight[0], Straight[1], {Aside}, Detours);
+    TestTrue(TEXT("No detour around a ground state off the way"), Detours.IsEmpty());
+    return true;
+}
+
 #endif

@@ -139,7 +139,7 @@ bool FLDDamageRecapChainTest::RunTest(const FString& Parameters)
     Bad[1].Setter = Helper;
     TestFalse(TEXT("A setter on plain damage is refused"), LDDamageRecap::ValidateLines(Bad, Error));
     Bad = Out;
-    Bad[0].Reaction = 4;
+    Bad[0].Reaction = 16;
     TestFalse(TEXT("An unknown reaction is refused"), LDDamageRecap::ValidateLines(Bad, Error));
     TArray<FLDDamageLine> Splash = {Chain(Killer, Zap, 700, FGuid(), 0, 3)};
     TestTrue(TEXT("An Overload splash (a reaction that consumed nothing on this body) is a valid line"), LDDamageRecap::ValidateLines(Splash, Error));

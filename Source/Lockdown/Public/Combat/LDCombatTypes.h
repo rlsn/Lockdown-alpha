@@ -488,6 +488,8 @@ struct FLDCombatCueFacts
     // Spec §12: the last reaction this life suffered (ELDCombatReaction) and when; observers float its name over the body.
     UPROPERTY() uint8 LastReaction=0;
     UPROPERTY() int64 LastReactionAtMs=0;
+    // The incoming element that set it off (ELDCombatElement): the reaction's ink (the pair is symmetric).
+    UPROPERTY() uint8 LastReactionElement=0;
     // The owner's hit receipt: the last blow this life landed (LDCombatCues::ConfirmsDealt). Owner-only; it never names
     // or locates the target.
     UPROPERTY() int64 LastDealtAtMs=0;               // 0 = nothing landed in this life

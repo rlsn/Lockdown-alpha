@@ -10,6 +10,7 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
+    // 19: N4 bags and the wall between two bags are public obstacles (Bag, BagWall looks).
     // 18: a frame carries the public ground states in sight (16 bytes each on the wire); the Wind look shows a fan's blow.
     // 17: a contender carries a quantized momentum bar and its overdrive charge; an Attack cue carries its combo step.
     // 16 adds the observer-local identity of a visible hit and owner hit receipts; the Hit reaction cue is retired.
@@ -19,7 +20,7 @@ namespace LDObservation
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 18;
+    constexpr uint32 Schema = 19;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -41,7 +42,7 @@ namespace LDObservation
     constexpr int32 MaxUnits = 86;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 18;
+    constexpr int32 MaxStatuses = 19;
     constexpr int32 MaxTerminations = 16;
     // Visible flights and skill areas per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 128;
@@ -66,7 +67,9 @@ UENUM() enum class ELDObservedProjectileLook : uint8
 {
     Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6,
     AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11,
-    ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17
+    ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
+    // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
+    Bag = 18, BagWall = 19
 };
 // Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
 UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };
@@ -132,6 +135,8 @@ struct FLDObservedUnitView
     // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
     UPROPERTY() uint8 RecentReaction = 0;
     UPROPERTY() uint16 RecentReactionAgePlusOneMs = 0;
+    // The element that set that reaction off (ELDCombatElement 1..6); 0 with no reaction.
+    UPROPERTY() uint8 RecentReactionElement = 0;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
 };
@@ -198,7 +203,7 @@ struct FLDObservedGroundState
     UPROPERTY() float ExtentCm = 0;
     UPROPERTY() uint8 Heading = 0;
     UPROPERTY() uint32 RemainingMs = 0;
-    UPROPERTY() uint32 LifeMs = 0;
+    UPROPERTY() uint32 TotalMs = 0; // its whole duration (the decal fades over it)
 };
 
 USTRUCT()
@@ -283,6 +288,7 @@ struct FLDObservedPublicFacts
     // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
     uint8 LastReaction = 0;
     int64 LastReactionAtMs = 0;
+    uint8 LastReactionElement = 0;
 };
 
 // Server-only public fact of one live ground state (ALDCombatDirector::ReadObservedGround). Never serialized.

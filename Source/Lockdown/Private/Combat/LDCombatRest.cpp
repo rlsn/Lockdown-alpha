@@ -128,6 +128,7 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
     MonsterStrikes.Reset();
     ContactMotion.Reset();
     PendingContacts.Reset();
+    RemoveBags([](const FLDCombatBag&) { return true; });
     for (auto& Pair : Bodies)
     {
         if (Pair.Value.bPendingDeath) { continue; }

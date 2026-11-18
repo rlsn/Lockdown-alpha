@@ -165,7 +165,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Fan.LengthCm=Cm(Blow->RadiusCm);
         Fan.HalfWidthCm=Cm(Blow->ExtraDistanceCm)*.5;
         Fan.SweepDegrees=Cm(Blow->AngleDegrees);
-        Fan.Payload.GustPushCm=Cm(Blow->DistanceCm);
+        // An overdriven fan keeps the overdrive push (OVERDRIVE.GustPushCm, already on the payload); otherwise the fan's own.
+        Fan.Payload.GustPushCm=Payload.bGustGround && Payload.GustPushCm>0 ? Payload.GustPushCm : Cm(Blow->DistanceCm);
         Fan.Payload.KnockbackWallStunMs=Blow->ExtraDurationMs;
         Fan.bCarryElement=Blow->bCarryElement;
         Fan.MomentumP2=Blow->BaseP2;
@@ -191,6 +192,19 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         }
         for (int32 Drop=Owned.Num()-Allowed; Drop >= 0; --Drop) { Fans.RemoveAt(Owned[Drop]); }
         Fans.Add(MoveTemp(Fan));
+        bHandled=true;
+        return true;
+    }
+    // N4: the bag stands at the target point (within reach).
+    if (const auto* Bag=Op(Values, ELDDemoEffectOp::Bag))
+    {
+        const auto* Actor=ActorOf(Body);
+        if (!Actor) { Error=TEXT("A bag skill lost its releasing body."); return false; }
+        const FVector Origin=FootOf(*Actor);
+        const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
+        FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        Centre.Z=Action.TargetPoint.Z;
+        if (!PlaceBag(Body, Payload, *Bag, Op(Values, ELDDemoEffectOp::GroundState), Centre, NowMs, Error)) { return false; }
         bHandled=true;
         return true;
     }
@@ -335,7 +349,7 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
 
 bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
 {
-    if (!AdvanceFans(NowMs,Error)) { return false; }
+    if (!AdvanceFans(NowMs,Error) || !AdvanceBags(NowMs,Error)) { return false; }
     for (int32 Index=Channels.Num()-1; Index>=0; --Index)
     {
         auto& Channel=Channels[Index];
@@ -357,6 +371,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             TArray<FLDCombatBodyRef> Targets;
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
+            if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
             // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
             {
                 const FVector Facing=Channel.Direction;
@@ -390,6 +405,8 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 {
                     Hit.KnockbackCm=Channel.FinalKnockbackCm;
                     Hit.KnockbackMs=Channel.FinalKnockbackMs;
+                    // One displacement: the branch knockback; the final gust still reacts.
+                    Hit.bGustInKnockback=true;
                     Hit.bKnockbackFromAnchor=true;
                     Hit.KnockbackAnchorCm=Origin;
                     Hit.KnockbackSource=Channel.Payload.Source;
@@ -457,6 +474,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (Hit.KnockbackCm > 0 && !Hit.bKnockbackPull) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Ground.CentreCm; }
             PendingHits.Add(MoveTemp(Hit));
         }
+        if (!HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs, Error)) { return false; }
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }

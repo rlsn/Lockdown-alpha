@@ -49,7 +49,8 @@ ACTIVE_IDS = ("active_elbow", "active_pants_down", "active_crotch_grab", "active
               "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_hose_down", "active_zap",
               "active_bail_out", "active_apology_slide", "active_charged_ram", "active_not_mad", "active_stare_down",
               "active_brace", "active_triple_combo", "active_calculus_drop", "active_flyer_trap", "active_dirty_puddle",
-              "active_sock_shot", "active_open_mic", "active_cola_shake", "active_desk_fan", "active_stale_takeout")
+              "active_sock_shot", "active_open_mic", "active_cola_shake", "active_desk_fan", "active_stale_takeout",
+              "active_school_bag")
 # (target mode, range cm or None, windup s, momentum cost, cooldown s, in the opening pool).
 ACTIVE_FRAMES = {
     "active_elbow": ("Unit", 220, r(".15"), 25, 6, True),
@@ -78,6 +79,7 @@ ACTIVE_FRAMES = {
     "active_cola_shake": ("DirectionCone", 400, r(".15"), 25, 6, True),
     "active_desk_fan": ("GroundPoint", 500, r(".2"), 35, 10, False),
     "active_stale_takeout": ("DirectionProjectile", 700, r(".2"), 30, 8, True),
+    "active_school_bag": ("GroundPoint", 450, r(".2"), 30, 11, False),
 }
 
 
@@ -142,6 +144,8 @@ ACTIVE_EFFECTS = {
     "active_cola_shake": [("channel_cone", {"count": 1, "interval": r(".25")}), magical(55, ".5"), ("chill", {})],
     "active_desk_fan": [("fan", {"distance": 60, "duration": 4, "interval": r(".5"), "length": 600, "width": 200}), ("gust", {})],
     "active_stale_takeout": [magical(75, ".7"), ("rot", {}), ("ground_state", {"kind": "miasma"})],
+    "active_school_bag": [("bag", {"count": 1, "duration": 4, "hp_base": 150, "hp_per_level": 20, "radius": 200, "size": 40}),
+                          magical(80, ".6")],
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {
@@ -282,7 +286,7 @@ class ApprovedDemoData(unittest.TestCase):
                      "2026-11-09 #144 equipment, gold and shops removed", "#225: PK +50%",
                      "2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据"):
             self.assertIn(text, approval["decision"])
-        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (25, 5, 12))
+        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (26, 5, 12))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
@@ -323,7 +327,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("OVERDRIVE.GustPushCm", "cm", "300"), ("OVERDRIVE.GustPushSec", "ms", ".25"),
-            ("AI.DodgeChance", "ratio", ".5"), ("AI.BreakoutChance", "ratio", ".25"), ("AI.CardSkipChance", "ratio", ".3"),
+            ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", ".25"),
+            ("AI.CardSkipChance", "ratio", ".3"),
             ("CHAIN.EndSec", "ms", "3"),
             ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
@@ -516,7 +521,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "knockback": 20, "silence": 25, "burn": 26,
                                            "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
                                            "camp_enraged": 34, "camp_guarding": 35, "chilled": 36, "rotten": 37})
-        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "gust": 235, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "basic_projectile": 242, "combo_sweep": 243, "combo_cast": 244, "speed_factor": 245, "hit_growth": 246, "control_amp": 247, "reshape": 248, "shield_spend": 249, "recent_cast_amp": 250, "dodge_free_cast": 251, "dash_ram": 252, "overdrive_short": 253, "tally": 254, "burn_shield": 255})
+        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "gust": 235, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242, "basic_projectile": 243, "combo_sweep": 244, "combo_cast": 245, "speed_factor": 246, "hit_growth": 247, "control_amp": 248, "reshape": 249, "shield_spend": 250, "recent_cast_amp": 251, "dodge_free_cast": 252, "dash_ram": 253, "overdrive_short": 254, "tally": 255})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -533,7 +538,7 @@ class ApprovedDemoData(unittest.TestCase):
         # Skill branch steps (issue #287 spec §5.1) are checked on their own below.
         step = re.compile(r"_(2a|2b|3a1|3a2|3b1|3b2)$")
         steps = {row["id"]: row["name_text"] for row in self.data["display"] if step.search(row["id"])}
-        self.assertEqual(len(steps), 25 * 6)
+        self.assertEqual(len(steps), 26 * 6)
         self.assertEqual((steps["active_elbow_2a"], steps["active_elbow_3b2"], steps["active_open_mic_2b"]), ("给我过来", "踹出内伤", "一嗓子"))
         self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"] if not step.search(row["id"])}, {
             "character_demo": "脆皮大学生",
@@ -546,7 +551,7 @@ class ApprovedDemoData(unittest.TestCase):
             "active_open_mic": "扯嗓子喷你", "active_hose_down": "滋你一脸", "active_zap": "电你个哆嗦",
             "active_charged_ram": "带电撞你", "active_brace": "顶着揍", "active_dirty_puddle": "满地泼脏水",
             "active_sock_shot": "馊水糊脸",
-            "active_cola_shake": "冰可乐摇一摇", "active_desk_fan": "电风扇", "active_stale_takeout": "过期外卖",
+            "active_cola_shake": "冰可乐摇一摇", "active_desk_fan": "电风扇", "active_stale_takeout": "过期外卖", "active_school_bag": "占座书包",
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
             # Spec §7 P2 cards.
             **{identity: frame[0] for identity, frame in CARD_FRAMES.items()},
@@ -649,7 +654,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual({row["id"] for row in self.data["abilities"] if row["opening"]},
                          {identity for identity, frame in ACTIVE_FRAMES.items() if frame[-1]})
         self.assertEqual({row["id"] for row in self.data["abilities"] if not row["opening"]},
-                         {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap", "active_desk_fan"})
+                         {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap", "active_desk_fan",
+                          "active_school_bag"})
         self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 20)
         self.assertEqual(self.data["progression"]["active_offer_levels"], (3, 6))
         self.assertEqual(set(self.data["progression"]),

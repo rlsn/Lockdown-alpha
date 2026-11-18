@@ -85,6 +85,20 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
     // Only the body of this match and life; anything else leaves the baseline alone until the current view arrives.
     if(!Combat||!Combat->bHasBody||Sample.Life==0||Combat->Generation!=Sample.Match||Combat->Life!=Sample.Life){return;}
     const bool bNewLife=!bBody||BodyLife!=Combat->Life;
+    // Spec §12: a reaction on the own body floats its name over it once, while fresh, and waits for its instant; the first
+    // view of a life only primes. It is independent of the confirmation word below.
+    if(bNewLife){ReactionAtMs=Combat->Cues.LastReactionAtMs;}
+    else if(Sample.bClock&&Combat->Cues.LastReaction!=0&&Combat->Cues.LastReactionAtMs>ReactionAtMs
+        &&Combat->Cues.LastReactionAtMs<=Sample.NowMs)
+    {
+        ReactionAtMs=Combat->Cues.LastReactionAtMs;
+        if(Sample.NowMs-ReactionAtMs<LDObservation::RecentReactionWindowMs)
+        {
+            FEvent& Reaction=Out.AddDefaulted_GetRef();
+            Reaction.Kind=EKind::UnitReaction;Reaction.bOwn=true;Reaction.Amount=Combat->Cues.LastReaction;
+            Reaction.Element=Combat->Cues.LastReactionElement;Reaction.Name=LDTerms::ReactionTerm(Combat->Cues.LastReaction);
+        }
+    }
     // The confirmation word takes the receipt the body's confirmation layer takes (LDHitFeel::TakeFreshReceipt), checked
     // on every sample rather than per revision: a receipt ahead of the clock waits, a stale one is only skipped and the
     // first view of a life only primes it.
@@ -195,7 +209,7 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
         Next.Handle=Unit.Handle;Next.Epoch=Unit.ObservationEpoch;Next.bCamp=Unit.Kind==ELDObservedUnitKind::CampMember;
         Next.HPP2=Unit.Health.CurrentP2;Next.MaxP2=Unit.Health.MaxP2;Next.SampledAtSec=Frame->SampledAtServerSec;
         Next.Cue=uint8(Unit.ActionCue);Next.CueAgeMs=Unit.ActionCueAgeMs;Next.Ability=Unit.ActionAbility;
-        Next.Reaction=Unit.RecentReaction;Next.ReactionAgePlusOneMs=Unit.RecentReactionAgePlusOneMs;
+        Next.Reaction=Unit.RecentReaction;Next.ReactionAgePlusOneMs=Unit.RecentReactionAgePlusOneMs;Next.ReactionElement=Unit.RecentReactionElement;
         const FUnit* Last=bPrime?nullptr:Units.FindByPredicate([&Next](const FUnit& Known){return Known.Handle==Next.Handle&&Known.Epoch==Next.Epoch;});
         // A cast with a public ability shows its name once: when the cue turns to Cast, restarts (its age falls) or names
         // another ability. A unit first seen mid-cast only primes, like its health.
@@ -207,11 +221,14 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
             Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=Next.bCamp && Sample.MonsterCastName?Sample.MonsterCastName(Unit.CreatureId):Sample.CastName?Sample.CastName(Next.Ability):FString();
         }
         // A reaction on a visible unit floats its name once: when its cue appears, restarts (its age falls) or names another.
-        if(Last&&Next.Reaction!=0&&(Last->Reaction!=Next.Reaction||Next.ReactionAgePlusOneMs<Last->ReactionAgePlusOneMs))
+        // Its occurrence is the frame's sample time less its age, so two reactions of one kind in successive (or
+        // lost) frames stay apart.
+        const auto OccurredAt=[](const FUnit& Seen){return Seen.SampledAtSec-double(Seen.ReactionAgePlusOneMs-1)/1000.;};
+        if(Last&&Next.Reaction!=0&&(Last->Reaction==0||Last->Reaction!=Next.Reaction||OccurredAt(Next)>OccurredAt(*Last)+.0005))
         {
             FEvent& Event=Out.AddDefaulted_GetRef();
             Event.Kind=EKind::UnitReaction;Event.Amount=Next.Reaction;Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;
-            Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=LDTerms::ReactionTerm(Next.Reaction);
+            Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=LDTerms::ReactionTerm(Next.Reaction);Event.Element=Next.ReactionElement;
         }
         if(Last&&Last->MaxP2==Next.MaxP2&&Last->bCamp==Next.bCamp)
         {
@@ -356,12 +373,13 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
     }
 }
-// Spec §12: a reaction's name floats in the colour of the element that set it off (ELDCombatReaction 1..15).
-FLinearColor WorldFeedbackReactionInk(int64 Reaction)
+// Spec §12: a reaction's name floats in the colour of the element that set it off (ELDCombatElement 1..6, carried with the
+// cue: the pair alone cannot tell which side came last).
+FLinearColor WorldFeedbackReactionInk(uint8 Element)
 {
-    static const FLinearColor Fire(1.f,.45f,.12f),Water(.3f,.65f,1.f),Shock(.75f,.45f,1.f),Chill(.45f,.95f,1.f),Rot(.55f,.9f,.25f),Gust(.85f,.9f,.95f);
-    static const FLinearColor Inks[]={FLinearColor::White,Water,Shock,Shock,Chill,Rot,Gust,Chill,Rot,Gust,Chill,Rot,Gust,Rot,Gust,Gust};
-    return Reaction>0&&Reaction<int64(UE_ARRAY_COUNT(Inks))?Inks[Reaction]:FLinearColor::White;
+    static const FLinearColor Inks[]={FLinearColor::White,FLinearColor(1.f,.45f,.12f),FLinearColor(.3f,.65f,1.f),FLinearColor(.75f,.45f,1.f),
+        FLinearColor(.45f,.95f,1.f),FLinearColor(.55f,.9f,.25f),FLinearColor(.85f,.9f,.95f)};
+    return Element<UE_ARRAY_COUNT(Inks)?Inks[Element]:FLinearColor::White;
 }
 bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience||Kind==LDWorldFeedback::EKind::Vouchers;}
 bool WorldFeedbackSameAnchor(const LDWorldFeedback::FEvent& First,const LDWorldFeedback::FEvent& Second)
@@ -418,7 +436,8 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
     // Damage and heal numbers landing together read as one: a same-kind event at the same anchor within the merge window
     // adds up and pops the number again without restarting its rise. Each reward publication keeps its own lines.
     const bool bReward=WorldFeedbackIsReward(Event.Kind);
-    LDWorldFeedback::FFloater* Same=bReward?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
+    // A reaction is its own word: two reactions on one unit never add up.
+    LDWorldFeedback::FFloater* Same=bReward||Event.Kind==LDWorldFeedback::EKind::UnitReaction?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
     {return Shown.Event.Kind==Event.Kind&&WorldFeedbackSameAnchor(Shown.Event,Event)&&Now-Shown.BornAt<=WorldFeedbackMergeSeconds;});
     if(Same)
     {
@@ -687,7 +706,7 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
         // Spec §12: a bigger share of the body's max HP is a bigger number; the top tier shakes while it pops.
         const float TierScale=LDWorldFeedback::DamageTierScale(Floater.Event.Tier);
         const FSlateFontInfo Font=WorldFeedbackFont(Look.FontSize,TextScale*TierScale,2,Alpha);
-        FLinearColor Ink=Floater.Event.Kind==LDWorldFeedback::EKind::UnitReaction?WorldFeedbackReactionInk(Floater.Event.Amount):Look.Ink;
+        FLinearColor Ink=Floater.Event.Kind==LDWorldFeedback::EKind::UnitReaction?WorldFeedbackReactionInk(Floater.Event.Element):Look.Ink;
         Ink.A*=Alpha;
         float AlignX=.5f;
         if(bReward)

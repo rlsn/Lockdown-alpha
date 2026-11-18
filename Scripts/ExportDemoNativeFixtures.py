@@ -172,6 +172,7 @@ def effect(value):
         # #198 F workshop terms.
         ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
         ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
+        ("burn_ratio", "RatioBp"),
     ):
         # A05/A10 rates are rationals (card_terms places them).
         if source in value and not (value.get("op") == "speed_factor" and source == "threshold"):
@@ -288,11 +289,20 @@ def element_terms(value, result):
         result["bCarryElement"] = bool(value.get("carry_element", False))
     elif op == "dash_ice":
         result["RadiusCm"] = rational(value["width"])
+    elif op == "bag":
+        result["BaseP2"] = scalar(value["hp_base"])
+        result["LimitP2"] = scalar(value["hp_per_level"])
+        result["RatioBp"] = scalar(value["hp_ratio"]) if "hp_ratio" in value else 0
+        result["DistanceCm"] = rational(value["size"])
+        result["ExtraDistanceCm"] = rational(value["wall_width"]) if "wall_width" in value else rational()
     elif op == "channel_cone" and "final_root" in value:
         result["ExtraDurationMs"] = scalar(value["final_root"])
     elif op == "follow_up":
         if "rot_duration" in value:
             result["ExtraDurationMs"] = scalar(value["rot_duration"])
+            # The importer gives a rotting follow-up the rot element (electrify and wet take precedence).
+            if not value.get("electrify") and not value.get("wet"):
+                result["Element"] = ELEMENTS.index("rot")
         if "momentum" in value:
             result["LimitP2"] = scalar(value["momentum"])
             result["BaseP2"] = scalar(value["base"]) if "base" in value else 0
@@ -585,6 +595,7 @@ def parameter_projection(parameters):
     result["AI"]["BreakoutChanceBp"] = scalar(parameters["AI.BreakoutChance"])
     result["AI"]["BreakoutCardScore"] = parameters["AI.BreakoutCardScore"]
     result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])
+    result["AI"]["EnemyGroundPathCostBp"] = scalar(parameters["AI.EnemyGroundPathCost"])
     result["AI"]["CardSkipChanceBp"] = scalar(parameters["AI.CardSkipChance"])
     result["Momentum"] = {
         "MaxP2": scalar(parameters["MOMENTUM.Max"]), "StartP2": scalar(parameters["MOMENTUM.Start"]),

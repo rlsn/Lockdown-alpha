@@ -98,8 +98,10 @@ bool ALDCombatDirector::SpawnGround(ELDGroundStateKind Kind, const FLDElementApp
             LDCombatElements::GroundName(GroundStates[Index].Kind),*LDLog::Id(GroundStates[Index].Owner.SourceEntity));
         GroundStates.RemoveAt(Index);
     }
-    Ground.Id=++NextGroundId;
-    if (Ground.Id==0) { Ground.Id=++NextGroundId; }
+    // The public id is one byte on the wire: the next free one among the live states (at most 40 live, so one is free).
+    do { NextGroundId=NextGroundId%255+1; }
+    while (GroundStates.ContainsByPredicate([this](const FLDGroundState& Live) { return Live.Id==NextGroundId; }));
+    Ground.Id=NextGroundId;
     Ground.CreatedSerial=++NextAreaSerial;
     UE_LOG(LogLDCombat,Log,TEXT("LD_GROUND t=%lld id=%u kind=%s owner=%s via=%s centre=%s radius=%.0f life=%lld"),NowMs,Ground.Id,
         LDCombatElements::GroundName(Kind),*LDLog::Id(GroundOwner.SourceEntity),*LDLog::Source(GroundOwner.Source),*Centre.ToString(),

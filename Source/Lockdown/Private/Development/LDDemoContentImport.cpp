@@ -54,6 +54,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("abilities", "active_cola_shake", ELDDemoAbilityId, ActiveColaShake),
     DEMO_ID("abilities", "active_desk_fan", ELDDemoAbilityId, ActiveDeskFan),
     DEMO_ID("abilities", "active_stale_takeout", ELDDemoAbilityId, ActiveStaleTakeout),
+    DEMO_ID("abilities", "active_school_bag", ELDDemoAbilityId, ActiveSchoolBag),
     DEMO_ID("stats", "stat_physique", ELDDemoStatId, StatPhysique),
     DEMO_ID("stats", "stat_thick_skin", ELDDemoStatId, StatThickSkin),
     DEMO_ID("stats", "stat_strength", ELDDemoStatId, StatStrength),
@@ -300,6 +301,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "ground_relocate", ELDDemoEffectOp, GroundRelocate),
     DEMO_ID("effect_ops", "double_stall", ELDDemoEffectOp, DoubleStall),
     DEMO_ID("effect_ops", "ground_growth", ELDDemoEffectOp, GroundGrowth),
+    DEMO_ID("effect_ops", "bag", ELDDemoEffectOp, Bag),
     DEMO_ID("effect_ops", "basic_projectile", ELDDemoEffectOp, BasicProjectile),
     DEMO_ID("effect_ops", "combo_sweep", ELDDemoEffectOp, ComboSweep),
     DEMO_ID("effect_ops", "combo_cast", ELDDemoEffectOp, ComboCast),
@@ -313,7 +315,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "dash_ram", ELDDemoEffectOp, DashRam),
     DEMO_ID("effect_ops", "overdrive_short", ELDDemoEffectOp, OverdriveShort),
     DEMO_ID("effect_ops", "tally", ELDDemoEffectOp, Tally),
-    DEMO_ID("effect_ops", "burn_shield", ELDDemoEffectOp, BurnShield),
 };
 #undef DEMO_ID
 
@@ -485,6 +486,7 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SKILL.CooldownFloorSec"), TEXT("ms"), TEXT("ms"), &P.SkillRanks.CooldownFloorMs, 1, MAX_int64},
         {TEXT("AIRDROP.Momentum"), TEXT("momentum"), TEXT("p2"), &P.AirdropMomentumP2, 1, MAX_int64},
         {TEXT("AI.DodgeChance"), TEXT("ratio"), TEXT("bp"), &P.AI.DodgeChanceBp, 0, 10000},
+        {TEXT("AI.EnemyGroundPathCost"), TEXT("ratio"), TEXT("bp"), &P.AI.EnemyGroundPathCostBp, 10000, 100000},
         {TEXT("AI.BreakoutChance"), TEXT("ratio"), TEXT("bp"), &P.AI.BreakoutChanceBp, 0, 10000},
         {TEXT("AI.CardSkipChance"), TEXT("ratio"), TEXT("bp"), &P.AI.CardSkipChanceBp, 0, 10000},
         {TEXT("DAMAGE.FactorTechCap"), TEXT("ratio"), TEXT("bp"), &P.DamageFactorTechCapBp, 10001, MAX_int64},
@@ -1241,7 +1243,7 @@ constexpr FOpMask CardOnlyOps = OpBit(ELDDemoEffectOp::Thorns) | OpBit(ELDDemoEf
     OpBit(ELDDemoEffectOp::SpeedFactor) | OpBit(ELDDemoEffectOp::HitGrowth) | OpBit(ELDDemoEffectOp::ControlAmp) |
     OpBit(ELDDemoEffectOp::Reshape) | OpBit(ELDDemoEffectOp::ShieldSpend) | OpBit(ELDDemoEffectOp::RecentCastAmp) |
     OpBit(ELDDemoEffectOp::DodgeFreeCast) | OpBit(ELDDemoEffectOp::DashRam) | OpBit(ELDDemoEffectOp::OverdriveShort) |
-    OpBit(ELDDemoEffectOp::Tally) | OpBit(ELDDemoEffectOp::BurnShield);
+    OpBit(ELDDemoEffectOp::Tally);
 // Y06 shares S13 A1's shield_burst_break.
 constexpr FOpMask CardOps = CardOnlyOps | OpBit(ELDDemoEffectOp::Burn) | OpBit(ELDDemoEffectOp::Breach) | OpBit(ELDDemoEffectOp::EmpowerBasic)
     | OpBit(ELDDemoEffectOp::ShieldBurstBreak);
@@ -1278,7 +1280,7 @@ constexpr FOpMask FormOps[] = {
     OpBit(ELDDemoEffectOp::ElementAura) | OpBit(ELDDemoEffectOp::ElementDuration) |
     OpBit(ELDDemoEffectOp::ReactionFactor) | OpBit(ELDDemoEffectOp::BurnCap) | OpBit(ELDDemoEffectOp::DoubleStall) |
     OpBit(ELDDemoEffectOp::GroundGrowth) | OpBit(ELDDemoEffectOp::ShieldBurstBreak) | OpBit(ELDDemoEffectOp::OverdriveShort) |
-    OpBit(ELDDemoEffectOp::SpeedFactor) | OpBit(ELDDemoEffectOp::Tally) | OpBit(ELDDemoEffectOp::BurnShield),
+    OpBit(ELDDemoEffectOp::SpeedFactor) | OpBit(ELDDemoEffectOp::Tally),
 };
 // Workshop mod operations a skill branch may also give an active (DemoContent.BRANCH_MOD_OPS).
 constexpr FOpMask BranchModOps = OpBit(ELDDemoEffectOp::Pull) | OpBit(ELDDemoEffectOp::ProjectileReturn)
@@ -1639,6 +1641,20 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             || !Check.Require(Out.IntervalMs <= Out.DurationMs && Out.RadiusCm.Numerator > 0 && Out.ExtraDistanceCm.Numerator > 0,
                 Path, TEXT("a fan blows inside its life over a positive rectangle"))) { return false; }
         break;
+    case ELDDemoEffectOp::Bag:
+        // N4: life (BaseP2 + LimitP2 per level, times RatioBp when set), body radius (DistanceCm), blast radius (RadiusCm),
+        // the live count (Count) and the wall between two bags (ExtraDistanceCm, 0 = none).
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !IntInto(F, TEXT("count"), Out.Count, 1, 2)
+            || !F.Fixed(TEXT("hp_base"), TEXT("hp"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("hp_per_level"), TEXT("hp"), TEXT("p2"), Out.LimitP2, 0)
+            || !OptionalFixed(F, TEXT("hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fraction(TEXT("size"), TEXT("cm"), Out.DistanceCm, true)
+            || (F.Has(TEXT("wall_width")) && !F.Fraction(TEXT("wall_width"), TEXT("cm"), Out.ExtraDistanceCm, true))
+            || !Check.Require(Out.RadiusCm.Numerator > 0 && Out.DistanceCm.Numerator > 0, Path, TEXT("a bag has a body and a blast")))
+        { return false; }
+        break;
     case ELDDemoEffectOp::DashIce:
         if (!F.Fraction(TEXT("width"), TEXT("cm"), Out.RadiusCm, true)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
@@ -1961,8 +1977,12 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         if (!F.Fixed(TEXT("max_hp"), TEXT("hp"), TEXT("p2"), Out.BaseP2, 1)) { return false; }
         break;
     case ELDDemoEffectOp::OverhealShield:
-        if (!F.Fixed(TEXT("cap_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+        // Y14 shields overflowing heals up to cap_ratio (MultiplierBp); Y29 shields burn_ratio of the burn it deals (RatioBp).
+        if (!OptionalFixed(F, TEXT("cap_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+            || !OptionalFixed(F, TEXT("burn_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        if (!Check.Require((Out.MultiplierBp > 0) != (Out.RatioBp > 0), Path, TEXT("an overheal shield names one of cap_ratio or burn_ratio")))
+        { return false; }
         break;
     case ELDDemoEffectOp::HasteMomentum:
         if (!F.Fixed(TEXT("haste"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1)
@@ -2072,10 +2092,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
         Out.DamageType = ELDDemoDamageType::Magical;
-        break;
-    case ELDDemoEffectOp::BurnShield:
-        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
-            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
         break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
@@ -2291,6 +2307,8 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
     case ELDDemoAbilityId::ActiveStaleTakeout:
         Mode = ELDDemoTargetMode::DirectionProjectile;
         ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Rot) | OpBit(EOp::GroundState); break;
+    case ELDDemoAbilityId::ActiveSchoolBag:
+        Mode = ELDDemoTargetMode::GroundPoint; ExpectedOps = OpBit(EOp::Bag) | OpBit(EOp::Damage); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented ability projection"));
     }
@@ -2765,7 +2783,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Dash.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), DashMove.DurationMs, 1)
         || !Check.Require(DashMove.DurationMs < InnateDash.Values.CooldownMs, Dash.Path, TEXT("dash outlasts its cooldown"))
         || !Dash.Done() || !Character.Done()
-        || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 25, Ability)
+        || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 26, Ability)
         || !Definitions(F.Take(TEXT("stats")), Out.Stats, Check, TEXT("content.stats"), 5, 5, StatDefinition)
         || !Cards(F.Take(TEXT("cards")), Out.Cards, Check)
         || !Definitions(F.Take(TEXT("final_mods")), Out.FinalMods, Check, TEXT("content.final_mods"), 8, 8, FinalMod)

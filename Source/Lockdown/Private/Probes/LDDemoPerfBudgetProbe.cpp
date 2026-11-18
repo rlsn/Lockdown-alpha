@@ -65,6 +65,9 @@ namespace
         // Spec §17: the crowd scene also carries the full public load of ground states (GROUND.MaxTotal footprints, every
         // kind and shape, each with its owner outline), drawn by the same client proxies a match uses.
         TArray<TWeakObjectPtr<ALDObservedGroundProxy>> Grounds;
+        // Their states and the clock of the last publication (renewed before they run out, as a live view would).
+        TArray<FLDObservedGroundState> GroundStates;
+        double GroundsAppliedAt = 0.;
         TArray<TSharedPtr<FJsonValue>> Windows, Checks, Primers;
         TArray<FPerfSample> Samples;
         double StartedAt = FPlatformTime::Seconds(), PhaseAt = 0., Clock = 0., SentAt = 0.;
@@ -167,15 +170,16 @@ namespace
                 State.RadiusCm = 180.f;
                 State.ExtentCm = State.Shape == ELDObservedGroundShape::Band ? 200.f : State.Shape == ELDObservedGroundShape::Sector ? 60.f : 0.f;
                 State.Heading = uint8(Ground * 37);
-                State.LifeMs = 6000;
+                State.TotalMs = 6000;
                 State.RemainingMs = 3000;
                 FActorSpawnParameters Params;
                 Params.ObjectFlags |= RF_Transient;
                 ALDObservedGroundProxy* Proxy = Target.SpawnActor<ALDObservedGroundProxy>(ALDObservedGroundProxy::StaticClass(),
                     FTransform(State.CentreCm), Params);
                 if (!Proxy) { continue; }
-                Proxy->Apply(State, 0.);
+                Proxy->Apply(State, Clock);
                 Grounds.Add(Proxy);
+                GroundStates.Add(State);
             }
             if (!Check(Grounds.Num() == LDObservation::MaxGroundStates, FString::Printf(TEXT("Spawned %d ground states"), Grounds.Num()))) { return false; }
             auto* Local = Cast<ALDPlayerController>(Target.GetFirstPlayerController());
@@ -257,6 +261,17 @@ namespace
                     Body.Actor->SetActorLocationAndRotation(Body.Centre + Offset, Velocity.Rotation());
                 }
                 Body.Visual->Animate(Velocity, Delta);
+            }
+            // Ground states fade over their lives and rebuild their rims each frame like a match's; a publication every
+            // two seconds renews them before they run out.
+            const bool bRenew = Clock - GroundsAppliedAt >= 2.;
+            if (bRenew) { GroundsAppliedAt = Clock; }
+            for (int32 Index = 0; Index < Grounds.Num(); ++Index)
+            {
+                ALDObservedGroundProxy* Proxy = Grounds[Index].Get();
+                if (!Proxy || !GroundStates.IsValidIndex(Index)) { continue; }
+                if (bRenew) { Proxy->Apply(GroundStates[Index], Clock); }
+                Proxy->Present(Clock);
             }
         }
 

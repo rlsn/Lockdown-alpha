@@ -36,6 +36,7 @@ namespace LDWorldFeedback
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
         uint8 HitFlags=0;          // DealtConfirm: the receipt's LDObservation::EHitFlags
         int32 Tier=0;              // DamageTaken/UnitDamage: DamageTier of the hit against the body's max HP
+        uint8 Element=0;           // UnitReaction: the element that set it off (ELDCombatElement), its ink
     };
     // Spec §12: a damage number grows with its share of the struck body's max HP: 0 below 10%, 1 to 30%, 2 to 60%, 3 from 60%
     // (the top tier shakes).
@@ -96,6 +97,7 @@ namespace LDWorldFeedback
             // The unit's reaction cue in that frame (spec §12: a new one floats its name).
             uint8 Reaction=0;
             uint16 ReactionAgePlusOneMs=0;
+            uint8 ReactionElement=0;
             uint8 Ability=0;
         };
         void Reset(uint32 InMatch);
@@ -113,6 +115,7 @@ namespace LDWorldFeedback
         int64 ShieldP2=0;
         int64 ShieldEndsAtMs=0;    // end of the shield status listed with the baseline; 0 when none was listed
         int64 DealtAtMs=0;         // the own hit receipt of the baseline (LastDealtAtMs)
+        int64 ReactionAtMs=0;      // the own body's last reaction of the baseline (Cues.LastReactionAtMs)
         bool bGrowth=false;
         uint8 Level=0;
         uint8 OffersEarned=0;

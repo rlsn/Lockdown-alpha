@@ -647,6 +647,8 @@ struct FLDCombatHit
     int64 GustPushMs=0;
     FVector GustDirection=FVector::ZeroVector;
     bool bGustGround=false;
+    // The hit's own knockback already moves the target (S22 B1's final wave): its gust reacts but adds no push of its own.
+    bool bGustInKnockback=false;
     // An overdrive's chill root (OVERDRIVE.ChillRootSec) rides with its chill.
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
     int64 AttackSlowBp=0, AttackSlowMs=0;
@@ -764,6 +766,27 @@ struct FLDCombatFan
     uint64 CreatedSerial=0;
     // The heading of a blow at AtMs (the sweep's triangle wave).
     FVector HeadingAt(int64 AtMs) const;
+};
+
+// Spec §5 N4: a placed school bag (LDCombatBagDirector.cpp). It is no body: it blocks bodies through its blocker, stops
+// the enemy flights that reach it and takes the raw amount of enemy flights, ground blasts, cones and release areas
+// (RawBagDamageP2). At ExpiresAtMs or HpP2 0 it blows Payload over BlastRadiusCm.
+struct FLDCombatBag
+{
+    FLDCombatHit Payload;
+    FGuid ObservedKey;
+    FVector CentreCm=FVector::ZeroVector;
+    double BodyRadiusCm=0, BlastRadiusCm=0;
+    // A1: half the width of the wall to the partner bag of the same skill (WallTo); zero without the branch.
+    double WallHalfWidthCm=0;
+    int64 HpP2=0;
+    int64 ExpiresAtMs=0;
+    // B2: the fire field it leaves where it blows.
+    int64 FireFieldMs=0;
+    uint64 CreatedSerial=0;
+    TWeakObjectPtr<AActor> Blocker;
+    FGuid WallTo, WallKey;
+    TWeakObjectPtr<AActor> WallBlocker;
 };
 
 // #198 F: what a delayed ground blast is. An S18 landing, an S19 detonation and an M07 compressed zone are natural
@@ -1168,6 +1191,7 @@ private:
     friend struct FLDBuildPrimitivesAccess;
 #if WITH_DEV_AUTOMATION_TESTS
     friend struct FLDDemoVisionReactionAccess;
+    friend struct FLDDemoVisionIceAccess;
 #endif
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
@@ -1444,6 +1468,24 @@ private:
     bool AdvanceSkillContent(int64 NowMs, FString& Error);
     // N2 fans: their blows due by now.
     bool AdvanceFans(int64 NowMs, FString& Error);
+    // N4 bags (LDCombatBagDirector.cpp).
+    bool PlaceBag(FLDBodyCombatState& Body, const FLDCombatHit& Payload, const FLDDemoEffectDefinition& Effect,
+        const FLDDemoEffectDefinition* Fire, const FVector& Centre, int64 NowMs, FString& Error);
+    bool AdvanceBags(int64 NowMs, FString& Error);
+    bool ExplodeBag(const FLDCombatBag& Bag, int64 NowMs, FString& Error);
+    void RemoveBag(int32 Index);
+    void RemoveBags(TFunctionRef<bool(const FLDCombatBag&)> Which);
+    void DamageBag(FLDCombatBag& Bag, const FLDCombatHit& Hit, int64 NowMs);
+    // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
+    bool HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs, FString& Error);
+    bool HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
+        const FLDCombatHit& Payload, int64 NowMs, FString& Error);
+    // Whether the world lets an area at Anchor reach Point (false: blocked or out of sight range); a fault fails.
+    bool AreaSees(const FVector& Anchor, const FVector& Point, bool& bSees, FString& Error) const;
+    // The first live enemy bag a flight of RadiusCm meets on From -> To (its fraction in OutFraction), or INDEX_NONE.
+    int32 FirstBagOnSegment(const FGuid& Source, const FVector& From, const FVector& To, double RadiusCm, double& OutFraction) const;
+    bool BagIsEnemyOf(const FLDCombatBag& Bag, const FGuid& Source) const;
+    static int64 RawBagDamageP2(const FLDCombatHit& Hit);
     bool ResolveDashContacts(int64 NowMs, FString& Error);
     bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
     // Ends the body's channelled cone (a new action, a death or a source change interrupts it).
@@ -1649,6 +1691,7 @@ private:
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
     TArray<FLDCombatFan> Fans;
+    TArray<FLDCombatBag> Bags;
     TArray<FLDCombatGroundEffect> GroundEffects;
     // Skill branch schedules (LDCombatBranchDirector.cpp).
     TArray<FLDCombatFollowUp> FollowUps;

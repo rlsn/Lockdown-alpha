@@ -1223,6 +1223,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             && NowMs - Facts.LastReactionAtMs < LDObservation::RecentReactionWindowMs;
         Unit.RecentReaction = bReaction ? Facts.LastReaction : 0;
         Unit.RecentReactionAgePlusOneMs = bReaction ? uint16(NowMs - Facts.LastReactionAtMs + 1) : 0;
+        Unit.RecentReactionElement = bReaction ? Facts.LastReactionElement : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         if (Facts.ActionCue != ELDObservedActionCue::None)
         {
@@ -1399,13 +1400,21 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         {
             FLDObservedProjectileFact Probe;
             Probe.SourceEntity = Fact.OwnerEntity;
-            const ELDObservedFlightAccess Rule = FlightAccess(Probe);
-            bool bVisible = Rule == ELDObservedFlightAccess::Granted || Fact.OwnerEntity == Observer.ContenderId;
+            // An ownerless (DEV) ground state belongs to no isolation group: plain sight decides.
+            const ELDObservedFlightAccess Rule = Fact.OwnerEntity.IsValid() ? FlightAccess(Probe) : ELDObservedFlightAccess::Sight;
+            bool bVisible = Rule == ELDObservedFlightAccess::Granted || (Fact.OwnerEntity.IsValid() && Fact.OwnerEntity == Observer.ContenderId);
             if (!bVisible && (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight))
             {
-                const ELDSightResult Result = Sight.Trace(Foot, Fact.CentreCm);
-                if (Result == ELDSightResult::StaleWorld) { Error = TEXT("StaleWorld: ground-state sight has no current world."); return false; }
-                bVisible = Result == ELDSightResult::Visible;
+                // A PK life sees what its living teammates see too, as for flights and coverage.
+                TArray<FVector, TInlineAllocator<4>> Eyes;
+                Eyes.Add(Foot);
+                if (Rule == ELDObservedFlightAccess::SharedSight) { Eyes.Append(TeammateFeet); }
+                for (const FVector& Eye : Eyes)
+                {
+                    const ELDSightResult Result = Sight.Trace(Eye, Fact.CentreCm);
+                    if (Result == ELDSightResult::StaleWorld) { Error = TEXT("StaleWorld: ground-state sight has no current world."); return false; }
+                    if (Result == ELDSightResult::Visible) { bVisible = true; break; }
+                }
             }
             if (bVisible)
             {
