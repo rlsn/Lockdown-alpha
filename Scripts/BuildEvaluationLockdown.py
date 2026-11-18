@@ -78,14 +78,12 @@ REST_ONLY = ("replace", "respec")
 # Decisions a plan may name that the current runtime does not carry out as planned, with the reason; the plan is refused
 # as UnsupportedDecision. Build steps by their step name; "replace" inside an active choice rule.
 UNPLANNABLE = {
-    "buy_npc_offer": ("buy_npc_offer", "a rest NPC purchase opens an extra active opportunity whose ordinal the choices "
-                      "would have to name; the native plan does not carry it"),
     "forget": ("forget_active", "the AI has no forget command; a replacement forgets the replaced active"),
     "pick_card": ("pick_card", "a planned side skips every card offer (the draw is random); its cards are its level_cards"),
     "replace": ("replace_at_choice", "an active choice learns into an empty slot or keeps a blueprint; a replacement is "
                 "its own rest-window build step (replace)"),
 }
-UNPLANNABLE_STEPS = ("buy_npc_offer", "forget", "pick_card")
+UNPLANNABLE_STEPS = ("forget", "pick_card")
 
 METRICS = {
     "duel_score": {"unit": "score", "kind": "score", "direction": "higher_better",

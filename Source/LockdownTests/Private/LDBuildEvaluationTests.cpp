@@ -876,7 +876,7 @@ bool RunInput(FAutomationTestBase& Test)
     {
         return Refuse(Label, Input(CaseJson(Planned(TEXT("[") + Step + TEXT("]")), Opponent)), Field);
     };
-    bGood &= RefuseStep(TEXT("An unknown step (NPC purchases are not plannable)"), TEXT("{\"step\":\"buy_npc_offer\",\"at\":\"opening_rest\"}"),
+    bGood &= RefuseStep(TEXT("An unknown step"), TEXT("{\"step\":\"buy_npc_offer\",\"at\":\"opening_rest\"}"),
         TEXT("step"));
     bGood &= RefuseStep(TEXT("A retired step"), TEXT("{\"step\":\"opening_base\",\"at\":\"opening_rest\",\"card\":\"card_spiky_hide\"}"),
         TEXT("step"));

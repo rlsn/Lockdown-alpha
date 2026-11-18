@@ -106,7 +106,7 @@ public:
     bool LearnBlueprintCard(int32 Index);
     // A trainer blueprint row's "学到 Q/W/E": learns the blueprint at Index of the shown list into the empty slot Key (0 = Q).
     bool LearnBlueprint(int32 Index,uint8 Key);
-    // #198 rest services. BuyNpcOffer and Respec send at once; AskReplace (the blueprint at Index of the shown list into the
+    // #198 rest services. Respec sends at once; AskReplace (the blueprint at Index of the shown list into the
     // occupied slot Key) and AskForget (the active in slot Key) show the confirm line, which ConfirmRestAction sends and
     // CancelRestAction (or Back, or closing the panel) withdraws. Each refuses locally with the reason it toasts.
     bool Respec();

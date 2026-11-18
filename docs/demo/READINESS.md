@@ -77,7 +77,7 @@
 - **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#90](https://github.com/rlsn/Lockdown-alpha/issues/90)）。
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
   整蛊表现（被扒裤子等夸张的可见状态）未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)）。
-- **评估工具限制**：NPC 购买、单独遗忘、牌三选一和选择时直接替换目前不能规划，明确报告 `UnsupportedDecision`；这不表示游戏内命令不支持。
+- **评估工具限制**：单独遗忘、牌三选一和选择时直接替换目前不能规划，明确报告 `UnsupportedDecision`；这不表示游戏内命令不支持。
   Harness 只完成小型真实对决、野外加点计划和一个 Case 的重放，不能代表全部决策或平衡验证。
 - **未完成验收**：
   - 打包版已取得同机三拥有连接下的开局公共休息和构筑面板画面，以及前端真实渲染首帧；完整前端交互未验收。
