@@ -198,6 +198,9 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.IdleSinceMs=NowMs;
     Body.SplitDashLeft=0;
     Body.SplitDashUntilMs=0;
+    // K06: a repeat queued in the old phase never fires into the new one.
+    const FGuid Entity=Body.Victim.EntityId;
+    AutoRecasts.RemoveAll([&Entity](const FLDCombatAutoRecast& Row) { return Row.Body.Victim.EntityId==Entity; });
     Body.AssistContributions.Reset();
     Body.DamageLog.Reset();
     Body.Taunt.Reset();

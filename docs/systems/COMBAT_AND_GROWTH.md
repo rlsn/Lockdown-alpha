@@ -428,7 +428,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   Y08 击退撞墙眩晕、撞人两人受伤；Y09 技能可暴击；Y10 吸血对技能生效；Y14 溢出治疗转护盾（`OverhealShield`，与现有护盾取强）；
   Y16 技能急速换技能命中回劲；Y17 普攻吸血；Y19/Y20/Y21 本局成长（计数乘以当前持有的成长牌，`CardGrowthTerms`；成长事件时 `RefreshCardGrowth` 重算，构筑变更的 `PrepareBuildChange` 按提议的牌重算，卸下即失去、加装即按已有计数生效）；A11/K13 的附带伤害不触发任何效果，包括受击方的技能分支效果；Y22 不造成伤害的时间转下一次伤害乘区；
   Y25 光环把选定元素挂给 200 cm 内对你造成直接伤害的人；Y26 你施加的元素持续时间 ×2；Y27 你触发的反应伤害乘区；Y28 灼烧上限。
-- 牌的状态（Y03 一条命一次、A12 目标与层数、K16/Y22 计时、K17/Y19–Y21 累计）在 `LDCombatRest.cpp` 按生命或对局重置；
+- 牌的状态（Y03 一条命一次、A12 目标与层数、K06 排队的重放、K16/Y22 计时、K17/Y19–Y21 累计）在 `LDCombatRest.cpp` 按生命或对局重置；
   只读预览（`LDWorkshopPreview`）只覆盖 K08/K09 的冷却劲耗与 Y13，其余写为部分。
 
 ### 战斗机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）
