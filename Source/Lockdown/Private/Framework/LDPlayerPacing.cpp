@@ -50,7 +50,7 @@ void ALDPlayerController::ServerVending_Implementation(uint32 Generation, uint32
 
 void ALDPlayerController::ClientVending_Implementation(ELDVendingResult Result)
 {
-    if (uint8(Result) > uint8(ELDVendingResult::Busy))
+    if (uint8(Result) > uint8(ELDVendingResult::Closed))
     {
         UE_LOG(LogLDMatch, Warning, TEXT("LD_VENDING_RESULT_MALFORMED value=%u"), uint32(Result));
         return;

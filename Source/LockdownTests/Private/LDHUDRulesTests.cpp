@@ -479,8 +479,10 @@ bool FLDHUDPacingViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Two vouchers afford a buff but not a drink"),Vend.bCanBuff&&!Vend.bCanDrink);
     Own.LifePhase=ELDLifePhase::Dead;
     TestFalse(TEXT("A dead body cannot buy"),LDHUD::Vending(Own,Params).bVisible);
-    TestTrue(TEXT("A queued purchase and a refusal read differently"),
-        LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::NotEnoughVouchers));
+    TestTrue(TEXT("A queued purchase, a delivered one and a refusal all read differently"),
+        LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::NotEnoughVouchers)
+        &&LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::Delivered)
+        &&LDHUD::VendingText(ELDVendingResult::Closed)!=LDHUD::VendingText(ELDVendingResult::Delivered));
 
     TSet<FString> Glyphs;
     for(int32 Id=1;Id<=LDPacing::DailyModifiers;++Id)

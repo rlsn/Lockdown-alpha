@@ -249,7 +249,7 @@ P6 野外节奏（`LDGameModePacing.cpp`）：`InitializePacing` 在开局抽今
 `AdvanceFieldPacing`（RespawnsAndWorld）推进目标的预告/开放/关闭、擂台结算、贩子出现与离开、下雨与台风；
 `ClaimFieldPacing`（Transactions）结算小迷你旗胜者、擂台奖励、外卖柜的看见（`Vision->TraceSight`）与开启、售货机购买。
 奖励都经 `PayFieldReward` 与 `GrantVouchers` 进入成长复合事务。死亡选点经 `ALDPlayerController::ServerChooseSpawn` 交 `SubmitSpawnChoice`，
-回 `ClientChooseSpawn`；售货机经 `ServerVending` 交 `SubmitVending` 入队，回 `ClientVending`，在下一 Transactions 边界付款并生效。
+回 `ClientChooseSpawn`；售货机经 `ServerVending` 交 `SubmitVending` 入队，回 `ClientVending`（`Queued` 只是受理），在下一 Transactions 边界付款并生效，再回 `Delivered` 或具体拒绝（`NotAlive`/`NotAtMachine`/`NotEnoughVouchers`，进入休息或终局时 `Closed`），不扣饭票的拒绝不会显示为已购买。
 两者都绑定 match/life，旧生命与旧局的请求明确拒绝；AI 死亡时 `ChooseSpawnForAI` 立即选离公开目标更近的候选。
 本人投影 `FLDOwnerState.Pacing`（`FLDOwnerPacingView`）只发给本人：候选出生点与选择、身边售货机、饭票、饮料剩余次数与看见过的外卖柜。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。

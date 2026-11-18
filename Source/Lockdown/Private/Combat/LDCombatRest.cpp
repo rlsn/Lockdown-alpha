@@ -165,6 +165,8 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.Roots.Reset();
     Body.Slows.Reset();
     Body.TimedBonuses.Reset();
+    // Spec §11.2 layoff affix: the camp life keeps its fallen-mate stacks across the phase.
+    ApplyLayoffBonus(Body);
     Body.Disarms.Reset();
     Body.Stuns.Reset();
     Body.Silences.Reset();

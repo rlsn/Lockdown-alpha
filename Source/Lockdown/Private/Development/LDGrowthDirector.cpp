@@ -73,8 +73,11 @@ void GrowthDeathFactBytes(const FLDCommittedDeath& Death, TArray<uint8>& Out)
     uint8 Cause = uint8(Death.Cause);
     double OccurredAtSeconds = Death.OccurredAtSeconds;
     int64 OccurredAtMs = Death.OccurredAtMs;
+    // P6: the camp affix and the dealer flag at death change the reward, so they are part of the fact.
+    uint8 CampAffix = Death.RewardBasis.CampAffixAtDeath;
+    uint8 Peddler = Death.RewardBasis.bPeddlerAtDeath ? 1 : 0;
     Writer << SourceBody << RewardDefinition << VictimLevel << CampStage << VictimBuild << Eligible << NoRewardReason << Cause
-        << OccurredAtSeconds << OccurredAtMs;
+        << OccurredAtSeconds << OccurredAtMs << CampAffix << Peddler;
     int32 AssisterCount = Death.Assisters.Num();
     Writer << AssisterCount;
     for (FGuid Assister : Death.Assisters)

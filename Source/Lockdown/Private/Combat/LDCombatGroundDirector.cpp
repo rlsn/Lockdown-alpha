@@ -203,12 +203,22 @@ bool ALDCombatDirector::ConvertGroundAt(const FVector& Foot, ELDCombatElement In
 int64 ALDCombatDirector::NextGroundDueMs(int64 NowMs) const
 {
     int64 Due=MAX_int64;
+    const ILDLifeAuthority* Mode=Authority();
+    const bool bCold=Mode && Mode->HasDaily(ELDDailyModifier::Cold);
     for (const FLDGroundState& Ground : GroundStates)
     {
         if (Ground.NextTickMs>NowMs && Ground.NextTickMs<Ground.ExpiresAtMs) { Due=FMath::Min(Due,Ground.NextTickMs); }
         if (Ground.ExpiresAtMs>NowMs) { Due=FMath::Min(Due,Ground.ExpiresAtMs); }
+        if (bCold && Ground.Kind==ELDGroundStateKind::Puddle && ColdFreezeAtMs(Ground)>NowMs) { Due=FMath::Min(Due,ColdFreezeAtMs(Ground)); }
     }
     return Due;
+}
+
+int64 ALDCombatDirector::ColdFreezeAtMs(const FLDGroundState& Ground) const
+{
+    const int64 FreezeMs=Catalog()->Get().Parameters.Daily.ColdFreezeMs;
+    const int64 At=Ground.StartMs>MAX_int64-FreezeMs ? MAX_int64 : Ground.StartMs+FreezeMs;
+    return FMath::Min(At,Ground.ExpiresAtMs);
 }
 
 bool ALDCombatDirector::AdvanceGround(int64 NowMs, FString& Error)
@@ -228,15 +238,14 @@ bool ALDCombatDirector::AdvanceGround(int64 NowMs, FString& Error)
             if (!LDMatchLifecycle::AddDurationMs(Ground.NextTickMs,Kind.TickMs,Ground.NextTickMs,Error)) { return false; }
         }
     }
-    GroundStates.RemoveAll([NowMs](const FLDGroundState& Ground) { return Ground.ExpiresAtMs<=NowMs; });
-    // Spec §11.1 cold day: a puddle that stood DAILY.ColdFreezeSec turns to ice in place (the ice's own life from then).
+    // Spec §11.1 cold day: a puddle turns to ice in place once it stood DAILY.ColdFreezeSec, or at the end of its own life
+    // when that comes first, so no puddle dries up unfrozen (the ice's own life runs from then).
     if (const ILDLifeAuthority* Mode=Authority(); Mode && Mode->HasDaily(ELDDailyModifier::Cold))
     {
-        const int64 FreezeMs=Catalog()->Get().Parameters.Daily.ColdFreezeMs;
         const FLDGroundKindTerms& Ice=Terms.Of(ELDGroundStateKind::Ice);
         for (FLDGroundState& Ground : GroundStates)
         {
-            if (Ground.Kind!=ELDGroundStateKind::Puddle || NowMs-Ground.StartMs<FreezeMs) { continue; }
+            if (Ground.Kind!=ELDGroundStateKind::Puddle || NowMs<ColdFreezeAtMs(Ground)) { continue; }
             Ground.Kind=ELDGroundStateKind::Ice;
             Ground.StartMs=NowMs;
             Ground.RadiusCm=Ice.RadiusCm;
@@ -246,6 +255,7 @@ bool ALDCombatDirector::AdvanceGround(int64 NowMs, FString& Error)
             UE_LOG(LogLDCombat,Log,TEXT("LD_GROUND_FREEZE t=%lld id=%u"),NowMs,Ground.Id);
         }
     }
+    GroundStates.RemoveAll([NowMs](const FLDGroundState& Ground) { return Ground.ExpiresAtMs<=NowMs; });
     for (const FLDGroundState& Ground : Due)
     {
         if (Ground.Kind==ELDGroundStateKind::Ice) { continue; }

@@ -574,8 +574,11 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
         {
             const FString Text=Tag.ToString();
             if(!Text.StartsWith(TEXT("LDSceneAnchor:"))){continue;}
-            const FString Id=Text.Mid(14);
+            FString Id=Text.Mid(14);
             ELDDemoWorldAnchorKind Optional;
+            // A copied optional point repeats its original's tag; it stands for the same derived id the projection gives
+            // it (LDStaticScene::OptionalCopyId, same actor order), so the refresh never adds a second point there.
+            if(Saved.Contains(Id)&&LDDemoWorld::OptionalKindOf(Id,Optional)){Id=LDStaticScene::OptionalCopyId(Id,Actor->GetName());}
             if(!Declared.Contains(Id)&&!LDDemoWorld::OptionalKindOf(Id,Optional)){Retired.Add(Actor);}
             Saved.Add(Id);
         }

@@ -32,6 +32,7 @@
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
 #include "LDTestApprovedFixture.h"
+#include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -122,6 +123,8 @@ struct FLDBuildPrimitivesAccess
     static bool ConvertGround(ALDCombatDirector& Driver, const FVector& Foot, ELDCombatElement Incoming, const FLDElementApplier& Applier,
         const FVector& Direction, int64 NowMs, FString& Error) { return Driver.ConvertGroundAt(Foot, Incoming, Applier, Direction, NowMs, Error); }
     static bool AdvanceGround(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceGround(NowMs, Error); }
+    static void SetDaily(ALDGameMode& Mode, const TArray<ELDDailyModifier>& Daily) { Mode.DailyModifiers = Daily; }
+    static int64 NextGroundDueMs(const ALDCombatDirector& Driver, int64 NowMs) { return Driver.NextGroundDueMs(NowMs); }
     // Spec §5 N4 bags.
     static TArray<FLDCombatBag>& Bags(ALDCombatDirector& Driver) { return Driver.Bags; }
     static bool PlaceBag(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatHit& Payload, const FLDDemoEffectDefinition& Effect,
@@ -3596,6 +3599,28 @@ bool FLDGroundStateTransitionsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Ice contact is read at the advance"), FAccess::AdvanceGround(*F.Driver, 1000, Error));
     TestTrue(TEXT("The enemy on A's ice has the inertia, A on its own ice does not"), F.Body(Enemy).bOnEnemyIce && !F.Body(A).bOnEnemyIce
         && FMath::IsNearlyEqual(F.Driver->ReadMoveAccelScale(F.Actor(Enemy)), .5f) && F.Driver->ReadMoveAccelScale(F.Actor(A)) == 1.f);
+    // Spec §11.1 cold day: a puddle turns to ice after DAILY.ColdFreezeSec, or at the end of its own life when that is sooner;
+    // it never dries up unfrozen.
+    Reset();
+    FAccess::SetDaily(*F.Mode, {ELDDailyModifier::Cold});
+    ON_SCOPE_EXIT { FAccess::SetDaily(*F.Mode, {}); };
+    FAccess::SpawnGround(*F.Driver, G::Puddle, ApplierOf(F, A), At, 1000, Error);
+    if (!TestEqual(TEXT("Cold day: one puddle"), Live.Num(), 1)) { return false; }
+    const int64 PuddleEnd = Live[0].ExpiresAtMs;
+    const int64 FreezeAt = FMath::Min<int64>(1000 + F.Catalog->Get().Parameters.Daily.ColdFreezeMs, PuddleEnd);
+    // Walk the ground's own due instants: the freeze must be one of them, never skipped by an expiry.
+    int64 At2 = 1000;
+    for (int32 Guard = 0; Guard < 256 && At2 < FreezeAt; ++Guard)
+    {
+        At2 = FAccess::NextGroundDueMs(*F.Driver, At2);
+        if (At2 > FreezeAt) { break; }
+        F.Now(At2);
+        if (!TestTrue(TEXT("Cold day: the ground advances: ") + Error, FAccess::AdvanceGround(*F.Driver, At2, Error))) { return false; }
+        TestTrue(TEXT("Cold day: the puddle never dries up before it freezes"), Live.Num() == 1);
+    }
+    TestEqual(TEXT("Cold day: the freeze is a ground due instant"), At2, FreezeAt);
+    TestTrue(TEXT("Cold day: the puddle became ice in place instead of drying up"), Live.Num() == 1 && Live[0].Kind == G::Ice
+        && Live[0].CentreCm.Equals(At, 0.01) && Live[0].ExpiresAtMs > FreezeAt);
     return true;
 }
 

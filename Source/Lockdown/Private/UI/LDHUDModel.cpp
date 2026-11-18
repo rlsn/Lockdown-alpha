@@ -2616,7 +2616,9 @@ FString LDHUD::VendingText(ELDVendingResult Result)
 {
     switch(Result)
     {
-    case ELDVendingResult::Queued: return TEXT("已购买");
+    case ELDVendingResult::Queued: return TEXT("已投币，出货中");
+    case ELDVendingResult::Delivered: return TEXT("已购买");
+    case ELDVendingResult::Closed: return TEXT("现在不能买，没扣饭票");
     case ELDVendingResult::NotEnoughVouchers: return TEXT("饭票不够");
     case ELDVendingResult::NotAtMachine: return TEXT("离售货机太远");
     case ELDVendingResult::NotAlive: return TEXT("倒下时不能购买");

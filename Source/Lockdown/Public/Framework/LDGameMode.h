@@ -224,6 +224,8 @@ public:
     // Spec §13 (AI): the AI's choice, the candidate nearer the nearest public goal.
     ELDSpawnChoiceResult ChooseSpawnForAI(const FGuid& Contender);
     ELDVendingResult SubmitVending(ALDPlayerController& Controller, uint32 Generation, uint32 Life, ELDVendingItem Item, uint8 Element);
+    // Sends a queued purchase's settlement outcome to the buyer's owning connection (AI have none).
+    void TellVending(const FGuid& Buyer, ELDVendingResult Result);
     ELDVendingResult QueueVending(const FGuid& Contender, uint32 Life, ELDVendingItem Item, uint8 Element);
     // The vending machine within reach of the contender's living body (NAME_None when none).
     FName NearbyVending(const FGuid& Contender) const;

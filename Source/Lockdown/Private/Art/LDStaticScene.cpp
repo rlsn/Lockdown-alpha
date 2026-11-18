@@ -108,16 +108,12 @@ bool LDStaticScene::Validate(const UWorld& World, const ULDArtCatalog& Index, FS
     Error.Reset(); return true;
 }
 
-// A copied optional point's id: its kind-prefixed id plus the saved object name (lower-case letters, digits and '_'),
-// within the 63-character definition id limit.
-static FString OptionalCopyId(const FString& Id, const FString& ObjectName)
+FString LDStaticScene::OptionalCopyId(const FString& Id, const FString& ObjectName)
 {
-    FString Suffix;
-    for (const TCHAR Char : ObjectName.ToLower())
-    {
-        Suffix.AppendChar((Char >= TEXT('a') && Char <= TEXT('z')) || (Char >= TEXT('0') && Char <= TEXT('9')) ? Char : TEXT('_'));
-    }
-    return (Id + TEXT("_copy_") + Suffix).Left(63);
+    // "_copy_" and eight hex digits of the saved object name are always kept; only the original stem is shortened to fit
+    // the 63-character definition id limit, so two copies never collide and a copy never equals its original.
+    const FString Suffix = FString::Printf(TEXT("_copy_%08x"), FCrc::StrCrc32(*ObjectName));
+    return Id.Left(63 - Suffix.Len()) + Suffix;
 }
 
 bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
@@ -177,7 +173,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             {
                 // Spec §11.4: a copied mini flag, locker or vending point is a new point of the same kind. Its identity
                 // derives from the saved object name, which a copy never shares.
-                Id = OptionalCopyId(Id, Actor->GetName());
+                Id = LDStaticScene::OptionalCopyId(Id, Actor->GetName());
             }
             if (Points.Contains(Id)) { return Fail(TEXT("Duplicate layout point: ") + Id); }
             Points.Add(Id, Actor);

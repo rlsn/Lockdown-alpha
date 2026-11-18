@@ -27,13 +27,14 @@ enum class ELDVendingItem : uint8 { None = 0, AttackSpeed = 1, Momentum = 2, Mov
 UENUM()
 enum class ELDSpawnChoiceResult : uint8 { None = 0, Chosen = 1, NotContender = 2, StaleMatch = 3, StaleLife = 4, NoChoice = 5, OutOfRange = 6 };
 
-// Owner-sent result of a vending purchase (ALDPlayerController::ServerVending -> ClientVending). Queued: accepted for the
-// next Transactions boundary, which pays and applies it (or refuses with the reason logged).
+// Owner-sent results of a vending purchase (ALDPlayerController::ServerVending -> ClientVending). Queued only acknowledges
+// the request; the next Transactions boundary then sends the outcome: Delivered, or NotAlive / NotAtMachine /
+// NotEnoughVouchers / Closed (a rest or the showdown began first) when it discards the purchase without paying.
 UENUM()
 enum class ELDVendingResult : uint8
 {
     None = 0, Queued = 1, NotContender = 2, StaleMatch = 3, NotAlive = 4, NotAtMachine = 5, NotEnoughVouchers = 6, BadItem = 7,
-    Busy = 8
+    Busy = 8, Delivered = 9, Closed = 10
 };
 
 namespace LDPacing

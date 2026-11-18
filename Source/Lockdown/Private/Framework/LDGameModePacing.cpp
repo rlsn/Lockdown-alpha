@@ -224,6 +224,7 @@ bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString
     };
     if (!IsFieldRunning() || IsShowdown())
     {
+        for (const auto& Pair : PendingVending) { TellVending(Pair.Key, ELDVendingResult::Closed); }
         PendingVending.Reset();
         Error.Reset();
         return true;
@@ -299,10 +300,14 @@ bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString
         FVector Foot;
         const FLDProgressionState* Progression = Development->FindProgression(Buyer);
         const int32 Price = Purchase.Item == ELDVendingItem::Drink ? P.Explore.VendingDrinkPrice : P.Explore.VendingBuffPrice;
-        if (!ReadLivingBody(Buyer, Body, Foot) || Body.Victim.Life != Purchase.Life || NearbyVending(Buyer).IsNone() || !Progression
-            || Progression->Vouchers < Price)
+        const ELDVendingResult Refusal = !ReadLivingBody(Buyer, Body, Foot) || Body.Victim.Life != Purchase.Life ? ELDVendingResult::NotAlive
+            : NearbyVending(Buyer).IsNone() ? ELDVendingResult::NotAtMachine
+            : !Progression || Progression->Vouchers < Price ? ELDVendingResult::NotEnoughVouchers : ELDVendingResult::None;
+        if (Refusal != ELDVendingResult::None)
         {
-            UE_LOG(LogLDWorld, Display, TEXT("LD_VENDING_REFUSED contender=%s item=%u"), *LDLog::Id(Buyer), uint32(Purchase.Item));
+            UE_LOG(LogLDWorld, Display, TEXT("LD_VENDING_REFUSED contender=%s item=%u result=%u"), *LDLog::Id(Buyer), uint32(Purchase.Item),
+                uint32(Refusal));
+            TellVending(Buyer, Refusal);
             continue;
         }
         if (const ELDGrowthReason Reason = Development->SpendVouchers(Buyer, Price, TEXT("vending"), Permit); Reason != ELDGrowthReason::None)
@@ -315,9 +320,15 @@ bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString
         UE_LOG(LogLDWorld, Display, TEXT("LD_VENDING contender=%s item=%u element=%u price=%d applied=%d"), *LDLog::Id(Buyer),
             uint32(Purchase.Item), uint32(Purchase.Element), Price, bApplied ? 1 : 0);
         if (ALDPlayerController* Controller = FindContenderController(Buyer)) { SyncOwner(Controller); }
+        TellVending(Buyer, ELDVendingResult::Delivered);
     }
     Error.Reset();
     return true;
+}
+
+void ALDGameMode::TellVending(const FGuid& Buyer, ELDVendingResult Result)
+{
+    if (ALDPlayerController* Controller = FindContenderController(Buyer)) { Controller->ClientVending(Result); }
 }
 
 void ALDGameMode::NoteContenderDamage(const FGuid& Attacker, const FGuid& Victim, int64 DamageP2)

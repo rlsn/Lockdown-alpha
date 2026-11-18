@@ -90,7 +90,7 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker、Ven
 
 野外目标与隐藏物使用三类可选锚点，id 前缀决定类别：`MiniFlag` 为 `mini_flag_*`（至少 3 个，最多 16 个），
 `Locker` 为 `locker_*`（至少 6 个，最多 32 个），`Vending` 为 `vending_*`（至少 2 个，最多 16 个）。
-关卡作者可以移动、复制或删除这些点：复制的点以 `<原 id>_copy_<演员名>` 得到新 id，删除只要不低于最少数量即可；
+关卡作者可以移动、复制或删除这些点：复制的点以 `<原 id>_copy_<演员名的 8 位十六进制校验值>` 得到新 id（`LDStaticScene::OptionalCopyId`，投影与 RefreshLayoutPoints 共用），删除只要不低于最少数量即可；
 `DemoWorld.py` 与 `LDMapGeometry.cpp` 同样检查前缀与类别一致、数量范围、单胶囊合法站位，以及各自作用圆
 （小迷你旗 `OBJECTIVE.FlagRadiusCm`、外卖柜 `EXPLORE.LockerRadiusCm`、售货机 `AIRDROP.PickupRadiusCm`）落在合法地面且不进入营地清空圈。
 内容另检查 `EXPLORE.LockerCount` 不超过外卖柜点数、`LIFE.SpawnChoiceCount` 不超过出生点数。

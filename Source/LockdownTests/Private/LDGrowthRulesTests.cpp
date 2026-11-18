@@ -29,6 +29,7 @@
 #include "LDTestApprovedFixture.h"
 #include "UObject/UnrealType.h"
 #include "Vision/LDViewTypes.h"
+#include "Framework/LDPacingTypes.h"
 
 namespace
 {
@@ -2528,6 +2529,17 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     FLDRewardReceipt Conflict;
     if (!Settle(ContenderDeath(1, {A1}), Conflict)) { return false; }
     GrowthTestReason(*this, TEXT("Another assister set under the same death key conflicts"), Conflict.Reason, ELDGrowthReason::DeathConflict);
+    // P6: the camp affix and the dealer flag frozen at death are part of the fact.
+    FLDCommittedDeath Affixed = Assisted;
+    Affixed.RewardBasis.CampAffixAtDeath = uint8(ELDCampAffix::Teambuild);
+    FLDRewardReceipt AffixConflict;
+    if (!Settle(Affixed, AffixConflict)) { return false; }
+    GrowthTestReason(*this, TEXT("Another camp affix under the same death key conflicts"), AffixConflict.Reason, ELDGrowthReason::DeathConflict);
+    FLDCommittedDeath Dealer = Assisted;
+    Dealer.RewardBasis.bPeddlerAtDeath = true;
+    FLDRewardReceipt DealerConflict;
+    if (!Settle(Dealer, DealerConflict)) { return false; }
+    GrowthTestReason(*this, TEXT("Another dealer flag under the same death key conflicts"), DealerConflict.Reason, ELDGrowthReason::DeathConflict);
 
     const auto Refused = [&](const TCHAR* What, const FLDCommittedDeath& Fact)
     {

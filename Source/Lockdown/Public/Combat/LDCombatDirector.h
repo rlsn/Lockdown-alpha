@@ -1169,6 +1169,10 @@ public:
     // Spec §11.3 vending: a VENDING buff (refreshed, not stacked) or the element drink. Transactions permit.
     bool ApplyVending(const FLDCombatBodyRef& Body, ELDVendingItem Item, uint8 Element, const FLDGameplayWritePermit& Permit,
         bool& bOutApplied, FString& Error);
+    // Spec §11.1 cold day: when a puddle turns to ice (DAILY.ColdFreezeSec after it formed, at the latest when it would end).
+    int64 ColdFreezeAtMs(const FLDGroundState& Ground) const;
+    // Spec §11.2 layoff affix: the one life-long attack bonus of the body's LayoffStacks (none at zero).
+    void ApplyLayoffBonus(FLDBodyCombatState& Body) const;
     // Spec §11.2 fridge affix: keeps one ice of the member's own under its feet (Actions).
     bool EnsureAffixIce(const FLDCombatBodyRef& Member, int64 NowMs, FString& Error);
     // Spec §11.1 rain: Count unowned puddles at random field places, each DAILY.RainPuddleSec. RespawnsAndWorld permit.
