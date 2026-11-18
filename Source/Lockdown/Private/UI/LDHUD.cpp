@@ -1004,6 +1004,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
             Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // Spec §3.13: a library card let go over the open shop's sell zone is sold there.
+            Storage->DropOutside=[this](FName Component,FVector2D At){return ChoicesPanel&&ChoicesPanel->SellAt(Component,At);};
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
         if(ChoicesPanel)
@@ -1680,6 +1682,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
             In.bStage=ChoicesPanel&&ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel&&ChoicesPanel->IsFinalStage();
             In.bServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
+            In.bShop=ChoicesPanel&&ChoicesPanel->IsShopShown();
             if(ChoicesPanel&&In.bServices)
             {
                 const ELDRestService Service=ChoicesPanel->GetServiceContext();

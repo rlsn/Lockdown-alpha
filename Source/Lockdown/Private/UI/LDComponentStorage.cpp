@@ -682,6 +682,7 @@ bool ULDComponentStorage::DropHeld(FVector2D At)
     LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
     if(StorageAt(At)){if(bFromColumn){bPendingAt=false;return DropInStorage(Component);}return true;}
     if(ColumnAt(At,Column,Host)){Chooser.At=At;PendingAt=At;bPendingAt=true;return DropOn(Component,Column,Host);}
+    if(DropOutside){DropOutside(Component,At);}
     return true;
 }
 bool ULDComponentStorage::BeginPress(FVector2D At)
@@ -725,6 +726,7 @@ void ULDComponentStorage::UpdateDrag(FVector2D Pointer,bool bHeld)
     LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
     if(StorageAt(Pointer)){if(bFromColumn){bPendingAt=false;DropInStorage(Component);}}
     else if(ColumnAt(Pointer,Column,Host)){Chooser.At=Pointer;PendingAt=Pointer;bPendingAt=true;DropOn(Component,Column,Host);}
+    else if(DropOutside){DropOutside(Component,Pointer);}
 }
 void ULDComponentStorage::EndDrag()
 {

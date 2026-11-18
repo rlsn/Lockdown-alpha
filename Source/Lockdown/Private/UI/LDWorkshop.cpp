@@ -497,6 +497,10 @@ void ULDWorkshop::Layout(FVector2D Size)
             FMath::Min(W-WorkshopMargin,W*.5f+820.f),float(Next.Dock.Min.Y)-16.f);
         Next.Character=Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
     }
+    else if(Mode==EMode::Full&&Latest.bShop)
+    {
+        Next.Shop=Next.Board;Next.Board=FBox2D(ForceInit);
+    }
     // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
     Next.Capacity=WorkshopBox(Next.Board.Min.X,Next.Board.Min.Y,Next.Board.Max.X,Next.Board.Min.Y+(Mode==EMode::Full?WorkshopCapacityHeight:48.f));
     Next.Columns=WorkshopBox(Next.Board.Min.X+16.f,Next.Capacity.Max.Y,Next.Board.Max.X-16.f,Next.Board.Max.Y-12.f);
@@ -661,6 +665,9 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
     }
     if(WorkshopHasArea(Rects.Pending))
     {Out.PendingTop=Absolute(WorkshopBox(Rects.Pending.Min.X+24.f,Rects.Pending.Min.Y+44.f,Rects.Pending.Max.X-20.f,Rects.Pending.Min.Y+96.f));}
+    Out.Shop=Absolute(Rects.Shop);
+    if(WorkshopHasArea(Rects.Phase))
+    {Out.ShopButton=Absolute(WorkshopBox(Rects.Phase.Max.X+20.f,Rects.Phase.Min.Y,Rects.Phase.Max.X+21.f,Rects.Phase.Max.Y));}
     return Out;
 }
 

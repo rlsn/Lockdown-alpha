@@ -264,6 +264,15 @@ inline FString OfferSkipVouchers(int64 Vouchers){return FString::Printf(TEXT("+%
 inline FString VouchersGained(int32 Vouchers){return FString::Printf(TEXT("+%d 饭票"),Vouchers);}
 inline FString CardSold(const FString& Name,int32 Vouchers){return FString::Printf(TEXT("卖掉 %s，+%d 饭票"),*Name,Vouchers);}
 inline const TCHAR* const ShopRefreshed=TEXT("货架已刷新");
+inline const TCHAR* const ShopTitle=TEXT("商店");
+inline FString ShopToggle(int32 Vouchers){return FString::Printf(TEXT("商店 · 票 %d"),Vouchers);}
+inline FString ShopRefresh(int32 Price){return FString::Printf(TEXT("刷新 %d票"),Price);}
+inline FString ShopSkillPoint(int32 Price,int32 Bought,int32 Max){return FString::Printf(TEXT("技能点 %d票  %d/%d"),Price,Bought,Max);}
+inline FString ShopPrice(int32 Price){return FString::Printf(TEXT("%d票"),Price);}
+inline const TCHAR* const ShopSoldMark=TEXT("已售");
+inline FString ShopSell(int32 Price){return FString::Printf(TEXT("出售 +%d票"),Price);}
+inline FString PickTicketUse(int32 Count){return FString::Printf(TEXT("点名券 ×%d"),Count);}
+inline const TCHAR* const PickTicketBack=TEXT("返回货架");
 inline const TCHAR* const VoucherGlyph=TEXT("票");
 inline const TCHAR* const PickTicketGlyph=TEXT("点名券");
 inline const TCHAR* const ResultHighlights=TEXT("本局最离谱");

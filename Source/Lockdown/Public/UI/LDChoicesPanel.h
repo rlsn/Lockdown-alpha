@@ -62,6 +62,9 @@ public:
         FSlateRect CharacterFoot;
         FSlateRect Points;
         FSlateRect PendingTop;
+        // Spec §3.13: the shop shelf takes the board's place while it is open; its toggle stands right of the phase bar.
+        FSlateRect Shop;
+        FSlateRect ShopButton;
     };
     void SetWorkshopPlaces(const FWorkshopPlaces& InPlaces){Places=InPlaces;}
     // The centre stage shows the active offer (and then the final mod) as big cards while the full workshop is open, until
@@ -121,6 +124,19 @@ public:
     bool SkipCardOffer();
     bool ConfirmRestAction();
     void CancelRestAction();
+    // Spec §3.13 rest shop: the 商店 toggle (a stocked shop in a rest) opens the shelf over the board. Buying a slot, the skill
+    // point and a refresh send at once; a library card let go over the sell zone is sold (SellAt, false off the zone). Each
+    // refuses locally with the reason it toasts.
+    bool ToggleShop();
+    bool IsShopShown() const;
+    bool BuyShopSlot(int32 Index);
+    bool BuyShopSkillPoint();
+    bool RefreshShopShelf();
+    bool SellAt(FName Component,FVector2D Absolute);
+    bool SellCard(FName Component);
+    // Spec §11.3: the ticket picker lists every active neither learned nor kept and every card seen this match.
+    bool ToggleTicketPicker();
+    bool UsePickTicket(int32 Index);
     // The confirm line is a child confirmation for Back routing; it captures no input, so play goes on meanwhile.
     virtual bool HasChildConfirmation() const override {return RestConfirm.Kind!=ELDBuildCommandKind::None;}
     virtual bool CloseChildConfirmation() override;
@@ -300,6 +316,27 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
     UPROPERTY() TObjectPtr<ULDHoldButton> RestConfirmButton;
     FRestConfirm RestConfirm;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ShopToggleButton;
+    UPROPERTY() TObjectPtr<UWidget> ShopPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> ShopVouchers;
+    UPROPERTY() TObjectPtr<UTextBlock> ShopBlockedText;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ShopRefreshButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ShopPointButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ShopTicketButton;
+    UPROPERTY() TObjectPtr<UHorizontalBox> ShopSlotRow;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> ShopCells;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ShopPrices;
+    TArray<FTrayCard> ShopCards;
+    UPROPERTY() TObjectPtr<UBorder> ShopSellZone;
+    UPROPERTY() TObjectPtr<UTextBlock> ShopSellText;
+    UPROPERTY() TObjectPtr<UWrapBox> TicketPicks;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> TicketButtons;
+    TArray<FName> TicketOptions;
+    bool bShopOpen=false;
+    bool bTicketPicker=false;
+    bool IsShopOffered() const;
+    void RefreshShopPanel();
+    bool ShopCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out);
     // Every widget built after RebuildWidget, kept alive with the tree.
     UPROPERTY() TArray<TObjectPtr<UWidget>> RowWidgets;
     TMap<UWidget*,UCanvasPanelSlot*> LayerSlots;
