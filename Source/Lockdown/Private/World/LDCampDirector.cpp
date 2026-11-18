@@ -249,6 +249,8 @@ bool ALDCampDirector::SpawnInitialBatch(int32 Count, const FLDGameplayWritePermi
         if (!bRestFrozen) { continue; }
         for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
         {
+            // An empty teambuild slot (a spawn without the affix) has no body.
+            if (!Member.bAlive) { continue; }
             FLDCombatBodyRef Ref;
             const TWeakObjectPtr<ALDCampMemberCharacter>* Body = Bodies.Find(Member.EntityId);
             if (!Body || !Body->IsValid() || !Mode->ReadBodyRef(*Body->Get(), Ref))
@@ -497,7 +499,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.CampAnchorFootCm = Spec.AnchorCm;
             Input.MemberHome = {Input.World, Spec.Members[Slot].HomeCm, Spec.SurfaceId};
             Input.Brain = Member.Brain;
-            Input.MonsterId = State.FindCamp(Camp)->SelectedSpecies;
+            Input.MonsterId = Spec.Members[Slot].bTeambuild ? Spec.TeambuildMonsterId : State.FindCamp(Camp)->SelectedSpecies;
             Input.bObservationComplete = true;
             Input.MovementAllowed = Body.bMovementAllowed && !Body.bActionInProgress;
             Input.AttackAllowed = Body.bAttackAllowed;

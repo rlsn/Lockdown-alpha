@@ -32,8 +32,10 @@ struct FLDCampSpec
     FVector AnchorCm = FVector::ZeroVector;
     int64 RespawnMs = 0;
     TArray<FLDCampMemberSpec> Members;
-    // The species the teambuild member wears (None for a Low camp, which has no teambuild slot).
+    // The species the teambuild member wears and its native creature id (None and 0 for a Low camp, which has no
+    // teambuild slot).
     FName TeambuildMonsterId;
+    uint8 TeambuildCreatureId = 0;
 };
 
 struct LOCKDOWN_API FLDCampRoster

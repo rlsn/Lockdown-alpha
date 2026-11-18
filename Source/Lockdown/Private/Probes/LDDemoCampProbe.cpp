@@ -673,7 +673,7 @@ public:
         if (!bCampsReady && Camps->HasPendingInitialCamps()) { return true; }
         if (!bCampsReady)
         {
-            int32 Alive = 0, Placed = 0, Idle = 0;
+            int32 Alive = 0, Placed = 0, Idle = 0, Members = 0;
             bool bFirstGeneration = State->NumCamps() == Roster->Camps.Num();
             for (int32 Camp = 0; Camp < State->NumCamps(); ++Camp)
             {
@@ -682,6 +682,9 @@ public:
                 for (int32 Slot = 0; Slot < Group.Members.Num(); ++Slot)
                 {
                     const FLDCampMemberState& Member = Group.Members[Slot];
+                    // A teambuild slot stands up only with its affix.
+                    if (Roster->Camps[Camp].Members[Slot].bTeambuild && !Member.bAlive) { continue; }
+                    ++Members;
                     FVector Foot;
                     Alive += Member.bAlive && Member.Life == 1 ? 1 : 0;
                     Idle += Member.Brain.Phase == ELDCampBrainPhase::Idle && Member.HostileSources.IsEmpty() ? 1 : 0;
@@ -689,8 +692,6 @@ public:
                         && FVector::Dist2D(Foot, Roster->Camps[Camp].Members[Slot].HomeCm) <= CampHomePlacementCm ? 1 : 0;
                 }
             }
-            int32 Members = 0;
-            for (const auto& Camp : Roster->Camps) { Members += Camp.Members.Num(); }
             if (!Check(bFirstGeneration && Members > 0 && Alive == Members && Placed == Members && Idle == Members, TEXT("#C2"), FString::Printf(
                 TEXT("Normal start spawned every approved camp once with idle first lives at their homes (alive %d, placed %d, idle %d of %d)"),
                 Alive, Placed, Idle, Members))) { return Finish(); }

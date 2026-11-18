@@ -84,6 +84,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             Members.Add(Team.MemberId);
             Spec.Members.Add(MoveTemp(Team));
             Spec.TeambuildMonsterId = FName(*High->Id);
+            Spec.TeambuildCreatureId = High->NativeId;
         }
         bLow |= Spec.Tier == ELDDemoCampTier::Low;
         bHigh |= Spec.Tier == ELDDemoCampTier::High;
@@ -498,14 +499,16 @@ bool FLDCampMatchState::NextDirectSequence(const FLDCombatBodyRef& Body, uint64&
 
 bool FLDCampMatchState::AppendObservedFacts(const FLDCombatBodyRef& Body, FLDObservedPublicFacts& InOut, FString& Error) const
 {
-    int32 Camp = INDEX_NONE;
-    const FLDCampMemberState* Member = IsActive() ? FindLiving(Body, &Camp) : nullptr;
+    int32 Camp = INDEX_NONE, Slot = INDEX_NONE;
+    const FLDCampMemberState* Member = IsActive() ? FindLiving(Body, &Camp, &Slot) : nullptr;
     if (!Member)
     {
         Error = TEXT("Observed camp facts require a current living camp member.");
         return false;
     }
-    const uint8 CreatureId = Camps[Camp].CreatureId;
+    // The teambuild member wears its own species, not the camp's.
+    const FLDCampSpec& Spec = Roster->Camps[Camp];
+    const uint8 CreatureId = Spec.Members.IsValidIndex(Slot) && Spec.Members[Slot].bTeambuild ? Spec.TeambuildCreatureId : Camps[Camp].CreatureId;
     const uint8 Returning = uint8(ELDDemoStatusId::CampReturning);
     const bool bListed = InOut.Statuses.ContainsByPredicate([Returning](const FLDObservedStatus& S) { return S.StatusId == Returning; });
     const bool bReturning = Member->Brain.Phase == ELDCampBrainPhase::Returning;

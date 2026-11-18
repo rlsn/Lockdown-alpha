@@ -106,7 +106,8 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("High camp keeps its single member home and reserves a teambuild slot"), Out.Camps[1].Members.Num(), 2);
     TestTrue(TEXT("The teambuild slot is last, homed at the anchor and wears the camp's own High species"),
         Out.Camps[1].Members.Last().bTeambuild && !Out.Camps[1].Members[0].bTeambuild
-        && Out.Camps[1].Members.Last().HomeCm == Out.Camps[1].AnchorCm && Out.Camps[1].TeambuildMonsterId == TEXT("monster_guardian"));
+        && Out.Camps[1].Members.Last().HomeCm == Out.Camps[1].AnchorCm && Out.Camps[1].TeambuildMonsterId == TEXT("monster_guardian")
+        && Out.Camps[1].TeambuildCreatureId == uint8(ELDDemoMonsterId::MonsterGuardian));
     TestEqual(TEXT("Native creature identity is the approved monster"), Out.Camps[1].CreatureId, uint8(ELDDemoMonsterId::MonsterGuardian));
     TestEqual(TEXT("Refresh delay comes from the camp tier definition"), Out.Camps[0].RespawnMs, int64(40000));
     TestEqual(TEXT("Anchor coordinate is exact"), Out.Camps[3].AnchorCm, FVector(-1528, -2103, 0));
