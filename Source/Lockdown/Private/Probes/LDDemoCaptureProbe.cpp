@@ -408,7 +408,7 @@ public:
                             if (bChosen && Sources.Num()>1)
                             {
                                 const int32 DashIndex = Sources.IndexOfByPredicate(
-                                    [](const FLDFinalModSourceView& Source) { return Source.TargetKind == ELDComponentTargetKind::Dash; });
+                                    [](const FLDFinalModSourceView& Source) { return Source.TargetKind == ELDFinalModTargetKind::Dash; });
                                 FinalSourceIndex = DashIndex == INDEX_NONE ? 0 : DashIndex;
                             }
                             else { bFinalModSent = bChosen; }
@@ -455,7 +455,7 @@ public:
             FinalBuildRevision = Growth->BuildRevision;
             FinalEndsAtMs = View.Showdown.EndsAtMs;
             bExpectsRoad = Growth->FinalMod.DefinitionId == FName(TEXT("final_traffic"))
-                && Growth->FinalMod.TargetKind == ELDComponentTargetKind::Dash;
+                && Growth->FinalMod.TargetKind == ELDFinalModTargetKind::Dash;
             Summary->SetStringField(TEXT("final_mod"), Growth->FinalMod.DefinitionId.ToString());
             Summary->SetBoolField(TEXT("final_traffic_dash"), bExpectsRoad);
             Check(PC->OwnerState.BodyRef.IsValid(), TEXT("C07"), TEXT("The owner stands as a live authoritative body inside the separate final arena"));

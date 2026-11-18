@@ -878,11 +878,11 @@ void ULDChoicesPanel::RefreshFinalMod()
 {
     const bool bFinal=HasAvailableFinal();
     const bool bSelected=Usable()&&!Latest.FinalMod.IsEmpty();
-    const auto SourceName=[this](ELDComponentTargetKind Kind,FName Id)->FString
+    const auto SourceName=[this](ELDFinalModTargetKind Kind,FName Id)->FString
     {
-        return Kind==ELDComponentTargetKind::None?FString(TEXT("本人"))
-            :Kind==ELDComponentTargetKind::Dash?FString(TEXT("冲刺(D)"))
-            :Kind==ELDComponentTargetKind::Active?LDHUD::ActiveCard(Id,LatestContent,LatestStats).Name
+        return Kind==ELDFinalModTargetKind::None?FString(TEXT("本人"))
+            :Kind==ELDFinalModTargetKind::Dash?FString(TEXT("冲刺(D)"))
+            :Kind==ELDFinalModTargetKind::Active?LDHUD::ActiveCard(Id,LatestContent,LatestStats).Name
             :LDHUD::CardFace(Id,LatestContent,LatestStats).Name;
     };
     const bool bDormant=FinalDormant();
@@ -930,7 +930,7 @@ void ULDChoicesPanel::RefreshFinalMod()
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,View.Detail);
         }
         // The stage card names what it binds: 无需绑定 for the holder itself, the chosen or only source, or the choices.
-        const bool bSelf=!Names.IsEmpty()&&Latest.FinalModSources.ContainsByPredicate([Id](const FLDFinalModSourceView& S){return S.Option==Id&&S.TargetKind==ELDComponentTargetKind::None;})
+        const bool bSelf=!Names.IsEmpty()&&Latest.FinalModSources.ContainsByPredicate([Id](const FLDFinalModSourceView& S){return S.Option==Id&&S.TargetKind==ELDFinalModTargetKind::None;})
             &&Names.Num()==1;
         const FString Bind=Names.IsEmpty()?FString(TEXT("当前构筑没有合法触发来源。")):bSelf?FString(LDTerms::FinalNoBind)
             :PendingFinalOption==Id&&ShownFinalSources.IsValidIndex(FinalSourcePick)?LDTerms::FinalBindsTo(SourceName(ShownFinalSources[FinalSourcePick].TargetKind,ShownFinalSources[FinalSourcePick].TargetId))
@@ -957,7 +957,7 @@ void ULDChoicesPanel::RefreshFinalMod()
     for(const int32 Column:ShownSourceColumns){if(Column>=0&&Column<LDHUD::StorageColumnCount){++ColumnSources[Column];}}
     if(FinalColumnPick<0||FinalColumnPick>=LDHUD::StorageColumnCount||ColumnSources[FinalColumnPick]==0){FinalColumnPick=INDEX_NONE;}
     // A holder-only card binds nothing: its page shows no source row.
-    const bool bUniversal=ShownFinalSources.Num()==1&&ShownFinalSources[0].TargetKind==ELDComponentTargetKind::None;
+    const bool bUniversal=ShownFinalSources.Num()==1&&ShownFinalSources[0].TargetKind==ELDFinalModTargetKind::None;
     const bool bSourceVisible=IsFinalStage()||TrayShows(ETrayGroup::FinalSource);
     const bool bSourceTiles=IsFinalStage()||ShownFinalSources.Num()>6||bIconOnlyTray;
     TrayRowTiles(FinalSourceRow,bSourceTiles);
@@ -977,8 +977,8 @@ void ULDChoicesPanel::RefreshFinalMod()
         }
         const FLDFinalModSourceView& Source=ShownFinalSources[Index];
         FString Name,Icon,Glyph;
-        if(Source.TargetKind==ELDComponentTargetKind::Dash){Name=TEXT("冲刺(D)");Icon=LDUIIcons::Dash;Glyph=TEXT("D");}
-        else if(Source.TargetKind==ELDComponentTargetKind::Active)
+        if(Source.TargetKind==ELDFinalModTargetKind::Dash){Name=TEXT("冲刺(D)");Icon=LDUIIcons::Dash;Glyph=TEXT("D");}
+        else if(Source.TargetKind==ELDFinalModTargetKind::Active)
         {const auto Card=LDHUD::ActiveCard(Source.TargetId,LatestContent,LatestStats);Name=Card.Name;Icon=Card.IconId;Glyph=Card.Glyph;}
         else
         {const auto Card=LDHUD::CardFace(Source.TargetId,LatestContent,LatestStats);Name=Card.Name;Icon=Card.IconId;Glyph=Card.Glyph;}
@@ -1020,8 +1020,8 @@ void ULDChoicesPanel::RefreshFinalMod()
         {
             if(ShownSourceColumns[Index]!=Column){continue;}
             const FLDFinalModSourceView& Source=ShownFinalSources[Index];
-            Here.Add(Source.TargetKind==ELDComponentTargetKind::Dash?FString(TEXT("冲刺(D)"))
-                :Source.TargetKind==ELDComponentTargetKind::Active?LDHUD::ActiveCard(Source.TargetId,LatestContent,LatestStats).Name
+            Here.Add(Source.TargetKind==ELDFinalModTargetKind::Dash?FString(TEXT("冲刺(D)"))
+                :Source.TargetKind==ELDFinalModTargetKind::Active?LDHUD::ActiveCard(Source.TargetId,LatestContent,LatestStats).Name
                 :LDHUD::CardFace(Source.TargetId,LatestContent,LatestStats).Name);
         }
         Detail.Body=Here.IsEmpty()?FString(TEXT("这一列没有合法来源。")):LDTerms::FinalBindsTo(FString::Join(Here,TEXT(" / ")));
@@ -1313,7 +1313,7 @@ bool ULDChoicesPanel::SubmitFinalMod(FName Option,const FLDFinalModSourceView& S
     {Tell(TEXT("没有提交：触发来源已变化。"));return false;}
     FLDBuildCommand Command;
     Command.Kind=ELDBuildCommandKind::FinalMod;Command.OfferId=bRebind?Latest.FinalModOfferId:ShownFinalMod;Command.Slot=FLDBuildCommand::AnySlot;
-    Command.TargetKind=Source.TargetKind;
+    Command.FinalTargetKind=Source.TargetKind;
     if(!FLDDefinitionWire::Encode(Option,Command.Option)
         ||(!Source.TargetId.IsNone()&&!FLDDefinitionWire::Encode(Source.TargetId,Command.TargetDefinition)))
     {Tell(TEXT("没有提交：终局改装标识无效。"));return false;}

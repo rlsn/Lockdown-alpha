@@ -257,163 +257,44 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.PointCounts = Intent.PointCounts;
         break;
     }
-    case ELDOpponentBuildKind::OpeningBase:
-    case ELDOpponentBuildKind::InstallComponent:
+    case ELDOpponentBuildKind::PickCard:
+    case ELDOpponentBuildKind::InstallCard:
     {
-        const FName Component(*Intent.Component);
-        if (Intent.Kind == ELDOpponentBuildKind::OpeningBase)
-        {
-            if (!Progression.bOpeningBasePending || !Progression.OpeningBaseOptions.Contains(Component))
-            {
-                return Fail(Error, TEXT("The component is no longer an option of the open opening base pick."));
-            }
-            Out.Kind = ELDBuildCommandKind::OpeningBase;
-            // Like a player's pick: enable it now when allowed, otherwise it is kept in the inventory.
-            Out.bInstallIfPossible = true;
-        }
-        else
-        {
-            const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
-                [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
-            // A once-installed instance installs again only as a rest-window move; the growth gate judges that at commit.
-            if (!Owned || Owned->bInstalled)
-            {
-                return Fail(Error, TEXT("The component is no longer owned and waiting in the inventory."));
-            }
-            Out.Kind = ELDBuildCommandKind::InstallComponent;
-        }
-        Out.TargetKind = ELDComponentTargetKind::None;
-        if (!FLDDefinitionWire::Encode(Component, Out.Component))
+        // The target (a skill card's learned skill, Y25's element) rides on both; growth judges it again at the commit.
+        Out.CardTarget = Intent.CardTarget;
+        Out.Element = Intent.Element;
+        const bool bSkill = Intent.CardTarget == ELDCardTargetKind::Skill;
+        if (bSkill == Intent.TargetId.IsEmpty()
+            || (bSkill && (!Progression.Actives.ContainsByPredicate([&Intent](const FLDActiveSlotView& Active) { return Active.DefinitionId == FName(*Intent.TargetId); })
+                || !FLDDefinitionWire::Encode(FName(*Intent.TargetId), Out.TargetDefinition))))
         {
             Out = FLDBuildCommand();
-            return Fail(Error, TEXT("The component id cannot travel."));
+            return Fail(Error, TEXT("The card target names no learned skill."));
         }
-        // #198 F: a mod or connector goes onto a learned active or an installed host, the innate D or the holder itself;
-        // C12 also names an installed base. An opening pick is a base and takes no target.
-        const auto InstalledHere = [&Progression](FName Id)
+        if (Intent.Kind == ELDOpponentBuildKind::PickCard)
         {
-            return Progression.Components.ContainsByPredicate([Id](const FLDComponentInstanceView& View) { return View.DefinitionId == Id && View.bInstalled; });
-        };
-        const bool bNamedTarget = Intent.TargetKind == ELDComponentTargetKind::Active || Intent.TargetKind == ELDComponentTargetKind::Component;
-        if ((Intent.Kind == ELDOpponentBuildKind::OpeningBase && (Intent.TargetKind != ELDComponentTargetKind::None
-                || !Intent.TargetId.IsEmpty() || !Intent.BoundComponent.IsEmpty()))
-            || Intent.TargetKind == ELDComponentTargetKind::EffectSegment || bNamedTarget == Intent.TargetId.IsEmpty())
+            const FName Option(*Intent.Option);
+            if (!Progression.bHasCardOffer || Progression.CardOffer.OfferId != Intent.OfferId || Progression.CardOffer.OfferRevision != Intent.OfferRevision
+                || !Progression.CardOffer.Options.Contains(Option) || !FLDDefinitionWire::Encode(Option, Out.Option))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("The picked card is no longer an option of the current card offer."));
+            }
+            Out.Kind = ELDBuildCommandKind::PickCard;
+            Out.OfferId = Intent.OfferId;
+            Out.OfferRevision = Intent.OfferRevision;
+            // Like a player's click: installed in the same commit when a target rides along, otherwise kept in the library.
+            Out.bInstallIfPossible = Intent.CardTarget != ELDCardTargetKind::None;
+            break;
+        }
+        const FLDCardInstanceView* Owned = Progression.Cards.FindByPredicate([&Intent](const FLDCardInstanceView& Card) { return Card.Serial == Intent.CardSerial; });
+        if (!Owned || Owned->IsInstalled() || Intent.CardTarget == ELDCardTargetKind::None)
         {
             Out = FLDBuildCommand();
-            return Fail(Error, TEXT("The install target does not fit its kind."));
+            return Fail(Error, TEXT("The card is no longer stored or names no place."));
         }
-        if (bNamedTarget)
-        {
-            const FName Target(*Intent.TargetId);
-            const bool bHeld = Intent.TargetKind == ELDComponentTargetKind::Active
-                ? Progression.Actives.ContainsByPredicate([&Target](const FLDActiveSlotView& Active) { return Active.DefinitionId == Target; })
-                : Target != Component && InstalledHere(Target);
-            if (!bHeld || !FLDDefinitionWire::Encode(Target, Out.TargetDefinition))
-            {
-                Out = FLDBuildCommand();
-                return Fail(Error, TEXT("The install target is no longer learned or installed."));
-            }
-        }
-        Out.TargetKind = Intent.TargetKind;
-        if (!Intent.BoundComponent.IsEmpty())
-        {
-            const FName Base(*Intent.BoundComponent);
-            if (Base == Component || !InstalledHere(Base) || !FLDDefinitionWire::Encode(Base, Out.BoundComponent))
-            {
-                Out = FLDBuildCommand();
-                return Fail(Error, TEXT("The repeated base is no longer installed."));
-            }
-        }
-        if (!Intent.BoundActive.IsEmpty())
-        {
-            const FName Bound(*Intent.BoundActive);
-            if (!Progression.Actives.ContainsByPredicate([&Bound](const FLDActiveSlotView& Active) { return Active.DefinitionId == Bound; })
-                || Intent.Element == ELDDemoElement::None || !FLDDefinitionWire::Encode(Bound, Out.BoundActive))
-            {
-                Out = FLDBuildCommand();
-                return Fail(Error, TEXT("The bound active is no longer learned or the binding has no element."));
-            }
-            Out.Element = Intent.Element;
-        }
-        else if (Intent.Element != ELDDemoElement::None)
-        {
-            Out = FLDBuildCommand();
-            return Fail(Error, TEXT("An element without a bound active is no binding."));
-        }
-        if (!Intent.Replacing.IsEmpty())
-        {
-            const FName Replaced(*Intent.Replacing);
-            if (Intent.Kind != ELDOpponentBuildKind::InstallComponent || Replaced == Component || !InstalledHere(Replaced)
-                || !FLDDefinitionWire::Encode(Replaced, Out.Replacing))
-            {
-                Out = FLDBuildCommand();
-                return Fail(Error, TEXT("The replaced component is no longer installed."));
-            }
-        }
-        break;
-    }
-    case ELDOpponentBuildKind::ComponentChoice:
-    {
-        // #198 G: an option of a pending choice not owned yet, or (empty) the empty-pool points once every option is owned.
-        const FLDComponentChoiceView* Choice = Progression.ComponentChoices.FindByPredicate(
-            [&Intent](const FLDComponentChoiceView& View) { return View.ChoiceId == Intent.ChoiceId; });
-        if (!Intent.ChoiceId.IsValid() || !Choice)
-        {
-            return Fail(Error, TEXT("The component choice is no longer pending."));
-        }
-        const auto Owned = [&Progression](FName Id)
-        {
-            return Progression.Components.ContainsByPredicate([Id](const FLDComponentInstanceView& View) { return View.DefinitionId == Id; });
-        };
-        if (Intent.Component.IsEmpty())
-        {
-            if (Choice->Options.ContainsByPredicate([&Owned](FName Option) { return !Owned(Option); }))
-            {
-                return Fail(Error, TEXT("The empty-pool points need every option of the choice owned."));
-            }
-        }
-        else
-        {
-            const FName Option(*Intent.Component);
-            if (!Choice->Options.Contains(Option) || Owned(Option) || !FLDDefinitionWire::Encode(Option, Out.Component))
-            {
-                Out = FLDBuildCommand();
-                return Fail(Error, TEXT("The chosen component is no unowned option of the pending choice."));
-            }
-        }
-        Out.Kind = ELDBuildCommandKind::ComponentChoice;
-        Out.OfferId = Intent.ChoiceId;
-        break;
-    }
-    case ELDOpponentBuildKind::FillGap:
-    {
-        // #198 G: Component is the gap target (an owned, never-installed component) and Filler the unowned base it receives.
-        const FName Target(*Intent.Component);
-        const FName Filler(*Intent.Filler);
-        const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
-            [&Target](const FLDComponentInstanceView& View) { return View.DefinitionId == Target; });
-        const bool bFillerOwned = Progression.Components.ContainsByPredicate(
-            [&Filler](const FLDComponentInstanceView& View) { return View.DefinitionId == Filler; });
-        if (Intent.Component.IsEmpty() || Intent.Filler.IsEmpty() || !Owned || Owned->bEverInstalled || Owned->bGapFilled || bFillerOwned
-            || !FLDDefinitionWire::Encode(Target, Out.Component) || !FLDDefinitionWire::Encode(Filler, Out.Filler))
-        {
-            Out = FLDBuildCommand();
-            return Fail(Error, TEXT("The gap target is no longer an unfilled, never-installed own component or the filler is owned."));
-        }
-        Out.Kind = ELDBuildCommandKind::FillGap;
-        break;
-    }
-    case ELDOpponentBuildKind::UninstallComponent:
-    {
-        const FName Component(*Intent.Component);
-        const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
-            [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
-        if (!Owned || !Owned->bInstalled || !FLDDefinitionWire::Encode(Component, Out.Component))
-        {
-            Out = FLDBuildCommand();
-            return Fail(Error, TEXT("The component is no longer installed."));
-        }
-        Out.Kind = ELDBuildCommandKind::UninstallComponent;
+        Out.Kind = ELDBuildCommandKind::InstallCard;
+        Out.CardSerial = Intent.CardSerial;
         break;
     }
     case ELDOpponentBuildKind::BuyNpcOffer:
@@ -442,7 +323,7 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         if (!Progression.bFinalModPending || Progression.FinalModOfferId != Intent.OfferId
             || !Progression.FinalModOptions.Contains(Option) || !FLDDefinitionWire::Encode(Option, Out.Option)
             || !Progression.FinalModSources.ContainsByPredicate([&Intent,Option](const FLDFinalModSourceView& Source)
-                {return Source.Option==Option&&Source.TargetKind==Intent.TargetKind&&Source.TargetId==FName(*Intent.TargetId);}))
+                {return Source.Option==Option&&Source.TargetKind==Intent.FinalTargetKind&&Source.TargetId==FName(*Intent.TargetId);}))
         {
             Out = FLDBuildCommand();
             return Fail(Error, TEXT("The final mod is no longer open or the option is not one of it."));
@@ -450,36 +331,9 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.Kind = ELDBuildCommandKind::FinalMod;
         Out.OfferId = Intent.OfferId;
         Out.Slot = FLDBuildCommand::AnySlot;
-        Out.TargetKind=Intent.TargetKind;
+        Out.FinalTargetKind=Intent.FinalTargetKind;
         if(!Intent.TargetId.IsEmpty()&&!FLDDefinitionWire::Encode(FName(*Intent.TargetId),Out.TargetDefinition))
         {Out=FLDBuildCommand();return Fail(Error,TEXT("The final source has an invalid definition."));}
-        break;
-    }
-    case ELDOpponentBuildKind::Dismantle:
-    {
-        // #198 G: exactly GROWTH.DismantleInputCount distinct, still-owned common components (scarce ones are never taken).
-        if (Intent.Surrendered.Num() != Catalog.Get().Parameters.DismantleInputCount)
-        {
-            return Fail(Error, TEXT("A dismantle gives up exactly the approved number of components."));
-        }
-        for (int32 Index = 0; Index < Intent.Surrendered.Num(); ++Index)
-        {
-            const FString& Id = Intent.Surrendered[Index];
-            const FName Component(*Id);
-            const FLDDemoComponentDefinition* Definition = nullptr;
-            FString Ignored;
-            const bool bRepeated = Intent.Surrendered.IndexOfByPredicate(
-                [&Id](const FString& Other) { return Other.Equals(Id, ESearchCase::CaseSensitive); }) != Index;
-            const bool bOwned = Progression.Components.ContainsByPredicate(
-                [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
-            if (Id.IsEmpty() || bRepeated || !bOwned || !Catalog.FindComponent(Id, Definition, Ignored) || !Definition
-                || Definition->Pool != ELDDemoComponentPool::Common || !FLDDefinitionWire::Encode(Component, Out.Surrendered.AddDefaulted_GetRef()))
-            {
-                Out = FLDBuildCommand();
-                return Fail(Error, TEXT("A dismantle gives up only distinct, still-owned common components."));
-            }
-        }
-        Out.Kind = ELDBuildCommandKind::Dismantle;
         break;
     }
     default:
@@ -574,8 +428,8 @@ ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason)
     case ELDGrowthReason::OfferAlreadyCommitted:
     // #198: the phase or the offer moved on between the read and the commit; the next decision rereads them.
     case ELDGrowthReason::PhaseClosed:
-    // #198 G: the pending component choice was resolved meanwhile.
-    case ELDGrowthReason::NoComponentChoice:
+    // The card offer was resolved or rerolled meanwhile.
+    case ELDGrowthReason::NoCardOffer:
     case ELDGrowthReason::NoActiveOffer: return ELDOpponentSettle::Dropped;
     // Stale guards, offers, slots, points and authority faults never loop unbounded.
     default: return ELDOpponentSettle::Failed;

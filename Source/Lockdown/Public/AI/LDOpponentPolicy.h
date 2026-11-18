@@ -85,45 +85,24 @@ struct FLDOpponentStatPoints
     int32 Points = 0;
 };
 
-// #198 B: one owned component instance (inventory and installed, one per definition).
-struct FLDOpponentComponent
+// One owned card (copies are separate cards): its serial, definition and, once installed, its target (a learned skill for a
+// skill card, Y25's element).
+struct FLDOpponentCard
 {
+    uint16 Serial = 0;
     FString DefinitionId;
-    bool bInstalled = false;
-    // Installed at least once: enabling it again is a rest-window move, never a field install.
-    bool bEverInstalled = false;
-    // Where an installed component sits (FLDComponentTargetView): the target kind and id (#198 F: a learned active or a host
-    // component; empty for a base, the innate D or the holder itself), B18's bound active and element and C12's repeated base.
-    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
-    FString TargetId;
-    FString BoundActive;
+    ELDCardTargetKind TargetKind = ELDCardTargetKind::None;
+    FString TargetActive;
     ELDDemoElement Element = ELDDemoElement::None;
-    FString BoundComponent;
+    bool IsInstalled() const { return TargetKind != ELDCardTargetKind::None; }
 };
 
-// #198 F: where a mod or connector goes (FLDBuildCommand's TargetKind / TargetDefinition / BoundComponent): a learned active
-// (Active) or an installed host component (Component) named by TargetId, the innate D (Dash) or the holder itself (None),
-// and C12's repeated installed base (empty otherwise).
-struct FLDOpponentComponentTarget
+// The current card offer of the own view.
+struct FLDOpponentCardOffer
 {
-    ELDComponentTargetKind Kind = ELDComponentTargetKind::None;
-    FString TargetId;
-    FString BoundComponent;
-};
-
-// #198 G: one pending elite camp component choice of the own view: its id and one or two known common components.
-struct FLDOpponentComponentChoice
-{
-    FGuid ChoiceId;
+    FGuid OfferId;
+    uint64 OfferRevision = 0;
     TArray<FString> Options;
-};
-
-// #198 G: one rest FillGap the own build allows (LDProgression::GapTargets / GapFillers over the own view): a never-enabled
-// mod or connector without any compatible entry and the first unowned common base, in catalog order, that gives it one.
-struct FLDOpponentGapFill
-{
-    FString Target;
-    FString Filler;
 };
 
 // The AI's own authorized projection: owner life, progression and source readiness.
@@ -159,13 +138,10 @@ struct FLDOpponentSelf
     uint8 OffersConsumed = 0;
     // Active opportunities earned and not chosen yet, the current offer's included (the rest NPC charges for none meanwhile).
     uint8 QueuedOpportunities = 0;
-    // #198 B: owned components sorted by id; the opening base pick while it is open and its options in catalog order.
-    TArray<FLDOpponentComponent> Components;
-    bool bOpeningBasePending = false;
-    TArray<FString> OpeningBaseOptions;
-    // #198 G: pending component choices (oldest first) and the gap fills the own build allows, in catalog order.
-    TArray<FLDOpponentComponentChoice> ComponentChoices;
-    TArray<FLDOpponentGapFill> GapFills;
+    // Owned cards by serial, the level's card capacity and the current card offer.
+    TArray<FLDOpponentCard> Cards;
+    int32 CardCapacity = 0;
+    TOptional<FLDOpponentCardOffer> CardOffer;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
     // Phase 9: the untaken final mod three-choice (an invalid id when none is open) and whether the build is locked.
@@ -338,10 +314,12 @@ struct FLDOpponentBodyIntent
 // attachments of the old one return to the inventory in the same commit).
 enum class ELDOpponentBuildKind : uint8
 {
-    None, ChooseActive, LearnBlueprint, AllocatePoints, OpeningBase, InstallComponent, ComponentChoice, FillGap,
-    UninstallComponent, BuyNpcOffer, Respec, ReplaceActive, Dismantle, FinalMod,
+    None, ChooseActive, LearnBlueprint, AllocatePoints, BuyNpcOffer, Respec, ReplaceActive, FinalMod,
     // Issue #287 spec §13: a skill point raises a learned skill (Slot) to its next branch (Branch).
-    RankUpSkill
+    RankUpSkill,
+    // Spec §13: a card of the current card offer (installed on its default place when one is free), and an owned card into a
+    // free slot.
+    PickCard, InstallCard
 };
 
 struct FLDOpponentBuildIntent
@@ -359,23 +337,13 @@ struct FLDOpponentBuildIntent
     uint8 Slot = 0;
     // AllocatePoints: one count per stat, in the stats' design order.
     TArray<uint8> PointCounts;
-    // OpeningBase / InstallComponent / UninstallComponent: the component and, for an install with an ActiveElement binding
-    // (B18), the bound learned active and element (empty / None otherwise). BuyNpcOffer and Respec carry nothing else.
-    FString Component;
-    FString BoundActive;
-    ELDDemoElement Element = ELDDemoElement::None;
-    // InstallComponent of a mod or connector (#198 F): its target (LDOpponentPolicy::WorkshopTarget); None / empty for a base.
-    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    // PickCard: the offer (OfferId/OfferRevision) and the card (Option); InstallCard: the owned card. Both carry the target.
+    uint16 CardSerial = 0;
+    ELDCardTargetKind CardTarget = ELDCardTargetKind::None;
     FString TargetId;
-    FString BoundComponent;
-    // InstallComponent as a form swap: the installed same-form component it replaces (FLDBuildCommand::Replacing), else empty.
-    FString Replacing;
-    // #198 G ComponentChoice: the pending choice; Component is the chosen option, empty for the empty-pool points.
-    // FillGap: Component is the gap target and Filler the unowned common base it receives.
-    FGuid ChoiceId;
-    FString Filler;
-    // Dismantle: the owned common components given up, GROWTH.DismantleInputCount distinct ones in catalog order.
-    TArray<FString> Surrendered;
+    ELDDemoElement Element = ELDDemoElement::None;
+    // FinalMod: the source kind (TargetId names the active).
+    ELDFinalModTargetKind FinalTargetKind = ELDFinalModTargetKind::None;
     FLDOpponentRetryKey Key;
 };
 
@@ -471,6 +439,9 @@ struct FLDOpponentPolicyState
     FLDOpponentRetryLedger Failures;
     // #198 D: a bet is sent once per PK whatever its answer (no retry storm): the PK serial whose bet this adapter sent.
     uint32 PKBetSerial = 0;
+    // Spec §13 breakout goal: the breakout preset (LDBreakoutPresets) this AI chases this match, None for none; drawn once.
+    FName BreakoutGoal;
+    bool bBreakoutDrawn = false;
 };
 
 enum class ELDCampCostStatus : uint8 { Ok, NotFeasible, EstimateUnavailable };
@@ -555,46 +526,20 @@ namespace LDOpponentPolicy
     // GROWTH.NpcActivePoints unspent, at least three catalog actives neither learned nor pending (the offer's draw), and an
     // empty Q/W/E slot with no pending blueprint to fill it.
     LOCKDOWN_API bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8 RestIndex);
-    // #198 B component picks (rule-based, no tunable numbers). Whether the AI could enable Component apart from the build
-    // gate: a base component and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its
-    // BindActives lists, bound with the first element its BindElements lists (Out* stay empty / None without a binding).
-    LOCKDOWN_API bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component,
-        FString& OutBoundActive, ELDDemoElement& OutElement);
-    // The opening base pick: the first option in catalog order that ComponentUsable accepts; false when none does.
-    LOCKDOWN_API bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
-        FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
-    // #198 F: where the AI installs an owned mod or connector (rule-based, no tunable numbers): the first legal target in
-    // catalog list order: a learned active with a target mode represented by TargetActives, else an installed host of TargetComponents (C01 on B18 only
-    // while B18 burns), else the innate D (bTargetDash), else the holder itself (bTargetSelf); C12 also repeats the first
-    // installed base of ExtraBases. Skips what growth refuses: M08/M09 on a target the other already holds (TargetConflict).
-    // False for a base
-    // component or without any legal target.
-    LOCKDOWN_API bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-        const FLDDemoComponentDefinition& Component, FLDOpponentComponentTarget& Out);
-    // The owned component to enable next: the first never-installed, not installed one in catalog order that
-    // ComponentUsable accepts (a base) or WorkshopTarget places (a mod or connector; the decision carries its target);
-    // false when none does.
-    LOCKDOWN_API bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-        FString& OutComponent, FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
-    // #198 G: how the AI resolves one pending component choice (rule-based, no tunable numbers): the first unowned option
-    // it could enable now (ComponentUsable for a base, WorkshopTarget for a mod or connector), else the first unowned option;
-    // OutOption empty (the empty-pool points) once every option is owned. False with Error for an option outside the catalog.
-    LOCKDOWN_API bool SelectComponentChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-        const FLDOpponentComponentChoice& Choice, FString& OutOption, FString& Error);
-    // #198 rest move: the first installed component in catalog order that sits away from its preferred placement, judged on
-    // the build its uninstall leaves (it and everything installed on it, transitively, back in the inventory): a B18 binding
-    // other than ComponentUsable's, or a mod or connector target other than WorkshopTarget's. That build is exactly what the
-    // reinstall reads, so the component goes back to the same placement and is not moved again. A component without any
-    // preferred legal placement stays. False when none is misplaced.
-    LOCKDOWN_API bool SelectComponentMove(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
+    // Spec §13 breakout goal: with AI.BreakoutChance an AI takes one breakout preset (LDBreakoutPresets) as its goal for the
+    // match, drawn deterministically from its id and the match generation; None otherwise.
+    LOCKDOWN_API FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI);
+    // Spec §13 card pick: each option scores AI.CardVocabScore per vocabulary key it shares with the installed cards and
+    // learned skills, AI.BreakoutCardScore more when it belongs to Goal, plus a jitter in [0, 1) drawn from the offer and the
+    // card; the highest score wins (the AI never skips before vouchers exist). False without an offer.
+    LOCKDOWN_API bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, FString& OutCard,
         FString& Error);
-    // #198 G rest dismantle (rule-based, no tunable numbers): the first GROWTH.DismantleInputCount owned common components, in
-    // catalog order, that the AI cannot use on its committed build (it reads no future offer): never installed (an installed
-    // or once-installed one is never given up), without a ComponentUsable/WorkshopTarget placement, and not a gap the build
-    // allows to fill. Only when it holds that many, the count is above one (each dismantle then leaves strictly fewer owned
-    // components, so dismantles end) and an unowned common component is left to receive (DismantlePoolEmpty otherwise).
-    LOCKDOWN_API bool SelectDismantle(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FString>& Out,
-        FString& Error);
+    // The place the AI puts a card (LDProgression::DefaultCardTarget over the own build); false when none exists now.
+    LOCKDOWN_API bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FString& Card,
+        FLDCardTarget& Out);
+    // The first stored card (serial order) with a place while a slot is free; false when none or the workshop is full.
+    LOCKDOWN_API bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial,
+        FLDCardTarget& OutTarget);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
@@ -636,14 +581,10 @@ namespace LDOpponentPolicy
     // or respawned. Any admitted walk clears it.
     LOCKDOWN_API void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
         const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
-    // #198: the build step after any offer choice, exactly as Decide makes it (OPPONENT_AI.md §6.4): the opening base pick
-    // while it is open (when an active may be chosen), the oldest pending component choice (#198 G, under the same gate), the
-    // preferred blueprint into the lowest empty slot when learning is allowed (a rest build window, or alive inside the build
-    // safe window); in a rest build window then the replacement (SelectReplacement), the once-installed inventory components
-    // back on the build and one misplaced component off it (SelectComponentMove); the next owned component to enable for the
-    // first time under the learn gate; in a rest build window the first gap fill the unspent points pay for (#198 G), a
-    // dismantle (SelectDismantle) and a respec (WantsRespec); then every unspent point when allocating is allowed (a rest
-    // build window, dead, or alive inside the window). It leaves offers to its caller: it never chooses one and never buys the
+    // The build step after any offer choice, exactly as Decide makes it (OPPONENT_AI.md §6.4): the card offer's pick
+    // (SelectCard), the preferred blueprint into the lowest empty slot when learning is allowed; in a rest build window then
+    // the replacement (SelectReplacement); a stored card into a free slot (SelectCardInstall); a respec (WantsRespec); then
+    // every unspent point when allocating is allowed (a rest build window, dead, or alive inside the window). It leaves offers to its caller: it never chooses one and never buys the
     // NPC's (Decide does, before the points). False when nothing applies, a build request is in flight or failure memory
     // holds the step back.
     LOCKDOWN_API bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
