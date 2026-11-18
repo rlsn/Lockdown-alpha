@@ -1,0 +1,418 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "p3-breakout-samples",
+    "hypothesis": "#287 §7.6 的 9 个 P2 质变样板各自对同级 L12 裸构筑：输出是否达到裸构筑的 3 倍以上（击杀时间缩短到 1/3 以下），对手能否在时限内反杀。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 1188,
+        "opponent": 1188
+      }
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 1188 XP，达到 L12（三个技能点都已获得）。",
+    "样板一方由 DEV 质变样板预设一次配齐技能、等级、分支、牌与属性点（技能永动机、攻速拉满、吸血永生、攒个大的、刺猬肉山、元素永动、冲刺鬼影、人头滚雪球、残血狂暴）；预设 ID 以 #289 落地的 DEV 预设为准。",
+    "对手是同级裸构筑：不装牌、属性点全部未分配、技能 1 级。",
+    "需要 Adapter 支持 breakout_preset 计划字段与原生按预设配装；#289 合并前准入拒绝。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "bare",
+    "arms": [
+      {
+        "id": "bare",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "skill_engine",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_skill_engine"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "attack_speed",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_attack_speed"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "lifesteal",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_lifesteal"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "big_one",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_big_one"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "hedgehog",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_hedgehog"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "element_engine",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_element_engine"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "dash_ghost",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_dash_ghost"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "snowball",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_snowball"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "low_hp_rage",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_low_hp_rage"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261290",
+    "splits": {
+      "search": 0,
+      "confirm": 2
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "engage_to_kill_ms",
+    "secondary": [
+      "duel_score",
+      "damage_dealt_hp",
+      "damage_taken_hp",
+      "subject_casts",
+      "opponent_casts",
+      "subject_hp_end_bp"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "case_wall_timeout_s": 180,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944,
+    "max_cases": 40,
+    "run_wall_timeout_s": 5400
+  }
+}

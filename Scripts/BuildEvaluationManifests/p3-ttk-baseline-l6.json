@@ -1,0 +1,132 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "p3-ttk-baseline-l6",
+    "hypothesis": "同级 L6 对决的击杀时间与每人施法次数：裸构筑（无构件或牌、属性点全部未分配、技能 1 级）作为 #287 §3.9 的实测基线，与生产 AI 自行构筑的同级对局对照。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 360,
+        "opponent": 360
+      }
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 360 XP，达到 L6；不是自然成长速率。",
+    "主动按生产 AI 的偏好（ai_select）从种子决定的候选中选择，样本覆盖多种技能组合，不固定技能。",
+    "bare：开局休息加 1 点再洗点，全部属性点保持未分配；不选开局基础构件，不安装任何构件，不升技能等级。",
+    "production：没有构筑计划，由生产 AI 规则选开局基础构件、加点、安装构件并升技能等级。",
+    "双方使用生产 AI 的中心点交战（走近追击、生产的爆劲与闪避），不包含风筝或区域争夺。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "bare",
+    "arms": [
+      {
+        "id": "bare",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "keep_points_unspent": true,
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 1
+                }
+              },
+              {
+                "step": "respec",
+                "at": "opening_rest"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "production",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ]
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261116",
+    "splits": {
+      "search": 0,
+      "confirm": 4
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "engage_to_kill_ms",
+    "secondary": [
+      "subject_casts",
+      "opponent_casts",
+      "decision_time_ms",
+      "damage_dealt_hp",
+      "damage_taken_hp",
+      "duel_score"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "case_wall_timeout_s": 180,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944,
+    "max_cases": 16,
+    "run_wall_timeout_s": 1920
+  }
+}

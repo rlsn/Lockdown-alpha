@@ -305,6 +305,21 @@ class PlanTest(AdapterCase):
                         self.caps, self.caps["scenarios"][value["scenario"]["kind"]], value, arm, lockdown), [],
                         "shipped experiments must use supported mechanics and decisions")
 
+    def test_pending_breakout_manifest_is_a_valid_experiment_waiting_for_its_presets(self):
+        # The #287 §7.6 samples need the breakout_preset side field and #289's DEV presets; until both exist the manifest
+        # stays outside the admitted set above, but its experiment shape is checked now.
+        paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests" / "pending-p2").glob("*.json"))
+        self.assertTrue(paths)
+        for path in paths:
+            value = core.validate_manifest(core.read_json(path))
+            arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
+            reference = arms.pop(value["design"]["reference"])
+            self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
+            self.assertEqual(len(arms), 9)
+            for arm, plan in arms.items():
+                self.assertEqual(plan["subject"].get("breakout_preset"), f"breakout_{arm}")
+                self.assertEqual(plan["opponent"], reference["opponent"], "every sample faces the same-level bare build")
+
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
         self.assertTrue(any("has 2 rules but its supply of 600 XP gives 3 active opportunities" in item for item in needs["problems"]))
@@ -520,6 +535,26 @@ class PlanTest(AdapterCase):
             self.requirements({**WORKSHOP, "build": [{"step": "respec", "at": "opening_rest"}] * (lockdown.NATIVE_MAX_BUILD_STEPS + 1)})
         header = (ROOT / "Source/Lockdown/Public/Probes/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
         self.assertIn(f"inline constexpr int32 MaxBuildSteps = {lockdown.NATIVE_MAX_BUILD_STEPS};", header)
+
+    def test_a_bare_build_may_keep_every_earned_point_unspent_only_when_it_says_so(self):
+        # 0 XP stays at level 1: the opening offer and the 3 opening points. One point in and back out leaves all unspent.
+        bare = {"choices": ["ai_select"], "keep_points_unspent": True,
+                "build": [{"step": "allocate_points", "at": "opening_rest", "points": {"stat_strength": 1}},
+                          {"step": "respec", "at": "opening_rest"}]}
+        needs = self.requirements(bare, supply=0)
+        self.assertEqual(needs["problems"], [])
+        self.assertIn("respec_points", needs["decisions"])
+        unsaid = {key: value for key, value in bare.items() if key != "keep_points_unspent"}
+        self.assertTrue(any("allocates 0 of the 3 points its supply earns" in item
+                            for item in self.requirements(unsaid, supply=0)["problems"]))
+        kept = {**bare, "build": bare["build"][:1]}
+        self.assertTrue(any("leaves 1 points allocated; keep_points_unspent keeps all 3 earned points unspent" in item
+                            for item in self.requirements(kept, supply=0)["problems"]))
+        self.assertTrue(any("keep_points_unspent needs a planned build" in item
+                            for item in self.requirements({"choices": ["ai_select"], "keep_points_unspent": True},
+                                                          supply=0)["problems"]))
+        with self.assertRaisesRegex(ValueError, "keep_points_unspent: true or false"):
+            self.requirements({**bare, "keep_points_unspent": "yes"}, supply=0)
 
     def test_boolean_option_indices_are_unsupported_before_native_execution(self):
         for index in (True, False):
@@ -777,6 +812,33 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(facts["builds"]["subject"]["actives"], ["active_elbow/Q", "active_flyer_trap/W", "active_not_mad/E"])
         self.assertEqual(facts["builds"]["subject"]["stat_points"]["stat_strength"], 2)
         self.assertEqual(facts["builds"]["opponent"]["blueprints"], [])
+
+    def test_casts_and_time_to_kill_come_from_ld_cast_and_the_first_duelist_hit(self):
+        casts = (f"LD_CAST t=4000 contender={S} life=1 casts=1 added=1",  # the opening rest, before the duel clock
+                 f"LD_CAST t=9000 contender={S} life=2 casts=2 added=1",
+                 f"LD_CAST t=11500 contender={O} life=2 casts=1 added=1",
+                 f"LD_CAST t=12000 contender={S} life=2 casts=4 added=2",
+                 f"LD_CAST t=20017 contender={O} life=2 casts=2 added=1",  # the outcome's own advance
+                 f"LD_CAST t=21000 contender={S} life=2 casts=5 added=1")  # after the outcome
+        out = self.evidence(text=trace(*casts))
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        # The first hit between the duelists lands at 10000, the opponent dies at 20000.
+        self.assertEqual(out["metrics"]["engage_to_kill_ms"], {"value": 10000, "censored": False})
+        self.assertEqual(out["metrics"]["subject_casts"], {"value": 3, "censored": False})
+        self.assertEqual(out["metrics"]["opponent_casts"], {"value": 2, "censored": False})
+        value = result(kind="timeout", ended_at_ms=50000)
+        value["contenders"][1] = contender("opponent", 1, O, hp=10000)
+        timeout = self.evidence(value, trace(*casts, drop=("lethal", "death", "death_reward")))
+        self.assertEqual(timeout["status"], "Completed", timeout["reason"])
+        self.assertEqual(timeout["metrics"]["engage_to_kill_ms"], {"value": 40000, "censored": True})
+        # No cast at all and no skill hit: zero casts is what happened.
+        self.assertEqual(self.evidence()["metrics"]["subject_casts"], {"value": 0, "censored": False})
+        skill = hit(12500, S, O, "10.00", "0.00", "10.00", "520.00", "510.00").replace("via=basic class=basic",
+                                                                                      "via=learned:active_elbow class=ability")
+        self.assertIn("duelist skill hits without any LD_CAST line", self.evidence(text=trace(skill))["reason"])
+        self.assertEqual(self.evidence(text=trace(skill, *casts))["status"], "Completed")
+        self.assertIn("LD_CAST has no valid authority time or count",
+                      self.evidence(text=trace(f"LD_CAST t=9000 contender={S} life=2 casts=1 added=0"))["reason"])
 
     def test_a_choice_kept_as_a_blueprint_is_held_at_the_end(self):
         value = result()
@@ -1271,6 +1333,18 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertFalse(any("t=25000" in line for line in events), "events after the Case's end are not compared")
         self.assertEqual(spatial["opponent@6000"], (-100.0, 5.0, 0.0))
         self.assertNotIn("subject@21000", spatial)
+
+    def test_canonical_events_compare_cast_counts(self):
+        # A replay that differs only in its releases diverges; the end's own advance keeps its LD_CAST.
+        cast = f"LD_CAST t=12000 contender={S} life=2 casts=1 added=1"
+        late = f"LD_CAST t=20017 contender={S} life=2 casts=2 added=1"
+        with_casts, _ = lockdown.canonical_events(trace(cast, late), result())
+        without, _ = lockdown.canonical_events(trace(cast), result())
+        self.assertIn("LD_CAST t=12000 contender=subject life=2 casts=1 added=1", with_casts)
+        self.assertIn("LD_CAST t=20017 contender=subject life=2 casts=2 added=1", with_casts)
+        self.assertNotEqual(with_casts, without)
+        beyond, _ = lockdown.canonical_events(trace(cast, f"LD_CAST t=20100 contender={S} life=2 casts=2 added=1"), result())
+        self.assertEqual(beyond, without)
 
     @staticmethod
     def swapped(text, first, second):
