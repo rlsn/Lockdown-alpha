@@ -246,7 +246,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertFalse({"max_choices", "max_skill_rank", "opening_offer", "reroll_levels"} & set(data["progression"]))
         self.assertFalse({"attributes", "opening_cards"} & set(data))
         for key, expected in (("GROWTH.OpeningPoints", 2), ("GROWTH.PointsPerLevel", 4), ("GROWTH.MaxLevelPointsXP", 250),
-                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.NpcActivePoints", 5),
+                              ("GROWTH.MaxLevelPoints", 1), ("VOUCHER.ActiveSkip", 6),
                               ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
             self.assertEqual(self.baseline.catalog.parameter(key), expected)
         self.assertFalse([key for key in data["parameters"] if key.startswith("CHOICE.")])
@@ -702,7 +702,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["REST.OpeningBuildSec"].update(value=7), "InvalidTiming"),
             (lambda data: data["parameters"]["REST.SignupSec"].update(value=25), None),
             (lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(value=0), "InvalidGeometry"),
-            (lambda data: data["parameters"].update({"GROWTH.NpcActivePoints": 0}), "NumericDomain"),
+            (lambda data: data["parameters"].update({"SHOP.CardPrice": 0}), "NumericDomain"),
             (lambda data: data["parameters"].pop("REST.PKMaxSec"), "MissingField"),
             (lambda data: data["parameters"].update({"MATCH.DevelopmentSec": {"unit": "s", "value": 180}}), "UnknownField"),
             (lambda data: data["parameters"].update({"MATCH.CountdownSec": {"unit": "s", "value": 5}}), "UnknownField"),
@@ -874,7 +874,8 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: piece(data, "card_fire_fist").update(type="rare"), "UnknownEnum"),
             (lambda data: piece(data, "card_fire_fist")["vocab"].append("teleport"), "UnknownEnum"),
             (lambda data: piece(data, "card_fire_fist")["vocab"].append("element"), "InvalidReference"),
-            (lambda data: piece(data, "card_fire_fist").update(vocab=[]), "ArrayLength"),
+            (lambda data: piece(data, "card_fire_fist").update(vocab=["element", "basic_hit", "combo3", "dash", "kill"]),
+             "ArrayLength"),
             # A card's operations belong to its form.
             (lambda data: piece(data, "card_fire_fist")["effects"].append(
                 {"op": "auto_recast", "delay": {"unit": "s", "value": 0.5}, "damage_ratio": {"unit": "ratio", "value": 0.5}}),

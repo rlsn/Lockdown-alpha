@@ -180,14 +180,18 @@ def content_fixture():
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3, "COMBAT.OverloadBreachStacks": 3,
         "COMBAT.ShockEveryNthHit": 2, "COMBAT.MethaneBurnStacks": 1, "COMBAT.FirestormBurnScale": 3, "COMBAT.CorrodeBreachStacks": 2, "GROUND.FireBurnStacks": 2, "GROUND.MaxPerOwner": 4, "GROUND.MaxTotal": 24,
         "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
-        "GROWTH.NpcActivePoints": 5,
-        "GROWTH.ActiveSkipPoints": 5, "GROWTH.NpcActiveSkipPoints": 3,
         "PK.ParticipationPoints": 2, "PK.WinnerPointsMax": 4, "PK.BettingPoolMaxPoints": 3,
         "GROWTH.KeystoneThresholdPoints": 18,
         "CARDS.CapacityBase": 5, "CARDS.LevelsPerSlot": 4, "CARDS.OfferSize": 3, "CARDS.FreeRerolls": 2,
-        "CARDS.RerollsPerRest": 1, "CARDS.LockSlots": 1, "CARDS.VocabWeight": 3,
+        "CARDS.RerollsPerRest": 1, "CARDS.LockSlots": 1, "CARDS.VocabWeight": 3, "CARDS.SkipVouchers": 2,
+        "VOUCHER.CampLow": 1, "VOUCHER.CampHigh": 3, "VOUCHER.CampElite": 5, "VOUCHER.CampAncient": 9, "VOUCHER.Boss": 15,
+        "VOUCHER.Kill": 7, "VOUCHER.Assist": 3, "VOUCHER.Airdrop": 4, "VOUCHER.ActiveSkip": 6,
+        "SHOP.CardSlots": 3, "SHOP.VocabCardSlots": 1, "SHOP.VocabWeight": 2, "SHOP.SkillSlots": 1, "SHOP.CardPrice": 5,
+        "SHOP.SkillPrice": 8, "SHOP.RefreshPrice": 1, "SHOP.RefreshStep": 2, "SHOP.SkillPointPrice": 20,
+        "SHOP.SkillPointMaxPerMatch": 2, "SHOP.SellPrice": 2,
         "DAMAGE.FactorTechCap": q("ratio", 500), "CHAIN.MaxDepth": 8, "CHAIN.MaxEffectsPerStep": 64,
-        "AI.CardVocabScore": 3, "AI.BreakoutChance": q("ratio", 0.5), "AI.BreakoutCardScore": 4,
+        "CHAIN.EndSec": q("s", 2), "CHAIN.MinKeySteps": 2,
+        "AI.CardVocabScore": 3, "AI.BreakoutChance": q("ratio", 0.5), "AI.BreakoutCardScore": 4, "AI.CardSkipChance": q("ratio", 0.2),
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
@@ -343,7 +347,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"
     next(row for row in display if row["id"] == "card_fire_fist")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 5, "handler_revision": 12, "projection_revision": 10,
+        "identity": {"schema_version": 6, "handler_revision": 13, "projection_revision": 10,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
