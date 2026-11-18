@@ -194,6 +194,7 @@
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
     "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
     "AI.DodgeChance": {"unit": "ratio", "value": 0.5},
+    "AI.EnemyGroundPathCost": {"unit": "ratio", "value": 3},
     "AI.CardVocabScore": 2,
     "AI.BreakoutChance": {"unit": "ratio", "value": 0.25},
     "AI.BreakoutCardScore": 5,

@@ -550,6 +550,7 @@ def parameter_projection(parameters):
     result["AI"]["BreakoutChanceBp"] = scalar(parameters["AI.BreakoutChance"])
     result["AI"]["BreakoutCardScore"] = parameters["AI.BreakoutCardScore"]
     result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])
+    result["AI"]["EnemyGroundPathCostBp"] = scalar(parameters["AI.EnemyGroundPathCost"])
     result["Momentum"] = {
         "MaxP2": scalar(parameters["MOMENTUM.Max"]), "StartP2": scalar(parameters["MOMENTUM.Start"]),
         "CombatPerSec": rational(parameters["MOMENTUM.CombatPerSec"]),

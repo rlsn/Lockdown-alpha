@@ -301,7 +301,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("OVERDRIVE.GustPushCm", "cm", "300"), ("OVERDRIVE.GustPushSec", "ms", ".25"),
-            ("AI.DodgeChance", "ratio", ".5"), ("AI.BreakoutChance", "ratio", ".25"),
+            ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", ".25"),
             ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),

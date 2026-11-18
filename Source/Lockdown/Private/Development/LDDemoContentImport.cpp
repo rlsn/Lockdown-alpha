@@ -450,6 +450,7 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SKILL.CooldownFloorSec"), TEXT("ms"), TEXT("ms"), &P.SkillRanks.CooldownFloorMs, 1, MAX_int64},
         {TEXT("AIRDROP.Momentum"), TEXT("momentum"), TEXT("p2"), &P.AirdropMomentumP2, 1, MAX_int64},
         {TEXT("AI.DodgeChance"), TEXT("ratio"), TEXT("bp"), &P.AI.DodgeChanceBp, 0, 10000},
+        {TEXT("AI.EnemyGroundPathCost"), TEXT("ratio"), TEXT("bp"), &P.AI.EnemyGroundPathCostBp, 10000, 100000},
         {TEXT("AI.BreakoutChance"), TEXT("ratio"), TEXT("bp"), &P.AI.BreakoutChanceBp, 0, 10000},
         {TEXT("DAMAGE.FactorTechCap"), TEXT("ratio"), TEXT("bp"), &P.DamageFactorTechCapBp, 10001, MAX_int64},
     };

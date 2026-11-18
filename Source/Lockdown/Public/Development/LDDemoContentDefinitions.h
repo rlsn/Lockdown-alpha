@@ -77,6 +77,8 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
     // An AI contender inside a visible telegraph with its D ready dodges out with this chance (AI.DodgeChance).
     UPROPERTY() int64 DodgeChanceBp = 0;
+    // Spec §13: a planned walk weighs its length inside a visible enemy ground state by this (AI.EnemyGroundPathCost).
+    UPROPERTY() int64 EnemyGroundPathCostBp = 0;
     // Card picks (spec §13): a candidate scores CardVocabScore per vocabulary key it shares with the AI's installed cards
     // and learned skills; with BreakoutChance an AI takes one breakout preset as its goal at match start and its cards
     // score BreakoutCardScore more.

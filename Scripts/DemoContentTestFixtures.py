@@ -46,7 +46,7 @@ def content_fixture():
         ("OVERDRIVE.Scale", "ratio", 1.5), ("OVERDRIVE.WaterSlow", "ratio", 0.4), ("OVERDRIVE.WaterSlowSec", "s", 1.25),
         ("OVERDRIVE.ShockReactionRatio", "ratio", 0.5), ("OVERDRIVE.RotDurationScale", "ratio", 2),
         ("OVERDRIVE.GustPushCm", "cm", 250), ("OVERDRIVE.GustPushSec", "s", 0.25),
-        ("AI.DodgeChance", "ratio", 0.5), ("AIRDROP.Momentum", "momentum", 30),
+        ("AI.DodgeChance", "ratio", 0.5), ("AI.EnemyGroundPathCost", "ratio", 3), ("AIRDROP.Momentum", "momentum", 30),
         ("UNIT.MoveSpeedCmPerSec", "cm/s", 500), ("STAT.MoveSpeed.Min", "cm/s", 100), ("STAT.MoveSpeed.Max", "cm/s", 1200),
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
         ("STAT.AttackRange.Min", "cm", 40), ("STAT.AttackRange.Max", "cm", 1000),
