@@ -740,6 +740,8 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
         if (!Body.VoluntaryDash.IsSet() || NowMs<Body.VoluntaryDash->EndMs) { continue; }
         const FLDCombatVoluntaryDash Dash=Body.VoluntaryDash.GetValue();
         Body.VoluntaryDash.Reset();
+        // Spec §6.5: the completion's cards and grounds are steps of the dash's own chain (while it is open).
+        TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Dash.EffectId));
         const ALDCharacter* Actor=Pair.Key.Get();
         // A dash that went nowhere (blocked at once) is no completed dash.
         if (!Actor || Body.bPendingDeath || !LDCombatControl::DashCompleted(Dash,NowMs,FootOf(*Actor))) { continue; }
@@ -1666,6 +1668,8 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     // Without a Q skill or a body to aim at, the third step casts nothing.
     if (!Q || !Content || !Content->FindAbility(Q->AbilityId.ToString(),Ability,LookupError) || !Ability || !HolderActor || !TargetActor)
     { return true; }
+    // A unit Q follows the basic's own target only: a flying basic that struck another body casts no unit Q.
+    if (Ability->Target.Mode==ELDDemoTargetMode::Unit && Primary.Target!=Basic.TargetBody) { return true; }
     // A08: the Q skill releases at once toward the struck body at the card's share (copies add), costing nothing, issuing no
     // cooldown, never an overdrive and never repeated (a K06-style free release).
     FLDCombatAction Cast;

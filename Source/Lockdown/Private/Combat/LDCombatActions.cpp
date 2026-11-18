@@ -1068,8 +1068,6 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
     TArray<FLDCombatHit> Extra;
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
-    // A08: the third step also releases the Q skill (queued for the next authority step).
-    if (!QueueComboCast(Body,Action,Hit,Now,Error)) { return false; }
     // A05: a contender's basic flies toward its target as a dodgeable projectile carrying its strikes and riders; it lands on
     // the first legal body in its way instead of the target for certain.
     TArray<FLDPassiveEffectRef> Flights;
@@ -1100,6 +1098,9 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
         Projectile.AdvancedThroughMs=Now;
         Projectile.Payload=Hit;
         Projectile.Riders=MoveTemp(Extra);
+        // A08 waits for the flight to strike a body.
+        Projectile.bComboCast=true;
+        Projectile.ComboBasic=Action;
         if (Projectile.Direction.IsNearlyZero() || Projectile.SpeedCmPerSec<=0)
         { Error=TEXT("A flying basic has no direction or speed."); return false; }
         Projectiles.Add(MoveTemp(Projectile));
@@ -1109,6 +1110,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     {
         PendingHits.Add(Hit);
         PendingHits.Append(MoveTemp(Extra));
+        // A08: the third step also releases the Q skill (queued for the next authority step).
+        if (!QueueComboCast(Body,Action,Hit,Now,Error)) { return false; }
     }
     LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
     if (!Taken.IsEmpty() || Body.Empowers.Num()!=PendingBefore)

@@ -883,13 +883,14 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     }
     Out.NextAttackAtMs=Record->NextAttackAtMs;
     Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
+    // The chain history belongs to the contender: an eliminated one without a body still receives its last chain ends.
+    ReadOwnerChains(Caller.EntityId,Out.Chains);
     if (Body)
     {
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
         Out.MomentumP2=Body->Resources.MomentumP2;
         Out.OverdriveThresholdP2=OverdriveThresholdOf(*Body);
-        ReadOwnerChains(Body->Victim.EntityId,Out.Chains);
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;

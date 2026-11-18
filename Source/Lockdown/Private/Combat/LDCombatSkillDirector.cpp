@@ -566,6 +566,8 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         auto* Body=FindBody(Dash.Body);
         if (!Body || Body->bPendingDeath || Dash.Struck.Contains(Contact.Target)) { continue; }
         Dash.Struck.Add(Contact.Target);
+        // Spec §6.5: the contact's cards and hits are steps of the dash's own chain (while it is open).
+        TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Dash.EffectId));
         const bool bNativeHit=Dash.NativeHit.IsSet() && Dash.NativeHitsRemaining>0;
         if (bNativeHit)
         {

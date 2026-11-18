@@ -872,6 +872,9 @@ struct FLDCombatProjectile
     FLDCombatHit Payload;
     // A05's flying basic: the strikes and riders that land with its primary (A06, A09, A11), retargeted to the struck body.
     TArray<FLDCombatHit> Riders;
+    // A08 on a flying third basic: its free Q is queued at the first contact, toward the body struck (bComboCast).
+    bool bComboCast=false;
+    FLDCombatAction ComboBasic;
 };
 
 // A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, and (#198) a slow check and a burn check

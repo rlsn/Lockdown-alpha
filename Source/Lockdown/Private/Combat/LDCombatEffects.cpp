@@ -735,6 +735,15 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 if (bOnPrimary) { Landed.Target=Targets[Struck].Body; }
                 PendingHits.Add(MoveTemp(Landed));
             }
+            // A08 on a flying third basic: the free Q goes toward the first body the flight struck, in the basic's chain.
+            if (bFirstContact && Projectile.bComboCast)
+            {
+                if (FLDBodyCombatState* Holder=FindBody(Projectile.SourceBody); Holder && !Holder->bPendingDeath)
+                {
+                    TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Projectile.EffectId));
+                    if (!QueueComboCast(*Holder,Projectile.ComboBasic,Contact,NowMs,Error)) { return false; }
+                }
+            }
             Projectile.Struck.Add(Targets[Struck].Body.Victim.EntityId);
             const FVector At=FMath::Lerp(SegmentFrom,Stop,StruckAt);
             if (Projectile.PierceRemaining>0 && !Projectile.bReturn)
