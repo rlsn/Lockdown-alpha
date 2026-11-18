@@ -272,9 +272,10 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         ULDCommandButton* Codex=MakeButton(LDTerms::ChainCodex,TEXT("ChainCodex"),[this](){OpenCodex();});
         ULDCommandButton* Exit=MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);});
         Glass(Settings);Glass(Codex);Glass(Exit);
-        Row->AddChildToHorizontalBox(Sign(Settings,203,58));
-        Row->AddChildToHorizontalBox(Sign(Codex,203,58))->SetPadding(FMargin(14,0,0,0));
-        Row->AddChildToHorizontalBox(Sign(Exit,203,58))->SetPadding(FMargin(14,0,0,0));
+        // Three signs share the start button's 420 width.
+        Row->AddChildToHorizontalBox(Sign(Settings,132,58));
+        Row->AddChildToHorizontalBox(Sign(Codex,132,58))->SetPadding(FMargin(12,0,0,0));
+        Row->AddChildToHorizontalBox(Sign(Exit,132,58))->SetPadding(FMargin(12,0,0,0));
         Stack(Row,0);
     }
     {
