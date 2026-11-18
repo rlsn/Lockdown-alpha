@@ -357,13 +357,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     }
     // The definition keeps its anchors in ordinal id order; the projection matches it.
     Out.Anchors.Sort([](const FLDDemoWorldAnchor& A, const FLDDemoWorldAnchor& B) { return A.Id.Compare(B.Id, ESearchCase::CaseSensitive) < 0; });
-    const struct { const TCHAR* Prefix; int32 Count; int32 Min; } Minimums[] = {
-        {LDDemoWorld::MiniFlagPrefix(), OptionalCounts[0], LDDemoWorld::MinMiniFlags},
-        {LDDemoWorld::LockerPrefix(), OptionalCounts[1], LDDemoWorld::MinLockers},
-        {LDDemoWorld::VendingPrefix(), OptionalCounts[2], LDDemoWorld::MinVending}};
+    // A kind the definition declares (the Demo world) needs its minimum; a level whose definition declares none of a kind
+    // (a test or blockout scene) is not held to it.
+    const auto Declared = [&Base](ELDDemoWorldAnchorKind Kind)
+    { return Base.Anchors.ContainsByPredicate([Kind](const FLDDemoWorldAnchor& A) { return A.Kind == Kind; }); };
+    const struct { const TCHAR* Prefix; int32 Count; int32 Min; bool bDeclared; } Minimums[] = {
+        {LDDemoWorld::MiniFlagPrefix(), OptionalCounts[0], LDDemoWorld::MinMiniFlags, Declared(ELDDemoWorldAnchorKind::MiniFlag)},
+        {LDDemoWorld::LockerPrefix(), OptionalCounts[1], LDDemoWorld::MinLockers, Declared(ELDDemoWorldAnchorKind::Locker)},
+        {LDDemoWorld::VendingPrefix(), OptionalCounts[2], LDDemoWorld::MinVending, Declared(ELDDemoWorldAnchorKind::Vending)}};
     for (const auto& Minimum : Minimums)
     {
-        if (Minimum.Count < Minimum.Min)
+        if (Minimum.bDeclared && Minimum.Count < Minimum.Min)
         {
             return Fail(FString::Printf(TEXT("The level holds %d %s* layout points; at least %d are required. Copy an existing %s* point (or tag a TargetPoint LDSceneAnchor:%s<n>) and save."),
                 Minimum.Count, Minimum.Prefix, Minimum.Min, Minimum.Prefix, Minimum.Prefix));

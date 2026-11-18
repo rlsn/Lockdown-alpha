@@ -899,7 +899,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Cards"), TEXT("CardCapacity"),
          TEXT("QueuedCardOffers"), TEXT("bHasCardOffer"), TEXT("CardOffer"), TEXT("CardRerolls"), TEXT("CatalogDigest"),
-         TEXT("Vouchers"), TEXT("Shop"), TEXT("PickTickets"), TEXT("SeenCards"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
+         TEXT("Vouchers"), TEXT("Shop"), TEXT("PickTickets"), TEXT("AffixSkillPoints"), TEXT("SeenCards"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
          TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
          TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),

@@ -866,7 +866,7 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
 #if WITH_EDITOR
     auto* Legacy = DuplicateObject<ULDMapDefinition>(Restored, GetTransientPackage());
     if (!TestEqual(TEXT("The migration fixture changes the saved schema version"),
-        Legacy->SourceJson.ReplaceInline(TEXT("\"schema_version\": 4"), TEXT("\"schema_version\": 3")), 1)) { return false; }
+        Legacy->SourceJson.ReplaceInline(TEXT("\"schema_version\": 5"), TEXT("\"schema_version\": 4")), 1)) { return false; }
     const auto Rehash = [&](ULDMapDefinition& World)
     {
         FTCHARToUTF8 Utf8(*World.SourceJson);

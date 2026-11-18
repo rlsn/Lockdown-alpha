@@ -178,7 +178,7 @@ bool FLDBossRulesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A waypoint must be a number"), Invalid.IsActive());
     return true;
 }
-// #276: the approved Boss appears once at field T=173 s and leaves unkilled at T=390 s; its last hit keeps the
+// #276: the approved Boss appears once at field T=295 s and leaves unkilled at T=480 s; its last hit keeps the
 // monster_dean DeathReward (300 XP) and adds one build reward draw.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBossFieldLifecycleTest, "Lockdown.Rules.DemoBossFieldLifecycle",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -193,8 +193,8 @@ bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
         [&Rules](const FLDDemoMonsterDefinition& M) { return M.Id == Rules.Id; });
     bool bGood = TestTrue(TEXT("The Boss is the monster_dean row of the Boss tier"),
         Rules.Id == TEXT("monster_dean") && Row && Row->Tier == ELDDemoCampTier::Boss);
-    bGood &= TestTrue(TEXT("It appears at field T=173 s and leaves at T=390 s"),
-        Rules.AppearAtMs == 173000 && Rules.LeaveAtMs == 390000
+    bGood &= TestTrue(TEXT("It appears at field T=295 s and leaves at T=480 s"),
+        Rules.AppearAtMs == 295000 && Rules.LeaveAtMs == 480000
         && Rules.LeaveAtMs == D.Parameters.FieldSegmentMs * FLDTimelineParameters::TimedSegments);
     bGood &= TestTrue(TEXT("Its combat values stay as approved (4500 HP, 210 attack)"),
         Row && Row->HPP2 == 450000 && Row->AttackP2 == 21000);
@@ -216,26 +216,26 @@ bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
     State.Rules.LeaveAtMs = Rules.LeaveAtMs;
     if (!TestTrue(TEXT("The lifecycle rules are valid"), State.IsActive())) { return false; }
     const FLDCombatBodyRef Self = BossBody(State);
-    bGood &= TestTrue(TEXT("Pending, the next instant is its appearance at T=173 s"),
-        State.NextDueMs() == 173000 && !State.IsSpawnDue(172999) && State.IsSpawnDue(173000) && !State.IsLeaveDue(389999));
-    bGood &= TestTrue(TEXT("It appears at T=173 s"), State.Spawned(Self, 173000) && State.Phase == ELDBossPhase::Alive);
-    bGood &= TestTrue(TEXT("Alive, the next instant is its departure at T=390 s"),
-        State.NextDueMs() == 390000 && !State.IsLeaveDue(389999) && State.IsLeaveDue(390000));
+    bGood &= TestTrue(TEXT("Pending, the next instant is its appearance at T=295 s"),
+        State.NextDueMs() == 295000 && !State.IsSpawnDue(294999) && State.IsSpawnDue(295000) && !State.IsLeaveDue(479999));
+    bGood &= TestTrue(TEXT("It appears at T=295 s"), State.Spawned(Self, 295000) && State.Phase == ELDBossPhase::Alive);
+    bGood &= TestTrue(TEXT("Alive, the next instant is its departure at T=480 s"),
+        State.NextDueMs() == 480000 && !State.IsLeaveDue(479999) && State.IsLeaveDue(480000));
     FString Error;
-    FLDPublicMatchView View = ViewAt(State, 200000);
+    FLDPublicMatchView View = ViewAt(State, 300000);
     bGood &= TestTrue(TEXT("A living Boss publishes its leave instant: ") + Error,
-        LDCapture::ValidatePublicMatchView(View, Error) && View.Boss.LeaveAtMs == 390000);
-    bGood &= TestTrue(TEXT("It does not leave early"), !State.Leave(389999) && State.Phase == ELDBossPhase::Alive);
-    bGood &= TestTrue(TEXT("At T=390 s it leaves without a killer"), State.Leave(390000) && State.Phase == ELDBossPhase::Left
+        LDCapture::ValidatePublicMatchView(View, Error) && View.Boss.LeaveAtMs == 480000);
+    bGood &= TestTrue(TEXT("It does not leave early"), !State.Leave(479999) && State.Phase == ELDBossPhase::Alive);
+    bGood &= TestTrue(TEXT("At T=480 s it leaves without a killer"), State.Leave(480000) && State.Phase == ELDBossPhase::Left
         && !State.KilledBy.IsValid() && State.DownAtMs == 0 && !State.Body.IsValid());
     bGood &= TestTrue(TEXT("A Boss that left neither dies, respawns nor leaves again"),
-        !State.Died(Self, FGuid(1, 0, 0, 0), 390000) && !State.IsSpawnDue(600000) && !State.Spawned(Self, 600000)
+        !State.Died(Self, FGuid(1, 0, 0, 0), 480000) && !State.IsSpawnDue(600000) && !State.Spawned(Self, 600000)
         && !State.Leave(600000) && State.NextDueMs() == MAX_int64);
-    View = ViewAt(State, 390000);
+    View = ViewAt(State, 480000);
     bGood &= TestTrue(TEXT("A Boss that left is a valid public view: ") + Error, LDCapture::ValidatePublicMatchView(View, Error));
-    View = ViewAt(State, 389999);
+    View = ViewAt(State, 479999);
     bGood &= TestFalse(TEXT("It cannot have left before its leave instant"), LDCapture::ValidatePublicMatchView(View, Error));
-    View = ViewAt(State, 390000);
+    View = ViewAt(State, 480000);
     View.Boss.KilledBy = FGuid(1, 0, 0, 0);
     bGood &= TestFalse(TEXT("A Boss that left names no killer"), LDCapture::ValidatePublicMatchView(View, Error));
 
@@ -244,16 +244,16 @@ bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
     Blocked.Rules.StartedAtMs = 0;
     Blocked.Rules.AppearAtMs = Rules.AppearAtMs;
     Blocked.Rules.LeaveAtMs = Rules.LeaveAtMs;
-    bGood &= TestTrue(TEXT("A Boss still pending at T=390 s cannot appear any more and leaves"),
-        !Blocked.IsSpawnDue(390000) && !Blocked.Spawned(BossBody(Blocked), 390000) && Blocked.IsLeaveDue(390000)
-        && Blocked.Leave(390000) && Blocked.Phase == ELDBossPhase::Left);
+    bGood &= TestTrue(TEXT("A Boss still pending at T=480 s cannot appear any more and leaves"),
+        !Blocked.IsSpawnDue(480000) && !Blocked.Spawned(BossBody(Blocked), 480000) && Blocked.IsLeaveDue(480000)
+        && Blocked.Leave(480000) && Blocked.Phase == ELDBossPhase::Left);
     // A Boss killed first keeps its death; it never leaves.
     FLDBossState Killed = MakeState();
     Killed.Rules.StartedAtMs = 0;
     Killed.Rules.AppearAtMs = Rules.AppearAtMs;
     Killed.Rules.LeaveAtMs = Rules.LeaveAtMs;
     bGood &= TestTrue(TEXT("A Boss killed at T=540 s is down, not gone"),
-        Killed.Spawned(BossBody(Killed), 240000) && Killed.Died(BossBody(Killed), FGuid(2, 0, 0, 0), 540000)
+        Killed.Spawned(BossBody(Killed), 300000) && Killed.Died(BossBody(Killed), FGuid(2, 0, 0, 0), 540000)
         && !Killed.IsLeaveDue(540000) && !Killed.Leave(540000) && Killed.Phase == ELDBossPhase::Down);
     FLDBossState Inverted = MakeState();
     Inverted.Rules.LeaveAtMs = Inverted.Rules.AppearAtMs;
