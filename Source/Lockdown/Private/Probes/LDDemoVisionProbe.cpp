@@ -815,12 +815,6 @@ public:
         { return Fail(TEXT("#Ice"), TEXT("No approved content: ") + ContentError); }
         const float Scale = float(Content->Get().Parameters.Ground.IceAccelScaleBp) / 10000.f;
         if (!(Scale > 0.f && Scale < 1.f)) { return Fail(TEXT("#Ice"), TEXT("GROUND.IceAccelScale is not a slowdown")); }
-        if (Role == TEXT("Client2"))
-        {
-            if (!Mark(Role + TEXT("IceDone.json"))) { return Finish(); }
-            Stage = 7;
-            return true;
-        }
         if (!bIceReady)
         {
             if (!Owner.OwnerState.ContenderId.IsValid()) { return Fail(TEXT("#Ice"), TEXT("The owning connection has no contender identity")); }
@@ -830,13 +824,22 @@ public:
             bIceReady = true;
             if (IceSeenAt == 0) { IceSeenAt = Now; }
         }
+        // Client2 only stands by; it names itself so the Host can check its leave later (#9).
+        if (Role == TEXT("Client2"))
+        {
+            if (!Mark(Role + TEXT("IceDone.json"))) { return Finish(); }
+            Stage = 7;
+            return true;
+        }
         if (Role == TEXT("Host"))
         {
-            FGuid WalkerId;
-            if (!Exists(TEXT("Client1IceReady.json"))) { return true; }
+            FGuid WalkerId, BystanderId;
+            if (!AllMarkers(TEXT("IceReady.json"))) { return true; }
             if (!ReadReactionContender(TEXT("Client1"), WalkerId, TEXT("IceReady.json"))
+                || !ReadReactionContender(TEXT("Client2"), BystanderId, TEXT("IceReady.json"))
                 || !Lobby.Members.ContainsByPredicate([WalkerId](const FLDLobbyMember& Member) { return Member.ContenderId == WalkerId; }))
             { return Fail(TEXT("#Ice"), TEXT("Client1 is not a roster participant")); }
+            if (RemoteContenders.IsEmpty()) { RemoteContenders.Add(WalkerId); RemoteContenders.Add(BystanderId); }
             ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
             ALDPlayerController* Walker = Mode ? Mode->FindContenderController(WalkerId) : nullptr;
             ULDCharacterMovementComponent* ServerMove = Walker ? MovementOf(Walker->GetPawn()) : nullptr;
