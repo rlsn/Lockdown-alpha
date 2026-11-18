@@ -89,7 +89,8 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Wet: return TEXT("wet");
     case ELDDemoStatusId::Electrified: return TEXT("electrified");
     case ELDDemoStatusId::Braced: return TEXT("braced");
-    case ELDDemoStatusId::Soured: return TEXT("soured");
+    case ELDDemoStatusId::Chilled: return TEXT("chilled");
+    case ELDDemoStatusId::Rotten: return TEXT("rotten");
     default: return nullptr;
     }
 }
@@ -1040,19 +1041,32 @@ FString HudDamageEntry(const FString& Name,int64 DamageP2)
 {
     return FString::Printf(TEXT("%s %lld"),*Name,HudWholePoints(DamageP2,true));
 }
-// ELDCombatElement (Fire, Water, Electric) as the status it leaves; ELDCombatReaction (Fog, Conduct, Overload) as its term.
+// ELDCombatElement (fire, water, shock, chill, rot; gust leaves none) as the status it leaves; ELDCombatReaction as its term.
+const TCHAR* HudElementStatusId(uint8 Element)
+{
+    switch(Element)
+    {
+    case 1: return TEXT("burn");
+    case 2: return TEXT("wet");
+    case 3: return TEXT("electrified");
+    case 4: return TEXT("chilled");
+    case 5: return TEXT("rotten");
+    default: return nullptr;
+    }
+}
 FString HudElementState(const FLDDemoContentDefinitions* Content,uint8 Element)
 {
-    const TCHAR* Id=Element==1?TEXT("burn"):Element==2?TEXT("wet"):Element==3?TEXT("electrified"):nullptr;
+    const TCHAR* Id=HudElementStatusId(Element);
     return Id?LDHUD::ContentName(Content,Id):FString();
 }
 FString HudReactionTerm(uint8 Reaction)
 {
-    return FString(Reaction==1?LDTerms::ReactionFog:Reaction==2?LDTerms::ReactionConduct:Reaction==3?LDTerms::ReactionOverload:TEXT(""));
+    return LDTerms::ReactionTerm(Reaction);
 }
 FString HudElementStateId(uint8 Element)
 {
-    return FString(Element==1?TEXT("burn"):Element==2?TEXT("wet"):Element==3?TEXT("electrified"):TEXT(""));
+    const TCHAR* Id=HudElementStatusId(Element);
+    return Id?FString(Id):FString();
 }
 // The icon of a damage source: its content display row's icon, the dash icon, or none for a plain basic attack.
 FString HudDamageSourceIcon(const FLDDemoContentDefinitions* Content,const FLDCombatSourceRef& Source)
@@ -1903,6 +1917,9 @@ FString LDHUD::ElementName(ELDDemoElement Element)
     case ELDDemoElement::Fire: return LDTerms::ElementFire;
     case ELDDemoElement::Water: return LDTerms::ElementWater;
     case ELDDemoElement::Electric: return LDTerms::ElementElectric;
+    case ELDDemoElement::Chill: return LDTerms::ElementChill;
+    case ELDDemoElement::Rot: return LDTerms::ElementRot;
+    case ELDDemoElement::Gust: return LDTerms::ElementGust;
     default: return FString::Printf(TEXT("未知元素 #%d"),int32(Element));
     }
 }
@@ -2516,7 +2533,8 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     case ELDDemoStatusId::AttackSlowed:
     case ELDDemoStatusId::Wet:
     case ELDDemoStatusId::Electrified:
-    case ELDDemoStatusId::Soured:
+    case ELDDemoStatusId::Chilled:
+    case ELDDemoStatusId::Rotten:
         return false;
     }
     return false;

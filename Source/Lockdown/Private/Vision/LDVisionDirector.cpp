@@ -1271,7 +1271,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
 }
 
 bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
-    const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error)
+    const TArray<FLDObservedProjectileFact>& Flights, const TArray<FLDObservedGroundFact>& Grounds, bool bPublish, FString& Error)
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionSampleObserver);
     if (!Observer.Controller.IsValid())
@@ -1388,6 +1388,30 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Units = MoveTemp(Units);
         View.Projectiles = MoveTemp(Projectiles);
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
+        // Ground states: the observer's own ones, and every other whose centre (or a band's end) it sees, nearest first, at
+        // most LDObservation::MaxGroundStates; isolation groups follow the owner like a skill effect.
+        TArray<TPair<double, const FLDObservedGroundFact*>> SeenGround;
+        for (const FLDObservedGroundFact& Fact : Grounds)
+        {
+            FLDObservedProjectileFact Probe;
+            Probe.SourceEntity = Fact.OwnerEntity;
+            const ELDObservedFlightAccess Rule = FlightAccess(Probe);
+            bool bVisible = Rule == ELDObservedFlightAccess::Granted || Fact.OwnerEntity == Observer.ContenderId;
+            if (!bVisible && (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight))
+            {
+                const ELDSightResult Result = Sight.Trace(Foot, Fact.CentreCm);
+                if (Result == ELDSightResult::StaleWorld) { Error = TEXT("StaleWorld: ground-state sight has no current world."); return false; }
+                bVisible = Result == ELDSightResult::Visible;
+            }
+            if (bVisible)
+            {
+                SeenGround.Emplace(FVector2D::DistSquared(FVector2D(Foot.X, Foot.Y), FVector2D(Fact.CentreCm.X, Fact.CentreCm.Y)), &Fact);
+            }
+        }
+        SeenGround.Sort([](const TPair<double, const FLDObservedGroundFact*>& A, const TPair<double, const FLDObservedGroundFact*>& B)
+        { return A.Key < B.Key; });
+        for (int32 Index = 0; Index < SeenGround.Num() && Index < LDObservation::MaxGroundStates; ++Index)
+        { View.GroundStates.Add(LDObservation::GroundView(*SeenGround[Index].Value)); }
     }
     if (!LDObservation::ValidateView(View, Error)) { return false; }
     Observer.Latest = View;
@@ -1426,9 +1450,16 @@ bool ALDVisionDirector::PublishAuthority(const FLDMatchContext& InMatch, FString
         if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_PROJECTILES_UNAVAILABLE"); }
         return false;
     }
+    // Spec §8.3/§14: every live ground state is public; each observer sees the ones in its sight.
+    TArray<FLDObservedGroundFact> Grounds;
+    if (!Core->Combat->ReadObservedGround(Grounds, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_GROUND_UNAVAILABLE"); }
+        return false;
+    }
     for (FObserver& Observer : Observers)
     {
-        if (!SampleObserver(Observer, Targets, Flights, bPublish, Error)) { return false; }
+        if (!SampleObserver(Observer, Targets, Flights, Grounds, bPublish, Error)) { return false; }
     }
     Error.Reset();
     return true;

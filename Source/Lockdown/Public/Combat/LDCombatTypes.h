@@ -555,6 +555,9 @@ struct FLDCombatOwnerView
     // Voluntary movement is blocked (Root or Stun); the client movement prediction reads it.
     UPROPERTY() bool bRooted=false;
     UPROPERTY() float MoveSpeedCmPerSec=0;
+    // Spec §8.3: the own body stands on an enemy's ice: it accelerates and brakes at this scale (1 elsewhere); the client
+    // movement prediction reads the same authoritative parameter.
+    UPROPERTY() float MoveAccelScale=1.f;
     UPROPERTY() float AttackRangeCm=0;
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
     UPROPERTY() bool bOutOfCombatRegenActive=false;

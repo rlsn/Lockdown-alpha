@@ -66,7 +66,11 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Electrify:
     case ELDDemoEffectOp::ChainBounce:
     case ELDDemoEffectOp::ZoneWet:
-    case ELDDemoEffectOp::Grievous:
+    case ELDDemoEffectOp::Rot:
+    case ELDDemoEffectOp::Chill:
+    case ELDDemoEffectOp::Gust:
+    case ELDDemoEffectOp::GroundState:
+    case ELDDemoEffectOp::Fan:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::Disarm:
@@ -1877,12 +1881,13 @@ bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
 
 FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI)
 {
-    const TArray<FLDBreakoutPreset>& Presets = LDBreakoutPresets::All();
+    TArray<const FLDBreakoutPreset*> Presets;
+    for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All()) { if (Preset.bAIGoal) { Presets.Add(&Preset); } }
     if (Presets.IsEmpty() || AI.BreakoutChanceBp <= 0) { return NAME_None; }
     // One deterministic draw per contender and match: the chance roll and the preset come from the same hash.
     const uint32 Hash = HashCombine(GetTypeHash(Contender), GetTypeHash(Generation));
     if (int64(Hash % 10000) >= AI.BreakoutChanceBp) { return NAME_None; }
-    return FName(Presets[(Hash / 10000) % uint32(Presets.Num())].Id);
+    return FName(Presets[(Hash / 10000) % uint32(Presets.Num())]->Id);
 }
 
 namespace

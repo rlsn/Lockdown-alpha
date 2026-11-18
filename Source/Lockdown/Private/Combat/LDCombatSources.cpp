@@ -314,7 +314,8 @@ bool LDCombatSourceRules::IsOffensive(const FLDDemoAbilityValues& Values)
         case ELDDemoEffectOp::ChannelCone: case ELDDemoEffectOp::GroundImpact: case ELDDemoEffectOp::ContactTrap:
         case ELDDemoEffectOp::DashContact:
         case ELDDemoEffectOp::Wet: case ELDDemoEffectOp::Electrify: case ELDDemoEffectOp::ChainBounce:
-        case ELDDemoEffectOp::ZoneWet: case ELDDemoEffectOp::Grievous:
+        case ELDDemoEffectOp::ZoneWet: case ELDDemoEffectOp::Rot: case ELDDemoEffectOp::Chill: case ELDDemoEffectOp::Gust:
+        case ELDDemoEffectOp::GroundState: case ELDDemoEffectOp::Fan:
             return true;
         default:
             return false;
@@ -1013,6 +1014,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     if (Body && !Body->bPendingDeath && !EffectiveMoveSpeed(*Body,MoveSpeed))
     { MoveSpeed=LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec); }
     Out.MoveSpeedCmPerSec=float(MoveSpeed);
+    Out.MoveAccelScale=Body && !Body->bPendingDeath ? MoveAccelScaleOf(*Body) : 1.f;
     Out.AttackRangeCm=float(LDCombatSourcesDetail::RationalValue(Projection.Final.AttackRangeCm));
     for (const FLDAttributeContributions& Row : Projection.Contributions)
     {

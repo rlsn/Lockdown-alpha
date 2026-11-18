@@ -279,7 +279,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     const int64 StunMs=Hit.StunDurationMs;
     // Spec §8: an effective hit lost HP or had its damage absorbed by a shield.
     const bool bEffective=Damage.HPLostP2>0 || Damage.ShieldAbsorbedP2>0;
-    // Cards' elements on this hit: A16/A17 on a primary basic, K19-K21 on an effective native hit of their host skill. Derived,
+    // Cards' elements on this hit: A16-A19 on a primary basic, K19-K24 on an effective native hit of their host skill. Derived,
     // reflected, rider, status and settle hits carry none. Each is a ledger trigger once the element batch applies it.
     TArray<FName> ElementTriggers;
     if (Source && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bBurnTick && !Hit.bFromShieldTrigger && !Hit.bRider)
@@ -399,24 +399,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         }
         if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
         { return false; }
-        // #198 S21: the cut of the target's new heals and shields.
-        if (Hit.GrievousBp>0 && Hit.GrievousMs>0)
-        {
-            int64 Until=0;
-            if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.GrievousMs,Until,Error)) { return false; }
-            if (LDCombatElements::ApplyGrievous(Body->Grievous,Hit.GrievousBp,Until,NowMs))
-            {
-                bControlled=true;
-                ++Body->StateRevision;
-                RecordAssistContribution(*Body,Hit.CreditOwner,NowMs);
-            }
-        }
     }
     // #147: the shared breach and burn this hit (its payload, its card fire or its source's basic triggers) adds.
     if (bControllable && !ApplyKeywordStacks(*Body,Hit,Source,NowMs,Error)) { return false; }
-    // #198: an electrified target that took positive damage discharges (before this hit's own elements), then the hit's
-    // element batch applies.
-    if (bControllable && Damage.DamageP2>0 && !TryDischarge(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
+    // Spec §8.1: a shocked target counts the direct damage it takes (before this hit's own elements); status damage, ticks
+    // and shock strikes never count. Then the hit's element batch applies.
+    if (bControllable && Damage.DamageP2>0 && !Hit.bStatusSettle && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bOverchargeDischarge
+        && !CountShock(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
     if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error)) { return false; }
     if (bControllable) { for (const FName& Card : ElementTriggers) { LedgerCardTriggered(*Source,Card); } }
     bool bSendOwnHit=false;

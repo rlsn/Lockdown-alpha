@@ -154,6 +154,89 @@ struct FLDDemoOverdriveParameters
     UPROPERTY() int64 RotDurationBp = 0;
     UPROPERTY() FLDDemoRational GustPushCm;
     UPROPERTY() int64 GustPushMs = 0;
+    // Chill: the overdrive roots its targets (hard control, diminishing returns).
+    UPROPERTY() int64 ChillRootMs = 0;
+};
+
+// Issue #287 spec §3.10 and §8.1-§8.2 element and reaction terms beyond the #198 water/fire ones (COMBAT.*): shock (every
+// ShockEveryNthHit-th direct hit on the holder strikes ShockRatio x R on it and on the applier's other enemies within
+// ShockSplashRadiusCm), chill (attack and move slow), rot (heal and shield cut, damage every RotTickMs), gust (push) and the
+// reactions' ratios of R, stacks, durations and distances.
+USTRUCT()
+struct FLDDemoElementParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 ShockMs = 0;
+    UPROPERTY() int64 ShockEveryNthHit = 0;
+    UPROPERTY() int64 ShockRatioBp = 0;
+    UPROPERTY() FLDDemoRational ShockSplashRadiusCm;
+    UPROPERTY() int64 ChillMs = 0;
+    UPROPERTY() int64 ChillAttackSlowBp = 0;
+    UPROPERTY() int64 ChillMoveSlowBp = 0;
+    UPROPERTY() int64 RotMs = 0;
+    UPROPERTY() int64 RotHealCutBp = 0;
+    UPROPERTY() int64 RotPerSecP2 = 0;
+    UPROPERTY() int64 RotAPRatioPerSecBp = 0;
+    UPROPERTY() int64 RotTickMs = 0;
+    UPROPERTY() FLDDemoRational GustPushCm;
+    UPROPERTY() int64 GustPushMs = 0;
+    UPROPERTY() int64 ConductRatioBp = 0;
+    UPROPERTY() int64 OverloadRatioBp = 0;
+    UPROPERTY() int64 MeltRatioBp = 0;
+    UPROPERTY() int64 MethaneRatioBp = 0;
+    UPROPERTY() int64 MethaneBurnStacks = 0;
+    UPROPERTY() FLDDemoRational MethaneRadiusCm;
+    UPROPERTY() int64 FirestormBurnScale = 0;
+    UPROPERTY() int64 FreezeRootMs = 0;
+    UPROPERTY() int64 FermentRotMs = 0;
+    UPROPERTY() int64 FermentHealCutBp = 0;
+    UPROPERTY() FLDDemoRational SplashPushCm;
+    UPROPERTY() int64 ShatterSkillDamageBp = 0;
+    UPROPERTY() int64 ShatterMs = 0;
+    UPROPERTY() int64 CorrodeBreachStacks = 0;
+    UPROPERTY() int64 CorrodeBreachMs = 0;
+    UPROPERTY() FLDDemoRational ThunderstormKnockbackCm;
+    UPROPERTY() int64 FrostbiteAttackSlowBp = 0;
+    UPROPERTY() int64 FrostbiteMs = 0;
+    UPROPERTY() int64 BlizzardRatioBp = 0;
+    UPROPERTY() int64 SmokeDisarmMs = 0;
+};
+
+// Spec §8.3 ground states (GROUND.*): radius, life and tick of each kind, ice's inertia and displacement scales, the fire
+// ground's layers, the field's damage ratio and gust discharge reach, the blizzard slow, how far a gust moves fire and miasma,
+// and the performance caps per owner and per map.
+USTRUCT()
+struct FLDDemoGroundParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FLDDemoRational PuddleRadiusCm;
+    UPROPERTY() int64 PuddleMs = 0;
+    UPROPERTY() int64 PuddleTickMs = 0;
+    UPROPERTY() FLDDemoRational IceRadiusCm;
+    UPROPERTY() int64 IceMs = 0;
+    UPROPERTY() int64 IceAccelScaleBp = 0;
+    UPROPERTY() int64 IceDisplacementScaleBp = 0;
+    UPROPERTY() FLDDemoRational FireRadiusCm;
+    UPROPERTY() int64 FireMs = 0;
+    UPROPERTY() int64 FireTickMs = 0;
+    UPROPERTY() int64 FireBurnStacks = 0;
+    UPROPERTY() FLDDemoRational MiasmaRadiusCm;
+    UPROPERTY() int64 MiasmaMs = 0;
+    UPROPERTY() int64 MiasmaTickMs = 0;
+    UPROPERTY() FLDDemoRational FieldRadiusCm;
+    UPROPERTY() int64 FieldMs = 0;
+    UPROPERTY() int64 FieldTickMs = 0;
+    UPROPERTY() int64 FieldRatioBp = 0;
+    UPROPERTY() FLDDemoRational FieldDischargeRadiusCm;
+    UPROPERTY() FLDDemoRational BlizzardRadiusCm;
+    UPROPERTY() int64 BlizzardMs = 0;
+    UPROPERTY() int64 BlizzardTickMs = 0;
+    UPROPERTY() int64 BlizzardSlowBp = 0;
+    UPROPERTY() FLDDemoRational GustMoveCm;
+    UPROPERTY() int64 MaxPerOwner = 0;
+    UPROPERTY() int64 MaxTotal = 0;
 };
 
 // Skill ranks 1..3 (SKILL.*): rank r scales the grown base amounts by RankBaseScaleBp[r - 1] and the AD/AP/max-HP
@@ -329,18 +412,15 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
     UPROPERTY() int64 KeystoneAgilityADRatioBp = 0;
     UPROPERTY() int64 KeystoneAgilityEmpowerDurationMs = 0;
-    // #198 elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs
-    // from their own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp; electrified lasts
-    // ElectrifiedMs and, on later positive damage, discharges R to the nearest other enemy within DischargeRadiusCm at
-    // most once per DischargeIntervalMs per target. R = ReactionBase + ReactionPerLevel x (L - 1) + ReactionAPRatio x AP
-    // of the element's applier. Fog (fire + water): a FogRadiusCm zone for FogMs giving wet every FogIntervalMs to
-    // element-free enemies; conduct (water + electric): R within ConductRadiusCm to wet enemies, ConductSlowBp for
-    // ConductSlowMs; overload (fire + electric): R within OverloadRadiusCm and OverloadBreachStacks of breach.
+    // Elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs from their
+    // own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp. R = ReactionBase + ReactionPerLevel x
+    // (L - 1) + ReactionAPRatio x AP of the reaction's trigger. Fog (fire + water): a FogRadiusCm zone for FogMs giving wet
+    // every FogIntervalMs to element-free enemies; conduct (water + shock): the primary slowed by ConductSlowBp for
+    // ConductSlowMs, the other wet enemies within ConductRadiusCm take R; overload (fire + shock): OverloadBreachStacks of
+    // breach, the others within OverloadRadiusCm take R. The other element and reaction terms are Elements, ground states
+    // Ground.
     UPROPERTY() int64 WetMs = 0;
     UPROPERTY() int64 WetSlowBp = 0;
-    UPROPERTY() int64 ElectrifiedMs = 0;
-    UPROPERTY() FLDDemoRational DischargeRadiusCm;
-    UPROPERTY() int64 DischargeIntervalMs = 0;
     UPROPERTY() int64 ReactionBaseP2 = 0;
     UPROPERTY() int64 ReactionPerLevelP2 = 0;
     UPROPERTY() int64 ReactionAPRatioBp = 0;
@@ -374,6 +454,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BuildSafeWindowMs = 0;
     UPROPERTY() FLDDemoAIParameters AI;
     UPROPERTY() FLDDemoCardParameters Cards;
+    UPROPERTY() FLDDemoElementParameters Elements;
+    UPROPERTY() FLDDemoGroundParameters Ground;
     // Spec §3.7: the product of a hit's damage factors stops at DamageFactorTechCapBp (DAMAGE.FactorTechCap, a technical
     // guard logged as LD_DAMAGE_FACTOR_CAPPED). Spec §3.8: an effect chain stops deriving past ChainMaxDepth steps and one
     // authority step derives at most ChainMaxEffectsPerStep effects (the rest wait for the next step), logged LD_CHAIN_GUARD.
@@ -465,10 +547,10 @@ enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, Directio
 UENUM()
 enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete };
 
-// #198 water/fire/electric. Fire is burn stacks; water (wet) and electric (shocked) are owned by the element state of
-// #198 A. A component effect or binding names one of them.
+// The element a card effect, branch or Y25 choice names (content "fire|water|electric|chill|rot|gust"; electric is the shock
+// element). Fire is burn stacks; the others are LDCombatElements marks, gust a push.
 UENUM()
-enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3 };
+enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3, Chill = 4, Rot = 5, Gust = 6 };
 
 // The element an active carries (its own or a branch's): it picks the overdrive bonus (CONTENT_AND_BALANCE §3.5).
 UENUM()
@@ -658,6 +740,10 @@ struct FLDDemoEffectDefinition
     UPROPERTY() bool bAsDash = false;
     UPROPERTY() bool bFreeDirection = false;
     UPROPERTY() bool bAlwaysCrit = false;
+    // Issue #287 P4: the ground state a ground_state effect leaves (ELDGroundStateKind; 0 = none) and whether N2's fan carries
+    // its owner's last applied element (3A2).
+    UPROPERTY() uint8 GroundKind = 0;
+    UPROPERTY() bool bCarryElement = false;
     // #198 F workshop field use (content.json key -> field): damage_ratio MultiplierBp (a damage multiplier of the target's
     // package), ratio RatioBp (a geometry/time multiplier or a share), cooldown_ratio SecondaryRatioBp, cost_ratio CostRatioBp,
     // angle AngleDegrees, range_cap and radius RadiusCm, distance DistanceCm, stun_duration/root_duration SecondaryDurationMs,
@@ -708,6 +794,14 @@ struct FLDDemoEffectDefinition
     // (another active's native direct hit spends one pending host package as an added hit); control_widen RatioBp (area
     // bonus of the next different active release) + DurationMs (token window after the host's hard control);
     // zone_detonate RatioBp (share of the zone's remaining damage pulses paid at once).
+    // Issue #287 P4 (docs/systems/COMBAT_AND_GROWTH.md): rot RatioBp (heal and shield cut) + DurationMs, 0 = COMBAT.Rot*;
+    // chill no fields; gust DistanceCm (push, 0 = COMBAT.GustPushCm); ground_state GroundKind + DurationMs (0 = GROUND.*Sec)
+    // + RatioBp (radius multiplier, 0 = GROUND.*RadiusCm) + SecondaryRatioBp (the owner's damage factor on enemies standing
+    // on it) + MultiplierBp (attack slow of enemies inside); fan DurationMs + IntervalMs (blows) + RadiusCm (rectangle
+    // length) + ExtraDistanceCm (rectangle width) + DistanceCm (push) + AngleDegrees (sweep per second either way) +
+    // ExtraDurationMs (stun when a blow pushes into a wall) + bCarryElement + BaseP2 (momentum per blow that touches an
+    // enemy); channel_cone ExtraDurationMs (a root on the last wave); dash_ice RadiusCm (path width) + DurationMs;
+    // ground_relocate and double_stall no fields; ground_growth RatioBp (factor per interval) + IntervalMs.
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };

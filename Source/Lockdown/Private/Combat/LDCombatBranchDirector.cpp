@@ -330,8 +330,11 @@ bool ALDCombatDirector::ApplyBranchRiders(const FLDCombatHit& Hit, FLDBodyCombat
             Payload.ADRatioBp=Effect.ADRatioBp;
             Payload.APRatioBp=Effect.APRatioBp;
             Payload.DamageType=Effect.DamageType;
-            Payload.bApplyElectric=Effect.Element==ELDDemoElement::Electric;
-            Payload.bApplyWet=Effect.Element==ELDDemoElement::Water;
+            if (Effect.Element!=ELDDemoElement::None && Effect.Element!=ELDDemoElement::Fire)
+            { Payload.NativeElements|=LDCombatElements::Bit(LDCombatElements::FromDemo(Effect.Element)); }
+            // N3 B1: the second blast's rot lasts its own duration.
+            Payload.RotMs=Effect.Element==ELDDemoElement::Rot ? Effect.ExtraDurationMs : 0;
+            Row.MomentumP2=Effect.LimitP2;
             Payload.AttackSlowBp=Effect.RatioBp;
             Payload.AttackSlowMs=Effect.DurationMs;
             Payload.bAddedDamage=true;
@@ -446,6 +449,7 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
                 FLDCombatHit Hit=Row.Payload;
                 Hit.HitId=FGuid::NewGuid();
                 PendingHits.Add(MoveTemp(Hit));
+                if (Row.MomentumP2>0 && Source && !Source->bPendingDeath) { GrantMomentum(*Source,Row.MomentumP2,ELDMomentumBook::Skill); }
             }
             if (Row.Remaining>0 && !LDMatchLifecycle::AddDurationMs(Row.DueMs,Row.IntervalMs,Row.DueMs,Error)) { return false; }
         }
@@ -501,7 +505,7 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
             Blast.Payload=MakeHit(Body,Branch.DashEndExit,FLDCombatBodyRef(),Branch.DashEndEffectId);
             Blast.Payload.BaseP2=Share(R,Burst.RatioBp);
             Blast.Payload.DamageType=ELDDemoDamageType::Magical;
-            Blast.Payload.bApplyElectric=true;
+            Blast.Payload.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Shock);
             Blast.Payload.bDirectAbilityDamage=true;
             Blast.Payload.CastLedger=Branch.DashEndLedger;
             if (!StampElementSnapshot(Body,Blast.Payload,Error) || !StampSourceTerms(Body,Blast.Payload,Error)) { return false; }
@@ -666,34 +670,26 @@ bool ALDCombatDirector::EndBranchProjectile(const FLDCombatProjectile& Projectil
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Rider.DurationMs,Thrower->Branch.NextBasicAmpUntilMs,Error)) { return false; }
         }
     }
-    // S21 A2: where the outbound flight ends it leaves an area that keeps applying its cut and attack slow.
-    if (!Projectile.bReturn && Projectile.LandingZone.IsSet())
+    // N3 and S21 A2: where the outbound flight ends (its hit point or its range) it leaves its ground state, owned by the
+    // thrower at the release snapshot (one live instance per skill; Y12 adds one).
+    if (!Projectile.bReturn && Projectile.LandingGround.IsSet())
     {
-        const FLDDemoEffectDefinition& Landing=Projectile.LandingZone.GetValue();
+        const FLDDemoEffectDefinition& Landing=Projectile.LandingGround.GetValue();
         const FLDCombatHit& Payload=Projectile.Payload;
-        FLDCombatZone Zone;
-        Zone.EffectId=Payload.EffectId;
-        Zone.ObservedKey=FGuid::NewGuid();
-        Zone.SourceBody=Payload.SourceBody;
-        Zone.SourceEntity=Payload.SourceEntity;
-        Zone.CreditOwner=Payload.CreditOwner;
-        Zone.Source=Payload.Source;
-        Zone.CentreCm=EndCm;
-        Zone.RadiusCm=LDCombatBranchDetail::Cm(Landing.RadiusCm);
-        Zone.StartMs=NowMs;
-        Zone.DelayMs=0;
-        Zone.IntervalMs=FMath::Max<int64>(Landing.IntervalMs,1);
-        Zone.Count=int32(FMath::Clamp<int64>(Landing.DurationMs/Zone.IntervalMs,1,20));
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Landing.DurationMs,Zone.EndMs,Error)) { return false; }
-        Zone.PulseAttackSlowBp=Payload.AttackSlowBp;
-        Zone.PulseAttackSlowMs=Payload.AttackSlowMs;
-        Zone.PulseGrievousBp=Payload.GrievousBp;
-        Zone.PulseGrievousMs=Payload.GrievousMs;
-        Zone.ElementLevel=Payload.ElementLevel;
-        Zone.ElementAPP2=Payload.ElementAPP2;
-        Zone.CastLedger=Payload.CastLedger;
-        Zone.CreatedSerial=++NextAreaSerial;
-        Zones.Add(MoveTemp(Zone));
+        FLDGroundTerms Ground;
+        if (!GroundTerms(Ground,Error)) { return false; }
+        FLDElementApplier LandingOwner;
+        LandingOwner.SourceEntity=Payload.SourceEntity;
+        LandingOwner.SourceBody=Payload.SourceBody;
+        LandingOwner.CreditOwner=Payload.CreditOwner;
+        LandingOwner.Source=Payload.Source;
+        LandingOwner.Level=FMath::Max(Payload.ElementLevel,1);
+        LandingOwner.SourceAPP2=Payload.ElementAPP2;
+        LandingOwner.EffectId=Payload.EffectId;
+        const ELDGroundStateKind Kind=static_cast<ELDGroundStateKind>(Landing.GroundKind);
+        const double Radius=Landing.RatioBp>0 ? Ground.Of(Kind).RadiusCm*double(Landing.RatioBp)/10000. : 0.;
+        if (!SpawnGround(Kind,LandingOwner,EndCm,NowMs,Error,Radius,Landing.DurationMs,FVector2D(1,0),0,0,Landing.SecondaryRatioBp,
+            Landing.MultiplierBp)) { return false; }
     }
     return true;
 }

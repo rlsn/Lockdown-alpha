@@ -104,12 +104,11 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     Elemental.BurnStacks=1;
     TestEqual(TEXT("Burn payload marks a fire hit"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Fire);
     Elemental.BurnStacks=0;
-    Elemental.bApplyWet=true;
+    Elemental.NativeElements=LDCombatElements::Bit(ELDCombatElement::Water);
     TestEqual(TEXT("Wet payload marks a water hit"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Water);
-    Elemental.bApplyElectric=true;
-    TestEqual(TEXT("Electric payload remains identifiable when paired with wet"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Electric);
-    Elemental.bApplyWet=false;
-    Elemental.bApplyElectric=false;
+    Elemental.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Shock);
+    TestEqual(TEXT("Shock payload remains identifiable when paired with wet"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Electric);
+    Elemental.NativeElements=0;
     Elemental.DamageType=ELDDemoDamageType::Physical;
     TestEqual(TEXT("An unmarked physical hit remains generic"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::None);
 

@@ -212,19 +212,30 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
         }
         break;
     case ELDDemoSkillElement::Rot:
-        // The cut of heals and shields lasts OVERDRIVE.RotDurationScale times longer.
-        if (FLDDemoEffectDefinition* Grievous=Find(ELDDemoEffectOp::Grievous))
-        { Grievous->DurationMs=Grievous->DurationMs/10000*O.RotDurationBp+Grievous->DurationMs%10000*O.RotDurationBp/10000; }
+        // The rot lasts OVERDRIVE.RotDurationScale times longer (its own duration, or the approved COMBAT.RotSec).
+        if (FLDDemoEffectDefinition* Rot=Find(ELDDemoEffectOp::Rot))
+        {
+            const int64 Base=Rot->DurationMs>0 ? Rot->DurationMs : P.Elements.RotMs;
+            Rot->DurationMs=Base/10000*O.RotDurationBp+Base%10000*O.RotDurationBp/10000;
+        }
+        break;
+    case ELDDemoSkillElement::Chill:
+        // The chill roots for OVERDRIVE.ChillRootSec (hard control, diminishing returns; control times never scale).
+        if (Find(ELDDemoEffectOp::Chill))
+        {
+            FLDDemoEffectDefinition* Root=Find(ELDDemoEffectOp::Root);
+            if (!Root) { Root=&Values.Effects.AddDefaulted_GetRef(); Root->Opcode=uint8(ELDDemoEffectOp::Root); }
+            Root->DurationMs=FMath::Max(Root->DurationMs,O.ChillRootMs);
+        }
         break;
     case ELDDemoSkillElement::Gust:
-        // The last wave pushes OVERDRIVE.GustPushCm over OVERDRIVE.GustPushSec instead of slowing.
-        if (Find(ELDDemoEffectOp::ChannelCone))
+        // The gust pushes OVERDRIVE.GustPushCm over OVERDRIVE.GustPushSec and leaves the ground state of the element its target
+        // held where the push lands.
+        if (FLDDemoEffectDefinition* Gust=Find(ELDDemoEffectOp::Gust))
         {
-            FLDDemoEffectDefinition Push;
-            Push.Opcode=uint8(ELDDemoEffectOp::FinalKnockback);
-            Push.DistanceCm=O.GustPushCm;
-            Push.DurationMs=O.GustPushMs;
-            Terms.FinalKnockbackTerms=Push;
+            Gust->DistanceCm=O.GustPushCm;
+            Gust->DurationMs=O.GustPushMs;
+            Terms.bOverdriveGustGround=true;
         }
         break;
     default:

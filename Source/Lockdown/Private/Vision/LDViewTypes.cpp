@@ -34,11 +34,12 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
     case ELDDemoStatusId::AttackSlowed:
-    // #198 elements, the S16 stance and the S21 cut.
+    // Spec §8.1 held elements and the S16 stance.
     case ELDDemoStatusId::Wet:
     case ELDDemoStatusId::Electrified:
+    case ELDDemoStatusId::Chilled:
+    case ELDDemoStatusId::Rotten:
     case ELDDemoStatusId::Braced:
-    case ELDDemoStatusId::Soured:
     case ELDDemoStatusId::CampEnraged:
     case ELDDemoStatusId::CampGuarding:
         return true;
@@ -185,6 +186,39 @@ bool SerializeObservedProjectile(FArchive& Ar, UPackageMap* Map, FLDObservedProj
     return bPosition && !Ar.IsError();
 }
 
+// 16 bytes (LDObservation::GroundStateWireBytes): id, kind | shape << 3, seat, X and Y as signed 24-bit centimetres, Z as
+// signed 16-bit 2 cm steps, radius in 4 cm steps, extent in 8 cm (band) or 2 degree (sector) steps, heading in 256 steps,
+// remaining and life in 50 ms steps.
+bool SerializeObservedGround(FArchive& Ar, FLDObservedGroundState& Ground)
+{
+    const auto Clamp24 = [](double Value) { return int32(FMath::Clamp(FMath::RoundToDouble(Value), -8388608., 8388607.)); };
+    uint8 KindShape = uint8((Ground.Kind & 7) | (uint8(Ground.Shape) << 3));
+    int32 X = Clamp24(Ground.CentreCm.X), Y = Clamp24(Ground.CentreCm.Y);
+    int16 Z = int16(FMath::Clamp(FMath::RoundToDouble(Ground.CentreCm.Z * .5), -32768., 32767.));
+    uint8 Radius = uint8(FMath::Clamp(FMath::RoundToDouble(Ground.RadiusCm * .25), 0., 255.));
+    const double ExtentStep = Ground.Shape == ELDObservedGroundShape::Sector ? 2. : 8.;
+    uint8 Extent = uint8(FMath::Clamp(FMath::RoundToDouble(Ground.ExtentCm / ExtentStep), 0., 255.));
+    uint8 Remaining = uint8(FMath::Clamp((int64(Ground.RemainingMs) + 49) / 50, int64(0), int64(255)));
+    uint8 Life = uint8(FMath::Clamp((int64(Ground.LifeMs) + 49) / 50, int64(0), int64(255)));
+    uint8 XYZ[8] = {uint8(X), uint8(X >> 8), uint8(X >> 16), uint8(Y), uint8(Y >> 8), uint8(Y >> 16), uint8(uint16(Z)), uint8(uint16(Z) >> 8)};
+    Ar << Ground.Id << KindShape << Ground.OwnerSeat;
+    Ar.Serialize(XYZ, 8);
+    Ar << Radius << Extent << Ground.Heading << Remaining << Life;
+    if (Ar.IsLoading())
+    {
+        const auto Sign24 = [](uint32 Raw) { return int32(Raw << 8) >> 8; };
+        Ground.Kind = KindShape & 7;
+        Ground.Shape = static_cast<ELDObservedGroundShape>(KindShape >> 3);
+        Ground.CentreCm = FVector(Sign24(XYZ[0] | XYZ[1] << 8 | XYZ[2] << 16), Sign24(XYZ[3] | XYZ[4] << 8 | XYZ[5] << 16),
+            double(int16(uint16(XYZ[6] | XYZ[7] << 8))) * 2.);
+        Ground.RadiusCm = float(Radius) * 4.f;
+        Ground.ExtentCm = float(Extent) * (Ground.Shape == ELDObservedGroundShape::Sector ? 2.f : 8.f);
+        Ground.RemainingMs = uint32(Remaining) * 50;
+        Ground.LifeMs = uint32(Life) * 50;
+    }
+    return !Ar.IsError();
+}
+
 bool RejectObservationArchive(FArchive& Ar, bool& bSuccess)
 {
     bSuccess = false;
@@ -301,12 +335,46 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     return true;
 }
 
+bool LDObservation::ValidateGround(const FLDObservedGroundState& Ground, FString& Error)
+{
+    if (Ground.Kind < 1 || Ground.Kind > 6 || uint8(Ground.Shape) > uint8(ELDObservedGroundShape::Sector)
+        || (Ground.OwnerSeat >= MaxPresentations && Ground.OwnerSeat != 255) || !IsFiniteObservedPoint(Ground.CentreCm)
+        || !FMath::IsFinite(Ground.RadiusCm) || Ground.RadiusCm <= 0 || !FMath::IsFinite(Ground.ExtentCm) || Ground.ExtentCm < 0
+        || (Ground.Shape == ELDObservedGroundShape::Circle) != (Ground.ExtentCm == 0)
+        || (Ground.Shape == ELDObservedGroundShape::Sector && Ground.ExtentCm > 360) || Ground.RemainingMs > Ground.LifeMs)
+    { return FailObservation(Error, TEXT("An observed ground state is outside its public domain.")); }
+    Error.Reset();
+    return true;
+}
+
+FLDObservedGroundState LDObservation::GroundView(const FLDObservedGroundFact& Fact)
+{
+    // Quantized exactly as the wire keeps it, so a Listen Host's local view matches what a client decodes.
+    FLDObservedGroundState Out;
+    Out.Id = uint8(Fact.Id & 0xff);
+    Out.Kind = Fact.Kind;
+    Out.Shape = Fact.AngleDegrees > 0 ? ELDObservedGroundShape::Sector : Fact.HalfLengthCm > 0 ? ELDObservedGroundShape::Band
+        : ELDObservedGroundShape::Circle;
+    Out.OwnerSeat = Fact.OwnerSeat < MaxPresentations ? Fact.OwnerSeat : 255;
+    Out.CentreCm = FVector(FMath::RoundToDouble(Fact.CentreCm.X), FMath::RoundToDouble(Fact.CentreCm.Y),
+        FMath::RoundToDouble(Fact.CentreCm.Z * .5) * 2.);
+    Out.RadiusCm = FMath::Max(1.f, FMath::RoundToFloat(FMath::Min(Fact.RadiusCm, 1020.f) * .25f)) * 4.f;
+    Out.ExtentCm = Out.Shape == ELDObservedGroundShape::Sector ? FMath::Max(1.f, FMath::RoundToFloat(FMath::Min(Fact.AngleDegrees, 360.f) * .5f)) * 2.f
+        : Out.Shape == ELDObservedGroundShape::Band ? FMath::Max(1.f, FMath::RoundToFloat(FMath::Min(Fact.HalfLengthCm, 2040.f) / 8.f)) * 8.f : 0.f;
+    const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(Fact.Heading.Y, Fact.Heading.X));
+    Out.Heading = uint8(int32(FMath::RoundToDouble(Yaw / 360. * 256.)) & 0xff);
+    Out.LifeMs = uint32(FMath::Clamp((int64(Fact.LifeMs) + 49) / 50, int64(1), int64(255))) * 50;
+    Out.RemainingMs = FMath::Min(Out.LifeMs, uint32(FMath::Clamp((int64(Fact.RemainingMs) + 49) / 50, int64(0), int64(255))) * 50);
+    return Out;
+}
+
 bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error)
 {
     if (!Projectile.Handle.IsValid()) { return FailObservation(Error, TEXT("An observed projectile requires an opaque handle.")); }
     if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
     if (!FMath::IsFinite(Projectile.LengthCm) || Projectile.LengthCm<0
-        || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.Look!=ELDObservedProjectileLook::LineWarning && Projectile.LengthCm!=0)
+        || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.Look!=ELDObservedProjectileLook::LineWarning
+            && Projectile.Look!=ELDObservedProjectileLook::Wind && Projectile.LengthCm!=0)
         || !FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
         || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
         || Projectile.InnerRadiusCm < 0 || Projectile.InnerRadiusCm > Projectile.RadiusCm
@@ -323,6 +391,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
         {return FailObservation(Error,TEXT("A cone warning needs its locked reach and angle."));}
         break;
     case ELDObservedProjectileLook::Road:
+    case ELDObservedProjectileLook::Wind:
         if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0
             || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)
         {return FailObservation(Error,TEXT("A road needs its walked length and half-width, without a landing warning."));}
@@ -389,12 +458,17 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     else if (Footprint.SourceStatus == ELDObservationSource::NoLivingBody)
     {
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
-            || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0)
+            || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0 || View.GroundStates.Num() != 0)
         { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
-    if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles)
+    if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles
+        || View.GroundStates.Num() > MaxGroundStates)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
+    for (const FLDObservedGroundState& Ground : View.GroundStates)
+    {
+        if (!ValidateGround(Ground, Error)) { return false; }
+    }
     TSet<FGuid> Handles;
     for (const FLDObservedUnitView& Unit : View.Units)
     {
@@ -497,6 +571,14 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     for (FLDObservedProjectileView& Projectile : Projectiles)
     {
         if (!SerializeObservedProjectile(Ar, Map, Projectile)) { return RejectObservationArchive(Ar, bSuccess); }
+    }
+    uint8 GroundCount = uint8(FMath::Min(GroundStates.Num(), 255));
+    Ar << GroundCount;
+    if (Ar.IsError() || GroundCount > LDObservation::MaxGroundStates) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsLoading()) { GroundStates.SetNum(GroundCount); }
+    for (FLDObservedGroundState& Ground : GroundStates)
+    {
+        if (!SerializeObservedGround(Ar, Ground)) { return RejectObservationArchive(Ar, bSuccess); }
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     bSuccess = true;

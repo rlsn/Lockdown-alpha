@@ -195,6 +195,8 @@ struct FLDCombatActiveTerms
     int32 SplitSegments=0;
     FLDDemoRational SplitDistanceCm;
     int64 SplitWindowMs=0;
+    // A gust overdrive (spec §3.5): its hits leave the ground state of the element their target held where the push lands.
+    bool bOverdriveGustGround=false;
 };
 
 // Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun, final bowling).
@@ -433,12 +435,17 @@ struct FLDBodyCombatState
     uint64 ChannelDirectSequence=0;
     int64 ChannelStartedAtMs=0;
     TSharedPtr<FLDCombatDashContact> DashContact;
-    // #198 elements (LDCombatElements): the water or electric mark (fire is Burn), the electric discharge rest of this
-    // target, the S16 stance and the S21 cut of new heals and shields.
+    // Elements (LDCombatElements): the water, shock, chill or rot mark (fire is Burn), the S16 stance and a shatter (shock +
+    // chill): the next skill hit on this life within ShatterUntilMs takes ShatterBp more (its own factor), then it ends.
     FLDCombatElementMark ElementMark;
-    int64 DischargeReadyAtMs=0;
     FLDCombatBrace Brace;
-    FLDCombatGrievous Grievous;
+    int64 ShatterBp=0, ShatterUntilMs=0;
+    // Spec §8.3: the enemy ice ground state this body's foot stood on at the last ground advance (movement inertia and the
+    // knockback and dash scale read it); Y23's standing start on its own ground state (0 = not standing on one).
+    bool bOnEnemyIce=false;
+    int64 TurfSinceMs=0;
+    // N2 A2: the last element (not gust) this life applied to another body; its fans carry it.
+    ELDCombatElement LastAppliedElement=ELDCombatElement::None;
     // #198 B12: the voluntary dash in flight (ResolveDashCompletions arms DashComplete empowers when it completes).
     TOptional<FLDCombatVoluntaryDash> VoluntaryDash;
     // Card state of this life (LDCombatCards.cpp): Y08's watched knockback, per-release budgets, K04's marks, A12's focus
@@ -594,17 +601,25 @@ struct FLDCombatHit
     // #147 build v7 keyword payload (docs/systems/COMBAT_AND_GROWTH.md).
     int64 SilenceDurationMs=0;
     int32 BreachStacks=0;            // shared breach stacks this hit applies
+    int64 BreachMs=0;                // their shared breach lasts this long when positive (corrode); else COMBAT.BreachSec
     int32 BurnStacks=0;              // fire layers this hit applies (LDCombatElements batch: fire, water, electric)
     // #198 elements: wet and electric this hit applies; ElementLevel/ElementAPP2 are the applier snapshot every element of
     // the hit reads (fire damage, reaction damage, discharges). StampElementSnapshot fills them.
-    bool bApplyWet=false;
-    bool bApplyElectric=false;
+    // The hit's own (native) elements other than fire, one bit each (LDCombatElements::Bit); fire is BurnStacks.
+    uint8 NativeElements=0;
     int32 ElementLevel=1;
     int64 ElementAPP2=0;
     // Status or settle damage (early fire settle, discharge, reaction): never a skill hit for readers (AI spec §8).
     bool bStatusSettle=false;
-    // S21: new heals and shields of the target are cut by GrievousBp for GrievousMs.
-    int64 GrievousBp=0, GrievousMs=0;
+    // The rot this hit applies when it differs from COMBAT.Rot* (S21 A1's cut and duration, N3 B1's longer rot); 0 = approved.
+    int64 RotCutBp=0, RotMs=0;
+    // Gust: the push of this hit's gust when it differs from COMBAT.GustPush* (N2's fan, a gust overdrive), its direction
+    // (zero: away from the source's foot), and a gust overdrive's ground state for the element the target held.
+    double GustPushCm=0;
+    int64 GustPushMs=0;
+    FVector GustDirection=FVector::ZeroVector;
+    bool bGustGround=false;
+    // An overdrive's chill root (OVERDRIVE.ChillRootSec) rides with its chill.
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
     int64 AttackSlowBp=0, AttackSlowMs=0;
     // Delivery scaling is separate from the additive damage bonus pool (impact outer ring, for example).
@@ -619,12 +634,17 @@ struct FLDCombatHit
     bool bDirectAbilityDamage=false;
     bool bDashContactHit=false;
     bool bChannelHit=false;
-    // Cards: burn layers a card's fire adds to this hit (ApplyCardElement), credited to CardBurnSource; a card's water or
-    // electric on this hit, applied as that card's own application after the hit's native element of the same kind.
+    // Cards: burn layers a card's fire adds to this hit (ApplyCardElement), credited to CardBurnSource; a card's other element
+    // on this hit (one per element, the first card naming it), applied as that card's own application after the hit's native
+    // element of the same kind.
     int32 CardBurnStacks=0;
     FLDCombatSourceRef CardBurnSource;
-    FLDCombatSourceRef CardWetSource;
-    FLDCombatSourceRef CardElectricSource;
+    TArray<TPair<ELDCombatElement,FLDCombatSourceRef>> CardElements;
+    bool CarriesElement(ELDCombatElement Element) const
+    {
+        return (NativeElements & LDCombatElements::Bit(Element))!=0
+            || CardElements.ContainsByPredicate([Element](const auto& Row) { return Row.Key==Element; });
+    }
     TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
@@ -645,6 +665,8 @@ struct FLDCombatFollowUp
     int64 DueMs=0, IntervalMs=0;
     int32 Remaining=1;
     int64 StealP2=0, StealMultiplierBp=0, FreeCastMs=0;
+    // N3 B2: momentum its caster gains when it lands.
+    int64 MomentumP2=0;
 };
 
 // S07 B: the self area repeats around its living owner's foot.
@@ -692,6 +714,28 @@ struct FLDCombatChannel
     int64 FinalKnockbackMs=0;
     // S22 A2: how many of the last waves carry the slow (1 = the final wave only).
     int32 SlowWaves=1;
+    // Spec §5: S22's gust rides only on the last wave; N1 B1 roots on the last wave.
+    bool bFinalGust=false;
+    int64 FinalRootMs=0;
+};
+
+// N2 电风扇 (spec §5): a placed fan that blows every IntervalMs until EndMs over a rectangle LengthCm long and 2 HalfWidthCm
+// wide in front of it: every enemy inside takes the payload's gust (pushed along the blow, its wall stun, the owner's last
+// element when it carries one), and the fire and miasma (and fields) inside take the gust too. Its heading swings
+// SweepDegrees either way at SweepDegrees per second (B). It ends with its owner's life.
+struct FLDCombatFan
+{
+    FLDCombatHit Payload;
+    FGuid ObservedKey;
+    FVector OriginCm=FVector::ZeroVector;
+    FVector Direction=FVector::ZeroVector;
+    double LengthCm=0, HalfWidthCm=0, SweepDegrees=0;
+    int64 StartMs=0, EndMs=0, NextBlowMs=0, IntervalMs=0;
+    bool bCarryElement=false;
+    int64 MomentumP2=0;
+    uint64 CreatedSerial=0;
+    // The heading of a blow at AtMs (the sweep's triangle wave).
+    FVector HeadingAt(int64 AtMs) const;
 };
 
 // #198 F: what a delayed ground blast is. An S18 landing, an S19 detonation and an M07 compressed zone are natural
@@ -763,9 +807,10 @@ struct FLDCombatProjectile
     // ReturnScaleBp; a return (bReturn) never pierces or returns. Struck holds the bodies this flight already hit.
     int32 PierceRemaining=0;
     int64 PierceScaleBp=0, ReturnScaleBp=0;
-    // Skill branches: the return's element (S06 B1, S21 B2) and the area the outbound flight leaves where it ends (S21 A2).
+    // Skill branches: the return's element (S06 B1, S21 B2); the ground state the outbound flight leaves where it ends (N3,
+    // S21 A2).
     ELDDemoElement ReturnElement=ELDDemoElement::None;
-    TOptional<FLDDemoEffectDefinition> LandingZone;
+    TOptional<FLDDemoEffectDefinition> LandingGround;
     // A telegraphed flight (windup of at least 0.15 s, or a camp warning): its end can be perfectly dodged.
     bool bTelegraphed=false;
     bool bReturn=false;
@@ -818,10 +863,8 @@ struct FLDCombatZone
     int64 HasteBp=0;
     FGuid OwnerGroup;
     uint8 OwnerPKSide=0;
-    // Skill branches: the owner's damage cut and momentum per pulse while its foot stands inside (S08 A2, S20 A2), and the
-    // attack slow and heal cut every pulse lays on the bodies inside (S21 A2's landing area).
+    // Skill branches: the owner's damage cut and momentum per pulse while its foot stands inside (S08 A2, S20 A2).
     int64 GuardBp=0, MomentumP2=0;
-    int64 PulseAttackSlowBp=0, PulseAttackSlowMs=0, PulseGrievousBp=0, PulseGrievousMs=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
     // M16: the centre follows the living source body's foot at every mechanics advance.
     bool bTether=false;
@@ -831,11 +874,13 @@ struct FLDCombatZone
 };
 
 // #198 S10: after the first hit, every IntervalMs the nearest not yet struck legal enemy within RadiusCm of the last
-// struck body takes the payload at RatioBp of the previous bounce's share, until Remaining runs out or nobody is near.
+// struck body takes the payload at RatioBp of the previous bounce's share, until Remaining runs out; with nobody else near
+// (spec §9) the bolt bounces back to its living first target.
 struct FLDCombatChain
 {
     FLDCombatHit Payload;
     TArray<FGuid> Struck;
+    FLDCombatBodyRef First;
     FLDCombatBodyRef Last;
     FVector LastFootCm=FVector::ZeroVector;
     int32 Remaining=0;
@@ -908,6 +953,10 @@ public:
     // and a taunt's ban on abilities and displacement (LDControl::TauntBlocks).
     bool IsActionBlocked(const FLDBodyCombatState& Body, ELDCombatControlAction Action) const;
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
+    // Spec §8.3 ice inertia: the authoritative acceleration and braking scale of Body now (GROUND.IceAccelScale on an enemy's
+    // ice, 1 elsewhere); the owner view carries the same value to the owning client's movement prediction.
+    float ReadMoveAccelScale(const ALDCharacter& Body) const;
+    float MoveAccelScaleOf(const FLDBodyCombatState& Body) const;
     // The taunter's exact body while Victim is taunted now; false otherwise. Navigation forces its order from this.
     bool ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBodyRef& OutTaunter) const;
     // Knockbacks that landed on this body life so far; Navigation drops the current order whenever it changes.
@@ -922,6 +971,8 @@ public:
     bool ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility) const;
     // Every projectile still in flight after the last Effects advance, for the observation owner to sample.
     // Fails without output for a projectile whose source has no approved look.
+    // Spec §14 public ground-state facts for the observation owner (every live state; its relay keeps the visible ones).
+    bool ReadObservedGround(TArray<struct FLDObservedGroundFact>& Out, FString& Error) const;
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
     // A body life's cue facts with its winding-up action and dash filled in.
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
@@ -1224,8 +1275,8 @@ private:
     // Hooks of one landing primary basic before it is queued (LDCombatCards.cpp): A04's push on the third step, A06's double
     // and A09's extra strikes, A11's rider, A12's focus and the factors it takes.
     bool OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, TArray<FLDCombatHit>& OutExtra, FString& Error);
-    // One card's element on Hit (A16/A17, K19-K21, D12). Fire adds burn layers credited to Card; water and electric name
-    // Card as the hit's CardWetSource / CardElectricSource for ApplyElements.
+    // One card's element on Hit (A16-A19, K19-K24, D12). Fire adds burn layers credited to Card; the others name Card in the
+    // hit's CardElements for ApplyElements.
     bool ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Element, int32 FireStacks, const FLDCombatSourceRef& Card, FString& Error) const;
     // Voluntary dashes that ended by NowMs; one that completed with a real displacement arms every held DashComplete
     // empower_basic (D03, values snapshotted now).
@@ -1285,21 +1336,48 @@ private:
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // ---- #198 elements, reactions and the element actives (LDCombatElementsDirector.cpp).
     bool ElementTerms(FLDElementTerms& Out, FString& Error) const;
-    // The applier snapshot of a hit's elements (fire damage, reaction damage, discharges): Source's level and AP now.
+    bool GroundTerms(FLDGroundTerms& Out, FString& Error) const;
+    // The applier snapshot of a hit's elements (fire damage, reaction damage, shock strikes, rot ticks): Source's level and AP.
     bool StampElementSnapshot(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
     ELDCombatElement ElementOfBody(const FLDBodyCombatState& Body, int64 NowMs) const;
     // The element batch of one committed hit on a controllable Target: fire (the hit's layers and its living source's held
-    // burn triggers), then water, then electric, each applying, refreshing or reacting with the element held.
+    // burn triggers), then water, shock, chill, rot and gust, each applying, refreshing or reacting with the element held.
     bool ApplyElements(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
-    // One element on Target: installs or refreshes it, or reacts with a different one held (both consumed).
+    // One element on Target: installs or refreshes it, or reacts with a different one held (spec §8.2 table), and converts
+    // the ground states under Target's foot (spec §8.3).
     bool ApplyElement(FLDBodyCombatState& Target, ELDCombatElement Kind, const FLDElementApplier& Applier, int32 FireStacks,
-        const FGuid& HitId, int64 NowMs, FString& Error);
-    // Ends Body's water or electric mark now, with the wet slow it holds.
+        const FGuid& HitId, int64 NowMs, FString& Error, const FLDElementExtras& Extras=FLDElementExtras());
+    // Ends Body's mark now, with the slows it holds.
     void ClearMark(FLDBodyCombatState& Body);
-    // An electrified Target that just took positive damage discharges R to the nearest other enemy of its applier.
-    bool TryDischarge(FLDBodyCombatState& Target, const FVector& TargetFoot, int64 NowMs, FString& Error);
-    // Fog pulses, chain bounces, S16 ends and lapsed marks due by now.
+    // A shocked Target took a direct hit: every COMBAT.ShockEveryNthHit-th (every hit while overcharged) strikes ShockRatio x R
+    // on it and on its applier's other enemies within ShockSplashRadius (status damage, never counted again).
+    bool CountShock(FLDBodyCombatState& Target, const FVector& TargetFoot, int64 NowMs, FString& Error);
+    // Gust on Target: the push (ice scales it), then the ground state a gust overdrive leaves for HeldBefore.
+    bool PushGust(FLDBodyCombatState& Target, const FLDElementApplier& Applier, const FLDElementExtras& Extras,
+        ELDCombatElement HeldBefore, const FVector& Direction, int64 NowMs, FString& Error);
+    // One shock strike of Applier on Holder at Foot and on Applier's other enemies around it (status damage, never counted).
+    bool StrikeShock(const FLDBodyCombatState& Holder, const FLDElementApplier& Applier, const FVector& Foot, int64 NowMs,
+        FString& Error);
+    // Fog pulses, chain bounces, S16 ends, rot ticks and lapsed marks due by now.
     bool AdvanceElements(int64 NowMs, FString& Error);
+    // ---- Spec §8.3 ground states (LDCombatGroundDirector.cpp).
+    // A new ground state of Kind owned by Owner at Centre (circle; a band when HalfLengthCm > 0, a sector when AngleDegrees > 0):
+    // the caps evict the oldest first, and one skill source keeps one live instance (Y12 copies add one each).
+    bool SpawnGround(ELDGroundStateKind Kind, const FLDElementApplier& Owner, const FVector& Centre, int64 NowMs, FString& Error,
+        double RadiusCm=0, int64 LifeMs=0, const FVector2D& Heading=FVector2D(1,0), double HalfLengthCm=0,
+        double AngleDegrees=0, int64 VulnerableBp=0, int64 AttackSlowBp=0);
+    // Incoming landed at Foot (an element hit's target foot or an element area's landing point): every ground state containing
+    // it converts (spec §8.3 "再加元素"), credited to Applier. GustDirection moves fire and miasma.
+    bool ConvertGroundAt(const FVector& Foot, ELDCombatElement Incoming, const FLDElementApplier& Applier,
+        const FVector& GustDirection, int64 NowMs, FString& Error);
+    // Ground ticks due by now (standing effects on enemies inside), lapsed states, ice contact and Y23's standing growth.
+    bool AdvanceGround(int64 NowMs, FString& Error);
+    int64 NextGroundDueMs(int64 NowMs) const;
+    // The owner's ground-state factors on a hit of its own on Target (N1 A1's ice vulnerability, Y23's standing growth).
+    void GroundFactors(const FLDBodyCombatState& Source, const FLDBodyCombatState& Target, TArray<FLDDamageFactor>& Out) const;
+    // D11: Owner's newest live ground state, zone or trap not yet moved moves to Foot (once each).
+    bool RelocateNewestGround(const FLDBodyCombatState& Owner, const FVector& Foot, int64 NowMs, FString& Error);
+
     // One fog pulse now: wet on every element-free enemy of its owner inside it.
     bool PulseFog(const FLDCombatFog& Fog, int64 NowMs, FString& Error);
     int64 NextElementsDueMs(int64 NowMs) const;
@@ -1320,7 +1398,7 @@ private:
     // sight from Origin, with its foot.
     bool CollectLineTargets(const FVector& Origin, const FVector& Direction, double LengthCm, double HalfWidthCm,
         const FLDBodyCombatState& Caster, TArray<TPair<FLDCombatBodyRef,FVector>>& Out, FString& Error) const;
-    // Wet, electrified, braced and soured cues for every observer.
+    // Wet, shocked, chilled, rotten and braced cues for every observer.
     void AppendElementStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone).
     bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
@@ -1329,6 +1407,8 @@ private:
     // Hit extras of a #112 value set (knockback, attack slow).
     void FillMechanicsTemplate(const FLDDemoAbilityValues& Values, const FVector& OriginFoot, FLDCombatHit& Template) const;
     bool AdvanceSkillContent(int64 NowMs, FString& Error);
+    // N2 fans: their blows due by now.
+    bool AdvanceFans(int64 NowMs, FString& Error);
     bool ResolveDashContacts(int64 NowMs, FString& Error);
     bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
     // Ends the body's channelled cone (a new action, a death or a source change interrupts it).
@@ -1519,6 +1599,7 @@ private:
     TArray<FLDCombatZone> Zones;
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
+    TArray<FLDCombatFan> Fans;
     TArray<FLDCombatGroundEffect> GroundEffects;
     // Skill branch schedules (LDCombatBranchDirector.cpp).
     TArray<FLDCombatFollowUp> FollowUps;
@@ -1535,6 +1616,9 @@ private:
     // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.
     TArray<FLDCombatFog> Fogs;
     TArray<FLDCombatChain> Chains;
+    // Spec §8.3 live ground states (at most GROUND.MaxTotal) and the next public identity.
+    TArray<FLDGroundState> GroundStates;
+    uint32 NextGroundId=0;
     TArray<FLDCombatReactionFact> ReactionFacts;
     // The reaction assist prompts sent in the current Effects step: the reaction (its hits' EffectId), the setter and the
     // prompt as sent; one per reaction and setter.

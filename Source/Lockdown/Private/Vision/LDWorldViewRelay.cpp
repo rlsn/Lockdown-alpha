@@ -66,6 +66,7 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::AreaElectric: return FLinearColor(1.f,.78f,.02f);
     case ELDObservedProjectileLook::AreaPlain: return FLinearColor(.95f,.48f,.12f);
     case ELDObservedProjectileLook::Road: return FLinearColor(1.f,.68f,.08f);
+    case ELDObservedProjectileLook::Wind: return FLinearColor(.72f,.78f,.82f);
     case ELDObservedProjectileLook::ConeWarning:
     case ELDObservedProjectileLook::LineWarning: return FLinearColor(1.f,.24f,.08f);
     case ELDObservedProjectileLook::BookShadow:
@@ -643,7 +644,8 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
     const bool bArea=IsObservedArea(Effect.Look);
     const bool bForwardLine=Effect.Look==ELDObservedProjectileLook::LineWarning;
-    const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road || Effect.Look==ELDObservedProjectileLook::LineWarning;
+    const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road || Effect.Look==ELDObservedProjectileLook::LineWarning
+        || Effect.Look==ELDObservedProjectileLook::Wind;
     const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
         : ObservedEffectColor(Effect.Look);
     ShownLook=Effect.Look;

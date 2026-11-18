@@ -67,8 +67,8 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     if (OutApplied) { *OutApplied=0; }
     if (OutError) { OutError->Reset(); }
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
-    // #198 S21: a live grievous cuts every new heal once, before it lands.
-    if (const ILDLifeAuthority* Mode=Authority()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
+    // Spec §8.1: a live rot cuts every new heal once, before it lands.
+    if (const ILDLifeAuthority* Mode=Authority()) { AmountP2=LDCombatElements::AfterRotP2(AmountP2,Body.ElementMark,Mode->GetAuthorityNowMs()); }
     if (AmountP2<=0) { return false; }
     auto& Pool=Body.Resources;
     const int64 Before=Pool.HpP2;
@@ -154,8 +154,8 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource)
 {
     if (Body.bPendingDeath) { return true; }
-    // #198 S21: a live grievous cuts the new shield before the replacement check; existing shields are untouched.
-    AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,NowMs);
+    // Spec §8.1: a live rot cuts the new shield before the replacement check; existing shields are untouched.
+    AmountP2=LDCombatElements::AfterRotP2(AmountP2,Body.ElementMark,NowMs);
     int64 Expires=0;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,Expires,Error)) { return false; }
     // A weaker shield is a stated sub-effect outcome, not a failed release.
@@ -217,7 +217,15 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     // The same native root motion as a dash: integrated by the authority steps along the ground, stopped by blocking
     // geometry at the last legal position, never a teleport.
     // A push is blocked by bodies as well as static geometry (#198 F: C02 reads its first real block).
-    if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error,true))
+    // Spec §8.3: a body on an enemy's ice slides GROUND.IceDisplacementScale as far.
+    double PushCm=Hit.KnockbackCm;
+    if (Body.bOnEnemyIce)
+    {
+        FLDGroundTerms Ground;
+        if (!GroundTerms(Ground,Error)) { return false; }
+        PushCm*=double(Ground.IceDisplacementScaleBp)/10000.;
+    }
+    if (!Movement->StartDemoDash(Direction,PushCm,double(Hit.KnockbackMs)/1000.,Error,true))
     { Error=TEXT("Knockback: ")+Error; return false; }
     if (!WatchKnockbackImpact(Target,Body,Hit,Direction,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld pull=%d"),*Body.Victim.EntityId.ToString(),
@@ -289,7 +297,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         while (Zone.Pulsed<Zone.Count && Zone.StartMs+Zone.DelayMs+Zone.IntervalMs*Zone.Pulsed<=NowMs)
         {
             ++Zone.Pulsed;
-            if (Zone.bDamage || Zone.bWet || Zone.PulseAttackSlowBp>0 || Zone.PulseGrievousBp>0)
+            if (Zone.bDamage || Zone.bWet)
             {
                 if (!EmitZonePulse(Zone,Error)) { Error=TEXT("Zone pulse: ")+Error; return false; }
             }

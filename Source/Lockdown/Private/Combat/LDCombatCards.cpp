@@ -57,16 +57,7 @@ namespace LDCombatCardsDetail
         return Hit;
     }
 
-    ELDCombatElement CombatElement(ELDDemoElement Element)
-    {
-        switch (Element)
-        {
-        case ELDDemoElement::Fire: return ELDCombatElement::Fire;
-        case ELDDemoElement::Water: return ELDCombatElement::Water;
-        case ELDDemoElement::Electric: return ELDCombatElement::Electric;
-        default: return ELDCombatElement::None;
-        }
-    }
+    ELDCombatElement CombatElement(ELDDemoElement Element) { return LDCombatElements::FromDemo(Element); }
 
     // The mod operations a skill branch variant carries itself (DemoContent.BRANCH_MOD_OPS), in their compile order.
     constexpr ELDDemoEffectOp BranchModOps[]={ELDDemoEffectOp::FinalKnockback,ELDDemoEffectOp::Pull,ELDDemoEffectOp::ProjectileReturn,
@@ -355,7 +346,17 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
     if (const int64 Vulnerable=BranchVulnerableBp(Target,Hit,NowMs); Vulnerable>0) { Out.Add({FName(TEXT("branch_vulnerable")),Vulnerable}); }
     if (Hit.BranchAmpBp>0) { Out.Add({FName(TEXT("branch_next_basic")),Hit.BranchAmpBp}); }
+    // Shatter (shock + chill): the next skill hit on this life within its window takes more, then the shatter is spent.
+    if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bStatusSettle
+        && !Hit.bBurnTick && !Hit.bPeriodic)
+    {
+        Out.Add({FName(TEXT("reaction_shatter")),Target.ShatterBp});
+        Target.ShatterBp=0;
+        Target.ShatterUntilMs=0;
+    }
     if (!Source) { return true; }
+    // Ground states: N1 A1's ice vulnerability and Y23's standing growth.
+    GroundFactors(*Source,Target,Out);
     // K04: a different skill's native hit takes the holder's marks on this life (and consumes them).
     if (IsNativeDirectHit(Hit) && !Source->SetupMarks.IsEmpty())
     {
@@ -526,9 +527,12 @@ bool ALDCombatDirector::ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Eleme
         return true;
     case ELDDemoElement::Water:
     case ELDDemoElement::Electric:
+    case ELDDemoElement::Chill:
+    case ELDDemoElement::Rot:
+    case ELDDemoElement::Gust:
     {
-        FLDCombatSourceRef& Slot=Element==ELDDemoElement::Water ? Hit.CardWetSource : Hit.CardElectricSource;
-        if (Slot.Kind==ELDCombatSourceKind::None) { Slot=Card; }
+        const ELDCombatElement Kind=LDCombatCardsDetail::CombatElement(Element);
+        if (!Hit.CardElements.ContainsByPredicate([Kind](const auto& Row) { return Row.Key==Kind; })) { Hit.CardElements.Emplace(Kind,Card); }
         return true;
     }
     default:
@@ -577,6 +581,31 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
         const ALDCharacter* Actor=Pair.Key.Get();
         // A dash that went nowhere (blocked at once) is no completed dash.
         if (!Actor || Body.bPendingDeath || !LDCombatControl::DashCompleted(Dash,NowMs,FootOf(*Actor))) { continue; }
+        // D10: the hosted D leaves an ice band along its path; D11: it moves the holder's newest ground state, zone or trap.
+        TArray<FLDPassiveEffectRef> Trails, Movers;
+        if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashIce,Dash.Source,Trails,Error)
+            || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::GroundRelocate,Dash.Source,Movers,Error)) { return false; }
+        const FVector EndFoot=FootOf(*Actor);
+        for (const FLDPassiveEffectRef& Trail : Trails)
+        {
+            const FVector Path=FVector(EndFoot.X-Dash.StartFootCm.X,EndFoot.Y-Dash.StartFootCm.Y,0);
+            FLDElementApplier TrailOwner;
+            TrailOwner.SourceEntity=Body.Victim.EntityId;
+            TrailOwner.SourceBody={Body.Victim,Body.Identity};
+            TrailOwner.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
+            TrailOwner.Source=Trail.Source;
+            TrailOwner.Level=GrowthLevelOf(Body);
+            TrailOwner.SourceAPP2=FMath::Max<int64>(Body.AttributeProjection.Final.APP2,0);
+            const double Width=double(Trail.Effect.RadiusCm.Numerator)/double(FMath::Max<int64>(Trail.Effect.RadiusCm.Denominator,1));
+            if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs,
+                FVector2D(Path.X,Path.Y),Path.Size()*.5)) { return false; }
+            LedgerCardTriggered(Body,Trail.Key);
+        }
+        if (!Movers.IsEmpty())
+        {
+            if (!RelocateNewestGround(Body,EndFoot,NowMs,Error)) { return false; }
+            LedgerCardTriggered(Body,Movers[0].Key);
+        }
         // D03: the hosted D's completion arms one package per copy (a newer one replaces that copy's unused package).
         TArray<FLDPassiveEffectRef> Held;
         if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::EmpowerBasic,Dash.Source,Held,Error)) { return false; }
@@ -933,12 +962,11 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
     // Y05: the primary target takes a random element other than the one just consumed (each copy one more; gust excluded).
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
-    const ELDCombatElement Consumed=Fact.Kind==ELDCombatReaction::Fog ? ELDCombatElement::Fire
-        : Fact.Kind==ELDCombatReaction::Conduct ? ELDCombatElement::Water : ELDCombatElement::Electric;
     for (const FLDPassiveEffectRef& Wave : Waves)
     {
-        TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Electric};
-        Choices.Remove(Consumed);
+        TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
+            ELDCombatElement::Chill,ELDCombatElement::Rot};
+        Choices.Remove(Fact.Consumed);
         const ELDCombatElement Kind=Choices[CritRandom.RandRange(0,Choices.Num()-1)];
         FLDElementApplier Applier;
         Applier.SourceEntity=Trigger->Victim.EntityId;
@@ -1213,7 +1241,8 @@ bool ALDCombatDirector::ScheduleEcho(const FLDCombatBodyRef& OwnerRef, const FLD
         Repeat.Payload.DeliveryScaleBp=LDCombatCardsDetail::Share(Repeat.Payload.DeliveryScaleBp,Echo.Effect.RatioBp);
         Repeat.OuterRatioBp=FMath::Clamp<int64>(Repeat.OuterRatioBp*10000/Echo.Effect.RatioBp,1,10000);
     }
-    Repeat.Payload.bApplyElectric|=Echo.Effect.Element==ELDDemoElement::Electric;
+    if (Echo.Effect.Element!=ELDDemoElement::None && Echo.Effect.Element!=ELDDemoElement::Fire)
+    { Repeat.Payload.NativeElements|=LDCombatElements::Bit(LDCombatCardsDetail::CombatElement(Echo.Effect.Element)); }
     if (Repeat.Payload.DeliveryScaleBp<=0 || !LDMatchLifecycle::AddDurationMs(NowMs,Echo.Effect.DelayMs,Repeat.ReadyAtMs,Error))
     {
         if (Error.IsEmpty()) { Error=TEXT("An echo needs a positive share."); }
@@ -1260,9 +1289,9 @@ bool ALDCombatDirector::LaunchReturn(const FLDCombatProjectile& Outbound, const 
     Payload.KnockbackCm=0;
     Payload.KnockbackSource=FLDCombatSourceRef();
     // Skill branches (S06 B1, S21 B2): the return shocks or wets.
-    Payload.bApplyElectric|=Outbound.ReturnElement==ELDDemoElement::Electric;
-    Payload.bApplyWet|=Outbound.ReturnElement==ELDDemoElement::Water;
-    Return.LandingZone.Reset();
+    if (Outbound.ReturnElement!=ELDDemoElement::None && Outbound.ReturnElement!=ELDDemoElement::Fire)
+    { Payload.NativeElements|=LDCombatElements::Bit(LDCombatCardsDetail::CombatElement(Outbound.ReturnElement)); }
+    Return.LandingGround.Reset();
     if (Payload.DeliveryScaleBp<=0) { Error=TEXT("A return flight needs a positive share."); return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_PROJECTILE_RETURN owner=%s exit=%s length=%.0f share_bp=%lld"),
         *LDLog::Id(Return.SourceEntity),*LDLog::Source(Return.Source),Length,ShareBp);

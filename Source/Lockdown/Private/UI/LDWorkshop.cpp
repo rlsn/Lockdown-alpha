@@ -82,7 +82,11 @@ FLinearColor WorkshopElementColor(ELDDemoElement Element)
     {
     case ELDDemoElement::Fire: return LDUIPaint::Hex(0xFF7A3D);
     case ELDDemoElement::Water: return LDUIPaint::Hex(0x4DB5FF);
-    case ELDDemoElement::Electric: return LDUIPaint::Hex(0xFFE45C);
+    // Spec §8.1 colours: shock violet, chill cyan, rot green, gust grey.
+    case ELDDemoElement::Electric: return LDUIPaint::Hex(0xB46BFF);
+    case ELDDemoElement::Chill: return LDUIPaint::Hex(0x5CF2FF);
+    case ELDDemoElement::Rot: return LDUIPaint::Hex(0x7AD93A);
+    case ELDDemoElement::Gust: return LDUIPaint::Hex(0xB8C4CC);
     default: return LDHUDStyle::TextSecondary;
     }
 }

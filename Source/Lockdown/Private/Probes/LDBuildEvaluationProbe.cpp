@@ -281,7 +281,8 @@ bool ParseStep(const FJsonObject& Object, const FString& Where, FLDEvaluationBui
             FString Element;
             if (!ReadString(Object, TEXT("element"), Where, Element, Error)) { return false; }
             Out.Element = Element == TEXT("fire") ? ELDDemoElement::Fire : Element == TEXT("water") ? ELDDemoElement::Water
-                : Element == TEXT("electric") ? ELDDemoElement::Electric : ELDDemoElement::None;
+                : Element == TEXT("electric") ? ELDDemoElement::Electric : Element == TEXT("chill") ? ELDDemoElement::Chill
+                : Element == TEXT("rot") ? ELDDemoElement::Rot : ELDDemoElement::None;
             if (Out.Element == ELDDemoElement::None)
             {
                 Error = FString::Printf(TEXT("%s.element: fire, water or electric, not '%s'"), *Where, *Element);

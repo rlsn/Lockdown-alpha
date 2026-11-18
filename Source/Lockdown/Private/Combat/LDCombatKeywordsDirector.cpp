@@ -45,8 +45,16 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
         RecordAssistContribution(Target,Credit,NowMs);
         return true;
     };
-    // The hit's own stacks (an active's payload, a zone pulse or an overload). Fire is an element (ApplyElements).
-    Breach(Hit.BreachStacks,Hit.CreditOwner);
+    // The hit's own stacks (an active's payload, a zone pulse, an overload or a corrode, whose breach lasts BreachMs).
+    // Fire is an element (ApplyElements).
+    if (Hit.BreachMs>0)
+    {
+        const int64 Approved=Terms.BreachMs;
+        Terms.BreachMs=Hit.BreachMs;
+        Breach(Hit.BreachStacks,Hit.CreditOwner);
+        Terms.BreachMs=Approved;
+    }
+    else { Breach(Hit.BreachStacks,Hit.CreditOwner); }
     // The living source's held breach trigger on a primary basic hit (basic_stacks: A14). Ticks, pulses, settles,
     // reflections, added damage and shield-triggered answers are none.
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;

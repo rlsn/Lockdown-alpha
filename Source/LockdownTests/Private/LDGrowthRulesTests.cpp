@@ -4,6 +4,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Algo/AllOf.h"
+#include "Algo/Count.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Development/LDBreakoutPresets.h"
@@ -3602,9 +3603,12 @@ bool FLDDevBreakoutPresetsTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    // Spec §7.6: the nine P2 samples, each a valid max-level build that Combat projects with every card installed.
+    // Spec §7.6: the nine P2 samples and the P4 minefield, each a valid max-level build that Combat projects with every card
+    // installed; the AI aims only at the P2 ones.
     const TArray<FLDBreakoutPreset>& All = LDBreakoutPresets::All();
-    bool bGood = TestEqual(TEXT("Nine P2 samples"), All.Num(), 9);
+    bool bGood = TestEqual(TEXT("Ten samples"), All.Num(), 10)
+        && TestTrue(TEXT("The minefield is last and no AI goal"), FString(All.Last().Id) == TEXT("breakout_minefield") && !All.Last().bAIGoal
+            && Algo::CountIf(All, [](const FLDBreakoutPreset& Preset) { return Preset.bAIGoal; }) == 9);
     TSet<FString> Ids;
     for (const FLDBreakoutPreset& Preset : All)
     {

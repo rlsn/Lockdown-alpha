@@ -244,6 +244,27 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
         && FMath::IsFinite(View.MoveSpeedCmPerSec) && View.MoveSpeedCmPerSec>0 ? View.MoveSpeedCmPerSec : 0;
 }
 
+float ULDCharacterMovementComponent::AccelScale() const
+{
+    if (!LDCharacterMovementDetail::IsDemoMovement(GetWorld())) { return 1.f; }
+    const auto* Body=Cast<ALDCharacter>(CharacterOwner);
+    if (!Body) { return 1.f; }
+    if (Body->HasAuthority())
+    {
+        const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        return Mode && Mode->Combat ? Mode->Combat->ReadMoveAccelScale(*Body) : 1.f;
+    }
+    const auto* PC=Cast<ALDPlayerController>(Body->GetController());
+    if (!PC || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive) { return 1.f; }
+    const FLDCombatOwnerView& View=PC->CombatView;
+    return View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life && FMath::IsFinite(View.MoveAccelScale)
+        && View.MoveAccelScale>0 && View.MoveAccelScale<=1 ? View.MoveAccelScale : 1.f;
+}
+
+float ULDCharacterMovementComponent::GetMaxAcceleration() const { return Super::GetMaxAcceleration()*AccelScale(); }
+
+float ULDCharacterMovementComponent::GetMaxBrakingDeceleration() const { return Super::GetMaxBrakingDeceleration()*AccelScale(); }
+
 bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error,
     bool bKnockback)
 {

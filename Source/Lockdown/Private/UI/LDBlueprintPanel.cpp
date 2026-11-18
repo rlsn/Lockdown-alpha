@@ -63,7 +63,8 @@ FString BlueprintPlace(const FLDBlueprintCard& Card,const FLDDemoContentDefiniti
     if(!Card.Element.IsEmpty())
     {
         const ELDDemoElement Element=Card.Element==TEXT("fire")?ELDDemoElement::Fire:Card.Element==TEXT("water")
-            ?ELDDemoElement::Water:Card.Element==TEXT("electric")?ELDDemoElement::Electric:ELDDemoElement::None;
+            ?ELDDemoElement::Water:Card.Element==TEXT("electric")?ELDDemoElement::Electric:Card.Element==TEXT("chill")?ELDDemoElement::Chill
+            :Card.Element==TEXT("rot")?ELDDemoElement::Rot:ELDDemoElement::None;
         Where+=TEXT(" · ")+(Element==ELDDemoElement::None?Card.Element:LDHUD::ElementName(Element));
     }
     return Where;

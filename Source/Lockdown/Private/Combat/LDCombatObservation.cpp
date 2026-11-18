@@ -13,9 +13,8 @@ namespace
     ELDObservedProjectileLook AreaLookOf(const FLDCombatHit& Hit)
     {
         if (Hit.BurnStacks>0 || Hit.CardBurnStacks>0) { return ELDObservedProjectileLook::AreaFire; }
-        if (Hit.bApplyElectric || Hit.CardElectricSource.Kind!=ELDCombatSourceKind::None)
-        { return ELDObservedProjectileLook::AreaElectric; }
-        if (Hit.bApplyWet || Hit.CardWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedProjectileLook::AreaWater; }
+        if (Hit.CarriesElement(ELDCombatElement::Shock)) { return ELDObservedProjectileLook::AreaElectric; }
+        if (Hit.CarriesElement(ELDCombatElement::Water)) { return ELDObservedProjectileLook::AreaWater; }
         return Hit.DamageType==ELDDemoDamageType::Magical
             ? ELDObservedProjectileLook::AreaMagic : ELDObservedProjectileLook::AreaPlain;
     }
@@ -217,6 +216,20 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.RadiusCm=float(Zone.RadiusCm);
         Fact.WarningRemainingMs=FirstPulseAtMs>NowMs
             ? uint32(FMath::Min<int64>(FirstPulseAtMs-NowMs,MAX_uint32)) : 0;
+    }
+    // N2: a fan shows the rectangle of its next blow.
+    for (const FLDCombatFan& Fan : Fans)
+    {
+        if (Fan.EndMs<=NowMs) { continue; }
+        const FVector Heading=Fan.HeadingAt(NowMs).GetSafeNormal2D();
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Fan.ObservedKey;
+        Fact.SourceEntity=Fan.Payload.SourceEntity;
+        Fact.PositionCm=Fan.OriginCm+Heading*(Fan.LengthCm*.5);
+        Fact.Heading=FVector2D(Heading.X,Heading.Y);
+        Fact.Look=ELDObservedProjectileLook::Wind;
+        Fact.LengthCm=float(Fan.LengthCm);
+        Fact.RadiusCm=float(Fan.HalfWidthCm);
     }
     for (const auto& Channel : Channels)
     {

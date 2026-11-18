@@ -65,9 +65,9 @@ struct FLDDemoVisionReactionAccess
         Strike.BaseP2 = 100;
         Combat.PendingHits.Add(MoveTemp(Strike));
         FLDCombatHit Wet = Hit(Setter);
-        Wet.bApplyWet = true;
+        Wet.NativeElements = LDCombatElements::Bit(ELDCombatElement::Water);
         FLDCombatHit Electric = Hit(Trigger);
-        Electric.bApplyElectric = true;
+        Electric.NativeElements = LDCombatElements::Bit(ELDCombatElement::Shock);
         Combat.PendingHits.Add(MoveTemp(Wet));
         Combat.PendingHits.Add(MoveTemp(Electric));
     }
