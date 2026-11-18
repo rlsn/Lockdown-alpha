@@ -23,15 +23,14 @@
 
 namespace
 {
-ELDComponentTargetKind GrowthTarget(ELDResultBuildTarget Kind)
+ELDCardTargetKind GrowthTarget(ELDResultBuildTarget Kind)
 {
     switch (Kind)
     {
-    case ELDResultBuildTarget::Active: return ELDComponentTargetKind::Active;
-    case ELDResultBuildTarget::EffectSegment: return ELDComponentTargetKind::EffectSegment;
-    case ELDResultBuildTarget::Component: return ELDComponentTargetKind::Component;
-    case ELDResultBuildTarget::Dash: return ELDComponentTargetKind::Dash;
-    default: return ELDComponentTargetKind::None;
+    case ELDResultBuildTarget::Basic: return ELDCardTargetKind::Basic;
+    case ELDResultBuildTarget::Active: return ELDCardTargetKind::Skill;
+    case ELDResultBuildTarget::Dash: return ELDCardTargetKind::Dash;
+    default: return ELDCardTargetKind::Body;
     }
 }
 
@@ -52,8 +51,9 @@ UWidget* BoardIcon(UWidgetTree* Tree, const FLDDemoContentDefinitions* Content, 
     Box->SetHeightOverride(Size);
     auto* Overlay = Tree->ConstructWidget<UOverlay>();
     Box->SetContent(Overlay);
-    const FString Name = Id.IsNone() ? FString() : LDHUD::ContentName(Content, Id.ToString());
-    const FString IconId = OverrideIcon.IsEmpty() && !Id.IsNone() ? LDHUD::ContentIconId(Content, Id.ToString()) : OverrideIcon;
+    const FName Definition = bComponent ? LDHUD::CardDefinition(Id) : Id;
+    const FString Name = Id.IsNone() ? FString() : LDHUD::ContentName(Content, Definition.ToString());
+    const FString IconId = OverrideIcon.IsEmpty() && !Id.IsNone() ? LDHUD::ContentIconId(Content, Definition.ToString()) : OverrideIcon;
     auto* Image = Tree->ConstructWidget<UImage>();
     const bool bHasIcon = !IconId.IsEmpty() && LDUIIcons::Apply(Image, IconId, 0.f);
     // Keep the brush's texture alive without painting a square behind the shaped tile.
@@ -62,11 +62,11 @@ UWidget* BoardIcon(UWidgetTree* Tree, const FLDDemoContentDefinitions* Content, 
     const LDWorkshop::FCardFacts Facts = bComponent ? LDWorkshop::CardFacts(Id, Content) : LDWorkshop::FCardFacts();
     auto* Face = Tree->ConstructWidget<ULDPaintLayer>();
     const TWeakObjectPtr<UImage> Icon(Image);
-    Face->Painter = [Icon, bComponent, Kind = uint8(Facts.Kind), Scarce = Facts.bScarce, bHasIcon](const LDUIPaint::FContext& Paint)
+    Face->Painter = [Icon, bComponent, Kind = uint8(Facts.Type), bHasIcon](const LDUIPaint::FContext& Paint)
     {
         UTexture2D* Texture = Icon.IsValid() ? Cast<UTexture2D>(Icon->GetBrush().GetResourceObject()) : nullptr;
         const FBox2D Rect(FVector2D::ZeroVector, FVector2D(Paint.Geometry.GetLocalSize()));
-        if (bComponent) { Paint.Tile(Paint.Layer, Rect, Kind, Scarce, LDUIPaint::ETileState::Normal, Texture); }
+        if (bComponent) { Paint.Tile(Paint.Layer, Rect, Kind, LDUIPaint::ETileState::Normal, Texture); }
         else { Paint.SkillArt(Paint.Layer, Rect, false, !bHasIcon, Texture); }
     };
     auto* FaceSlot = Overlay->AddChildToOverlay(Face);
@@ -110,14 +110,14 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         Row.DefinitionId = Active.DefinitionId;
         Row.Slot = Active.Slot;
     }
-    for (const FLDResultBuildComponent& Component : Build.Components)
+    for (const FLDResultBuildCard& Card : Build.Cards)
     {
-        FLDComponentInstanceView& Row = Progression.Components.AddDefaulted_GetRef();
-        Row.DefinitionId = Component.DefinitionId;
-        Row.bInstalled = true;
-        Row.Target.Kind = GrowthTarget(Component.Target);
-        Row.Target.Definition = Component.TargetId;
-        Row.Target.BoundActive = Component.BoundActive;
+        FLDCardInstanceView& Row = Progression.Cards.AddDefaulted_GetRef();
+        Row.Serial = uint16(Progression.Cards.Num());
+        Row.DefinitionId = Card.DefinitionId;
+        Row.Target.Kind = GrowthTarget(Card.Target);
+        Row.Target.Active = Card.TargetId;
+        Row.Target.Element = Card.Element;
     }
     const LDHUD::FStorageView Board = LDHUD::CardStorage(Progression, Content);
     int32 Most = 0;
@@ -132,30 +132,28 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
     int32 FinalColumn = INDEX_NONE;
     if (!Build.FinalMod.IsNone())
     {
-        if (Build.FinalTarget == ELDResultBuildTarget::Body) { FinalColumn = 0; }
-        else if (Build.FinalTarget == ELDResultBuildTarget::Dash) { FinalColumn = 4; }
+        if (Build.FinalTarget == ELDResultBuildTarget::Body) { FinalColumn = int32(LDHUD::EStorageColumn::Body); }
+        else if (Build.FinalTarget == ELDResultBuildTarget::Dash) { FinalColumn = int32(LDHUD::EStorageColumn::Dash); }
         else
         {
             for (int32 Index = 0; Index < Board.Columns.Num(); ++Index)
             {
-                const LDHUD::FStorageColumnView& Column = Board.Columns[Index];
-                if (((Build.FinalTarget == ELDResultBuildTarget::Active || Build.FinalTarget == ELDResultBuildTarget::EffectSegment)
-                        && Column.Active == Build.FinalTargetId)
-                    || (Build.FinalTarget == ELDResultBuildTarget::Component
-                        && Column.Entries.ContainsByPredicate([&Build](const LDHUD::FEquippedView& Entry)
-                            { return Entry.Card == Build.FinalTargetId; })))
+                if (Build.FinalTarget == ELDResultBuildTarget::Active && Board.Columns[Index].Active == Build.FinalTargetId)
                 { FinalColumn = Index; break; }
             }
         }
     }
 
     const bool bDormantFinal = !Build.FinalMod.IsNone() && FinalColumn == INDEX_NONE;
-    if (bDormantFinal) { FinalColumn = 0; }
+    if (bDormantFinal) { FinalColumn = int32(LDHUD::EStorageColumn::Body); }
     auto* Columns = Tree->ConstructWidget<UHorizontalBox>();
     Bounds->SetContent(Columns);
-    static const TCHAR* const Labels[] = {TEXT("本体"), TEXT("Q"), TEXT("W"), TEXT("E"), TEXT("D")};
-    for (int32 Index = 0; Index < Board.Columns.Num(); ++Index)
+    // 普攻, Q, W, E, D, 本体 left to right, like the workshop board.
+    for (int32 Position = 0; Position < LDHUD::StorageColumnCount; ++Position)
     {
+        const LDHUD::EStorageColumn ColumnId = LDHUD::BoardColumn(Position);
+        const int32 Index = int32(ColumnId);
+        if (!Board.Columns.IsValidIndex(Index)) { continue; }
         const LDHUD::FStorageColumnView& Column = Board.Columns[Index];
         auto* ColumnBox = Tree->ConstructWidget<USizeBox>();
         ColumnBox->SetWidthOverride(ColumnWidth);
@@ -164,11 +162,12 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         Columns->AddChildToHorizontalBox(ColumnBox);
         auto* Head = Tree->ConstructWidget<UHorizontalBox>();
         Stack->AddChildToVerticalBox(Head);
-        auto* Label = BoardText(Tree, Labels[Index], FMath::Max(8, FMath::RoundToInt(Header * .37f * TextScale)));
+        auto* Label = BoardText(Tree, LDHUD::ColumnLabel(ColumnId), FMath::Max(8, FMath::RoundToInt(Header * .37f * TextScale)));
         Head->AddChildToHorizontalBox(Label)->SetVerticalAlignment(VAlign_Center);
-        if (Index > 0)
+        if (ColumnId != LDHUD::EStorageColumn::Body && ColumnId != LDHUD::EStorageColumn::Basic)
         {
-            UWidget* Icon = BoardIcon(Tree, Content, Column.Active, Header, false, Index == 4 ? FString(LDUIIcons::Dash) : FString());
+            UWidget* Icon = BoardIcon(Tree, Content, Column.Active, Header, false,
+                ColumnId == LDHUD::EStorageColumn::Dash ? FString(LDUIIcons::Dash) : FString());
             Head->AddChildToHorizontalBox(Icon)->SetPadding(FMargin(2, 0, 0, 0));
         }
         if (FinalColumn == Index)
@@ -191,7 +190,9 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         {
             const LDHUD::FEquippedView& Entry = Column.Entries[EntryIndex];
             UWidget* Tile = BoardIcon(Tree, Content, Entry.Card, TileSize, true);
-            Grid->AddChildToWrapBox(Tile)->SetPadding(FMargin(Entry.Depth > 0 ? 1.f : 0.f, 0, 0, 0));
+            if (Entry.Copies > 1) { Tile->SetToolTipText(FText::FromString(LDHUD::ContentName(Content, LDHUD::CardDefinition(Entry.Card).ToString())
+                + TEXT(" ") + LDTerms::CopiesBadge(Entry.Copies))); }
+            Grid->AddChildToWrapBox(Tile);
         }
         if (Visible < Column.Entries.Num())
         {
@@ -200,7 +201,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
             More->SetContent(BoardText(Tree,FString::Printf(TEXT("+%d"),Column.Entries.Num()-Visible),FMath::RoundToInt(20*TextScale)));
             TArray<FString> Names;
             for(int32 EntryIndex=Visible;EntryIndex<Column.Entries.Num();++EntryIndex)
-            {Names.Add(LDHUD::ContentName(Content,Column.Entries[EntryIndex].Component.ToString()));}
+            {Names.Add(LDHUD::ContentName(Content,LDHUD::CardDefinition(Column.Entries[EntryIndex].Card).ToString()));}
             More->SetToolTipText(FText::FromString(FString::Join(Names,TEXT("\n"))));
             Grid->AddChildToWrapBox(More);
         }

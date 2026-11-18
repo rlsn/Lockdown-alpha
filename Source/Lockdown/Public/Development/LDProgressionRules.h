@@ -369,6 +369,11 @@ namespace LDProgression
     // one of its element choices exactly when it offers them (InvalidTarget otherwise).
     LOCKDOWN_API ELDGrowthReason CardTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
         const FLDCardTarget& Target);
+    // The place a picked card goes when the picker names none: its form's only place, or for a skill card the learned skill
+    // sharing the most vocabulary keys with it (Q/W/E order on ties); a Y25 card takes its first element. False when no legal
+    // place exists now (a skill card without a learned skill).
+    LOCKDOWN_API bool DefaultCardTarget(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
+        FLDCardTarget& Out);
     // Up to CARDS.OfferSize distinct cards: Locked first when set, then a weighted draw without replacement over every other
     // definition (CARDS.VocabWeight when it shares a vocabulary key with BuildVocab, else 1), deterministic in Seed.
     LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Locked,

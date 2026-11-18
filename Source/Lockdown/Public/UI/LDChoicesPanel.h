@@ -21,9 +21,9 @@ struct FLDDemoContentDefinitions;
 // pending decisions stacked in the workshop's pending area, the active offer and the final mod on a centre stage of big
 // cards, and a rest's NPC services on the workshop objects they act on (APP_SPEC §7 构筑). In the field, closed, the same
 // cards show as quick picks above the button. One row per pending decision (the active offer nearest the bottom, then the
-// opening base pick, the elite component choices and the blueprints that have an empty Q/W/E slot). A card shows the icon and
+// card offer with its locks, reroll and skip, and the blueprints that have an empty Q/W/E slot). A card shows the icon and
 // the name only; hovering it shows its full rules in the workshop's dock or the HUD's slot popup (Hovered); a click takes it.
-// Component rows switch to icon-only tiles when there are too many component cards. Nothing scrolls and nothing explains:
+// Nothing scrolls and nothing explains:
 // results and refusals go to the HUD's toast (Notify). All mutations retain the existing build commands, revision checks,
 // confirmations and authority receipts.
 class UScaleBox;
@@ -61,7 +61,6 @@ public:
         FSlateRect HeadIcons[LDHUD::StorageColumnCount];
         FSlateRect CharacterFoot;
         FSlateRect Points;
-        FSlateRect LibraryTop;
         FSlateRect PendingTop;
     };
     void SetWorkshopPlaces(const FWorkshopPlaces& InPlaces){Places=InPlaces;}
@@ -114,33 +113,19 @@ public:
     // The trainer's right click on the board's skill head in Column (LDHUD::SlotColumn): asks to forget that slot's active.
     // False (the click is not taken) without the trainer or on the body and dash columns.
     bool ForgetAtColumn(int32 Column);
-    // #198 G rest material services. ToggleFillGap opens (or closes) the gap target list; PickGapTarget shows that target's
-    // fillers and PickGapFiller the confirm line ("花 4 点：为 X 补 Y"). ToggleDismantle turns the library and the board into
-    // the selection of owned common components (the storage's service pick); PickDismantle (an index of the candidates) or
-    // PickDismantleComponent selects or deselects one, the dock's equation shows the picks, and the approved count selected
-    // shows the confirm line naming what is removed and which installs go back to the inventory. ConfirmRestAction sends either.
-    bool ToggleFillGap();
-    bool PickGapTarget(int32 Index);
-    bool PickGapFiller(int32 Index);
-    bool ToggleDismantle();
-    bool PickDismantle(int32 Index);
-    bool PickDismantleComponent(FName Component);
-    // The open dismantle selection for the storage's service pick: its candidates (empty when closed) and the picks.
-    TArray<FName> DismantleSelectable() const;
-    const TArray<FName>& DismantleSelection() const {return DismantlePicked;}
-    // #198 G: a pending elite camp component choice (ChoiceIndex in the view's oldest-first order): take the option at
-    // OptionIndex, or, once every option is owned, the empty-pool points.
-    bool PickComponentChoice(int32 ChoiceIndex,int32 OptionIndex);
-    bool TakeComponentChoicePoints(int32 ChoiceIndex);
+    // The card offer (spec §6.4): a card click takes it (installed on its form's place in the same commit when one is free,
+    // LDProgression::DefaultCardTarget), its lock carries it into the next offer (again: unlocks), 重抽 redraws the offer
+    // keeping the lock, 跳过 lets it go.
+    bool PickCardOffer(int32 Index);
+    bool LockCardOffer(int32 Index);
+    bool RerollCardOffer();
+    bool SkipCardOffer();
     bool ConfirmRestAction();
     void CancelRestAction();
     // The confirm line is a child confirmation for Back routing; it captures no input, so play goes on meanwhile.
     virtual bool HasChildConfirmation() const override {return RestConfirm.Kind!=ELDBuildCommandKind::None;}
     virtual bool CloseChildConfirmation() override;
     virtual bool ChildConfirmationYields() const override {return true;}
-    // #198 B: an opening base card click: takes the option at Index of the shown list; a plain base asks to install it on
-    // 本体 in the same commit, B18 goes to the storage, where its drop on a skill asks for the element (#227).
-    bool PickOpeningBase(int32 Index);
     virtual bool IsPanelOpen() const override {return bOpen;}
     // The 构筑 tray (the workshop) is open.
     bool IsTrayOpen() const {return bOpen;}
@@ -214,14 +199,7 @@ private:
         uint8 Slot=0;
         double StartedAt=-1.;
     };
-    // One pending elite component choice: its option cards and the empty-pool points card.
-    struct FChoiceRow
-    {
-        TObjectPtr<UWrapBox> Row;
-        TArray<FTrayCard> Options;
-        FTrayCard Points;
-    };
-    enum class ETrayGroup : uint8 { Blueprint,ComponentChoice,OpeningBase,Offer,FinalMod,FinalSource };
+    enum class ETrayGroup : uint8 { Blueprint,CardOffer,Offer,FinalMod,FinalSource };
     struct FTrayUnit
     {
         ETrayGroup Group=ETrayGroup::Blueprint;
@@ -236,7 +214,7 @@ private:
         TArray<TObjectPtr<ULDCommandButton>> Learn;
         TArray<TObjectPtr<ULDCommandButton>> Replace;
     };
-    // A replace, forget (#198 G: fill gap or dismantle) waiting on the confirm line, with the terms it was asked under.
+    // A replace or forget waiting on the confirm line, with the terms it was asked under.
     struct FRestConfirm
     {
         ELDBuildCommandKind Kind=ELDBuildCommandKind::None;
@@ -244,10 +222,6 @@ private:
         uint8 Slot=0;
         // The active the slot held when asked; another one there by confirm time withdraws the line instead.
         FName Active;
-        // FillGap: the gap target and the base it receives; Dismantle: the surrendered components.
-        FName GapTarget;
-        FName GapFiller;
-        TArray<FName> Surrendered;
     };
     // The tray: its frame (placed over the whole canvas) and the stack of rows.
     UPROPERTY() TObjectPtr<UBorder> TrayFrame;
@@ -268,10 +242,15 @@ private:
     UPROPERTY() TObjectPtr<UWidget> FinalModGroup;
     UPROPERTY() TObjectPtr<UWrapBox> FinalModRow;
     UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
-    UPROPERTY() TObjectPtr<UWrapBox> BaseRow;
+    // The card offer row: a cell per card (the card over its lock) and the reroll/skip column.
+    UPROPERTY() TObjectPtr<UWrapBox> CardRow;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CardLocks;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> CardCells;
+    UPROPERTY() TObjectPtr<UWidget> CardActions;
+    UPROPERTY() TObjectPtr<ULDCommandButton> CardRerollButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> CardSkipButton;
     // Every tray row (they all wrap at one width).
     UPROPERTY() TArray<TObjectPtr<UWrapBox>> TrayRows;
-    UPROPERTY() TObjectPtr<UVerticalBox> ChoiceRowList;
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
     TArray<FTrayCard> FinalCards;
@@ -281,8 +260,7 @@ private:
     TArray<int32> ShownSourceColumns;
     int32 FinalColumnPick=INDEX_NONE;
     FTrayCard SkipCard;
-    TArray<FTrayCard> BaseCards;
-    TArray<FChoiceRow> ChoiceRows;
+    TArray<FTrayCard> CardCards;
     TArray<FTrayCard> BlueprintCards;
     TArray<FBlueprintRow> BlueprintRows;
     ELDRestService ServiceContext=ELDRestService::None;
@@ -307,11 +285,10 @@ private:
     UPROPERTY() TObjectPtr<UWrapBox> FinalSourceChoices;
     UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
     UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
-    // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, the artisan's
-    // buttons, and the dock box for the pickers and the confirm line.
+    // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, and the dock box for
+    // the confirm line.
     UPROPERTY() TObjectPtr<UWidget> RespecBox;
     UPROPERTY() TObjectPtr<UWidget> NpcBox;
-    UPROPERTY() TObjectPtr<UWidget> ArtisanBox;
     UPROPERTY() TObjectPtr<UWrapBox> TrainerPicks;
     UPROPERTY() TObjectPtr<UWidget> ServiceDock;
     UPROPERTY() TObjectPtr<UScaleBox> ServiceFit;
@@ -323,22 +300,6 @@ private:
     UPROPERTY() TObjectPtr<ULDCommandButton> RespecButton;
     UPROPERTY() TObjectPtr<UTextBlock> RespecBlocked;
     UPROPERTY() TObjectPtr<UTextBlock> ForgetBlocked;
-    // #198 G FillGap and Dismantle: their service buttons, the target / filler pickers and the dismantle selection.
-    UPROPERTY() TObjectPtr<ULDCommandButton> FillGapButton;
-    UPROPERTY() TObjectPtr<UTextBlock> FillGapBlocked;
-    UPROPERTY() TObjectPtr<UWrapBox> GapTargetLine;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> GapTargetButtons;
-    UPROPERTY() TObjectPtr<UWrapBox> GapFillerLine;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> GapFillerButtons;
-    UPROPERTY() TObjectPtr<ULDCommandButton> DismantleButton;
-    UPROPERTY() TObjectPtr<UTextBlock> DismantleBlocked;
-    UPROPERTY() TObjectPtr<UWidget> DismantleSection;
-    UPROPERTY() TObjectPtr<UTextBlock> DismantleHeading;
-    // The dock's equation: one painted face per input (empty ones dashed) and the result's, with their names below.
-    UPROPERTY() TObjectPtr<UHorizontalBox> DismantleEquation;
-    UPROPERTY() TArray<TObjectPtr<USizeBox>> DismantleFaces;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DismantleNames;
-    UPROPERTY() TObjectPtr<ULDPaintLayer> DismantlePaint;
     UPROPERTY() TObjectPtr<UWidget> RestConfirmLine;
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
     UPROPERTY() TObjectPtr<ULDHoldButton> RestConfirmButton;
@@ -377,16 +338,10 @@ private:
     TArray<FLDFinalModSourceView> ShownFinalSources;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;
-    // #198 B: the opening base options the cards show, in the view's order.
-    TArray<FName> ShownBaseOptions;
-    // #198 G: the pending component choices the rows show (ids, oldest first) and the rest material services of the latest
-    // view: the open pickers, the picked gap target and the components picked for a dismantle.
-    TArray<FGuid> ShownChoices;
-    LDHUD::FMaterialServicesView Materials;
-    bool bFillGapOpen=false;
-    FName GapTarget;
-    bool bDismantleOpen=false;
-    TArray<FName> DismantlePicked;
+    // The card offer the row shows (id, revision and cards).
+    FGuid ShownCardOffer;
+    uint64 ShownCardRevision=0;
+    TArray<FName> ShownCardOptions;
     // The owner's level, stats or catalog changed: every shown card face is rendered again.
     bool bCardsStale=true;
     // PreviewOffer's pinned card, whose popup shows while no card is hovered.
@@ -409,15 +364,14 @@ private:
         const LDHUD::FActionDetailView& Detail);
     // Shows the card as a named card or an icon tile (bTile), enabled or greyed out.
     void ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVisible=true);
-    FTrayCard& BaseCardAt(int32 Index);
-    FChoiceRow& ChoiceRowAt(int32 Index);
     FTrayCard& BlueprintCardAt(int32 Index);
     FBlueprintRow& BlueprintRowAt(int32 Index);
     void RefreshOffer();
     void RefreshFinalMod();
     bool SubmitFinalMod(FName Option,const FLDFinalModSourceView& Source);
-    void RefreshOpeningBase(bool bTiles);
-    void RefreshComponentChoices(bool bTiles);
+    void RefreshCardOffer(bool bTiles);
+    // The guards every card offer command carries (the shown offer's id and revision), or false with the toast.
+    bool CardOfferCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out);
     void RefreshBlueprintCards();
     void RefreshBlueprints();
     void RefreshRest();
@@ -444,13 +398,6 @@ private:
     bool RestConfirmHolds() const;
     // Why the confirm line's command would be refused now (the service's own refusal); empty when it may be sent.
     FString RestConfirmRefusal() const;
-    ULDCommandButton* GapTargetButtonAt(int32 Index);
-    ULDCommandButton* GapFillerButtonAt(int32 Index);
-    void BuildDismantleEquation(int32 Inputs);
-    void PaintDismantle(const LDUIPaint::FContext& Paint) const;
-    // The FillGap / Dismantle pickers and their confirm line still match the latest material services.
-    void RefreshMaterials();
-    void CloseMaterialPickers();
     void RefreshAll();
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);

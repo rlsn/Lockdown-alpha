@@ -24,11 +24,11 @@ namespace LDGameModeTraceDetail
         return Connection ? Connection->LowLevelGetRemoteAddress(true) : FString(TEXT("-"));
     }
 
-    // #198: Q/W/E actives with their slots, pending blueprints, the allocated points per stat (the stats' design order) and
-    // (#198 B) the owned components, installed ones marked with '+' and their binding.
+    // Q/W/E actives with their slots, pending blueprints, the allocated points per stat (the stats' design order) and the
+    // owned cards by serial, installed ones marked with '+' and their target.
     FString BuildText(const FLDGrowthBuild& Build)
     {
-        FString Skills, Blueprints, Components;
+        FString Skills, Blueprints, Cards;
         for (const FLDLearnedActive& Active : Build.Actives)
         {
             Skills += FString::Printf(TEXT("%s%s/%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Active.Id.ToString(),
@@ -38,16 +38,17 @@ namespace LDGameModeTraceDetail
         {
             Blueprints += FString::Printf(TEXT("%s%s"), Blueprints.IsEmpty() ? TEXT("") : TEXT(","), *Id.ToString());
         }
-        for (const FLDComponentInstance& Instance : Build.Components)
+        for (const FLDCardInstance& Card : Build.Cards)
         {
-            Components += FString::Printf(TEXT("%s%s%s%s"), Components.IsEmpty() ? TEXT("") : TEXT(","), Instance.bInstalled ? TEXT("+") : TEXT(""),
-                *Instance.Id.ToString(), Instance.Target.BoundActive.IsNone() ? TEXT("")
-                    : *FString::Printf(TEXT("@%s:%s"), *Instance.Target.BoundActive.ToString(), *LDLog::EnumName(Instance.Target.Element)));
+            Cards += FString::Printf(TEXT("%s%s%s#%u%s"), Cards.IsEmpty() ? TEXT("") : TEXT(","), Card.IsInstalled() ? TEXT("+") : TEXT(""),
+                *Card.Id.ToString(), uint32(Card.Serial), Card.IsInstalled()
+                    ? *FString::Printf(TEXT("@%s%s"), *LDLog::EnumName(Card.Target.Kind), Card.Target.Active.IsNone() ? TEXT("")
+                        : *(TEXT(":") + Card.Target.Active.ToString())) : TEXT(""));
         }
         const FString Points = FString::JoinBy(Build.StatPoints, TEXT(","), [](int32 Count) { return FString::FromInt(Count); });
-        return FString::Printf(TEXT("skills=%s blueprints=%s points=%s components=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills,
+        return FString::Printf(TEXT("skills=%s blueprints=%s points=%s cards=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills,
             Blueprints.IsEmpty() ? TEXT("-") : *Blueprints, Points.IsEmpty() ? TEXT("-") : *Points,
-            Components.IsEmpty() ? TEXT("-") : *Components);
+            Cards.IsEmpty() ? TEXT("-") : *Cards);
     }
 }
 

@@ -84,13 +84,14 @@ bool Same(const FLDDemoRational& A,const FLDDemoRational& B)
     return A.Numerator==B.Numerator&&A.Denominator==B.Denominator;
 }
 
-bool Covered(const FLDDemoComponentDefinition& Definition,const FLDComponentTarget& Target)
+// A card whose every effect shows in the projected numbers (cost and cooldown, armor into HP); any other card's effect is
+// left to its rule text, so the preview reads partial.
+bool Covered(const FLDDemoCardDefinition& Definition)
 {
-    if((Target.Kind!=ELDComponentTargetKind::Active&&Target.Kind!=ELDComponentTargetKind::Dash)
-        ||Definition.Effects.IsEmpty()){return false;}
+    if(Definition.Effects.IsEmpty()){return false;}
     for(const FLDDemoEffectDefinition& Effect:Definition.Effects)
     {
-        if(Effect.GetOp()!=ELDDemoEffectOp::ControlScale&&Effect.GetOp()!=ELDDemoEffectOp::CooldownCost){return false;}
+        if(Effect.GetOp()!=ELDDemoEffectOp::CooldownCost&&Effect.GetOp()!=ELDDemoEffectOp::ArmorToHp){return false;}
     }
     return true;
 }
@@ -99,21 +100,22 @@ bool Partial(const FLDDemoContentSnapshot& Content,const FLDGrowthBuild& Before,
     bool& Out,FString& Error)
 {
     Out=false;
-    for(const FLDComponentInstance& Old:Before.Components)
+    const auto Check=[&](const FLDCardInstance& Card)
     {
-        const FLDComponentInstance* New=After.FindComponent(Old.Id);
-        if(New&&Old.bInstalled==New->bInstalled&&(!Old.bInstalled||Old.Target==New->Target)){continue;}
-        const FLDDemoComponentDefinition* Definition=nullptr;
-        if(!Content.FindComponent(Old.Id.ToString(),Definition,Error)||!Definition){return false;}
-        if((Old.bInstalled&&!Covered(*Definition,Old.Target))||(New&&New->bInstalled&&!Covered(*Definition,New->Target)))
-        {Out=true;}
+        const FLDDemoCardDefinition* Definition=nullptr;
+        if(!Content.FindCard(Card.Id.ToString(),Definition,Error)||!Definition){return false;}
+        Out|=!Covered(*Definition);
+        return true;
+    };
+    for(const FLDCardInstance& Old:Before.Cards)
+    {
+        const FLDCardInstance* New=After.FindCard(Old.Serial);
+        if(New&&Old.Target==New->Target){continue;}
+        if(!Check(Old)){return false;}
     }
-    for(const FLDComponentInstance& New:After.Components)
+    for(const FLDCardInstance& New:After.Cards)
     {
-        if(Before.FindComponent(New.Id)||!New.bInstalled){continue;}
-        const FLDDemoComponentDefinition* Definition=nullptr;
-        if(!Content.FindComponent(New.Id.ToString(),Definition,Error)||!Definition){return false;}
-        if(!Covered(*Definition,New.Target)){Out=true;}
+        if(!Before.FindCard(New.Serial)&&New.IsInstalled()&&!Check(New)){return false;}
     }
     return true;
 }
@@ -373,29 +375,27 @@ LDWorkshopPreview::FResult LDWorkshopPreview::Compare(const FInput& Input)
     if(View->LifePhase!=ELDLifePhase::Alive&&View->LifePhase!=ELDLifePhase::Dead)
     {Result.Status=EStatus::Unavailable;return Result;}
     ELDDemoElement Element=Input.Element;
-    FName Base=Input.Base;
     if(Input.Drop.Elements.Num()==1){Element=Input.Drop.Elements[0];}
-    if(Input.Drop.Bases.Num()==1){Base=Input.Drop.Bases[0];}
-    if((!Input.Drop.Elements.IsEmpty()&&!Input.Drop.Elements.Contains(Element))
-        ||(!Input.Drop.Bases.IsEmpty()&&!Input.Drop.Bases.Contains(Base)))
+    if(!Input.Drop.Elements.IsEmpty()&&!Input.Drop.Elements.Contains(Element))
     {Result.Status=EStatus::ChoiceRequired;return Result;}
 
     FLDGrowthBuild Current=LDProgression::BuildFromView(Input.Content->Get(),*View);
     Current.FinalMod=View->FinalMod;
-    const FLDComponentInstance* Owned=Current.FindComponent(Input.Component);
+    const uint16 Serial=LDHUD::CardSerial(Input.Component);
+    const FLDCardInstance* Owned=Current.FindCard(Serial);
     if(!Owned){Result.Status=EStatus::Refused;Result.Reason=ELDGrowthReason::NotOwned;return Result;}
-    const bool bMoving=Owned->bInstalled;
+    const bool bMoving=Owned->IsInstalled();
     LDProgression::FBuildContext Context;Context.Stage=Input.Stage;Context.LifePhase=View->LifePhase;
     FLDGrowthBuild Available=Current;
     if(bMoving)
     {
-        Result.Reason=LDProgression::ApplyUninstallComponent(Input.Content->Get(),Current,Input.Component,Context,Available);
+        Result.Reason=LDProgression::ApplyUninstallCard(Input.Content->Get(),Current,Serial,Context,Available);
         if(Result.Reason!=ELDGrowthReason::None){Result.Status=EStatus::Refused;return Result;}
     }
-    FLDComponentTarget Target;Target.Kind=Input.Drop.Kind;Target.Definition=Input.Drop.TargetId;
-    Target.BoundActive=Input.Drop.BindActive;Target.Element=Element;Target.BoundComponent=Base;
+    FLDCardTarget Target;Target.Kind=Input.Drop.Kind;Target.Active=Input.Drop.TargetId;Target.Element=Element;
+    const uint16 Replacing=Input.Drop.Replacing.IsNone()?0:LDHUD::CardSerial(Input.Drop.Replacing);
     FLDGrowthBuild Installed;
-    Result.Reason=LDProgression::ApplyInstallComponent(Input.Content->Get(),Available,Input.Component,Target,Context,Installed,Input.Drop.Replacing);
+    Result.Reason=LDProgression::ApplyInstallCard(Input.Content->Get(),Available,Serial,Target,Context,Installed,Replacing);
     if(Result.Reason!=ELDGrowthReason::None){Result.Status=EStatus::Refused;return Result;}
 
     FState Before,Intermediate,After;

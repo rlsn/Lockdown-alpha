@@ -998,7 +998,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Storage->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
             {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
             Storage->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
-            Storage->OnServicePick=[this](FName Component){if(ChoicesPanel){ChoicesPanel->PickDismantleComponent(Component);}};
         }
         if(StatBar)
         {
@@ -1580,7 +1579,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Storage){Storage->SetEngaged(bEngaged);}
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
         ChoicesPanel->SetServiceContext(O.NearbyRestService);
-        if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());Storage->SetServicePick(ChoicesPanel->DismantleSelectable(),ChoicesPanel->DismantleSelection());}
+        if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
     }
     if(StatBar)
     {
@@ -1596,13 +1595,13 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         Anchors.Band=RectOf(Band);
         Anchors.Corner=RectOf(PromptFrame);
         Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
-        {
-            // Empty-pool points land where the unspent points show: the workshop's points, else the band's stat icons.
-            const ULDChoicesPanel::FWorkshopPlaces Places=Workshop?Workshop->Places():ULDChoicesPanel::FWorkshopPlaces();
-            const bool bWorkshopPoints=Places.bActive&&Places.Points.Right>Places.Points.Left;
-            Storage->SetPointsTarget(bWorkshopPoints?Places.Points:RectOf(StatBar));
-        }
         Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=RectOf(BodySlot);
+        {
+            // 普攻 has no band slot of its own: its column stands one slot left of 本体.
+            const FSlateRect Body=Anchors.Columns[int32(LDHUD::EStorageColumn::Body)];
+            const float Step=Body.Right-Body.Left+8.f;
+            if(Body.Right>Body.Left){Anchors.Columns[int32(LDHUD::EStorageColumn::Basic)]=FSlateRect(Body.Left-Step,Body.Top,Body.Right-Step,Body.Bottom);}
+        }
         for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
         {
             const int32 ServerSlot=HudServerSlot(PC->SkillAtKey[Index]);
@@ -1627,15 +1626,14 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             if(In.bDead){In.DeathRecap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);}
             In.TrayDesired=ChoicesPanel?ChoicesPanel->TrayDesiredSize():FVector2D::ZeroVector;
             const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
-            In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bOpeningBase?1:0)+Waiting.ComponentChoices+(Waiting.bFinalMod?1:0);
+            In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bCardOffer?1:0)+(Waiting.bFinalMod?1:0);
             In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
             In.bStage=ChoicesPanel&&ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel&&ChoicesPanel->IsFinalStage();
             In.bServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
             if(ChoicesPanel&&In.bServices)
             {
                 const ELDRestService Service=ChoicesPanel->GetServiceContext();
-                In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
-                In.bLibraryServices=Service==ELDRestService::ComponentArtisan;
+                In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):TEXT("训练师");
                 In.bCharacterServices=Service==ELDRestService::Trainer;
             }
             Workshop->Present(In);
@@ -1759,12 +1757,11 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     }
     // New opportunities or component choices pulse the workspace entry briefly; owned components wait in the storage and
     // unspent points on the portrait badge.
-    const int32 PendingComponents=(Pending.bOpeningBase?1:0)+Pending.ComponentChoices;
-    if(Pending.Offers>PromptOffers||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
-    PromptOffers=Pending.Offers;PromptComponents=PendingComponents;
+    if(Pending.Offers>PromptOffers||Pending.CardOffers>PromptCardOffers){PromptPulseAt=UiNow;}
+    PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     {
-        const int32 Waiting=(Pending.bOffer?1:0)+Pending.Blueprints+(Pending.bOpeningBase?1:0)+Pending.ComponentChoices+(Pending.bFinalMod?1:0);
+        const int32 Waiting=(Pending.bOffer?1:0)+Pending.Blueprints+(Pending.bCardOffer?1:0)+(Pending.bFinalMod?1:0);
         HudSetText(PromptBadgeText,FString::FromInt(Waiting));
         HudSetShown(PromptBadge,Waiting>0&&PromptFrame->IsVisible(),ESlateVisibility::HitTestInvisible);
         const FVector2D Corner(-HudCornerInset-4.f,-HudCornerInset-float(PromptFrame->GetDesiredSize().Y)+4.f);

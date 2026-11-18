@@ -82,8 +82,6 @@ public:
         bool bFinalStage=false;
         FString NpcName;
         bool bServices=false;
-        // The artisan's services sit in a band at the top of the library, above its title and filter.
-        bool bLibraryServices=false;
         // The trainer's respec takes the foot of the character column.
         bool bCharacterServices=false;
     };
@@ -269,7 +267,6 @@ private:
     TMap<UWidget*,ESlateVisibility> ShownAs;
     float TextScale=1.f;
     // The artisan band's height at the top of the library (0 without it), from the last layout.
-    float LibraryBand=0.f;
     // Where the capacity cells start (local x), from the last layout.
     float CapacityCellsAt=0.f,CapacityCellStep=45.f;
     float DockDividerX=0.f;
@@ -296,7 +293,6 @@ private:
     LDWorkshopPreview::FResult Preview;
     int32 PreviewPage=0;
     uint8 DockKindValue=0;
-    bool DockScarce=false;
     TWeakObjectPtr<UTexture2D> DockIcon;
     double UiNow() const;
     void Layout(FVector2D Size);

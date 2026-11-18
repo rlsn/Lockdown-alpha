@@ -1180,6 +1180,40 @@ ELDGrowthReason LDProgression::CardTargetReason(const FLDDemoContentDefinitions&
     return ELDGrowthReason::None;
 }
 
+bool LDProgression::DefaultCardTarget(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
+    FLDCardTarget& Out)
+{
+    Out = FLDCardTarget();
+    const FLDDemoCardDefinition* Definition = ProgressionFindCard(Content, Id);
+    if (!Definition)
+    {
+        return false;
+    }
+    Out.Kind = ProgressionFormTarget(Definition->Form);
+    Out.Element = Definition->ChooseElements.IsEmpty() ? ELDDemoElement::None : Definition->ChooseElements[0];
+    if (Out.Kind == ELDCardTargetKind::Skill)
+    {
+        // The learned skill sharing the most vocabulary keys with the card; Q/W/E order on ties.
+        int32 Best = -1;
+        for (const FLDLearnedActive& Active : Build.Actives)
+        {
+            const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Active.Id);
+            const int32 Shared = Ability ? FMath::CountBits(uint64(Ability->VocabMask & Definition->VocabMask)) : 0;
+            if (Shared > Best)
+            {
+                Best = Shared;
+                Out.Active = Active.Id;
+            }
+        }
+    }
+    if (CardTargetReason(Content, Build, Id, Out) != ELDGrowthReason::None)
+    {
+        Out = FLDCardTarget();
+        return false;
+    }
+    return true;
+}
+
 ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Locked,
     uint64 Seed, TArray<FName>& Out)
 {
