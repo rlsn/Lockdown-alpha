@@ -540,7 +540,6 @@ namespace LDOpponentPolicy
     // last AP or AD active away, say). After the respec AllocatePoints spends only into that set, so it does not repeat
     // until the learned actives change. False with Error when the stat rows are not the catalog's.
     LOCKDOWN_API bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error);
-    // #198 rest NPC: buy one active offer exactly when growth would charge for it and it fills a gap: a mid rest (RestIndex
     // Spec §13 rest shop: with at least the skill point's price in vouchers and points left to buy this match, the skill point
     // (OutSlot FLDBuildCommand::ShopSkillPointSlot); otherwise the affordable, unsold shelf card scoring highest like a card
     // pick (SelectCard's score). The AI never buys skills and never sells. False when nothing qualifies.
