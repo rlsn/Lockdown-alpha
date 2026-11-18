@@ -99,7 +99,12 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
     if(!bNewLife&&Combat->MaxHPP2==MaxHPP2&&Sample.LifePhase==ELDLifePhase::Alive)
     {
         const int64 DeltaHP=Combat->HPP2-HPP2,DeltaShield=Combat->ShieldP2-ShieldP2;
-        if(DeltaHP<0){WorldFeedbackAdd(Out,EKind::DamageTaken,-DeltaHP);}
+        if(DeltaHP<0)
+        {
+            const int32 Before=Out.Num();
+            WorldFeedbackAdd(Out,EKind::DamageTaken,-DeltaHP);
+            if(Out.Num()>Before){Out.Last().Tier=DamageTier(-DeltaHP,Combat->MaxHPP2);}
+        }
         else if(double(DeltaHP)>WorldFeedbackRegenToleranceP2(double(Combat->AsOfMs-BodyAsOfMs)/1000.)){WorldFeedbackAdd(Out,EKind::Heal,DeltaHP);}
         if(DeltaShield>0){WorldFeedbackAdd(Out,EKind::ShieldGain,DeltaShield);}
         // Absorbed while the shield is still listed, with lost points, or gone before its listed end; a shield that
@@ -123,6 +128,11 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
         {
             FEvent& XPEvent=Out.AddDefaulted_GetRef();XPEvent.Kind=EKind::Experience;XPEvent.Amount=Progression->CumulativeXP-XP;
         }
+        // Spec §12: every voucher gain flies in beside the own body (spending is silent).
+        if(Progression->Vouchers>Vouchers)
+        {
+            FEvent& VoucherEvent=Out.AddDefaulted_GetRef();VoucherEvent.Kind=EKind::Vouchers;VoucherEvent.Amount=Progression->Vouchers-Vouchers;
+        }
         // Several levels at once are one level-up naming the level reached and every point and opportunity earned with it.
         if(Progression->Level>Level)
         {
@@ -137,7 +147,7 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
     if(bProgress)
     {
         Level=Progression->Level;OffersEarned=Progression->ActiveOpportunitiesEarned;
-        PointsEarned=WorldFeedbackPointsEarned(*Progression);XP=Progression->CumulativeXP;
+        PointsEarned=WorldFeedbackPointsEarned(*Progression);XP=Progression->CumulativeXP;Vouchers=Progression->Vouchers;
     }
 }
 
@@ -212,6 +222,7 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
             {
                 FEvent& Event=Out.AddDefaulted_GetRef();
                 Event.Kind=Delta<0?EKind::UnitDamage:EKind::UnitHeal;Event.Amount=Points;
+                Event.Tier=Delta<0?DamageTier(-Delta,Next.MaxP2):0;
                 Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;Event.SampledAtServerSec=Next.SampledAtSec;
             }
         }
@@ -219,6 +230,19 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
     }
     Units=MoveTemp(Seen);
     bFrame=true;FrameGeneration=Frame->Generation;FrameRevision=Frame->Revision;
+}
+
+int32 LDWorldFeedback::DamageTier(int64 DamageP2,int64 MaxHpP2)
+{
+    if(DamageP2<=0||MaxHpP2<=0){return 0;}
+    const double Share=double(DamageP2)/double(MaxHpP2);
+    return Share>=.6?3:Share>=.3?2:Share>=.1?1:0;
+}
+
+float LDWorldFeedback::DamageTierScale(int32 Tier)
+{
+    static const float Scales[]={1.f,1.25f,1.55f,1.9f};
+    return Scales[FMath::Clamp(Tier,0,3)];
 }
 
 FString LDWorldFeedback::Text(const FEvent& Event)
@@ -230,6 +254,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::ShieldGain: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Shield);
     case EKind::ShieldAbsorbed: return FString::Printf(TEXT("-%lld %s"),Event.Amount,LDTerms::Shield);
     case EKind::Experience: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Experience);
+    case EKind::Vouchers: return LDTerms::VouchersGained(int32(Event.Amount));
     case EKind::LevelUp: return LDTerms::LevelUp(Event.Level);
     case EKind::Kill: return LDTerms::KillFloat(Event.Name.IsEmpty()?FString(LDTerms::UnknownVictim):Event.Name);
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
@@ -325,6 +350,7 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::ShieldGain: return {LDHUDStyle::ShieldGain,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::ShieldAbsorbed: return {LDHUDStyle::Shield,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::Experience: return {LDHUDStyle::ExperienceGain,LDHUDStyle::TypeBody};
+    case LDWorldFeedback::EKind::Vouchers: return {FLinearColor(1.f,.82f,.3f),LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::UnitReaction: return {FLinearColor(1.f,.85f,.35f),LDHUDStyle::TypeTitle};
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
@@ -337,7 +363,7 @@ FLinearColor WorldFeedbackReactionInk(int64 Reaction)
     static const FLinearColor Inks[]={FLinearColor::White,Water,Shock,Shock,Chill,Rot,Gust,Chill,Rot,Gust,Chill,Rot,Gust,Rot,Gust,Gust};
     return Reaction>0&&Reaction<int64(UE_ARRAY_COUNT(Inks))?Inks[Reaction]:FLinearColor::White;
 }
-bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience;}
+bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience||Kind==LDWorldFeedback::EKind::Vouchers;}
 bool WorldFeedbackSameAnchor(const LDWorldFeedback::FEvent& First,const LDWorldFeedback::FEvent& Second)
 {return First.bOwn==Second.bOwn&&(First.bOwn||(First.Handle==Second.Handle&&First.Epoch==Second.Epoch));}
 float WorldFeedbackEaseOut(float Progress)
@@ -658,7 +684,9 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
         const float Progress=float(Age/LDHUDStyle::FloatSeconds);
         const float Alpha=Progress<.6f?1.f:FMath::Clamp((1.f-Progress)/.4f,0.f,1.f);
         const FWorldFeedbackLook Look=WorldFeedbackLookOf(Floater.Event.Kind);
-        const FSlateFontInfo Font=WorldFeedbackFont(Look.FontSize,TextScale,2,Alpha);
+        // Spec §12: a bigger share of the body's max HP is a bigger number; the top tier shakes while it pops.
+        const float TierScale=LDWorldFeedback::DamageTierScale(Floater.Event.Tier);
+        const FSlateFontInfo Font=WorldFeedbackFont(Look.FontSize,TextScale*TierScale,2,Alpha);
         FLinearColor Ink=Floater.Event.Kind==LDWorldFeedback::EKind::UnitReaction?WorldFeedbackReactionInk(Floater.Event.Amount):Look.Ink;
         Ink.A*=Alpha;
         float AlignX=.5f;
@@ -687,6 +715,11 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
                 AlignX=Side>0.f?0.f:1.f;
             }
             Anchor.Y-=WorldFeedbackRise*TextScale*WorldFeedbackEaseOut(Progress);
+        }
+        if(Floater.Event.Tier>=3&&Age<.35)
+        {
+            const float Shake=float(1.-Age/.35)*4.f*TextScale;
+            Anchor.X+=Shake*FMath::Sin(float(Age)*90.f);Anchor.Y+=Shake*FMath::Cos(float(Age)*70.f);
         }
         Draw(2,Floater.Text,Font,Ink,Anchor,AlignX,WorldFeedbackPop(Now-Floater.PopAt,WorldFeedbackPopSeconds,1.3f));
     }

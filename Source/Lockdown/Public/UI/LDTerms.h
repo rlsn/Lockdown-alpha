@@ -264,6 +264,10 @@ inline FString OfferSkipVouchers(int64 Vouchers){return FString::Printf(TEXT("+%
 inline FString VouchersGained(int32 Vouchers){return FString::Printf(TEXT("+%d 饭票"),Vouchers);}
 inline FString CardSold(const FString& Name,int32 Vouchers){return FString::Printf(TEXT("卖掉 %s，+%d 饭票"),*Name,Vouchers);}
 inline const TCHAR* const ShopRefreshed=TEXT("货架已刷新");
+inline const TCHAR* const VoucherGlyph=TEXT("票");
+inline const TCHAR* const PickTicketGlyph=TEXT("点名券");
+inline const TCHAR* const ResultHighlights=TEXT("本局最离谱");
+inline const TCHAR* const BestHit=TEXT("最高一下");
 inline const TCHAR* const SkillPointBought=TEXT("买到 1 个技能点");
 inline constexpr TCHAR OfferSkip[]=TEXT("不选");
 inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");

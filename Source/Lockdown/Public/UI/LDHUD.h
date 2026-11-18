@@ -282,6 +282,9 @@ private:
     // The own per-source damage of the shown result: a heading and a fixed grid of cells (never a scroll view).
     UPROPERTY() TObjectPtr<UTextBlock> ResultDamageHeading;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageCells;
+    // Spec §12 结算“本局最离谱”: one line per contender (LDHUD::ResultHighlights).
+    UPROPERTY() TObjectPtr<UWidget> ResultHighlightsCard;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultHighlightCells;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> LeaveRoomButton;
     UPROPERTY() TObjectPtr<UBorder> DeathBanner;
@@ -309,6 +312,8 @@ private:
     UPROPERTY() TObjectPtr<UBorder> PointsBadge;
     UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
+    // Spec §12: the own vouchers (票) and pick tickets beside the portrait, under the name.
+    UPROPERTY() TObjectPtr<UTextBlock> VoucherText;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     // The own statuses (LDHUD::SelfIcons) are painted by ULDWorldLabels above the own overhead bars, as LoL-style icons
     // (OwnStatusMarks). The HUD builds the marks with the band's gate, keeps their textures alive and their remaining-time
@@ -400,6 +405,9 @@ private:
     int64 LifeSeenAliveMs=0;
     FGuid ShownResultId;
     uint64 ShownResultSerial=0;
+    // Spec §6.5: the last chain end of the own view this HUD handed to the codex, per match.
+    uint32 ChainMatch=0;
+    uint32 ChainSerial=0;
     // The result enters winner first, then the rows one by one, then its buttons (real seconds; -1 when settled).
     double ResultShownAt=-1.;
     UPROPERTY() TArray<TObjectPtr<UWidget>> ResultEntries;

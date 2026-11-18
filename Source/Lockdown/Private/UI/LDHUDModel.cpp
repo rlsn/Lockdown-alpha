@@ -10,6 +10,8 @@
 #include "Development/LDSkillGrowth.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDDamageRecap.h"
+#include "Combat/LDChainRules.h"
+#include "Combat/LDCombatElements.h"
 #include "PK/LDPKRules.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
@@ -1220,6 +1222,64 @@ LDHUD::FDamageListView LDHUD::DamageSummary(const FLDDamageSummaryView& Summary,
     }
     if(RestP2>0){View.Rows.Add(HudDamageEntry(TEXT("其他"),RestP2));}
     View.Heading=FString::Printf(TEXT("你造成的伤害 %lld"),HudWholePoints(AllP2,true));
+    return View;
+}
+
+FString LDHUD::ChainStepName(const FLDDemoContentDefinitions* Content,FName Step)
+{
+    const FString Id=Step.ToString();
+    if(Step==LDChain::KillStep()){return TEXT("击杀");}
+    if(Id==TEXT("basic")){return LDTerms::BasicAttack;}
+    if(Id.StartsWith(TEXT("reaction_")))
+    {
+        for(uint8 Index=1;Index<=uint8(ELDCombatReaction::Smoke);++Index)
+        {
+            if(LDChain::ReactionStep(LDCombatElements::ReactionName(ELDCombatReaction(Index)))==Step){return LDTerms::ReactionTerm(Index);}
+        }
+        return Id;
+    }
+    if(Id.StartsWith(TEXT("ground_")))
+    {
+        for(uint8 Index=1;Index<UE_ARRAY_COUNT(LDTerms::GroundNames);++Index)
+        {
+            if(LDChain::GroundStep(LDCombatElements::GroundName(ELDGroundStateKind(Index)))==Step){return LDTerms::GroundNames[Index];}
+        }
+        return Id;
+    }
+    return ContentName(Content,Id);
+}
+FString LDHUD::ChainKeyText(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key)
+{
+    return FString::JoinBy(Key,TEXT(" → "),[Content](FName Step){return ChainStepName(Content,Step);});
+}
+FString LDHUD::NewChainNotice(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key)
+{
+    return TEXT("新连锁：")+ChainKeyText(Content,Key);
+}
+LDHUD::FResultHighlightsView LDHUD::ResultHighlights(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FGuid& Self,
+    const FLDDemoContentDefinitions* Content)
+{
+    FResultHighlightsView View;
+    if(!Result.ResultId.IsValid()||Summary.ResultId!=Result.ResultId||Summary.Match!=Result.Generation){return View;}
+    View.bAvailable=true;
+    for(const FLDResultRow& Row:Result.Rows)
+    {
+        if(View.Rows.Num()>=ResultHighlightsMax){break;}
+        const FLDResultHighlight* Highlight=Summary.Highlights.FindByPredicate([&Row](const FLDResultHighlight& Each){return Each.Contender==Row.ContenderId;});
+        FResultHighlightRow& Out=View.Rows.AddDefaulted_GetRef();
+        Out.Name=Row.Name;
+        Out.bOwn=Row.ContenderId==Self;
+        Out.Chain=Highlight&&Highlight->LongestSteps>0
+            ?FString::Printf(TEXT("%s（%d 步）"),*ChainKeyText(Content,Highlight->LongestKey),Highlight->LongestSteps):FString(TEXT("—"));
+        if(Highlight&&Highlight->BestDamageP2>0)
+        {
+            const FString Source=ChainStepName(Content,Highlight->BestSource);
+            const int64 Points=HudWholePoints(Highlight->BestDamageP2,true);
+            const int64 Percent=Highlight->BestTargetMaxHpP2>0?(Highlight->BestDamageP2*100+Highlight->BestTargetMaxHpP2/2)/Highlight->BestTargetMaxHpP2:0;
+            Out.Best=FString::Printf(TEXT("%s %lld（%lld%%）"),*Source,Points,Percent);
+        }
+        else{Out.Best=TEXT("—");}
+    }
     return View;
 }
 
