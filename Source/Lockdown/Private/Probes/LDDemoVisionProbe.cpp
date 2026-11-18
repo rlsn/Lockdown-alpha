@@ -9,6 +9,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -71,6 +72,27 @@ struct FLDDemoVisionReactionAccess
         Combat.PendingHits.Add(MoveTemp(Wet));
         Combat.PendingHits.Add(MoveTemp(Electric));
     }
+};
+
+// Spec §8.3 ice inertia over a real owning connection: the Host's own body owns an ice field placed through the native
+// ground path at the walker's foot, so the walker stands on an enemy's ice; long enough for one bounded walk across it.
+static bool ReactionOnly() { return FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly")); }
+static bool IceOnly() { return FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionIceOnly")); }
+static bool HeadlessOnly() { return ReactionOnly() || IceOnly(); }
+
+struct FLDDemoVisionIceAccess
+{
+    static bool Spawn(ALDCombatDirector& Combat, const FLDCombatBodyRef& Owner, const FGuid& OwnerEntity, const FVector& Foot,
+        int64 NowMs, FString& Error)
+    {
+        FLDElementApplier Applier;
+        Applier.SourceEntity = Applier.CreditOwner = OwnerEntity;
+        Applier.SourceBody = Owner;
+        Applier.Level = 1;
+        return Combat.SpawnGround(ELDGroundStateKind::Ice, Applier, Foot, NowMs, Error, IceRadiusCm, IceLifeMs);
+    }
+    static constexpr double IceRadiusCm = 600.;
+    static constexpr int64 IceLifeMs = 20000;
 };
 
 // Carries the topology-only assertions of the retired LDViewNetworkProbe (#1, #9, #15, #23, #28 of the observation
@@ -172,6 +194,12 @@ public:
     FString Output, Role, Error, CatalogDigest, PendingImage, SpawnViolation, SpawnVisibilityViolation;
     double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0, BlockedSince = 0, SightDeadline = 0, ImageAt = 0, DisconnectAt = 0;
     double ReactionQueuedAt = 0, ReactionAt = 0;
+    // Ice scenario (spec §8.3): the Host's queue, the walker's start and the server corrections around the walk.
+    bool bIceReady = false, bIceQueued = false, bIceServerScaled = false, bIceWalking = false;
+    double IceSeenAt = 0, IceWalkAt = 0, IceTopSpeedAt = 0;
+    uint32 IceCorrectionBaseline = 0;
+    double IceTopSpeed = 0;
+    FVector IceGoal = FVector::ZeroVector;
     int32 Stage = 0, WalkWaypoint = 0, SpawnFramesChecked = 0, SpawnVisibilityFramesChecked = 0, PreStallProxies = 0;
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false, bStallAnnounced = false;
     bool bControlObserved = false, bControlViolated = false, bEmulating = false, DisconnectVerified = false;
@@ -276,11 +304,11 @@ public:
         return true;
     }
 
-    bool ReadReactionContender(const FString& Participant, FGuid& Contender) const
+    bool ReadReactionContender(const FString& Participant, FGuid& Contender, const TCHAR* Suffix = TEXT("ReactionReady.json")) const
     {
         FString Json, Id;
         TSharedPtr<FJsonObject> Value;
-        return FFileHelper::LoadFileToString(Json, *FPaths::Combine(Output, Participant + TEXT("ReactionReady.json")))
+        return FFileHelper::LoadFileToString(Json, *FPaths::Combine(Output, Participant + Suffix))
             && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Value) && Value.IsValid()
             && Value->TryGetStringField(TEXT("contender"), Id) && FGuid::Parse(Id, Contender) && Contender.IsValid();
     }
@@ -620,7 +648,7 @@ public:
     {
         if (!AllMarkers(TEXT("Arrived.json"))) { return true; }
         if (SightDeadline == 0) { SightDeadline = Now + 20; }
-        const bool bReactionOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"));
+        const bool bReactionOnly = HeadlessOnly();
         const ALDWorldViewRelay* Relay = nullptr;
         const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
         if (!Frame || !Relay || (!bReactionOnly && OtherContenders(*Frame, Owner.OwnerState.ContenderId) < 2))
@@ -769,6 +797,133 @@ public:
         return true;
     }
 
+    static ULDCharacterMovementComponent* MovementOf(const APawn* Pawn)
+    {
+        const ALDCharacter* Body = Cast<ALDCharacter>(Pawn);
+        return Body ? Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement()) : nullptr;
+    }
+
+    // Spec §8.3 ice inertia over a real owning connection. Client1 is the walker; the Host places an ice field its own body
+    // owns at Client1's foot, then watches the authoritative acceleration of Client1's server body and its corrections;
+    // Client1 checks its owner view and prediction scale, then walks across the ice and times its start.
+    bool TickIce(double Now, UWorld& InWorld, ALDPlayerController& Owner, const FLDLobbyView& Lobby)
+    {
+        if (!AllMarkers(TEXT("Sighted.json"))) { return true; }
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        FString ContentError;
+        if (!LDDemoEntry::LoadRuntimeContent(Content, ContentError) || !Content)
+        { return Fail(TEXT("#Ice"), TEXT("No approved content: ") + ContentError); }
+        const float Scale = float(Content->Get().Parameters.Ground.IceAccelScaleBp) / 10000.f;
+        if (!(Scale > 0.f && Scale < 1.f)) { return Fail(TEXT("#Ice"), TEXT("GROUND.IceAccelScale is not a slowdown")); }
+        if (Role == TEXT("Client2"))
+        {
+            if (!Mark(Role + TEXT("IceDone.json"))) { return Finish(); }
+            Stage = 7;
+            return true;
+        }
+        if (!bIceReady)
+        {
+            if (!Owner.OwnerState.ContenderId.IsValid()) { return Fail(TEXT("#Ice"), TEXT("The owning connection has no contender identity")); }
+            auto Ready = MakeShared<FJsonObject>();
+            Ready->SetStringField(TEXT("contender"), Owner.OwnerState.ContenderId.ToString());
+            if (!Save(Ready, Role + TEXT("IceReady.json"))) { return Fail(TEXT("#Ice"), TEXT("Could not persist the contender identity")); }
+            bIceReady = true;
+            if (IceSeenAt == 0) { IceSeenAt = Now; }
+        }
+        if (Role == TEXT("Host"))
+        {
+            FGuid WalkerId;
+            if (!Exists(TEXT("Client1IceReady.json"))) { return true; }
+            if (!ReadReactionContender(TEXT("Client1"), WalkerId, TEXT("IceReady.json"))
+                || !Lobby.Members.ContainsByPredicate([WalkerId](const FLDLobbyMember& Member) { return Member.ContenderId == WalkerId; }))
+            { return Fail(TEXT("#Ice"), TEXT("Client1 is not a roster participant")); }
+            ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
+            ALDPlayerController* Walker = Mode ? Mode->FindContenderController(WalkerId) : nullptr;
+            ULDCharacterMovementComponent* ServerMove = Walker ? MovementOf(Walker->GetPawn()) : nullptr;
+            const ALDCharacter* WalkerBody = Walker ? Cast<ALDCharacter>(Walker->GetPawn()) : nullptr;
+            if (!Mode || !Mode->Combat || !ServerMove || !WalkerBody || !Owner.OwnerState.BodyRef.IsValid())
+            { return Fail(TEXT("#Ice"), TEXT("The authority has no live bodies for the Host and the walker")); }
+            if (!bIceQueued)
+            {
+                if (Mode->IsContenderProtected(WalkerId)) { return true; }
+                FString SpawnError;
+                if (!FLDDemoVisionIceAccess::Spawn(*Mode->Combat, Owner.OwnerState.BodyRef, Owner.OwnerState.ContenderId,
+                    ALDCombatDirector::FootOf(*WalkerBody), Mode->GetAuthorityNowMs(), SpawnError))
+                { return Fail(TEXT("#Ice"), TEXT("The native ground path refused the ice field: ") + SpawnError); }
+                IceCorrectionBaseline = ServerMove->ServerCorrectionCount;
+                if (!Mark(TEXT("IceQueued.json"))) { return Finish(); }
+                bIceQueued = true;
+                IceWalkAt = Now;
+            }
+            // The server body of the walker accelerates and brakes at the ice scale while it stands on it.
+            const float ServerAccel = ServerMove->GetMaxAcceleration();
+            bIceServerScaled |= FMath::IsNearlyEqual(ServerMove->AccelScale(), Scale, .001f)
+                && FMath::IsNearlyEqual(ServerAccel, ServerMove->MaxAcceleration * Scale, 1.f);
+            if (!Exists(TEXT("IceWalked.json")))
+            {
+                if (Now - IceWalkAt < 30) { return true; }
+                return Fail(TEXT("#Ice"), TEXT("The walker did not finish its walk on the ice"));
+            }
+            const uint32 Corrections = ServerMove->ServerCorrectionCount - IceCorrectionBaseline;
+            if (!Check(bIceServerScaled, TEXT("#Ice"), FString::Printf(
+                TEXT("The walker's server body accelerates at the authoritative ice scale %.2f on the Host's ice"), Scale))) { return Finish(); }
+            if (!Check(Corrections <= IceCorrectionAllowance, TEXT("#Ice"), FString::Printf(
+                TEXT("The walk across the ice stays predicted: %u server corrections (allowance %u)"), Corrections, IceCorrectionAllowance)))
+            { return Finish(); }
+            if (!Mark(Role + TEXT("IceDone.json"))) { return Finish(); }
+            Stage = 7;
+            return true;
+        }
+        // Client1: the owning client's prediction reads the same scale from its owner view, then walks across the ice.
+        if (!Exists(TEXT("IceQueued.json"))) { return true; }
+        ULDCharacterMovementComponent* Move = MovementOf(Owner.GetPawn());
+        if (!Move || !Owner.Navigation) { return Fail(TEXT("#Ice"), TEXT("The walker has no predicted movement")); }
+        if (!bIceWalking)
+        {
+            if (!FMath::IsNearlyEqual(Move->AccelScale(), Scale, .001f))
+            {
+                if (Now - IceSeenAt < 15) { return true; }
+                return Fail(TEXT("#Ice"), FString::Printf(TEXT("The owner view never published the ice scale (%.3f, expected %.3f)"),
+                    Move->AccelScale(), Scale));
+            }
+            if (!Check(FMath::IsNearlyEqual(Move->GetMaxAcceleration(), Move->MaxAcceleration * Scale, 1.f), TEXT("#Ice"),
+                TEXT("The owning client's prediction accelerates at the same authoritative ice scale"))) { return Finish(); }
+            const FVector Foot = Owner.GetPawn()->GetActorLocation();
+            FVector Forward = Owner.GetPawn()->GetActorForwardVector().GetSafeNormal2D();
+            if (Forward.IsNearlyZero()) { Forward = FVector::ForwardVector; }
+            IceGoal = Foot + Forward * IceWalkCm;
+            Owner.Navigation->Navigate(IceGoal);
+            bIceWalking = true;
+            IceWalkAt = Now;
+            return true;
+        }
+        const double Speed = Owner.GetPawn()->GetVelocity().Size2D();
+        IceTopSpeed = FMath::Max(IceTopSpeed, Speed);
+        if (IceTopSpeedAt == 0 && Speed >= Move->GetMaxSpeed() * .9) { IceTopSpeedAt = Now; }
+        if (FVector::Dist2D(Owner.GetPawn()->GetActorLocation(), IceGoal) > 60.)
+        {
+            if (Now - IceWalkAt < 10) { return true; }
+            return Fail(TEXT("#Ice"), TEXT("The walker did not arrive across the ice: ") + Owner.IntentFeedback);
+        }
+        // Full speed at the ice scale takes MaxSpeed / (MaxAcceleration * scale); off ice it is effectively instant.
+        const double Expected = Move->GetMaxSpeed() / FMath::Max(Move->MaxAcceleration * Scale, 1.f) * .9;
+        const double Took = IceTopSpeedAt > 0 ? IceTopSpeedAt - IceWalkAt : -1;
+        auto Walked = MakeShared<FJsonObject>();
+        Walked->SetNumberField(TEXT("scale"), Scale);
+        Walked->SetNumberField(TEXT("seconds_to_top_speed"), Took);
+        Walked->SetNumberField(TEXT("expected_seconds"), Expected);
+        Walked->SetNumberField(TEXT("top_speed"), IceTopSpeed);
+        // The ramp is reported, not gated: at the probe's 0.1 s sampling it only bounds the scaled start from below.
+        if (!Save(Walked, TEXT("IceWalked.json"))) { return Fail(TEXT("#Ice"), TEXT("Could not persist the walk")); }
+        if (!Check(true, TEXT("#Ice"), FString::Printf(TEXT("The walker crosses the ice (top speed after %.2f s; scaled ramp about %.2f s)"),
+            Took, Expected))) { return Finish(); }
+        if (!Mark(Role + TEXT("IceDone.json"))) { return Finish(); }
+        Stage = 7;
+        return true;
+    }
+    static constexpr double IceWalkCm = 300.;
+    static constexpr uint32 IceCorrectionAllowance = 2;
+
     // Client1 loses every incoming packet for one bounded gap; the Host and Client2 watch their own views meanwhile.
     bool TickStall(double Now, UWorld& InWorld, ALDPlayerController& Owner)
     {
@@ -884,7 +1039,9 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
+        Report->SetStringField(TEXT("scope"), IceOnly()
+            ? TEXT("DEV-only owned-connection ice scenario: three normal-start participants; the Host's body owns an ice field placed through the native ground path under Client1, which walks across it over its real owning connection. Checks the authoritative acceleration scale on the server, the same scale in the owning client's prediction, the slower start and the server corrections of that walk; not balance, other ground states or full-match acceptance.")
+            : ReactionOnly()
             ? TEXT("DEV-only owned-connection reaction scenario: three normal-start participants, with fixture hits queued into the native Effects phase. Checks the setter's reaction and visible-hit RPCs and non-recipient isolation; not player input, hidden sight cases, combat balance or full-match acceptance.")
             : TEXT("DEV-only owned-connection observation scenario: a rendered, participating Listen Host and two owning clients started through the normal lobby. Carries checks #1, #9, #15, #23 and #28 of the retired view network probe plus Listen Host presentation (#15H). Not combat balance, death or termination, AI or full-match acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
@@ -915,7 +1072,7 @@ public:
         {
             if (Exists(TEXT("FinishClients")))
             {
-                if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly")))
+                if (!HeadlessOnly())
                 { FPlatformMisc::RequestExitWithStatus(false, 0); return false; }
                 if (!bReactionLeaveRequested)
                 {
@@ -968,7 +1125,7 @@ public:
             Result->SetNumberField(TEXT("remaining_units"), Frame ? Frame->Units.Num() : -1);
             Result->SetNumberField(TEXT("remaining_proxies"), CountProxies(*Hosted));
             Result->SetStringField(TEXT("detail"), Why);
-            Result->SetStringField(TEXT("scope"), FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
+            Result->SetStringField(TEXT("scope"), HeadlessOnly()
                 ? TEXT("After both owning clients explicitly leave, the Listen Host's own current view and proxies no longer present them.")
                 : TEXT("After both owning clients disconnect, the Listen Host's own current view and proxies no longer present them."));
             if (!Save(Result, TEXT("Disconnects.json")) || !bClean)
@@ -1020,10 +1177,11 @@ public:
         case 3: return TickArrive(Now, *Owner);
         case 4: return TickSight(Now, *Current, *Owner);
         case 5: return TickImage(Now);
-        case 6: return FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
-            ? TickReaction(Now, *Current, *Owner, Lobby) : TickStall(Now, *Current, *Owner);
+        case 6: return IceOnly() ? TickIce(Now, *Current, *Owner, Lobby)
+            : ReactionOnly() ? TickReaction(Now, *Current, *Owner, Lobby) : TickStall(Now, *Current, *Owner);
         case 7:
-            if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly")))
+            if (IceOnly()) { return AllMarkers(TEXT("IceDone.json")) ? Finish() : true; }
+            if (ReactionOnly())
             { return AllMarkers(TEXT("ReactionDone.json")) ? Finish() : true; }
             return TickReport();
         default: return TickReport();

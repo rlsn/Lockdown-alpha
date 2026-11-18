@@ -260,11 +260,20 @@ def element_terms(value, result):
         result["bCarryElement"] = bool(value.get("carry_element", False))
     elif op == "dash_ice":
         result["RadiusCm"] = rational(value["width"])
+    elif op == "bag":
+        result["BaseP2"] = scalar(value["hp_base"])
+        result["LimitP2"] = scalar(value["hp_per_level"])
+        result["RatioBp"] = scalar(value["hp_ratio"]) if "hp_ratio" in value else 0
+        result["DistanceCm"] = rational(value["size"])
+        result["ExtraDistanceCm"] = rational(value["wall_width"]) if "wall_width" in value else rational()
     elif op == "channel_cone" and "final_root" in value:
         result["ExtraDurationMs"] = scalar(value["final_root"])
     elif op == "follow_up":
         if "rot_duration" in value:
             result["ExtraDurationMs"] = scalar(value["rot_duration"])
+            # The importer gives a rotting follow-up the rot element (electrify and wet take precedence).
+            if not value.get("electrify") and not value.get("wet"):
+                result["Element"] = ELEMENTS.index("rot")
         if "momentum" in value:
             result["LimitP2"] = scalar(value["momentum"])
             result["BaseP2"] = scalar(value["base"]) if "base" in value else 0

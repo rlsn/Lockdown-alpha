@@ -339,7 +339,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     }
     if (Reads.bCombat)
     {
-        SettleOrders(Reads, Frame.Self, NowMs, Problem);
+        SettleOrders(Reads, Frame, NowMs, Problem);
         SettleDirectAction(*Mode, Reads, Frame.Self, NowMs, Problem);
         Tally.DormEntries += Reads.Combat.bInDorm && !bWasInDorm ? 1 : 0;
         bWasInDorm = Reads.Combat.bInDorm;
@@ -553,9 +553,10 @@ void ALDOpponentController::Learn(const FLDOpponentRetryKey& Key, ELDOpponentSet
     }
 }
 
-void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
+void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem)
 {
     if (!Navigation) { return; }
+    const FLDOpponentSelf& Self = Frame.Self;
     const FLDOrderCaller Caller = OrderCaller(Reads);
     // Navigation applies a queued request at the next Actions phase; past that promise plus the longest retry
     // wait a request counts as a failed attempt instead of holding the body forever.
@@ -608,8 +609,101 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentS
         const FLDOrderReceipt Receipt = Navigation->QueryOrder(Caller, Incumbent.Request.Identity);
         Incumbent.Status = LDOpponentFrame::OrderStatus(Receipt.Status);
         const ELDOpponentSettle Settle = LDOpponentRequests::SettleOrder(Receipt);
+        if (Incumbent.bDetour && Receipt.Status == ELDOrderStatus::Completed)
+        {
+            // The waypoint is not the arrival: the final leg (routed again) is sent and the policy keeps seeing a walk.
+            FLDSpatialOrderRequest Final = Incumbent.Request;
+            Final.GroundCm = Incumbent.FinalGroundCm;
+            FVector Waypoint;
+            const bool bAgain = RouteAroundGrounds(Frame, Self.FootCm, Final, Waypoint);
+            const FLDOpponentBodyIntent Intent = Incumbent.Intent;
+            const FVector FinalCm = Incumbent.FinalGroundCm;
+            Incumbent.bDetour = false;
+            if (bAgain) { Final.GroundCm = Waypoint; }
+            if (SubmitWalk(Reads, Intent, Final, bAgain, FinalCm, Self, NowMs, Problem)) { return; }
+        }
         if (Settle != ELDOpponentSettle::InFlight) { FinishIncumbent(Settle, Self, NowMs); }
     }
+}
+
+bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm,
+    const FLDSpatialOrderRequest& Request, FVector& Out) const
+{
+    if (Request.Kind != ELDSpatialOrderKind::MoveGround
+        || !Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; }))
+    {
+        return false;
+    }
+    TArray<FVector> Detours;
+    LDOpponentPolicy::GroundDetours(FootCm, Request.GroundCm, Frame.Grounds, Detours);
+    const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    FCollisionShape Capsule;
+    FString Error;
+    if (Detours.IsEmpty() || !Registry || !Registry->Enabled() || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
+    const int64 CostBp = Content->Get().Parameters.AI.EnemyGroundPathCostBp;
+    const auto Path = [&](const FVector& A, const FVector& B, FLDCompletePath& Result)
+    {
+        FLDLegalGround From, To;
+        From.World = To.World = Registry->Revision();
+        From.FootCm = A;
+        To.FootCm = B;
+        From.SurfaceId = To.SurfaceId = Request.SurfaceHint;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        FString Why;
+        return Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Result, Failure, Why);
+    };
+    FLDCompletePath Direct;
+    // Without a direct path Navigation refuses the walk itself; a detour never hides that.
+    if (!Path(FootCm, Request.GroundCm, Direct)) { return false; }
+    double Best = LDOpponentPolicy::GroundWeightedCm(Direct.Points, Frame.Grounds, CostBp);
+    bool bDetour = false;
+    for (const FVector& Waypoint : Detours)
+    {
+        FLDCompletePath First, Second;
+        if (!Path(FootCm, Waypoint, First) || !Path(First.EndProjectionCm, Request.GroundCm, Second)) { continue; }
+        const double Cost = LDOpponentPolicy::GroundWeightedCm(First.Points, Frame.Grounds, CostBp)
+            + LDOpponentPolicy::GroundWeightedCm(Second.Points, Frame.Grounds, CostBp);
+        if (Cost < Best)
+        {
+            Best = Cost;
+            Out = First.EndProjectionCm;
+            bDetour = true;
+        }
+    }
+    return bDetour;
+}
+
+bool ALDOpponentController::SubmitWalk(const FReads& Reads, const FLDOpponentBodyIntent& Intent, FLDSpatialOrderRequest Request,
+    bool bDetour, const FVector& FinalGroundCm, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
+{
+    FLDMoveIdentity Identity;
+    if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Binding.GetMatch().Generation, Reads.Owner.Life, false, Identity))
+    {
+        Problem = TEXT("The order identity space of this life is exhausted.");
+        Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+        return false;
+    }
+    Request.Identity = Identity;
+    LastIdentity = Identity;
+    ++Tally.Orders;
+    Tally.GroundDetours += bDetour ? 1 : 0;
+    const FLDOrderReceipt Receipt = Navigation->SubmitOrder(OrderCaller(Reads), Request);
+    StopTrack = FStopTrack();
+    if (Receipt.Status == ELDOrderStatus::Rejected)
+    {
+        ++Tally.OrdersRefused;
+        Learn(Intent.Key, LDOpponentRequests::SettleOrder(Receipt), Self, NowMs);
+        return false;
+    }
+    Candidate = FOrderTrack();
+    Candidate.bHas = true;
+    Candidate.Intent = Intent;
+    Candidate.Request = Request;
+    Candidate.Status = ELDOpponentOrderStatus::Pending;
+    Candidate.SentAtMs = NowMs;
+    Candidate.bDetour = bDetour;
+    Candidate.FinalGroundCm = FinalGroundCm;
+    return true;
 }
 
 void ALDOpponentController::FinishIncumbent(ELDOpponentSettle Settle, const FLDOpponentSelf& Self, int64 NowMs)
@@ -829,25 +923,14 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
         return;
     }
-    LastIdentity = Identity;
-    ++Tally.Orders;
     Tally.PKSignUps += bSignupWalk ? 1 : 0;
-    const FLDOrderReceipt Receipt = Navigation->SubmitOrder(OrderCaller(Reads), Request);
-    StopTrack = FStopTrack();
-    if (Receipt.Status == ELDOrderStatus::Rejected)
-    {
-        // Refused on receipt; any incumbent order keeps running.
-        ++Tally.OrdersRefused;
-        Learn(Intent.Key, LDOpponentRequests::SettleOrder(Receipt), Self, NowMs);
-        return;
-    }
-    // A newer submission replaces a still-queued candidate inside Navigation as well.
-    Candidate = FOrderTrack();
-    Candidate.bHas = true;
-    Candidate.Intent = Intent;
-    Candidate.Request = Request;
-    Candidate.Status = ELDOpponentOrderStatus::Pending;
-    Candidate.SentAtMs = NowMs;
+    // Spec §13: a field walk goes around a visible enemy ground state when that is cheaper by AI.EnemyGroundPathCost.
+    // Rest walks stay on their registered anchors. A newer submission replaces a still-queued candidate in Navigation.
+    FVector Waypoint;
+    const bool bDetour = !bSignupWalk && !bServiceWalk && RouteAroundGrounds(Frame, Self.FootCm, Request, Waypoint);
+    const FVector FinalCm = Request.GroundCm;
+    if (bDetour) { Request.GroundCm = Waypoint; }
+    SubmitWalk(Reads, Intent, Request, bDetour, FinalCm, Self, NowMs, Problem);
 }
 
 void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,

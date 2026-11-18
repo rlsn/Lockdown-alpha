@@ -220,9 +220,10 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Dash) && LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Active)
         && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(2))
         && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(3)));
-    bGood &= Test.TestTrue(TEXT("Elements 0..3 are known, 4 is refused"),
+    bGood &= Test.TestTrue(TEXT("Elements 0..6 are known, 7 is refused"),
         LDGrowthWire::IsKnownElement(ELDDemoElement::Electric) && LDGrowthWire::IsKnownElement(ELDDemoElement::None)
-        && !LDGrowthWire::IsKnownElement(static_cast<ELDDemoElement>(4)));
+        && LDGrowthWire::IsKnownElement(ELDDemoElement::Chill) && LDGrowthWire::IsKnownElement(ELDDemoElement::Gust)
+        && !LDGrowthWire::IsKnownElement(static_cast<ELDDemoElement>(7)));
     FName Optional(TEXT("stale"));
     bGood &= Test.TestTrue(TEXT("An all-zero optional definition decodes to None"),
         LDGrowthWire::DecodeOptional(FLDDefinitionWire(), Optional) && Optional.IsNone());
@@ -1149,12 +1150,14 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
         }
     }
     const FName NotMad(TEXT("active_not_mad")), StareDown(TEXT("active_stare_down")), FlyerTrap(TEXT("active_flyer_trap")),
-        Brace(TEXT("active_brace"));
-    bool bGood = Test.TestTrue(TEXT("The approved catalog holds 22 actives, 18 of them in the opening pool"),
-        All.Num() == 22 && Opening.Num() == 18);
-    bGood &= Test.TestTrue(TEXT("S14, S15, S16 and S19 stay out of the opening pool"),
+        Brace(TEXT("active_brace")), DeskFan(TEXT("active_desk_fan")), SchoolBag(TEXT("active_school_bag"));
+    bool bGood = Test.TestTrue(TEXT("The approved catalog holds 26 actives, 20 of them in the opening pool"),
+        All.Num() == 26 && Opening.Num() == 20);
+    bGood &= Test.TestTrue(TEXT("S14, S15, S16, S19, N2 and N4 stay out of the opening pool"),
         !Opening.Contains(NotMad) && !Opening.Contains(StareDown) && !Opening.Contains(FlyerTrap) && !Opening.Contains(Brace)
-        && All.Contains(NotMad) && All.Contains(StareDown) && All.Contains(FlyerTrap) && All.Contains(Brace));
+        && !Opening.Contains(DeskFan) && !Opening.Contains(SchoolBag)
+        && All.Contains(NotMad) && All.Contains(StareDown) && All.Contains(FlyerTrap) && All.Contains(Brace)
+        && All.Contains(DeskFan) && All.Contains(SchoolBag));
 
     const FLDGrowthBuild Fresh = LDProgression::StartBuild(Content);
     TArray<FName> Eligible;
@@ -1246,7 +1249,8 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("With the opening pool exhausted ordinal 1 draws nothing while a later ordinal draws the rest"),
         LDProgression::DrawActiveOffer(Content, OpeningSpent, 1, 7, Offer) == ELDGrowthReason::None && Offer.IsEmpty()
         && LDProgression::DrawActiveOffer(Content, OpeningSpent, 2, 7, Offer) == ELDGrowthReason::None && Offer.Num() == 3
-        && !Offer.ContainsByPredicate([&](FName Id) { return Id != NotMad && Id != StareDown && Id != FlyerTrap && Id != Brace; }));
+        && !Offer.ContainsByPredicate([&](FName Id)
+            { return Id != NotMad && Id != StareDown && Id != FlyerTrap && Id != Brace && Id != DeskFan && Id != SchoolBag; }));
     return bGood;
 }
 

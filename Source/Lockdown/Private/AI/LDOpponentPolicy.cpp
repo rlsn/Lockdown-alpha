@@ -72,6 +72,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Gust:
     case ELDDemoEffectOp::GroundState:
     case ELDDemoEffectOp::Fan:
+    case ELDDemoEffectOp::Bag:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::Disarm:
@@ -135,6 +136,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::GroundImpact:
         case ELDDemoEffectOp::ContactTrap: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        // N4: a bag is placed on the target like a trap and blows over its radius.
+        case ELDDemoEffectOp::Bag: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
@@ -676,8 +679,21 @@ TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C)
     return {};
 }
 
-// Issue #287 spec §13: the AI never stays in an enemy's ground state; standing in one it dashes out away from its centre
-// with the ready D (a warning dodge comes first).
+// The authoritative footprint of a public ground record (the same containment Combat uses).
+FLDGroundState GroundShape(const FLDObservedGroundState& View)
+{
+    FLDGroundState Shape;
+    Shape.CentreCm = View.CentreCm;
+    Shape.RadiusCm = View.RadiusCm;
+    Shape.Heading = FVector2D(FRotator(0, View.Heading * 360. / 256., 0).Vector());
+    Shape.HalfLengthCm = View.Shape == ELDObservedGroundShape::Band ? View.ExtentCm : 0;
+    Shape.AngleDegrees = View.Shape == ELDObservedGroundShape::Sector ? View.ExtentCm : 0;
+    return Shape;
+}
+
+// Issue #287 spec §13: the AI never stays in an enemy's ground state; walks are planned around them (GroundWeightedCm in
+// the controller's route choice); knocked or pushed into one it dashes out away from its centre with the ready D (a warning
+// dodge comes first).
 TOptional<FLDOpponentBodyIntent> LeaveGroundIntent(const FContext& C)
 {
     const FLDOpponentSource* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
@@ -685,13 +701,7 @@ TOptional<FLDOpponentBodyIntent> LeaveGroundIntent(const FContext& C)
     for (const FLDOpponentGround& Ground : C.Frame.Grounds)
     {
         if (!Ground.bEnemy) { continue; }
-        FLDGroundState Shape;
-        Shape.CentreCm = Ground.View.CentreCm;
-        Shape.RadiusCm = Ground.View.RadiusCm;
-        Shape.Heading = FVector2D(FRotator(0, Ground.View.Heading * 360. / 256., 0).Vector());
-        Shape.HalfLengthCm = Ground.View.Shape == ELDObservedGroundShape::Band ? Ground.View.ExtentCm : 0;
-        Shape.AngleDegrees = Ground.View.Shape == ELDObservedGroundShape::Sector ? Ground.View.ExtentCm : 0;
-        if (!LDCombatElements::GroundContains(Shape, C.Self.FootCm)) { continue; }
+        if (!LDCombatElements::GroundContains(GroundShape(Ground.View), C.Self.FootCm)) { continue; }
         FVector Away = (C.Self.FootCm - Ground.View.CentreCm).GetSafeNormal2D();
         if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
         FLDOpponentBodyIntent Body;
@@ -2684,4 +2694,49 @@ FLDOpponentBodyIntent WalkToRestService(const FLDOpponentDecisionFrame& Frame, c
     return MoveTo(C, *Place);
 }
 #endif
+}
+
+double LDOpponentPolicy::GroundWeightedCm(TConstArrayView<FVector> Points, TConstArrayView<FLDOpponentGround> Grounds, int64 CostBp)
+{
+    TArray<FLDGroundState, TInlineAllocator<8>> Enemy;
+    for (const FLDOpponentGround& Ground : Grounds)
+    {
+        if (Ground.bEnemy) { Enemy.Add(Detail::GroundShape(Ground.View)); }
+    }
+    const double Cost = FMath::Max<int64>(CostBp, 10000) / 10000.;
+    double Total = 0;
+    for (int32 I = 1; I < Points.Num(); ++I)
+    {
+        const FVector A = Points[I - 1], B = Points[I];
+        const double Length = FVector::Dist2D(A, B);
+        if (Length <= 0) { continue; }
+        const int32 Steps = FMath::Max(1, FMath::CeilToInt(Length / GroundPathSampleCm));
+        for (int32 Step = 0; Step < Steps; ++Step)
+        {
+            const FVector At = FMath::Lerp(A, B, (Step + .5) / Steps);
+            const bool bInside = Enemy.ContainsByPredicate([&At](const FLDGroundState& Shape) { return LDCombatElements::GroundContains(Shape, At); });
+            Total += Length / Steps * (bInside ? Cost : 1.);
+        }
+    }
+    return Total;
+}
+
+void LDOpponentPolicy::GroundDetours(const FVector& From, const FVector& To, TConstArrayView<FLDOpponentGround> Grounds,
+    TArray<FVector>& Out)
+{
+    Out.Reset();
+    const FVector Along = (To - From).GetSafeNormal2D();
+    if (Along.IsNearlyZero()) { return; }
+    const FVector Side(-Along.Y, Along.X, 0);
+    for (const FLDOpponentGround& Ground : Grounds)
+    {
+        if (!Ground.bEnemy) { continue; }
+        // The footprint's bounding circle: a band reaches its half length beyond its radius.
+        const double Bound = Ground.View.RadiusCm
+            + (Ground.View.Shape == ELDObservedGroundShape::Band ? Ground.View.ExtentCm : 0.);
+        const FVector Centre(Ground.View.CentreCm.X, Ground.View.CentreCm.Y, From.Z);
+        const FVector Closest = FMath::ClosestPointOnSegment(Centre, FVector(From.X, From.Y, From.Z), FVector(To.X, To.Y, From.Z));
+        if (FVector::Dist2D(Closest, Centre) >= Bound) { continue; }
+        for (const double Sign : {1., -1.}) { Out.Add(Centre + Side * Sign * (Bound + GroundDetourMarginCm)); }
+    }
 }

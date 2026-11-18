@@ -9660,6 +9660,602 @@
       "branches": [
         {
           "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 2,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "hp_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 260,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 2,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              },
+              "wall_width": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A1",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 2,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A2",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "hp_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 260,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 200,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B1",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "hp_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 260,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "kind": "fire",
+              "op": "ground_state",
+              "opcode": 236
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B2",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        }
+      ],
+      "cooldown": {
+        "ms": 11000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_school_bag",
+      "effects": [
+        {
+          "count": 1,
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "hp_base": {
+            "p2": 15000,
+            "unit": "hp"
+          },
+          "hp_per_level": {
+            "p2": 2000,
+            "unit": "hp"
+          },
+          "op": "bag",
+          "opcode": 242,
+          "radius": {
+            "denominator": 1,
+            "numerator": 200,
+            "unit": "cm"
+          },
+          "size": {
+            "denominator": 1,
+            "numerator": 40,
+            "unit": "cm"
+          }
+        },
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 8000,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        }
+      ],
+      "element": "none",
+      "hit_type": "area",
+      "id": "active_school_bag",
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
+      },
+      "native_id": 134,
+      "opening": false,
+      "target": {
+        "mode": "GroundPoint",
+        "range": {
+          "denominator": 1,
+          "numerator": 450,
+          "unit": "cm"
+        }
+      },
+      "vocab": [
+        "ground"
+      ],
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "branches": [
+        {
+          "cooldown": {
             "ms": 7000,
             "unit": "ms"
           },
@@ -18362,6 +18958,69 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_school_bag.description",
+      "description_text": "放下一个书包挡路挡弹道，[bag.duration] 秒后或被打掉时爆炸，周围敌人受 [damage.amount] 魔法伤害。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag",
+      "name_key": "active_school_bag.name",
+      "name_text": "占座书包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_2a.description",
+      "description_text": "同时可以放 [bag.count] 个书包。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_2a",
+      "name_key": "active_school_bag_2a.name",
+      "name_text": "两个书包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_2b.description",
+      "description_text": "书包生命减半，爆炸伤害翻倍，半径 [bag.radius] 厘米。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_2b",
+      "name_key": "active_school_bag_2b.name",
+      "name_text": "炸药包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3a1.description",
+      "description_text": "两个书包之间连起一道墙，跟书包一起消失。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3a1",
+      "name_key": "active_school_bag_3a1.name",
+      "name_text": "书包连墙",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3a2.description",
+      "description_text": "书包爆炸挂冻。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3a2",
+      "name_key": "active_school_bag_3a2.name",
+      "name_text": "冰镇书包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3b1.description",
+      "description_text": "爆炸把敌人击退 [knockback.distance] 厘米。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3b1",
+      "name_key": "active_school_bag_3b1.name",
+      "name_text": "书包炸飞",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3b2.description",
+      "description_text": "爆炸后留下火场 [ground_state.duration] 秒。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3b2",
+      "name_key": "active_school_bag_3b2.name",
+      "name_text": "炸出火场",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_seethe.description",
       "description_text": "对身边敌人造成 [damage.amount] 魔法伤害和 [burn.count] 层灼烧。",
       "icon_id": "icon_active_seethe",
@@ -20220,6 +20879,10 @@
     },
     "AI.DodgeChance": {
       "bp": 5000,
+      "unit": "ratio"
+    },
+    "AI.EnemyGroundPathCost": {
+      "bp": 30000,
       "unit": "ratio"
     },
     "AI.EngagementBudgetSec": {

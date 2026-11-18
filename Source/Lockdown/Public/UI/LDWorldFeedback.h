@@ -34,6 +34,7 @@ namespace LDWorldFeedback
                                    // components it granted (#198 B), joined; empty when unknown or none
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
         uint8 HitFlags=0;          // DealtConfirm: the receipt's LDObservation::EHitFlags
+        uint8 Element=0;           // UnitReaction: the element that set it off (ELDCombatElement), its ink
     };
     // One sample of the SC-07 inputs: the owner's own projections, room-public DTOs and the current authorized frame of
     // this match and life (nullptr otherwise). The tracker re-checks every match, life and generation itself.
@@ -89,6 +90,7 @@ namespace LDWorldFeedback
             // The unit's reaction cue in that frame (spec §12: a new one floats its name).
             uint8 Reaction=0;
             uint16 ReactionAgePlusOneMs=0;
+            uint8 ReactionElement=0;
             uint8 Ability=0;
         };
         void Reset(uint32 InMatch);
@@ -106,6 +108,7 @@ namespace LDWorldFeedback
         int64 ShieldP2=0;
         int64 ShieldEndsAtMs=0;    // end of the shield status listed with the baseline; 0 when none was listed
         int64 DealtAtMs=0;         // the own hit receipt of the baseline (LastDealtAtMs)
+        int64 ReactionAtMs=0;      // the own body's last reaction of the baseline (Cues.LastReactionAtMs)
         bool bGrowth=false;
         uint8 Level=0;
         uint8 OffersEarned=0;

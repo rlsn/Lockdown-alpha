@@ -56,6 +56,7 @@ namespace LDCombatElementsDirectorDetail
         Extras.GustPushMs=Hit.GustPushMs;
         Extras.GustDirection=Hit.GustDirection;
         Extras.bGustGround=Hit.bGustGround;
+        Extras.bNoPush=Hit.bGustInKnockback;
         Extras.WallStunMs=Hit.KnockbackWallStunMs;
         return Extras;
     }
@@ -316,6 +317,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     const FLDReactionRule Rule=LDCombatElements::RuleOf(Reaction,Terms);
     Target.Cues.LastReaction=uint8(Reaction);
     Target.Cues.LastReactionAtMs=NowMs;
+    Target.Cues.LastReactionElement=uint8(Kind);
     const FLDCombatBodyRef Primary{Target.Victim,Target.Identity};
     const int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms);
     const FGuid ReactionId=FGuid::NewGuid();
@@ -500,7 +502,7 @@ bool ALDCombatDirector::PushGust(FLDBodyCombatState& Target, const FLDElementApp
     FLDElementTerms Terms;
     if (!ElementTerms(Terms,Error)) { return false; }
     ALDCharacter* Actor=ActorOf(Target);
-    if (!Actor || Direction.IsNearlyZero()) { return true; }
+    if (!Actor || Direction.IsNearlyZero() || Extras.bNoPush) { return true; }
     const double PushCm=Extras.GustPushCm>0 ? Extras.GustPushCm : Terms.GustPushCm;
     const FVector Foot=FootOf(*Actor);
     FLDCombatHit Push=SettleHit(Applier,{Target.Victim,Target.Identity},FGuid::NewGuid(),0);

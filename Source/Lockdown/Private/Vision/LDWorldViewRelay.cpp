@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Combat/LDCombatBagBlocker.h"
 #include "Combat/LDCombatElements.h"
 #include "Vision/LDFogDistanceField.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -68,6 +69,8 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::AreaPlain: return FLinearColor(.95f,.48f,.12f);
     case ELDObservedProjectileLook::Road: return FLinearColor(1.f,.68f,.08f);
     case ELDObservedProjectileLook::Wind: return FLinearColor(.72f,.78f,.82f);
+    case ELDObservedProjectileLook::Bag:
+    case ELDObservedProjectileLook::BagWall: return FLinearColor(.5f,.32f,.14f);
     case ELDObservedProjectileLook::ConeWarning:
     case ELDObservedProjectileLook::LineWarning: return FLinearColor(1.f,.24f,.08f);
     case ELDObservedProjectileLook::BookShadow:
@@ -750,7 +753,7 @@ void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double 
         || Ground.ExtentCm != Shown.ExtentCm || Ground.OwnerSeat != Shown.OwnerSeat;
     SetActorLocationAndRotation(Ground.CentreCm, FRotator(0, float(Ground.Heading) / 256.f * 360.f, 0));
     ExpiresAtServerSec = SampledAtServerSec + double(Ground.RemainingMs) / 1000.;
-    LifeSeconds = FMath::Max(double(Ground.LifeMs) / 1000., .05);
+    LifeSeconds = FMath::Max(double(Ground.TotalMs) / 1000., .05);
     if (bShape)
     {
         if (!KindTint || !SeatTint)
@@ -852,6 +855,28 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     {
         Chalk->SetRelativeLocation(FVector(bForwardLine?Effect.LengthCm*.5:0,0,1));
         Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,.012));
+    }
+    // N4: a bag or a bag wall stands as a solid box that blocks bodies like the server's blocker (owner prediction agrees
+    // with the authority while the obstacle is seen); every other look never collides.
+    const bool bBag=Effect.Look==ELDObservedProjectileLook::Bag;
+    const bool bWall=Effect.Look==ELDObservedProjectileLook::BagWall;
+    Chalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (bBag || bWall)
+    {
+        const double Height=ALDCombatBagBlocker::HeightCm;
+        Chalk->SetStaticMesh(BoxMesh);
+        Chalk->SetRelativeRotation(FRotator::ZeroRotator);
+        Chalk->SetRelativeLocation(FVector(0,0,Height*.5));
+        Chalk->SetRelativeScale3D(bBag ? FVector(Effect.RadiusCm*2./100.,Effect.RadiusCm*2./100.,Height/100.)
+            : FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,Height/100.));
+        Chalk->SetCollisionObjectType(ECC_WorldDynamic);
+        Chalk->SetCollisionResponseToAllChannels(ECR_Ignore);
+        Chalk->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
+        Chalk->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        Accent->SetVisibility(false);
+        Trail->SetVisibility(false,true);
+        for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
+        return;
     }
     Accent->SetVisibility(Effect.Look!=ELDObservedProjectileLook::Chalk);
     Accent->SetRelativeRotation(FRotator::ZeroRotator);

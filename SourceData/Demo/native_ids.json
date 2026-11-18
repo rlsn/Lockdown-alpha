@@ -33,7 +33,8 @@
     "active_dirty_puddle": 130,
     "active_cola_shake": 131,
     "active_desk_fan": 132,
-    "active_stale_takeout": 133
+    "active_stale_takeout": 133,
+    "active_school_bag": 134
   },
   "final_mods": {
     "final_bowling": 2, "final_forced_exit": 5, "final_traffic": 11, "final_split": 15,
@@ -235,6 +236,7 @@
     "dash_ice": 238,
     "ground_relocate": 239,
     "double_stall": 240,
-    "ground_growth": 241
+    "ground_growth": 241,
+    "bag": 242
   }
 }

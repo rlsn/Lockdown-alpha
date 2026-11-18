@@ -604,6 +604,15 @@ namespace LDOpponentPolicy
     // holds the step back.
     LOCKDOWN_API bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out);
+    // Issue #287 spec §13 path cost: the length of a walked ground polyline, its part inside a visible enemy ground state
+    // weighed by CostBp (AI.EnemyGroundPathCost; 10000 = 1). Sampled every GroundPathSampleCm along each segment.
+    LOCKDOWN_API double GroundWeightedCm(TConstArrayView<FVector> Points, TConstArrayView<FLDOpponentGround> Grounds, int64 CostBp);
+    // Detour waypoints for a walk From -> To: for each visible enemy ground state the straight walk passes through or
+    // near, one point on either side of it just outside its footprint. Empty when no enemy ground state is in the way.
+    LOCKDOWN_API void GroundDetours(const FVector& From, const FVector& To, TConstArrayView<FLDOpponentGround> Grounds,
+        TArray<FVector>& Out);
+    constexpr double GroundPathSampleCm = 25.;
+    constexpr double GroundDetourMarginCm = 120.;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed

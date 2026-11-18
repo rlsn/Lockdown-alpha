@@ -185,6 +185,7 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
 void ALDCombatDirector::EndMatchActions()
 {
     Channels.Reset();
+    RemoveBags([](const FLDCombatBag&) { return true; });
     GroundEffects.Reset();
     MonsterStrikes.Reset();
     ContactMotion.Reset();
@@ -1447,6 +1448,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::ChainBounce:
             // Carried by the hit payload (and the S10 chain, a projectile's landing or a cone's area) below.
             break;
+        case ELDDemoEffectOp::Fan:
+        case ELDDemoEffectOp::Bag:
+            // N2's fan and N4's bag stand at the target point (StartSkillDelivery).
+            break;
         // Skill branch operations: hit riders on the cast ledger and self terms (ArmBranchRelease), pulses and shield
         // bonuses (ArmBranchHostile), zone terms (ReleaseMechanics), trap terms and lingering areas (StartSkillDelivery).
         case ELDDemoEffectOp::Vulnerable:
@@ -1714,6 +1719,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
                 [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
         }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
+        if (Around) { HitBagsInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template, NowMs); }
         // M15 on S07: a blast of the same radius at the release foot after the delay, with one burn stack.
         const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         if (Terms.EchoImpact.IsSet() && AreaEffect)

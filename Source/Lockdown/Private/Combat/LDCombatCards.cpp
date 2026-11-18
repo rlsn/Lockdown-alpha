@@ -346,9 +346,10 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
     if (const int64 Vulnerable=BranchVulnerableBp(Target,Hit,NowMs); Vulnerable>0) { Out.Add({FName(TEXT("branch_vulnerable")),Vulnerable}); }
     if (Hit.BranchAmpBp>0) { Out.Add({FName(TEXT("branch_next_basic")),Hit.BranchAmpBp}); }
-    // Shatter (shock + chill): the next skill hit on this life within its window takes more, then the shatter is spent.
-    if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bStatusSettle
-        && !Hit.bBurnTick && !Hit.bPeriodic)
+    // Shatter (shock + chill): the next damaging native skill hit on this life within its window takes more, then the
+    // shatter is spent. Zero-damage blows (fans, pushes), riders, reflections, settles and ticks neither take nor spend it.
+    const bool bDamaging=Hit.BaseP2>0 || Hit.ADRatioBp>0 || Hit.APRatioBp>0 || Hit.MaxHPRatioBp>0;
+    if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && IsNativeDirectHit(Hit) && bDamaging && !Hit.bPeriodic)
     {
         Out.Add({FName(TEXT("reaction_shatter")),Target.ShatterBp});
         Target.ShatterBp=0;

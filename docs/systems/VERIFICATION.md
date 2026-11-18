@@ -309,6 +309,7 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
 `RunDemoVisionCheck.ps1 -ReactionOnly` 使用无渲染的真实拥有连接，由服务端夹具将直接伤害、潮湿和电命中排入原生 Effects，
 检查仅施加者收到即时可见命中回执和具名导电提示，以及主动离房后的 Host 视图清理；
 不覆盖玩家输入、隐藏视野负例或意外断线。
+`RunDemoVisionCheck.ps1 -IceOnly` 同样无渲染：Host 经原生地面状态路径在 Client1 脚下放一块 Host 本人拥有的冰面（敌方冰面），检查 Client1 的服务器身体按 `GROUND.IceAccelScale` 加减速、拥有客户端的预测读到同一比例，以及 Client1 穿过冰面的一次步行里服务器纠正不超过 2 次（起步到全速的用时只记录、不判定）；不覆盖其他地面状态、数值或完整对局。
 源码、配置和生成输入在一次原生构建/运行期间保持稳定。
 删除反射类型或成员前，可用 `AuditAssetReferences.ps1 -RequestPath <审计请求JSON>`。
 它在旧原生类仍存在时加载全部项目包，记录 AssetRegistry、linker import/soft/name 表、

@@ -33,6 +33,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Components/WrapBox.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
@@ -46,6 +48,9 @@ constexpr float WorkshopTitleWidth=118.f;
 constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
 constexpr float WorkshopCharacterWidth=352.f;
+// The character column shows every element reaction (6 x 5 / 2 pairs) as chips in rows of three.
+constexpr int32 WorkshopReactionChips=15;
+constexpr int32 WorkshopReactionColumns=3;
 constexpr float WorkshopRightWidth=456.f;
 constexpr float WorkshopPendingWidth=360.f;
 constexpr float WorkshopCapacityHeight=60.f;
@@ -199,30 +204,35 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             UTextBlock* ReactionTitle=Label(LDTerms::WorkshopReactions,13,LDUIPaint::Hex(0x667086));
             {FSlateFontInfo Font=ReactionTitle->GetFont();Font.LetterSpacing=200;ReactionTitle->SetFont(Font);}
             Column->AddChildToVerticalBox(ReactionTitle)->SetPadding(FMargin(0,26,0,10));
-            for(int32 Index=0;Index<3;++Index)
+            // .rx: all fifteen element pairs as chips in a five-by-three grid (lit first, then near, then the rest): two
+            // element discs (painted under their characters), a small plus and the reaction's name. No scrolling: the
+            // column scales down when it does not fit.
+            auto* ReactionGrid=WidgetTree->ConstructWidget<UUniformGridPanel>();
+            ReactionGrid->SetSlotPadding(FMargin(2.f));
+            Column->AddChildToVerticalBox(ReactionGrid);
+            for(int32 Index=0;Index<WorkshopReactionChips;++Index)
             {
                 FReaction& Reaction=Reactions.AddDefaulted_GetRef();
                 auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-                // .rx3 .r: two element discs (painted under their characters), a plus, and the reaction's name on the right.
                 const auto Disc=[&](UTextBlock*& Out)
                 {
-                    Out=Label(TEXT(""),13,LDUIPaint::Hex(0x10141D),LDUIFonts::ERole::Title);Out->SetJustification(ETextJustify::Center);
-                    auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(24.f);Box->SetHeightOverride(24.f);Box->SetContent(Out);
+                    Out=Label(TEXT(""),11,LDUIPaint::Hex(0x10141D),LDUIFonts::ERole::Title);Out->SetJustification(ETextJustify::Center);
+                    auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(18.f);Box->SetHeightOverride(18.f);Box->SetContent(Out);
                     if(USizeBoxSlot* DiscSlot=Cast<USizeBoxSlot>(Out->Slot)){DiscSlot->SetHorizontalAlignment(HAlign_Center);DiscSlot->SetVerticalAlignment(VAlign_Center);}
                     Line->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);Built.Add(Box);
                 };
                 Disc(Reaction.FirstText);
-                UTextBlock* Plus=Label(TEXT("+"),15,LDUIPaint::Hex(0x667086));Reaction.Pair=Plus;
-                Line->AddChildToHorizontalBox(Plus)->SetPadding(FMargin(8,0));
+                UTextBlock* Plus=Label(TEXT("+"),10,LDUIPaint::Hex(0x667086));Reaction.Pair=Plus;
+                Line->AddChildToHorizontalBox(Plus)->SetPadding(FMargin(2,0));
                 if(UHorizontalBoxSlot* PlusSlot=Cast<UHorizontalBoxSlot>(Plus->Slot)){PlusSlot->SetVerticalAlignment(VAlign_Center);}
                 Disc(Reaction.SecondText);
                 Line->AddChildToHorizontalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-                Reaction.Name=Label(TEXT(""),15,LDUIPaint::Hex(0x667086),LDUIFonts::ERole::Strong);
+                Reaction.Name=Label(TEXT(""),12,LDUIPaint::Hex(0x667086),LDUIFonts::ERole::Strong);
                 Line->AddChildToHorizontalBox(Reaction.Name)->SetVerticalAlignment(VAlign_Center);
-                Reaction.Row=WidgetTree->ConstructWidget<UBorder>();Reaction.Row->SetPadding(FMargin(12,0));Reaction.Row->SetContent(Line);
+                Reaction.Row=WidgetTree->ConstructWidget<UBorder>();Reaction.Row->SetPadding(FMargin(5,0));Reaction.Row->SetContent(Line);
                 Reaction.Row->SetBrush(FSlateNoResource());Reaction.Row->SetVerticalAlignment(VAlign_Center);
-                auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetHeightOverride(40.f);RowHeight->SetContent(Reaction.Row);
-                Column->AddChildToVerticalBox(RowHeight)->SetPadding(FMargin(0,Index?8.f:0.f,0,0));
+                auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetHeightOverride(28.f);RowHeight->SetContent(Reaction.Row);
+                ReactionGrid->AddChildToUniformGrid(RowHeight,Index/WorkshopReactionColumns,Index%WorkshopReactionColumns);
                 Built.Add(Plus);Built.Add(Line);Built.Add(RowHeight);
             }
             RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);

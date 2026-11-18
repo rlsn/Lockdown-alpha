@@ -167,7 +167,7 @@ namespace
                 State.RadiusCm = 180.f;
                 State.ExtentCm = State.Shape == ELDObservedGroundShape::Band ? 200.f : State.Shape == ELDObservedGroundShape::Sector ? 60.f : 0.f;
                 State.Heading = uint8(Ground * 37);
-                State.LifeMs = 6000;
+                State.TotalMs = 6000;
                 State.RemainingMs = 3000;
                 FActorSpawnParameters Params;
                 Params.ObjectFlags |= RF_Transient;

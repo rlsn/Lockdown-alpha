@@ -657,7 +657,11 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         const FVector To(From.X+Heading.X*Step,From.Y+Heading.Y*Step,Origin.Z);
         double ClearFraction=1;
         if (Step>0 && !LDCombatEffectsDetail::ClearPrefix(*Mode->GetVisionAuthority(),WorldRevision,From,To,ClearFraction,Error)) { return false; }
-        const FVector Stop=FMath::Lerp(From,To,ClearFraction);
+        // N4: the first enemy bag on the way stops the flight before any body behind it.
+        double BagFraction=1;
+        const FVector Clear=FMath::Lerp(From,To,ClearFraction);
+        const int32 BagStruck=FirstBagOnSegment(Projectile.SourceEntity,From,Clear,Projectile.RadiusCm,BagFraction);
+        const FVector Stop=BagStruck!=INDEX_NONE ? FMath::Lerp(From,Clear,BagFraction) : Clear;
         // M14: a pierced body does not end the flight; the search goes on past it in the same step.
         FVector SegmentFrom=From;
         bool bEnded=false;
@@ -717,6 +721,14 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         }
         if (bEnded)
         {
+            Finished.Add(Index);
+            continue;
+        }
+        if (BagStruck!=INDEX_NONE)
+        {
+            DamageBag(Bags[BagStruck],Projectile.Payload,NowMs);
+            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(Projectile,Stop,false,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }

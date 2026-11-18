@@ -227,6 +227,8 @@ struct FLDElementExtras
     int64 GustPushMs = 0;
     FVector GustDirection = FVector::ZeroVector;
     bool bGustGround = false;
+    // The carrying hit's knockback is the displacement; the gust adds no push of its own.
+    bool bNoPush = false;
     int64 WallStunMs = 0;
 };
 

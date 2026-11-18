@@ -12,7 +12,7 @@ enum class ELDDemoAbilityId : uint8
     ActivePantsDown=92, ActiveCrotchGrab=93, ActiveSnarkBolt=94, ActiveSeethe=95, ActiveBailOut=96, ActiveElbow=97, ActiveNotMad=98, ActiveStareDown=99, ActiveQuickMeeting=100, ActiveAccountBanned=101, ActiveUnplug=102, ActiveTripleCombo=103,
     ActiveOpenMic=114, ActiveCalculusDrop=115, ActiveSockShot=116, ActiveFlyerTrap=117, ActiveApologySlide=118,
     ActiveHoseDown=126, ActiveZap=127, ActiveChargedRam=128, ActiveBrace=129, ActiveDirtyPuddle=130,
-    ActiveColaShake=131, ActiveDeskFan=132, ActiveStaleTakeout=133
+    ActiveColaShake=131, ActiveDeskFan=132, ActiveStaleTakeout=133, ActiveSchoolBag=134
 };
 // #198: the five point-bought stats share the former attribute-card number space; 0-26 are retired.
 enum class ELDDemoStatId : uint8
@@ -74,5 +74,5 @@ enum class ELDDemoEffectOp : uint8
     HasteMomentum=224, HealGrowth=225, KillGrowth=226, ControlGrowth=227, IdleCharge=228, ElementAura=229,
     ElementDuration=230, ReactionFactor=231, BurnCap=232,
     Rot=233, Chill=234, Gust=235, GroundState=236, Fan=237, DashIce=238, GroundRelocate=239, DoubleStall=240,
-    GroundGrowth=241
+    GroundGrowth=241, Bag=242
 };

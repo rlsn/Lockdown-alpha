@@ -76,7 +76,7 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "dash",
                        # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
                        "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste",
                        # Issue #287 P4: chill, rot and gust, the ground states a skill leaves and N2's fan.
-                       "chill", "rot", "gust", "ground_state", "fan",
+                       "chill", "rot", "gust", "ground_state", "fan", "bag",
                        "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
                        "empower_reach", "pull",
                        # Skill branch operations (issue #287 spec §5.1).
@@ -607,6 +607,9 @@ def _validate_new_effect(effect, path):
         require(effect["kind"] in GROUND_KINDS, "InvalidReference", path, "unknown ground state")
         if "attack_slow" in effect:
             require(0 < quantity(effect["attack_slow"]) < 1, "NumericDomain", path, "an attack slow keeps something")
+    if effect["op"] == "bag":
+        require(quantity(effect["hp_base"]) > 0 and quantity(effect["radius"]) > 0 and quantity(effect["size"]) > 0,
+                "InvalidGeometry", path, "a bag has life, a body and a blast")
     if effect["op"] == "fan":
         require(effect["interval"]["ms"] <= effect["duration"]["ms"], "InvalidTiming", path, "a fan blows inside its life")
         require(quantity(effect["length"]) > 0 and quantity(effect["width"]) > 0 and quantity(effect["distance"]) > 0,
@@ -634,7 +637,8 @@ def _validate_action(target, effects, path):
                                     "shield_burst_break", "empower_reach", "final_knockback")),
         "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
                                   "ground_impact", "contact_trap", "damage", "root", "slow", "burn", "knockback", *ELEMENT_OPS,
-                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan")),
+                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan",
+                                  "bag", "ground_state")),
         "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence", *ELEMENT_OPS,
                                     "ground_state")),
     }[mode]
@@ -649,8 +653,8 @@ def _validate_action(target, effects, path):
                 "hit effects of a self or dash action need exactly one self_area to name their targets")
     if mode == "DirectionProjectile":
         require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
-    require("ground_state" not in ops or mode in ("DirectionProjectile", "DirectionCone"), "TargetEffectMismatch", path,
-            "a skill leaves its ground state where its projectile lands or over its cone")
+    require("ground_state" not in ops or mode in ("DirectionProjectile", "DirectionCone") or "bag" in ops, "TargetEffectMismatch",
+            path, "a skill leaves its ground state where its projectile lands, over its cone or where its bag blows")
     require(mode != "DirectionDash" or not ops & ELEMENT_OPS or "dash_contact" in ops, "TargetEffectMismatch", path,
             "a dash attaches its element to the bodies it actually touches")
     require("brace" not in ops or ops <= {"brace", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield"},
@@ -674,7 +678,7 @@ def _validate_action(target, effects, path):
     require("recast" not in ops or "damage" in ops, "MissingHandler", path, "a recast repeats a damaging release")
     require("follow_basic" not in ops or "dash_contact" in ops, "MissingHandler", path, "a follow-up basic needs a contact")
     require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
-    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan"}) == 1,
+    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan", "bag"}) == 1,
             "MissingHandler", path, "a ground point needs exactly one delivery handler")
     require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
             "MissingHandler", path, "a cone needs its channel and damage")
@@ -794,7 +798,7 @@ def ability_vocab(ability):
         vocab.add("ground")
     if ability["target"]["mode"] == "DirectionDash":
         vocab.update(("dash", "dash_contact") if "dash_contact" in ops else ("dash",))
-    if ops & {"zone", "contact_trap", "ground_impact"}:
+    if ops & {"zone", "contact_trap", "ground_impact", "bag"}:
         vocab.add("ground")
     if ops & {"root", "stun", "silence", "disarm", "taunt"}:
         vocab.add("control")
@@ -834,6 +838,7 @@ ACTIVE_CONTRACTS = {
     "active_cola_shake": ("DirectionCone", {"channel_cone", "damage", "chill"}),
     "active_desk_fan": ("GroundPoint", {"fan", "gust"}),
     "active_stale_takeout": ("DirectionProjectile", {"damage", "rot", "ground_state"}),
+    "active_school_bag": ("GroundPoint", {"bag", "damage"}),
 }
 TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
 # #198: the five point-bought stats and the bonuses one point of each adds (flat and additive percent terms).
