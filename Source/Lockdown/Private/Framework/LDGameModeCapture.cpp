@@ -473,6 +473,7 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
     bPublicMatchDirty = true;
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_RESULT generation=%u reason=%u winner=%s ended_ms=%lld"),
         MatchContext.Generation, uint8(Reason), *Winner.ToString(EGuidFormats::Digits), EndedAtMs);
+    LogPlaytestCasts();
     LogPlaytestSummary(ResultView);
     Error.Reset();
     return true;

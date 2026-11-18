@@ -17486,7 +17486,7 @@
     },
     {
       "description_key": "character_demo.description",
-      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、捡构件。",
+      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、抽牌。",
       "icon_id": "icon_character_demo",
       "id": "character_demo",
       "name_key": "character_demo.name",

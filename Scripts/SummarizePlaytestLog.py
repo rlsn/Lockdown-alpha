@@ -6,6 +6,13 @@ contender id is replaced by its roster name. For each match the report lists the
 death with the hits (Host) or own damage (client) before it, the growth timeline, the events around each player mark,
 the frame-time and connection summaries, and the warnings and errors.
 
+From the Host's lines it also computes the gameplay metrics of the #287 spec §16 for each match and across all matches:
+damage share by source (basic / skill / card / reaction / other, on contenders and on camps), Q/W/E casts per
+person per fight (LD_CAST), time to kill, momentum income by kind (LD_MOMENTUM), breakout builds against a same-level
+bare-build DPS baseline (--baseline-dps), pick rates of offered actives and cards, outrageous hits (>= 60% of the
+target's max HP), the longest chain (LD_CHAIN) and damage factors (LD_HIT factor_bp). A metric whose lines are absent
+says "no data" instead of a number. --metrics-only prints just these sections.
+
 ``--check-client`` exits non-zero when a log carries Host-only authority lines written while that process was not hosting
 (outside LD_DEMO_LOBBY .. LD_DEMO_FRONTEND), the check that a client log holds only what that player could see.
 """
@@ -30,9 +37,9 @@ ID = re.compile(r"\b[0-9A-F]{32}\b")
 HOST_ONLY_TAGS = frozenset(
     {
         "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
-        "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
+        "LD_CARD", "LD_CARD_OFFER", "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
-        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED",
+        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED", "LD_CAST", "LD_MOMENTUM",
     }
 )
 # Once-per-second or ten-second samples: summarized, never listed one by one in a timeline.
@@ -40,7 +47,7 @@ PERIODIC_TAGS = frozenset({"LD_HEARTBEAT", "LD_SELF_STATE", "LD_PERF", "LD_NET",
 # Routine AI and order bookkeeping: counted around a mark, listed only with --mark-all.
 ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED"})
 GROWTH_TAGS = (
-    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
+    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD", "LD_CARD_OFFER", "LD_CARD",
     "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD",
 )
 
@@ -188,14 +195,24 @@ def describe_hit(event, names):
         extras.append(event.get("controls"))
     if event.get("vamp", "0.00") not in ("0.00", ""):
         extras.append(f"vamp {event.get('vamp')}")
+    # The damage multiplier: factor_bp with its per-source factors from P2 on, the single amp_bp before it.
+    if event.get("factor_bp") not in (None, "", "10000"):
+        extras.append(f"x{int(event.get('factor_bp')) / 10000:.2f}" + (f" {event.get('factors')}" if event.get("factors", "-") != "-" else ""))
+    elif event.get("amp_bp") not in (None, "", "10000"):
+        extras.append(f"amp x{int(event.get('amp_bp')) / 10000:.2f}")
     extra = f" [{', '.join(extras)}]" if extras else ""
     return (f"{source} -> {victim} {event.get('via')} {event.get('class')} dmg {event.get('dmg')} "
             f"(shield {event.get('absorbed')}) hp {event.get('hp')}{extra}")
 
 
 class Report:
-    def __init__(self, events, names, death_window, mark_before, mark_after, mark_all=False):
+    def __init__(self, events, names, death_window, mark_before, mark_after, mark_all=False,
+                 baseline=None, baseline_source=None, metrics_only=False):
         self.events = events
+        self.baseline = baseline or DEFAULT_BASELINE_DPS
+        self.baseline_source = baseline_source or DEFAULT_BASELINE_SOURCE
+        self.metrics_only = metrics_only
+        self.metrics = []
         self.names = names
         self.death_window = death_window
         self.mark_before = mark_before
@@ -222,13 +239,25 @@ class Report:
                 self.out(f"- {event.source}: joined as {event.get('name')} product {event.get('product')} "
                          f"commit {event.get('commit')[:12]} server {event.get('server')}")
         self.out()
-        self.roster(events)
-        self.result(events, start)
+        if not self.metrics_only:
+            self.roster(events)
+            self.result(events, start)
+        self.gameplay_metrics(events)
+        if self.metrics_only:
+            return
         self.deaths(events, start)
         self.growth(events, start)
         self.marks(events, start)
         self.performance(events)
         self.problems(events, start)
+
+    def gameplay_metrics(self, events):
+        metrics = match_metrics(events, self.baseline)
+        self.metrics.append(metrics)
+        self.out("### Metrics (spec §16)")
+        for text in metric_lines(metrics, self.names, self.baseline_source):
+            self.out(text)
+        self.out()
 
     def roster(self, events):
         rows = {}
@@ -331,6 +360,11 @@ class Report:
             elif event.tag == "LD_BUILD":
                 text = (f"{event.get('kind')} {event.get('card')} slot {event.get('slot')} points {event.get('points')} "
                         f"unspent {event.get('unspent')}")
+            elif event.tag == "LD_CARD_OFFER":
+                text = f"card offer #{event.get('ordinal')} ({event.get('source')}): {event.get('cards')}"
+            elif event.tag == "LD_CARD":
+                text = (f"{event.get('kind')} {event.get('card')}#{event.get('serial')} installed {event.get('installed')} "
+                        f"on {event.get('target')} capacity {event.get('capacity')}")
             elif event.tag == "LD_SELF_REWARD":
                 text = f"+{event.get('amount')} {event.get('kind')}"
             else:
@@ -411,23 +445,551 @@ class Report:
         self.out()
 
 
-def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_all=False):
+# ---------------------------------------------------------------- §16 metrics (#287 spec §16, #290)
+# Read from the Host's authority lines only; a client log alone has no LD_HIT and every metric says so.
+
+FIGHT_GAP_MS = 5000  # MOMENTUM.IdleDelaySec: a combat window ends 5 s after the last combat event
+OUTRAGEOUS_SHARE = 0.6  # a single hit of at least 60% of the target's max HP
+BREAKOUT_RATIO = 3.0  # actual output / same-level bare-build output
+CHAIN_OUTRAGEOUS_STEPS = 5
+# LD_CAST is written at the end of the authority advance that committed the release: at most one advance (about 17 ms at
+# 60 FPS) after it, so a release just before its caster's death can carry a time just after the death receipt.
+CAST_LAG_MS = 50
+LOW_PICK_RATE = 0.04
+# Same-level bare-build effective DPS (no cards, no points, armor 18) by level; linear between the points and extended
+# along the nearest segment outside them. --baseline-dps replaces it (for example with duel_site results).
+DEFAULT_BASELINE_DPS = ((1, 72.0), (10, 154.0))
+DEFAULT_BASELINE_SOURCE = "spec §3.9 estimate (L1 860 HP / 11.9 s, L10 1580 HP / about 10.25 s)"
+# A reaction's settle hit carries its applier's own source and LD_HIT has no reaction field, so reaction damage stays in
+# its applier's category; a separate reaction share would need an authority field on LD_HIT.
+DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card"), ("other", "other"))
+DAMAGE_NOTE = "reaction settles count under their applier's source; reaction share: no data (LD_HIT has no reaction field)"
+MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "dodge", "other")
+NO_DATA = "no data"
+
+
+def authority_ms(event, key="t"):
+    value = event.get(key, "")
+    return int(value) if value.lstrip("-").isdigit() else None
+
+
+def number(event, key, default=0.0):
+    try:
+        return float(event.get(key, default))
+    except ValueError:
+        return default
+
+
+def parse_baseline(text):
+    """'1=72,10=154' -> ((1, 72.0), (10, 154.0)): distinct levels, positive DPS."""
+    points = []
+    for part in text.split(","):
+        level, _, dps = part.partition("=")
+        points.append((int(level), float(dps)))
+    points.sort()
+    if not points or len({level for level, _ in points}) != len(points) or any(dps <= 0 for _, dps in points):
+        raise ValueError("--baseline-dps takes level=dps pairs with distinct levels and positive DPS")
+    return tuple(points)
+
+
+def baseline_at(points, level):
+    """The bare-build DPS at level: linear between the two surrounding points, the nearest segment outside them."""
+    if len(points) == 1:
+        return points[0][1]
+    index = 0
+    while index < len(points) - 2 and level > points[index + 1][0]:
+        index += 1
+    (low, low_dps), (high, high_dps) = points[index], points[index + 1]
+    return max(low_dps + (high_dps - low_dps) * (level - low) / (high - low), 1.0)
+
+
+def hit_category(event):
+    via = event.get("via", "")
+    if via == "basic":
+        return "basic"
+    if via.startswith("learned:"):
+        return "skill"
+    if via.startswith("card:"):
+        return "card"
+    return "other"
+
+
+def training_scope(events, roster):
+    """What the rest-room private training leaves in the Host log: its dummies (LD_TRAINING_DUMMY_SPAWN, or contender-kind
+    bodies outside the roster) and the rest lives of the contenders (every LD_HEARTBEAT of that life inside a rest:
+    from the match start to the first LD_FIELD_ENTER, then each LD_REST_ENTER to the next LD_FIELD_ENTER). A log without
+    those lines has no training scope."""
+    dummies = {event.get("dummy") for event in events if event.tag == "LD_TRAINING_DUMMY_SPAWN"}
+    if roster:
+        for event in events:
+            if event.tag == "LD_HIT":
+                for side in ("src", "victim"):
+                    if event.get(f"{side}_kind") == "contender" and event.get(side) not in roster:
+                        dummies.add(event.get(side))
+    dummies.discard("")
+    marks = sorted((authority_ms(event, "at_ms"), event.tag) for event in events
+                   if event.tag in ("LD_FIELD_ENTER", "LD_REST_ENTER") and authority_ms(event, "at_ms") is not None)
+    windows, start = [], None
+    if marks:
+        start = float("-inf")
+    for at, tag in marks:
+        if tag == "LD_FIELD_ENTER" and start is not None:
+            windows.append((start, at))
+            start = None
+        elif tag == "LD_REST_ENTER" and start is None:
+            start = at
+    if start is not None and marks:
+        windows.append((start, float("inf")))
+    seen = defaultdict(list)
+    for event in events:
+        if event.tag == "LD_HEARTBEAT" and authority_ms(event) is not None:
+            seen[(event.get("contender"), event.get("life"))].append(authority_ms(event))
+    rest_lives = {key for key, times in seen.items()
+                  if windows and all(any(low <= t < high for low, high in windows) for t in times)}
+    return dummies, rest_lives
+
+
+class LevelTrack:
+    """Each contender's level by authority time, from LD_LEVEL_UP (level 1 before the first)."""
+
+    def __init__(self, events):
+        self.steps = defaultdict(list)
+        for event in events:
+            if event.tag == "LD_LEVEL_UP" and authority_ms(event) is not None:
+                after = event.get("level", "").partition("->")[2]
+                if after.isdigit():
+                    self.steps[event.get("contender")].append((authority_ms(event), int(after)))
+        for rows in self.steps.values():
+            rows.sort()
+
+    def __call__(self, contender, t):
+        level = 1
+        for at, after in self.steps.get(contender, []):
+            if at > t:
+                break
+            level = after
+        return level
+
+
+def stats_text(values, digits=1, unit=""):
+    values = sorted(values)
+    if not values:
+        return NO_DATA
+    mean = sum(values) / len(values)
+    middle = len(values) // 2
+    median = values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+    return (f"n={len(values)} mean {mean:.{digits}f}{unit} median {median:.{digits}f}{unit} "
+            f"min {values[0]:.{digits}f}{unit} max {values[-1]:.{digits}f}{unit}")
+
+
+@dataclass
+class Fight:
+    contender: str
+    start: int
+    end: int
+    casts: int = 0
+    pvp_hits: int = 0
+    dealt: float = 0.0
+    opponents: set = field(default_factory=set)
+    died: bool = False
+    lingering: int = 0
+    level: int = 1
+    same_level: bool = True
+
+
+def contender_fights(contender, casts, hits, deaths, contenders):
+    """One contender's fights: its LD_CAST releases and the hits it exchanged with other contenders, split where the gap
+    exceeds FIGHT_GAP_MS (the combat window) and ended by its death. Fights without a hit between contenders are dropped."""
+    timeline = [(authority_ms(event), 0, "cast", event) for event in casts if event.get("contender") == contender]
+    timeline += [(authority_ms(event), 1, "hit", event) for event in hits
+                 if event.get("protected") != "1" and event.get("src") != event.get("victim")
+                 and event.get("src") in contenders and event.get("victim") in contenders
+                 and contender in (event.get("src"), event.get("victim"))]
+    timeline += [(authority_ms(event), 2, "death", event) for event in deaths if event.get("contender") == contender]
+    timeline.sort(key=lambda row: (row[0], row[1]))
+    fights, current = [], None
+    for t, _, kind, event in timeline:
+        if current and current.died and kind == "cast" and t - current.end <= CAST_LAG_MS:
+            current.casts += max(int(number(event, "added", 1)), 1)
+            continue
+        # A released effect outlives its caster (a zone, a projectile in flight): its hits after the death, within the
+        # combat window, still belong to the fight that ended with that death instead of opening a fight of a dead body.
+        if (current and current.died and kind == "hit" and event.get("src") == contender
+                and t - current.end <= FIGHT_GAP_MS):
+            current.opponents.add(event.get("victim"))
+            current.dealt += number(event, "dmg")
+            current.lingering += 1
+            continue
+        if current and (t - current.end > FIGHT_GAP_MS or current.died):
+            fights.append(current)
+            current = None
+        if kind == "death":
+            if current:
+                current.end, current.died = t, True
+            continue
+        if current is None:
+            current = Fight(contender, t, t)
+        current.end = t
+        if kind == "cast":
+            current.casts += max(int(number(event, "added", 1)), 1)
+            continue
+        current.pvp_hits += 1
+        current.opponents.add(event.get("victim") if event.get("src") == contender else event.get("src"))
+        if event.get("src") == contender:
+            current.dealt += number(event, "dmg")
+    if current:
+        fights.append(current)
+    return [fight for fight in fights if fight.pvp_hits]
+
+
+def kill_times(deaths, hits, contenders, levels):
+    """Each contender death by another contender: from the first damage between the pair in the engagement that ended
+    in the death (their hits either way, no more than FIGHT_GAP_MS apart) to the death receipt. A kill counts as mutual
+    only when the victim also hit the killer in that engagement; a one-sided kill (an idle or fleeing victim) is no time
+    to kill of a fight and is only counted."""
+    kills = []
+    for death in deaths:
+        victim, killer, t_death = death.get("contender"), death.get("killer"), authority_ms(death)
+        if killer in ("", "-", victim) or killer not in contenders:
+            continue
+        pair = sorted(((authority_ms(event), event.get("src")) for event in hits if event.get("protected") != "1"
+                       and {event.get("src"), event.get("victim")} == {victim, killer} and authority_ms(event) <= t_death),
+                      reverse=True)
+        if not pair:
+            continue
+        start = last = t_death
+        sources = set()
+        for t, source in pair:
+            if last - t > FIGHT_GAP_MS:
+                break
+            start = last = t
+            sources.add(source)
+        # Levels just before the death: the killer's reward for it lands at the same authority time.
+        level = levels(victim, t_death - 1)
+        kills.append({"victim": victim, "killer": killer, "ttk_ms": t_death - start, "level": level,
+                      "same_level": levels(killer, t_death - 1) == level, "mutual": victim in sources})
+    return kills
+
+
+def match_metrics(events, baseline):
+    """Every §16 number this match's Host lines support; a value is None (or empty) when its lines are absent."""
+    hits = [event for event in events if event.tag == "LD_HIT" and authority_ms(event) is not None]
+    # The roster when the log has one: rest-room training dummies are contender-kind bodies outside it.
+    contenders = {event.get("contender") for event in events if event.tag == "LD_MATCH_ROSTER"}
+    if not contenders:
+        contenders |= {event.get("src") for event in hits if event.get("src_kind") == "contender"}
+        contenders |= {event.get("victim") for event in hits if event.get("victim_kind") == "contender"}
+    contenders.discard("")
+    dummies, rest_lives = training_scope(events, contenders)
+    contenders -= dummies
+    casts = [event for event in events if event.tag == "LD_CAST" and authority_ms(event) is not None]
+    deaths = [event for event in events if event.tag == "LD_DEATH_RECEIPT" and authority_ms(event) is not None]
+    levels = LevelTrack(events)
+    out = {"has_hits": bool(hits), "has_casts": bool(casts), "contenders": sorted(contenders)}
+
+    share = {"contender": defaultdict(float), "camp": defaultdict(float)}
+    for event in hits:
+        if event.get("src") not in contenders or event.get("src") == event.get("victim") or event.get("protected") == "1":
+            continue
+        group = "camp" if event.get("victim_kind") == "camp" else "contender" if event.get("victim") in contenders else None
+        if group is None:
+            continue
+        share[group][hit_category(event)] += number(event, "dmg")
+    out["damage_share"] = share
+
+    fights = [fight for contender in sorted(contenders) for fight in contender_fights(contender, casts, hits, deaths, contenders)]
+    for fight in fights:
+        fight.level = levels(fight.contender, fight.start)
+        fight.same_level = all(levels(other, fight.start) == fight.level for other in fight.opponents)
+    out["fights"] = fights
+    out["kills"] = kill_times(deaths, hits, contenders, levels)
+
+    # Momentum and perfect dodges of the field lives only: rest lives train against their dummies.
+    def field_life(event):
+        return event.get("entity") not in dummies and (event.get("entity"), event.get("life")) not in rest_lives
+
+    # LD_MOMENTUM is written when a body leaves (death, rest, retirement); a life still alive when the match ends or the log
+    # stops has none. Dodges are counted over the same lives, and the field lives without a ledger are reported.
+    ledgers = [event for event in events if event.tag == "LD_MOMENTUM" and field_life(event)]
+    ledger_lives = {(event.get("entity"), event.get("life")) for event in ledgers}
+    field_lives = {(event.get("contender"), event.get("life")) for event in events if event.tag == "LD_HEARTBEAT"
+                   and event.get("contender") in contenders and field_life({"entity": event.get("contender"),
+                                                                               "life": event.get("life")})}
+    out["lives_without_ledger"] = len(field_lives - ledger_lives)
+    momentum = defaultdict(float)
+    for event in ledgers:
+        for key in (*MOMENTUM_INCOME, "idle", "spent", "overdrive"):
+            momentum[key] += number(event, key)
+    out["momentum"] = dict(momentum) if ledgers else None
+    out["momentum_lives"] = len(ledgers)
+    out["perfect_dodges"] = sum(1 for event in events if event.tag == "LD_PERFECT_DODGE" and field_life(event)
+                                and (event.get("entity"), event.get("life")) in ledger_lives)
+    out["training_lines"] = sum(1 for event in events if event.tag in ("LD_MOMENTUM", "LD_PERFECT_DODGE")
+                                and not field_life(event))
+
+    # Breakout: damage to contenders over the contender's fights against the same-level bare build over the same time.
+    ratios = {}
+    for contender in sorted(contenders):
+        own = [fight for fight in fights if fight.contender == contender]
+        expected = sum(baseline_at(baseline, fight.level) * max(fight.end - fight.start, 1000) / 1000 for fight in own)
+        if expected:
+            ratios[contender] = sum(fight.dealt for fight in own) / expected
+    out["output_ratio"] = ratios
+
+    outrageous = [(number(event, "dmg") / number(event, "max_hp"), event) for event in hits
+                  if event.get("victim") in contenders and event.get("src") != event.get("victim")
+                  and number(event, "max_hp") > 0 and number(event, "dmg") >= OUTRAGEOUS_SHARE * number(event, "max_hp")]
+    out["outrageous"] = sorted(outrageous, key=lambda row: -row[0])
+
+    chains = [int(number(event, "steps")) for event in events if event.tag == "LD_CHAIN"]
+    out["chains"] = chains or None
+    match_hits = [event for event in hits if event.get("src") not in dummies and event.get("victim") not in dummies]
+    factored = [event for event in match_hits if event.get("factor_bp")]
+    out["factors"] = None
+    if factored:
+        sources = defaultdict(int)
+        for event in factored:
+            for part in event.get("factors", "").split(","):
+                key, _, bp = part.rpartition(":")
+                if key and bp.lstrip("-").isdigit():
+                    sources[key] += 1
+        out["factors"] = {"hits": len(factored), "max_bp": max(int(number(event, "factor_bp")) for event in factored),
+                          "sources": dict(sources)}
+    out["amp_max_bp"] = max((int(number(event, "amp_bp")) for event in match_hits if event.get("amp_bp")), default=None)
+    out["reaction_kinds"] = sorted({event.get("kind") for event in events if event.tag == "LD_REACTION"
+                                    and event.get("trigger") not in dummies and event.get("primary") not in dummies})
+
+    # Offers and picks: an LD_OFFER (actives) or LD_CARD_OFFER (cards) lists the offered ids; LD_CHOICE and an LD_CARD
+    # PickCard is a pick; an LD_CARD with installed=1 is an installation. Actives are active_*; every other id is a card.
+    offered, picked, installed = defaultdict(int), defaultdict(int), defaultdict(set)
+    for event in events:
+        card = event.get("card", "-")
+        if event.tag in ("LD_OFFER", "LD_CARD_OFFER"):
+            for offer in event.get("cards", "").split(","):
+                if offer and offer != "-":
+                    offered[offer] += 1
+        elif event.tag == "LD_CHOICE" and card not in ("", "-"):
+            picked[card] += 1
+        elif event.tag == "LD_CARD" and card not in ("", "-"):
+            if event.get("kind") == "PickCard":
+                picked[card] += 1
+            if event.get("installed") == "1":
+                installed[card].add(event.get("contender"))
+    out["offered"], out["picked"], out["installed"] = dict(offered), dict(picked), dict(installed)
+
+    summary = next((event for event in events if event.tag == "LD_MATCH_SUMMARY"), None)
+    rows = [event for event in events if event.tag == "LD_MATCH_SUMMARY_ROW" and summary is not None
+            and event.get("contender") == summary.get("winner")]
+    out["winner_build"] = build_fingerprint(rows[0]) if rows else None
+    return out
+
+
+def build_fingerprint(row):
+    """A winner's build: its Q/W/E actives, allocated points and every installed card copy with its place, all from the
+    LD_MATCH_SUMMARY_ROW (`cards=+card_x#serial@Kind[:active]`; the serial is dropped, duplicates count). None when the
+    row has no points or cards field."""
+    if not row.get("skills") or "points" not in row.fields or "cards" not in row.fields:
+        return None
+    actives = sorted(item.partition("/")[0] for item in row.get("skills").split(",") if item and item != "-")
+    installed = []
+    for item in row.get("cards", "-").split(","):
+        if item.startswith("+"):
+            card, _, place = item[1:].partition("@")
+            installed.append(f"{card.partition('#')[0]}:{place}")
+    return (tuple(actives), row.get("points"), tuple(sorted(installed)))
+
+
+def share_line(amounts):
+    total = sum(amounts.values())
+    if not total:
+        return NO_DATA
+    return f"{total:.0f} dmg: " + ", ".join(f"{label} {100 * amounts.get(key, 0) / total:.1f}%" for key, label in DAMAGE_CATEGORIES)
+
+
+def casts_text(fights, has_casts):
+    if not has_casts:
+        return f"{NO_DATA} (no LD_CAST line: the Host build predates the cast trace)"
+    return stats_text([fight.casts for fight in fights])
+
+
+def ttk_text(kills):
+    mutual = [kill["ttk_ms"] / 1000 for kill in kills if kill["mutual"]]
+    one_sided = len(kills) - len(mutual)
+    return stats_text(mutual, 1, " s") + (f" (+{one_sided} one-sided kills)" if one_sided else "")
+
+
+def momentum_text(momentum, lives, dodges):
+    income = sum(momentum.get(key, 0) for key in MOMENTUM_INCOME) if momentum else 0
+    if not income:
+        return f"{NO_DATA} (no LD_MOMENTUM line)"
+    parts = ", ".join(f"{key} {100 * momentum.get(key, 0) / income:.1f}%" for key in MOMENTUM_INCOME)
+    return (f"{income:.0f} over {lives} field lives ({parts}); idle drift {momentum.get('idle', 0):+.0f}, spent "
+            f"{momentum.get('spent', 0):.0f}, overdrives {momentum.get('overdrive', 0):.0f}, perfect dodges {dodges}")
+
+
+def metric_lines(metrics, names, baseline_source):
+    if not metrics["has_hits"]:
+        return [f"- {NO_DATA}: the metrics need the Host log (LD_HIT, LD_CAST, LD_DEATH_RECEIPT, LD_MOMENTUM)."]
+    lines = [f"- Damage share, hits on contenders: {share_line(metrics['damage_share']['contender'])}",
+             f"- Damage share, hits on camps: {share_line(metrics['damage_share']['camp'])}",
+             f"  - {DAMAGE_NOTE}"]
+    fights, kills = metrics["fights"], metrics["kills"]
+    lines.append(f"- Casts per person per fight (Q/W/E releases): {casts_text(fights, metrics['has_casts'])}")
+    lines.append(f"  - same-level fights: {casts_text([fight for fight in fights if fight.same_level], metrics['has_casts'])}")
+    lines.append(f"- Time to kill (first damage between the pair to the death): {ttk_text(kills)}")
+    for level in sorted({kill["level"] for kill in kills if kill["same_level"]}):
+        lines.append(f"  - same level L{level}: {ttk_text([kill for kill in kills if kill['same_level'] and kill['level'] == level])}")
+    lines.append(f"- Momentum income: {momentum_text(metrics['momentum'], metrics['momentum_lives'], metrics['perfect_dodges'])}"
+                 + (f" ({metrics['training_lines']} rest-training ledger/dodge lines left out)" if metrics["training_lines"] else "")
+                 + (f"; incomplete: {metrics['lives_without_ledger']} field lives have no ledger (alive at the match end)"
+                    if metrics["lives_without_ledger"] else ""))
+    ratios = metrics["output_ratio"]
+    breakouts = sum(1 for ratio in ratios.values() if ratio >= BREAKOUT_RATIO)
+    ranked = ", ".join(f"{names(contender)} x{ratio:.2f}" for contender, ratio in sorted(ratios.items(), key=lambda row: -row[1]))
+    lines.append(f"- Breakout builds (output / same-level bare build >= {BREAKOUT_RATIO:g}, baseline {baseline_source}): "
+                 f"{breakouts}" + (f" ({ranked})" if ranked else ""))
+    outrageous = metrics["outrageous"]
+    lines.append(f"- Outrageous hits (>= {OUTRAGEOUS_SHARE:.0%} of the target's max HP): {len(outrageous)}")
+    for ratio, event in outrageous[:5]:
+        lines.append(f"  - t={event.get('t')} {names(event.get('src'))} -> {names(event.get('victim'))} "
+                     f"{event.get('via')} {event.get('dmg')} ({ratio:.0%} of {event.get('max_hp')})")
+    chains = metrics["chains"]
+    lines.append(f"- Longest chain: {max(chains)} steps ({sum(1 for steps in chains if steps >= CHAIN_OUTRAGEOUS_STEPS)} of "
+                 f"{len(chains)} chains >= {CHAIN_OUTRAGEOUS_STEPS})" if chains
+                 else f"- Longest chain: {NO_DATA} (no LD_CHAIN line)")
+    factors = metrics["factors"]
+    if factors:
+        top = ", ".join(f"{key} {count}" for key, count in sorted(factors["sources"].items(), key=lambda row: -row[1])[:8])
+        lines.append(f"- Damage factors: {factors['hits']} hits, max factor_bp {factors['max_bp']}; sources {top or '-'}")
+    else:
+        old = f"; old amp_bp peaks at {metrics['amp_max_bp']}" if metrics["amp_max_bp"] is not None else ""
+        lines.append(f"- Damage factors: {NO_DATA} (LD_HIT has no factor_bp{old})")
+    kinds = metrics["reaction_kinds"]
+    lines.append(f"- Reaction kinds: {len(kinds)}" + (f" ({', '.join(kinds)})" if kinds else ""))
+    cards = sum(count for card, count in metrics["offered"].items() if not card.startswith("active_"))
+    lines.append(f"- Cards offered: {cards}" if cards else f"- Cards offered: {NO_DATA} (no card offer)")
+    return lines
+
+
+def pick_lines(all_metrics):
+    offered, picked, installed, entries = defaultdict(int), defaultdict(int), defaultdict(int), 0
+    for metrics in all_metrics:
+        entries += len(metrics["contenders"])
+        for card, count in metrics["offered"].items():
+            offered[card] += count
+        for card, count in metrics["picked"].items():
+            picked[card] += count
+        for card, holders in metrics["installed"].items():
+            installed[card] += len(holders)
+    lines = []
+    for title, keep in (("Actives", lambda card: card.startswith("active_")),
+                        ("Cards", lambda card: not card.startswith("active_"))):
+        ids = sorted((card for card in offered if keep(card)), key=lambda card: (-picked[card] / offered[card], card))
+        if not ids:
+            lines.append(f"- {title} pick rate: {NO_DATA} (none offered)")
+            continue
+        low = sum(1 for card in ids if picked[card] / offered[card] < LOW_PICK_RATE)
+        lines.append(f"- {title} pick rate (picked / offered), {len(ids)} ids, {low} below {LOW_PICK_RATE:.0%}:")
+        lines.append("")
+        lines.append("  | id | offered | picked | pick rate |")
+        lines.append("  | --- | --- | --- | --- |")
+        lines += [f"  | {card} | {offered[card]} | {picked[card]} | {100 * picked[card] / offered[card]:.1f}% |" for card in ids]
+        lines.append("")
+    held = sorted((card for card in installed if not card.startswith("active_")), key=lambda card: (-installed[card], card))
+    if held and entries:
+        lines.append(f"- Installed (share of {entries} contender-matches): "
+                     + ", ".join(f"{card} {100 * installed[card] / entries:.0f}%" for card in held))
+    return lines
+
+
+def aggregate_lines(all_metrics, baseline_source):
+    """The §16 table across every match of these logs; the targets guide judgement and are never a gate."""
+    host = [metrics for metrics in all_metrics if metrics["has_hits"]]
+    lines = [f"## Metrics across {len(host)} matches with Host lines (spec §16)", ""]
+    if not host:
+        return lines + [f"{NO_DATA}: no match has Host authority lines (LD_HIT)."]
+    kills = [kill for metrics in host for kill in metrics["kills"]]
+    # Casts only from matches whose Host wrote LD_CAST: a match of an older Host has fights but no cast record.
+    fights = [fight for metrics in host if metrics["has_casts"] for fight in metrics["fights"]]
+    has_casts = any(metrics["has_casts"] for metrics in host)
+    no_casts = sum(1 for metrics in host if not metrics["has_casts"])
+    same_kills = [kill for kill in kills if kill["same_level"]]
+    breakouts = [sum(1 for ratio in metrics["output_ratio"].values() if ratio >= BREAKOUT_RATIO) for metrics in host]
+    moments = [len(metrics["outrageous"]) + sum(1 for steps in (metrics["chains"] or []) if steps >= CHAIN_OUTRAGEOUS_STEPS)
+               for metrics in host]
+    winners = [metrics["winner_build"] for metrics in host if metrics["winner_build"]]
+    winner_text = (f"{len(set(winners))} in {len(winners)} decided matches" if winners
+                   else f"{NO_DATA} (no winner row with points and cards)")
+    lines += ["| Metric | Target | Result |", "| --- | --- | --- |",
+              f"| Same-level L1 time to kill | 10–12 s | {ttk_text([kill for kill in same_kills if kill['level'] == 1])} |",
+              f"| Same-level time to kill, any level | — | {ttk_text(same_kills)} |",
+              f"| Time to kill, every kill between contenders | — | {ttk_text(kills)} |",
+              f"| Casts per person per same-level fight | 7–10 | "
+              f"{casts_text([fight for fight in fights if fight.same_level], has_casts)} |",
+              f"| Casts per person per fight, any level | — | {casts_text(fights, has_casts)} |",
+              f"| Breakout builds per match (x{BREAKOUT_RATIO:g} the same-level bare build) | 1–2 | {stats_text(breakouts, 2)} |",
+              f"| Distinct winner builds (actives, points, installed cards) | ≥ 8 per 50 matches | {winner_text} |",
+              f"| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | "
+              f"{sum(1 for count in moments if count)} of {len(host)} |",
+              f"| Reaction kinds per match | ≥ 6 (after P4) | {stats_text([len(metrics['reaction_kinds']) for metrics in host])} |",
+              "| Field time share | ≥ 65% (after P6) | not computed |", "",
+              *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
+              f"Breakout baseline: {baseline_source}.", ""]
+    totals = {"contender": defaultdict(float), "camp": defaultdict(float)}
+    momentum, lives, dodges, missing = defaultdict(float), 0, 0, 0
+    for metrics in host:
+        for group, amounts in metrics["damage_share"].items():
+            for key, value in amounts.items():
+                totals[group][key] += value
+        for key, value in (metrics["momentum"] or {}).items():
+            momentum[key] += value
+        lives += metrics["momentum_lives"]
+        dodges += metrics["perfect_dodges"]
+        missing += metrics["lives_without_ledger"]
+    lines.append(f"- Damage share, hits on contenders: {share_line(totals['contender'])}")
+    lines.append(f"- Damage share, hits on camps: {share_line(totals['camp'])}")
+    lines.append(f"  - {DAMAGE_NOTE}")
+    lines.append(f"- Momentum income: {momentum_text(momentum, lives, dodges)}"
+                 + (f"; incomplete: {missing} field lives have no ledger (alive at the match end)" if missing else ""))
+    for level in sorted({kill["level"] for kill in same_kills}):
+        lines.append(f"- Same-level time to kill at L{level}: {ttk_text([kill for kill in same_kills if kill['level'] == level])}")
+    chains = [steps for metrics in host for steps in (metrics["chains"] or [])]
+    lines.append(f"- Longest chain: {max(chains)} steps" if chains else f"- Longest chain: {NO_DATA} (no LD_CHAIN line)")
+    if not any(metrics["factors"] for metrics in host):
+        lines.append(f"- Damage factors: {NO_DATA} (LD_HIT has no factor_bp)")
+    return lines + pick_lines(host)
+
+
+def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_all=False, baseline=None, metrics_only=False):
     events, names = [], Names()
     for source, rows in logs:
         assign_generations(rows)
         names.learn(rows)
         events.extend(rows)
     events.sort(key=lambda event: (event.when, event.source, event.order))
-    report = Report(events, names, death_window, mark_before, mark_after, mark_all)
+    source = DEFAULT_BASELINE_SOURCE if baseline is None else "--baseline-dps " + ",".join(f"{level}={dps:g}" for level, dps in baseline)
+    report = Report(events, names, death_window, mark_before, mark_after, mark_all,
+                    DEFAULT_BASELINE_DPS if baseline is None else baseline, source, metrics_only)
     report.out("# Lockdown playtest summary")
     report.out()
+    # A generation is unique only inside one Host process. When several Host logs reuse one, each Host log's match stays
+    # apart and the client logs of that generation, which cannot be tied to one of them, are listed on their own.
+    hosts = defaultdict(set)
+    for event in events:
+        if event.generation is not None and event.tag in ("LD_MATCH_HEADER", "LD_MATCH_STARTED", "LD_MATCH_STARTING"):
+            hosts[event.generation].add(event.source)
     by_generation = defaultdict(list)
     for event in events:
-        by_generation[event.generation].append(event)
-    for generation in sorted(key for key in by_generation if key is not None):
-        report.match(generation, by_generation[generation])
+        run = event.source if event.generation is not None and len(hosts.get(event.generation, ())) > 1 else ""
+        by_generation[(event.generation, run) if event.generation is not None else None].append(event)
+    for key in sorted(key for key in by_generation if key is not None):
+        report.match(f"{key[0]} ({key[1]})" if key[1] else key[0], by_generation[key])
+    if report.metrics:
+        for text in aggregate_lines(report.metrics, source):
+            report.out(text)
+        report.out()
     outside = [event for event in by_generation.get(None, []) if event.verbosity in ("Warning", "Error", "Fatal")]
-    if outside:
+    if outside and not metrics_only:
         report.out("## Outside a match")
         report.problems(outside, None)
     if not [key for key in by_generation if key is not None]:
@@ -436,7 +998,21 @@ def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_a
 
 
 def collect(paths):
-    logs = []
+    """(label, events) per log. The label is the given label=, else the file name; a label already taken by another file
+    (Telemetry.log of two runs, say) gets the parent folder's name, then a number, so independent logs never merge."""
+    logs, taken = [], {}
+
+    def unique(label, file):
+        key = str(Path(file).resolve()).lower()
+        if taken.get(label, key) == key:
+            taken[label] = key
+            return label
+        for candidate in (f"{label} ({Path(file).resolve().parent.name})", *(f"{label} ({n})" for n in range(2, 1000))):
+            if taken.get(candidate, key) == key:
+                taken[candidate] = key
+                return candidate
+        raise ValueError(f"too many logs named {label}")
+
     for path in paths:
         if "=" in path and not Path(path).exists():
             label, _, path = path.partition("=")
@@ -448,9 +1024,10 @@ def collect(paths):
             continue
         files = sorted(target.glob("*.log")) if target.is_dir() else [target]
         for file in files:
-            rows = read_log(file, label if not target.is_dir() else file.stem)
+            name = unique(label if not target.is_dir() else file.stem, file)
+            rows = read_log(file, name)
             if any(row.tag for row in rows):
-                logs.append((label if not target.is_dir() else file.stem, rows))
+                logs.append((name, rows))
     return logs
 
 
@@ -462,6 +1039,9 @@ def main(argv=None):
     parser.add_argument("--mark-before", type=float, default=30.0, help="seconds of events listed before each mark")
     parser.add_argument("--mark-after", type=float, default=10.0, help="seconds of events listed after each mark")
     parser.add_argument("--mark-all", action="store_true", help="also list routine AI and order lines around each mark")
+    parser.add_argument("--baseline-dps", type=parse_baseline, default=None, metavar="LEVEL=DPS,...",
+                        help="same-level bare-build DPS by level for breakout builds (default: the spec §3.9 estimate)")
+    parser.add_argument("--metrics-only", action="store_true", help="print only the spec §16 metric sections")
     parser.add_argument("--check-client", action="store_true",
                         help="fail when a log that never hosted a match contains Host-only authority lines")
     args = parser.parse_args(argv)
@@ -481,7 +1061,8 @@ def main(argv=None):
                 print(f"{source}: {role} holds no Host-only authority lines ({len(rows)} lines checked)")
         if failed:
             return 1
-    text = summarize(logs, args.death_window, args.mark_before, args.mark_after, args.mark_all)
+    text = summarize(logs, args.death_window, args.mark_before, args.mark_after, args.mark_all, args.baseline_dps,
+                     args.metrics_only)
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
     else:

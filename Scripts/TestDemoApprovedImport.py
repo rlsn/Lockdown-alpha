@@ -587,7 +587,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertFalse({"cowering", "contact_guard"} & set(ids["statuses"]))
         self.assertNotIn("STAT.AbilityCritMultiplier", self.data["parameters"])
         self.assertEqual(next(row for row in self.data["display"] if row["id"] == "character_demo")["description_text"],
-                         "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、捡构件。")
+                         "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、抽牌。")
         self.assertFalse([row["id"] for row in self.data["display"]
                           if row["id"].startswith(("passive_", "attr_", "opening_")) or row["id"] == "active_cower"])
 

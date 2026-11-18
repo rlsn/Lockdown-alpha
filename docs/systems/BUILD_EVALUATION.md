@@ -137,7 +137,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 每批本地块号重新编号后复用核心统计，未完成的配对仍不进相应指标的分母。工具检查已判读的记录，不重新执行或重新判读原生轨迹；
 输出文件必须不存在。`seed_mapping` 保留每个种子对应的来源批次与 Case。
 
-## Lockdown Adapter v14（v0.11 Demo）
+## Lockdown Adapter v15（v0.11 Demo）
 
 能力表来自运行目录 `Content\Lockdown\Data\Demo`：内容摘要是 `manifest.json` 的 SHA-256（即原生目录根），
 每个主动技能、属性与构筑牌都是 `Supported`（原生导入器拒绝没有处理器的定义）；主动另记是否属于开局池，
@@ -229,7 +229,9 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（牌库�
 准入时拒绝 `duel_site` 证明做不到的计划（`IllegalDecision`）：开局休息里没有牌（牌随野外供给到达）；装牌须有尚未装上的同名牌
 （按 `level_cards` 计数）、位置符合牌的形式（技能牌的技能须由 `definition` 规则选中）、Y25 带一种可选元素、已装张数不超过供给等级的容量；
 卸牌须有更早装上的同名牌；洗点与替换只在休息，而 `duel_site` 唯一的休息在供给之前；每个计划选择都在选择时学会，所以学习图纸与替换在
-`duel_site` 中不可达；开局休息的加点不超过开局点数，全部加点（洗点后重计）必须恰好花完供给赚到的点数（spec §4.1）。
+`duel_site` 中不可达；开局休息的加点不超过开局点数，全部加点（洗点后重计）必须恰好花完供给赚到的点数（spec §4.1）；
+一方写 `"keep_points_unspent": true` 时改为全部点数保持未分配（加点与洗点相抵、净加点为 0），用于裸构筑基线。
+这个字段只在 Adapter 里，原生输入不变：有构筑计划的一方本来就不由生产规则加点；没有构筑计划时写它在准入时拒绝。
 
 不可规划、明确判 `UnsupportedDecision` 并附原因的决策：`buy_npc_offer`（NPC 购买会新增计划须命名序号的主动机会）、
 `forget_active`（AI 没有单独遗忘命令；替换会遗忘被替换的主动）、`pick_card`（有计划的一方跳过牌三选一，牌只来自 `level_cards`）、
@@ -264,6 +266,11 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（牌库�
 | `damage_dealt_hp` / `damage_taken_hp` | 第一野外段入口至结果时主体对对手、对手对主体已提交命中的实际掉血（不含护盾吸收） |
 | `subject_hp_end_bp` | Case 结束时主体生命比例（死亡为 0）；时限可能落在两帧之间，终态是探针结束时的帧状态，不是精确时限快照 |
 | `decision_time_ms` | 第一野外段入口到第一名对决者死亡，到时删失 |
+| `engage_to_kill_ms` | 双方之间第一条已提交命中到第一名对决者死亡（击杀时间），到时删失；没有命中时从第一野外段入口算 |
+| `subject_casts` / `opponent_casts` | 第一野外段入口至结果（含结果所在的那次推进，至多 50 ms）该方的 Q/W/E 释放次数（`LD_CAST added` 之和，见[运行日志合同](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)） |
+
+轨迹里有对决者的技能命中（`via=learned:`）却没有任何 `LD_CAST` 行时判 `TraceIncomplete`：这是缺少施法行的旧 Host 构建，
+不能把施法次数记成 0。`LD_CAST` 缺时间、`added` 小于 1 同样判 `TraceIncomplete`。
 
 事实（`cases.jsonl`）：双方每个序号的实际 Offer 与选择、每条 `LD_BUILD`（含遗忘与 `reclaimed`）与 `LD_CARD`、固定升级牌、
 双方计划的操作参数（`operation`）、终局构筑与牌、分支标签、分支前缀、第一野外段身体提交时的出生位置、首个有效命中的一方与时间、随机指纹。
@@ -337,13 +344,17 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 | `Lockdown.Rules.BuildEvaluation.OperationGates` | 操作参数全为 0 时意图不变且不掷骰；反应时间拦到连续就绪满时长、未就绪与换命重新计时；落点偏离不超过误差与射程且同种子一致、换种子不同；方向转角不超过上限且长度不变；跳过时保持 500 ms 期间不掷骰、最终放行；风筝第一步撤退等待反应时间、对手离开间距即重置 |
 | `Lockdown.Rules.BuildEvaluation.Horizon` | 野外入口前、非帧对齐时限之前、恰在时限和之后的击杀边界 |
 | `TestBuildEvaluation.py` | 核心清单拒绝、准入与设计不完整、预算（必填字段、两类上限、场景未声明的类别、证据根已满时拒绝计划且不删旧证据、`gate` 的本批/证据根上限、门禁中止后未完成 Case 为 `BudgetExceeded`、超出事件预算的轨迹不进统计、v1 运行被拒绝）、种子分割、配对/决策/交互统计、删失、分母、阈值判定、身份失配、重放比对、依赖方向 |
-| `TestBuildEvaluationLockdown.py` | 能力表即运行目录（主动、属性与牌及其形式、类型、词汇与元素）、计划期非法方案、未入目录的候选不支持、预置只限 diagnostic、构筑步骤的形状、准入与 `duel_site` 不可达的步骤、不可规划决策附原因的 `UnsupportedDecision`、原生输入与换边、合成轨迹的指标与各 `Invalid` 原因、构筑步骤逐条核对（缺失、多出、位置/元素/点数不符、窗口、时间、终局的牌、原生画像失败）、构筑分支的前缀与固定升级牌、证据合同、重放事件、运行身份 |
+| `TestBuildEvaluationLockdown.py` | 能力表即运行目录（主动、属性与牌及其形式、类型、词汇与元素）、计划期非法方案、`keep_points_unspent` 的准入（净加点为 0、必须有构筑计划）、`pending-p2` 清单的实验形状、`LD_CAST` 施法次数与击杀时间及缺施法行的拒绝、未入目录的候选不支持、预置只限 diagnostic、构筑步骤的形状、准入与 `duel_site` 不可达的步骤、不可规划决策附原因的 `UnsupportedDecision`、原生输入与换边、合成轨迹的指标与各 `Invalid` 原因、构筑步骤逐条核对（缺失、多出、位置/元素/点数不符、窗口、时间、终局的牌、原生画像失败）、构筑分支的前缀与固定升级牌、证据合同、重放事件、运行身份 |
 | `TestCombineBuildEvaluation.py` | 跨批独立种子重编号、不完整配对排除、程序身份和重复种子拒绝、实际换边核对、缺失计划单元与规则违规拒绝、输出不覆盖 |
 
 ## 首版范围与后续
 
 首版覆盖本地方案 E0–E3：内容/能力准入与证据合同、原生 Case 的重放检查入口、合法成长路径与受控交战、等预算分支与 2×2 交互及最小复现；当前重放限制见上文。
-示例清单在 `Scripts\BuildEvaluationManifests`。尚未覆盖：v0.11 机制（需批准并原生实现后由 Adapter 声明）、
+示例清单在 `Scripts\BuildEvaluationManifests`。`p3-ttk-baseline-l1/l6/l10.json` 是同级击杀时间与施法次数的基线：
+`bare` 双方不装牌、属性点全部未分配、技能 1 级，`production` 双方由生产 AI 构筑，主动都按 `ai_select` 随种子抽取。
+`pending-p2\p3-breakout-samples.json` 是 #287 §7.6 的 9 个 P2 质变样板各自对同级 L12 裸构筑的清单，用一方的
+`breakout_preset` 字段指定 DEV 质变样板预设；当前 Adapter 与原生都没有这个字段，#289 的预设落地并接入后才移出 `pending-p2`
+并运行（`TestBuildEvaluationLockdown.py` 只核对它的实验形状）。尚未覆盖：v0.11 机制（需批准并原生实现后由 Adapter 声明）、
 六类策略画像与按画像调参（E5，接入点是评估画像这一处 Decide 替换）、拥有连接/渲染证据的反制与可读性、
 多人或旗杆整局胜率、增量与定期评估（E6，调度另需批准）。
 平衡目标与实质差异阈值由用户决定，未批准时不填默认值；每批计算预算按已批准的上限执行。
