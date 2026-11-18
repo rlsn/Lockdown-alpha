@@ -2,7 +2,6 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "AI/LDOpponentPolicy.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDTacticalRules.h"
@@ -40,12 +39,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
 {
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
-    bool bGood = TestTrue(TEXT("The approved durations (s): field 130, R0 75, rests 50, sign-up 10, 5/8/3/60/3/12/5"),
-        P.FieldSegmentMs == 130000 && P.OpeningBuildMs == 75000 && P.BuildMs == 50000 && P.SignupMs == 10000
-        && P.DrawMs == 5000 && P.BettingMs == 8000 && P.PKReadyMs == 3000 && P.PKMaxMs == 60000 && P.SettlementMs == 3000
-        && P.PayoutMs == 12000 && P.ReturnMs == 5000);
-    bGood &= TestTrue(TEXT("Growth-field respawn waits by death T: 8/10/12 s"),
-        P.RespawnMs[0] == 8000 && P.RespawnMs[1] == 10000 && P.RespawnMs[2] == 12000);
+    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 25, rest build 25, return 5"),
+        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 25000 && P.BuildMs == 25000 && P.ReturnMs == 5000);
     FString Error;
     {
         FLDMatchTimeline Skip;
@@ -56,27 +51,22 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
             && Skip.IsEntryDue(1000) && FindEvent(SkipEvents, ELDTimelineEventKind::LockBuild)
             && !FindEvent(SkipEvents, ELDTimelineEventKind::EnterField));
         SkipEvents.Reset();
-        bGood &= TestTrue(TEXT("Skip waits for real bodies instead of claiming successful entry"),
-            Skip.Advance(1000, 0, false, false, SkipEvents, Error) && SkipEvents.IsEmpty() && Skip.IsRest());
-        bGood &= TestTrue(TEXT("The first field starts once its bodies are ready, at T zero"),
-            Skip.Advance(1050, 0, false, true, SkipEvents, Error) && Skip.IsFieldRunning()
+        bGood &= TestTrue(TEXT("An unready skipped entry waits; T stays frozen"),
+            Skip.Advance(1000, false, false, SkipEvents, Error) && SkipEvents.IsEmpty() && Skip.IsRest());
+        bGood &= TestTrue(TEXT("The ready entry starts T at its actual commit"),
+            Skip.Advance(1050, false, true, SkipEvents, Error) && Skip.IsFieldRunning()
             && Skip.FieldMsAt(1050) == 0 && FindEvent(SkipEvents, ELDTimelineEventKind::EnterField));
         SkipEvents.Reset();
         bGood &= TestFalse(TEXT("A repeated skip cannot advance a running field"), Skip.DevFinishPreparation(1051, SkipEvents, Error));
         bGood &= TestTrue(TEXT("Rejected skip leaves the stage and T unchanged"), Skip.IsFieldRunning() && Skip.FieldMsAt(1051) == 1);
-        FLDMatchTimeline ReadyImmediately;
-        SkipEvents.Reset();
-        bGood &= TestTrue(TEXT("Immediate body readiness still starts T at the actual world commit, not the earlier transaction"),
-            ReadyImmediately.Begin(P, 0, Error) && ReadyImmediately.DevFinishPreparation(1000, SkipEvents, Error)
-            && ReadyImmediately.Advance(1050, 0, false, true, SkipEvents, Error) && ReadyImmediately.FieldMsAt(1050) == 0);
     }
     {
         FLDTimelineParameters Bad = P;
-        Bad.SignupMs = Bad.BuildMs + 1;
-        bGood &= TestFalse(TEXT("A sign-up longer than a build window is refused"), Bad.Validate(Error));
-        Bad = P;
         Bad.ReturnMs = 0;
         bGood &= TestFalse(TEXT("A zero step is refused"), Bad.Validate(Error));
+        Bad = P;
+        Bad.FieldSegmentMs = 0;
+        bGood &= TestFalse(TEXT("A zero field segment is refused"), Bad.Validate(Error));
     }
 
     // Every instant below follows from the approved durations checked above.
@@ -88,24 +78,15 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("R0: rest 0, build step, T frozen at 0, build open"),
         Line.IsRest() && Line.GetRestIndex() == 0 && Line.GetStep() == ELDRestStep::Build && Line.FieldMsAt(Start + 20000) == 0
         && Line.IsRestBuildOpen() && !Line.IsFieldRunning() && Line.NextDueMs() == Start + P.OpeningBuildMs);
-    bGood &= TestFalse(TEXT("R0 has no PK sign-up window"), Line.IsSignupOpen(Start + P.OpeningBuildMs));
-    bGood &= TestEqual(TEXT("R0 publishes no PK sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs, int64(0));
-    FLDOpponentPublicMatch Public;
-    Public.Phase = ELDMatchPhase::Rest;
-    Public.Timeline = Line.MakeView(1, 1);
-    Public.NowMs = Start + P.OpeningBuildMs;
-    const FGuid Opponent(1, 2, 3, 4);
-    bGood &= TestFalse(TEXT("The AI does not sign up in R0"), LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
     bGood &= TestTrue(TEXT("Without the lock permission the due build lock waits"),
-        Line.Advance(Start + P.OpeningBuildMs, 0, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + P.OpeningBuildMs));
-    // R0 has no PK; stale sign-ups cannot make the timeline enter PK steps.
-    bGood &= TestTrue(TEXT("R0 skips PK regardless of the supplied sign-up count"),
-        Line.Advance(Start + P.OpeningBuildMs, 2, true, true, Events, Error)
-        && FindEvent(Events, ELDTimelineEventKind::LockBuild) && FindEvent(Events, ELDTimelineEventKind::LockBuild)->Value == 0
-        && Line.GetStep() == ELDRestStep::Return && Line.MakeView(1, 1).bPKSkipped && !Line.IsRestBuildOpen());
+        Line.Advance(Start + P.OpeningBuildMs, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + P.OpeningBuildMs));
+    bGood &= TestTrue(TEXT("The build lock goes straight to the return countdown"),
+        Line.Advance(Start + P.OpeningBuildMs, true, true, Events, Error)
+        && FindEvent(Events, ELDTimelineEventKind::LockBuild) && Line.GetStep() == ELDRestStep::Return && !Line.IsRestBuildOpen()
+        && Line.NextDueMs() == Start + P.OpeningBuildMs + P.ReturnMs);
     Events.Reset();
     const int64 Field1 = Start + P.OpeningBuildMs + P.ReturnMs;
-    bGood &= TestTrue(TEXT("The return countdown ends in field 1 at T=0"), Line.Advance(Field1, 0, true, true, Events, Error)
+    bGood &= TestTrue(TEXT("The return countdown ends in field 1 at T=0"), Line.Advance(Field1, true, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterField) && Line.GetStage() == ELDMatchStage::Field
         && Line.GetFieldSegment() == 0 && Line.FieldMsAt(Field1) == 0 && Line.IsFieldRunning());
     bGood &= TestTrue(TEXT("T runs with the authority clock in the field"), Line.FieldMsAt(Field1 + 12345) == 12345);
@@ -115,81 +96,40 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Field 1 ends after one segment"), Line.NextDueMs() == Field1 + Seg);
     Events.Reset();
     const int64 Rest1 = Field1 + Seg;
-    bGood &= TestTrue(TEXT("The segment end enters R1 with T frozen"), Line.Advance(Rest1, 0, false, true, Events, Error)
+    bGood &= TestTrue(TEXT("The segment end enters R1 with T frozen"), Line.Advance(Rest1, false, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterRest) && Line.GetRestIndex() == 1 && Line.FieldMsAt(Rest1 + 99999) == Seg
         && Line.NextDueMs() == Rest1 + P.BuildMs && Line.FieldDueAuthorityMs(Rest1, Seg + 20000) == MAX_int64);
-    bGood &= TestTrue(TEXT("R1 sign-up opens for the last 10 s, including the lock deadline"),
-        !Line.IsSignupOpen(Rest1 + P.BuildMs - P.SignupMs - 1)
-        && Line.IsSignupOpen(Rest1 + P.BuildMs - P.SignupMs) && Line.IsSignupOpen(Rest1 + P.BuildMs));
-    Public.Timeline = Line.MakeView(1, 1);
-    Public.NowMs = Public.Timeline.SignupOpensAtMs;
-    bGood &= TestTrue(TEXT("The AI signs up using the R1 public timeline"), LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
-    bGood &= TestEqual(TEXT("R1 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
-        Rest1 + P.BuildMs - P.SignupMs);
-    // Two entrants run every PK step; a PK that runs to its limit adds 96 s of PK steps to the build window.
-    Events.Reset();
-    bGood &= TestTrue(TEXT("Two entrants: draw follows the lock"), Line.Advance(Rest1 + P.BuildMs, 2, true, true, Events, Error)
-        && Line.GetStep() == ELDRestStep::Draw && Line.MakeView(1, 1).LockedEntrants == 2);
-    const ELDRestStep Chain[] = {ELDRestStep::Betting, ELDRestStep::PKReady, ELDRestStep::PK, ELDRestStep::Settlement,
-        ELDRestStep::Payout, ELDRestStep::Return};
-    for (const ELDRestStep Next : Chain)
-    {
-        const int64 Due = Line.NextDueMs();
-        bGood &= TestTrue(FString::Printf(TEXT("Step %s at %lld"), LDMatchTimeline::StepName(Next), Due),
-            Line.Advance(Due, 2, true, true, Events, Error) && Line.GetStep() == Next);
-        if (Next == ELDRestStep::Payout) { bGood &= TestTrue(TEXT("The payout reopens the build"), Line.IsRestBuildOpen()); }
-    }
-    bGood &= TestEqual(TEXT("A full R1 with a 60 s PK lasts its build plus 96 s"), Line.NextDueMs() - Rest1, P.BuildMs + int64(96000));
-    Events.Reset();
-    const int64 Field2 = Line.NextDueMs();
-    bGood &= TestTrue(TEXT("R1 returns to field 2 at the end of segment 1"), Line.Advance(Field2, 0, true, true, Events, Error)
-        && Line.GetFieldSegment() == 1 && Line.FieldMsAt(Field2 + 1) == Seg + 1);
-    // R2 with a PK that ends early: the PK step ends at the reported instant.
-    const int64 Rest2 = Field2 + Seg;
-    bGood &= TestTrue(TEXT("R2 begins at the end of segment 2"), Line.Advance(Rest2, 0, false, true, Events, Error) && Line.GetRestIndex() == 2);
-    bGood &= TestEqual(TEXT("R2 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
-        Rest2 + P.BuildMs - P.SignupMs);
-    bGood &= TestTrue(TEXT("R2 locks with three entrants"), Line.Advance(Rest2 + P.BuildMs, 3, true, true, Events, Error));
-    while (Line.GetStep() != ELDRestStep::PK) { Line.Advance(Line.NextDueMs(), 3, true, true, Events, Error); }
-    const int64 PKStart = Line.GetStepEndsAtMs() - P.PKMaxMs;
-    bGood &= TestFalse(TEXT("A PK cannot end after its limit"), Line.FinishPK(PKStart + P.PKMaxMs + 1, Error));
-    bGood &= TestTrue(TEXT("A PK decided after 15 s ends then"), Line.FinishPK(PKStart + 15000, Error)
-        && Line.NextDueMs() == PKStart + 15000 && Line.Advance(PKStart + 15000, 3, true, true, Events, Error)
-        && Line.GetStep() == ELDRestStep::Settlement);
-    bGood &= TestFalse(TEXT("Only a running PK ends early"), Line.FinishPK(PKStart + 16000, Error));
-    while (Line.GetStage() == ELDMatchStage::Rest) { Line.Advance(Line.NextDueMs(), 3, true, true, Events, Error); }
+    bGood &= TestTrue(TEXT("A whole mid rest lasts its build and return"),
+        Line.Advance(Rest1 + P.BuildMs, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
+        && Line.NextDueMs() == Rest1 + P.BuildMs + P.ReturnMs);
+    while (Line.GetStage() == ELDMatchStage::Rest) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
+    bGood &= TestTrue(TEXT("Field 2 resumes at the T where segment 1 ended"), Line.GetFieldSegment() == 1
+        && Line.FieldMsAt(Rest1 + P.BuildMs + P.ReturnMs) == Seg);
+    while (Line.GetStage() != ELDMatchStage::Field || Line.GetFieldSegment() != 2) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
     const int64 Field3 = Line.GetStepEndsAtMs() - P.FieldSegmentMs;
-    bGood &= TestTrue(TEXT("Field 3 runs from the end of segment 2"), Line.GetFieldSegment() == 2 && Line.FieldMsAt(Field3) == 2 * Seg);
-    Line.Advance(Line.NextDueMs(), 0, false, true, Events, Error);
+    bGood &= TestTrue(TEXT("Field 3 runs from the end of segment 2"), Line.FieldMsAt(Field3) == 2 * Seg);
+    Line.Advance(Line.NextDueMs(), false, true, Events, Error);
     bGood &= TestTrue(TEXT("R3 at the end of segment 3"), Line.GetRestIndex() == 3 && Line.FieldMsAt(Line.NextDueMs()) == 3 * Seg);
-    bGood &= TestFalse(TEXT("The final rest has no PK signup"), Line.IsSignupOpen(Line.NextDueMs()));
-    bGood &= TestEqual(TEXT("The final rest publishes no PK signup window"), Line.MakeView(1, 1).SignupOpensAtMs, int64(0));
-    Public.Timeline = Line.MakeView(1, 1);
-    Public.NowMs = Line.NextDueMs() - 1;
-    bGood &= TestFalse(TEXT("The AI does not sign up using the final rest public timeline"),
-        LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
-    Line.Advance(Line.NextDueMs(), 6, true, true, Events, Error);
-    bGood &= TestTrue(TEXT("The final build deadline returns all six directly to showdown without another PK"),
-        Line.GetStep() == ELDRestStep::Return && Line.MakeView(1,1).LockedEntrants == 0);
+    Line.Advance(Line.NextDueMs(), true, true, Events, Error);
+    bGood &= TestTrue(TEXT("The final build deadline returns everyone to the showdown"), Line.GetStep() == ELDRestStep::Return);
     Events.Reset();
     const int64 Final = Line.NextDueMs();
     bGood &= TestTrue(TEXT("R3 returns to final field; the showdown owner, not the growth timeline, schedules its end"),
-        Line.Advance(Final, 0, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
+        Line.Advance(Final, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->FieldSegment == 3 && Line.NextDueMs() == MAX_int64
         && Line.FieldMsAt(Final + 60000) == 3 * Seg + 60000);
-    bGood &= TestTrue(TEXT("Respawn waits by death T, boundaries included"),
-        Line.RespawnWaitMs(0) == 8000 && Line.RespawnWaitMs(Seg - 1) == 8000 && Line.RespawnWaitMs(Seg) == 10000
-        && Line.RespawnWaitMs(2 * Seg) == 12000 && Line.RespawnWaitMs(3 * Seg) == 0 && Line.RespawnWaitMs(9999999) == 0);
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 3 * Seg + 60000 && View.FieldEndT == -1);
+    // Start to the flagpole: four rests (25 + 5 s each) and three 160 s segments, 600 s.
+    bGood &= TestEqual(TEXT("The flagpole opens 600 s after the start"), Final - Start, int64(600000));
     return bGood;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDRestReadySignupTest, "Lockdown.Rules.DemoRest.ReadySignup",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDRestReadyEarlyTest, "Lockdown.Rules.DemoRest.ReadyEarly",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDRestReadySignupTest::RunTest(const FString& Parameters)
+bool FLDRestReadyEarlyTest::RunTest(const FString& Parameters)
 {
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
@@ -197,27 +137,19 @@ bool FLDRestReadySignupTest::RunTest(const FString& Parameters)
     FString Error;
     bool bChanged = false;
     bool bGood = TestTrue(TEXT("Begin the approved opening rest"), Line.Begin(P, 1000, Error));
-    // R0 is not a PK rest: run it and field segment 1 to the R1 build window, where the PK signup lives.
     TArray<FLDTimelineEvent> Events;
-    while (Line.GetRestIndex() != 1 || !Line.IsRest()) { Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error); }
+    while (Line.GetRestIndex() != 1 || !Line.IsRest()) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
     const int64 Ready = Line.GetStepEndsAtMs() - P.BuildMs + 4000;
-    const int64 Deadline = Ready + P.SignupMs;
     bGood &= TestTrue(TEXT("R1 opens on its build window with T frozen at segment 1's end"),
         Line.GetStep() == ELDRestStep::Build && Line.FieldMsAt(Ready) == P.FieldSegmentMs);
-    bGood &= TestTrue(TEXT("All ready preserves a full signup window"),
-        Line.FinishBuildEarly(Ready, bChanged, Error) && bChanged && Line.GetStepEndsAtMs() == Deadline
-        && Line.IsSignupOpen(Ready) && Line.IsSignupOpen(Deadline) && Line.FieldMsAt(Deadline - 1) == P.FieldSegmentMs);
-    bGood &= TestTrue(TEXT("A repeated ready cannot restart or extend signup"),
-        Line.FinishBuildEarly(Ready + 2000, bChanged, Error) && !bChanged && Line.GetStepEndsAtMs() == Deadline);
-    bGood &= TestTrue(TEXT("Ready in the last millisecond keeps the original deadline"),
-        Line.FinishBuildEarly(Deadline - 1, bChanged, Error) && !bChanged && Line.GetStepEndsAtMs() == Deadline);
-    bGood &= TestFalse(TEXT("Ready at the expired deadline cannot change the window"),
-        Line.FinishBuildEarly(Deadline, bChanged, Error));
+    bGood &= TestTrue(TEXT("All ready ends the build step at once"),
+        Line.FinishBuildEarly(Ready, bChanged, Error) && bChanged && Line.GetStepEndsAtMs() == Ready && Line.IsBuildLockDue(Ready));
+    bGood &= TestFalse(TEXT("A repeated ready at the ended step changes nothing"), Line.FinishBuildEarly(Ready, bChanged, Error));
     Events.Reset();
-    bGood &= TestTrue(TEXT("Standing signup still locks into a two-player PK"),
-        Line.Advance(Deadline, 2, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Draw
-        && Line.MakeView(1, 1).LockedEntrants == 2);
-    bGood &= TestFalse(TEXT("Ready cannot skip a locked step"), Line.FinishBuildEarly(Deadline + 1, bChanged, Error));
+    bGood &= TestTrue(TEXT("The lock then runs the whole return countdown"),
+        Line.Advance(Ready, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
+        && Line.GetStepEndsAtMs() == Ready + P.ReturnMs);
+    bGood &= TestFalse(TEXT("Ready cannot skip the return countdown"), Line.FinishBuildEarly(Ready + 1, bChanged, Error));
     bGood &= TestTrue(TEXT("A new match restores the full opening window"), Line.Begin(P, 20000, Error)
         && Line.GetStepEndsAtMs() == 20000 + P.OpeningBuildMs);
     return bGood;
@@ -303,9 +235,6 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
         FString Error;
         TestTrue(TEXT("Peaceful mode blocks direct hostile control"),
             Driver->CommitControl(SA, Stun, 0, Applied, Error) && !Applied && SA.Stuns.IsEmpty());
-        Stun.bSpectatorThrow = true;
-        TestTrue(TEXT("Peaceful mode also blocks spectator control paths"),
-            Driver->CommitControl(SA, Stun, 0, Applied, Error) && !Applied && SA.Stuns.IsEmpty());
         TestFalse(TEXT("Peaceful mode leaves other contenders attackable"), Driver->IsIsolated(A, SB));
         Mode->DevPeaceful.Reset();
         TestFalse(TEXT("Turning peaceful mode off restores hostile targeting"), Driver->IsIsolated(B, SA));
@@ -326,22 +255,6 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
         FString Error;
         bGood &= TestTrue(TEXT("Direct control paths also reject a rest player without advancing control state"),
             Driver->CommitControl(SB, Control, 0, bApplied, Error) && !bApplied && SB.Stuns.IsEmpty());
-        FLDControlApplication Throw;
-        Throw.Kind = ELDControlKind::Slow;
-        Throw.EffectId = FGuid::NewGuid();
-        Throw.DurationMs = 1000;
-        Throw.RatioBp = 3000;
-        Throw.bSpectatorThrow = true;
-        bGood &= TestTrue(TEXT("A spectator throw never slows a rest player"),
-            Driver->CommitControl(SB, Throw, 0, bApplied, Error) && !bApplied);
-        FLDBodyCombatState Arena = State(ELDVictimKind::Contender, FGuid(0x198C, 1, 0, 5), FGuid(0x198C, 2, 0, 1));
-        Arena.PKSide = 1;
-        FLDControlApplication Unowned = Throw;
-        Unowned.bSpectatorThrow = false;
-        bGood &= TestTrue(TEXT("An unowned control without the throw flag stays isolated from an arena body"),
-            Driver->CommitControl(Arena, Unowned, 0, bApplied, Error) && !bApplied);
-        bGood &= TestTrue(TEXT("A spectator throw slows a PK arena body"),
-            Driver->CommitControl(Arena, Throw, 0, bApplied, Error) && bApplied);
     }
     bGood &= TestTrue(TEXT("The field is out of reach of a rest group and back"), Driver->IsIsolated(A, SM) && Driver->IsIsolated(Camp, SA));
     SM.bSuspended = true;

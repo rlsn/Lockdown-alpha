@@ -61,6 +61,14 @@ public:
     // the rest entry reached leaves first (#198 outer §5: never into the final field).
     bool FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Spec §11.3 second-hand dealer (RespawnsAndWorld): appears beside CampAnchor at OffsetCm in direction AngleRad (bBlocked:
+    // try again later), and leaves unkilled.
+    bool SpawnPeddler(FName CampAnchor, double AngleRad, double OffsetCm, const FLDGameplayWritePermit& Permit, bool& bBlocked,
+        FString& Error);
+    bool RetirePeddler(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool IsPeddlerAlive() const { return PeddlerBody.IsValid(); }
+    // Spec §11.2: the affix of a camp's current spawn (None while it waits).
+    ELDCampAffix CampAffixOf(FName CampId) const { return CampAffixes.FindRef(CampId); }
     // D26: the public Boss view and state (read-only).
     FLDBossView BossView() const { return Boss.View(); }
     const FLDBossState& GetBoss() const { return Boss; }
@@ -123,6 +131,13 @@ private:
     bool RewardBossKill(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error);
     bool LeaveBossIfDue(const FLDGameplayWritePermit& Permit, FString& Error);
     bool TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Actions: the dealer runs from the nearest contender it sees (it never attacks).
+    bool ProcessPeddler(const FLDGameplayWritePermit& Permit, FString& Error);
+    // DeathsAndRewards: the dealer's last hit takes a five-card offer and a pick ticket.
+    bool RewardPeddlerKill(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error);
+    // DeathsAndRewards: a cleared camp's affix reward (spec §11.2) to its clear owner.
+    bool PayAffixClear(ELDCampAffix Affix, ELDDemoCampTier Tier, FName CampId, const FGuid& Clearer, const FLDGameplayWritePermit& Permit,
+        FString& Error);
 
     FLDCampMatchState State;
     FRandomStream SpeciesRandom;
@@ -134,6 +149,15 @@ private:
     TSet<FGuid> Stranded;
     TSet<int32> BlockedRefresh;
     FLDBossState Boss;
+    // Spec §11.2: the affix each camp's current spawn rolled, and each member entity's (for its observed label).
+    TMap<FName, ELDCampAffix> CampAffixes;
+    TMap<FGuid, ELDCampAffix> MemberAffixes;
+    // Spec §11.3: the dealer's identity and its living body (invalid when none stands).
+    FGuid PeddlerEntity;
+    FLDCombatBodyRef PeddlerBody;
+    FName PeddlerSurface;
+    // Contenders already paid the audit affix's skill point this match (AFFIX.AuditSkillPointsMax each).
+    TMap<FGuid, int32> AuditPointsPaid;
     bool bBossBlockedLogged = false;
     uint64 BossSequence = 0;
     // Roster index of the next initial camp to spawn; NumCamps once every camp stood up (MAX_int32 before the match).

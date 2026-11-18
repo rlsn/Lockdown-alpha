@@ -22,6 +22,13 @@ bool ALDCombatDirector::KeywordTerms(FLDKeywordTerms& Out, FString& Error) const
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { Error=TEXT("Keyword rules require the approved Demo content."); return false; }
     Out=FLDKeywordTerms::From(Content->Get().Parameters);
+    // Spec §11.1 heat day: every burn tick hits DAILY.HeatBurnTickScale harder.
+    if (const ILDLifeAuthority* Mode=Authority(); Mode && Mode->HasDaily(ELDDailyModifier::Heat))
+    {
+        const int64 Scale=Content->Get().Parameters.Daily.HeatBurnTickScaleBp;
+        Out.BurnPerSecP2=Out.BurnPerSecP2*Scale/10000;
+        Out.BurnAPRatioBp=Out.BurnAPRatioBp*Scale/10000;
+    }
     return true;
 }
 

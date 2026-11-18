@@ -14393,7 +14393,7 @@
       "unit": "cm"
     },
     "appear_at": {
-      "ms": 173000,
+      "ms": 295000,
       "unit": "ms"
     },
     "armor": {
@@ -14432,7 +14432,7 @@
     },
     "id": "monster_dean",
     "leave_at": {
-      "ms": 390000,
+      "ms": 480000,
       "unit": "ms"
     },
     "magic_resist": {
@@ -21573,14 +21573,46 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision.",
       "status": "approved"
     },
-    "handler_revision": 13,
+    "handler_revision": 14,
     "projection_revision": 10,
-    "schema_version": 6
+    "schema_version": 7
   },
   "parameters": {
+    "AFFIX.AuditSkillPointsMax": 1,
+    "AFFIX.AuditTelegraphCut": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "AFFIX.BonusCardOffer": 5,
+    "AFFIX.BonusHP": {
+      "bp": 4000,
+      "unit": "ratio"
+    },
+    "AFFIX.Chance": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "AFFIX.FridgeCardOffer": 3,
+    "AFFIX.LayoffAttack": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "AFFIX.LayoffVouchers": 8,
+    "AFFIX.OvertimeAttackSpeed": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "AFFIX.OvertimeVoucherScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "AFFIX.TeambuildXPScale": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
     "AI.BreakoutCardScore": 5,
     "AI.BreakoutChance": {
       "bp": 2500,
@@ -21627,6 +21659,15 @@
       "bp": 1500,
       "unit": "ratio"
     },
+    "AI.ObjectiveEntryHPRatio": {
+      "bp": 6000,
+      "unit": "ratio"
+    },
+    "AI.ObjectiveReachCm": {
+      "denominator": 1,
+      "numerator": 2500,
+      "unit": "cm"
+    },
     "AI.ResumeFarmHPRatio": {
       "bp": 6000,
       "unit": "ratio"
@@ -21658,27 +21699,27 @@
     },
     "AIRDROP.LandSec": [
       {
-        "ms": 32000,
+        "ms": 40000,
         "unit": "ms"
       },
       {
-        "ms": 90000,
+        "ms": 110000,
         "unit": "ms"
       },
       {
-        "ms": 163000,
+        "ms": 200000,
         "unit": "ms"
       },
       {
-        "ms": 220000,
+        "ms": 270000,
         "unit": "ms"
       },
       {
-        "ms": 293000,
+        "ms": 360000,
         "unit": "ms"
       },
       {
-        "ms": 350000,
+        "ms": 430000,
         "unit": "ms"
       }
     ],
@@ -22036,6 +22077,124 @@
         "unit": "ratio"
       }
     ],
+    "DAILY.BlackoutShockScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "DAILY.BlackoutVisionCut": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "DAILY.ColdChillBonusSec": {
+      "ms": 2000,
+      "unit": "ms"
+    },
+    "DAILY.ColdFreezeSec": {
+      "ms": 20000,
+      "unit": "ms"
+    },
+    "DAILY.Count": 2,
+    "DAILY.DeliveryExpireSec": {
+      "ms": 15000,
+      "unit": "ms"
+    },
+    "DAILY.DeliveryLandSec": [
+      {
+        "ms": 40000,
+        "unit": "ms"
+      },
+      {
+        "ms": 75000,
+        "unit": "ms"
+      },
+      {
+        "ms": 110000,
+        "unit": "ms"
+      },
+      {
+        "ms": 155000,
+        "unit": "ms"
+      },
+      {
+        "ms": 200000,
+        "unit": "ms"
+      },
+      {
+        "ms": 235000,
+        "unit": "ms"
+      },
+      {
+        "ms": 270000,
+        "unit": "ms"
+      },
+      {
+        "ms": 315000,
+        "unit": "ms"
+      },
+      {
+        "ms": 360000,
+        "unit": "ms"
+      },
+      {
+        "ms": 395000,
+        "unit": "ms"
+      },
+      {
+        "ms": 430000,
+        "unit": "ms"
+      },
+      {
+        "ms": 460000,
+        "unit": "ms"
+      }
+    ],
+    "DAILY.ExamMonsterXPScale": {
+      "bp": 13000,
+      "unit": "ratio"
+    },
+    "DAILY.ExamRespawnBonusSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "DAILY.GymDashCooldownCut": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "DAILY.HeatBurnTickScale": {
+      "bp": 13000,
+      "unit": "ratio"
+    },
+    "DAILY.PatrolBossAppearSec": {
+      "ms": 120000,
+      "unit": "ms"
+    },
+    "DAILY.RainIntervalSec": {
+      "ms": 20000,
+      "unit": "ms"
+    },
+    "DAILY.RainPuddleSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "DAILY.RainPuddles": 6,
+    "DAILY.RainWetBonusSec": {
+      "ms": 2000,
+      "unit": "ms"
+    },
+    "DAILY.RumorLeaders": 2,
+    "DAILY.SalePriceScale": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "DAILY.TyphoonIntervalSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
+    "DAILY.TyphoonPushCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
     "DAMAGE.FactorTechCap": {
       "bp": 10000000,
       "unit": "ratio"
@@ -22052,6 +22211,68 @@
       "denominator": 1,
       "numerator": 400,
       "unit": "cm"
+    },
+    "EXPLORE.LockerCardChance": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "EXPLORE.LockerCardOffer": 3,
+    "EXPLORE.LockerChannelSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "EXPLORE.LockerCount": 4,
+    "EXPLORE.LockerRadiusCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "EXPLORE.PeddlerCardOffer": 5,
+    "EXPLORE.PeddlerEarliestSec": {
+      "ms": 120000,
+      "unit": "ms"
+    },
+    "EXPLORE.PeddlerHP": {
+      "p2": 180000,
+      "unit": "hp"
+    },
+    "EXPLORE.PeddlerLatestSec": {
+      "ms": 400000,
+      "unit": "ms"
+    },
+    "EXPLORE.PeddlerMoveSpeed": {
+      "denominator": 1,
+      "numerator": 280,
+      "unit": "cm/s"
+    },
+    "EXPLORE.PeddlerOffsetCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "EXPLORE.PeddlerStaySec": {
+      "ms": 60000,
+      "unit": "ms"
+    },
+    "EXPLORE.VendingAttackSpeed": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "EXPLORE.VendingBuffPrice": 2,
+    "EXPLORE.VendingBuffSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
+    "EXPLORE.VendingDrinkHits": 5,
+    "EXPLORE.VendingDrinkPrice": 3,
+    "EXPLORE.VendingMomentumPerSec": {
+      "denominator": 1,
+      "numerator": 2,
+      "unit": "momentum/s"
+    },
+    "EXPLORE.VendingMoveSpeed": {
+      "bp": 1500,
+      "unit": "ratio"
     },
     "GROUND.BlizzardRadiusCm": {
       "denominator": 1,
@@ -22184,20 +22405,21 @@
       "ms": 3000,
       "unit": "ms"
     },
-    "LIFE.RespawnSec.Field1": {
-      "ms": 8000,
+    "LIFE.RespawnBaseSec": {
+      "ms": 6000,
       "unit": "ms"
     },
-    "LIFE.RespawnSec.Field2": {
-      "ms": 10000,
+    "LIFE.RespawnPerLevelSec": {
+      "ms": 500,
       "unit": "ms"
     },
-    "LIFE.RespawnSec.Field3": {
-      "ms": 12000,
+    "LIFE.SpawnChoiceCount": 2,
+    "LIFE.SpawnChoiceSec": {
+      "ms": 4000,
       "unit": "ms"
     },
     "MATCH.FieldSegmentSec": {
-      "ms": 130000,
+      "ms": 160000,
       "unit": "ms"
     },
     "MOMENTUM.BasicPerRefInterval": {
@@ -22246,6 +22468,38 @@
       "p2": 5000,
       "unit": "momentum"
     },
+    "OBJECTIVE.AnnounceLeadSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "OBJECTIVE.ArenaCardOffer": 5,
+    "OBJECTIVE.ArenaRadiusCm": {
+      "denominator": 1,
+      "numerator": 900,
+      "unit": "cm"
+    },
+    "OBJECTIVE.ArenaSec": {
+      "ms": 40000,
+      "unit": "ms"
+    },
+    "OBJECTIVE.FlagCardOffer": 3,
+    "OBJECTIVE.FlagRadiusCm": {
+      "denominator": 1,
+      "numerator": 200,
+      "unit": "cm"
+    },
+    "OBJECTIVE.FlagSpraySec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "OBJECTIVE.FlagWindowSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
+    "OBJECTIVE.StartSec": {
+      "ms": 100000,
+      "unit": "ms"
+    },
     "OVERDRIVE.ChillRootSec": {
       "ms": 600,
       "unit": "ms"
@@ -22288,64 +22542,6 @@
       "ms": 1500,
       "unit": "ms"
     },
-    "PK.ArenaRadiusCm": {
-      "denominator": 1,
-      "numerator": 1800,
-      "unit": "cm"
-    },
-    "PK.BettingPoolMaxPoints": 2,
-    "PK.ParticipationPoints": 1,
-    "PK.RewardMultiplier": {
-      "bp": 15000,
-      "unit": "ratio"
-    },
-    "PK.RingDamageEarlyMaxHPRatioPerSec": {
-      "bp": 500,
-      "unit": "ratio"
-    },
-    "PK.RingDamageFinalMaxHPRatioPerSec": {
-      "bp": 2500,
-      "unit": "ratio"
-    },
-    "PK.RingDamageMidMaxHPRatioPerSec": {
-      "bp": 1200,
-      "unit": "ratio"
-    },
-    "PK.RingDamageTickSec": {
-      "ms": 250,
-      "unit": "ms"
-    },
-    "PK.RingFinalRadiusCm": {
-      "denominator": 1,
-      "numerator": 150,
-      "unit": "cm"
-    },
-    "PK.RingFinalSec": {
-      "ms": 55000,
-      "unit": "ms"
-    },
-    "PK.RingMidRadiusCm": {
-      "denominator": 1,
-      "numerator": 600,
-      "unit": "cm"
-    },
-    "PK.RingMidSec": {
-      "ms": 40000,
-      "unit": "ms"
-    },
-    "PK.RingPreviewSec": {
-      "ms": 10000,
-      "unit": "ms"
-    },
-    "PK.RingShrinkStartSec": {
-      "ms": 10000,
-      "unit": "ms"
-    },
-    "PK.TeamFormatRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
-    "PK.WinnerPointsMax": 3,
     "REGEN.OutOfCombatDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -22354,16 +22550,8 @@
       "bp": 150,
       "unit": "ratio"
     },
-    "REST.BettingSec": {
-      "ms": 8000,
-      "unit": "ms"
-    },
     "REST.BuildSec": {
-      "ms": 50000,
-      "unit": "ms"
-    },
-    "REST.DrawSec": {
-      "ms": 5000,
+      "ms": 25000,
       "unit": "ms"
     },
     "REST.EntryReadyTimeoutSec": {
@@ -22371,19 +22559,7 @@
       "unit": "ms"
     },
     "REST.OpeningBuildSec": {
-      "ms": 75000,
-      "unit": "ms"
-    },
-    "REST.PKMaxSec": {
-      "ms": 60000,
-      "unit": "ms"
-    },
-    "REST.PKReadySec": {
-      "ms": 3000,
-      "unit": "ms"
-    },
-    "REST.PayoutSec": {
-      "ms": 12000,
+      "ms": 25000,
       "unit": "ms"
     },
     "REST.ReturnSearchRadiusCm": {
@@ -22393,14 +22569,6 @@
     },
     "REST.ReturnSec": {
       "ms": 5000,
-      "unit": "ms"
-    },
-    "REST.SettlementSec": {
-      "ms": 3000,
-      "unit": "ms"
-    },
-    "REST.SignupSec": {
-      "ms": 10000,
       "unit": "ms"
     },
     "REWARD.AssistWindowSec": {
@@ -22437,6 +22605,32 @@
       "unit": "ms"
     },
     "SHOWDOWN.RespawnLimit": 2,
+    "SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec": {
+      "bp": 500,
+      "unit": "ratio"
+    },
+    "SHOWDOWN.RingDamageLateMaxHPRatioPerSec": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "SHOWDOWN.RingDamageTickSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "SHOWDOWN.RingFinalRadiusCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "SHOWDOWN.RingPreviewSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "SHOWDOWN.RingRadiusCm": {
+      "denominator": 1,
+      "numerator": 1800,
+      "unit": "cm"
+    },
     "SHOWDOWN.SecondRespawnSec": {
       "ms": 24000,
       "unit": "ms"
@@ -22641,36 +22835,6 @@
       "numerator": 173,
       "unit": "cm/s"
     },
-    "THROW.CooldownSec": {
-      "ms": 10000,
-      "unit": "ms"
-    },
-    "THROW.ExposeSec": {
-      "ms": 2000,
-      "unit": "ms"
-    },
-    "THROW.RadiusCm": {
-      "denominator": 1,
-      "numerator": 120,
-      "unit": "cm"
-    },
-    "THROW.RangeCm": {
-      "denominator": 1,
-      "numerator": 4000,
-      "unit": "cm"
-    },
-    "THROW.SlowRatio": {
-      "bp": 2000,
-      "unit": "ratio"
-    },
-    "THROW.SlowSec": {
-      "ms": 1000,
-      "unit": "ms"
-    },
-    "THROW.TelegraphSec": {
-      "ms": 800,
-      "unit": "ms"
-    },
     "UNIT.BasicAttackRangeCm": {
       "denominator": 1,
       "numerator": 220,
@@ -22697,13 +22861,18 @@
     },
     "VOUCHER.ActiveSkip": 8,
     "VOUCHER.Airdrop": 6,
+    "VOUCHER.Arena": 20,
     "VOUCHER.Assist": 4,
     "VOUCHER.Boss": 20,
+    "VOUCHER.BountyAssist": 5,
+    "VOUCHER.BountyKill": 15,
     "VOUCHER.CampAncient": 12,
     "VOUCHER.CampElite": 8,
     "VOUCHER.CampHigh": 4,
     "VOUCHER.CampLow": 2,
     "VOUCHER.Kill": 10,
+    "VOUCHER.Locker": 8,
+    "VOUCHER.MiniFlag": 15,
     "XP.BaseToNext": 48,
     "XP.IncreasePerLevel": 12
   },
@@ -22893,15 +23062,6 @@
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
-    "pk_spawn_ids": [
-      "pk_spawn_0",
-      "pk_spawn_1",
-      "pk_spawn_2",
-      "pk_spawn_3",
-      "pk_spawn_4",
-      "pk_spawn_5"
-    ],
-    "pk_throw_id": "pk_throw",
     "spawn_ids": [
       "s00",
       "s01",

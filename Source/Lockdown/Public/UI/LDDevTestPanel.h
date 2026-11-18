@@ -55,6 +55,8 @@ public:
     void HandleResult(const FLDDevTestResult& Result);
     // Sends one command and shows the local answer; the panel's buttons and automation both use it.
     bool Send(ELDDevTestOp Op,int64 Amount=0,FName Definition=NAME_None,uint8 SlotIndex=0,uint8 Stat=0);
+    // The first daily modifier picked for SetDailyPreset (0: none yet).
+    int32 DailyPick=0;
     // Reads an amount or a stat value field and sends it; a malformed entry is refused locally and sends nothing.
     bool SendAmount(ELDDevTestOp Op,const FString& Text);
     bool SendStat(int32 FieldIndex,const FString& Text);

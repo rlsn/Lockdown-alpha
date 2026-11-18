@@ -142,7 +142,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     if (Mask & LDObservation::Identity)
     {
         if (Kind == uint8(ELDObservedUnitKind::Contender)) { Ar << Unit.ContenderId; }
-        else { Ar << Unit.CreatureId; }
+        else { Ar << Unit.CreatureId << Unit.CampAffix << Unit.bPeddler; }
     }
     if (Mask & LDObservation::Level) { Ar << Unit.Level; }
     if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2; }
@@ -300,7 +300,9 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     { return FailObservation(Error, TEXT("Observed field authorization is not the complete applicable set for this unit kind.")); }
     if (Contender
         ? Unit.Presentation >= MaxPresentations || !Unit.ContenderId.IsValid() || Unit.CreatureId != 0 || Unit.Level == 0
-        : Unit.Presentation != 0 || Unit.ContenderId.IsValid() || !IsPublicCreatureId(Unit.CreatureId) || Unit.Level != 0)
+            || Unit.CampAffix != 0 || Unit.bPeddler
+        : Unit.Presentation != 0 || Unit.ContenderId.IsValid() || !IsPublicCreatureId(Unit.CreatureId) || Unit.Level != 0
+            || Unit.CampAffix > uint8(ELDCampAffix::Audit) || (Unit.bPeddler && Unit.CampAffix != 0))
     { return FailObservation(Error, TEXT("Observed identity, presentation or level does not match the unit kind.")); }
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
     if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.bCharging))

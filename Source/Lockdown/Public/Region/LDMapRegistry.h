@@ -37,7 +37,6 @@ public:
     bool Rebuild(FString& Error);
     bool Ensure(FString& Error);
     const FLDMapBinding* Resolve(FName Id,uint32 ExpectedGeneration) const;
-    bool SharedSignupCentre(FVector& OutCentre) const;
     const TArray<FLDMapBinding>& Sites() const { return Bindings; }
     const TArray<FLDMapBinding>& ServiceSeats() const { return ServiceBindings; }
     FString CanonicalBindings() const;
@@ -66,9 +65,9 @@ public:
     bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
-    // #198 private rest space: the same request bookkeeping as DrawSpawnAnchor, but the contender's fixed rest anchor
-    // (one of the approved spawn anchors, or for a #198 PK entrant one of the PK ring spawns) instead of a uniform draw;
-    // DrawSpawnAnchor never draws a PK spawn. ReserveSpawnPlacement then picks its free offset.
+    // The same request bookkeeping as DrawSpawnAnchor, but a named anchor instead of a uniform draw: the contender's fixed
+    // rest seat, a final spawn, or the field spawn the dead contender chose (spec §10.4). ReserveSpawnPlacement then picks
+    // its free offset.
     bool SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName Anchor,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
     // #198 return to the field: reserves a free placement for the next life at FootCm, else within RadiusCm on ground

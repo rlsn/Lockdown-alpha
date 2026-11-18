@@ -71,3 +71,37 @@ bool LDCampGrowth::RewardXP(const FLDDemoContentParameters& Parameters, const FL
     Out = 0;
     return Stage <= Parameters.CampGrowthMaxStage && Grow(Base.RewardXP, Parameters.CampGrowthRewardXPPerStageBp, Stage, Out);
 }
+
+bool LDCampGrowth::ApplySpawnTerms(const FLDDemoContentParameters& Parameters, ELDCampAffix Affix, bool bPeddler,
+    FLDDemoMonsterDefinition& InOut, FString& Error)
+{
+    const auto Scale = [&Error](int64 Value, int64 Bp, int64& Out)
+    {
+        if (Value < 0 || Bp < 0 || (Value > 0 && Bp > MAX_int64 / Value))
+        {
+            Error = TEXT("A camp spawn term overflowed.");
+            return false;
+        }
+        Out = Value * Bp / 10000;
+        return true;
+    };
+    if (Affix == ELDCampAffix::Bonus && !Scale(InOut.HPP2, 10000 + Parameters.Affix.BonusHPBp, InOut.HPP2)) { return false; }
+    if (Affix == ELDCampAffix::Overtime)
+    {
+        // Attack speed is a rational: one attack per AttackIntervalMs; +30% shortens the interval to interval / 1.3.
+        const int64 Bp = 10000 + Parameters.Affix.OvertimeAttackSpeedBp;
+        InOut.AttackSpeed.Numerator *= Bp;
+        InOut.AttackSpeed.Denominator *= 10000;
+        const int64 Divisor = FMath::GreatestCommonDivisor(InOut.AttackSpeed.Numerator, InOut.AttackSpeed.Denominator);
+        if (Divisor > 0) { InOut.AttackSpeed.Numerator /= Divisor; InOut.AttackSpeed.Denominator /= Divisor; }
+        InOut.AttackIntervalMs = FMath::Max<int64>(InOut.AttackWindupMs + 1, (InOut.AttackIntervalMs * 10000 + Bp - 1) / Bp);
+    }
+    if (bPeddler)
+    {
+        InOut.HPP2 = Parameters.Explore.PeddlerHPP2;
+        InOut.MoveSpeedCmPerSec = Parameters.Explore.PeddlerMoveSpeedCmPerSec;
+        InOut.AttackP2 = 0;
+    }
+    Error.Reset();
+    return true;
+}

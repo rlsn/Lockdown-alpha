@@ -35,8 +35,6 @@ bool ALDGameMode::DevSkipPreparation(const FLDGameplayWritePermit& Permit, FStri
     { Error = TEXT("跳过准备需要有效对局"); return false; }
     TArray<FLDTimelineEvent> Events;
     if (!Timeline.DevFinishPreparation(Permit.GetBoundary().AtMs, Events, Error)) { return false; }
-    RestSignups.Reset();
-    LockedEntrants.Reset();
     if (!ApplyTimelineEvents(Events, Permit, Error)) { return false; }
     PublishTimeline();
     Error = TEXT("准备已跳过，正在进入场景");

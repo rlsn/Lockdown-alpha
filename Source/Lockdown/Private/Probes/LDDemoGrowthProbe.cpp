@@ -18,6 +18,7 @@
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDPacingTypes.h"
 #include "Framework/LDMatchProviders.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -758,19 +759,16 @@ public:
 
     // ---- #198 field segments and mid rests ----
 
-    // The approved field respawn wait (LIFE.RespawnSec.Field1/Field2/Field3) of a death in the field segment the
-    // public timeline shows now; a field death's wait is fixed by its T and a rest ends it, so it is always this segment's.
+    // The approved field respawn wait (LIFE.RespawnBaseSec + LIFE.RespawnPerLevelSec x level) of a death of the own contender now;
+    // a rest ends it.
     int64 RespawnMsNow(const ALDPlayerController& PC) const
     {
+        // Spec §10.4: 6 + 0.5 x the own level s, plus the exam-day bonus, from the own progression and the public day.
         const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
-        const FLDDemoContentParameters& Parameters = Catalog->Get().Parameters;
-        switch (Public ? Public->PublicMatch.Timeline.FieldSegment : 0)
-        {
-        case 0: return Parameters.RespawnField1Ms;
-        case 1: return Parameters.RespawnField2Ms;
-        case 2: return Parameters.RespawnField3Ms;
-        default: return 0;
-        }
+        const FLDProgressionView* Growth = PC.ReadOwnProgression();
+        if (!Public || !Growth) { return 0; }
+        return LDPacing::FieldRespawnWaitMs(Catalog->Get().Parameters, Growth->Level,
+            LDPacing::HasDaily(Public->PublicMatch.DailyModifiers, ELDDailyModifier::Exam));
     }
 
     double RespawnSecondsNow(const ALDPlayerController& PC) const
@@ -812,7 +810,7 @@ public:
         return int64(LDDemoGrowthScenario::GrowthProbeKillSeconds * 1000.0) + Catalog->Get().Parameters.BuildSafeWindowMs;
     }
 
-    // The Host starts an attack order on the buyer only while the order's budget, this segment's LIFE.RespawnSec wait (the
+    // The Host starts an attack order on the buyer only while the order's budget, the own level's field respawn wait (the
     // buyer's whole dead stage runs inside it) and one request bound to observe the respawned life fit in the segment, so a
     // rest can neither end the buyer's respawn wait nor judge one of its dead-stage commands.
     int64 HostKillNeedMs(const ALDPlayerController& PC) const
@@ -986,7 +984,7 @@ public:
         Check(Line.RestIndex == RestHeldIndex && Line.FieldSegment == RestHeldIndex && RestFrozenT == SegmentT
             && Line.FieldBaseMs == SegmentT && RestEnteredAtMs >= 0
             && Line.FieldStartedAtMs == RestEnteredAtMs + Parameters.RestBuildMs + Parameters.RestReturnMs, TEXT("Rest"),
-            TEXT("Field T stays frozen through the rest: without sign-ups it skips its PK, and the next segment resumes at the T "
+            TEXT("Field T stays frozen through the rest, and the next segment resumes at the T "
                 "where the last one ended"),
             FString::Printf(TEXT("rest R%u entered at %lld with T=%lld; field segment %u started at %lld from T=%lld"),
                 uint32(RestHeldIndex), RestEnteredAtMs, RestFrozenT, uint32(Line.FieldSegment), Line.FieldStartedAtMs, Line.FieldBaseMs));
@@ -1466,8 +1464,8 @@ public:
 
     // #198: the first match's opening rest R0, seen from both roles, while the opening offer is open. Each owner stands in its
     // private rest space. In the build step Client1, a real owning remote connection, has its ground move admitted and walked
-    // and chooses its opening active and allocates its opening points; in the return countdown that follows (no sign-up, so
-    // no PK) its attack-move, Shift attack-move and Q are refused by the server. Field 1 then starts at T=0 with every field
+    // and chooses its opening active and allocates its opening points; in the return countdown that follows its
+    // attack-move, Shift attack-move and Q are refused by the server. Field 1 then starts at T=0 with every field
     // timer counted from it; the Host's untaken opening offer is kept.
     bool TickRest0(double Now, ALDPlayerController& PC, const ALDGameState& Public, const ULDMapRegistry& Registry)
     {
@@ -1538,9 +1536,9 @@ public:
         if (bInRest && Line.Step == ELDRestStep::Return && !bRest0ReturnSeen)
         {
             bRest0ReturnSeen = true;
-            Check(Line.bPKSkipped && Line.StepStartedAtMs == Rest0BuildEndsAtMs
+            Check(Line.StepStartedAtMs == Rest0BuildEndsAtMs
                 && Line.StepEndsAtMs == Rest0BuildEndsAtMs + Parameters.RestReturnMs, TEXT("Rest0"),
-                TEXT("Without sign-ups R0 skips its PK: the return countdown follows the build step at once for its approved length"),
+                TEXT("R0's return countdown follows the build step at once for its approved length"),
                 FString::Printf(TEXT("return=%lld..%lld build_ends=%lld"), Line.StepStartedAtMs, Line.StepEndsAtMs, Rest0BuildEndsAtMs));
             if (IsHost())
             {
@@ -1756,9 +1754,8 @@ public:
         const double DormReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.DormRadiusCm);
         const double BodyRadius = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.CollisionRadiusCm);
         const double AttackReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.AttackRangeCm.Base);
-        // Deaths happen in any field segment; each one's approved respawn wait (LIFE.RespawnSec.*) bounds the waits for it.
-        const bool bRespawnWaits = Defs.Parameters.RespawnField1Ms > 0 && Defs.Parameters.RespawnField2Ms > 0
-            && Defs.Parameters.RespawnField3Ms > 0;
+        // Every field death waits LIFE.RespawnBaseSec + LIFE.RespawnPerLevelSec x level.
+        const bool bRespawnWaits = Defs.Parameters.RespawnBaseMs > 0 && Defs.Parameters.RespawnPerLevelMs >= 0;
         const auto* Geometry = Registry.GetGeometry();
         if (!CaptureAnchor || !Geometry || VisionReach <= 0 || CaptureReach <= 0 || AirdropReach <= 0 || DormReach <= 0
             || BodyRadius <= 0 || AttackReach <= 0 || !bRespawnWaits)

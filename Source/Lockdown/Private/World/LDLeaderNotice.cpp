@@ -22,9 +22,28 @@ FGuid LDLeaderNotice::PickLeader(uint8 MinLevel, TConstArrayView<FCandidate> Can
     return Best && !bTied ? Best->Contender : FGuid();
 }
 
+void LDLeaderNotice::PickLeaders(uint8 MinLevel, int32 Count, TConstArrayView<FCandidate> Candidates, TArray<FGuid>& Out)
+{
+    Out.Reset();
+    TArray<const FCandidate*> Eligible;
+    for (const FCandidate& Candidate : Candidates)
+    {
+        if (Candidate.Contender.IsValid() && Candidate.Level >= MinLevel) { Eligible.Add(&Candidate); }
+    }
+    Eligible.Sort([](const FCandidate& A, const FCandidate& B) { return A.Level != B.Level ? A.Level > B.Level : A.Kills > B.Kills; });
+    for (int32 Index = 0; Index < Eligible.Num() && Out.Num() < Count;)
+    {
+        int32 End = Index + 1;
+        while (End < Eligible.Num() && Eligible[End]->Level == Eligible[Index]->Level && Eligible[End]->Kills == Eligible[Index]->Kills) { ++End; }
+        if (Out.Num() + (End - Index) > Count) { break; }
+        for (int32 Tied = Index; Tied < End; ++Tied) { Out.Add(Eligible[Tied]->Contender); }
+        Index = End;
+    }
+}
+
 bool FLDLeaderRules::IsValid() const
 {
-    return StartedAtMs >= 0 && RefreshMs > 0 && MinLevel >= 1 && FMath::IsFinite(CircleRadiusCm) && CircleRadiusCm > 0
+    return StartedAtMs >= 0 && RefreshMs > 0 && MinLevel >= 1 && Leaders >= 1 && Leaders <= 2 && FMath::IsFinite(CircleRadiusCm) && CircleRadiusCm > 0
         && FMath::IsFinite(CircleMaxOffsetCm) && CircleMaxOffsetCm > 0 && CircleMaxOffsetCm <= CircleRadiusCm;
 }
 
@@ -39,34 +58,49 @@ bool FLDLeaderState::Refresh(int64 NowMs, TConstArrayView<LDLeaderNotice::FCandi
     if (!IsRefreshDue(NowMs)) { return false; }
     RefreshIndex = uint64((NowMs - Rules.StartedAtMs) / Rules.RefreshMs);
     const FLDLeaderView Before = View();
-    const FGuid Picked = LDLeaderNotice::PickLeader(Rules.MinLevel, Candidates);
-    const LDLeaderNotice::FCandidate* Body = Picked.IsValid()
-        ? Candidates.FindByPredicate([&Picked](const LDLeaderNotice::FCandidate& C) { return C.Contender == Picked; }) : nullptr;
-    if (!Body || !Body->bAlive || Body->FootCm.ContainsNaN())
-    {
-        Leader.Invalidate();
-        CircleCentreCm = FVector::ZeroVector;
-        RefreshedAtMs = 0;
-        return Before.Leader.IsValid();
-    }
-    Leader = Picked;
+    TArray<FGuid> Picked;
+    LDLeaderNotice::PickLeaders(Rules.MinLevel, Rules.Leaders, Candidates, Picked);
     // Uniform in the offset disk; the stream depends only on the match and the refresh index.
     FRandomStream Stream(int32(Rules.Seed ^ uint32(RefreshIndex * 2654435761ull)));
-    const double Distance = Rules.CircleMaxOffsetCm * FMath::Sqrt(double(Stream.GetFraction()));
-    const double Angle = UE_DOUBLE_TWO_PI * double(Stream.GetFraction());
-    CircleCentreCm = Body->FootCm + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.);
-    RefreshedAtMs = NowMs;
-    return true;
+    const auto Place = [&](const FGuid& Id, FGuid& OutId, FVector& OutCentre)
+    {
+        const LDLeaderNotice::FCandidate* Body = Id.IsValid()
+            ? Candidates.FindByPredicate([&Id](const LDLeaderNotice::FCandidate& C) { return C.Contender == Id; }) : nullptr;
+        const double Distance = Rules.CircleMaxOffsetCm * FMath::Sqrt(double(Stream.GetFraction()));
+        const double Angle = UE_DOUBLE_TWO_PI * double(Stream.GetFraction());
+        // A trending contender who is dead at the refresh is not shown.
+        if (!Body || !Body->bAlive || Body->FootCm.ContainsNaN())
+        {
+            OutId.Invalidate();
+            OutCentre = FVector::ZeroVector;
+            return;
+        }
+        OutId = Id;
+        OutCentre = Body->FootCm + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.);
+    };
+    Place(Picked.IsValidIndex(0) ? Picked[0] : FGuid(), Leader, CircleCentreCm);
+    Place(Picked.IsValidIndex(1) ? Picked[1] : FGuid(), RunnerUp, RunnerUpCentreCm);
+    RefreshedAtMs = Leader.IsValid() || RunnerUp.IsValid() ? NowMs : 0;
+    const FLDLeaderView After = View();
+    return After.Leader != Before.Leader || After.RunnerUp != Before.RunnerUp || After.RefreshedAtMs != Before.RefreshedAtMs;
 }
 
 bool FLDLeaderState::LeaderDied(const FGuid& Contender, int64 NowMs)
 {
-    if (!Leader.IsValid() || Contender != Leader) { return false; }
-    LastDownLeader = Leader;
+    if (!IsTrending(Contender)) { return false; }
+    LastDownLeader = Contender;
     LastDownAtMs = NowMs;
-    Leader.Invalidate();
-    CircleCentreCm = FVector::ZeroVector;
-    RefreshedAtMs = 0;
+    if (Contender == RunnerUp)
+    {
+        RunnerUp.Invalidate();
+        RunnerUpCentreCm = FVector::ZeroVector;
+    }
+    else
+    {
+        Leader.Invalidate();
+        CircleCentreCm = FVector::ZeroVector;
+    }
+    if (!Leader.IsValid() && !RunnerUp.IsValid()) { RefreshedAtMs = 0; }
     return true;
 }
 
@@ -81,15 +115,17 @@ int64 FLDLeaderState::NextDueMs(int64 NowMs) const
 FLDLeaderView FLDLeaderState::View() const
 {
     FLDLeaderView Out;
-    if (!Leader.IsValid()) { return Out; }
+    if (!Leader.IsValid() && !RunnerUp.IsValid()) { return Out; }
     Out.Leader = Leader;
     Out.CircleCentreCm = CircleCentreCm;
     Out.RefreshedAtMs = RefreshedAtMs;
+    Out.RunnerUp = RunnerUp;
+    Out.RunnerUpCentreCm = RunnerUpCentreCm;
     return Out;
 }
 
 bool LDLeaderNotice::Resolve(const FLDDemoContentSnapshot& Content, int64 StartedAtMs, const FGuid& LedgerMatch,
-    FLDLeaderState& Out, FString& Error)
+    bool bRumorDay, FLDLeaderState& Out, FString& Error)
 {
     Out = {};
     const auto& P = Content.Get().Parameters;
@@ -101,6 +137,7 @@ bool LDLeaderNotice::Resolve(const FLDDemoContentSnapshot& Content, int64 Starte
     R.CircleRadiusCm = Cm(P.LeaderCircleRadiusCm);
     R.CircleMaxOffsetCm = Cm(P.LeaderCircleMaxOffsetCm);
     R.Seed = LedgerMatch.A ^ LedgerMatch.B ^ LedgerMatch.C ^ LedgerMatch.D;
+    R.Leaders = bRumorDay ? P.Daily.RumorLeaders : 1;
     if (!LedgerMatch.IsValid() || !R.IsValid())
     {
         Out = {};

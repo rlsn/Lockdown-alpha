@@ -7,7 +7,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
-#include "PK/LDPKRules.h"
+#include "Framework/LDPacingTypes.h"
 #include "LDHUD.generated.h"
 class UBorder;
 class UHorizontalBox;
@@ -143,7 +143,7 @@ protected:
     void UpdateDrag();
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
-    // #225 DEV probe reads the rendered PK settlement rows.
+    // #225 DEV probe reads the rendered HUD rows.
     friend class FLDDemoOpponentProbe;
     UPROPERTY() TObjectPtr<UBorder> DiagnosticsPanel;
     UPROPERTY() TObjectPtr<UTextBlock> DiagnosticsText;
@@ -179,13 +179,11 @@ private:
     // The rest actions panel's own brush, restored when it leaves the full workshop's top bar.
     FSlateBrush RestPanelBrush;
     bool bRestPanelBrushKept=false;
-    // #198: the outer timeline over the capture line (LDHUD::TimelineBanner): the rest and its step, or the field segment;
-    // then the rest's PK sign-up and lock detail.
+    // #198: the outer timeline over the capture line (LDHUD::TimelineBanner): the rest and its step, or the field segment.
     UPROPERTY() TObjectPtr<UTextBlock> TimelineText;
     UPROPERTY() TObjectPtr<UTextBlock> TimelineDetailText;
     // Under the banner while the own contender is in a rest: "重置训练" (ALDPlayerController::SubmitTrainingReset), an owner
-    // intent the server decides; the last answer in this rest shows beside it and as a toast. The PK sign-up has no button:
-    // standing in the own sign-up disk is the sign-up (the banner detail and ALDSignupMarker show it).
+    // intent the server decides; the last answer in this rest shows beside it and as a toast.
     UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
@@ -197,67 +195,42 @@ private:
     FString RestAnswer;
     uint32 RestAnswerMatch=0;
     uint8 RestAnswerRest=0;
-    // #198 站圈报名: the own sign-up disk (ALDSignupMarker) during a rest's build step, from the own body's roster slot
-    // (its public PresentationKey) and the local world and content; never replicated, rebuilt per match and slot.
-    TWeakObjectPtr<class ALDSignupMarker> SignupMarker;
-    uint32 SignupMarkerFailedMatch=0;
-    void SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp);
     void HandleTrainingReset(ELDTrainingResetResult Result);
     void HandleRestReady(ELDRestReadyResult Result);
     void SubmitRestReady();
     void SubmitTrainingReset();
     void ShowRestAnswer(const FString& Text);
-    // #198 session D: the PK panel under the rest actions (LDHUD::PKPanel), from the draw to the payout step: format and
-    // sides with their 出局/离场 marks, the PKReady/PK countdown and ring, one bet button per side for an eligible bettor in
-    // the betting step, the throw button for an eligible bettor while the fight runs, then the frozen result and awards.
-    // Bets and throws are owner intents the server decides (ALDPlayerController::SubmitPKBet/SubmitPKThrow); their answers
-    // show in the panel and as a toast. Hit-tested, so its buttons take clicks.
-    UPROPERTY() TObjectPtr<UBorder> PKPanelBorder;
-    UPROPERTY() TObjectPtr<UTextBlock> PKTitleText;
-    UPROPERTY() TObjectPtr<UTextBlock> PKCountdownText;
-    UPROPERTY() TObjectPtr<UTextBlock> PKRingText;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKSideTexts;
-    UPROPERTY() TObjectPtr<UTextBlock> PKRoleText;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKBetButtons;
-    UPROPERTY() TObjectPtr<ULDCommandButton> PKThrowButton;
-    UPROPERTY() TObjectPtr<UTextBlock> PKResultLine;
-    UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
-    UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
-
-    // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
-    // throw aim, the last throw answer's ReadyAtMs and the last answer line.
-    bool bPKBetInFlight=false;
-    bool bPKThrowArmed=false;
-    bool bPKThrowInFlight=false;
-
-    int64 PKThrowReadyAtMs=0;
-    uint32 PKStateMatch=0;
-    uint32 PKStateSerial=0;
-    FString PKAnswer;
-    void RefreshPK(class ALDPlayerController& PC,const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,bool bClock,int64 NowMs);
-    LDHUD::FPKPanelInput PKInput(const class ALDPlayerController& PC,bool bClock,int64 NowMs);
-    void SubmitPKBet(int32 SideIndex);
-    void TogglePKThrowAim();
-    void HandlePKBet(ELDPKBetResult Result);
-    void HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
-    void ShowPKAnswer(const FString& Text);
-    // The local arena rings (ALDPKRingMarker) during the PKReady and PK steps of the own match's PK; rebuilt per PK, never
-    // replicated. The approved ring parameters come from the same content snapshot as the display labels.
-    TWeakObjectPtr<class ALDPKRingMarker> PKRing;
-    uint32 PKRingFailedMatch=0;
-    uint32 PKRingFailedSerial=0;
-    FLDPKParameters PKParams;
-    const FLDDemoContentDefinitions* PKParamsSource=nullptr;
-    bool bPKParamsValid=false;
-    const FLDPKParameters* PKParameters();
-    void SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
-public:
-    // While the throw aim is armed the next world left click throws at the ground under the pointer (ThrowPKAtPointer) and a
-    // right click or Back only cancels it (CancelPKThrowAim); neither issues a move, attack or inspect (LDPlayerInput.cpp).
-    bool IsPKThrowArmed() const {return bPKThrowArmed;}
-    void ThrowPKAtPointer();
-    bool CancelPKThrowAim();
+    // P6 spec §10.4: the death screen's spawn choice under the rest actions, one button per candidate (the chosen one lit)
+    // and the seconds left; an owner intent the server decides (ALDPlayerController::SubmitSpawnChoice).
+    UPROPERTY() TObjectPtr<UBorder> SpawnChoicePanel;
+    UPROPERTY() TObjectPtr<UTextBlock> SpawnChoiceCountdown;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> SpawnChoiceButtons;
+    bool bSpawnChoiceInFlight=false;
+    void SubmitSpawnChoice(int32 Index);
+    void HandleSpawnChoice(ELDSpawnChoiceResult Result);
+    // P6 spec §11.3: the vending machine within reach: three timed buffs and the elemental drink (one button per element),
+    // each with its voucher price; an owner intent the server queues for the next boundary (ALDPlayerController::SubmitVending).
+    UPROPERTY() TObjectPtr<UBorder> VendingPanel;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> VendingBuffButtons;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> VendingDrinkButtons;
+    UPROPERTY() TObjectPtr<UTextBlock> VendingAnswerText;
+    bool bVendingInFlight=false;
+    FString VendingAnswer;
+    void SubmitVending(ELDVendingItem Item,uint8 Element);
+    void HandleVending(ELDVendingResult Result);
+    // P6 spec §11.1: one glyph badge per daily modifier beside the match timer; the name and numbers are its tooltip.
+    UPROPERTY() TArray<TObjectPtr<UBorder>> DailyBadges;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DailyBadgeGlyphs;
+    TArray<ELDDailyModifier> ShownDaily;
+    // Local world rings, never replicated: the final showdown's street closure and the mid-field objective's circle.
+    TWeakObjectPtr<class ALDShowdownRingMarker> ShowdownRing;
+    TWeakObjectPtr<class ALDShowdownRingMarker> ObjectiveRing;
+    uint32 RingFailedMatch=0;
+    uint32 RingFailedKey=0;
+    void SyncShowdownRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
+    void SyncObjectiveRing(const FLDPublicMatchView& Public,bool bOwnMatch);
+    // Keeps Ring built for (generation, key, centre) or destroys it; false when no ring can be shown.
+    bool KeepRing(TWeakObjectPtr<class ALDShowdownRingMarker>& Ring,bool bShow,const FLDPublicMatchView& Public,uint32 Key,const FVector& Centre,const FLinearColor& Tint);
 private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     // Under the capture bar (Mock 1): the graffiti owner on the left, the guard state on the right.

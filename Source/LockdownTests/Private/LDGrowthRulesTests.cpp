@@ -1298,8 +1298,8 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     };
     const FGateRow Matrix[] = {
         {TEXT("rest build window, alive"), &RestAlive, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
-        {TEXT("rest PK or return steps, alive"), &RestLocked, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
-        {TEXT("rest PK or return steps, dead"), &RestLockedDead, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
+        {TEXT("rest return step, alive"), &RestLocked, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
+        {TEXT("rest return step, dead"), &RestLockedDead, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
         {TEXT("live, alive (in combat or not)"), &Safe, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
         {TEXT("live, dead"), &Dead, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
         {TEXT("closed"), &Closed, ELDGrowthReason::PhaseClosed, ELDGrowthReason::PhaseClosed, ELDGrowthReason::PhaseClosed},
@@ -1321,7 +1321,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
             ELDGrowthReason::NotRestWindow);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d in a PK step"), int32(Kind)),
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d in the return step"), int32(Kind)),
             LDProgression::CommandGate(Kind, RestLocked), ELDGrowthReason::BuildLocked);
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d in the build window"), int32(Kind)),
             LDProgression::CommandGate(Kind, RestAlive), ELDGrowthReason::None);
@@ -1330,7 +1330,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Trainer kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
             ELDGrowthReason::ReplacementNotAllowed);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Trainer kind %d in a PK step"), int32(Kind)),
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Trainer kind %d in the return step"), int32(Kind)),
             LDProgression::CommandGate(Kind, RestLocked), ELDGrowthReason::BuildLocked);
     }
     bGood &= GrowthTestReason(Test, TEXT("No command kind"), LDProgression::CommandGate(EKind::None, Safe), ELDGrowthReason::InvalidRequest);
@@ -1369,7 +1369,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         Choose(Empty, Elbow, true, FLDBuildCommand::AnySlot, Dead) == ELDGrowthReason::None
         && Outcome.Result == ELDBuildChoiceResult::Learned && Outcome.StoredReason == ELDGrowthReason::None
         && Out.Actives.Num() == 1 && Out.PendingBlueprints.IsEmpty());
-    bGood &= Test.TestTrue(TEXT("In a PK step the choice is learned into the empty slot (#222)"),
+    bGood &= Test.TestTrue(TEXT("In the return step the choice is learned into the empty slot (#222)"),
         Choose(Empty, Elbow, true, FLDBuildCommand::AnySlot, RestLocked) == ELDGrowthReason::None
         && Outcome.Result == ELDBuildChoiceResult::Learned && Out.Actives.Num() == 1);
     bGood &= Test.TestTrue(TEXT("With Q, W and E learned the choice is stored, saying NoEmptySlot"),
@@ -1413,7 +1413,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         && Out.Actives.Num() == 2);
     bGood &= Test.TestTrue(TEXT("Learning while dead (#222)"), Learn(Holding, Seethe, 1, Dead) == ELDGrowthReason::None
         && Out.Actives.Num() == 2 && Out.PendingBlueprints.IsEmpty());
-    bGood &= Test.TestTrue(TEXT("Learning in a PK step (#222)"), Learn(Holding, Seethe, 1, RestLocked) == ELDGrowthReason::None
+    bGood &= Test.TestTrue(TEXT("Learning in the return step (#222)"), Learn(Holding, Seethe, 1, RestLocked) == ELDGrowthReason::None
         && Out.Actives.Num() == 2);
     bGood &= Refused(TEXT("Learning into an occupied slot"), Learn(Holding, Seethe, 0, Safe), ELDGrowthReason::SlotOccupied, Holding);
     bGood &= Refused(TEXT("Learning an active that is no pending blueprint"), Learn(Holding, Unplug, 1, Safe), ELDGrowthReason::NoBlueprint,
@@ -1435,7 +1435,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     bGood &= Refused(TEXT("An allocation of no point"), Allocate(Empty, 0, {0, 0, 0, 0, 0}, Safe), ELDGrowthReason::InvalidRequest, Empty);
     bGood &= Refused(TEXT("An allocation without a count per stat"), Allocate(Empty, 0, {1, 0, 0, 0}, Safe), ELDGrowthReason::InvalidRequest,
         Empty);
-    bGood &= Test.TestTrue(TEXT("Allocating in a PK step (#222)"),
+    bGood &= Test.TestTrue(TEXT("Allocating in the return step (#222)"),
         Allocate(Empty, 0, {1, 0, 0, 0, 0}, RestLocked) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({1, 0, 0, 0, 0}));
     bGood &= Refused(TEXT("Allocating after the match closed"), Allocate(Empty, 0, {1, 0, 0, 0, 0}, Closed), ELDGrowthReason::PhaseClosed,
         Empty);
@@ -2211,13 +2211,11 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         // field 1 at 2 ms (fixture timing only, not approved durations).
         FLDTimelineParameters Fast;
         Fast.FieldSegmentMs = 1000000;
-        Fast.OpeningBuildMs = Fast.BuildMs = Fast.SignupMs = Fast.DrawMs = Fast.BettingMs = Fast.PKReadyMs = Fast.PKMaxMs
-            = Fast.SettlementMs = Fast.PayoutMs = Fast.ReturnMs = 1;
-        for (int64& Wait : Fast.RespawnMs) { Wait = 1; }
+        Fast.OpeningBuildMs = Fast.BuildMs = Fast.ReturnMs = 1;
         TArray<FLDTimelineEvent> Events;
         FString TimelineError;
         if (!TestTrue(TEXT("The fixture timeline reaches field 1"), Mode->Timeline.Begin(Fast, 0, TimelineError)
-            && Mode->Timeline.Advance(1, 0, true, true, Events, TimelineError) && Mode->Timeline.Advance(2, 0, true, true, Events, TimelineError)
+            && Mode->Timeline.Advance(1, true, true, Events, TimelineError) && Mode->Timeline.Advance(2, true, true, Events, TimelineError)
             && Mode->Timeline.GetStage() == ELDMatchStage::Field))
         {
             AddError(TimelineError);
@@ -2571,11 +2569,11 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Create a timeline for the final field"),
         FLDTimelineParameters::FromContent(Tuning, TimelineParameters, Error)
         && Mode->Timeline.Begin(TimelineParameters, 0, Error)
-        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
-        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), true, true, TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), true, true, TimelineEvents, Error)
         && Mode->Timeline.DevSkipToFinalRest(Mode->Timeline.MakeView(Mode->MatchContext.Generation, 1).FieldStartedAtMs,
             TimelineEvents, Error)
-        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)))
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), true, true, TimelineEvents, Error)))
     { AddError(Error); return false; }
 
     const int64 BeforeFinalDeath = TotalXP();
@@ -3247,8 +3245,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && Freeing.NextOfferId == Drawn.ActiveOffer.OfferId && Drawn.ActiveOffer.OpportunityOrdinal == 2
         && Drawn.ActiveOffer.Options == TArray<FName>({Freed}));
 
-    // Both sources grant at most one extra card, with PK points and the card installed in the same commit.
-    const FGuid Award = FGuid::NewGuid(), NextAward = FGuid::NewGuid();
+    // The extra final mod card (the Boss, the arena) is granted at most once.
     const uint64 BeforeCard = ProgressionOf(Tester).Revision;
     StepAtMs += 1;
     bool bBoss = false, bBossAgain = false;
@@ -3257,33 +3254,13 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Moved, Error)
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards, [&](const FLDGameplayWritePermit& Permit)
         {
-            bBoss = Development->GrantBossFinalModCard(Tester, Permit, Error);
-            bBossAgain = Development->GrantBossFinalModCard(Tester, Permit, Error);
+            bBoss = Development->GrantExtraFinalModCard(Tester, Permit, Error);
+            bBossAgain = Development->GrantExtraFinalModCard(Tester, Permit, Error);
             return bBoss && bBossAgain;
         }, Error)
         && Mode->FinishAuthorityStep(*Driver, Error))) { AddError(Error); return false; }
     TestTrue(TEXT("Boss reward is owner-visible and idempotent"),
         Development->ReadProgression(Tester).bExtraFinalModCard && ProgressionOf(Tester).Revision == BeforeCard + 1);
-    const int64 PointsBefore = BuildOf(Skipper).AwardedPoints;
-    ELDGrowthReason FirstAward = ELDGrowthReason::DataInvalid, Duplicate = ELDGrowthReason::DataInvalid;
-    ELDGrowthReason SecondAward = ELDGrowthReason::DataInvalid;
-    StepAtMs += 1;
-    if (!TestTrue(TEXT("PK rewards run at a transaction boundary"),
-        Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) == ELDCommitReject::None
-        && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Moved, Error)
-        && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
-        {
-            FirstAward = Development->GrantPKPoints(Skipper, 1, Award, true, Permit);
-            Duplicate = Development->GrantPKPoints(Skipper, 1, Award, true, Permit);
-            SecondAward = Development->GrantPKPoints(Skipper, 1, NextAward, true, Permit);
-            return true;
-        }, Error)
-        && Mode->FinishAuthorityStep(*Driver, Error))) { AddError(Error); return false; }
-    TestTrue(TEXT("PK replay pays no extra points and a second win cannot add another card"),
-        FirstAward == ELDGrowthReason::None && Duplicate == ELDGrowthReason::PKAwardDuplicate
-        && SecondAward == ELDGrowthReason::None && BuildOf(Skipper).AwardedPoints == PointsBefore + 2
-        && Development->ReadProgression(Skipper).bExtraFinalModCard);
-
     StepAtMs += 1;
     if (!TestTrue(TEXT("Final offers open at an authority boundary"),
         Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) == ELDCommitReject::None
@@ -3293,10 +3270,8 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && Mode->FinishAuthorityStep(*Driver, Error))) { AddError(Error); return false; }
     const FLDProgressionView BossOffer = Development->ReadProgression(Tester);
     const FLDProgressionView NormalOffer = Development->ReadProgression(Hoarder);
-    const FLDProgressionView PKOffer = Development->ReadProgression(Skipper);
-    TestTrue(TEXT("Boss and PK rewards produce four options while an unrewarded contender gets three"),
+    TestTrue(TEXT("The extra card produces four options while an unrewarded contender gets three"),
         BossOffer.bFinalModPending && BossOffer.FinalModOptions.Num() == 4
-        && PKOffer.bFinalModPending && PKOffer.FinalModOptions.Num() == 4
         && NormalOffer.bFinalModPending && NormalOffer.FinalModOptions.Num() == 3);
 
     StepAtMs += 1;
@@ -3307,7 +3282,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Moved, Error)
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards, [&](const FLDGameplayWritePermit& Permit)
         {
-            bLateCard = Development->GrantBossFinalModCard(Hoarder, Permit, LateError);
+            bLateCard = Development->GrantExtraFinalModCard(Hoarder, Permit, LateError);
             return true;
         }, Error)
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
@@ -3374,15 +3349,15 @@ bool FLDGrowthCardsOfferTest::RunTest(const FString& Parameters)
     const FLDGrowthBuild Build = Learned(Content, 3);
     // Spec §6.4: three distinct cards, fixed by the seed, weighted x2 toward the build's vocabulary.
     TArray<FName> Options, Again;
-    bool bGood = GrowthTestReason(*this, TEXT("An offer draws"), LDProgression::DrawCardOffer(Content, Build, NAME_None, 7, Options),
+    bool bGood = GrowthTestReason(*this, TEXT("An offer draws"), LDProgression::DrawCardOffer(Content, Build, 3, NAME_None, 7, Options),
         ELDGrowthReason::None);
-    LDProgression::DrawCardOffer(Content, Build, NAME_None, 7, Again);
+    LDProgression::DrawCardOffer(Content, Build, 3, NAME_None, 7, Again);
     bGood &= TestTrue(TEXT("Three distinct cards, fixed by the seed"), Options.Num() == 3 && GrowthTestDistinct(Options) && Options == Again);
     const uint32 Vocab = LDProgression::BuildVocab(Content, Build);
     int32 Shared = 0, Total = 0;
     for (uint64 Seed = 1; Seed <= 400; ++Seed)
     {
-        LDProgression::DrawCardOffer(Content, Build, NAME_None, Seed, Options);
+        LDProgression::DrawCardOffer(Content, Build, 3, NAME_None, Seed, Options);
         const FName First = Options[0];
         const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([First](const FLDDemoCardDefinition& Row) { return FName(*Row.Id) == First; });
         Shared += Card && (Card->VocabMask & Vocab) != 0;

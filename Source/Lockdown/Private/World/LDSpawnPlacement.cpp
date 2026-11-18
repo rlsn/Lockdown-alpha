@@ -219,9 +219,8 @@ bool ULDMapRegistry::SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName 
     // Rest anchors are validated by the world geometry, not the field spawn list.
     const auto& Refs=Content->Get().World;
     const FString AnchorId=Anchor.ToString();
-    if (!Refs.SpawnIds.Contains(AnchorId) && !Refs.PKSpawnIds.Contains(AnchorId)
-        && !IsRestSpawn(Geometry.Get(),Anchor) && !IsFinalSpawn(Geometry.Get(),Anchor))
-    { Error=FString::Printf(TEXT("%s is not an approved field, rest, PK, or final spawn anchor."),*AnchorId); return false; }
+    if (!Refs.SpawnIds.Contains(AnchorId) && !IsRestSpawn(Geometry.Get(),Anchor) && !IsFinalSpawn(Geometry.Get(),Anchor))
+    { Error=FString::Printf(TEXT("%s is not an approved field, rest or final spawn anchor."),*AnchorId); return false; }
     Out=RecordSpawnSelection(Request,Anchor);
     Error.Reset();
     return true;

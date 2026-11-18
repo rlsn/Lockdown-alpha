@@ -2418,225 +2418,95 @@ bool RunWalkRefusals(FAutomationTestBase& Test)
     return bGood;
 }
 
-FLDPKEntrantView PKEntrant(uint32 Handle, uint8 Side, bool bAlive = true)
-{
-    FLDPKEntrantView Out;
-    Out.Contender = FGuid(0xE0, 0, 0, Handle);
-    Out.Side = Side;
-    Out.bAlive = bAlive;
-    return Out;
-}
-
-FLDPKBetView PKBet(const FGuid& Spectator, uint8 Side)
-{
-    FLDPKBetView Out;
-    Out.Spectator = Spectator;
-    Out.Side = Side;
-    return Out;
-}
-
-// #198 D (issue #198 comment 6752601175 §2-§6): sign-up, bet, throw, teammate exclusion and the ring, from public reads only.
-bool RunPK(FAutomationTestBase& Test)
+// P6 spec §10.3: a healthy body within the approved reach goes for a live mini flag or the arena (the flagpole), from the
+// public objective only; announced counts as live, a won or expired objective draws nobody.
+bool RunObjective(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(Test, Catalog)) { return false; }
     const auto& C = *Catalog;
     using EMode = ELDOpponentMode;
-    using EReason = ELDOpponentReason;
     using EBody = ELDOpponentBodyKind;
-    using EPK = ELDOpponentPKKind;
     FLDOpponentDecisionFrame Base;
     if (!BaseFrame(Test, C, Base)) { return false; }
-    const FGuid Me = Base.Self.ContenderId;
-    Base.Public.Phase = ELDMatchPhase::Rest;
-    Base.Public.Timeline.Stage = ELDMatchStage::Rest;
-    Base.Public.Timeline.RestIndex = 1;
+    Base.POIs.Add(POI(TEXT("mini_flag_0"), ELDOpponentPOIKind::MiniFlag, 1000, -1500));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    bool bGood = Test.TestEqual(TEXT("The approved reach is 2500 cm"), double(C.Get().Parameters.AI.ObjectiveReachCm.Numerator)
+        / double(FMath::Max<int64>(1, C.Get().Parameters.AI.ObjectiveReachCm.Denominator)), 2500.)
+        && Test.TestEqual(TEXT("The approved entry health is 60 %"), C.Get().Parameters.AI.ObjectiveEntryHPBp, int64(6000));
 
-    // Sign-up (站圈报名): inside the window of the build step only, the body walks into its own sign-up disk.
     auto Frame = Base;
-    FLDOpponentPOI Disk;
-    Disk.Id = TEXT("pk_signup_1");
-    Disk.Kind = ELDOpponentPOIKind::PKSignup;
-    Disk.SurfaceId = TEXT("demo_ground");
-    Disk.FootCm = Base.Self.FootCm + FVector(300, 0, 0);
-    Frame.SignupPOI = Disk;
-    Frame.Public.Timeline.Step = ELDRestStep::Build;
-    Frame.Public.Timeline.SignupOpensAtMs = 20000;
-    Frame.Public.Timeline.StepEndsAtMs = 30000;
-    Frame.Public.NowMs = 19999;
-    bool bGood = Test.TestFalse(TEXT("No sign-up before the window opens"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
-    Frame.Public.NowMs = 30000;
-    bGood &= Test.TestFalse(TEXT("No sign-up at the step's end"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
-    Frame.Public.NowMs = 20000;
-    bGood &= Test.TestTrue(TEXT("Every AI signs up inside the window"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
-    FLDOpponentPolicyState SignUp;
-    auto Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
-    bGood &= Expect(Test, TEXT("Signing up walks into the own disk"), Decision, EMode::PK, EBody::MoveGround)
-        && Test.TestTrue(TEXT("The walk names the own disk and no request replaces standing in it"),
-            Decision.Body.POI == Disk.Id && Decision.PK.Kind == EPK::None && Decision.Reason == EReason::PKSignUp);
-    Frame.Order.Status = ELDOpponentOrderStatus::Active;
-    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
-    Frame.Order.POI = Disk.Id;
-    Frame.Public.NowMs = 20250;
-    bGood &= Test.TestTrue(TEXT("A live walk to the disk is kept, not sent again"),
-        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::Keep);
-    Frame.Order = FLDOpponentOrder();
-    Frame.Public.NowMs = 19999;
-    bGood &= Test.TestTrue(TEXT("Before the window the body stays in its rest space"),
-        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::None);
-    Frame.Public.NowMs = 20250;
-    Frame.Public.Timeline.Signups = {Me};
-    Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
-    bGood &= Test.TestTrue(TEXT("A contender standing in its disk stays there until the lock"),
-        !LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me) && Decision.Body.Kind == EBody::Keep && Decision.Reason == EReason::PKSignUp);
-    Frame.Order.Status = ELDOpponentOrderStatus::Active;
-    Frame.Order.Kind = ELDOpponentOrderKind::AttackUnit;
-    bGood &= Test.TestTrue(TEXT("Any other order a signed contender still runs stops in the disk"),
-        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::Stop);
-    Frame.Order = FLDOpponentOrder();
-    Frame.Public.Timeline.Signups.Reset();
-    Frame.Public.Timeline.Step = ELDRestStep::Payout;
-    bGood &= Test.TestFalse(TEXT("No sign-up outside the build step"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Frame.Public.Objective.Serial = 1;
+    Frame.Public.Objective.Kind = ELDObjectiveKind::MiniFlag;
+    Frame.Public.Objective.Phase = ELDObjectivePhase::Open;
+    Frame.Public.Objective.AnchorId = TEXT("mini_flag_0");
+    Frame.Public.Objective.CentreCm = FVector(1000, -1500, 0);
+    Frame.Public.Objective.RadiusCm = 200.f;
+    FLDOpponentPolicyState Runner;
+    const auto Run = LDOpponentPolicy::Decide(Frame, C, Runner);
+    bGood &= Expect(Test, TEXT("An open mini flag in reach draws a healthy body to its point"), Run, EMode::Objective,
+        EBody::MoveGround, TEXT("mini_flag_0"))
+        && Test.TestTrue(TEXT("Going for the objective is its own reason"), Run.Reason == ELDOpponentReason::ContestObjective);
+    Frame.Public.Objective.Phase = ELDObjectivePhase::Announced;
+    FLDOpponentPolicyState Early;
+    bGood &= Test.TestTrue(TEXT("An announced objective draws the body ahead of its opening"),
+        LDOpponentPolicy::Decide(Frame, C, Early).Reason == ELDOpponentReason::ContestObjective);
+    Frame.Public.Objective.Phase = ELDObjectivePhase::Open;
+    Frame.Self.FootCm = FVector(1020, -1490, 0);
+    FLDOpponentPolicyState Holder;
+    bGood &= Expect(Test, TEXT("On the point the body holds inside the circle instead of re-ordering the walk"),
+        LDOpponentPolicy::Decide(Frame, C, Holder), EMode::Objective, EBody::None);
 
-    // Bet: the side of the lowest-seat entrant, once, for an eligible bettor without a public bet.
-    FLDPKView PK;
-    PK.Generation = Base.Generation;
-    PK.Serial = 2;
-    PK.Format = ELDPKFormat::FreeForAll;
-    PK.SideCount = 4;
-    PK.Entrants = {PKEntrant(11, 2), PKEntrant(12, 1), PKEntrant(13, 3), PKEntrant(14, 4)};
-    PK.Bettors = {Me};
-    Frame = Base;
-    Frame.Public.Timeline.Step = ELDRestStep::Betting;
-    Frame.Public.PK = PK;
-    bGood &= Test.TestTrue(TEXT("The bet goes to the lowest seat's side"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 2);
-    FLDOpponentPolicyState Bet;
-    Decision = LDOpponentPolicy::Decide(Frame, C, Bet);
-    bGood &= Expect(Test, TEXT("Betting never moves"), Decision, EMode::PK, EBody::None)
-        && Test.TestTrue(TEXT("One bet on that side of this PK"), Decision.PK.Kind == EPK::Bet && Decision.PK.Side == 2
-            && Decision.PK.Serial == PK.Serial && Decision.Reason == EReason::PKBet);
-    bGood &= Test.TestTrue(TEXT("A bet is sent once per PK"), LDOpponentPolicy::Decide(Frame, C, Bet).PK.Kind == EPK::None);
-    Frame.Public.PK.Bets = {PKBet(Me, 3)};
-    bGood &= Test.TestTrue(TEXT("A placed bet is not replaced"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 0);
-    Frame.Public.PK.Bets.Reset();
-    Frame.Public.PK.Bettors.Reset();
-    bGood &= Test.TestTrue(TEXT("A non-bettor does not bet"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 0);
-
-    // Throw: the lowest visible seat not on the bet side, within the throw range of the public anchor.
-    PK.Bets = {PKBet(Me, 2)};
-    PK.Outcome = ELDPKOutcome::Running;
-    PK.FightStartedAtMs = 5000;
-    TArray<FLDOpponentUnit> Seen = {
-        Unit(11, ELDOpponentUnitKind::Contender, 10, 0), Unit(13, ELDOpponentUnitKind::Contender, 30, 0),
-        Unit(14, ELDOpponentUnitKind::Contender, 40, 0)};
-    const FLDOpponentUnit* Target = LDOpponentPolicy::PKThrowTarget(PK, 2, Seen, 1000.);
-    bGood &= Test.TestTrue(TEXT("The bet side is never thrown at and an unseen entrant is skipped"),
-        Target && Target->ContenderId == FGuid(0xE0, 0, 0, 13));
-    Seen[1].FootCm = FVector(1500, 0, 0);
-    Target = LDOpponentPolicy::PKThrowTarget(PK, 2, Seen, 1000.);
-    bGood &= Test.TestTrue(TEXT("An entrant out of throw range is skipped"), Target && Target->ContenderId == FGuid(0xE0, 0, 0, 14));
-    bGood &= Test.TestNull(TEXT("Without a bet there is no throw"), LDOpponentPolicy::PKThrowTarget(PK, 0, Seen, 1000.));
-    const TArray<FLDOpponentUnit> BetSideOnly = {Unit(11, ELDOpponentUnitKind::Contender, 10, 0)};
-    bGood &= Test.TestNull(TEXT("Only the bet side in sight: no throw"), LDOpponentPolicy::PKThrowTarget(PK, 2, BetSideOnly, 1000.));
-    Frame = Base;
-    Frame.Public.Timeline.Step = ELDRestStep::PK;
-    Frame.Public.PK = PK;
-    Frame.Public.NowMs = 9000;
-    Frame.Units = {Unit(11, ELDOpponentUnitKind::Contender, 10, 0), Unit(13, ELDOpponentUnitKind::Contender, 30, 0)};
-    FLDOpponentPolicyState Throw;
-    Decision = LDOpponentPolicy::Decide(Frame, C, Throw);
-    bGood &= Expect(Test, TEXT("A spectator never moves while the arena runs"), Decision, EMode::PK, EBody::None)
-        && Test.TestTrue(TEXT("A ready bettor throws at the current foot of the chosen entrant"), Decision.PK.Kind == EPK::Throw
-            && Decision.PK.Serial == PK.Serial && Decision.PK.TargetCm.Equals(FVector(30, 0, 0)) && Decision.Reason == EReason::PKThrow);
-    Frame.PKThrowReadyAtMs = Frame.Public.NowMs + 1;
-    bGood &= Test.TestTrue(TEXT("No throw before the own cooldown passed"), LDOpponentPolicy::Decide(Frame, C, Throw).PK.Kind == EPK::None);
-
-    // Teammates: only a team format shares a side.
-    FLDPKView Teams;
-    Teams.Serial = 3;
-    Teams.Format = ELDPKFormat::Teams;
-    Teams.SideCount = 2;
-    Teams.Entrants = {PKEntrant(21, 2), PKEntrant(22, 1), PKEntrant(999, 1), PKEntrant(23, 2)};
-    const FGuid Mate = FGuid(0xE0, 0, 0, 22), Rival = FGuid(0xE0, 0, 0, 21);
-    bGood &= Test.TestTrue(TEXT("Same side is a teammate"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Mate))
-        && Test.TestFalse(TEXT("Another side is not"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Rival))
-        && Test.TestFalse(TEXT("Self is not its own teammate"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Me))
-        && Test.TestFalse(TEXT("A free-for-all has no teammates"), LDOpponentPolicy::IsPKTeammate(PK, FGuid(0xE0, 0, 0, 11),
-            FGuid(0xE0, 0, 0, 12)));
-
-    // Ring: outside the current radius, or outside the previewed next radius while one is shown.
-    FLDPKParameters Ring;
-    Ring.ArenaRadiusCm = 1000;
-    Ring.MidRadiusCm = 600;
-    Ring.FinalRadiusCm = 300;
-    Ring.ShrinkStartMs = 10000;
-    Ring.MidMs = 20000;
-    Ring.FinalMs = 30000;
-    Ring.PreviewMs = 5000;
-    Ring.MaxMs = 40000;
-    FLDPKView Arena;
-    Arena.FightStartedAtMs = 100000;
-    const auto Out = [&Ring, &Arena](double X, int64 ElapsedMs)
-    { return LDOpponentPolicy::PKRingRetreat(Ring, Arena, FVector(X, 0, 0), Arena.FightStartedAtMs + ElapsedMs); };
-    bGood &= Test.TestFalse(TEXT("No ring before the fight starts"), Out(2000, -1))
-        && Test.TestFalse(TEXT("Inside the full arena before any preview"), Out(900, 0))
-        && Test.TestTrue(TEXT("Outside the current radius walks back"), Out(1100, 0))
-        && Test.TestTrue(TEXT("Outside the previewed mid radius walks back"), Out(900, 6000))
-        && Test.TestFalse(TEXT("Inside the previewed radius stays"), Out(500, 6000))
-        && Test.TestTrue(TEXT("Outside the previewed final radius during the second shrink"), Out(400, 25000))
-        && Test.TestFalse(TEXT("Inside the final radius during the second shrink"), Out(250, 25000))
-        && Test.TestTrue(TEXT("Outside the final radius after the shrink"), Out(301, 35000))
-        && Test.TestFalse(TEXT("Inside the final radius after the shrink"), Out(299, 35000));
-
-    // Fighting as an entrant: the ring first, then the nearest visible enemy entrant, never a teammate.
-    FLDPKParameters Approved;
-    FString Error;
-    if (!Test.TestTrue(TEXT("The approved ring parameters load"), FLDPKParameters::FromContent(C.Get().Parameters, Approved, Error)))
+    Frame.Self.FootCm = FVector(-2500, 2500, 0);
+    FLDOpponentPolicyState Far;
+    bGood &= Test.TestTrue(TEXT("Beyond the reach the objective is ignored"),
+        LDOpponentPolicy::Decide(Frame, C, Far).Reason != ELDOpponentReason::ContestObjective);
+    Frame.Self.FootCm = Base.Self.FootCm;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Test.TestTrue(TEXT("Below the entry health the objective is ignored"),
+        LDOpponentPolicy::Decide(Frame, C, Hurt).Reason != ELDOpponentReason::ContestObjective);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2;
+    for (const ELDObjectivePhase Over : {ELDObjectivePhase::Won, ELDObjectivePhase::Expired})
     {
-        Test.AddError(Error);
-        return false;
+        Frame.Public.Objective.Phase = Over;
+        FLDOpponentPolicyState Done;
+        bGood &= Test.TestTrue(TEXT("A won or expired objective draws nobody"),
+            LDOpponentPolicy::Decide(Frame, C, Done).Reason != ELDOpponentReason::ContestObjective);
     }
-    Teams.Outcome = ELDPKOutcome::Running;
-    Teams.ArenaCentreCm = FVector(0, 3000, 0);
-    Teams.FightStartedAtMs = 5000;
+    Frame.Public.Objective.Phase = ELDObjectivePhase::Open;
+    Frame.Public.Objective.AnchorId = TEXT("l1");
+    FLDOpponentPolicyState Stray;
+    bGood &= Test.TestTrue(TEXT("A mini flag that names no public mini flag point is ignored"),
+        LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestObjective);
+
+    // The arena surrounds the flagpole: its place is the capture point.
     Frame = Base;
-    Frame.Public.Timeline.Step = ELDRestStep::PK;
-    Frame.Public.PK = Teams;
-    Frame.Public.NowMs = 5000;
-    Frame.Self.FootCm = Teams.ArenaCentreCm + FVector(Approved.ArenaRadiusCm + 100., 0, 0);
-    FLDOpponentPolicyState Fight;
-    Decision = LDOpponentPolicy::Decide(Frame, C, Fight);
-    bGood &= Expect(Test, TEXT("Outside the ring the entrant walks to the arena centre first"), Decision, EMode::PK,
-        EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("The ring is its own reason"), Decision.Reason == EReason::PKRing);
-    Frame.Self.FootCm = Teams.ArenaCentreCm;
-    Frame.Units = {Unit(22, ELDOpponentUnitKind::Contender, 100, 3000), Unit(21, ELDOpponentUnitKind::Contender, 400, 3000)};
-    FLDOpponentPolicyState Engage;
-    Decision = LDOpponentPolicy::Decide(Frame, C, Engage);
-    bGood &= Test.TestTrue(TEXT("The nearer teammate is passed over for the enemy entrant"),
-        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKFight && Decision.Body.Kind == EBody::AttackUnit
-        && Decision.Body.Handle == Frame.Units[1].Handle);
-    Frame.Units = {Unit(22, ELDOpponentUnitKind::Contender, 100, 3000)};
-    FLDOpponentPolicyState MateOnly;
-    Decision = LDOpponentPolicy::Decide(Frame, C, MateOnly);
-    bGood &= Expect(Test, TEXT("A teammate alone in sight is never a target"), Decision, EMode::PK, EBody::None);
-    Frame.Public.Timeline.Step = ELDRestStep::PKReady;
-    Frame.Public.PK.Outcome = ELDPKOutcome::Pending;
-    Frame.Units = {Unit(21, ELDOpponentUnitKind::Contender, 400, 3000)};
-    FLDOpponentPolicyState Ready;
-    Decision = LDOpponentPolicy::Decide(Frame, C, Ready);
-    bGood &= Expect(Test, TEXT("PKReady: inputs are locked, nothing is sent"), Decision, EMode::Stopped, EBody::None)
-        && Test.TestTrue(TEXT("PKReady: no PK request either"), Decision.PK.Kind == EPK::None);
+    Frame.Self.FootCm = FVector(0, 1500, 0);
+    Frame.Public.Objective.Serial = 2;
+    Frame.Public.Objective.Kind = ELDObjectiveKind::Arena;
+    Frame.Public.Objective.Phase = ELDObjectivePhase::Open;
+    Frame.Public.Objective.CentreCm = FVector(0, 3000, 0);
+    Frame.Public.Objective.RadiusCm = 900.f;
+    FLDOpponentPolicyState Arena;
+    bGood &= Expect(Test, TEXT("An open arena in reach draws the body to the flagpole"), LDOpponentPolicy::Decide(Frame, C, Arena),
+        EMode::Objective, EBody::MoveGround, TEXT("capture"));
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, 1000));
+    FLDOpponentPolicyState Drop;
+    bGood &= Test.TestTrue(TEXT("A public airdrop outranks the objective"),
+        LDOpponentPolicy::Decide(Frame, C, Drop).Reason == ELDOpponentReason::ContestAirdrop);
     return bGood;
 }
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentPKTest, "Lockdown.Rules.DemoOpponentPolicy.PK",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentObjectiveTest, "Lockdown.Rules.DemoOpponentPolicy.Objective",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDDemoOpponentPKTest::RunTest(const FString& Parameters)
+bool FLDDemoOpponentObjectiveTest::RunTest(const FString& Parameters)
 {
-    return LDOpponentPolicyTests::RunPK(*this);
+    return LDOpponentPolicyTests::RunObjective(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAirdropTest, "Lockdown.Rules.DemoOpponentPolicy.Airdrop",
@@ -2908,21 +2778,6 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A refused service path backs off rather than sending another order"),
         Decision.Reason == EReason::TargetSuppressed && Decision.Body.Kind == EBody::None);
 
-    auto Signup = Frame;
-    Signup.Public.Timeline.SignupOpensAtMs = Signup.Public.NowMs;
-    Signup.Public.Timeline.StepEndsAtMs = Signup.Public.NowMs + 10000;
-    FLDOpponentPOI Disk;
-    Disk.Id = TEXT("pk_signup_0");
-    Disk.Kind = ELDOpponentPOIKind::PKSignup;
-    Disk.SurfaceId = TEXT("demo_ground");
-    Signup.SignupPOI = Disk;
-    Decision = Decide(Signup);
-    bGood &= Test.TestTrue(TEXT("The sign-up window takes priority over a trainer visit"),
-        Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
-        && Decision.Body.POI == Disk.Id && Decision.Build.Kind == EBuild::None);
-    Signup.Self.NearbyRestService = ELDRestService::Trainer;
-    bGood &= Test.TestTrue(TEXT("Even a nearby respec waits during sign-up"),
-        Decide(Signup).Build.Kind == EBuild::None);
     return bGood;
 }
 // In the rest build window, once nothing is left to build, the body tries its build on its private target (a
@@ -2973,30 +2828,6 @@ bool RunTraining(FAutomationTestBase& Test)
     auto Channel = Base;
     Channel.Self.bChanneling = true;
     bGood &= Test.TestTrue(TEXT("A channel is never cut"), Decide(Channel).Body.Kind == EBody::Keep);
-    auto Payout = Base;
-    Payout.Public.Timeline.Step = ELDRestStep::Payout;
-    bGood &= Test.TestTrue(TEXT("The payout step trains too"), Trains(Decide(Payout), EBody::AttackUnit));
-    auto SignUp = Base;
-    SignUp.Public.Timeline.SignupOpensAtMs = SignUp.Public.NowMs;
-    SignUp.Public.Timeline.StepEndsAtMs = SignUp.Public.NowMs + 1000;
-    FLDOpponentPOI Disk;
-    Disk.Id = TEXT("pk_signup_0");
-    Disk.Kind = ELDOpponentPOIKind::PKSignup;
-    Disk.SurfaceId = TEXT("demo_ground");
-    Disk.FootCm = Base.Self.FootCm + FVector(300, 0, 0);
-    SignUp.SignupPOI = Disk;
-    Decision = Decide(SignUp);
-    bGood &= Test.TestTrue(TEXT("The open sign-up window walks into the own disk instead of training (站圈报名)"),
-        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
-        && Decision.Body.POI == Disk.Id && Decision.PK.Kind == ELDOpponentPKKind::None);
-    SignUp.Public.Timeline.Signups = {Base.Self.ContenderId};
-    Decision = Decide(SignUp);
-    bGood &= Test.TestTrue(TEXT("Signed up, the body stays in its disk and does not train until the lock"),
-        Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::Keep);
-    SignUp.Public.Timeline.Signups.Reset();
-    SignUp.Order = Live.Order;
-    SignUp.Order.Kind = ELDOpponentOrderKind::Action;
-    bGood &= Test.TestTrue(TEXT("An accepted training action finishes before the walk"), Decide(SignUp).Body.Kind == EBody::Keep);
 
     // Never before or while something is built, never outside the rest build window, never on anything but the dummy.
     auto Building = Base;
@@ -3009,7 +2840,7 @@ bool RunTraining(FAutomationTestBase& Test)
     auto Early = Base;
     Early.Self.OpeningPickAtMs = Early.Public.NowMs + 1;
     auto Locked = Base;
-    Locked.Public.Timeline.Step = ELDRestStep::Betting;
+    Locked.Public.Timeline.Step = ELDRestStep::Return;
     auto RosterOnly = Base;
     RosterOnly.Units = {Rival};
     auto Unread = Base;

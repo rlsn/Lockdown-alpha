@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Framework/LDPacingTypes.h"
 
 struct FLDDemoContentParameters;
 struct FLDDemoMonsterDefinition;
@@ -17,6 +18,10 @@ namespace LDCampGrowth
     // Base monster combat values at Stage. False (Error set) for a stage past the cap or an arithmetic overflow.
     LOCKDOWN_API bool ScaleBody(const FLDDemoContentParameters& Parameters, const FLDDemoMonsterDefinition& Base, uint8 Stage,
         FLDDemoMonsterDefinition& Out, FString& Error);
+    // Spec §11.2/§11.3 (P6): a spawn's own terms on top of its growth stage: the bonus affix's HP, the overtime affix's attack
+    // speed, and the second-hand dealer's approved HP and move speed (it never attacks). False on an overflow.
+    LOCKDOWN_API bool ApplySpawnTerms(const FLDDemoContentParameters& Parameters, ELDCampAffix Affix, bool bPeddler,
+        FLDDemoMonsterDefinition& InOut, FString& Error);
 
     // Per-life XP reward of Base at Stage.
     LOCKDOWN_API bool RewardXP(const FLDDemoContentParameters& Parameters, const FLDDemoMonsterDefinition& Base, uint8 Stage,

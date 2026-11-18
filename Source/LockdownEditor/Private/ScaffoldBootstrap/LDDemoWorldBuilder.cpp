@@ -497,7 +497,7 @@ bool LDDemoWorldBuilder::ValidateFrontend(const UWorld& World, FString& Error)
     return true;
 }
 
-bool LDDemoWorldBuilder::RefreshCampHomes(UWorld& World,const FLDDemoWorldGeometry& Previous,
+bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeometry& Previous,
     ULDMapDefinition& Definition,const FLDDemoContentSnapshot& Content,FString& Error)
 {
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
@@ -561,9 +561,41 @@ bool LDDemoWorldBuilder::RefreshCampHomes(UWorld& World,const FLDDemoWorldGeomet
         Point->Tags.Add(FName(*(FString(TEXT("LDSceneMember:"))+Addition.Id.ToString())));
         Point->SetActorLocation(Addition.Position);Point->SetActorLabel(Addition.Id.ToString());
     }
-    if(!Additions.IsEmpty() && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
-    {return Fail(Error,TEXT("Could not save the camp home additions."));}
-    UE_LOG(LogLDEditor,Display,TEXT("LD_CAMP_HOMES_REFRESHED added=%d scope=semantic_member_homes_only"),Additions.Num());
+    // Every other layout point by its semantic id: player starts by their start tag, the rest by LDSceneAnchor tags.
+    TSet<FString> Declared;
+    for(const auto& Anchor:Geometry->Anchors){Declared.Add(Anchor.Id);}
+    TSet<FString> Saved;
+    TArray<AActor*> Retired;
+    for(AActor* Actor:World.PersistentLevel->Actors)
+    {
+        if(!Actor){continue;}
+        if(const auto* Start=Cast<APlayerStart>(Actor)){Saved.Add(Start->PlayerStartTag.ToString());continue;}
+        for(const FName Tag:Actor->Tags)
+        {
+            const FString Text=Tag.ToString();
+            if(!Text.StartsWith(TEXT("LDSceneAnchor:"))){continue;}
+            const FString Id=Text.Mid(14);
+            ELDDemoWorldAnchorKind Optional;
+            if(!Declared.Contains(Id)&&!LDDemoWorld::OptionalKindOf(Id,Optional)){Retired.Add(Actor);}
+            Saved.Add(Id);
+        }
+    }
+    int32 Added=0;
+    for(const auto& Anchor:Geometry->Anchors)
+    {
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp||Saved.Contains(Anchor.Id)){continue;}
+        FVector Position;if(!Anchor.PositionCm.ToVector(Position,Error)){return false;}
+        auto* Point=World.SpawnActor<ATargetPoint>();
+        if(!Point){return Fail(Error,TEXT("Could not add a semantic layout point."));}
+        Point->Tags.Add(FName(*(FString(TEXT("LDSceneAnchor:"))+Anchor.Id)));
+        Point->SetActorLocation(Position);Point->SetActorLabel(Anchor.Id);
+        ++Added;
+    }
+    for(AActor* Actor:Retired){World.EditorDestroyActor(Actor,true);}
+    if((!Additions.IsEmpty()||Added>0||!Retired.IsEmpty()) && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
+    {return Fail(Error,TEXT("Could not save the layout point changes."));}
+    UE_LOG(LogLDEditor,Display,TEXT("LD_LAYOUT_POINTS_REFRESHED member_homes_added=%d points_added=%d points_removed=%d scope=semantic_layout_points_only"),
+        Additions.Num(),Added,Retired.Num());
     return true;
 }
 

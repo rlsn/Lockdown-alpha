@@ -45,7 +45,7 @@ bool RestTestFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentS
 }
 
 FLDGrowthBuild RestTestBuild(const FLDDemoContentDefinitions& Content, uint8 Level, TArray<FLDLearnedActive> Actives,
-    TArray<FName> Blueprints = {}, TArray<int32> Points = {}, int64 Awarded = 0)
+    TArray<FName> Blueprints = {}, TArray<int32> Points = {})
 {
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
     Build.Level = Level;
@@ -55,7 +55,6 @@ FLDGrowthBuild RestTestBuild(const FLDDemoContentDefinitions& Content, uint8 Lev
     {
         Build.StatPoints = MoveTemp(Points);
     }
-    Build.AwardedPoints = Awarded;
     LDProgression::NormalizeBuild(Build);
     return Build;
 }
@@ -134,7 +133,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
         {TEXT("rest window, dead"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead), true,
             {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead,
              EReason::Dead, EReason::None}},
-        {TEXT("rest PK or return step"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), false,
+        {TEXT("rest return step"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), false,
             {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked, Locked, Locked, EReason::None}},
         {TEXT("closed"), RestTestContext(ERestTestStage::Closed, ELDLifePhase::Alive), false,
             {Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
@@ -157,7 +156,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     bGood &= RestTestReason(Test, TEXT("LearnGate in the rest window"),
         LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive)), EReason::None);
-    bGood &= RestTestReason(Test, TEXT("LearnGate in a PK step (#222)"),
+    bGood &= RestTestReason(Test, TEXT("LearnGate in the return step (#222)"),
         LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), EReason::None);
     for (const uint8 Unknown : {uint8(4), uint8(19), uint8(20), uint8(29), uint8(40), uint8(255)})
     {
@@ -205,16 +204,16 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     FLDGrowthBuild Out;
     int64 Refunded = -1;
-    // Level 3 at 108 XP earned 9 points, 4 of them allocated, plus 2 PK points.
+    // Level 3 at 108 XP earned 9 points, 4 of them allocated.
     const int64 XP = 108;
-    const FLDGrowthBuild Built = RestTestBuild(Content, 3, {{Opening[0], 0}}, {}, {1, 0, 2, 0, 1}, 2);
+    const FLDGrowthBuild Built = RestTestBuild(Content, 3, {{Opening[0], 0}}, {}, {1, 0, 2, 0, 1});
     const int64 Before = RestTestUnspent(Content, Built, XP);
-    bool bGood = Test.TestEqual(TEXT("Before the respec, earned plus awarded minus allocated is unspent"), Before, int64(9 + 2 - 4));
+    bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated is unspent"), Before, int64(9 - 4));
     bGood &= RestTestReason(Test, TEXT("A respec in the rest window"),
         LDProgression::ApplyRespec(Content, Built, XP, Rest, Out, Refunded), ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("Every allocated point returns"),
         Refunded == 4 && Out.StatPoints == TArray<int32>({0, 0, 0, 0, 0})
-        && RestTestUnspent(Content, Out, XP) == 9 + 2 && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
+        && RestTestUnspent(Content, Out, XP) == 9 && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
     const FLDGrowthBuild Respecced = Out;
     bGood &= RestTestReason(Test, TEXT("A respec with nothing allocated"),
         LDProgression::ApplyRespec(Content, Respecced, XP, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);

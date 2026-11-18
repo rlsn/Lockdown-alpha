@@ -108,6 +108,18 @@ bool LDStaticScene::Validate(const UWorld& World, const ULDArtCatalog& Index, FS
     Error.Reset(); return true;
 }
 
+// A copied optional point's id: its kind-prefixed id plus the saved object name (lower-case letters, digits and '_'),
+// within the 63-character definition id limit.
+static FString OptionalCopyId(const FString& Id, const FString& ObjectName)
+{
+    FString Suffix;
+    for (const TCHAR Char : ObjectName.ToLower())
+    {
+        Suffix.AppendChar((Char >= TEXT('a') && Char <= TEXT('z')) || (Char >= TEXT('0') && Char <= TEXT('9')) ? Char : TEXT('_'));
+    }
+    return (Id + TEXT("_copy_") + Suffix).Left(63);
+}
+
 bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
     FLDDemoWorldGeometry& Out, FString& Error, bool bForPlay)
 {
@@ -157,9 +169,16 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         const FString Anchor = Value(*Actor, TEXT("LDSceneAnchor:"));
         const FString Member = Value(*Actor, TEXT("LDSceneMember:"));
         const auto* Start = Cast<APlayerStart>(Actor);
-        const FString Id = Start ? Start->PlayerStartTag.ToString() : !Anchor.IsEmpty() ? Anchor : Member;
+        FString Id = Start ? Start->PlayerStartTag.ToString() : !Anchor.IsEmpty() ? Anchor : Member;
         if (!Id.IsEmpty())
         {
+            ELDDemoWorldAnchorKind OptionalKind;
+            if (Points.Contains(Id) && LDDemoWorld::OptionalKindOf(Id, OptionalKind))
+            {
+                // Spec §11.4: a copied mini flag, locker or vending point is a new point of the same kind. Its identity
+                // derives from the saved object name, which a copy never shares.
+                Id = OptionalCopyId(Id, Actor->GetName());
+            }
             if (Points.Contains(Id)) { return Fail(TEXT("Duplicate layout point: ") + Id); }
             Points.Add(Id, Actor);
         }
@@ -317,6 +336,39 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         if (IA == INDEX_NONE && IB == INDEX_NONE) { return A.Id < B.Id; }
         return (IA == INDEX_NONE ? MAX_int32 : IA) < (IB == INDEX_NONE ? MAX_int32 : IB);
     });
+    // Spec §11.4: the mini flag, locker and vending points are whatever the saved level holds (moved, copied or deleted by
+    // the author), sorted by id; fewer than a kind's minimum is an authoring error, not a cue to restore old points.
+    Out.Anchors.RemoveAll([](const FLDDemoWorldAnchor& Anchor) { return LDDemoWorld::OptionalPrefix(Anchor.Kind) != nullptr; });
+    TArray<FString> OptionalIds;
+    for (const auto& Pair : Points)
+    {
+        ELDDemoWorldAnchorKind Kind;
+        if (LDDemoWorld::OptionalKindOf(Pair.Key, Kind)) { OptionalIds.Add(Pair.Key); }
+    }
+    OptionalIds.Sort();
+    int32 OptionalCounts[3] = {};
+    for (const FString& Id : OptionalIds)
+    {
+        auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
+        Anchor.Id = Id;
+        LDDemoWorld::OptionalKindOf(Id, Anchor.Kind);
+        Anchor.SurfaceId = Base.Surfaces[0].Id;
+        ++OptionalCounts[Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : Anchor.Kind == ELDDemoWorldAnchorKind::Locker ? 1 : 2];
+    }
+    // The definition keeps its anchors in ordinal id order; the projection matches it.
+    Out.Anchors.Sort([](const FLDDemoWorldAnchor& A, const FLDDemoWorldAnchor& B) { return A.Id.Compare(B.Id, ESearchCase::CaseSensitive) < 0; });
+    const struct { const TCHAR* Prefix; int32 Count; int32 Min; } Minimums[] = {
+        {LDDemoWorld::MiniFlagPrefix(), OptionalCounts[0], LDDemoWorld::MinMiniFlags},
+        {LDDemoWorld::LockerPrefix(), OptionalCounts[1], LDDemoWorld::MinLockers},
+        {LDDemoWorld::VendingPrefix(), OptionalCounts[2], LDDemoWorld::MinVending}};
+    for (const auto& Minimum : Minimums)
+    {
+        if (Minimum.Count < Minimum.Min)
+        {
+            return Fail(FString::Printf(TEXT("The level holds %d %s* layout points; at least %d are required. Copy an existing %s* point (or tag a TargetPoint LDSceneAnchor:%s<n>) and save."),
+                Minimum.Count, Minimum.Prefix, Minimum.Min, Minimum.Prefix, Minimum.Prefix));
+        }
+    }
     for (auto& Anchor : Out.Anchors)
     {
         const AActor* Actor = Points.FindRef(Anchor.Id);

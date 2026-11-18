@@ -1,8 +1,8 @@
 {
-  "schema_version": 4,
-  "projection_revision": 4,
+  "schema_version": 5,
+  "projection_revision": 5,
   "map_id": "demo_world",
-  "layout_revision": 13,
+  "layout_revision": 14,
   "geometry_revision": 11,
   "approval": {
     "status": "approved",
@@ -5023,7 +5023,8 @@
   },
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm",
-    "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"
+    "EXPLORE.LockerRadiusCm", "OBJECTIVE.FlagRadiusCm", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
+    "VISION.RadiusCm"
   ],
   "anchors": [
     {"id": "rest_spawn_0", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 6500, "y": -500, "z": 0}},
@@ -5239,43 +5240,58 @@
  {"id": "l22_2", "position_cm": {"x": -3168, "y": -2178, "z": 0}}]
     },
     {
-      "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7590, "y": 100, "z": 0}
+      "id": "locker_0", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": 4600, "y": -3600, "z": 100}
     },
     {
-      "id": "pk_signup_1", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7545, "y": 178, "z": 0}
+      "id": "locker_1", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": 2700, "y": -4600, "z": 100}
     },
     {
-      "id": "pk_signup_2", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7455, "y": 178, "z": 0}
+      "id": "locker_2", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": -4600, "y": 3600, "z": 100}
     },
     {
-      "id": "pk_signup_3", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7410, "y": 100, "z": 0}
+      "id": "locker_3", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": -2600, "y": 4600, "z": 100}
     },
     {
-      "id": "pk_signup_4", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7455, "y": 22, "z": 0}
+      "id": "locker_4", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": -200, "y": 4600, "z": 100}
     },
     {
-      "id": "pk_signup_5", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7545, "y": 22, "z": 0}
+      "id": "locker_5", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": 4300, "y": -2100, "z": 100}
     },
     {
-      "id": "pk_spawn_0", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 959, "y": 427, "z": 0}
+      "id": "locker_6", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": -3700, "y": -4600, "z": 100}
     },
     {
-      "id": "pk_spawn_1", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 110, "y": 1044, "z": 0}
+      "id": "locker_7", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": 3100, "y": -3200, "z": 50}
     },
     {
-      "id": "pk_spawn_2", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -849, "y": 617, "z": 0}
+      "id": "locker_8", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": 3400, "y": 4600, "z": 100}
     },
     {
-      "id": "pk_spawn_3", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -959, "y": -427, "z": 0}
+      "id": "locker_9", "kind": "Locker", "surface_id": "demo_ground", "position_cm": {"x": -3200, "y": 3300, "z": 50}
     },
     {
-      "id": "pk_spawn_4", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -110, "y": -1044, "z": 0}
+      "id": "mini_flag_0", "kind": "MiniFlag", "surface_id": "demo_ground", "position_cm": {"x": 2300, "y": 2600, "z": 0}
     },
     {
-      "id": "pk_spawn_5", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 849, "y": -617, "z": 0}
+      "id": "mini_flag_1", "kind": "MiniFlag", "surface_id": "demo_ground", "position_cm": {"x": -2400, "y": -2500, "z": 0}
     },
     {
-      "id": "pk_throw", "kind": "PKThrow", "surface_id": "demo_ground", "position_cm": {"x": 416, "y": 1956, "z": 0}
+      "id": "mini_flag_2", "kind": "MiniFlag", "surface_id": "demo_ground", "position_cm": {"x": -1400, "y": 1900, "z": 50}
+    },
+    {
+      "id": "mini_flag_3", "kind": "MiniFlag", "surface_id": "demo_ground", "position_cm": {"x": 2000, "y": -1000, "z": 0}
+    },
+    {
+      "id": "vending_0", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": 4100, "y": 700, "z": 100}
+    },
+    {
+      "id": "vending_1", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": 100, "y": -2600, "z": 0}
+    },
+    {
+      "id": "vending_2", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": -3400, "y": 700, "z": 50}
+    },
+    {
+      "id": "vending_3", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": -200, "y": -1300, "z": 0}
     },
     {
       "id": "s00", "kind": "Spawn", "surface_id": "demo_ground", "position_cm": {"x": -2413, "y": 4481, "z": 100}

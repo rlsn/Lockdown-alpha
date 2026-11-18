@@ -1,4 +1,5 @@
 #include "Development/LDGrowthDirector.h"
+#include "UI/LDTerms.h"
 #include "Core/LDLog.h"
 
 #include "Combat/LDAssistRules.h"
@@ -89,7 +90,6 @@ ELDGrowthReason GrowthNoRewardReason(ELDNoRewardReason Reason)
     case ELDNoRewardReason::NoOwner: return ELDGrowthReason::NoRewardNoOwner;
     case ELDNoRewardReason::SelfInflicted: return ELDGrowthReason::NoRewardSelf;
     case ELDNoRewardReason::OwnerLeft: return ELDGrowthReason::NoRewardOwnerLeft;
-    case ELDNoRewardReason::PKArena: return ELDGrowthReason::NoRewardPKArena;
     default: return ELDGrowthReason::DataInvalid;
     }
 }
@@ -324,6 +324,19 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, AmountReason);
     }
+    // Spec §11.1 exam week and §11.2 team building scale a monster's XP (rounded down).
+    if (!bContenderVictim)
+    {
+        const auto& P = Content->Get().Parameters;
+        int64 Bp = 10000;
+        if (M->HasDaily(ELDDailyModifier::Exam)) { Bp = Bp * P.Daily.ExamMonsterXPScaleBp / 10000; }
+        if (ELDCampAffix(Basis.CampAffixAtDeath) == ELDCampAffix::Teambuild) { Bp = Bp * P.Affix.TeambuildXPScaleBp / 10000; }
+        if (Bp != 10000)
+        {
+            if (Amounts.XP > MAX_int64 / Bp) { return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow); }
+            Amounts.XP = Amounts.XP * Bp / 10000;
+        }
+    }
 
     if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
     {
@@ -357,14 +370,18 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(Outcome, Reason);
     }
-    // Spec §3.13: a contender kill pays the killer and each assister their vouchers with the same reward.
+    // Spec §3.13: a contender kill pays the killer and each assister their vouchers with the same reward; spec §10.4 adds
+    // the bounty when the victim was trending.
     if (bContenderVictim)
     {
         const FLDDemoVoucherParameters& Vouchers = Content->Get().Parameters.Vouchers;
-        ELDGrowthReason VoucherReason = M->Development->GrantVouchers(Recipient, Vouchers.Kill, 0, TEXT("kill"), Permit);
+        const bool bBounty = M->IsBountyDeath(Death.Key);
+        ELDGrowthReason VoucherReason = M->Development->GrantVouchers(Recipient, Vouchers.Kill + (bBounty ? Vouchers.BountyKill : 0), 0,
+            bBounty ? TEXT("bounty_kill") : TEXT("kill"), Permit);
         for (int32 Index = 0; Index < Death.Assisters.Num() && VoucherReason == ELDGrowthReason::None; ++Index)
         {
-            VoucherReason = M->Development->GrantVouchers(Death.Assisters[Index], Vouchers.Assist, 0, TEXT("assist"), Permit);
+            VoucherReason = M->Development->GrantVouchers(Death.Assisters[Index], Vouchers.Assist + (bBounty ? Vouchers.BountyAssist : 0), 0,
+                bBounty ? TEXT("bounty_assist") : TEXT("assist"), Permit);
         }
         if (VoucherReason != ELDGrowthReason::None)
         {
@@ -387,8 +404,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitFieldReward(const FGuid& Recipient, FN
     ELDFieldRewardKind Kind, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
 {
     Reason = ELDGrowthReason::None;
-    const bool bKnownKind = Kind == ELDFieldRewardKind::None || Kind == ELDFieldRewardKind::BuildDraw
-        || Kind == ELDFieldRewardKind::Blueprint || Kind == ELDFieldRewardKind::CardOffer;
+    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BonusOffer);
     if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || !bKnownKind || (Kind == ELDFieldRewardKind::None && XP == 0))
     {
         Reason = ELDGrowthReason::DataInvalid;
@@ -1219,6 +1235,11 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
         }
         case ELDDevTestOp::SkipPreparation:
             if (!M->DevSkipPreparation(Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
+        case ELDDevTestOp::SetDailyPreset:
+            if (!LDDevTest::DecodeDailyPreset(Command.Amount, &M->DevDailyPreset)) { Reason = ELDGrowthReason::InvalidRequest; break; }
+            Detail = M->DevDailyPreset.IsEmpty() ? FString(TEXT("下一局抽取热点"))
+                : FString::Printf(TEXT("下一局热点：%s、%s"), LDTerms::DailyName(M->DevDailyPreset[0]), LDTerms::DailyName(M->DevDailyPreset[1]));
             break;
         case ELDDevTestOp::SetPeaceful:
             if (!M->DevSetPeaceful(ContenderId, Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }

@@ -62,7 +62,12 @@ enum class ELDCardTargetKind : uint8 { None = 0, Basic = 1, Skill = 2, Dash = 3,
 // What filled one card offer slot of the queue (spec §6.4): the R0 opening offer, a level-up, or a field reward (an
 // airdrop or the Boss build draw, an elite camp marker).
 UENUM()
-enum class ELDCardOfferSource : uint8 { None = 0, Opening = 1, LevelUp = 2, FieldReward = 3 };
+// Spec §10.3/§11.2/§11.3 (P6): the mid-field objectives, lockers, the dealer and the fridge and bonus affixes give their own
+// offers, each with its content size (OBJECTIVE.*CardOffer, EXPLORE.*CardOffer, AFFIX.*CardOffer).
+enum class ELDCardOfferSource : uint8
+{
+    None = 0, Opening = 1, LevelUp = 2, FieldReward = 3, MiniFlag = 4, Arena = 5, Locker = 6, Peddler = 7, CampFridge = 8, CampBonus = 9
+};
 
 USTRUCT()
 struct LOCKDOWN_API FLDFinalModSelection
@@ -89,7 +94,12 @@ enum class ELDFieldRewardResult : uint8 { None = 0, Blueprint = 1, BlueprintHeld
 // The build part a map event pays (server-internal). BuildDraw: the Boss/airdrop build reward (50% active blueprint / 50%
 // one card offer; no eligible active gives the card offer); Blueprint: the high-tier camp marker's active blueprint (an
 // empty pool holds it); CardOffer: the elite camp marker's card offer.
-enum class ELDFieldRewardKind : uint8 { None = 0, BuildDraw = 1, Blueprint = 2, CardOffer = 3 };
+// MiniFlagOffer..BonusOffer (P6): a card offer of that source's size.
+enum class ELDFieldRewardKind : uint8
+{
+    None = 0, BuildDraw = 1, Blueprint = 2, CardOffer = 3, MiniFlagOffer = 4, ArenaOffer = 5, LockerOffer = 6, PeddlerOffer = 7,
+    FridgeOffer = 8, BonusOffer = 9
+};
 
 // What an applied ActiveChoice or LearnBlueprint did with its active.
 UENUM()
@@ -119,8 +129,8 @@ enum class ELDGrowthReason : uint16
     NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, InvalidTarget = 64,
     // WorkshopFull: every capacity slot of the level holds an installed card. 150 (TargetConflict) is retired.
     WorkshopFull = 151,
-    // #198 rest: an NPC service in a rest step outside the build and payout windows (draw, betting, PK, settlement, return
-    // countdown); #222 keeps the own build commands open there.
+    // #198 rest: an NPC service in a rest step outside the build window (the return countdown); #222 keeps the own build
+    // commands open there.
     BuildLocked = 70,
     // 71 (NpcPoolTooSmall, the retired skill merchant) is reserved.
     // An active offer is outstanding.
@@ -135,8 +145,6 @@ enum class ELDGrowthReason : uint16
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,
     NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114,
-    // #198 session D (allocated 140-149): a PK arena death pays no kill/assist reward; a PK award identity paid twice.
-    NoRewardPKArena = 140, PKAwardDuplicate = 141,
     // FieldRewardDuplicate: a map event paid twice.
     FieldRewardDuplicate = 167,
     // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
@@ -386,6 +394,8 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() TArray<FLDActiveSlotView> Actives;
     // Skill points earned at SKILL.PointLevels and not yet spent on a rank (LDProgression::SkillPoints).
     UPROPERTY() int32 SkillPoints = 0;
+    // Spec §11.2: the skill points the audit affix paid (part of SkillPoints' earned side).
+    UPROPERTY() int32 AffixSkillPoints = 0;
     // Chosen actives waiting to be learned (待学图纸), sorted by id.
     UPROPERTY() TArray<FName> PendingBlueprints;
     UPROPERTY() uint8 ActiveOpportunitiesEarned = 0;

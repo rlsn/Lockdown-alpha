@@ -3,9 +3,11 @@
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
+#include "Character/LDNativeMotionTypes.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
 #include "World/LDCampDirector.h"
@@ -399,16 +401,14 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     }
     int64 RespawnAt = 0;
     // #198: a rest life has no field eligibility; it stands up again at once at its shared-room seat.
-    // A growth-field death's wait is fixed by its field progress T; final lives use the bounded showdown queue.
-    // #198 session D: a PK death is an elimination, never a field death: the contender stands up again in its private
-    // rest space at once and watches the rest of the PK (no capture eligibility, K/D or respawn wait).
-    const bool bPKLife = PKLives.Contains(Fact.Key.Victim.EntityId);
-    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId) || bPKLife;
+    // Spec §10.4: a field death waits 6 + 0.5 x level s; final lives use the bounded showdown queue.
+    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId);
     const FGuid Id = Fact.Key.Victim.EntityId;
     const bool bFinal = !bRestLife && Showdown.bStarted;
+    const FLDGrowthBuild* DeadBuild = Development ? Development->FindBuild(Id) : nullptr;
     const int64 WaitMs = bRestLife ? 0 : bFinal
         ? ShowdownRules.RespawnWaitMs(ShowdownRespawns.FindRef(Id), Fact.OccurredAtMs - Showdown.StartedAtMs)
-        : RespawnWaitAtFieldMs(Timeline.FieldMsAt(Fact.OccurredAtMs));
+        : FieldRespawnWaitMs(DeadBuild ? DeadBuild->Level : 1);
     if (Life->Revision == MAX_uint64 || (!bRestLife && !bFinal && WaitMs <= 0)
         || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, WaitMs, RespawnAt, Error))
     {
@@ -449,7 +449,10 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     Life->RespawnDurationMs = RespawnAt > 0 ? WaitMs : 0;
     if (bFinal && RespawnAt > 0) { ++ShowdownRespawns.FindOrAdd(Id); }
     if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
-    PKLives.Remove(Fact.Key.Victim.EntityId);
+    // Spec §10.4: a field death chooses its next spot among the drawn candidates on the death screen.
+    if (!bRestLife && !bFinal && RespawnAt > 0) { OpenSpawnChoice(Id, Life->Life, Fact.OccurredAtMs); }
+    // Spec §10.4: a trending contender's death pays its killer and assisters the bounty.
+    if (!bRestLife && LeaderNotice.IsTrending(Id)) { BountyDeaths.Add(Fact.Key); }
     Life->Body = {};
     if (auto* Body = Life->Actor.Get())
     {
@@ -458,7 +461,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     }
     Life->Actor.Reset();
     if (Controller) { SyncOwner(Controller); }
-    // A rest or PK life stands up again at once and has no death banner, so it gets no recap.
+    // A rest life stands up again at once and has no death banner, so it gets no recap.
     if (!bRestLife) { SendDeathRecap(Fact); }
     NotifyLife(Fact.VictimBody, ELDLifeChange::Died, Life->Revision, Fact.OccurredAtMs);
     // Killer (credit owner), fatal source and assisters are appended after the original fields (docs/DEVELOPMENT.md).
@@ -908,6 +911,12 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
             Target.Kind = FLDPlacementTarget::EKind::Anchor;
             Target.Anchor = FName(*FString::Printf(TEXT("final_spawn_%d"), RosterOrder.IndexOfByKey(Id)));
         }
+        else if (const FLDSpawnChoice* Choice = SpawnChoices.Find(Id); Choice && Choice->Life == Life.Life && !Choice->Resolved().IsNone())
+        {
+            // Spec §10.4: the spot the dead contender chose on its death screen (else the first candidate).
+            Target.Kind = FLDPlacementTarget::EKind::Anchor;
+            Target.Anchor = Choice->Resolved();
+        }
         if (!PlaceContenderBody(Id, NewLife, Permit, Placed, Error, Target)
             || !Combat->PrepareContenderBody(*Placed.Body.Get(), {ELDVictimKind::Contender, Id, NewLife}, Permit, CombatState, Error)
             || !Registry->ValidateSpawnReservation(Placed.Reservation, Permit, Placed.Body.Get(), Error))
@@ -975,7 +984,7 @@ bool ALDGameMode::SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, con
             return false;
         }
         const FLDVictimKey Victim{ELDVictimKind::CampMember, Spawn.EntityId, (Life ? Life->Life : 0) + 1};
-        if (!Combat->PrepareCampMemberBody(*Body, Victim, Spawn.MonsterId, Spawn.CampStage, Permit, Prepared.Emplace_GetRef(), Error))
+        if (!Combat->PrepareCampMemberBody(*Body, Victim, Spawn.MonsterId, Spawn.CampStage, Spawn.Affix, Spawn.bPeddler, Permit, Prepared.Emplace_GetRef(), Error))
         {
             return false;
         }
@@ -1077,4 +1086,24 @@ void ALDGameMode::RemoveLifeBinding(const FGuid& EntityId)
     }
     Life->Body = {};
     Life->Actor.Reset();
+}
+
+bool ALDGameMode::ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBody, FVector& OutFootCm) const
+{
+    const FLDLifeRecord* Life = Lives.Find(Contender);
+    if (!Life || Life->Kind != ELDVictimKind::Contender || Life->Phase != ELDLifePhase::Alive || !Life->Body.IsValid())
+    {
+        return false;
+    }
+    OutBody = Life->Body;
+    OutFootCm = Life->MotionLastFoot;
+    return true;
+}
+
+const FLDNativeMotionBatch* ALDGameMode::ReadStepMotion(const FGuid& Contender) const
+{
+    const FLDLifeRecord* Life = Lives.Find(Contender);
+    if (!bAuthorityStepOpen || !Life || Life->Phase != ELDLifePhase::Alive || Life->NativeMotion.IsEmpty()) { return nullptr; }
+    const TSharedPtr<const FLDNativeMotionBatch>& Last = Life->NativeMotion.Last();
+    return Last.IsValid() && Last->Step == AuthorityStep && Last->Body == Life->Body ? Last.Get() : nullptr;
 }

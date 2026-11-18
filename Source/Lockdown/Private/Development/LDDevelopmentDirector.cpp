@@ -383,7 +383,6 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { MatchSecret = Seeds->MatchSecret; }
 #endif
     Records = MoveTemp(NewRecords);
-    PaidPKAwards.Reset();
 #if WITH_DEV_AUTOMATION_TESTS
     // Presets staged in the Lobby serve this match's first heads, the opening offer included; nothing older survives.
     LDDevGrowthFixture::TakeStaged(Roster, DevOfferQueue);
@@ -501,12 +500,13 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         FLDShopSlotView& Row = View.Shop.Slots.AddDefaulted_GetRef();
         Row.Kind = Slot.Kind;
         Row.DefinitionId = Slot.Definition;
-        Row.Price = LDProgression::ShopPrice(Definitions.Parameters, Slot.Kind);
+        Row.Price = LDProgression::ShopPrice(Definitions.Parameters, Slot.Kind, Progression.Shop);
         Row.bSold = Slot.bSold;
     }
     View.Shop.RefreshPrice = LDProgression::ShopRefreshPrice(Definitions.Parameters, Progression.Shop);
-    View.Shop.SkillPointPrice = ShopTerms.SkillPointPrice;
+    View.Shop.SkillPointPrice = LDProgression::ShopSkillPointPrice(Definitions.Parameters, Progression.Shop);
     View.Shop.SkillPointsBought = Build.BoughtSkillPoints;
+    View.AffixSkillPoints = Build.AffixSkillPoints;
     View.Shop.SkillPointsMax = ShopTerms.SkillPointMaxPerMatch;
     View.Shop.SellPrice = ShopTerms.SellPrice;
     View.HeldBlueprints = Progression.HeldBlueprints;
@@ -1131,57 +1131,53 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     return Receipt;
 }
 
-ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId,
-    bool bExtraFinalModCard, const FLDGameplayWritePermit& Permit)
-{
-    ALDGameMode* GameMode = Mode();
-    FRecord* Record = Records.Find(ContenderId);
-    if (!GameMode || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
-    {
-        return ELDGrowthReason::AuthorityFault;
-    }
-    if (!Record) { return ELDGrowthReason::NotContender; }
-    if (Points < 1 || !AwardId.IsValid()) { return ELDGrowthReason::InvalidRequest; }
-    if (PaidPKAwards.Contains(AwardId)) { return ELDGrowthReason::PKAwardDuplicate; }
-    FLDGrowthBuild NewBuild = Record->Build;
-    if (NewBuild.AwardedPoints > MAX_int64 - Points) { return ELDGrowthReason::ArithmeticOverflow; }
-    NewBuild.AwardedPoints += Points;
-    FLDProgressionState NewProgression = Record->Progression;
-    const bool bNewCard = bExtraFinalModCard && !NewProgression.bExtraFinalModCard;
-    if (bNewCard && NewProgression.FinalMod.OfferId.IsValid()) { return ELDGrowthReason::PhaseClosed; }
-    NewProgression.bExtraFinalModCard |= bNewCard;
-    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), bNewCard, Permit);
-    if (Reason == ELDGrowthReason::None)
-    {
-        PaidPKAwards.Add(AwardId);
-        GameMode->Growth->MarkDirty(ContenderId);
-        UE_LOG(LogLDGrowth, Display, TEXT("LD_PK_POINTS contender=%s award=%s points=%lld awarded_total=%lld"),
-            *LDLog::Id(ContenderId), *LDLog::Id(AwardId), Points, Record->Build.AwardedPoints);
-    }
-    return Reason;
-}
-
-bool ALDDevelopmentDirector::GrantBossFinalModCard(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDDevelopmentDirector::GrantExtraFinalModCard(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     ALDGameMode* GameMode = Mode();
     FRecord* Record = Records.Find(ContenderId);
     if (!GameMode || !GameMode->Growth || Permit.GetBoundary().Match != Match
-        || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None || !Record)
+        || (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None
+            && GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None) || !Record)
     {
-        Error = TEXT("The boss final-mod reward requires the current death permit and a contender's growth record.");
+        Error = TEXT("The extra final-mod option requires the current death or Transactions permit and a contender's growth record.");
         return false;
     }
     FLDProgressionState& Progression = Record->Progression;
     if (Progression.bExtraFinalModCard) { Error.Reset(); return true; }
     if (Progression.FinalMod.OfferId.IsValid() || Progression.Revision == MAX_uint64)
     {
-        Error = TEXT("The boss final-mod reward cannot be applied after the offer opens or its revision is exhausted.");
+        Error = TEXT("The extra final-mod option cannot be applied after the offer opens or its revision is exhausted.");
         return false;
     }
     Progression.bExtraFinalModCard = true;
     ++Progression.Revision;
     GameMode->Growth->MarkDirty(ContenderId);
     Error.Reset();
+    return true;
+}
+
+bool ALDDevelopmentDirector::GrantSkillPoint(const FGuid& ContenderId, const TCHAR* Cause, const FLDGameplayWritePermit& Permit,
+    FString& Error)
+{
+    ALDGameMode* GameMode = Mode();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!GameMode || !GameMode->Growth || !Content.IsValid() || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None || !Record)
+    {
+        Error = TEXT("A skill point grant needs a world permit and a contender's growth record.");
+        return false;
+    }
+    FLDGrowthBuild NewBuild = Record->Build;
+    ++NewBuild.AffixSkillPoints;
+    FLDProgressionState NewProgression = Record->Progression;
+    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), false, Permit);
+    if (Reason != ELDGrowthReason::None)
+    {
+        Error = FString::Printf(TEXT("The %s skill point to %s was refused: %s."), Cause, *LDLog::Id(ContenderId), LDGrowthWire::ReasonName(Reason));
+        return false;
+    }
+    GameMode->Growth->MarkDirty(ContenderId);
+    UE_LOG(LogLDGrowth, Display, TEXT("LD_SKILL_POINT contender=%s cause=%s"), *LDLog::Id(ContenderId), Cause);
     return true;
 }
 
@@ -1272,6 +1268,7 @@ bool ALDDevelopmentDirector::StockRestShops(const FLDGameplayWritePermit& Permit
         FLDProgressionState Next = Pair.Value.Progression;
         if (Next.Revision == MAX_uint64) { Error = FString::Printf(TEXT("the progression revision of %s is exhausted"), *LDLog::Id(Pair.Key)); return false; }
         const ELDGrowthReason Reason = LDProgression::StockShop(Content->Get(), Pair.Value.Build, Next, MatchSecret, Pair.Key, true);
+        Next.Shop.bSale = GameMode->HasDaily(ELDDailyModifier::Sale);
         if (Reason != ELDGrowthReason::None)
         {
             Error = FString::Printf(TEXT("the rest shop of %s does not stock: %s"), *LDLog::Id(Pair.Key), LDGrowthWire::ReasonName(Reason));
@@ -1313,6 +1310,29 @@ ELDGrowthReason ALDDevelopmentDirector::GrantVouchers(const FGuid& ContenderId, 
     GameMode->Growth->MarkDirty(ContenderId);
     UE_LOG(LogLDGrowth, Log, TEXT("LD_VOUCHER t=%lld contender=%s cause=%s vouchers=%+d after=%d tickets=%+d tickets_after=%d"),
         GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), Cause, Vouchers, Record->Progression.Vouchers, PickTickets,
+        Record->Progression.PickTickets);
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::SpendVouchers(const FGuid& ContenderId, int32 Vouchers, const TCHAR* Cause,
+    const FLDGameplayWritePermit& Permit)
+{
+    ALDGameMode* GameMode = Mode();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!GameMode || !GameMode->Growth || !Content.IsValid() || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    if (!Record) { return ELDGrowthReason::NotContender; }
+    if (Vouchers < 1) { return ELDGrowthReason::DataInvalid; }
+    if (Record->Progression.Vouchers < Vouchers) { return ELDGrowthReason::NotEnoughVouchers; }
+    if (Record->Progression.Revision == MAX_uint64) { return ELDGrowthReason::ArithmeticOverflow; }
+    Record->Progression.Vouchers -= Vouchers;
+    ++Record->Progression.Revision;
+    GameMode->Growth->MarkDirty(ContenderId);
+    UE_LOG(LogLDGrowth, Log, TEXT("LD_VOUCHER t=%lld contender=%s cause=%s vouchers=%+d after=%d tickets=+0 tickets_after=%d"),
+        GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), Cause, -Vouchers, Record->Progression.Vouchers,
         Record->Progression.PickTickets);
     return ELDGrowthReason::None;
 }
@@ -1580,8 +1600,7 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& C
     }
     // One revision step each for the whole reward, whether or not the XP part already moved it.
     if (Prepared.NewBuild.Revision == Prepared.ExpectedBuildRevision
-        && (Prepared.NewBuild.PendingBlueprints != BuildBefore.PendingBlueprints
-            || Prepared.NewBuild.AwardedPoints != BuildBefore.AwardedPoints))
+        && Prepared.NewBuild.PendingBlueprints != BuildBefore.PendingBlueprints)
     {
         if (Prepared.NewBuild.Revision == MAX_uint64)
         {

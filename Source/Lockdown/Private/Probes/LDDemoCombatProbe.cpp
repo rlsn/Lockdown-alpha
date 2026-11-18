@@ -17,6 +17,7 @@
 #include "Framework/LDCommandLiveness.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDPacingTypes.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -749,8 +750,8 @@ public:
         {
             return false;
         }
-        // The Host kills Client1 inside the first field segment, whose approved respawn wait is LIFE.RespawnSec.Field1.
-        RespawnSeconds = double(Defs.Parameters.RespawnField1Ms) / 1000.0;
+        // Spec §10.4: no field respawn waits longer than the approved wait at the top level on an exam day.
+        RespawnSeconds = double(LDPacing::FieldRespawnWaitMs(Defs.Parameters, Defs.Progression.MaxLevel, true)) / 1000.0;
         if (!CaptureAnchor || CaptureReach <= 0 || BodyRadius <= 0 || AttackReach <= 0
             || RespawnSeconds <= 0 || Defs.Parameters.ProtectionMs <= 0
             || Gap <= AttackReach + 2.0 * BodyRadius || Gap >= SightReach - 2.0 * BodyRadius)
@@ -1945,14 +1946,14 @@ public:
                 return Fail(TEXT("Death"), FString::Printf(TEXT("The death facts never completed (feed=%d order=%s)"),
                     int32(Notice != nullptr), *PC.Navigation->Status));
             }
-            // #198: a field death waits the approved respawn of the segment its field progress T falls in (8/10/12/15 s).
+            // Spec §10.4: a field death waits 6 + 0.5 x the victim's level s.
             const int64 DeathT = Mode.GetTimeline().FieldMsAt(Notice->OccurredAtMs);
-            const int64 Delay = Mode.RespawnWaitAtFieldMs(DeathT);
+            const FLDGrowthBuild* VictimBuild = Mode.Development ? Mode.Development->FindBuild(ClientId) : nullptr;
+            const int64 Delay = VictimBuild ? Mode.FieldRespawnWaitMs(VictimBuild->Level) : 0;
             Check(Notice->Killer == HostId && Notice->Cause == ELDKillCause::Contender, TEXT("Death"),
                 TEXT("The public kill feed credits the Host contender with the right-click kill"));
-            Check(Delay > 0 && (DeathT >= Catalog->Get().Parameters.FieldSegmentMs || Delay == Catalog->Get().Parameters.RespawnField1Ms)
-                && Victim.RespawnAtMs == Notice->OccurredAtMs + Delay, TEXT("Death"),
-                TEXT("The death schedules exactly the approved respawn wait of its field segment"),
+            Check(Delay > 0 && Victim.RespawnAtMs == Notice->OccurredAtMs + Delay, TEXT("Death"),
+                TEXT("The death schedules exactly the approved respawn wait of the victim's level"),
                 FString::Printf(TEXT("died_ms=%lld field_t_ms=%lld respawn_at_ms=%lld delay_ms=%lld"), Notice->OccurredAtMs, DeathT,
                     Victim.RespawnAtMs, Delay));
             Check(true, TEXT("Death"), TEXT("The right-click order ends with TargetDied when its target dies"));

@@ -109,7 +109,7 @@ FLDBossView FLDBossState::View() const
 }
 
 bool LDBoss::Resolve(const FLDDemoContentSnapshot& Content, const FLDDemoWorldGeometry& Geometry, int64 StartedAtMs,
-    FLDBossState& Out, FString& Error)
+    bool bPatrolDay, FLDBossState& Out, FString& Error)
 {
     Out = {};
     const FLDDemoContentDefinitions& D = Content.Get();
@@ -119,7 +119,8 @@ bool LDBoss::Resolve(const FLDDemoContentSnapshot& Content, const FLDDemoWorldGe
     FLDBossState Candidate;
     FLDBossRules& R = Candidate.Rules;
     R.StartedAtMs = StartedAtMs;
-    R.AppearAtMs = D.Boss.AppearAtMs;
+    // Spec §11.1 patrol day: the Boss comes out early.
+    R.AppearAtMs = bPatrolDay ? D.Parameters.Daily.PatrolBossAppearMs : D.Boss.AppearAtMs;
     R.LeaveAtMs = D.Boss.LeaveAtMs;
     R.AggroRadiusCm = Cm(D.Boss.AggroRadiusCm);
     R.AttackerMemoryMs = D.Boss.AttackerMemoryMs;

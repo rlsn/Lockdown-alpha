@@ -49,8 +49,14 @@ struct FLDDemoWorldBlocker
     UPROPERTY() bool BlocksSight = false;
 };
 
+enum class ELDDemoWorldAnchorKind : uint8;
+
 namespace LDDemoWorld
 {
+    // The kind prefix of an optional point id (MiniFlag, Locker, Vending), or nullptr for a required kind.
+    LOCKDOWN_API const TCHAR* OptionalPrefix(ELDDemoWorldAnchorKind Kind);
+    // The optional kind whose prefix Id carries; false when none does.
+    LOCKDOWN_API bool OptionalKindOf(const FString& Id, ELDDemoWorldAnchorKind& Out);
     // Sides of the regular polygon that stands in for a cylinder where a consumer needs vertices (meshes, overlap
     // tests). It circumscribes the true circle, so a point outside the polygon is outside the cylinder.
     constexpr int32 CylinderSides = 24;
@@ -61,15 +67,14 @@ namespace LDDemoWorld
     // capture, exactly four Boss waypoints).
     constexpr int32 MaxAnchors = 128, MinSpawns = 6, MaxSpawns = 32, MaxCamps = 48, MaxDorms = 8,
         MaxAirdrops = 16, BossWaypoints = 4, MaxBlockers = 2048;
-    // #198 approved PK anchors: six spawns pk_spawn_0..5, 1000..1400 cm from the capture anchor and at least 1000 cm
-    // apart at 60 degree counterclockwise steps (+-1 degree), and one throw anchor pk_throw outside the 1800 cm arena
-    // with the whole arena within the 4000 cm throw range.
-    constexpr int32 PKSpawns = 6, PKSpawnRingMinCm = 1000, PKSpawnRingMaxCm = 1400, PKSpawnSpacingCm = 1000,
-        PKArenaRadiusCm = 1800, PKThrowRangeCm = 4000;
-    // Six standing positions define the centre of one shared AIRDROP.PickupRadiusCm sign-up disk.
-    constexpr int32 PKSignups = 6;
-    // A distinct standing position for each roster slot (0..PKSignups-1).
-    inline FString PKSignupId(int32 Slot) { return FString::Printf(TEXT("pk_signup_%d"), Slot); }
+    // Spec §11.4 (P6) optional layout points: as many as the level holds, at least the minimum. Every id carries its kind
+    // prefix; a copied point takes a fresh id (LDStaticScene).
+    constexpr int32 MinMiniFlags = 3, MaxMiniFlags = 16, MinLockers = 6, MaxLockers = 32, MinVending = 2, MaxVending = 16;
+    inline const TCHAR* MiniFlagPrefix() { return TEXT("mini_flag_"); }
+    inline const TCHAR* LockerPrefix() { return TEXT("locker_"); }
+    inline const TCHAR* VendingPrefix() { return TEXT("vending_"); }
+    // The shared rest room seats the six roster slots.
+    constexpr int32 RosterSlots = 6;
     constexpr int32 FinalSpawns = 6;
     inline FString FinalSpawnId(int32 Slot) { return FString::Printf(TEXT("final_spawn_%d"), Slot); }
     inline FString FinalCaptureId() { return TEXT("final_capture"); }
@@ -159,11 +164,11 @@ UENUM()
 // D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 // pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 // D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
-// #198: PKSpawn is one of the six PK ring spawns pk_spawn_0..5 around the capture anchor; PKThrow is the fixed
-// off-arena spectator throw origin pk_throw. Points only, read through the content World references. PKSignup is the
-// PK sign-up disk of one roster slot's private rest space (pk_signup_0..5), read by its canonical id.
+// Spec §11.4 (P6): MiniFlag is a candidate spot of a segment's spray mini flag (an OBJECTIVE.FlagRadiusCm disk), Locker a
+// delivery locker (an EXPLORE.LockerRadiusCm pickup disk), Vending a vending machine (an AIRDROP.PickupRadiusCm
+// interaction disk). They are optional, copyable points named mini_flag_*, locker_* and vending_*.
 // FinalSpawn and FinalCapture identify the isolated endgame field's entry ring and capture point.
-enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, PKSpawn, PKThrow, PKSignup, RestSpawn, RestService, TrainingDummy, FinalSpawn, FinalCapture };
+enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, MiniFlag, Locker, Vending, RestSpawn, RestService, TrainingDummy, FinalSpawn, FinalCapture };
 
 USTRUCT()
 struct FLDDemoWorldAnchor

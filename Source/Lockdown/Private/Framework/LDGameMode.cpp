@@ -5,6 +5,8 @@
 #include "Framework/LDPlayerController.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthDirector.h"
+#include "Development/LDDevelopmentDirector.h"
+#include "Combat/LDCombatDirector.h"
 #include "Region/LDMapRegistry.h"
 #include "UI/LDHUDModel.h"
 #include "Probes/LDDemoEntryProbe.h"
@@ -218,12 +220,9 @@ void ALDGameMode::Logout(AController* Exiting)
         Left.Change=ELDLifeChange::Left;
         Left.OccurredAtMs=AuthorityNowMs;
         RemoveLifeBinding(Session);
-        // #198: a leaver is out of the rest sign-up and of every pending rest placement (locked PK entrants stay for D).
-        RestSignups.Remove(Session);
+        // #198: a leaver is out of every pending rest placement.
         PendingPhasePlacement.Remove(Session);
         RestLives.Remove(Session);
-        // #198 session D: a PK entrant that leaves forfeits (ALDPKDirector reads presence at its next judgement).
-        PKLives.Remove(Session);
         RestReturns.Remove(Session);
         RetireTrainingDummy(Session);
         Record->State.bActive=false;
@@ -317,6 +316,26 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
         State->bRestReady=IsRestReady(State->ContenderId);
         State->bCanRestReady=CanRestReady(State->ContenderId);
         State->NearbyRestService=NearbyRestService(State->ContenderId);
+        // P6: the death screen's spawn choice, the vending reach, the drink charges and the lockers this contender has seen.
+        State->Pacing=FLDOwnerPacingView();
+        if (const FLDSpawnChoice* Choice=SpawnChoices.Find(State->ContenderId); Choice && State->LifePhase==ELDLifePhase::Dead)
+        {
+            const ULDMapRegistry* Registry=World->GetSubsystem<ULDMapRegistry>();
+            State->Pacing.SpawnLife=Choice->Life;
+            State->Pacing.SpawnCandidates=Choice->Candidates;
+            for (const FName& Id : Choice->Candidates)
+            {
+                const FLDMapBinding* Binding=Registry ? Registry->Resolve(Id,Registry->Generation) : nullptr;
+                State->Pacing.SpawnCandidateCm.Add(Binding ? Binding->Position : FVector::ZeroVector);
+            }
+            State->Pacing.SpawnChosen=int8(Choice->Chosen);
+            State->Pacing.SpawnChoiceEndsAtMs=Choice->DeadlineMs;
+        }
+        State->Pacing.NearbyVending=NearbyVending(State->ContenderId);
+        if (const FLDProgressionState* Progression=Development?Development->FindProgression(State->ContenderId):nullptr)
+        { State->Pacing.Vouchers=Progression->Vouchers; }
+        if (Combat) { Combat->ReadDrink(State->ContenderId,State->Pacing.DrinkElement,State->Pacing.DrinkHits); }
+        ReadSeenLockers(State->ContenderId,State->Pacing.SeenLockers);
         // Growth: the owner's level, XP and offer in the same publication.
         State->Growth=Growth?Growth->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;

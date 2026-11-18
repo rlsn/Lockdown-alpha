@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Framework/LDMatchAuthority.h"
+#include "Framework/LDPacingTypes.h"
 
 class ALDCharacter;
 class UWorld;
@@ -23,15 +24,16 @@ public:
     virtual bool IsContenderPresent(const FGuid& Contender) const = 0;
     // Life-domain protection (immune to damage and control); Combat reads it at the hit point.
     virtual bool IsContenderProtected(const FGuid& ContenderId) const = 0;
-    // Whether a contender currently has a shared-room rest life, not a field or PK life.
+    // Whether a contender currently has a shared-room rest life, not a field life.
     virtual bool IsInRestSpace(const FGuid& Contender) const = 0;
-    virtual bool IsPKLife(const FGuid& Contender) const = 0;
     // Shared training dummies keep each slot's generation-time level chassis and no build; they grant nothing.
     virtual bool IsTrainingDummy(const FGuid& Entity) const = 0;
     // D21 (#79): the public dorm disks of this match; empty outside a running match.
     virtual const FLDDormZones& GetDormZones() const = 0;
     // The match's vision director; null outside a match.
     virtual ALDVisionDirector* GetVisionAuthority() const = 0;
+    // Spec §11.1: whether the running match drew this daily modifier.
+    virtual bool HasDaily(ELDDailyModifier Modifier) const = 0;
 #if WITH_DEV_AUTOMATION_TESTS
     virtual bool IsDevPeaceful(const FGuid& Contender) const = 0;
 #endif

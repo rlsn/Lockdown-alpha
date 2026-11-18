@@ -372,16 +372,12 @@ int32 LDWorkshop::RestStepDot(ELDRestStep Step)
     switch(Step)
     {
     case ELDRestStep::Build: return 0;
-    case ELDRestStep::Draw: case ELDRestStep::Betting: return 1;
-    case ELDRestStep::PKReady: return 2;
-    case ELDRestStep::PK: return 3;
-    case ELDRestStep::Settlement: case ELDRestStep::Payout: return 4;
-    case ELDRestStep::Return: return 5;
+    case ELDRestStep::Return: return 1;
     default: return INDEX_NONE;
     }
 }
 bool LDWorkshop::FullScreen(bool bRest,ELDRestStep Step,bool bDeadWait)
 {
-    if(bRest){return Step==ELDRestStep::Build||Step==ELDRestStep::Payout||Step==ELDRestStep::Return;}
+    if(bRest){return Step==ELDRestStep::Build||Step==ELDRestStep::Return;}
     return bDeadWait;
 }

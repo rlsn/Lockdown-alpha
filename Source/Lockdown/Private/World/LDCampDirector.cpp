@@ -188,15 +188,16 @@ bool ALDCampDirector::BeginMatch(const FLDMatchContext& Match, int64 StartedAtMs
     }
     TSharedPtr<const FLDDemoContentSnapshot> Loaded;
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    if (!LDDemoEntry::LoadRuntimeContent(Loaded, Error) || !Registry || !Registry->Ensure(Error) || !Registry->GetGeometry())
+    const ALDGameMode* Mode = AuthorityMode();
+    if (!Mode || !LDDemoEntry::LoadRuntimeContent(Loaded, Error) || !Registry || !Registry->Ensure(Error) || !Registry->GetGeometry())
     {
-        if (Error.IsEmpty()) { Error = TEXT("Camps need the approved content and the registered Demo world."); }
+        if (Error.IsEmpty()) { Error = TEXT("Camps need the core, the approved content and the registered Demo world."); }
         return false;
     }
     FLDCampRoster Roster;
     if (!LDCamp::BuildRoster(Loaded->Get(), *Registry->GetGeometry(), Roster, Error)
         || !State.Begin(Match, MakeShared<const FLDCampRoster>(MoveTemp(Roster)), Error)
-        || !LDBoss::Resolve(*Loaded, *Registry->GetGeometry(), StartedAtMs, Boss, Error))
+        || !LDBoss::Resolve(*Loaded, *Registry->GetGeometry(), StartedAtMs, Mode->HasDaily(ELDDailyModifier::Patrol), Boss, Error))
     {
         return false;
     }
@@ -281,7 +282,7 @@ bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMe
     ALDCharacter* Resolved = nullptr;
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
     const FLDCampMemberState* Member = State.FindLiving(Ref);
-    if (!Mode || !Body || !Registry || (!Member && !Boss.IsBody(Ref))
+    if (!Mode || !Body || !Registry || (!Member && !Boss.IsBody(Ref) && Ref != PeddlerBody)
         || Mode->ResolveBody(State.GetMatch(), Ref, Resolved) != ELDCommitReject::None
         || Resolved != Body)
     {
@@ -411,7 +412,7 @@ bool ALDCampDirector::AdvanceMemberMotion(const FLDAuthorityStep& Step, const FL
     ALDGameMode* Mode = AuthorityMode();
     ALDCampMemberCharacter* Body = Bodies.FindRef(Ref.Victim.EntityId).Get();
     ALDCharacter* Resolved = nullptr;
-    if ((!State.FindLiving(Ref) && !Boss.IsBody(Ref)) || !Body || Mode->ResolveBody(Step.Match, Ref, Resolved) != ELDCommitReject::None
+    if ((!State.FindLiving(Ref) && !Boss.IsBody(Ref) && Ref != PeddlerBody) || !Body || Mode->ResolveBody(Step.Match, Ref, Resolved) != ELDCommitReject::None
         || Resolved != Body)
     {
         Error = TEXT("Camp motion was issued for a stale or unregistered camp body.");
@@ -470,6 +471,12 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             if (!Member.bAlive) { continue; }
             const FLDCombatBodyRef Ref = Member.Body;
             const FGuid Entity = Ref.Victim.EntityId;
+            // Spec §11.2 fridge affix: the member keeps one ice of its own under its feet.
+            if (MemberAffixes.FindRef(Entity) == ELDCampAffix::Fridge
+                && !Mode->Combat->EnsureAffixIce(Ref, Mode->GetAuthorityNowMs(), Error))
+            {
+                return false;
+            }
             FMemberRead Self;
             FLDCombatBodyRead Body;
             TArray<FLDAuthorityTargetSample> Candidates;
@@ -610,7 +617,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             }
         }
     }
-    return ProcessBoss(Permit, Error);
+    return ProcessBoss(Permit, Error) && ProcessPeddler(Permit, Error);
 }
 
 bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -726,6 +733,11 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
 bool ALDCampDirector::OnCombatHostileContact(const FLDCombatHostileContact& Fact, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (!CheckPermit(Permit, ELDCommitPhase::Effects, Error)) { return false; }
+    if (Fact.VictimBody == PeddlerBody)
+    {
+        Error.Reset();
+        return true;
+    }
     if (Boss.IsBody(Fact.VictimBody))
     {
         int64 AtMs = 0;
@@ -749,6 +761,17 @@ bool ALDCampDirector::OnCombatHostileContact(const FLDCombatHostileContact& Fact
 bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (!CheckPermit(Permit, ELDCommitPhase::DeathsAndRewards, Error)) { return false; }
+    if (PeddlerBody.IsValid() && Fact.VictimBody == PeddlerBody)
+    {
+        const FGuid Entity = Fact.VictimBody.Victim.EntityId;
+        PeddlerBody = {};
+        Motion.Remove(Entity);
+        if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
+        Bodies.Remove(Entity);
+        AuthorityMode()->MarkPublicMatchDirty();
+        UE_LOG(LogLDWorld, Display, TEXT("LD_PEDDLER_DOWN killer=%s at_ms=%lld"), *Fact.CreditOwner.ToString(), Fact.OccurredAtMs);
+        return RewardPeddlerKill(Fact.CreditOwner, Permit, Error);
+    }
     if (Boss.IsBody(Fact.VictimBody))
     {
         const FGuid Entity = Fact.VictimBody.Victim.EntityId;
@@ -774,6 +797,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     for(const auto& Peer:State.FindCamp(Camp)->Members)
     {if(Peer.bAlive && !AuthorityMode()->Combat->CampPeerDied(Peer.Body,Permit,Error)){return false;}}
     const FGuid Entity = Fact.Key.Victim.EntityId;
+    MemberAffixes.Remove(Entity);
     Motion.Remove(Entity);
     Returns.Remove(Entity);
     Stranded.Remove(Entity);
@@ -787,7 +811,10 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     if (Result == ELDCampDeathResult::CampCleared)
     {
         const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
+        const ELDCampAffix Affix = CampAffixes.FindRef(Spec.CampId);
+        CampAffixes.Remove(Spec.CampId);
         return AuthorityMode()->PayCampClear(Spec.Tier, Fact.CreditOwner, Permit, Error)
+            && PayAffixClear(Affix, Spec.Tier, Spec.CampId, Fact.CreditOwner, Permit, Error)
             && AuthorityMode()->ConsumeCampClear(Spec.CampId, Fact.CreditOwner, FieldMs, Permit, Error);
     }
     Error.Reset();
@@ -958,7 +985,7 @@ bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWrite
         Error = TEXT("The boss final-mod reward requires the development domain.");
         return false;
     }
-    if (!Mode->Development->GrantBossFinalModCard(Killer, Permit, Error)) { return false; }
+    if (!Mode->Development->GrantExtraFinalModCard(Killer, Permit, Error)) { return false; }
     // Spec §3.13: the Boss's last hit also pays its vouchers.
     if (const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Killer, Content->Get().Parameters.Vouchers.Boss, 0,
             TEXT("boss"), Permit); Reason != ELDGrowthReason::None)
@@ -1108,10 +1135,15 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     }
     // #97: the whole group takes the growth stage of this spawn moment and keeps it for these lives.
     const uint8 Stage = LDCampGrowth::Stage(Content->Get().Parameters, Mode->GetFieldNowMs());
+    // Spec §11.2: each High, Elite or Ancient spawn may carry one affix (overtime day: every camp works overtime).
+    const int64 AffixRoll = SpeciesRandom.RandRange(0, 9999);
+    const int32 AffixPick = SpeciesRandom.RandRange(0, LDPacing::CampAffixes - 1);
+    const ELDCampAffix Affix = LDPacing::RollAffix(Content->Get().Parameters, Spec.Tier == ELDDemoCampTier::Low,
+        Mode->HasDaily(ELDDailyModifier::Overtime), AffixRoll, AffixPick);
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
-        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Selected, Stage});
+        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Selected, Stage, Affix});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }
@@ -1121,16 +1153,18 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Error = TEXT("Core committed camp lives that camp bookkeeping refused: ") + Error;
         return false;
     }
+    CampAffixes.Add(Spec.CampId, Affix);
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
+        MemberAffixes.Add(Refs[Slot].Victim.EntityId, Affix);
         Bodies.Add(Refs[Slot].Victim.EntityId, Spawned[Slot]);
         Motion.Add(Refs[Slot].Victim.EntityId, {});
         Spawned[Slot]->SetActorHiddenInGame(false);
         Spawned[Slot]->SetActorTickEnabled(true);
     }
-    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u stage=%u at=%.3f"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u stage=%u affix=%s at=%.3f"),
         *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, uint32(Stage),
-        Mode->GetAuthorityNowSeconds());
+        LDPacing::AffixId(Affix), Mode->GetAuthorityNowSeconds());
     Error.Reset();
     return true;
 }
@@ -1189,6 +1223,11 @@ void ALDCampDirector::EndMatch()
     Stranded.Reset();
     BlockedRefresh.Reset();
     Boss = {};
+    CampAffixes.Reset();
+    MemberAffixes.Reset();
+    PeddlerEntity.Invalidate();
+    PeddlerBody = {};
+    AuditPointsPaid.Reset();
     bBossBlockedLogged = false;
     BossSequence = 0;
     NextInitialCamp = MAX_int32;
@@ -1218,5 +1257,198 @@ bool ALDCampDirector::AppendObservedFacts(const FLDMatchContext& Match, const FL
         Error.Reset();
         return true;
     }
-    return State.AppendObservedFacts(Body, InOut, Error);
+    // Spec §11.3: the dealer shows the creature it wears and its own name.
+    if (PeddlerBody.IsValid() && Body == PeddlerBody)
+    {
+        const FLDDemoMonsterDefinition* Monster = Content->Get().Monsters.FindByPredicate(
+            [](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::Low; });
+        InOut.CreatureId = Monster ? Monster->NativeId : 0;
+        InOut.bPeddler = true;
+        Error.Reset();
+        return true;
+    }
+    if (!State.AppendObservedFacts(Body, InOut, Error)) { return false; }
+    // Spec §11.2: a member's affix shows before its name.
+    InOut.CampAffix = uint8(MemberAffixes.FindRef(Body.Victim.EntityId));
+    return true;
+}
+
+bool ALDCampDirector::SpawnPeddler(FName CampAnchor, double AngleRad, double OffsetCm, const FLDGameplayWritePermit& Permit,
+    bool& bBlocked, FString& Error)
+{
+    bBlocked = false;
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    ALDGameMode* Mode = AuthorityMode();
+    const auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const FLDMapBinding* Anchor = Registry ? Registry->Resolve(CampAnchor, Registry->Generation) : nullptr;
+    // The dealer wears the first Low-tier species of the approved content; its HP and speed are its own (EXPLORE.Peddler*).
+    const FLDDemoMonsterDefinition* Monster = Content->Get().Monsters.FindByPredicate(
+        [](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::Low; });
+    if (!Mode || !Anchor || !Monster)
+    {
+        Error = TEXT("The dealer needs the core, its camp anchor and an approved Low-tier body.");
+        return false;
+    }
+    if (!PeddlerEntity.IsValid()) { PeddlerEntity = FGuid::NewGuid(); }
+    const FVector Desired = Anchor->Position + FVector(FMath::Cos(AngleRad), FMath::Sin(AngleRad), 0.) * OffsetCm;
+    FLDLegalGround Ground;
+    if (!FindGround(Desired, Anchor->Surface, TEXT("peddler"), {}, Ground, bBlocked, Error)) { return false; }
+    if (bBlocked)
+    {
+        // The offset spot is taken or off the walkable ground: stand at the camp anchor itself instead.
+        if (!FindGround(Anchor->Position, Anchor->Surface, TEXT("peddler"), {}, Ground, bBlocked, Error) || bBlocked) { return !bBlocked || Error.IsEmpty(); }
+    }
+    ALDCampMemberCharacter* Body = nullptr;
+    bool bCommitted = false;
+    ON_SCOPE_EXIT { if (!bCommitted && IsValid(Body)) { Body->Destroy(); } };
+    if (!CreateBody(Ground, *Monster, TEXT("peddler"), Body, Error)) { return false; }
+    FLDCampMemberSpawn Spawn{PeddlerEntity, Body, FName(*Monster->Id), 0, ELDCampAffix::None, true};
+    TArray<FLDCombatBodyRef> Refs;
+    if (!Mode->SpawnCampMembers({Spawn}, Permit, Refs, Error)) { return false; }
+    bCommitted = true;
+    if (Refs.Num() != 1)
+    {
+        Error = TEXT("Core committed a dealer life the dealer did not request.");
+        return false;
+    }
+    PeddlerBody = Refs[0];
+    PeddlerSurface = Anchor->Surface;
+    Bodies.Add(PeddlerEntity, Body);
+    Motion.Add(PeddlerEntity, {});
+    Body->SetActorHiddenInGame(false);
+    Body->SetActorTickEnabled(true);
+    UE_LOG(LogLDWorld, Display, TEXT("LD_PEDDLER_SPAWN camp=%s life=%u at_ms=%lld"), *CampAnchor.ToString(), Refs[0].Victim.Life,
+        Mode->GetAuthorityNowMs());
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::RetirePeddler(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    if (!PeddlerBody.IsValid()) { Error.Reset(); return true; }
+    ALDGameMode* Mode = AuthorityMode();
+    if (!Mode->RetireCampBody(PeddlerBody, Permit, Error)) { return false; }
+    Motion.Remove(PeddlerEntity);
+    if (ALDCampMemberCharacter* Body = Bodies.FindRef(PeddlerEntity).Get()) { Body->Destroy(); }
+    Bodies.Remove(PeddlerEntity);
+    PeddlerBody = {};
+    Mode->MarkPublicMatchDirty();
+    UE_LOG(LogLDWorld, Display, TEXT("LD_PEDDLER_LEAVE at_ms=%lld"), Mode->GetAuthorityNowMs());
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::ProcessPeddler(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!PeddlerBody.IsValid()) { Error.Reset(); return true; }
+    ALDGameMode* Mode = AuthorityMode();
+    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Mode || !Mode->Combat || !Mode->Vision || !Registry)
+    {
+        Error = TEXT("The dealer needs Combat, vision and the registered world.");
+        return false;
+    }
+    FMemberRead Self;
+    if (!ReadBody(PeddlerSurface, PeddlerBody, Self, Error)) { return false; }
+    // Spec §11.3: it runs from the nearest contender it sees.
+    TArray<LDAirdrop::FCandidate> Feet;
+    Mode->Combat->ReadLivingContenderFeet(Feet);
+    const LDAirdrop::FCandidate* Nearest = nullptr;
+    double NearestDistance = MAX_dbl;
+    for (const LDAirdrop::FCandidate& Foot : Feet)
+    {
+        const double Distance = FVector::DistSquared2D(Foot.FootCm, Self.FootCm);
+        if (Distance < NearestDistance && Mode->Vision->TraceSight(Self.FootCm, Foot.FootCm, Registry->Revision()) == ELDSightResult::Visible)
+        {
+            Nearest = &Foot;
+            NearestDistance = Distance;
+        }
+    }
+    const FGuid Entity = PeddlerBody.Victim.EntityId;
+    if (!Nearest)
+    {
+        StopMotion(Entity);
+        Error.Reset();
+        return true;
+    }
+    const FVector Away = (Self.FootCm - Nearest->FootCm).GetSafeNormal2D();
+    const FVector Goal = Self.FootCm + (Away.IsNearlyZero() ? FVector(1, 0, 0) : Away) * 800.;
+    FMotion& Track = Motion.FindOrAdd(Entity);
+    if (Track.bActive && FVector::DistSquared2D(Track.Goal, Goal) <= FMath::Square(CampReplanShiftCm)) { Error.Reset(); return true; }
+    FMotion Planned;
+    FString PlanError;
+    if (PlanPath(Self, PeddlerSurface, Goal, Mode->GetAuthorityNowSeconds(), Planned, PlanError)) { Track = MoveTemp(Planned); }
+    else { StopMotion(Entity); }
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::RewardPeddlerKill(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    FLDContenderLifeRead Life;
+    if (!Killer.IsValid() || !Mode->ReadContenderLife(State.GetMatch(), Killer, Life, Error) || Life.Phase != ELDLifePhase::Alive)
+    {
+        Error.Reset();
+        return true;
+    }
+    if (!Mode->Development) { Error = TEXT("The dealer's reward needs the growth domain."); return false; }
+    if (const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Killer, 0, 1, TEXT("peddler"), Permit); Reason != ELDGrowthReason::None)
+    {
+        Error = FString::Printf(TEXT("The dealer's pick ticket to %s was refused: %s."), *Killer.ToString(), LDGrowthWire::ReasonName(Reason));
+        return false;
+    }
+    return Mode->PayFieldReward(Killer, TEXT("peddler"), 1, 0, ELDFieldRewardKind::PeddlerOffer, Permit, Error);
+}
+
+bool ALDCampDirector::PayAffixClear(ELDCampAffix Affix, ELDDemoCampTier Tier, FName CampId, const FGuid& Clearer,
+    const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    FLDContenderLifeRead Life;
+    if (Affix == ELDCampAffix::None || !Clearer.IsValid() || !Mode->ReadContenderLife(State.GetMatch(), Clearer, Life, Error))
+    {
+        Error.Reset();
+        return true;
+    }
+    const auto& P = Content->Get().Parameters;
+    const uint64 Serial = uint64(State.FindCamp(State.GetRoster()->Camps.IndexOfByPredicate([&CampId](const FLDCampSpec& S) { return S.CampId == CampId; }))->Generation);
+    const FName Event(*FString::Printf(TEXT("%s_%s"), LDPacing::AffixId(Affix), *CampId.ToString()));
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_AFFIX_CLEAR camp=%s affix=%s owner=%s"), *CampId.ToString(), LDPacing::AffixId(Affix), *Clearer.ToString());
+    switch (Affix)
+    {
+    case ELDCampAffix::Overtime:
+    {
+        // Double the tier's clear vouchers: the extra share on top of the ordinary clear pay.
+        const int32 Base = LDProgression::CampClearVouchers(P, Tier);
+        const int32 Extra = int32(int64(Base) * P.Affix.OvertimeVoucherScaleBp / 10000) - Base;
+        if (Extra <= 0) { return true; }
+        const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Clearer, Extra, 0, TEXT("ca_overtime"), Permit);
+        if (Reason != ELDGrowthReason::None) { Error = LDGrowthWire::ReasonName(Reason); return false; }
+        return true;
+    }
+    case ELDCampAffix::Teambuild:
+        // Its +50% XP is paid on every member kill (LDGrowthDirector).
+        return true;
+    case ELDCampAffix::Fridge:
+        return Mode->PayFieldReward(Clearer, Event, Serial, 0, ELDFieldRewardKind::FridgeOffer, Permit, Error);
+    case ELDCampAffix::Bonus:
+        return Mode->PayFieldReward(Clearer, Event, Serial, 0, ELDFieldRewardKind::BonusOffer, Permit, Error);
+    case ELDCampAffix::Layoff:
+    {
+        const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Clearer, P.Affix.LayoffVouchers, 0, TEXT("ca_layoff"), Permit);
+        if (Reason != ELDGrowthReason::None) { Error = LDGrowthWire::ReasonName(Reason); return false; }
+        return true;
+    }
+    case ELDCampAffix::Audit:
+    {
+        int32& Paid = AuditPointsPaid.FindOrAdd(Clearer);
+        if (Paid >= P.Affix.AuditSkillPointsMax) { return true; }
+        ++Paid;
+        return Mode->Development->GrantSkillPoint(Clearer, TEXT("ca_audit"), Permit, Error);
+    }
+    default:
+        return true;
+    }
 }

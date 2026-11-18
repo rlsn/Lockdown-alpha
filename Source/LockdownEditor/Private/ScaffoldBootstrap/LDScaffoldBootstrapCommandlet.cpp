@@ -44,8 +44,8 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     }
     const bool ValidateOnly = FParse::Param(*Params, TEXT("Validate"));
     const bool Regenerate = FParse::Param(*Params, TEXT("Regenerate"));
-    const bool RefreshCampHomes = FParse::Param(*Params,TEXT("RefreshCampHomes"));
-    const bool RefreshDefinitions = FParse::Param(*Params, TEXT("RefreshDefinitions")) || RefreshCampHomes;
+    const bool RefreshLayoutPoints = FParse::Param(*Params,TEXT("RefreshLayoutPoints"));
+    const bool RefreshDefinitions = FParse::Param(*Params, TEXT("RefreshDefinitions")) || RefreshLayoutPoints;
     // Rebuilds only the blank title-screen map; the Demo world and its definitions are validated as they are.
     const bool RegenerateFrontend = FParse::Param(*Params, TEXT("RegenerateFrontend"));
     FString Error, DigestHex, Output;
@@ -87,7 +87,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (!ValidateOnly && (!HadContent || Regenerate || RefreshDefinitions))
     {
         if (!Content->CommitImport(Prepared, ExpectedRoot, Error)
-            || (!RefreshCampHomes && !LDDemoWorldBuilder::SaveAsset(*Content, ContentPackage, Error)))
+            || (!RefreshLayoutPoints && !LDDemoWorldBuilder::SaveAsset(*Content, ContentPackage, Error)))
         {
             UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Content import/save failed: %s"), *Error);
             return 4;
@@ -117,14 +117,14 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         return 5;
     }
     FLDDemoWorldGeometry PreviousCampLayout;
-    if(RefreshCampHomes && !WorldDefinition->ReadSavedForEditing(PreviousCampLayout,Error))
-    {UE_LOG(LogLDEditor,Error,TEXT("LD_CAMP_HOMES_REJECTED %s"),*Error);return 5;}
+    if(RefreshLayoutPoints && !WorldDefinition->ReadSavedForEditing(PreviousCampLayout,Error))
+    {UE_LOG(LogLDEditor,Error,TEXT("LD_LAYOUT_POINTS_REJECTED %s"),*Error);return 5;}
     if (!ValidateOnly && (!HadWorldDefinition || Regenerate || RefreshDefinitions))
     {
         TArray<uint8> WorldBytes;
         if (!FFileHelper::LoadFileToArray(WorldBytes, *FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Lockdown\\Data\\Demo\\world.json")))
             || !WorldDefinition->Import(WorldBytes, *Catalog, Error)
-            || (!RefreshCampHomes && !LDDemoWorldBuilder::SaveAsset(*WorldDefinition, LDDemoEntry::WorldDefinition, Error)))
+            || (!RefreshLayoutPoints && !LDDemoWorldBuilder::SaveAsset(*WorldDefinition, LDDemoEntry::WorldDefinition, Error)))
         {
             UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World definition import/save failed: %s"), *Error);
             return 5;
@@ -136,16 +136,16 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World projection differs; regenerate explicitly: %s"), *Error);
         return 5;
     }
-    if(RefreshCampHomes)
+    if(RefreshLayoutPoints)
     {
         UWorld* World=UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(LDDemoEntry::WorldMap,FPackageName::GetMapPackageExtension()));
-        if(!World || !LDDemoWorldBuilder::RefreshCampHomes(*World,PreviousCampLayout,*WorldDefinition,*Catalog,Error))
-        {UE_LOG(LogLDEditor,Error,TEXT("LD_CAMP_HOMES_REJECTED %s"),*Error);return 6;}
+        if(!World || !LDDemoWorldBuilder::RefreshLayoutPoints(*World,PreviousCampLayout,*WorldDefinition,*Catalog,Error))
+        {UE_LOG(LogLDEditor,Error,TEXT("LD_LAYOUT_POINTS_REJECTED %s"),*Error);return 6;}
         // Save the definitions only after the scoped map edit succeeds, so a refused addition remains retryable.
         if(!LDDemoWorldBuilder::SaveAsset(*Content,ContentPackage,Error)
             || !LDDemoWorldBuilder::SaveAsset(*WorldDefinition,LDDemoEntry::WorldDefinition,Error))
-        {UE_LOG(LogLDEditor,Error,TEXT("LD_CAMP_HOMES_REJECTED Definition save failed: %s"),*Error);return 6;}
-        UE_LOG(LogLDEditor,Display,TEXT("LD_CAMP_HOMES_SUCCESS Scope: content/world definitions and member-home additions; not full scene, collision, navigation or gameplay acceptance."));
+        {UE_LOG(LogLDEditor,Error,TEXT("LD_LAYOUT_POINTS_REJECTED Definition save failed: %s"),*Error);return 6;}
+        UE_LOG(LogLDEditor,Display,TEXT("LD_LAYOUT_POINTS_SUCCESS Scope: content/world definitions and layout-point additions; not full scene, collision, navigation or gameplay acceptance."));
         return 0;
     }
     for (const auto& Expected : {

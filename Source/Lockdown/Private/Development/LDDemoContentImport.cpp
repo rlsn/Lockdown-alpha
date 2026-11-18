@@ -4,6 +4,8 @@
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDViewTypes.h"
 #include "Framework/LDShowdownSettings.h"
+#include "Framework/LDPacingTypes.h"
+#include "Framework/LDMatchTimeline.h"
 #include "../World/LDDemoWorldContract.h"
 
 namespace LDDemoContent
@@ -489,6 +491,7 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AI.EnemyGroundPathCost"), TEXT("ratio"), TEXT("bp"), &P.AI.EnemyGroundPathCostBp, 10000, 100000},
         {TEXT("AI.BreakoutChance"), TEXT("ratio"), TEXT("bp"), &P.AI.BreakoutChanceBp, 0, 10000},
         {TEXT("AI.CardSkipChance"), TEXT("ratio"), TEXT("bp"), &P.AI.CardSkipChanceBp, 0, 10000},
+        {TEXT("AI.ObjectiveEntryHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.ObjectiveEntryHPBp, 0, 10000},
         {TEXT("DAMAGE.FactorTechCap"), TEXT("ratio"), TEXT("bp"), &P.DamageFactorTechCapBp, 10001, MAX_int64},
     };
     for (const auto& Field : Fixed)
@@ -501,6 +504,7 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
     if (!F.Fraction(TEXT("MOMENTUM.CombatPerSec"), TEXT("momentum/s"), M.CombatPerSec, true)
         || !F.Fraction(TEXT("MOMENTUM.IdleReturnPerSec"), TEXT("momentum/s"), M.IdleReturnPerSec, true)
         || !F.Fraction(TEXT("OVERDRIVE.GustPushCm"), TEXT("cm"), O.GustPushCm, true)
+        || !F.Fraction(TEXT("AI.ObjectiveReachCm"), TEXT("cm"), P.AI.ObjectiveReachCm, true)
         || !F.Int(TEXT("OVERDRIVE.FireBurnStacks"), O.FireBurnStacks, 1)
         || !RatioArray(F, TEXT("COMBO.StepRatios"), 3, 1, P.Combo.StepRatiosBp, Check)
         || !RatioArray(F, TEXT("SKILL.RankBaseScale"), 3, 10000, P.SkillRanks.RankBaseScaleBp, Check)
@@ -631,6 +635,115 @@ bool ElementParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
             TEXT("element counts are small and the ground-state caps fit the observation bound"));
 }
 
+// A fixed-length-bounded array of field instants ({"unit": "ms", "ms": n}), strictly positive.
+bool MsArray(FFields& F, const TCHAR* Key, int32 MaxCount, TArray<int64>& Out, FCheck& Check)
+{
+    const TArray<FValue>* Rows = nullptr;
+    const FString Path = F.Path + TEXT(".") + Key;
+    if (!Array(F.Take(Key), Rows, Check, Path, 1, MaxCount)) { return false; }
+    Out.Reset();
+    for (int32 Index = 0; Index < Rows->Num(); ++Index)
+    {
+        FFields Row(Check, (*Rows)[Index], FString::Printf(TEXT("%s[%d]"), *Path, Index));
+        int64 Ms = 0;
+        if (!Row.Literal(TEXT("unit"), TEXT("ms")) || !Row.Int(TEXT("ms"), Ms, 1) || !Row.Done()) { return false; }
+        Out.Add(Ms);
+    }
+    return true;
+}
+
+// Spec §10-§11 (P6): respawn, mid-field objectives, daily modifiers, camp affixes and hidden things (CONTENT_AND_BALANCE §3.14,
+// §4.6).
+bool PacingParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
+{
+    FLDDemoObjectiveParameters& O = P.Objective;
+    FLDDemoDailyParameters& D = P.Daily;
+    FLDDemoAffixParameters& A = P.Affix;
+    FLDDemoExploreParameters& X = P.Explore;
+    struct FFixedField { const TCHAR* Key; const TCHAR* Unit; const TCHAR* Storage; int64* Out; int64 Min; int64 Max; };
+    const FFixedField Fixed[] =
+    {
+        {TEXT("LIFE.RespawnBaseSec"), TEXT("ms"), TEXT("ms"), &P.RespawnBaseMs, 0, MAX_int32},
+        {TEXT("LIFE.RespawnPerLevelSec"), TEXT("ms"), TEXT("ms"), &P.RespawnPerLevelMs, 0, MAX_int32},
+        {TEXT("LIFE.SpawnChoiceSec"), TEXT("ms"), TEXT("ms"), &P.SpawnChoiceMs, 1, MAX_int32},
+        {TEXT("OBJECTIVE.StartSec"), TEXT("ms"), TEXT("ms"), &O.StartMs, 1, MAX_int32},
+        {TEXT("OBJECTIVE.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &O.AnnounceLeadMs, 1, MAX_int32},
+        {TEXT("OBJECTIVE.FlagWindowSec"), TEXT("ms"), TEXT("ms"), &O.FlagWindowMs, 1, MAX_int32},
+        {TEXT("OBJECTIVE.FlagSpraySec"), TEXT("ms"), TEXT("ms"), &O.FlagSprayMs, 1, MAX_int32},
+        {TEXT("OBJECTIVE.ArenaSec"), TEXT("ms"), TEXT("ms"), &O.ArenaMs, 1, MAX_int32},
+        {TEXT("DAILY.RainIntervalSec"), TEXT("ms"), TEXT("ms"), &D.RainIntervalMs, 1, MAX_int32},
+        {TEXT("DAILY.RainPuddleSec"), TEXT("ms"), TEXT("ms"), &D.RainPuddleMs, 1, MAX_int32},
+        {TEXT("DAILY.RainWetBonusSec"), TEXT("ms"), TEXT("ms"), &D.RainWetBonusMs, 1, MAX_int32},
+        {TEXT("DAILY.ColdFreezeSec"), TEXT("ms"), TEXT("ms"), &D.ColdFreezeMs, 1, MAX_int32},
+        {TEXT("DAILY.ColdChillBonusSec"), TEXT("ms"), TEXT("ms"), &D.ColdChillBonusMs, 1, MAX_int32},
+        {TEXT("DAILY.BlackoutVisionCut"), TEXT("ratio"), TEXT("bp"), &D.BlackoutVisionCutBp, 1, 9999},
+        {TEXT("DAILY.BlackoutShockScale"), TEXT("ratio"), TEXT("bp"), &D.BlackoutShockScaleBp, 10001, 100000},
+        {TEXT("DAILY.TyphoonIntervalSec"), TEXT("ms"), TEXT("ms"), &D.TyphoonIntervalMs, 1, MAX_int32},
+        {TEXT("DAILY.HeatBurnTickScale"), TEXT("ratio"), TEXT("bp"), &D.HeatBurnTickScaleBp, 10001, 100000},
+        {TEXT("DAILY.SalePriceScale"), TEXT("ratio"), TEXT("bp"), &D.SalePriceScaleBp, 1, 9999},
+        {TEXT("DAILY.DeliveryExpireSec"), TEXT("ms"), TEXT("ms"), &D.DeliveryExpireMs, 1, MAX_int32},
+        {TEXT("DAILY.PatrolBossAppearSec"), TEXT("ms"), TEXT("ms"), &D.PatrolBossAppearMs, 1, MAX_int32},
+        {TEXT("DAILY.ExamMonsterXPScale"), TEXT("ratio"), TEXT("bp"), &D.ExamMonsterXPScaleBp, 10001, 100000},
+        {TEXT("DAILY.ExamRespawnBonusSec"), TEXT("ms"), TEXT("ms"), &D.ExamRespawnBonusMs, 1, MAX_int32},
+        {TEXT("DAILY.GymDashCooldownCut"), TEXT("ratio"), TEXT("bp"), &D.GymDashCooldownCutBp, 1, 9999},
+        {TEXT("AFFIX.Chance"), TEXT("ratio"), TEXT("bp"), &A.ChanceBp, 0, 10000},
+        {TEXT("AFFIX.OvertimeAttackSpeed"), TEXT("ratio"), TEXT("bp"), &A.OvertimeAttackSpeedBp, 1, 10000},
+        {TEXT("AFFIX.OvertimeVoucherScale"), TEXT("ratio"), TEXT("bp"), &A.OvertimeVoucherScaleBp, 10000, 100000},
+        {TEXT("AFFIX.TeambuildXPScale"), TEXT("ratio"), TEXT("bp"), &A.TeambuildXPScaleBp, 10000, 100000},
+        {TEXT("AFFIX.BonusHP"), TEXT("ratio"), TEXT("bp"), &A.BonusHPBp, 1, 10000},
+        {TEXT("AFFIX.LayoffAttack"), TEXT("ratio"), TEXT("bp"), &A.LayoffAttackBp, 1, 10000},
+        {TEXT("AFFIX.AuditTelegraphCut"), TEXT("ratio"), TEXT("bp"), &A.AuditTelegraphCutBp, 1, 9999},
+        {TEXT("EXPLORE.LockerChannelSec"), TEXT("ms"), TEXT("ms"), &X.LockerChannelMs, 1, MAX_int32},
+        {TEXT("EXPLORE.LockerCardChance"), TEXT("ratio"), TEXT("bp"), &X.LockerCardChanceBp, 0, 10000},
+        {TEXT("EXPLORE.PeddlerEarliestSec"), TEXT("ms"), TEXT("ms"), &X.PeddlerEarliestMs, 1, MAX_int32},
+        {TEXT("EXPLORE.PeddlerLatestSec"), TEXT("ms"), TEXT("ms"), &X.PeddlerLatestMs, 1, MAX_int32},
+        {TEXT("EXPLORE.PeddlerHP"), TEXT("hp"), TEXT("p2"), &X.PeddlerHPP2, 1, MAX_int64},
+        {TEXT("EXPLORE.PeddlerStaySec"), TEXT("ms"), TEXT("ms"), &X.PeddlerStayMs, 1, MAX_int32},
+        {TEXT("EXPLORE.VendingBuffSec"), TEXT("ms"), TEXT("ms"), &X.VendingBuffMs, 1, MAX_int32},
+        {TEXT("EXPLORE.VendingAttackSpeed"), TEXT("ratio"), TEXT("bp"), &X.VendingAttackSpeedBp, 1, 10000},
+        {TEXT("EXPLORE.VendingMoveSpeed"), TEXT("ratio"), TEXT("bp"), &X.VendingMoveSpeedBp, 1, 10000},
+    };
+    for (const auto& Field : Fixed)
+    {
+        if (!F.Fixed(Field.Key, Field.Unit, Field.Storage, *Field.Out, Field.Min, Field.Max)) { return false; }
+    }
+    struct FCmField { const TCHAR* Key; const TCHAR* Unit; FLDDemoRational* Out; };
+    for (const auto& Field : {
+        FCmField{TEXT("OBJECTIVE.FlagRadiusCm"), TEXT("cm"), &O.FlagRadiusCm}, {TEXT("OBJECTIVE.ArenaRadiusCm"), TEXT("cm"), &O.ArenaRadiusCm},
+        {TEXT("DAILY.TyphoonPushCm"), TEXT("cm"), &D.TyphoonPushCm}, {TEXT("EXPLORE.LockerRadiusCm"), TEXT("cm"), &X.LockerRadiusCm},
+        {TEXT("EXPLORE.PeddlerOffsetCm"), TEXT("cm"), &X.PeddlerOffsetCm},
+        {TEXT("EXPLORE.PeddlerMoveSpeed"), TEXT("cm/s"), &X.PeddlerMoveSpeedCmPerSec},
+        {TEXT("EXPLORE.VendingMomentumPerSec"), TEXT("momentum/s"), &X.VendingMomentumPerSec}})
+    {
+        if (!F.Fraction(Field.Key, Field.Unit, *Field.Out, true)) { return false; }
+    }
+    for (const auto& Field : {
+        TPair<const TCHAR*, int32*>(TEXT("LIFE.SpawnChoiceCount"), &P.SpawnChoiceCount), {TEXT("OBJECTIVE.FlagCardOffer"), &O.FlagCardOffer},
+        {TEXT("OBJECTIVE.ArenaCardOffer"), &O.ArenaCardOffer}, {TEXT("DAILY.Count"), &D.Count}, {TEXT("DAILY.RainPuddles"), &D.RainPuddles},
+        {TEXT("DAILY.RumorLeaders"), &D.RumorLeaders}, {TEXT("AFFIX.FridgeCardOffer"), &A.FridgeCardOffer},
+        {TEXT("AFFIX.BonusCardOffer"), &A.BonusCardOffer}, {TEXT("AFFIX.LayoffVouchers"), &A.LayoffVouchers},
+        {TEXT("AFFIX.AuditSkillPointsMax"), &A.AuditSkillPointsMax}, {TEXT("EXPLORE.LockerCount"), &X.LockerCount},
+        {TEXT("EXPLORE.LockerCardOffer"), &X.LockerCardOffer}, {TEXT("EXPLORE.PeddlerCardOffer"), &X.PeddlerCardOffer},
+        {TEXT("EXPLORE.VendingBuffPrice"), &X.VendingBuffPrice}, {TEXT("EXPLORE.VendingDrinkPrice"), &X.VendingDrinkPrice},
+        {TEXT("EXPLORE.VendingDrinkHits"), &X.VendingDrinkHits}})
+    {
+        if (!F.SmallInt(Field.Key, *Field.Value, 1, 64)) { return false; }
+    }
+    if (!MsArray(F, TEXT("DAILY.DeliveryLandSec"), 12, D.DeliveryLandMs, Check)) { return false; }
+    const auto OfferFits = [&P](int32 Size) { return Size >= P.Cards.OfferSize && Size <= LDPacing::MaxCardOfferSize; };
+    return Check.Require(O.StartMs >= O.AnnounceLeadMs && O.StartMs + FMath::Max(O.FlagWindowMs, O.ArenaMs) <= P.FieldSegmentMs
+            && O.FlagSprayMs < O.FlagWindowMs, F.Path, TEXT("a mid-field objective is announced and ends inside its segment"))
+        && Check.Require(OfferFits(O.FlagCardOffer) && OfferFits(O.ArenaCardOffer) && OfferFits(A.FridgeCardOffer)
+            && OfferFits(A.BonusCardOffer) && OfferFits(X.LockerCardOffer) && OfferFits(X.PeddlerCardOffer), F.Path,
+            TEXT("an extra card offer shows at least the normal offer and at most five cards"))
+        && Check.Require(P.SpawnChoiceCount <= LDPacing::MaxSpawnChoices && D.Count <= LDPacing::DailyModifiers
+            && D.RumorLeaders == 2, F.Path,
+            TEXT("spawn choices, the modifier draw and the two rumor leaders fit their views"))
+        && Check.Require(X.PeddlerEarliestMs <= X.PeddlerLatestMs
+            && X.PeddlerLatestMs + X.PeddlerStayMs <= P.FieldSegmentMs * FLDTimelineParameters::TimedSegments, F.Path,
+            TEXT("the dealer appears and leaves inside the timed field"));
+}
+
 bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content.parameters"));
@@ -678,34 +791,13 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("MATCH.FieldSegmentSec"), TEXT("ms"), TEXT("ms"), &P.FieldSegmentMs, 1, MAX_int64},
         {TEXT("REST.OpeningBuildSec"), TEXT("ms"), TEXT("ms"), &P.RestOpeningBuildMs, 1, MAX_int64},
         {TEXT("REST.BuildSec"), TEXT("ms"), TEXT("ms"), &P.RestBuildMs, 1, MAX_int64},
-        {TEXT("REST.SignupSec"), TEXT("ms"), TEXT("ms"), &P.RestSignupMs, 1, MAX_int64},
-        {TEXT("REST.DrawSec"), TEXT("ms"), TEXT("ms"), &P.RestDrawMs, 1, MAX_int64},
-        {TEXT("REST.BettingSec"), TEXT("ms"), TEXT("ms"), &P.RestBettingMs, 1, MAX_int64},
-        {TEXT("REST.PKReadySec"), TEXT("ms"), TEXT("ms"), &P.RestPKReadyMs, 1, MAX_int64},
-        {TEXT("REST.PKMaxSec"), TEXT("ms"), TEXT("ms"), &P.RestPKMaxMs, 1, MAX_int64},
-        {TEXT("REST.SettlementSec"), TEXT("ms"), TEXT("ms"), &P.RestSettlementMs, 1, MAX_int64},
-        {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 1, MAX_int64},
         {TEXT("REST.ReturnSec"), TEXT("ms"), TEXT("ms"), &P.RestReturnMs, 1, MAX_int64},
         {TEXT("REST.EntryReadyTimeoutSec"), TEXT("ms"), TEXT("ms"), &P.RestEntryReadyTimeoutMs, 1, MAX_int64},
-        {TEXT("PK.RingShrinkStartSec"), TEXT("ms"), TEXT("ms"), &P.PKRingShrinkStartMs, 1, MAX_int64},
-        {TEXT("PK.RingMidSec"), TEXT("ms"), TEXT("ms"), &P.PKRingMidMs, 1, MAX_int64},
-        {TEXT("PK.RingFinalSec"), TEXT("ms"), TEXT("ms"), &P.PKRingFinalMs, 1, MAX_int64},
-        {TEXT("PK.RingPreviewSec"), TEXT("ms"), TEXT("ms"), &P.PKRingPreviewMs, 1, MAX_int64},
-        {TEXT("PK.RingDamageTickSec"), TEXT("ms"), TEXT("ms"), &P.PKRingTickMs, 1, MAX_int64},
-        {TEXT("PK.RingDamageEarlyMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingEarlyDamageBp, 1, 10000},
-        {TEXT("PK.RingDamageMidMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingMidDamageBp, 1, 10000},
-        {TEXT("PK.RingDamageFinalMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingFinalDamageBp, 1, 10000},
-        {TEXT("PK.TeamFormatRatio"), TEXT("ratio"), TEXT("bp"), &P.PKTeamFormatBp, 0, 10000},
-        {TEXT("PK.RewardMultiplier"), TEXT("ratio"), TEXT("bp"), &P.PKRewardMultiplierBp, 10000, MAX_int64},
-        {TEXT("THROW.CooldownSec"), TEXT("ms"), TEXT("ms"), &P.ThrowCooldownMs, 1, MAX_int64},
-        {TEXT("THROW.TelegraphSec"), TEXT("ms"), TEXT("ms"), &P.ThrowTelegraphMs, 1, MAX_int64},
-        {TEXT("THROW.SlowRatio"), TEXT("ratio"), TEXT("bp"), &P.ThrowSlowBp, 1, 10000},
-        {TEXT("THROW.SlowSec"), TEXT("ms"), TEXT("ms"), &P.ThrowSlowMs, 1, MAX_int64},
-        {TEXT("THROW.ExposeSec"), TEXT("ms"), TEXT("ms"), &P.ThrowExposeMs, 1, MAX_int64},
-        {TEXT("LIFE.RespawnSec.Field1"), TEXT("ms"), TEXT("ms"), &P.RespawnField1Ms, 1, MAX_int64},
-        {TEXT("LIFE.RespawnSec.Field2"), TEXT("ms"), TEXT("ms"), &P.RespawnField2Ms, 1, MAX_int64},
-        {TEXT("LIFE.RespawnSec.Field3"), TEXT("ms"), TEXT("ms"), &P.RespawnField3Ms, 1, MAX_int64},
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
+        {TEXT("SHOWDOWN.RingPreviewSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownRingPreviewMs, 1, MAX_int32},
+        {TEXT("SHOWDOWN.RingDamageTickSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownRingTickMs, 1, MAX_int32},
+        {TEXT("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.ShowdownRingEarlyDamageBp, 1, 10000},
+        {TEXT("SHOWDOWN.RingDamageLateMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.ShowdownRingLateDamageBp, 1, 10000},
         {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
         {TEXT("DORM.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.DormRegenDelayMs, 1, MAX_int64},
@@ -800,9 +892,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.FogRadiusCm"), &P.FogRadiusCm},
         {TEXT("COMBAT.ConductRadiusCm"), &P.ConductRadiusCm}, {TEXT("COMBAT.OverloadRadiusCm"), &P.OverloadRadiusCm},
         {TEXT("REST.ReturnSearchRadiusCm"), &P.RestReturnSearchRadiusCm},
-        {TEXT("PK.ArenaRadiusCm"), &P.PKArenaRadiusCm}, {TEXT("PK.RingMidRadiusCm"), &P.PKRingMidRadiusCm},
-        {TEXT("PK.RingFinalRadiusCm"), &P.PKRingFinalRadiusCm},
-        {TEXT("THROW.RadiusCm"), &P.ThrowRadiusCm}, {TEXT("THROW.RangeCm"), &P.ThrowRangeCm}})
+        {TEXT("SHOWDOWN.RingRadiusCm"), &P.ShowdownRingRadiusCm}, {TEXT("SHOWDOWN.RingFinalRadiusCm"), &P.ShowdownRingFinalRadiusCm}})
     {
         if (!F.Fraction(Field.Key, TEXT("cm"), *Field.Out, true))
         {
@@ -823,9 +913,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
         {TEXT("GROWTH.KeystoneThresholdPoints"), &P.KeystoneThresholdPoints, 1},
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
-        {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1},
-        {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
-        {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
+        {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1}})
     {
         if (!F.Int(Field.Key, *Field.Out, Field.Min))
         {
@@ -864,6 +952,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("VOUCHER.CampElite"), &P.Vouchers.CampElite}, {TEXT("VOUCHER.CampAncient"), &P.Vouchers.CampAncient},
         {TEXT("VOUCHER.Boss"), &P.Vouchers.Boss}, {TEXT("VOUCHER.Kill"), &P.Vouchers.Kill}, {TEXT("VOUCHER.Assist"), &P.Vouchers.Assist},
         {TEXT("VOUCHER.Airdrop"), &P.Vouchers.Airdrop}, {TEXT("VOUCHER.ActiveSkip"), &P.Vouchers.ActiveSkip},
+        {TEXT("VOUCHER.MiniFlag"), &P.Vouchers.MiniFlag}, {TEXT("VOUCHER.Arena"), &P.Vouchers.Arena},
+        {TEXT("VOUCHER.BountyKill"), &P.Vouchers.BountyKill}, {TEXT("VOUCHER.BountyAssist"), &P.Vouchers.BountyAssist},
+        {TEXT("VOUCHER.Locker"), &P.Vouchers.Locker},
         {TEXT("SHOP.CardPrice"), &P.Shop.CardPrice}, {TEXT("SHOP.SkillPrice"), &P.Shop.SkillPrice},
         {TEXT("SHOP.RefreshPrice"), &P.Shop.RefreshPrice}, {TEXT("SHOP.RefreshStep"), &P.Shop.RefreshStep},
         {TEXT("SHOP.SkillPointPrice"), &P.Shop.SkillPointPrice}, {TEXT("SHOP.SellPrice"), &P.Shop.SellPrice}})
@@ -876,6 +967,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         return false;
     }
+    if (!PacingParameters(F, P, Check)) { return false; }
     FLDShowdownParameters Showdown;
     FString ShowdownError;
     if (!FLDShowdownParameters::FromContent(P, Showdown, ShowdownError))
@@ -2742,8 +2834,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields F(Check, Value, TEXT("content"));
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
-    if (!Identity.Int(TEXT("schema_version"), Revision, 6, 6)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 13, 13)
+    if (!Identity.Int(TEXT("schema_version"), Revision, 7, 7)
+        || !Identity.Int(TEXT("handler_revision"), Revision, 14, 14)
         || !Identity.Int(TEXT("projection_revision"), Revision, 10, 10))
     {
         return false;
@@ -2859,24 +2951,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns)
         || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 1, LDDemoWorld::MaxCamps)
         || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
-        || !Ids(World.Take(TEXT("pk_spawn_ids")), Out.World.PKSpawnIds, Check, World.Path + TEXT(".pk_spawn_ids"),
-            LDDemoWorld::PKSpawns, LDDemoWorld::PKSpawns)
-        || !World.Identifier(TEXT("pk_throw_id"), Out.World.PKThrowId)
         || !World.Done())
-    {
-        return false;
-    }
-    // #198: the PK ring is read in index order, so the references are exactly pk_spawn_0..5 and pk_throw.
-    for (int32 Index = 0; Index < Out.World.PKSpawnIds.Num(); ++Index)
-    {
-        if (!Check.Require(Out.World.PKSpawnIds[Index].Equals(FString::Printf(TEXT("pk_spawn_%d"), Index), ESearchCase::CaseSensitive),
-            World.Path + TEXT(".pk_spawn_ids"), TEXT("PK spawns must be pk_spawn_0 to pk_spawn_5 in order")))
-        {
-            return false;
-        }
-    }
-    if (!Check.Require(Out.World.PKThrowId.Equals(TEXT("pk_throw"), ESearchCase::CaseSensitive),
-        World.Path + TEXT(".pk_throw_id"), TEXT("the PK throw anchor must be pk_throw")))
     {
         return false;
     }
@@ -3047,7 +3122,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 6\n#define LD_DEMO_CONTENT_HANDLER_REVISION 13\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 7\n#define LD_DEMO_CONTENT_HANDLER_REVISION 14\n")
         TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 10\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
@@ -3090,8 +3165,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     }
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
-        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 6, 6)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 13, 13)
+        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 7, 7)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 14, 14)
         || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 10, 10)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)

@@ -5,8 +5,8 @@
   "additionalProperties": false,
   "required": ["schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision", "approval", "coordinate_unit", "geometry", "placement", "parameter_refs", "anchors"],
   "properties": {
-    "schema_version": {"type": "integer", "const": 4},
-    "projection_revision": {"type": "integer", "const": 4},
+    "schema_version": {"type": "integer", "const": 5},
+    "projection_revision": {"type": "integer", "const": 5},
     "map_id": {"$ref": "#/$defs/id"},
     "layout_revision": {"type": "integer", "minimum": 1, "maximum": 4294967295},
     "geometry_revision": {"type": "integer", "minimum": 1, "maximum": 4294967295},
@@ -69,12 +69,13 @@
       }
     },
     "parameter_refs": {
-      "type": "array", "minItems": 7, "maxItems": 7,
+      "type": "array", "minItems": 9, "maxItems": 9,
       "items": {
         "type": "string",
         "enum": [
           "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm",
-          "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"
+          "EXPLORE.LockerRadiusCm", "OBJECTIVE.FlagRadiusCm", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
+          "VISION.RadiusCm"
         ]
       }
     },
@@ -117,7 +118,7 @@
         {
           "type": "object", "additionalProperties": false, "required": ["id", "kind", "surface_id", "position_cm"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn", "FinalCapture"]},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Capture", "Dorm", "Airdrop", "BossWaypoint", "MiniFlag", "Locker", "Vending", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn", "FinalCapture"]},
             "surface_id": {"$ref": "#/$defs/id"}, "position_cm": {"$ref": "#/$defs/vector"}
           }
         },

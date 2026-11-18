@@ -217,24 +217,35 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
-    // #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
-    if (!Check.Require(P.RestSignupMs > 0 && P.RestSignupMs <= P.RestBuildMs && P.RestSignupMs <= P.RestOpeningBuildMs,
-        TEXT("REST.SignupSec"), TEXT("PK sign-up must fit inside every rest build window")))
+    // The final showdown ring shrinks inside its start and hurts outside.
+    if (!Check.Require(N.LT(N.Value(0), N.Value(P.ShowdownRingFinalRadiusCm))
+            && N.LT(N.Value(P.ShowdownRingFinalRadiusCm), N.Value(P.ShowdownRingRadiusCm))
+            && P.ShowdownRingEarlyDamageBp > 0 && P.ShowdownRingLateDamageBp > 0 && P.ShowdownRingTickMs > 0,
+            TEXT("SHOWDOWN.RingFinalRadiusCm"), TEXT("the showdown ring must shrink and hurt outside")))
     {
         return false;
     }
-    // #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
-    if (!Check.Require(P.PKRingShrinkStartMs > 0 && P.PKRingShrinkStartMs < P.PKRingMidMs && P.PKRingMidMs < P.PKRingFinalMs
-            && P.PKRingFinalMs < P.RestPKMaxMs && P.PKRingPreviewMs > 0 && P.PKRingTickMs > 0,
-            TEXT("PK.RingFinalSec"), TEXT("ring shrink steps must be ordered and finish before the PK cap"))
-        || !Check.Require(N.LT(N.Value(0), N.Value(P.PKRingFinalRadiusCm))
-            && N.LT(N.Value(P.PKRingFinalRadiusCm), N.Value(P.PKRingMidRadiusCm))
-            && N.LT(N.Value(P.PKRingMidRadiusCm), N.Value(P.PKArenaRadiusCm)),
-            TEXT("PK.RingFinalRadiusCm"), TEXT("ring radii must shrink strictly inside the arena"))
-        || !Check.Require(N.LT(N.Value(0), N.Value(P.ThrowRadiusCm)) && N.LT(N.Value(0), N.Value(P.ThrowRangeCm)),
-            TEXT("THROW"), TEXT("throw radius and range must be positive")))
+    // Spec §11.1 delivery day: its own denser drop list keeps the one-drop-at-a-time spacing and leaves before T=480; the
+    // patrol day's early Boss still appears before it leaves.
     {
-        return false;
+        const auto& Daily = P.Daily;
+        const int64 TimedFieldMs = P.FieldSegmentMs * FLDTimelineParameters::TimedSegments;
+        bool bDrops = !Daily.DeliveryLandMs.IsEmpty() && Daily.DeliveryExpireMs > 0
+            && P.AirdropAnnounceLeadMs <= Daily.DeliveryLandMs[0];
+        for (int32 Index = 0; bDrops && Index < Daily.DeliveryLandMs.Num(); ++Index)
+        {
+            const int64 Land = Daily.DeliveryLandMs[Index];
+            const int64 Next = Index + 1 < Daily.DeliveryLandMs.Num() ? Daily.DeliveryLandMs[Index + 1] - P.AirdropAnnounceLeadMs
+                : TimedFieldMs;
+            bDrops = Land > 0 && Land <= TimedFieldMs - Daily.DeliveryExpireMs && Land + Daily.DeliveryExpireMs <= Next;
+        }
+        if (!Check.Require(bDrops, TEXT("DAILY.DeliveryLandSec"),
+                TEXT("delivery-day drops follow the airdrop spacing and leave before the final field"))
+            || !Check.Require(Daily.PatrolBossAppearMs > 0 && Daily.PatrolBossAppearMs < D.Boss.LeaveAtMs, TEXT("DAILY.PatrolBossAppearSec"),
+                TEXT("the early Boss still appears before it leaves")))
+        {
+            return false;
+        }
     }
     // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
     for (const int64 Bp : {P.DormMaxHPRegenBp})

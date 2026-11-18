@@ -58,6 +58,8 @@ struct LOCKDOWN_API FLDElementTerms
     double FogRadiusCm = 0;
     int64 FogMs = 0;
     int64 FogIntervalMs = 0;
+    // Spec §11.1 heat day: a fog reaction makes no fog area.
+    bool bFogArea = true;
     int64 ConductRatioBp = 0;
     double ConductRadiusCm = 0;
     int64 ConductSlowBp = 0;

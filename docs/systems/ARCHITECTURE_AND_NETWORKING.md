@@ -3,10 +3,10 @@
 | 项 | 内容 |
 | --- | --- |
 | 规则 | [App Spec](../APP_SPEC.md) §2、§6.1、§8；数值只在[内容与数值 §3.4](../demo/CONTENT_AND_BALANCE.md#34-空间与对局节奏参数)；跨域见[共享契约](../demo/SHARED_CONTRACTS.md) SC-01–04 |
-| 文件 | `Framework\LDGameInstance`、`LDGameEngine`、`LDGameMode.*`（`LDGameModeSession/Match/Lifecycle/Life/Rest/Capture/PK/Showdown/Trace.cpp`）、`LDMatchLifecycleTypes.*`、`LDMatchTimeline.*`、`LDCaptureReducer.*`、`LDCaptureTypes.*`、`LDMatchProviders.cpp`、`LDPlayerSession.cpp`、`LDPlayerRest.cpp`；`World\LDCaptureCircle`、`LDCaptureMarker`、`LDSpawnPlacement.cpp`；`PK\LDPKDirector`、`LDPKRules` |
+| 文件 | `Framework\LDGameInstance`、`LDGameEngine`、`LDGameMode.*`（`LDGameModeSession/Match/Lifecycle/Life/Rest/Capture/Pacing/Showdown/Trace.cpp`）、`LDMatchLifecycleTypes.*`、`LDMatchTimeline.*`、`LDCaptureReducer.*`、`LDCaptureTypes.*`、`LDMatchProviders.cpp`、`LDPlayerSession.cpp`、`LDPlayerRest.cpp`；`World\LDCaptureCircle`、`LDCaptureMarker`、`LDSpawnPlacement.cpp`、`LDFieldPacing.*`；`Framework\LDPacingTypes.*`、`LDShowdownRing.*`、`LDPlayerPacing.cpp` |
 | 入口函数 | `InitGame` / `PreLogin` / `PostLogin`、`ServerDemoSessionCommand` → `ProcessSessionCommand`、`StartDemoMatch`、`RetireMatch`；`BeginAuthorityStep` / `ValidateWritePermit` / `GetAuthorityNowMs`；`EndContenderLife`、`EndProtectionForAggressiveIntent`；`PublishCaptureMotion/Eligibility/Interrupt`、`ExecuteCapturePhase` / `ExecuteClosePhase` / `ExecuteCapturePublish`、`TryCloseMatch`、`FailAuthorityBoundary`；`AdvanceTimeline` / `LockTimelineBuild` |
 | 不变量 | 同一 Listen 世界内单一会话/对局流程；GameMode 是比赛身份、时钟、批次、生命边界、写闸、喷漆与守护归约和唯一结果的唯一提供者；一条单调权威时钟，野外进度 T 只在野外推进；写许可只由核心在当前调用栈构造；唯一结果只提交一次；必需工作失败进入 `Faulted`，不默认判胜；没有 Host 迁移或中途加入 |
-| 检查 | `Lockdown.Rules.DemoCapture.*`、`DemoCore.*`、`DemoRest.*`、`DemoPK.*`、`DemoSessionReceipts`、`ViewPrivacySchema`、`DemoOwnerViewTeardown`；场景 `RunDemoEntryCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1`、`RunDemoCoreCheck.ps1`（见[扩展与检查](#扩展与检查)） |
+| 检查 | `Lockdown.Rules.DemoCapture.*`、`DemoCore.*`、`DemoRest.*`、`DemoShowdown.*`、`DemoSessionReceipts`、`ViewPrivacySchema`、`DemoOwnerViewTeardown`；场景 `RunDemoEntryCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1`、`RunDemoCoreCheck.ps1`（见[扩展与检查](#扩展与检查)） |
 
 工程入口与完整命令见[开发指南](../DEVELOPMENT.md)。
 
@@ -161,7 +161,7 @@ RequestConflict / RequestInFlight / ReceiptExpired / ProtocolMismatch / ProductM
 地址格式、端口、不可达与旅行失败归 GameInstance 本地错误。本地连接使用独立 `ConnectionAttemptSerial`：取消后迟到的成功立即离开清理，迟到失败不关闭下一次成功连接。
 
 **公共读模型**：`FLDPublicMatchView` 时间字段为 `ServerNowMs / OpenAtMs / SoloSinceMs / DueAtMs / PausedProgressMs / GuardDueAtMs / GuardKeptMs`，另带 `PublicRevision`、
-`CircleState / Occupier / GraffitiOwner / GraffitiPresentation / CaptureEpoch / Result`、`Timeline`、`PK`。`SoloSinceMs / DueAtMs` 只在 `Solo` 时有值；`GuardDueAtMs` 只在 `Guarded`；
+`CircleState / Occupier / GraffitiOwner / GraffitiPresentation / CaptureEpoch / Result`、`Timeline`、`DailyModifiers`、`Objective`。`SoloSinceMs / DueAtMs` 只在 `Solo` 时有值；`GuardDueAtMs` 只在 `Guarded`；
 `GuardKeptMs` 在 `Empty / Solo / Contested` 表示保留进度；无主时用明确空值。字段组合由 `LDCaptureTypes.cpp` 校验。时间锚带 `double ServerSampleWorldSeconds`，
 客户端相对该锚估算显示，本地估计到零不触发服务器动作。`FLDResultView { Generation; ResultId; ResultSerial; Reason; TOptional<FGuid> Winner; StartedAtMs; EndedAtMs; DurationMs; Rows }`
 不发送 LedgerMatch；`FLDResultRow` 为 `ContenderId / Name / Kills / Deaths / FinalLevel / Assists`，按开局锁定名单顺序冻结（离局者有行，离局不加 Deaths）。
@@ -223,7 +223,7 @@ Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当�
 Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
 死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
 （撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
-复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP、起始劲与保护截止。已确定的等待总时长经 `CombatView.RespawnDurationMs` 仅发布给本人供界面使用，复活、离局或休息终止等待时清除。
+野外复活等待为 `LIFE.RespawnBaseSec` + `LIFE.RespawnPerLevelSec` × 死亡时等级（考试周另加 `DAILY.ExamRespawnBonusSec`）；死亡时 `OpenSpawnChoice` 从全部出生锚点不放回抽 `LIFE.SpawnChoiceCount` 个候选，到 `RespawnAtMs` 时在选中（未选则第一个）的锚点局部预留，再原子提交新 Life、满 HP、起始劲与保护截止。已确定的等待总时长经 `CombatView.RespawnDurationMs` 仅发布给本人供界面使用，复活、离局或休息终止等待时清除。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
 成长、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。
@@ -231,24 +231,27 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 外层流程：
 `StartDemoMatch` 把每名参赛者的第一条生命放在公共休息室按名单槽位固定的 `rest_spawn_<槽位>` 后进入 `Rest`（开局休息 R0），
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs`）设为此刻，以 `MAX_int64` 开始喷漆归约器，
-并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息与 PK 中冻结，
+并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息中冻结，
 外卖、上热搜、画饼老板、营地刷新、营地成长阶段与营地标记都按 T 以 0 为起点计时（`GetFieldNowMs`、`FieldDueAuthorityMs`）；
-外层参数 §5 的地图事件（外卖固定落地表与 30 s 消失、老板 T=173 s 出现并在 T=390 s 的第三段野外边界退场、营地标记在各段
+外层参数 §5 的地图事件（外卖固定落地表与消失、老板按批准 T 出现并在第三段野外边界退场、营地标记在各段
 T+11 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/`AdvanceFieldMarkers`（RespawnsAndWorld）与
 `ALDCampDirector::AdvanceCamps`/`FreezeForRest` 驱动；标记由营地死亡（`ConsumeMemberDeath` 的 CampCleared）领取，奖励经
 `ALDGameMode::PayFieldReward` 进入 `ALDGrowthDirector::CommitFieldReward`，可重试的拒绝在之后每个 Transactions 由 `RetryFieldRewards` 重付；
 最终野外开始的边界由 `FLDCaptureReducer::ScheduleOpen` 定为开放时刻，同一边界的 Capture 阶段从 Development 切到 CaptureOpen。
 `NextTimelineDueMs` 让每个休息步骤与野外段终点成为精确步边界；driver 在 RespawnsAndWorld 开头调用 `AdvanceTimeline`，
-在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算，再锁定报名名单；不锁构筑）。休息中 driver 跳过营地运动、营地意图与世界推进，
+在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算，再进入返回倒计时；不锁构筑）。休息中 driver 跳过营地运动、营地意图与世界推进，
 Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果取消与资源补满见[休息、野外进度与阶段边界](#休息野外进度与阶段边界)。
-写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务。
+写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build 步骤为 Rest、Return 步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务。
 返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
-这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行；成长命令与真人同一闸门，但 AI 策略在休息中仍只在配装与派奖步骤做构筑决策。
-PK 报名是实体的站圈报名，只在 R1、R2 开放：没有报名 RPC，`ALDGameMode::RefreshRestSignups` 在报名窗口内每拍按已提交脚点是否在六个
-`pk_signup_<槽位>` 站位平均位置为圆心的公共圆盘（`SignupDiskFor`，半径 `AIRDROP.PickupRadiusCm`）内重算公开名单，截止时刻再算一次并锁定。
-会话 D 注册可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`）：竞猜与投掷经 `ALDPlayerController::ServerPKBet`/`ServerPKThrow` 交 `ALDPKDirector::SubmitBet`/`SubmitThrow`
-判定，回 `ClientPKBet`/`ClientPKThrow`（投掷另带下次可投时刻）；AI 走同一入口。观众与被淘汰者由观察所有者显式授权看见全部场内选手、场区覆盖
-与场内技能投射物和预警，同队 PK 生命共享各自合法视线的并集（投射物与预警同样按队友的脚点与视线判定），被暴露的选手只对本场 PK 生命额外可见。
+这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行；成长命令与真人同一闸门，但 AI 策略在休息中只在配装步骤做构筑决策。
+P6 野外节奏（`LDGameModePacing.cpp`）：`InitializePacing` 在开局抽今日热点（`LDPacing::DrawDailyModifiers`，本局私有种子）、
+准备野外目标（`FLDObjectiveState`）、外卖柜（`FLDLockerState`）与二手贩子计划（`FLDPeddlerPlan`），全部按 T 计时；
+`AdvanceFieldPacing`（RespawnsAndWorld）推进目标的预告/开放/关闭、擂台结算、贩子出现与离开、下雨与台风；
+`ClaimFieldPacing`（Transactions）结算小迷你旗胜者、擂台奖励、外卖柜的看见（`Vision->TraceSight`）与开启、售货机购买。
+奖励都经 `PayFieldReward` 与 `GrantVouchers` 进入成长复合事务。死亡选点经 `ALDPlayerController::ServerChooseSpawn` 交 `SubmitSpawnChoice`，
+回 `ClientChooseSpawn`；售货机经 `ServerVending` 交 `SubmitVending` 入队，回 `ClientVending`，在下一 Transactions 边界付款并生效。
+两者都绑定 match/life，旧生命与旧局的请求明确拒绝；AI 死亡时 `ChooseSpawnForAI` 立即选离公开目标更近的候选。
+本人投影 `FLDOwnerState.Pacing`（`FLDOwnerPacingView`）只发给本人：候选出生点与选择、身边售货机、饭票、饮料剩余次数与看见过的外卖柜。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
 GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/劲/盾仍只在
 `Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。
@@ -336,26 +339,18 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 数值只在[内容与数值 §3.4](../demo/CONTENT_AND_BALANCE.md#34-空间与对局节奏参数)。
 
 - **时钟**：`FLDMatchTimeline`（`LDMatchTimeline.h/.cpp`）是 GameMode 拥有的纯归约器，从不读世界时钟，每次调用传入权威时刻，转换都在精确边界上（`NextTimelineDueMs` 交给 driver 作停靠边界）。
-  野外进度 T 是派生累计值，只在三段定时野外（各 `MATCH.FieldSegmentSec`）推进，休息与 PK 中冻结。公开读模型 `FLDPublicMatchView.Timeline`（`FLDTimelineView`：阶段、休息序号、野外段、步骤与起止、
-  报名开放时刻、T 基准、本段 T 终点、锁定人数、PK 是否跳过、报名名单），客户端与 AI 用 `LDMatchTimeline::FieldNowFromView` 推导 T。`MATCH.CountdownSec`、`MATCH.DevelopmentSec` 不是合法字段。
-- **公共休息室**：`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`；所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 按群组隔离野外/PK；Vision 向休息室连接发布全部活体训练目标的白名单状态；
+  野外进度 T 是派生累计值，只在三段定时野外（各 `MATCH.FieldSegmentSec`）推进，休息中冻结。公开读模型 `FLDPublicMatchView.Timeline`（`FLDTimelineView`：阶段、休息序号、野外段、步骤与起止、
+  T 基准、本段 T 终点、准备名单），客户端与 AI 用 `LDMatchTimeline::FieldNowFromView` 推导 T。`MATCH.CountdownSec`、`MATCH.DevelopmentSec` 不是合法字段。
+- **公共休息室**：`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`；所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 按群组隔离野外与休息室；Vision 向休息室连接发布全部活体训练目标的白名单状态；
   `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许攻击共享训练目标。
 - **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，只可准备不可撤销；OwnerState 发布 `bRestReady`/`bCanRestReady`，`ReadyContenders` 只含真人。
-  全部仍在局真人准备后 `FinishBuildEarly` 只把配装截止缩短到当前时刻加 `REST.SignupSec`；已在最后报名窗口不改。新休息/新局清空准备。
-- **步骤**：Build（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`，只有 R1、R2 的最后 `REST.SignupSec` 兼作 PK 站圈报名，截止含在内）→ R1/R2 锁定报名者 ≥2 时 Draw / Betting / PKReady / PK（至多 `REST.PKMaxSec`）/
-  Settlement / Payout；R0、R3 不开放报名或举行 PK，R1/R2 报名不足 2 人时同样直接 → Return `REST.ReturnSec`。报名锁定在 Transactions 末尾（`LockTimelineBuild`，截止时刻提交的构筑命令有效；只锁报名名单），其余转换在 RespawnsAndWorld 开头（`AdvanceTimeline`）。
-  `ReadBuildStage`：Build/Payout 为 Rest，其他休息步骤为 RestLocked，野外为 Live；自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务（`BuildLocked`）。Return 步骤 `IsInputLocked` 为真：
-  订单（含 Shift 步骤）回 `ELDOrderFailure::NotStarted`，普攻、Q/W/E 与 D 回 `ELDCombatReject::NotStarted`，进入野外后重放仍得同一拒绝。AI 身体决策只在 Development/CaptureOpen 运行。
-- **PK**：可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`），`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定。报名是站圈，只有 R1、R2 有报名窗口：`RefreshRestSignups` 在有效报名窗口内每拍按休息生命已提交脚点
-  是否在 `SignupDiskFor` 圆盘（六个 `pk_signup_<槽位>` 平均位置为圆心，半径 `AIRDROP.PickupRadiusCm`，边界算在内）重算 `Timeline.Signups`，锁定时再算一次；缺报名站位是明确错误；没有该提供者时 R1/R2 也跳过 PK。
-  锁定固定选手与竞猜资格观众；Draw 用本局私有随机流抽赛制、阵营与 6 个 `PKSpawn` 锚点的旋转；PKReady 经 `EnterPKLives` 共同结束休息生命、放置 PK 生命（无保护、无喷漆资格，`SetPKBody` 设隔离组与阵营）；
-  PK 步骤 Effects 阶段落投掷、每 250 ms 结算圈伤（`ApplyEnvironmentDamage`，按本步原生运动分段经 `LDPKRules::OutsideRingIntervals` 求真实圈外时长）；DeathsAndRewards 之后判定，决出即 `FinishRestPK`；
-  Settlement 冻结结果与资格并 `ReturnPKLivesToRest`，同边界 Transactions 经 `ALDDevelopmentDirector::GrantPKPoints`（每场每人一个业务身份，`PKAwardDuplicate` 去重）发点。PK 死亡记 `NoRewardPKArena` 并回休息位。
-  竞猜与投掷经 `ServerPKBet`/`ServerPKThrow` 交 `SubmitBet`/`SubmitThrow`，回 `ClientPKBet`/`ClientPKThrow`；AI 走同一入口。观众与被淘汰者由观察所有者授权看见全部场内选手、场区与场内投射物和预警；
-  同队 PK 生命共享各自合法视线的并集。公开读模型 `FLDPublicMatchView::PK`（`FLDPKView`）。
-- **共同入场**：PK 入场与返回野外都由 `PrepareJointPhase` 先为全部目标准备位置与战斗状态，全部成功才 `CommitPhaseBody` 一起提交；有人放不下就全部释放并撤回出生请求（`ULDMapRegistry::WithdrawSpawnRequest`），
-  下次以新请求身份重试。未就绪时 `FLDMatchTimeline::Advance` 的 `bBodiesReady` 为假，时间线停在边界（`IsEntryHeld`），PK 计时、T、旗杆与复活都不开始。PK 入场超过 `REST.EntryReadyTimeoutSec`
-  由 `AbandonPKEntry` 记本场 NoContest（`LD_PK_ARENA_BLOCKED`）；返回野外等待记 `LD_REST_RETURN_HELD`，超时 `LD_REST_RETURN_UNREADY` 权威故障。
+  全部仍在局真人准备后 `FinishBuildEarly` 把配装截止改为当前时刻，同一边界锁定并进入返回倒计时。新休息/新局清空准备。
+- **步骤**：Build（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`）→ Return `REST.ReturnSec`。锁定在 Transactions 末尾（`LockTimelineBuild`，截止时刻提交的构筑命令有效），
+  其余转换在 RespawnsAndWorld 开头（`AdvanceTimeline`）。`ReadBuildStage`：Build 为 Rest，Return 为 RestLocked，野外为 Live；自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务与商店（`BuildLocked`）。
+  Return 步骤 `IsInputLocked` 为真：订单（含 Shift 步骤）回 `ELDOrderFailure::NotStarted`，普攻、Q/W/E 与 D 回 `ELDCombatReject::NotStarted`，进入野外后重放仍得同一拒绝。AI 身体决策只在 Development/CaptureOpen 运行。
+- **共同入场**：返回野外由 `PrepareJointPhase` 先为全部目标准备位置与战斗状态，全部成功才 `CommitPhaseBody` 一起提交；有人放不下就全部释放并撤回出生请求（`ULDMapRegistry::WithdrawSpawnRequest`），
+  下次以新请求身份重试。未就绪时 `FLDMatchTimeline::Advance` 的 `bBodiesReady` 为假，时间线停在边界（`IsEntryHeld`），T、旗杆与复活都不开始；等待记 `LD_REST_RETURN_HELD`，
+  超过 `REST.EntryReadyTimeoutSec` 为 `LD_REST_RETURN_UNREADY` 权威故障。
 - **野外 → 休息**：存活野外生命退休而不死亡（`PhaseRetired`，无 K/D、播报、奖励或复活等待），剩余复活等待结束；`EnterRestWorld` 中 `ALDCombatDirector::CancelAllForPhase` 取消全部进行中效果
   （`LD_PHASE_EFFECTS_CANCELLED reason=CancelledByPhase`）并结束控制、减速、限时加成、标记、灼烧、破防、护盾、嘲讽、强化与硬控递减；每人得到新的休息生命（满 HP/MP），`ReadyAllForPhase` 让全部冷却与普攻节奏就绪。
 - **休息 → 野外**：`ExitRestWorld` 同样清理并解冻世界、退休休息生命；进入休息时存活者放回记住的野外脚点，或经 `ReserveSpawnNear`（3 圈 × 8 方向）在 `REST.ReturnSearchRadiusCm` 内找可达地面，仍不行正常抽点；
@@ -385,7 +380,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 | `GetAuthorityNowSeconds` / `GetAuthorityNowMs` | 同一时域；后者 checked floor，不回拨 |
 | `PublishCaptureMotion` / `PublishCaptureEligibility` / `PublishCaptureInterrupt(Permit, Body)` | 位移进出 / 仅 Session 与 Life 发布 Joined、Left、Died、Respawned、ProtectionEnded、PhaseRetired / 仅 Combat 的硬控提交 |
 | `EndContenderLife(Fact, Permit)` | 消费一次 Combat 死亡事实，不改 XP |
-| `AdvanceTimeline` / `LockTimelineBuild` / `EnterRestWorld` / `ExitRestWorld` | 阶段与报名；失败即边界故障 |
+| `AdvanceTimeline` / `LockTimelineBuild` / `EnterRestWorld` / `ExitRestWorld` | 阶段转换；失败即边界故障 |
 | `EndProtectionForAggressiveIntent` | Navigation/Combat 共享 |
 | `IsGameplayWriteOpen` / `ValidateWritePermit(Permit, Phase)` | 前者只是快速检查；后者在最终提交点核对 Match、批次、阶段、GateRevision 与闸门 |
 | `TryCloseMatch` | 唯一结果 CAS：守护提案须带当前 CaptureEpoch、主人与已封闭到 DueAtMs 的边界，且没有未处理的必需奖励 |
@@ -488,23 +483,24 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 | --- | --- |
 | `DemoCapture.*`（含 `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame`、`.CombatHitInterrupt`） | 喷漆暂停/续计与打断、涂鸦与守护保留、历史贡献、期限资格与并列无冠军、复活次数与截止、同刻顺序与步内守护完成、几何、公共 DTO、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 |
 | `DemoCore.*`（含 `.CaptureCompletesInsideStep`）、`DemoSessionReceipts`、`ViewPrivacySchema`、`DemoOwnerViewTeardown` | 核心时间与许可、步内守护完成、会话窗口重放/拒旧、公开字段白名单、本人视图停发条件 |
-| `DemoRest.Timeline/.PhasePolicy/.EntryHold/.SpawnIdentity`、`DemoPK.*`（含 `.RingOutsideTime`）、`DemoVision.EffectAccess` | 时间线时长与 R1/R2 报名窗口、R0/R3 不举行 PK、T 冻结与推进、隔离组与阶段清理、共同入场等待、撤回出生请求重试、PK 圈伤切分、观众与同队视野 |
+| `DemoRest.Timeline/.ReadyEarly/.PhasePolicy/.EntryHold/.SpawnIdentity`、`DemoRest.Objective.*/.Respawn.Choice/.Bounty/.DailyModifiers/.CampAffixes/.Explore.*`、`DemoShowdown.*`、`DemoVision.EffectAccess` | 时间线时长与提前结束配装、T 冻结与推进、隔离组与阶段清理、共同入场等待、撤回出生请求重试、野外目标、死亡选点、悬赏、今日热点、营地词条与隐藏物、封街圈伤切分、隔离组飞行物权限 |
 
 各角色 runner 要求恰好报告其稳定检查 id，缺失、多出或重复都失败。`RunDemoSessionFaultCheck.ps1` 覆盖客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态与 Host 经菜单离开；
 `RunDemoOpponentCheck.ps1` 覆盖 AI 绑定、自主循环、AI 以 `GuardSucceeded` 获胜与回 Lobby 后退役。
 
 证据限制：规则测试与场景只在同一台机器的回环连接上运行，跨机器局域网与公网直连没有证据；3+3 满员、打包版与网络异常在里程碑与发布验收时运行，结论只认当次 `Artifacts`；
-外层休息流程、PK/竞猜/投掷与训练假人只有规则测试，没有拥有连接场景；视野过滤不能防范恶意 Host；Host 断线时客户端按引擎默认约 60 秒连接超时后才回到菜单。
+外层休息流程、野外目标、死亡选点、售货机与训练假人只有规则测试，没有拥有连接场景；视野过滤不能防范恶意 Host；Host 断线时客户端按引擎默认约 60 秒连接超时后才回到菜单。
 
 **内容键**（数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)；作者秒经生成链变为严格检查的毫秒时长，绝对截止只在本局服务器建立）：
 
 | 键 | 消费者 |
 | --- | --- |
 | `MATCH.FieldSegmentSec` | `FLDMatchTimeline` 的三段定时野外 |
-| `REST.OpeningBuildSec/BuildSec/SignupSec/DrawSec/BettingSec/PKReadySec/PKMaxSec/SettlementSec/PayoutSec/ReturnSec` | 休息步骤；报名窗不得长于配装窗（`FLDTimelineParameters::Validate` 与导入校验） |
+| `REST.OpeningBuildSec/BuildSec/ReturnSec` | 休息步骤（`FLDTimelineParameters::Validate` 与导入校验） |
+| `OBJECTIVE.*`、`DAILY.*`、`AFFIX.*`、`EXPLORE.*`、`LIFE.RespawnBaseSec/RespawnPerLevelSec/SpawnChoiceCount/SpawnChoiceSec` | `FLDObjectiveState`、`LDPacing`、`FLDLockerState`、`FLDPeddlerPlan` 与 `LDGameModePacing.cpp`、营地与 Combat 的热点/词条调整 |
 | `REST.ReturnSearchRadiusCm`、`REST.EntryReadyTimeoutSec` | 返场就近搜索；共同入场最长等待 |
 | `CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`CAPTURE.RadiusCm` | 喷漆与守护归约、世界查询、UI/AI |
 | `SHOWDOWN.*` | `FLDShowdownParameters::FromContent`：解锁、期限、封街与复活截止的相对关系 |
-| `LIFE.RespawnSec.Field1/Field2/Field3/Final`、`LIFE.ProtectionSec` | 按死亡时 T 所在野外段取复活等待；保护期限 |
+| `LIFE.RespawnBaseSec/RespawnPerLevelSec/SpawnChoiceCount/SpawnChoiceSec`、`LIFE.ProtectionSec` | 按死亡时等级取复活等待、候选出生点与选择期限；保护期限 |
 | `UNIT.CollisionRadiusCm` | 只服务合法落地与碰撞，不扩大喷漆区或重抽锚点 |
 | `POLICY.InvalidAggressionProtection=BreakOnAggressiveIntent`、`POLICY.ReleasedEffectSourceLoss=ContinueForRemainingContender`、`POLICY.SourceLeave=CancelUnsettledNoRefund`、`POLICY.DeadChoiceCommit`、`POLICY.MissingSourceCooldown`、`POLICY.ResourceMaxChange` | 生命、Combat 与成长的已确认政策 |

@@ -46,7 +46,7 @@ def content_fixture():
         ("OVERDRIVE.Scale", "ratio", 1.5), ("OVERDRIVE.WaterSlow", "ratio", 0.4), ("OVERDRIVE.WaterSlowSec", "s", 1.25),
         ("OVERDRIVE.ShockReactionRatio", "ratio", 0.5), ("OVERDRIVE.RotDurationScale", "ratio", 2),
         ("OVERDRIVE.GustPushCm", "cm", 250), ("OVERDRIVE.GustPushSec", "s", 0.25),
-        ("AI.DodgeChance", "ratio", 0.5), ("AI.EnemyGroundPathCost", "ratio", 3), ("AIRDROP.Momentum", "momentum", 30),
+        ("AI.DodgeChance", "ratio", 0.5), ("AI.EnemyGroundPathCost", "ratio", 3), ("AI.ObjectiveEntryHPRatio", "ratio", 0.6), ("AI.ObjectiveReachCm", "cm", 2500), ("AIRDROP.Momentum", "momentum", 30),
         ("UNIT.MoveSpeedCmPerSec", "cm/s", 500), ("STAT.MoveSpeed.Min", "cm/s", 100), ("STAT.MoveSpeed.Max", "cm/s", 1200),
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
         ("STAT.AttackRange.Min", "cm", 40), ("STAT.AttackRange.Max", "cm", 1000),
@@ -58,20 +58,30 @@ def content_fixture():
         ("SHOWDOWN.SecondRespawnSec", "s", 24), ("SHOWDOWN.RespawnCutoffSec", "s", 150),
         ("SHOWDOWN.ClosureStartsSec", "s", 120),
         ("MATCH.FieldSegmentSec", "s", 90),
-        ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 25), ("REST.SignupSec", "s", 8),
-        ("REST.DrawSec", "s", 4), ("REST.BettingSec", "s", 6), ("REST.PKReadySec", "s", 2), ("REST.PKMaxSec", "s", 45),
-        ("REST.SettlementSec", "s", 2.5), ("REST.PayoutSec", "s", 9), ("REST.ReturnSec", "s", 4),
+        ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 20), ("REST.ReturnSec", "s", 4),
         ("REST.ReturnSearchRadiusCm", "cm", 250), ("REST.EntryReadyTimeoutSec", "s", 20),
-        ("PK.ArenaRadiusCm", "cm", 1500), ("PK.RingMidRadiusCm", "cm", 500), ("PK.RingFinalRadiusCm", "cm", 100),
-        ("PK.RingShrinkStartSec", "s", 8), ("PK.RingMidSec", "s", 30), ("PK.RingFinalSec", "s", 40),
-        ("PK.RingPreviewSec", "s", 8), ("PK.RingDamageTickSec", "s", 0.5),
-        ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", 0.04), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", 0.1),
-        ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", 0.2), ("PK.TeamFormatRatio", "ratio", 0.25),
-        ("PK.RewardMultiplier", "ratio", 1.5),
-        ("THROW.CooldownSec", "s", 8), ("THROW.TelegraphSec", "s", 0.5), ("THROW.RadiusCm", "cm", 100),
-        ("THROW.RangeCm", "cm", 3000), ("THROW.SlowRatio", "ratio", 0.25), ("THROW.SlowSec", "s", 1.5),
-        ("THROW.ExposeSec", "s", 3),
-        ("LIFE.RespawnSec.Field1", "s", 6), ("LIFE.RespawnSec.Field2", "s", 9), ("LIFE.RespawnSec.Field3", "s", 11),
+        ("SHOWDOWN.RingRadiusCm", "cm", 1500), ("SHOWDOWN.RingFinalRadiusCm", "cm", 500),
+        ("SHOWDOWN.RingPreviewSec", "s", 8), ("SHOWDOWN.RingDamageTickSec", "s", 0.5),
+        ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", 0.04), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", 0.1),
+        ("LIFE.RespawnBaseSec", "s", 5), ("LIFE.RespawnPerLevelSec", "s", 0.75), ("LIFE.SpawnChoiceSec", "s", 5),
+        ("OBJECTIVE.StartSec", "s", 50), ("OBJECTIVE.AnnounceLeadSec", "s", 8), ("OBJECTIVE.FlagWindowSec", "s", 25),
+        ("OBJECTIVE.FlagRadiusCm", "cm", 180), ("OBJECTIVE.FlagSpraySec", "s", 4), ("OBJECTIVE.ArenaSec", "s", 35),
+        ("OBJECTIVE.ArenaRadiusCm", "cm", 800),
+        ("DAILY.RainIntervalSec", "s", 15), ("DAILY.RainPuddleSec", "s", 8), ("DAILY.RainWetBonusSec", "s", 1.5),
+        ("DAILY.ColdFreezeSec", "s", 12), ("DAILY.ColdChillBonusSec", "s", 1.5), ("DAILY.BlackoutVisionCut", "ratio", 0.25),
+        ("DAILY.BlackoutShockScale", "ratio", 1.5), ("DAILY.TyphoonIntervalSec", "s", 25), ("DAILY.TyphoonPushCm", "cm", 120),
+        ("DAILY.HeatBurnTickScale", "ratio", 1.25), ("DAILY.SalePriceScale", "ratio", 0.6),
+        ("DAILY.DeliveryExpireSec", "s", 10), ("DAILY.PatrolBossAppearSec", "s", 100),
+        ("DAILY.ExamMonsterXPScale", "ratio", 1.2), ("DAILY.ExamRespawnBonusSec", "s", 2),
+        ("DAILY.GymDashCooldownCut", "ratio", 0.2),
+        ("AFFIX.Chance", "ratio", 0.25), ("AFFIX.OvertimeAttackSpeed", "ratio", 0.2), ("AFFIX.OvertimeVoucherScale", "ratio", 1.5),
+        ("AFFIX.TeambuildXPScale", "ratio", 1.25), ("AFFIX.BonusHP", "ratio", 0.3), ("AFFIX.LayoffAttack", "ratio", 0.2),
+        ("AFFIX.AuditTelegraphCut", "ratio", 0.25),
+        ("EXPLORE.LockerRadiusCm", "cm", 120), ("EXPLORE.LockerChannelSec", "s", 2.5), ("EXPLORE.LockerCardChance", "ratio", 0.4),
+        ("EXPLORE.PeddlerEarliestSec", "s", 60), ("EXPLORE.PeddlerLatestSec", "s", 180), ("EXPLORE.PeddlerOffsetCm", "cm", 500),
+        ("EXPLORE.PeddlerHP", "hp", 1500), ("EXPLORE.PeddlerMoveSpeed", "cm/s", 250), ("EXPLORE.PeddlerStaySec", "s", 40),
+        ("EXPLORE.VendingBuffSec", "s", 20), ("EXPLORE.VendingAttackSpeed", "ratio", 0.15),
+        ("EXPLORE.VendingMomentumPerSec", "momentum/s", 1.5), ("EXPLORE.VendingMoveSpeed", "ratio", 0.1),
         ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
@@ -166,6 +176,7 @@ def content_fixture():
     ):
         parameters[key] = q(unit, value)
     parameters["AIRDROP.LandSec"] = [q("s", 30), q("s", 90), q("s", 150)]
+    parameters["DAILY.DeliveryLandSec"] = [q("s", value) for value in (10, 40, 70, 100, 130, 160, 190, 220)]
     parameters["SKILL.RankBaseScale"] = [q("ratio", 1), q("ratio", 1.25), q("ratio", 1.75)]
     parameters["SKILL.RankRatioScale"] = [q("ratio", 1), q("ratio", 1.125), q("ratio", 1.25)]
     parameters["SKILL.PointLevels"] = [3, 6, 9]
@@ -180,7 +191,12 @@ def content_fixture():
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3, "COMBAT.OverloadBreachStacks": 3,
         "COMBAT.ShockEveryNthHit": 2, "COMBAT.MethaneBurnStacks": 1, "COMBAT.FirestormBurnScale": 3, "COMBAT.CorrodeBreachStacks": 2, "GROUND.FireBurnStacks": 2, "GROUND.MaxPerOwner": 4, "GROUND.MaxTotal": 24,
         "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
-        "PK.ParticipationPoints": 2, "PK.WinnerPointsMax": 4, "PK.BettingPoolMaxPoints": 3,
+        "LIFE.SpawnChoiceCount": 3, "OBJECTIVE.FlagCardOffer": 4, "OBJECTIVE.ArenaCardOffer": 4,
+        "DAILY.Count": 3, "DAILY.RainPuddles": 4, "DAILY.RumorLeaders": 2,
+        "AFFIX.FridgeCardOffer": 4, "AFFIX.BonusCardOffer": 4, "AFFIX.LayoffVouchers": 6, "AFFIX.AuditSkillPointsMax": 2,
+        "EXPLORE.LockerCount": 5, "EXPLORE.LockerCardOffer": 4, "EXPLORE.PeddlerCardOffer": 4,
+        "EXPLORE.VendingBuffPrice": 3, "EXPLORE.VendingDrinkPrice": 4, "EXPLORE.VendingDrinkHits": 4,
+        "VOUCHER.MiniFlag": 12, "VOUCHER.Arena": 18, "VOUCHER.BountyKill": 11, "VOUCHER.BountyAssist": 4, "VOUCHER.Locker": 6,
         "GROWTH.KeystoneThresholdPoints": 18,
         "CARDS.CapacityBase": 5, "CARDS.LevelsPerSlot": 4, "CARDS.OfferSize": 3, "CARDS.FreeRerolls": 2,
         "CARDS.RerollsPerRest": 1, "CARDS.LockSlots": 1, "CARDS.VocabWeight": 3, "CARDS.SkipVouchers": 2,
@@ -347,7 +363,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"
     next(row for row in display if row["id"] == "card_fire_fist")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 6, "handler_revision": 13, "projection_revision": 10,
+        "identity": {"schema_version": 7, "handler_revision": 14, "projection_revision": 10,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
@@ -356,8 +372,7 @@ def content_fixture():
         "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
                         "active_offer_levels": [4, 9]},
-        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture",
-                  "pk_spawn_ids": [f"pk_spawn_{n}" for n in range(6)], "pk_throw_id": "pk_throw"},
+        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture"},
         "display": display,
     }
 

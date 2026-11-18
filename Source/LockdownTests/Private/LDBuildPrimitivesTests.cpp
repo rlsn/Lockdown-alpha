@@ -16,7 +16,6 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
-#include "PK/LDPKDirector.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
@@ -74,7 +73,7 @@ struct FLDBuildPrimitivesAccess
         for(int32 Index=0;Index<32&&!Mode.IsShowdown();++Index)
         {
             TArray<FLDTimelineEvent> Events;
-            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(),0,true,true,Events,Error)){return false;}
+            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(),true,true,Events,Error)){return false;}
         }
         if(!Mode.IsShowdown()){Error=TEXT("Fixture did not reach the real final field stage.");return false;}
         return true;
@@ -263,29 +262,6 @@ struct FLDBuildPrimitivesAccess
         View.AtMs = 1000;
         return Mode.SendReactionAssist(Setter.Victim.EntityId, Target, Trigger, View, Sent, Error);
     }
-    static void ReactionPK(ALDGameMode& Mode, ALDPKDirector& PK, const FLDCombatBodyRef& Setter,
-        const FLDCombatBodyRef& Mate, ALDCharacter& MateActor, const FLDCombatBodyRef& Target,
-        const FLDCombatBodyRef& Trigger, const FVector& MateFoot)
-    {
-        Mode.PKDirector = &PK;
-        PK.Mode = &Mode;
-        PK.bArenaActive = true;
-        PK.Entrants = {Setter.Victim.EntityId, Mate.Victim.EntityId, Target.Victim.EntityId, Trigger.Victim.EntityId};
-        PK.Drawn.SideOfSeat = {1, 1, 2, 2};
-        for (const FGuid& Entrant : PK.Entrants) { Mode.PKLives.Add(Entrant); }
-        auto& Life = Mode.Lives.Add(Mate.Victim.EntityId);
-        Life.Kind = ELDVictimKind::Contender;
-        Life.Phase = ELDLifePhase::Alive;
-        Life.Life = Mate.Victim.Life;
-        Life.Body = Mate;
-        Life.Actor = &MateActor;
-        Life.MotionLastFoot = MateFoot;
-    }
-    static void MoveReactionTeammate(ALDGameMode& Mode, const FLDCombatBodyRef& Mate, const FVector& Foot)
-    { Mode.Lives.FindChecked(Mate.Victim.EntityId).MotionLastFoot = Foot; }
-    static void SetReactionSpectator(ALDGameMode& Mode, const FLDCombatBodyRef& Setter)
-    { Mode.PKLives.Remove(Setter.Victim.EntityId); }
-    static void EndReactionPK(ALDPKDirector& PK) { PK.bArenaActive = false; }
 };
 
 namespace LDBuildPrimitivesTests
@@ -566,33 +542,6 @@ bool FLDReactionPromptSightTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A visible source body cannot disclose a different credited contender"),
         FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error, FGuid::NewGuid()) == ELDReactionAssistDelivery::Sent
         && !Sent.Trigger.IsValid());
-    const FLDCombatBodyRef Mate = F.AddBody();
-    F.Place(Mate, 100, 0);
-    auto* PK = F.World->SpawnActor<ALDPKDirector>();
-    if (!TestNotNull(TEXT("The PK director exists"), PK)) { return false; }
-    FAccess::ReactionPK(*F.Mode, *PK, Setter, Mate, F.Actor(Mate), Target, Trigger, F.Foot(Mate));
-    F.Actor(Setter).SetActorLocation(FarActor);
-    TestTrue(TEXT("A PK teammate's live sight authorizes the target and trigger"),
-        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
-        && Sent.Trigger == Trigger.Victim.EntityId);
-    FAccess::MoveReactionTeammate(*F.Mode, Mate, FarFoot);
-    TestTrue(TEXT("A stale teammate observation cannot disclose a reaction after sight is lost"),
-        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Unavailable
-        && Error.IsEmpty());
-    F.Body(Target).ExposedUntilMs = 1001;
-    TestTrue(TEXT("An exposed PK target is presentable without disclosing an unseen trigger"),
-        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
-        && !Sent.Trigger.IsValid());
-    F.Body(Trigger).ExposedUntilMs = 1001;
-    TestTrue(TEXT("An exposed PK trigger may be identified"),
-        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
-        && Sent.Trigger == Trigger.Victim.EntityId);
-    F.Body(Target).ExposedUntilMs = F.Body(Trigger).ExposedUntilMs = 0;
-    FAccess::SetReactionSpectator(*F.Mode, Setter);
-    TestTrue(TEXT("A PK spectator may see the arena's currently registered bodies"),
-        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
-        && Sent.Trigger == Trigger.Victim.EntityId);
-    FAccess::EndReactionPK(*PK);
     F.Place(Setter, 0, 0);
     F.Body(Target).IsolationGroup = FGuid::NewGuid();
     TestTrue(TEXT("A target newly isolated from the setter cannot disclose its reaction"),
@@ -2222,7 +2171,7 @@ namespace LDBuildPrimitivesTests
 // R11 (spec §12.1): M01 spreads S21's damage around the struck body; the cut of heals and shields and the attack slow stay on it.
 // S20 (spec §9): its owner and the owner's current-match teammates run faster inside the puddle; enemies and teammates outside do
 // not; leaving drops it.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventZoneHasteTest, "Lockdown.Rules.Combat.Events.ZoneHasteTeam",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventZoneHasteTest, "Lockdown.Rules.Combat.Events.ZoneHaste",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FLDCombatEventZoneHasteTest::RunTest(const FString& Parameters)
@@ -2231,22 +2180,9 @@ bool FLDCombatEventZoneHasteTest::RunTest(const FString& Parameters)
     FFixture F;
     if (!F.Init(*this, true)) { return false; }
     constexpr int64 Big = 10000000;
-    const FLDCombatBodyRef Owner = F.AddBody(), Mate = F.AddBody(ELDVictimKind::Contender, Big), Far = F.AddBody(ELDVictimKind::Contender, Big),
-        Enemy = F.AddBody(ELDVictimKind::Contender, Big);
-    const FGuid Group = FGuid::NewGuid();
-    const auto Join = [&](const FLDCombatBodyRef& Ref, uint8 Side)
-    {
-        F.Body(Ref).IsolationGroup = Group;
-        F.Body(Ref).PKSide = Side;
-    };
-    Join(Owner, 1);
-    Join(Mate, 1);
-    Join(Far, 1);
-    Join(Enemy, 2);
+    const FLDCombatBodyRef Owner = F.AddBody(), Other = F.AddBody(ELDVictimKind::Contender, Big);
     F.Place(Owner, 250, 0);
-    F.Place(Mate, 350, 60);
-    F.Place(Far, -600, 0);
-    F.Place(Enemy, 300, -80);
+    F.Place(Other, 300, -80);
     FLDCombatActiveTerms Puddle;
     if (!ActiveTerms(*this, F, TEXT("active_dirty_puddle"), Puddle)) { return false; }
     FString Error;
@@ -2257,17 +2193,14 @@ bool FLDCombatEventZoneHasteTest::RunTest(const FString& Parameters)
     const auto Hasted = [&](const FLDCombatBodyRef& Ref)
     { return F.Body(Ref).TimedBonuses.ContainsByPredicate([&ZoneId](const FLDCombatTimedBonus& Row) { return Row.EffectId == ZoneId; }); };
     if (!TestTrue(FString::Printf(TEXT("The zone runs: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1000, Error))) { return false; }
-    TestTrue(TEXT("The owner and its teammate inside are hasted"), Hasted(Owner) && Hasted(Mate));
-    TestTrue(TEXT("A teammate outside and an enemy inside are not"), !Hasted(Far) && !Hasted(Enemy));
-    TestTrue(TEXT("Its pulse still reaches the enemy, never the teammate"), FAccess::PendingHits(*F.Driver).ContainsByPredicate(
-        [&Enemy](const FLDCombatHit& Row) { return Row.Target == Enemy; }) && !FAccess::PendingHits(*F.Driver).ContainsByPredicate(
-        [&Mate](const FLDCombatHit& Row) { return Row.Target == Mate; }));
+    TestTrue(TEXT("The owner inside is hasted; another contender inside is not"), Hasted(Owner) && !Hasted(Other));
+    TestTrue(TEXT("Its pulse still reaches the other contender"), FAccess::PendingHits(*F.Driver).ContainsByPredicate(
+        [&Other](const FLDCombatHit& Row) { return Row.Target == Other; }));
     FAccess::PendingHits(*F.Driver).Reset();
-    F.Place(Mate, 650, 0);
-    F.Place(Far, 300, 60);
+    F.Place(Owner, -600, 0);
     F.Now(1100);
     if (!TestTrue(FString::Printf(TEXT("The zone runs on: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1100, Error))) { return false; }
-    TestTrue(TEXT("Leaving drops it; entering grants it"), !Hasted(Mate) && Hasted(Far) && Hasted(Owner));
+    TestFalse(TEXT("Leaving drops it"), Hasted(Owner));
     return true;
 }
 

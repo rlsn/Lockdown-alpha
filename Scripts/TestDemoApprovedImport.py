@@ -290,7 +290,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (6, 13, 10))
+                          self.data["identity"]["projection_revision"]), (7, 14, 10))
         self.assertIn("#292 P5 cards, vouchers, rest shop, pick tickets and chains approved", approval["decision"])
         self.assertIn("#287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved", approval["decision"])
         self.assertFalse({"components", "workshop_capacity"} & (set(self.data) | set(self.data["progression"])))
@@ -340,27 +340,30 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),
             ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
             ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
-            # #276 match timeline: three 130 s field segments, rest phases and field respawn waits by T at death
-            # (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
-            ("MATCH.FieldSegmentSec", "ms", "130"),
-            ("REST.OpeningBuildSec", "ms", "75"), ("REST.BuildSec", "ms", "50"), ("REST.SignupSec", "ms", "10"),
-            ("REST.DrawSec", "ms", "5"), ("REST.BettingSec", "ms", "8"), ("REST.PKReadySec", "ms", "3"),
-            ("REST.PKMaxSec", "ms", "60"), ("REST.SettlementSec", "ms", "3"), ("REST.PayoutSec", "ms", "12"),
+            # Issue #287 spec §10 (P6): three 160 s field segments and 25 s rests.
+            ("MATCH.FieldSegmentSec", "ms", "160"),
+            ("REST.OpeningBuildSec", "ms", "25"), ("REST.BuildSec", "ms", "25"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
-            # #198 PK ring, format and spectator throw (approved
-            # https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
-            ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
-            ("PK.RingShrinkStartSec", "ms", "10"), ("PK.RingMidSec", "ms", "40"), ("PK.RingFinalSec", "ms", "55"),
-            ("PK.RingPreviewSec", "ms", "10"), ("PK.RingDamageTickSec", "ms", ".25"),
-            ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", ".05"), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", ".12"),
-            ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", ".25"), ("PK.TeamFormatRatio", "ratio", ".5"),
-            ("PK.RewardMultiplier", "ratio", "1.5"),
-            ("THROW.CooldownSec", "ms", "10"), ("THROW.TelegraphSec", "ms", ".8"), ("THROW.RadiusCm", "cm", "120"),
-            ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
-            ("THROW.ExposeSec", "ms", "2"),
-            ("LIFE.RespawnSec.Field1", "ms", "8"), ("LIFE.RespawnSec.Field2", "ms", "10"),
-            ("LIFE.RespawnSec.Field3", "ms", "12"),
+            # Issue #287 spec §10-§11 (P6): the showdown ring, respawn, objectives, hotspots, affixes and hidden things.
+            ("SHOWDOWN.RingRadiusCm", "cm", "1800"), ("SHOWDOWN.RingFinalRadiusCm", "cm", "600"), ("SHOWDOWN.RingPreviewSec", "ms", "10"),
+            ("SHOWDOWN.RingDamageTickSec", "ms", "0.25"), ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", "0.05"), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", "0.12"),
+            ("LIFE.RespawnBaseSec", "ms", "6"), ("LIFE.RespawnPerLevelSec", "ms", "0.5"), ("LIFE.SpawnChoiceSec", "ms", "4"),
+            ("OBJECTIVE.StartSec", "ms", "100"), ("OBJECTIVE.AnnounceLeadSec", "ms", "10"), ("OBJECTIVE.FlagWindowSec", "ms", "30"),
+            ("OBJECTIVE.FlagRadiusCm", "cm", "200"), ("OBJECTIVE.FlagSpraySec", "ms", "3"), ("OBJECTIVE.ArenaSec", "ms", "40"),
+            ("OBJECTIVE.ArenaRadiusCm", "cm", "900"), ("DAILY.RainIntervalSec", "ms", "20"), ("DAILY.RainPuddleSec", "ms", "10"),
+            ("DAILY.RainWetBonusSec", "ms", "2"), ("DAILY.ColdFreezeSec", "ms", "20"), ("DAILY.ColdChillBonusSec", "ms", "2"),
+            ("DAILY.BlackoutVisionCut", "ratio", "0.3"), ("DAILY.BlackoutShockScale", "ratio", "2"), ("DAILY.TyphoonIntervalSec", "ms", "30"),
+            ("DAILY.TyphoonPushCm", "cm", "150"), ("DAILY.HeatBurnTickScale", "ratio", "1.3"), ("DAILY.SalePriceScale", "ratio", "0.5"),
+            ("DAILY.DeliveryExpireSec", "ms", "15"), ("DAILY.PatrolBossAppearSec", "ms", "120"), ("DAILY.ExamMonsterXPScale", "ratio", "1.3"),
+            ("DAILY.ExamRespawnBonusSec", "ms", "3"), ("DAILY.GymDashCooldownCut", "ratio", "0.3"), ("AFFIX.Chance", "ratio", "0.3"),
+            ("AFFIX.OvertimeAttackSpeed", "ratio", "0.3"), ("AFFIX.OvertimeVoucherScale", "ratio", "2"), ("AFFIX.TeambuildXPScale", "ratio", "1.5"),
+            ("AFFIX.BonusHP", "ratio", "0.4"), ("AFFIX.LayoffAttack", "ratio", "0.3"), ("AFFIX.AuditTelegraphCut", "ratio", "0.3"),
+            ("EXPLORE.LockerRadiusCm", "cm", "150"), ("EXPLORE.LockerChannelSec", "ms", "3"), ("EXPLORE.LockerCardChance", "ratio", "0.5"),
+            ("EXPLORE.PeddlerEarliestSec", "ms", "120"), ("EXPLORE.PeddlerLatestSec", "ms", "400"), ("EXPLORE.PeddlerOffsetCm", "cm", "600"),
+            ("EXPLORE.PeddlerHP", "hp", "1800"), ("EXPLORE.PeddlerMoveSpeed", "cm/s", "280"), ("EXPLORE.PeddlerStaySec", "ms", "60"),
+            ("EXPLORE.VendingBuffSec", "ms", "30"), ("EXPLORE.VendingAttackSpeed", "ratio", "0.2"), ("EXPLORE.VendingMomentumPerSec", "momentum/s", "2"),
+            ("EXPLORE.VendingMoveSpeed", "ratio", "0.15"), ("AI.ObjectiveEntryHPRatio", "ratio", "0.6"), ("AI.ObjectiveReachCm", "cm", "2500"),
             ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
@@ -468,8 +471,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             ("COMBAT.ShockEveryNthHit", 3), ("COMBAT.MethaneBurnStacks", 2), ("COMBAT.FirestormBurnScale", 2), ("COMBAT.CorrodeBreachStacks", 3), ("GROUND.FireBurnStacks", 1), ("GROUND.MaxPerOwner", 6), ("GROUND.MaxTotal", 40),
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
-            # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
-            ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
+            # Issue #287 spec §10-§11 (P6) counts.
+            ("LIFE.SpawnChoiceCount", 2), ("OBJECTIVE.FlagCardOffer", 3), ("OBJECTIVE.ArenaCardOffer", 5), ("VOUCHER.MiniFlag", 15),
+            ("VOUCHER.Arena", 20), ("VOUCHER.BountyKill", 15), ("VOUCHER.BountyAssist", 5), ("VOUCHER.Locker", 8),
+            ("DAILY.Count", 2), ("DAILY.RainPuddles", 6), ("DAILY.RumorLeaders", 2), ("AFFIX.FridgeCardOffer", 3),
+            ("AFFIX.BonusCardOffer", 5), ("AFFIX.LayoffVouchers", 8), ("AFFIX.AuditSkillPointsMax", 1), ("EXPLORE.LockerCount", 4),
+            ("EXPLORE.LockerCardOffer", 3), ("EXPLORE.PeddlerCardOffer", 5), ("EXPLORE.VendingBuffPrice", 2), ("EXPLORE.VendingDrinkPrice", 3),
+            ("EXPLORE.VendingDrinkHits", 5),
             ("GROWTH.KeystoneThresholdPoints", 18),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
             ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 5), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
@@ -484,7 +492,8 @@ class ApprovedDemoData(unittest.TestCase):
         expected["SKILL.RankBaseScale"] = ("ratio", ("1", "1.5", "2"))
         expected["SKILL.RankRatioScale"] = ("ratio", ("1", "1.25", "1.5"))
         expected["COMBO.StepRatios"] = ("ratio", (".9", ".9", "1.3"))
-        expected["AIRDROP.LandSec"] = ("ms", ("32", "90", "163", "220", "293", "350"))
+        expected["AIRDROP.LandSec"] = ("ms", ("40", "110", "200", "270", "360", "430"))
+        expected["DAILY.DeliveryLandSec"] = ("ms", ("40", "75", "110", "155", "200", "235", "270", "315", "360", "395", "430", "460"))
         self.assertEqual(set(self.data["parameters"]), set(expected))
         for key, (unit, value) in expected.items():
             with self.subTest(key=key):
@@ -899,12 +908,12 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(amount(boss[key]), expected, key)
         # #276 tempo: field T=173 s once, leaves at the final timed-field boundary T=390 s; the old approval buff is removed.
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
-                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 173000, 390000, 300))
+                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 295000, 480000, 300))
         self.assertNotIn("approval", boss)
 
     def test_world_identity_and_shared_values(self):
         self.assertEqual(self.world.world["map_id"], "demo_world")
-        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (4, 4))
+        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (5, 5))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 300)
 
@@ -936,7 +945,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(content._wire_fraction(placement["spawn_validation_radius_cm"], "envelope"), 200)
         self.assertEqual(self.world.world["parameter_refs"], (
             "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm",
-            "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"))
+            "EXPLORE.LockerRadiusCm", "OBJECTIVE.FlagRadiusCm", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"))
 
     def test_byte_provenance_and_acyclic_producer_order(self):
         self.assertEqual(self.world.world["source_sha256"], content.sha256((content.ROOT / content.WORLD_SOURCE).read_bytes()))

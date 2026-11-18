@@ -28,7 +28,7 @@ namespace LDUIPaint {struct FContext;}
 // installed one back onto the storage uninstalls it, onto another place moves it (an uninstall, then an install once the
 // view shows it), onto an installed card of a full workshop replaces that one. Each card is keyed by LDHUD::CardKey (its
 // definition numbered by its serial). Local presentation over the own progression view; the server decides every command.
-// Open in combat, while dead and in a PK; a closed match stage refuses with its reason.
+// Open in combat, while dead and in a rest; a closed match stage refuses with its reason.
 class ULDPaintLayer;
 class UTexture2D;
 UCLASS()

@@ -67,9 +67,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         // D26: a Boss patrol point is the Boss's route, not a place a body goes; the visible Boss is a unit.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+        // P6 spec §11.3: lockers are hidden until seen and vending machines are no AI errand.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Locker || Anchor.Kind == ELDDemoWorldAnchorKind::Vending) { continue; }
         // Rest-only places are supplied separately and never considered by field decisions.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
-            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
             || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy
             || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture) { continue; }
         FLDOpponentPOI POI;
@@ -98,6 +99,11 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             POI.Kind = ELDOpponentPOIKind::Airdrop;
             bApproved = true;
             ++Airdrops;
+            break;
+        case ELDDemoWorldAnchorKind::MiniFlag:
+            // P6 spec §10.3: a public mini flag point; whether it holds the live objective is the public view's business.
+            POI.Kind = ELDOpponentPOIKind::MiniFlag;
+            bApproved = true;
             break;
         default:
             break;

@@ -75,6 +75,10 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 RetryMaxBackoffMs = 0;
     UPROPERTY() int64 ExploreRevisitIntervalMs = 0;
     UPROPERTY() int64 EngagementBudgetMs = 0;
+    // P6 spec §10.3: an AI contender goes for a live mid-field objective within ObjectiveReachCm (XY) of its centre when its
+    // health is at least ObjectiveEntryHPBp of its maximum.
+    UPROPERTY() int64 ObjectiveEntryHPBp = 0;
+    UPROPERTY() FLDDemoRational ObjectiveReachCm;
     // An AI contender inside a visible telegraph with its D ready dodges out with this chance (AI.DodgeChance).
     UPROPERTY() int64 DodgeChanceBp = 0;
     // Spec §13: a planned walk weighs its length inside a visible enemy ground state by this (AI.EnemyGroundPathCost).
@@ -125,6 +129,13 @@ struct FLDDemoVoucherParameters
     UPROPERTY() int32 Assist = 0;
     UPROPERTY() int32 Airdrop = 0;
     UPROPERTY() int32 ActiveSkip = 0;
+    // Spec §3.13/§10.3/§10.4/§11.3 (P6): the mini flag and arena winners, the extra pay for killing or assisting on the
+    // trending contender, and a locker's voucher prize.
+    UPROPERTY() int32 MiniFlag = 0;
+    UPROPERTY() int32 Arena = 0;
+    UPROPERTY() int32 BountyKill = 0;
+    UPROPERTY() int32 BountyAssist = 0;
+    UPROPERTY() int32 Locker = 0;
 };
 
 // Spec §3.13 rest shop: SkillSlots skills and CardSlots cards per stock (VocabCardSlots of the cards drawn with VocabWeight for a
@@ -146,6 +157,101 @@ struct FLDDemoShopParameters
     UPROPERTY() int32 SkillPointPrice = 0;
     UPROPERTY() int32 SkillPointMaxPerMatch = 0;
     UPROPERTY() int32 SellPrice = 0;
+};
+
+// Spec §10.3 (P6) mid-field objectives: StartMs of segment-local field time after each timed segment starts, announced
+// AnnounceLeadMs earlier. Segments 1 and 3 hold a spray mini flag (FlagRadiusCm disk, FlagSprayMs of solo spray inside
+// FlagWindowMs); segment 2 holds the arena (ArenaRadiusCm around the flagpole for ArenaMs). The winners take a card offer of
+// FlagCardOffer / ArenaCardOffer cards.
+USTRUCT()
+struct FLDDemoObjectiveParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 StartMs = 0;
+    UPROPERTY() int64 AnnounceLeadMs = 0;
+    UPROPERTY() int64 FlagWindowMs = 0;
+    UPROPERTY() FLDDemoRational FlagRadiusCm;
+    UPROPERTY() int64 FlagSprayMs = 0;
+    UPROPERTY() int32 FlagCardOffer = 0;
+    UPROPERTY() int64 ArenaMs = 0;
+    UPROPERTY() FLDDemoRational ArenaRadiusCm;
+    UPROPERTY() int32 ArenaCardOffer = 0;
+};
+
+// Spec §11.1 (P6) daily modifiers (今日热点): Count of the twelve are drawn each match; these are their numbers.
+USTRUCT()
+struct FLDDemoDailyParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 Count = 0;
+    UPROPERTY() int64 RainIntervalMs = 0;
+    UPROPERTY() int32 RainPuddles = 0;
+    UPROPERTY() int64 RainPuddleMs = 0;
+    UPROPERTY() int64 RainWetBonusMs = 0;
+    UPROPERTY() int64 ColdFreezeMs = 0;
+    UPROPERTY() int64 ColdChillBonusMs = 0;
+    UPROPERTY() int64 BlackoutVisionCutBp = 0;
+    UPROPERTY() int64 BlackoutShockScaleBp = 0;
+    UPROPERTY() int64 TyphoonIntervalMs = 0;
+    UPROPERTY() FLDDemoRational TyphoonPushCm;
+    UPROPERTY() int64 HeatBurnTickScaleBp = 0;
+    UPROPERTY() int64 SalePriceScaleBp = 0;
+    // Delivery day: the airdrop schedule this day uses instead of AirdropLandMs, each drop gone DeliveryExpireMs after landing.
+    UPROPERTY() TArray<int64> DeliveryLandMs;
+    UPROPERTY() int64 DeliveryExpireMs = 0;
+    UPROPERTY() int64 PatrolBossAppearMs = 0;
+    UPROPERTY() int64 ExamMonsterXPScaleBp = 0;
+    UPROPERTY() int64 ExamRespawnBonusMs = 0;
+    UPROPERTY() int64 GymDashCooldownCutBp = 0;
+    UPROPERTY() int32 RumorLeaders = 0;
+};
+
+// Spec §11.2 (P6) camp affixes: a High, Elite or Ancient camp spawn carries one of six with probability ChanceBp.
+USTRUCT()
+struct FLDDemoAffixParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 ChanceBp = 0;
+    UPROPERTY() int64 OvertimeAttackSpeedBp = 0;
+    UPROPERTY() int64 OvertimeVoucherScaleBp = 0;
+    UPROPERTY() int64 TeambuildXPScaleBp = 0;
+    UPROPERTY() int32 FridgeCardOffer = 0;
+    UPROPERTY() int64 BonusHPBp = 0;
+    UPROPERTY() int32 BonusCardOffer = 0;
+    UPROPERTY() int64 LayoffAttackBp = 0;
+    UPROPERTY() int32 LayoffVouchers = 0;
+    UPROPERTY() int64 AuditTelegraphCutBp = 0;
+    UPROPERTY() int32 AuditSkillPointsMax = 0;
+};
+
+// Spec §11.3 (P6) hidden things: delivery lockers, the second-hand dealer and the vending machines.
+USTRUCT()
+struct FLDDemoExploreParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 LockerCount = 0;
+    UPROPERTY() FLDDemoRational LockerRadiusCm;
+    UPROPERTY() int64 LockerChannelMs = 0;
+    UPROPERTY() int64 LockerCardChanceBp = 0;
+    UPROPERTY() int32 LockerCardOffer = 0;
+    UPROPERTY() int64 PeddlerEarliestMs = 0;
+    UPROPERTY() int64 PeddlerLatestMs = 0;
+    UPROPERTY() FLDDemoRational PeddlerOffsetCm;
+    UPROPERTY() int64 PeddlerHPP2 = 0;
+    UPROPERTY() FLDDemoRational PeddlerMoveSpeedCmPerSec;
+    UPROPERTY() int64 PeddlerStayMs = 0;
+    UPROPERTY() int32 PeddlerCardOffer = 0;
+    UPROPERTY() int32 VendingBuffPrice = 0;
+    UPROPERTY() int64 VendingBuffMs = 0;
+    UPROPERTY() int64 VendingAttackSpeedBp = 0;
+    UPROPERTY() FLDDemoRational VendingMomentumPerSec;
+    UPROPERTY() int64 VendingMoveSpeedBp = 0;
+    UPROPERTY() int32 VendingDrinkPrice = 0;
+    UPROPERTY() int32 VendingDrinkHits = 0;
 };
 
 // Momentum (劲), the one skill resource of a contender (CONTENT_AND_BALANCE §3.3, LDMomentum). Camp members hold none.
@@ -338,60 +444,31 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ShowdownClosureStartsMs = 0;
     // #198: each of the three field segments; the field progress T only advances in the field.
     UPROPERTY() int64 FieldSegmentMs = 0;
-    // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
-    // PK ready lock, PK cap, settlement, payout and the return-to-field countdown.
+    // #198 rest phases: the R0 and R1-R3 build windows, then the return-to-field countdown.
     UPROPERTY() int64 RestOpeningBuildMs = 0;
     UPROPERTY() int64 RestBuildMs = 0;
-    UPROPERTY() int64 RestSignupMs = 0;
-    UPROPERTY() int64 RestDrawMs = 0;
-    UPROPERTY() int64 RestBettingMs = 0;
-    UPROPERTY() int64 RestPKReadyMs = 0;
-    UPROPERTY() int64 RestPKMaxMs = 0;
-    UPROPERTY() int64 RestSettlementMs = 0;
-    UPROPERTY() int64 RestPayoutMs = 0;
     UPROPERTY() int64 RestReturnMs = 0;
-    // #198 approved outer parameters §1: a PK start or field return whose bodies cannot all stand waits at most this long
-    // after its boundary (then the PK is NoContest and an unready field return is an explicit fault).
+    // #198 approved outer parameters §1: a field return whose bodies cannot all stand waits at most this long after its
+    // boundary (then it is an explicit fault).
     UPROPERTY() int64 RestEntryReadyTimeoutMs = 0;
     // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
     UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
-    // #198 PK ring centred on the capture anchor: PKArenaRadiusCm until PKRingShrinkStartMs, linear to PKRingMidRadiusCm
-    // at PKRingMidMs, linear to PKRingFinalRadiusCm at PKRingFinalMs, then held until RestPKMaxMs. The next ring is
-    // shown PKRingPreviewMs ahead. Ring damage is the start-of-PK max HP times the early/mid/final share per second of
-    // real outside time ([0, Mid), [Mid, Final), [Final, Max)), settled every PKRingTickMs.
-    UPROPERTY() FLDDemoRational PKArenaRadiusCm;
-    UPROPERTY() FLDDemoRational PKRingMidRadiusCm;
-    UPROPERTY() FLDDemoRational PKRingFinalRadiusCm;
-    UPROPERTY() int64 PKRingShrinkStartMs = 0;
-    UPROPERTY() int64 PKRingMidMs = 0;
-    UPROPERTY() int64 PKRingFinalMs = 0;
-    UPROPERTY() int64 PKRingPreviewMs = 0;
-    UPROPERTY() int64 PKRingTickMs = 0;
-    UPROPERTY() int64 PKRingEarlyDamageBp = 0;
-    UPROPERTY() int64 PKRingMidDamageBp = 0;
-    UPROPERTY() int64 PKRingFinalDamageBp = 0;
-    // #198/#225 PK format and points: the three base award pools are multiplied by PKRewardMultiplierBp, rounded up,
-    // then split with serial rotation; participation is based on eligible entrants, wins use ceil(N/2) capped at
-    // PKWinnerPointsMax, and betting uses min(PKBettingPoolMaxPoints, eligible spectators).
-    UPROPERTY() int64 PKTeamFormatBp = 0;
-    UPROPERTY() int64 PKRewardMultiplierBp = 0;
-    UPROPERTY() int64 PKParticipationPoints = 0;
-    UPROPERTY() int64 PKWinnerPointsMax = 0;
-    UPROPERTY() int64 PKBettingPoolMaxPoints = 0;
-    // #198 spectator throw from the fixed off-arena throw anchor: ThrowCooldownMs from a successful throw,
-    // ThrowTelegraphMs warning, ThrowRadiusCm impact within ThrowRangeCm, ThrowSlowBp slow for ThrowSlowMs and
-    // Exposed for ThrowExposeMs.
-    UPROPERTY() int64 ThrowCooldownMs = 0;
-    UPROPERTY() int64 ThrowTelegraphMs = 0;
-    UPROPERTY() FLDDemoRational ThrowRadiusCm;
-    UPROPERTY() FLDDemoRational ThrowRangeCm;
-    UPROPERTY() int64 ThrowSlowBp = 0;
-    UPROPERTY() int64 ThrowSlowMs = 0;
-    UPROPERTY() int64 ThrowExposeMs = 0;
-    // #198: field respawn wait fixed by T at death: [0, 1), [1, 2), [2, 3) field segments, then the final field.
-    UPROPERTY() int64 RespawnField1Ms = 0;
-    UPROPERTY() int64 RespawnField2Ms = 0;
-    UPROPERTY() int64 RespawnField3Ms = 0;
+    // The final showdown ring: ShowdownRingRadiusCm at the closure start, shrinking linearly to ShowdownRingFinalRadiusCm at
+    // the end; outside it a contender loses the early share of its max HP per second in the first half of the closure and
+    // the late share in the second, settled every ShowdownRingTickMs.
+    UPROPERTY() FLDDemoRational ShowdownRingRadiusCm;
+    UPROPERTY() FLDDemoRational ShowdownRingFinalRadiusCm;
+    // The shrink is previewed ShowdownRingPreviewMs before the closure starts.
+    UPROPERTY() int64 ShowdownRingPreviewMs = 0;
+    UPROPERTY() int64 ShowdownRingTickMs = 0;
+    UPROPERTY() int64 ShowdownRingEarlyDamageBp = 0;
+    UPROPERTY() int64 ShowdownRingLateDamageBp = 0;
+    // Spec §10.4 (P6): a field respawn waits RespawnBaseMs + RespawnPerLevelMs x level; the dead contender chooses among
+    // SpawnChoiceCount distinct spawn anchors within SpawnChoiceMs (else the first).
+    UPROPERTY() int64 RespawnBaseMs = 0;
+    UPROPERTY() int64 RespawnPerLevelMs = 0;
+    UPROPERTY() int32 SpawnChoiceCount = 0;
+    UPROPERTY() int64 SpawnChoiceMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
     // D21: every contender's recovery, a per-second share of its current maximum HP once this long without combat.
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
@@ -497,6 +574,10 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoCardParameters Cards;
     UPROPERTY() FLDDemoVoucherParameters Vouchers;
     UPROPERTY() FLDDemoShopParameters Shop;
+    UPROPERTY() FLDDemoObjectiveParameters Objective;
+    UPROPERTY() FLDDemoDailyParameters Daily;
+    UPROPERTY() FLDDemoAffixParameters Affix;
+    UPROPERTY() FLDDemoExploreParameters Explore;
     UPROPERTY() FLDDemoElementParameters Elements;
     UPROPERTY() FLDDemoGroundParameters Ground;
     // Spec §3.7: the product of a hit's damage factors stops at DamageFactorTechCapBp (DAMAGE.FactorTechCap, a technical
@@ -1131,10 +1212,6 @@ struct FLDDemoWorldReferences
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
     UPROPERTY() FString CaptureId;
-    // #198 PK on the original map: the six ring spawns pk_spawn_0..5 in index order and the fixed off-arena
-    // spectator throw anchor; both resolve through ULDMapRegistry::Resolve like the other anchors.
-    UPROPERTY() TArray<FString> PKSpawnIds;
-    UPROPERTY() FString PKThrowId;
 };
 
 USTRUCT()

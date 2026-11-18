@@ -683,7 +683,10 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         if(Special && (IsActionBlocked(*Body,ELDCombatControlAction::Cast)||IsActionBlocked(*Body,ELDCombatControlAction::Skill)))
         {return Refuse(ELDCombatReject::ControlBlocked);}
         int64 ReleaseAt=0, NextAttack=0;
-        if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,Special?Skill.WindupMs:Body->BasicTiming.WindupMs,ReleaseAt,Error)
+        // Spec §11.2 audit affix: the camp's skill warning is AFFIX.AuditTelegraphCut shorter.
+        const int64 SkillWindupMs=Body->CampAffix==ELDCampAffix::Audit
+            ? FMath::Max<int64>(1,Skill.WindupMs*(10000-Catalog()->Get().Parameters.Affix.AuditTelegraphCutBp)/10000) : Skill.WindupMs;
+        if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,Special?SkillWindupMs:Body->BasicTiming.WindupMs,ReleaseAt,Error)
             || !LDMatchLifecycle::AddDurationMs(Now,Body->BasicTiming.IntervalMs,NextAttack,Error))
         { return false; }
         FLDCombatAction Action;
@@ -1284,6 +1287,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The duration is fixed at the actual release moment; later build changes never move this endpoint. The innate
     // dash issues its whole cooldown without haste.
     int64 DurationMs=bInnate ? Innate.CooldownMs : 0, ReadyAt=0;
+    // Spec §11.1 gym day: the dash recovers DAILY.GymDashCooldownCut sooner.
+    if (bInnate && Authority() && Authority()->HasDaily(ELDDailyModifier::Gym))
+    {
+        DurationMs=FMath::Max<int64>(1,DurationMs*(10000-Content->Get().Parameters.Daily.GymDashCooldownCutBp)/10000);
+    }
     if (!bInnate && !LDTactical::CooldownDurationMs(BaseCooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
             Content->Get().Formulas.HasteScaleP2,DurationMs,Error)) { return false; }
     // SKILL.CooldownFloorSec: the technical floor of a hasted Q/W/E (animation and network), not a gameplay cap.

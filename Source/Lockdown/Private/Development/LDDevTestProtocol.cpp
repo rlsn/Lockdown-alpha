@@ -1,6 +1,7 @@
 #include "Development/LDDevTestProtocol.h"
 
 #include "Development/LDDemoContentDefinitions.h"
+#include "Framework/LDPacingTypes.h"
 #include "Combat/LDAttributeProjection.h"
 #include "UI/LDTerms.h"
 
@@ -31,6 +32,7 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::TeleportToCamera:
     case ELDDevTestOp::ApplyBreakoutPreset:
     case ELDDevTestOp::SpawnGroundState:
+    case ELDDevTestOp::SetDailyPreset:
         return true;
     default:
         return false;
@@ -57,13 +59,15 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::TeleportToCamera: return TEXT("TeleportToCamera");
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("ApplyBreakoutPreset");
     case ELDDevTestOp::SpawnGroundState: return TEXT("SpawnGroundState");
+    case ELDDevTestOp::SetDailyPreset: return TEXT("SetDailyPreset");
     default: return TEXT("Unknown");
     }
 }
 
 bool LDDevTest::IsMatchWide(ELDDevTestOp Op)
 {
-    return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture || Op == ELDDevTestOp::SkipPreparation;
+    return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture || Op == ELDDevTestOp::SkipPreparation
+        || Op == ELDDevTestOp::SetDailyPreset;
 }
 
 ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
@@ -76,7 +80,8 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
     if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0
         : Command.Op == ELDDevTestOp::SetPeaceful ? (Command.Amount < 0 || Command.Amount > 1)
-        : Command.Op == ELDDevTestOp::SpawnGroundState ? (Command.Amount < 1 || Command.Amount > 6) : Command.Amount != 0))
+        : Command.Op == ELDDevTestOp::SpawnGroundState ? (Command.Amount < 1 || Command.Amount > 6)
+        : Command.Op == ELDDevTestOp::SetDailyPreset ? !LDDevTest::DecodeDailyPreset(Command.Amount, nullptr) : Command.Amount != 0))
     {
         return ELDGrowthReason::NumericDomain;
     }
@@ -205,6 +210,21 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::TeleportToCamera: return TEXT("传送到镜头位置");
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("质变样板");
     case ELDDevTestOp::SpawnGroundState: return TEXT("生成地面状态");
+    case ELDDevTestOp::SetDailyPreset: return TEXT("下一局热点");
     default: return TEXT("未知操作");
     }
+}
+
+bool LDDevTest::DecodeDailyPreset(int64 Amount, TArray<ELDDailyModifier>* Out)
+{
+    if (Out) { Out->Reset(); }
+    if (Amount == 0) { return true; }
+    const int64 First = Amount % 16;
+    const int64 Second = Amount / 16;
+    if (Amount < 0 || First < 1 || First > LDPacing::DailyModifiers || Second < 1 || Second > LDPacing::DailyModifiers || First == Second)
+    {
+        return false;
+    }
+    if (Out) { Out->Add(ELDDailyModifier(First)); Out->Add(ELDDailyModifier(Second)); }
+    return true;
 }

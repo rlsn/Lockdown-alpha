@@ -201,8 +201,8 @@ class DemoNativeFixturesTest(unittest.TestCase):
 
     def test_exact_integer_and_rational_expectations(self):
         expected = lambda name: json.loads((self.root / name / "native_expected.json").read_bytes())
-        self.assertEqual(expected("int64_max_ms")["Parameters.RespawnField3Ms"], str(demo.INT64_MAX))
-        self.assertEqual(expected("above_double_integer")["Parameters.RespawnField3Ms"], "9007199254740993")
+        self.assertEqual(expected("int64_max_ms")["Parameters.AI.ExploreRevisitIntervalMs"], str(demo.INT64_MAX))
+        self.assertEqual(expected("above_double_integer")["Parameters.AI.ExploreRevisitIntervalMs"], "9007199254740993")
         self.assertEqual(expected("exact_integer")["Parameters.AirdropRewardXP"], "9007199254740993")
         self.assertEqual(expected("exact_rational")["Parameters.HPRegen.PerLevel.Numerator"], "1")
         self.assertEqual(expected("exact_rational")["Parameters.HPRegen.PerLevel.Denominator"], "1000000000000000000")

@@ -70,6 +70,15 @@ bool ALDCombatDirector::ElementTerms(FLDElementTerms& Out, FString& Error) const
     if (!Content) { Error=TEXT("Element rules require the approved Demo content."); return false; }
     Out=FLDElementTerms::From(Content->Get().Parameters);
     if (!Out.IsUsable()) { Error=TEXT("The approved Demo content has no usable element terms."); return false; }
+    // Spec §11.1 daily modifiers that change element terms for the whole match.
+    if (const ILDLifeAuthority* Mode=Authority())
+    {
+        const FLDDemoDailyParameters& Daily=Content->Get().Parameters.Daily;
+        if (Mode->HasDaily(ELDDailyModifier::Rain)) { Out.WetMs+=Daily.RainWetBonusMs; }
+        if (Mode->HasDaily(ELDDailyModifier::Cold)) { Out.ChillMs+=Daily.ColdChillBonusMs; }
+        if (Mode->HasDaily(ELDDailyModifier::Blackout)) { Out.ShockRatioBp=Out.ShockRatioBp*Daily.BlackoutShockScaleBp/10000; }
+        Out.bFogArea=!Mode->HasDaily(ELDDailyModifier::Heat);
+    }
     return true;
 }
 
@@ -420,6 +429,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     {
     case ELDCombatReaction::Fog:
     {
+        if (!Terms.bFogArea) { break; }
         Fogs.RemoveAll([&Applier](const FLDCombatFog& Fog) { return Fog.Owner.SourceEntity==Applier.SourceEntity; });
         FLDCombatFog& Fog=Fogs.AddDefaulted_GetRef();
         Fog.EffectId=ReactionId;

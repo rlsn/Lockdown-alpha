@@ -154,7 +154,7 @@ bool ALDCombatDirector::ConvertGroundAt(const FVector& Foot, ELDCombatElement In
             Ground.CentreCm+=GustDirection.GetSafeNormal2D()*Terms.GustMoveCm;
             ++Ground.Version;
         }
-        if (Conversion.bFog)
+        if (Conversion.bFog && Elements.bFogArea)
         {
             Fogs.RemoveAll([&Applier](const FLDCombatFog& Fog) { return Fog.Owner.SourceEntity==Applier.SourceEntity; });
             FLDCombatFog& Fog=Fogs.AddDefaulted_GetRef();
@@ -229,6 +229,23 @@ bool ALDCombatDirector::AdvanceGround(int64 NowMs, FString& Error)
         }
     }
     GroundStates.RemoveAll([NowMs](const FLDGroundState& Ground) { return Ground.ExpiresAtMs<=NowMs; });
+    // Spec §11.1 cold day: a puddle that stood DAILY.ColdFreezeSec turns to ice in place (the ice's own life from then).
+    if (const ILDLifeAuthority* Mode=Authority(); Mode && Mode->HasDaily(ELDDailyModifier::Cold))
+    {
+        const int64 FreezeMs=Catalog()->Get().Parameters.Daily.ColdFreezeMs;
+        const FLDGroundKindTerms& Ice=Terms.Of(ELDGroundStateKind::Ice);
+        for (FLDGroundState& Ground : GroundStates)
+        {
+            if (Ground.Kind!=ELDGroundStateKind::Puddle || NowMs-Ground.StartMs<FreezeMs) { continue; }
+            Ground.Kind=ELDGroundStateKind::Ice;
+            Ground.StartMs=NowMs;
+            Ground.RadiusCm=Ice.RadiusCm;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Ice.LifeMs,Ground.ExpiresAtMs,Error)
+                || !LDMatchLifecycle::AddDurationMs(NowMs,Ice.TickMs,Ground.NextTickMs,Error)) { return false; }
+            ++Ground.Version;
+            UE_LOG(LogLDCombat,Log,TEXT("LD_GROUND_FREEZE t=%lld id=%u"),NowMs,Ground.Id);
+        }
+    }
     for (const FLDGroundState& Ground : Due)
     {
         if (Ground.Kind==ELDGroundStateKind::Ice) { continue; }

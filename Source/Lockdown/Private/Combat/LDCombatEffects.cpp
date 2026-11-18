@@ -293,6 +293,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 if (!ApplyCardElement(Hit,Ref.Effect.Element,0,Ref.Source,Error)) { return false; }
                 ElementTriggers.Add(Ref.Key);
             }
+            // Spec §11.3 vending drink: the next basics carry the bought element.
+            if (Source->DrinkHits>0 && Source->DrinkElement>=1 && Source->DrinkElement<=5)
+            {
+                if (!ApplyCardElement(Hit,ELDDemoElement(Source->DrinkElement),0,FLDCombatSourceRef(),Error)) { return false; }
+                if (--Source->DrinkHits==0) { Source->DrinkElement=0; }
+                MarkViewChanged(Source->Victim.EntityId);
+            }
         }
         else if (bEffective && IsNativeDirectHit(Hit))
         {
@@ -304,6 +311,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 ElementTriggers.Add(Ref.Key);
             }
         }
+    }
+    // Spec §11.2 fridge affix: the camp's attacks chill.
+    if (Source && Source->Victim.Kind==ELDVictimKind::CampMember && Source->CampAffix==ELDCampAffix::Fridge && !Hit.bReflect
+        && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bAddedDamage)
+    {
+        if (!ApplyCardElement(Hit,ELDDemoElement::Chill,0,FLDCombatSourceRef(),Error)) { return false; }
     }
     // Vamp of this hit: on-hit lifesteal (Y17, already at its on-hit coefficient) on the HP actually lost, only the hit's
     // own share of it (merged empowered packages never feed it), never the shield's share. Every source adds up; no cap.
@@ -454,6 +467,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Contact.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();
     }
     MarkViewChanged(Hit.Target.Victim.EntityId);
+    // Spec §10.3: the open arena counts contender-on-contender damage dealt inside it.
+    if (Damage.DamageP2>0 && Hit.CreditOwner.IsValid() && Body->Victim.Kind==ELDVictimKind::Contender)
+    {
+        if (ALDGameMode* Arena=Core()) { Arena->NoteContenderDamage(Hit.CreditOwner,Body->Victim.EntityId,Damage.DamageP2); }
+    }
     LedgerHitCommitted(Hit,*Body,Damage);
     RecapHitCommitted(Hit,*Body,Damage,NowMs);
     // K04: a mark that amplified a positive hit is consumed (one trigger each).
@@ -1111,11 +1129,11 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     {
         Basis.RewardDefinitionId=Body.MonsterId;
         Basis.CampStageAtDeath=Body.CampStage;
+        Basis.CampAffixAtDeath=uint8(Body.CampAffix);
+        Basis.bPeddlerAtDeath=Body.bPeddler;
     }
     // Credit eligibility is frozen at the fatal moment; a later leave or level-up never rewrites it.
-    // #198 session D: a PK arena death is isolated from field growth rewards (no kill or assist reward).
-    if (Body.PKSide!=0) { Basis.NoRewardReason=ELDNoRewardReason::PKArena; }
-    else if (!Hit.CreditOwner.IsValid()) { Basis.NoRewardReason=ELDNoRewardReason::NoOwner; }
+    if (!Hit.CreditOwner.IsValid()) { Basis.NoRewardReason=ELDNoRewardReason::NoOwner; }
     else if (Hit.CreditOwner==Death.VictimContender) { Basis.NoRewardReason=ELDNoRewardReason::SelfInflicted; }
     else if (!Mode->IsContenderPresent(Hit.CreditOwner)) { Basis.NoRewardReason=ELDNoRewardReason::OwnerLeft; }
     else

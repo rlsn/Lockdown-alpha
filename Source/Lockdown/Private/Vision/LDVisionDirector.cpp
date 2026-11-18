@@ -3,7 +3,6 @@
 #include "Components/PrimitiveComponent.h"
 #include "World/LDNativeGround.h"
 #include "PhysicsEngine/BodyInstance.h"
-#include "PK/LDPKDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -41,52 +40,18 @@ namespace
 {
 constexpr double SightCoordinateLimitCm = 1000000.0;
 
-void PKTeammateFeet(const ALDGameMode& Mode, const ALDPKDirector* PK, const FGuid& Observer, TArray<FVector>& Out)
+ELDObservedResolve PresentationSight(const ALDGameMode& Mode, const ALDCombatDirector* Combat, const FGuid& Observer,
+    const FVector& Foot, const FLDCombatBodyRef& Target, const FVector& TargetFoot, const FLDSightGeometry& Sight, FString& Error)
 {
-    Out.Reset();
-    if (!PK || !PK->IsArenaActive() || !Mode.IsPKLife(Observer)) { return; }
-    TArray<FGuid> Mates;
-    PK->LivingTeammates(Observer, Mates);
-    for (const FGuid& Mate : Mates)
-    {
-        FLDCombatBodyRef Body;
-        FVector Foot;
-        if (Mode.ReadLivingBody(Mate, Body, Foot)) { Out.Add(Foot); }
-    }
-}
-
-ELDObservedResolve PresentationSight(const ALDGameMode& Mode, const ALDCombatDirector* Combat, const ALDPKDirector* PK,
-    const FGuid& Observer, bool bArena, bool bSpectating, bool bPKObserver, const FVector& Foot,
-    const TArray<FVector>& Teammates, const FLDCombatBodyRef& Target, const FVector& TargetFoot,
-    const FLDSightGeometry& Sight, FString& Error)
-{
-    const bool bArenaBody = bArena && Target.Victim.Kind == ELDVictimKind::Contender
-        && PK->SideOf(Target.Victim.EntityId) != 0 && Mode.IsPKLife(Target.Victim.EntityId);
-    if (bSpectating && bArenaBody) { return ELDObservedResolve::Resolved; }
     if (Combat && Combat->IsHiddenFrom(Observer, Target)) { return ELDObservedResolve::TargetUnavailable; }
     if (Mode.IsInRestSpace(Observer)
         && (Mode.IsInRestSpace(Target.Victim.EntityId) || Mode.IsTrainingDummy(Target.Victim.EntityId)))
     { return ELDObservedResolve::Resolved; }
-    const auto Trace = [&](const FVector& From)
-    {
-        const ELDSightResult Result = Sight.Trace(From, TargetFoot);
-        const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
-        if (Outcome == ELDObservedResolve::AuthorityFault)
-        { Error = FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Result)); }
-        return Outcome;
-    };
-    ELDObservedResolve Outcome = Trace(Foot);
-    if (Outcome != ELDObservedResolve::TargetUnavailable) { return Outcome; }
-    if (bPKObserver && bArenaBody)
-    {
-        if (Combat && Combat->IsExposed(Target, Mode.GetAuthorityNowMs())) { return ELDObservedResolve::Resolved; }
-        for (const FVector& MateFoot : Teammates)
-        {
-            Outcome = Trace(MateFoot);
-            if (Outcome != ELDObservedResolve::TargetUnavailable) { return Outcome; }
-        }
-    }
-    return ELDObservedResolve::TargetUnavailable;
+    const ELDSightResult Result = Sight.Trace(Foot, TargetFoot);
+    const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
+    if (Outcome == ELDObservedResolve::AuthorityFault)
+    { Error = FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Result)); }
+    return Outcome;
 }
 
 bool SightRationalValue(const FLDDemoRational& Value, double& Out)
@@ -770,21 +735,17 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
 }
 
 ELDObservedFlightAccess LDObservation::ClassifyFlight(bool bSourceActs, const FGuid& SourceGroup, bool bObserverGroup,
-    const FGuid& ObserverGroup, const FGuid& ArenaGroup, bool bSpectating, bool bPKObserver)
+    const FGuid& ObserverGroup)
 {
     // A suspended (frozen) world body's effect is never shown, like the body itself.
     if (!bSourceActs) { return ELDObservedFlightAccess::Hidden; }
-    const bool bArenaFlight = ArenaGroup.IsValid() && SourceGroup == ArenaGroup;
-    // Spectators watch the whole arena: its effects need no sight line, like its bodies.
-    if (bSpectating && bArenaFlight) { return ELDObservedFlightAccess::Granted; }
-    // Another isolation group (another rest space, the arena for a non-spectator) stays hidden, like its bodies.
+    // Another isolation group (the rest space or the field) stays hidden, like its bodies.
     if (!bObserverGroup || SourceGroup != ObserverGroup) { return ELDObservedFlightAccess::Hidden; }
-    // A PK life sees what its living teammates legally see.
-    return bPKObserver && bArenaFlight ? ELDObservedFlightAccess::SharedSight : ELDObservedFlightAccess::Sight;
+    return ELDObservedFlightAccess::Sight;
 }
 
 bool LDObservation::SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
-    const TArray<FVector>& SharedFeetCm, const TArray<FLDObservedProjectileFact>& Facts,
+    const TArray<FLDObservedProjectileFact>& Facts,
     TFunctionRef<ELDObservedFlightAccess(const FLDObservedProjectileFact&)> Access,
     TArray<const FLDObservedProjectileFact*>& Out, FString& Error)
 {
@@ -809,15 +770,8 @@ bool LDObservation::SelectVisibleProjectiles(const FLDSightGeometry& Sight, cons
             return false;
         }
         const ELDObservedFlightAccess Rule = Access(Fact);
-        bool bVisible = Rule == ELDObservedFlightAccess::Granted;
-        if (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight)
-        {
-            if (!Seen(SourceFootCm, Fact, bVisible)) { return false; }
-            for (int32 Index = 0; !bVisible && Rule == ELDObservedFlightAccess::SharedSight && Index < SharedFeetCm.Num(); ++Index)
-            {
-                if (!Seen(SharedFeetCm[Index], Fact, bVisible)) { return false; }
-            }
-        }
+        bool bVisible = false;
+        if (Rule == ELDObservedFlightAccess::Sight && !Seen(SourceFootCm, Fact, bVisible)) { return false; }
         if (bVisible)
         { InSight.Emplace(FVector2D::DistSquared(FVector2D(SourceFootCm.X, SourceFootCm.Y), FVector2D(Fact.PositionCm.X, Fact.PositionCm.Y)), &Fact); }
     }
@@ -1019,7 +973,14 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
         return false;
     }
     FLDSightGeometry Prepared;
-    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), Loaded->Get().Parameters.VisionRadiusCm, Error, GetWorld())) { return false; }
+    // Spec §11.1 blackout day: every sight line of the match is DAILY.BlackoutVisionCut shorter.
+    FLDDemoRational SightRadius = Loaded->Get().Parameters.VisionRadiusCm;
+    if (Core->HasDaily(ELDDailyModifier::Blackout))
+    {
+        SightRadius.Numerator *= 10000 - Loaded->Get().Parameters.Daily.BlackoutVisionCutBp;
+        SightRadius.Denominator *= 10000;
+    }
+    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), SightRadius, Error, GetWorld())) { return false; }
     int64 CampMembers = 0;
     for (const FLDDemoCampPlacement& Camp : Loaded->Get().Camps)
     {
@@ -1263,6 +1224,8 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Unit.Kind = ELDObservedUnitKind::CampMember;
             Unit.AuthorizedFieldMask = LDObservation::CampFields;
             Unit.CreatureId = CreatureId;
+            Unit.CampAffix = Facts.CampAffix;
+            Unit.bPeddler = Facts.bPeddler;
         }
         Out.Add(MoveTemp(Target));
     }
@@ -1304,21 +1267,13 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     // #198 rest vision filter: contenders share the rest group, while the frozen field stays hidden.
     const ALDGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
     const ALDCombatDirector* Combat = Mode ? Mode->Combat.Get() : nullptr;
-    // #198 session D (approved §3/§6): spectators (and the eliminated) are explicitly allowed to watch every arena body;
-    // a PK life additionally sees what its living teammates legally see, and an Exposed entrant for the exposure.
-    const ALDPKDirector* PK = Mode ? Mode->PKDirector.Get() : nullptr;
-    const bool bArena = PK && PK->IsArenaActive();
-    const bool bSpectating = bAlive && bArena && PK->CanSpectate(Observer.ContenderId);
-    const bool bPKObserver = bAlive && bArena && Mode->IsPKLife(Observer.ContenderId);
-    TArray<FVector> TeammateFeet;
-    if (bPKObserver) { PKTeammateFeet(*Mode, PK, Observer.ContenderId, TeammateFeet); }
     if (bAlive)
     {
         for (const FLDObservedTarget& Target : Targets)
         {
             if (Target.Body.Victim.EntityId == Observer.ContenderId) { continue; }
-            const ELDObservedResolve Seen = PresentationSight(*Mode, Combat, PK, Observer.ContenderId, bArena,
-                bSpectating, bPKObserver, Foot, TeammateFeet, Target.Body, Target.FootCm, Sight, Error);
+            const ELDObservedResolve Seen = PresentationSight(*Mode, Combat, Observer.ContenderId, Foot, Target.Body, Target.FootCm,
+                Sight, Error);
             if (Seen == ELDObservedResolve::AuthorityFault) { return false; }
             if (Seen == ELDObservedResolve::Resolved) { Visible.Add(&Target); }
         }
@@ -1326,20 +1281,19 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     TArray<FGuid> Removed;
     TArray<FLDObservedUnitView> Units;
     if (!Observer.Ledger.Sample(Visible, Removed, Units, Error)) { return false; }
-    // #198 R15: a skill effect has its source's body permissions: hidden across isolation groups, the whole arena for a
-    // spectator, the living teammates' sight for a PK life; a flight that left sight or ended is concealed with the units.
+    // #198 R15: a skill effect has its source's body permissions: hidden across isolation groups; a flight that left sight
+    // or ended is concealed with the units.
     FGuid ObserverGroup;
     const bool bObserverGroup = Combat && Combat->ActingGroup(Observer.ContenderId, ObserverGroup);
-    const FGuid ArenaGroup = bArena ? PK->GetGroup() : FGuid();
     const auto FlightAccess = [&](const FLDObservedProjectileFact& Fact)
     {
         if (!Combat) { return ELDObservedFlightAccess::Sight; }
         FGuid Group;
         const bool bSourceActs = Combat->ActingGroup(Fact.SourceEntity, Group);
-        return LDObservation::ClassifyFlight(bSourceActs, Group, bObserverGroup, ObserverGroup, ArenaGroup, bSpectating, bPKObserver);
+        return LDObservation::ClassifyFlight(bSourceActs, Group, bObserverGroup, ObserverGroup);
     };
     TArray<const FLDObservedProjectileFact*> VisibleFlights;
-    if (bAlive && !LDObservation::SelectVisibleProjectiles(Sight, Foot, TeammateFeet, Flights, FlightAccess, VisibleFlights, Error))
+    if (bAlive && !LDObservation::SelectVisibleProjectiles(Sight, Foot, Flights, FlightAccess, VisibleFlights, Error))
     {
         return false;
     }
@@ -1376,20 +1330,6 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.SourceFeetCm = Foot;
         View.Footprint.RadiusCm = float(Sight.Radius());
         Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
-        // #198 session D: a spectator's authorized coverage includes the whole arena; a PK life's includes its teammates'.
-        if (bPublish && Relay && (bSpectating || !TeammateFeet.IsEmpty()))
-        {
-            if (bSpectating) { Sight.AddDisk(PK->GetView().ArenaCentreCm, PK->GetParameters().ArenaRadiusCm, View.Footprint.CurrentBits); }
-            for (const FVector& MateFoot : TeammateFeet)
-            {
-                TArray<uint8> MateBits;
-                Sight.Coverage(MateFoot, MateBits);
-                for (int32 Index = 0; Index < MateBits.Num() && Index < View.Footprint.CurrentBits.Num(); ++Index)
-                {
-                    View.Footprint.CurrentBits[Index] |= MateBits[Index];
-                }
-            }
-        }
         View.Units = MoveTemp(Units);
         View.Projectiles = MoveTemp(Projectiles);
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
@@ -1402,19 +1342,12 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
             Probe.SourceEntity = Fact.OwnerEntity;
             // An ownerless (DEV) ground state belongs to no isolation group: plain sight decides.
             const ELDObservedFlightAccess Rule = Fact.OwnerEntity.IsValid() ? FlightAccess(Probe) : ELDObservedFlightAccess::Sight;
-            bool bVisible = Rule == ELDObservedFlightAccess::Granted || (Fact.OwnerEntity.IsValid() && Fact.OwnerEntity == Observer.ContenderId);
-            if (!bVisible && (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight))
+            bool bVisible = Fact.OwnerEntity.IsValid() && Fact.OwnerEntity == Observer.ContenderId;
+            if (!bVisible && Rule == ELDObservedFlightAccess::Sight)
             {
-                // A PK life sees what its living teammates see too, as for flights and coverage.
-                TArray<FVector, TInlineAllocator<4>> Eyes;
-                Eyes.Add(Foot);
-                if (Rule == ELDObservedFlightAccess::SharedSight) { Eyes.Append(TeammateFeet); }
-                for (const FVector& Eye : Eyes)
-                {
-                    const ELDSightResult Result = Sight.Trace(Eye, Fact.CentreCm);
-                    if (Result == ELDSightResult::StaleWorld) { Error = TEXT("StaleWorld: ground-state sight has no current world."); return false; }
-                    if (Result == ELDSightResult::Visible) { bVisible = true; break; }
-                }
+                const ELDSightResult Result = Sight.Trace(Foot, Fact.CentreCm);
+                if (Result == ELDSightResult::StaleWorld) { Error = TEXT("StaleWorld: ground-state sight has no current world."); return false; }
+                bVisible = Result == ELDSightResult::Visible;
             }
             if (bVisible)
             {
@@ -1602,15 +1535,9 @@ ELDObservedResolve ALDVisionDirector::ResolvePresentedUnit(const ALDPlayerContro
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     if (!Registry || !Sight.IsValid() || Registry->Revision() != Sight.Revision())
     { return Refuse(ELDObservedResolve::AuthorityFault, TEXT("The registered world changed under observation.")); }
-    const ALDPKDirector* PK = Core->PKDirector.Get();
-    const bool bArena = PK && PK->IsArenaActive();
-    const bool bSpectating = bArena && PK->CanSpectate(Observer->ContenderId);
-    const bool bPKObserver = bArena && Core->IsPKLife(Observer->ContenderId);
-    TArray<FVector> Teammates;
-    PKTeammateFeet(*Core, PK, Observer->ContenderId, Teammates);
     const FVector TargetFoot = FootOf(*TargetBody);
-    const ELDObservedResolve Outcome = PresentationSight(*Core, Core->Combat.Get(), PK, Observer->ContenderId,
-        bArena, bSpectating, bPKObserver, Foot, Teammates, Target, TargetFoot, Sight, Error);
+    const ELDObservedResolve Outcome = PresentationSight(*Core, Core->Combat.Get(), Observer->ContenderId, Foot, Target, TargetFoot,
+        Sight, Error);
     if (Outcome != ELDObservedResolve::Resolved)
     { return Refuse(Outcome, Outcome == ELDObservedResolve::AuthorityFault ? Error : TEXT("The target is not currently presentable.")); }
     Out.Target = Target;

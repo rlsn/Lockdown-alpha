@@ -127,9 +127,7 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     if (const auto* Mode = Core(); Mode && Mode->IsDevPeaceful(Victim.Victim.EntityId)
         && App.SourceEntity != Victim.Victim.EntityId) { return true; }
 #endif
-    const bool bIsolated = App.bSpectatorThrow
-        ? Victim.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Victim.bTrainingDummy
-        : IsIsolated(App.SourceEntity,Victim);
+    const bool bIsolated = IsIsolated(App.SourceEntity,Victim);
     if (App.DurationMs<=0 || Victim.bPendingDeath || bIsolated) { return true; }
     // Hard controls take the diminished duration; the chain advances only when the control actually lands.
     FLDHardControlChain Chain=Victim.HardControl;
@@ -279,6 +277,8 @@ bool ALDCombatDirector::InterruptSpray(const FLDBodyCombatState& Target, FString
 {
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A spray interruption requires the current core."); return false; }
+    // P6: a hard control on a field contender breaks its mini flag spray and its locker channel.
+    if (Target.Victim.Kind==ELDVictimKind::Contender && !Target.IsolationGroup.IsValid()) { Mode->NotePacingControl(Target.Victim.EntityId); }
     // Rule fixtures without a spray zone, camp bodies and rest-space bodies (#198: a rest life or a training dummy)
     // carry no spray progress.
     if (Target.Victim.Kind!=ELDVictimKind::Contender || Target.IsolationGroup.IsValid()

@@ -188,7 +188,7 @@ FLDAirdropView FLDAirdropState::View() const
 }
 
 bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content, int64 StartedAtMs,
-    const FGuid& LedgerMatch, FLDAirdropState& Out, FString& Error)
+    const FGuid& LedgerMatch, bool bDeliveryDay, FLDAirdropState& Out, FString& Error)
 {
     Out = {};
     const auto* Geometry = Registry.GetGeometry();
@@ -201,9 +201,10 @@ bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnap
     FLDAirdropState Candidate;
     FLDAirdropSchedule& S = Candidate.Schedule;
     S.StartedAtMs = StartedAtMs;
-    S.LandMs = P.AirdropLandMs;
+    // Spec §11.1 delivery day: the denser drop list, each gone sooner.
+    S.LandMs = bDeliveryDay ? P.Daily.DeliveryLandMs : P.AirdropLandMs;
     S.AnnounceLeadMs = P.AirdropAnnounceLeadMs;
-    S.ExpireMs = P.AirdropExpireMs;
+    S.ExpireMs = bDeliveryDay ? P.Daily.DeliveryExpireMs : P.AirdropExpireMs;
     S.PickupRadiusCm = P.AirdropPickupRadiusCm.Denominator > 0
         ? double(P.AirdropPickupRadiusCm.Numerator) / double(P.AirdropPickupRadiusCm.Denominator) : 0.;
     for (const FLDDemoWorldAnchor& Anchor : Geometry->Anchors)
