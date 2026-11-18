@@ -90,11 +90,33 @@ bool LDCampGrowth::ApplySpawnTerms(const FLDDemoContentParameters& Parameters, E
     {
         // Attack speed is a rational: one attack per AttackIntervalMs; +30% shortens the interval to interval / 1.3.
         const int64 Bp = 10000 + Parameters.Affix.OvertimeAttackSpeedBp;
-        InOut.AttackSpeed.Numerator *= Bp;
-        InOut.AttackSpeed.Denominator *= 10000;
-        const int64 Divisor = FMath::GreatestCommonDivisor(InOut.AttackSpeed.Numerator, InOut.AttackSpeed.Denominator);
-        if (Divisor > 0) { InOut.AttackSpeed.Numerator /= Divisor; InOut.AttackSpeed.Denominator /= Divisor; }
-        InOut.AttackIntervalMs = FMath::Max<int64>(InOut.AttackWindupMs + 1, (InOut.AttackIntervalMs * 10000 + Bp - 1) / Bp);
+        int64& N = InOut.AttackSpeed.Numerator;
+        int64& D = InOut.AttackSpeed.Denominator;
+        if (N <= 0 || D <= 0 || Bp <= 0 || InOut.AttackIntervalMs < 0)
+        {
+            Error = TEXT("A camp spawn term overflowed.");
+            return false;
+        }
+        // FMath::GreatestCommonDivisor is int32; the exact rationals here are int64.
+        const auto Gcd = [](int64 A, int64 B) { while (B != 0) { const int64 T = B; B = A % B; A = T; } return A; };
+        // Cross-cancel before the checked products so an exact speed whose reduced result fits never overflows.
+        const int64 G1 = Gcd(N, 10000);
+        const int64 G2 = Gcd(Bp, D);
+        const int64 NA = N / G1, NB = Bp / G2, DA = D / G2, DB = int64(10000) / G1;
+        if (NA > MAX_int64 / NB || DA > MAX_int64 / DB)
+        {
+            Error = TEXT("A camp spawn term overflowed.");
+            return false;
+        }
+        N = NA * NB;
+        D = DA * DB;
+        const int64 Divisor = Gcd(N, D);
+        N /= Divisor;
+        D /= Divisor;
+        // Interval / (Bp / 10000), rounded up, without forming Interval * 10000.
+        const int64 Interval = InOut.AttackIntervalMs;
+        const int64 Shortened = Interval / Bp * 10000 + ((Interval % Bp) * 10000 + Bp - 1) / Bp;
+        InOut.AttackIntervalMs = FMath::Max<int64>(InOut.AttackWindupMs + 1, Shortened);
     }
     if (bPeddler)
     {

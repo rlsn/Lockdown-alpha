@@ -6,6 +6,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapRegistry.h"
@@ -587,12 +588,20 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
     for(const auto& Anchor:Geometry->Anchors)
     {
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp||Saved.Contains(Anchor.Id)){continue;}
+        // Only a new identity is added. A deleted existing required point is an authoring error, never recreated at a
+        // stale coordinate; a deleted existing optional point stays deleted (the projection enforces its minimum).
+        if(Previous.Anchors.ContainsByPredicate([&](const auto& Old){return Old.Id==Anchor.Id;}))
+        {
+            ELDDemoWorldAnchorKind Optional;
+            if(LDDemoWorld::OptionalKindOf(Anchor.Id,Optional)){continue;}
+            return Fail(Error,TEXT("Missing existing layout point: ")+Anchor.Id);
+        }
         FVector Position;if(!Anchor.PositionCm.ToVector(Position,Error)){return false;}
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn)
         {
-            // Field spawns are player starts the registry binds by PlayerStartTag; a deleted existing one is an authoring error.
-            if(Previous.Anchors.ContainsByPredicate([&](const auto& Old){return Old.Id==Anchor.Id;}))
-            {return Fail(Error,TEXT("Missing existing player start: ")+Anchor.Id);}
+            // Field spawns are player starts the registry binds by PlayerStartTag. The projection exports a start at its
+            // actor location minus the character capsule half-height, so the start stands that much above the anchor foot.
+            Position.Z+=GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
             auto* Start=World.SpawnActor<APlayerStart>(Position,FRotator::ZeroRotator);
             if(!Start){return Fail(Error,TEXT("Could not add a field spawn player start."));}
             Start->PlayerStartTag=FName(*Anchor.Id);Start->SetActorLabel(Anchor.Id);

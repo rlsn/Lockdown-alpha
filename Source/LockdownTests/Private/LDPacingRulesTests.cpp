@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDProgressionRules.h"
 #include "Framework/LDPacingTypes.h"
@@ -272,6 +273,22 @@ bool FLDPacingAffixTest::RunTest(const FString& Parameters)
         P.Affix.FridgeCardOffer == 3 && P.Affix.BonusCardOffer == 5 && P.Affix.AuditSkillPointsMax == 1
         && LDProgression::CardOfferSize(P, ELDCardOfferSource::CampFridge) == 3
         && LDProgression::CardOfferSize(P, ELDCardOfferSource::CampBonus) == 5);
+    // Overtime scales an exact attack speed; one with a huge denominator must not overflow when the reduced result fits.
+    FLDDemoMonsterDefinition Fast;
+    Fast.AttackSpeed.Numerator = 1000000000000001;
+    Fast.AttackSpeed.Denominator = 1000000000000000;
+    Fast.AttackIntervalMs = 1000;
+    Fast.AttackWindupMs = 100;
+    FString Error;
+    const int64 Bp = 10000 + P.Affix.OvertimeAttackSpeedBp;
+    bGood &= TestTrue(TEXT("Overtime on an exact huge-denominator speed applies: ") + Error,
+        LDCampGrowth::ApplySpawnTerms(P, ELDCampAffix::Overtime, false, Fast, Error));
+    int64 G = Bp;
+    for (int64 B = 10000; B != 0;) { const int64 T = B; B = G % B; G = T; }
+    bGood &= TestTrue(TEXT("Overtime speed is the exact reduced product"),
+        Fast.AttackSpeed.Numerator == 1000000000000001 * (Bp / G)
+        && Fast.AttackSpeed.Denominator == 1000000000000000 * (10000 / G));
+    bGood &= TestEqual(TEXT("Overtime interval is the rounded-up quotient"), Fast.AttackIntervalMs, (int64(1000) * 10000 + Bp - 1) / Bp);
     return bGood;
 }
 
