@@ -377,15 +377,22 @@ namespace
             const ULDCombatVfxCatalog* Effects = Impacts ? Impacts->GetCatalog() : nullptr;
             UNiagaraSystem* Impact = Effects ? Effects->Impact.Get() : nullptr;
             if (!Check(Impact != nullptr, TEXT("The authored impact effect is available"))) { return false; }
+#if WITH_EDITORONLY_DATA
+            // Editor builds may still be compiling the system; a cooked package carries it compiled.
             Impact->WaitForCompilationComplete(true, false);
+#endif
             if (!Check(Impact->IsReadyToRun(), TEXT("The authored impact effect compiled"))) { return false; }
             UNiagaraSystem* Trail = Effects ? Effects->SwingTrail.Get() : nullptr;
             if (!Check(Trail != nullptr, TEXT("The authored swing trail is available"))) { return false; }
+#if WITH_EDITORONLY_DATA
             Trail->WaitForCompilationComplete(true, false);
+#endif
             if (!Check(Trail->IsReadyToRun(), TEXT("The authored swing trail compiled"))) { return false; }
             UNiagaraSystem* Charge = Effects ? Effects->CastCharge.Get() : nullptr;
             if (!Check(Charge != nullptr, TEXT("The authored cast charge is available"))) { return false; }
+#if WITH_EDITORONLY_DATA
             Charge->WaitForCompilationComplete(true, false);
+#endif
             if (!Check(Charge->IsReadyToRun(), TEXT("The authored cast charge compiled"))) { return false; }
             const FVector Focus(0., -1100., 0.);
             const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
