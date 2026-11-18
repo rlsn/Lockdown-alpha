@@ -57,6 +57,13 @@ TArray<FLDBreakoutPreset> MakeBreakoutPresets()
         {{TEXT("active_triple_combo")}, {TEXT("active_apology_slide")}},
         {{TEXT("card_berserk"), ET::Body}, {TEXT("card_hang_on"), ET::Body}, {TEXT("card_blood_price"), ET::Skill, 0},
             {TEXT("card_punch_heal"), ET::Body}}});
+    // 地雷阵 (P4): S08 2A, S19 2A, S20; Y12, Y23, D11, D10. A DEV sample only, never an AI goal.
+    FLDBreakoutPreset Minefield{TEXT("breakout_minefield"), TEXT("地雷阵"),
+        {{TEXT("active_quick_meeting"), EB::A}, {TEXT("active_flyer_trap"), EB::A}, {TEXT("active_dirty_puddle")}},
+        {{TEXT("card_double_stall"), ET::Body}, {TEXT("card_turf_growth"), ET::Body}, {TEXT("card_move_turf"), ET::Dash},
+            {TEXT("card_ice_trail"), ET::Dash}}};
+    Minefield.bAIGoal = false;
+    Out.Add(MoveTemp(Minefield));
     return Out;
 }
 }

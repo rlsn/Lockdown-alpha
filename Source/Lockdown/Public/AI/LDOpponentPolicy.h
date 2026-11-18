@@ -6,6 +6,7 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Vision/LDViewTypes.h"
 #include "Development/LDProgressionRules.h"
 #include "PK/LDPKRules.h"
 
@@ -112,6 +113,8 @@ struct FLDOpponentSelf
     ELDLifePhase Phase = ELDLifePhase::Unspawned;
     uint32 Life = 0;
     FVector FootCm = FVector::ZeroVector;
+    // The own roster seat (its ground states are its own; 255 = unknown).
+    uint8 Seat = 255;
     int64 HpP2 = 0;
     int64 MaxHpP2 = 0;
     int64 MomentumP2 = 0;
@@ -210,6 +213,16 @@ struct FLDOpponentUnit
     TOptional<int64> MaxHpP2;
     bool bReturning = false;
     bool bProtected = false;
+    // The element it visibly holds (ELDCombatElement from its public statuses; 0 = none or not authorized).
+    uint8 HeldElement = 0;
+};
+
+// A public ground state in sight (spec §13): its kind (ELDGroundStateKind), footprint and whether an enemy owns it.
+struct FLDOpponentGround
+{
+    uint8 Kind = 0;
+    FLDObservedGroundState View;
+    bool bEnemy = false;
 };
 
 // Sign-up and service places are carried only by rest frames, not the field POI list.
@@ -251,6 +264,8 @@ struct FLDOpponentDecisionFrame
     TArray<FLDOpponentUnit> Units;
     // Visible enemy warnings (issue #287 spec §13 dodging).
     TArray<FLDOpponentWarning> Warnings;
+    // Public ground states in sight (spec §13: never stand in an enemy's).
+    TArray<FLDOpponentGround> Grounds;
     TArray<FLDOpponentPOI> POIs;
     FLDOpponentOrder Order;
     // Complete-path length from the current pose to the capture entry, when the world answered.
@@ -589,6 +604,15 @@ namespace LDOpponentPolicy
     // holds the step back.
     LOCKDOWN_API bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out);
+    // Issue #287 spec §13 path cost: the length of a walked ground polyline, its part inside a visible enemy ground state
+    // weighed by CostBp (AI.EnemyGroundPathCost; 10000 = 1). Sampled every GroundPathSampleCm along each segment.
+    LOCKDOWN_API double GroundWeightedCm(TConstArrayView<FVector> Points, TConstArrayView<FLDOpponentGround> Grounds, int64 CostBp);
+    // Detour waypoints for a walk From -> To: for each visible enemy ground state the straight walk passes through or
+    // near, one point on either side of it just outside its footprint. Empty when no enemy ground state is in the way.
+    LOCKDOWN_API void GroundDetours(const FVector& From, const FVector& To, TConstArrayView<FLDOpponentGround> Grounds,
+        TArray<FVector>& Out);
+    constexpr double GroundPathSampleCm = 25.;
+    constexpr double GroundDetourMarginCm = 120.;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed

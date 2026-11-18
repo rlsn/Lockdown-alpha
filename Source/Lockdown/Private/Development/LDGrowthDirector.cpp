@@ -1165,6 +1165,10 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
                 if (Reason != ELDGrowthReason::None) { Detail = AttributeDetail; }
             }
             break;
+        case ELDDevTestOp::SpawnGroundState:
+            if (Life.Phase != ELDLifePhase::Alive) { Reason = ELDGrowthReason::LifePhaseChanged; break; }
+            if (!M->Combat->DevSpawnGround(ContenderId, uint8(Command.Amount), Permit, Detail)) { Reason = ELDGrowthReason::DataInvalid; }
+            break;
         case ELDDevTestOp::RefreshCamps:
         {
             int32 Waiting = 0;

@@ -129,9 +129,13 @@ inline constexpr TCHAR WorkshopRange[]=TEXT("射程");
 inline constexpr TCHAR WorkshopProjectileRadius[]=TEXT("投射物半径");
 inline constexpr TCHAR WorkshopLineHalfWidth[]=TEXT("判定半宽");
 inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（%s）"),*Target);}
-inline constexpr TCHAR ElementFire[]=TEXT("火");
-inline constexpr TCHAR ElementWater[]=TEXT("水");
-inline constexpr TCHAR ElementElectric[]=TEXT("电");
+// Spec §8.1 element names.
+inline constexpr TCHAR ElementFire[]=TEXT("烫");
+inline constexpr TCHAR ElementWater[]=TEXT("湿");
+inline constexpr TCHAR ElementElectric[]=TEXT("麻");
+inline constexpr TCHAR ElementChill[]=TEXT("冻");
+inline constexpr TCHAR ElementRot[]=TEXT("馊");
+inline constexpr TCHAR ElementGust[]=TEXT("吹");
 inline FString CardTaken(const FString& Name){return FString::Printf(TEXT("已拿到牌：%s"),*Name);}
 inline FString CardInstalled(const FString& Name){return FString::Printf(TEXT("已装上：%s"),*Name);}
 inline FString CardStored(const FString& Name,const FString& Why)
@@ -203,18 +207,52 @@ inline constexpr TCHAR WorkshopNotes[]=TEXT("注意");
 inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑暂不可调整");
 inline constexpr TCHAR WorkshopClose[]=TEXT("Esc");
 inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("需要已学：%s"),*Names);}
-// 三种元素反应（APP_SPEC §4.4：起雾、导电、过载）。
+// 十五种元素反应（APP_SPEC §4.4），按 ELDCombatReaction 编号 1..15。
 inline constexpr TCHAR ReactionFog[]=TEXT("起雾");
 inline constexpr TCHAR ReactionConduct[]=TEXT("导电");
 inline constexpr TCHAR ReactionOverload[]=TEXT("过载");
-inline constexpr TCHAR ReactionFogRule[]=TEXT("水 + 火：对目标造成魔法伤害，并在原地产生持续给无元素敌人附着潮湿的水雾。触发时消耗双方元素，灼烧的剩余伤害立即结算。");
-inline constexpr TCHAR ReactionConductRule[]=TEXT("水 + 电：对目标及附近潮湿敌人造成魔法伤害并减速，消耗参与反应的水、电附着及附近敌人的潮湿。");
-inline constexpr TCHAR ReactionOverloadRule[]=TEXT("火 + 电：对目标及附近敌人造成魔法伤害并施加破防。触发时消耗双方元素，灼烧的剩余伤害立即结算。");
+inline constexpr TCHAR ReactionMelt[]=TEXT("融化");
+inline constexpr TCHAR ReactionMethane[]=TEXT("沼气爆");
+inline constexpr TCHAR ReactionFirestorm[]=TEXT("火旋");
+inline constexpr TCHAR ReactionFreeze[]=TEXT("冻住");
+inline constexpr TCHAR ReactionFerment[]=TEXT("发酵");
+inline constexpr TCHAR ReactionSplash[]=TEXT("泼洒");
+inline constexpr TCHAR ReactionShatter[]=TEXT("碎冰");
+inline constexpr TCHAR ReactionCorrode[]=TEXT("腐蚀");
+inline constexpr TCHAR ReactionThunderstorm[]=TEXT("雷暴");
+inline constexpr TCHAR ReactionFrostbite[]=TEXT("冻疮");
+inline constexpr TCHAR ReactionBlizzard[]=TEXT("风雪");
+inline constexpr TCHAR ReactionSmoke[]=TEXT("熏");
+inline constexpr TCHAR ReactionFogRule[]=TEXT("烫 + 湿：对目标造成伤害并立即结算剩余灼烧，原地起雾，雾里的无元素敌人被弄湿。");
+inline constexpr TCHAR ReactionConductRule[]=TEXT("湿 + 麻：目标受较高伤害并减速，附近其他湿的敌人也挨一下。");
+inline constexpr TCHAR ReactionOverloadRule[]=TEXT("烫 + 麻：目标受较高伤害并破防，附近其他敌人也挨一下。");
+inline constexpr TCHAR ReactionMeltRule[]=TEXT("烫 + 冻：目标受双倍伤害，脚下留水洼。");
+inline constexpr TCHAR ReactionMethaneRule[]=TEXT("烫 + 馊：目标受较高伤害并重新烧起来，附近其他敌人也挨一下。");
+inline constexpr TCHAR ReactionFirestormRule[]=TEXT("烫 + 吹：目标身上的灼烧层数翻倍，脚下留火场。");
+inline constexpr TCHAR ReactionFreezeRule[]=TEXT("湿 + 冻：目标被冻住，短时间定身。");
+inline constexpr TCHAR ReactionFermentRule[]=TEXT("湿 + 馊：目标挂上更久、更狠的馊。");
+inline constexpr TCHAR ReactionSplashRule[]=TEXT("湿 + 吹：把目标推开，脚下留水洼。");
+inline constexpr TCHAR ReactionShatterRule[]=TEXT("麻 + 冻：目标下一次受到的技能伤害大幅提高。");
+inline constexpr TCHAR ReactionCorrodeRule[]=TEXT("麻 + 馊：目标被叠上更多、更久的破防。");
+inline constexpr TCHAR ReactionThunderstormRule[]=TEXT("麻 + 吹：目标受伤害并被击退，重新挂上麻，落点留电场。");
+inline constexpr TCHAR ReactionFrostbiteRule[]=TEXT("冻 + 馊：目标攻速大幅降低。");
+inline constexpr TCHAR ReactionBlizzardRule[]=TEXT("冻 + 吹：目标受伤害，脚下留风雪区。");
+inline constexpr TCHAR ReactionSmokeRule[]=TEXT("馊 + 吹：目标被熏得短时间缴械，脚下留毒雾。");
+inline constexpr const TCHAR* ReactionNames[]={TEXT(""),ReactionFog,ReactionConduct,ReactionOverload,ReactionMelt,ReactionMethane,
+    ReactionFirestorm,ReactionFreeze,ReactionFerment,ReactionSplash,ReactionShatter,ReactionCorrode,ReactionThunderstorm,
+    ReactionFrostbite,ReactionBlizzard,ReactionSmoke};
+inline constexpr const TCHAR* ReactionRules[]={TEXT(""),ReactionFogRule,ReactionConductRule,ReactionOverloadRule,ReactionMeltRule,
+    ReactionMethaneRule,ReactionFirestormRule,ReactionFreezeRule,ReactionFermentRule,ReactionSplashRule,ReactionShatterRule,
+    ReactionCorrodeRule,ReactionThunderstormRule,ReactionFrostbiteRule,ReactionBlizzardRule,ReactionSmokeRule};
+// The reaction term of an ELDCombatReaction number (empty for none or unknown).
+inline FString ReactionTerm(uint8 Reaction){return Reaction<UE_ARRAY_COUNT(ReactionNames)?FString(ReactionNames[Reaction]):FString();}
 inline FString ReactionExplanation(const FString& Name)
 {
-    return Name==ReactionFog?FString(ReactionFogRule):Name==ReactionConduct?FString(ReactionConductRule)
-        :Name==ReactionOverload?FString(ReactionOverloadRule):FString();
+    for(int32 Index=1;Index<UE_ARRAY_COUNT(ReactionNames);++Index){if(Name==ReactionNames[Index]){return ReactionRules[Index];}}
+    return FString();
 }
+// 地面状态（APP_SPEC §4.4），按 ELDGroundStateKind 编号 1..6。
+inline constexpr const TCHAR* GroundNames[]={TEXT(""),TEXT("水洼"),TEXT("冰面"),TEXT("火场"),TEXT("毒雾"),TEXT("电场"),TEXT("风雪区")};
 // 构筑时刻：主动三选一页与终局改装页。
 inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
 inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
@@ -420,8 +458,29 @@ inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("灼烧"),TEXT("每层每秒造成魔法伤害，最多 5 层；新的一层刷新整组时间")},
     {TEXT("护盾"),TEXT("先于生命承受伤害，到期消失；身上只有一份，新的不弱于剩余量才替换")},
     {TEXT("吸血"),TEXT("按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35%")},
+    {TEXT("冻"),TEXT("攻速和移速降低；遇烫融化，遇湿冻住")},
+    {TEXT("馊"),TEXT("受到的治疗和护盾减少，并持续受到少量伤害")},
+    {TEXT("吹"),TEXT("把人推开一小段；他身上有元素时触发反应")},
+    {TEXT("水洼"),TEXT("站在上面的敌人会湿；遇麻变电场，遇冻变冰面，遇烫起雾")},
+    {TEXT("冰面"),TEXT("站在上面的敌人起步和停下都变慢，被击退和冲刺更远；遇烫化成水洼")},
+    {TEXT("火场"),TEXT("站在上面的敌人每秒多一层灼烧；被吹会移动，遇湿熄灭起雾")},
+    {TEXT("毒雾"),TEXT("站在里面的敌人会馊；遇烫整团爆炸，被吹会移动")},
+    {TEXT("电场"),TEXT("站在上面的敌人持续挨电并挂麻；被吹时向周围放电后消失")},
+    {TEXT("风雪区"),TEXT("站在里面的敌人减速并被冻；遇烫消失")},
     {ReactionFog,ReactionFogRule},
     {ReactionConduct,ReactionConductRule},
     {ReactionOverload,ReactionOverloadRule},
+    {ReactionMelt,ReactionMeltRule},
+    {ReactionMethane,ReactionMethaneRule},
+    {ReactionFirestorm,ReactionFirestormRule},
+    {ReactionFreeze,ReactionFreezeRule},
+    {ReactionFerment,ReactionFermentRule},
+    {ReactionSplash,ReactionSplashRule},
+    {ReactionShatter,ReactionShatterRule},
+    {ReactionCorrode,ReactionCorrodeRule},
+    {ReactionThunderstorm,ReactionThunderstormRule},
+    {ReactionFrostbite,ReactionFrostbiteRule},
+    {ReactionBlizzard,ReactionBlizzardRule},
+    {ReactionSmoke,ReactionSmokeRule},
 };
 }

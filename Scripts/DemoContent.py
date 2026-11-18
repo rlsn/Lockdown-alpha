@@ -30,8 +30,8 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 4
-HANDLER_REVISION = 11
+SCHEMA_VERSION = 5
+HANDLER_REVISION = 12
 PROJECTION_REVISION = 10
 NATIVE_IDS_SCHEMA_VERSION = 2
 INT64_MAX = (1 << 63) - 1
@@ -47,18 +47,18 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 # Inclusive native numbers that are never reused (#198 retires the passives, cower, attribute cards, their statuses and
-# unused ops; #287 P2 retires the components 1-63 below the cards).
+# unused ops; #287 P2 retires the components 1-63 below the cards; P4 retires the grievous status and operation and the
+# projectile zone).
 RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]], "cards": [[0, 199]],
-                  "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29]],
-                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169]]}
+                  "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29], [33, 33]],
+                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 # The operations only a skill branch adds to an active (issue #287 spec §5.1); rank 1 never carries them.
 BRANCH_OPS = frozenset(("vulnerable", "next_basic_amp", "momentum_gain", "momentum_steal", "follow_up", "recast", "dash_back",
                         "self_buff", "burn_burst", "pulse", "zone_guard", "zone_momentum", "overcharge", "follow_basic",
                         "shield_burst_break", "basic_rider", "delayed_burst", "shield_reflect", "shield_end_heal",
-                        "shield_hit_bonus", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield",
-                        "projectile_zone"))
+                        "shield_hit_bonus", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield"))
 # Workshop mod operations a skill branch may also give an active: the branch's own terms reuse the mod's handler.
 BRANCH_MOD_OPS = frozenset(("pull", "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
                             "empower_reach"))
@@ -74,7 +74,9 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "dash",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
                        "contact_trap", "dash_contact",
                        # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
-                       "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste", "grievous",
+                       "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste",
+                       # Issue #287 P4: chill, rot and gust, the ground states a skill leaves and N2's fan.
+                       "chill", "rot", "gust", "ground_state", "fan", "bag",
                        "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
                        "empower_reach", "pull",
                        # Skill branch operations (issue #287 spec §5.1).
@@ -89,7 +91,7 @@ CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_ele
                            "last_stand", "reaction_momentum", "reaction_element", "skill_crit", "lifesteal_skills",
                            "armor_to_hp", "overheal_shield", "missing_hp_attack_speed", "haste_momentum", "heal_growth",
                            "kill_growth", "control_growth", "idle_charge", "element_aura", "element_duration",
-                           "reaction_factor", "burn_cap"))
+                           "reaction_factor", "burn_cap", "dash_ice", "ground_relocate", "double_stall", "ground_growth"))
 CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic"}
 EFFECT_OPS = EFFECT_OPS | CARD_ONLY_OPS
 # The operations a card of each form may carry: skill cards change or answer their host skill, dash cards the D dash,
@@ -101,11 +103,12 @@ FORM_OPS = {
                         "skill_damage_factor", "hp_cost", "skill_ad_rider", "skill_lifesteal", "idle_ready_amp",
                         "skill_growth", "skill_element", "reaction_haste")),
     "dash": frozenset(("dash_contact_reset", "hit_haste_other", "empower_basic", "dash_split", "dash_phase",
-                       "dash_contact_element")),
+                       "dash_contact_element", "dash_ice", "ground_relocate")),
     "body": frozenset(("thorns", "takedown_reset", "last_stand", "reaction_momentum", "reaction_element", "triggered_shield",
                        "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
                        "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
-                       "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap")),
+                       "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap",
+                       "double_stall", "ground_growth")),
 }
 CARD_FORMS = ("basic", "skill", "dash", "body")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
@@ -113,11 +116,14 @@ CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 CARD_VOCAB = ("basic_hit", "combo3", "skill_hit", "skill_cast", "overdrive", "reaction", "element", "dash", "dash_contact",
               "perfect_dodge", "knockback", "wall_impact", "shield", "shield_break", "controlled", "control", "damaged",
               "low_hp", "kill", "idle", "ground", "heal", "momentum", "attack_speed", "move_speed", "crit", "armor", "max_hp")
-ELEMENTS = ("fire", "water", "electric")
+# Content element names (electric is the shock element); Y25's aura may name any but gust.
+ELEMENTS = ("fire", "water", "electric", "chill", "rot", "gust")
+AURA_ELEMENTS = ("fire", "water", "electric", "chill", "rot")
+GROUND_KINDS = ("puddle", "ice", "fire", "miasma", "field", "blizzard")
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Elements an active attaches to the bodies it hits (#198 CONTENT_AND_BALANCE §4.4).
-ELEMENT_OPS = frozenset(("wet", "electrify"))
+ELEMENT_OPS = frozenset(("wet", "electrify", "chill", "rot", "gust"))
 # Effects a self area delivers to the bodies it names.
 AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn", *ELEMENT_OPS))
 # The payloads that give a zone a reason to exist; zone_haste only buffs its owner while inside one.
@@ -586,7 +592,7 @@ def _validate_new_effect(effect, path):
     if "slow" in effect and effect["op"] == "channel_cone":
         require(0 < quantity(effect["slow"]) < 1, "NumericDomain", path, "slow must be a positive fraction")
     # #198 session A (CONTENT_AND_BALANCE §4.2).
-    if effect["op"] in ("chain_bounce", "brace", "zone_haste", "grievous"):
+    if effect["op"] in ("chain_bounce", "brace", "zone_haste"):
         require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
                 f"{effect['op']} ratio must be strictly between zero and one")
     if effect["op"] in ("chain_bounce", "brace"):
@@ -594,6 +600,20 @@ def _validate_new_effect(effect, path):
     if effect["op"] == "brace":
         require(quantity(effect["limit"]) > 0 and quantity(effect["record_ratio"]) > 0, "IneffectiveEffect", path,
                 "a brace records a positive amount and releases a positive share of it")
+    # Issue #287 P4 (CONTENT_AND_BALANCE §4.4).
+    if effect["op"] == "rot" and "ratio" in effect:
+        require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "a rot cut is strictly between zero and one")
+    if effect["op"] == "ground_state":
+        require(effect["kind"] in GROUND_KINDS, "InvalidReference", path, "unknown ground state")
+        if "attack_slow" in effect:
+            require(0 < quantity(effect["attack_slow"]) < 1, "NumericDomain", path, "an attack slow keeps something")
+    if effect["op"] == "bag":
+        require(quantity(effect["hp_base"]) > 0 and quantity(effect["radius"]) > 0 and quantity(effect["size"]) > 0,
+                "InvalidGeometry", path, "a bag has life, a body and a blast")
+    if effect["op"] == "fan":
+        require(effect["interval"]["ms"] <= effect["duration"]["ms"], "InvalidTiming", path, "a fan blows inside its life")
+        require(quantity(effect["length"]) > 0 and quantity(effect["width"]) > 0 and quantity(effect["distance"]) > 0,
+                "InvalidGeometry", path, "a fan blows a positive rectangle a positive distance")
 
 
 def _validate_action(target, effects, path):
@@ -605,11 +625,11 @@ def _validate_action(target, effects, path):
                            "shield_reflect", "shield_end_heal", "shield_hit_bonus", "brace_stun", "brace_heal", "brace_stack",
                            "brace_shove", "brace_shield", "pull")),
         "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "silence", "breach", "burn", "knockback",
-                           *ELEMENT_OPS, "chain_bounce", "grievous", "vulnerable", "next_basic_amp", "momentum_gain",
+                           *ELEMENT_OPS, "chain_bounce", "vulnerable", "next_basic_amp", "momentum_gain",
                            "momentum_steal", "follow_up", "recast", "dash_back", "self_buff", "pull", "overcharge")),
         "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "attack_slow", *ELEMENT_OPS,
-                                          "grievous", "knockback", "pull", "projectile_return", "projectile_pierce",
-                                          "next_basic_amp", "projectile_zone")),
+                                          "knockback", "pull", "projectile_return", "projectile_pierce",
+                                          "next_basic_amp", "ground_state", "follow_up", "momentum_gain")),
         "DirectionLine": frozenset(("damage", "knockback", "slow", "burn", *ELEMENT_OPS, "pull", "vulnerable", "momentum_gain")),
         "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "zone", "zone_damage",
                                     *HOSTILE_OPS, "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS,
@@ -617,8 +637,10 @@ def _validate_action(target, effects, path):
                                     "shield_burst_break", "empower_reach", "final_knockback")),
         "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
                                   "ground_impact", "contact_trap", "damage", "root", "slow", "burn", "knockback", *ELEMENT_OPS,
-                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain")),
-        "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence")),
+                                  "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan",
+                                  "bag", "ground_state")),
+        "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence", *ELEMENT_OPS,
+                                    "ground_state")),
     }[mode]
     ops = _effect_set(effects, path)
     require(not ops & CARD_ONLY_OPS, "CardOnlyEffect", path,
@@ -631,6 +653,8 @@ def _validate_action(target, effects, path):
                 "hit effects of a self or dash action need exactly one self_area to name their targets")
     if mode == "DirectionProjectile":
         require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
+    require("ground_state" not in ops or mode in ("DirectionProjectile", "DirectionCone") or "bag" in ops, "TargetEffectMismatch",
+            path, "a skill leaves its ground state where its projectile lands, over its cone or where its bag blows")
     require(mode != "DirectionDash" or not ops & ELEMENT_OPS or "dash_contact" in ops, "TargetEffectMismatch", path,
             "a dash attaches its element to the bodies it actually touches")
     require("brace" not in ops or ops <= {"brace", "brace_stun", "brace_heal", "brace_stack", "brace_shove", "brace_shield"},
@@ -654,7 +678,7 @@ def _validate_action(target, effects, path):
     require("recast" not in ops or "damage" in ops, "MissingHandler", path, "a recast repeats a damaging release")
     require("follow_basic" not in ops or "dash_contact" in ops, "MissingHandler", path, "a follow-up basic needs a contact")
     require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
-    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap"}) == 1,
+    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan", "bag"}) == 1,
             "MissingHandler", path, "a ground point needs exactly one delivery handler")
     require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
             "MissingHandler", path, "a cone needs its channel and damage")
@@ -714,6 +738,7 @@ _CARD_MAGNITUDES = {
     "dash_split": ("distance",), "last_stand": ("threshold",), "reaction_momentum": ("momentum",), "armor_to_hp": ("max_hp",),
     "overheal_shield": ("cap_ratio",), "missing_hp_attack_speed": ("ratio",), "haste_momentum": ("haste", "momentum"),
     "heal_growth": ("heal", "max_hp"), "idle_charge": ("ratio",), "element_aura": ("radius",), "reaction_factor": ("ratio",),
+    "dash_ice": ("width", "duration"), "ground_growth": ("ratio", "interval"),
     "idle_ready_amp": ("ratio",), "thorns": ("ratio",), "skill_lifesteal": ("ratio",), "lifesteal": ("ratio",),
 }
 
@@ -735,6 +760,8 @@ def _validate_cards(data):
         if "choose_element" in row:
             require(len(set(row["choose_element"])) == len(row["choose_element"]), "InvalidReference", identity,
                     "element choices are distinct")
+            require(set(row["choose_element"]) <= set(AURA_ELEMENTS), "InvalidReference", identity,
+                    "an aura holds an element a target can hold (gust is never held)")
         for effect in row["effects"]:
             fields = _CARD_MAGNITUDES.get(effect["op"])
             if fields is not None:
@@ -763,11 +790,15 @@ def ability_vocab(ability):
     """Spec §6.3: a skill's vocabulary follows from its element, delivery, control, displacement and shield."""
     ops = {effect["op"] for effect in ability["effects"]}
     vocab = set()
-    if ability["element"] != "none" or ops & {"wet", "electrify", "burn", "zone_burn", "zone_wet"}:
+    if ability["element"] != "none" or ops & {"wet", "electrify", "chill", "rot", "gust", "burn", "zone_burn", "zone_wet"}:
         vocab.add("element")
+    if "gust" in ops:
+        vocab.add("knockback")
+    if ops & {"ground_state", "fan"}:
+        vocab.add("ground")
     if ability["target"]["mode"] == "DirectionDash":
         vocab.update(("dash", "dash_contact") if "dash_contact" in ops else ("dash",))
-    if ops & {"zone", "contact_trap", "ground_impact"}:
+    if ops & {"zone", "contact_trap", "ground_impact", "bag"}:
         vocab.add("ground")
     if ops & {"root", "stun", "silence", "disarm", "taunt"}:
         vocab.add("control")
@@ -796,13 +827,18 @@ ACTIVE_CONTRACTS = {
     "active_triple_combo": ("Self", {"empower_basic"}),
     "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}),
     "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage", "slow"}),
-    "active_open_mic": ("DirectionCone", {"channel_cone", "damage"}),
+    "active_open_mic": ("DirectionCone", {"channel_cone", "damage", "gust"}),
     "active_hose_down": ("DirectionLine", {"damage", "knockback", "wet"}),
     "active_zap": ("Unit", {"damage", "electrify", "chain_bounce"}),
     "active_charged_ram": ("DirectionDash", {"dash", "shield", "dash_contact", "damage", "electrify"}),
     "active_brace": ("Self", {"brace"}),
     "active_dirty_puddle": ("GroundPoint", {"zone", "zone_damage", "zone_wet", "zone_haste"}),
-    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "grievous"}),
+    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "rot"}),
+    # Issue #287 P4 skills N1-N3 (spec §5).
+    "active_cola_shake": ("DirectionCone", {"channel_cone", "damage", "chill"}),
+    "active_desk_fan": ("GroundPoint", {"fan", "gust"}),
+    "active_stale_takeout": ("DirectionProjectile", {"damage", "rot", "ground_state"}),
+    "active_school_bag": ("GroundPoint", {"bag", "damage"}),
 }
 TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
 # #198: the five point-bought stats and the bonuses one point of each adds (flat and additive percent terms).
@@ -1119,10 +1155,22 @@ def validate_numbers(data):
     require(p("CAMPMARK.RevealSec") < p("MATCH.FieldSegmentSec"), "InvalidTiming", "CAMPMARK.RevealSec",
             "a camp marker must be revealed inside its field segment")
     # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
-    for key in ("COMBAT.DischargeRadiusCm", "COMBAT.FogRadiusCm", "COMBAT.ConductRadiusCm", "COMBAT.OverloadRadiusCm"):
-        require(p(key) > 0, "InvalidGeometry", key, "reaction radius must be positive")
-    for key in ("COMBAT.WetSlow", "COMBAT.ConductSlow"):
-        require(0 < p(key) < 1, "NumericDomain", key, "a slow must be strictly between zero and one")
+    for key in ("COMBAT.FogRadiusCm", "COMBAT.ConductRadiusCm", "COMBAT.OverloadRadiusCm", "COMBAT.ShockSplashRadiusCm",
+                "COMBAT.MethaneRadiusCm", "COMBAT.GustPushCm", "COMBAT.SplashPushCm", "COMBAT.ThunderstormKnockbackCm",
+                "GROUND.PuddleRadiusCm", "GROUND.IceRadiusCm", "GROUND.FireRadiusCm", "GROUND.MiasmaRadiusCm",
+                "GROUND.FieldRadiusCm", "GROUND.FieldDischargeRadiusCm", "GROUND.BlizzardRadiusCm", "GROUND.GustMoveCm"):
+        require(p(key) > 0, "InvalidGeometry", key, "element and ground-state distances must be positive")
+    for key in ("COMBAT.WetSlow", "COMBAT.ConductSlow", "COMBAT.ChillAttackSlow", "COMBAT.ChillMoveSlow", "COMBAT.RotHealCut",
+                "COMBAT.FermentHealCut", "COMBAT.FrostbiteAttackSlow", "GROUND.BlizzardSlow", "GROUND.IceAccelScale"):
+        require(0 < p(key) < 1, "NumericDomain", key, "a slow or cut must be strictly between zero and one")
+    require(p("GROUND.IceDisplacementScale") > 1, "NumericDomain", "GROUND.IceDisplacementScale", "ice only lengthens a move")
+    for tick, life in (("COMBAT.RotTickSec", "COMBAT.RotSec"), ("GROUND.PuddleTickSec", "GROUND.PuddleSec"),
+                       ("GROUND.FireTickSec", "GROUND.FireSec"), ("GROUND.MiasmaTickSec", "GROUND.MiasmaSec"),
+                       ("GROUND.FieldTickSec", "GROUND.FieldSec"), ("GROUND.BlizzardTickSec", "GROUND.BlizzardSec")):
+        require(p(tick) <= p(life), "InvalidTiming", tick, "a ticking element or ground state ticks inside its life")
+    require(params["COMBAT.FirestormBurnScale"] >= 2, "NumericDomain", "COMBAT.FirestormBurnScale", "a firestorm adds layers")
+    require(params["GROUND.MaxPerOwner"] <= params["GROUND.MaxTotal"] <= 40, "NumericDomain", "GROUND.MaxTotal",
+            "the ground-state caps fit the observation bound of 40")
     require(p("COMBAT.FogIntervalSec") <= p("COMBAT.FogSec"), "InvalidTiming", "COMBAT.FogIntervalSec",
             "fog pulses must fall inside the fog")
     require(params["COMBAT.OverloadBreachStacks"] <= params["COMBAT.BreachMaxStacks"], "NumericDomain",

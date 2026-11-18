@@ -1,11 +1,11 @@
 {
   "identity": {
-    "schema_version": 4,
-    "handler_revision": 11,
+    "schema_version": 5,
+    "handler_revision": 12,
     "projection_revision": 10,
     "approval": {
       "status": "approved",
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards approved: 不用管schedule， fix doc and approve all numbers."
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers."
     }
   },
   "parameters": {
@@ -69,6 +69,7 @@
     "OVERDRIVE.RotDurationScale": {"unit": "ratio", "value": 2},
     "OVERDRIVE.GustPushCm": {"unit": "cm", "value": 300},
     "OVERDRIVE.GustPushSec": {"unit": "s", "value": 0.25},
+    "OVERDRIVE.ChillRootSec": {"unit": "s", "value": 0.6},
     "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 300},
     "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 173},
     "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 675},
@@ -193,6 +194,7 @@
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
     "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
     "AI.DodgeChance": {"unit": "ratio", "value": 0.5},
+    "AI.EnemyGroundPathCost": {"unit": "ratio", "value": 3},
     "AI.CardVocabScore": 2,
     "AI.BreakoutChance": {"unit": "ratio", "value": 0.25},
     "AI.BreakoutCardScore": 5,
@@ -218,12 +220,9 @@
     "COMBAT.KeystoneAgilityEmpowerDurationSec": {"unit": "s", "value": 3},
     "COMBAT.WetSec": {"unit": "s", "value": 4},
     "COMBAT.WetSlow": {"unit": "ratio", "value": 0.15},
-    "COMBAT.ElectrifiedSec": {"unit": "s", "value": 4},
-    "COMBAT.DischargeRadiusCm": {"unit": "cm", "value": 350},
-    "COMBAT.DischargeIntervalSec": {"unit": "s", "value": 1},
-    "COMBAT.ReactionBase": {"unit": "points", "value": 20},
-    "COMBAT.ReactionPerLevel": {"unit": "points", "value": 1},
-    "COMBAT.ReactionAPRatio": {"unit": "ratio", "value": 0.2},
+    "COMBAT.ReactionBase": {"unit": "points", "value": 30},
+    "COMBAT.ReactionPerLevel": {"unit": "points", "value": 1.5},
+    "COMBAT.ReactionAPRatio": {"unit": "ratio", "value": 0.25},
     "COMBAT.FogRadiusCm": {"unit": "cm", "value": 250},
     "COMBAT.FogSec": {"unit": "s", "value": 3},
     "COMBAT.FogIntervalSec": {"unit": "s", "value": 1},
@@ -231,7 +230,67 @@
     "COMBAT.ConductSlow": {"unit": "ratio", "value": 0.3},
     "COMBAT.ConductSlowSec": {"unit": "s", "value": 1.5},
     "COMBAT.OverloadRadiusCm": {"unit": "cm", "value": 200},
-    "COMBAT.OverloadBreachStacks": 2
+    "COMBAT.OverloadBreachStacks": 2,
+    "COMBAT.ShockSec": {"unit": "s", "value": 4},
+    "COMBAT.ShockEveryNthHit": 3,
+    "COMBAT.ShockRatio": {"unit": "ratio", "value": 0.5},
+    "COMBAT.ShockSplashRadiusCm": {"unit": "cm", "value": 350},
+    "COMBAT.ChillSec": {"unit": "s", "value": 4},
+    "COMBAT.ChillAttackSlow": {"unit": "ratio", "value": 0.15},
+    "COMBAT.ChillMoveSlow": {"unit": "ratio", "value": 0.1},
+    "COMBAT.RotSec": {"unit": "s", "value": 4},
+    "COMBAT.RotHealCut": {"unit": "ratio", "value": 0.25},
+    "COMBAT.RotPerSec": {"unit": "points", "value": 3},
+    "COMBAT.RotAPRatioPerSec": {"unit": "ratio", "value": 0.03},
+    "COMBAT.RotTickSec": {"unit": "s", "value": 0.5},
+    "COMBAT.GustPushCm": {"unit": "cm", "value": 100},
+    "COMBAT.GustPushSec": {"unit": "s", "value": 0.12},
+    "COMBAT.ConductRatio": {"unit": "ratio", "value": 1.5},
+    "COMBAT.OverloadRatio": {"unit": "ratio", "value": 1.5},
+    "COMBAT.MeltRatio": {"unit": "ratio", "value": 2},
+    "COMBAT.MethaneRatio": {"unit": "ratio", "value": 1.5},
+    "COMBAT.MethaneBurnStacks": 2,
+    "COMBAT.MethaneRadiusCm": {"unit": "cm", "value": 250},
+    "COMBAT.FirestormBurnScale": 2,
+    "COMBAT.FreezeRootSec": {"unit": "s", "value": 1},
+    "COMBAT.FermentRotSec": {"unit": "s", "value": 8},
+    "COMBAT.FermentHealCut": {"unit": "ratio", "value": 0.5},
+    "COMBAT.SplashPushCm": {"unit": "cm", "value": 150},
+    "COMBAT.ShatterSkillDamage": {"unit": "ratio", "value": 0.5},
+    "COMBAT.ShatterSec": {"unit": "s", "value": 4},
+    "COMBAT.CorrodeBreachStacks": 3,
+    "COMBAT.CorrodeBreachSec": {"unit": "s", "value": 6},
+    "COMBAT.ThunderstormKnockbackCm": {"unit": "cm", "value": 150},
+    "COMBAT.FrostbiteAttackSlow": {"unit": "ratio", "value": 0.3},
+    "COMBAT.FrostbiteSec": {"unit": "s", "value": 3},
+    "COMBAT.BlizzardRatio": {"unit": "ratio", "value": 0.5},
+    "COMBAT.SmokeDisarmSec": {"unit": "s", "value": 0.6},
+    "GROUND.PuddleRadiusCm": {"unit": "cm", "value": 180},
+    "GROUND.PuddleSec": {"unit": "s", "value": 6},
+    "GROUND.PuddleTickSec": {"unit": "s", "value": 0.5},
+    "GROUND.IceRadiusCm": {"unit": "cm", "value": 180},
+    "GROUND.IceSec": {"unit": "s", "value": 5},
+    "GROUND.IceAccelScale": {"unit": "ratio", "value": 0.5},
+    "GROUND.IceDisplacementScale": {"unit": "ratio", "value": 1.5},
+    "GROUND.FireRadiusCm": {"unit": "cm", "value": 180},
+    "GROUND.FireSec": {"unit": "s", "value": 4},
+    "GROUND.FireTickSec": {"unit": "s", "value": 1},
+    "GROUND.FireBurnStacks": 1,
+    "GROUND.MiasmaRadiusCm": {"unit": "cm", "value": 200},
+    "GROUND.MiasmaSec": {"unit": "s", "value": 4},
+    "GROUND.MiasmaTickSec": {"unit": "s", "value": 0.5},
+    "GROUND.FieldRadiusCm": {"unit": "cm", "value": 180},
+    "GROUND.FieldSec": {"unit": "s", "value": 4},
+    "GROUND.FieldTickSec": {"unit": "s", "value": 0.5},
+    "GROUND.FieldRatio": {"unit": "ratio", "value": 0.3},
+    "GROUND.FieldDischargeRadiusCm": {"unit": "cm", "value": 350},
+    "GROUND.BlizzardRadiusCm": {"unit": "cm", "value": 250},
+    "GROUND.BlizzardSec": {"unit": "s", "value": 3},
+    "GROUND.BlizzardTickSec": {"unit": "s", "value": 1},
+    "GROUND.BlizzardSlow": {"unit": "ratio", "value": 0.35},
+    "GROUND.GustMoveCm": {"unit": "cm", "value": 300},
+    "GROUND.MaxPerOwner": 6,
+    "GROUND.MaxTotal": 40
   },
   "formulas": {
     "StatProjection": "AddFlatThenAdditivePercent",
@@ -493,7 +552,7 @@
       "id": "active_open_mic", "opening": true, "cooldown_family": "cd_open_mic", "element": "gust", "hit_type": "area",
       "target": {"mode": "DirectionCone", "range": {"unit": "cm", "value": 450}, "angle": {"unit": "degrees", "value": 70}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 7},
-      "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.3}, "count": 3, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.2}}, {"op": "damage", "base": {"unit": "points", "value": 35}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
+      "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.3}, "count": 3, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.2}}, {"op": "damage", "base": {"unit": "points", "value": 35}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "gust"}],
       "ranks": {
         "2A": {"name": "喷五波", "text": "改为 [channel_cone.count] 波，每波伤害降低。", "patches": [{"op": "set", "effect": "channel_cone", "field": "count", "value": 5}, {"op": "scale", "effect": "damage", "fields": ["base", "ad_ratio", "ap_ratio", "max_hp_ratio"], "ratio": 0.75}]},
         "3A1": {"name": "喷出劲", "text": "每波命中回 [momentum_gain.amount] 劲。", "patches": [{"op": "add", "effect": {"op": "momentum_gain", "momentum": {"unit": "momentum", "value": 3}}}]},
@@ -577,14 +636,71 @@
       "id": "active_sock_shot", "opening": true, "cooldown_family": "cd_sock_shot", "element": "rot", "hit_type": "projectile",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 750}, "projectile_radius": {"unit": "cm", "value": 55}, "projectile_speed": {"unit": "cm/s", "value": 1500}}, "windup": {"unit": "s", "value": 0.15},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 8},
-      "effects": [{"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "attack_slow", "ratio": {"unit": "ratio", "value": 0.2}, "duration": {"unit": "s", "value": 3}}, {"op": "grievous", "ratio": {"unit": "ratio", "value": 0.35}, "duration": {"unit": "s", "value": 3}}],
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "attack_slow", "ratio": {"unit": "ratio", "value": 0.2}, "duration": {"unit": "s", "value": 3}}, {"op": "rot"}],
       "ranks": {
         "2A": {"name": "糊满脸", "text": "攻速降低改为 [attack_slow.ratio]%。", "patches": [{"op": "set", "effect": "attack_slow", "field": "ratio", "value": {"unit": "ratio", "value": 0.35}}]},
-        "3A1": {"name": "糊得更牢", "text": "治疗和护盾削减改为 [grievous.ratio]%。", "patches": [{"op": "set", "effect": "grievous", "field": "ratio", "value": {"unit": "ratio", "value": 0.6}}]},
-        "3A2": {"name": "糊一地", "text": "落点留区域 [projectile_zone.duration] 秒，里面的敌人持续被糊。", "patches": [{"op": "add", "effect": {"op": "projectile_zone", "radius": {"unit": "cm", "value": 150}, "duration": {"unit": "s", "value": 3}, "interval": {"unit": "s", "value": 1}}}]},
+        "3A1": {"name": "糊得更牢", "text": "馊的治疗和护盾削减改为 [rot.ratio]%。", "patches": [{"op": "set", "effect": "rot", "field": "ratio", "value": {"unit": "ratio", "value": 0.5}}]},
+        "3A2": {"name": "糊一地", "text": "落点留毒雾 [ground_state.duration] 秒。", "patches": [{"op": "add", "effect": {"op": "ground_state", "kind": "miasma", "duration": {"unit": "s", "value": 3}}}]},
         "2B": {"name": "甩一路", "text": "弹道穿透，在最远处折返。", "patches": [{"op": "add", "effect": {"op": "projectile_pierce", "count": 3, "damage_ratio": {"unit": "ratio", "value": 1}}}, {"op": "add", "effect": {"op": "projectile_return", "damage_ratio": {"unit": "ratio", "value": 1}}}]},
         "3B1": {"name": "来回都糊", "text": "回程伤害改为 [projectile_return.multiplier]%。", "patches": [{"op": "set", "effect": "projectile_return", "field": "damage_ratio", "value": {"unit": "ratio", "value": 1.5}}]},
         "3B2": {"name": "湿袜子", "text": "回程让目标湿。", "patches": [{"op": "set", "effect": "projectile_return", "field": "wet", "value": true}]}
+      }
+    }
+,
+    {
+      "id": "active_cola_shake", "opening": true, "cooldown_family": "cd_cola_shake", "element": "chill", "hit_type": "area",
+      "target": {"mode": "DirectionCone", "range": {"unit": "cm", "value": 400}, "angle": {"unit": "degrees", "value": 60}}, "windup": {"unit": "s", "value": 0.15},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 6},
+      "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.25}, "count": 1}, {"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.5}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "chill"}],
+      "ranks": {
+        "2A": {"name": "喷地成冰", "text": "扇形区留冰面 [ground_state.duration] 秒。", "patches": [{"op": "add", "effect": {"op": "ground_state", "kind": "ice", "duration": {"unit": "s", "value": 3}}}]},
+        "3A1": {"name": "冰上加料", "text": "站在这片冰面上的敌人受到你的伤害提高 [ground_state.secondary_ratio]%。", "patches": [{"op": "set", "effect": "ground_state", "field": "vulnerable", "value": {"unit": "ratio", "value": 0.15}}]},
+        "3A2": {"name": "冰面持久", "text": "冰面持续 [ground_state.duration] 秒。", "patches": [{"op": "set", "effect": "ground_state", "field": "duration", "value": {"unit": "s", "value": 6}}]},
+        "2B": {"name": "连喷", "text": "改为连喷 [channel_cone.count] 下，每下伤害降低。", "patches": [{"op": "set", "effect": "channel_cone", "field": "count", "value": 3}, {"op": "scale", "effect": "damage", "fields": ["base", "ad_ratio", "ap_ratio", "max_hp_ratio"], "ratio": 0.5}]},
+        "3B1": {"name": "冻住", "text": "最后一下定身 [channel_cone.extra_duration] 秒（计硬控递减）。", "patches": [{"op": "set", "effect": "channel_cone", "field": "final_root", "value": {"unit": "s", "value": 0.6}}]},
+        "3B2": {"name": "冰爽回劲", "text": "每下命中回 [momentum_gain.amount] 劲。", "patches": [{"op": "add", "effect": {"op": "momentum_gain", "momentum": {"unit": "momentum", "value": 4}}}]}
+      }
+    },
+    {
+      "id": "active_desk_fan", "opening": false, "cooldown_family": "cd_desk_fan", "element": "gust", "hit_type": "area",
+      "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 500}}, "windup": {"unit": "s", "value": 0.2},
+      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 10},
+      "effects": [{"op": "fan", "duration": {"unit": "s", "value": 4}, "interval": {"unit": "s", "value": 0.5}, "length": {"unit": "cm", "value": 600}, "width": {"unit": "cm", "value": 200}, "distance": {"unit": "cm", "value": 60}}, {"op": "gust"}],
+      "ranks": {
+        "2A": {"name": "大风扇", "text": "风更宽，推开 [fan.distance] 厘米。", "patches": [{"op": "set", "effect": "fan", "field": "width", "value": {"unit": "cm", "value": 300}}, {"op": "set", "effect": "fan", "field": "distance", "value": {"unit": "cm", "value": 100}}]},
+        "3A1": {"name": "吹上墙", "text": "被风推到墙上的敌人眩晕 [fan.extra_duration] 秒。", "patches": [{"op": "set", "effect": "fan", "field": "stun_duration", "value": {"unit": "s", "value": 0.5}}]},
+        "3A2": {"name": "带料的风", "text": "风同时带上你最后施加的元素。", "patches": [{"op": "set", "effect": "fan", "field": "carry_element", "value": true}]},
+        "2B": {"name": "摇头扇", "text": "风扇左右摇头，每秒摆 [fan.angle] 度。", "patches": [{"op": "set", "effect": "fan", "field": "sweep", "value": {"unit": "degrees", "value": 60}}]},
+        "3B1": {"name": "吹出劲", "text": "每吹到敌人一次回 [fan.amount] 劲。", "patches": [{"op": "set", "effect": "fan", "field": "momentum", "value": {"unit": "momentum", "value": 2}}]},
+        "3B2": {"name": "开一整天", "text": "风扇持续 [fan.duration] 秒。", "patches": [{"op": "set", "effect": "fan", "field": "duration", "value": {"unit": "s", "value": 6}}]}
+      }
+    },
+    {
+      "id": "active_stale_takeout", "opening": true, "cooldown_family": "cd_stale_takeout", "element": "rot", "hit_type": "projectile",
+      "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 700}, "projectile_radius": {"unit": "cm", "value": 60}, "projectile_speed": {"unit": "cm/s", "value": 1400}}, "windup": {"unit": "s", "value": 0.2},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 8},
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.7}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "rot"}, {"op": "ground_state", "kind": "miasma"}],
+      "ranks": {
+        "2A": {"name": "全家桶", "text": "毒雾更大。", "patches": [{"op": "set", "effect": "ground_state", "field": "radius_ratio", "value": {"unit": "ratio", "value": 1.5}}]},
+        "3A1": {"name": "熏得手软", "text": "毒雾里的敌人攻速降低 [ground_state.multiplier]%。", "patches": [{"op": "set", "effect": "ground_state", "field": "attack_slow", "value": {"unit": "ratio", "value": 0.2}}]},
+        "3A2": {"name": "臭得持久", "text": "毒雾持续 [ground_state.duration] 秒。", "patches": [{"op": "set", "effect": "ground_state", "field": "duration", "value": {"unit": "s", "value": 7}}]},
+        "2B": {"name": "外卖到付", "text": "命中后 [follow_up.delay] 秒在他脚下再爆一次，造成 [follow_up.amount] 魔法伤害。", "patches": [{"op": "add", "effect": {"op": "follow_up", "delay": {"unit": "s", "value": 1.5}, "count": 1, "interval": {"unit": "s", "value": 1.5}, "base": {"unit": "points", "value": 45}, "ap_ratio": {"unit": "ratio", "value": 0.42}, "damage_type": "Magical"}}]},
+        "3B1": {"name": "加倍馊", "text": "二次爆炸挂上双倍时长的馊。", "patches": [{"op": "set", "effect": "follow_up", "field": "rot_duration", "value": {"unit": "s", "value": 8}}]},
+        "3B2": {"name": "到付回本", "text": "二次爆炸回 [follow_up.limit] 劲。", "patches": [{"op": "set", "effect": "follow_up", "field": "momentum", "value": {"unit": "momentum", "value": 15}}]}
+      }
+    },
+    {
+      "id": "active_school_bag", "opening": false, "cooldown_family": "cd_school_bag", "element": "none", "hit_type": "area",
+      "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 450}}, "windup": {"unit": "s", "value": 0.2},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 11},
+      "effects": [{"op": "bag", "duration": {"unit": "s", "value": 4}, "count": 1, "hp_base": {"unit": "hp", "value": 150}, "hp_per_level": {"unit": "hp", "value": 20}, "radius": {"unit": "cm", "value": 200}, "size": {"unit": "cm", "value": 40}}, {"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
+      "ranks": {
+        "2A": {"name": "两个书包", "text": "同时可以放 [bag.count] 个书包。", "patches": [{"op": "set", "effect": "bag", "field": "count", "value": 2}]},
+        "3A1": {"name": "书包连墙", "text": "两个书包之间连起一道墙，跟书包一起消失。", "patches": [{"op": "set", "effect": "bag", "field": "wall_width", "value": {"unit": "cm", "value": 60}}]},
+        "3A2": {"name": "冰镇书包", "text": "书包爆炸挂冻。", "patches": [{"op": "add", "effect": {"op": "chill"}}]},
+        "2B": {"name": "炸药包", "text": "书包生命减半，爆炸伤害翻倍，半径 [bag.radius] 厘米。", "patches": [{"op": "set", "effect": "bag", "field": "hp_ratio", "value": {"unit": "ratio", "value": 0.5}}, {"op": "scale", "effect": "damage", "fields": ["base", "ad_ratio", "ap_ratio", "max_hp_ratio"], "ratio": 2}, {"op": "set", "effect": "bag", "field": "radius", "value": {"unit": "cm", "value": 260}}]},
+        "3B1": {"name": "书包炸飞", "text": "爆炸把敌人击退 [knockback.distance] 厘米。", "patches": [{"op": "add", "effect": {"op": "knockback", "distance": {"unit": "cm", "value": 250}, "duration": {"unit": "s", "value": 0.2}}}]},
+        "3B2": {"name": "炸出火场", "text": "爆炸后留下火场 [ground_state.duration] 秒。", "patches": [{"op": "add", "effect": {"op": "ground_state", "kind": "fire", "duration": {"unit": "s", "value": 3}}}]}
       }
     }
   ],
@@ -697,6 +813,14 @@
       "effects": [{"op": "basic_element", "element": "electric"}]
     },
     {
+      "id": "card_ice_fist", "form": "basic", "type": "element", "vocab": ["element", "basic_hit"],
+      "effects": [{"op": "basic_element", "element": "chill"}]
+    },
+    {
+      "id": "card_rot_fist", "form": "basic", "type": "element", "vocab": ["element", "basic_hit"],
+      "effects": [{"op": "basic_element", "element": "rot"}]
+    },
+    {
       "id": "card_next_up", "form": "skill", "type": "trigger", "vocab": ["skill_hit", "skill_cast"],
       "effects": [{"op": "hit_haste_other", "cooldown": {"unit": "s", "value": 1}}]
     },
@@ -753,6 +877,18 @@
       "effects": [{"op": "skill_element", "element": "electric", "stacks": 1}]
     },
     {
+      "id": "card_add_chill", "form": "skill", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "skill_element", "element": "chill", "stacks": 1}]
+    },
+    {
+      "id": "card_add_rot", "form": "skill", "type": "element", "vocab": ["element"],
+      "effects": [{"op": "skill_element", "element": "rot", "stacks": 1}]
+    },
+    {
+      "id": "card_add_gust", "form": "skill", "type": "element", "vocab": ["element", "knockback"],
+      "effects": [{"op": "skill_element", "element": "gust", "stacks": 1}]
+    },
+    {
       "id": "card_blast_reload", "form": "skill", "type": "element", "vocab": ["reaction"],
       "effects": [{"op": "reaction_haste", "cooldown": {"unit": "s", "value": 3}}]
     },
@@ -775,6 +911,14 @@
     {
       "id": "card_pass_through", "form": "dash", "type": "modify", "vocab": ["dash_contact", "basic_hit"],
       "effects": [{"op": "dash_phase"}]
+    },
+    {
+      "id": "card_ice_trail", "form": "dash", "type": "element", "vocab": ["ground"],
+      "effects": [{"op": "dash_ice", "width": {"unit": "cm", "value": 160}, "duration": {"unit": "s", "value": 5}}]
+    },
+    {
+      "id": "card_move_turf", "form": "dash", "type": "element", "vocab": ["ground"],
+      "effects": [{"op": "ground_relocate"}]
     },
     {
       "id": "card_shock_dash", "form": "dash", "type": "element", "vocab": ["element", "dash_contact"],
@@ -817,6 +961,10 @@
       "effects": [{"op": "lifesteal_skills"}]
     },
     {
+      "id": "card_double_stall", "form": "body", "type": "modify", "vocab": ["ground"],
+      "effects": [{"op": "double_stall"}]
+    },
+    {
       "id": "card_thick_hide", "form": "body", "type": "convert", "vocab": ["armor", "max_hp"],
       "effects": [{"op": "armor_to_hp", "max_hp": {"unit": "hp", "value": 6}}]
     },
@@ -853,7 +1001,11 @@
       "effects": [{"op": "idle_charge", "interval": {"unit": "s", "value": 1}, "ratio": {"unit": "ratio", "value": 0.2}}]
     },
     {
-      "id": "card_live_wire", "form": "body", "type": "element", "vocab": ["element", "damaged"], "choose_element": ["fire", "water", "electric"],
+      "id": "card_turf_growth", "form": "body", "type": "grow", "vocab": ["ground"],
+      "effects": [{"op": "ground_growth", "ratio": {"unit": "ratio", "value": 0.03}, "interval": {"unit": "s", "value": 1}}]
+    },
+    {
+      "id": "card_live_wire", "form": "body", "type": "element", "vocab": ["element", "damaged"], "choose_element": ["fire", "water", "electric", "chill", "rot"],
       "effects": [{"op": "element_aura", "radius": {"unit": "cm", "value": 200}}]
     },
     {
@@ -954,6 +1106,8 @@
     {"id": "card_fire_fist", "namespace": "DemoContent", "name_key": "card_fire_fist.name", "name_text": "拳头冒火", "description_key": "card_fire_fist.description", "description_text": "普攻命中施加 [burn.basic_count] 层灼烧。", "icon_id": "icon_card_fire_fist"},
     {"id": "card_water_fist", "namespace": "DemoContent", "name_key": "card_water_fist.name", "name_text": "拳头甩脏水", "description_key": "card_water_fist.description", "description_text": "普攻命中让目标潮湿。", "icon_id": "icon_card_water_fist"},
     {"id": "card_shock_fist", "namespace": "DemoContent", "name_key": "card_shock_fist.name", "name_text": "拳头漏电", "description_key": "card_shock_fist.description", "description_text": "普攻命中让目标感电。", "icon_id": "icon_card_shock_fist"},
+    {"id": "card_ice_fist", "namespace": "DemoContent", "name_key": "card_ice_fist.name", "name_text": "拳头冰镇", "description_key": "card_ice_fist.description", "description_text": "普攻命中让目标冻。", "icon_id": "icon_card_ice_fist"},
+    {"id": "card_rot_fist", "namespace": "DemoContent", "name_key": "card_rot_fist.name", "name_text": "拳头带馊", "description_key": "card_rot_fist.description", "description_text": "普攻命中让目标馊。", "icon_id": "icon_card_rot_fist"},
     {"id": "card_next_up", "namespace": "DemoContent", "name_key": "card_next_up.name", "name_text": "打完换下一招", "description_key": "card_next_up.description", "description_text": "这个技能命中时，你其他技能的冷却各减少 [hit_haste_other.refund] 秒。", "icon_id": "icon_card_next_up"},
     {"id": "card_pay_back", "namespace": "DemoContent", "name_key": "card_pay_back.name", "name_text": "一招回本", "description_key": "card_pay_back.description", "description_text": "这个技能每次命中回 [skill_hit_momentum.limit] 劲。", "icon_id": "icon_card_pay_back"},
     {"id": "card_setup_line", "namespace": "DemoContent", "name_key": "card_setup_line.name", "name_text": "先垫一句", "description_key": "card_setup_line.description", "description_text": "这个技能命中给目标挂 [setup_mark.duration] 秒记号；你别的技能打中有记号的人伤害 +[setup_mark.ratio]% 并消耗记号。", "icon_id": "icon_card_setup_line"},
@@ -968,12 +1122,17 @@
     {"id": "card_add_fire", "namespace": "DemoContent", "name_key": "card_add_fire.name", "name_text": "掺点火", "description_key": "card_add_fire.description", "description_text": "这个技能命中施加 [skill_element.count] 层灼烧。", "icon_id": "icon_card_add_fire"},
     {"id": "card_add_water", "namespace": "DemoContent", "name_key": "card_add_water.name", "name_text": "掺点水", "description_key": "card_add_water.description", "description_text": "这个技能命中让目标潮湿。", "icon_id": "icon_card_add_water"},
     {"id": "card_add_shock", "namespace": "DemoContent", "name_key": "card_add_shock.name", "name_text": "掺点电", "description_key": "card_add_shock.description", "description_text": "这个技能命中让目标感电。", "icon_id": "icon_card_add_shock"},
+    {"id": "card_add_chill", "namespace": "DemoContent", "name_key": "card_add_chill.name", "name_text": "掺点冰", "description_key": "card_add_chill.description", "description_text": "这个技能命中让目标冻。", "icon_id": "icon_card_add_chill"},
+    {"id": "card_add_rot", "namespace": "DemoContent", "name_key": "card_add_rot.name", "name_text": "掺点馊", "description_key": "card_add_rot.description", "description_text": "这个技能命中让目标馊。", "icon_id": "icon_card_add_rot"},
+    {"id": "card_add_gust", "namespace": "DemoContent", "name_key": "card_add_gust.name", "name_text": "掺点风", "description_key": "card_add_gust.description", "description_text": "这个技能命中附带一阵风，把目标吹开。", "icon_id": "icon_card_add_gust"},
     {"id": "card_blast_reload", "namespace": "DemoContent", "name_key": "card_blast_reload.name", "name_text": "炸了接着放", "description_key": "card_blast_reload.description", "description_text": "这个技能触发反应时，它的冷却减少 [reaction_haste.refund] 秒。", "icon_id": "icon_card_blast_reload"},
     {"id": "card_bump_reset", "namespace": "DemoContent", "name_key": "card_bump_reset.name", "name_text": "撞着就刷新", "description_key": "card_bump_reset.description", "description_text": "冲刺撞到敌人时，冲刺冷却立刻刷新；每次冲刺一次。", "icon_id": "icon_card_bump_reset"},
     {"id": "card_bump_again", "namespace": "DemoContent", "name_key": "card_bump_again.name", "name_text": "撞着了再撞", "description_key": "card_bump_again.description", "description_text": "冲刺撞到敌人时，所有技能冷却减少 [hit_haste_other.refund] 秒。", "icon_id": "icon_card_bump_again"},
     {"id": "card_dash_punch", "namespace": "DemoContent", "name_key": "card_dash_punch.name", "name_text": "蹿过去抡一拳", "description_key": "card_dash_punch.description", "description_text": "冲刺结束后 [empower_basic.duration] 秒内，下一次普攻多造成 [empower_basic.amount] 物理伤害。", "icon_id": "icon_card_dash_punch"},
     {"id": "card_double_dash", "namespace": "DemoContent", "name_key": "card_double_dash.name", "name_text": "两段冲刺", "description_key": "card_double_dash.description", "description_text": "冲刺分成两段，每段 [dash_split.distance] 厘米；第一段后 [dash_split.duration] 秒内再按冲刺放第二段，冷却不变。", "icon_id": "icon_card_double_dash"},
     {"id": "card_pass_through", "namespace": "DemoContent", "name_key": "card_pass_through.name", "name_text": "穿人而过", "description_key": "card_pass_through.description", "description_text": "冲刺穿过敌人身体，对每个穿过的人打一次普攻（不推进连击）。", "icon_id": "icon_card_pass_through"},
+    {"id": "card_ice_trail", "namespace": "DemoContent", "name_key": "card_ice_trail.name", "name_text": "一路结冰", "description_key": "card_ice_trail.description", "description_text": "冲刺路径留下宽 [dash_ice.radius] 厘米的冰面，持续 [dash_ice.duration] 秒。", "icon_id": "icon_card_ice_trail"},
+    {"id": "card_move_turf", "namespace": "DemoContent", "name_key": "card_move_turf.name", "name_text": "挪地盘", "description_key": "card_move_turf.description", "description_text": "冲刺结束时，把你最近放下的地面状态、区域或陷阱挪到脚下（每个只能挪一次）。", "icon_id": "icon_card_move_turf"},
     {"id": "card_shock_dash", "namespace": "DemoContent", "name_key": "card_shock_dash.name", "name_text": "冲刺挂麻", "description_key": "card_shock_dash.description", "description_text": "冲刺撞到的敌人感电。", "icon_id": "icon_card_shock_dash"},
     {"id": "card_spiky_hide", "namespace": "DemoContent", "name_key": "card_spiky_hide.name", "name_text": "打我也硌手", "description_key": "card_spiky_hide.description", "description_text": "受到敌人的直接伤害（含被护盾挡下的）时，把其中 [thorns.ratio]% 作为魔法伤害反弹给出手的人；反弹可以吸血，不会暴击。", "icon_id": "icon_card_spiky_hide"},
     {"id": "card_takedown", "namespace": "DemoContent", "name_key": "card_takedown.name", "name_text": "人头刷新", "description_key": "card_takedown.description", "description_text": "击杀或助攻参赛者时，全部技能冷却刷新，劲回满。", "icon_id": "icon_card_takedown"},
@@ -984,6 +1143,7 @@
     {"id": "card_ball_kick", "namespace": "DemoContent", "name_key": "card_ball_kick.name", "name_text": "拿你当球踢", "description_key": "card_ball_kick.description", "description_text": "你造成的击退撞上墙时眩晕 [knockback_impact.secondary_duration] 秒；撞上另一个敌人时两人各受 [knockback_impact.amount] 物理伤害。", "icon_id": "icon_card_ball_kick"},
     {"id": "card_skill_crit", "namespace": "DemoContent", "name_key": "card_skill_crit.name", "name_text": "技能也能暴击", "description_key": "card_skill_crit.description", "description_text": "你的技能伤害也能暴击，用你的暴击率。", "icon_id": "icon_card_skill_crit"},
     {"id": "card_skill_drain", "namespace": "DemoContent", "name_key": "card_skill_drain.name", "name_text": "吸血对技能生效", "description_key": "card_skill_drain.description", "description_text": "你的吸血也按技能实际造成的生命伤害生效。", "icon_id": "icon_card_skill_drain"},
+    {"id": "card_double_stall", "namespace": "DemoContent", "name_key": "card_double_stall.name", "name_text": "双摊位", "description_key": "card_double_stall.description", "description_text": "你的区域、陷阱和地面状态技能可以多留一份。", "icon_id": "icon_card_double_stall"},
     {"id": "card_thick_hide", "namespace": "DemoContent", "name_key": "card_thick_hide.name", "name_text": "皮糙肉厚", "description_key": "card_thick_hide.description", "description_text": "每点护甲给你 [armor_to_hp.amount] 生命上限。", "icon_id": "icon_card_thick_hide"},
     {"id": "card_overfed", "namespace": "DemoContent", "name_key": "card_overfed.name", "name_text": "吃撑了", "description_key": "card_overfed.description", "description_text": "溢出的治疗变成护盾，最多 [overheal_shield.multiplier]% 生命上限，持续 [overheal_shield.duration] 秒。", "icon_id": "icon_card_overfed"},
     {"id": "card_berserk", "namespace": "DemoContent", "name_key": "card_berserk.name", "name_text": "残血狂暴", "description_key": "card_berserk.description", "description_text": "每少百分之一的生命，攻速 +[missing_hp_attack_speed.ratio]%。", "icon_id": "icon_card_berserk"},
@@ -993,6 +1153,7 @@
     {"id": "card_kill_streak", "namespace": "DemoContent", "name_key": "card_kill_streak.name", "name_text": "越杀越猛", "description_key": "card_kill_streak.description", "description_text": "每次击杀参赛者，本局攻击力 +[kill_growth.ADFlat]、法强 +[kill_growth.APFlat]；助攻给 [kill_growth.ratio]%。", "icon_id": "icon_card_kill_streak"},
     {"id": "card_tough_skin", "namespace": "DemoContent", "name_key": "card_tough_skin.name", "name_text": "越挨越硬", "description_key": "card_tough_skin.description", "description_text": "每被控制一次，本局护甲 +[control_growth.ArmorFlat]、魔抗 +[control_growth.MagicResistFlat]，没有上限。", "icon_id": "icon_card_tough_skin"},
     {"id": "card_charge_up", "namespace": "DemoContent", "name_key": "card_charge_up.name", "name_text": "攒个大的", "description_key": "card_charge_up.description", "description_text": "不造成伤害的每 [idle_charge.interval] 秒，下一次伤害 +[idle_charge.ratio]%，没有上限；造成伤害后清零（持续伤害不清零）。", "icon_id": "icon_card_charge_up"},
+    {"id": "card_turf_growth", "namespace": "DemoContent", "name_key": "card_turf_growth.name", "name_text": "地头蛇", "description_key": "card_turf_growth.description", "description_text": "站在自己的地面状态上，每 [ground_growth.interval] 秒伤害提高 [ground_growth.ratio]%（乘区），离开清零。", "icon_id": "icon_card_turf_growth"},
     {"id": "card_live_wire", "namespace": "DemoContent", "name_key": "card_live_wire.name", "name_text": "浑身带电", "description_key": "card_live_wire.description", "description_text": "装上时选一种元素；在你身边 [element_aura.radius] 厘米内对你造成直接伤害的人被挂上它。", "icon_id": "icon_card_live_wire"},
     {"id": "card_long_soak", "namespace": "DemoContent", "name_key": "card_long_soak.name", "name_text": "久泡", "description_key": "card_long_soak.description", "description_text": "你施加的元素持续时间变为 [element_duration.multiplier]%。", "icon_id": "icon_card_long_soak"},
     {"id": "card_louder_blast", "namespace": "DemoContent", "name_key": "card_louder_blast.name", "name_text": "炸得更响", "description_key": "card_louder_blast.description", "description_text": "你触发的反应伤害 +[reaction_factor.ratio]%。", "icon_id": "icon_card_louder_blast"},
@@ -1021,13 +1182,17 @@
     {"id": "active_triple_combo", "namespace": "DemoContent", "name_key": "active_triple_combo.name", "name_text": "左右开抽", "description_key": "active_triple_combo.description", "description_text": "接下来 [empower_basic.count] 次普攻攻速 +[empower_basic.AttackSpeedBonusRatio]%，各多造成 [empower_basic.amount] 物理伤害。", "icon_id": "icon_active_triple_combo"},
     {"id": "active_calculus_drop", "namespace": "DemoContent", "name_key": "active_calculus_drop.name", "name_text": "板砖糊脸", "description_key": "active_calculus_drop.description", "description_text": "板砖 [ground_impact.delay] 秒后砸下，中心 [damage.amount] 魔法伤害，外圈 [ground_impact.ratio]%。", "icon_id": "icon_active_calculus_drop"},
     {"id": "active_flyer_trap", "namespace": "DemoContent", "name_key": "active_flyer_trap.name", "name_text": "踩一脚试试", "description_key": "active_flyer_trap.description", "description_text": "放一张陷阱，保留 [contact_trap.duration] 秒；敌人踩近就炸，造成 [damage.amount] 魔法伤害并减速 [slow.ratio]%。限一张。", "icon_id": "icon_active_flyer_trap"},
-    {"id": "active_open_mic", "namespace": "DemoContent", "name_key": "active_open_mic.name", "name_text": "扯嗓子喷你", "description_key": "active_open_mic.description", "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒。可移动，换招中断。", "icon_id": "icon_active_open_mic"},
+    {"id": "active_open_mic", "namespace": "DemoContent", "name_key": "active_open_mic.name", "name_text": "扯嗓子喷你", "description_key": "active_open_mic.description", "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒，并把人吹开。可移动，换招中断。", "icon_id": "icon_active_open_mic"},
     {"id": "active_hose_down", "namespace": "DemoContent", "name_key": "active_hose_down.name", "name_text": "滋你一脸", "description_key": "active_hose_down.description", "description_text": "朝前滋一道水，沿途敌人受 [damage.amount] 魔法伤害，被冲开 [knockback.distance] 厘米并潮湿。", "icon_id": "icon_active_hose_down"},
     {"id": "active_zap", "namespace": "DemoContent", "name_key": "active_zap.name", "name_text": "电你个哆嗦", "description_key": "active_zap.description", "description_text": "电一个敌人，造成 [damage.amount] 魔法伤害并感电；再弹 [chain_bounce.count] 个附近不同敌人，每跳保留上一跳 [chain_bounce.ratio]% 伤害。", "icon_id": "icon_active_zap"},
     {"id": "active_charged_ram", "namespace": "DemoContent", "name_key": "active_charged_ram.name", "name_text": "带电撞你", "description_key": "active_charged_ram.description", "description_text": "冲撞 [dash.distance] 厘米，出发得 [shield.amount] 护盾，持续 [shield.duration] 秒；撞到的每个敌人受 [damage.amount] 魔法伤害并感电。", "icon_id": "icon_active_charged_ram"},
     {"id": "active_brace", "namespace": "DemoContent", "name_key": "active_brace.name", "name_text": "顶着揍", "description_key": "active_brace.description", "description_text": "[brace.duration] 秒内受到的伤害减少 [brace.ratio]%，仍能移动、普攻和施法；记录减掉的伤害（最多 [brace.limit]），结束时对身边 [brace.radius] 厘米反震 [brace.amount] 加记录量 [brace.secondary_ratio]% 的魔法伤害。", "icon_id": "icon_active_brace"},
     {"id": "active_dirty_puddle", "namespace": "DemoContent", "name_key": "active_dirty_puddle.name", "name_text": "满地泼脏水", "description_key": "active_dirty_puddle.description", "description_text": "泼一滩脏水，保留 [zone.duration] 秒，每秒一跳：[zone_damage.amount] 魔法伤害并潮湿；自己在水里移速 +[zone_haste.ratio]%。", "icon_id": "icon_active_dirty_puddle"},
-    {"id": "active_sock_shot", "namespace": "DemoContent", "name_key": "active_sock_shot.name", "name_text": "馊水糊脸", "description_key": "active_sock_shot.description", "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，新获得的治疗和护盾降低 [grievous.ratio]%，持续 [grievous.duration] 秒。", "icon_id": "icon_active_sock_shot"},
+    {"id": "active_sock_shot", "namespace": "DemoContent", "name_key": "active_sock_shot.name", "name_text": "馊水糊脸", "description_key": "active_sock_shot.description", "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，并挂上馊。", "icon_id": "icon_active_sock_shot"},
+    {"id": "active_cola_shake", "namespace": "DemoContent", "name_key": "active_cola_shake.name", "name_text": "冰可乐摇一摇", "description_key": "active_cola_shake.description", "description_text": "朝前喷一口冰可乐，扇形内敌人受 [damage.amount] 魔法伤害并挂上冻。", "icon_id": "icon_active_cola_shake"},
+    {"id": "active_desk_fan", "namespace": "DemoContent", "name_key": "active_desk_fan.name", "name_text": "电风扇", "description_key": "active_desk_fan.description", "description_text": "放下一台电风扇朝施放方向吹 [fan.duration] 秒，每 [fan.interval] 秒把前方的敌人推开 [fan.distance] 厘米并吹一下；风会推动火场和毒雾。", "icon_id": "icon_active_desk_fan"},
+    {"id": "active_stale_takeout", "namespace": "DemoContent", "name_key": "active_stale_takeout.name", "name_text": "过期外卖", "description_key": "active_stale_takeout.description", "description_text": "甩出一份过期外卖，首个敌人受 [damage.amount] 魔法伤害并挂上馊；落点留下毒雾。", "icon_id": "icon_active_stale_takeout"},
+    {"id": "active_school_bag", "namespace": "DemoContent", "name_key": "active_school_bag.name", "name_text": "占座书包", "description_key": "active_school_bag.description", "description_text": "放下一个书包挡路挡弹道，[bag.duration] 秒后或被打掉时爆炸，周围敌人受 [damage.amount] 魔法伤害。", "icon_id": "icon_active_school_bag"},
     {"id": "stat_physique", "namespace": "DemoContent", "name_key": "stat_physique.name", "name_text": "体格", "description_key": "stat_physique.description", "description_text": "每点最大生命 +[per_point.MaxHPFlat]、生命回复 +[per_point.HPRegenFlat]/秒。", "icon_id": "icon_stat_physique"},
     {"id": "stat_thick_skin", "namespace": "DemoContent", "name_key": "stat_thick_skin.name", "name_text": "脸皮", "description_key": "stat_thick_skin.description", "description_text": "每点护甲和魔抗各 +[per_point.ArmorFlat]。", "icon_id": "icon_stat_thick_skin"},
     {"id": "stat_strength", "namespace": "DemoContent", "name_key": "stat_strength.name", "name_text": "力道", "description_key": "stat_strength.description", "description_text": "每点攻击力 +[per_point.ADFlat]、暴击率 +[per_point.CritChanceBonusRatio]%。", "icon_id": "icon_stat_strength"},
@@ -1040,7 +1205,8 @@
     {"id": "wet", "namespace": "DemoContent", "name_key": "wet.name", "name_text": "潮湿", "description_key": "wet.description", "description_text": "移速降低；遇火起雾，遇电导电。", "icon_id": "icon_wet"},
     {"id": "electrified", "namespace": "DemoContent", "name_key": "electrified.name", "name_text": "感电", "description_key": "electrified.description", "description_text": "再受伤害时向附近另一个敌人放电；遇水导电，遇火过载。", "icon_id": "icon_electrified"},
     {"id": "braced", "namespace": "DemoContent", "name_key": "braced.name", "name_text": "顶着揍中", "description_key": "braced.description", "description_text": "受到的伤害减少，结束时反震。", "icon_id": "icon_braced"},
-    {"id": "soured", "namespace": "DemoContent", "name_key": "soured.name", "name_text": "馊臭", "description_key": "soured.description", "description_text": "新获得的治疗和护盾降低。", "icon_id": "icon_soured"},
+    {"id": "chilled", "namespace": "DemoContent", "name_key": "chilled.name", "name_text": "冻", "description_key": "chilled.description", "description_text": "攻速和移速降低；遇火融化，遇水冻住。", "icon_id": "icon_chilled"},
+    {"id": "rotten", "namespace": "DemoContent", "name_key": "rotten.name", "name_text": "馊", "description_key": "rotten.description", "description_text": "受到的治疗和护盾降低，并持续受到伤害。", "icon_id": "icon_rotten"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "已读不回的 HR", "description_key": "monster_scavenger.description", "description_text": "三只一组的小野怪：不主动理你，你一打她们一起回你；追得太远就回位。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "追着办卡的私教", "description_key": "monster_guardian.description", "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_guardian"},
     {"id": "monster_advisor", "namespace": "DemoContent", "name_key": "monster_advisor.name", "name_text": "催毕设的导师", "description_key": "monster_advisor.description", "description_text": "守在外圈高台的最强野怪，血厚手重：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_advisor"},

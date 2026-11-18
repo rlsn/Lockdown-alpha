@@ -153,6 +153,9 @@ bool LDGrowthWire::IsKnownElement(ELDDemoElement Element)
     case ELDDemoElement::Fire:
     case ELDDemoElement::Water:
     case ELDDemoElement::Electric:
+    case ELDDemoElement::Chill:
+    case ELDDemoElement::Rot:
+    case ELDDemoElement::Gust:
         return true;
     }
     return false;

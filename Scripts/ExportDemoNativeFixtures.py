@@ -138,7 +138,7 @@ def target(value=None):
 
 TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete")
 # ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
-ELEMENTS = ("none", "fire", "water", "electric")
+ELEMENTS = ("none", "fire", "water", "electric", "chill", "rot", "gust")
 CARD_FORMS = ("basic", "skill", "dash", "body")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 
@@ -154,6 +154,7 @@ def effect(value):
         "LimitP2": 0, "bEveryContact": False, "Element": 0, "AngleDegrees": rational(), "CostRatioBp": 0,
         "ExtraDurationMs": 0, "ExtraDistanceCm": rational(), "Scope": 0, "RecastControl": 0,
         "bOwnOnly": False, "bOnCatch": False, "bCenterOnly": False, "bAsDash": False, "bFreeDirection": False, "bAlwaysCrit": False,
+        "GroundKind": 0, "bCarryElement": False,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -208,6 +209,7 @@ def effect(value):
             result["BasicCount"] = value["slow_waves"]
     branch_terms(value, result)
     card_terms(value, result)
+    element_terms(value, result)
     # #198 dash_contact: First touches one body (Count 1); Every touches each body once.
     if value.get("targets") == "First":
         result["Count"] = 1
@@ -236,6 +238,45 @@ def card_terms(value, result):
         result["MultiplierBp"] = scalar(value["multiplier"])
     elif op == "kill_growth" and "assist_ratio" in value:
         result["RatioBp"] = scalar(value["assist_ratio"])
+
+
+GROUND_KINDS = ("none", "puddle", "ice", "fire", "miasma", "field", "blizzard")
+
+
+def element_terms(value, result):
+    """Issue #287 spec §8 element and ground-state fields, into the slots the native importer reads them into."""
+    op = value.get("op")
+    if op == "ground_state":
+        result["GroundKind"] = GROUND_KINDS.index(value["kind"])
+        result["RatioBp"] = scalar(value["radius_ratio"]) if "radius_ratio" in value else 0
+        result["SecondaryRatioBp"] = scalar(value["vulnerable"]) if "vulnerable" in value else 0
+        result["MultiplierBp"] = scalar(value["attack_slow"]) if "attack_slow" in value else 0
+    elif op == "fan":
+        result["RadiusCm"] = rational(value["length"])
+        result["ExtraDistanceCm"] = rational(value["width"])
+        result["AngleDegrees"] = rational(value["sweep"]) if "sweep" in value else rational()
+        result["ExtraDurationMs"] = scalar(value["stun_duration"]) if "stun_duration" in value else 0
+        result["SecondaryDurationMs"] = 0
+        result["bCarryElement"] = bool(value.get("carry_element", False))
+    elif op == "dash_ice":
+        result["RadiusCm"] = rational(value["width"])
+    elif op == "bag":
+        result["BaseP2"] = scalar(value["hp_base"])
+        result["LimitP2"] = scalar(value["hp_per_level"])
+        result["RatioBp"] = scalar(value["hp_ratio"]) if "hp_ratio" in value else 0
+        result["DistanceCm"] = rational(value["size"])
+        result["ExtraDistanceCm"] = rational(value["wall_width"]) if "wall_width" in value else rational()
+    elif op == "channel_cone" and "final_root" in value:
+        result["ExtraDurationMs"] = scalar(value["final_root"])
+    elif op == "follow_up":
+        if "rot_duration" in value:
+            result["ExtraDurationMs"] = scalar(value["rot_duration"])
+            # The importer gives a rotting follow-up the rot element (electrify and wet take precedence).
+            if not value.get("electrify") and not value.get("wet"):
+                result["Element"] = ELEMENTS.index("rot")
+        if "momentum" in value:
+            result["LimitP2"] = scalar(value["momentum"])
+            result["BaseP2"] = scalar(value["base"]) if "base" in value else 0
 
 
 def branch_terms(value, result):
@@ -394,8 +435,7 @@ def parameter_projection(parameters):
         ("COMBAT.KeystoneAgilityADRatio", "KeystoneAgilityADRatioBp"),
         ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"),
         # #198 elements and reactions.
-        ("COMBAT.WetSec", "WetMs"), ("COMBAT.WetSlow", "WetSlowBp"), ("COMBAT.ElectrifiedSec", "ElectrifiedMs"),
-        ("COMBAT.DischargeIntervalSec", "DischargeIntervalMs"), ("COMBAT.ReactionBase", "ReactionBaseP2"),
+        ("COMBAT.WetSec", "WetMs"), ("COMBAT.WetSlow", "WetSlowBp"), ("COMBAT.ReactionBase", "ReactionBaseP2"),
         ("COMBAT.ReactionPerLevel", "ReactionPerLevelP2"), ("COMBAT.ReactionAPRatio", "ReactionAPRatioBp"),
         ("COMBAT.FogSec", "FogMs"), ("COMBAT.FogIntervalSec", "FogIntervalMs"),
         ("COMBAT.ConductSlow", "ConductSlowBp"), ("COMBAT.ConductSlowSec", "ConductSlowMs"),
@@ -408,7 +448,7 @@ def parameter_projection(parameters):
         ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"),
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
-        ("COMBAT.DischargeRadiusCm", "DischargeRadiusCm"), ("COMBAT.FogRadiusCm", "FogRadiusCm"),
+        ("COMBAT.FogRadiusCm", "FogRadiusCm"),
         ("COMBAT.ConductRadiusCm", "ConductRadiusCm"), ("COMBAT.OverloadRadiusCm", "OverloadRadiusCm"),
         ("REST.ReturnSearchRadiusCm", "RestReturnSearchRadiusCm"),
         ("PK.ArenaRadiusCm", "PKArenaRadiusCm"), ("PK.RingMidRadiusCm", "PKRingMidRadiusCm"),
@@ -434,6 +474,73 @@ def parameter_projection(parameters):
         ("CHAIN.MaxDepth", "ChainMaxDepth"), ("CHAIN.MaxEffectsPerStep", "ChainMaxEffectsPerStep"),
     ):
         result[dest] = parameters[source]
+    for group in ("Elements", "Ground"):
+        result[group] = {}
+    for source, kind, dest in (
+        ("COMBAT.ShockSec", "s", "Elements.ShockMs"),
+        ("COMBAT.ShockEveryNthHit", "int", "Elements.ShockEveryNthHit"),
+        ("COMBAT.ShockRatio", "ratio", "Elements.ShockRatioBp"),
+        ("COMBAT.ShockSplashRadiusCm", "cm", "Elements.ShockSplashRadiusCm"),
+        ("COMBAT.ChillSec", "s", "Elements.ChillMs"),
+        ("COMBAT.ChillAttackSlow", "ratio", "Elements.ChillAttackSlowBp"),
+        ("COMBAT.ChillMoveSlow", "ratio", "Elements.ChillMoveSlowBp"),
+        ("COMBAT.RotSec", "s", "Elements.RotMs"),
+        ("COMBAT.RotHealCut", "ratio", "Elements.RotHealCutBp"),
+        ("COMBAT.RotPerSec", "points", "Elements.RotPerSecP2"),
+        ("COMBAT.RotAPRatioPerSec", "ratio", "Elements.RotAPRatioPerSecBp"),
+        ("COMBAT.RotTickSec", "s", "Elements.RotTickMs"),
+        ("COMBAT.GustPushCm", "cm", "Elements.GustPushCm"),
+        ("COMBAT.GustPushSec", "s", "Elements.GustPushMs"),
+        ("COMBAT.ConductRatio", "ratio", "Elements.ConductRatioBp"),
+        ("COMBAT.OverloadRatio", "ratio", "Elements.OverloadRatioBp"),
+        ("COMBAT.MeltRatio", "ratio", "Elements.MeltRatioBp"),
+        ("COMBAT.MethaneRatio", "ratio", "Elements.MethaneRatioBp"),
+        ("COMBAT.MethaneBurnStacks", "int", "Elements.MethaneBurnStacks"),
+        ("COMBAT.MethaneRadiusCm", "cm", "Elements.MethaneRadiusCm"),
+        ("COMBAT.FirestormBurnScale", "int", "Elements.FirestormBurnScale"),
+        ("COMBAT.FreezeRootSec", "s", "Elements.FreezeRootMs"),
+        ("COMBAT.FermentRotSec", "s", "Elements.FermentRotMs"),
+        ("COMBAT.FermentHealCut", "ratio", "Elements.FermentHealCutBp"),
+        ("COMBAT.SplashPushCm", "cm", "Elements.SplashPushCm"),
+        ("COMBAT.ShatterSkillDamage", "ratio", "Elements.ShatterSkillDamageBp"),
+        ("COMBAT.ShatterSec", "s", "Elements.ShatterMs"),
+        ("COMBAT.CorrodeBreachStacks", "int", "Elements.CorrodeBreachStacks"),
+        ("COMBAT.CorrodeBreachSec", "s", "Elements.CorrodeBreachMs"),
+        ("COMBAT.ThunderstormKnockbackCm", "cm", "Elements.ThunderstormKnockbackCm"),
+        ("COMBAT.FrostbiteAttackSlow", "ratio", "Elements.FrostbiteAttackSlowBp"),
+        ("COMBAT.FrostbiteSec", "s", "Elements.FrostbiteMs"),
+        ("COMBAT.BlizzardRatio", "ratio", "Elements.BlizzardRatioBp"),
+        ("COMBAT.SmokeDisarmSec", "s", "Elements.SmokeDisarmMs"),
+        ("GROUND.PuddleRadiusCm", "cm", "Ground.PuddleRadiusCm"),
+        ("GROUND.PuddleSec", "s", "Ground.PuddleMs"),
+        ("GROUND.PuddleTickSec", "s", "Ground.PuddleTickMs"),
+        ("GROUND.IceRadiusCm", "cm", "Ground.IceRadiusCm"),
+        ("GROUND.IceSec", "s", "Ground.IceMs"),
+        ("GROUND.IceAccelScale", "ratio", "Ground.IceAccelScaleBp"),
+        ("GROUND.IceDisplacementScale", "ratio", "Ground.IceDisplacementScaleBp"),
+        ("GROUND.FireRadiusCm", "cm", "Ground.FireRadiusCm"),
+        ("GROUND.FireSec", "s", "Ground.FireMs"),
+        ("GROUND.FireTickSec", "s", "Ground.FireTickMs"),
+        ("GROUND.FireBurnStacks", "int", "Ground.FireBurnStacks"),
+        ("GROUND.MiasmaRadiusCm", "cm", "Ground.MiasmaRadiusCm"),
+        ("GROUND.MiasmaSec", "s", "Ground.MiasmaMs"),
+        ("GROUND.MiasmaTickSec", "s", "Ground.MiasmaTickMs"),
+        ("GROUND.FieldRadiusCm", "cm", "Ground.FieldRadiusCm"),
+        ("GROUND.FieldSec", "s", "Ground.FieldMs"),
+        ("GROUND.FieldTickSec", "s", "Ground.FieldTickMs"),
+        ("GROUND.FieldRatio", "ratio", "Ground.FieldRatioBp"),
+        ("GROUND.FieldDischargeRadiusCm", "cm", "Ground.FieldDischargeRadiusCm"),
+        ("GROUND.BlizzardRadiusCm", "cm", "Ground.BlizzardRadiusCm"),
+        ("GROUND.BlizzardSec", "s", "Ground.BlizzardMs"),
+        ("GROUND.BlizzardTickSec", "s", "Ground.BlizzardTickMs"),
+        ("GROUND.BlizzardSlow", "ratio", "Ground.BlizzardSlowBp"),
+        ("GROUND.GustMoveCm", "cm", "Ground.GustMoveCm"),
+        ("GROUND.MaxPerOwner", "int", "Ground.MaxPerOwner"),
+        ("GROUND.MaxTotal", "int", "Ground.MaxTotal"),
+    ):
+        group, field = dest.split(".")
+        value = parameters[source]
+        result[group][field] = rational(value) if kind == "cm" else value if kind == "int" else scalar(value)
     result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
         "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "LockSlots", "VocabWeight")}
@@ -452,6 +559,7 @@ def parameter_projection(parameters):
     result["AI"]["BreakoutChanceBp"] = scalar(parameters["AI.BreakoutChance"])
     result["AI"]["BreakoutCardScore"] = parameters["AI.BreakoutCardScore"]
     result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])
+    result["AI"]["EnemyGroundPathCostBp"] = scalar(parameters["AI.EnemyGroundPathCost"])
     result["Momentum"] = {
         "MaxP2": scalar(parameters["MOMENTUM.Max"]), "StartP2": scalar(parameters["MOMENTUM.Start"]),
         "CombatPerSec": rational(parameters["MOMENTUM.CombatPerSec"]),
@@ -472,6 +580,7 @@ def parameter_projection(parameters):
         "ShockReactionBp": scalar(parameters["OVERDRIVE.ShockReactionRatio"]),
         "RotDurationBp": scalar(parameters["OVERDRIVE.RotDurationScale"]),
         "GustPushCm": rational(parameters["OVERDRIVE.GustPushCm"]), "GustPushMs": scalar(parameters["OVERDRIVE.GustPushSec"]),
+        "ChillRootMs": scalar(parameters["OVERDRIVE.ChillRootSec"]),
     }
     result["SkillRanks"] = {
         "RankBaseScaleBp": [scalar(value) for value in parameters["SKILL.RankBaseScale"]],

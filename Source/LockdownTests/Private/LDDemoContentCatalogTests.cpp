@@ -966,9 +966,10 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
         Definitions.Display.Num() * 2 + Definitions.FinalMods.Num() * 3);
     // One row per definition (character, actives, stats, components, final mods, monsters) and per native status: statuses 1..6, 9, 10
     // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
-    // (silence, burn), attack_slowed (#198 retires cowering and contact_guard) and the #198 wet, electrified,
-    // braced and soured, plus the two camp-only enrage and guarding states. Every active also has one row per rank step (2A..3B2).
-    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4 + 2;
+    // (silence, burn), attack_slowed (#198 retires cowering and contact_guard), the wet, electrified (shock) and braced states,
+    // the P4 chilled and rotten, plus the two camp-only enrage and guarding states. Every active also has one row per rank step
+    // (2A..3B2).
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 3 + 2 + 2;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() * (1 + 6) + Definitions.Stats.Num() + Definitions.Cards.Num() + Definitions.FinalMods.Num() + Definitions.Monsters.Num()
         + Statuses);
@@ -1254,8 +1255,8 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     {
         OpeningPool += Ability.Opening ? 1 : 0;
     }
-    TestEqual(TEXT("Twenty-two single-level actives"), Definitions.Abilities.Num(), 22);
-    TestEqual(TEXT("Eighteen actives form the opening pool (AI spec §4.3)"), OpeningPool, 18);
+    TestEqual(TEXT("Twenty-six single-level actives (S01-S22, N1-N4)"), Definitions.Abilities.Num(), 26);
+    TestEqual(TEXT("Twenty actives form the opening pool (S01-S13, S17, S18, S20-S22, N1, N3)"), OpeningPool, 20);
     TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
@@ -1331,7 +1332,7 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    if (!TestEqual(TEXT("Fifty-five P2 cards"), Definitions.Cards.Num(), 55)) { return false; }
+    if (!TestEqual(TEXT("Sixty-four P2 and P4 cards"), Definitions.Cards.Num(), 64)) { return false; }
     int32 Forms[int32(ELDCardForm::Count)] = {};
     int32 Types[int32(ELDCardType::Count)] = {};
     uint16 Previous = 199;
@@ -1350,9 +1351,9 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("FindCard resolves %s to its own row: %s"), *Row.Id, *Error),
             Snapshot->FindCard(Row.Id, Found, Error) && Found == &Row);
     }
-    TestTrue(TEXT("Twelve basic, fifteen skill, six dash and twenty-two body cards"),
-        Forms[int32(ELDCardForm::Basic)] == 12 && Forms[int32(ELDCardForm::Skill)] == 15
-        && Forms[int32(ELDCardForm::Dash)] == 6 && Forms[int32(ELDCardForm::Body)] == 22);
+    TestTrue(TEXT("Fourteen basic, eighteen skill, eight dash and twenty-four body cards"),
+        Forms[int32(ELDCardForm::Basic)] == 14 && Forms[int32(ELDCardForm::Skill)] == 18
+        && Forms[int32(ELDCardForm::Dash)] == 8 && Forms[int32(ELDCardForm::Body)] == 24);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
     TestTrue(TEXT("Capacity 6 plus one per five levels, three-card offers, three free rerolls plus one per rest, one lock"),

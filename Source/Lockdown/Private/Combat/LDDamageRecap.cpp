@@ -1,4 +1,5 @@
 #include "Combat/LDDamageRecap.h"
+#include "Combat/LDCombatElements.h"
 
 namespace LDDamageRecapDetail
 {
@@ -17,8 +18,9 @@ bool LineLess(const FLDDamageLine& A, const FLDDamageLine& B)
 }
 
 // ELDCombatElement and ELDCombatReaction (Combat/LDCombatElements.h) both end at their third value.
-constexpr uint8 LastElement=3;
-constexpr uint8 LastReaction=3;
+// A consumed element is one a target can hold (fire..rot; gust is never held); the reactions are ELDCombatReaction 1..15.
+constexpr uint8 LastElement=uint8(ELDCombatElement::Rot);
+constexpr uint8 LastReaction=uint8(ELDCombatReaction::Smoke);
 
 bool AttackerLess(const FLDDamageLine& A, const FLDDamageLine& B)
 {

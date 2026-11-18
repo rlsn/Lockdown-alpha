@@ -43,6 +43,8 @@ const TCHAR* ElementKey(ELDDemoElement Element)
     case ELDDemoElement::Fire: return TEXT("fire");
     case ELDDemoElement::Water: return TEXT("water");
     case ELDDemoElement::Electric: return TEXT("electric");
+    case ELDDemoElement::Chill: return TEXT("chill");
+    case ELDDemoElement::Rot: return TEXT("rot");
     default: return nullptr;
     }
 }
@@ -210,7 +212,8 @@ bool ReadStructure(FFields& Fields, FLDBlueprintStructure& Out)
                 || Card.Target == TEXT("body"), Row.Path, TEXT("unknown card target"))
             || !Check.Require((Card.Target == TEXT("skill")) != Card.Host.IsEmpty(), Row.Path, TEXT("only a skill card names its host"))
             || !Check.Require(Card.Element.IsEmpty() || Card.Element == TEXT("fire") || Card.Element == TEXT("water")
-                || Card.Element == TEXT("electric"), Row.Path, TEXT("unknown card element"))
+                || Card.Element == TEXT("electric") || Card.Element == TEXT("chill") || Card.Element == TEXT("rot"), Row.Path,
+                TEXT("unknown card element"))
             || !Check.Require(Out.Cards.IsEmpty() || !CardBefore(Card, Out.Cards.Last()), Row.Path,
                 TEXT("cards must be sorted by card, target, host and element")))
         {

@@ -525,7 +525,8 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
-        TEXT("Level"), TEXT("Health"), TEXT("MomentumBar"), TEXT("bCharging"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives")});
+        TEXT("Level"), TEXT("Health"), TEXT("MomentumBar"), TEXT("bCharging"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives"),
+        TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement")});
     Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
         TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
@@ -540,7 +541,11 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDObservedFootprint::StaticStruct(), {TEXT("SourceStatus"), TEXT("SourceFeetCm"), TEXT("RadiusCm"), TEXT("CurrentBits")});
     Exact(FLDWorldView::StaticStruct(), {TEXT("Schema"), TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"), TEXT("Revision"),
         TEXT("WorldMapId"), TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("SampledAtServerSec"), TEXT("Footprint"),
-        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles")});
+        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates")});
+    // Spec §8.3: a ground state names its public id, kind, shape, the owner's roster seat and its footprint and time; no owner
+    // identity, source or value.
+    Exact(FLDObservedGroundState::StaticStruct(), {TEXT("Id"), TEXT("Kind"), TEXT("Shape"), TEXT("OwnerSeat"), TEXT("CentreCm"),
+        TEXT("RadiusCm"), TEXT("ExtentCm"), TEXT("Heading"), TEXT("RemainingMs"), TEXT("TotalMs")});
     Exact(FLDObservedConceal::StaticStruct(), {TEXT("MatchGeneration"), TEXT("Generation"), TEXT("Revision"), TEXT("Removed")});
     Exact(FLDObservedTerminationNotice::StaticStruct(), {TEXT("MatchGeneration"), TEXT("Revision"), TEXT("Termination")});
 

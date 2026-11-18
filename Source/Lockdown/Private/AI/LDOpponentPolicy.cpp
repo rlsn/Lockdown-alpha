@@ -1,5 +1,6 @@
 #include "AI/LDOpponentPolicy.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDCombatElements.h"
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
@@ -66,7 +67,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Electrify:
     case ELDDemoEffectOp::ChainBounce:
     case ELDDemoEffectOp::ZoneWet:
-    case ELDDemoEffectOp::Grievous:
+    case ELDDemoEffectOp::Rot:
+    case ELDDemoEffectOp::Chill:
+    case ELDDemoEffectOp::Gust:
+    case ELDDemoEffectOp::GroundState:
+    case ELDDemoEffectOp::Fan:
+    case ELDDemoEffectOp::Bag:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::Disarm:
@@ -108,6 +114,8 @@ struct FSourceShape
     bool bShield = false;
     bool bDispelRoot = false;
     bool bDash = false;
+    // The skill's element (ELDCombatElement numbering; spec §13 reaction choice).
+    uint8 Element = 0;
     // #147: a self cast that hits bodies around the caster (SelfArea), a ground zone, and an empowered next basic.
     double AreaRadiusCm = 0;
     double ZoneRadiusCm = 0;
@@ -128,6 +136,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::GroundImpact:
         case ELDDemoEffectOp::ContactTrap: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        // N4: a bag is placed on the target like a trap and blows over its radius.
+        case ELDDemoEffectOp::Bag: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
@@ -165,6 +175,7 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
     if (!Catalog.FindAbility(Source.DefinitionId, Ability, Error) || !Ability) { return false; }
     Out.Mode = Ability->Target.Mode;
     Out.RangeCm = ToDouble(Ability->Target.RangeCm);
+    Out.Element = uint8(Ability->Element);
     ReadEffects(Ability->Values.Effects, Out);
     return true;
 }
@@ -499,11 +510,27 @@ TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Targ
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
     if (C.Self.bChanneling) { return {}; }
-    static constexpr ELDOpponentSourceSlot Slots[] = {
+    static constexpr ELDOpponentSourceSlot Fixed[] = {
         ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::E, ELDOpponentSourceSlot::Dash};
+    // Spec §13 element and reaction choice: among damaging skills, one whose element reacts with the element the target
+    // visibly holds goes first, then one that lays an element on a clean target; otherwise the fixed order.
+    TArray<ELDOpponentSourceSlot, TInlineAllocator<4>> Ordered(Fixed, UE_ARRAY_COUNT(Fixed));
+    if (Need.Target)
+    {
+        const auto Score = [&C, &Need](ELDOpponentSourceSlot Slot)
+        {
+            const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
+            FSourceShape Shape;
+            if (!Source || !ResolveSource(*Source, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
+            const ELDCombatElement Held = static_cast<ELDCombatElement>(Need.Target->HeldElement);
+            if (LDCombatElements::ReactionOf(Held, static_cast<ELDCombatElement>(Shape.Element)) != ELDCombatReaction::None) { return 2; }
+            return Held == ELDCombatElement::None && Shape.Element != uint8(ELDCombatElement::Gust) ? 1 : 0;
+        };
+        Ordered.StableSort([&Score](ELDOpponentSourceSlot A, ELDOpponentSourceSlot B) { return Score(A) > Score(B); });
+    }
     for (int32 Tier = 0; Tier < 4; ++Tier)
     {
-        for (const ELDOpponentSourceSlot Slot : Slots)
+        for (const ELDOpponentSourceSlot Slot : (Tier == 3 ? TConstArrayView<ELDOpponentSourceSlot>(Ordered) : TConstArrayView<ELDOpponentSourceSlot>(Fixed)))
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
@@ -645,6 +672,43 @@ TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C)
         Body.Source = ELDOpponentSourceSlot::Dash;
         Body.TargetMode = ELDDemoTargetMode::DirectionDash;
         Body.Direction = Away.GetSafeNormal2D();
+        Body.Key.Category = ELDOpponentFailure::Activation;
+        Body.Key.Slot = uint8(ELDOpponentSourceSlot::Dash);
+        if (C.CanAttempt(Body.Key)) { return Body; }
+    }
+    return {};
+}
+
+// The authoritative footprint of a public ground record (the same containment Combat uses).
+FLDGroundState GroundShape(const FLDObservedGroundState& View)
+{
+    FLDGroundState Shape;
+    Shape.CentreCm = View.CentreCm;
+    Shape.RadiusCm = View.RadiusCm;
+    Shape.Heading = FVector2D(FRotator(0, View.Heading * 360. / 256., 0).Vector());
+    Shape.HalfLengthCm = View.Shape == ELDObservedGroundShape::Band ? View.ExtentCm : 0;
+    Shape.AngleDegrees = View.Shape == ELDObservedGroundShape::Sector ? View.ExtentCm : 0;
+    return Shape;
+}
+
+// Issue #287 spec §13: the AI never stays in an enemy's ground state; walks are planned around them (GroundWeightedCm in
+// the controller's route choice); knocked or pushed into one it dashes out away from its centre with the ready D (a warning
+// dodge comes first).
+TOptional<FLDOpponentBodyIntent> LeaveGroundIntent(const FContext& C)
+{
+    const FLDOpponentSource* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
+    if (!Dash || !Dash->bReady) { return {}; }
+    for (const FLDOpponentGround& Ground : C.Frame.Grounds)
+    {
+        if (!Ground.bEnemy) { continue; }
+        if (!LDCombatElements::GroundContains(GroundShape(Ground.View), C.Self.FootCm)) { continue; }
+        FVector Away = (C.Self.FootCm - Ground.View.CentreCm).GetSafeNormal2D();
+        if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
+        FLDOpponentBodyIntent Body;
+        Body.Kind = EBody::Activate;
+        Body.Source = ELDOpponentSourceSlot::Dash;
+        Body.TargetMode = ELDDemoTargetMode::DirectionDash;
+        Body.Direction = Away;
         Body.Key.Category = ELDOpponentFailure::Activation;
         Body.Key.Slot = uint8(ELDOpponentSourceSlot::Dash);
         if (C.CanAttempt(Body.Key)) { return Body; }
@@ -1877,12 +1941,13 @@ bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
 
 FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI)
 {
-    const TArray<FLDBreakoutPreset>& Presets = LDBreakoutPresets::All();
+    TArray<const FLDBreakoutPreset*> Presets;
+    for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All()) { if (Preset.bAIGoal) { Presets.Add(&Preset); } }
     if (Presets.IsEmpty() || AI.BreakoutChanceBp <= 0) { return NAME_None; }
     // One deterministic draw per contender and match: the chance roll and the preset come from the same hash.
     const uint32 Hash = HashCombine(GetTypeHash(Contender), GetTypeHash(Generation));
     if (int64(Hash % 10000) >= AI.BreakoutChanceBp) { return NAME_None; }
-    return FName(Presets[(Hash / 10000) % uint32(Presets.Num())].Id);
+    return FName(Presets[(Hash / 10000) % uint32(Presets.Num())]->Id);
 }
 
 namespace
@@ -2371,6 +2436,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             Body(Dodge.GetValue());
             return Finish(State.Mode, EReason::EngageTarget);
         }
+        if (const TOptional<FLDOpponentBodyIntent> Leave = LeaveGroundIntent(C))
+        {
+            Body(Leave.GetValue());
+            return Finish(State.Mode, EReason::EngageTarget);
+        }
     }
 
     if (Frame.Public.Timeline.Stage == ELDMatchStage::FinalField)
@@ -2624,4 +2694,49 @@ FLDOpponentBodyIntent WalkToRestService(const FLDOpponentDecisionFrame& Frame, c
     return MoveTo(C, *Place);
 }
 #endif
+}
+
+double LDOpponentPolicy::GroundWeightedCm(TConstArrayView<FVector> Points, TConstArrayView<FLDOpponentGround> Grounds, int64 CostBp)
+{
+    TArray<FLDGroundState, TInlineAllocator<8>> Enemy;
+    for (const FLDOpponentGround& Ground : Grounds)
+    {
+        if (Ground.bEnemy) { Enemy.Add(Detail::GroundShape(Ground.View)); }
+    }
+    const double Cost = FMath::Max<int64>(CostBp, 10000) / 10000.;
+    double Total = 0;
+    for (int32 I = 1; I < Points.Num(); ++I)
+    {
+        const FVector A = Points[I - 1], B = Points[I];
+        const double Length = FVector::Dist2D(A, B);
+        if (Length <= 0) { continue; }
+        const int32 Steps = FMath::Max(1, FMath::CeilToInt(Length / GroundPathSampleCm));
+        for (int32 Step = 0; Step < Steps; ++Step)
+        {
+            const FVector At = FMath::Lerp(A, B, (Step + .5) / Steps);
+            const bool bInside = Enemy.ContainsByPredicate([&At](const FLDGroundState& Shape) { return LDCombatElements::GroundContains(Shape, At); });
+            Total += Length / Steps * (bInside ? Cost : 1.);
+        }
+    }
+    return Total;
+}
+
+void LDOpponentPolicy::GroundDetours(const FVector& From, const FVector& To, TConstArrayView<FLDOpponentGround> Grounds,
+    TArray<FVector>& Out)
+{
+    Out.Reset();
+    const FVector Along = (To - From).GetSafeNormal2D();
+    if (Along.IsNearlyZero()) { return; }
+    const FVector Side(-Along.Y, Along.X, 0);
+    for (const FLDOpponentGround& Ground : Grounds)
+    {
+        if (!Ground.bEnemy) { continue; }
+        // The footprint's bounding circle: a band reaches its half length beyond its radius.
+        const double Bound = Ground.View.RadiusCm
+            + (Ground.View.Shape == ELDObservedGroundShape::Band ? Ground.View.ExtentCm : 0.);
+        const FVector Centre(Ground.View.CentreCm.X, Ground.View.CentreCm.Y, From.Z);
+        const FVector Closest = FMath::ClosestPointOnSegment(Centre, FVector(From.X, From.Y, From.Z), FVector(To.X, To.Y, From.Z));
+        if (FVector::Dist2D(Closest, Centre) >= Bound) { continue; }
+        for (const double Sign : {1., -1.}) { Out.Add(Centre + Side * Sign * (Bound + GroundDetourMarginCm)); }
+    }
 }

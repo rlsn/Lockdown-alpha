@@ -241,7 +241,7 @@ class CapabilitiesTest(AdapterCase):
             mechanic = self.caps["mechanics"][name]
             self.assertEqual((mechanic["kind"], mechanic["form"], mechanic["type"], mechanic["vocab"]),
                              ("card", row["form"], row["type"], row["vocab"]))
-        self.assertEqual(self.caps["mechanics"]["card_live_wire"]["choose_element"], ["fire", "water", "electric"],
+        self.assertEqual(self.caps["mechanics"]["card_live_wire"]["choose_element"], ["fire", "water", "electric", "chill", "rot"],
                          "Y25 chooses an element")
         self.assertEqual(self.caps["content"]["cards"], len(cards))
         self.assertEqual(set(self.caps["decisions"]),

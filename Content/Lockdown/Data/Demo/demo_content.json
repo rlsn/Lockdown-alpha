@@ -3396,6 +3396,540 @@
       "branches": [
         {
           "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "channel_cone",
+              "opcode": 78
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "kind": "ice",
+              "op": "ground_state",
+              "opcode": 236
+            }
+          ],
+          "element": "chill",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 2500,
+            "unit": "momentum"
+          },
+          "path": "A",
+          "target": {
+            "angle": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "degrees"
+            },
+            "mode": "DirectionCone",
+            "range": {
+              "denominator": 1,
+              "numerator": 400,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 150,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 3,
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "channel_cone",
+              "opcode": 78
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2750,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            }
+          ],
+          "element": "chill",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 2500,
+            "unit": "momentum"
+          },
+          "path": "B",
+          "target": {
+            "angle": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "degrees"
+            },
+            "mode": "DirectionCone",
+            "range": {
+              "denominator": 1,
+              "numerator": 400,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element"
+          ],
+          "windup": {
+            "ms": 150,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "channel_cone",
+              "opcode": 78
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "kind": "ice",
+              "op": "ground_state",
+              "opcode": 236,
+              "vulnerable": {
+                "bp": 1500,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "element": "chill",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 2500,
+            "unit": "momentum"
+          },
+          "path": "A1",
+          "target": {
+            "angle": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "degrees"
+            },
+            "mode": "DirectionCone",
+            "range": {
+              "denominator": 1,
+              "numerator": 400,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 150,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "channel_cone",
+              "opcode": 78
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            },
+            {
+              "duration": {
+                "ms": 6000,
+                "unit": "ms"
+              },
+              "kind": "ice",
+              "op": "ground_state",
+              "opcode": 236
+            }
+          ],
+          "element": "chill",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 2500,
+            "unit": "momentum"
+          },
+          "path": "A2",
+          "target": {
+            "angle": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "degrees"
+            },
+            "mode": "DirectionCone",
+            "range": {
+              "denominator": 1,
+              "numerator": 400,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 150,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 3,
+              "final_root": {
+                "ms": 600,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "channel_cone",
+              "opcode": 78
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2750,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            }
+          ],
+          "element": "chill",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 2500,
+            "unit": "momentum"
+          },
+          "path": "B1",
+          "target": {
+            "angle": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "degrees"
+            },
+            "mode": "DirectionCone",
+            "range": {
+              "denominator": 1,
+              "numerator": 400,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element"
+          ],
+          "windup": {
+            "ms": 150,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 3,
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "channel_cone",
+              "opcode": 78
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2750,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            },
+            {
+              "momentum": {
+                "p2": 400,
+                "unit": "momentum"
+              },
+              "op": "momentum_gain",
+              "opcode": 172
+            }
+          ],
+          "element": "chill",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 2500,
+            "unit": "momentum"
+          },
+          "path": "B2",
+          "target": {
+            "angle": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "degrees"
+            },
+            "mode": "DirectionCone",
+            "range": {
+              "denominator": 1,
+              "numerator": 400,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element"
+          ],
+          "windup": {
+            "ms": 150,
+            "unit": "ms"
+          }
+        }
+      ],
+      "cooldown": {
+        "ms": 6000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_cola_shake",
+      "effects": [
+        {
+          "count": 1,
+          "interval": {
+            "ms": 250,
+            "unit": "ms"
+          },
+          "op": "channel_cone",
+          "opcode": 78
+        },
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 5500,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        },
+        {
+          "op": "chill",
+          "opcode": 234
+        }
+      ],
+      "element": "chill",
+      "hit_type": "area",
+      "id": "active_cola_shake",
+      "momentum_cost": {
+        "p2": 2500,
+        "unit": "momentum"
+      },
+      "native_id": 131,
+      "opening": true,
+      "target": {
+        "angle": {
+          "denominator": 1,
+          "numerator": 60,
+          "unit": "degrees"
+        },
+        "mode": "DirectionCone",
+        "range": {
+          "denominator": 1,
+          "numerator": 400,
+          "unit": "cm"
+        }
+      },
+      "vocab": [
+        "element"
+      ],
+      "windup": {
+        "ms": 150,
+        "unit": "ms"
+      }
+    },
+    {
+      "branches": [
+        {
+          "cooldown": {
             "ms": 13000,
             "unit": "ms"
           },
@@ -3893,6 +4427,476 @@
       },
       "vocab": [
         "control"
+      ],
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "branches": [
+        {
+          "cooldown": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "length": {
+                "denominator": 1,
+                "numerator": 600,
+                "unit": "cm"
+              },
+              "op": "fan",
+              "opcode": 237,
+              "width": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "op": "gust",
+              "opcode": 235
+            }
+          ],
+          "element": "gust",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3500,
+            "unit": "momentum"
+          },
+          "path": "A",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 500,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "length": {
+                "denominator": 1,
+                "numerator": 600,
+                "unit": "cm"
+              },
+              "op": "fan",
+              "opcode": 237,
+              "sweep": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "degrees"
+              },
+              "width": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "op": "gust",
+              "opcode": 235
+            }
+          ],
+          "element": "gust",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3500,
+            "unit": "momentum"
+          },
+          "path": "B",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 500,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "length": {
+                "denominator": 1,
+                "numerator": 600,
+                "unit": "cm"
+              },
+              "op": "fan",
+              "opcode": 237,
+              "stun_duration": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "width": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "op": "gust",
+              "opcode": 235
+            }
+          ],
+          "element": "gust",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3500,
+            "unit": "momentum"
+          },
+          "path": "A1",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 500,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "carry_element": true,
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "length": {
+                "denominator": 1,
+                "numerator": 600,
+                "unit": "cm"
+              },
+              "op": "fan",
+              "opcode": 237,
+              "width": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "op": "gust",
+              "opcode": 235
+            }
+          ],
+          "element": "gust",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3500,
+            "unit": "momentum"
+          },
+          "path": "A2",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 500,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "length": {
+                "denominator": 1,
+                "numerator": 600,
+                "unit": "cm"
+              },
+              "momentum": {
+                "p2": 200,
+                "unit": "momentum"
+              },
+              "op": "fan",
+              "opcode": 237,
+              "sweep": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "degrees"
+              },
+              "width": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "op": "gust",
+              "opcode": 235
+            }
+          ],
+          "element": "gust",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3500,
+            "unit": "momentum"
+          },
+          "path": "B1",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 500,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 6000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "length": {
+                "denominator": 1,
+                "numerator": 600,
+                "unit": "cm"
+              },
+              "op": "fan",
+              "opcode": 237,
+              "sweep": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "degrees"
+              },
+              "width": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "op": "gust",
+              "opcode": 235
+            }
+          ],
+          "element": "gust",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3500,
+            "unit": "momentum"
+          },
+          "path": "B2",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 500,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        }
+      ],
+      "cooldown": {
+        "ms": 10000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_desk_fan",
+      "effects": [
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 60,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "length": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "op": "fan",
+          "opcode": 237,
+          "width": {
+            "denominator": 1,
+            "numerator": 200,
+            "unit": "cm"
+          }
+        },
+        {
+          "op": "gust",
+          "opcode": 235
+        }
+      ],
+      "element": "gust",
+      "hit_type": "area",
+      "id": "active_desk_fan",
+      "momentum_cost": {
+        "p2": 3500,
+        "unit": "momentum"
+      },
+      "native_id": 132,
+      "opening": false,
+      "target": {
+        "mode": "GroundPoint",
+        "range": {
+          "denominator": 1,
+          "numerator": 500,
+          "unit": "cm"
+        }
+      },
+      "vocab": [
+        "element",
+        "knockback",
+        "ground"
       ],
       "windup": {
         "ms": 200,
@@ -6928,6 +7932,10 @@
               },
               "op": "damage",
               "opcode": 1
+            },
+            {
+              "op": "gust",
+              "opcode": 235
             }
           ],
           "element": "gust",
@@ -6951,7 +7959,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 200,
@@ -7001,6 +8010,10 @@
               },
               "op": "damage",
               "opcode": 1
+            },
+            {
+              "op": "gust",
+              "opcode": 235
             }
           ],
           "element": "gust",
@@ -7024,7 +8037,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 200,
@@ -7076,6 +8090,10 @@
               "opcode": 1
             },
             {
+              "op": "gust",
+              "opcode": 235
+            },
+            {
               "momentum": {
                 "p2": 300,
                 "unit": "momentum"
@@ -7105,7 +8123,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 200,
@@ -7156,6 +8175,10 @@
               },
               "op": "damage",
               "opcode": 1
+            },
+            {
+              "op": "gust",
+              "opcode": 235
             }
           ],
           "element": "gust",
@@ -7179,7 +8202,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 200,
@@ -7229,6 +8253,10 @@
               },
               "op": "damage",
               "opcode": 1
+            },
+            {
+              "op": "gust",
+              "opcode": 235
             },
             {
               "cost_ratio": {
@@ -7269,7 +8297,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 200,
@@ -7321,6 +8350,10 @@
               "opcode": 1
             },
             {
+              "op": "gust",
+              "opcode": 235
+            },
+            {
               "duration": {
                 "ms": 600,
                 "unit": "ms"
@@ -7351,6 +8384,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "control"
           ],
           "windup": {
@@ -7402,6 +8436,10 @@
           },
           "op": "damage",
           "opcode": 1
+        },
+        {
+          "op": "gust",
+          "opcode": 235
         }
       ],
       "element": "gust",
@@ -7427,7 +8465,8 @@
         }
       },
       "vocab": [
-        "element"
+        "element",
+        "knockback"
       ],
       "windup": {
         "ms": 200,
@@ -8621,6 +9660,602 @@
       "branches": [
         {
           "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 2,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "hp_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 260,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 2,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              },
+              "wall_width": {
+                "denominator": 1,
+                "numerator": 60,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A1",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 2,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "chill",
+              "opcode": 234
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A2",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "hp_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 260,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 200,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B1",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "knockback",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 11000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 1,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "hp_base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "hp_per_level": {
+                "p2": 2000,
+                "unit": "hp"
+              },
+              "hp_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "op": "bag",
+              "opcode": 242,
+              "radius": {
+                "denominator": 1,
+                "numerator": 260,
+                "unit": "cm"
+              },
+              "size": {
+                "denominator": 1,
+                "numerator": 40,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "kind": "fire",
+              "op": "ground_state",
+              "opcode": 236
+            }
+          ],
+          "element": "none",
+          "hit_type": "area",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B2",
+          "target": {
+            "mode": "GroundPoint",
+            "range": {
+              "denominator": 1,
+              "numerator": 450,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        }
+      ],
+      "cooldown": {
+        "ms": 11000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_school_bag",
+      "effects": [
+        {
+          "count": 1,
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "hp_base": {
+            "p2": 15000,
+            "unit": "hp"
+          },
+          "hp_per_level": {
+            "p2": 2000,
+            "unit": "hp"
+          },
+          "op": "bag",
+          "opcode": 242,
+          "radius": {
+            "denominator": 1,
+            "numerator": 200,
+            "unit": "cm"
+          },
+          "size": {
+            "denominator": 1,
+            "numerator": 40,
+            "unit": "cm"
+          }
+        },
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 8000,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        }
+      ],
+      "element": "none",
+      "hit_type": "area",
+      "id": "active_school_bag",
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
+      },
+      "native_id": 134,
+      "opening": false,
+      "target": {
+        "mode": "GroundPoint",
+        "range": {
+          "denominator": 1,
+          "numerator": 450,
+          "unit": "cm"
+        }
+      },
+      "vocab": [
+        "ground"
+      ],
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "branches": [
+        {
+          "cooldown": {
             "ms": 7000,
             "unit": "ms"
           },
@@ -9727,16 +11362,8 @@
               }
             },
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "grievous",
-              "opcode": 96,
-              "ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
+              "op": "rot",
+              "opcode": 233
             }
           ],
           "element": "rot",
@@ -9812,16 +11439,8 @@
               }
             },
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "grievous",
-              "opcode": 96,
-              "ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
+              "op": "rot",
+              "opcode": 233
             },
             {
               "count": 3,
@@ -9914,14 +11533,10 @@
               }
             },
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "grievous",
-              "opcode": 96,
+              "op": "rot",
+              "opcode": 233,
               "ratio": {
-                "bp": 6000,
+                "bp": 5000,
                 "unit": "ratio"
               }
             }
@@ -9999,33 +11614,17 @@
               }
             },
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "grievous",
-              "opcode": 96,
-              "ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
+              "op": "rot",
+              "opcode": 233
             },
             {
               "duration": {
                 "ms": 3000,
                 "unit": "ms"
               },
-              "interval": {
-                "ms": 1000,
-                "unit": "ms"
-              },
-              "op": "projectile_zone",
-              "opcode": 195,
-              "radius": {
-                "denominator": 1,
-                "numerator": 150,
-                "unit": "cm"
-              }
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236
             }
           ],
           "element": "rot",
@@ -10054,7 +11653,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "ground"
           ],
           "windup": {
             "ms": 150,
@@ -10101,16 +11701,8 @@
               }
             },
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "grievous",
-              "opcode": 96,
-              "ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
+              "op": "rot",
+              "opcode": 233
             },
             {
               "count": 3,
@@ -10203,16 +11795,8 @@
               }
             },
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "grievous",
-              "opcode": 96,
-              "ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
+              "op": "rot",
+              "opcode": 233
             },
             {
               "count": 3,
@@ -10307,16 +11891,8 @@
           }
         },
         {
-          "duration": {
-            "ms": 3000,
-            "unit": "ms"
-          },
-          "op": "grievous",
-          "opcode": 96,
-          "ratio": {
-            "bp": 3500,
-            "unit": "ratio"
-          }
+          "op": "rot",
+          "opcode": 233
         }
       ],
       "element": "rot",
@@ -10351,6 +11927,602 @@
       ],
       "windup": {
         "ms": 150,
+        "unit": "ms"
+      }
+    },
+    {
+      "branches": [
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "rot",
+              "opcode": 233
+            },
+            {
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236,
+              "radius_ratio": {
+                "bp": 15000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "element": "rot",
+          "hit_type": "projectile",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A",
+          "target": {
+            "mode": "DirectionProjectile",
+            "projectile_radius": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "cm"
+            },
+            "projectile_speed": {
+              "denominator": 1,
+              "numerator": 1400,
+              "unit": "cm/s"
+            },
+            "range": {
+              "denominator": 1,
+              "numerator": 700,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "rot",
+              "opcode": 233
+            },
+            {
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236
+            },
+            {
+              "ap_ratio": {
+                "bp": 4200,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4500,
+                "unit": "points"
+              },
+              "count": 1,
+              "damage_type": "Magical",
+              "delay": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "follow_up",
+              "opcode": 174
+            }
+          ],
+          "element": "rot",
+          "hit_type": "projectile",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B",
+          "target": {
+            "mode": "DirectionProjectile",
+            "projectile_radius": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "cm"
+            },
+            "projectile_speed": {
+              "denominator": 1,
+              "numerator": 1400,
+              "unit": "cm/s"
+            },
+            "range": {
+              "denominator": 1,
+              "numerator": 700,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "rot",
+              "opcode": 233
+            },
+            {
+              "attack_slow": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236,
+              "radius_ratio": {
+                "bp": 15000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "element": "rot",
+          "hit_type": "projectile",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A1",
+          "target": {
+            "mode": "DirectionProjectile",
+            "projectile_radius": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "cm"
+            },
+            "projectile_speed": {
+              "denominator": 1,
+              "numerator": 1400,
+              "unit": "cm/s"
+            },
+            "range": {
+              "denominator": 1,
+              "numerator": 700,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "rot",
+              "opcode": 233
+            },
+            {
+              "duration": {
+                "ms": 7000,
+                "unit": "ms"
+              },
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236,
+              "radius_ratio": {
+                "bp": 15000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "element": "rot",
+          "hit_type": "projectile",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "A2",
+          "target": {
+            "mode": "DirectionProjectile",
+            "projectile_radius": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "cm"
+            },
+            "projectile_speed": {
+              "denominator": 1,
+              "numerator": 1400,
+              "unit": "cm/s"
+            },
+            "range": {
+              "denominator": 1,
+              "numerator": 700,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "rot",
+              "opcode": 233
+            },
+            {
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236
+            },
+            {
+              "ap_ratio": {
+                "bp": 4200,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4500,
+                "unit": "points"
+              },
+              "count": 1,
+              "damage_type": "Magical",
+              "delay": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "follow_up",
+              "opcode": 174,
+              "rot_duration": {
+                "ms": 8000,
+                "unit": "ms"
+              }
+            }
+          ],
+          "element": "rot",
+          "hit_type": "projectile",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B1",
+          "target": {
+            "mode": "DirectionProjectile",
+            "projectile_radius": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "cm"
+            },
+            "projectile_speed": {
+              "denominator": 1,
+              "numerator": 1400,
+              "unit": "cm/s"
+            },
+            "range": {
+              "denominator": 1,
+              "numerator": 700,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "rot",
+              "opcode": 233
+            },
+            {
+              "kind": "miasma",
+              "op": "ground_state",
+              "opcode": 236
+            },
+            {
+              "ap_ratio": {
+                "bp": 4200,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4500,
+                "unit": "points"
+              },
+              "count": 1,
+              "damage_type": "Magical",
+              "delay": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "momentum": {
+                "p2": 1500,
+                "unit": "momentum"
+              },
+              "op": "follow_up",
+              "opcode": 174
+            }
+          ],
+          "element": "rot",
+          "hit_type": "projectile",
+          "momentum_cost": {
+            "p2": 3000,
+            "unit": "momentum"
+          },
+          "path": "B2",
+          "target": {
+            "mode": "DirectionProjectile",
+            "projectile_radius": {
+              "denominator": 1,
+              "numerator": 60,
+              "unit": "cm"
+            },
+            "projectile_speed": {
+              "denominator": 1,
+              "numerator": 1400,
+              "unit": "cm/s"
+            },
+            "range": {
+              "denominator": 1,
+              "numerator": 700,
+              "unit": "cm"
+            }
+          },
+          "vocab": [
+            "element",
+            "ground"
+          ],
+          "windup": {
+            "ms": 200,
+            "unit": "ms"
+          }
+        }
+      ],
+      "cooldown": {
+        "ms": 8000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_stale_takeout",
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 7000,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 7500,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        },
+        {
+          "op": "rot",
+          "opcode": 233
+        },
+        {
+          "kind": "miasma",
+          "op": "ground_state",
+          "opcode": 236
+        }
+      ],
+      "element": "rot",
+      "hit_type": "projectile",
+      "id": "active_stale_takeout",
+      "momentum_cost": {
+        "p2": 3000,
+        "unit": "momentum"
+      },
+      "native_id": 133,
+      "opening": true,
+      "target": {
+        "mode": "DirectionProjectile",
+        "projectile_radius": {
+          "denominator": 1,
+          "numerator": 60,
+          "unit": "cm"
+        },
+        "projectile_speed": {
+          "denominator": 1,
+          "numerator": 1400,
+          "unit": "cm/s"
+        },
+        "range": {
+          "denominator": 1,
+          "numerator": 700,
+          "unit": "cm"
+        }
+      },
+      "vocab": [
+        "element",
+        "ground"
+      ],
+      "windup": {
+        "ms": 200,
         "unit": "ms"
       }
     },
@@ -14591,6 +16763,40 @@
     {
       "effects": [
         {
+          "element": "chill",
+          "op": "basic_element",
+          "opcode": 101
+        }
+      ],
+      "form": "basic",
+      "id": "card_ice_fist",
+      "native_id": 217,
+      "type": "element",
+      "vocab": [
+        "element",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "rot",
+          "op": "basic_element",
+          "opcode": 101
+        }
+      ],
+      "form": "basic",
+      "id": "card_rot_fist",
+      "native_id": 218,
+      "type": "element",
+      "vocab": [
+        "element",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
           "cooldown": {
             "ms": 1000,
             "unit": "ms"
@@ -14893,6 +17099,58 @@
     {
       "effects": [
         {
+          "element": "chill",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "skill",
+      "id": "card_add_chill",
+      "native_id": 240,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "rot",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "skill",
+      "id": "card_add_rot",
+      "native_id": 241,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "gust",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "skill",
+      "id": "card_add_gust",
+      "native_id": 242,
+      "type": "element",
+      "vocab": [
+        "element",
+        "knockback"
+      ]
+    },
+    {
+      "effects": [
+        {
           "cooldown": {
             "ms": 3000,
             "unit": "ms"
@@ -15017,6 +17275,45 @@
       "vocab": [
         "dash_contact",
         "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 5000,
+            "unit": "ms"
+          },
+          "op": "dash_ice",
+          "opcode": 238,
+          "width": {
+            "denominator": 1,
+            "numerator": 160,
+            "unit": "cm"
+          }
+        }
+      ],
+      "form": "dash",
+      "id": "card_ice_trail",
+      "native_id": 253,
+      "type": "element",
+      "vocab": [
+        "ground"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "ground_relocate",
+          "opcode": 239
+        }
+      ],
+      "form": "dash",
+      "id": "card_move_turf",
+      "native_id": 254,
+      "type": "element",
+      "vocab": [
+        "ground"
       ]
     },
     {
@@ -15232,6 +17529,21 @@
     {
       "effects": [
         {
+          "op": "double_stall",
+          "opcode": 240
+        }
+      ],
+      "form": "body",
+      "id": "card_double_stall",
+      "native_id": 267,
+      "type": "modify",
+      "vocab": [
+        "ground"
+      ]
+    },
+    {
+      "effects": [
+        {
           "max_hp": {
             "p2": 600,
             "unit": "hp"
@@ -15440,10 +17752,35 @@
       ]
     },
     {
+      "effects": [
+        {
+          "interval": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "op": "ground_growth",
+          "opcode": 241,
+          "ratio": {
+            "bp": 300,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_turf_growth",
+      "native_id": 278,
+      "type": "grow",
+      "vocab": [
+        "ground"
+      ]
+    },
+    {
       "choose_element": [
         "fire",
         "water",
-        "electric"
+        "electric",
+        "chill",
+        "rot"
       ],
       "effects": [
         {
@@ -15928,6 +18265,69 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_cola_shake.description",
+      "description_text": "朝前喷一口冰可乐，扇形内敌人受 [damage.amount] 魔法伤害并挂上冻。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake",
+      "name_key": "active_cola_shake.name",
+      "name_text": "冰可乐摇一摇",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_cola_shake_2a.description",
+      "description_text": "扇形区留冰面 [ground_state.duration] 秒。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake_2a",
+      "name_key": "active_cola_shake_2a.name",
+      "name_text": "喷地成冰",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_cola_shake_2b.description",
+      "description_text": "改为连喷 [channel_cone.count] 下，每下伤害降低。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake_2b",
+      "name_key": "active_cola_shake_2b.name",
+      "name_text": "连喷",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_cola_shake_3a1.description",
+      "description_text": "站在这片冰面上的敌人受到你的伤害提高 [ground_state.secondary_ratio]%。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake_3a1",
+      "name_key": "active_cola_shake_3a1.name",
+      "name_text": "冰上加料",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_cola_shake_3a2.description",
+      "description_text": "冰面持续 [ground_state.duration] 秒。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake_3a2",
+      "name_key": "active_cola_shake_3a2.name",
+      "name_text": "冰面持久",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_cola_shake_3b1.description",
+      "description_text": "最后一下定身 [channel_cone.extra_duration] 秒（计硬控递减）。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake_3b1",
+      "name_key": "active_cola_shake_3b1.name",
+      "name_text": "冻住",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_cola_shake_3b2.description",
+      "description_text": "每下命中回 [momentum_gain.amount] 劲。",
+      "icon_id": "icon_active_cola_shake",
+      "id": "active_cola_shake_3b2",
+      "name_key": "active_cola_shake_3b2.name",
+      "name_text": "冰爽回劲",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_crotch_grab.description",
       "description_text": "眩晕目标 [stun.duration] 秒，造成 [damage.amount] 物理伤害。",
       "icon_id": "icon_active_crotch_grab",
@@ -15988,6 +18388,69 @@
       "id": "active_crotch_grab_3b2",
       "name_key": "active_crotch_grab_3b2.name",
       "name_text": "跑得飞快",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan.description",
+      "description_text": "放下一台电风扇朝施放方向吹 [fan.duration] 秒，每 [fan.interval] 秒把前方的敌人推开 [fan.distance] 厘米并吹一下；风会推动火场和毒雾。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan",
+      "name_key": "active_desk_fan.name",
+      "name_text": "电风扇",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan_2a.description",
+      "description_text": "风更宽，推开 [fan.distance] 厘米。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan_2a",
+      "name_key": "active_desk_fan_2a.name",
+      "name_text": "大风扇",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan_2b.description",
+      "description_text": "风扇左右摇头，每秒摆 [fan.angle] 度。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan_2b",
+      "name_key": "active_desk_fan_2b.name",
+      "name_text": "摇头扇",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan_3a1.description",
+      "description_text": "被风推到墙上的敌人眩晕 [fan.extra_duration] 秒。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan_3a1",
+      "name_key": "active_desk_fan_3a1.name",
+      "name_text": "吹上墙",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan_3a2.description",
+      "description_text": "风同时带上你最后施加的元素。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan_3a2",
+      "name_key": "active_desk_fan_3a2.name",
+      "name_text": "带料的风",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan_3b1.description",
+      "description_text": "每吹到敌人一次回 [fan.amount] 劲。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan_3b1",
+      "name_key": "active_desk_fan_3b1.name",
+      "name_text": "吹出劲",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_desk_fan_3b2.description",
+      "description_text": "风扇持续 [fan.duration] 秒。",
+      "icon_id": "icon_active_desk_fan",
+      "id": "active_desk_fan_3b2",
+      "name_key": "active_desk_fan_3b2.name",
+      "name_text": "开一整天",
       "namespace": "DemoContent"
     },
     {
@@ -16307,7 +18770,7 @@
     },
     {
       "description_key": "active_open_mic.description",
-      "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒。可移动，换招中断。",
+      "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒，并把人吹开。可移动，换招中断。",
       "icon_id": "icon_active_open_mic",
       "id": "active_open_mic",
       "name_key": "active_open_mic.name",
@@ -16495,6 +18958,69 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_school_bag.description",
+      "description_text": "放下一个书包挡路挡弹道，[bag.duration] 秒后或被打掉时爆炸，周围敌人受 [damage.amount] 魔法伤害。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag",
+      "name_key": "active_school_bag.name",
+      "name_text": "占座书包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_2a.description",
+      "description_text": "同时可以放 [bag.count] 个书包。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_2a",
+      "name_key": "active_school_bag_2a.name",
+      "name_text": "两个书包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_2b.description",
+      "description_text": "书包生命减半，爆炸伤害翻倍，半径 [bag.radius] 厘米。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_2b",
+      "name_key": "active_school_bag_2b.name",
+      "name_text": "炸药包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3a1.description",
+      "description_text": "两个书包之间连起一道墙，跟书包一起消失。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3a1",
+      "name_key": "active_school_bag_3a1.name",
+      "name_text": "书包连墙",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3a2.description",
+      "description_text": "书包爆炸挂冻。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3a2",
+      "name_key": "active_school_bag_3a2.name",
+      "name_text": "冰镇书包",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3b1.description",
+      "description_text": "爆炸把敌人击退 [knockback.distance] 厘米。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3b1",
+      "name_key": "active_school_bag_3b1.name",
+      "name_text": "书包炸飞",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_school_bag_3b2.description",
+      "description_text": "爆炸后留下火场 [ground_state.duration] 秒。",
+      "icon_id": "icon_active_school_bag",
+      "id": "active_school_bag_3b2",
+      "name_key": "active_school_bag_3b2.name",
+      "name_text": "炸出火场",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_seethe.description",
       "description_text": "对身边敌人造成 [damage.amount] 魔法伤害和 [burn.count] 层灼烧。",
       "icon_id": "icon_active_seethe",
@@ -16622,7 +19148,7 @@
     },
     {
       "description_key": "active_sock_shot.description",
-      "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，新获得的治疗和护盾降低 [grievous.ratio]%，持续 [grievous.duration] 秒。",
+      "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，并挂上馊。",
       "icon_id": "icon_active_sock_shot",
       "id": "active_sock_shot",
       "name_key": "active_sock_shot.name",
@@ -16649,7 +19175,7 @@
     },
     {
       "description_key": "active_sock_shot_3a1.description",
-      "description_text": "治疗和护盾削减改为 [grievous.ratio]%。",
+      "description_text": "馊的治疗和护盾削减改为 [rot.ratio]%。",
       "icon_id": "icon_active_sock_shot",
       "id": "active_sock_shot_3a1",
       "name_key": "active_sock_shot_3a1.name",
@@ -16658,7 +19184,7 @@
     },
     {
       "description_key": "active_sock_shot_3a2.description",
-      "description_text": "落点留区域 [projectile_zone.duration] 秒，里面的敌人持续被糊。",
+      "description_text": "落点留毒雾 [ground_state.duration] 秒。",
       "icon_id": "icon_active_sock_shot",
       "id": "active_sock_shot_3a2",
       "name_key": "active_sock_shot_3a2.name",
@@ -16681,6 +19207,69 @@
       "id": "active_sock_shot_3b2",
       "name_key": "active_sock_shot_3b2.name",
       "name_text": "湿袜子",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout.description",
+      "description_text": "甩出一份过期外卖，首个敌人受 [damage.amount] 魔法伤害并挂上馊；落点留下毒雾。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout",
+      "name_key": "active_stale_takeout.name",
+      "name_text": "过期外卖",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout_2a.description",
+      "description_text": "毒雾更大。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout_2a",
+      "name_key": "active_stale_takeout_2a.name",
+      "name_text": "全家桶",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout_2b.description",
+      "description_text": "命中后 [follow_up.delay] 秒在他脚下再爆一次，造成 [follow_up.amount] 魔法伤害。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout_2b",
+      "name_key": "active_stale_takeout_2b.name",
+      "name_text": "外卖到付",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout_3a1.description",
+      "description_text": "毒雾里的敌人攻速降低 [ground_state.multiplier]%。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout_3a1",
+      "name_key": "active_stale_takeout_3a1.name",
+      "name_text": "熏得手软",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout_3a2.description",
+      "description_text": "毒雾持续 [ground_state.duration] 秒。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout_3a2",
+      "name_key": "active_stale_takeout_3a2.name",
+      "name_text": "臭得持久",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout_3b1.description",
+      "description_text": "二次爆炸挂上双倍时长的馊。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout_3b1",
+      "name_key": "active_stale_takeout_3b1.name",
+      "name_text": "加倍馊",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_stale_takeout_3b2.description",
+      "description_text": "二次爆炸回 [follow_up.limit] 劲。",
+      "icon_id": "icon_active_stale_takeout",
+      "id": "active_stale_takeout_3b2",
+      "name_key": "active_stale_takeout_3b2.name",
+      "name_text": "到付回本",
       "namespace": "DemoContent"
     },
     {
@@ -16990,12 +19579,39 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_add_chill.description",
+      "description_text": "这个技能命中让目标冻。",
+      "icon_id": "icon_card_add_chill",
+      "id": "card_add_chill",
+      "name_key": "card_add_chill.name",
+      "name_text": "掺点冰",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_add_fire.description",
       "description_text": "这个技能命中施加 [skill_element.count] 层灼烧。",
       "icon_id": "icon_card_add_fire",
       "id": "card_add_fire",
       "name_key": "card_add_fire.name",
       "name_text": "掺点火",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_add_gust.description",
+      "description_text": "这个技能命中附带一阵风，把目标吹开。",
+      "icon_id": "icon_card_add_gust",
+      "id": "card_add_gust",
+      "name_key": "card_add_gust.name",
+      "name_text": "掺点风",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_add_rot.description",
+      "description_text": "这个技能命中让目标馊。",
+      "icon_id": "icon_card_add_rot",
+      "id": "card_add_rot",
+      "name_key": "card_add_rot.name",
+      "name_text": "掺点馊",
       "namespace": "DemoContent"
     },
     {
@@ -17134,6 +19750,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_double_stall.description",
+      "description_text": "你的区域、陷阱和地面状态技能可以多留一份。",
+      "icon_id": "icon_card_double_stall",
+      "id": "card_double_stall",
+      "name_key": "card_double_stall.name",
+      "name_text": "双摊位",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_encore.description",
       "description_text": "这个技能放完 [auto_recast.delay] 秒后朝同一目标或方向自动再放一次，[auto_recast.multiplier]% 效果，不耗劲；每多一张多放一次。",
       "icon_id": "icon_card_encore",
@@ -17215,6 +19840,24 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_ice_fist.description",
+      "description_text": "普攻命中让目标冻。",
+      "icon_id": "icon_card_ice_fist",
+      "id": "card_ice_fist",
+      "name_key": "card_ice_fist.name",
+      "name_text": "拳头冰镇",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_ice_trail.description",
+      "description_text": "冲刺路径留下宽 [dash_ice.radius] 厘米的冰面，持续 [dash_ice.duration] 秒。",
+      "icon_id": "icon_card_ice_trail",
+      "id": "card_ice_trail",
+      "name_key": "card_ice_trail.name",
+      "name_text": "一路结冰",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_kill_streak.description",
       "description_text": "每次击杀参赛者，本局攻击力 +[kill_growth.ADFlat]、法强 +[kill_growth.APFlat]；助攻给 [kill_growth.ratio]%。",
       "icon_id": "icon_card_kill_streak",
@@ -17257,6 +19900,15 @@
       "id": "card_louder_blast",
       "name_key": "card_louder_blast.name",
       "name_text": "炸得更响",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_move_turf.description",
+      "description_text": "冲刺结束时，把你最近放下的地面状态、区域或陷阱挪到脚下（每个只能挪一次）。",
+      "icon_id": "icon_card_move_turf",
+      "id": "card_move_turf",
+      "name_key": "card_move_turf.name",
+      "name_text": "挪地盘",
       "namespace": "DemoContent"
     },
     {
@@ -17347,6 +19999,15 @@
       "id": "card_reaction_refund",
       "name_key": "card_reaction_refund.name",
       "name_text": "反应回本",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_rot_fist.description",
+      "description_text": "普攻命中让目标馊。",
+      "icon_id": "icon_card_rot_fist",
+      "id": "card_rot_fist",
+      "name_key": "card_rot_fist.name",
+      "name_text": "拳头带馊",
       "namespace": "DemoContent"
     },
     {
@@ -17467,6 +20128,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_turf_growth.description",
+      "description_text": "站在自己的地面状态上，每 [ground_growth.interval] 秒伤害提高 [ground_growth.ratio]%（乘区），离开清零。",
+      "icon_id": "icon_card_turf_growth",
+      "id": "card_turf_growth",
+      "name_key": "card_turf_growth.name",
+      "name_text": "地头蛇",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_water_fist.description",
       "description_text": "普攻命中让目标潮湿。",
       "icon_id": "icon_card_water_fist",
@@ -17493,6 +20163,15 @@
       "name_text": "脆皮大学生",
       "namespace": "DemoContent",
       "portrait_icon_id": "portrait_character_demo"
+    },
+    {
+      "description_key": "chilled.description",
+      "description_text": "攻速和移速降低；遇火融化，遇水冻住。",
+      "icon_id": "icon_chilled",
+      "id": "chilled",
+      "name_key": "chilled.name",
+      "name_text": "冻",
+      "namespace": "DemoContent"
     },
     {
       "description_key": "disarm.description",
@@ -17795,6 +20474,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "rotten.description",
+      "description_text": "受到的治疗和护盾降低，并持续受到伤害。",
+      "icon_id": "icon_rotten",
+      "id": "rotten",
+      "name_key": "rotten.name",
+      "name_text": "馊",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "shield.description",
       "description_text": "先替你挡下伤害，被打穿或到时间就没了。",
       "icon_id": "icon_shield",
@@ -17819,15 +20507,6 @@
       "id": "slow",
       "name_key": "slow.name",
       "name_text": "减速",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "soured.description",
-      "description_text": "新获得的治疗和护盾降低。",
-      "icon_id": "icon_soured",
-      "id": "soured",
-      "name_key": "soured.name",
-      "name_text": "馊臭",
       "namespace": "DemoContent"
     },
     {
@@ -18176,12 +20855,12 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards approved: 不用管schedule， fix doc and approve all numbers.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers.",
       "status": "approved"
     },
-    "handler_revision": 11,
+    "handler_revision": 12,
     "projection_revision": 10,
-    "schema_version": 4
+    "schema_version": 5
   },
   "parameters": {
     "AI.BreakoutCardScore": 5,
@@ -18200,6 +20879,10 @@
     },
     "AI.DodgeChance": {
       "bp": 5000,
+      "unit": "ratio"
+    },
+    "AI.EnemyGroundPathCost": {
+      "bp": 30000,
       "unit": "ratio"
     },
     "AI.EngagementBudgetSec": {
@@ -18352,6 +21035,10 @@
     "CARDS.VocabWeight": 2,
     "CHAIN.MaxDepth": 16,
     "CHAIN.MaxEffectsPerStep": 256,
+    "COMBAT.BlizzardRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachPerStack": {
       "p2": 300,
@@ -18378,10 +21065,26 @@
       "ms": 500,
       "unit": "ms"
     },
+    "COMBAT.ChillAttackSlow": {
+      "bp": 1500,
+      "unit": "ratio"
+    },
+    "COMBAT.ChillMoveSlow": {
+      "bp": 1000,
+      "unit": "ratio"
+    },
+    "COMBAT.ChillSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
     "COMBAT.ConductRadiusCm": {
       "denominator": 1,
       "numerator": 450,
       "unit": "cm"
+    },
+    "COMBAT.ConductRatio": {
+      "bp": 15000,
+      "unit": "ratio"
     },
     "COMBAT.ConductSlow": {
       "bp": 3000,
@@ -18391,19 +21094,20 @@
       "ms": 1500,
       "unit": "ms"
     },
-    "COMBAT.DischargeIntervalSec": {
-      "ms": 1000,
+    "COMBAT.CorrodeBreachSec": {
+      "ms": 6000,
       "unit": "ms"
     },
-    "COMBAT.DischargeRadiusCm": {
-      "denominator": 1,
-      "numerator": 350,
-      "unit": "cm"
+    "COMBAT.CorrodeBreachStacks": 3,
+    "COMBAT.FermentHealCut": {
+      "bp": 5000,
+      "unit": "ratio"
     },
-    "COMBAT.ElectrifiedSec": {
-      "ms": 4000,
+    "COMBAT.FermentRotSec": {
+      "ms": 8000,
       "unit": "ms"
     },
+    "COMBAT.FirestormBurnScale": 2,
     "COMBAT.FogIntervalSec": {
       "ms": 1000,
       "unit": "ms"
@@ -18415,6 +21119,27 @@
     },
     "COMBAT.FogSec": {
       "ms": 3000,
+      "unit": "ms"
+    },
+    "COMBAT.FreezeRootSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "COMBAT.FrostbiteAttackSlow": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "COMBAT.FrostbiteSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "COMBAT.GustPushCm": {
+      "denominator": 1,
+      "numerator": 100,
+      "unit": "cm"
+    },
+    "COMBAT.GustPushSec": {
+      "ms": 120,
       "unit": "ms"
     },
     "COMBAT.KeystoneAgilityADRatio": {
@@ -18465,23 +21190,97 @@
       "ms": 8000,
       "unit": "ms"
     },
+    "COMBAT.MeltRatio": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "COMBAT.MethaneBurnStacks": 2,
+    "COMBAT.MethaneRadiusCm": {
+      "denominator": 1,
+      "numerator": 250,
+      "unit": "cm"
+    },
+    "COMBAT.MethaneRatio": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
     "COMBAT.OverloadBreachStacks": 2,
     "COMBAT.OverloadRadiusCm": {
       "denominator": 1,
       "numerator": 200,
       "unit": "cm"
     },
+    "COMBAT.OverloadRatio": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
     "COMBAT.ReactionAPRatio": {
-      "bp": 2000,
+      "bp": 2500,
       "unit": "ratio"
     },
     "COMBAT.ReactionBase": {
-      "p2": 2000,
+      "p2": 3000,
       "unit": "points"
     },
     "COMBAT.ReactionPerLevel": {
-      "p2": 100,
+      "p2": 150,
       "unit": "points"
+    },
+    "COMBAT.RotAPRatioPerSec": {
+      "bp": 300,
+      "unit": "ratio"
+    },
+    "COMBAT.RotHealCut": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "COMBAT.RotPerSec": {
+      "p2": 300,
+      "unit": "points"
+    },
+    "COMBAT.RotSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "COMBAT.RotTickSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "COMBAT.ShatterSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "COMBAT.ShatterSkillDamage": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "COMBAT.ShockEveryNthHit": 3,
+    "COMBAT.ShockRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "COMBAT.ShockSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "COMBAT.ShockSplashRadiusCm": {
+      "denominator": 1,
+      "numerator": 350,
+      "unit": "cm"
+    },
+    "COMBAT.SmokeDisarmSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "COMBAT.SplashPushCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "COMBAT.ThunderstormKnockbackCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
     },
     "COMBAT.WetSec": {
       "ms": 4000,
@@ -18525,6 +21324,109 @@
       "denominator": 1,
       "numerator": 400,
       "unit": "cm"
+    },
+    "GROUND.BlizzardRadiusCm": {
+      "denominator": 1,
+      "numerator": 250,
+      "unit": "cm"
+    },
+    "GROUND.BlizzardSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "GROUND.BlizzardSlow": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
+    "GROUND.BlizzardTickSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "GROUND.FieldDischargeRadiusCm": {
+      "denominator": 1,
+      "numerator": 350,
+      "unit": "cm"
+    },
+    "GROUND.FieldRadiusCm": {
+      "denominator": 1,
+      "numerator": 180,
+      "unit": "cm"
+    },
+    "GROUND.FieldRatio": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "GROUND.FieldSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "GROUND.FieldTickSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "GROUND.FireBurnStacks": 1,
+    "GROUND.FireRadiusCm": {
+      "denominator": 1,
+      "numerator": 180,
+      "unit": "cm"
+    },
+    "GROUND.FireSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "GROUND.FireTickSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "GROUND.GustMoveCm": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm"
+    },
+    "GROUND.IceAccelScale": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "GROUND.IceDisplacementScale": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
+    "GROUND.IceRadiusCm": {
+      "denominator": 1,
+      "numerator": 180,
+      "unit": "cm"
+    },
+    "GROUND.IceSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "GROUND.MaxPerOwner": 6,
+    "GROUND.MaxTotal": 40,
+    "GROUND.MiasmaRadiusCm": {
+      "denominator": 1,
+      "numerator": 200,
+      "unit": "cm"
+    },
+    "GROUND.MiasmaSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "GROUND.MiasmaTickSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "GROUND.PuddleRadiusCm": {
+      "denominator": 1,
+      "numerator": 180,
+      "unit": "cm"
+    },
+    "GROUND.PuddleSec": {
+      "ms": 6000,
+      "unit": "ms"
+    },
+    "GROUND.PuddleTickSec": {
+      "ms": 500,
+      "unit": "ms"
     },
     "GROWTH.ActiveSkipPoints": 5,
     "GROWTH.BuildSafeWindowSec": {
@@ -18618,6 +21520,10 @@
     "MOMENTUM.Start": {
       "p2": 5000,
       "unit": "momentum"
+    },
+    "OVERDRIVE.ChillRootSec": {
+      "ms": 600,
+      "unit": "ms"
     },
     "OVERDRIVE.FireBurnStacks": 3,
     "OVERDRIVE.GustPushCm": {

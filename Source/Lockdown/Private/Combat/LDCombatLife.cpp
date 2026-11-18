@@ -289,6 +289,10 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     // #198 F M02: a leaving owner's locked batches never settle.
     // #198: its fogs and chains end; marks it applied end below.
     Fogs.RemoveAll([&Entity](const FLDCombatFog& Fog) { return Fog.Owner.SourceEntity==Entity; });
+    // Its fans and ground states end with it.
+    Fans.RemoveAll([&Entity](const FLDCombatFan& Fan) { return Fan.Payload.SourceEntity==Entity; });
+    RemoveBags([&Entity](const FLDCombatBag& Bag) { return Bag.Payload.SourceEntity==Entity; });
+    GroundStates.RemoveAll([&Entity](const FLDGroundState& Ground) { return Ground.Owner.SourceEntity==Entity; });
     Chains.RemoveAll([&Entity](const FLDCombatChain& Chain) { return Chain.Payload.SourceEntity==Entity; });
     ContactMotion.RemoveAll([&Entity](const auto& Frame) { return Frame.Batch->Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)

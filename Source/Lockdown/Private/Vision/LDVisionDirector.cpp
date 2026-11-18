@@ -182,7 +182,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
         && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook && A.HitFlags == B.HitFlags
-        && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
+        && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0) && A.RecentReaction == B.RecentReaction
         && A.RecentHitId == B.RecentHitId
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
@@ -1219,6 +1219,11 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         Unit.RecentHitId = Facts.LastHitId;
         Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
             ? uint16(NowMs - Facts.LastHitAtMs + 1) : 0;
+        const bool bReaction = Facts.LastReaction != 0 && Facts.LastReactionAtMs > 0 && Facts.LastReactionAtMs <= NowMs
+            && NowMs - Facts.LastReactionAtMs < LDObservation::RecentReactionWindowMs;
+        Unit.RecentReaction = bReaction ? Facts.LastReaction : 0;
+        Unit.RecentReactionAgePlusOneMs = bReaction ? uint16(NowMs - Facts.LastReactionAtMs + 1) : 0;
+        Unit.RecentReactionElement = bReaction ? Facts.LastReactionElement : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         if (Facts.ActionCue != ELDObservedActionCue::None)
         {
@@ -1271,7 +1276,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
 }
 
 bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
-    const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error)
+    const TArray<FLDObservedProjectileFact>& Flights, const TArray<FLDObservedGroundFact>& Grounds, bool bPublish, FString& Error)
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionSampleObserver);
     if (!Observer.Controller.IsValid())
@@ -1388,6 +1393,38 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Units = MoveTemp(Units);
         View.Projectiles = MoveTemp(Projectiles);
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
+        // Ground states: the observer's own ones, and every other whose centre (or a band's end) it sees, nearest first, at
+        // most LDObservation::MaxGroundStates; isolation groups follow the owner like a skill effect.
+        TArray<TPair<double, const FLDObservedGroundFact*>> SeenGround;
+        for (const FLDObservedGroundFact& Fact : Grounds)
+        {
+            FLDObservedProjectileFact Probe;
+            Probe.SourceEntity = Fact.OwnerEntity;
+            // An ownerless (DEV) ground state belongs to no isolation group: plain sight decides.
+            const ELDObservedFlightAccess Rule = Fact.OwnerEntity.IsValid() ? FlightAccess(Probe) : ELDObservedFlightAccess::Sight;
+            bool bVisible = Rule == ELDObservedFlightAccess::Granted || (Fact.OwnerEntity.IsValid() && Fact.OwnerEntity == Observer.ContenderId);
+            if (!bVisible && (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight))
+            {
+                // A PK life sees what its living teammates see too, as for flights and coverage.
+                TArray<FVector, TInlineAllocator<4>> Eyes;
+                Eyes.Add(Foot);
+                if (Rule == ELDObservedFlightAccess::SharedSight) { Eyes.Append(TeammateFeet); }
+                for (const FVector& Eye : Eyes)
+                {
+                    const ELDSightResult Result = Sight.Trace(Eye, Fact.CentreCm);
+                    if (Result == ELDSightResult::StaleWorld) { Error = TEXT("StaleWorld: ground-state sight has no current world."); return false; }
+                    if (Result == ELDSightResult::Visible) { bVisible = true; break; }
+                }
+            }
+            if (bVisible)
+            {
+                SeenGround.Emplace(FVector2D::DistSquared(FVector2D(Foot.X, Foot.Y), FVector2D(Fact.CentreCm.X, Fact.CentreCm.Y)), &Fact);
+            }
+        }
+        SeenGround.Sort([](const TPair<double, const FLDObservedGroundFact*>& A, const TPair<double, const FLDObservedGroundFact*>& B)
+        { return A.Key < B.Key; });
+        for (int32 Index = 0; Index < SeenGround.Num() && Index < LDObservation::MaxGroundStates; ++Index)
+        { View.GroundStates.Add(LDObservation::GroundView(*SeenGround[Index].Value)); }
     }
     if (!LDObservation::ValidateView(View, Error)) { return false; }
     Observer.Latest = View;
@@ -1426,9 +1463,16 @@ bool ALDVisionDirector::PublishAuthority(const FLDMatchContext& InMatch, FString
         if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_PROJECTILES_UNAVAILABLE"); }
         return false;
     }
+    // Spec §8.3/§14: every live ground state is public; each observer sees the ones in its sight.
+    TArray<FLDObservedGroundFact> Grounds;
+    if (!Core->Combat->ReadObservedGround(Grounds, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_GROUND_UNAVAILABLE"); }
+        return false;
+    }
     for (FObserver& Observer : Observers)
     {
-        if (!SampleObserver(Observer, Targets, Flights, bPublish, Error)) { return false; }
+        if (!SampleObserver(Observer, Targets, Flights, Grounds, bPublish, Error)) { return false; }
     }
     Error.Reset();
     return true;

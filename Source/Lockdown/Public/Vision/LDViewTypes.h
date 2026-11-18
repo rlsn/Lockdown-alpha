@@ -10,6 +10,8 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
+    // 19: N4 bags and the wall between two bags are public obstacles (Bag, BagWall looks).
+    // 18: a frame carries the public ground states in sight (16 bytes each on the wire); the Wind look shows a fan's blow.
     // 17: a contender carries a quantized momentum bar and its overdrive charge; an Attack cue carries its combo step.
     // 16 adds the observer-local identity of a visible hit and owner hit receipts; the Hit reaction cue is retired.
     // 13 distinguishes visible return flights without carrying their caster or build.
@@ -18,10 +20,14 @@ namespace LDObservation
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 17;
+    constexpr uint32 Schema = 19;
+    // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
+    constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
     constexpr uint8 MomentumBarFull = 255;
     constexpr uint16 RecentHitWindowMs = 300;
+    // A visible reaction's name floats over its target while its cue is this young (spec §12).
+    constexpr uint16 RecentReactionWindowMs = 1000;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
@@ -36,10 +42,12 @@ namespace LDObservation
     constexpr int32 MaxUnits = 86;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 18;
+    constexpr int32 MaxStatuses = 19;
     constexpr int32 MaxTerminations = 16;
     // Visible flights and skill areas per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 128;
+    // Spec §8.3/§14: every live ground state of the map at once (GROUND.MaxTotal fits it); each is one compact public record.
+    constexpr int32 MaxGroundStates = 40;
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
@@ -59,8 +67,12 @@ UENUM() enum class ELDObservedProjectileLook : uint8
 {
     Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6,
     AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11,
-    ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16
+    ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
+    // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
+    Bag = 18, BagWall = 19
 };
+// Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
+UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
 
@@ -120,6 +132,11 @@ struct FLDObservedUnitView
     UPROPERTY() bool bCharging = false;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
     UPROPERTY() uint8 ActionComboStep = 0;
+    // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
+    UPROPERTY() uint8 RecentReaction = 0;
+    UPROPERTY() uint16 RecentReactionAgePlusOneMs = 0;
+    // The element that set that reaction off (ELDCombatElement 1..6); 0 with no reaction.
+    UPROPERTY() uint8 RecentReactionElement = 0;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
 };
@@ -169,6 +186,26 @@ struct FLDObservedProjectileView
     UPROPERTY() uint32 WarningRemainingMs = 0; // time to the authoritative landing/first pulse; 0 when no warning is pending
 };
 
+// Spec §8.3/§14: one public ground state in sight: its kind (ELDGroundStateKind 1..6), footprint, owner's seat and remaining
+// life (its outline fades by Remaining/Life). Id is the low byte of its authority identity, stable while it lives. On the
+// wire it is 16 bytes: position to 1 cm (Z to 2 cm), radius to 4 cm, extent to 8 cm or 2 degrees, heading in 256 steps and
+// times in 50 ms steps.
+USTRUCT()
+struct FLDObservedGroundState
+{
+    GENERATED_BODY()
+    UPROPERTY() uint8 Id = 0;
+    UPROPERTY() uint8 Kind = 0;
+    UPROPERTY() ELDObservedGroundShape Shape = ELDObservedGroundShape::Circle;
+    UPROPERTY() uint8 OwnerSeat = 255; // the owner's roster seat 0..5; 255 = none
+    UPROPERTY() FVector CentreCm = FVector::ZeroVector;
+    UPROPERTY() float RadiusCm = 0;
+    UPROPERTY() float ExtentCm = 0;
+    UPROPERTY() uint8 Heading = 0;
+    UPROPERTY() uint32 RemainingMs = 0;
+    UPROPERTY() uint32 TotalMs = 0; // its whole duration (the decal fades over it)
+};
+
 USTRUCT()
 struct FLDObservedFootprint
 {
@@ -196,6 +233,7 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedUnitView> Units;
     UPROPERTY() TArray<FLDObservedUnitTermination> RecentTerminations;
     UPROPERTY() TArray<FLDObservedProjectileView> Projectiles;
+    UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>
@@ -247,6 +285,26 @@ struct FLDObservedPublicFacts
     uint8 ActionComboStep = 0;
     bool bCharging = false;
     uint8 MomentumBar = 0;
+    // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
+    uint8 LastReaction = 0;
+    int64 LastReactionAtMs = 0;
+    uint8 LastReactionElement = 0;
+};
+
+// Server-only public fact of one live ground state (ALDCombatDirector::ReadObservedGround). Never serialized.
+struct FLDObservedGroundFact
+{
+    uint32 Id = 0;
+    uint8 Kind = 0;
+    FGuid OwnerEntity;
+    uint8 OwnerSeat = 255;
+    FVector CentreCm = FVector::ZeroVector;
+    float RadiusCm = 0;
+    FVector2D Heading = FVector2D(1, 0);
+    float HalfLengthCm = 0;
+    float AngleDegrees = 0;
+    uint32 RemainingMs = 0;
+    uint32 LifeMs = 0;
 };
 
 // Server-only authority record of one projectile in flight, sampled by the observation owner. Never serialized.
@@ -296,6 +354,9 @@ namespace LDObservation
     // Shared by NetSerialize and by local Listen Host delivery, which bypasses network serialization.
     LOCKDOWN_API bool ValidateUnit(const FLDObservedUnitView& Unit, FString& Error);
     LOCKDOWN_API bool ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error);
+    LOCKDOWN_API bool ValidateGround(const FLDObservedGroundState& Ground, FString& Error);
+    // The wire form of a ground fact (quantized exactly as SerializeObservedGround keeps it).
+    LOCKDOWN_API FLDObservedGroundState GroundView(const FLDObservedGroundFact& Fact);
     LOCKDOWN_API bool ValidateTermination(const FLDObservedUnitTermination& Termination, FString& Error);
     LOCKDOWN_API bool ValidateView(const FLDWorldView& View, FString& Error);
     LOCKDOWN_API bool ValidateConceal(const FLDObservedConceal& Conceal, FString& Error);

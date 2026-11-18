@@ -33,11 +33,13 @@ struct FLDBreakoutPreset
     int32 StatPoints = 0;
     // A DEV cooldown haste term (P2), 0 for none.
     int64 CooldownHasteP2 = 0;
+    // Spec §13: the AI draws its breakout goal among the P2 samples only.
+    bool bAIGoal = true;
 };
 
 namespace LDBreakoutPresets
 {
-    // The nine P2 samples in spec order.
+    // The spec §7.6 samples in spec order: the nine P2 ones, then the P4 minefield.
     LOCKDOWN_API const TArray<FLDBreakoutPreset>& All();
     LOCKDOWN_API const FLDBreakoutPreset* Find(FName Id);
     // Whether Card belongs to Preset (any copy).

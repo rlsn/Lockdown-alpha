@@ -111,6 +111,27 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Channel.FinalSlowMs=Cone->SecondaryDurationMs;
         // S22 A2: the last waves (not only the final one) slow.
         Channel.SlowWaves=FMath::Max(Cone->BasicCount,1);
+        // Spec §5: S22's gust rides on the last wave only; N1 B1 roots on its last wave.
+        Channel.bFinalGust=(Payload.NativeElements & LDCombatElements::Bit(ELDCombatElement::Gust))!=0;
+        Channel.Payload.NativeElements&=~LDCombatElements::Bit(ELDCombatElement::Gust);
+        Channel.FinalRootMs=Cone->ExtraDurationMs;
+        // N1 A: the cone leaves its ice over the whole sector, owned by the caster at the release snapshot.
+        if (const auto* Ice=Op(Values, ELDDemoEffectOp::GroundState))
+        {
+            ALDCharacter* Caster=ActorOf(Body);
+            if (!Caster) { Error=TEXT("A cone skill lost its releasing body."); return false; }
+            FLDElementApplier IceOwner;
+            IceOwner.SourceEntity=Body.Victim.EntityId;
+            IceOwner.SourceBody={Body.Victim,Body.Identity};
+            IceOwner.CreditOwner=Payload.CreditOwner;
+            IceOwner.Source=Payload.Source;
+            IceOwner.Level=FMath::Max(Payload.ElementLevel,1);
+            IceOwner.SourceAPP2=Payload.ElementAPP2;
+            IceOwner.EffectId=Payload.EffectId;
+            if (!SpawnGround(static_cast<ELDGroundStateKind>(Ice->GroundKind),IceOwner,FootOf(*Caster),NowMs,Error,Channel.RangeCm,
+                Ice->DurationMs,FVector2D(Action.Direction.X,Action.Direction.Y),0,Channel.AngleDegrees,Ice->SecondaryRatioBp,
+                Ice->MultiplierBp)) { return false; }
+        }
         if (Terms.FinalKnockbackTerms.IsSet())
         {
             // A branch's final wave (S22) pushes everything it hits away from the caster instead of slowing it.
@@ -123,6 +144,67 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Body.ChannelDirectSequence=Action.Key.DirectSequence;
         Body.ChannelStartedAtMs=NowMs;
         Channels.Add(MoveTemp(Channel));
+        bHandled=true;
+        return true;
+    }
+    // N2: the fan stands at the target point (within reach) and blows toward the cast direction.
+    if (const auto* Blow=Op(Values, ELDDemoEffectOp::Fan))
+    {
+        const auto* Actor=ActorOf(Body);
+        if (!Actor) { Error=TEXT("A fan skill lost its releasing body."); return false; }
+        const FVector Origin=FootOf(*Actor);
+        const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
+        FLDCombatFan Fan;
+        Fan.Payload=Payload;
+        Fan.ObservedKey=FGuid::NewGuid();
+        Fan.OriginCm=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        Fan.OriginCm.Z=Action.TargetPoint.Z;
+        Fan.Direction=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal();
+        if (Fan.Direction.IsNearlyZero()) { Fan.Direction=Offset.GetSafeNormal2D(); }
+        if (Fan.Direction.IsNearlyZero()) { Fan.Direction=FVector(1,0,0); }
+        Fan.LengthCm=Cm(Blow->RadiusCm);
+        Fan.HalfWidthCm=Cm(Blow->ExtraDistanceCm)*.5;
+        Fan.SweepDegrees=Cm(Blow->AngleDegrees);
+        // An overdriven fan keeps the overdrive push (OVERDRIVE.GustPushCm, already on the payload); otherwise the fan's own.
+        Fan.Payload.GustPushCm=Payload.bGustGround && Payload.GustPushCm>0 ? Payload.GustPushCm : Cm(Blow->DistanceCm);
+        Fan.Payload.KnockbackWallStunMs=Blow->ExtraDurationMs;
+        Fan.bCarryElement=Blow->bCarryElement;
+        Fan.MomentumP2=Blow->BaseP2;
+        Fan.StartMs=NowMs;
+        Fan.NextBlowMs=NowMs;
+        Fan.IntervalMs=Blow->IntervalMs;
+        Fan.CreatedSerial=++NextAreaSerial;
+        if (Fan.LengthCm<=0 || Fan.HalfWidthCm<=0 || Fan.IntervalMs<=0
+            || !LDMatchLifecycle::AddDurationMs(NowMs, Blow->DurationMs, Fan.EndMs, Error))
+        {
+            if (Error.IsEmpty()) { Error=TEXT("A fan needs a positive rectangle and rhythm."); }
+            return false;
+        }
+        // A skill keeps one live fan (Y12: one more per copy).
+        int32 Allowed=1;
+        TArray<FLDPassiveEffectRef> Stalls;
+        if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::DoubleStall, Stalls, Error)) { return false; }
+        Allowed+=Stalls.Num();
+        TArray<int32> Owned;
+        for (int32 Index=0; Index < Fans.Num(); ++Index)
+        {
+            if (Fans[Index].Payload.SourceEntity == Body.Victim.EntityId && Fans[Index].Payload.Source == Payload.Source) { Owned.Add(Index); }
+        }
+        for (int32 Drop=Owned.Num()-Allowed; Drop >= 0; --Drop) { Fans.RemoveAt(Owned[Drop]); }
+        Fans.Add(MoveTemp(Fan));
+        bHandled=true;
+        return true;
+    }
+    // N4: the bag stands at the target point (within reach).
+    if (const auto* Bag=Op(Values, ELDDemoEffectOp::Bag))
+    {
+        const auto* Actor=ActorOf(Body);
+        if (!Actor) { Error=TEXT("A bag skill lost its releasing body."); return false; }
+        const FVector Origin=FootOf(*Actor);
+        const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
+        FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        Centre.Z=Action.TargetPoint.Z;
+        if (!PlaceBag(Body, Payload, *Bag, Op(Values, ELDDemoEffectOp::GroundState), Centre, NowMs, Error)) { return false; }
         bHandled=true;
         return true;
     }
@@ -167,8 +249,11 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             || !LDMatchLifecycle::AddDurationMs(Ground.ReadyAtMs, Shape.DurationMs, Ground.ExpiresAtMs, Error)) { return false; }
         if (Trap)
         {
-            // One trap per owner (content §4; S19 A raises it): a newer one ends the oldest, armed or fusing, without its blast.
-            const int32 Allowed=FMath::Max(Shape.Count,1);
+            // One trap per owner (content §4; S19 A raises it, Y12 adds one per copy): a newer one ends the oldest, armed or
+            // fusing, without its blast.
+            TArray<FLDPassiveEffectRef> Stalls;
+            if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::DoubleStall, Stalls, Error)) { return false; }
+            const int32 Allowed=FMath::Max(Shape.Count,1)+Stalls.Num();
             TArray<int32> Owned;
             for (int32 Index=0; Index < GroundEffects.Num(); ++Index)
             {
@@ -194,8 +279,77 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
     return true;
 }
 
+FVector FLDCombatFan::HeadingAt(int64 AtMs) const
+{
+    if (SweepDegrees<=0) { return Direction; }
+    // A triangle wave of amplitude SweepDegrees at SweepDegrees per second (one full swing takes four seconds).
+    const double Phase=FMath::Fmod(double(AtMs-StartMs)/1000.,4.);
+    const double Unit=Phase<1. ? Phase : Phase<3. ? 2.-Phase : Phase-4.;
+    return Direction.RotateAngleAxis(Unit*SweepDegrees,FVector::UpVector);
+}
+
+bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
+{
+    FLDGroundTerms GroundRules;
+    if (!Fans.IsEmpty() && !GroundTerms(GroundRules,Error)) { return false; }
+    for (int32 Index=Fans.Num()-1; Index>=0; --Index)
+    {
+        FLDBodyCombatState* FanOwner=FindBody(Fans[Index].Payload.SourceBody);
+        if (!FanOwner || FanOwner->bPendingDeath || Fans[Index].EndMs<=NowMs) { Fans.RemoveAt(Index); continue; }
+        while (Fans.IsValidIndex(Index) && Fans[Index].NextBlowMs<=NowMs && Fans[Index].NextBlowMs<Fans[Index].EndMs)
+        {
+            FLDCombatFan& Fan=Fans[Index];
+            const FVector Heading=Fan.HeadingAt(Fan.NextBlowMs);
+            if (!LDMatchLifecycle::AddDurationMs(Fan.NextBlowMs,Fan.IntervalMs,Fan.NextBlowMs,Error)) { return false; }
+            TArray<TPair<FLDCombatBodyRef,FVector>> Inside;
+            if (!CollectLineTargets(Fan.OriginCm,Heading,Fan.LengthCm,Fan.HalfWidthCm,*FanOwner,Inside,Error)) { return false; }
+            FLDCombatHit Blow=Fan.Payload;
+            Blow.GustDirection=Heading;
+            // A2: the owner's last element rides on the wind.
+            if (Fan.bCarryElement && FanOwner->LastAppliedElement!=ELDCombatElement::None)
+            {
+                if (FanOwner->LastAppliedElement==ELDCombatElement::Fire) { Blow.BurnStacks=FMath::Max(Blow.BurnStacks,1); }
+                else { Blow.NativeElements|=LDCombatElements::Bit(FanOwner->LastAppliedElement); }
+            }
+            for (const TPair<FLDCombatBodyRef,FVector>& Row : Inside)
+            {
+                FLDCombatHit Hit=Blow;
+                Hit.HitId=FGuid::NewGuid();
+                Hit.Target=Row.Key;
+                PendingHits.Add(MoveTemp(Hit));
+            }
+            // B1: a blow that reached an enemy refills momentum.
+            if (!Inside.IsEmpty() && Fan.MomentumP2>0) { GrantMomentum(*FanOwner,Fan.MomentumP2,ELDMomentumBook::Skill); }
+            // The wind moves fire and miasma (and discharges fields) whose centre stands in the blow.
+            FLDElementApplier Wind;
+            Wind.SourceEntity=Fan.Payload.SourceEntity;
+            Wind.SourceBody=Fan.Payload.SourceBody;
+            Wind.CreditOwner=Fan.Payload.CreditOwner;
+            Wind.Source=Fan.Payload.Source;
+            Wind.Level=FMath::Max(Fan.Payload.ElementLevel,1);
+            Wind.SourceAPP2=Fan.Payload.ElementAPP2;
+            TArray<FVector> Centres;
+            const FVector Along=Heading.GetSafeNormal2D();
+            for (const FLDGroundState& Ground : GroundStates)
+            {
+                const FVector Offset(Ground.CentreCm.X-Fan.OriginCm.X,Ground.CentreCm.Y-Fan.OriginCm.Y,0);
+                const double Forward=FVector::DotProduct(Offset,Along);
+                const double Side=FMath::Abs(Offset.X*Along.Y-Offset.Y*Along.X);
+                if (Forward>=0 && Forward<=Fan.LengthCm && Side<=Fan.HalfWidthCm) { Centres.Add(Ground.CentreCm); }
+            }
+            for (const FVector& Centre : Centres)
+            {
+                if (!ConvertGroundAt(Centre,ELDCombatElement::Gust,Wind,Along,NowMs,Error)) { return false; }
+            }
+        }
+        if (Fans.IsValidIndex(Index) && Fans[Index].EndMs<=NowMs) { Fans.RemoveAt(Index); }
+    }
+    return true;
+}
+
 bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
 {
+    if (!AdvanceFans(NowMs,Error) || !AdvanceBags(NowMs,Error)) { return false; }
     for (int32 Index=Channels.Num()-1; Index>=0; --Index)
     {
         auto& Channel=Channels[Index];
@@ -217,6 +371,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             TArray<FLDCombatBodyRef> Targets;
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
+            if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
             // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
             {
                 const FVector Facing=Channel.Direction;
@@ -237,10 +392,21 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 Hit.HitId=FGuid::NewGuid();
                 Hit.Target=Ref;
                 if (Channel.Remaining <= Channel.SlowWaves) { Hit.SlowBp=Channel.FinalSlowBp; Hit.SlowDurationMs=Channel.FinalSlowMs; }
+                if (Channel.Remaining == 1)
+                {
+                    if (Channel.bFinalGust)
+                    {
+                        Hit.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Gust);
+                        Hit.GustDirection=Channel.Direction;
+                    }
+                    if (Channel.FinalRootMs > 0) { Hit.RootDurationMs=FMath::Max(Hit.RootDurationMs, Channel.FinalRootMs); }
+                }
                 if (Channel.Remaining == 1 && Channel.FinalKnockbackCm > 0)
                 {
                     Hit.KnockbackCm=Channel.FinalKnockbackCm;
                     Hit.KnockbackMs=Channel.FinalKnockbackMs;
+                    // One displacement: the branch knockback; the final gust still reacts.
+                    Hit.bGustInKnockback=true;
                     Hit.bKnockbackFromAnchor=true;
                     Hit.KnockbackAnchorCm=Origin;
                     Hit.KnockbackSource=Channel.Payload.Source;
@@ -308,6 +474,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (Hit.KnockbackCm > 0 && !Hit.bKnockbackPull) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Ground.CentreCm; }
             PendingHits.Add(MoveTemp(Hit));
         }
+        if (!HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs, Error)) { return false; }
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }
@@ -430,8 +597,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             Applier.Source=Shock.Source;
             Applier.Level=GrowthLevelOf(*Body);
             Applier.SourceAPP2=FMath::Max<int64>(Body->AttributeProjection.Final.APP2, 0);
-            const ELDCombatElement Kind=Shock.Effect.Element==ELDDemoElement::Fire ? ELDCombatElement::Fire
-                : Shock.Effect.Element==ELDDemoElement::Water ? ELDCombatElement::Water : ELDCombatElement::Electric;
+            const ELDCombatElement Kind=LDCombatElements::FromDemo(Shock.Effect.Element);
             if (!ApplyElement(*Struck, Kind, Applier, Kind==ELDCombatElement::Fire ? 1 : 0, FGuid::NewGuid(), NowMs, Error)) { return false; }
             LedgerCardTriggered(*Body, Shock.Key);
         }

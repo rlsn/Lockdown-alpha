@@ -36,8 +36,8 @@ bool LDCombatCues::ConfirmsDealt(const FLDCombatHit& Hit, int64 DamageP2)
 ELDObservedHitLook LDCombatCues::ClassifyHit(const FLDCombatHit& Hit)
 {
     if (Hit.BurnStacks>0 || Hit.CardBurnStacks>0) { return ELDObservedHitLook::Fire; }
-    if (Hit.bApplyElectric || Hit.CardElectricSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Electric; }
-    if (Hit.bApplyWet || Hit.CardWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Water; }
+    if (Hit.CarriesElement(ELDCombatElement::Shock)) { return ELDObservedHitLook::Electric; }
+    if (Hit.CarriesElement(ELDCombatElement::Water)) { return ELDObservedHitLook::Water; }
     return Hit.DamageType==ELDDemoDamageType::Magical ? ELDObservedHitLook::Magic : ELDObservedHitLook::None;
 }
 

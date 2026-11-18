@@ -185,6 +185,7 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
 void ALDCombatDirector::EndMatchActions()
 {
     Channels.Reset();
+    RemoveBags([](const FLDCombatBag&) { return true; });
     GroundEffects.Reset();
     MonsterStrikes.Reset();
     ContactMotion.Reset();
@@ -1043,7 +1044,7 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     Body.Branch.NextBasicAmpUntilMs=0;
     if (Body.Branch.RiderUntilMs>Now)
     {
-        Hit.bApplyElectric|=Body.Branch.bRiderElectric;
+        if (Body.Branch.bRiderElectric) { Hit.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Shock); }
         Hit.BreachStacks+=Body.Branch.RiderBreach;
         if (Body.Branch.bRiderElectric && !StampElementSnapshot(Body,Hit,Error)) { return false; }
     }
@@ -1202,10 +1203,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // #198 elements and their riders on the same hits.
     const FLDDemoEffectDefinition* WetEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Wet);
     const FLDDemoEffectDefinition* ElectrifyEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Electrify);
-    const FLDDemoEffectDefinition* GrievousEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Grievous);
+    const FLDDemoEffectDefinition* RotEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Rot);
+    const FLDDemoEffectDefinition* ChillEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Chill);
+    const FLDDemoEffectDefinition* GustEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Gust);
     const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChainBounce);
     const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect
-        || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || GrievousEffect
+        || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || RotEffect || ChillEffect || GustEffect
         || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
     if (ChainEffect && TargetDef.Mode!=ELDDemoTargetMode::Unit)
     { Error=TEXT("A chain needs a unit target to start from."); return false; }
@@ -1319,7 +1322,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Dash:
         {
             const double Seconds=double(Effect.DurationMs)/1000.;
-            const double Distance=LDCA::ToDouble(bInnate ? Innate.DistanceCm : Effect.DistanceCm);
+            double Distance=LDCA::ToDouble(bInnate ? Innate.DistanceCm : Effect.DistanceCm);
+            // Spec §8.3: a dash from an enemy's ice goes GROUND.IceDisplacementScale as far.
+            if (Body.bOnEnemyIce) { Distance*=double(Content->Get().Parameters.Ground.IceDisplacementScaleBp)/10000.; }
             if (!Movement->StartDemoDash(DeliveryAction.Direction,Distance,Seconds,Error)) { return false; }
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
             Body.DashContact.Reset();
@@ -1436,9 +1441,16 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Burn:
         case ELDDemoEffectOp::Wet:
         case ELDDemoEffectOp::Electrify:
-        case ELDDemoEffectOp::Grievous:
+        case ELDDemoEffectOp::Rot:
+        case ELDDemoEffectOp::Chill:
+        case ELDDemoEffectOp::Gust:
+        case ELDDemoEffectOp::GroundState:
         case ELDDemoEffectOp::ChainBounce:
-            // Carried by the hit payload (and the S10 chain) below.
+            // Carried by the hit payload (and the S10 chain, a projectile's landing or a cone's area) below.
+            break;
+        case ELDDemoEffectOp::Fan:
+        case ELDDemoEffectOp::Bag:
+            // N2's fan and N4's bag stand at the target point (StartSkillDelivery).
             break;
         // Skill branch operations: hit riders on the cast ledger and self terms (ArmBranchRelease), pulses and shield
         // bonuses (ArmBranchHostile), zone terms (ReleaseMechanics), trap terms and lingering areas (StartSkillDelivery).
@@ -1467,7 +1479,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::BraceStack:
         case ELDDemoEffectOp::BraceShove:
         case ELDDemoEffectOp::BraceShield:
-        case ELDDemoEffectOp::ProjectileZone:
             break;
         case ELDDemoEffectOp::Brace:
             if (!ReleaseBrace(Body,Effect,Source,EffectId,Action.Token,Now,Error,CastLedger)) { return false; }
@@ -1546,7 +1557,8 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     const FLDDemoEffectDefinition* SilenceEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Silence);
     const FLDDemoEffectDefinition* BreachEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Breach);
     const FLDDemoEffectDefinition* BurnEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Burn);
-    const FLDDemoEffectDefinition* GrievousEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Grievous);
+    const FLDDemoEffectDefinition* RotEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Rot);
+    const FLDDemoEffectDefinition* GustEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Gust);
     const auto& Final=Body.AttributeProjection.Final;
     FLDCombatHit Template;
     Template.EffectId=EffectId;
@@ -1577,12 +1589,20 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
     Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
     Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
-    // #198 elements of every hit of this release, with the caster's snapshot now; S21's cut of new heals and shields.
-    Template.bApplyWet=LDCA::FindEffect(Values,ELDDemoEffectOp::Wet)!=nullptr;
-    Template.bApplyElectric=LDCA::FindEffect(Values,ELDDemoEffectOp::Electrify)!=nullptr;
+    // Elements of every hit of this release, with the caster's snapshot now: a rot's own cut and duration, a gust's own push
+    // (an overdrive's 300 cm and the ground state it leaves).
+    for (const TPair<ELDDemoEffectOp,ELDCombatElement>& Row : {TPair<ELDDemoEffectOp,ELDCombatElement>(ELDDemoEffectOp::Wet,ELDCombatElement::Water),
+        {ELDDemoEffectOp::Electrify,ELDCombatElement::Shock}, {ELDDemoEffectOp::Chill,ELDCombatElement::Chill},
+        {ELDDemoEffectOp::Rot,ELDCombatElement::Rot}, {ELDDemoEffectOp::Gust,ELDCombatElement::Gust}})
+    {
+        if (LDCA::FindEffect(Values,Row.Key)) { Template.NativeElements|=LDCombatElements::Bit(Row.Value); }
+    }
     if (!StampElementSnapshot(Body,Template,Error)) { return false; }
-    Template.GrievousBp=GrievousEffect ? GrievousEffect->RatioBp : 0;
-    Template.GrievousMs=GrievousEffect ? GrievousEffect->DurationMs : 0;
+    Template.RotCutBp=RotEffect ? RotEffect->RatioBp : 0;
+    Template.RotMs=RotEffect ? RotEffect->DurationMs : 0;
+    Template.GustPushCm=GustEffect ? LDCA::ToDouble(GustEffect->DistanceCm) : 0;
+    Template.GustPushMs=GustEffect ? GustEffect->DurationMs : 0;
+    Template.bGustGround=Terms.bOverdriveGustGround;
     // Abilities trigger no on-hit effects.
     if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
     FillMechanicsTemplate(Values,ReleaseFoot,Template);
@@ -1650,7 +1670,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             Projectile.ReturnElement=Terms.ProjectileReturn->Effect.Element;
         }
         Projectile.bTelegraphed=Terms.WindupMs>=150;
-        if (const FLDDemoEffectDefinition* Landing=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::ProjectileZone)) { Projectile.LandingZone=*Landing; }
+        if (const FLDDemoEffectDefinition* Landing=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::GroundState)) { Projectile.LandingGround=*Landing; }
         Projectile.Payload=Template;
         Projectiles.Add(Projectile);
     }
@@ -1699,6 +1719,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
                 [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
         }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
+        if (Around && !HitBagsInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template, NowMs, Error)) { return false; }
         // M15 on S07: a blast of the same radius at the release foot after the delay, with one burn stack.
         const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         if (Terms.EchoImpact.IsSet() && AreaEffect)
@@ -1778,6 +1799,19 @@ bool ALDCombatDirector::IsActionBlocked(const FLDBodyCombatState& Body, ELDComba
     return LDCombatControl::Blocks(Body.Roots,Body.Disarms,Body.Stuns,Now,Content->Get().Policies,Action,&Body.Silences)
         || LDControl::TauntBlocks(Body.Taunt,Now,Action)
         || Body.Knockbacks.ContainsByPredicate([Now](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>Now; });
+}
+
+float ALDCombatDirector::MoveAccelScaleOf(const FLDBodyCombatState& Body) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content || !Body.bOnEnemyIce) { return 1.f; }
+    return float(double(Content->Get().Parameters.Ground.IceAccelScaleBp)/10000.);
+}
+
+float ALDCombatDirector::ReadMoveAccelScale(const ALDCharacter& Actor) const
+{
+    const auto* Body=Bodies.Find(const_cast<ALDCharacter*>(&Actor));
+    return Body && !Body->bPendingDeath ? MoveAccelScaleOf(*Body) : 1.f;
 }
 
 bool ALDCombatDirector::ReadMoveSpeed(const ALDCharacter& Actor, float& OutCmPerSec) const

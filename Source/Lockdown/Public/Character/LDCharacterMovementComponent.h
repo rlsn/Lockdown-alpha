@@ -45,6 +45,11 @@ public:
     ULDCharacterMovementComponent();
     virtual void PerformMovement(float DeltaSeconds) override;
     virtual float GetMaxSpeed() const override;
+    // Spec §8.3 ice inertia: acceleration and braking scaled by the authoritative movement parameter (server: Combat; owning
+    // client: its owner view), so prediction and correction agree.
+    virtual float GetMaxAcceleration() const override;
+    virtual float GetMaxBrakingDeceleration() const override;
+    float AccelScale() const;
     virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
     virtual void MoveAutonomous(float TimeStamp,float Delta,uint8 Flags,const FVector& Accel) override;
     virtual bool ForcePositionUpdate(float DeltaTime) override;

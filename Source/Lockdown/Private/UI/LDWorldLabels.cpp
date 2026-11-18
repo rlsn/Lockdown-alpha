@@ -65,11 +65,12 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::Silence: return FLinearColor(.62f,.48f,1.f);
     case ELDDemoStatusId::Burn: return FLinearColor(1.f,.36f,.12f);
     case ELDDemoStatusId::AttackSlowed: return FLinearColor(.65f,.4f,.9f);
-    // #198: wet water blue, electrified spark yellow-white, the S16 stance steel, the S21 cut sour green.
+    // Spec §8.1 element colours: wet blue, shock violet, chill cyan, rot green; the S16 stance steel.
     case ELDDemoStatusId::Wet: return FLinearColor(.3f,.6f,1.f);
-    case ELDDemoStatusId::Electrified: return FLinearColor(.85f,.95f,.3f);
+    case ELDDemoStatusId::Electrified: return FLinearColor(.72f,.42f,1.f);
+    case ELDDemoStatusId::Chilled: return FLinearColor(.35f,.95f,1.f);
+    case ELDDemoStatusId::Rotten: return FLinearColor(.45f,.85f,.2f);
     case ELDDemoStatusId::Braced: return FLinearColor(.7f,.8f,.95f);
-    case ELDDemoStatusId::Soured: return FLinearColor(.55f,.8f,.25f);
     case ELDDemoStatusId::CampEnraged: return FLinearColor(1.f,.3f,.08f);
     case ELDDemoStatusId::CampGuarding: return FLinearColor(.55f,.8f,1.f);
     default: return WorldLabelStatusInk;

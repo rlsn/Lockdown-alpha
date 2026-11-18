@@ -484,6 +484,11 @@ struct FLDCombatCueFacts
     UPROPERTY() FGuid LastHitId;                      // identity of the last resolved hit in this life
     UPROPERTY() uint8 LastHitLook=0;                  // ELDObservedHitLook; recent server-resolved hit presentation only
     UPROPERTY() uint8 LastHitFlags=0;                 // LDObservation::EHitFlags for this hit
+    // Spec §12: the last reaction this life suffered (ELDCombatReaction) and when; observers float its name over the body.
+    UPROPERTY() uint8 LastReaction=0;
+    UPROPERTY() int64 LastReactionAtMs=0;
+    // The incoming element that set it off (ELDCombatElement): the reaction's ink (the pair is symmetric).
+    UPROPERTY() uint8 LastReactionElement=0;
     // The owner's hit receipt: the last blow this life landed (LDCombatCues::ConfirmsDealt). Owner-only; it never names
     // or locates the target.
     UPROPERTY() int64 LastDealtAtMs=0;               // 0 = nothing landed in this life
@@ -555,6 +560,9 @@ struct FLDCombatOwnerView
     // Voluntary movement is blocked (Root or Stun); the client movement prediction reads it.
     UPROPERTY() bool bRooted=false;
     UPROPERTY() float MoveSpeedCmPerSec=0;
+    // Spec §8.3: the own body stands on an enemy's ice: it accelerates and brakes at this scale (1 elsewhere); the client
+    // movement prediction reads the same authoritative parameter.
+    UPROPERTY() float MoveAccelScale=1.f;
     UPROPERTY() float AttackRangeCm=0;
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
     UPROPERTY() bool bOutOfCombatRegenActive=false;

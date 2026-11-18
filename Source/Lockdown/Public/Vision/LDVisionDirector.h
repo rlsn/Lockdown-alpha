@@ -288,7 +288,7 @@ private:
     ELDSightResult CurrentObservation(const FVector& SourceFootCm, const ALDCharacter& Target) const;
     bool GatherTargets(TArray<FLDObservedTarget>& Out, FString& Error) const;
     bool SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
-        const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error);
+        const TArray<FLDObservedProjectileFact>& Flights, const TArray<FLDObservedGroundFact>& Grounds, bool bPublish, FString& Error);
     static FVector FootOf(const ALDCharacter& Body);
     TArray<FObserver> Observers;
     FLDMatchContext ActiveMatch;

@@ -1,4 +1,5 @@
 #include "UI/LDWorkshopModel.h"
+#include "Combat/LDCombatElements.h"
 #include "Development/LDProgressionRules.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
@@ -18,7 +19,11 @@ ELDDemoElement WorkshopEffectElement(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::ZoneBurn: return ELDDemoElement::Fire;
     case ELDDemoEffectOp::Wet: case ELDDemoEffectOp::ZoneWet: return ELDDemoElement::Water;
     case ELDDemoEffectOp::Electrify: return ELDDemoElement::Electric;
-    case ELDDemoEffectOp::BasicElement: return Effect.Element;
+    case ELDDemoEffectOp::Chill: return ELDDemoElement::Chill;
+    case ELDDemoEffectOp::Rot: return ELDDemoElement::Rot;
+    case ELDDemoEffectOp::Gust: return ELDDemoElement::Gust;
+    case ELDDemoEffectOp::BasicElement: case ELDDemoEffectOp::SkillElement: case ELDDemoEffectOp::DashContactElement:
+        return Effect.Element;
     default: return ELDDemoElement::None;
     }
 }
@@ -265,24 +270,29 @@ TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progr
 }
 FString LDWorkshop::ReactionName(ELDDemoElement First,ELDDemoElement Second)
 {
-    const auto Is=[First,Second](ELDDemoElement A,ELDDemoElement B){return (First==A&&Second==B)||(First==B&&Second==A);};
-    if(Is(ELDDemoElement::Fire,ELDDemoElement::Water)){return LDTerms::ReactionFog;}
-    if(Is(ELDDemoElement::Water,ELDDemoElement::Electric)){return LDTerms::ReactionConduct;}
-    if(Is(ELDDemoElement::Fire,ELDDemoElement::Electric)){return LDTerms::ReactionOverload;}
-    return FString();
+    // The workshop names unordered pairs; gust is never held, so it always plays the incoming side of the combat rule.
+    if(First==ELDDemoElement::Gust){Swap(First,Second);}
+    return LDTerms::ReactionTerm(uint8(LDCombatElements::ReactionOf(LDCombatElements::FromDemo(First),LDCombatElements::FromDemo(Second))));
 }
 TArray<LDWorkshop::FReactionRow> LDWorkshop::Reactions(const TArray<ELDDemoElement>& BuildApplies)
 {
-    TArray<FReactionRow> Rows;
-    const TPair<ELDDemoElement,ELDDemoElement> Pairs[]={{ELDDemoElement::Fire,ELDDemoElement::Water},{ELDDemoElement::Water,ELDDemoElement::Electric},
-        {ELDDemoElement::Fire,ELDDemoElement::Electric}};
-    for(const auto& Pair:Pairs)
+    // The 15 pairs in table order: the ones the build sets off first (lit), then the ones one more element would open, then
+    // the rest; the board shows as many rows as it has room for.
+    TArray<FReactionRow> Lit,Near,Rest;
+    for(uint8 A=1;A<=6;++A)
     {
-        FReactionRow& Row=Rows.AddDefaulted_GetRef();
-        Row.First=Pair.Key;Row.Second=Pair.Value;Row.Name=ReactionName(Pair.Key,Pair.Value);
-        Row.bLit=BuildApplies.Contains(Pair.Key)&&BuildApplies.Contains(Pair.Value);
+        for(uint8 B=A+1;B<=6;++B)
+        {
+            const ELDDemoElement First=static_cast<ELDDemoElement>(A),Second=static_cast<ELDDemoElement>(B);
+            FReactionRow Row;
+            Row.First=First;Row.Second=Second;Row.Name=ReactionName(First,Second);
+            Row.bLit=BuildApplies.Contains(First)&&BuildApplies.Contains(Second);
+            (Row.bLit?Lit:(BuildApplies.Contains(First)||BuildApplies.Contains(Second))?Near:Rest).Add(MoveTemp(Row));
+        }
     }
-    return Rows;
+    Lit.Append(MoveTemp(Near));
+    Lit.Append(MoveTemp(Rest));
+    return Lit;
 }
 LDWorkshop::FCapacityView LDWorkshop::Capacity(const FLDProgressionView& Progression,const LDHUD::FStorageView& Storage,const FLDDemoContentDefinitions* Content)
 {

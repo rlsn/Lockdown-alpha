@@ -13,9 +13,8 @@ namespace
     ELDObservedProjectileLook AreaLookOf(const FLDCombatHit& Hit)
     {
         if (Hit.BurnStacks>0 || Hit.CardBurnStacks>0) { return ELDObservedProjectileLook::AreaFire; }
-        if (Hit.bApplyElectric || Hit.CardElectricSource.Kind!=ELDCombatSourceKind::None)
-        { return ELDObservedProjectileLook::AreaElectric; }
-        if (Hit.bApplyWet || Hit.CardWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedProjectileLook::AreaWater; }
+        if (Hit.CarriesElement(ELDCombatElement::Shock)) { return ELDObservedProjectileLook::AreaElectric; }
+        if (Hit.CarriesElement(ELDCombatElement::Water)) { return ELDObservedProjectileLook::AreaWater; }
         return Hit.DamageType==ELDDemoDamageType::Magical
             ? ELDObservedProjectileLook::AreaMagic : ELDObservedProjectileLook::AreaPlain;
     }
@@ -55,6 +54,9 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionComboStep=0;
     InOut.bCharging=false;
     InOut.MomentumBar=0;
+    InOut.LastReaction=0;
+    InOut.LastReactionAtMs=0;
+    InOut.LastReactionElement=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
@@ -94,6 +96,13 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         InOut.HitFlags=State->Cues.LastHitFlags;
     }
     InOut.ActionAbility=Ability;
+    if (State->Cues.LastReaction!=0 && State->Cues.LastReactionAtMs>0 && NowMs>=State->Cues.LastReactionAtMs
+        && NowMs-State->Cues.LastReactionAtMs<LDObservation::RecentReactionWindowMs)
+    {
+        InOut.LastReaction=State->Cues.LastReaction;
+        InOut.LastReactionAtMs=State->Cues.LastReactionAtMs;
+        InOut.LastReactionElement=State->Cues.LastReactionElement;
+    }
     return true;
 }
 
@@ -217,6 +226,43 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.RadiusCm=float(Zone.RadiusCm);
         Fact.WarningRemainingMs=FirstPulseAtMs>NowMs
             ? uint32(FMath::Min<int64>(FirstPulseAtMs-NowMs,MAX_uint32)) : 0;
+    }
+    // N2: a fan shows the rectangle of its next blow.
+    for (const FLDCombatFan& Fan : Fans)
+    {
+        if (Fan.EndMs<=NowMs) { continue; }
+        const FVector Heading=Fan.HeadingAt(NowMs).GetSafeNormal2D();
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Fan.ObservedKey;
+        Fact.SourceEntity=Fan.Payload.SourceEntity;
+        Fact.PositionCm=Fan.OriginCm+Heading*(Fan.LengthCm*.5);
+        Fact.Heading=FVector2D(Heading.X,Heading.Y);
+        Fact.Look=ELDObservedProjectileLook::Wind;
+        Fact.LengthCm=float(Fan.LengthCm);
+        Fact.RadiusCm=float(Fan.HalfWidthCm);
+    }
+    // N4: a bag and the wall to its partner are public obstacles.
+    for (const FLDCombatBag& Bag : Bags)
+    {
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Bag.ObservedKey;
+        Fact.SourceEntity=Bag.Payload.SourceEntity;
+        Fact.PositionCm=Bag.CentreCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::Bag;
+        Fact.RadiusCm=float(Bag.BodyRadiusCm);
+        if (!Bag.WallKey.IsValid()) { continue; }
+        const FLDCombatBag* Partner=Bags.FindByPredicate([&Bag](const FLDCombatBag& Other) { return Other.ObservedKey==Bag.WallTo; });
+        if (!Partner) { continue; }
+        const FVector Span=Bag.CentreCm-Partner->CentreCm;
+        FLDObservedProjectileFact& Wall=Out.AddDefaulted_GetRef();
+        Wall.Key=Bag.WallKey;
+        Wall.SourceEntity=Bag.Payload.SourceEntity;
+        Wall.PositionCm=(Bag.CentreCm+Partner->CentreCm)*.5;
+        Wall.Heading=FVector2D(Span.X,Span.Y).GetSafeNormal();
+        Wall.Look=ELDObservedProjectileLook::BagWall;
+        Wall.LengthCm=float(Span.Size2D());
+        Wall.RadiusCm=float(Bag.WallHalfWidthCm);
     }
     for (const auto& Channel : Channels)
     {

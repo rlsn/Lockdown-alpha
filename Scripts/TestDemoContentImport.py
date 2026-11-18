@@ -623,7 +623,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda d: d["parameters"]["COMBAT.FogIntervalSec"].update(value=3), "InvalidTiming"),
             (lambda d: d["parameters"]["COMBAT.ConductSlow"].update(value=1), "NumericDomain"),
             (lambda d: d["parameters"]["COMBAT.WetSlow"].update(value=0), "NumericDomain"),
-            (lambda d: d["parameters"]["COMBAT.DischargeRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda d: d["parameters"]["COMBAT.ShockSplashRadiusCm"].update(value=0), "InvalidGeometry"),
             (lambda d: d["parameters"].update({"COMBAT.OverloadBreachStacks": 5}), "NumericDomain"),
             (lambda d: d["parameters"].update({"COMBAT.OverloadBreachStacks": 11}), "NumericOverflow"),
             (lambda d: d["parameters"].pop("COMBAT.ReactionBase"), "MissingField"),

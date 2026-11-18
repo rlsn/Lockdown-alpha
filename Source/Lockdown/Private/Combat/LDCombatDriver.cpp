@@ -347,7 +347,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     // Zones, burns and element records due now join this boundary's hits and projectiles.
     ReactionFacts.Reset();
     ReactionAssists.Reset();
-    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceBurns(Now,Error)
+    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceGround(Now,Error)
+        || !AdvanceBurns(Now,Error)
         || !AdvanceProjectiles(Error))
     { return false; }
     // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.

@@ -124,6 +124,18 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
     return true;
 }
 
+void ReadGrounds(const FLDWorldView& View, uint8 OwnSeat, TArray<FLDOpponentGround>& Out)
+{
+    Out.Reset();
+    for (const FLDObservedGroundState& Seen : View.GroundStates)
+    {
+        FLDOpponentGround& Ground = Out.AddDefaulted_GetRef();
+        Ground.Kind = Seen.Kind;
+        Ground.View = Seen;
+        Ground.bEnemy = Seen.OwnerSeat != OwnSeat;
+    }
+}
+
 void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out)
 {
     Out.Reset();
@@ -171,6 +183,16 @@ bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const F
             {
                 Mapped.bReturning |= Status.StatusId == uint8(ELDDemoStatusId::CampReturning);
                 Mapped.bProtected |= Status.StatusId == uint8(ELDDemoStatusId::RespawnProtection);
+                // Spec §13: the AI reads a visible enemy's element from its public statuses.
+                switch (static_cast<ELDDemoStatusId>(Status.StatusId))
+                {
+                case ELDDemoStatusId::Burn: Mapped.HeldElement = 1; break;
+                case ELDDemoStatusId::Wet: Mapped.HeldElement = 2; break;
+                case ELDDemoStatusId::Electrified: Mapped.HeldElement = 3; break;
+                case ELDDemoStatusId::Chilled: Mapped.HeldElement = 4; break;
+                case ELDDemoStatusId::Rotten: Mapped.HeldElement = 5; break;
+                default: break;
+                }
             }
         }
         if (Unit.Kind == ELDObservedUnitKind::Contender)
