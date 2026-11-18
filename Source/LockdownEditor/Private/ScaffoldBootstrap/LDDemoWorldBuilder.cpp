@@ -588,6 +588,16 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
     {
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp||Saved.Contains(Anchor.Id)){continue;}
         FVector Position;if(!Anchor.PositionCm.ToVector(Position,Error)){return false;}
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn)
+        {
+            // Field spawns are player starts the registry binds by PlayerStartTag; a deleted existing one is an authoring error.
+            if(Previous.Anchors.ContainsByPredicate([&](const auto& Old){return Old.Id==Anchor.Id;}))
+            {return Fail(Error,TEXT("Missing existing player start: ")+Anchor.Id);}
+            auto* Start=World.SpawnActor<APlayerStart>(Position,FRotator::ZeroRotator);
+            if(!Start){return Fail(Error,TEXT("Could not add a field spawn player start."));}
+            Start->PlayerStartTag=FName(*Anchor.Id);Start->SetActorLabel(Anchor.Id);
+            ++Added;continue;
+        }
         auto* Point=World.SpawnActor<ATargetPoint>();
         if(!Point){return Fail(Error,TEXT("Could not add a semantic layout point."));}
         Point->Tags.Add(FName(*(FString(TEXT("LDSceneAnchor:"))+Anchor.Id)));

@@ -1149,6 +1149,8 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Slows.Reset();
     Body->AttackSlows.Reset();
     Body->TimedBonuses.Reset();
+    // Spec §11.2 layoff affix: the surviving member keeps its fallen-mate stacks for its whole life.
+    ApplyLayoffBonus(*Body);
     Body->Disarms.Reset();
     Body->Stuns.Reset();
     Body->Empowers.Reset();
