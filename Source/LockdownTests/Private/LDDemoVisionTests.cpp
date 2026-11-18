@@ -526,7 +526,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("MomentumBar"), TEXT("bCharging"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives"),
-        TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement")});
+        TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement"), TEXT("CampAffix"), TEXT("bPeddler")});
     Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
         TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
@@ -1407,18 +1407,18 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     TArray<const FLDObservedProjectileFact*> Visible;
     const auto BySight = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::Sight; };
     TestTrue(TEXT("Only flights in sight are selected, nearest first (wall, range and ground edge exclude the rest)"),
-        LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, BySight, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
+        LDObservation::SelectVisibleProjectiles(Sight, West, Facts, BySight, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
     auto Incoming=Fact(West);Incoming.Look=ELDObservedProjectileLook::LineWarning;Incoming.RadiusCm=80;Incoming.LengthCm=1600;
     TestTrue(TEXT("An incoming line remains visible when its locked origin is in sight but its midpoint is behind the wall"),
         Sight.Trace(West,West+FVector(800,0,0))==ELDSightResult::Blocked
-        && LDObservation::SelectVisibleProjectiles(Sight,West,{},TArray<FLDObservedProjectileFact>{Incoming},BySight,Visible,Error)
+        && LDObservation::SelectVisibleProjectiles(Sight,West,TArray<FLDObservedProjectileFact>{Incoming},BySight,Visible,Error)
         && Visible.Num()==1);
     TArray<FLDObservedProjectileFact> Many;
     for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 2, 100, 2))); }
-    TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Many, BySight, Visible, Error)
+    TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, Many, BySight, Visible, Error)
         && Visible.Num() == LDObservation::MaxProjectiles && Visible[0] == &Many[0] && Visible.Last() == &Many[LDObservation::MaxProjectiles - 1]);
     const TArray<FLDObservedProjectileFact> Broken = {Fact(FVector(std::numeric_limits<double>::quiet_NaN(), 0, 2))};
-    TestFalse(TEXT("A non-finite flight is a fault, not a hidden one"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Broken, BySight, Visible, Error));
+    TestFalse(TEXT("A non-finite flight is a fault, not a hidden one"), LDObservation::SelectVisibleProjectiles(Sight, West, Broken, BySight, Visible, Error));
 
     // Observer-local handles: fresh per visibility interval, never the flight key, dropped with the observer generation.
     FLDObserverLedger Ledger;
@@ -1478,29 +1478,23 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionEffectAccessTest, "Lockdown.Rules.
 bool FLDDemoVisionEffectAccessTest::RunTest(const FString& Parameters)
 {
     // #198 R15: a skill effect carries its source's body permissions: hidden across isolation groups and from the frozen
-    // world, granted over the whole arena to a spectator, seen through a living teammate's sight by a PK life.
-    const FGuid Field, RestA = FGuid::NewGuid(), RestB = FGuid::NewGuid(), Arena = FGuid::NewGuid();
+    // world, otherwise seen by plain sight.
+    const FGuid Field, RestA = FGuid::NewGuid(), RestB = FGuid::NewGuid();
     using EAccess = ELDObservedFlightAccess;
     bool bGood = TestTrue(TEXT("Field effects keep the plain sight rule in the field"),
-        LDObservation::ClassifyFlight(true, Field, true, Field, FGuid(), false, false) == EAccess::Sight);
+        LDObservation::ClassifyFlight(true, Field, true, Field) == EAccess::Sight);
     bGood &= TestTrue(TEXT("A frozen world body's effect is hidden"),
-        LDObservation::ClassifyFlight(false, Field, true, Field, FGuid(), false, false) == EAccess::Hidden);
+        LDObservation::ClassifyFlight(false, Field, true, Field) == EAccess::Hidden);
     bGood &= TestTrue(TEXT("Another rest space's training effect is hidden, the own one follows sight"),
-        LDObservation::ClassifyFlight(true, RestB, true, RestA, FGuid(), false, false) == EAccess::Hidden
-        && LDObservation::ClassifyFlight(true, RestA, true, RestA, FGuid(), false, false) == EAccess::Sight);
-    bGood &= TestTrue(TEXT("A spectator sees every arena effect without a sight line"),
-        LDObservation::ClassifyFlight(true, Arena, true, RestA, Arena, true, false) == EAccess::Granted);
-    bGood &= TestTrue(TEXT("A spectator still sees no other rest space's effect"),
-        LDObservation::ClassifyFlight(true, RestB, true, RestA, Arena, true, false) == EAccess::Hidden);
-    bGood &= TestTrue(TEXT("A PK life sees arena effects through its team's sight"),
-        LDObservation::ClassifyFlight(true, Arena, true, Arena, Arena, false, true) == EAccess::SharedSight);
-    bGood &= TestTrue(TEXT("A non-spectator outside the arena (a waiting entrant's rest group) does not see the arena"),
-        LDObservation::ClassifyFlight(true, Arena, true, RestA, Arena, false, false) == EAccess::Hidden);
+        LDObservation::ClassifyFlight(true, RestB, true, RestA) == EAccess::Hidden
+        && LDObservation::ClassifyFlight(true, RestA, true, RestA) == EAccess::Sight);
+    bGood &= TestTrue(TEXT("An observer without a group sees no grouped effect"),
+        LDObservation::ClassifyFlight(true, RestA, false, FGuid()) == EAccess::Hidden);
 
     FString Error;
     FLDSightGeometry Sight;
     if (!TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), Error))) { return false; }
-    const FVector West(-600, 0, 2), Mate(-650, 2000, 2);
+    const FVector West(-600, 0, 2);
     auto Fact = [](const FVector& Position)
     {
         FLDObservedProjectileFact Out;
@@ -1510,20 +1504,16 @@ bool FLDDemoVisionEffectAccessTest::RunTest(const FString& Parameters)
         Out.Heading = FVector2D(1, 0);
         return Out;
     };
-    // [0] in sight but of another group; [1] out of range but granted; [2] beside the teammate only; [3] beside the teammate,
-    // but plain sight; [4] plainly in sight.
-    const TArray<FLDObservedProjectileFact> Facts = {Fact(FVector(-650, 50, 2)), Fact(FVector(9000, 0, 2)), Fact(FVector(-600, 2050, 2)),
-        Fact(FVector(-600, 1950, 2)), Fact(FVector(-900, 0, 2))};
-    const TMap<FGuid, EAccess> Rules = {{Facts[0].SourceEntity, EAccess::Hidden}, {Facts[1].SourceEntity, EAccess::Granted},
-        {Facts[2].SourceEntity, EAccess::SharedSight}, {Facts[3].SourceEntity, EAccess::Sight}, {Facts[4].SourceEntity, EAccess::Sight}};
+    // [0] in sight but of another group; [1] out of range; [2] plainly in sight, farther; [3] plainly in sight, nearest.
+    const TArray<FLDObservedProjectileFact> Facts = {Fact(FVector(-650, 50, 2)), Fact(FVector(9000, 0, 2)),
+        Fact(FVector(-900, 0, 2)), Fact(FVector(-620, 0, 2))};
+    const TMap<FGuid, EAccess> Rules = {{Facts[0].SourceEntity, EAccess::Hidden}, {Facts[1].SourceEntity, EAccess::Sight},
+        {Facts[2].SourceEntity, EAccess::Sight}, {Facts[3].SourceEntity, EAccess::Sight}};
     const auto Access = [&Rules](const FLDObservedProjectileFact& One) { return Rules.FindChecked(One.SourceEntity); };
     TArray<const FLDObservedProjectileFact*> Visible;
-    bGood &= TestTrue(TEXT("Selection follows each effect's access, nearest first"),
-        LDObservation::SelectVisibleProjectiles(Sight, West, {Mate}, Facts, Access, Visible, Error) && Visible.Num() == 3
-        && Visible[0] == &Facts[4] && Visible[1] == &Facts[2] && Visible[2] == &Facts[1]);
-    bGood &= TestTrue(TEXT("Without a teammate the shared-sight effect stays unseen"),
-        LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, Access, Visible, Error) && Visible.Num() == 2
-        && !Visible.Contains(&Facts[2]));
+    bGood &= TestTrue(TEXT("Selection follows each effect's access and sight, nearest first"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, Facts, Access, Visible, Error) && Visible.Num() == 2
+        && Visible[0] == &Facts[3] && Visible[1] == &Facts[2]);
     return bGood;
 }
 

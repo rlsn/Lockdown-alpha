@@ -101,5 +101,5 @@ namespace LDBoss
     // Rules from the approved Boss block (appear/leave T) and the four BossWaypoint anchors, for a match that started at
     // StartedAtMs.
     LOCKDOWN_API bool Resolve(const FLDDemoContentSnapshot& Content, const FLDDemoWorldGeometry& Geometry, int64 StartedAtMs,
-        FLDBossState& Out, FString& Error);
+        bool bPatrolDay, FLDBossState& Out, FString& Error);
 }

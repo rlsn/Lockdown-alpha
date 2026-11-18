@@ -449,9 +449,9 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
             }
             const FUTF8ToTCHAR Decoded(reinterpret_cast<const ANSICHAR*>(Bundle.Content.GetData()), Bundle.Content.Num());
             const FString Canonical(Decoded.Length(), Decoded.Get());
-            const int32 Upper = Canonical.Find(TEXT("\"REST.PKMaxSec\""), ESearchCase::CaseSensitive);
-            const int32 Lower = Canonical.Find(TEXT("\"REST.PayoutSec\""), ESearchCase::CaseSensitive);
-            TestTrue(TEXT("Compiler case-sensitive PKMaxSec-before-PayoutSec key order survives native canonical validation"),
+            const int32 Upper = Canonical.Find(TEXT("\"DAILY.RainPuddleSec\""), ESearchCase::CaseSensitive);
+            const int32 Lower = Canonical.Find(TEXT("\"DAILY.RainPuddles\""), ESearchCase::CaseSensitive);
+            TestTrue(TEXT("Compiler case-sensitive RainPuddleSec-before-RainPuddles key order survives native canonical validation"),
                 Upper >= 0 && Lower > Upper);
         }
         for (const FString& Path : Case.ChangedPaths)
@@ -866,7 +866,7 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
 #if WITH_EDITOR
     auto* Legacy = DuplicateObject<ULDMapDefinition>(Restored, GetTransientPackage());
     if (!TestEqual(TEXT("The migration fixture changes the saved schema version"),
-        Legacy->SourceJson.ReplaceInline(TEXT("\"schema_version\": 4"), TEXT("\"schema_version\": 3")), 1)) { return false; }
+        Legacy->SourceJson.ReplaceInline(TEXT("\"schema_version\": 5"), TEXT("\"schema_version\": 4")), 1)) { return false; }
     const auto Rehash = [&](ULDMapDefinition& World)
     {
         FTCHARToUTF8 Utf8(*World.SourceJson);

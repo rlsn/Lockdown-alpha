@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Framework/LDPacingTypes.h"
 #include "Development/LDGrowthProtocol.h"
 #include "LDDevTestProtocol.generated.h"
 
@@ -56,6 +57,9 @@ enum class ELDDevTestOp : uint8
     // Spec §12 DEV ground states: Amount = an ELDGroundStateKind (1..6): one ownerless state of that kind at the caller's
     // living foot (it acts on every body, the caller included, so its standing effects and conversions can be tried).
     SpawnGroundState = 20,
+    // P6 spec §11.1, match-wide, Listen Host connection only: Amount = first + 16 * second daily modifier id (1..12 each,
+    // different), or 0 for the ordinary draw. Applies from the next match start; the running match keeps its day.
+    SetDailyPreset = 21,
 };
 
 USTRUCT()
@@ -132,6 +136,8 @@ namespace LDDevTest
     LOCKDOWN_API bool IsKnownOp(ELDDevTestOp Op);
     // RefreshCamps, OpenCapture and SkipPreparation change the match; only the Listen Host may send them.
     LOCKDOWN_API bool IsMatchWide(ELDDevTestOp Op);
+    // SetDailyPreset's Amount: 0 (the ordinary draw, Out empty) or two different daily modifier ids; false when malformed.
+    LOCKDOWN_API bool DecodeDailyPreset(int64 Amount, TArray<ELDDailyModifier>* Out);
     LOCKDOWN_API const TCHAR* OpName(ELDDevTestOp Op);
     // The player-facing name of the op in the test-mode notices and panel.
     LOCKDOWN_API const TCHAR* OpLabel(ELDDevTestOp Op);

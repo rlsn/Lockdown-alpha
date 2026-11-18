@@ -1,4 +1,5 @@
 #include "UI/LDMinimap.h"
+#include "World/LDFieldPacing.h"
 #include "UI/LDMinimapRaster.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
@@ -35,7 +36,7 @@ struct FLDMinimapStatic
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight. #97: Level1/Level2 plateaus and the
     // ramps between levels lie under every other area.
     enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone, Level1, Level2, Ramp };
-    enum class ESite : uint8 { Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp, AncientCamp };
+    enum class ESite : uint8 { Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp, AncientCamp, Vending };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
@@ -169,7 +170,7 @@ constexpr double MinimapRegionReachCm=1000.;
 bool MinimapRestAnchor(ELDDemoWorldAnchorKind Kind)
 {
     return Kind==ELDDemoWorldAnchorKind::RestSpawn||Kind==ELDDemoWorldAnchorKind::RestService||Kind==ELDDemoWorldAnchorKind::TrainingDummy
-        ||Kind==ELDDemoWorldAnchorKind::PKSignup;
+;
 }
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
@@ -242,9 +243,11 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
         // D26 (#79): a public Boss patrol point, a small gold ring.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::BossWaypoint){Site.Kind=FLDMinimapStatic::ESite::BossWaypoint;}
-        // #198: PK and rest-space anchors are not field sites.
-        else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
-            ||Anchor.Kind==ELDDemoWorldAnchorKind::PKSignup||Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn
+        // P6 spec §11.3: vending machines are public; lockers show only once seen (owner view) and mini flags only while live.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Vending){Site.Kind=FLDMinimapStatic::ESite::Vending;}
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Locker||Anchor.Kind==ELDDemoWorldAnchorKind::MiniFlag){continue;}
+        // #198: rest-space anchors are not field sites.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn
             ||Anchor.Kind==ELDDemoWorldAnchorKind::RestService||Anchor.Kind==ELDDemoWorldAnchorKind::TrainingDummy
             ||Anchor.Kind==ELDDemoWorldAnchorKind::FinalSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::FinalCapture){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
@@ -567,6 +570,8 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 case FLDMinimapStatic::ESite::Dorm:Box(5,At-FVector2f(6.f,4.f),FVector2f(12.f,8.f),Ink);Box(6,At-FVector2f(5.f,3.f),FVector2f(10.f,6.f),FLinearColor(.25f,.62f,1.f));Box(7,At-FVector2f(5.f,3.f),FVector2f(3.f,6.f),FLinearColor(.95f,.96f,.98f));break;
                 // Boss patrol point: a gold dot on an ink disc.
                 case FLDMinimapStatic::ESite::BossWaypoint:Disc(5,At,8.f,Ink);Disc(6,At,5.f,FLinearColor(.95f,.72f,.12f));break;
+                // Vending machine: a tall teal box with a pale slot.
+                case FLDMinimapStatic::ESite::Vending:Box(5,At-FVector2f(4.f,6.f),FVector2f(8.f,12.f),Ink);Box(6,At-FVector2f(3.f,5.f),FVector2f(6.f,10.f),FLinearColor(.18f,.78f,.74f));Box(7,At-FVector2f(2.f,-1.f),FVector2f(4.f,2.f),FLinearColor(.95f,.96f,.98f));break;
                 }
             }
         }
@@ -591,6 +596,38 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             }
             if(Public->PublicMatch.Generation==Own.Match)
             {
+                // P6 spec §10.3: the mid-field objective's circle, dashed while announced and solid while open, with a flag
+                // on a mini flag's centre.
+                const FLDObjectiveView& Objective=Public->PublicMatch.Objective;
+                if((Objective.Phase==ELDObjectivePhase::Announced||Objective.Phase==ELDObjectivePhase::Open)&&Objective.RadiusCm>0.f)
+                {
+                    TArray<FVector2f> Ring;
+                    for(int32 Step=0;Step<=32;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/32.;Ring.Add(Spot(Objective.CentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*double(Objective.RadiusCm)));}
+                    const FLinearColor Gold(1.f,.80f,.20f,.95f);
+                    if(Objective.Phase==ELDObjectivePhase::Announced){FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,Gold,2.f,4.f);}
+                    else{Lines(5,Ring,Gold,2.f);}
+                    if(Objective.Kind==ELDObjectiveKind::MiniFlag)
+                    {
+                        const FVector2f At=Spot(Objective.CentreCm);
+                        Box(6,At+FVector2f(-.75f,-8.f),FVector2f(1.5f,8.5f),FLinearColor(.94f,.94f,.90f));Box(7,At+FVector2f(.75f,-8.f),FVector2f(5.f,3.5f),Gold);
+                    }
+                }
+                // P6 spec §11.3: the delivery lockers this contender has seen, a brown box (dimmed once opened).
+                for(const FLDLockerView& Locker:Own.Pacing.SeenLockers)
+                {
+                    const FVector2f At=Spot(Locker.PositionCm);
+                    Box(5,At-FVector2f(5.f,5.f),FVector2f(10.f,10.f),Ink);
+                    Box(6,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Locker.bOpened?FLinearColor(.35f,.30f,.26f):FLinearColor(.78f,.52f,.26f));
+                }
+                // P6 spec §10.4: the own dead life's spawn candidates, the chosen one larger.
+                if(Own.LifePhase==ELDLifePhase::Dead&&Own.Pacing.SpawnLife==Own.Life)
+                {
+                    for(int32 Index=0;Index<Own.Pacing.SpawnCandidateCm.Num();++Index)
+                    {
+                        const FVector2f At=Spot(Own.Pacing.SpawnCandidateCm[Index]);const bool bChosen=Index==Own.Pacing.SpawnChosen;
+                        Disc(8,At,bChosen?14.f:10.f,Ink);Disc(9,At,bChosen?11.f:7.f,FLinearColor(.30f,1.f,.86f));
+                    }
+                }
                 // #198 outer §5: an open camp marker, a marker-violet ring around its camp diamond.
                 for(const FLDFieldMarkerView& Marker:Public->PublicMatch.Markers)
                 {
@@ -611,21 +648,11 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 FVector Presented=FVector::ZeroVector;const FVector2f At=Spot(Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Presented)?Presented:FVector(Unit.FeetCm));
                 if(Unit.Kind==ELDObservedUnitKind::Contender)
                 {
-                    const FString Relation=PublicState?LDHUD::PKRelationText(PublicState->PublicMatch,Own.ContenderId,Unit.ContenderId):FString();
-                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide)
-                    {
-                        Diamond(8,At,10.f,Ink);Diamond(9,At,7.f,LDHUD::PaletteColor(Unit.Presentation));
-                    }
-                    else
-                    {
-                        Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
-                        if(Relation==LDTerms::PKEnemy)
-                        {
-                            Lines(10,{At+FVector2f(-2.f,-2.f),At+FVector2f(2.f,2.f)},FLinearColor::White,1.5f);
-                            Lines(10,{At+FVector2f(-2.f,2.f),At+FVector2f(2.f,-2.f)},FLinearColor::White,1.5f);
-                        }
-                    }
+                    Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
                 }
+                // P6 spec §11.3: the second-hand dealer, a green diamond with a pale core.
+                else if(Unit.Kind==ELDObservedUnitKind::CampMember&&Unit.bPeddler)
+                {Diamond(8,At,12.f,Ink);Diamond(9,At,9.f,FLinearColor(.32f,.82f,.36f));Diamond(10,At,3.5f,FLinearColor(.95f,.96f,.98f));}
                 else if(Unit.Kind==ELDObservedUnitKind::CampMember)
                 {for(const FLDMinimapStatic::FRun& Run:Cache.MemberShadow){Box(8,At+Run.Position,Run.Extent,Ink);}for(const FLDMinimapStatic::FRun& Run:Cache.MemberBody){Box(9,At+Run.Position,Run.Extent,FLinearColor(.98f,.84f,.30f));}}
             }

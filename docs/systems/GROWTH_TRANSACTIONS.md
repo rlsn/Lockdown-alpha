@@ -114,15 +114,15 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 
 | 阶段（`EMatchStage`） | 自己的构筑（含 `RankUpSkill`、`UsePickTicket`） | ShopBuy / ShopRefresh / ShopSell / Respec | ReplaceActive / ForgetActive |
 | --- | --- | --- | --- |
-| `Rest`（休息构筑窗口 Build/Payout：时长见内容与数值 `REST.*`），活着 | 允许 | 允许（商店须本次休息已进货；洗点须靠近训练师） | 靠近训练师时允许 |
+| `Rest`（休息配装步骤：时长见内容与数值 `REST.*`），活着 | 允许 | 允许（商店须本次休息已进货；洗点须靠近训练师） | 靠近训练师时允许 |
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许 | `Dead` | `Dead` |
 | `Live`（野外段与最终野外），活着（交战中也一样） | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `Live`，死亡 | 允许，不复活、不治疗、不改复活时间 | `NotRestWindow` | `ReplacementNotAllowed` |
-| `RestLocked`（抽签、下注、PK 准备、PK、结算、返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
+| `RestLocked`（返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
 | `Closed`（结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
 
 生命阶段不是 Alive/Dead（Unspawned、Left）时每种命令都为 `LifePhaseChanged`。没有构筑安全窗：`NotSafe`（52）与 `RestOnly`（63）已退役，
-`LDProgression::FBuildContext` 只带阶段与生命阶段。PK 中不锁定报名者的构筑快照，每次权威构筑变更直接投影到当前 PK 生命。
+`LDProgression::FBuildContext` 只带阶段与生命阶段。
 开局倒计时已退役，开局休息 R0 取代它：开局选择与开局点数在 `Rest` 中提交。野外满槽选择照旧存为图纸，
 野外不能遗忘、替换、洗点或用商店。`IsRestWindow(Context)` 即 `Stage == Rest`，只给休息服务作门。
 

@@ -8,11 +8,11 @@
 
 namespace LDCombatBlueprintLedgerDetail
 {
-// §16.3: a rest life and its own training dummy share their owner's isolation group without a PK side; training results
+// §16.3: a rest life and its own training dummy share their owner's isolation group; training results
 // are owner-only rehearsal, never match facts of the build.
 bool IsTraining(const FLDBodyCombatState& Body)
 {
-    return Body.IsolationGroup.IsValid() && Body.PKSide==0;
+    return Body.IsolationGroup.IsValid();
 }
 
 // The refusals a player reads as "this build could not do that now"; protocol, staleness and phase refusals are not facts.

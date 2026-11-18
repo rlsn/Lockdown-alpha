@@ -1,4 +1,5 @@
 #include "Development/LDProgressionRules.h"
+#include "Framework/LDPacingTypes.h"
 
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDCampGrowth.h"
@@ -279,14 +280,9 @@ ELDGrowthReason LDProgression::UnspentPoints(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
-    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent) || Build.AwardedPoints < 0)
+    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent))
     {
         return ELDGrowthReason::DataInvalid;
-    }
-    // #198 session D: PK participation, winner and betting points add to the earned ones.
-    if (!ProgressionCheckedAdd(Earned, Build.AwardedPoints, Earned))
-    {
-        return ELDGrowthReason::ArithmeticOverflow;
     }
     // Points are only ever allocated out of the unspent ones, so a deficit is a broken authority record.
     if (Spent > Earned)
@@ -316,6 +312,7 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
     int64 Spent = 0;
     if (Content.Progression.ActiveSlots != 3 || Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent)
         || Build.BoughtSkillPoints < 0 || Build.BoughtSkillPoints > Content.Parameters.Shop.SkillPointMaxPerMatch
+        || Build.AffixSkillPoints < 0 || Build.AffixSkillPoints > Content.Parameters.Affix.AuditSkillPointsMax
         || Build.Actives.Num() > Content.Progression.ActiveSlots)
     {
         return ELDGrowthReason::DataInvalid;
@@ -454,7 +451,7 @@ ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
         return ELDGrowthReason::LifePhaseChanged;
     }
     // #222 (2026-11-12, "all the time 可以学新技能和加点 all the time"): learning is open on the field, in every rest step
-    // (PK included) and in the death wait alike; there is no build safe window and no build lock any more.
+    // and in the death wait alike; there is no build safe window and no build lock any more.
     return Context.Stage == EMatchStage::Closed ? ELDGrowthReason::PhaseClosed : ELDGrowthReason::None;
 }
 
@@ -508,7 +505,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     const bool bDead = Context.LifePhase == ELDLifePhase::Dead;
     switch (Kind)
     {
-    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a PK; the
+    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a rest; the
     // server still checks the resources, slots and structure of each one.
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::SkipActiveOffer:
@@ -923,7 +920,7 @@ ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Co
 
 int32 LDProgression::SkillPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
 {
-    int32 Points = Build.DevSkillPoints + Build.BoughtSkillPoints;
+    int32 Points = Build.DevSkillPoints + Build.BoughtSkillPoints + Build.AffixSkillPoints;
     for (const int64 Level : Content.Parameters.SkillRanks.PointLevels)
     {
         Points += Level <= int64(Build.Level) ? 1 : 0;
@@ -1154,12 +1151,26 @@ bool LDProgression::DefaultCardTarget(const FLDDemoContentDefinitions& Content, 
     return true;
 }
 
-ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Locked,
-    uint64 Seed, TArray<FName>& Out)
+int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source)
+{
+    switch (Source)
+    {
+    case ELDCardOfferSource::MiniFlag: return Parameters.Objective.FlagCardOffer;
+    case ELDCardOfferSource::Arena: return Parameters.Objective.ArenaCardOffer;
+    case ELDCardOfferSource::Locker: return Parameters.Explore.LockerCardOffer;
+    case ELDCardOfferSource::Peddler: return Parameters.Explore.PeddlerCardOffer;
+    case ELDCardOfferSource::CampFridge: return Parameters.Affix.FridgeCardOffer;
+    case ELDCardOfferSource::CampBonus: return Parameters.Affix.BonusCardOffer;
+    default: return Parameters.Cards.OfferSize;
+    }
+}
+
+ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
+    FName Locked, uint64 Seed, TArray<FName>& Out)
 {
     Out.Reset();
     const FLDDemoCardParameters& Parameters = Content.Parameters.Cards;
-    if (Parameters.OfferSize < 1 || Parameters.VocabWeight < 1 || (!Locked.IsNone() && !ProgressionFindCard(Content, Locked)))
+    if (Size < 1 || Parameters.VocabWeight < 1 || (!Locked.IsNone() && !ProgressionFindCard(Content, Locked)))
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -1178,7 +1189,7 @@ ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Co
         }
     }
     uint64 State = Seed;
-    while (Out.Num() < Parameters.OfferSize && !Pool.IsEmpty())
+    while (Out.Num() < Size && !Pool.IsEmpty())
     {
         int64 Total = 0;
         for (const TPair<FName, int64>& Entry : Pool) { Total += Entry.Value; }
@@ -1240,8 +1251,8 @@ ELDGrowthReason LDProgression::RefreshCardOffer(const FLDDemoContentDefinitions&
     FLDCardOfferState Offer;
     Offer.Ordinal = uint16(Progression.CardOffersEarned - Progression.CardQueue.Num() + 1);
     Offer.Source = Progression.CardQueue[0];
-    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, Progression.CarriedLock,
-        CardOfferSeed(MatchSecret, Contender, Offer.Ordinal, 0), Offer.Options); Reason != ELDGrowthReason::None)
+    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer.Source),
+        Progression.CarriedLock, CardOfferSeed(MatchSecret, Contender, Offer.Ordinal, 0), Offer.Options); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
@@ -1364,7 +1375,7 @@ ELDGrowthReason LDProgression::ApplyRerollCards(const FLDDemoContentDefinitions&
     }
     FLDCardOfferState Redrawn = *Offer;
     ++Redrawn.Rerolls;
-    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, Offer->Locked,
+    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer->Source), Offer->Locked,
         CardOfferSeed(MatchSecret, Contender, Offer->Ordinal, Redrawn.Rerolls), Redrawn.Options); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -1582,12 +1593,18 @@ ELDGrowthReason LDProgression::StockShop(const FLDDemoContentDefinitions& Conten
 int32 LDProgression::ShopRefreshPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop)
 {
     const int64 Price = int64(Parameters.Shop.RefreshPrice) + int64(Parameters.Shop.RefreshStep) * FMath::Max(Shop.Refreshes, 0);
-    return int32(FMath::Min<int64>(Price, MAX_int32));
+    return LDPacing::SalePrice(Parameters, int32(FMath::Min<int64>(Price, MAX_int32)), Shop.bSale);
 }
 
-int32 LDProgression::ShopPrice(const FLDDemoContentParameters& Parameters, ELDShopItemKind Kind)
+int32 LDProgression::ShopPrice(const FLDDemoContentParameters& Parameters, ELDShopItemKind Kind, const FLDShopState& Shop)
 {
-    return Kind == ELDShopItemKind::Skill ? Parameters.Shop.SkillPrice : Kind == ELDShopItemKind::Card ? Parameters.Shop.CardPrice : 0;
+    const int32 Price = Kind == ELDShopItemKind::Skill ? Parameters.Shop.SkillPrice : Kind == ELDShopItemKind::Card ? Parameters.Shop.CardPrice : 0;
+    return LDPacing::SalePrice(Parameters, Price, Shop.bSale);
+}
+
+int32 LDProgression::ShopSkillPointPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop)
+{
+    return LDPacing::SalePrice(Parameters, Parameters.Shop.SkillPointPrice, Shop.bSale);
 }
 
 namespace
@@ -1632,17 +1649,18 @@ ELDGrowthReason LDProgression::ApplyShopBuy(const FLDDemoContentDefinitions& Con
     if (Slot == FLDBuildCommand::ShopSkillPointSlot)
     {
         if (Current.BoughtSkillPoints >= Parameters.Shop.SkillPointMaxPerMatch) { return ELDGrowthReason::SkillPointLimit; }
-        if (Progression.Vouchers < Parameters.Shop.SkillPointPrice) { return ELDGrowthReason::NotEnoughVouchers; }
+        const int32 PointPrice = ShopSkillPointPrice(Parameters, Shop);
+        if (Progression.Vouchers < PointPrice) { return ELDGrowthReason::NotEnoughVouchers; }
         ++Out.BoughtSkillPoints;
-        OutProgression.Vouchers -= Parameters.Shop.SkillPointPrice;
+        OutProgression.Vouchers -= PointPrice;
         ++OutProgression.Shop.Revision;
-        Outcome.VouchersPaid = Parameters.Shop.SkillPointPrice;
+        Outcome.VouchersPaid = PointPrice;
         return ELDGrowthReason::None;
     }
     if (Slot >= Shop.Slots.Num()) { return ELDGrowthReason::InvalidRequest; }
     const FLDShopSlot& Item = Shop.Slots[Slot];
     if (Item.bSold || Item.Kind == ELDShopItemKind::None) { return ELDGrowthReason::ShopSoldOut; }
-    const int32 Price = ShopPrice(Parameters, Item.Kind);
+    const int32 Price = ShopPrice(Parameters, Item.Kind, Shop);
     if (Price <= 0) { return ELDGrowthReason::DataInvalid; }
     if (Item.Kind == ELDShopItemKind::Skill
         && (!ProgressionFindAbility(Content, Item.Definition) || Current.FindActive(Item.Definition) || Current.HasBlueprint(Item.Definition)))
@@ -1763,6 +1781,7 @@ FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Con
     Build.Level = FMath::Max<uint8>(View.Level, 1);
     Build.Revision = View.BuildRevision;
     Build.BoughtSkillPoints = View.Shop.SkillPointsBought;
+    Build.AffixSkillPoints = View.AffixSkillPoints;
     const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
     for (int32 Index = 0; Index < StatOrder.Num() && Index < Build.StatPoints.Num(); ++Index)
     {
@@ -1880,6 +1899,15 @@ ELDGrowthReason LDProgression::DrawFieldReward(const FLDDemoContentDefinitions& 
     case ELDFieldRewardKind::CardOffer:
         Out.Result = ELDFieldRewardResult::CardOffer;
         return ELDGrowthReason::None;
+    case ELDFieldRewardKind::MiniFlagOffer: case ELDFieldRewardKind::ArenaOffer: case ELDFieldRewardKind::LockerOffer:
+    case ELDFieldRewardKind::PeddlerOffer: case ELDFieldRewardKind::FridgeOffer: case ELDFieldRewardKind::BonusOffer:
+    {
+        static const ELDCardOfferSource Sources[] = {ELDCardOfferSource::MiniFlag, ELDCardOfferSource::Arena, ELDCardOfferSource::Locker,
+            ELDCardOfferSource::Peddler, ELDCardOfferSource::CampFridge, ELDCardOfferSource::CampBonus};
+        Out.Result = ELDFieldRewardResult::CardOffer;
+        Out.OfferSource = Sources[uint8(Kind) - uint8(ELDFieldRewardKind::MiniFlagOffer)];
+        return ELDGrowthReason::None;
+    }
     case ELDFieldRewardKind::None:
         break;
     }
@@ -1919,7 +1947,7 @@ ELDGrowthReason LDProgression::ApplyFieldGrant(const FLDDemoContentDefinitions& 
     case ELDFieldRewardResult::CardOffer:
     {
         uint16 First = 0, Last = 0;
-        if (const ELDGrowthReason Reason = QueueCardOffers(Progression, ELDCardOfferSource::FieldReward, 1, First, Last);
+        if (const ELDGrowthReason Reason = QueueCardOffers(Progression, Grant.OfferSource, 1, First, Last);
             Reason != ELDGrowthReason::None)
         {
             return Reason;

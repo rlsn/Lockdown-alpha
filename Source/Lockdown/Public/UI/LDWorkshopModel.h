@@ -121,10 +121,10 @@ namespace LDWorkshop
         LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
     // The keyword names a card sentence uses ("<b>name</>：…" lines), for the offer card's tag row.
     LOCKDOWN_API TArray<FString> KeywordNames(const TArray<FString>& KeywordLines);
-    // The six phase-bar dots of a rest: build, draw and betting, PK ready, PK, settlement and payout, return.
-    constexpr int32 RestStepDots=6;
+    // The phase-bar dots of a rest: build, return.
+    constexpr int32 RestStepDots=2;
     LOCKDOWN_API int32 RestStepDot(ELDRestStep Step);
-    // Whether the workshop opens full screen now: a rest's build, payout and return steps, and the own death wait outside a
-    // PK. Every other moment (the field, the PK steps) keeps it to the bottom of the screen.
+    // Whether the workshop opens full screen now: a rest's build and return steps, and the own death wait. The field keeps
+    // it to the bottom of the screen.
     LOCKDOWN_API bool FullScreen(bool bRest,ELDRestStep Step,bool bDeadWait);
 }

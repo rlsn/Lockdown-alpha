@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDMatchTimeline.h"
 #include "Development/LDGrowthProtocol.h"
+#include "World/LDFieldPacing.h"
 #include "LDViewTypes.generated.h"
 
 // Observation wire records are owner-directed authorized projections. They carry no actor,
@@ -125,6 +126,9 @@ struct FLDObservedUnitView
     UPROPERTY() uint8 ActionAbility = 0;
     UPROPERTY() FGuid ContenderId;  // Contender identity -> public roster name
     UPROPERTY() uint8 CreatureId = 0; // CampMember identity -> ELDDemoMonsterId
+    // CampMember only (spec §11.2/§11.3): its camp spawn's affix (ELDCampAffix) and whether it is the second-hand dealer.
+    UPROPERTY() uint8 CampAffix = 0;
+    UPROPERTY() bool bPeddler = false;
     UPROPERTY() uint8 Level = 0;
     UPROPERTY() FLDObservedResource Health;
     // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
@@ -269,6 +273,8 @@ struct FLDObservedPublicFacts
 {
     uint8 Level = 0;
     uint8 CreatureId = 0;
+    uint8 CampAffix = 0;
+    bool bPeddler = false;
     FLDObservedActivesView Actives;
     TArray<FLDObservedStatus> Statuses;
     // Combat's current action cue and the authority ms it started; None and 0 outside every cue window.
@@ -346,6 +352,8 @@ struct FLDOwnerState
     UPROPERTY() uint64 Revision = 0;
     // Growth: own level, XP and offer as one consistent owner projection.
     UPROPERTY() FLDGrowthOwnerView Growth;
+    // P6: spawn choice, vending reach, drink charges and seen lockers.
+    UPROPERTY() FLDOwnerPacingView Pacing;
 };
 
 namespace LDObservation

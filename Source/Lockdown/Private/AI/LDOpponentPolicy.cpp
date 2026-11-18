@@ -209,6 +209,7 @@ struct FContext
     double CaptureRadiusCm = 0;
     double DormRadiusCm = 0;
     double AirdropRadiusCm = 0;
+    double ObjectiveReachCm = 0;
     double LeaderRadiusCm = 0;
     // D26: the visible Boss and the band in which it acquires a contender (its aggro radius plus its reach).
     const FLDOpponentUnit* Boss = nullptr;
@@ -231,6 +232,7 @@ struct FContext
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
         AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
+        ObjectiveReachCm = ToDouble(Content.Parameters.AI.ObjectiveReachCm);
         LeaderRadiusCm = ToDouble(Content.Parameters.LeaderCircleRadiusCm);
         const FLDDemoMonsterDefinition* BossBody = Content.Monsters.FindByPredicate(
             [&Content](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::Boss && M.Id == Content.Boss.Id; });
@@ -238,7 +240,7 @@ struct FContext
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(ObjectiveReachCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture)
         {
             return false;
         }
@@ -318,6 +320,22 @@ struct FContext
     {
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
+    }
+    // P6 spec §10.3: the public place of the live mid-field objective (a mini_flag_* point, or the flagpole for the arena)
+    // while it is announced or open, within the approved reach, for a body at the approved entry health, when its walk is
+    // not suppressed; nullptr otherwise.
+    const FLDOpponentPOI* ObjectiveTarget() const
+    {
+        const FLDObjectiveView& Goal = Frame.Public.Objective;
+        if ((Goal.Phase != ELDObjectivePhase::Announced && Goal.Phase != ELDObjectivePhase::Open)
+            || !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ObjectiveEntryHPBp))
+        {
+            return nullptr;
+        }
+        const FLDOpponentPOI* Place = Goal.Kind == ELDObjectiveKind::Arena ? Capture
+            : Goal.Kind == ELDObjectiveKind::MiniFlag && !Goal.AnchorId.IsNone() ? FindPOI(Goal.AnchorId) : nullptr;
+        if (Place && Goal.Kind == ELDObjectiveKind::MiniFlag && Place->Kind != ELDOpponentPOIKind::MiniFlag) { Place = nullptr; }
+        return Place && Distance(Place->FootCm) <= ObjectiveReachCm && CanAttempt(PathKey(Place->Id)) ? Place : nullptr;
     }
     // D27: the public place nearest the centre of another contender's 上热搜 circle, inside that circle, when its walk
     // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
@@ -1542,58 +1560,6 @@ bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
     return true;
 }
 
-enum class EPKFight : uint8 { Ring, Fight };
-
-// #198 D: a living entrant's PK life fights only the visible living entrants of other sides; teammates, camp members and
-// anything else in its frame are neither a target nor a threat. The ring comes first: outside the safe or previewed radius
-// the body walks to the public place nearest the arena centre (the capture anchor) through the ordinary order path.
-// Without a visible enemy it walks there until inside the approved final ring radius, then keeps what it has.
-EPKFight PKFightBody(FContext& C, const FLDPKParameters& Params, FLDOpponentBodyIntent& Out)
-{
-    const FLDPKView& PK = C.Frame.Public.PK;
-    const FGuid& Me = C.Self.ContenderId;
-    C.Enemies.RemoveAll([&PK, &Me](const FLDOpponentUnit* Unit)
-    {
-        const FLDPKEntrantView* Entrant = Unit->Kind == ELDOpponentUnitKind::Contender && Unit->ContenderId != Me
-            ? PK.FindEntrant(Unit->ContenderId) : nullptr;
-        return !Entrant || !Entrant->bAlive || LDOpponentPolicy::IsPKTeammate(PK, Me, Unit->ContenderId);
-    });
-    C.Threats = C.Enemies;
-    C.Boss = nullptr;
-    const FLDOpponentPOI* Centre = nullptr;
-    for (const auto& POI : C.Frame.POIs)
-    {
-        const double Distance = FVector::Dist2D(POI.FootCm, PK.ArenaCentreCm);
-        const double BestDistance = Centre ? FVector::Dist2D(Centre->FootCm, PK.ArenaCentreCm) : 0.;
-        if (!Centre || Distance < BestDistance || (Distance == BestDistance && POI.Id.Compare(Centre->Id) < 0)) { Centre = &POI; }
-    }
-    const auto WalkToCentre = [&C, Centre]()
-    {
-        return Centre && C.CanAttempt(FContext::PathKey(Centre->Id)) ? MoveTo(C, *Centre) : Hold(C);
-    };
-    if (LDOpponentPolicy::PKRingRetreat(Params, PK, C.Self.FootCm, C.Now))
-    {
-        ForgetTarget(C.State);
-        Out = WalkToCentre();
-        return EPKFight::Ring;
-    }
-    const FLDOpponentUnit* Target = nullptr;
-    for (const auto* Unit : C.Enemies)
-    {
-        if (Unit->bProtected || HandleSuppressed(C, *Unit)) { continue; }
-        const double Distance = C.Distance(Unit->FootCm);
-        if (!Target || Distance < C.Distance(Target->FootCm)
-            || (Distance == C.Distance(Target->FootCm) && Unit->Handle < Target->Handle)) { Target = Unit; }
-    }
-    if (Target)
-    {
-        Out = EngageBody(C, *Target);
-        return EPKFight::Fight;
-    }
-    ForgetTarget(C.State);
-    Out = C.Distance(PK.ArenaCentreCm) > Params.FinalRadiusCm ? WalkToCentre() : Hold(C);
-    return EPKFight::Fight;
-}
 }
 
 const FLDOpponentRetryLedger::FEntry* FLDOpponentRetryLedger::Find(const FLDOpponentRetryKey& Key) const
@@ -2128,71 +2094,6 @@ bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSna
     return Capture && FVector::Dist2D(Frame.Self.FootCm, Capture->FootCm) <= Detail::ToDouble(Catalog.Get().Parameters.CaptureRadiusCm);
 }
 
-bool SignupWindowOpen(const FLDOpponentPublicMatch& Public)
-{
-    const FLDTimelineView& Timeline = Public.Timeline;
-    return Public.Phase == ELDMatchPhase::Rest && Timeline.Stage == ELDMatchStage::Rest && Timeline.Step == ELDRestStep::Build
-        && Timeline.SignupOpensAtMs > 0 && Public.NowMs >= Timeline.SignupOpensAtMs && Public.NowMs < Timeline.StepEndsAtMs;
-}
-
-bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self)
-{
-    return SignupWindowOpen(Public) && Self.IsValid() && !Public.Timeline.Signups.Contains(Self);
-}
-
-uint8 PKOwnBetSide(const FLDPKView& PK, const FGuid& Self)
-{
-    const FLDPKBetView* Bet = PK.Bets.FindByPredicate([&Self](const FLDPKBetView& B) { return B.Spectator == Self; });
-    return Bet ? Bet->Side : 0;
-}
-
-uint8 PKBetSide(const FLDOpponentPublicMatch& Public, const FGuid& Self)
-{
-    const FLDPKView& PK = Public.PK;
-    if (Public.Phase != ELDMatchPhase::Rest || Public.Timeline.Step != ELDRestStep::Betting || PK.Serial == 0
-        || !Self.IsValid() || !PK.IsBettor(Self) || PKOwnBetSide(PK, Self) != 0 || PK.Entrants.IsEmpty())
-    {
-        return 0;
-    }
-    return PK.Entrants[0].Side;
-}
-
-const FLDOpponentUnit* PKThrowTarget(const FLDPKView& PK, uint8 BetSide, const TArray<FLDOpponentUnit>& Units,
-    double ThrowRangeCm)
-{
-    if (BetSide == 0) { return nullptr; }
-    for (const FLDPKEntrantView& Entrant : PK.Entrants)
-    {
-        if (!Entrant.bAlive || Entrant.Side == 0 || Entrant.Side == BetSide) { continue; }
-        const FLDOpponentUnit* Seen = Units.FindByPredicate([&Entrant, &PK, ThrowRangeCm](const FLDOpponentUnit& Unit)
-        {
-            return Unit.Kind == ELDOpponentUnitKind::Contender && Unit.ContenderId == Entrant.Contender
-                && FVector::Dist2D(Unit.FootCm, PK.ThrowAnchorCm) <= ThrowRangeCm;
-        });
-        if (Seen) { return Seen; }
-    }
-    return nullptr;
-}
-
-bool IsPKTeammate(const FLDPKView& PK, const FGuid& Self, const FGuid& Other)
-{
-    if (Self == Other) { return false; }
-    const FLDPKEntrantView* Mine = PK.FindEntrant(Self);
-    const FLDPKEntrantView* Theirs = PK.FindEntrant(Other);
-    return Mine && Theirs && Mine->Side != 0 && Mine->Side == Theirs->Side;
-}
-
-bool PKRingRetreat(const FLDPKParameters& Params, const FLDPKView& PK, const FVector& FootCm, int64 NowMs)
-{
-    if (PK.FightStartedAtMs <= 0 || NowMs < PK.FightStartedAtMs) { return false; }
-    const int64 ElapsedMs = NowMs - PK.FightStartedAtMs;
-    const double DistanceCm = FVector::Dist2D(FootCm, PK.ArenaCentreCm);
-    if (DistanceCm > LDPKRules::RingRadiusCm(Params, ElapsedMs)) { return true; }
-    double PreviewCm = 0;
-    int64 PreviewAtMs = 0;
-    return LDPKRules::RingPreview(Params, ElapsedMs, PreviewCm, PreviewAtMs) && DistanceCm > PreviewCm;
-}
-
 const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame)
 {
     const TArray<FGuid>& Roster = Frame.Public.Roster;
@@ -2302,84 +2203,13 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     }
     if (bRest)
     {
-        const FLDTimelineView& Timeline = Frame.Public.Timeline;
-        const FLDPKView& PK = Frame.Public.PK;
-        const bool bFightRunning = Timeline.Step == ELDRestStep::PK && PK.Serial != 0 && PK.Outcome == ELDPKOutcome::Running;
-        // #198 D: a living entrant's PK life fights in the arena while the PK step runs (its inputs are open only then).
-        const FLDPKEntrantView* Entrant = PK.Serial != 0 ? PK.FindEntrant(Self.ContenderId) : nullptr;
-        if (bFightRunning && Entrant && Entrant->bAlive && Self.Phase == ELDLifePhase::Alive)
-        {
-            FLDPKParameters Ring;
-            FString RingError;
-            FContext C(Frame, Catalog, State);
-            if (!FLDPKParameters::FromContent(Catalog.Get().Parameters, Ring, RingError) || !C.Initialize())
-            {
-                ForgetBody(State);
-                return Finish(EMode::Stopped, EReason::ProviderUnavailable);
-            }
-            const EPKFight Fight = PKFightBody(C, Ring, Out.Body);
-            if (Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action))
-            {
-                Out.Body = FLDOpponentBodyIntent();
-                Out.Body.Kind = EBody::Keep;
-            }
-            return Finish(EMode::PK, Fight == EPKFight::Ring ? EReason::PKRing : EReason::PKFight);
-        }
-        // Everyone else stays in the shared rest room; spectating sends no order while the arena runs.
+        // Everyone stays in the shared rest room.
         ForgetBody(State);
-        // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
-        // throw answer. Standing in the shared disk is the sign-up the authority judges from the committed foot,
-        // so while the window is open the body walks into it and then stays there (no training) until the lock; an accepted
-        // action or a channel finishes first.
-        EReason PKReason = EReason::None;
-        if (SignupWindowOpen(Frame.Public) && Frame.SignupPOI.IsSet() && Self.Phase == ELDLifePhase::Alive)
-        {
-            const FLDOpponentPOI& Disk = Frame.SignupPOI.GetValue();
-            const auto& Order = Frame.Order;
-            const bool bWalking = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Disk.Id;
-            const bool bActing = Self.bChanneling || (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::Action);
-            if (bWalking || bActing) { Out.Body.Kind = EBody::Keep; }
-            else if (Frame.Public.Timeline.Signups.Contains(Self.ContenderId))
-            {
-                Out.Body.Kind = Order.IsLive() ? EBody::Stop : EBody::Keep;
-            }
-            else
-            {
-                Out.Body.POI = Disk.Id;
-                Out.Body.Key = FContext::PathKey(Disk.Id);
-                Out.Body.Kind = EBody::MoveGround;
-            }
-            PKReason = EReason::PKSignUp;
-        }
-        else if (const uint8 Side = PKBetSide(Frame.Public, Self.ContenderId); Side != 0 && State.PKBetSerial != PK.Serial)
-        {
-            State.PKBetSerial = PK.Serial;
-            Out.PK.Kind = ELDOpponentPKKind::Bet;
-            Out.PK.Serial = PK.Serial;
-            Out.PK.Side = Side;
-            PKReason = EReason::PKBet;
-        }
-        else if (bFightRunning && PK.IsBettor(Self.ContenderId) && Frame.Public.NowMs >= Frame.PKThrowReadyAtMs)
-        {
-            if (const FLDOpponentUnit* Target = PKThrowTarget(PK, PKOwnBetSide(PK, Self.ContenderId), Frame.Units,
-                ToDouble(Catalog.Get().Parameters.ThrowRangeCm)))
-            {
-                Out.PK.Kind = ELDOpponentPKKind::Throw;
-                Out.PK.Serial = PK.Serial;
-                Out.PK.TargetCm = Target->FootCm;
-                PKReason = EReason::PKThrow;
-            }
-        }
         const bool bBuildWindow = Frame.Public.BuildStage() == LDProgression::EMatchStage::Rest;
         const bool bBuildsNow = bBuildWindow && Frame.Public.NowMs >= Self.OpeningPickAtMs;
         if (bBuildsNow && DecideBuild(Frame, Catalog, State, true, Out.Build))
         {
             const ELDRestService Required = RestServiceForBuild(Out.Build.Kind);
-            if (Required != ELDRestService::None && PKReason == EReason::PKSignUp)
-            {
-                Out.Build = FLDOpponentBuildIntent();
-                return Finish(EMode::PK, PKReason);
-            }
             if (Required != ELDRestService::None && Self.NearbyRestService != Required)
             {
                 Out.Build = FLDOpponentBuildIntent();
@@ -2406,9 +2236,8 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         }
         // Once nothing is left to build and nothing is in flight, a living body tries its build on its training target with
         // the production engagement (§6.3 activations, then the basic attack), the only unit it ever
-        // engages here; the dummy is known only by the HUD's roster rule. A decision sending a PK request sends no body
-        // intent (a running training order goes on); training resumes at the next decision.
-        if (bBuildsNow && PKReason == EReason::None && !Frame.bBuildChangeInFlight && Self.Phase == ELDLifePhase::Alive)
+        // engages here; the dummy is known only by the HUD's roster rule.
+        if (bBuildsNow && !Frame.bBuildChangeInFlight && Self.Phase == ELDLifePhase::Alive)
         {
             if (const FLDOpponentUnit* Dummy = TrainingDummy(Frame))
             {
@@ -2431,7 +2260,6 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         {
             Out.Body.Kind = EBody::Stop;
         }
-        if (PKReason != EReason::None) { return Finish(EMode::PK, PKReason); }
         return Finish(EMode::Stopped, EReason::Stopped);
     }
     FContext C(Frame, Catalog, State);
@@ -2633,6 +2461,15 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         EndVisit(State, false);
         Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
         return Finish(EMode::Airdrop, EReason::ContestAirdrop);
+    }
+    // P6 spec §10.3: a healthy body within reach goes for the live mini flag or the arena, below the airdrop and above
+    // farming, never out of a camp fight it began. It waits on the point (well inside the circle) for the opening; a
+    // contender seen there is engaged by the ordinary engage branch above.
+    if (const FLDOpponentPOI* Goal = State.VisitEngagedAtMs == 0 ? C.ObjectiveTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(C.Distance(Goal->FootCm) * 2. <= double(Frame.Public.Objective.RadiusCm) ? Halt(C) : MoveTo(C, *Goal));
+        return Finish(EMode::Objective, EReason::ContestObjective);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

@@ -57,7 +57,7 @@
 | `UNIT.MoveSpeedCmPerSec`、`UNIT.CollisionRadiusCm`、`UNIT.BasicAttackRangeCm` | 内容模块定单位与建议值，世界模块验证通道和接近几何 |
 | `VISION.RadiusCm` | 内容模块定半径；世界与视野模块验证遮挡与权限 |
 | `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`MATCH.FieldSegmentSec`、`REST.*` | 内容模块定尺度与节奏；比赛模块实现 Spec 的同刻结算和唯一胜者 |
-| `LIFE.RespawnSec.Field1/Field2/Field3/Final`、`LIFE.ProtectionSec` | 内容模块定时长；生命与权威模块维持时间、免疫、保留和重开隔离 |
+| `LIFE.RespawnBaseSec`、`LIFE.RespawnPerLevelSec`、`LIFE.SpawnChoice*`、`LIFE.ProtectionSec` | 内容模块定时长；生命与权威模块维持时间、免疫、保留和重开隔离 |
 | `CAMP.Low.*`、`CAMP.High.*`、`CAMP.Elite.*`、`CAMP.Growth*` | 内容模块定构成、强度、收益、刷新、追击、重置与随时间成长；世界模块配置稳定营地锚点（数量随世界） |
 
 所有世界距离建议统一为单层地面脚点的 XY 厘米距离。普攻距离是攻击者中心至目标中心，
@@ -228,54 +228,74 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `SHOWDOWN.RespawnLimit` | count/int | 2 | 每人终局最多入队两次复活，不继承野外的无限复活 |
 | `SHOWDOWN.FirstRespawnSec` / `SecondRespawnSec` | s/Sec | 18 / 24 | 按已入队复活次数决定等待，合法队列可跨过截止点完成 |
 | `SHOWDOWN.RespawnCutoffSec` | s/Sec | 90 | 从终局开始计；之后死亡不再入队，已入队复活仍可完成 |
-| `SHOWDOWN.ClosureStartsSec` | s/Sec | 75 | 从终局开始计，到期从初始圈向终圈线性封街直到终局结束；几何和圈伤复用 PK 的扫掠脚点规则，不复用 PK 判胜 |
-| `MATCH.FieldSegmentSec` | s/Sec | 130 | 三段定时野外各130s；野外进度T只在野外推进，休息与PK暂停T；PK只在R1、R2举行，R0与R3不开放报名或举行PK；R3返场十秒后开放终局旗杆 |
-| `REST.OpeningBuildSec` | s/Sec | 75 | 开局R0构筑/试招窗；所有真人准备后可提前结束，不开放PK报名 |
-| `REST.BuildSec` | s/Sec | 50 | R1–R3构筑/试招窗；所有真人准备后可提前结束 |
-| `REST.SignupSec` | s/Sec | 10 | R1、R2构筑窗最后 10s 兼作 PK 站圈报名；R0、R3不开放报名。所有真人准备后只缩短到最后 10s，不延长或重置已开放窗口；AI 不阻塞。六个 `pk_signup_<槽位>` 站位共用一个公共圆盘，半径复用 `AIRDROP.PickupRadiusCm` 的 150 cm |
-| `REST.DrawSec` | s/Sec | 5 | 抽签与公布；报名名单已锁，自己的构筑不锁，NPC 服务关闭 |
-| `REST.BettingSec` | s/Sec | 8 | 非选手竞猜，到截止封盘 |
-| `REST.PKReadySec` | s/Sec | 3 | PK就位倒计时，双方禁止移动和进攻 |
-| `REST.PKMaxSec` | s/Sec | 60 | PK最长时长，提前决出胜方立即结束 |
-| `REST.SettlementSec` | s/Sec | 3 | 冻结结果并一次性结算 |
-| `REST.PayoutSec` | s/Sec | 12 | 休息兑现，处理奖励、NPC、重构和试招 |
-| `REST.ReturnSec` | s/Sec | 5 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；NPC 服务关闭）；R0、R3不举行PK时，以及R1、R2报名不足2人时，配装截止后直接进入此倒计时 |
+| `SHOWDOWN.ClosureStartsSec` | s/Sec | 75 | 从终局开始计，到期从初始圈向终圈线性封街直到终局结束；圈外伤害按扫掠脚点的真实圈外时长结算 |
+| `SHOWDOWN.RingRadiusCm` / `RingFinalRadiusCm` | cm/Cm | 1800 / 600 | 封街开始时的安全半径与终局结束时的终圈；须满足 0 < 终圈 < 初始圈 |
+| `SHOWDOWN.RingPreviewSec` | s/Sec | 10 | 封街开始前这么久显示终圈 |
+| `SHOWDOWN.RingDamageTickSec` | s/Sec | 0.25 | 圈外伤害每 250 ms 按真实圈外时间结算一次 |
+| `SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec` / `LateMaxHPRatioPerSec` | ratio/R4 | 0.05 / 0.12 | 封街前一半、后一半圈外每秒扣最大生命的比例，直扣生命，须大于 0 |
+| `MATCH.FieldSegmentSec` | s/Sec | 160 | 三段定时野外各 160 s；野外进度 T 只在野外推进，休息暂停 T；R3 返场十秒后开放终局旗杆 |
+| `REST.OpeningBuildSec` | s/Sec | 25 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
+| `REST.BuildSec` | s/Sec | 25 | R1–R3 构筑/试招窗；所有真人准备后立即结束；AI 不阻塞 |
+| `REST.ReturnSec` | s/Sec | 5 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；NPC 服务与商店关闭） |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
-| `REST.EntryReadyTimeoutSec` | s/Sec | 30 | PK入场与返回野外都是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；PK超时记本场NoContest（不发奖励）并回到休息位，返回野外超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
-| `PK.ArenaRadiusCm` | cm/Cm | 1800 | PK圈以旗杆锚点为圆心，0–10s 安全半径保持1800cm |
-| `PK.RingMidRadiusCm` | cm/Cm | 600 | 10–40s 由1800cm线性缩到600cm |
-| `PK.RingFinalRadiusCm` | cm/Cm | 150 | 40–55s 由600cm线性缩到150cm，55–60s 保持150cm；须满足 终圈 < 中圈 < 场地半径（导入校验拒绝） |
-| `PK.RingShrinkStartSec` | s/Sec | 10 | 开始缩圈的PK时刻 |
-| `PK.RingMidSec` | s/Sec | 40 | 缩到中圈的PK时刻 |
-| `PK.RingFinalSec` | s/Sec | 55 | 缩到终圈的PK时刻；须满足 开始缩圈 < 中圈时刻 < 终圈时刻 < `REST.PKMaxSec`（导入校验拒绝） |
-| `PK.RingPreviewSec` | s/Sec | 10 | 提前这么久显示下一个圈 |
-| `PK.RingDamageTickSec` | s/Sec | 0.25 | 圈外伤害每250ms按真实圈外时间结算一次 |
-| `PK.RingDamageEarlyMaxHPRatioPerSec` | ratio/R4 | 0.05 | 0–40s 圈外每秒扣PK开始时最大HP的5%；须大于0 |
-| `PK.RingDamageMidMaxHPRatioPerSec` | ratio/R4 | 0.12 | 40–55s 圈外每秒12% |
-| `PK.RingDamageFinalMaxHPRatioPerSec` | ratio/R4 | 0.25 | 55–60s 圈外每秒25% |
-| `PK.TeamFormatRatio` | ratio/R4 | 0.5 | 4或6人参赛时以此概率混战，否则平均随机分队 |
-| `PK.RewardMultiplier` | ratio/R4 | 1.5 | 三类基准奖池各自乘此值后向上取整，再轮换分配 |
-| `PK.ParticipationPoints` | Count | 1 | 每位合资格选手的基准参与点数；本场参与基准奖池为合资格选手数 × 此值 |
-| `PK.WinnerPointsMax` | Count | 3 | 胜方基准奖池为 ⌈N/2⌉ 点，最多这么多；再乘 `PK.RewardMultiplier` |
-| `PK.BettingPoolMaxPoints` | Count | 2 | 竞猜基准奖池 = min(此值, 合格观众数)；再乘 `PK.RewardMultiplier` |
-| `THROW.CooldownSec` | s/Sec | 10 | 观众投掷冷却，从一次成功投掷开始计 |
-| `THROW.TelegraphSec` | s/Sec | 0.8 | 投掷落点预警时长 |
-| `THROW.RadiusCm` | cm/Cm | 120 | 落点作用半径，须大于0 |
-| `THROW.RangeCm` | cm/Cm | 4000 | 从场外固定投掷锚点起算的最远距离，须大于0 |
-| `THROW.SlowRatio` | ratio/R4 | 0.2 | 命中减速20%；须大于0 |
-| `THROW.SlowSec` | s/Sec | 1 | 减速时长 |
-| `THROW.ExposeSec` | s/Sec | 2 | 命中后暴露时长 |
-| `LIFE.RespawnSec.Field1` | s/Sec | 8 | 死亡时 0≤T<180s 的野外复活等待，按死亡时T固定，不叠死亡次数/等级惩罚 |
-| `LIFE.RespawnSec.Field2` | s/Sec | 10 | 死亡时 180≤T<360s |
-| `LIFE.RespawnSec.Field3` | s/Sec | 12 | 死亡时 360≤T<540s |
+| `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 返回野外是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
+| `LIFE.RespawnBaseSec` / `RespawnPerLevelSec` | s/Sec | 6 / 0.5 | 野外复活等待 = 6 + 0.5 × 死亡时等级（秒）；考试周另加 `DAILY.ExamRespawnBonusSec` |
+| `LIFE.SpawnChoiceCount` | Count | 2 | 死亡时从全部野外出生点不放回抽这么多个候选；不超过 4，也不超过出生点数 |
+| `LIFE.SpawnChoiceSec` | s/Sec | 4 | 死者在这段时间内选一个候选，不选用第一个 |
+| `OBJECTIVE.StartSec` / `AnnounceLeadSec` | s/Sec | 100 / 10 | 每段定时野外第 100 s 开放野外目标，提前 10 s 预告；须在本段内开始并结束 |
+| `OBJECTIVE.FlagWindowSec` / `FlagRadiusCm` / `FlagSpraySec` | s, cm, s | 30 / 200 / 3 | 野外 1、3 的小迷你旗：开放 30 s，半径 200 cm，独自累计喷漆 3 s 获胜（规则同旗杆喷漆） |
+| `OBJECTIVE.FlagCardOffer` / `VOUCHER.MiniFlag` | Count | 3 / 15 | 小迷你旗胜者的牌选组大小与饭票 |
+| `OBJECTIVE.ArenaSec` / `ArenaRadiusCm` | s, cm | 40 / 900 | 野外 2 的擂台：以旗杆为中心，开放 40 s，只计双方都在圈内的参赛者伤害 |
+| `OBJECTIVE.ArenaCardOffer` / `VOUCHER.Arena` | Count | 5 / 20 | 擂台胜者的牌选组大小与饭票；擂台胜者另在 R3 多一个终局改装候选 |
+| `VOUCHER.BountyKill` / `BountyAssist` | Count | 15 / 5 | 上热搜者被击杀时击杀者与每名助攻者另得的饭票 |
 | `LIFE.ProtectionSec` | s/Sec | 3 | 短暂移动/读局时间；不能计入“必需回防延迟”，合法主动可以提前解除 |
 
-野外复活等待不是“替换随机出生”的安全筛选。仍严格对十二点等概率可重复抽样；
+野外复活的候选在全部出生点中等概率不放回抽取，不按安全度筛选；
 所有属性/技能和待选继续保留，只有等待与位置代价。
 复活短于守护窗意味着死者可能及时返场改漆或围攻；这是已批准的节奏取舍，不保证自由混战必然有限时间结束。
 终局以 `SHOWDOWN.*` 的期限、两次复活与入队截止为准，不使用最终野外的重复复活推导；期限内没有目标胜者时执行目标贡献裁决。
 
-### 3.5 跨域政策稳定键
+### 3.5 今日热点、营地词条与隐藏物
+
+每局开始从十二个今日热点中不放回抽 `DAILY.Count`（2）个，整局生效并公开。
+
+| 热点 | 参数 | 规则 |
+| --- | --- | --- |
+| 下雨 | `DAILY.RainIntervalSec` 20、`RainPuddles` 6、`RainPuddleSec` 10、`RainWetBonusSec` 2 | 每 20 s 在野外随机 6 处生成无主水洼（10 s）；湿持续 +2 s |
+| 寒潮 | `DAILY.ColdFreezeSec` 20、`ColdChillBonusSec` 2 | 水洼生成 20 s 后变冰面；冻持续 +2 s |
+| 停电 | `DAILY.BlackoutVisionCut` 0.3、`BlackoutShockScale` 2 | 参赛者视野半径 −30%（野怪感知不变）；麻的额外伤害 ×2 |
+| 台风 | `DAILY.TyphoonIntervalSec` 30、`TyphoonPushCm` 150 | 每 30 s 全图向同一随机方向吹 150 cm，人和地面状态一起吹 |
+| 高温 | `DAILY.HeatBurnTickScale` 1.3 | 灼烧每跳 ×1.3；起雾不生成雾区 |
+| 打折 | `DAILY.SalePriceScale` 0.5 | 商店技能、牌、技能点与刷新价 ×0.5，向上取整，不低于 1 |
+| 外卖日 | `DAILY.DeliveryLandSec`（12 个时刻）、`DeliveryExpireSec` 15 | 天降外卖改用这 12 个落地时刻，每份 15 s 后消失 |
+| 巡查 | `DAILY.PatrolBossAppearSec` 120 | 画饼老板在 T=120 s 出场 |
+| 考试周 | `DAILY.ExamMonsterXPScale` 1.3、`ExamRespawnBonusSec` 3 | 野怪经验 ×1.3；野外复活等待 +3 s |
+| 健身 | `DAILY.GymDashCooldownCut` 0.3 | 冲刺冷却 −30% |
+| 加班 | — | 所有营地刷新都带“加班”词条 |
+| 吃瓜 | `DAILY.RumorLeaders` 2 | 上热搜每次公开前两名，各有模糊圆与悬赏 |
+
+营地词条：高、精英与远古营地每次刷新以 `AFFIX.Chance`（0.3）的概率均匀带六个之一（加班日全部营地都带加班）。
+
+| 词条 | 参数 | 规则 |
+| --- | --- | --- |
+| 加班 | `AFFIX.OvertimeAttackSpeed` 0.3、`OvertimeVoucherScale` 2 | 成员攻速 +30%；清营饭票 ×2 |
+| 团建 | `AFFIX.TeambuildXPScale` 1.5 | 成员经验 ×1.5 |
+| 冰箱 | `AFFIX.FridgeCardOffer` 3 | 攻击挂冻、脚下常驻冰面；清营得一组三选一 |
+| 奖金 | `AFFIX.BonusHP` 0.4、`BonusCardOffer` 5 | 成员生命 +40%；清营得一组五选一 |
+| 裁员 | `AFFIX.LayoffAttack` 0.3、`LayoffVouchers` 8 | 同营每倒下一个，其余攻击 +30%（可叠）；清营另得 8 饭票 |
+| 审计 | `AFFIX.AuditTelegraphCut` 0.3、`AuditSkillPointsMax` 1 | 技能预警缩短 30%；清营得一个技能点，每局每人最多 1 个 |
+
+隐藏物：
+
+| 对象 | 参数 | 规则 |
+| --- | --- | --- |
+| 外卖柜 | `EXPLORE.LockerCount` 4、`LockerRadiusCm` 150、`LockerChannelSec` 3、`LockerCardChance` 0.5、`LockerCardOffer` 3、`VOUCHER.Locker` 8 | 每局从 `locker_*` 中抽 4 个装货；柜旁 150 cm 内连续 3 s 打开（受伤或硬控打断），得 8 饭票，50% 再得一组三选一；看见后留在本人小地图 |
+| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 280、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一张点名券与一组五选一 |
+| 售货机 | `EXPLORE.VendingBuffPrice` 2、`VendingBuffSec` 30、`VendingAttackSpeed` 0.2、`VendingMomentumPerSec` 2、`VendingMoveSpeed` 0.15、`VendingDrinkPrice` 3、`VendingDrinkHits` 5 | `vending_*` 公开；2 饭票买 30 s 攻速 +20%、每秒 +2 劲或移速 +15%；3 饭票买一瓶元素饮料（火、水、麻、冻、馊之一），之后 5 次普攻附带该元素 |
+
+AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）：生命不低于 60% 且离目标点不超过 2500 cm 时前往开放或预告中的野外目标。
+
+### 3.6 跨域政策稳定键
 
 | 键 | 值/语义 | 批准边界 |
 | --- | --- | --- |
@@ -344,7 +364,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 
 基础点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
 ⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）及池空奖励；
-另加 PK 和野外的奖励点数。未分配点数 = 已得 − 五维点数之和，不能为负。
+未分配点数 = 已得 − 五维点数之和，不能为负。
 不计额外奖励时开局与正常成长到 16 级共 48 点；之后每满 240 XP 再得 3 点。
 
 **技能等级成长**：固定项随拥有者等级 L 乘 G(L)，再乘技能等级倍率，`SKILL.GrowthPerLevel=0.04`：
@@ -474,9 +494,9 @@ $$
 | 3、6 级 | `progression.active_offer_levels=[3,6]`：每达到其中一级加一次机会，从全部主动中等概率、不放回抽 3 个；该级的点数照发 |
 | 排除与不足 | 已学主动与待学图纸不进入候选；只有 1–2 个合格时只给这些；没有合格时机会排队、不生成候选，构筑变化后重新判定；排队不阻挡加点 |
 | 队列与随机 | 同时只有一组候选，其余机会排队；随机由本局私有种子、参赛者与机会序号决定，同一序号重试不换种子；没有权重、没有重抽 |
-| 选择 | 选中项成为待学图纸；有空槽时同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），Q/W/E 已满时存为图纸，回执写明原因（没有空槽）；对局进行中随时可选（交战中、死亡等待、休息每个步骤含 PK） |
+| 选择 | 选中项成为待学图纸；有空槽时同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），Q/W/E 已满时存为图纸，回执写明原因（没有空槽）；对局进行中随时可选（交战中、死亡等待、休息每个步骤） |
 | 学习图纸 | 学到指定的空槽，时机同上（死亡等待中也可以）；学到已占用的槽被拒绝（满槽替换只在休息，§4.4） |
-| 加点 | 一次至少 1 点，按五维分配，合计不超过未分配点数；时机同上（对局进行中随时，含交战、死亡等待与 PK）；整次生效或拒绝；洗点只在休息的配装与派奖期间 |
+| 加点 | 一次至少 1 点，按五维分配，合计不超过未分配点数；时机同上（对局进行中随时，含交战与死亡等待）；整次生效或拒绝；洗点只在休息的配装中 |
 | 交战窗口 | `GROWTH.BuildSafeWindowSec=4`：普攻成功起手或进攻技能释放、对敌方造成正伤害（含灼烧与区域跳伤）、受到敌方正伤害、被施加定身/眩晕/沉默/缴械/嘲讽/击退（单独减速不算）后 4s 内算交战；菜单、视野与回复不刷新；死亡不重置。只用于 HUD 交战中收起野外摘要，不再限制学习、加点或装牌 |
 
 - 重学同一定义（包括休息替换后再获得被遗忘的技能）沿用该定义原有的冷却记录与结束时间（§10.2）。
@@ -759,7 +779,7 @@ $$
 `Dorm` 锚点，技术标识仍为 Dorm）。世界生成器要求躺平角圆盘是合法站立地面，且不与占领圈、营地净空区和其他事件圆重叠；
 数量在 1..8 之间，标识不再固定。同样要求比例是 0.001 的整数倍。数值是首轮试玩值，未经平衡验证。
 
-**天降外卖（技术标识 airdrop）**：所有时刻都用野外进度 T（只在野外推进，休息和 PK 暂停，不因休息/PK 补算或重发）。
+**天降外卖（技术标识 airdrop）**：所有时刻都用野外进度 T（只在野外推进，休息暂停，不因休息补算或重发）。
 第 n 份外卖在 T = `AIRDROP.LandSec[n]` 落地，表为 32、90、163、220、293、350 s，共 6 份、全房最多 6 份，之后不再有第七份；
 提前 `AIRDROP.AnnounceLeadSec=15` 秒公开落点和倒计时。落地后第一个脚点进入
 `AIRDROP.PickupRadiusCm=150` 圆内、且不在复活保护中的存活参赛者获得 `AIRDROP.RewardXP=200` 流量
@@ -808,7 +828,7 @@ $$
 
 `final_mods` 是独立于 22 主动和 55 张构筑牌的八项规则目录。R3 每人只选一项，选择及来源保存在原构筑，
 不消耗普通容量、不换主动、不增加按键。A 项在合法机制卡中均匀抽取，没有机制来源才用普适卡；
-B 项在四张普适卡中无放回抽取；C 项在剩余合法项中均匀抽取。击杀画饼老板或赢得 R1、R2 的 PK
+B 项在四张普适卡中无放回抽取；C 项在剩余合法项中均匀抽取。击杀画饼老板或赢得擂台
 可在 R3 多看一张（同样从剩余合法项抽，最多一次），一局仍只选一项。揭示后固定，选择时重验来源，不重抽或自动改绑。
 普适卡不显式绑定；机制卡绑定一项已学主动或人人都有的 D。数值来自正式 `final_mods` 输入，
 固定伤害下列 `a/b` 为 L1/L16，AD/AP 系数另算，仍受普通抗性与伤害结算约束；不是全局平衡结论。

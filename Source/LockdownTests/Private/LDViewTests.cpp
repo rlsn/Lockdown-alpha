@@ -23,15 +23,15 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
-        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK"),
-        TEXT("Showdown"),TEXT("OwnerBankedGuardMs")},TEXT("The public flagpole carries only public objective and timeline state"));
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),
+        TEXT("Showdown"),TEXT("OwnerBankedGuardMs"),TEXT("DailyModifiers"),TEXT("Objective")},TEXT("The public flagpole carries only public objective and timeline state"));
     ExpectStruct(FLDShowdownView::StaticStruct(),{TEXT("bStarted"),TEXT("StartedAtMs"),TEXT("EndsAtMs"),
         TEXT("RespawnsCloseAtMs"),TEXT("ClosureAtMs"),TEXT("SprayMs"),TEXT("GuardMs"),TEXT("CentreCm"),
         TEXT("InitialRadiusCm"),TEXT("FinalRadiusCm")},TEXT("The public showdown exposes clocks and arena geometry, never hidden contenders or builds"));
-    // #198 session D: the public PK names entrants, sides, bets, the arena, pending throws and the settled awards only.
-    ExpectStruct(FLDPKView::StaticStruct(),{TEXT("Generation"),TEXT("Serial"),TEXT("RestIndex"),TEXT("Format"),TEXT("SideCount"),
-        TEXT("Entrants"),TEXT("Bettors"),TEXT("Bets"),TEXT("ArenaCentreCm"),TEXT("ThrowAnchorCm"),TEXT("FightStartedAtMs"),TEXT("Outcome"),
-        TEXT("WinnerSide"),TEXT("DecidedAtMs"),TEXT("Throws"),TEXT("Awards")},TEXT("The public PK carries no HP, build or hidden state"));
+    // P6: the public objective names its place, window and the mini flag's sole sprayer and winner; never HP or builds.
+    ExpectStruct(FLDObjectiveView::StaticStruct(),{TEXT("Serial"),TEXT("Kind"),TEXT("Phase"),TEXT("AnchorId"),TEXT("CentreCm"),
+        TEXT("RadiusCm"),TEXT("OpensAtT"),TEXT("ClosesAtT"),TEXT("Sprayer"),TEXT("SprayMs"),TEXT("SprayNeedMs"),TEXT("bContested"),
+        TEXT("Winner")},TEXT("The public objective carries no HP, build or hidden state"));
     // D26: the current 天降外卖 names only its public point, landing and expiry instants; never its claimer or claim time (§6.3).
     ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs"),
         TEXT("ExpireAtMs")},TEXT("The public airdrop names only its public point, landing and expiry"));
@@ -39,8 +39,9 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDFieldMarkerView::StaticStruct(),{TEXT("Segment"),TEXT("Kind"),TEXT("CampId"),TEXT("PositionCm"),TEXT("Phase"),
         TEXT("RevealAtMs"),TEXT("EndAtMs")},TEXT("The public camp marker never names its claimer"));
     // D27: the leader notice is deliberately public, but only as a fuzzy circle; never the leader's exact position.
-    ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs")},
-        TEXT("The public leader notice names only the leader, a fuzzy circle and the bounty"));
+    // Spec §11.1 rumor day: the runner-up is named the same way, with its own fuzzy circle.
+    ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs"),TEXT("RunnerUp"),
+        TEXT("RunnerUpCentreCm")},TEXT("The public leader notice names only the trending contenders and their fuzzy circles"));
     // D26: the Boss view names only its phase, its appearance and leave times and the last hit; its body is under fog of war.
     ExpectStruct(FLDBossView::StaticStruct(),{TEXT("Phase"),TEXT("AppearAtMs"),TEXT("LeaveAtMs"),TEXT("KilledBy"),TEXT("DownAtMs")},
         TEXT("The public Boss view never carries the Boss's position or health"));

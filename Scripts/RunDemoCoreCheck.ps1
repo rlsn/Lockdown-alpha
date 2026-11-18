@@ -1,4 +1,4 @@
-# #198: the default covers the opening rest R0 (180 s build + 5 s return, no PK sign-ups) before the field-1 walk.
+# #198: the default covers the opening rest R0 (25 s build + 5 s return) before the field-1 walk.
 [CmdletBinding()]
 param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$ReplayFieldReturn, [switch]$FinalEntryOnly,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)

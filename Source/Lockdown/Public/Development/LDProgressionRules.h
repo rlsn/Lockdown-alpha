@@ -67,8 +67,6 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FLDLearnedActive> Actives;
     // Chosen actives waiting to be learned (待学图纸), sorted by id; never a learned id.
     TArray<FName> PendingBlueprints;
-    // #198 session D: points paid by PK settlements (participation, winner share, betting pool). Unspent until allocated.
-    int64 AwardedPoints = 0;
     // Owned cards sorted by serial; NextCardSerial is the serial of the next card received (never reused in a match).
     TArray<FLDCardInstance> Cards;
     uint16 NextCardSerial = 1;
@@ -78,6 +76,8 @@ struct LOCKDOWN_API FLDGrowthBuild
     int32 DevSkillPoints = 0;
     // Spec §3.13: skill points bought in the rest shop (at most SHOP.SkillPointMaxPerMatch per match).
     int32 BoughtSkillPoints = 0;
+    // Spec §11.2: skill points from clearing an audit-affix camp (at most AFFIX.AuditSkillPointsMax per match).
+    int32 AffixSkillPoints = 0;
     uint64 Revision = 1;
 
     const FLDLearnedActive* FindActive(FName Id) const;
@@ -136,6 +136,8 @@ struct FLDShopSlot
 struct FLDShopState
 {
     bool bStocked = false;
+    // Spec §11.1 sale day: every price of this shop is DAILY.SalePriceScale (rounded up).
+    bool bSale = false;
     uint64 Revision = 0;
     TArray<FLDShopSlot> Slots;
     int32 Refreshes = 0;
@@ -210,10 +212,9 @@ namespace LDProgression
         uint8 ActiveEarnedAfter = 0;
     };
 
-    // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest
-    // build window (the build/training windows and the payout); RestLocked in the other rest steps (draw, betting, PK,
-    // settlement, return countdown), which close only the NPC services (#222); Closed otherwise (results and every other
-    // phase).
+    // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest's
+    // build step; RestLocked in its return countdown, which closes only the NPC services (#222); Closed otherwise (results
+    // and every other phase).
     enum class EMatchStage : uint8 { Live, Rest, RestLocked, Closed };
 
     // The server's view of one contender when a build command commits.
@@ -256,7 +257,7 @@ namespace LDProgression
     // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
     // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
     LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
-    // Earned (with the PK awards) minus allocated; AuthorityFault when they exceed what was earned.
+    // Earned minus allocated; AuthorityFault when they exceed what was earned.
     LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
         int64& Out);
     // The level-1 build of a match start: no actives, blueprints, cards or allocated points.
@@ -386,7 +387,8 @@ namespace LDProgression
         FLDCardTarget& Out);
     // Up to CARDS.OfferSize distinct cards: Locked first when set, then a weighted draw without replacement over every other
     // definition (CARDS.VocabWeight when it shares a vocabulary key with BuildVocab, else 1), deterministic in Seed.
-    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Locked,
+    // Size distinct cards (CardOfferSize of the offer's source).
+    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size, FName Locked,
         uint64 Seed, TArray<FName>& Out);
     // Private random material of one card offer ordinal and its Reroll-th reroll.
     LOCKDOWN_API uint64 CardOfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint16 Ordinal, uint32 Reroll);
@@ -453,7 +455,9 @@ namespace LDProgression
         FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, bool bRestStart);
     // SHOP.RefreshPrice + SHOP.RefreshStep per refresh already made this rest.
     LOCKDOWN_API int32 ShopRefreshPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
-    LOCKDOWN_API int32 ShopPrice(const FLDDemoContentParameters& Parameters, ELDShopItemKind Kind);
+    // The price of a shelf item of Kind (and the skill point, ShopSkillPointPrice) in Shop (sale day halves it, rounded up).
+    LOCKDOWN_API int32 ShopPrice(const FLDDemoContentParameters& Parameters, ELDShopItemKind Kind, const FLDShopState& Shop);
+    LOCKDOWN_API int32 ShopSkillPointPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
 
     // What a shop purchase or a pick ticket gave.
     struct FShopOutcome
@@ -502,7 +506,11 @@ namespace LDProgression
     {
         ELDFieldRewardResult Result = ELDFieldRewardResult::None;
         FName Definition;
+        // CardOffer: the source the queued offer carries (its size).
+        ELDCardOfferSource OfferSource = ELDCardOfferSource::FieldReward;
     };
+    // The number of cards an offer of Source shows: CARDS.OfferSize, or a P6 source's own size.
+    LOCKDOWN_API int32 CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source);
     // Kind's build part for Build, deterministic in Seed. BuildDraw: a fair roll between a uniform eligible active blueprint
     // and one card offer (the card offer when no active is eligible). Blueprint: one uniform eligible active, BlueprintHeld
     // when none is. CardOffer: one card offer. DataInvalid for None.

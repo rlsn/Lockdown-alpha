@@ -55,12 +55,8 @@ struct FLDOpponentRequestTally
     uint32 ChallengesReleased = 0;
     uint32 HolderAttacks = 0;
     uint32 OwnerAttacks = 0;
-    // #198 D: PK actions sent through the player's entries (walks into the own sign-up disk, bets, throws) and the bets
-    // and throws the authority refused.
-    uint32 PKSignUps = 0;
-    uint32 PKBets = 0;
-    uint32 PKThrows = 0;
-    uint32 PKRefused = 0;
+    // P6 spec §10.3: decisions that turned to a live mini flag or the arena.
+    uint32 Objectives = 0;
     uint32 BodyRequests() const { return Orders + Stops + Actions; }
 };
 
@@ -169,9 +165,6 @@ private:
         const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem);
     void DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
         const FLDOpponentBuildIntent& Intent, int64 NowMs, FString& Problem);
-    // #198 D: one PK request through the same server entries a player's controller reaches; every refusal is reported.
-    void DispatchPK(ALDGameMode& Mode, const FLDOpponentDecisionFrame& Frame, const FLDOpponentPKIntent& Intent, int64 NowMs,
-        FString& Problem);
     void Learn(const FLDOpponentRetryKey& Key, ELDOpponentSettle Settle, const FLDOpponentSelf& Self, int64 NowMs);
     FLDOrderCaller OrderCaller(const FReads& Reads);
     void ForgetBodyWork();
@@ -182,8 +175,6 @@ private:
     FLDAIContenderBinding Binding;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TArray<FLDOpponentPOI> POIs;
-    // #198 站圈报名: the own PK sign-up disk (this contender's roster slot); only rest frames carry it.
-    FLDOpponentPOI SignupPOI;
     TArray<FLDOpponentPOI> RestServicePOIs;
     FLDOpponentPolicyState Policy;
     FOrderTrack Incumbent;
@@ -204,9 +195,6 @@ private:
     bool bTallyReported = false;
     bool bWasInDorm = false;
     uint64 LastClaimedAirdrop = 0;
-    // #198 D: the PK serial of this adapter's latest throw answer and when it may throw again in that PK.
-    uint32 PKThrowSerial = 0;
-    int64 PKThrowReadyAtMs = 0;
     // #153: drawn once per match from the core's server random stream: the moment after the countdown began from which
     // this adapter makes its countdown build decisions (1-4 s).
     int64 OpeningPickAfterMs = 0;

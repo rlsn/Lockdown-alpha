@@ -215,8 +215,7 @@ struct FLDProtectionReceipt
 // ---------------------------------------------------------------- death facts (Combat -> Life / Growth / Camps / Capture)
 
 UENUM()
-// PKArena (#198 session D): the victim was a PK life; PK pays only its own settlement points.
-enum class ELDNoRewardReason : uint8 { None, NoOwner, SelfInflicted, OwnerLeft, PKArena };
+enum class ELDNoRewardReason : uint8 { None, NoOwner, SelfInflicted, OwnerLeft };
 
 UENUM()
 enum class ELDDeathCause : uint8 { Damage };
@@ -228,6 +227,8 @@ struct FLDRewardBasis
     uint64 VictimBuildRevisionAtDeath=0;      // contender branch only (last build revision Combat installed)
     bool bCreditOwnerEligibleAtDeath=false;   // another contender, still in the match at the fatal time
     ELDNoRewardReason NoRewardReason=ELDNoRewardReason::NoOwner; // None iff eligible
+    uint8 CampAffixAtDeath=0;                 // P6 camp member branch only: ELDCampAffix of this life's camp spawn
+    bool bPeddlerAtDeath=false;               // P6: the victim was the second-hand dealer
     uint8 CampStageAtDeath=0;                 // #97 camp member branch only: the growth stage this life spawned with
 };
 

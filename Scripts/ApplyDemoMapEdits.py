@@ -154,11 +154,26 @@ def build_candidate(original, exported):
     source_anchors = {row['id'] for row in after['anchors']}
     final_ids = [*(f'final_spawn_{slot}' for slot in range(6)), 'final_capture']
     exported_ids = set(anchors)
-    new_ids = exported_ids - source_anchors
-    missing_ids = source_anchors - exported_ids
+
+    def optional_kind(identity):
+        return next((kind for kind, prefix in DemoWorld.OPTIONAL_KINDS.items() if identity.startswith(prefix)), None)
+
+    # Spec §11.4: mini flag, locker and vending points may be added, copied and deleted; the generator checks their counts.
+    optional_new = {identity for identity in exported_ids - source_anchors if optional_kind(identity)}
+    optional_gone = {identity for identity in source_anchors - exported_ids if optional_kind(identity)}
+    new_ids = exported_ids - source_anchors - optional_new
+    missing_ids = source_anchors - exported_ids - optional_gone
     _require(not missing_ids, 'layout point identities cannot be removed')
     _require(new_ids <= set(final_ids) and (not new_ids or new_ids == set(final_ids)),
              'only the complete final-arena anchor set can be added')
+    after['anchors'] = [row for row in after['anchors'] if row['id'] not in optional_gone]
+    for identity in sorted(optional_new):
+        value = anchors[identity]
+        kind = optional_kind(identity)
+        _require(value['kind'] == kind and value['surface_id'] == after['geometry']['surfaces'][0]['id'] and value['members'] == [],
+                 f'optional layout point has an invalid kind, surface, or member list: {identity}')
+        after['anchors'].append({'id': identity, 'kind': kind, 'surface_id': value['surface_id'],
+                                 'position_cm': copy.deepcopy(value['position_cm'])})
     for row in after['anchors']:
         value = anchors[row['id']]
         _require(set(value) == {'id', 'kind', 'surface_id', 'position_cm', 'members'}, 'anchor: missing fields')

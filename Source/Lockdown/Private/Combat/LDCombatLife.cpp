@@ -49,13 +49,6 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     AppendMechanicsStatuses(*Body,NowMs,Out);
     // #147: silence, breach x stacks (status exposed) and burn x stacks.
     AppendKeywordStatuses(*Body,NowMs,Out);
-    // #198 session D: a spectator throw's Exposed shares the existing Exposed cue (one entry, latest deadline).
-    if (Body->ExposedUntilMs>NowMs)
-    {
-        FLDObservedStatus* Existing=Out.FindByPredicate([](const FLDObservedStatus& S) { return S.StatusId==uint8(ELDDemoStatusId::Exposed); });
-        if (Existing) { Existing->ExpiresAtServerMs=FMath::Max(Existing->ExpiresAtServerMs,Body->ExposedUntilMs); }
-        else { Out.Add({uint8(ELDDemoStatusId::Exposed),1,Body->ExposedUntilMs}); }
-    }
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -136,7 +129,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     return true;
 }
 
-bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictimKey& Victim,FName MonsterId,uint8 CampStage,
+bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictimKey& Victim,FName MonsterId,uint8 CampStage,ELDCampAffix Affix,bool bPeddler,
     const FLDGameplayWritePermit& Permit,FLDBodyCombatState& Out,FString& Error) const
 {
     Out={};
@@ -159,7 +152,8 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     // #97: this life's stats at its spawn stage; the Boss is not a camp and only ever takes stage 0.
     FLDDemoMonsterDefinition Grown;
     if ((BaseMonster->Tier==ELDDemoCampTier::Boss && CampStage!=0)
-        || !LDCampGrowth::ScaleBody(Content->Get().Parameters,*BaseMonster,CampStage,Grown,Error))
+        || !LDCampGrowth::ScaleBody(Content->Get().Parameters,*BaseMonster,CampStage,Grown,Error)
+        || !LDCampGrowth::ApplySpawnTerms(Content->Get().Parameters,Affix,bPeddler,Grown,Error))
     {
         if (Error.IsEmpty()) { Error=TEXT("The Boss does not take camp growth."); }
         return false;
@@ -175,6 +169,8 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     State.Victim=Victim;
     State.MonsterId=MonsterId;
     State.CampStage=CampStage;
+    State.CampAffix=Affix;
+    State.bPeddler=bPeddler;
     auto& Final=State.AttributeProjection.Final;
     Final.MaxHPP2=Monster->HPP2;
     Final.ADP2=Monster->AttackP2;

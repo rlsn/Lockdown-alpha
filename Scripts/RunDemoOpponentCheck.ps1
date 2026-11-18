@@ -1,7 +1,7 @@
 [CmdletBinding()]
-# The default bound is derived in LDDemoOpponentProbe.cpp (StartOpponentProbe): the flagpole opens at most 1464 s after the
-# start when every rest runs its whole approved PK, plus the 505 s kept for the lobby, the capture contest and the results.
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$TimeoutSeconds=1980,
+# The default bound is derived in LDDemoOpponentProbe.cpp (StartOpponentProbe): the flagpole opens at most 600 s after the
+# start, plus the 600 s kept for the lobby, the capture contest and the results.
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$TimeoutSeconds=1200,
     # Optional engine packet simulation for every role, e.g. '-PktLag=40 -PktLagVariance=10 -PktLoss=1'.
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # Optional log verbosity for every role, e.g. 'LogLDNav Verbose' or 'LogLDTrace off, LogLDCombat Display' (passed as -LogCmds).
@@ -11,17 +11,14 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
     [switch]$Telemetry, [ValidateRange(1,50)][int]$MatchCount=1,
     # Telemetry only: DEV content hot reload (-LDDevContentReload, editor build only), so a re-synced demo_content.json
     # is played without rebuilding C++. Each match records the content root it played.
-    [switch]$DevContentReload,
-    # R0 UI and PK reward transactions on real owning connections, not a full AI match. Pins only the DEV draw seed.
-    [ValidateSet('2v2','3v3')][string]$UIReview)
+    [switch]$DevContentReload)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
 if ($Telemetry -and $NetEmulation) { throw 'Telemetry runs the Host alone on loopback; -NetEmulation has no connection to impair.' }
 if (-not $Telemetry -and $PSBoundParameters.ContainsKey('MatchCount')) { throw '-MatchCount applies only to -Telemetry.' }
 if ($DevContentReload -and (-not $Telemetry -or $PackageRoot)) { throw '-DevContentReload applies only to -Telemetry on the editor build; a package must be cooked again.' }
-if ($UIReview -and $Telemetry) { throw '-UIReview and -Telemetry are separate checks.' }
-$scenario = if ($UIReview) { "DemoUI-$UIReview" } elseif ($Telemetry) { 'DemoOpponent-Telemetry' } else { 'DemoOpponent-FullRoom' }
+$scenario = if ($Telemetry) { 'DemoOpponent-Telemetry' } else { 'DemoOpponent-FullRoom' }
 $output = New-LDArtifactDirectory ($scenario + $(if ($PackageRoot) { '-Packaged' } else { '' }) +
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
@@ -43,13 +40,10 @@ function Start-OpponentRole {
         # Host stay headless.
         $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
             elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })" }
-            elseif ($UIReview -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
             else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
         if ($LogCmds) { $arguments += " -LogCmds=""$LogCmds""" }
-        if ($UIReview) { $arguments += " -LDDemoUIReview=$UIReview" }
-        if ($UIReview -and $Role -eq 'Host') { $arguments += ' -LDDevGrowthFixture' }
         $arguments
     }
 }
@@ -97,44 +91,6 @@ function Invoke-OpponentTelemetry {
     Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
 }
 
-function Assert-PKRewardReports {
-    param([object[]]$Reports, [string]$Format)
-    foreach ($role in 'Host','Client1','Client2') {
-        $roleReports = @($Reports | Where-Object { $_.role -eq $role })
-        if ($roleReports.Count -ne 1) { throw "PK reward evidence requires exactly one report for $role." }
-        $r = $roleReports[0]
-        $required = @(
-            'PK225: approved scaled public settlement agrees',
-            'PK225: owning connection receives its exact award',
-            'PK225: replayed award identities do not credit twice'
-        )
-        if ($role -eq 'Host') { $required += 'PK225: authority replays identical awards without increasing balances' }
-        if ($role -ne 'Client2') { $required += 'PK225: rendered settlement text visibly matches every public award row' }
-        if ($Format -eq '2v2') { $required += 'PK225: 2v2 exercises a real correctly betting spectator' }
-        foreach ($name in $required) {
-            if (@($r.checks | Where-Object { $_.name -eq $name }).Count -ne 1 -or
-                @($r.checks | Where-Object { $_.name -eq $name -and $_.status -eq 'passed' }).Count -ne 1) {
-                throw "PK reward check missing, duplicated, failed or not exercised for $role`: $name"
-            }
-        }
-        if ($r.summary.pk_serial -ne 1 -or -not $r.summary.pk_awards -or
-            $null -eq $r.summary.pk_expected_points -or $null -eq $r.summary.pk_points_before -or
-            $null -eq $r.summary.pk_points_after -or $null -eq $r.summary.pk_bet_points -or
-            $r.summary.pk_points_after - $r.summary.pk_points_before -ne $r.summary.pk_expected_points) {
-            throw "PK reward totals missing or inconsistent for $role."
-        }
-        if ($r.summary.pk_serial -ne $Reports[0].summary.pk_serial -or
-            $r.summary.pk_awards -cne $Reports[0].summary.pk_awards) {
-            throw 'Owning connections disagree on the frozen public PK settlement.'
-        }
-    }
-    $entrant = $Reports | Where-Object { $_.role -eq 'Client1' }
-    if ($entrant.summary.pk_expected_points -le 0) { throw 'The real Client1 entrant did not receive a PK reward.' }
-    if ($Format -eq '2v2' -and @($Reports | Where-Object {
-        $_.role -ne 'Client1' -and $_.summary.pk_bet_points -gt 0
-    }).Count -ne 1) { throw 'The 2v2 review did not credit exactly one real correctly betting spectator.' }
-}
-
 try {
     if ($Telemetry) { Invoke-OpponentTelemetry; return }
     Start-OpponentRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoOpponentHost'
@@ -153,7 +109,7 @@ try {
         $r
     }
     $first = $reports[0].summary
-    foreach ($r in $reports | Where-Object { -not $UIReview }) {
+    foreach ($r in $reports) {
         if ($r.summary.winner -ne $first.winner -or $r.summary.ended_at_ms -ne $first.ended_at_ms -or
             $r.summary.next_generation -ne $first.next_generation) {
             throw "Roles disagree on the unique result or the next Lobby generation: $output"
@@ -162,35 +118,9 @@ try {
     Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Opponent scenario client did not exit cleanly: $output"
     Stop-LDDemoHost -Harness $harness
     $loggedErrors = @(Get-LDDemoLogErrors -Harness $harness)
-    # R02 intentionally blocks every PK spawn. Only its single Host marker, backed by the passed assertion, is expected.
-    $r02Passed = @($reports | Where-Object { $_.role -eq 'Host' } | ForEach-Object { $_.checks } |
-        Where-Object { $_.name -like 'R02:*' -and $_.status -eq 'passed' }).Count -eq 1
-    $expectedBlocked = @($loggedErrors | Where-Object {
-        $_.Filename -eq 'Host.log' -and $_.Line -match 'LogLDMatch: Error: LD_PK_ARENA_BLOCKED serial=2 outcome=NoContest at_ms=\d+$'
-    })
-    $errors = @($loggedErrors | Where-Object {
-        -not ($r02Passed -and $expectedBlocked.Count -eq 1 -and $_.Path -eq $expectedBlocked[0].Path -and $_.LineNumber -eq $expectedBlocked[0].LineNumber)
-    })
+    $errors = $loggedErrors
     if ($errors.Count) { throw "Opponent scenario logged an error: $($errors[0].Line). Evidence: $output" }
     Assert-LDNetEmulationApplied -Output $output -Roles @('Host','Client1','Client2') -NetEmulation $NetEmulation
-    if ($UIReview) {
-        Assert-PKRewardReports -Reports $reports -Format $UIReview
-        foreach ($role in 'Host','Client1','Client2') {
-            $r = $reports | Where-Object { $_.role -eq $role }
-            if ($r.summary.ui_format -ne $UIReview -or @($r.checks | Where-Object { $_.name -eq 'UI: owning connection reads team relations and observed arena bodies' -and $_.status -eq 'passed' }).Count -ne 1) {
-                throw "UI review did not prove $UIReview for $role. Evidence: $output"
-            }
-            foreach ($scale in @('100','125') | Where-Object { $role -ne 'Client2' }) {
-                $shot = Join-Path $evidence "$role-PK-$UIReview-$scale.png"
-                if (-not (Test-Path -LiteralPath $shot)) { throw "UI review screenshot missing: $shot" }
-            }
-            if ($role -ne 'Client2' -and -not (Test-Path -LiteralPath (Join-Path $evidence "$role-PKSettlement.png"))) {
-                throw "PK settlement screenshot missing for $role. Evidence: $output"
-            }
-        }
-        Write-Host "DEV-only $UIReview UI and PK rewards passed on three real owning connections, including exact scaled settlement, owner credit and duplicate-award replay. Not full-match AI acceptance. Evidence: $output"
-        return
-    }
     foreach ($ai in $first.opponents) {
         Write-Host ('AI slot {0}: level {1}, choices {2}, deaths {3}, respawns {4}, kills {5}, orders {6} (refused {7}, refused at admission {11}), actions {8}, max 30 s body requests {9}{10}' -f
             $ai.slot,$ai.level,$ai.choices,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,

@@ -30,8 +30,8 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 6
-HANDLER_REVISION = 13
+SCHEMA_VERSION = 7
+HANDLER_REVISION = 14
 PROJECTION_REVISION = 10
 NATIVE_IDS_SCHEMA_VERSION = 2
 INT64_MAX = (1 << 63) - 1
@@ -1159,7 +1159,9 @@ def validate_numbers(data):
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
     for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
-                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "THROW.RadiusCm", "THROW.RangeCm"):
+                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "SHOWDOWN.RingFinalRadiusCm",
+                "OBJECTIVE.FlagRadiusCm", "OBJECTIVE.ArenaRadiusCm", "EXPLORE.LockerRadiusCm", "EXPLORE.PeddlerOffsetCm",
+                "DAILY.TyphoonPushCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
@@ -1231,17 +1233,14 @@ def validate_numbers(data):
     require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.Momentum") > 0
             and p("AIRDROP.MoveSpeedRatio") > 0 and p("AIRDROP.MoveSpeedSec") > 0,
             "InvalidPolicy", "AIRDROP", "healing, momentum and move-speed rewards must all be positive")
-    # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
-    require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
-            "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
-    # #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
-    require(0 < p("PK.RingShrinkStartSec") < p("PK.RingMidSec") < p("PK.RingFinalSec") < p("REST.PKMaxSec"),
-            "InvalidTiming", "PK.RingFinalSec", "ring shrink steps must be ordered and finish before the PK cap")
-    require(0 < p("PK.RingFinalRadiusCm") < p("PK.RingMidRadiusCm") < p("PK.ArenaRadiusCm"),
-            "InvalidGeometry", "PK.RingFinalRadiusCm", "ring radii must shrink strictly inside the arena")
-    for key in ("PK.RingDamageEarlyMaxHPRatioPerSec", "PK.RingDamageMidMaxHPRatioPerSec",
-                "PK.RingDamageFinalMaxHPRatioPerSec", "THROW.SlowRatio"):
-        require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage and throw slow must be positive")
+    # The final showdown ring shrinks linearly from SHOWDOWN.RingRadiusCm to SHOWDOWN.RingFinalRadiusCm and hurts outside.
+    require(0 < p("SHOWDOWN.RingFinalRadiusCm") < p("SHOWDOWN.RingRadiusCm"), "InvalidGeometry", "SHOWDOWN.RingFinalRadiusCm",
+            "the showdown ring must shrink")
+    for key in ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "SHOWDOWN.RingDamageLateMaxHPRatioPerSec"):
+        require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage must be positive")
+    require(p("SHOWDOWN.RingDamageTickSec") < p("SHOWDOWN.DurationSec") - p("SHOWDOWN.ClosureStartsSec"), "InvalidTiming",
+            "SHOWDOWN.RingDamageTickSec", "the ring must tick inside the closure")
+    _validate_pacing(data, timed_field)
 
     _validate_momentum(data)
 
@@ -1346,6 +1345,54 @@ def validate_numbers(data):
         require(sum(monsters[row["monster_id"]]["tier"] == tier for row in placements.values()) >= 2,
                 "CampTiers", "camps", f"camp markers need at least two {tier} camps")
     _validate_build_envelope(data)
+
+
+# Spec §10/§11 (P6): mid-field objectives, respawn, daily modifiers, camp affixes and hidden things. Every timed rule must fit
+# its field segment; offer sizes fit the five-card choice row.
+MAX_OFFER_CARDS = 5
+DAILY_MODIFIERS = 12
+
+
+def _validate_pacing(data, timed_field):
+    params = data["parameters"]
+    p = lambda key: quantity(params[key])
+    segment = p("MATCH.FieldSegmentSec")
+    start, lead = p("OBJECTIVE.StartSec"), p("OBJECTIVE.AnnounceLeadSec")
+    require(lead <= start and start + p("OBJECTIVE.FlagWindowSec") <= segment and start + p("OBJECTIVE.ArenaSec") <= segment,
+            "InvalidTiming", "OBJECTIVE", "an objective is announced inside its segment and ends before the segment does")
+    require(p("OBJECTIVE.FlagSpraySec") < p("OBJECTIVE.FlagWindowSec"), "InvalidTiming", "OBJECTIVE.FlagSpraySec",
+            "a mini flag must be sprayable inside its window")
+    for key in ("OBJECTIVE.FlagCardOffer", "OBJECTIVE.ArenaCardOffer", "AFFIX.FridgeCardOffer", "AFFIX.BonusCardOffer",
+                "EXPLORE.LockerCardOffer", "EXPLORE.PeddlerCardOffer"):
+        require(params["CARDS.OfferSize"] <= params[key] <= min(MAX_OFFER_CARDS, len(data["cards"])), "CardPool", key,
+                "an extra offer shows at least the normal offer and at most five distinct cards")
+    require(params["LIFE.SpawnChoiceCount"] <= 4, "InvalidPolicy", "LIFE.SpawnChoiceCount", "the death screen shows at most four spots")
+    require(params["DAILY.Count"] <= DAILY_MODIFIERS, "InvalidPolicy", "DAILY.Count", "the draw picks distinct modifiers")
+    require(params["DAILY.RumorLeaders"] == 2, "InvalidPolicy", "DAILY.RumorLeaders", "the leader view carries two trending contenders")
+    require(params["DAILY.RainPuddles"] <= params["GROUND.MaxTotal"], "InvalidPolicy", "DAILY.RainPuddles",
+            "the rain fits the ground-state cap")
+    require(p("DAILY.RainPuddleSec") <= p("DAILY.RainIntervalSec"), "InvalidTiming", "DAILY.RainPuddleSec",
+            "rain puddles are gone before the next shower")
+    require(p("DAILY.HeatBurnTickScale") > 1 and p("DAILY.BlackoutShockScale") > 1 and p("DAILY.ExamMonsterXPScale") > 1,
+            "NumericDomain", "DAILY", "a modifier scale strengthens its rule")
+    for key in ("DAILY.BlackoutVisionCut", "DAILY.SalePriceScale", "DAILY.GymDashCooldownCut", "AFFIX.AuditTelegraphCut"):
+        require(0 < p(key) < 1, "NumericDomain", key, "a cut stays strictly between zero and one")
+    lands = [quantity(value) for value in params["DAILY.DeliveryLandSec"]]
+    lead, expire = p("AIRDROP.AnnounceLeadSec"), p("DAILY.DeliveryExpireSec")
+    require(lead <= lands[0] and all(land + expire + lead <= after for land, after in zip(lands, lands[1:]))
+            and lands[-1] + expire <= timed_field,
+            "InvalidTiming", "DAILY.DeliveryLandSec", "delivery-day drops follow the airdrop spacing and leave before T=480")
+    require(p("DAILY.PatrolBossAppearSec") < quantity(data["boss"]["leave_at"]), "InvalidTiming", "DAILY.PatrolBossAppearSec",
+            "the early Boss still appears before it leaves")
+    require(p("AFFIX.OvertimeVoucherScale") >= 1 and p("AFFIX.TeambuildXPScale") >= 1, "NumericDomain", "AFFIX",
+            "an affix reward never shrinks the base reward")
+    require(0 < p("EXPLORE.PeddlerEarliestSec") <= p("EXPLORE.PeddlerLatestSec")
+            and p("EXPLORE.PeddlerLatestSec") + p("EXPLORE.PeddlerStaySec") <= timed_field,
+            "InvalidTiming", "EXPLORE.Peddler", "the dealer appears and leaves inside the timed field")
+    require(p("STAT.MoveSpeed.Min") <= p("EXPLORE.PeddlerMoveSpeed") <= p("STAT.MoveSpeed.Max"), "NumericDomain",
+            "EXPLORE.PeddlerMoveSpeed", "the dealer moves inside the move speed clamp")
+    require(p("EXPLORE.LockerChannelSec") < p("MATCH.FieldSegmentSec"), "InvalidTiming", "EXPLORE.LockerChannelSec",
+            "a locker can be opened inside a segment")
 
 
 def _validate_momentum(data):
@@ -1479,15 +1526,17 @@ def parse_world_contract(raw, world_raw):
 def validate_world_references(data, world, anchors):
     refs = data["world"]
     require(refs["map_id"] == world["map_id"], "InvalidReference", "world.map_id", "different world identity")
-    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]],
-                "PKSpawn": refs["pk_spawn_ids"], "PKThrow": [refs["pk_throw_id"]]}
+    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]]}
     for kind, identities in expected.items():
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
                 "InvalidReference", kind, "missing, extra or wrong-kind world anchor")
-    # #198: the PK ring is read in index order, so the content lists it exactly as pk_spawn_0..5.
-    require(list(refs["pk_spawn_ids"]) == [f"pk_spawn_{n}" for n in range(6)],
-            "InvalidReference", "world.pk_spawn_ids", "PK spawns must be listed as pk_spawn_0 to pk_spawn_5 in order")
+    # Spec §10.4/§11.3: spawn choice draws distinct spawn anchors; lockers draw distinct locker anchors.
+    require(data["parameters"]["LIFE.SpawnChoiceCount"] <= len(refs["spawn_ids"]), "InvalidReference", "LIFE.SpawnChoiceCount",
+            "spawn choice needs that many distinct spawn anchors")
+    lockers = sum(row["kind"] == "Locker" for row in anchors.values())
+    require(data["parameters"]["EXPLORE.LockerCount"] <= lockers, "InvalidReference", "EXPLORE.LockerCount",
+            "stocked lockers need that many locker anchors")
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(set(placements) == set(refs["camp_ids"]), "InvalidReference", "camps", "camp placement set differs from world")
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")

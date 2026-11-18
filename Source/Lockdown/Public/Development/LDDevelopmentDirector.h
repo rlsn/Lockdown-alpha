@@ -123,13 +123,9 @@ public:
     FLDBuildProjectionInput MakeProjectionInput(const FLDGrowthBuild& Build) const;
     FLDCombatCaller MakeCaller(const FGuid& ContenderId) const;
     bool ReadCombatInstalled(const FGuid& ContenderId, FLDExpectedBuildVersions& Out) const;
-    // #198 session D: a PK settlement pays Points (>= 1) unspent attribute points to ContenderId under the business identity
-    // AwardId (one per PK and recipient). A winning award can also grant one final-mod option in the same commit.
-    // Transactions permit; spends no regular choice, never touches XP or level.
-    // PKAwardDuplicate when AwardId was already paid (nothing changes); AuthorityFault means the boundary must fault.
-    ELDGrowthReason GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId, bool bExtraFinalModCard,
-        const FLDGameplayWritePermit& Permit);
-    bool GrantBossFinalModCard(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error);
+    // The final mod's extra option (the Boss's last hit, spec §10.3 the arena winner): the next final-mod offer shows one
+    // more option. Either world permit.
+    bool GrantExtraFinalModCard(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error);
     // The final mod: OpenFinalMods draws every contender's three- or four-choice on entering the final rest (once per
     // match); LockFinalMods locks every build at the final field entry, abandoning untaken choices. Either world permit;
     // false (with Error) only for a lost permit or domain.
@@ -144,6 +140,10 @@ public:
     // must fault; other reasons pay nothing.
     ELDGrowthReason GrantVouchers(const FGuid& ContenderId, int32 Vouchers, int32 PickTickets, const TCHAR* Cause,
         const FLDGameplayWritePermit& Permit);
+    // Spec §11.2 audit affix: one more skill point (either world permit); false with Error when refused.
+    bool GrantSkillPoint(const FGuid& ContenderId, const TCHAR* Cause, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Spec §11.3 vending: Vouchers vouchers paid by ContenderId for Cause (Transactions permit). NotEnoughVouchers when short.
+    ELDGrowthReason SpendVouchers(const FGuid& ContenderId, int32 Vouchers, const TCHAR* Cause, const FLDGameplayWritePermit& Permit);
     // Spec §11.3: the first Ancient clear of the match pays this contender a pick ticket once; true when it is still due (and
     // marks it taken).
     bool TakeAncientTicket(const FGuid& ContenderId);
@@ -222,8 +222,6 @@ private:
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     FGuid MatchSecret;
     TMap<FGuid, FRecord> Records;
-    // #198 session D: PK award identities already paid in this match.
-    TSet<FGuid> PaidPKAwards;
 #if WITH_DEV_AUTOMATION_TESTS
     // Queued DEV preset offers per contender, oldest first; BeginMatch replaces them with the roster's Lobby-staged offers.
     TMap<FGuid, TArray<TArray<FName>>> DevOfferQueue;

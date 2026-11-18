@@ -28,7 +28,6 @@
 #include "Components/VerticalBox.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "PK/LDPKDirector.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "World/LDWorldQueryTypes.h"
@@ -172,48 +171,7 @@ class FLDDemoOpponentProbe : public TSharedFromThis<FLDDemoOpponentProbe>
 {
 public:
     TWeakObjectPtr<ALDPlayerController> Controller;
-    FString Output, Role, Error, UIReview;
-    bool bUISeeded = false, bUISignupSent = false, bUIRelationsChecked = false;
-    int32 UIShot = 0;
-    int32 UIBuildStage = 0;
-    int32 UIOpeningIndex=INDEX_NONE,UIOpeningWheels=0,UIChoiceStep=0;
-    bool bUIOpeningShot=false;
-    bool bUIStorageShot=false;
-    FName UIOpeningComponent;
-    TArray<FName> UIOpeningOptions;
-    TStrongObjectPtr<ULDChoicesPanel> UIChoiceFixture;
-    FLDBuildCommand UIChoiceSubmitted;
-    bool ReviewChoiceCards(ALDPlayerController& PC,double Now);
-    FName UIInstalledComponent;
-    int32 UIServiceStep=0,UIServiceWheels=0;
-    // A held confirmation: the pointer path pressed at UIHoldPressedAt, released once the hold has had time to fill.
-    FWidgetPath UIHoldPath;FVector2D UIHoldAt=FVector2D::ZeroVector;double UIHoldPressedAt=-1.;
-    int32 UIServiceObservedStep=INDEX_NONE;
-    double UIServiceStepAt=0;
-    uint64 UIServiceGrowthBefore=0;
-    FName UIReplacement;
-    bool bUIOtherServicesDone=false,bUIPKShotsDone=false,bUIPayoutChecked=false,bUIPointsShot=false;
-    int32 UIReadyOpenStep=0,UIPayoutStep=0,UIFieldStep=0;
-    int32 UIFieldActivesBefore=0;
-    double UIFieldFightSince=0,UIFieldRetryAt=0;
-    FGuid UIFieldTarget,UIFieldRejectedTarget;
-    TSet<FName> UIFieldVisitedCamps;
-    bool bUIFieldChecked=false,bUIAnnouncementChecked=false;
-    double UIActionDueAt=0;
-    bool ReviewExplicitServices(ALDPlayerController& PC,double Now);
-    bool ReviewPayout(ALDPlayerController& PC,double Now);
-    bool ReviewPKRewards(ALDPlayerController& PC, const ALDGameState& Public, ALDGameMode* Mode, double Now);
-    bool bPKRewardBaseline = false, bPKRewardRows = false, bPKRewardCredited = false, bPKRewardReplay = false;
-    bool bPKRewardReplayQueued = false, bPKRewardReplayComplete = false;
-    int64 PKRewardBefore = 0, PKRewardXP = 0, PKRewardExpected = 0;
-    uint8 PKRewardLevel = 0;
-    double PKRewardSeenAt = 0, PKRewardReplaySeenAt = 0, PKBetRetryAt = 0;
-    TMap<FGuid, int64> PKReplayBalances;
-    bool ReviewField(ALDPlayerController& PC,const FLDPublicMatchView& View,double Now);
-    uint64 UIRewardTicket = 0, UIBuildRevisionBefore = 0;
-    int64 UIPointsBefore = 0;
-    double UIShotDueAt = 0, UIBuildDueAt = 0;
-    double UIReadyFoldDueAt=0;
+    FString Output, Role, Error;
     double Deadline = 0, LastCommandAt = -100, ReturnedAt = 0;
     ELDOpponentProbeStage Stage = ELDOpponentProbeStage::Join;
     bool Passed = true, Written = false, StartSent = false, ReturnSent = false;
@@ -222,22 +180,18 @@ public:
     bool bPlaytestMarked = false;
     // #198: each AI's current life in the shared opening rest room, that life's foot at its first
     // sample, whether it has decided to train on its target, the largest drift before training, and the ms since match
-    // start at which each AI's opening choice was first seen. PK sign-up and entrant checks belong to R1.
+    // start at which each AI's opening choice was first seen.
     struct FRest0Foot
     {
         uint32 Life = 0;
         FVector Foot = FVector::ZeroVector;
         bool bTrained = false;
-        double WindowDiskCm = -1;
         bool bLocked = false;
     };
     TMap<FGuid, FRest0Foot> Rest0AIFeet;
     TSet<FGuid> Rest0Trainers;
     TMap<FGuid, int64> Rest0Picks;
-    TSet<FGuid> R1PKEntrants;
-    bool bR1SignupsChecked = false, bR1PKRosterChecked = false;
     double MaxRest0AIDriftCm = 0;
-    double MaxRest0AIStrayCm = 0;
     int32 Rest0Samples = 0;
     uint32 FirstGeneration = 0;
     // Development: the three timed field segments before the flagpole opens at the final field.
@@ -336,14 +290,11 @@ public:
 
     bool Finish()
     {
-        if(UIChoiceFixture.IsValid()){UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();}
         auto Report = MakeShared<FJsonObject>();
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
-        Report->SetStringField(TEXT("scope"), UIReview.IsEmpty()
-            ? TEXT("DEV-only full room: participating Listen Host, two owning clients and three opponent AI through the normal lobby; the humans stay out of play. Not hidden-state non-interference, field whitelists, a leaving human or network faults.")
-            : TEXT("DEV-only R1 team PK UI: three real owning connections, ordinary sign-up movement and production PK draw/replication with a pinned random seed. Not full-match AI acceptance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only full room: participating Listen Host, two owning clients and three opponent AI through the normal lobby; the humans stay out of play. Not hidden-state non-interference, field whitelists, a leaving human or network faults."));
         Summary->SetArrayField(TEXT("not_exercised"), NotExercised);
         Report->SetObjectField(TEXT("summary"), Summary);
         Report->SetArrayField(TEXT("checks"), Checks);
@@ -354,7 +305,6 @@ public:
     }
 
     bool Tick();
-    bool TickUIReview(ALDPlayerController& PC, ALDGameState& Public, ALDGameMode* Mode);
     bool BindOpponents(UWorld& World, ALDGameMode& Mode, const FLDLobbyView& Lobby);
     void Sample(UWorld& World, ALDGameMode& Mode);
     void ReadGrowth(ALDGameMode& Mode, FLDOpponentProbeTrack& Track) const;
@@ -362,8 +312,6 @@ public:
     TArray<TWeakObjectPtr<APawn>> Occupants;
     bool bGrowthArmed = false, bGrowthChecked = false;
     SIZE_T GrowthArmedBytes = 0;
-    bool bPKBlocked = false, bPKWaitSeen = false, bPKStartedEarly = false, bPKChecked = false;
-    int64 PKBlockDueMs = 0;
     bool bReturnBlocked = false, bReturnHeldSeen = false, bNobodyStood = true, bReturnChecked = false;
     bool bReturnCommitSeen = false, bReturnCommitTogether = false;
     int64 ReturnDueMs = 0, ReturnFrozenFieldMs = 0, ReturnCommitAtMs = 0;
@@ -429,11 +377,9 @@ void FLDDemoOpponentProbe::CountRequests(FLDOpponentProbeTrack& Track, int64 Now
     Track.MaxWindowRequests = FMath::Max(Track.MaxWindowRequests, Body - Track.Requests[0].Value);
 }
 
-// #198 R01/R02/R14 fixtures (issue #198 review: a normal unobstructed match does not prove them). R01: the life ledger is
+// #198 R01/R14 fixtures (issue #198 review: a normal unobstructed match does not prove them). R01: the life ledger is
 // compacted to its exact size right before R1's rest entry, so adding the training dummies there grows it; every dummy
-// must still carry its owner's slot. R02: every offset of every PK spawn is occupied from R1's betting step until the PK
-// entry gives up (REST.EntryReadyTimeoutSec), so the PK is NoContest and its entrants go back to their rest spaces under
-// new spawn identities without an authority fault. R14: at R2's return the last survivor in placement order loses its old
+// must still carry its owner's slot. R14: at R2's return the last survivor in placement order loses its old
 // foot and every free spot near it, and every normal spawn offset is occupied, for a moment past the boundary; nobody may
 // stand, T and the field wait, and then everybody stands together with one protection.
 bool FLDDemoOpponentProbe::PlaceOccupant(UWorld& World, const FCollisionShape& Capsule, const FVector& FootCm)
@@ -539,38 +485,6 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
             bGrowthChecked = true;
         }
     }
-    // R02: R1's PK entry is blocked at every PK spawn until it gives up.
-    if (!bPKChecked && Line.IsRest() && Line.GetRestIndex() == 1 && Mode.PKDirector)
-    {
-        const FLDPKView& PK = Mode.PKDirector->GetView();
-        if (!bPKBlocked && Line.GetStep() == ELDRestStep::Betting && PK.Serial != 0)
-        {
-            for (const FString& Id : Content->Get().World.PKSpawnIds) { OccupyAnchor(Id); }
-            PKBlockDueMs = Line.GetStepEndsAtMs() + P.RestPKReadyMs;
-            bPKBlocked = true;
-        }
-        if (bPKBlocked && Line.GetStep() == ELDRestStep::PKReady)
-        {
-            bPKWaitSeen |= Mode.IsPKEntryWaiting() && Mode.PKLives.IsEmpty();
-            bPKStartedEarly |= !Mode.PKLives.IsEmpty();
-        }
-        if (bPKBlocked && (Line.GetStep() == ELDRestStep::Settlement || Line.GetStep() == ELDRestStep::Payout))
-        {
-            ClearOccupants();
-            bool bBack = true;
-            for (const FLDPKEntrantView& Entrant : PK.Entrants)
-            {
-                bBack &= !Mode.IsContenderPresent(Entrant.Contender) || Mode.IsInRestSpace(Entrant.Contender)
-                    || Mode.PendingPhasePlacement.Contains(Entrant.Contender);
-            }
-            Summary->SetNumberField(TEXT("r02_decided_at_ms"), double(PK.DecidedAtMs));
-            Summary->SetNumberField(TEXT("r02_blocked_due_ms"), double(PKBlockDueMs));
-            Check(bPKWaitSeen && !bPKStartedEarly && PK.Outcome == ELDPKOutcome::NoContest
-                && PK.DecidedAtMs >= PKBlockDueMs + P.RestEntryReadyTimeoutMs && bBack,
-                TEXT("R02: a PK entry blocked at every PK spawn waits, ends NoContest after the approved wait and returns its entrants to their rest spaces"));
-            bPKChecked = true;
-        }
-    }
     // R14: R2's return with its last survivor and every normal spawn blocked for a moment.
     if (!bReturnChecked && Line.IsRest() && Line.GetRestIndex() == 2 && Line.GetStep() == ELDRestStep::Return)
     {
@@ -656,7 +570,6 @@ void FLDDemoOpponentProbe::FinishPhaseFixtures()
 {
     ClearOccupants();
     if (!bGrowthChecked) { Check(false, TEXT("R01: the forced life-ledger growth at R1's rest entry was reached")); }
-    if (!bPKChecked) { Check(false, TEXT("R02: the blocked R1 PK entry was reached")); }
     if (!bReturnChecked) { Check(false, TEXT("R14: the blocked R2 return was reached")); }
 }
 
@@ -671,8 +584,8 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     const bool bDevelopment = Public.Phase == ELDMatchPhase::Development;
     // #198: a rest retires every field life without a death, ends every running respawn wait and stands each body in the
     // shared rest room; the field return places a new life. None is a death, a respawn or travel through the map.
-    // The request window keeps counting through the rest, so a PK fight is held to the same bound and its requests are
-    // never folded into the first field window after the rest.
+    // The request window keeps counting through the rest, so its requests are never folded into the first field window
+    // after the rest.
     if (Public.Phase == ELDMatchPhase::Rest)
     {
         for (FLDOpponentProbeTrack& Track : Tracks)
@@ -720,7 +633,8 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
             if (Track.DeadSeenAtMs < 0)
             {
                 Track.DeadSeenAtMs = Now;
-                Track.RespawnWaitMs = Mode.RespawnWaitAtFieldMs(Mode.GetFieldNowMs());
+                const FLDGrowthBuild* Build = Mode.Development ? Mode.Development->FindBuild(Track.Contender) : nullptr;
+                Track.RespawnWaitMs = Mode.FieldRespawnWaitMs(Build ? Build->Level : 1);
                 ++Track.Deaths;
                 Track.ActBase = Body;
             }
@@ -942,25 +856,6 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         if(Now<RestReviewDueAt){return true;}
         const FLDProgressionView* Growth=Owner.ReadOwnProgression();
-        if(!UIReview.IsEmpty()&&Growth)
-        {
-            if(Panel->HasPendingRequest()){return true;}
-            if(Growth->bHasActiveOffer)
-            {
-                UWidget* Offer=Panel->GetWidgetFromName(TEXT("GrowthOffer0"));
-                if(!LDSlateProbeInput::Path(Offer).IsValid())
-                {
-                    if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                        TEXT("UI: the actual 构筑 button opens the tray with the outstanding level-up offer"))){return false;}
-                    if(!Check(++UIServiceWheels<=80,TEXT("UI: the open 构筑 tray shows the outstanding level-up offer"))){return false;}
-                    RestReviewDueAt=Now+.1;return true;
-                }
-                UIServiceWheels=0;
-                if(!Check(LDSlateProbeInput::SendClick(Offer),TEXT("UI: actual pointer resolves the level-up offer before buying another"))){return false;}
-                RestReviewDueAt=Now+.4;return true;
-            }
-            if(Growth->QueuedActiveOpportunities){return true;}
-        }
         if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer)
         {
             // Beside the trainer the open workshop shows its services on the board; the 构筑 button opens the workshop.
@@ -1019,7 +914,6 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     if (RestServiceReviewStage == 3)
     {
         if (FScreenshotRequest::IsScreenshotRequested()) { return true; }
-        if(!UIReview.IsEmpty()&&!bUIOtherServicesDone){return ReviewExplicitServices(Owner,Now);}
         Panel->ClosePanel();
         Owner.Controls->TextScale = 1.f;
         if (Owner.Navigation) { Owner.Navigation->PanTo(FVector(7500, 100, 0)); }
@@ -1287,1091 +1181,6 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         TEXT("The authority gate is closed by the same result it published"));
 }
 
-bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& Public, ALDGameMode* Mode)
-{
-    const FLDPublicMatchView& View = Public.PublicMatch;
-    const double Now = FPlatformTime::Seconds();
-    const int32 Entrants = UIReview == TEXT("2v2") ? 4 : 6;
-    if (!ReviewPKRewards(PC, Public, Mode, Now)) { return Finish(); }
-    if (View.Phase == ELDMatchPhase::Rest && View.Timeline.Step >= ELDRestStep::Settlement
-        && !bPKRewardReplay) { return true; }
-    if ((View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen) && !Check(bPKRewardReplay,
-        TEXT("PK225: settlement and replay evidence completed before field return"))) { return Finish(); }
-    if (View.Phase != ELDMatchPhase::Rest) { return ReviewField(PC,View,Now); }
-    if(View.Timeline.Step==ELDRestStep::Payout){return ReviewPayout(PC,Now);}
-    if(View.Timeline.Step==ELDRestStep::Return&&FApp::CanEverRender()&&!bUIPayoutChecked)
-    {Check(false,TEXT("UI: the actual payout service window was exercised before return"));return Finish();}
-    if (Mode && Mode->PKDirector && !bUISeeded)
-    {
-        // Pin a possible draw, not the approved 5000 bp probability or the actual production draw implementation.
-        for (int32 Seed = 0; Seed < 100; ++Seed)
-        {
-            FRandomStream Trial(Seed);
-            FLDPKDraw Draw;
-            FString DrawError;
-            if (LDPKRules::Draw(Entrants, Mode->PKDirector->GetParameters(), Trial, Draw, DrawError)
-                && Draw.Format == ELDPKFormat::Teams)
-            {
-                Mode->PKDirector->Random.Initialize(Seed);
-                Summary->SetNumberField(TEXT("draw_seed"), Seed);
-                bUISeeded = true;
-                break;
-            }
-        }
-        if (!Check(bUISeeded, TEXT("UI: an approved team draw seed exists"))) { return Finish(); }
-    }
-    if (View.Timeline.Step == ELDRestStep::Build)
-    {
-        if (Role == TEXT("Host") && FApp::CanEverRender() && PC.HUDUI && PC.HUDUI->ChoicesPanel)
-        {
-            ULDChoicesPanel* Panel = PC.HUDUI->ChoicesPanel;
-            const FLDProgressionView* Growth = PC.ReadOwnProgression();
-            if (!Growth || !Mode || !Mode->Growth) { return true; }
-            if (Now < UIBuildDueAt) { return true; }
-            if (UIBuildStage == 0)
-            {
-                if (!Growth->bHasActiveOffer) { return true; }
-                if (!Panel->IsTrayOpen() && ++UIOpeningWheels <= 80) { return true; }
-                if (!Check(Panel->IsTrayOpen(), TEXT("UI: the opening offer automatically opens its tray before selection"))) { return Finish(); }
-                UIOpeningWheels = 0;
-                if (!Check(Panel->ChooseOffer(0), TEXT("UI: owner chooses an opening skill through the panel"))) { return Finish(); }
-                UIBuildStage = 1;
-                UIBuildDueAt = Now + .5;
-                return true;
-            }
-            if (UIBuildStage == 1)
-            {
-                // The R0 opening card offer follows the opening skill; the probe takes a non-first card.
-                if (!Growth->bHasCardOffer || Growth->CardOffer.Options.Num() < 2 || Panel->HasPendingRequest()) { return true; }
-                UIOpeningIndex=1;UIOpeningComponent=Growth->CardOffer.Options[1];UIOpeningOptions=Growth->CardOffer.Options;
-                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                Panel->OpenPanel();
-                UIBuildStage = 14;
-                UIBuildDueAt = Now + .5;
-                return true;
-            }
-            if(UIBuildStage==14)
-            {
-                if(!Check(Panel->CardCards.IsValidIndex(UIOpeningIndex),TEXT("UI: the non-first opening card has a rendered face"))){return Finish();}
-                const auto& Card=Panel->CardCards[UIOpeningIndex];
-                if(!LDSlateProbeInput::FullyVisible(Card.Frame,PC.HUDUI.Get()))
-                {
-                    // The tray never scrolls: the card is on screen once the tray has laid it out.
-                    if(!Check(++UIOpeningWheels<25,TEXT("UI: the non-first opening candidate is fully on screen without scrolling"))){return Finish();}
-                    UIBuildDueAt=Now+.15;return true;
-                }
-                if(!bUIOpeningShot)
-                {
-                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostOpeningNonFirst_720_125.png")),true,false);
-                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostOpeningNonFirst_720_125.png")));
-                    bUIOpeningShot=true;return true;
-                }
-                if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                if(!Check(LDSlateProbeInput::SendClick(Card.Button),TEXT("UI: real pointer selects a non-first opening card at 720p125"))){return Finish();}
-                UIBuildStage=2;UIBuildDueAt=Now+.5;return true;
-            }
-            if (UIBuildStage == 2)
-            {
-                if (Growth->Cards.IsEmpty() || Panel->HasPendingRequest()) { return true; }
-                if(!Check(Growth->Cards.ContainsByPredicate([this](const FLDCardInstanceView& Row)
-                    {return Row.DefinitionId==UIOpeningComponent&&Row.IsInstalled();}),
-                    TEXT("UI: authority installs the exact non-first pointer-selected opening card"))){return Finish();}
-                if(UIChoiceStep<6){if(!ReviewChoiceCards(PC,Now)){return Finish();}return true;}
-                UIRewardTicket = Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId, Growth->NextThresholdXP - Growth->CumulativeXP, Error);
-                if (!Check(UIRewardTicket != 0, TEXT("UI: DEV XP queues a normal level-up card offer"))) { return Finish(); }
-                UIBuildStage = 3;
-                UIBuildDueAt = Now + .5;
-                return true;
-            }
-            if (UIBuildStage == 3)
-            {
-                FString Detail;
-                const ELDDevGrantStatus Status = Mode->Growth->DevGrantStatus(UIRewardTicket, Detail);
-                if (Status == ELDDevGrantStatus::Pending) { return true; }
-                if (!Check(Status == ELDDevGrantStatus::Granted, TEXT("UI: DEV XP commits through the reward composite"))) { return Finish(); }
-                if (!Growth->bHasCardOffer && Growth->QueuedCardOffers == 0) { return true; }
-                if (!Check(Growth->Level >= 2, TEXT("UI: the level-up queues its card offer"))) { return Finish(); }
-                UIBuildStage = 4;
-                UIBuildDueAt = Now + .5;
-                return true;
-            }
-            if (UIBuildStage == 4)
-            {
-                // Points are spent on the HUD's stat icons: hovering a stat raises its "+", one click commits one point.
-                UIBuildRevisionBefore = Growth->BuildRevision;
-                UIPointsBefore = Growth->UnspentPoints;
-                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                Panel->ClosePanel();
-                ULDStatBar* Stats=PC.HUDUI->StatBar.Get();
-                if(!Check(Stats&&Stats->StatCount()>0&&UIPointsBefore>0,TEXT("UI: the HUD shows the stat icons while points are unspent"))){return Finish();}
-                Stats->PinHover(Stats->StatCount()-1);
-                UIBuildStage=6;UIBuildDueAt=Now+.4;return true;
-            }
-            if(UIBuildStage==6)
-            {
-                ULDStatBar* Stats=PC.HUDUI->StatBar.Get();
-                ULDCommandButton* Plus=Stats->PlusButton(Stats->StatCount()-1);
-                if(!bUIPointsShot)
-                {
-                    if(!Check(Plus&&Plus->IsVisible()&&Plus->GetIsEnabled(),TEXT("UI: the hovered last stat raises its enabled +"))){return Finish();}
-                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStatPlus_1280x720_125.png")),true,false);
-                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStatPlus_1280x720_125.png")));
-                    bUIPointsShot=true;return true;
-                }
-                if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                if(!Check(LDSlateProbeInput::SendClick(Plus),TEXT("UI: the stat's + receives an actual Slate click"))){return Finish();}
-                UIBuildStage=7;UIBuildDueAt=Now+.5;return true;
-            }
-            if (UIBuildStage == 7)
-            {
-                ULDStatBar* Stats=PC.HUDUI->StatBar.Get();
-                if (Growth->BuildRevision <= UIBuildRevisionBefore || Stats->HasPendingRequest() || Stats->Waiting() > 0) { return true; }
-                if (!Check(Growth->UnspentPoints == UIPointsBefore - 1,
-                    TEXT("UI: one click on + commits exactly one point, with no confirm"))) { return Finish(); }
-                Stats->PinHover(INDEX_NONE);
-                // Owned cards live in the HUD storage right of the band, not in the panel.
-                UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
-            }
-            if(UIBuildStage==8)
-            {
-                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
-                if(!Check(Storage!=nullptr,TEXT("UI: the HUD has its card storage"))){return Finish();}
-                // The opening card comes off first, so the storage holds it for the drop below.
-                const FLDCardInstanceView* Opening=Growth->Cards.FindByPredicate([this](const FLDCardInstanceView& Row)
-                    {return Row.DefinitionId==UIOpeningComponent;});
-                if(!Check(Opening!=nullptr,TEXT("UI: the opening card is owned"))){return Finish();}
-                UIInstalledComponent=LDHUD::CardKey(Opening->DefinitionId,Opening->Serial);
-                UIBuildRevisionBefore=Growth->BuildRevision;
-                if(Opening->IsInstalled()&&!Check(Storage->DropInStorage(UIInstalledComponent),
-                    TEXT("UI: dropping the installed opening card on the storage sends its uninstall"))){return Finish();}
-                UIBuildStage=81;UIBuildDueAt=Now+.5;return true;
-            }
-            if(UIBuildStage==81)
-            {
-                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
-                const FLDCardInstanceView* Owned=LDHUD::FindCard(*Growth,UIInstalledComponent);
-                if(Storage->HasPendingRequest()||!Owned||Owned->IsInstalled()){return true;}
-                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                Storage->PinOpen(true);
-                UIBuildStage=9;UIBuildDueAt=Now+.6;return true;
-            }
-            if(UIBuildStage==9)
-            {
-                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
-                if(!bUIStorageShot)
-                {
-                    // The rest's workshop lays the storage out as its library; over the band it is the stack and its card list.
-                    const bool bShown=Storage->InWorkshop()?LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("WorkshopLibrary"))).IsValid()
-                        :LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
-                            &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid();
-                    if(!Check(Storage->IsExpanded()&&bShown,
-                        TEXT("UI: the open storage shows its cards (workshop library, or stack and card list) at 720p125"))){return Finish();}
-                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStorageOpen_1280x720_125.png")),true,false);
-                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStorageOpen_1280x720_125.png")));
-                    bUIStorageShot=true;return true;
-                }
-                if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                const TArray<LDHUD::FCardDrop> Drops=LDHUD::CardDrops(UIInstalledComponent,*Growth,&Content->Get());
-                UIBuildRevisionBefore=Growth->BuildRevision;
-                if(!Check(!Drops.IsEmpty()&&Storage->DropOn(UIInstalledComponent,Drops[0].Column,Drops[0].Host),
-                    TEXT("UI: dropping a stored card on its first legal place sends the install or opens the chooser"))){return Finish();}
-                UIBuildStage=10;UIBuildDueAt=Now+.3;return true;
-            }
-            if(UIBuildStage==10)
-            {
-                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
-                if(Storage->IsChoosing())
-                {
-                    if(!Check(LDSlateProbeInput::SendClick(Storage->GetWidgetFromName(TEXT("HUDStorageChoice0"))),
-                        TEXT("UI: actual pointer picks the first element in the drop chooser"))){return Finish();}
-                    UIBuildDueAt=Now+.3;return true;
-                }
-                if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
-                const FLDCardInstanceView* Owned=LDHUD::FindCard(*Growth,UIInstalledComponent);
-                const LDHUD::FStorageView Shown=LDHUD::CardStorage(*Growth,&Content->Get());
-                const bool bInColumn=Shown.Columns.ContainsByPredicate([this](const LDHUD::FStorageColumnView& Column)
-                {return Column.Entries.ContainsByPredicate([this](const LDHUD::FEquippedView& Entry){return Entry.Keys.Contains(UIInstalledComponent);});});
-                const bool bStored=Shown.Stored.ContainsByPredicate([this](const LDHUD::FStoredView& Row){return Row.Keys.Contains(UIInstalledComponent);});
-                if(!Check(Owned&&Owned->IsInstalled()&&bInColumn&&!bStored,
-                    TEXT("UI: authority installs the dropped card and the storage shows it in its column"))){return Finish();}
-                UIBuildRevisionBefore=Growth->BuildRevision;
-                if(!Check(Storage->DropInStorage(UIInstalledComponent),
-                    TEXT("UI: dropping the installed card back on the storage sends its uninstall"))){return Finish();}
-                UIBuildStage=11;UIBuildDueAt=Now+.3;return true;
-            }
-            if(UIBuildStage==11)
-            {
-                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
-                if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
-                const FLDCardInstanceView* Owned=LDHUD::FindCard(*Growth,UIInstalledComponent);
-                if(!Check(Owned&&!Owned->IsInstalled()&&LDHUD::CardStorage(*Growth,&Content->Get()).Stored.ContainsByPredicate(
-                        [this](const LDHUD::FStoredView& Row){return Row.Keys.Contains(UIInstalledComponent);}),
-                    TEXT("UI: authority uninstalls it and the storage holds it again"))){return Finish();}
-                Storage->PinOpen(false);
-                UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
-                if(!Check(UIRewardTicket!=0,TEXT("UI: normal next-level reward replenishes the uninstalled evidence group"))){return Finish();}
-                UIBuildStage=12;UIBuildDueAt=Now+.5;return true;
-            }
-            if(UIBuildStage==12)
-            {
-                FString Detail;const auto Status=Mode->Growth->DevGrantStatus(UIRewardTicket,Detail);
-                if(Status==ELDDevGrantStatus::Pending){return true;}
-                if(!Check(Status==ELDDevGrantStatus::Granted,TEXT("UI: replenishing reward commits normally"))){return Finish();}
-                UIBuildStage=13;
-            }
-            bRestChoicesShot = true;
-            ReviewRestScreens(PC, Public, Now);
-            if (!Passed) { return Finish(); }
-        }
-        int64 AtMs = 0;
-        if (!PC.ReadDemoAuthorityTimeMs(AtMs) || AtMs < View.Timeline.SignupOpensAtMs - 20000) { return true; }
-        if (!bUISignupSent && PC.Navigation && PC.CanWorldCommand())
-        {
-            if (PC.HUDUI && PC.HUDUI->ChoicesPanel) { PC.HUDUI->ChoicesPanel->ClosePanel(); }
-            // Three AI sign normally. Client1 makes four entrants; all three humans make six.
-            if (Entrants == 6 || Role == TEXT("Client1"))
-            {
-                const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
-                ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-                const FLDMapBinding* Disk = Body && Registry
-                    ? Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Body->PresentationKey)), Registry->Generation) : nullptr;
-                if (!Check(Disk != nullptr, TEXT("UI: owner resolves its public sign-up anchor"))) { return Finish(); }
-                PC.Navigation->NavigateGround(Disk->Position, Disk->Surface);
-            }
-            bUISignupSent = true;
-        }
-        if(bUISignupSent&&FApp::CanEverRender()&&(Entrants==6||Role==TEXT("Client1"))
-            &&UIReadyOpenStep<3&&Now>=UIActionDueAt)
-        {
-            auto* Panel=PC.HUDUI->ChoicesPanel.Get();
-            UIActionDueAt=Now+.2;
-            if(UIReadyOpenStep==0)
-            {
-                if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))).IsValid()){return true;}
-                // Nothing to build: the workshop still opens from the 构筑 button, but there is no workspace to keep.
-                if(!Panel->HasCards())
-                {
-                    if(!Check(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))->GetIsEnabled(),
-                        TEXT("UI: the 构筑 button opens the workshop even while the tray has no card"))){return Finish();}
-                    UIReadyOpenStep=5;return true;
-                }
-                if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                    TEXT("UI: entrant opens planning during the actual build window before PK"))){return Finish();}
-                UIReadyOpenStep=1;return true;
-            }
-            if(!Check(Panel->IsPanelOpen(),TEXT("UI: entrant leaves its own workspace open before entering PK"))){return Finish();}
-            UIReadyOpenStep=3;
-        }
-        return true;
-    }
-    if (View.Timeline.Step != ELDRestStep::PKReady && View.Timeline.Step != ELDRestStep::PK) { return true; }
-    if(View.Timeline.Step==ELDRestStep::PKReady&&FApp::CanEverRender()&&View.PK.FindEntrant(PC.OwnerState.ContenderId))
-    {
-        if(!Check(UIReadyOpenStep==5||(UIReadyOpenStep==3&&(PC.HUDUI->ChoicesPanel->IsPanelOpen()||!PC.HUDUI->ChoicesPanel->HasCards())),
-            TEXT("UI: the player-opened workspace survives the locked PK preparation"))){return Finish();}
-        return true;
-    }
-    if(View.Timeline.Step==ELDRestStep::PK&&FApp::CanEverRender()&&View.PK.FindEntrant(PC.OwnerState.ContenderId)&&UIReadyOpenStep==3)
-    {
-        if(UIReadyFoldDueAt==0){UIReadyFoldDueAt=Now+.2;return true;}
-        if(Now<UIReadyFoldDueAt){return true;}
-        if(!Check(PC.HUDUI->ChoicesPanel->IsPanelOpen()||!PC.HUDUI->ChoicesPanel->HasCards(),
-            TEXT("UI: actual PK entry keeps the player-opened workspace"))){return Finish();}
-        PC.HUDUI->ChoicesPanel->ClosePanel();
-        UIReadyOpenStep=4;
-    }
-    if(bUIPKShotsDone){return true;}
-    if (!bUIRelationsChecked)
-    {
-        if (View.PK.Outcome != ELDPKOutcome::Running) { return true; }
-        const FGuid Self = PC.OwnerState.ContenderId;
-        const FLDPKEntrantView* Own = View.PK.FindEntrant(Self);
-        bool Relations = View.PK.Format == ELDPKFormat::Teams && View.PK.SideCount == 2 && View.PK.Entrants.Num() == Entrants
-            && LDHUD::PKFormatText(View.PK.Format, View.PK.SideCount, Entrants) == UIReview;
-        int32 Allies = 0, Enemies = 0;
-        for (const FLDPKEntrantView& Entry : View.PK.Entrants)
-        {
-            const FString Label = LDHUD::PKRelationText(View, Self, Entry.Contender);
-            if (Own)
-            {
-                Relations &= Label == (Entry.Contender == Self ? LDTerms::PKOwnSide
-                    : Entry.Side == Own->Side ? LDTerms::PKTeammate : LDTerms::PKEnemy);
-                Allies += Entry.Side == Own->Side && Entry.Contender != Self ? 1 : 0;
-                Enemies += Entry.Side != Own->Side ? 1 : 0;
-            }
-            else { Relations &= Label==LDTerms::PKSide(Entry.Side)&&!Label.Contains(LDTerms::PKRoleWatch); }
-        }
-        const ALDWorldViewRelay* Relay = PC.LocalView();
-        const FLDObservedFrameRead Read = Relay ? Relay->ReadObservedFrame() : FLDObservedFrameRead{};
-        int32 Seen = 0;
-        if (Read.Frame && Read.Status == ELDObservedViewStatus::Current)
-        {
-            for (const FLDObservedUnitView& Unit : Read.Frame->Units)
-            {
-                if (Unit.Kind == ELDObservedUnitKind::Contender && View.PK.FindEntrant(Unit.ContenderId))
-                {
-                    ++Seen;
-                    Relations &= !LDHUD::PKRelationText(View, Self, Unit.ContenderId).IsEmpty();
-                }
-            }
-        }
-        if (!Seen) { return true; }
-        Relations &= Own ? Allies == Entrants / 2 - 1 && Enemies == Entrants / 2
-            : LDHUD::IsSpectatingPK(View, Self);
-        if (!Check(Relations, TEXT("UI: owning connection reads team relations and observed arena bodies"))) { return Finish(); }
-        Summary->SetStringField(TEXT("ui_format"), UIReview);
-        Summary->SetNumberField(TEXT("observed_entrants"), Seen);
-        Summary->SetBoolField(TEXT("spectator"), Own == nullptr);
-        bUIRelationsChecked = true;
-        if (!FApp::CanEverRender())
-        {
-            Summary->SetArrayField(TEXT("screenshots"), Screenshots);
-            bUIPKShotsDone=true;return true;
-        }
-        if (PC.Navigation) { PC.Navigation->PanTo(View.PK.ArenaCentreCm); }
-        if (ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn()); Body && Body->CameraArm)
-        { Body->CameraArm->TargetArmLength = 2600.f; }
-        if (PC.Controls) { PC.Controls->TextScale = 1.f; }
-        PC.ConsoleCommand(Role == TEXT("Client1") ? TEXT("r.SetRes 1280x720w") : TEXT("r.SetRes 1920x1080w"), true);
-        UIShotDueAt = Now + .75;
-        return true;
-    }
-    if (Now < UIShotDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
-    if (UIShot == 1)
-    {
-        if (PC.Controls) { PC.Controls->TextScale = 1.25f; }
-        ++UIShot;
-        UIShotDueAt = Now + .75;
-        return true;
-    }
-    if (UIShot == 0 || UIShot == 2)
-    {
-        const UWidget* SidePanel = PC.HUDUI ? PC.HUDUI->GetWidgetFromName(TEXT("HUDPKSidePanel")) : nullptr;
-        if (!Check(SidePanel != nullptr, TEXT("UI: rendered owner has its public PK side panel"))) { return Finish(); }
-        const FGeometry& HudGeometry = PC.HUDUI->GetCachedGeometry();
-        const FVector2D Left = HudGeometry.AbsoluteToLocal(
-            SidePanel->GetCachedGeometry().LocalToAbsolute(FVector2D::ZeroVector));
-        if (!Check(SidePanel->GetCachedGeometry().GetLocalSize().X > 0
-            && Left.X > HudGeometry.GetLocalSize().X * .6,
-            UIShot == 0 ? TEXT("UI: PK side panel leaves arena centre clear at 100%")
-                : TEXT("UI: PK side panel leaves arena centre clear at 125%"))) { return Finish(); }
-        const FString Name = FString::Printf(TEXT("%s-PK-%s-%s.png"), *Role, *UIReview, UIShot == 0 ? TEXT("100") : TEXT("125"));
-        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Name), true, false);
-        Screenshots.Add(MakeShared<FJsonValueString>(Name));
-        ++UIShot;
-        UIShotDueAt = Now + .75;
-        return true;
-    }
-    if (Role == TEXT("Host"))
-    {
-        if (!Check(bRestReviewDone && RestServiceReviewShot == 4, TEXT("UI: task pages and NPC service captured at both sizes and scales")))
-        { return Finish(); }
-    }
-    Summary->SetArrayField(TEXT("screenshots"), Screenshots);
-    bUIPKShotsDone=true;return true;
-}
-
-bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
-{
-    UIBuildDueAt=Now+.2;
-    if(UIChoiceStep==0)
-    {
-        auto* Real=PC.HUDUI->ChoicesPanel.Get();
-        FLDProgressionView Sample=Real->Latest;
-        // An isolated card offer of three catalog cards the build does not own yet.
-        Sample.bHasActiveOffer=false;Sample.PendingBlueprints.Reset();
-        Sample.bHasCardOffer=true;Sample.CardOffer=FLDCardOfferView();Sample.CardOffer.OfferId=FGuid::NewGuid();Sample.CardOffer.OfferRevision=1;
-        Sample.CardOffer.Ordinal=2;Sample.CardOffer.Source=ELDCardOfferSource::LevelUp;
-        for(const FLDDemoCardDefinition& Card:Real->LatestContent->Cards)
-        {
-            const FName Id(*Card.Id);
-            if(LDHUD::OwnedCopies(Sample,Id)==0&&Sample.CardOffer.Options.Num()<3){Sample.CardOffer.Options.Add(Id);}
-        }
-        if(!Check(Sample.CardOffer.Options.Num()==3&&!Sample.Cards.IsEmpty(),
-            TEXT("UI: isolated card offer fixture uses three unowned cards beside owned ones"))){return false;}
-        Real->ClosePanel();
-        UIChoiceFixture.Reset(CreateWidget<ULDChoicesPanel>(&PC));
-        if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
-        auto* Panel=UIChoiceFixture.Get();
-        Panel->AddToPlayerScreen(100);
-        const auto* Workshop=PC.HUDUI->Workshop.Get();
-        const FVector2D Inset=Workshop->TrayInset();
-        Panel->SetTrayInset(Inset.X,Inset.Y,Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
-        const auto PresentFixture=[&]()
-        {
-            Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
-                Real->LatestContent,Real->LatestStats,Real->SlotKeys);
-        };
-        PresentFixture();
-        Sample.CardOffer.Options.Swap(0,1);
-        PresentFixture();
-        if(!Check(!Panel->IsPanelOpen()&&Panel->HasCards(),TEXT("UI: a closed tray retains the current card offer"))){return false;}
-        Panel->ApplyTextScale(1.25f);Panel->OpenPanel();
-        const auto LatestCard=LDHUD::CardFace(Sample.CardOffer.Options[1],Panel->LatestContent,Panel->LatestStats);
-        if(!Check(Panel->CardCards.IsValidIndex(1)&&Panel->CardCards[1].Detail.Name==LatestCard.Name,
-            TEXT("UI: reopening the tray renders the latest card offer received while closed"))){return false;}
-        // This isolated presentation fixture records the real button's command without granting a gameplay reward.
-        Panel->PeekRequestId=[](){return uint64(900001);};
-        Panel->SubmitBuild=[this](const FLDBuildCommand& Command,ELDGrowthReason& Reason)
-        {UIChoiceSubmitted=Command;Reason=ELDGrowthReason::None;return uint64(900001);};
-        UIChoiceStep=1;return true;
-    }
-    auto* Panel=UIChoiceFixture.Get();
-    const auto& Candidate=Panel->CardCards[1];
-    const FName CandidateId=Panel->Latest.CardOffer.Options[1];
-    const auto Expected=LDHUD::CardFace(CandidateId,Panel->LatestContent,Panel->LatestStats);
-    if(UIChoiceStep==1)
-    {
-        // The card shows the icon and the name only; its full rules are the popup of the card under the pointer.
-        if(!Check(LDSlateProbeInput::FullyVisible(Panel->CardCards[0].Frame,Panel)
-            &&LDSlateProbeInput::FullyVisible(Candidate.Frame,Panel)
-            &&LDSlateProbeInput::Pointer(Candidate.Button,EKeys::LeftMouseButton,false,false),
-            TEXT("UI: the offered cards fit without scrolling and the second receives actual pointer hover at 720p125"))){return false;}
-        UIChoiceStep=2;return true;
-    }
-    if(UIChoiceStep==2)
-    {
-        LDHUD::FActionDetailView Shown;
-        const FVector2D Centre=Candidate.Frame->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5f,.5f));
-        if(!Check(Panel->Hovered(Centre,Shown)==Candidate.Frame&&!Expected.SentencePlain.IsEmpty()&&Shown.Name==Expected.Name
-            &&Shown.Body.StartsWith(Expected.SentencePlain)&&Candidate.Name->GetText().ToString()==Expected.Name,
-            TEXT("UI: the offered card names it and its hover popup carries its exact rules"))){return false;}
-        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostCardOffer_720_125.png")),true,false);
-        Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostCardOffer_720_125.png")));
-        UIChoiceStep=4;return true;
-    }
-    if(UIChoiceStep==4)
-    {
-        if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-        if(!Check(LDSlateProbeInput::SendClick(Candidate.Button),TEXT("UI: actual pointer selects the second offered card"))){return false;}
-        UIChoiceStep=5;return true;
-    }
-    FName Selected;
-    if(!Check(UIChoiceSubmitted.Kind==ELDBuildCommandKind::PickCard
-        &&UIChoiceSubmitted.OfferId==Panel->Latest.CardOffer.OfferId
-        &&UIChoiceSubmitted.Option.Decode(Selected)&&Selected==CandidateId,
-        TEXT("UI: isolated card selection submits the exact second card"))){return false;}
-    UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();UIChoiceStep=6;return true;
-}
-
-bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGameState& Public,
-    ALDGameMode* Mode, double Now)
-{
-    const FLDPublicMatchView& View = Public.PublicMatch;
-    const FLDPKView& PK = View.PK;
-    const FLDProgressionView* Growth = PC.ReadOwnProgression();
-    const FGuid Self = PC.OwnerState.ContenderId;
-    if (!Growth || !Growth->bValid || Growth->Generation != View.Generation) { return true; }
-    const auto Budget = [](const FLDProgressionView& Owner)
-    {
-        int64 Total = Owner.UnspentPoints;
-        for (const FLDStatPointsView& Stat : Owner.StatPoints) { Total += Stat.Points; }
-        return Total;
-    };
-    if (View.Phase != ELDMatchPhase::Rest || View.Timeline.Step < ELDRestStep::Draw) { return true; }
-    if (View.Timeline.Step < ELDRestStep::Settlement)
-    {
-        // Freeze before the fight: owner growth replication may arrive before the public settlement step.
-        // Spending/refunding points in the concurrent build review does not change this earned budget.
-        if (!bPKRewardBaseline)
-        {
-            PKRewardBefore = Budget(*Growth);
-            PKRewardXP = Growth->CumulativeXP;
-            PKRewardLevel = Growth->Level;
-            bPKRewardBaseline = true;
-        }
-        if (UIReview == TEXT("2v2") && View.Timeline.Step == ELDRestStep::Betting && PK.IsBettor(Self))
-        {
-            const uint8 Side = Role == TEXT("Host") ? 1 : 2;
-            const FLDPKBetView* Bet = PK.Bets.FindByPredicate([&Self](const FLDPKBetView& B) { return B.Spectator == Self; });
-            if ((!Bet || Bet->Side != Side) && Now >= PKBetRetryAt)
-            { PC.SubmitPKBet(Side); PKBetRetryAt = Now + .5; }
-        }
-        return true;
-    }
-    if (bPKRewardReplay) { return true; }
-    if (!bPKRewardRows)
-    {
-        if (FApp::CanEverRender() && FScreenshotRequest::IsScreenshotRequested()) { return true; }
-        if (PKRewardSeenAt == 0)
-        {
-            PKRewardSeenAt = Now;
-            if (PC.HUDUI && PC.HUDUI->ChoicesPanel)
-            {
-                PC.HUDUI->ChoicesPanel->ClosePanel();
-                PC.HUDUI->RefreshReadModel();
-            }
-            return true;
-        }
-        if (Now - PKRewardSeenAt < .3) { return true; }
-        const auto& P = Content->Get().Parameters;
-        if (!Check(bPKRewardBaseline && PK.Generation == View.Generation && PK.Serial > 0
-            && PK.RestIndex == 1 && PK.Outcome == ELDPKOutcome::Won
-            && P.PKRewardMultiplierBp == 15000 && P.PKParticipationPoints == 1
-            && P.PKWinnerPointsMax == 3 && P.PKBettingPoolMaxPoints == 2,
-            TEXT("PK225: a real won R1 PK exercises the approved reward inputs"))) { return false; }
-        TArray<FLDPKAwardView> Expected;
-        TArray<int32> Winners;
-        for (const FLDPKEntrantView& Entrant : PK.Entrants)
-        {
-            if (!Check(!Entrant.bForfeited, TEXT("PK225: the connected review roster has no forfeited entrants"))) { return false; }
-            FLDPKAwardView& Row = Expected.AddDefaulted_GetRef();
-            Row.Contender = Entrant.Contender;
-            if (Entrant.Side == PK.WinnerSide) { Winners.Add(Expected.Num() - 1); }
-        }
-        // Independent oracle: ceil(base * 3 / 2), then serial-rotated integer shares; not ComputeAwards.
-        const auto Share = [&PK](int64 Pool, int32 Count, int32 Index)
-        {
-            const int32 Start = int32((PK.Serial - 1) % uint32(Count));
-            return uint8(Pool / Count + ((Index + Count - Start) % Count < Pool % Count ? 1 : 0));
-        };
-        const int64 ParticipationPool = (PK.Entrants.Num() * P.PKParticipationPoints * 3 + 1) / 2;
-        const int64 WinnerPool = (FMath::Min<int64>((PK.Entrants.Num() + 1) / 2, P.PKWinnerPointsMax) * 3 + 1) / 2;
-        if (!Check(!Expected.IsEmpty() && !Winners.IsEmpty(), TEXT("PK225: settlement includes participants and a winning side"))) { return false; }
-        for (int32 Index = 0; Index < Expected.Num(); ++Index)
-        { Expected[Index].Participation = Share(ParticipationPool, Expected.Num(), Index); }
-        for (int32 Index = 0; Index < Winners.Num(); ++Index)
-        { Expected[Winners[Index]].Winner = Share(WinnerPool, Winners.Num(), Index); }
-        TArray<FGuid> Correct;
-        for (const FGuid& Bettor : PK.Bettors)
-        {
-            const FLDPKBetView* Bet = PK.Bets.FindByPredicate([&Bettor](const FLDPKBetView& B) { return B.Spectator == Bettor; });
-            if (Bet && Bet->Side == PK.WinnerSide) { Correct.Add(Bettor); }
-        }
-        if (UIReview == TEXT("2v2") && !Check(PK.Bettors.Num() == 2 && PK.Bets.Num() == 2
-            && Correct.Num() == 1, TEXT("PK225: 2v2 exercises a real correctly betting spectator"))) { return false; }
-        const int64 BettingPool = (FMath::Min<int64>(PK.Bettors.Num(), P.PKBettingPoolMaxPoints) * 3 + 1) / 2;
-        for (int32 Index = 0; Index < Correct.Num(); ++Index)
-        {
-            FLDPKAwardView& Row = Expected.AddDefaulted_GetRef();
-            Row.Contender = Correct[Index];
-            Row.Bet = Share(BettingPool, Correct.Num(), Index);
-        }
-        bool RowsAgree = Expected.Num() == PK.Awards.Num();
-        FString Fingerprint;
-        int64 OwnBet = 0;
-        for (int32 Index = 0; Index < Expected.Num(); ++Index)
-        {
-            const auto& E = Expected[Index];
-            const auto* A = PK.Awards.IsValidIndex(Index) ? &PK.Awards[Index] : nullptr;
-            RowsAgree &= A && A->Contender == E.Contender && A->Participation == E.Participation
-                && A->Winner == E.Winner && A->Bet == E.Bet;
-            Fingerprint += FString::Printf(TEXT("%s:%u,%u,%u;"), *LDLog::Id(E.Contender),
-                uint32(E.Participation), uint32(E.Winner), uint32(E.Bet));
-            if (E.Contender == Self)
-            { PKRewardExpected = int64(E.Participation) + E.Winner + E.Bet; OwnBet = E.Bet; }
-        }
-        if (!Check(RowsAgree, TEXT("PK225: public award rows equal independently scaled and rotated pools"))) { return false; }
-        if (FApp::CanEverRender())
-        {
-            auto* HUD = PC.HUDUI.Get();
-            if (!Check(HUD && HUD->ChoicesPanel, TEXT("PK225: rendered owner has its actual settlement HUD"))) { return false; }
-            if (HUD->ChoicesPanel->IsPanelOpen()) { HUD->ChoicesPanel->ClosePanel(); }
-            HUD->RefreshReadModel();
-            const auto Rows = LDHUD::PKAwardRows(PK, Public.DemoLobby, Self);
-            bool Visible = Rows.Num() == Expected.Num() && HUD->PKAwardsTitle && HUD->PKAwardsTitle->IsVisible();
-            for (int32 Index = 0; Index < Rows.Num(); ++Index)
-            {
-                const auto& E = Expected[Index];
-                const int64 Total = int64(E.Participation) + E.Winner + E.Bet;
-                TArray<FString> Parts;
-                if (E.Participation) { Parts.Add(FString::Printf(TEXT("%s +%u"), LDTerms::PKAwardParticipation, uint32(E.Participation))); }
-                if (E.Winner) { Parts.Add(FString::Printf(TEXT("%s +%u"), LDTerms::PKAwardWinner, uint32(E.Winner))); }
-                if (E.Bet) { Parts.Add(FString::Printf(TEXT("%s +%u"), LDTerms::PKAwardBet, uint32(E.Bet))); }
-                Parts.Add(LDTerms::PKAwardTotal(Total));
-                const FString Points = FString::Join(Parts, TEXT(" · "));
-                const auto* Text = HUD->PKAwardTexts.IsValidIndex(Index) ? HUD->PKAwardTexts[Index].Get() : nullptr;
-                const bool bText = Text && Text->GetText().ToString() == Rows[Index].Name + TEXT("：") + Points;
-                const bool bInHUD = LDSlateProbeInput::FullyVisible(Text, HUD);
-                const bool bInPanel = LDSlateProbeInput::FullyVisible(Text, HUD->GetWidgetFromName(TEXT("HUDPKSidePanel")));
-                const bool bRow = Rows[Index].Points == Points && Rows[Index].Total == Total && Rows[Index].bSelf == (E.Contender == Self);
-                if (!(bText && bInHUD && bInPanel && bRow))
-                {
-                    // Name the failing part: a wrong text, a row outside the screen or the panel, or a wrong model row.
-                    const FVector2D Size = Text ? FVector2D(Text->GetCachedGeometry().GetLocalSize()) : FVector2D::ZeroVector;
-                    UE_LOG(LogLDTest, Error, TEXT("LD_PK_AWARD_ROW_NOT_SHOWN row=%d text=%d in_hud=%d in_panel=%d model=%d size=%.1fx%.1f shown=\"%s\""),
-                        Index, int32(bText), int32(bInHUD), int32(bInPanel), int32(bRow), Size.X, Size.Y, Text ? *Text->GetText().ToString() : TEXT(""));
-                }
-                Visible &= bText && bInHUD && bInPanel && bRow;
-            }
-            if (!Check(Visible, TEXT("PK225: rendered settlement text visibly matches every public award row"))) { return false; }
-            const FString File = Role + TEXT("-PKSettlement.png");
-            FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, File), true, false);
-            Screenshots.Add(MakeShared<FJsonValueString>(File));
-        }
-        Check(true, TEXT("PK225: approved scaled public settlement agrees"));
-        Summary->SetNumberField(TEXT("pk_serial"), PK.Serial);
-        Summary->SetStringField(TEXT("pk_awards"), Fingerprint);
-        Summary->SetNumberField(TEXT("pk_points_before"), double(PKRewardBefore));
-        Summary->SetNumberField(TEXT("pk_expected_points"), double(PKRewardExpected));
-        Summary->SetNumberField(TEXT("pk_bet_points"), double(OwnBet));
-        PKRewardSeenAt = Now;
-        bPKRewardRows = true;
-    }
-    if (!bPKRewardCredited)
-    {
-        const bool Credited = Budget(*Growth) == PKRewardBefore + PKRewardExpected
-            && Growth->CumulativeXP == PKRewardXP && Growth->Level == PKRewardLevel;
-        if (!Credited && Now - PKRewardSeenAt < 5.) { return true; }
-        if (!Check(Credited, TEXT("PK225: owning connection receives its exact award"))) { return false; }
-        Summary->SetNumberField(TEXT("pk_points_after"), double(Budget(*Growth)));
-        if (!Mark(Role + TEXT("PKCredited.json"))) { return false; }
-        bPKRewardCredited = true;
-    }
-    if (Mode && Mode->PKDirector && Mode->Development)
-    {
-        auto* Director = Mode->PKDirector.Get();
-        if (!bPKRewardReplayQueued && AllMarkers(TEXT("PKCredited.json")))
-        {
-            if (!Check(Director->bAwardsPaid && !Director->PendingAwards.IsEmpty(),
-                TEXT("PK225: authority has paid nonempty awards before replay"))) { return false; }
-            for (const auto& Row : Director->PendingAwards)
-            {
-                const auto* Build = Mode->Development->FindBuild(Row.Contender);
-                if (!Check(Build != nullptr, TEXT("PK225: each replay recipient has a real growth record"))) { return false; }
-                PKReplayBalances.Add(Row.Contender, Build->AwardedPoints);
-            }
-            // Retry the same production transaction with the same business identities on the next authority boundary.
-            Director->bAwardsPaid = false;
-            bPKRewardReplayQueued = true;
-            return true;
-        }
-        if (bPKRewardReplayQueued && !bPKRewardReplayComplete && Director->bAwardsPaid)
-        {
-            bool Unchanged = true;
-            for (const auto& Pair : PKReplayBalances)
-            {
-                const auto* Build = Mode->Development->FindBuild(Pair.Key);
-                Unchanged &= Build && Build->AwardedPoints == Pair.Value;
-            }
-            if (!Check(Unchanged, TEXT("PK225: authority replays identical awards without increasing balances"))
-                || !Mark(TEXT("HostPKReplayComplete.json"))) { return false; }
-            bPKRewardReplayComplete = true;
-        }
-    }
-    if (!FPaths::FileExists(FPaths::Combine(Output, TEXT("HostPKReplayComplete.json")))) { return true; }
-    if (PKRewardReplaySeenAt == 0) { PKRewardReplaySeenAt = Now; }
-    if (Now - PKRewardReplaySeenAt < 1.) { return true; }
-    if (!Check(Budget(*Growth) == PKRewardBefore + PKRewardExpected,
-        TEXT("PK225: replayed award identities do not credit twice"))) { return false; }
-    bPKRewardReplay = true;
-    return true;
-}
-
-        bool FLDDemoOpponentProbe::ReviewPayout(ALDPlayerController& PC,double Now)
-        {
-            if(bUIPayoutChecked||Now<UIActionDueAt){return true;}
-            if(!FApp::CanEverRender()){bUIPayoutChecked=true;return true;}
-            auto* HUD=PC.HUDUI.Get();auto* Panel=HUD?HUD->ChoicesPanel.Get():nullptr;
-            if(!Check(HUD&&Panel,TEXT("UI: payout owner has its actual HUD"))){return Finish();}
-            UIActionDueAt=Now+.2;
-            if(UIPayoutStep==0)
-            {
-                if(Panel->IsPanelOpen()){Panel->ClosePanel();return true;}
-                if(!LDSlateProbeInput::Path(HUD->GetWidgetFromName(TEXT("HUDTrainingReset"))).IsValid()){return true;}
-                if(!Check(!HUD->GetWidgetFromName(TEXT("HUDRestReady"))->IsVisible()
-                    &&LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDTrainingReset"))),
-                    TEXT("UI: payout exposes actual training reset but not the build-only ready button"))){return Finish();}
-                auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-                const auto* Anchor=Registry?Registry->Resolve(TEXT("rest_service_3"),Registry->Generation):nullptr;
-                if(!Check(Anchor&&PC.Navigation,TEXT("UI: payout service anchor is available"))){return Finish();}
-                PC.Navigation->NavigateGround(Anchor->Position,Anchor->Surface);UIPayoutStep=1;return true;
-            }
-            if(UIPayoutStep==1)
-            {
-                if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
-                if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                    TEXT("UI: owning connection opens the workshop beside an NPC during payout"))){return Finish();}
-                UIPayoutStep=2;return true;
-            }
-            // A waiting offer takes the centre stage; its back button returns to the bench, where the services are.
-            if(Panel->IsStageShown())
-            {
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthStageBack"))),
-                    TEXT("UI: the payout owner leaves the offer stage for the NPC services"))){return Finish();}
-                return true;
-            }
-            if(!Panel->IsServiceShown()){return true;}
-            if(!Check(Panel->IsServiceShown()&&Panel->RespecBox->IsVisible()
-                &&!Cast<UTextBlock>(Panel->RespecButton->GetContent())->GetText().IsEmpty()
-                &&!HUD->GetWidgetFromName(TEXT("HUDPKSidePanel"))->GetParent()->IsVisible(),
-                TEXT("UI: payout interaction presents its real service actions and reasons"))){return Finish();}
-            const FString Name=Role+TEXT("PayoutService.png");
-            FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);
-            Screenshots.Add(MakeShared<FJsonValueString>(Name));
-            bUIPayoutChecked=true;
-            return true;
-        }
-
-        bool FLDDemoOpponentProbe::ReviewField(ALDPlayerController& PC,const FLDPublicMatchView& View,double Now)
-        {
-            if(View.Phase!=ELDMatchPhase::Development&&View.Phase!=ELDMatchPhase::CaptureOpen){return true;}
-            auto* HUD=PC.HUDUI.Get();auto* Panel=HUD?HUD->ChoicesPanel.Get():nullptr;
-            if(!Check(bUIPayoutChecked,TEXT("UI: payout was exercised before field return"))){return Finish();}
-            int64 AuthorityNow=0;
-            if(!PC.ReadDemoAuthorityTimeMs(AuthorityNow)||!HUD||!Panel){return true;}
-            if(FApp::CanEverRender()&&FScreenshotRequest::IsScreenshotRequested()){return true;}
-            if(!bUIAnnouncementChecked&&View.Airdrop.Phase==ELDAirdropPhase::Announced)
-            {
-                HUD->RefreshReadModel();
-                if(FApp::CanEverRender())
-                {
-                    if(!Check(HUD->Minimap&&HUD->Minimap->IsVisible()&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD),
-                        TEXT("UI: the announced airdrop is shown by the visible minimap, with no text line above it"))){return Finish();}
-                    const FString File=Role+TEXT("FieldAirdropAnnouncement.png");
-                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,File),true,false);
-                    Screenshots.Add(MakeShared<FJsonValueString>(File));
-                }
-                bUIAnnouncementChecked=true;
-                return true;
-            }
-            if(Role!=TEXT("Client1")||!FApp::CanEverRender()){bUIFieldChecked=true;}
-            if(!bUIFieldChecked&&Now>=UIActionDueAt)
-            {
-                UIActionDueAt=Now+.2;
-                const auto* Growth=PC.ReadOwnProgression();
-                const auto& Combat=PC.CombatView;
-                if(!Growth||PC.OwnerState.LifePhase!=ELDLifePhase::Alive||!Combat.bHasBody||!PC.GetPawn()){return true;}
-                if((UIFieldStep==30||UIFieldStep==4)&&UIFieldFightSince>0&&Now-UIFieldFightSince>20.)
-                {
-                    Error=TEXT("Field attack never reached combat: ")+PC.Navigation->Status;
-                    Check(false,TEXT("UI: a fresh observed field attack reaches real combat within twenty seconds"));return Finish();
-                }
-                const auto Capture=[&](const TCHAR* Name)
-                {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
-                // The minimap column shows the map and its timer only (no text lines above it), in combat and out of it.
-                const auto CheckSummary=[&](bool,int32 Width,int32 Height)
-                {
-                    int32 ActualWidth=0,ActualHeight=0;PC.GetViewportSize(ActualWidth,ActualHeight);
-                    const UWidget* Body=HUD->GetWidgetFromName(TEXT("HUDActionBody"));
-                    const UWidget* Q=HUD->GetWidgetFromName(TEXT("HUDActionQ"));
-                    const auto Separate=[](const UWidget* A,const UWidget* B)
-                    {
-                        if(!A||!B||!A->IsVisible()||!B->IsVisible()){return true;}
-                        const FSlateRect Left=A->GetCachedGeometry().GetLayoutBoundingRect();
-                        const FSlateRect Right=B->GetCachedGeometry().GetLayoutBoundingRect();
-                        return Left.Right<=Right.Left+.5f||Right.Right<=Left.Left+.5f
-                            ||Left.Bottom<=Right.Top+.5f||Right.Bottom<=Left.Top+.5f;
-                    };
-                    const bool bStatusClear=HUD->MapColumn&&HUD->Band&&Separate(HUD->MapColumn,HUD->Band);
-                    return Check(ActualWidth==Width&&ActualHeight==Height&&HUD->Minimap&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD)
-                        &&LDSlateProbeInput::FullyVisible(Body,HUD)&&LDSlateProbeInput::FullyVisible(Q,HUD)
-                        &&Body->GetCachedGeometry().GetLayoutBoundingRect().Right<=Q->GetCachedGeometry().GetLayoutBoundingRect().Left&&bStatusClear,
-                        TEXT("UI: the field minimap and the centred band fit without overlap, with the body left of Q"));
-                };
-                if(UIFieldStep==0)
-                {
-                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
-                    if(Panel->IsPanelOpen()){Panel->ClosePanel();return true;}
-                    UIFieldActivesBefore=Growth->Actives.Num();
-                    if(!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                        TEXT("UI: remote owner opens field-safe planning through the actual HUD entry"))){return Finish();}
-                    UIFieldStep=1;return true;
-                }
-                if(UIFieldStep==1)
-                {
-                    if(!Check(Panel->IsTrayOpen(),TEXT("UI: safe field planning survives the next real HUD refresh"))){return Finish();}
-                    UIFieldStep=2;return true;
-                }
-                if(UIFieldStep==2)
-                {
-                    if(!Check(Growth->bHasActiveOffer&&LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthOffer0"))),
-                        TEXT("UI: remote owner actually clicks its field-safe skill choice"))){return Finish();}
-                    UIFieldStep=3;UIActionDueAt=Now+.5;return true;
-                }
-                if(UIFieldStep==3)
-                {
-                    if(Panel->HasPendingRequest()){return true;}
-                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsTrayOpen(),
-                        TEXT("UI: a real field-safe build commits and the player-opened workshop stays open"))){return Finish();}
-                    Capture(TEXT("Client1FieldSafeBuild.png"));
-                    UIFieldStep=30;return true;
-        }
-        if(UIFieldStep==30)
-        {
-                    if(UIFieldFightSince<=0)
-                    {
-                        if(View.Airdrop.Phase!=ELDAirdropPhase::Announced){return true;}
-                        UIFieldFightSince=Now;
-                    }
-                    const auto* Relay=PC.LocalView();
-                    const auto Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-                    if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
-                    const FLDObservedUnitView* Target=nullptr;double Nearest=MAX_dbl;
-                    const FVector OwnFoot=PC.GetPawn()->GetActorLocation();
-                    for(const FLDObservedUnitView& Unit:Read.Frame->Units)
-                    {
-                        const double Distance=FVector::DistSquared2D(OwnFoot,FVector(Unit.FeetCm));
-                        if(Unit.Health.CurrentP2>0&&Unit.Handle!=UIFieldRejectedTarget&&Distance<Nearest)
-                        {Target=&Unit;Nearest=Distance;}
-                    }
-                    if(!Target)
-                    {
-                        if(!UIFieldVisitedCamps.IsEmpty())
-                        {
-                            const auto& Receipt=PC.Navigation->LatestReceipt();
-                            if(Receipt.Identity!=PC.Navigation->LocalIdentity()
-                                ||(Receipt.Status!=ELDOrderStatus::Rejected&&Receipt.Status!=ELDOrderStatus::Cancelled
-                                    &&Receipt.Status!=ELDOrderStatus::Completed)){return true;}
-                        }
-                        const auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-                        const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
-                        const FLDMapBinding* NextCamp=nullptr;double Distance=MAX_dbl;
-                        if(Geometry){for(const auto& Anchor:Geometry->Anchors)
-                        {
-                            if(Anchor.Kind!=ELDDemoWorldAnchorKind::Camp||UIFieldVisitedCamps.Contains(FName(*Anchor.Id))){continue;}
-                            const auto* Site=Registry->Resolve(FName(*Anchor.Id),Registry->Generation);
-                            if(Site&&FVector::DistSquared2D(OwnFoot,Site->Position)<Distance)
-                            {NextCamp=Site;Distance=FVector::DistSquared2D(OwnFoot,Site->Position);}
-                        }}
-                        if(!Check(NextCamp!=nullptr,TEXT("UI: an empty observed frame can explore another public camp anchor"))){return Finish();}
-                        UIFieldVisitedCamps.Add(NextCamp->Id);
-                        PC.Navigation->NavigateGround(NextCamp->Position,NextCamp->Surface);
-                        return true;
-                    }
-                    const FLDMoveIdentity Before=PC.Navigation->LocalIdentity();
-                    PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
-                    if(!Check(PC.Navigation->LocalIdentity()!=Before,
-                        TEXT("UI: the remote owner actually submits its field attack intent"))){return Finish();}
-                    UIFieldTarget=Target->Handle;UIFieldRetryAt=Now+1.;
-                    UIFieldStep=4;return true;
-                }
-                if(UIFieldStep==4)
-                {
-                    if(AuthorityNow>=Combat.BuildSafeAtMs)
-                    {
-                        const FLDOrderReceipt& Receipt=PC.Navigation->LatestReceipt();
-                        if(Now>=UIFieldRetryAt&&Receipt.Identity==PC.Navigation->LocalIdentity()
-                            &&(Receipt.Status==ELDOrderStatus::Rejected||Receipt.Status==ELDOrderStatus::Cancelled||Receipt.Status==ELDOrderStatus::Completed))
-                        {UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;}
-                        return true;
-                    }
-                    if(!Check(Panel->IsTrayOpen()||!Panel->HasCards(),
-                        TEXT("UI: actual field combat keeps the player-opened planning"))){return Finish();}
-                    Panel->ClosePanel();
-                    if(!CheckSummary(false,1280,720)){return Finish();}
-                    Capture(TEXT("Client1FieldCombatFold.png"));UIFieldStep=40;return true;
-                }
-                if(UIFieldStep==40)
-                {
-                    PC.ConsoleCommand(TEXT("r.SetRes 1920x1080w"),true);
-                    UIFieldStep=41;UIActionDueAt=Now+.3;return true;
-                }
-                if(UIFieldStep==41)
-                {
-                    if(AuthorityNow>=Combat.BuildSafeAtMs)
-                    {
-                        // Viewport recreation can outlast this target; reacquire within the original twenty-second bound.
-                        PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                        UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;UIActionDueAt=Now+.3;return true;
-                    }
-                    if(!Check(AuthorityNow<Combat.BuildSafeAtMs,
-                        TEXT("UI: the 1080p combat screenshot is still inside a real authority combat window"))
-                        ||!CheckSummary(false,1920,1080)){return Finish();}
-                    Capture(TEXT("Client1FieldCombatFold_1920x1080.png"));UIFieldStep=42;return true;
-                }
-                if(UIFieldStep==42)
-                {
-                    PC.StopCombatAndOrders();PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                    UIFieldStep=5;UIActionDueAt=Now+.3;return true;
-                }
-                if(UIFieldStep==5)
-                {
-                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
-                    UIFieldStep=49;return true;
-                }
-                if(UIFieldStep==49)
-                {
-                    if(AuthorityNow<Combat.BuildSafeAtMs){UIFieldStep=5;return true;}
-                    if(!CheckSummary(true,1280,720)){return Finish();}
-                    Capture(TEXT("Client1FieldSafeSummary_1280x720.png"));UIFieldStep=50;return true;
-                }
-                if(UIFieldStep==50)
-                {
-                    PC.ConsoleCommand(TEXT("r.SetRes 1920x1080w"),true);
-                    UIFieldStep=51;UIActionDueAt=Now+.3;return true;
-                }
-                if(UIFieldStep==51)
-                {
-                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
-                    if(!CheckSummary(true,1920,1080)){return Finish();}
-                    Capture(TEXT("Client1FieldSafeSummary_1920x1080.png"));UIFieldStep=52;return true;
-                }
-                if(UIFieldStep==52)
-                {
-                    PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                    UIFieldStep=53;UIActionDueAt=Now+.3;return true;
-                }
-                if(UIFieldStep==53)
-                {
-                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
-                    UWidget* Prompt=HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
-                    if(!Check(!Panel->IsPanelOpen()&&Prompt&&Prompt->GetIsEnabled(),
-                        TEXT("UI: expiry never auto-opens planning, and the 构筑 button stays available"))){return Finish();}
-                    if(Panel->HasCards()&&!Check(LDSlateProbeInput::SendClick(Prompt),
-                        TEXT("UI: the remote player manually reopens the tray"))){return Finish();}
-                    UIFieldStep=6;return true;
-                }
-                if(!Check(Panel->IsTrayOpen()==Panel->HasCards()&&!Panel->HasPendingRequest(),
-                    TEXT("UI: safe reopening survives refresh and does not resend a settled request"))){return Finish();}
-                Capture(TEXT("Client1FieldSafeReopened.png"));bUIFieldChecked=true;UIActionDueAt=Now+.5;
-            }
-            if(bUIFieldChecked&&bUIAnnouncementChecked&&!FScreenshotRequest::IsScreenshotRequested())
-            {
-                Summary->SetArrayField(TEXT("screenshots"),Screenshots);return Finish();
-            }
-            return true;
-        }
-
-bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double Now)
-{
-    if(UIServiceObservedStep!=UIServiceStep){UIServiceObservedStep=UIServiceStep;UIServiceStepAt=Now;}
-    if(Now-UIServiceStepAt>20.)
-    {
-        Error=FString::Printf(TEXT("Actual service UI stalled at step %d; nearby=%u; world_command=%d; navigation=%s"),
-            UIServiceStep,uint8(PC.OwnerState.NearbyRestService),PC.CanWorldCommand(),PC.Navigation?*PC.Navigation->Status:TEXT("missing"));
-        Check(false,TEXT("UI: each actual service interaction completes within twenty seconds"));return false;
-    }
-    if(UIHoldPressedAt>=0.)
-    {
-        // The release goes to the pressed button's pointer capture even when the committed hold has hidden it.
-        if(Now-UIHoldPressedAt<LDHUDStyle::MotionHoldConfirm+.2){return true;}
-        auto& App=FSlateApplication::Get();
-        App.RoutePointerUpEvent(UIHoldPath,FPointerEvent(App.GetUserIndexForMouse(),FSlateApplicationBase::CursorPointerIndex,UIHoldAt,UIHoldAt,
-            TSet<FKey>(),EKeys::LeftMouseButton,0,FModifierKeysState()));
-        UIHoldPath=FWidgetPath();UIHoldPressedAt=-1.;
-    }
-    if(Now<UIActionDueAt){return true;}
-    UIActionDueAt=Now+.15;
-    auto* Panel=PC.HUDUI->ChoicesPanel.Get();
-    const auto* Growth=PC.ReadOwnProgression();
-    auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if(!Growth||Panel->HasPendingRequest()){return true;}
-    const auto Click=[&](UWidget* Target)
-    {
-        // Nothing scrolls: a control that is not reachable yet only waits for its layout, a bounded number of times.
-        if(!LDSlateProbeInput::Path(Target).IsValid())
-        {
-            if(!Target||!Target->IsVisible()||++UIServiceWheels>80)
-            {
-                Error=FString::Printf(TEXT("Actual service control %s is unreachable at step %d."),Target?*Target->GetName():TEXT("missing"),UIServiceStep);
-                Check(false,TEXT("UI: requested service control is actually visible and reachable"));
-            }
-            return false;
-        }
-        UIServiceWheels=0;
-        return Check(Target->GetIsEnabled()&&LDSlateProbeInput::SendClick(Target),TEXT("UI: visible service control accepts a real pointer click"));
-    };
-    // Irreversible confirmations commit only on a full hold: a real press now, its release once the fill completes.
-    const auto Hold=[&](UWidget* Target)
-    {
-        if(!LDSlateProbeInput::Path(Target).IsValid()){return Click(Target);}
-        UIHoldPath=LDSlateProbeInput::Path(Target);UIHoldAt=Target->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5));
-        if(!Check(Target->GetIsEnabled()&&LDSlateProbeInput::Pointer(Target,EKeys::LeftMouseButton,true,false),
-            TEXT("UI: visible irreversible confirmation accepts a real pointer hold"))){return false;}
-        UIHoldPressedAt=Now;return true;
-    };
-    const auto Capture=[&](const TCHAR* Name)
-    {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
-    const auto Walk=[&](uint8 Service)
-    {
-        auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-        const auto* Anchor=Registry?Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Service)),Registry->Generation):nullptr;
-        if(!Check(Anchor&&PC.Navigation,TEXT("UI: service walk uses its approved anchor"))){return false;}
-        PC.Navigation->NavigateGround(Anchor->Position,Anchor->Surface);return true;
-    };
-    switch(UIServiceStep)
-    {
-    case 0:
-        if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
-        ++UIServiceStep;return true;
-    case 1:
-        if(!Panel->HasCards()){UIServiceStep=3;return true;}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-            TEXT("UI: the 构筑 tray reopens after leaving merchant service"))){return false;}
-        UIServiceStep=3;return true;
-    case 3:
-        if(Growth->bHasActiveOffer)
-        {
-            if(!Panel->IsTrayOpen())
-            {
-                UWidget* Prompt=PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
-                if(!LDSlateProbeInput::Path(Prompt).IsValid()||!Prompt->GetIsEnabled()){return true;}
-                if(!Check(LDSlateProbeInput::SendClick(Prompt),
-                    TEXT("UI: a later offer reopens the tray after the previous choice"))){return false;}
-                return true;
-            }
-            if(!Click(Panel->GetWidgetFromName(TEXT("GrowthOffer0")))){return Passed;}
-            UIActionDueAt=Now+.4;return true;
-        }
-        if(Growth->QueuedActiveOpportunities){return true;}
-        if(!Growth->PendingBlueprints.IsEmpty())
-        {
-            UIReplacement=Growth->PendingBlueprints[0];
-            // The open workshop hides the 构筑 button; its own close button puts it away.
-            if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
-            UIServiceStep=31;return true;
-        }
-        if(!Check(Growth->Level<6,TEXT("UI: approved level 3/6 and NPC offers supply the replacement fixture"))){return false;}
-        UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
-        if(!Check(UIRewardTicket!=0,TEXT("UI: normal XP supplies the next approved offer"))){return false;}
-        UIActionDueAt=Now+.5;return true;
-    case 31:
-        if(!PC.CanWorldCommand()){return true;}
-        if(!Walk(3)){return false;}UIServiceStep=4;return true;
-    case 4:
-        if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
-        if(!Check(!Panel->IsServiceShown(),TEXT("UI: trainer proximity alone shows no service while the workshop is closed"))){return false;}
-        ++UIServiceStep;return true;
-    case 5:
-        for(const auto& Row:Panel->BlueprintRows)
-        {for(const auto& Replace:Row.Replace){if(!Check(!Replace->IsVisible(),TEXT("UI: trainer proximity does not expose a hidden-confirm replacement"))){return false;}}}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-            TEXT("UI: the workshop opens beside the trainer with its services on the board"))){return false;}
-        ++UIServiceStep;UIActionDueAt=Now+.3;return true;
-    case 6:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthReplace0Q")))){return Passed;}
-        ++UIServiceStep;return true;
-    case 7:
-        if(!Check(Panel->RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive&&Panel->RestConfirmLine->IsVisible(),
-            TEXT("UI: replacement has a visible trainer confirmation"))){return false;}
-        Capture(TEXT("HostTrainerReplaceConfirm.png"));++UIServiceStep;return true;
-    case 8:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestCancel")))){return Passed;}
-        if(!Check(Panel->RestConfirm.Kind==ELDBuildCommandKind::None,TEXT("UI: actual cancel withdraws trainer replacement"))){return false;}
-        ++UIServiceStep;return true;
-    case 9:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthReplace0Q")))){return Passed;}
-        ++UIServiceStep;return true;
-    case 10:
-        UIServiceGrowthBefore=Growth->BuildRevision;
-        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
-        ++UIServiceStep;UIActionDueAt=Now+.4;return true;
-    case 11:
-        // The receipt's toast may follow the replicated revision by a few frames; the stall check bounds the wait.
-        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
-        if(!Check(LDHUD::ActiveInSlot(*Growth,0)==UIReplacement&&!PC.HUDUI->Toast->GetText().IsEmpty(),
-            TEXT("UI: confirmed replacement commits and its receipt is toasted"))){return false;}
-        Capture(TEXT("HostTrainerReplacementApplied.png"));
-        UIServiceGrowthBefore=Growth->BuildRevision;++UIServiceStep;return true;
-    case 12:
-        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
-        ++UIServiceStep;UIActionDueAt=Now+.4;return true;
-    case 13:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
-        if(!Check(!PC.HUDUI->Toast->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
-        if(!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
-        UIServiceStep=131;return true;
-    case 131:
-        if(!Check(!Panel->IsPanelOpen()&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None&&!Panel->TrainerPicks->IsVisible(),
-            TEXT("UI: closing the workshop leaves no hidden confirmation or trainer buttons behind"))){return false;}
-        UIServiceStep=133;return true;
-    case 133:
-        bUIOtherServicesDone=true;return true;
-    default:Check(false,TEXT("UI: explicit service review has a valid step"));return false;
-    }
-}
-
 bool FLDDemoOpponentProbe::Tick()
 {
     using namespace LDDemoOpponentProbeDetail;
@@ -2397,7 +1206,7 @@ bool FLDDemoOpponentProbe::Tick()
     if (!Content)
     {
         if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || Content->Get().Parameters.FieldSegmentMs <= 0
-            || Content->Get().Parameters.RestOpeningBuildMs <= 0 || Content->Get().Parameters.RespawnField1Ms <= 0)
+            || Content->Get().Parameters.RestOpeningBuildMs <= 0 || Content->Get().Parameters.RespawnBaseMs <= 0)
         {
             Check(false, TEXT("Approved content with positive field, opening rest and respawn durations loads"));
             return Finish();
@@ -2408,8 +1217,6 @@ bool FLDDemoOpponentProbe::Tick()
     if (bHost && !Mode) { return true; }
     const FLDLobbyView& Lobby = Public->DemoLobby;
     const FLDPublicMatchView& View = Public->PublicMatch;
-    if (!UIReview.IsEmpty() && Stage == ELDOpponentProbeStage::Starting)
-    { return TickUIReview(*PC, *Public, Mode); }
     switch (Stage)
     {
     case ELDOpponentProbeStage::Join:
@@ -2469,15 +1276,11 @@ bool FLDDemoOpponentProbe::Tick()
         }
         // #198: through R0 an opponent AI moves in the shared room only to train on its private target once nothing is left
         // to build (OPPONENT_AI.md §6.4); each picks its opening active in the R0 build step after its drawn delay.
-        // R0 has no PK signup. R1/R2 signup and PK entrant checks are sampled separately below.
         if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
             && Mode->GetTimeline().GetRestIndex() == 0)
         {
             const FLDTimelineView Line = Mode->ReadPublicMatch().Timeline;
-            const bool bPKSignupScheduled = LDMatchTimeline::IsPKRest(Line.RestIndex);
-            const bool bBeforeWindow = Line.Step == ELDRestStep::Build
-                && (!bPKSignupScheduled || Mode->GetAuthorityNowMs() < Line.SignupOpensAtMs);
-            const bool bInWindow = bPKSignupScheduled && Line.Step == ELDRestStep::Build && !bBeforeWindow;
+            const bool bBeforeWindow = Line.Step == ELDRestStep::Build;
             if (!bRestChoicesShot && bBeforeWindow && FApp::CanEverRender()
                 && Mode->GetAuthorityNowMs() - Mode->ReadPublicMatch().StartedAtMs >= 3000
                 && PC->HUDUI && PC->HUDUI->ChoicesPanel && PC->HUDUI->ChoicesPanel->IsPanelOpen()
@@ -2496,8 +1299,6 @@ bool FLDDemoOpponentProbe::Tick()
                 const APawn* Pawn = It->GetPawn();
                 FLDContenderLifeRead Life;
                 FString ReadError;
-                FVector Disk;
-                double DiskRadius = 0;
                 if (Pawn && Mode->IsInRestSpace(Id) && Mode->ReadContenderLife(Mode->GetMatchContext(), Id, Life, ReadError)
                     && Life.Phase == ELDLifePhase::Alive)
                 {
@@ -2508,7 +1309,6 @@ bool FLDDemoOpponentProbe::Tick()
                         Seen.Life = Life.Life;
                         Seen.Foot = Foot;
                         Seen.bTrained = false;
-                        Seen.WindowDiskCm = -1;
                         Seen.bLocked = false;
                     }
                     // The training order may outlive the decision that sent it, so a life that trained is not measured again.
@@ -2517,10 +1317,10 @@ bool FLDDemoOpponentProbe::Tick()
                     {
                         if (!Seen.bTrained) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
                     }
-                    else if (!bInWindow)
+                    else
                     {
-                        // After the lock the body stands where the window left it (in its disk) and again moves only to
-                        // train (the payout step trains too), measured from its first sample after the lock.
+                        // After the build step the body stands where it was and moves only to train, measured from its
+                        // first sample after the step.
                         if (!Seen.bLocked)
                         {
                             Seen.bLocked = true;
@@ -2529,13 +1329,6 @@ bool FLDDemoOpponentProbe::Tick()
                         }
                         else if (!Seen.bTrained) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
                     }
-                    else if (Mode->SignupDiskFor(Id, Disk, DiskRadius))
-                    {
-                        const double DiskCm = FVector::Dist2D(Foot, Disk);
-                        if (Seen.WindowDiskCm < 0) { Seen.WindowDiskCm = DiskCm; }
-                        MaxRest0AIStrayCm = FMath::Max(MaxRest0AIStrayCm, DiskCm - Seen.WindowDiskCm);
-                    }
-                    else { MaxRest0AIStrayCm = TNumericLimits<double>::Max(); }
                 }
                 const FLDProgressionView Growth = Mode->Development->ReadProgression(Id);
                 if (Growth.ActiveOpportunitiesConsumed == 1 && !Rest0Picks.Contains(Id))
@@ -2557,11 +1350,10 @@ bool FLDDemoOpponentProbe::Tick()
             TEXT("The room plays with three humans and three AI on the locked roster"));
         if (bHost)
         {
-            Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1. && MaxRest0AIStrayCm < 1.,
-                TEXT("Before training an R0 AI stays at its initial foot; R0 has no PK sign-up window"));
+            Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1.,
+                TEXT("Before training an R0 AI stays at its initial foot"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
             Summary->SetNumberField(TEXT("rest0_ai_drift_cm"), MaxRest0AIDriftCm);
-            Summary->SetNumberField(TEXT("rest0_ai_stray_cm"), MaxRest0AIStrayCm);
             Summary->SetNumberField(TEXT("rest0_trainers"), Rest0Trainers.Num());
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
@@ -2572,39 +1364,6 @@ bool FLDDemoOpponentProbe::Tick()
     case ELDOpponentProbeStage::Match:
     {
         const FLDTimelineView Line = View.Timeline;
-        if (bHost && Mode && Line.Stage == ELDMatchStage::Rest && Line.RestIndex == 1)
-        {
-            if (!bR1SignupsChecked && Line.Step != ELDRestStep::Build)
-            {
-                int32 SignedAIs = 0;
-                for (const FGuid& Id : OpponentIds)
-                {
-                    SignedAIs += Line.Signups.Contains(Id) ? 1 : 0;
-                }
-                Check(SignedAIs == OpponentCount,
-                    TEXT("Every opponent AI signs up during the R1 public signup window"));
-                Summary->SetNumberField(TEXT("r1_pk_signups"), SignedAIs);
-                bR1SignupsChecked = true;
-            }
-            if (Mode->PKDirector && Line.Step == ELDRestStep::PK)
-            {
-                const FLDPKView& PK = Mode->PKDirector->GetView();
-                if (PK.Serial != 0 && PK.RestIndex == 1)
-                {
-                    for (const FLDPKEntrantView& Entrant : PK.Entrants)
-                    {
-                        if (OpponentIds.Contains(Entrant.Contender)) { R1PKEntrants.Add(Entrant.Contender); }
-                    }
-                    if (!bR1PKRosterChecked)
-                    {
-                        Check(R1PKEntrants.Num() == OpponentCount,
-                            TEXT("Every opponent AI signed up in R1 is locked as an R1 PK entrant"));
-                        Summary->SetNumberField(TEXT("r1_pk_entrants"), R1PKEntrants.Num());
-                        bR1PKRosterChecked = true;
-                    }
-                }
-            }
-        }
         int64 MarkNowMs = 0;
         if (!bPlaytestMarked && View.Phase == ELDMatchPhase::Development && PC->ReadDemoAuthorityTimeMs(MarkNowMs)
             && LDMatchTimeline::FieldNowFromView(View.Timeline, MarkNowMs) >= 60000)
@@ -2730,18 +1489,10 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         || Cast<ALDOpponentController>(&Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoOpponentProbe>();
-    FParse::Value(FCommandLine::Get(), TEXT("LDDemoUIReview="), Probe->UIReview);
-    if (!Probe->UIReview.IsEmpty() && Probe->UIReview != TEXT("2v2") && Probe->UIReview != TEXT("3v3"))
-    {
-        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_OPPONENT_PROBE Invalid UI review format."));
-        FPlatformMisc::RequestExitWithStatus(false, 2);
-        return;
-    }
-    // #198: a full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final
-    // field. Without early readiness, each rest can run its whole approved PK: R0 180+5+8+3+60+3+12+5 = 276 s,
-    // R1..R3 each 120+5+8+3+60+3+12+5 = 216 s, fields 3 x 180 s. The flagpole opens after at most
-    // 276 + 3 x 216 + 540 = 1464 s; retain 505 s for the lobby, capture contest and results.
-    int32 Timeout = 1980;
+    // A full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final field:
+    // each rest 25 + 5 s, fields 3 x 160 s, so the flagpole opens after at most 4 x 30 + 480 = 600 s; retain 600 s for the
+    // lobby, the capture contest and the results.
+    int32 Timeout = 1200;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentRole="), Probe->Role)

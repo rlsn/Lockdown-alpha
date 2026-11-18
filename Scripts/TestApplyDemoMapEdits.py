@@ -104,8 +104,8 @@ class SavedSceneExportTests(unittest.TestCase):
         raw = build_candidate(original, self.raw(export))
         updated = content.parse_json(raw, 'result')
 
-        self.assertEqual(updated['schema_version'], 4)
-        self.assertEqual(updated['projection_revision'], 4)
+        self.assertEqual(updated['schema_version'], 5)
+        self.assertEqual(updated['projection_revision'], 5)
         self.assertEqual(raw.count(b'\r\n'), original.count(b'\r\n') + 7)
         final_anchors = [row for row in updated['anchors'] if row['id'].startswith('final_')]
         self.assertEqual([row['id'] for row in final_anchors],

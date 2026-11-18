@@ -84,8 +84,19 @@ bool FLDGrowthShopStockTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("The same seed draws the same shelf"), Algo::Compare(Again.Shop.Slots, Slots,
         [](const FLDShopSlot& A, const FLDShopSlot& B) { return A.Kind == B.Kind && A.Definition == B.Definition; }));
     bGood &= TestEqual(TEXT("Prices: card, skill, skill point"), FString::Printf(TEXT("%d/%d/%d"),
-        LDProgression::ShopPrice(Content.Parameters, ELDShopItemKind::Card), LDProgression::ShopPrice(Content.Parameters, ELDShopItemKind::Skill),
-        Shop.SkillPointPrice), FString::Printf(TEXT("%d/%d/%d"), 6, 10, 25));
+        LDProgression::ShopPrice(Content.Parameters, ELDShopItemKind::Card, Progression.Shop),
+        LDProgression::ShopPrice(Content.Parameters, ELDShopItemKind::Skill, Progression.Shop),
+        LDProgression::ShopSkillPointPrice(Content.Parameters, Progression.Shop)), FString::Printf(TEXT("%d/%d/%d"), 6, 10, 25));
+    {
+        // Spec §11.1 sale day: every price halves, rounded up.
+        FLDShopState Sale = Progression.Shop;
+        Sale.bSale = true;
+        bGood &= TestEqual(TEXT("Sale-day prices: card, skill, skill point, first refresh"), FString::Printf(TEXT("%d/%d/%d/%d"),
+            LDProgression::ShopPrice(Content.Parameters, ELDShopItemKind::Card, Sale),
+            LDProgression::ShopPrice(Content.Parameters, ELDShopItemKind::Skill, Sale),
+            LDProgression::ShopSkillPointPrice(Content.Parameters, Sale), LDProgression::ShopRefreshPrice(Content.Parameters, Sale)),
+            FString::Printf(TEXT("%d/%d/%d/%d"), 3, 5, 13, (LDProgression::ShopRefreshPrice(Content.Parameters, Progression.Shop) + 1) / 2));
+    }
     // The vocabulary weighting favours cards sharing the build's keys in the weighted slots (statistically over many seeds).
     int32 Weighted = 0, Plain = 0;
     const uint32 Vocab = LDProgression::BuildVocab(Content, Of);

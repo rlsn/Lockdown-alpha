@@ -78,6 +78,7 @@ public:
     bool bRoomLeaveRequested=false;
     bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
     bool bReadyWindowObserved=false, bServicePanelOpened=false;
+    int64 ReadyBuildEndMs=0;
     double RestObservationStartedAt=0;
     int32 SharedTrainingStage=0;
     uint32 ObservedRestLife=1;
@@ -908,16 +909,14 @@ public:
                     PC->SubmitRestReady(true);
                 }
                 bRestReadyProjected |= PC->OwnerState.bRestReady;
-                if (Role==TEXT("Host") && Mode && !bReadyWindowObserved && Line.ReadyContenders.Num()==3)
-                {
-                    const int64 Now=Mode->GetAuthorityNowMs();
-                    const int64 Remaining=Line.StepEndsAtMs-Now;
-                    if (Remaining>0 && Remaining<=10000)
-                    {
-                        bReadyWindowObserved=true;
-                        Check(Line.SignupOpensAtMs<=Now,TEXT("All three real owners shorten rest to the final ten-second window"));
-                    }
-                }
+                // The scheduled end of this build step while not everyone is ready yet.
+                if (Line.ReadyContenders.Num()<3) { ReadyBuildEndMs=Line.StepEndsAtMs; }
+            }
+            if (bEarlyRestReady && Role==TEXT("Host") && !bReadyWindowObserved && ReadyBuildEndMs>0
+                && Line.Stage==ELDMatchStage::Rest && Line.Step==ELDRestStep::Return)
+            {
+                bReadyWindowObserved=true;
+                Check(Line.StepStartedAtMs<ReadyBuildEndMs,TEXT("All three real owners end the rest build before its scheduled end"));
             }
             if (!Body || !Movement || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive
                 || Public->PublicMatch.Generation!=PC->OwnerState.Match || Public->PublicMatch.Phase!=ELDMatchPhase::Development
@@ -927,7 +926,7 @@ public:
             {
                 Check(bRestPresentationSeen,TEXT("This owning connection sees both other players and all real shared training dummies"));
                 Check(bRestReadySent && bRestReadyProjected,TEXT("This owning connection submitted ready and received its owner projection"));
-                if (Role==TEXT("Host")) { Check(bReadyWindowObserved,TEXT("The host observed the shortened final window")); }
+                if (Role==TEXT("Host")) { Check(bReadyWindowObserved,TEXT("The host observed the build ending early")); }
             }
             Check(DisplayNowMs==Public->DemoClock.NowMs && Public->DemoClock.Generation==PC->OwnerState.Match,
                 TEXT("Owner display time reads the matching completed Core clock without local extrapolation"));

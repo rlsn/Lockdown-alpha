@@ -6,6 +6,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapRegistry.h"
@@ -497,7 +498,7 @@ bool LDDemoWorldBuilder::ValidateFrontend(const UWorld& World, FString& Error)
     return true;
 }
 
-bool LDDemoWorldBuilder::RefreshCampHomes(UWorld& World,const FLDDemoWorldGeometry& Previous,
+bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeometry& Previous,
     ULDMapDefinition& Definition,const FLDDemoContentSnapshot& Content,FString& Error)
 {
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
@@ -561,9 +562,62 @@ bool LDDemoWorldBuilder::RefreshCampHomes(UWorld& World,const FLDDemoWorldGeomet
         Point->Tags.Add(FName(*(FString(TEXT("LDSceneMember:"))+Addition.Id.ToString())));
         Point->SetActorLocation(Addition.Position);Point->SetActorLabel(Addition.Id.ToString());
     }
-    if(!Additions.IsEmpty() && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
-    {return Fail(Error,TEXT("Could not save the camp home additions."));}
-    UE_LOG(LogLDEditor,Display,TEXT("LD_CAMP_HOMES_REFRESHED added=%d scope=semantic_member_homes_only"),Additions.Num());
+    // Every other layout point by its semantic id: player starts by their start tag, the rest by LDSceneAnchor tags.
+    TSet<FString> Declared;
+    for(const auto& Anchor:Geometry->Anchors){Declared.Add(Anchor.Id);}
+    TSet<FString> Saved;
+    TArray<AActor*> Retired;
+    for(AActor* Actor:World.PersistentLevel->Actors)
+    {
+        if(!Actor){continue;}
+        if(const auto* Start=Cast<APlayerStart>(Actor)){Saved.Add(Start->PlayerStartTag.ToString());continue;}
+        for(const FName Tag:Actor->Tags)
+        {
+            const FString Text=Tag.ToString();
+            if(!Text.StartsWith(TEXT("LDSceneAnchor:"))){continue;}
+            FString Id=Text.Mid(14);
+            ELDDemoWorldAnchorKind Optional;
+            // A copied optional point repeats its original's tag; it stands for the same derived id the projection gives
+            // it (LDStaticScene::OptionalCopyId, same actor order), so the refresh never adds a second point there.
+            if(Saved.Contains(Id)&&LDDemoWorld::OptionalKindOf(Id,Optional)){Id=LDStaticScene::OptionalCopyId(Id,Actor->GetName());}
+            if(!Declared.Contains(Id)&&!LDDemoWorld::OptionalKindOf(Id,Optional)){Retired.Add(Actor);}
+            Saved.Add(Id);
+        }
+    }
+    int32 Added=0;
+    for(const auto& Anchor:Geometry->Anchors)
+    {
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp||Saved.Contains(Anchor.Id)){continue;}
+        // Only a new identity is added. A deleted existing required point is an authoring error, never recreated at a
+        // stale coordinate; a deleted existing optional point stays deleted (the projection enforces its minimum).
+        if(Previous.Anchors.ContainsByPredicate([&](const auto& Old){return Old.Id==Anchor.Id;}))
+        {
+            ELDDemoWorldAnchorKind Optional;
+            if(LDDemoWorld::OptionalKindOf(Anchor.Id,Optional)){continue;}
+            return Fail(Error,TEXT("Missing existing layout point: ")+Anchor.Id);
+        }
+        FVector Position;if(!Anchor.PositionCm.ToVector(Position,Error)){return false;}
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn)
+        {
+            // Field spawns are player starts the registry binds by PlayerStartTag. The projection exports a start at its
+            // actor location minus the character capsule half-height, so the start stands that much above the anchor foot.
+            Position.Z+=GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+            auto* Start=World.SpawnActor<APlayerStart>(Position,FRotator::ZeroRotator);
+            if(!Start){return Fail(Error,TEXT("Could not add a field spawn player start."));}
+            Start->PlayerStartTag=FName(*Anchor.Id);Start->SetActorLabel(Anchor.Id);
+            ++Added;continue;
+        }
+        auto* Point=World.SpawnActor<ATargetPoint>();
+        if(!Point){return Fail(Error,TEXT("Could not add a semantic layout point."));}
+        Point->Tags.Add(FName(*(FString(TEXT("LDSceneAnchor:"))+Anchor.Id)));
+        Point->SetActorLocation(Position);Point->SetActorLabel(Anchor.Id);
+        ++Added;
+    }
+    for(AActor* Actor:Retired){World.EditorDestroyActor(Actor,true);}
+    if((!Additions.IsEmpty()||Added>0||!Retired.IsEmpty()) && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
+    {return Fail(Error,TEXT("Could not save the layout point changes."));}
+    UE_LOG(LogLDEditor,Display,TEXT("LD_LAYOUT_POINTS_REFRESHED member_homes_added=%d points_added=%d points_removed=%d scope=semantic_layout_points_only"),
+        Additions.Num(),Added,Retired.Num());
     return true;
 }
 

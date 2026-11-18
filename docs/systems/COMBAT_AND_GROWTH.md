@@ -312,7 +312,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   造成正伤害或施加了控制后，才调用 `ALDCombatDirector::NotifyReactionAssists`；失败或零伤害无控制的命中不发提示。
   每次反应每个不同施加者（不是触发者、也不是被打身体）只发一次，记 `LD_REACTION_ASSIST`。`ALDGameMode::SendReactionAssist`
   只发给施加者的拥有连接，并要求施加者处于当前比赛的存活生命、最近视野样本观察到被消费状态的身体，
-  且命中时仍符合视野域的展示权限（含隔离、PK 队友共享视野与曝光）；提示带施加者的 `Life`。
+  且命中时仍符合视野域的展示权限（含隔离）；提示带施加者的 `Life`。
   触发者的身体须属于其本人并通过同一检查才具名，否则不具名。视野权威故障按命中权威故障处理。
   `ALDPlayerController::ClientReactionAssist` 用
   `LDDamageRecap::KeepReactionAssist`：形状非法的拒绝；早于已知本人 `OwnerState`（比赛、生命）或早于已保留提示的视为过期，
@@ -577,8 +577,8 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   `EvaluateDamage` 中于抗性、乘区与投送比例之后被削 `BraceCutBp`，实际削掉的 `BraceCutP2` 计入记录（最多上限，受保护目标为 0）。
   不因攻击、移动或施法取消；自然结束时存活身体在当时脚下对 `radius` 内敌人造成 `base + record_ratio×记录` 的魔法直接伤害（`LD_BRACE_ANSWER`）；
   死亡（`bPendingDeath`）、离局或新释放直接丢弃，不补爆。状态 `braced` 显示剩余时间。
-- **S20**：`zone_wet` 让每次区域脉冲同时施潮湿，`zone_haste`（`UpdateZoneHaste`）在拥有者及其本场队友（释放时的 PK 隔离组与同一非零 PK 方）
-  脚站在区内时给一份以区域效果 id 为键、到区域结束的移速限时增益，离开、死亡或冻结即撤；敌人与区外队友没有。
+- **S20**：`zone_wet` 让每次区域脉冲同时施潮湿，`zone_haste`（`UpdateZoneHaste`）在拥有者
+  脚站在区内时给一份以区域效果 id 为键、到区域结束的移速限时增益，离开、死亡或冻结即撤；其他参赛者没有。
 - 牌：A18/A19 是普攻的 `basic_element`，K22–K24 是宿主的 `skill_element`；D10（`dash_ice`）与 D11（`ground_relocate`）在 D 完成时
   （`ResolveDashCompletions`）生成路径冰带或把主人最新的地面状态、区域或未触发陷阱挪到脚下（各一次，跟随的区域不算）；Y12（`double_stall`）
   在陷阱、风扇与技能放下的地面状态上多留一份；Y23（`ground_growth`）由 `GroundFactors` 按站上自己地面状态的整秒数给乘区，N1 3A1 的冰面易伤也在这里。

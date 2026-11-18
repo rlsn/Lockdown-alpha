@@ -364,6 +364,68 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
     return !HasAnyErrors();
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOptionalAnchorMinimums, "Lockdown.Rules.StaticScene.OptionalAnchorMinimums",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// #293 acceptance: the mini flag, locker and vending points are whatever the saved level holds, but a level whose
+// definition declares a kind (the Demo world) fails clearly once it holds fewer than that kind's minimum.
+bool FLDOptionalAnchorMinimums::RunTest(const FString& Parameters)
+{
+    auto* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
+    ON_SCOPE_EXIT { UEditorLoadingAndSavingUtils::NewBlankMap(false); };
+    auto* Floor = World->SpawnActor<AStaticMeshActor>();
+    Floor->GetStaticMeshComponent()->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
+    Floor->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+    Floor->SetActorScale3D(FVector(100,100,1));
+    Floor->SetActorLocation(FVector(0,0,-50));
+    FLDDemoWorldGeometry Base, Projected;
+    auto& Surface = Base.Surfaces.AddDefaulted_GetRef();
+    Surface.Id = TEXT("demo_ground");
+    TMap<FString, TArray<ALDLayoutPoint*>> Placed;
+    const auto Declare = [&](const TCHAR* Prefix, ELDDemoWorldAnchorKind Kind, int32 Count, double Y)
+    {
+        for (int32 Index = 0; Index < Count; ++Index)
+        {
+            const FString Id = FString::Printf(TEXT("%s%d"), Prefix, Index);
+            auto& Anchor = Base.Anchors.AddDefaulted_GetRef();
+            Anchor.Id = Id; Anchor.Kind = Kind; Anchor.SurfaceId = Surface.Id;
+            auto* Point = World->SpawnActor<ALDLayoutPoint>();
+            Point->SetActorLocation(FVector(500.0 * Index, Y, 0));
+            Point->Tags.Add(FName(*(TEXT("LDSceneAnchor:") + Id)));
+            Placed.FindOrAdd(Prefix).Add(Point);
+        }
+    };
+    Declare(LDDemoWorld::MiniFlagPrefix(), ELDDemoWorldAnchorKind::MiniFlag, LDDemoWorld::MinMiniFlags, 0);
+    Declare(LDDemoWorld::LockerPrefix(), ELDDemoWorldAnchorKind::Locker, LDDemoWorld::MinLockers, 1000);
+    Declare(LDDemoWorld::VendingPrefix(), ELDDemoWorldAnchorKind::Vending, LDDemoWorld::MinVending, 2000);
+    FString Error;
+    if (!TestTrue(TEXT("A level holding every declared minimum projects: ") + Error,
+        LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error))) { return false; }
+    TestEqual(TEXT("Every saved point becomes an anchor"), Projected.Anchors.Num(),
+        LDDemoWorld::MinMiniFlags + LDDemoWorld::MinLockers + LDDemoWorld::MinVending);
+    for (const TCHAR* Prefix : {LDDemoWorld::MiniFlagPrefix(), LDDemoWorld::LockerPrefix(), LDDemoWorld::VendingPrefix()})
+    {
+        TArray<ALDLayoutPoint*>& Points = Placed.FindChecked(Prefix);
+        ALDLayoutPoint* Last = Points.Pop();
+        Last->Destroy();
+        TestFalse(*FString::Printf(TEXT("Deleting one %s* point below the minimum fails"), Prefix),
+            LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
+        TestTrue(*FString::Printf(TEXT("The diagnostic names the %s* points"), Prefix), Error.Contains(Prefix));
+        for (ALDLayoutPoint* Point : Points) { Point->Destroy(); }
+        Points.Reset();
+        TestFalse(*FString::Printf(TEXT("Deleting every %s* point fails"), Prefix),
+            LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
+        // Restore the kind before checking the next one.
+        const ELDDemoWorldAnchorKind Kind = Base.Anchors.FindByPredicate([Prefix](const FLDDemoWorldAnchor& A) { return A.Id.StartsWith(Prefix); })->Kind;
+        const int32 Minimum = Kind == ELDDemoWorldAnchorKind::MiniFlag ? LDDemoWorld::MinMiniFlags
+            : Kind == ELDDemoWorldAnchorKind::Locker ? LDDemoWorld::MinLockers : LDDemoWorld::MinVending;
+        Base.Anchors.RemoveAll([Prefix](const FLDDemoWorldAnchor& A) { return A.Id.StartsWith(Prefix); });
+        Declare(Prefix, Kind, Minimum, Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : Kind == ELDDemoWorldAnchorKind::Locker ? 1000 : 2000);
+    }
+    TestTrue(TEXT("Restored, the level projects again: ") + Error, LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
+    return !HasAnyErrors();
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDTrainingPointCopies, "Lockdown.Rules.StaticScene.SharedTrainingCopies",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

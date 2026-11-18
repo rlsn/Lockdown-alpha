@@ -12,7 +12,7 @@ bool ALDGameMode::BeginShowdown(const FLDGameplayWritePermit& Permit, FString& E
     const auto* Capture = Registry ? Registry->Resolve(TEXT("final_capture"), Registry->Generation) : nullptr;
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None
         || !DemoContent || !Capture || !Capture->Floor.IsValid() || !Settings->Validate(Error)
-        || !FLDPKParameters::FromContent(DemoContent->Get().Parameters, ShowdownRing, Error))
+        || !FLDShowdownRing::FromContent(DemoContent->Get().Parameters, Settings->DurationMs - Settings->ClosureStartsMs, ShowdownRing, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("Final showdown requires its registered arena, configuration and entry permit."); }
         return false;
@@ -30,18 +30,11 @@ bool ALDGameMode::BeginShowdown(const FLDGameplayWritePermit& Permit, FString& E
     Showdown.CentreCm = Capture->Position;
     Showdown.SprayMs = Settings->SprayMs;
     Showdown.GuardMs = Settings->GuardMs;
-    Showdown.InitialRadiusCm = ShowdownRing.ArenaRadiusCm;
-    Showdown.FinalRadiusCm = ShowdownRing.MidRadiusCm;
-    // Reuse the proven swept-foot environmental ring, without PK's last-survivor judge or rewards.
-    ShowdownRing.ShrinkStartMs = 0;
-    ShowdownRing.MaxMs = Settings->DurationMs - Settings->ClosureStartsMs;
-    ShowdownRing.MidMs = ShowdownRing.MaxMs / 2;
-    ShowdownRing.FinalMs = ShowdownRing.MaxMs;
-    ShowdownRing.FinalRadiusCm = Showdown.FinalRadiusCm;
-    ShowdownRing.MidRadiusCm = (Showdown.InitialRadiusCm + Showdown.FinalRadiusCm) * .5;
+    Showdown.InitialRadiusCm = ShowdownRing.InitialRadiusCm;
+    Showdown.FinalRadiusCm = ShowdownRing.FinalRadiusCm;
     ShowdownRingSettledThroughMs = Showdown.ClosureAtMs;
     ShowdownRingTickAtMs = Showdown.EndsAtMs;
-    if (ShowdownRing.TickMs < ShowdownRing.MaxMs
+    if (ShowdownRing.TickMs < ShowdownRing.DurationMs
         && !LDMatchLifecycle::AddDurationMs(Showdown.ClosureAtMs, ShowdownRing.TickMs, ShowdownRingTickAtMs, Error))
     { return false; }
     ShowdownRespawns.Reset();
@@ -84,12 +77,12 @@ bool ALDGameMode::AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, F
         FVector Foot;
         if (!ReadLivingBody(Id, Body, Foot)) { continue; }
         const FLDNativeMotionBatch* Motion = ReadStepMotion(Id);
-        TArray<LDPKRules::FFootSegment> Path;
+        TArray<LDShowdownRing::FFootSegment> Path;
         TArray<TPair<int64, int64>> Outside;
         int64 Hp = 0, MaxHp = 0;
         if (!Motion || !Combat->ReadBodyHealth(Body, Hp, MaxHp)
-            || !LDPKRules::FootPathFromMotion(*Motion, Showdown.ClosureAtMs, From, To, Path)
-            || !LDPKRules::OutsideRingIntervals(ShowdownRing, Showdown.CentreCm, Path, Outside))
+            || !LDShowdownRing::FootPathFromMotion(*Motion, Showdown.ClosureAtMs, From, To, Path)
+            || !LDShowdownRing::OutsideIntervals(ShowdownRing, Showdown.CentreCm, Path, Outside))
         {
             Error = TEXT("Final street closure requires consistent authoritative living-body motion.");
             return false;
@@ -98,7 +91,7 @@ bool ALDGameMode::AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, F
         if (Burn.Life != Body.Victim.Life) { Burn = {Body.Victim.Life, 0}; }
         for (const auto& Interval : Outside)
         {
-            if (!LDPKRules::AccumulateRingDamage(ShowdownRing, MaxHp, Interval.Key, Interval.Value, Burn.AccumulatorE7))
+            if (!LDShowdownRing::AccumulateDamage(ShowdownRing, MaxHp, Interval.Key, Interval.Value, Burn.AccumulatorE7))
             {
                 Error = TEXT("Final street damage overflowed.");
                 return false;
@@ -107,15 +100,15 @@ bool ALDGameMode::AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, F
     }
     ShowdownRingSettledThroughMs = Now;
     if (Now < ShowdownRingTickAtMs) { Error.Reset(); return true; }
-    const int64 NextTick = LDPKRules::NextRingTickMs(ShowdownRing, To);
+    const int64 NextTick = LDShowdownRing::NextTickMs(ShowdownRing, To);
     ShowdownRingTickAtMs = Showdown.EndsAtMs;
-    if (NextTick < ShowdownRing.MaxMs
+    if (NextTick < ShowdownRing.DurationMs
         && !LDMatchLifecycle::AddDurationMs(Showdown.ClosureAtMs, NextTick, ShowdownRingTickAtMs, Error)) { return false; }
     for (auto& Pair : ShowdownBurn)
     {
         FLDCombatBodyRef Body;
         FVector Foot;
-        const int64 Amount = LDPKRules::TakeRingDamageP2(Pair.Value.AccumulatorE7);
+        const int64 Amount = LDShowdownRing::TakeDamageP2(Pair.Value.AccumulatorE7);
         if (Amount > 0 && ReadLivingBody(Pair.Key, Body, Foot) && Body.Victim.Life == Pair.Value.Life
             && !Combat->ApplyEnvironmentDamage(Body, Amount, Permit, Error)) { return false; }
     }

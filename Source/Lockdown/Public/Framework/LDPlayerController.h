@@ -7,7 +7,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
-#include "PK/LDPKTypes.h"
+#include "Framework/LDPacingTypes.h"
 #include "Templates/PimplPtr.h"
 class FLDDemoContentSnapshot;
 struct FLDDemoOverdriveParameters;
@@ -103,7 +103,7 @@ public:
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
     UFUNCTION(Client,Reliable) void ClientBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     // ---- end Growth ----
-    // ---- #198 rest training (Framework/LDPlayerRest.cpp); the PK sign-up is standing in the own sign-up disk ----
+    // ---- #198 rest training and ready (Framework/LDPlayerRest.cpp) ----
     // Resets the own training in the rest space (owner and dummy refilled, cooldowns ready); OnTrainingReset answers.
     void SubmitTrainingReset();
     void SubmitRestReady(bool bReady);
@@ -115,20 +115,20 @@ public:
     FLDOnTrainingReset OnTrainingReset;
     UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation, uint32 Life, uint8 RestIndex, int64 StartedAtMs);
     UFUNCTION(Client,Reliable) void ClientTrainingReset(ELDTrainingResetResult Result);
-    // ---- #198 PK spectators (PK/LDPlayerPK.cpp): an eligible spectator bets on one side of the current PK (Side
-    // 1..SideCount, changeable until the betting step ends) and throws at a ground point of the arena while the PK runs.
-    // Results arrive as OnPKBet / OnPKThrow (a Listen Host inside the call); the authority decides in ALDPKDirector.
-    void SubmitPKBet(uint8 Side);
-    void SubmitPKThrow(const FVector& TargetCm);
-    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnPKBet, ELDPKBetResult);
-    FLDOnPKBet OnPKBet;
-    // ReadyAtMs: authority ms from which this spectator may throw again (on Thrown and CoolingDown; 0 otherwise).
-    DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnPKThrow, ELDPKThrowResult, int64);
-    FLDOnPKThrow OnPKThrow;
-    UFUNCTION(Server,Reliable) void ServerPKBet(uint32 Generation,uint32 Serial,uint8 Side);
-    UFUNCTION(Client,Reliable) void ClientPKBet(ELDPKBetResult Result);
-    UFUNCTION(Server,Reliable) void ServerPKThrow(uint32 Generation,uint32 Serial,FVector_NetQuantize TargetCm);
-    UFUNCTION(Client,Reliable) void ClientPKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
+    // ---- P6 (Framework/LDPlayerPacing.cpp): the death screen's spawn choice (spec §10.4) and the vending machine
+    // (spec §11.3). Results arrive as OnSpawnChoice / OnVending (a Listen Host inside the call). ----
+    // Chooses candidate Index (0-based) of the own dead field life for its next life.
+    void SubmitSpawnChoice(uint8 Index);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnSpawnChoice, ELDSpawnChoiceResult);
+    FLDOnSpawnChoice OnSpawnChoice;
+    UFUNCTION(Server,Reliable) void ServerChooseSpawn(uint32 Generation, uint32 Life, uint8 Index);
+    UFUNCTION(Client,Reliable) void ClientChooseSpawn(ELDSpawnChoiceResult Result);
+    // Buys Item (with Element for the drink, ELDCombatElement 1..5) at the vending machine the own living body stands at.
+    void SubmitVending(ELDVendingItem Item, uint8 Element);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnVending, ELDVendingResult);
+    FLDOnVending OnVending;
+    UFUNCTION(Server,Reliable) void ServerVending(uint32 Generation, uint32 Life, ELDVendingItem Item, uint8 Element);
+    UFUNCTION(Client,Reliable) void ClientVending(ELDVendingResult Result);
     // ---- end rest ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.

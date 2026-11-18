@@ -10,8 +10,9 @@ class FLDDemoContentSnapshot;
 // still in the match, the unique highest level of at least LEADER.MinLevel, ties broken by kills, otherwise nobody. A
 // leader who is dead at the refresh is not shown. The public view shows a LEADER.CircleRadiusCm circle whose centre is
 // the leader's foot moved by a uniform random offset of at most LEADER.CircleMaxOffsetCm (never more than the radius,
-// so the leader is always inside). The shown leader's death ends the notice until the next refresh names someone; a kill
-// of the leader pays only the normal kill reward (#144 removed the gold bounty).
+// so the leader is always inside). The shown leader's death ends the notice until the next refresh names someone. Spec
+// §10.4 (P6): a trending contender carries a bounty (VOUCHER.BountyKill to its killer, VOUCHER.BountyAssist to each
+// assister). Spec §11.1 rumor day: every refresh names the top two (the runner-up with its own circle).
 namespace LDLeaderNotice
 {
     struct FCandidate
@@ -25,6 +26,9 @@ namespace LDLeaderNotice
 
     // The unique highest-level candidate at or above MinLevel, ties by kills; invalid when none is unique.
     LOCKDOWN_API FGuid PickLeader(uint8 MinLevel, TConstArrayView<FCandidate> Candidates);
+    // Up to Count candidates at or above MinLevel by level, then kills; a tie that would cross the cut admits none of the
+    // tied group (Count 1 is PickLeader). Best first.
+    LOCKDOWN_API void PickLeaders(uint8 MinLevel, int32 Count, TConstArrayView<FCandidate> Candidates, TArray<FGuid>& Out);
 }
 
 struct LOCKDOWN_API FLDLeaderRules
@@ -35,6 +39,8 @@ struct LOCKDOWN_API FLDLeaderRules
     double CircleRadiusCm = 0;
     double CircleMaxOffsetCm = 0;
     uint32 Seed = 0;
+    // How many contenders a refresh names (1; the rumor day's DAILY.RumorLeaders).
+    int32 Leaders = 1;
     bool IsValid() const;
 };
 
@@ -46,6 +52,8 @@ struct LOCKDOWN_API FLDLeaderState
     FGuid Leader;
     FVector CircleCentreCm = FVector::ZeroVector;
     int64 RefreshedAtMs = 0;
+    FGuid RunnerUp;
+    FVector RunnerUpCentreCm = FVector::ZeroVector;
     // The last shown leader's death: who and when (evidence and logs).
     FGuid LastDownLeader;
     int64 LastDownAtMs = 0;
@@ -55,8 +63,10 @@ struct LOCKDOWN_API FLDLeaderState
     bool IsRefreshDue(int64 NowMs) const;
     // Applies the refresh at NowMs. True when the public view changed.
     bool Refresh(int64 NowMs, TConstArrayView<LDLeaderNotice::FCandidate> Candidates);
-    // The shown leader died: the notice ends until the next refresh. True when the view changed.
+    // A shown trending contender died: its notice ends until the next refresh. True when the view changed.
     bool LeaderDied(const FGuid& Contender, int64 NowMs);
+    // Whether Contender is shown trending now (the bounty target).
+    bool IsTrending(const FGuid& Contender) const { return Contender.IsValid() && (Contender == Leader || Contender == RunnerUp); }
     int64 NextDueMs(int64 NowMs) const;
     FLDLeaderView View() const;
 };
@@ -66,5 +76,5 @@ namespace LDLeaderNotice
     // The approved LEADER parameters for a match that started at StartedAtMs; the random stream is seeded from the
     // match identity. No fallback values.
     LOCKDOWN_API bool Resolve(const FLDDemoContentSnapshot& Content, int64 StartedAtMs, const FGuid& LedgerMatch,
-        FLDLeaderState& Out, FString& Error);
+        bool bRumorDay, FLDLeaderState& Out, FString& Error);
 }

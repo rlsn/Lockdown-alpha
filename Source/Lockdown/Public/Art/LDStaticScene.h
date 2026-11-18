@@ -27,5 +27,8 @@ namespace LDStaticScene
     // Native collision remains authoritative for added meshes and transformed collision components.
     LOCKDOWN_API bool ProjectRuntimeGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
         FLDDemoWorldGeometry& Out, FString& Error);
+    // The definition id of a copied mini flag, locker or vending point (its tag repeats the original id), derived from the
+    // saved object name; the projection and the layout-point refresh both use it.
+    LOCKDOWN_API FString OptionalCopyId(const FString& Id, const FString& ObjectName);
     LOCKDOWN_API bool ValidateGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base, FString& Error);
 }

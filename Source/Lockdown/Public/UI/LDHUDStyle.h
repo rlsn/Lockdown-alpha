@@ -25,7 +25,7 @@ namespace LDHUDStyle
     // dark outline then keeps its contrast.
     inline const FLinearColor OwnHealth(.05f,.45f,.08f);
     inline const FLinearColor EnemyHealth(.70f,.07f,.05f);
-    // A contender who cannot be attacked right now (anyone in a rest outside the PK, a PK teammate): never the hostile red.
+    // A contender who cannot be attacked right now (anyone in a rest): never the hostile red.
     inline const FLinearColor PeacefulHealth(.16f,.42f,.78f);
     inline const FLinearColor CampHealth(.85f,.32f,.03f);
     // Momentum: a hot orange bar; a full bar glows overdrive gold (the bar, slot rings, target bars and charge halos).

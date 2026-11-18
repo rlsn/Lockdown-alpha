@@ -234,8 +234,8 @@ bool FLDAirdropApprovedScheduleTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const auto& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("The approved landings are T=32/90/163/220/293/350 s"),
-        P.AirdropLandMs == TArray<int64>({32000, 90000, 163000, 220000, 293000, 350000}));
+    bool bGood = TestTrue(TEXT("The approved landings are T=40/110/200/270/360/430 s"),
+        P.AirdropLandMs == TArray<int64>({40000, 110000, 200000, 270000, 360000, 430000}));
     bGood &= TestTrue(TEXT("Announced 15 s early, gone 30 s after landing, 200 XP and the approved reward effects"),
         P.AirdropAnnounceLeadMs == 15000 && P.AirdropExpireMs == 30000 && P.AirdropRewardXP == 200
         && P.AirdropHealMaxHPBp == 2000 && P.AirdropMomentumP2 == 4000 && P.AirdropMoveSpeedBp == 2000
@@ -258,10 +258,10 @@ bool FLDAirdropApprovedScheduleTest::RunTest(const FString& Parameters)
         (State.Phase == ELDAirdropPhase::Announced ? Announced : State.Phase == ELDAirdropPhase::Landed ? Landed : Expired).Add(Now);
     }
     bGood &= TestTrue(TEXT("Six announcements, each 15 s before its landing"),
-        Announced == TArray<int64>({17000, 75000, 148000, 205000, 278000, 335000}));
+        Announced == TArray<int64>({25000, 95000, 185000, 255000, 345000, 415000}));
     bGood &= TestTrue(TEXT("Six landings at the approved instants"), Landed == P.AirdropLandMs);
     bGood &= TestTrue(TEXT("Unclaimed, each is gone 30 s after landing, the last before the final field"),
-        Expired == TArray<int64>({62000, 120000, 193000, 250000, 323000, 380000})
+        Expired == TArray<int64>({70000, 140000, 230000, 300000, 390000, 460000})
         && Expired.Last() <= P.FieldSegmentMs * FLDTimelineParameters::TimedSegments);
     bGood &= TestTrue(TEXT("There is no seventh drop"), State.Serial == 6 && !State.Advance(10000000) && State.Serial == 6);
     return bGood;

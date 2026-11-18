@@ -123,7 +123,7 @@ R0 返回随机抽取野外出生点，客户端沿避开营地成员家点与�
 ### 对手 AI / 拥有连接
 
 `Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。
-它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与受理时被拒订单有界（准入时被拒的订单逐个 AI 报告为 `orders_rejected`，不计入）、每个 AI 在开局休息 R0 的配装步骤内处理开局三选一且 R0 不开放 PK 报名，公共休息室构筑时不离开起始位置，R1/R2 报名窗口内走向本人站位并在 R1 PK 锁定时核对 AI 签名与参赛名单、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；
+它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与受理时被拒订单有界（准入时被拒的订单逐个 AI 报告为 `orders_rejected`，不计入）、每个 AI 在开局休息 R0 的配装步骤内处理开局三选一，公共休息室构筑时不离开起始位置、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；
 可加 `-PackageRoot` 对打包版运行。
 每个角色在开局一分钟时按一次试玩标记，供 `SummarizePlaytestLog.py` 核对标记前后的事件（不是检查项）。
 本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；
@@ -146,9 +146,10 @@ Editor/Game 构建、Bootstrap Validate、相关原生规则
 
 ### 休息与外层流程
 
-`Lockdown.Rules.DemoRest.Timeline` 覆盖纯时间线：批准时长、R1/R2 PK 报名窗口（截止时刻含在内）、R0/R3 不举行 PK、锁定保持、报名不足 2 人跳过 PK、野外进度 T 在休息与 PK 中冻结而在野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按死亡时 T 固定的复活等待与客户端 T 推导；`Lockdown.Rules.DemoRest.PhasePolicy` 覆盖隔离组、冻结身体、阶段边界清理与补满；`Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务（见[成长事务](GROWTH_TRANSACTIONS.md)）；`Lockdown.Rules.DemoRest.EntryHold` 覆盖入场未就绪时 PKReady→PK 与返回→野外停在边界、就绪后按实际时刻进入，`Lockdown.Rules.DemoRest.SpawnIdentity` 覆盖撤回的出生请求以新序号重试、不触发 `RequestConflict`，`Lockdown.Rules.DemoPK.RingOutsideTime` 覆盖按真实圈外时长切分圈伤，`Lockdown.Rules.DemoVision.EffectAccess` 覆盖观众与同队共享视野中飞行物的可见权限。
-拥有连接场景探针按新规则检查 AI 在 R0 选择开局主动且不报名、在 R1/R2 报名并核对 R1 PK 名单；
-另检查假人槽位并尝试触发 `Lives` 扩容，实际未扩容时记为未覆盖，以夹具制造 R1 PK 出生点全被占与返场部分阻挡，见[对手 AI](OPPONENT_AI.md) §8.2
+`Lockdown.Rules.DemoRest.Timeline` 覆盖纯时间线：批准时长、锁定保持、野外进度 T 在休息中冻结而在野外推进、开局到旗杆开放 600 s、最终野外与客户端 T 推导；`Lockdown.Rules.DemoRest.ReadyEarly` 覆盖全员准备立即结束配装；`Lockdown.Rules.DemoRest.PhasePolicy` 覆盖隔离组、冻结身体、阶段边界清理与补满；`Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务（见[成长事务](GROWTH_TRANSACTIONS.md)）；`Lockdown.Rules.DemoRest.EntryHold` 覆盖入场未就绪时返回→野外停在边界、就绪后按实际时刻进入，`Lockdown.Rules.DemoRest.SpawnIdentity` 覆盖撤回的出生请求以新序号重试、不触发 `RequestConflict`，`Lockdown.Rules.DemoShowdown.Ring`/`RingOutsideTime` 覆盖封街圈的缩圈、两档圈伤与按真实圈外时长切分，`Lockdown.Rules.DemoVision.EffectAccess` 覆盖隔离组与冻结身体的飞行物可见权限。
+`Lockdown.Rules.DemoRest.Objective.Flag`/`Objective.Arena`/`Respawn.Choice`/`Bounty`/`DailyModifiers`/`CampAffixes`/`Explore.Locker`/`Explore.Peddler`/`Explore.Vending` 覆盖野外目标、死亡选点、悬赏、今日热点、营地词条与隐藏物的纯规则，`Lockdown.Rules.DemoOpponentPolicy.Objective` 覆盖 AI 去野外目标，`Lockdown.Rules.HUDPacingView` 覆盖死亡选点与售货机面板模型。
+拥有连接场景探针按新规则检查 AI 在 R0 选择开局主动；
+另检查假人槽位并尝试触发 `Lives` 扩容，实际未扩容时记为未覆盖，以夹具制造返场部分阻挡，见[对手 AI](OPPONENT_AI.md) §8.2
 
 ### 原生旧入口拒绝
 
@@ -240,25 +241,8 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\BootstrapAssets.ps1
 .\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
 .\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
-.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 2v2 -TimeoutSeconds 600 # R1 团队 PK UI，正常报名与真实拥有连接
-.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 3v3 -TimeoutSeconds 600 # 同上，六人报名
 ```
 
-`-UIReview` 固定一个能按获准概率抽到团队的 DEV 随机种子，不改产品参数或复制视图。三个拥有连接
-经正常大厅开局并自行走进报名圈（2v2 仅 Client1 加三 AI；3v3 全员），核对公开阵营和当前获准观察，
-Host 与 Client1 保存 100%/125% 团队截图，Client2 无渲染但同样检查真实拥有连接的公开关系与观察；
-Host 另存两种分辨率、两档文字缩放的构筑与服务图，避免三路渲染挤占同机显存。
-Host 在 720p、125% 文字下用真实指针点开局牌三选一中的非首张牌并核对权威同次装上，再沿既有 `LDDevGrowthFixture` 经验入口升级得到一组牌三选一，
-并经面板执行加点增减和一次确认、服务购买与后续拒绝反馈；
-不把这些夹具成长当作自然对局结果。
-PK 结算还独立核对各类基准池乘 1.5 后向上取整与按场次轮换的公开奖励行、渲染 HUD 文字，
-以及三个拥有连接的实际属性点到账（未分配＋已分配＋永久花费的合计，避免同期构筑花费影响比较）。
-2v2 的两名真实观众经正常押注入口分别押两方，要求实际有胜方且一名观众收到竞猜奖；
-平局、NoContest 或漏跑不计作该奖励覆盖通过。Host 在所有端确认首次到账后，
-让同一组奖励身份在下一正常 Transactions 边界重试，核对权威奖励余额和拥有端点数没有重复增长。
-runner 要求三端恰好报告各项必需检查、相同公开结算与精确到账，另要求 Host/Client1 的结算截图；
-缺失、重复或 `not_exercised` 都失败，不用截图存在替代数值断言。
-此模式不运行 R01/R02/R14 阻挡夹具，也不是完整 AI 对局验收。
 
 AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <1-50>` 只启动一个无渲染的 Listen Host，
 它作为唯一真人留在房间里不动，与三个 AI 经正常大厅连打 N 局（每局各有 `-TimeoutSeconds`，局间回 Lobby）。

@@ -2417,73 +2417,206 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "pk_signup_0",
-      "kind": "PKSignup",
+      "id": "locker_0",
+      "kind": "Locker",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7590
+          "numerator": 4600
         },
         "y": {
+          "denominator": 1,
+          "numerator": -3600
+        },
+        "z": {
           "denominator": 1,
           "numerator": 100
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
     },
     {
-      "id": "pk_signup_1",
-      "kind": "PKSignup",
+      "id": "locker_1",
+      "kind": "Locker",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7545
+          "numerator": 2700
         },
         "y": {
           "denominator": 1,
-          "numerator": 178
+          "numerator": -4600
         },
         "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_signup_2",
-      "kind": "PKSignup",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": 7455
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": 178
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_signup_3",
-      "kind": "PKSignup",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": 7410
-        },
-        "y": {
           "denominator": 1,
           "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_2",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -4600
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 3600
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_3",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -2600
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4600
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_4",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -200
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4600
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_5",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 4300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -2100
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_6",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -3700
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -4600
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_7",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 3100
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -3200
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 50
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_8",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 3400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4600
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "locker_9",
+      "kind": "Locker",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -3200
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 3300
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 50
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "mini_flag_0",
+      "kind": "MiniFlag",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 2300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 2600
         },
         "z": {
           "denominator": 1,
@@ -2493,16 +2626,16 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "pk_signup_4",
-      "kind": "PKSignup",
+      "id": "mini_flag_1",
+      "kind": "MiniFlag",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7455
+          "numerator": -2400
         },
         "y": {
           "denominator": 1,
-          "numerator": 22
+          "numerator": -2500
         },
         "z": {
           "denominator": 1,
@@ -2512,149 +2645,35 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "pk_signup_5",
-      "kind": "PKSignup",
+      "id": "mini_flag_2",
+      "kind": "MiniFlag",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7545
+          "numerator": -1400
         },
         "y": {
           "denominator": 1,
-          "numerator": 22
+          "numerator": 1900
         },
         "z": {
           "denominator": 1,
-          "numerator": 0
+          "numerator": 50
         }
       },
       "surface_id": "demo_ground"
     },
     {
-      "id": "pk_spawn_0",
-      "kind": "PKSpawn",
+      "id": "mini_flag_3",
+      "kind": "MiniFlag",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 959
+          "numerator": 2000
         },
         "y": {
           "denominator": 1,
-          "numerator": 427
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_spawn_1",
-      "kind": "PKSpawn",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": 110
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": 1044
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_spawn_2",
-      "kind": "PKSpawn",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": -849
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": 617
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_spawn_3",
-      "kind": "PKSpawn",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": -959
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": -427
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_spawn_4",
-      "kind": "PKSpawn",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": -110
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": -1044
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_spawn_5",
-      "kind": "PKSpawn",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": 849
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": -617
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "pk_throw",
-      "kind": "PKThrow",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": 416
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": 1956
+          "numerator": -1000
         },
         "z": {
           "denominator": 1,
@@ -3175,13 +3194,89 @@
         }
       },
       "surface_id": "demo_ground"
+    },
+    {
+      "id": "vending_0",
+      "kind": "Vending",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 4100
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "vending_1",
+      "kind": "Vending",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 100
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -2600
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "vending_2",
+      "kind": "Vending",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -3400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 50
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "vending_3",
+      "kind": "Vending",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -200
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1300
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
     }
   ],
   "approval": {
     "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.; #238 approved 18/10/4/2 tiers, HR x3, trainer x2 and h09/h11 ancient camps; original anchor transforms retained.",
     "status": "approved"
   },
-  "author_schema_sha256": "e57ea7f2ec5c79695feec7a6318f459d5265c2eea23e21f4fc1fab4798055729",
+  "author_schema_sha256": "30dff5038452fd100a219418f72a8e4abd3b860486a1cd734953e56e8f24f320",
   "geometry": {
     "blockers": [
       {
@@ -38395,13 +38490,15 @@
     ]
   },
   "geometry_revision": 11,
-  "layout_revision": 13,
+  "layout_revision": 14,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
     "CAMP.ResetArrivalRadiusCm",
     "CAPTURE.RadiusCm",
     "DORM.RadiusCm",
+    "EXPLORE.LockerRadiusCm",
+    "OBJECTIVE.FlagRadiusCm",
     "UNIT.BasicAttackRangeCm",
     "UNIT.CollisionRadiusCm",
     "VISION.RadiusCm"
@@ -38512,7 +38609,7 @@
       "numerator": 200
     }
   },
-  "projection_revision": 4,
-  "schema_version": 4,
-  "source_sha256": "f1ce542cfc36df3fffcbedde511fe24dfaeb92ba7e158777fd7868f0a0eb43db"
+  "projection_revision": 5,
+  "schema_version": 5,
+  "source_sha256": "b9d5b7c1f21b66bfd5dd7b41e23a193d6e0f2d43cead80d633ed5b17b7b9bf72"
 }

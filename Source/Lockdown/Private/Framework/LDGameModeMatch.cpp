@@ -252,15 +252,11 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     bResultPublished = false;
     MatchStartedAtMs = 0;
     Timeline.Reset();
-    RestSignups.Reset();
     RestReady.Reset();
     ClearRestServiceNPCs();
-    LockedEntrants.Reset();
     RestReturns.Reset();
     RestLives.Reset();
-    PKLives.Reset();
     PendingPhasePlacement.Reset();
-    PendingPKEntry.Reset();
     bFieldReturnStarted = false;
     ReleasePhasePrepared(PreparedFieldReturn);
     // Dummy bodies were destroyed with every life actor above; their life records go with the match.

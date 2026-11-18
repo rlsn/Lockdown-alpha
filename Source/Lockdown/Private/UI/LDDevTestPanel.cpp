@@ -1,4 +1,5 @@
 #include "UI/LDDevTestPanel.h"
+#include "Framework/LDPacingTypes.h"
 #include "Development/LDBreakoutPresets.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDHUDModel.h"
@@ -255,6 +256,24 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         Host->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,TEXT("跳过准备，进入场景"),[this](){Send(ELDDevTestOp::SkipPreparation);},false,TEXT("DevTestSkipPreparation")));
         HostLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("刷新已清空营地"),[this](){Send(ELDDevTestOp::RefreshCamps);},false,TEXT("DevTestRefreshCamps")));
         HostLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("提前开圈"),[this](){Send(ELDDevTestOp::OpenCapture);},false,TEXT("DevTestOpenCapture")))->SetPadding(FMargin(6,0,0,0));
+        {
+            // P6 spec §11.1: the next match's two daily modifiers (pick the first, then the second), or the ordinary draw.
+            Host->AddChildToVerticalBox(MakeText(TEXT("下一局热点（选两个）"),LDHUDStyle::TypeBody,DevPanelSecondary,false))->SetPadding(FMargin(0,8,0,2));
+            UHorizontalBox* DailyLine=nullptr;
+            for(int32 Id=1;Id<=LDPacing::DailyModifiers;++Id)
+            {
+                if((Id-1)%6==0){DailyLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(DailyLine)->SetPadding(FMargin(0,2,0,0));}
+                const ELDDailyModifier Modifier=ELDDailyModifier(Id);
+                AddButton(DailyLine,LDTerms::DailyName(Modifier),[this,Id]()
+                {
+                    if(DailyPick==0||DailyPick==Id){DailyPick=Id;return;}
+                    const int64 Amount=int64(DailyPick)+16*int64(Id);DailyPick=0;
+                    Send(ELDDevTestOp::SetDailyPreset,Amount);
+                },FName(*FString::Printf(TEXT("DevTestDaily_%d"),Id)));
+            }
+            UHorizontalBox* DrawLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(DrawLine)->SetPadding(FMargin(0,2,0,0));
+            AddButton(DrawLine,TEXT("恢复随机"),[this](){DailyPick=0;Send(ELDDevTestOp::SetDailyPreset,0);},TEXT("DevTestDailyDraw"));
+        }
         HostSection=Host;Body->AddChildToVerticalBox(Host);Host->SetVisibility(ESlateVisibility::Collapsed);
 
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);

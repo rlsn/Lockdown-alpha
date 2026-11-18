@@ -8,8 +8,7 @@ class ALDGameMode;
 
 // Gameplay providers that a normal Demo match needs. A provider registers once from its own
 // translation unit (LDMatchProviders::FRegistrar); GameMode never includes provider headers.
-// PK (#198 session D) is optional: without it rest sign-ups are refused explicitly and every rest skips its PK.
-enum class ELDMatchProvider : uint8 { Combat, Progression, Camps, Vision, OpponentAI, PK, Count };
+enum class ELDMatchProvider : uint8 { Combat, Progression, Camps, Vision, OpponentAI, Count };
 
 struct FLDMatchStartContext
 {
@@ -49,18 +48,6 @@ struct FLDLifeNotice
     int64 OccurredAtMs = 0;
 };
 
-// #198 rest step entered (or the build locked) at AtMs. Entrants are the locked PK entrants (sorted), empty before the
-// lock and when the PK was skipped.
-struct FLDRestStepNotice
-{
-    FLDMatchContext Match;
-    uint8 RestIndex = 0;
-    ELDRestStep Step = ELDRestStep::None;
-    bool bBuildLocked = false;
-    int64 AtMs = 0;
-    TArray<FGuid> Entrants;
-};
-
 struct FLDMatchProviderHooks
 {
     // Starting only, before the initial spawn batch. Failure aborts the start: the room returns
@@ -76,9 +63,6 @@ struct FLDMatchProviderHooks
     TFunction<bool(const ALDGameMode&, const FGuid& Contender, uint8& Level, FString&)> ReadFinalLevel;
     // Progression only: a read-only rule-board projection after the result has closed the write gate.
     TFunction<bool(const ALDGameMode&, const FGuid& Contender, FLDResultBuild& Build, FString&)> ReadResultBuild;
-    // PK only (#198 session D): every rest step entry and the build lock, under the boundary's permit
-    // (RespawnsAndWorld, or Transactions for the lock and the step it enters). False is an authority fault.
-    TFunction<bool(ALDGameMode&, const FLDRestStepNotice&, const FLDGameplayWritePermit&, FString&)> RestStep;
 };
 
 namespace LDMatchProviders

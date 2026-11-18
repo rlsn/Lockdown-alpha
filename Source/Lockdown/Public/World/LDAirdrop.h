@@ -97,5 +97,5 @@ namespace LDAirdrop
     // Binds every compiled airdrop anchor to its registered ground position and the approved AIRDROP parameters for a
     // match that started at StartedAtMs, with a fresh server-only seed. No fallback values.
     LOCKDOWN_API bool Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content, int64 StartedAtMs,
-        const FGuid& LedgerMatch, FLDAirdropState& Out, FString& Error);
+        const FGuid& LedgerMatch, bool bDeliveryDay, FLDAirdropState& Out, FString& Error);
 }

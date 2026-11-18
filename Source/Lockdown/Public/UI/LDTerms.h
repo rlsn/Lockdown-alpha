@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Framework/LDPacingTypes.h"
 
 // 运行时显示术语表（#111、#148）：界面里的系统术语与世界观短句只在这里定义一次，界面与测试都引用它。
 // 名字保留雾港梗；属性、资源、伤害类型、状态、普攻与冲刺用通用游戏术语（#148）。技能、野怪与状态的条目名仍由 SourceData\Demo\content.json 的 display 行提供；
@@ -341,78 +342,95 @@ inline constexpr TCHAR CountdownGo[]=TEXT("开淫！");
 inline constexpr TCHAR NotStartedYet[]=TEXT("还没开始呢，急什么");
 inline constexpr TCHAR RestPhase[]=TEXT("课间休息，抓紧配装");
 inline FString RestLabel(int32 Index){return FString::Printf(TEXT("休息 R%d"),Index);}
-// 休息的各步（配装的最后一段兼作 PK 报名；派奖时可以再调整配装）。
+// 休息的两步：配装（商店、工坊、训练师）与返场倒计时。
 inline constexpr TCHAR RestBuild[]=TEXT("配装与训练");
-inline constexpr TCHAR RestDraw[]=TEXT("PK 公布赛制与分队");
-inline constexpr TCHAR RestBetting[]=TEXT("押注");
-inline constexpr TCHAR RestPKReady[]=TEXT("PK 准备");
-inline constexpr TCHAR RestPK[]=TEXT("PK 中");
-inline constexpr TCHAR RestSettlement[]=TEXT("PK 结算");
-inline constexpr TCHAR RestPayout[]=TEXT("派奖 · 可再配装");
 inline constexpr TCHAR RestReturn[]=TEXT("返回野外");
-inline FString SignupOpensIn(int64 Seconds){return FString::Printf(TEXT("PK 报名 %lld 秒后开放"),Seconds);}
-inline FString SignupOpenFor(int64 Seconds){return FString::Printf(TEXT("PK 报名中 · 剩 %lld 秒"),Seconds);}
-inline FString SignedUpCount(int32 Count){return FString::Printf(TEXT("已报名 %d 人"),Count);}
-// 报名窗内站在公共报名圈里的玩家在截止时锁定参赛。
-inline constexpr TCHAR SignedUpSelf[]=TEXT("你在报名圈里，已报名");
-inline constexpr TCHAR NotSignedUpSelf[]=TEXT("站进报名圈即报名");
-inline FString PKEntrants(int32 Count){return FString::Printf(TEXT("PK %d 人参赛"),Count);}
-inline constexpr TCHAR PKSkipped[]=TEXT("本次休息不举行 PK");
-// PK 与观众（#198 D，APP_SPEC §5）：抽签公布赛制与分队；没参赛的观众押一方会赢（免费、一人一票、押注结束前可改）；
-// PK 中观众可以往竞技场地面投掷干扰；出局的参赛者只能观战。数值来自内容参数，这里不写数字。
-inline constexpr TCHAR PKDuel[]=TEXT("单挑");
-inline constexpr TCHAR PKFreeForAll[]=TEXT("混战");
-inline FString PKTeams(int32 PerSide){return FString::Printf(TEXT("%dv%d"),PerSide,PerSide);}
-inline FString PKTitle(uint32 Serial,const FString& Format,int32 Entrants)
-{return FString::Printf(TEXT("第 %u 场 PK · %s · %d 人"),Serial,*Format,Entrants);}
-inline FString PKSide(int32 Side){return FString::Printf(TEXT("第 %d 方"),Side);}
-inline constexpr TCHAR PKFormatPending[]=TEXT("赛制公布中");
-inline constexpr TCHAR PKClockSync[]=TEXT("PK 时间同步中");
-inline constexpr TCHAR PKUnlisted[]=TEXT("未列名参赛者");
-inline constexpr TCHAR PKOut[]=TEXT("出局");
-inline constexpr TCHAR PKForfeit[]=TEXT("离场");
-inline FString PKBetCount(int32 Count){return FString::Printf(TEXT("%d 人押"),Count);}
-inline constexpr TCHAR PKOwnSide[]=TEXT("你在这方");
-inline constexpr TCHAR PKTeammate[]=TEXT("队友");
-inline constexpr TCHAR PKEnemy[]=TEXT("敌方");
-inline constexpr TCHAR PKOwnBet[]=TEXT("你押了这方");
-inline FString PKStartsIn(int64 Seconds){return FString::Printf(TEXT("%lld 秒后开打 · 准备中不能移动和攻击"),Seconds);}
-inline FString PKTimeLeft(int64 Seconds){return FString::Printf(TEXT("最长还剩 %lld 秒"),Seconds);}
-inline FString PKRingNow(const FString& Meters){return FString::Printf(TEXT("安全圈 %s 米"),*Meters);}
-inline FString PKRingSoon(const FString& Meters,int64 Seconds){return FString::Printf(TEXT("%lld 秒后开始缩到 %s 米"),Seconds,*Meters);}
-inline FString PKRingShrinking(const FString& Meters){return FString::Printf(TEXT("正在缩到 %s 米"),*Meters);}
-inline constexpr TCHAR PKRoleFighter[]=TEXT("你在场上：活到最后就赢，圈外会持续掉血");
-inline constexpr TCHAR PKRoleEntrant[]=TEXT("你已参赛：等观众押注后入场");
-inline constexpr TCHAR PKRoleOut[]=TEXT("你已出局，只能观战");
-inline constexpr TCHAR PKRoleBet[]=TEXT("押一方会赢：免费，一人一票，押注结束前可以改");
-inline constexpr TCHAR PKRoleThrow[]=TEXT("观战中");
-inline constexpr TCHAR PKRoleWatch[]=TEXT("观战中");
-inline FString PKBetOn(const FString& Names){return FString(TEXT("押 "))+Names;}
-inline constexpr TCHAR PKThrow[]=TEXT("投掷");
-// The throw button's hover line: what a hit does, nothing about how to press.
-inline constexpr TCHAR PKThrowEffect[]=TEXT("砸中：减速并暴露位置");
-inline constexpr TCHAR PKThrowAim[]=TEXT("点竞技场地面投掷 · 右键取消");
-inline constexpr TCHAR PKThrowSending[]=TEXT("投掷中…");
-inline FString PKThrowCooling(const FString& Left){return FString::Printf(TEXT("投掷冷却 %s 秒"),*Left);}
-inline constexpr TCHAR PKThrowCoolingSync[]=TEXT("投掷冷却时间同步中");
-inline constexpr TCHAR PKThrowNoGround[]=TEXT("这里没有可投掷的地面");
-inline FString PKWinners(const FString& Names){return FString(TEXT("PK 胜方："))+Names;}
-inline constexpr TCHAR PKWonSelf[]=TEXT("你赢了这场 PK！");
-inline constexpr TCHAR PKDraw[]=TEXT("PK 平局：没有分出唯一胜方");
-inline constexpr TCHAR PKNoContest[]=TEXT("本场 PK 无效：竞技场没能布置，不发奖励");
-inline constexpr TCHAR PKAwardsTitle[]=TEXT("PK 奖励（属性点）");
-inline constexpr TCHAR PKAwardsNone[]=TEXT("本场没有人得到奖励");
-inline constexpr TCHAR PKAwardParticipation[]=TEXT("参与");
-inline constexpr TCHAR PKAwardWinner[]=TEXT("胜者");
-inline constexpr TCHAR PKAwardBet[]=TEXT("竞猜");
-inline FString PKAwardTotal(int64 Points){return FString::Printf(TEXT("共 %lld 点"),Points);}
-inline constexpr TCHAR PKSpectating[]=TEXT("观战镜头：竞技场");
 // 公共休息室中的训练；显示范围由获准观察帧裁定，重置结果由服务器回执确认。
 inline constexpr TCHAR TrainingReset[]=TEXT("重置训练");
 inline constexpr TCHAR TrainingDummy[]=TEXT("训练假人");
 inline FString FieldSegmentLine(int32 Segment,int32 Segments,const FString& Clock)
 {return FString::Printf(TEXT("野外 %d/%d · 下次休息 %s"),Segment,Segments,*Clock);}
 inline constexpr TCHAR FinalField[]=TEXT("最终野外 · 旗杆开放");
+// P6 对局节奏与地图变量（APP_SPEC §5–§7）：今日热点、营地词条、中途目标、藏起来的东西与复活选点。
+// 热点和词条在格子里只显示一个字的图标与名称，完整效果放悬停说明（数值由 LDHUD::DailyDescription 从内容参数拼出）。
+inline const TCHAR* DailyName(ELDDailyModifier Modifier)
+{
+    switch(Modifier)
+    {
+    case ELDDailyModifier::Rain: return TEXT("暴雨");
+    case ELDDailyModifier::Cold: return TEXT("寒潮");
+    case ELDDailyModifier::Blackout: return TEXT("停电");
+    case ELDDailyModifier::Typhoon: return TEXT("台风");
+    case ELDDailyModifier::Heat: return TEXT("高温");
+    case ELDDailyModifier::Sale: return TEXT("大促");
+    case ELDDailyModifier::Delivery: return TEXT("外卖节");
+    case ELDDailyModifier::Patrol: return TEXT("城管巡逻");
+    case ELDDailyModifier::Exam: return TEXT("考试周");
+    case ELDDailyModifier::Gym: return TEXT("健身日");
+    case ELDDailyModifier::Overtime: return TEXT("加班");
+    case ELDDailyModifier::Rumor: return TEXT("谣言");
+    default: return TEXT("");
+    }
+}
+// 热点图标：一个字的徽章（形状与颜色由小地图绘制，不只靠颜色区分）。
+inline const TCHAR* DailyGlyph(ELDDailyModifier Modifier)
+{
+    switch(Modifier)
+    {
+    case ELDDailyModifier::Rain: return TEXT("雨");
+    case ELDDailyModifier::Cold: return TEXT("寒");
+    case ELDDailyModifier::Blackout: return TEXT("暗");
+    case ELDDailyModifier::Typhoon: return TEXT("风");
+    case ELDDailyModifier::Heat: return TEXT("热");
+    case ELDDailyModifier::Sale: return TEXT("促");
+    case ELDDailyModifier::Delivery: return TEXT("餐");
+    case ELDDailyModifier::Patrol: return TEXT("管");
+    case ELDDailyModifier::Exam: return TEXT("考");
+    case ELDDailyModifier::Gym: return TEXT("健");
+    case ELDDailyModifier::Overtime: return TEXT("班");
+    case ELDDailyModifier::Rumor: return TEXT("谣");
+    default: return TEXT("");
+    }
+}
+inline const TCHAR* AffixName(ELDCampAffix Affix)
+{
+    switch(Affix)
+    {
+    case ELDCampAffix::Overtime: return TEXT("加班");
+    case ELDCampAffix::Teambuild: return TEXT("团建");
+    case ELDCampAffix::Fridge: return TEXT("冰柜");
+    case ELDCampAffix::Bonus: return TEXT("年终奖");
+    case ELDCampAffix::Layoff: return TEXT("裁员");
+    case ELDCampAffix::Audit: return TEXT("突击检查");
+    default: return TEXT("");
+    }
+}
+inline const TCHAR* AffixGlyph(ELDCampAffix Affix)
+{
+    switch(Affix)
+    {
+    case ELDCampAffix::Overtime: return TEXT("班");
+    case ELDCampAffix::Teambuild: return TEXT("团");
+    case ELDCampAffix::Fridge: return TEXT("冰");
+    case ELDCampAffix::Bonus: return TEXT("奖");
+    case ELDCampAffix::Layoff: return TEXT("裁");
+    case ELDCampAffix::Audit: return TEXT("查");
+    default: return TEXT("");
+    }
+}
+inline constexpr TCHAR MiniFlag[]=TEXT("喷漆小旗");
+inline constexpr TCHAR Arena[]=TEXT("擂台");
+inline constexpr TCHAR Locker[]=TEXT("快递柜");
+inline constexpr TCHAR Peddler[]=TEXT("二手贩子");
+inline constexpr TCHAR Vending[]=TEXT("售货机");
+inline constexpr TCHAR SpawnChoice[]=TEXT("选出生点");
+inline FString SpawnCandidate(int32 Index){return FString::Printf(TEXT("出生点 %d"),Index+1);}
+inline constexpr TCHAR VendingAttackSpeed[]=TEXT("攻速");
+inline constexpr TCHAR VendingMomentum[]=TEXT("劲");
+inline constexpr TCHAR VendingMoveSpeed[]=TEXT("移速");
+inline constexpr TCHAR VendingDrink[]=TEXT("饮料");
+inline FString VendingPrice(int32 Vouchers){return FString::Printf(TEXT("%d 票"),Vouchers);}
+
 inline constexpr TCHAR CaptureAfterLastRest[]=TEXT("旗杆在最后一次休息（R3）后开放");
 inline constexpr TCHAR Development[]=TEXT("猥琐发育中，别浪");
 inline constexpr TCHAR CaptureOpened[]=TEXT("旗杆开放了，冲！");

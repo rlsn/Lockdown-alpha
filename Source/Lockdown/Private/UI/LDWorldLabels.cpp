@@ -89,7 +89,17 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
     FLabel Label;
     Label.bContender=Unit.Kind==ELDObservedUnitKind::Contender;
     if(Label.bContender){Label.Name=RosterName;Label.Presentation=Unit.Presentation;Label.Level=Unit.Level;}
-    else{Label.Name=LDHUD::CreatureName(Content,Unit.CreatureId);Label.CreatureId=Unit.CreatureId;}
+    else
+    {
+        // P6 spec §11.2/§11.3: the dealer goes by its own name; an affixed camp member wears its affix glyph and name.
+        Label.Name=Unit.bPeddler?FString(LDTerms::Peddler):LDHUD::CreatureName(Content,Unit.CreatureId);
+        if(!Unit.bPeddler&&Unit.CampAffix!=0)
+        {
+            const ELDCampAffix Affix=ELDCampAffix(Unit.CampAffix);
+            Label.Name=FString::Printf(TEXT("%s%s · %s"),LDTerms::AffixGlyph(Affix),LDTerms::AffixName(Affix),*Label.Name);
+        }
+        Label.CreatureId=Unit.CreatureId;
+    }
     // As on the target card (LDHUD::ResourceP2), health without a known maximum or with a malformed current is unknown:
     // no bar rather than an empty one.
     Label.bHealth=Unit.Health.MaxP2>0&&Unit.Health.CurrentP2>=0;
@@ -385,14 +395,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 Public->PublicMatch.Phase==ELDMatchPhase::Rest):FString(),Content,Frame->SampledAtServerSec);
             if(bContender)
             {
-                const FString Relation=LDHUD::PKRelationText(Public->PublicMatch,Own.ContenderId,Unit.ContenderId);
-                if(!Entry.Label.Name.IsEmpty()&&!Relation.IsEmpty()){Entry.Label.Name+=TEXT(" · ")+Relation;}
-                // Nobody can be attacked in a rest outside the PK itself, and a PK teammate never can; the shared training
-                // dummies stay attackable.
-                const ELDRestStep Step=Public->PublicMatch.Timeline.Step;
-                const bool bFighting=Step==ELDRestStep::PKReady||Step==ELDRestStep::PK;
+                // Nobody can be attacked in a rest; the shared training dummies stay attackable.
                 const bool bDummy=Entry.Label.Name.StartsWith(LDTerms::TrainingDummy);
-                Entry.Label.bPeaceful=!bDummy&&((Public->PublicMatch.Phase==ELDMatchPhase::Rest&&!bFighting)||Relation==LDTerms::PKTeammate);
+                Entry.Label.bPeaceful=!bDummy&&Public->PublicMatch.Phase==ELDMatchPhase::Rest;
             }
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;

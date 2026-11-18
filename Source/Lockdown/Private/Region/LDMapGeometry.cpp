@@ -29,6 +29,30 @@ bool FLDDemoWorldPoint::ToVector(FVector& Out, FString& Error) const
 
 namespace LDDemoWorld
 {
+const TCHAR* OptionalPrefix(ELDDemoWorldAnchorKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDDemoWorldAnchorKind::MiniFlag: return MiniFlagPrefix();
+    case ELDDemoWorldAnchorKind::Locker: return LockerPrefix();
+    case ELDDemoWorldAnchorKind::Vending: return VendingPrefix();
+    default: return nullptr;
+    }
+}
+
+bool OptionalKindOf(const FString& Id, ELDDemoWorldAnchorKind& Out)
+{
+    for (const ELDDemoWorldAnchorKind Kind : {ELDDemoWorldAnchorKind::MiniFlag, ELDDemoWorldAnchorKind::Locker, ELDDemoWorldAnchorKind::Vending})
+    {
+        if (Id.StartsWith(OptionalPrefix(Kind), ESearchCase::CaseSensitive) && Id.Len() > FCString::Strlen(OptionalPrefix(Kind)))
+        {
+            Out = Kind;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Footprint(const FLDDemoWorldBlocker& Blocker, TArray<FVector2D>& Out, FString& Error)
 {
     Out.Reset();
@@ -224,24 +248,6 @@ double Approx(const FLDDemoRational& R) { return double(R.Numerator) / double(R.
 FXY XY(const FPoint& Point, FNumbers& N) { return {N.Value(Point.X), N.Value(Point.Y), FVector2D(Approx(Point.X), Approx(Point.Y))}; }
 FXY Add(const FXY& A, const FXY& B, FNumbers& N) { return {N.Add(A.X, B.X), N.Add(A.Y, B.Y), A.At + B.At}; }
 FXY Sub(const FXY& A, const FXY& B, FNumbers& N) { return {N.Sub(A.X, B.X), N.Sub(A.Y, B.Y), A.At - B.At}; }
-
-bool SignupCentre(const FLDDemoWorldGeometry& World, FNumbers& N, FXY& Out, FExact& Level)
-{
-    FXY Sum{N.Value(0), N.Value(0), FVector2D::ZeroVector};
-    for (int32 Slot = 0; Slot < LDDemoWorld::PKSignups; ++Slot)
-    {
-        const FString Id = LDDemoWorld::PKSignupId(Slot);
-        const auto* Seat = World.Anchors.FindByPredicate([&Id](const auto& Anchor) { return Anchor.Id == Id; });
-        if (!Seat || Seat->Kind != ELDDemoWorldAnchorKind::PKSignup) { return false; }
-        const FExact SeatLevel = N.Value(Seat->PositionCm.Z);
-        if (Slot == 0) { Level = SeatLevel; }
-        else if (!N.EQ(SeatLevel, Level)) { return false; }
-        Sum = Add(Sum, XY(Seat->PositionCm, N), N);
-    }
-    const FExact Factor = N.Value(1, LDDemoWorld::PKSignups);
-    Out = {N.Mul(Sum.X, Factor), N.Mul(Sum.Y, Factor), Sum.At / double(LDDemoWorld::PKSignups)};
-    return true;
-}
 
 // #97 forests hold over a thousand trunks and every exact step is 2048-bit rational arithmetic. A screen skips an exact
 // contact test only when plain doubles put the two shapes' bounds apart by more than ScreenCm, far beyond double error at
@@ -778,9 +784,9 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("Dorm"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Dorm; }
         else if (Kind.Equals(TEXT("Airdrop"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Airdrop; }
         else if (Kind.Equals(TEXT("BossWaypoint"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::BossWaypoint; }
-        else if (Kind.Equals(TEXT("PKSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSpawn; }
-        else if (Kind.Equals(TEXT("PKThrow"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKThrow; }
-        else if (Kind.Equals(TEXT("PKSignup"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSignup; }
+        else if (Kind.Equals(TEXT("MiniFlag"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::MiniFlag; }
+        else if (Kind.Equals(TEXT("Locker"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Locker; }
+        else if (Kind.Equals(TEXT("Vending"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Vending; }
         else if (Kind.Equals(TEXT("RestSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestSpawn; }
         else if (Kind.Equals(TEXT("RestService"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestService; }
         else if (Kind.Equals(TEXT("TrainingDummy"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::TrainingDummy; }
@@ -788,20 +794,16 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("FinalCapture"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::FinalCapture; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
-        // The Boss patrol order and the #198 PK ring order are canonical; every other anchor is named by the world and
-        // the content refers to it.
+        // The Boss patrol order is canonical, optional points carry their kind prefix; every other anchor is named by the
+        // world and the content refers to it.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
         {
             for (int32 I = 1; I <= LDDemoWorld::BossWaypoints; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("boss_patrol_%d"), I), ESearchCase::CaseSensitive); }
         }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn)
+        else if (LDDemoWorld::OptionalPrefix(Anchor.Kind))
         {
-            for (int32 I = 0; I < LDDemoWorld::PKSpawns; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("pk_spawn_%d"), I), ESearchCase::CaseSensitive); }
-        }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow) { KnownId = Anchor.Id.Equals(TEXT("pk_throw"), ESearchCase::CaseSensitive); }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup)
-        {
-            for (int32 I = 0; I < LDDemoWorld::PKSignups; ++I) { KnownId |= Anchor.Id.Equals(LDDemoWorld::PKSignupId(I), ESearchCase::CaseSensitive); }
+            ELDDemoWorldAnchorKind Prefixed;
+            KnownId = LDDemoWorld::OptionalKindOf(Anchor.Id, Prefixed) && Prefixed == Anchor.Kind;
         }
         else if (Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy)
         {
@@ -815,7 +817,12 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         {
             KnownId = Anchor.Id.Equals(LDDemoWorld::FinalCaptureId(), ESearchCase::CaseSensitive);
         }
-        else { KnownId = true; }
+        else
+        {
+            // A required anchor never takes an optional kind's prefix.
+            ELDDemoWorldAnchorKind Prefixed;
+            KnownId = !LDDemoWorld::OptionalKindOf(Anchor.Id, Prefixed);
+        }
         if (!Check.Require(KnownId, Anchor.Id, TEXT("unknown canonical Demo anchor"))) { return false; }
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
         {
@@ -849,14 +856,20 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
                     ? N.Value(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
-                    ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
+                    || Anchor.Kind == ELDDemoWorldAnchorKind::Vending
+                    ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm))
+                : Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? N.Add(Radius, N.Value(Content.Parameters.Objective.FlagRadiusCm))
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Locker ? N.Add(Radius, N.Value(Content.Parameters.Explore.LockerRadiusCm)) : Radius;
             const double Body = Approx(Content.Parameters.CollisionRadiusCm);
             const double Reach = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? Approx(Out.CampClearanceCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture
                     ? Approx(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? Body + Approx(Content.Parameters.DormRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
-                    ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm) : Body;
+                    || Anchor.Kind == ELDDemoWorldAnchorKind::Vending
+                    ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? Body + Approx(Content.Parameters.Objective.FlagRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Locker ? Body + Approx(Content.Parameters.Explore.LockerRadiusCm) : Body;
             if (!Check.Require(ClearCircle(XY(Anchor.PositionCm, N), N.Value(Anchor.PositionCm.Z), Clearance, Reach, Out, N), Anchor.Id,
                 TEXT("anchor clearance intersects static geometry, a cliff or a ramp, or is off its level's height")))
             {
@@ -883,19 +896,13 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     {
         if (!Reference(Id, ELDDemoWorldAnchorKind::Camp)) { return false; }
     }
-    for (const FString& Id : Content.World.PKSpawnIds)
-    {
-        if (!Reference(Id, ELDDemoWorldAnchorKind::PKSpawn)) { return false; }
-    }
     int32 Named = 0;
     for (const auto& Anchor : Out.Anchors)
     {
         Named += Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::Camp
-            || Anchor.Kind == ELDDemoWorldAnchorKind::Capture || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn
-            || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow ? 1 : 0;
+            || Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? 1 : 0;
     }
     if (!Reference(Content.World.CaptureId, ELDDemoWorldAnchorKind::Capture)
-        || !Reference(Content.World.PKThrowId, ELDDemoWorldAnchorKind::PKThrow)
         || !Check.Require(Referenced.Num() == Named, Root.Path, TEXT("unreferenced anchor")))
     {
         return false;
@@ -959,120 +966,23 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         }
     }
 #endif
-    // #198 approved PK geometry around the capture anchor, at its level: the ring of six spawns in id order and the
-    // off-arena throw anchor. Each already passed the one-capsule static clearance above; walkable paths between the
-    // spawns, the shrinking rings and the final circle are the runtime navigation's proof.
+    // The shared rest room: six seats, the service anchors and the six training dummies, clear of every camp.
     {
         const auto Find = [&Out](const FString& Id) { return Out.Anchors.FindByPredicate([&Id](const auto& A) { return A.Id == Id; }); };
-        const FLDDemoWorldAnchor* Capture = Find(Content.World.CaptureId);
-        const FXY Centre = XY(Capture->PositionCm, N);
-        const FExact Level = N.Value(Capture->PositionCm.Z);
-        const FExact RingMin = N.Value(int64(LDDemoWorld::PKSpawnRingMinCm) * LDDemoWorld::PKSpawnRingMinCm);
-        const FExact RingMax = N.Value(int64(LDDemoWorld::PKSpawnRingMaxCm) * LDDemoWorld::PKSpawnRingMaxCm);
-        const FExact Spacing = N.Value(int64(LDDemoWorld::PKSpawnSpacingCm) * LDDemoWorld::PKSpawnSpacingCm);
         const FExact CampReach = N.Add(N.Value(Out.CampClearanceCm), Radius);
-        const auto OutsideCamps = [&](const FLDDemoWorldAnchor& PK)
+        const auto OutsideCamps = [&](const FLDDemoWorldAnchor& Point)
         {
             for (const auto& Camp : Out.Anchors)
             {
                 if (Camp.Kind == ELDDemoWorldAnchorKind::Camp
-                    && !Check.Require(N.LT(N.Mul(CampReach, CampReach), DistanceSquared(XY(PK.PositionCm, N), XY(Camp.PositionCm, N), N)),
-                        PK.Id, TEXT("PK anchor stands in a camp clearing")))
+                    && !Check.Require(N.LT(N.Mul(CampReach, CampReach), DistanceSquared(XY(Point.PositionCm, N), XY(Camp.PositionCm, N), N)),
+                        Point.Id, TEXT("rest-room anchor stands in a camp clearing")))
                 {
                     return false;
                 }
             }
             return true;
         };
-        if (!Check.Require(Content.World.PKSpawnIds.Num() == LDDemoWorld::PKSpawns, Root.Path, TEXT("six PK spawns are required")))
-        {
-            return false;
-        }
-        TArray<FXY> Ring;
-        for (int32 I = 0; I < LDDemoWorld::PKSpawns; ++I)
-        {
-            const FString& Id = Content.World.PKSpawnIds[I];
-            const FLDDemoWorldAnchor* Spawn = Find(Id);
-            const FXY At = XY(Spawn->PositionCm, N);
-            const FExact Reach = DistanceSquared(At, Centre, N);
-            if (!Check.Require(Id.Equals(FString::Printf(TEXT("pk_spawn_%d"), I), ESearchCase::CaseSensitive)
-                && N.EQ(N.Value(Spawn->PositionCm.Z), Level) && N.LE(RingMin, Reach) && N.LE(Reach, RingMax),
-                Id, TEXT("PK spawn is out of order, off the capture level or outside the 1000..1400 cm ring"))
-                || !OutsideCamps(*Spawn))
-            {
-                return false;
-            }
-            for (const FXY& Other : Ring)
-            {
-                if (!Check.Require(N.LE(Spacing, DistanceSquared(At, Other, N)), Id, TEXT("PK spawns stand closer than the approved enemy spacing")))
-                {
-                    return false;
-                }
-            }
-            Ring.Add(At);
-        }
-        for (int32 I = 0; I < LDDemoWorld::PKSpawns; ++I)
-        {
-            const FVector2D From = Ring[I].At - Centre.At, To = Ring[(I + 1) % LDDemoWorld::PKSpawns].At - Centre.At;
-            const double Step = FMath::RadiansToDegrees(FMath::Atan2(FVector2D::CrossProduct(From, To), FVector2D::DotProduct(From, To)));
-            if (!Check.Require(Step >= 59. && Step <= 61., Content.World.PKSpawnIds[I],
-                TEXT("PK spawns must step 60 degrees counterclockwise in id order")))
-            {
-                return false;
-            }
-        }
-        const FLDDemoWorldAnchor* Throw = Find(Content.World.PKThrowId);
-        const FExact Reach = DistanceSquared(XY(Throw->PositionCm, N), Centre, N);
-        const int64 Far = LDDemoWorld::PKThrowRangeCm - LDDemoWorld::PKArenaRadiusCm;
-        if (!Check.Require(N.EQ(N.Value(Throw->PositionCm.Z), Level)
-            && N.LT(N.Value(int64(LDDemoWorld::PKArenaRadiusCm) * LDDemoWorld::PKArenaRadiusCm), Reach) && N.LE(Reach, N.Value(Far * Far)),
-            Throw->Id, TEXT("PK throw anchor must stand at the capture level outside the arena with the whole arena in range"))
-            || !OutsideCamps(*Throw))
-        {
-            return false;
-        }
-        FXY SharedCentre;
-        FExact SignupLevel;
-        const FExact SignupRadius = N.Value(Content.Parameters.AirdropPickupRadiusCm);
-        const FExact UsableRadius = N.Sub(SignupRadius, Radius);
-        const FExact Diameter = N.Mul(Radius, N.Value(2));
-        if (!Check.Require(SignupCentre(Out, N, SharedCentre, SignupLevel) && N.LT(N.Value(0), UsableRadius)
-            && ClearCircle(SharedCentre, SignupLevel, N.Add(Radius, SignupRadius),
-                Approx(Content.Parameters.CollisionRadiusCm) + Approx(Content.Parameters.AirdropPickupRadiusCm), Out, N),
-            Root.Path, TEXT("the shared PK sign-up disk needs six positions and clear standing ground")))
-        {
-            return false;
-        }
-        const FExact SignupCampReach = N.Add(N.Value(Out.CampClearanceCm), N.Add(Radius, SignupRadius));
-        for (const auto& Camp : Out.Anchors)
-        {
-            if (Camp.Kind == ELDDemoWorldAnchorKind::Camp
-                && !Check.Require(N.LT(N.Mul(SignupCampReach, SignupCampReach),
-                    DistanceSquared(SharedCentre, XY(Camp.PositionCm, N), N)), Camp.Id,
-                    TEXT("the shared PK sign-up disk overlaps a camp clearing"))) { return false; }
-        }
-        TArray<FXY> SignupSeats;
-        for (int32 Slot = 0; Slot < LDDemoWorld::PKSignups; ++Slot)
-        {
-            const FString Id = LDDemoWorld::PKSignupId(Slot);
-            const FLDDemoWorldAnchor* Signup = Find(Id);
-            const FLDDemoWorldAnchor* Rest = Find(FString::Printf(TEXT("rest_spawn_%d"), Slot));
-            if (!Check.Require(Signup && Signup->Kind == ELDDemoWorldAnchorKind::PKSignup && Rest && Rest->Kind == ELDDemoWorldAnchorKind::RestSpawn
-                && N.EQ(N.Value(Rest->PositionCm.Z), SignupLevel)
-                && N.LE(DistanceSquared(XY(Signup->PositionCm, N), SharedCentre, N), N.Mul(UsableRadius, UsableRadius)),
-                Id, TEXT("PK sign-up position is missing, off level or outside the shared disk"))
-                || !OutsideCamps(*Signup))
-            {
-                return false;
-            }
-            const FXY Seat = XY(Signup->PositionCm, N);
-            for (const FXY& Other : SignupSeats)
-            {
-                if (!Check.Require(N.LE(N.Mul(Diameter, Diameter), DistanceSquared(Seat, Other, N)),
-                    Id, TEXT("PK sign-up positions overlap character capsules"))) { return false; }
-            }
-            SignupSeats.Add(Seat);
-        }
         int32 RestSpawns = 0, Services = 0, TrainingDummyCount = 0;
         for (const auto& Anchor : Out.Anchors)
         {
@@ -1080,7 +990,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             Services += Anchor.Kind == ELDDemoWorldAnchorKind::RestService ? 1 : 0;
             TrainingDummyCount += Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy ? 1 : 0;
         }
-        if (!Check.Require(RestSpawns == 6 && Services == LDDemoWorld::RestServices
+        if (!Check.Require(RestSpawns == LDDemoWorld::RosterSlots && Services == LDDemoWorld::RestServices
             && TrainingDummyCount == LDDemoWorld::TrainingDummies, Root.Path,
             TEXT("the shared rest room needs six seats, three services and six training dummy positions"))) { return false; }
         for (int32 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
@@ -1104,8 +1014,9 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             }
         }
     }
-    // D21 dorms and D26 airdrop points are the anchors content does not name; each event disk stays apart from the
-    // circle, every camp clearing and every other event disk, so no two zone rules overlap.
+    // D21 dorms, D26 airdrop points and the P6 mini flags, lockers and vending machines are the anchors content does not
+    // name; each event disk stays apart from the circle, every camp clearing and every other event disk, so no two zone
+    // rules overlap (spec §11.4).
     auto ZoneRadius = [&](ELDDemoWorldAnchorKind Kind) -> TOptional<FExact>
     {
         switch (Kind)
@@ -1114,15 +1025,25 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         case ELDDemoWorldAnchorKind::Camp: return N.Value(Out.CampClearanceCm);
         case ELDDemoWorldAnchorKind::Dorm: return N.Value(Content.Parameters.DormRadiusCm);
         case ELDDemoWorldAnchorKind::Airdrop: return N.Value(Content.Parameters.AirdropPickupRadiusCm);
+        case ELDDemoWorldAnchorKind::Vending: return N.Value(Content.Parameters.AirdropPickupRadiusCm);
+        case ELDDemoWorldAnchorKind::MiniFlag: return N.Value(Content.Parameters.Objective.FlagRadiusCm);
+        case ELDDemoWorldAnchorKind::Locker: return N.Value(Content.Parameters.Explore.LockerRadiusCm);
         default: return {};
         }
     };
-    int32 Dorms = 0, Airdrops = 0, Waypoints = 0;
+    int32 Dorms = 0, Airdrops = 0, Waypoints = 0, MiniFlags = 0, Lockers = 0, Vending = 0;
     for (const auto& Zone : Out.Anchors)
     {
         Waypoints += Zone.Kind == ELDDemoWorldAnchorKind::BossWaypoint ? 1 : 0;
-        if (Zone.Kind != ELDDemoWorldAnchorKind::Dorm && Zone.Kind != ELDDemoWorldAnchorKind::Airdrop) { continue; }
-        ++(Zone.Kind == ELDDemoWorldAnchorKind::Dorm ? Dorms : Airdrops);
+        Dorms += Zone.Kind == ELDDemoWorldAnchorKind::Dorm ? 1 : 0;
+        Airdrops += Zone.Kind == ELDDemoWorldAnchorKind::Airdrop ? 1 : 0;
+        MiniFlags += Zone.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 1 : 0;
+        Lockers += Zone.Kind == ELDDemoWorldAnchorKind::Locker ? 1 : 0;
+        Vending += Zone.Kind == ELDDemoWorldAnchorKind::Vending ? 1 : 0;
+        if (Zone.Kind == ELDDemoWorldAnchorKind::Capture || Zone.Kind == ELDDemoWorldAnchorKind::Camp || !ZoneRadius(Zone.Kind).IsSet())
+        {
+            continue;
+        }
         const FExact Own = ZoneRadius(Zone.Kind).GetValue();
         for (const auto& Other : Out.Anchors)
         {
@@ -1140,6 +1061,20 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         && Waypoints == LDDemoWorld::BossWaypoints && N.LT(N.Value(0), N.Value(Content.Parameters.DormRadiusCm))
         && N.LT(N.Value(0), N.Value(Content.Parameters.AirdropPickupRadiusCm)),
         Root.Path, TEXT("dorms, airdrop points and four Boss waypoints within their bounds, with positive radii, are required")))
+    {
+        return false;
+    }
+    // Spec §11.4: the optional points may be moved, copied and deleted, down to their minimum.
+    if (!Check.Require(MiniFlags >= LDDemoWorld::MinMiniFlags && MiniFlags <= LDDemoWorld::MaxMiniFlags, Root.Path,
+            FString::Printf(TEXT("the level holds %d mini_flag_* points; mid-field objectives need %d to %d"), MiniFlags,
+                LDDemoWorld::MinMiniFlags, LDDemoWorld::MaxMiniFlags))
+        || !Check.Require(Lockers >= LDDemoWorld::MinLockers && Lockers <= LDDemoWorld::MaxLockers
+            && Lockers >= Content.Parameters.Explore.LockerCount, Root.Path,
+            FString::Printf(TEXT("the level holds %d locker_* points; delivery lockers need %d to %d and at least EXPLORE.LockerCount"),
+                Lockers, LDDemoWorld::MinLockers, LDDemoWorld::MaxLockers))
+        || !Check.Require(Vending >= LDDemoWorld::MinVending && Vending <= LDDemoWorld::MaxVending, Root.Path,
+            FString::Printf(TEXT("the level holds %d vending_* points; vending machines need %d to %d"), Vending,
+                LDDemoWorld::MinVending, LDDemoWorld::MaxVending)))
     {
         return false;
     }
@@ -1176,11 +1111,6 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
     const FExact Radius = N.Value(Content.Parameters.CollisionRadiusCm);
     const FExact Diameter = N.Mul(Radius, N.Value(2)), DiameterSquared = N.Mul(Diameter, Diameter);
     const FExact Envelope = N.Sub(N.Value(Out.SpawnValidationRadiusCm), Radius);
-    FXY SharedCentre;
-    FExact SignupLevel;
-    if (!Check.Require(SignupCentre(Out, N, SharedCentre, SignupLevel), Fields.Path,
-        TEXT("the shared PK sign-up positions are unavailable"))) { return false; }
-    const FExact SignupRadius = N.Value(Content.Parameters.AirdropPickupRadiusCm);
     if (!Check.Require(N.LT(N.Value(0), Envelope), Fields.Path, TEXT("spawn envelope is smaller than the body"))) { return false; }
     for (int32 I = 0; I < Out.SpawnOffsetsCm.Num(); ++I)
     {
@@ -1200,13 +1130,6 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
         }
         for (const auto& Anchor : Out.Anchors)
         {
-            if (Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
-                && !Check.Require(N.LT(N.Mul(SignupRadius, SignupRadius),
-                    DistanceSquared(Add(XY(Anchor.PositionCm, N), Delta, N), SharedCentre, N)),
-                    Anchor.Id, TEXT("a rest life would spawn inside the shared PK sign-up disk")))
-            {
-                return false;
-            }
             if ((Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
                 || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
                 && !Check.Require(ClearCircle(Add(XY(Anchor.PositionCm, N), Delta, N), N.Value(Anchor.PositionCm.Z), Radius,
@@ -1251,7 +1174,7 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
     const TArray<FValue>* Refs;
     const TCHAR* Expected[] = {
         TEXT("AIRDROP.PickupRadiusCm"), TEXT("CAMP.ResetArrivalRadiusCm"), TEXT("CAPTURE.RadiusCm"), TEXT("DORM.RadiusCm"),
-        TEXT("UNIT.BasicAttackRangeCm"), TEXT("UNIT.CollisionRadiusCm"), TEXT("VISION.RadiusCm")};
+        TEXT("EXPLORE.LockerRadiusCm"), TEXT("OBJECTIVE.FlagRadiusCm"), TEXT("UNIT.BasicAttackRangeCm"), TEXT("UNIT.CollisionRadiusCm"), TEXT("VISION.RadiusCm")};
     constexpr int32 RefCount = UE_ARRAY_COUNT(Expected);
     if (!Array(Root.Take(TEXT("parameter_refs")), Refs, Check, TEXT("world.parameter_refs"), RefCount, RefCount)) { return false; }
     for (int32 I = 0; I < RefCount; ++I)

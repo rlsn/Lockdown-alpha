@@ -30,7 +30,7 @@
 #include "LDTestApprovedDisplay.h"
 #include "LDTestApprovedFixture.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "PK/LDPKRules.h"
+#include "Framework/LDPacingTypes.h"
 #include "Engine/Texture2D.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Image.h"
@@ -368,40 +368,22 @@ bool FLDHUDMatchTimerTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDRestTimelineTest,"Lockdown.Rules.HUDRestTimeline",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
 {
-    // #198: the timeline banner, the PK sign-up window and the rest return countdown come from the public timeline only.
+    // #198: the timeline banner and the rest return countdown come from the public timeline only.
     const FGuid Self=FGuid::NewGuid();
     FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Rest;
     FLDTimelineView& Timeline=Public.Timeline;
     Timeline.Generation=4;Timeline.Stage=ELDMatchStage::Rest;Timeline.RestIndex=1;Timeline.FieldSegment=1;Timeline.Step=ELDRestStep::Build;
-    Timeline.StepStartedAtMs=100000;Timeline.StepEndsAtMs=130000;Timeline.SignupOpensAtMs=120000;
+    Timeline.StepStartedAtMs=100000;Timeline.StepEndsAtMs=125000;
     LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
     TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
-        LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 25 秒"));
-    TestTrue(TEXT("Before the sign-up window it says when it opens; the lit disk in the room shows where"),
-        View.Detail==LDTerms::SignupOpensIn(15)&&!View.bSignupOpen&&View.bSignupStep);
-    View=LDHUD::TimelineBanner(Public,Self,true,121500);
-    TestTrue(TEXT("Inside the window the line counts who stands in a disk and asks Self to step in"),View.bSignupOpen&&!View.bSignedUp
-        &&View.Detail==LDTerms::SignupOpenFor(9)+TEXT(" · ")+LDTerms::SignedUpCount(0)+TEXT(" · ")+LDTerms::NotSignedUpSelf);
-    Timeline.Signups={Self};
-    View=LDHUD::TimelineBanner(Public,Self,true,130000);
-    TestTrue(TEXT("The deadline instant is still inside the window; standing inside reads as signed up"),View.bSignupOpen&&View.bSignedUp
-        &&View.Detail.Contains(LDTerms::SignedUpCount(1))&&View.Detail.Contains(LDTerms::SignedUpSelf));
-    TestFalse(TEXT("Another contender's sign-up is not the own one"),LDHUD::TimelineBanner(Public,FGuid::NewGuid(),true,125000).bSignedUp);
+        LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 20 秒"));
+    TestTrue(TEXT("A rest has no detail line"),View.Detail.IsEmpty());
     View=LDHUD::TimelineBanner(Public,Self,false,0);
-    TestTrue(TEXT("Without the authority clock nothing is guessed and the window is not open"),!View.bSignupOpen&&View.Headline.EndsWith(TEXT("时间同步中"))
-        &&View.Detail.StartsWith(TEXT("PK 报名时间同步中")));
-    Timeline.Signups.Reset();
-    Timeline.Step=ELDRestStep::PK;Timeline.LockedEntrants=3;Timeline.StepStartedAtMs=140000;Timeline.StepEndsAtMs=200000;
-    View=LDHUD::TimelineBanner(Public,Self,true,150000);
-    TestTrue(TEXT("A PK names its latest end and its entrants; #222: no build lock to announce"),View.Headline.EndsWith(TEXT("最长剩 50 秒"))
-        &&View.Detail==LDTerms::PKEntrants(3)&&!View.bSignupOpen);
-    Timeline.Step=ELDRestStep::Payout;
-    TestEqualSensitive(TEXT("The payout names the entrants the same way"),LDHUD::TimelineBanner(Public,Self,true,150000).Detail,LDTerms::PKEntrants(3));
-    TestTrue(TEXT("No return countdown outside the return step"),LDHUD::RestReturnCountdown(Public,true,150000).IsEmpty());
-    Timeline.Step=ELDRestStep::Return;Timeline.bPKSkipped=true;Timeline.LockedEntrants=1;Timeline.StepStartedAtMs=130000;Timeline.StepEndsAtMs=135000;
+    TestTrue(TEXT("Without the authority clock nothing is guessed"),View.Headline.EndsWith(TEXT("时间同步中")));
+    TestTrue(TEXT("No return countdown outside the return step"),LDHUD::RestReturnCountdown(Public,true,110000).IsEmpty());
+    Timeline.Step=ELDRestStep::Return;Timeline.StepStartedAtMs=130000;Timeline.StepEndsAtMs=135000;
     View=LDHUD::TimelineBanner(Public,Self,true,131200);
-    TestTrue(TEXT("Fewer than two sign-ups skip the PK"),View.Headline==LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒")
-        &&View.Detail==FString(LDTerms::PKSkipped));
+    TestTrue(TEXT("The return step counts down"),View.Headline==LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒"));
     TestEqualSensitive(TEXT("The return countdown shows whole seconds rounded up"),LDHUD::RestReturnCountdown(Public,true,131200),FString(TEXT("4")));
     TestEqualSensitive(TEXT("The last millisecond still reads 1"),LDHUD::RestReturnCountdown(Public,true,134999),FString(TEXT("1")));
     TestEqualSensitive(TEXT("Reaching the end holds 1 until the authority enters the field"),LDHUD::RestReturnCountdown(Public,true,136000),FString(TEXT("1")));
@@ -412,7 +394,7 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     Timeline.StepStartedAtMs=200000;Timeline.StepEndsAtMs=380000;
     View=LDHUD::TimelineBanner(Public,Self,true,200500);
     TestEqualSensitive(TEXT("A field segment counts down to the next rest in field time"),View.Headline,LDTerms::FieldSegmentLine(2,3,TEXT("3:00")));
-    TestTrue(TEXT("The field has no rest detail and no toggle"),View.Detail.IsEmpty()&&!View.bSignupOpen);
+    TestTrue(TEXT("The field has no rest detail"),View.Detail.IsEmpty());
     TestEqualSensitive(TEXT("A field segment starts with the go line"),LDHUD::RestReturnCountdown(Public,true,200500),FString(LDTerms::CountdownGo));
     TestTrue(TEXT("The go line leaves after its moment"),LDHUD::RestReturnCountdown(Public,true,200000+LDHUD::CountdownGoShowMs).IsEmpty());
     Public.Phase=ELDMatchPhase::CaptureOpen;Timeline.Stage=ELDMatchStage::FinalField;Timeline.FieldSegment=3;Timeline.FieldBaseMs=540000;Timeline.FieldEndT=-1;
@@ -440,8 +422,7 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     Timeline.Generation=3;
     TestTrue(TEXT("Another generation's timeline shows nothing"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline.IsEmpty()
         &&LDHUD::RestReturnCountdown(Public,true,200500).IsEmpty());
-    // The PK sign-up has no answer to show: standing in the own disk is the sign-up, read from the public timeline above.
-    TestEqualSensitive(TEXT("Ready confirmation does not promise a sign-up window in the final rest"),
+    TestEqualSensitive(TEXT("Ready confirmation is short"),
         LDHUD::RestReadyText(ELDRestReadyResult::Accepted),FString(TEXT("已准备。")));
     for(const ELDRestReadyResult Refused:{ELDRestReadyResult::NotContender,ELDRestReadyResult::StaleMatch,
         ELDRestReadyResult::StaleWindow,ELDRestReadyResult::NotOpen,ELDRestReadyResult::None})
@@ -466,172 +447,60 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Outside a rest an unlisted contender is not given a name"),LDHUD::ObservedContenderName(Lobby,FGuid::NewGuid(),false).IsEmpty());
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPKViewTest,"Lockdown.Rules.HUDPKView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDPKViewTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPacingViewTest,"Lockdown.Rules.HUDPacingView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDPacingViewTest::RunTest(const FString& Parameters)
 {
-    // #198 session D: the PK panel, the spectator camera predicate and every bet/throw answer come from the public PK view.
-    TestEqualSensitive(TEXT("Two entrants duel"),LDHUD::PKFormatText(ELDPKFormat::Duel,2,2),FString(LDTerms::PKDuel));
-    TestEqualSensitive(TEXT("A free-for-all reads 混战"),LDHUD::PKFormatText(ELDPKFormat::FreeForAll,5,5),FString(LDTerms::PKFreeForAll));
-    TestEqualSensitive(TEXT("Four entrants in two teams are 2v2"),LDHUD::PKFormatText(ELDPKFormat::Teams,2,4),FString(TEXT("2v2")));
-    TestEqualSensitive(TEXT("Six entrants in two teams are 3v3"),LDHUD::PKFormatText(ELDPKFormat::Teams,2,6),FString(TEXT("3v3")));
-    TestTrue(TEXT("No format or an uneven team split names nothing"),LDHUD::PKFormatText(ELDPKFormat::None,0,0).IsEmpty()
-        &&LDHUD::PKFormatText(ELDPKFormat::Teams,2,5).IsEmpty());
+    // P6: the death screen's spawn choice and the vending panel come from the own owner projection only; every hotspot and
+    // affix has a glyph, a name and a hover line.
+    FLDOwnerState Own;Own.Life=5;Own.LifePhase=ELDLifePhase::Dead;
+    Own.Pacing.SpawnLife=5;Own.Pacing.SpawnCandidates={TEXT("spawn_0"),TEXT("spawn_3")};
+    Own.Pacing.SpawnCandidateCm={FVector(0,0,0),FVector(100,0,0)};Own.Pacing.SpawnChoiceEndsAtMs=14000;
+    LDHUD::FSpawnChoiceView Choice=LDHUD::SpawnChoice(Own,true,10200);
+    TestTrue(TEXT("A dead life with candidates sees its choice and whole seconds left"),Choice.bVisible&&Choice.Count==2
+        &&Choice.Chosen==INDEX_NONE&&Choice.Countdown==TEXT("4"));
+    Own.Pacing.SpawnChosen=1;
+    TestEqual(TEXT("The chosen candidate is lit"),LDHUD::SpawnChoice(Own,true,10200).Chosen,1);
+    TestFalse(TEXT("After its window the choice is gone"),LDHUD::SpawnChoice(Own,true,14001).bVisible);
+    TestTrue(TEXT("Without the authority clock the choice shows without a guessed countdown"),
+        LDHUD::SpawnChoice(Own,false,0).bVisible&&LDHUD::SpawnChoice(Own,false,0).Countdown.IsEmpty());
+    Own.Pacing.SpawnLife=4;
+    TestFalse(TEXT("Another life's candidates never show"),LDHUD::SpawnChoice(Own,true,10200).bVisible);
+    Own.Pacing.SpawnLife=5;Own.LifePhase=ELDLifePhase::Alive;
+    TestFalse(TEXT("A living body has no spawn choice"),LDHUD::SpawnChoice(Own,true,10200).bVisible);
+    TestTrue(TEXT("Every refused choice says why in one line"),!LDHUD::SpawnChoiceText(ELDSpawnChoiceResult::NoChoice).IsEmpty()
+        &&LDHUD::SpawnChoiceText(ELDSpawnChoiceResult::OutOfRange)!=LDHUD::SpawnChoiceText(ELDSpawnChoiceResult::NoChoice));
 
-    const FGuid A=FGuid::NewGuid(),B=FGuid::NewGuid(),C=FGuid::NewGuid(),D=FGuid::NewGuid(),Watcher=FGuid::NewGuid(),Late=FGuid::NewGuid();
-    FLDLobbyView Lobby;
-    const TPair<FGuid,const TCHAR*> Listed[]={{A,TEXT("甲")},{B,TEXT("乙")},{C,TEXT("丙")},{D,TEXT("丁")},{Watcher,TEXT("戊")}};
-    for(const TPair<FGuid,const TCHAR*>& Entry:Listed){FLDLobbyMember& Member=Lobby.Members.AddDefaulted_GetRef();Member.ContenderId=Entry.Key;Member.Name=Entry.Value;}
+    FLDDemoContentParameters Params;Params.Explore.VendingBuffPrice=2;Params.Explore.VendingDrinkPrice=3;
+    Own.Pacing.Vouchers=2;
+    TestFalse(TEXT("Away from a machine there is no vending panel"),LDHUD::Vending(Own,Params).bVisible);
+    Own.Pacing.NearbyVending=TEXT("vending_0");
+    LDHUD::FVendingView Vend=LDHUD::Vending(Own,Params);
+    TestTrue(TEXT("Beside a machine the panel prices both kinds from the content"),Vend.bVisible&&Vend.BuffPrice==2&&Vend.DrinkPrice==3);
+    TestTrue(TEXT("Two vouchers afford a buff but not a drink"),Vend.bCanBuff&&!Vend.bCanDrink);
+    Own.LifePhase=ELDLifePhase::Dead;
+    TestFalse(TEXT("A dead body cannot buy"),LDHUD::Vending(Own,Params).bVisible);
+    TestTrue(TEXT("A queued purchase, a delivered one and a refusal all read differently"),
+        LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::NotEnoughVouchers)
+        &&LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::Delivered)
+        &&LDHUD::VendingText(ELDVendingResult::Closed)!=LDHUD::VendingText(ELDVendingResult::Delivered));
+
+    TSet<FString> Glyphs;
+    for(int32 Id=1;Id<=LDPacing::DailyModifiers;++Id)
     {
-        FLDLobbyView DuplicateNames;
-        const FGuid First=FGuid::NewGuid(),Second=FGuid::NewGuid();
-        FLDLobbyMember& One=DuplicateNames.Members.AddDefaulted_GetRef();One.ContenderId=First;One.Name=TEXT("玩家");
-        FLDLobbyMember& Two=DuplicateNames.Members.AddDefaulted_GetRef();Two.ContenderId=Second;Two.Name=TEXT("玩家");
-        TestEqualSensitive(TEXT("Duplicate default roster names are disambiguated in published order"),
-            LDHUD::RosterName(DuplicateNames,First),FString(TEXT("玩家 1")));
-        TestEqualSensitive(TEXT("The second duplicate default roster name has a stable suffix"),
-            LDHUD::RosterName(DuplicateNames,Second),FString(TEXT("玩家 2")));
+        const ELDDailyModifier Modifier=ELDDailyModifier(Id);
+        TestTrue(FString::Printf(TEXT("Hotspot %d has a name, a glyph and a hover line"),Id),
+            FString(LDTerms::DailyName(Modifier)).Len()>0&&FString(LDTerms::DailyGlyph(Modifier)).Len()>0
+            &&!LDHUD::DailyDescription(Modifier,Params).IsEmpty());
+        Glyphs.Add(LDTerms::DailyGlyph(Modifier));
     }
-    FLDPublicMatchView Public;Public.Generation=7;Public.Phase=ELDMatchPhase::Rest;
-    FLDTimelineView& Timeline=Public.Timeline;
-    Timeline.Generation=7;Timeline.Stage=ELDMatchStage::Rest;Timeline.RestIndex=2;Timeline.Step=ELDRestStep::Betting;
-    Timeline.StepStartedAtMs=100000;Timeline.StepEndsAtMs=108000;
-    FLDPKView& PK=Public.PK;
-    PK.Generation=7;PK.Serial=2;PK.RestIndex=2;PK.Format=ELDPKFormat::Teams;PK.SideCount=2;PK.Outcome=ELDPKOutcome::Pending;
-    PK.ArenaCentreCm=FVector(100,200,0);
-    const TPair<FGuid,uint8> Seats[]={TPair<FGuid,uint8>(A,uint8(1)),TPair<FGuid,uint8>(B,uint8(2)),TPair<FGuid,uint8>(C,uint8(1)),TPair<FGuid,uint8>(D,uint8(2))};
-    for(const TPair<FGuid,uint8>& Seat:Seats)
-    {FLDPKEntrantView& Entrant=PK.Entrants.AddDefaulted_GetRef();Entrant.Contender=Seat.Key;Entrant.Side=Seat.Value;}
-    PK.Bettors={Watcher};
-    TestEqualSensitive(TEXT("The public team PK labels a same-side observed entrant as a teammate"),
-        LDHUD::PKRelationText(Public,A,C),FString(LDTerms::PKTeammate));
-    TestEqualSensitive(TEXT("The public team PK labels an opposing observed entrant as an enemy"),
-        LDHUD::PKRelationText(Public,A,B),FString(LDTerms::PKEnemy));
-    TestEqualSensitive(TEXT("A spectator sees a side label, not a fabricated friendly/enemy relation"),
-        LDHUD::PKRelationText(Public,Watcher,A),LDTerms::PKSide(1));
-    FLDPublicMatchView FreeForAll=Public;FreeForAll.PK.Format=ELDPKFormat::FreeForAll;
-    TestTrue(TEXT("Team labels do not change free-for-all semantics"),LDHUD::PKRelationText(FreeForAll,A,B).IsEmpty());
-
-    // Betting: an eligible spectator gets one button per side; an entrant or a contender outside the locked bettors gets none.
-    LDHUD::FPKPanelInput In;In.Self=Watcher;In.bClock=true;In.NowMs=103000;
-    LDHUD::FPKPanelView View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("The betting step shows the format and one bet per side to an eligible bettor"),View.bVisible&&View.bCanBet&&!View.bCanThrow
-        &&View.Title==LDTerms::PKTitle(2,TEXT("2v2"),4)&&View.Sides.Num()==2&&View.Sides[0].BetAction==LDTerms::PKBetOn(TEXT("甲、丙"))
-        &&View.Sides[1].BetAction==LDTerms::PKBetOn(TEXT("乙、丁"))&&View.Role==LDTerms::PKRoleBet&&View.OwnBet==0);
-    FLDPKBetView& OwnBet=PK.Bets.AddDefaulted_GetRef();OwnBet.Spectator=Watcher;OwnBet.Side=2;
-    View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("The own bet comes from the public bets and is marked on its side"),View.OwnBet==2&&View.Sides[1].bOwnBet&&!View.Sides[0].bOwnBet
-        &&View.Sides[1].Line.Contains(LDTerms::PKBetCount(1))&&View.Sides[1].Line.Contains(LDTerms::PKOwnBet));
-    In.Self=A;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("An entrant sees its side but no bet"),View.bVisible&&!View.bCanBet&&View.Role==LDTerms::PKRoleEntrant&&View.Sides[0].bOwnSide);
-    In.Self=Late;
-    TestFalse(TEXT("A contender outside the locked bettors cannot bet"),LDHUD::PKPanel(Public,Lobby,In).bCanBet);
-    TestFalse(TEXT("Betting is not spectating yet"),LDHUD::IsSpectatingPK(Public,Watcher));
-
-    // PKReady: the entrants stand in the arena; everyone else watches it.
-    Timeline.Step=ELDRestStep::PKReady;Timeline.StepStartedAtMs=108000;Timeline.StepEndsAtMs=111000;
-    for(FLDPKEntrantView& Entrant:PK.Entrants){Entrant.bAlive=true;}
-    TestTrue(TEXT("Spectators watch the arena from PKReady"),LDHUD::IsSpectatingPK(Public,Watcher)&&LDHUD::IsSpectatingPK(Public,Late));
-    TestFalse(TEXT("A living entrant keeps its own camera"),LDHUD::IsSpectatingPK(Public,A));
-    TestFalse(TEXT("No contender id never spectates"),LDHUD::IsSpectatingPK(Public,FGuid()));
-    In.Self=A;In.NowMs=108100;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("PKReady counts whole seconds to the fight"),View.Countdown==LDTerms::PKStartsIn(3)&&View.Role==LDTerms::PKRoleFighter&&!View.bCanBet);
-    In.NowMs=111500;
-    TestEqualSensitive(TEXT("A local clock past the end holds 1 until the authority starts the fight"),LDHUD::PKPanel(Public,Lobby,In).Countdown,LDTerms::PKStartsIn(1));
-    In.bClock=false;
-    TestEqualSensitive(TEXT("Without the authority clock no countdown is guessed"),LDHUD::PKPanel(Public,Lobby,In).Countdown,FString(LDTerms::PKClockSync));
-    In.bClock=true;
-
-    // The fight: the ring, the throw and the eliminated entrant.
-    Timeline.Step=ELDRestStep::PK;Timeline.StepStartedAtMs=111000;Timeline.StepEndsAtMs=171000;
-    PK.FightStartedAtMs=111000;PK.Outcome=ELDPKOutcome::Running;PK.Entrants[1].bAlive=false;
-    TestTrue(TEXT("An eliminated entrant watches the arena"),LDHUD::IsSpectatingPK(Public,B)&&!LDHUD::IsSpectatingPK(Public,C));
-    TestEqualSensitive(TEXT("An eliminated entrant sees its former teammate's side, not a teammate relation"),
-        LDHUD::PKRelationText(Public,B,D),LDTerms::PKSide(2));
-    TestEqualSensitive(TEXT("An eliminated entrant sees the other side, not an enemy relation"),
-        LDHUD::PKRelationText(Public,B,A),LDTerms::PKSide(1));
-    TestTrue(TEXT("Living PK fighters retain teammate and enemy relations"),
-        LDHUD::PKRelationText(Public,A,C)==LDTerms::PKTeammate&&LDHUD::PKRelationText(Public,A,D)==LDTerms::PKEnemy);
-    In.Self=B;In.NowMs=116000;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("The eliminated entrant is read-only and told so"),View.bSpectating&&!View.bCanBet&&!View.bCanThrow&&View.Role==LDTerms::PKRoleOut);
-    TestTrue(TEXT("Its name carries the out mark once the fight started"),View.Sides[1].Line.Contains(FString(TEXT("乙（"))+LDTerms::PKOut+TEXT("）"))
-        &&!View.Sides[1].bOut);
-    FLDPKParameters Ring;
-    Ring.ArenaRadiusCm=1800;Ring.MidRadiusCm=600;Ring.FinalRadiusCm=150;
-    Ring.ShrinkStartMs=10000;Ring.MidMs=40000;Ring.FinalMs=55000;Ring.PreviewMs=10000;Ring.MaxMs=60000;Ring.TickMs=1000;
-    In.Self=Watcher;In.Params=&Ring;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestEqualSensitive(TEXT("The PK counts down to its latest end"),View.Countdown,LDTerms::PKTimeLeft(55));
-    TestEqualSensitive(TEXT("Before the shrink the ring names the next radius and when it starts"),View.Ring,
-        LDTerms::PKRingNow(TEXT("18.0"))+TEXT(" · ")+LDTerms::PKRingSoon(TEXT("6.0"),5));
-    TestTrue(TEXT("A ready eligible spectator may throw"),View.bCanThrow&&View.bThrowReady&&View.ThrowAction==LDTerms::PKThrow
-        &&View.Role==LDTerms::PKRoleThrow&&View.bSpectating);
-    In.NowMs=136000;
-    TestEqualSensitive(TEXT("While shrinking the ring names where it is heading"),LDHUD::PKPanel(Public,Lobby,In).Ring,
-        LDTerms::PKRingNow(TEXT("12.0"))+TEXT(" · ")+LDTerms::PKRingShrinking(TEXT("6.0")));
-    In.NowMs=116000;In.bThrowArmed=true;
-    TestEqualSensitive(TEXT("An armed throw asks for the ground"),LDHUD::PKPanel(Public,Lobby,In).ThrowAction,FString(LDTerms::PKThrowAim));
-    In.bThrowArmed=false;In.ThrowReadyAtMs=119800;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("A cooling throw shows its remainder and cannot be pressed"),View.bCanThrow&&!View.bThrowReady&&View.ThrowAction==LDTerms::PKThrowCooling(TEXT("3.8")));
-    TestEqualSensitive(TEXT("The throw cooldown reads whole seconds from ten"),LDHUD::PKThrowCooldown(126000,true,116000),LDTerms::PKThrowCooling(TEXT("10")));
-    TestTrue(TEXT("A reached or unknown cooldown is ready"),LDHUD::PKThrowCooldown(119800,true,119800).IsEmpty()&&LDHUD::PKThrowCooldown(0,true,116000).IsEmpty());
-    TestEqualSensitive(TEXT("Without the authority clock the cooldown is not guessed"),LDHUD::PKThrowCooldown(119800,false,0),FString(LDTerms::PKThrowCoolingSync));
-    In.ThrowReadyAtMs=0;In.bThrowInFlight=true;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("A throw waiting for its answer cannot be pressed again"),!View.bThrowReady&&View.ThrowAction==LDTerms::PKThrowSending);
-    In.bThrowInFlight=false;
-
-    // Answers: only a placed bet and a thrown throw read as done; every refusal is explicit.
-    TestTrue(TEXT("A placed bet says so"),LDHUD::PKBetText(ELDPKBetResult::Placed).StartsWith(TEXT("已押注")));
-    TSet<FString> BetTexts;
-    for(const ELDPKBetResult Refused:{ELDPKBetResult::NotSpectator,ELDPKBetResult::WindowClosed,ELDPKBetResult::UnknownSide,ELDPKBetResult::StaleMatch,
-        ELDPKBetResult::NotContender,ELDPKBetResult::NoPK,ELDPKBetResult::None})
+    TestEqual(TEXT("Every hotspot glyph is distinct"),Glyphs.Num(),LDPacing::DailyModifiers);
+    for(int32 Id=1;Id<=LDPacing::CampAffixes;++Id)
     {
-        const FString Text=LDHUD::PKBetText(Refused);BetTexts.Add(Text);
-        TestTrue(FString::Printf(TEXT("Bet refusal %d is explicit, never a success"),int32(Refused)),!Text.IsEmpty()&&!Text.Contains(TEXT("已押注")));
+        const ELDCampAffix Affix=ELDCampAffix(Id);
+        TestTrue(FString::Printf(TEXT("Affix %d has a name, a glyph and a hover line"),Id),
+            FString(LDTerms::AffixName(Affix)).Len()>0&&FString(LDTerms::AffixGlyph(Affix)).Len()>0
+            &&!LDHUD::AffixDescription(Affix,Params).IsEmpty());
     }
-    TestEqual(TEXT("Every bet refusal has its own text"),BetTexts.Num(),7);
-    TestTrue(TEXT("A thrown throw says so"),LDHUD::PKThrowText(ELDPKThrowResult::Thrown).StartsWith(TEXT("已投掷")));
-    TSet<FString> ThrowTexts;
-    for(const ELDPKThrowResult Refused:{ELDPKThrowResult::NotSpectator,ELDPKThrowResult::NotRunning,ELDPKThrowResult::CoolingDown,ELDPKThrowResult::OutsideArena,
-        ELDPKThrowResult::OutOfRange,ELDPKThrowResult::NotGround,ELDPKThrowResult::StaleMatch,ELDPKThrowResult::NotContender,ELDPKThrowResult::NoPK,
-        ELDPKThrowResult::None})
-    {
-        const FString Text=LDHUD::PKThrowText(Refused);ThrowTexts.Add(Text);
-        TestTrue(FString::Printf(TEXT("Throw refusal %d is explicit, never a success"),int32(Refused)),!Text.IsEmpty()&&!Text.Contains(TEXT("已投掷")));
-    }
-    TestEqual(TEXT("Every throw refusal has its own text"),ThrowTexts.Num(),10);
-
-    // Settlement: the frozen result and the awards, the own row highlighted.
-    Timeline.Step=ELDRestStep::Settlement;Timeline.StepStartedAtMs=140000;Timeline.StepEndsAtMs=143000;
-    PK.Outcome=ELDPKOutcome::Won;PK.WinnerSide=1;PK.DecidedAtMs=140000;PK.Bets[0].Side=1;
-    const auto Award=[&PK](const FGuid& Id,uint8 Participation,uint8 Winner,uint8 Bet)
-    {FLDPKAwardView& Row=PK.Awards.AddDefaulted_GetRef();Row.Contender=Id;Row.Participation=Participation;Row.Winner=Winner;Row.Bet=Bet;};
-    Award(A,1,2,0);Award(C,1,1,0);Award(B,1,0,0);Award(D,0,0,0);Award(Watcher,0,0,1);
-    In.NowMs=141000;View=LDHUD::PKPanel(Public,Lobby,In);
-    TestTrue(TEXT("The settlement freezes the winning side"),View.bResult&&View.Result==LDTerms::PKWinners(TEXT("甲、丙"))&&View.Sides[0].bWinner
-        &&!View.Sides[1].bWinner&&!View.bCanThrow&&!View.bCanBet&&View.Countdown.IsEmpty()&&!View.bOwnWin);
-    TestTrue(TEXT("Awards list every paid contender and mark the own row"),View.Awards.Num()==4&&View.Awards[3].bSelf&&!View.Awards[0].bSelf
-        &&View.Awards[3].Name==TEXT("戊")&&View.Awards[3].Points==FString(LDTerms::PKAwardBet)+TEXT(" +1 · ")+LDTerms::PKAwardTotal(1));
-    TestEqualSensitive(TEXT("An award row names each part and the total"),View.Awards[0].Points,
-        FString::Printf(TEXT("%s +1 · %s +2 · %s"),LDTerms::PKAwardParticipation,LDTerms::PKAwardWinner,*LDTerms::PKAwardTotal(3)));
-    In.Self=A;
-    TestTrue(TEXT("A winning entrant is told it won"),LDHUD::PKPanel(Public,Lobby,In).bOwnWin);
-    Timeline.Step=ELDRestStep::Payout;
-    TestTrue(TEXT("The payout keeps the result"),LDHUD::PKPanel(Public,Lobby,In).bResult);
-    PK.Outcome=ELDPKOutcome::Draw;
-    TestEqualSensitive(TEXT("A draw reads 平局"),LDHUD::PKResultText(PK,Lobby),FString(LDTerms::PKDraw));
-    PK.Outcome=ELDPKOutcome::NoContest;
-    TestTrue(TEXT("No contest names no winner"),LDHUD::PKResultText(PK,Lobby)==LDTerms::PKNoContest&&!LDHUD::PKResultText(PK,Lobby).Contains(TEXT("胜方")));
-    PK.Outcome=ELDPKOutcome::Running;
-    TestTrue(TEXT("An undecided PK has no result"),LDHUD::PKResultText(PK,Lobby).IsEmpty());
-    Timeline.Step=ELDRestStep::PK;PK.Outcome=ELDPKOutcome::NoContest;
-    TestFalse(TEXT("A PK without an arena is not watched"),LDHUD::IsSpectatingPK(Public,Watcher));
-
-    // Outside the PK steps, for another generation or without a PK nothing shows.
-    PK.Outcome=ELDPKOutcome::Running;Timeline.Step=ELDRestStep::Return;
-    TestFalse(TEXT("The return step has no PK panel"),LDHUD::PKPanel(Public,Lobby,In).bVisible);
-    Timeline.Step=ELDRestStep::PK;PK.Generation=6;
-    TestTrue(TEXT("Another generation's PK shows nothing"),!LDHUD::PKPanel(Public,Lobby,In).bVisible&&!LDHUD::IsSpectatingPK(Public,Watcher));
-    PK.Generation=7;PK.Serial=0;
-    TestTrue(TEXT("A rest without a PK shows nothing"),!LDHUD::HasPK(Public)&&!LDHUD::PKPanel(Public,Lobby,In).bVisible);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCircleColumnsTest,"Lockdown.Rules.HUDCircleColumns",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -1764,7 +1633,7 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
             Fold.IsAutomatic()||Fold.ShouldFold(Wait+60.,false,false)||Fold.ShouldFold(Wait+61.,false,true));
     }
     {
-        // #222: the player builds in combat and in a PK through the real UI, so a panel the player opened stays open.
+        // #222: the player builds in combat and in a rest through the real UI, so a panel the player opened stays open.
         LDHUD::FChoicesFold Fold;Fold.Opened(false,0.);
         TestFalse(TEXT("A panel the player opened never times out and never folds on a hit"),Fold.IsAutomatic()||Fold.ShouldFold(600.,false,false)
             ||Fold.ShouldFold(601.,false,true));
@@ -1829,7 +1698,7 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         &&Gate.bCanShop&&Gate.bCanRespec&&Gate.bCanReplace&&Gate.bCanForget&&Gate.bInRest
         &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty()&&Gate.ShopBlocked.IsEmpty());
     Gate=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive);
-    TestTrue(TEXT("#222: a PK or return step keeps the own build open and locks only the rest services"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
+    TestTrue(TEXT("#222: the return step keeps the own build open and locks only the rest services"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
         &&Gate.bCanInstall&&!Gate.bCanShop&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
     TestEqualSensitive(TEXT("The locked reason names the lock"),Gate.ShopBlocked,LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
     Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Dead);
@@ -1850,8 +1719,6 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         // The stage comes from the public match the same way the server reads it.
         FLDTimelineView Timeline;Timeline.Stage=ELDMatchStage::Rest;Timeline.Step=ELDRestStep::Build;
         TestTrue(TEXT("A rest's build step is the rest build window"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::Rest);
-        Timeline.Step=ELDRestStep::Payout;
-        TestTrue(TEXT("The payout reopens the build"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::Rest);
         Timeline.Step=ELDRestStep::Return;
         TestTrue(TEXT("The return countdown locks the build"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::RestLocked);
         TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);

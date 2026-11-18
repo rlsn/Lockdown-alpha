@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -125,6 +126,15 @@ bool ALDCombatDirector::CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGamep
     if(!Catalog()->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
     if(Monster->Skill.Pattern==ELDMonsterPattern::Enrage && !Body->bMonsterEnraged)
     {Body->bMonsterEnraged=true;++Body->StateRevision;MarkViewChanged(Body->Victim.EntityId);}
+    // Spec §11.2 layoff affix: every fallen mate adds AFFIX.LayoffAttack to the survivors' attack (stacking, this life).
+    if(Body->CampAffix==ELDCampAffix::Layoff)
+    {
+        ++Body->LayoffStacks;
+        ApplyLayoffBonus(*Body);
+        ALDCharacter* Actor=ActorOf(*Body);
+        if(!RefreshTemporary(*Body,Actor,Authority()->GetAuthorityNowMs(),Error)){return false;}
+        ++Body->StateRevision;MarkViewChanged(Body->Victim.EntityId);
+    }
     return true;
 }
 
@@ -143,4 +153,36 @@ bool ALDCombatDirector::CancelCampWindup(const FLDCombatBodyRef& Ref,const FLDGa
         {Movement->StopDemoDash();}
     }
     return true;
+}
+
+bool ALDCombatDirector::EnsureAffixIce(const FLDCombatBodyRef& Member,int64 NowMs,FString& Error)
+{
+    // Spec §11.2 fridge affix: ice stays under the member's feet (one live ice of its own, refreshed when it melts or it walks off).
+    ALDCharacter* Actor=nullptr;
+    FLDBodyCombatState* Body=FindBody(Member,&Actor);
+    if(!Body || !Actor || Body->bPendingDeath || Body->bSuspended || Body->CampAffix!=ELDCampAffix::Fridge){return true;}
+    const FVector Foot=FootOf(*Actor);
+    const bool bStanding=GroundStates.ContainsByPredicate([&](const FLDGroundState& Ground)
+    { return Ground.Kind==ELDGroundStateKind::Ice && Ground.Owner.SourceEntity==Body->Victim.EntityId && LDCombatElements::GroundContains(Ground,Foot); });
+    if(bStanding){return true;}
+    FLDElementApplier IceOwner;
+    IceOwner.SourceEntity=Body->Victim.EntityId;
+    IceOwner.SourceBody=Member;
+    return SpawnGround(ELDGroundStateKind::Ice,IceOwner,Foot,NowMs,Error);
+}
+
+void ALDCombatDirector::ApplyLayoffBonus(FLDBodyCombatState& Body) const
+{
+    // One life-long bonus of LayoffStacks x AFFIX.LayoffAttack, rebuilt from the stacks (the phase cleanup drops every
+    // timed bonus; the camp life and its fallen mates stay).
+    Body.TimedBonuses.RemoveAll([](const FLDCombatTimedBonus& Row) { return Row.SourceDefinition==FName(TEXT("ca_layoff")); });
+    if(Body.LayoffStacks<=0){return;}
+    FLDCombatTimedBonus Bonus;
+    Bonus.EffectId=FGuid::NewGuid();
+    Bonus.SourceDefinition=FName(TEXT("ca_layoff"));
+    FLDDemoStatBonus& Stat=Bonus.Stats.AddDefaulted_GetRef();
+    Stat.Stat=ELDDemoBonusStat::ADBonusRatio;
+    Stat.Amount=Catalog()->Get().Parameters.Affix.LayoffAttackBp*Body.LayoffStacks;
+    Bonus.ExpiresAtMs=MAX_int64;
+    LDTactical::ApplyTimedBonus(Body.TimedBonuses,Bonus);
 }

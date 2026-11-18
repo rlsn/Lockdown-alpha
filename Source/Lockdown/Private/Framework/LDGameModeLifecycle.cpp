@@ -70,6 +70,12 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
     AuthorityNowMs = 0;
     AuthorityStep = {MatchContext, 1, 0, 0};
     AuthorityBoundary = {MatchContext, 1, 0};
+    // P6: the daily modifiers come first (vision, the airdrop, the Boss, the leader notice and the camps read them).
+    if (!InitializePacing(Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
     Vision=GetWorld()->SpawnActor<ALDVisionDirector>(Spawn);
     if (!Vision || !Vision->BeginMatch(MatchContext,Error))
     {
@@ -107,7 +113,7 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         return false;
     }
     // D26 (#79): the airdrop schedule in field progress T (#198: T starts at 0 in the first field and pauses in rests).
-    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, 0, MatchContext.LedgerMatch, Airdrop, Error))
+    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, 0, MatchContext.LedgerMatch, HasDaily(ELDDailyModifier::Delivery), Airdrop, Error))
     {
         RetireMatchDomains();
         return false;
@@ -121,7 +127,7 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         return false;
     }
     // D27 (#79): the leader notice refreshes in field progress T as well.
-    if (!LDLeaderNotice::Resolve(*DemoContent, 0, MatchContext.LedgerMatch, LeaderNotice, Error))
+    if (!LDLeaderNotice::Resolve(*DemoContent, 0, MatchContext.LedgerMatch, HasDaily(ELDDailyModifier::Rumor), LeaderNotice, Error))
     {
         RetireMatchDomains();
         return false;
@@ -362,10 +368,9 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
         || Support.Grounded!=Batch->FinalSupport.Grounded || Support.Floor!=Batch->FinalSupport.Floor)
     { return ELDCommitReject::GeometryUnavailable; }
     // Capture reads every accepted contender batch synchronously; the driver releases it next step. A rest life (#198
-    // shared rest space) and a PK life (#198 D: the PK runs no flagpole and its lives never join the spray roster) have
-    // no spray eligibility.
+    // shared rest space) has no spray eligibility.
     if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive() && !RestLives.Contains(Body.Victim.EntityId)
-        && !PKLives.Contains(Body.Victim.EntityId) && !TrainingDummyIds.Contains(Body.Victim.EntityId))
+        && !TrainingDummyIds.Contains(Body.Victim.EntityId))
     {
         const auto Captured=PublishCaptureMotion(Permit,*Batch);
         if (Captured!=ELDCommitReject::None) { return Captured; }
@@ -378,7 +383,8 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     Life.NativeMotion.Add(MoveTemp(Batch));
     Life.CompletedMotionStep = Step.StepSerial;
     if (ALDPlayerController* Controller = FindContenderController(Body.Victim.EntityId);
-        Controller && Controller->OwnerState.NearbyRestService != NearbyRestService(Body.Victim.EntityId))
+        Controller && (Controller->OwnerState.NearbyRestService != NearbyRestService(Body.Victim.EntityId)
+            || Controller->OwnerState.Pacing.NearbyVending != NearbyVending(Body.Victim.EntityId)))
     {
         SyncOwner(Controller);
     }
