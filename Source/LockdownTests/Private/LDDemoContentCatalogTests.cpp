@@ -1332,7 +1332,7 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    if (!TestEqual(TEXT("Sixty-four P2 and P4 cards"), Definitions.Cards.Num(), 64)) { return false; }
+    if (!TestEqual(TEXT("Eighty-five P2, P4 and P5 cards"), Definitions.Cards.Num(), 85)) { return false; }
     int32 Forms[int32(ELDCardForm::Count)] = {};
     int32 Types[int32(ELDCardType::Count)] = {};
     uint16 Previous = 199;
@@ -1343,17 +1343,19 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         Previous = Row.NativeId;
         ++Forms[int32(Row.Form)];
         ++Types[int32(Row.Type)];
-        TestTrue(Row.Id + TEXT(" has one to four vocabulary keys and an effect"),
-            FMath::CountBits64(uint64(Row.VocabMask)) >= 1 && FMath::CountBits64(uint64(Row.VocabMask)) <= 4 && !Row.Effects.IsEmpty());
+        // K07 and K10 fit hosts by delivery and carry no vocabulary key; every other card has one to four.
+        const int32 Keys = FMath::CountBits64(uint64(Row.VocabMask));
+        TestTrue(Row.Id + TEXT(" has up to four vocabulary keys (none only when it names its host delivery) and an effect"),
+            Keys <= 4 && (Keys >= 1 || Row.HostHitTypes != 0) && !Row.Effects.IsEmpty());
         TestEqual(Row.Id + TEXT(": only Y25 chooses an element"), !Row.ChooseElements.IsEmpty(),
             Row.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::ElementAura; }));
         const FLDDemoCardDefinition* Found = nullptr;
         TestTrue(FString::Printf(TEXT("FindCard resolves %s to its own row: %s"), *Row.Id, *Error),
             Snapshot->FindCard(Row.Id, Found, Error) && Found == &Row);
     }
-    TestTrue(TEXT("Fourteen basic, eighteen skill, eight dash and twenty-four body cards"),
-        Forms[int32(ELDCardForm::Basic)] == 14 && Forms[int32(ELDCardForm::Skill)] == 18
-        && Forms[int32(ELDCardForm::Dash)] == 8 && Forms[int32(ELDCardForm::Body)] == 24);
+    TestTrue(TEXT("Nineteen basic, twenty-five skill, twelve dash and twenty-nine body cards"),
+        Forms[int32(ELDCardForm::Basic)] == 19 && Forms[int32(ELDCardForm::Skill)] == 25
+        && Forms[int32(ELDCardForm::Dash)] == 12 && Forms[int32(ELDCardForm::Body)] == 29);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
     TestTrue(TEXT("Capacity 6 plus one per five levels, three-card offers, three free rerolls plus one per rest, one lock"),

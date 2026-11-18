@@ -130,6 +130,27 @@
     {"id": "icon_card_move_turf", "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f", "width": 64, "height": 64, "provenance": "Reuses the approved icon_final_split art for the build card."},
     {"id": "icon_card_double_stall", "sha256": "f274e8870dbe1a7a19f688d7750678ed8e3b03f4a83204d7c26b3eedb54db8f8", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_flyer_trap art for the build card."},
     {"id": "icon_card_turf_growth", "sha256": "1e0ccf203331355924ff77473251f2c80f0204ec1c4816817fea68dcff4f2553", "width": 64, "height": 64, "provenance": "Reuses the approved icon_stat_boost art for the build card."},
-    {"id": "icon_card_wave_after", "sha256": "ec055ee3f18a03cfea20ff06647e98bbd045138603a5d08f9f510ec1bf1e1542", "width": 64, "height": 64, "provenance": "Reuses the approved icon_component_meet_here art for the build card."}
+    {"id": "icon_card_wave_after", "sha256": "ec055ee3f18a03cfea20ff06647e98bbd045138603a5d08f9f510ec1bf1e1542", "width": 64, "height": 64, "provenance": "Reuses the approved icon_component_meet_here art for the build card."},
+    {"id": "icon_card_burn_guard", "sha256": "72250aef64026afdd796d6dc1de1e4cebb7505266b3aa57e7face1d02b2cb179", "width": 64, "height": 64, "provenance": "Reuses the approved icon_burn art for the build card."},
+    {"id": "icon_card_combo_chain", "sha256": "b1133802d64100844b90ac6fa2b3b819e3662be49fb29e9d98285bd3b36e15dc", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_next_up art for the build card."},
+    {"id": "icon_card_crowd_hit", "sha256": "2cb26ff2d2066c28ab275d13d9483fa55bac955fad30abb0eb62448973315606", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_ball_kick art for the build card."},
+    {"id": "icon_card_dodge_strike", "sha256": "9eacdba37cddf2869393216b9caf3a443c26671aa2d70f9ef6a552f0c540e6f7", "width": 64, "height": 64, "provenance": "Reuses the approved icon_dash art for the build card."},
+    {"id": "icon_card_fist_skill", "sha256": "c9b2023e6587f36e399061ed11ae4860ec0482b9a1267b3117821e056be575c2", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_solid_punch art for the build card."},
+    {"id": "icon_card_head_down", "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872", "width": 64, "height": 64, "provenance": "Reuses the approved icon_knockback art for the build card."},
+    {"id": "icon_card_held_breath", "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf", "width": 64, "height": 64, "provenance": "Reuses the approved icon_shield art for the build card."},
+    {"id": "icon_card_hold_longer", "sha256": "fd9691adb8307c2a5bd244ebb12ad51f72cb046374a73881d983c7316dd04586", "width": 64, "height": 64, "provenance": "Reuses the approved icon_stun art for the build card."},
+    {"id": "icon_card_long_arm", "sha256": "9028fa0d8eaa5c617e37eb850b6b07d756f82da56b469363e7c30e93d917675e", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_dash_punch art for the build card."},
+    {"id": "icon_card_long_reach", "sha256": "81f692c6d902c7c94e560420b5fb8c25eaf99765a97a87c6b5ca5b2e5a775298", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_setup_line art for the build card."},
+    {"id": "icon_card_muscle_memory", "sha256": "046ef8bdcc5f6c921c11c19748f28a89b24a95f23b02795ddc19c7e478fb8efc", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_practice art for the build card."},
+    {"id": "icon_card_paid_dash", "sha256": "9eacdba37cddf2869393216b9caf3a443c26671aa2d70f9ef6a552f0c540e6f7", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_double_dash art for the build card."},
+    {"id": "icon_card_pin_amp", "sha256": "dcaa1cb5c9f0c90d9fcc9f3e21a7d276ff82fcf9193848508df636e06a6c8b29", "width": 64, "height": 64, "provenance": "Reuses the approved icon_root art for the build card."},
+    {"id": "icon_card_quick_takedown", "sha256": "5509ca143ece0520f56593e94ef1d86c880358eb720c5b32827fabdfca58579d", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_takedown art for the build card."},
+    {"id": "icon_card_run_hit", "sha256": "2d63b36ce2e4fe3a59de609a1b40e1c56e58a14875bb4d835e1d717411f417f2", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_heated_up art for the build card."},
+    {"id": "icon_card_shell_burst", "sha256": "4611d1e4b87ab85169b94e090ddddb75839fc7010c14438df3f2bd6ef86c238f", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_hard_skin art for the build card."},
+    {"id": "icon_card_short_breath", "sha256": "b37c3a7f481d576e3f62ff35418ef9c92b215f701987d9e4051c1a754644e459", "width": 64, "height": 64, "provenance": "Reuses the approved icon_empowered art for the build card."},
+    {"id": "icon_card_slippery", "sha256": "fce3cacd6935d82c2d7f63425d9000d37bc8d48e76081b3dcf8be57053a8ce75", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_pass_through art for the build card."},
+    {"id": "icon_card_slow_craft", "sha256": "df22b3726a7b2648e3dc4ca3fa92f0c217033cf405f516e09d639fce5bfd192b", "width": 64, "height": 64, "provenance": "Reuses the approved icon_attack_slowed art for the build card."},
+    {"id": "icon_card_tally", "sha256": "d3803e0cc04bb0406c02ab35906c186087595d258701b2e50ef0eb8b96d56821", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_kill_streak art for the build card."},
+    {"id": "icon_card_wide_swing", "sha256": "c9b2023e6587f36e399061ed11ae4860ec0482b9a1267b3117821e056be575c2", "width": 64, "height": 64, "provenance": "Reuses the approved icon_card_both_hands art for the build card."}
   ]
 }

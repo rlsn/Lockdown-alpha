@@ -74,7 +74,7 @@ void ALDCombatDirector::ChainDamage(const FLDCombatHit& Hit, const FLDBodyCombat
     }
 }
 
-bool ALDCombatDirector::AdvanceChains(int64 NowMs, FString& Error)
+bool ALDCombatDirector::AdvanceChains(int64 NowMs, FString& Error, bool bAll)
 {
     if (OpenChains.IsEmpty()) { return true; }
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -83,7 +83,7 @@ bool ALDCombatDirector::AdvanceChains(int64 NowMs, FString& Error)
     TArray<FGuid> Ended;
     for (const TPair<FGuid,FChainTrack>& Pair : OpenChains)
     {
-        if (NowMs-Pair.Value.LastStepMs>=P.ChainEndMs) { Ended.Add(Pair.Key); }
+        if (bAll || NowMs-Pair.Value.LastStepMs>=P.ChainEndMs) { Ended.Add(Pair.Key); }
     }
     // A deterministic order for the logs and serials.
     Ended.Sort([this](const FGuid& A, const FGuid& B)

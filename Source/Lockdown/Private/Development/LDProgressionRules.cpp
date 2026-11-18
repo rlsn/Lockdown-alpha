@@ -620,7 +620,7 @@ ELDGrowthReason LDProgression::ApplySkipActiveOffer(const FLDDemoContentDefiniti
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None) { return Reason; }
     if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::SkipActiveOffer, Context); Reason != ELDGrowthReason::None)
     { return Reason; }
-    // Spec §6.4: skipping a skill offer pays vouchers (it used to pay attribute points).
+    // Spec §6.4: skipping a skill offer pays vouchers.
     const int32 Vouchers = Content.Parameters.Vouchers.ActiveSkip;
     if (Vouchers <= 0) { return ELDGrowthReason::DataInvalid; }
     if (const ELDGrowthReason Reason = GrantVouchers(OutProgression, Vouchers); Reason != ELDGrowthReason::None)

@@ -537,6 +537,16 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     }
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Body || Body->bPendingDeath || !Content) { View.Unavailable=ELDCombatReject::Dead; return View; }
+    // The cost the release would take now (ReleaseAbility): D08 on the innate dash unless a D05 segment is open; nothing for
+    // a recast or free cast (S05, K06, D04) or a K12 health payment.
+    if (Source.Kind==ELDCombatSourceKind::Innate)
+    {
+        View.MomentumCostP2=Body->SplitDashLeft>0 && NowMs<=Body->SplitDashUntilMs ? 0 : Terms.DashMomentumCostP2;
+    }
+    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0)
+    {
+        View.MomentumCostP2=0;
+    }
     FLDActiveGateInput Gate;
     Gate.NowMs=NowMs;
     Gate.ReadyAtMs=View.ReadyAtMs;

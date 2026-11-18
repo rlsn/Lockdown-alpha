@@ -982,6 +982,8 @@ public:
     // Spec §6.5: the chain ends Entity's owner receives (its recent ones) and every contender's 本局最离谱 row.
     void ReadOwnerChains(const FGuid& Entity, TArray<FLDChainEndView>& Out) const;
     void ReadResultHighlights(TArray<FLDResultHighlight>& Out) const;
+    // The match closes: every open chain ends now (bookkeeping only, no gameplay effect) so the result counts the last ones.
+    bool FinishOpenChains(int64 NowMs, FString& Error) { return AdvanceChains(NowMs,Error,true); }
 
     // ---- Navigation and camp bodies (server, inside the current Actions permit).
     bool ReadCombatBody(const FLDCombatBodyRef& Body, FLDCombatBodyRead& Out) const;
@@ -1724,6 +1726,8 @@ private:
     TMap<FGuid,FGuid> EffectChains;
     TMap<FGuid,FChainOwner> ChainOwners;
     FGuid CurrentChain;
+    // The chain the last successful ReleaseAbility belonged to, so a card step recorded after it (K06, A08) joins it.
+    FGuid LastReleaseChain;
     // A contender's action (EffectId) opens a chain or continues Inherit while it is open; none for camp members and dummies.
     FGuid OpenChain(const FLDBodyCombatState& Body, const FGuid& EffectId, const FGuid& Inherit, int64 NowMs);
     FGuid ChainOfHit(const FLDCombatHit& Hit) const;
@@ -1731,8 +1735,9 @@ private:
     void ChainStep(const FGuid& Entity, FName Kind, int64 NowMs);
     // Damage of a committed hit: its chain's total and its owner's strongest hit on a contender.
     void ChainDamage(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, int64 DamageP2);
-    // Ends every chain CHAIN.EndSec past its last step: the counted ones reach their owner and the longest the log.
-    bool AdvanceChains(int64 NowMs, FString& Error);
+    // Ends every chain CHAIN.EndSec past its last step (every open chain with bAll): the counted ones reach their owner and
+    // the longest the log.
+    bool AdvanceChains(int64 NowMs, FString& Error, bool bAll=false);
     // Spec §3.8: effects derived in the current authority step (LD_CHAIN_GUARD reason=Step past CHAIN.MaxEffectsPerStep).
     int32 StepDerivedEffects=0;
     // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.

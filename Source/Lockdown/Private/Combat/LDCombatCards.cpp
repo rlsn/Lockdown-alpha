@@ -1464,10 +1464,16 @@ bool ALDCombatDirector::RunAutoRecasts(int64 NowMs, FString& Error)
         FLDBodyCombatState* Body=FindBody(Repeat.Body,&Actor);
         if (!Body || !Actor || Body->bPendingDeath) { continue; }
         ELDCombatReject Reject=ELDCombatReject::None;
+        LastReleaseChain=FGuid();
         if (!ReleaseAbility(*Actor,*Body,Repeat.Action,Reject,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_AUTO_RECAST t=%lld src=%s active=%s share_bp=%lld result=%u"),NowMs,
             *LDLog::Id(Body->Victim.EntityId),*Repeat.Action.Source.DefinitionId.ToString(),Repeat.Action.AutoRecastScaleBp,uint32(Reject));
-        if (Reject==ELDCombatReject::None) { LedgerCardTriggered(*Body,Repeat.Card.IsNone() ? FName(TEXT("card_encore")) : Repeat.Card); }
+        if (Reject==ELDCombatReject::None)
+        {
+            // The repeat's card is a step of the chain its release joined (or opened).
+            TGuardValue<FGuid> ChainScope(CurrentChain,LastReleaseChain);
+            LedgerCardTriggered(*Body,Repeat.Card.IsNone() ? FName(TEXT("card_encore")) : Repeat.Card);
+        }
     }
     return true;
 }

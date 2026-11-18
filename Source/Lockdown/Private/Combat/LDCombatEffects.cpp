@@ -724,12 +724,15 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 Contact.DeliveryScaleBp=Scale/10000*Bp+Scale%10000*Bp/10000;
             }
             PendingHits.Add(Contact);
-            // A05: the flying basic's strikes and riders land on the body it struck.
+            // A05: the flying basic's strikes and riders on its aimed target land on the body it struck; hits aimed at other
+            // bodies (an A07 sweep and its riders) keep their own targets and land once, with the first contact.
             for (const FLDCombatHit& Rider : Projectile.Riders)
             {
+                const bool bOnPrimary=Rider.Target==Projectile.Payload.Target;
+                if (!bOnPrimary && !bFirstContact) { continue; }
                 FLDCombatHit Landed=Rider;
                 Landed.HitId=FGuid::NewGuid();
-                Landed.Target=Targets[Struck].Body;
+                if (bOnPrimary) { Landed.Target=Targets[Struck].Body; }
                 PendingHits.Add(MoveTemp(Landed));
             }
             Projectile.Struck.Add(Targets[Struck].Body.Victim.EntityId);

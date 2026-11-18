@@ -372,6 +372,11 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
                 *LDLog::Id(Death.Key.Victim.EntityId), LDGrowthWire::ReasonName(VoucherReason));
             return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::AuthorityFault);
         }
+        // The vouchers advanced the killer's progression: the receipt names the revision it ends on.
+        if (const FLDProgressionState* Killed = M->Development->FindProgression(Recipient); Killed && Receipt.Revisions.bHasProgression)
+        {
+            Receipt.Revisions.ProgressionRevision = Killed->Revision;
+        }
     }
     Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
     RecordReward(Receipt);

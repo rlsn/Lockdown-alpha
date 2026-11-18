@@ -728,6 +728,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     const FLDProgressionState& Progression = Record->Progression;
     FLDGrowthBuild NewBuild;
     FLDProgressionState NewProgression = Progression;
+    // Progression aliases the record, which the install replaces: the receipt's voucher delta reads this copy.
+    const int32 VouchersBefore = Progression.Vouchers;
     bool bProgressionChanged = false;
     LDProgression::FChoiceOutcome Choice;
     FName Definition;
@@ -1027,7 +1029,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     }
     Receipt.SkillPointsAfter = LDProgression::SkillPoints(Definitions, Record->Build);
     Receipt.PointsRefunded = Refunded;
-    Receipt.VouchersDelta = Record->Progression.Vouchers - Progression.Vouchers;
+    Receipt.VouchersDelta = Record->Progression.Vouchers - VouchersBefore;
     Receipt.VouchersAfter = Record->Progression.Vouchers;
     Receipt.PickTicketsAfter = Record->Progression.PickTickets;
     Receipt.UninstalledCards = Reclaimed;

@@ -748,7 +748,12 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     const bool bRecastOpen=BranchRecastOpen(*Body,Source,Now);
     Gate.ReadyAtMs=bRecastOpen ? Now : Track->ReadyAtMs;
     Gate.MomentumP2=Body->Resources.MomentumP2;
-    Gate.MomentumCostP2=bRecastOpen || BranchFreeCast(*Body,Source,Now) ? 0 : ValuesDef->MomentumCostP2;
+    // The release's own cost (ReleaseAbility): D08's dash momentum unless a D05 segment is open; nothing for a free cast
+    // (S05 B2, D04) or a K12 health payment.
+    const bool bInnateEntry=Source.Kind==ELDCombatSourceKind::Innate;
+    const bool bSplitOpen=bInnateEntry && Body->SplitDashLeft>0 && Now<=Body->SplitDashUntilMs;
+    Gate.MomentumCostP2=bInnateEntry ? (bSplitOpen ? 0 : Terms.DashMomentumCostP2)
+        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body->Roots;
@@ -1022,6 +1027,9 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
         Hit.LifestealShareBp=OwnP2*10000/(OwnP2+EmpowerP2);
     }
     Hit.BaseP2+=EmpowerP2;
+    // Spec §6.5: a contender's basic opens its chain; every card its landing triggers (consumed packages, A04/A06/A07/A09/A11,
+    // A08) is a step of it.
+    TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,Hit.EffectId,FGuid(),Now));
     bool bChargeBonusEnded=false;
     for (const FLDCombatEmpower& Package : Taken)
     {
@@ -1060,8 +1068,6 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
     TArray<FLDCombatHit> Extra;
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
-    // Spec §6.5: a contender's basic opens its chain; the cards of its landing are steps of it.
-    TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,Hit.EffectId,FGuid(),Now));
     // A08: the third step also releases the Q skill (queued for the next authority step).
     if (!QueueComboCast(Body,Action,Hit,Now,Error)) { return false; }
     // A05: a contender's basic flies toward its target as a dodgeable projectile carrying its strikes and riders; it lands on
@@ -1337,6 +1343,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     Track->LastEffectId=EffectId;
     // Spec §6.5: the release opens its chain (a free repeat continues the chain of the action that queued it).
     TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,EffectId,Action.ChainId,Now));
+    LastReleaseChain=CurrentChain;
     // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();

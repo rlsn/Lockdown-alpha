@@ -2031,15 +2031,11 @@ bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
     OutSlot = 0;
     const FLDShopView& Shop = Self.Shop;
     if (!Shop.bStocked) { return false; }
-    if (Shop.SkillPointsBought < Shop.SkillPointsMax)
+    // Spec §13: the skill point when it is affordable and not bought out, otherwise the best affordable card.
+    if (Shop.SkillPointsBought < Shop.SkillPointsMax && Shop.SkillPointPrice > 0 && Self.Vouchers >= Shop.SkillPointPrice)
     {
-        if (Shop.SkillPointPrice > 0 && Self.Vouchers >= Shop.SkillPointPrice)
-        {
-            OutSlot = FLDBuildCommand::ShopSkillPointSlot;
-            return true;
-        }
-        // Spec §13: the skill point comes first; the AI saves for it while it is still to be bought.
-        return false;
+        OutSlot = FLDBuildCommand::ShopSkillPointSlot;
+        return true;
     }
     const FLDDemoContentDefinitions& Content = Catalog.Get();
     const FLDDemoAIParameters& AI = Content.Parameters.AI;

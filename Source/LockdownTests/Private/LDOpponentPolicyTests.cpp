@@ -2817,8 +2817,10 @@ bool RunShopBuy(FAutomationTestBase& Test)
         && Decision.Build.OfferRevision == 3);
     auto Saving = Mid;
     Saving.Self.Vouchers = Terms.SkillPointPrice - 1;
-    bGood &= Test.TestFalse(TEXT("Short of the skill point the AI saves rather than buying a card"),
-        LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot));
+    bGood &= Test.TestTrue(TEXT("Short of the skill point the AI buys an affordable card instead"),
+        LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot) && Slot >= 1 && Slot <= 2);
+    Saving.Self.Vouchers = Terms.CardPrice - 1;
+    bGood &= Test.TestFalse(TEXT("Short of every price the AI buys nothing"), LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot));
     auto Cards = Mid;
     Cards.Self.Shop.SkillPointsBought = Terms.SkillPointMaxPerMatch;
     Cards.Self.Vouchers = Terms.CardPrice;

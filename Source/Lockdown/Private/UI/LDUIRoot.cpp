@@ -1019,9 +1019,15 @@ void ULDUIRoot::OpenCodex()
     Entries.Sort([](const FLDChainCodexEntry& A,const FLDChainCodexEntry& B){return A.FirstSeenUnix>B.FirstSeenUnix;});
     CodexRows->ClearChildren();
     CodexCount->SetText(FText::FromString(LDTerms::ChainCodexCount(Entries.Num())));
+    // The saved key keeps the canonical step ids; each row names them like the new-chain line does.
+    const FLDDemoContentDefinitions* Content=ResultDefinitions();
     for(const FLDChainCodexEntry& Entry:Entries)
     {
-        UTextBlock* Row=Label(FString::Printf(TEXT("%s    %s"),*Entry.Key.Replace(TEXT(">"),TEXT(" → ")),*LDTerms::ChainLongest(Entry.LongestSteps)),
+        TArray<FString> Parts;
+        Entry.Key.ParseIntoArray(Parts,TEXT(">"));
+        TArray<FName> Steps;
+        for(const FString& Part:Parts){Steps.Add(FName(*Part));}
+        UTextBlock* Row=Label(FString::Printf(TEXT("%s    %s"),*LDHUD::ChainKeyText(Content,Steps),*LDTerms::ChainLongest(Entry.LongestSteps)),
             LDHUDStyle::TypeText,LDHUDStyle::UIText);
         CodexRows->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,3));
     }

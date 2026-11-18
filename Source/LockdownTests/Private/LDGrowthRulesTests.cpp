@@ -208,8 +208,8 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    // 10-13, 24 and 25 are the retired component commands.
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(24), uint8(25), uint8(29), uint8(36), uint8(255)})
+    // 10-13, 24 and 25 are the retired component commands, 20 the retired skill merchant; 36-39 are the shop's, 40 is unused.
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(20), uint8(24), uint8(25), uint8(29), uint8(40), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -926,7 +926,8 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
         FLDCardInstanceView::StaticStruct(), FLDCardTargetView::StaticStruct(), FLDCardOfferView::StaticStruct(),
-        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct()};
+        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct(),
+        FLDShopView::StaticStruct(), FLDShopSlotView::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
     {
