@@ -92,6 +92,25 @@ bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Proj
     return LDCombatSourceRules::CollectCardEffects(Projection,Op,Catalog(),Out,Error);
 }
 
+bool LDCombatSourceRules::CardHasteBp(const FLDAttributeProjection& Build, int64 HpP2, int64 MaxHpP2, int32 FocusHits,
+    const FLDDemoContentSnapshot* Content, int64& Out, FString& Error)
+{
+    Out=0;
+    Error.Reset();
+    if (Build.MissingHPAttackSpeedBp>0 && MaxHpP2>0 && HpP2<MaxHpP2)
+    {
+        const int64 MissingPercent=(MaxHpP2-FMath::Max<int64>(HpP2,0))*100/MaxHpP2;
+        Out+=MissingPercent*Build.MissingHPAttackSpeedBp;
+    }
+    if (FocusHits>0)
+    {
+        TArray<FLDPassiveEffectRef> Focus;
+        if (!CollectCardEffects(Build,ELDDemoEffectOp::FocusAttackSpeed,Content,Focus,Error)) { return false; }
+        for (const FLDPassiveEffectRef& Ref : Focus) { Out+=int64(FocusHits)*Ref.Effect.RatioBp; }
+    }
+    return true;
+}
+
 bool LDCombatSourceRules::CollectCardEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
     const FLDDemoContentSnapshot* Content, TArray<FLDPassiveEffectRef>& Out, FString& Error)
 {
@@ -983,20 +1002,20 @@ bool ALDCombatDirector::OnHardControl(FLDBodyCombatState& Victim, const FLDContr
     return RefreshCardGrowth(Victim.Victim.EntityId,NowMs,Error);
 }
 
-bool ALDCombatDirector::RefreshCardGrowth(const FGuid& Entity, int64 NowMs, FString& Error)
+bool ALDCombatDirector::CardGrowthTerms(const FLDAttributeProjection& Projection, const FLDCardGrowth& Counters,
+    TArray<FLDDemoStatBonus>& Growth, FString& Error) const
 {
-    FLDCombatEntityRecord* Record=FindRecord(Entity);
-    if (!Record) { return true; }
+    Growth.Reset();
     TArray<FLDPassiveEffectRef> Fat, Streak, Tough;
-    if (!CollectPassiveEffects(Record->Projection,ELDDemoEffectOp::HealGrowth,Fat,Error)
-        || !CollectPassiveEffects(Record->Projection,ELDDemoEffectOp::KillGrowth,Streak,Error)
-        || !CollectPassiveEffects(Record->Projection,ELDDemoEffectOp::ControlGrowth,Tough,Error))
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::HealGrowth,Fat,Error)
+        || !CollectPassiveEffects(Projection,ELDDemoEffectOp::KillGrowth,Streak,Error)
+        || !CollectPassiveEffects(Projection,ELDDemoEffectOp::ControlGrowth,Tough,Error))
     { return false; }
     TMap<ELDDemoBonusStat,int64> Totals;
     // Y19: every full heal threshold of the match adds its max HP (each copy).
     for (const FLDPassiveEffectRef& Ref : Fat)
     {
-        if (Ref.Effect.BaseP2>0) { Totals.FindOrAdd(ELDDemoBonusStat::MaxHPFlat)+=Record->CardGrowth.HealedP2/Ref.Effect.BaseP2*Ref.Effect.LimitP2; }
+        if (Ref.Effect.BaseP2>0) { Totals.FindOrAdd(ELDDemoBonusStat::MaxHPFlat)+=Counters.HealedP2/Ref.Effect.BaseP2*Ref.Effect.LimitP2; }
     }
     // Y20: kills add the full stats, assists the card's share (each copy).
     for (const FLDPassiveEffectRef& Ref : Streak)
@@ -1004,15 +1023,14 @@ bool ALDCombatDirector::RefreshCardGrowth(const FGuid& Entity, int64 NowMs, FStr
         for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats)
         {
             const int64 Assist=LDCombatCardsDetail::Share(Stat.Amount,Ref.Effect.RatioBp);
-            Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Record->CardGrowth.Kills+Assist*Record->CardGrowth.Assists;
+            Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Counters.Kills+Assist*Counters.Assists;
         }
     }
     // Y21: every hard control taken adds the resistances (each copy).
     for (const FLDPassiveEffectRef& Ref : Tough)
     {
-        for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Record->CardGrowth.ControlsTaken; }
+        for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Counters.ControlsTaken; }
     }
-    TArray<FLDDemoStatBonus> Growth;
     for (const TPair<ELDDemoBonusStat,int64>& Pair : Totals)
     {
         if (Pair.Value<=0) { continue; }
@@ -1021,6 +1039,15 @@ bool ALDCombatDirector::RefreshCardGrowth(const FGuid& Entity, int64 NowMs, FStr
         Stat.Amount=Pair.Value;
     }
     Growth.Sort([](const FLDDemoStatBonus& A, const FLDDemoStatBonus& B) { return uint8(A.Stat)<uint8(B.Stat); });
+    return true;
+}
+
+bool ALDCombatDirector::RefreshCardGrowth(const FGuid& Entity, int64 NowMs, FString& Error)
+{
+    FLDCombatEntityRecord* Record=FindRecord(Entity);
+    if (!Record) { return true; }
+    TArray<FLDDemoStatBonus> Growth;
+    if (!CardGrowthTerms(Record->Projection,Record->CardGrowth,Growth,Error)) { return false; }
     const bool bSame=Growth.Num()==Record->Build.CardGrowth.Num() && Algo::Compare(Growth,Record->Build.CardGrowth,
         [](const FLDDemoStatBonus& A, const FLDDemoStatBonus& B) { return A.Stat==B.Stat && A.Amount==B.Amount; });
     if (bSame) { return true; }

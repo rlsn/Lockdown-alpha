@@ -786,7 +786,7 @@ def match_metrics(events, baseline):
 
 def build_fingerprint(row):
     """A winner's build: its Q/W/E actives, allocated points and every installed card copy with its place, all from the
-    LD_MATCH_SUMMARY_ROW (`cards=+card_x#serial@Kind[:active]`; the serial is dropped, duplicates count). None when the
+    LD_MATCH_SUMMARY_ROW (`cards=+card_x#serial@Kind[:active][:Element]`; the serial is dropped, duplicates count). None when the
     row has no points or cards field."""
     if not row.get("skills") or "points" not in row.fields or "cards" not in row.fields:
         return None

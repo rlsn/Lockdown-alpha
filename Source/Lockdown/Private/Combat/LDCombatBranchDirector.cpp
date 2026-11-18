@@ -566,10 +566,11 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
     int64 NowMs, FString& Error)
 {
     using namespace LDCombatBranchDetail;
-    if (Hit.SourceEntity==Target.Victim.EntityId) { return true; }
+    // A11/K13 rider damage triggers nothing, the taker's branch effects included.
+    if (Hit.SourceEntity==Target.Victim.EntityId || Hit.bRider) { return true; }
     FLDCombatBranchState& Branch=Target.Branch;
     const FLDCombatBodyRef TargetRef{Target.Victim,Target.Identity};
-    const bool bOrdinary=!Hit.bReflect && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bRider;
+    const bool bOrdinary=!Hit.bReflect && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle;
     // S10 B1: every damaging hit on an overcharged body discharges once more for its applier.
     if (Branch.OverchargeUntilMs>NowMs && DamageP2>0 && !Hit.bOverchargeDischarge && !Hit.bBurnTick)
     {

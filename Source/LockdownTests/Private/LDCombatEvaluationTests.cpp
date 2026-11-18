@@ -210,12 +210,12 @@ bool FLDDemoDamageDomainTest::RunTest(const FString& Parameters)
         CheckFailure(*this, TEXT("Basic hits cannot become magical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Definition);
     }
     {
-        // #198: ability crits are retired; only a primary basic crits.
+        // Y09 lets skills crit (and A11/K13 riders share the crit): a critical ability hit is evaluated, not refused.
         Input = PrimaryInput(*Catalog);
         Input.HitClass = ELDCombatHitClass::Ability;
         Input.Definition.Emplace(10000, 0, 0, ELDDemoDamageType::Physical);
         Input.bCritical = true;
-        CheckFailure(*this, TEXT("An ability hit cannot be critical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Domain);
+        TestTrue(TEXT("A critical ability hit is evaluated"), LDTactical::EvaluateDamage(Input, *Catalog).IsSuccess());
     }
     struct FRequiredP2 { const TCHAR* Name; TOptional<int64> FLDDamageEvaluationInput::* Member; };
     for (const auto& Field : {

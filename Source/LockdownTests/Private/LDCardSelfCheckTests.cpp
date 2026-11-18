@@ -41,6 +41,7 @@ bool Configured(const LDDemoCardText::FToken& Token, const FLDDemoEffectDefiniti
     case EField::Multiplier: return Effect.MultiplierBp != 0;
     case EField::Angle: return Effect.AngleDegrees.Numerator != 0;
     case EField::CostRatio: return Effect.CostRatioBp != 0;
+    case EField::Step: return Effect.StepRate.Numerator != 0;
     case EField::Stat:
     {
         const FLDDemoStatBonus* Stat = Effect.Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S) { return S.Stat == Token.Stat; });

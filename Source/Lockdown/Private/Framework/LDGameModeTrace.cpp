@@ -43,8 +43,9 @@ namespace LDGameModeTraceDetail
         {
             Cards += FString::Printf(TEXT("%s%s%s#%u%s"), Cards.IsEmpty() ? TEXT("") : TEXT(","), Card.IsInstalled() ? TEXT("+") : TEXT(""),
                 *Card.Id.ToString(), uint32(Card.Serial), Card.IsInstalled()
-                    ? *FString::Printf(TEXT("@%s%s"), *LDLog::EnumName(Card.Target.Kind), Card.Target.Active.IsNone() ? TEXT("")
-                        : *(TEXT(":") + Card.Target.Active.ToString())) : TEXT(""));
+                    ? *FString::Printf(TEXT("@%s%s%s"), *LDLog::EnumName(Card.Target.Kind), Card.Target.Active.IsNone() ? TEXT("")
+                        : *(TEXT(":") + Card.Target.Active.ToString()), Card.Target.Element == ELDDemoElement::None ? TEXT("")
+                        : *(TEXT(":") + LDLog::EnumName(Card.Target.Element))) : TEXT(""));
         }
         const FString Points = FString::JoinBy(Build.StatPoints, TEXT(","), [](int32 Count) { return FString::FromInt(Count); });
         return FString::Printf(TEXT("skills=%s blueprints=%s points=%s cards=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills,

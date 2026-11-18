@@ -1367,6 +1367,10 @@ private:
     bool OnCardTakedown(const FGuid& Entity, bool bKill, int64 NowMs, FString& Error);
     // Y21: a hard control actually landed on Victim.
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
+    // The grow cards' match growth as projection terms (Y19, Y20, Y21): the counters times the grow cards Projection holds,
+    // sorted by stat. A projection without grow cards gives none.
+    bool CardGrowthTerms(const FLDAttributeProjection& Projection, const FLDCardGrowth& Counters, TArray<FLDDemoStatBonus>& Out,
+        FString& Error) const;
     // The grow cards' match growth of Entity as projection terms (Y19, Y20, Y21); reprojects a living body when it changed.
     bool RefreshCardGrowth(const FGuid& Entity, int64 NowMs, FString& Error);
     // Installs Growth as Entity's CardGrowth term: the record reprojects and a living body converts its HP maximum.

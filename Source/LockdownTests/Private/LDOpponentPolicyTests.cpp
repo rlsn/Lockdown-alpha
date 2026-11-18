@@ -1116,7 +1116,7 @@ bool RunProjections(FAutomationTestBase& Test)
     const auto Expected = LDAttributeProjection::Project(FLDAttributeBuildValues(3,
         {FLDStatPointsValue(TEXT("stat_strength"), 2)}), C);
     bGood &= Test.TestTrue(TEXT("Own build maps through the shared attribute projection: ") + Error,
-        Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Progression, C, Self, Error)
+        Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Progression, TArray<FLDDemoStatBonus>(), C, Self, Error)
         && Self.Attributes.ADP2 == Expected.Value->Final.ADP2 && Self.Attributes.ArmorP2 == Expected.Value->Final.ArmorP2
         && Self.Attributes.AttackSpeed.Numerator * Expected.Value->Final.AttackSpeed.Denominator
             == Expected.Value->Final.AttackSpeed.Numerator * Self.Attributes.AttackSpeed.Denominator
@@ -1126,17 +1126,17 @@ bool RunProjections(FAutomationTestBase& Test)
         && Self.Offer.IsSet() && Self.Offer->Ordinal == 3 && Self.Offer->Options == TArray<FString>({TEXT("active_not_mad")}));
     Progression.bHasActiveOffer = false;
     bGood &= Test.TestTrue(TEXT("Without a current offer none is proposed"),
-        LDOpponentFrame::ReadOwnBuild(Progression, C, Self, Error) && !Self.Offer.IsSet());
+        LDOpponentFrame::ReadOwnBuild(Progression, TArray<FLDDemoStatBonus>(), C, Self, Error) && !Self.Offer.IsSet());
     auto Optionless = Progression;
     Optionless.bHasActiveOffer = true;
     Optionless.ActiveOffer.Options.Reset();
-    bGood &= Test.TestFalse(TEXT("An offer without an option is refused"), LDOpponentFrame::ReadOwnBuild(Optionless, C, Self, Error));
+    bGood &= Test.TestFalse(TEXT("An offer without an option is refused"), LDOpponentFrame::ReadOwnBuild(Optionless, TArray<FLDDemoStatBonus>(), C, Self, Error));
     auto Unpublished = Progression;
     Unpublished.bValid = false;
-    bGood &= Test.TestFalse(TEXT("An unpublished progression view is refused"), LDOpponentFrame::ReadOwnBuild(Unpublished, C, Self, Error));
+    bGood &= Test.TestFalse(TEXT("An unpublished progression view is refused"), LDOpponentFrame::ReadOwnBuild(Unpublished, TArray<FLDDemoStatBonus>(), C, Self, Error));
     auto Levelless = Progression;
     Levelless.Level = 0;
-    bGood &= Test.TestFalse(TEXT("A progression view without a level is refused"), LDOpponentFrame::ReadOwnBuild(Levelless, C, Self, Error));
+    bGood &= Test.TestFalse(TEXT("A progression view without a level is refused"), LDOpponentFrame::ReadOwnBuild(Levelless, TArray<FLDDemoStatBonus>(), C, Self, Error));
     {
         // A game build prints each id with whichever spelling registered first; the editor keeps these spellings, so
         // this exercises the mapping back to the lowercase content ids that the policy compares as text.
@@ -1148,7 +1148,7 @@ bool RunProjections(FAutomationTestBase& Test)
         Cased.ActiveOffer.Options[0] = TEXT("Active_Not_Mad");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("Ids printed in another casing map to the lowercase content ids and the same build: ") + Error,
-            Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Cased, C, CasedSelf, Error)
+            Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Cased, TArray<FLDDemoStatBonus>(), C, CasedSelf, Error)
             && CasedSelf.Actives.Num() == 1 && CasedSelf.Actives[0].DefinitionId == TEXT("active_snark_bolt")
             && CasedSelf.Blueprints[0] == TEXT("active_elbow")
             && CasedSelf.Offer.IsSet() && CasedSelf.Offer->Options[0] == TEXT("active_not_mad")

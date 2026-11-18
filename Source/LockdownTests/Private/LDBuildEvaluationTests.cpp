@@ -689,7 +689,7 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
 
 FString Input(const FString& Cases, const FString& Top = FString())
 {
-    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":5,\"run_id\":\"run-1\",")
+    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":6,\"run_id\":\"run-1\",")
         TEXT("\"content_root\":\"%s\"%s,\"cases\":[%s]}"), *FString::ChrN(64, TEXT('a')), *Top, *Cases);
 }
 
@@ -785,8 +785,8 @@ bool RunInput(FAutomationTestBase& Test)
         return Test.TestTrue(Label + TEXT(": ") + Why, !ParseInput(Json, Ignored, Why) && Why.Contains(Field));
     };
     bGood &= Refuse(TEXT("Not JSON"), TEXT("{"), TEXT("input"));
-    bGood &= Refuse(TEXT("The retired schema version 4 (no level components)"), Input(CaseJson(Subject, Opponent)).Replace(
-        TEXT("\"schema_version\":5"), TEXT("\"schema_version\":4")), TEXT("schema"));
+    bGood &= Refuse(TEXT("The retired schema version 5 (level components)"), Input(CaseJson(Subject, Opponent)).Replace(
+        TEXT("\"schema_version\":6"), TEXT("\"schema_version\":5")), TEXT("schema"));
     bGood &= Refuse(TEXT("An unknown top-level field"), Input(CaseJson(Subject, Opponent), TEXT(",\"budget\":1")), TEXT("budget"));
     bGood &= Refuse(TEXT("An unknown Case field"), Input(CaseJson(Subject, Opponent, TEXT("\"1\""), TEXT(",\"strategy\":\"x\""))),
         TEXT("strategy"));

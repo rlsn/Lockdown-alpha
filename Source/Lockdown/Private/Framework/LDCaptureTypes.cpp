@@ -184,9 +184,10 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
         if (!ValidId(Card.DefinitionId) || !bTarget || uint8(Card.Element) > uint8(ELDDemoElement::Electric))
         { return FailCaptureView(Error, TEXT("Invalid result build card.")); }
     }
-    const auto ValidFinal = [&ActiveIds](ELDResultBuildTarget Kind, FName Id)
+    // A dormant final mod keeps naming the skill it was bound to after that skill is forgotten or replaced.
+    const auto ValidFinal = [&ValidId](ELDResultBuildTarget Kind, FName Id)
     {
-        return Kind == ELDResultBuildTarget::Active ? ActiveIds.Contains(Id)
+        return Kind == ELDResultBuildTarget::Active ? ValidId(Id)
             : (Kind == ELDResultBuildTarget::Body || Kind == ELDResultBuildTarget::Dash) && Id.IsNone();
     };
     if (Build.FinalMod.IsNone())

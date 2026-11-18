@@ -196,8 +196,8 @@ bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const F
     return true;
 }
 
-bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out,
-    FString& Error)
+bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoStatBonus>& CardGrowth,
+    const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out, FString& Error)
 {
     using namespace Detail;
     if (!Progression.bValid || Progression.Level == 0)
@@ -270,6 +270,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     }
     FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Points));
     Values.Cards = MoveTemp(Installed);
+    Values.CardGrowth = CardGrowth;
     const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;

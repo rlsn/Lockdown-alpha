@@ -425,8 +425,9 @@ void FLDPlaytestTrace::LogGrowth(const ALDPlayerController& PC)
             {
                 Cards += FString::Printf(TEXT("%s%s%s#%u%s"), Cards.IsEmpty() ? TEXT("") : TEXT(","), Card.IsInstalled() ? TEXT("+") : TEXT(""),
                     *Card.DefinitionId.ToString(), uint32(Card.Serial), Card.IsInstalled()
-                        ? *FString::Printf(TEXT("@%s%s"), *LDLog::EnumName(Card.Target.Kind), Card.Target.Active.IsNone() ? TEXT("")
-                            : *(TEXT(":") + Card.Target.Active.ToString())) : TEXT(""));
+                        ? *FString::Printf(TEXT("@%s%s%s"), *LDLog::EnumName(Card.Target.Kind), Card.Target.Active.IsNone() ? TEXT("")
+                            : *(TEXT(":") + Card.Target.Active.ToString()), Card.Target.Element == ELDDemoElement::None ? TEXT("")
+                            : *(TEXT(":") + LDLog::EnumName(Card.Target.Element))) : TEXT(""));
             }
             const FString Offer = Progression->bHasCardOffer
                 ? FString::JoinBy(Progression->CardOffer.Options, TEXT(","), [](FName Id) { return Id.ToString(); }) : FString();

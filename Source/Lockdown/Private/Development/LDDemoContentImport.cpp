@@ -688,7 +688,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         const bool bMayBeZero = FCString::Strcmp(Field.Key, TEXT("CARDS.FreeRerolls")) == 0
             || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0 || FCString::Strcmp(Field.Key, TEXT("CARDS.LockSlots")) == 0;
-        if (!F.SmallInt(Field.Key, *Field.Value, bMayBeZero ? 0 : 1, 64))
+        // The chain guard's per-step budget is a fan-out ceiling, not a small card count.
+        const int32 Max = FCString::Strcmp(Field.Key, TEXT("CHAIN.MaxEffectsPerStep")) == 0 ? 4096 : 64;
+        if (!F.SmallInt(Field.Key, *Field.Value, bMayBeZero ? 0 : 1, Max))
         {
             return false;
         }
@@ -2361,9 +2363,9 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields F(Check, Value, TEXT("content"));
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
-    if (!Identity.Int(TEXT("schema_version"), Revision, 3, 3)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 10, 10)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 9, 9))
+    if (!Identity.Int(TEXT("schema_version"), Revision, 4, 4)
+        || !Identity.Int(TEXT("handler_revision"), Revision, 11, 11)
+        || !Identity.Int(TEXT("projection_revision"), Revision, 10, 10))
     {
         return false;
     }
@@ -2666,8 +2668,8 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 3\n#define LD_DEMO_CONTENT_HANDLER_REVISION 10\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 9\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 4\n#define LD_DEMO_CONTENT_HANDLER_REVISION 11\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 10\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -2709,9 +2711,9 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     }
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
-        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 3, 3)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 10, 10)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 9, 9)
+        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 4, 4)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 11, 11)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 10, 10)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)

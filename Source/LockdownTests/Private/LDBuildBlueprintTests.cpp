@@ -169,7 +169,7 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Text that is no JSON is refused"),BlueprintParseText(TEXT("lockdown build"))==ELDBlueprintParseError::NotJson);
     TestTrue(TEXT("Another schema is refused"),BlueprintParseText(Text.Replace(TEXT("lockdown.build-blueprint"),TEXT("lockdown.other-record")))==ELDBlueprintParseError::WrongSchema);
     TestTrue(TEXT("An unknown schema version is refused, not guessed"),
-        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 2"),TEXT("\"schema_version\": 3")))==ELDBlueprintParseError::UnknownVersion);
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 3"),TEXT("\"schema_version\": 4")))==ELDBlueprintParseError::UnknownVersion);
     TestTrue(TEXT("A dash FIN cannot smuggle a named active into its binding"),
         BlueprintParseText(Text.Replace(TEXT("\"target_id\": \"\""),TEXT("\"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
@@ -232,7 +232,7 @@ bool FLDBuildBlueprintPruneTest::RunTest(const FString& Parameters)
         if(!BlueprintSample(*this,FGuid::NewGuid(),Base-FTimespan::FromDays(29),Future)){return false;}
         LDBuildBlueprint::Serialize(Future,Bytes,Error);
         const FString Unknown=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(Future.MatchId));
-        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 2"),TEXT("\"schema_version\": 3")),*Unknown,
+        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 3"),TEXT("\"schema_version\": 4")),*Unknown,
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
         Foreign.Add(Unknown);
         const FString Broken=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(FGuid::NewGuid().ToString(EGuidFormats::Digits)));
@@ -433,12 +433,12 @@ bool FLDBuildBlueprintCardsTest::RunTest(const FString& Parameters)
     for(const TCHAR* Id:{TEXT("card_double_dash"),TEXT("card_encore"),TEXT("card_live_wire")}){Local.Cards.AddDefaulted_GetRef().Id=Id;}
     Parsed.CatalogRoot=Local.Identity.Root.ToHex();
     TArray<FString> Notices;
-    LDBuildBlueprint::Notices(Parsed,&Local,TEXT("0.11.0"),Notices);
-    TestTrue(TEXT("Only the card the local catalog lacks is a stale install"),Notices.Num()==1&&Notices[0].Contains(TEXT("card_third_breath")));
+    LDBuildBlueprint::Notices(Parsed,&Local,Parsed.ProductVersion,Notices);
+    TestTrue(FString::Printf(TEXT("Only the card the local catalog lacks is a stale install (%s)"),*FString::Join(Notices,TEXT(" | "))),Notices.Num()==1&&Notices[0].Contains(TEXT("card_third_breath")));
     Local.Cards.AddDefaulted_GetRef().Id=TEXT("card_third_breath");
     Notices.Reset();
-    LDBuildBlueprint::Notices(Parsed,&Local,TEXT("0.11.0"),Notices);
-    TestTrue(TEXT("A recipe the local catalog fully knows gives no notice"),Notices.IsEmpty());
+    LDBuildBlueprint::Notices(Parsed,&Local,Parsed.ProductVersion,Notices);
+    TestTrue(FString::Printf(TEXT("A recipe the local catalog fully knows gives no notice (%s)"),*FString::Join(Notices,TEXT(" | "))),Notices.IsEmpty());
     return true;
 }
 #endif

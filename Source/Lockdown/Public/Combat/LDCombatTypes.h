@@ -538,6 +538,10 @@ struct FLDCombatOwnerView
     UPROPERTY() bool bPreviewLiving=false;
     UPROPERTY() bool bPreviewFinalField=false;
     UPROPERTY() TArray<FLDDemoStatBonus> PreviewDevBonuses;
+    // The grow cards' match growth Combat installed (Y19-Y21, LDAttributeProjection's CardGrowth term), living or dead.
+    UPROPERTY() TArray<FLDDemoStatBonus> CardGrowth;
+    // A12: the focus stacks of this life while they last (0 when none); the preview adds their haste like the authority.
+    UPROPERTY() int32 PreviewFocusHits=0;
     UPROPERTY() TArray<FLDCombatPreviewBonus> PreviewBonuses;
     UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewMoveSlows;
     UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewAttackSlows;

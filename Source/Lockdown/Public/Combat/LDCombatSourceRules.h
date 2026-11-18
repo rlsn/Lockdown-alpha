@@ -85,6 +85,10 @@ namespace LDCombatSourceRules
     // Card resolution and compilation are shared with the owner's read-only install preview (LDCombatCards.cpp).
     LOCKDOWN_API bool CollectCardEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
         const FLDDemoContentSnapshot* Content, TArray<FLDPassiveEffectRef>& Out, FString& Error);
+    // The cards' temporary attack speed of a body: Y15 per missing HP percent of Build, A12 per live focus stack (copies
+    // add). Shared by the authority's temporary terms and the owner's install preview.
+    LOCKDOWN_API bool CardHasteBp(const FLDAttributeProjection& Build, int64 HpP2, int64 MaxHpP2, int32 FocusHits,
+        const FLDDemoContentSnapshot* Content, int64& Out, FString& Error);
     LOCKDOWN_API bool CompileCardActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
         const FLDDemoContentSnapshot* Content, FLDCombatActiveTerms& Terms, FString& Error);
     LOCKDOWN_API bool FinalTargetsSource(const FLDFinalModSelection& Selection, const FLDCombatSourceRef& Source);

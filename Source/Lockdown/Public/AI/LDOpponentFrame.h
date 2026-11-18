@@ -25,8 +25,9 @@ namespace LDOpponentFrame
     // Own actives, blueprints, stat points, the current active offer and queued opportunities, and (#198 B) the owned
     // components (with their placement) and opening base pick; derived attributes come from the shared pure projection over
     // the allocated points and installed components.
-    LOCKDOWN_API bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog,
-        FLDOpponentSelf& Out, FString& Error);
+    // CardGrowth is the grow cards' match growth the own Combat view publishes (Y19-Y21), part of the derived attributes.
+    LOCKDOWN_API bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoStatBonus>& CardGrowth,
+        const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out, FString& Error);
     // Own resources, basic readiness, Root, the build safe window and active-source readiness exactly as Combat reports them.
     LOCKDOWN_API bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSelf& Out, FString& Error);
     LOCKDOWN_API ELDOpponentOrderStatus OrderStatus(ELDOrderStatus Status);

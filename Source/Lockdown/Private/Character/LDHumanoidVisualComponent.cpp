@@ -193,21 +193,22 @@ void ULDHumanoidVisualComponent::OnRegister()
     // even when no character look has ever been applied.
     if (IsEditorOnly())
     {
-        Pivot->bIsEditorOnly = true;
-        Mesh->bIsEditorOnly = true;
-        for (UStaticMeshComponent* Part : Parts) { Part->bIsEditorOnly = true; }
-        for (UStaticMeshComponent* Edge : Edges) { Edge->bIsEditorOnly = true; }
+        if (Pivot) { Pivot->bIsEditorOnly = true; }
+        if (Mesh) { Mesh->bIsEditorOnly = true; }
+        for (UStaticMeshComponent* Part : Parts) { if (Part) { Part->bIsEditorOnly = true; } }
+        for (UStaticMeshComponent* Edge : Edges) { if (Edge) { Edge->bIsEditorOnly = true; } }
         for (UMeshComponent* Part : Worn) { if (Part) { Part->bIsEditorOnly = true; } }
     }
-    if (!Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
-    if (!Mesh->IsRegistered()) { Mesh->RegisterComponent(); }
+    // A copied or reloaded layout point can carry a tree whose subobjects did not survive the copy; skip the missing ones.
+    if (Pivot && !Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
+    if (Mesh && !Mesh->IsRegistered()) { Mesh->RegisterComponent(); }
     for (UStaticMeshComponent* Part : Parts)
     {
-        if (!Part->IsRegistered()) { Part->RegisterComponent(); }
+        if (Part && !Part->IsRegistered()) { Part->RegisterComponent(); }
     }
     for (UStaticMeshComponent* Edge : Edges)
     {
-        if (!Edge->IsRegistered()) { Edge->RegisterComponent(); }
+        if (Edge && !Edge->IsRegistered()) { Edge->RegisterComponent(); }
     }
     for (UMeshComponent* Part : Worn)
     {

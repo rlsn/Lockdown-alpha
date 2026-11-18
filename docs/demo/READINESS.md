@@ -85,7 +85,7 @@
   - 满员场景尚未按 R1/R2 才开放 PK 的当前规则重跑；R01 假人槽位通过但账本未实际增长（未覆盖），R02 检查通过；
     R1 返回野外时出现 `Prepared body does not occupy its exact registered placement` 权威故障。返场已改为按物理胶囊实际支撑中心预约出生，
     相关地面、出生、营地和休息规则通过，但完整满员对局未复跑。
-  - NPC 服务、装牌、PK 与观战没有拥有连接场景；55 张牌的图标尚无美术，界面只显示形状与名称并记录 `LD_UI_ICON_MISSING`；全套规则未在本页记为通过。
+  - NPC 服务、装牌、PK 与观战没有拥有连接场景；55 张牌的图标暂用退役构件的已批准美术（`ui_icons.json` 逐项写明来源），尚无专属美术；全套规则未在本页记为通过。
 - **未运行**：跨机器局域网与公网直连；三真人完整对局与系统性数值平衡；Shipping 配置打包（[#95](https://github.com/rlsn/Lockdown-alpha/issues/95)）；
   真实 OS 失焦与显示模式切换、完整人工 UI 验收；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行）。

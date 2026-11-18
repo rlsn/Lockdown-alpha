@@ -1542,6 +1542,8 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     case EField::Multiplier: Out=HudDecimal(double(Effect->MultiplierBp)/100.);return true;
     case EField::CostRatio: Out=HudDecimal(double(Effect->CostRatioBp)/100.);return true;
     case EField::Angle: Out=HudRational(Effect->AngleDegrees);return true;
+    // A09: the attack-speed step in attacks per second.
+    case EField::Step: Out=HudRational(Effect->StepRate);return true;
     case EField::Stat:
     {
         const FLDDemoStatBonus* Stat=Effect->Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S){return S.Stat==Token.Stat;});

@@ -126,6 +126,7 @@ bool Project(const FLDDemoContentSnapshot& Content,const FLDGrowthBuild& Build,c
     Out=FState();
     Out.Input=LDProgression::CombatProjectionInput(&Content.Get(),Build);
     Out.Input.DevBonuses=Combat.PreviewDevBonuses;
+    Out.Input.CardGrowth=Combat.CardGrowth;
     const FLDAttributeProjectionResult Projected=LDCombatSourceRules::ProjectBuildInput(Out.Input,Content);
     if(!Projected.IsSuccess())
     {
@@ -173,6 +174,14 @@ bool Project(const FLDDemoContentSnapshot& Content,const FLDGrowthBuild& Build,c
     const TArray<FLDCombatSlow> AttackSlows=CopySlows(Combat.PreviewAttackSlows);
     FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Bonuses,MoveSlows,Combat.AsOfMs);
     Terms.AttackSlowBp=LDTactical::StrongestSlowBp(AttackSlows,Combat.AsOfMs);
+    // Y15 and A12 the same way the authority adds them, over this projection's HP.
+    int64 CardHasteBp=0;
+    if(!LDCombatSourceRules::CardHasteBp(Out.Build,Out.HpP2,Out.Build.Final.MaxHPP2,Combat.PreviewFocusHits,&Content,CardHasteBp,Error))
+    {return false;}
+    if(CardHasteBp>0)
+    {
+        FLDDemoStatBonus Bonus;Bonus.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;Bonus.Amount=CardHasteBp;Terms.Bonuses.Add(Bonus);
+    }
     const FLDAttributeProjectionResult Effective=LDAttributeProjection::ApplyTemporary(Out.Build,Terms,Content);
     if(!Effective.IsSuccess())
     {

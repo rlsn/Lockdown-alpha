@@ -594,16 +594,24 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCall
         return LDCombatSourcesDetail::PrepareFailure(EPrepare::StaleBuild,FString::Printf(
             TEXT("StaleBuild: expected %llu but Combat installed %llu."),Expected.BuildRevision,Record->Installed.BuildRevision));
     }
-    // Growth never names the DEV test layer or the grow cards' match growth; the installed ones ride along with every build
-    // change (a removed grow card stops adding its growth when the next growth refresh runs).
+    // Growth never names the DEV test layer or the grow cards' match growth. The DEV layer rides along; the match growth is
+    // recomputed from the proposed cards and the match counters, so removing a grow card drops its growth at once and a
+    // new copy adds the counters' share at once.
     if (!Input.DevBonuses.IsEmpty() || !Input.CardGrowth.IsEmpty())
     { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,TEXT("InvalidInput: only Combat holds the DEV layer and card growth.")); }
     FLDBuildProjectionInput Effective=Input;
     Effective.DevBonuses=Record->Build.DevBonuses;
-    Effective.CardGrowth=Record->Build.CardGrowth;
     FString Reason;
     if (!LDCombatSourcesDetail::ValidateBuildInput(Effective,Record->Installed,*Content,Reason))
     { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,Reason); }
+    const FLDAttributeProjectionResult Proposed=LDCombatSourcesDetail::ProjectInput(Effective,*Content);
+    if (!Proposed.IsSuccess())
+    {
+        return LDCombatSourcesDetail::PrepareFailure(LDCombatSourcesDetail::FromProjectionError(Proposed.Error.Code),
+            FString::Printf(TEXT("Projection refused: %s: %s"),*Proposed.Error.Field,*Proposed.Error.Message));
+    }
+    if (!CardGrowthTerms(Proposed.Value.GetValue(),Record->CardGrowth,Effective.CardGrowth,Reason))
+    { return LDCombatSourcesDetail::PrepareFailure(EPrepare::Catalog,Reason); }
     return PrepareProjected(*Mode,*Content,*Record,Caller.EntityId,Effective,Expected);
 }
 
@@ -838,8 +846,10 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.bPreviewLiving=Body && !Body->bPendingDeath;
     Out.bPreviewFinalField=Mode->IsShowdown();
     Out.PreviewDevBonuses=Record->Build.DevBonuses;
+    Out.CardGrowth=Record->Build.CardGrowth;
     if (Out.bPreviewLiving)
     {
+        if (Body->FocusHits>0 && NowMs<=Body->FocusUntilMs) { Out.PreviewFocusHits=Body->FocusHits; }
         for (const FLDCombatTimedBonus& Bonus : Body->TimedBonuses)
         {
             if (Bonus.ExpiresAtMs<=NowMs) { continue; }

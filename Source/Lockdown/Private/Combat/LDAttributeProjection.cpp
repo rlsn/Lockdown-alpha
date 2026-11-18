@@ -398,10 +398,10 @@ private:
             {
                 return false;
             }
+        }
         if (!AccumulateCards())
         {
             return false;
-        }
         }
         return Check.Good || ArithmeticFailure(TEXT("Accumulate"));
     }

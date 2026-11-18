@@ -1061,7 +1061,6 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
     PendingHits.Add(Hit);
     PendingHits.Append(MoveTemp(Extra));
-    LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);    PendingHits.Add(Hit);
     LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
     if (!Taken.IsEmpty() || Body.Empowers.Num()!=PendingBefore)
     {

@@ -819,17 +819,9 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
     }
     // Y15: every missing percent of HP adds its attack speed; A12: every focus stack adds its share (copies add).
     int64 CardHasteBp=0;
-    if (Body.BuildProjection.MissingHPAttackSpeedBp>0 && Body.Resources.MaxHpP2>0 && Body.Resources.HpP2<Body.Resources.MaxHpP2)
-    {
-        const int64 MissingPercent=(Body.Resources.MaxHpP2-FMath::Max<int64>(Body.Resources.HpP2,0))*100/Body.Resources.MaxHpP2;
-        CardHasteBp+=MissingPercent*Body.BuildProjection.MissingHPAttackSpeedBp;
-    }
-    if (Body.FocusHits>0 && NowMs<=Body.FocusUntilMs)
-    {
-        TArray<FLDPassiveEffectRef> Focus;
-        if (!CollectPassiveEffects(Body.BuildProjection,ELDDemoEffectOp::FocusAttackSpeed,Focus,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Ref : Focus) { CardHasteBp+=int64(Body.FocusHits)*Ref.Effect.RatioBp; }
-    }
+    if (!LDCombatSourceRules::CardHasteBp(Body.BuildProjection,Body.Resources.HpP2,Body.Resources.MaxHpP2,
+        NowMs<=Body.FocusUntilMs ? Body.FocusHits : 0,Content,CardHasteBp,Error))
+    { return false; }
     if (CardHasteBp>0)
     {
         FLDDemoStatBonus Bonus;

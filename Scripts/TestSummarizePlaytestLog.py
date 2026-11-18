@@ -372,6 +372,10 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         doubled = summarize(collect([first, run("RunE", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap,+card_add_fire#3@Skill:active_zap",
                                                 True)]), metrics_only=True)
         self.assertIn("| 2 in 2 decided matches |", doubled)
+        # Y25 with another element is another build.
+        rewired = summarize(collect([run("RunF", "3,0,0,0,0", "+card_live_wire#1@Body:Fire", True),
+                                     run("RunG", "3,0,0,0,0", "+card_live_wire#1@Body:Water", True)]), metrics_only=True)
+        self.assertIn("| 2 in 2 decided matches |", rewired)
         # Two runs' logs of the same file name in different folders are two inputs, never one match.
         apart = summarize(collect([run("Telemetry", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap", True, folder="run1"),
                                    run("Telemetry", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap", True, folder="run2")]),

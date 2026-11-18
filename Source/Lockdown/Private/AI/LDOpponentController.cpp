@@ -456,9 +456,16 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Me.NearbyRestService = Own.NearbyRestService;
     // Unspawned or left: the policy stops without any further read.
     if (Own.LifePhase != ELDLifePhase::Alive && Own.LifePhase != ELDLifePhase::Dead) { return true; }
+    // The own Combat view also explains a dead contender's persistent build; its card growth joins the derived attributes.
+    if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
+        || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The own combat projection is unavailable."); }
+        return false;
+    }
     const FLDGrowthOwnerView& Growth = Own.Growth;
-    if (Growth.Generation != Generation
-        || !LDOpponentFrame::ReadOwnBuild(Growth.Progression, *Content, Me, Error))
+    if (Growth.Generation != Generation || Reads.Combat.Generation != Generation
+        || !LDOpponentFrame::ReadOwnBuild(Growth.Progression, Reads.Combat.CardGrowth, *Content, Me, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("The own growth publication is not of this match."); }
         return false;
@@ -466,12 +473,6 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     // The opening rest R0 starts at the match start; the drawn plan waits OpeningPickAfterMs into it.
     Me.OpeningPickAtMs = Public.StartedAtMs + OpeningPickAfterMs;
     if (Own.LifePhase == ELDLifePhase::Dead) { return true; }
-    if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
-        || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))
-    {
-        if (Error.IsEmpty()) { Error = TEXT("The own combat projection is unavailable."); }
-        return false;
-    }
     if (Reads.Combat.Generation != Generation || Reads.Combat.Life != Own.Life
         || !LDOpponentFrame::ReadOwnCombat(Reads.Combat, NowMs, Me, Error))
     {
