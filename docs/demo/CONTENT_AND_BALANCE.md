@@ -279,7 +279,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | 词条 | 参数 | 规则 |
 | --- | --- | --- |
 | 加班 | `AFFIX.OvertimeAttackSpeed` 0.3、`OvertimeVoucherScale` 2 | 成员攻速 +30%；清营饭票 ×2 |
-| 团建 | `AFFIX.TeambuildXPScale` 1.5 | 成员经验 ×1.5 |
+| 团建 | `AFFIX.TeambuildXPScale` 1.5 | 营地多刷一名成员（高档营地为本营种类，精英与远古营地为一只高档种），站在营地锚点；成员经验 ×1.5 |
 | 冰箱 | `AFFIX.FridgeCardOffer` 3 | 攻击挂冻、脚下常驻冰面；清营得一组三选一 |
 | 奖金 | `AFFIX.BonusHP` 0.4、`BonusCardOffer` 5 | 成员生命 +40%；清营得一组五选一 |
 | 裁员 | `AFFIX.LayoffAttack` 0.3、`LayoffVouchers` 8 | 同营每倒下一个，其余攻击 +30%（可叠）；清营另得 8 饭票 |

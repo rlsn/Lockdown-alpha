@@ -1103,9 +1103,22 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         if (Error.IsEmpty()) { Error = TEXT("Camp spawn needs the core and the approved monster."); }
         return false;
     }
+    // Spec §11.2: each High, Elite or Ancient spawn may carry one affix (overtime day: every camp works overtime). It is drawn
+    // first because the teambuild affix decides whether the reserved last slot spawns.
+    const int64 AffixRoll = SpeciesRandom.RandRange(0, 9999);
+    const int32 AffixPick = SpeciesRandom.RandRange(0, LDPacing::CampAffixes - 1);
+    const ELDCampAffix Affix = LDPacing::RollAffix(Content->Get().Parameters, Spec.Tier == ELDDemoCampTier::Low,
+        Mode->HasDaily(ELDDailyModifier::Overtime), AffixRoll, AffixPick);
+    const bool bTeambuildSlot = !Spec.Members.IsEmpty() && Spec.Members.Last().bTeambuild;
+    const int32 SlotCount = Spec.Members.Num() - (bTeambuildSlot && Affix != ELDCampAffix::Teambuild ? 1 : 0);
+    const FLDDemoMonsterDefinition* TeamMonster = nullptr;
+    if (SlotCount == Spec.Members.Num() && bTeambuildSlot && !Content->FindMonster(Spec.TeambuildMonsterId.ToString(), TeamMonster, Error))
+    {
+        return false;
+    }
     TArray<FLDLegalGround> Grounds;
     TArray<FVector> Reserved;
-    for (int32 Slot = 0; Slot < Spec.Members.Num(); ++Slot)
+    for (int32 Slot = 0; Slot < SlotCount; ++Slot)
     {
         FLDLegalGround Ground;
         if (!FindPlacement(Spec, Slot, Reserved, Ground, bBlocked, Error)) { return false; }
@@ -1125,25 +1138,22 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
             }
         }
     };
-    for (int32 Slot = 0; Slot < Spec.Members.Num(); ++Slot)
+    for (int32 Slot = 0; Slot < SlotCount; ++Slot)
     {
         ALDCampMemberCharacter* Body = nullptr;
-        const bool bCreated = CreateBody(Grounds[Slot], *Monster, FString::Printf(TEXT("camp %s member %d"), *Spec.CampId.ToString(), Slot),
-            Body, Error);
+        const bool bTeam = Spec.Members[Slot].bTeambuild;
+        const bool bCreated = CreateBody(Grounds[Slot], bTeam ? *TeamMonster : *Monster,
+            FString::Printf(TEXT("camp %s member %d"), *Spec.CampId.ToString(), Slot), Body, Error);
         if (Body) { Spawned.Add(Body); }
         if (!bCreated) { return false; }
     }
     // #97: the whole group takes the growth stage of this spawn moment and keeps it for these lives.
     const uint8 Stage = LDCampGrowth::Stage(Content->Get().Parameters, Mode->GetFieldNowMs());
-    // Spec §11.2: each High, Elite or Ancient spawn may carry one affix (overtime day: every camp works overtime).
-    const int64 AffixRoll = SpeciesRandom.RandRange(0, 9999);
-    const int32 AffixPick = SpeciesRandom.RandRange(0, LDPacing::CampAffixes - 1);
-    const ELDCampAffix Affix = LDPacing::RollAffix(Content->Get().Parameters, Spec.Tier == ELDDemoCampTier::Low,
-        Mode->HasDaily(ELDDailyModifier::Overtime), AffixRoll, AffixPick);
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
-        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Selected, Stage, Affix});
+        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot],
+            Spec.Members[Slot].bTeambuild ? Spec.TeambuildMonsterId : Selected, Stage, Affix});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }

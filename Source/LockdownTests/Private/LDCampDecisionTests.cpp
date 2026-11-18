@@ -52,8 +52,10 @@ bool FLDCampDecisionTest::RunTest(const FString& Parameters)
         {
             const FLDDemoMonsterDefinition* Monster=nullptr;
             if(!Catalog->FindMonster(Camp.MonsterId,Monster,Error)||!Monster){AddError(Error);return false;}
-            Members+=Monster->CountPerCamp;
+            // Spec §11.2/§11.3: the teambuild member of a High, Elite or Ancient camp, then the dealer below.
+            Members+=Monster->CountPerCamp+(Monster->Tier==ELDDemoCampTier::Low?0:1);
         }
+        ++Members;
         if(!TestTrue(FString::Printf(TEXT("A full roster, %lld approved camp members and the Boss fit the %d-unit observation bound"),
             Members,LDObservation::MaxUnits),(LDObservation::MaxPresentations-1)+Members+1<=LDObservation::MaxUnits)){return false;}
     }

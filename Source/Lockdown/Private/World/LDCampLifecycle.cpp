@@ -62,6 +62,29 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             Members.Add(Member.MemberId);
             Spec.Members.Add(MoveTemp(Member));
         }
+        // Spec §11.2: every High, Elite and Ancient camp reserves one teambuild member at its anchor.
+        if (Spec.Tier != ELDDemoCampTier::Low)
+        {
+            const FLDDemoMonsterDefinition* High = Spec.Tier == ELDDemoCampTier::High ? Monster
+                : Content.Monsters.FindByPredicate([](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::High; });
+            if (!High)
+            {
+                Error = FString::Printf(TEXT("Camp %s has no approved High-tier member for its teambuild slot."), *CampText);
+                return false;
+            }
+            FLDCampMemberSpec Team;
+            Team.MemberId = FName(*(CampText + TEXT("_teambuild")));
+            Team.HomeCm = Spec.AnchorCm;
+            Team.bTeambuild = true;
+            if (Members.Contains(Team.MemberId))
+            {
+                Error = FString::Printf(TEXT("Camp %s has a member home named like its teambuild slot."), *CampText);
+                return false;
+            }
+            Members.Add(Team.MemberId);
+            Spec.Members.Add(MoveTemp(Team));
+            Spec.TeambuildMonsterId = FName(*High->Id);
+        }
         bLow |= Spec.Tier == ELDDemoCampTier::Low;
         bHigh |= Spec.Tier == ELDDemoCampTier::High;
         Camps.Add(CampId);
@@ -224,9 +247,12 @@ int64 FLDCampMatchState::NextRespawnDueMs() const
 bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRef> Bodies, double AtSeconds, FString& Error)
 {
     FLDCampGroupState* Group = IsActive() && Camps.IsValidIndex(Camp) ? &Camps[Camp] : nullptr;
-    if (!Group || Bodies.Num() != Group->Members.Num() || !FMath::IsFinite(AtSeconds) || AtSeconds < 0)
+    // A spawn without the teambuild affix leaves the reserved last slot empty.
+    const bool bTeambuildSlot = Group && !Roster->Camps[Camp].Members.IsEmpty() && Roster->Camps[Camp].Members.Last().bTeambuild;
+    if (!Group || (Bodies.Num() != Group->Members.Num() && !(bTeambuildSlot && Bodies.Num() == Group->Members.Num() - 1))
+        || !FMath::IsFinite(AtSeconds) || AtSeconds < 0)
     {
-        Error = TEXT("Camp spawn commit needs one current body per member at a valid authority time.");
+        Error = TEXT("Camp spawn commit needs one current body per member (the teambuild slot only with its affix) at a valid authority time.");
         return false;
     }
     if(Roster->Camps[Camp].Species.Num()>1 && Group->PendingSpecies.IsNone())

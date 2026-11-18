@@ -235,13 +235,17 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 ReactionGrid->AddChildToUniformGrid(RowHeight,Index/WorkshopReactionColumns,Index%WorkshopReactionColumns);
                 Built.Add(Plus);Built.Add(Line);Built.Add(RowHeight);
             }
-            RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);
-            Column->AddChildToVerticalBox(RespecSpace)->SetHorizontalAlignment(HAlign_Fill);
-            // The column scales down (never up) when larger text would push it past the panel.
             // The column keeps the panel's inner width and scales down (never up) when larger text would push it past the
             // panel's height.
             auto* ColumnWidth=WidgetTree->ConstructWidget<USizeBox>();ColumnWidth->SetWidthOverride(WorkshopCharacterWidth-48.f);ColumnWidth->SetContent(Column);
-            CharacterFit=LDWidgets::Fit(WidgetTree,ColumnWidth);CharacterPanel=Surface(CharacterFit,FMargin(24,22));Add(CharacterPanel,2);
+            CharacterFit=LDWidgets::Fit(WidgetTree,ColumnWidth);
+            // The trainer's respec foot sits under the scaled column at full size: its button and reason lines are laid
+            // over it by the choices panel and do not scale with the column.
+            auto* Stack=WidgetTree->ConstructWidget<UVerticalBox>();
+            Stack->AddChildToVerticalBox(CharacterFit)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);
+            Stack->AddChildToVerticalBox(RespecSpace)->SetHorizontalAlignment(HAlign_Fill);
+            CharacterPanel=Surface(Stack,FMargin(24,22));Add(CharacterPanel,2);
         }
         {
             // The board: its surface, the capacity row (cells painted) and one head per column; the storage lays the
@@ -883,7 +887,7 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(LevelLine,Latest.Level.Experience);
     const int64 Unspent=View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
-    if(RespecSpace){const float Foot=Latest.bCharacterServices?96.f:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
+    if(RespecSpace){const float Foot=Latest.bCharacterServices?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
     WorkshopText(PointsText,FString::FromInt(Unspent));
     // The stat rows follow the catalog's design order; each "+" spends one point through the band's stat bar.
     if(Content&&StatRows.IsEmpty())

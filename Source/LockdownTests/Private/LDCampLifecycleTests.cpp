@@ -102,7 +102,11 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Five approved camps compile"), LDCamp::BuildRoster(Good.Content, Good.World, Out, Error))) { return false; }
     TestEqual(TEXT("Five camps in content order"), Out.Camps.Num(), 5);
     TestEqual(TEXT("Low camp keeps both member homes"), Out.Camps[0].Members.Num(), 2);
-    TestEqual(TEXT("High camp keeps its single member home"), Out.Camps[1].Members.Num(), 1);
+    TestTrue(TEXT("Low camp reserves no teambuild slot"), !Out.Camps[0].Members.Last().bTeambuild && Out.Camps[0].TeambuildMonsterId.IsNone());
+    TestEqual(TEXT("High camp keeps its single member home and reserves a teambuild slot"), Out.Camps[1].Members.Num(), 2);
+    TestTrue(TEXT("The teambuild slot is last, homed at the anchor and wears the camp's own High species"),
+        Out.Camps[1].Members.Last().bTeambuild && !Out.Camps[1].Members[0].bTeambuild
+        && Out.Camps[1].Members.Last().HomeCm == Out.Camps[1].AnchorCm && Out.Camps[1].TeambuildMonsterId == TEXT("monster_guardian"));
     TestEqual(TEXT("Native creature identity is the approved monster"), Out.Camps[1].CreatureId, uint8(ELDDemoMonsterId::MonsterGuardian));
     TestEqual(TEXT("Refresh delay comes from the camp tier definition"), Out.Camps[0].RespawnMs, int64(40000));
     TestEqual(TEXT("Anchor coordinate is exact"), Out.Camps[3].AnchorCm, FVector(-1528, -2103, 0));
@@ -160,7 +164,7 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
     {
         for (const auto& Member : State.FindCamp(Camp)->Members) { Entities.Add(Member.EntityId); }
     }
-    TestEqual(TEXT("Eight fixed members get distinct match-local entity ids"), Entities.Num(), 8);
+    TestEqual(TEXT("Ten fixed members (two of them teambuild slots) get distinct match-local entity ids"), Entities.Num(), 10);
     const FGuid FirstEntity = State.FindCamp(0)->Members[0].EntityId;
 
     TestTrue(TEXT("Unspawned camp can start"), State.CanSpawnInitial(0, Error));
@@ -213,7 +217,19 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A cleared camp does not rearm on repeated deaths"),
         State.RecordDeath({Match.LedgerMatch, B.Victim}, 11000, Error), ELDCampDeathResult::Duplicate);
 
-    TestTrue(TEXT("High camp spawns"), State.CommitSpawn(1, Spawned(State, 1), 0, Error));
+    TArray<FLDCombatBodyRef> HighBodies = Spawned(State, 1);
+    {
+        // With the teambuild affix (on a copy) the reserved member spawns too and holds the camp until it falls.
+        FLDCampMatchState Team = State;
+        TestTrue(TEXT("A teambuild spawn fills the reserved slot"), Team.CommitSpawn(1, HighBodies, 0, Error) && Team.FindCamp(1)->Members[1].bAlive);
+        TestEqual(TEXT("The teambuild member keeps the camp occupied"),
+            Team.RecordDeath({Match.LedgerMatch, HighBodies[0].Victim}, 1001, Error), ELDCampDeathResult::MemberDead);
+        TestEqual(TEXT("The camp clears when the teambuild member falls"),
+            Team.RecordDeath({Match.LedgerMatch, HighBodies[1].Victim}, 1002, Error), ELDCampDeathResult::CampCleared);
+    }
+    TestFalse(TEXT("Only the teambuild slot may stay empty"), State.CommitSpawn(1, MakeArrayView(HighBodies.GetData() + 1, 1), 0, Error));
+    TestTrue(TEXT("A High spawn without the teambuild affix leaves its reserved slot empty"),
+        State.CommitSpawn(1, MakeArrayView(HighBodies.GetData(), 1), 0, Error) && !State.FindCamp(1)->Members[1].bAlive);
     TestEqual(TEXT("High camp clears with its single member"),
         State.RecordDeath({Match.LedgerMatch, State.FindCamp(1)->Members[0].Body.Victim}, 1001, Error), ELDCampDeathResult::CampCleared);
     TestTrue(TEXT("Clear and due times are the committed death millisecond plus the tier delay"),

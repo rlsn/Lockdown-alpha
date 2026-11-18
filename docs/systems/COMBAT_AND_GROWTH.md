@@ -252,6 +252,8 @@ readiness 由 Combat 写在参赛记录中，键为 `LedgerMatch + Contender + S
 - 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步；视野在 driver 推进完成后采姿态发布；`PublishAuthority` 失败使 Core 进入 Fault。UI 同步时钟只作倒计时。
 - 营地接入：Motion 调 `AdvanceMemberMotion`；初始出生在开局许可内、参赛者 Joined 之后 `SpawnInitialCamps` 只按名册顺序生成前 `InitialGroupsPerFrame`（3）个，其余由 `SpawnPendingInitialCamps` 每帧至多一批；
   R0 休息期间出现的营地立即冻结，`ThawAfterRest` 先补齐再解冻。DEV `DevRefreshCleared` 只把等待中的刷新截止提前。任一营地入口返回 false 即权威故障。
+- 团建预留位：`LDCamp::BuildRoster` 给每个高、精英与远古营地在名册末尾加一个 `bTeambuild` 成员（`<营地>_teambuild`，家在营地锚点，种类见 `FLDCampSpec::TeambuildMonsterId`）。
+  `SpawnGroup` 先抽词条，没抽到团建就不放这一位，`CommitSpawn` 只接受“全员”或“少末尾团建位”两种身体数；空着的团建位不算存活，不拖住清营。
 - 修改阶段顺序会影响同时死亡、资源释放、命中与喷漆/守护完成的同刻竞争，必须连同对应场景验证。
 
 ## 状态、伤害和效果归属
