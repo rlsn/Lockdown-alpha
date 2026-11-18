@@ -297,6 +297,26 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.CardSerial = Intent.CardSerial;
         break;
     }
+    case ELDOpponentBuildKind::SkipCards:
+        if (!Progression.bHasCardOffer || Progression.CardOffer.OfferId != Intent.OfferId || Progression.CardOffer.OfferRevision != Intent.OfferRevision)
+        {
+            return Fail(Error, TEXT("The skipped card offer is no longer the current one."));
+        }
+        Out.Kind = ELDBuildCommandKind::SkipCards;
+        Out.OfferId = Intent.OfferId;
+        Out.OfferRevision = Intent.OfferRevision;
+        break;
+    case ELDOpponentBuildKind::UninstallCard:
+    {
+        const FLDCardInstanceView* Owned = Progression.Cards.FindByPredicate([&Intent](const FLDCardInstanceView& Card) { return Card.Serial == Intent.CardSerial; });
+        if (!Owned || !Owned->IsInstalled())
+        {
+            return Fail(Error, TEXT("The card is no longer installed."));
+        }
+        Out.Kind = ELDBuildCommandKind::UninstallCard;
+        Out.CardSerial = Intent.CardSerial;
+        break;
+    }
     case ELDOpponentBuildKind::BuyNpcOffer:
         Out.Kind = ELDBuildCommandKind::BuyNpcOffer;
         break;

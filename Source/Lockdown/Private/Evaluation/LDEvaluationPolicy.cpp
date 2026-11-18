@@ -16,15 +16,11 @@ bool SameId(const FString& A, const FString& B) { return A.Equals(B, ESearchCase
 
 const TCHAR* SlotName(uint8 Slot) { return Slot == 0 ? TEXT("Q") : Slot == 1 ? TEXT("W") : Slot == 2 ? TEXT("E") : TEXT("?"); }
 
-const FLDOpponentComponent* FindOwned(const FLDOpponentSelf& Self, const FString& Id)
+// The first owned copy of a card in the wanted install state.
+const FLDOpponentCard* FindCard(const FLDOpponentSelf& Self, const FString& Id, bool bInstalled)
 {
-    return Self.Components.FindByPredicate([&Id](const FLDOpponentComponent& Owned) { return SameId(Owned.DefinitionId, Id); });
-}
-
-bool IsInstalled(const FLDOpponentSelf& Self, const FString& Id)
-{
-    const FLDOpponentComponent* Owned = FindOwned(Self, Id);
-    return Owned && Owned->bInstalled;
+    return Self.Cards.FindByPredicate([&Id, bInstalled](const FLDOpponentCard& Owned)
+        { return SameId(Owned.DefinitionId, Id) && Owned.IsInstalled() == bInstalled; });
 }
 
 bool IsLearned(const FLDOpponentSelf& Self, const FString& Id)
@@ -46,10 +42,9 @@ ELDOpponentBuildKind IntentKind(ELDEvaluationStepKind Kind)
 {
     switch (Kind)
     {
-    case ELDEvaluationStepKind::OpeningBase: return ELDOpponentBuildKind::OpeningBase;
     case ELDEvaluationStepKind::AllocatePoints: return ELDOpponentBuildKind::AllocatePoints;
-    case ELDEvaluationStepKind::InstallComponent: return ELDOpponentBuildKind::InstallComponent;
-    case ELDEvaluationStepKind::UninstallComponent: return ELDOpponentBuildKind::UninstallComponent;
+    case ELDEvaluationStepKind::InstallCard: return ELDOpponentBuildKind::InstallCard;
+    case ELDEvaluationStepKind::UninstallCard: return ELDOpponentBuildKind::UninstallCard;
     case ELDEvaluationStepKind::LearnBlueprint: return ELDOpponentBuildKind::LearnBlueprint;
     case ELDEvaluationStepKind::ReplaceActive: return ELDOpponentBuildKind::ReplaceActive;
     case ELDEvaluationStepKind::Respec: return ELDOpponentBuildKind::Respec;
@@ -61,10 +56,9 @@ ELDBuildCommandKind CommandKind(ELDEvaluationStepKind Kind)
 {
     switch (Kind)
     {
-    case ELDEvaluationStepKind::OpeningBase: return ELDBuildCommandKind::OpeningBase;
     case ELDEvaluationStepKind::AllocatePoints: return ELDBuildCommandKind::AllocatePoints;
-    case ELDEvaluationStepKind::InstallComponent: return ELDBuildCommandKind::InstallComponent;
-    case ELDEvaluationStepKind::UninstallComponent: return ELDBuildCommandKind::UninstallComponent;
+    case ELDEvaluationStepKind::InstallCard: return ELDBuildCommandKind::InstallCard;
+    case ELDEvaluationStepKind::UninstallCard: return ELDBuildCommandKind::UninstallCard;
     case ELDEvaluationStepKind::LearnBlueprint: return ELDBuildCommandKind::LearnBlueprint;
     case ELDEvaluationStepKind::ReplaceActive: return ELDBuildCommandKind::ReplaceActive;
     case ELDEvaluationStepKind::Respec: return ELDBuildCommandKind::Respec;
@@ -72,7 +66,7 @@ ELDBuildCommandKind CommandKind(ELDEvaluationStepKind Kind)
     }
 }
 
-// Failure memory of one planned step: its own key, so a later step on the same component or slot starts afresh.
+// Failure memory of one planned step: its own key, so a later step on the same card or slot starts afresh.
 FLDOpponentRetryKey StepKey(const FLDEvaluationBuildStep& Step, int32 Index)
 {
     FLDOpponentRetryKey Key;
@@ -84,7 +78,7 @@ FLDOpponentRetryKey StepKey(const FLDEvaluationBuildStep& Step, int32 Index)
 
 FString Describe(const FLDEvaluationBuildStep& Step, int32 Index)
 {
-    FString Subject = !Step.Component.IsEmpty() ? Step.Component
+    FString Subject = !Step.Card.IsEmpty() ? Step.Card
         : !Step.Blueprint.IsEmpty() ? FString::Printf(TEXT("%s %s"), *Step.Blueprint, SlotName(Step.Slot)) : FString();
     return FString::Printf(TEXT("build step %d (%s%s%s)"), Index + 1, LDEvaluationPolicy::StepName(Step.Kind),
         Subject.IsEmpty() ? TEXT("") : TEXT(" "), *Subject);
@@ -113,36 +107,22 @@ bool PointCounts(const FLDEvaluationBuildStep& Step, const FLDDemoContentSnapsho
     return true;
 }
 
-// What the own build shows of an issued step. A component that ends up somewhere else than planned diverged.
+// What the own build shows of an issued step. A card that ends up somewhere else than planned diverged.
 EStepEffect Effect(const FLDEvaluationBuildStep& Step, const FLDOpponentSelf& Self, const TArray<FLDOpponentStatPoints>& Baseline,
     const TArray<uint8>& Counts, FString& Detail)
 {
     switch (Step.Kind)
     {
-    case ELDEvaluationStepKind::OpeningBase:
-    case ELDEvaluationStepKind::InstallComponent:
+    case ELDEvaluationStepKind::InstallCard:
     {
-        const FLDOpponentComponent* Owned = FindOwned(Self, Step.Component);
-        if (!Owned || (Step.Kind == ELDEvaluationStepKind::InstallComponent && !Owned->bInstalled)) { return EStepEffect::Pending; }
-        if (!Owned->bInstalled)
-        {
-            Detail = TEXT("the opening base was kept in the inventory: its install was refused");
-            return EStepEffect::Diverged;
-        }
-        if (Owned->TargetKind != Step.TargetKind || !SameId(Owned->TargetId, Step.TargetId) || Owned->Element != Step.Element
-            || !SameId(Owned->BoundActive, Step.BoundActive) || !SameId(Owned->BoundComponent, Step.BoundComponent))
-        {
-            Detail = FString::Printf(TEXT("installed on %u:%s bound %s element %u base %s, not as planned"), uint8(Owned->TargetKind),
-                *Owned->TargetId, *Owned->BoundActive, uint8(Owned->Element), *Owned->BoundComponent);
-            return EStepEffect::Diverged;
-        }
-        return EStepEffect::Committed;
+        // The step committed once a copy sits on the planned place.
+        const bool bPlaced = Self.Cards.ContainsByPredicate([&Step](const FLDOpponentCard& Owned)
+            { return SameId(Owned.DefinitionId, Step.Card) && Owned.TargetKind == Step.TargetKind && SameId(Owned.TargetActive, Step.TargetId)
+                && Owned.Element == Step.Element; });
+        return bPlaced ? EStepEffect::Committed : EStepEffect::Pending;
     }
-    case ELDEvaluationStepKind::UninstallComponent:
-    {
-        const FLDOpponentComponent* Owned = FindOwned(Self, Step.Component);
-        return Owned && !Owned->bInstalled ? EStepEffect::Committed : EStepEffect::Pending;
-    }
+    case ELDEvaluationStepKind::UninstallCard:
+        return FindCard(Self, Step.Card, false) ? EStepEffect::Committed : EStepEffect::Pending;
     case ELDEvaluationStepKind::AllocatePoints:
     {
         if (Self.StatPoints.Num() != Baseline.Num() || Baseline.Num() != Counts.Num()) { return EStepEffect::Pending; }
@@ -175,34 +155,17 @@ EStepEffect Effect(const FLDEvaluationBuildStep& Step, const FLDOpponentSelf& Se
 // subject in the step's window never appears later: the seeded supply did not give it or an earlier step did not leave it.
 FString Precondition(const FLDEvaluationBuildStep& Step, const FLDOpponentSelf& Self, const TArray<uint8>& Counts)
 {
-    const FLDOpponentComponent* Owned = FindOwned(Self, Step.Component);
     switch (Step.Kind)
     {
-    case ELDEvaluationStepKind::OpeningBase:
-        if (!Self.bOpeningBasePending) { return TEXT("the opening base pick is not open"); }
-        if (!Self.OpeningBaseOptions.ContainsByPredicate([&Step](const FString& Option) { return SameId(Option, Step.Component); }))
+    case ELDEvaluationStepKind::InstallCard:
+        if (!FindCard(Self, Step.Card, false)) { return TEXT("no stored copy of the card (the seeded level cards did not grant it)"); }
+        if (Step.TargetKind == ELDCardTargetKind::Skill && !IsLearned(Self, Step.TargetId))
         {
-            return FString::Printf(TEXT("not an option of the opening base pick (%s)"), *FString::Join(Self.OpeningBaseOptions, TEXT(",")));
+            return FString::Printf(TEXT("the target skill %s is not learned"), *Step.TargetId);
         }
         break;
-    case ELDEvaluationStepKind::InstallComponent:
-        if (!Owned) { return TEXT("the component is not owned (the seeded supply did not grant it)"); }
-        if (Owned->bInstalled) { return TEXT("the component is already installed"); }
-        if (Step.TargetKind == ELDComponentTargetKind::Active && !IsLearned(Self, Step.TargetId))
-        {
-            return FString::Printf(TEXT("the target active %s is not learned"), *Step.TargetId);
-        }
-        if (Step.TargetKind == ELDComponentTargetKind::Component && !IsInstalled(Self, Step.TargetId))
-        {
-            return FString::Printf(TEXT("the host component %s is not installed"), *Step.TargetId);
-        }
-        if (!Step.BoundComponent.IsEmpty() && !IsInstalled(Self, Step.BoundComponent))
-        {
-            return FString::Printf(TEXT("the repeated base %s is not installed"), *Step.BoundComponent);
-        }
-        break;
-    case ELDEvaluationStepKind::UninstallComponent:
-        if (!Owned || !Owned->bInstalled) { return TEXT("the component is not installed"); }
+    case ELDEvaluationStepKind::UninstallCard:
+        if (!FindCard(Self, Step.Card, true)) { return TEXT("no installed copy of the card"); }
         break;
     case ELDEvaluationStepKind::AllocatePoints:
     {
@@ -240,33 +203,30 @@ FString Precondition(const FLDEvaluationBuildStep& Step, const FLDOpponentSelf& 
     default:
         return TEXT("unknown step kind");
     }
-    if ((Step.Kind == ELDEvaluationStepKind::OpeningBase || Step.Kind == ELDEvaluationStepKind::InstallComponent)
-        && !Step.BoundActive.IsEmpty() && !IsLearned(Self, Step.BoundActive))
-    {
-        return FString::Printf(TEXT("the bound active %s is not learned"), *Step.BoundActive);
-    }
     return FString();
 }
 
-FLDOpponentBuildIntent StepIntent(const FLDEvaluationBuildStep& Step, const TArray<uint8>& Counts, const FLDOpponentRetryKey& Key)
+FLDOpponentBuildIntent StepIntent(const FLDEvaluationBuildStep& Step, const FLDOpponentSelf& Self, const TArray<uint8>& Counts,
+    const FLDOpponentRetryKey& Key)
 {
     FLDOpponentBuildIntent Out;
     Out.Kind = IntentKind(Step.Kind);
     Out.Key = Key;
     switch (Step.Kind)
     {
-    case ELDEvaluationStepKind::OpeningBase:
-    case ELDEvaluationStepKind::InstallComponent:
-        Out.Component = Step.Component;
-        Out.BoundActive = Step.BoundActive;
-        Out.Element = Step.Element;
-        Out.TargetKind = Step.TargetKind;
-        Out.TargetId = Step.TargetId;
-        Out.BoundComponent = Step.BoundComponent;
+    case ELDEvaluationStepKind::InstallCard:
+    case ELDEvaluationStepKind::UninstallCard:
+    {
+        const FLDOpponentCard* Owned = FindCard(Self, Step.Card, Step.Kind == ELDEvaluationStepKind::UninstallCard);
+        Out.CardSerial = Owned ? Owned->Serial : 0;
+        if (Step.Kind == ELDEvaluationStepKind::InstallCard)
+        {
+            Out.CardTarget = Step.TargetKind;
+            Out.TargetId = Step.TargetId;
+            Out.Element = Step.Element;
+        }
         break;
-    case ELDEvaluationStepKind::UninstallComponent:
-        Out.Component = Step.Component;
-        break;
+    }
     case ELDEvaluationStepKind::AllocatePoints:
         Out.PointCounts = Counts;
         break;
@@ -295,6 +255,30 @@ EStepResult AdvanceBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoCon
         State.Failure = Why;
         return EStepResult::Failed;
     };
+    // A case's cards come from its level cards: every card offer (the R0 opening one included) is skipped first.
+    if (Self.CardOffer.IsSet())
+    {
+        if (Frame.bBuildChangeInFlight) { return EStepResult::Wait; }
+        LDProgression::FBuildContext Context;
+        Context.Stage = Public.BuildStage();
+        Context.LifePhase = Self.Phase;
+        FLDOpponentRetryKey Key;
+        Key.Category = ELDOpponentFailure::Build;
+        Key.Slot = uint8(ELDOpponentBuildKind::SkipCards);
+        Key.Target = Self.CardOffer->OfferId;
+        const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Build, Self);
+        if (LDProgression::CommandGate(ELDBuildCommandKind::SkipCards, Context) != ELDGrowthReason::None
+            || !Policy.Failures.CanAttempt(Key, Print, Public.NowMs))
+        {
+            return EStepResult::Wait;
+        }
+        Out = FLDOpponentBuildIntent();
+        Out.Kind = ELDOpponentBuildKind::SkipCards;
+        Out.OfferId = Self.CardOffer->OfferId;
+        Out.OfferRevision = Self.CardOffer->OfferRevision;
+        Out.Key = Key;
+        return EStepResult::Send;
+    }
     while (State.StepsCommitted < Profile.Build.Num())
     {
         if (Frame.bBuildChangeInFlight) { return EStepResult::Wait; }
@@ -345,7 +329,7 @@ EStepResult AdvanceBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoCon
         LDProgression::FBuildContext Context;
         Context.Stage = Public.BuildStage();
         Context.LifePhase = Self.Phase;
-        const ELDGrowthReason Gate = Step.Kind == ELDEvaluationStepKind::InstallComponent
+        const ELDGrowthReason Gate = Step.Kind == ELDEvaluationStepKind::InstallCard || Step.Kind == ELDEvaluationStepKind::UninstallCard
             ? LDProgression::InstallGate(Context)
             : LDProgression::CommandGate(CommandKind(Step.Kind), Context);
         if (Gate != ELDGrowthReason::None)
@@ -366,7 +350,7 @@ EStepResult AdvanceBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoCon
             State.StepBaseline = Self.StatPoints;
             State.bStepIssued = true;
         }
-        Out = StepIntent(Step, Counts, Key);
+        Out = StepIntent(Step, Self, Counts, Key);
         return EStepResult::Send;
     }
     return EStepResult::Wait;
@@ -455,10 +439,9 @@ const TCHAR* LDEvaluationPolicy::StepName(ELDEvaluationStepKind Kind)
 {
     switch (Kind)
     {
-    case ELDEvaluationStepKind::OpeningBase: return TEXT("OpeningBase");
     case ELDEvaluationStepKind::AllocatePoints: return TEXT("AllocatePoints");
-    case ELDEvaluationStepKind::InstallComponent: return TEXT("InstallComponent");
-    case ELDEvaluationStepKind::UninstallComponent: return TEXT("UninstallComponent");
+    case ELDEvaluationStepKind::InstallCard: return TEXT("InstallCard");
+    case ELDEvaluationStepKind::UninstallCard: return TEXT("UninstallCard");
     case ELDEvaluationStepKind::LearnBlueprint: return TEXT("LearnBlueprint");
     case ELDEvaluationStepKind::ReplaceActive: return TEXT("ReplaceActive");
     case ELDEvaluationStepKind::Respec: return TEXT("Respec");
@@ -599,7 +582,7 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     State.bOpeningReady = bRest && Frame.Public.Timeline.RestIndex == 0
         && Frame.Public.Timeline.Step == ELDRestStep::Build && Self.OffersConsumed >= 1
         && !Frame.bBuildChangeInFlight && !bBuilds && Route == ELDRestService::None && State.StepsCommitted >= OpeningSteps
-        && (!Profile.Build.IsEmpty() || (!Self.bOpeningBasePending && Self.UnspentPoints == 0));
+        && (!Profile.Build.IsEmpty() || (!Self.CardOffer.IsSet() && Self.UnspentPoints == 0));
     if (Route != ELDRestService::None)
     {
         Out.Body = LDOpponentPolicy::WalkToRestService(Frame, Catalog, Policy, Route);

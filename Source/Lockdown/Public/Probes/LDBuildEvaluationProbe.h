@@ -21,7 +21,7 @@ struct FLDEvalContenderPlan
     // XP granted once at T=0 through the reward composite (a supply assumption of the plan, logged cause=dev_fixture).
     int64 SupplyXP = 0;
     // Diagnostic-only: exactly one common component for each level crossed by the XP supply.
-    TArray<FName> LevelComponents;
+    TArray<FName> LevelCards;
     // One rule per active opportunity ordinal from 1 (the opening offer).
     TArray<FLDEvaluationChoice> Choices;
     // Diagnostic-only opening offer, staged for the armed AI slot before match start; empty means ordinary draw.

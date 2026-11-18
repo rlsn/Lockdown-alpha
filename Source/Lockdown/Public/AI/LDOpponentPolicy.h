@@ -318,8 +318,8 @@ enum class ELDOpponentBuildKind : uint8
     // Issue #287 spec §13: a skill point raises a learned skill (Slot) to its next branch (Branch).
     RankUpSkill,
     // Spec §13: a card of the current card offer (installed on its default place when one is free), and an owned card into a
-    // free slot.
-    PickCard, InstallCard
+    // free slot. DEV build evaluation also skips offers and takes cards off.
+    PickCard, InstallCard, SkipCards, UninstallCard
 };
 
 struct FLDOpponentBuildIntent
