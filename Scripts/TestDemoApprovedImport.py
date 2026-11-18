@@ -261,7 +261,7 @@ class ApprovedDemoData(unittest.TestCase):
                      "2026-11-09 #144 equipment, gold and shops removed", "#225: PK +50%",
                      "2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据"):
             self.assertIn(text, approval["decision"])
-        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (22, 5, 12))
+        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (25, 5, 12))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
@@ -764,7 +764,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("active_zap", "chain_bounce", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
             ("active_brace", "brace", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
             ("active_brace", "brace", "record_ratio", {"unit": "ratio", "bp": 0}, "IneffectiveEffect"),
-            ("active_cola_shake", "channel_cone", "count", 0, "NumericDomain"),
+            ("active_desk_fan", "fan", "width", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
             ("active_dirty_puddle", "zone_haste", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
         )
         for identity, op, field, value, error in cases:

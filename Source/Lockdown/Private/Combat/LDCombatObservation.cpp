@@ -54,6 +54,8 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionComboStep=0;
     InOut.bCharging=false;
     InOut.MomentumBar=0;
+    InOut.LastReaction=0;
+    InOut.LastReactionAtMs=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
@@ -93,6 +95,12 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         InOut.HitFlags=State->Cues.LastHitFlags;
     }
     InOut.ActionAbility=Ability;
+    if (State->Cues.LastReaction!=0 && State->Cues.LastReactionAtMs>0 && NowMs>=State->Cues.LastReactionAtMs
+        && NowMs-State->Cues.LastReactionAtMs<LDObservation::RecentReactionWindowMs)
+    {
+        InOut.LastReaction=State->Cues.LastReaction;
+        InOut.LastReactionAtMs=State->Cues.LastReactionAtMs;
+    }
     return true;
 }
 

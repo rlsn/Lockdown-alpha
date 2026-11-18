@@ -25,6 +25,8 @@ namespace LDObservation
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
     constexpr uint8 MomentumBarFull = 255;
     constexpr uint16 RecentHitWindowMs = 300;
+    // A visible reaction's name floats over its target while its cue is this young (spec §12).
+    constexpr uint16 RecentReactionWindowMs = 1000;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
@@ -127,6 +129,9 @@ struct FLDObservedUnitView
     UPROPERTY() bool bCharging = false;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
     UPROPERTY() uint8 ActionComboStep = 0;
+    // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
+    UPROPERTY() uint8 RecentReaction = 0;
+    UPROPERTY() uint16 RecentReactionAgePlusOneMs = 0;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
 };
@@ -275,6 +280,9 @@ struct FLDObservedPublicFacts
     uint8 ActionComboStep = 0;
     bool bCharging = false;
     uint8 MomentumBar = 0;
+    // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
+    uint8 LastReaction = 0;
+    int64 LastReactionAtMs = 0;
 };
 
 // Server-only public fact of one live ground state (ALDCombatDirector::ReadObservedGround). Never serialized.

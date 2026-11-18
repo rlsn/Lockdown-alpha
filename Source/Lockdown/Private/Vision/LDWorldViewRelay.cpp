@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Combat/LDCombatElements.h"
 #include "Vision/LDFogDistanceField.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Core/LDLog.h"
@@ -605,6 +606,188 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     SetActorHiddenInGame(false);
 }
 
+ALDObservedGroundProxy::ALDObservedGroundProxy()
+{
+    bReplicates = false;
+    PrimaryActorTick.bCanEverTick = false;
+    SetActorEnableCollision(false);
+    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Box(TEXT("/Engine/BasicShapes/Cube"));
+    for (const TCHAR* Name : {TEXT("GroundPattern"), TEXT("GroundRim")})
+    {
+        UInstancedStaticMeshComponent* Mesh = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
+        Mesh->SetupAttachment(RootComponent);
+        Mesh->SetStaticMesh(Box.Object);
+        Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Mesh->SetCanEverAffectNavigation(false);
+        Mesh->SetCastShadow(false);
+        (FCString::Strcmp(Name, TEXT("GroundRim")) == 0 ? Rim : Lines) = Mesh;
+    }
+}
+
+FLinearColor ALDObservedGroundProxy::KindColor(uint8 Kind)
+{
+    // Spec §8.1/§8.3: each ground state in its element's colour (the ice and puddle blues differ in value).
+    switch (static_cast<ELDGroundStateKind>(Kind))
+    {
+    case ELDGroundStateKind::Puddle: return FLinearColor(.08f,.42f,1.f);
+    case ELDGroundStateKind::Ice: return FLinearColor(.55f,.98f,1.f);
+    case ELDGroundStateKind::Fire: return FLinearColor(1.f,.3f,.04f);
+    case ELDGroundStateKind::Miasma: return FLinearColor(.4f,.85f,.12f);
+    case ELDGroundStateKind::Field: return FLinearColor(.66f,.3f,1.f);
+    case ELDGroundStateKind::Blizzard: return FLinearColor(.86f,.94f,1.f);
+    default: return FLinearColor::White;
+    }
+}
+
+void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out)
+{
+    Out.Reset();
+    const double R = Ground.RadiusCm;
+    const auto Arc = [&Out](const FVector& Centre, double Radius, double From, double To, int32 Steps)
+    {
+        for (int32 Step = 0; Step <= Steps; ++Step)
+        {
+            const double Angle = FMath::DegreesToRadians(FMath::Lerp(From, To, double(Step) / Steps));
+            Out.Add(Centre + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0));
+        }
+    };
+    if (Ground.Shape == ELDObservedGroundShape::Band)
+    {
+        const double H = Ground.ExtentCm;
+        Arc(FVector(H, 0, 0), R, -90., 90., 6);
+        Arc(FVector(-H, 0, 0), R, 90., 270., 6);
+        Out.Add(Out[0]);
+    }
+    else if (Ground.Shape == ELDObservedGroundShape::Sector)
+    {
+        const double Half = Ground.ExtentCm * .5;
+        Out.Add(FVector::ZeroVector);
+        Arc(FVector::ZeroVector, R, -Half, Half, 12);
+        Out.Add(FVector::ZeroVector);
+    }
+    else { Arc(FVector::ZeroVector, R, 0., 360., 20); }
+}
+
+void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out)
+{
+    Out.Reset();
+    // A sector's pattern sits mid-cone and a band's along its middle; a circle's around its centre.
+    const double R = Ground.RadiusCm;
+    const FVector C = Ground.Shape == ELDObservedGroundShape::Sector ? FVector(R * .55, 0, 0) : FVector::ZeroVector;
+    const double S = Ground.Shape == ELDObservedGroundShape::Sector ? R * .35 : R * .7;
+    const auto Seg = [&Out, &C](const FVector& A, const FVector& B) { Out.Emplace(C + A, C + B); };
+    const auto Ring = [&Seg](const FVector& At, double Radius, int32 Steps)
+    {
+        for (int32 Step = 0; Step < Steps; ++Step)
+        {
+            const double A0 = 2. * PI * Step / Steps, A1 = 2. * PI * (Step + 1) / Steps;
+            Seg(At + FVector(FMath::Cos(A0), FMath::Sin(A0), 0) * Radius, At + FVector(FMath::Cos(A1), FMath::Sin(A1), 0) * Radius);
+        }
+    };
+    switch (static_cast<ELDGroundStateKind>(Ground.Kind))
+    {
+    case ELDGroundStateKind::Puddle:
+        // Two ripples.
+        Ring(FVector::ZeroVector, S * .55, 10);
+        Ring(FVector::ZeroVector, S * .95, 14);
+        break;
+    case ELDGroundStateKind::Ice:
+        // Parallel cracks across.
+        for (int32 Line = -2; Line <= 2; ++Line)
+        { Seg(FVector(-S, Line * S * .35 - S * .2, 0), FVector(S, Line * S * .35 + S * .2, 0)); }
+        break;
+    case ELDGroundStateKind::Fire:
+        // A ring of flame teeth.
+        for (int32 Tooth = 0; Tooth < 8; ++Tooth)
+        {
+            const double A0 = 2. * PI * Tooth / 8, A1 = 2. * PI * (Tooth + .5) / 8, A2 = 2. * PI * (Tooth + 1) / 8;
+            const FVector P0(FMath::Cos(A0) * S * .6, FMath::Sin(A0) * S * .6, 0), P1(FMath::Cos(A1) * S, FMath::Sin(A1) * S, 0);
+            const FVector P2(FMath::Cos(A2) * S * .6, FMath::Sin(A2) * S * .6, 0);
+            Seg(P0, P1);
+            Seg(P1, P2);
+        }
+        break;
+    case ELDGroundStateKind::Miasma:
+        // Bubbles.
+        for (const FVector& At : {FVector(0, 0, 0), FVector(S * .55, S * .25, 0), FVector(-S * .5, S * .4, 0), FVector(-S * .2, -S * .55, 0),
+            FVector(S * .4, -S * .5, 0)})
+        { Ring(At, S * .18, 6); }
+        break;
+    case ELDGroundStateKind::Field:
+        // A lightning zigzag.
+        Seg(FVector(-S, -S * .2, 0), FVector(-S * .35, S * .35, 0));
+        Seg(FVector(-S * .35, S * .35, 0), FVector(0, -S * .3, 0));
+        Seg(FVector(0, -S * .3, 0), FVector(S * .35, S * .35, 0));
+        Seg(FVector(S * .35, S * .35, 0), FVector(S, -S * .2, 0));
+        break;
+    case ELDGroundStateKind::Blizzard:
+        // A snowflake: three spokes with a pair of twigs each.
+        for (int32 Spoke = 0; Spoke < 3; ++Spoke)
+        {
+            const FVector Dir(FMath::Cos(PI * Spoke / 3), FMath::Sin(PI * Spoke / 3), 0);
+            const FVector Side(-Dir.Y, Dir.X, 0);
+            Seg(-Dir * S, Dir * S);
+            Seg(Dir * S * .6, Dir * S * .85 + Side * S * .2);
+            Seg(-Dir * S * .6, -Dir * S * .85 - Side * S * .2);
+        }
+        break;
+    default: break;
+    }
+}
+
+FTransform ALDObservedGroundProxy::SegmentTransform(const FVector& A, const FVector& B, double Thickness)
+{
+    const FVector Delta = B - A;
+    return FTransform(Delta.Rotation(), (A + B) * .5 + FVector(0, 0, 3), FVector(FMath::Max(Delta.Size(), 1.) / 100., Thickness / 100., .02));
+}
+
+void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double SampledAtServerSec)
+{
+    const bool bShape = !bShown || Ground.Kind != Shown.Kind || Ground.Shape != Shown.Shape || Ground.RadiusCm != Shown.RadiusCm
+        || Ground.ExtentCm != Shown.ExtentCm || Ground.OwnerSeat != Shown.OwnerSeat;
+    SetActorLocationAndRotation(Ground.CentreCm, FRotator(0, float(Ground.Heading) / 256.f * 360.f, 0));
+    ExpiresAtServerSec = SampledAtServerSec + double(Ground.RemainingMs) / 1000.;
+    LifeSeconds = FMath::Max(double(Ground.LifeMs) / 1000., .05);
+    if (bShape)
+    {
+        if (!KindTint || !SeatTint)
+        {
+            UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
+            if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
+            KindTint = UMaterialInstanceDynamic::Create(Material, this);
+            SeatTint = UMaterialInstanceDynamic::Create(Material, this);
+            Lines->SetMaterial(0, KindTint);
+            Rim->SetMaterial(0, SeatTint);
+        }
+        KindTint->SetVectorParameterValue(TEXT("Tint"), KindColor(Ground.Kind));
+        SeatTint->SetVectorParameterValue(TEXT("Tint"), Ground.OwnerSeat < LDObservation::MaxPresentations
+            ? ULDHumanoidVisualComponent::ContenderTint(Ground.OwnerSeat) : FLinearColor(.6f, .6f, .6f));
+        TArray<TPair<FVector,FVector>> Segments;
+        Pattern(Ground, Segments);
+        Lines->ClearInstances();
+        for (const TPair<FVector,FVector>& Segment : Segments) { Lines->AddInstance(SegmentTransform(Segment.Key, Segment.Value, 7.)); }
+        Outline(Ground, RimPoints);
+        ShownOutline = -1;
+    }
+    Shown = Ground;
+    bShown = true;
+    Present(SampledAtServerSec);
+}
+
+void ALDObservedGroundProxy::Present(double AtServerSec)
+{
+    if (!bShown || RimPoints.Num() < 2) { return; }
+    // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
+    const double Left = FMath::Clamp((ExpiresAtServerSec - AtServerSec) / LifeSeconds, 0., 1.);
+    const int32 Segments = RimPoints.Num() - 1;
+    const int32 Keep = FMath::Clamp(FMath::CeilToInt(Left * Segments), 0, Segments);
+    if (Keep == ShownOutline) { return; }
+    ShownOutline = Keep;
+    Rim->ClearInstances();
+    for (int32 Index = 0; Index < Keep; ++Index) { Rim->AddInstance(SegmentTransform(RimPoints[Index], RimPoints[Index + 1], 5.)); }
+}
+
 ALDObservedProjectileProxy::ALDObservedProjectileProxy()
 {
     bReplicates = false;
@@ -814,6 +997,8 @@ void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
     Proxies.Empty();
     for (auto& Pair : ProjectileProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
     ProjectileProxies.Empty();
+    for (auto& Pair : GroundProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
+    GroundProxies.Empty();
     if (IsValid(OwnMarker)) { OwnMarker->Destroy(); }
     OwnMarker = nullptr;
     Super::EndPlay(Reason);
@@ -1072,6 +1257,30 @@ void ALDWorldViewRelay::SyncProxies()
             if (IsValid(Proxy)) { Proxy->Apply(Projectile, Snapshot.Frame->SampledAtServerSec); }
         }
     }
+    // Ground states are public facts of the current frame only: any other view removes them.
+    TSet<uint8> Grounds;
+    if (bCurrent)
+    {
+        for (const FLDObservedGroundState& Ground : Snapshot.Frame->GroundStates)
+        {
+            Grounds.Add(Ground.Id);
+            TObjectPtr<ALDObservedGroundProxy>& Proxy = GroundProxies.FindOrAdd(Ground.Id);
+            if (!IsValid(Proxy))
+            {
+                FActorSpawnParameters Params;
+                Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Proxy = GetWorld()->SpawnActor<ALDObservedGroundProxy>(ALDObservedGroundProxy::StaticClass(),
+                    FTransform(Ground.CentreCm), Params);
+            }
+            if (IsValid(Proxy)) { Proxy->Apply(Ground, Snapshot.Frame->SampledAtServerSec); }
+        }
+    }
+    for (auto It = GroundProxies.CreateIterator(); It; ++It)
+    {
+        if (Grounds.Contains(It.Key())) { continue; }
+        if (IsValid(It.Value())) { It.Value()->Destroy(); }
+        It.RemoveCurrent();
+    }
     const double Local = FPlatformTime::Seconds();
     for (auto It = ProjectileProxies.CreateIterator(); It; ++It)
     {
@@ -1088,6 +1297,7 @@ void ALDWorldViewRelay::PresentProxies(float Delta)
     const double Local = FPlatformTime::Seconds();
     const double At = PresentationAt(Local);
     for (auto& Pair : Proxies) { if (IsValid(Pair.Value)) { Pair.Value->Present(At, Delta); } }
+    for (auto& Pair : GroundProxies) { if (IsValid(Pair.Value)) { Pair.Value->Present(At); } }
     for (auto It = ProjectileProxies.CreateIterator(); It; ++It)
     {
         ALDObservedProjectileProxy* Flight = It.Value();

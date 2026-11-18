@@ -18,7 +18,8 @@ class ALDGameState;
 namespace LDWorldFeedback
 {
     // DealtConfirm: the own receipt of a hit the own body landed (LDHitFeel), shown as a short word in front of it.
-    enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast, DealtConfirm };
+    enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast, DealtConfirm,
+        UnitReaction };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
@@ -85,6 +86,9 @@ namespace LDWorldFeedback
             // The unit's cue (ELDObservedActionCue), its age and cast ability in that frame, so a new cast is told apart.
             uint8 Cue=0;
             uint16 CueAgeMs=0;
+            // The unit's reaction cue in that frame (spec §12: a new one floats its name).
+            uint8 Reaction=0;
+            uint16 ReactionAgePlusOneMs=0;
             uint8 Ability=0;
         };
         void Reset(uint32 InMatch);

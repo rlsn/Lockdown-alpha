@@ -185,6 +185,7 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
         Next.Handle=Unit.Handle;Next.Epoch=Unit.ObservationEpoch;Next.bCamp=Unit.Kind==ELDObservedUnitKind::CampMember;
         Next.HPP2=Unit.Health.CurrentP2;Next.MaxP2=Unit.Health.MaxP2;Next.SampledAtSec=Frame->SampledAtServerSec;
         Next.Cue=uint8(Unit.ActionCue);Next.CueAgeMs=Unit.ActionCueAgeMs;Next.Ability=Unit.ActionAbility;
+        Next.Reaction=Unit.RecentReaction;Next.ReactionAgePlusOneMs=Unit.RecentReactionAgePlusOneMs;
         const FUnit* Last=bPrime?nullptr:Units.FindByPredicate([&Next](const FUnit& Known){return Known.Handle==Next.Handle&&Known.Epoch==Next.Epoch;});
         // A cast with a public ability shows its name once: when the cue turns to Cast, restarts (its age falls) or names
         // another ability. A unit first seen mid-cast only primes, like its health.
@@ -194,6 +195,13 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
             FEvent& Event=Out.AddDefaulted_GetRef();
             Event.Kind=EKind::UnitCast;Event.Amount=0;Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;
             Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=Next.bCamp && Sample.MonsterCastName?Sample.MonsterCastName(Unit.CreatureId):Sample.CastName?Sample.CastName(Next.Ability):FString();
+        }
+        // A reaction on a visible unit floats its name once: when its cue appears, restarts (its age falls) or names another.
+        if(Last&&Next.Reaction!=0&&(Last->Reaction!=Next.Reaction||Next.ReactionAgePlusOneMs<Last->ReactionAgePlusOneMs))
+        {
+            FEvent& Event=Out.AddDefaulted_GetRef();
+            Event.Kind=EKind::UnitReaction;Event.Amount=Next.Reaction;Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;
+            Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=LDTerms::ReactionTerm(Next.Reaction);
         }
         if(Last&&Last->MaxP2==Next.MaxP2&&Last->bCamp==Next.bCamp)
         {
@@ -225,6 +233,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::LevelUp: return LDTerms::LevelUp(Event.Level);
     case EKind::Kill: return LDTerms::KillFloat(Event.Name.IsEmpty()?FString(LDTerms::UnknownVictim):Event.Name);
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
+    case EKind::UnitReaction: return Event.Name+TEXT("！");
     case EKind::DealtConfirm: return LDHitFeel::Word(Event.HitFlags);
     }
     return FString();
@@ -317,8 +326,16 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::ShieldAbsorbed: return {LDHUDStyle::Shield,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::Experience: return {LDHUDStyle::ExperienceGain,LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
+    case LDWorldFeedback::EKind::UnitReaction: return {FLinearColor(1.f,.85f,.35f),LDHUDStyle::TypeTitle};
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
     }
+}
+// Spec §12: a reaction's name floats in the colour of the element that set it off (ELDCombatReaction 1..15).
+FLinearColor WorldFeedbackReactionInk(int64 Reaction)
+{
+    static const FLinearColor Fire(1.f,.45f,.12f),Water(.3f,.65f,1.f),Shock(.75f,.45f,1.f),Chill(.45f,.95f,1.f),Rot(.55f,.9f,.25f),Gust(.85f,.9f,.95f);
+    static const FLinearColor Inks[]={FLinearColor::White,Water,Shock,Shock,Chill,Rot,Gust,Chill,Rot,Gust,Chill,Rot,Gust,Rot,Gust,Gust};
+    return Reaction>0&&Reaction<int64(UE_ARRAY_COUNT(Inks))?Inks[Reaction]:FLinearColor::White;
 }
 bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience;}
 bool WorldFeedbackSameAnchor(const LDWorldFeedback::FEvent& First,const LDWorldFeedback::FEvent& Second)
@@ -642,7 +659,8 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
         const float Alpha=Progress<.6f?1.f:FMath::Clamp((1.f-Progress)/.4f,0.f,1.f);
         const FWorldFeedbackLook Look=WorldFeedbackLookOf(Floater.Event.Kind);
         const FSlateFontInfo Font=WorldFeedbackFont(Look.FontSize,TextScale,2,Alpha);
-        FLinearColor Ink=Look.Ink;Ink.A*=Alpha;
+        FLinearColor Ink=Floater.Event.Kind==LDWorldFeedback::EKind::UnitReaction?WorldFeedbackReactionInk(Floater.Event.Amount):Look.Ink;
+        Ink.A*=Alpha;
         float AlignX=.5f;
         if(bReward)
         {

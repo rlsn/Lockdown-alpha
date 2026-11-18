@@ -7,6 +7,7 @@
 class ULDHumanoidVisualComponent;
 class ULDFlightTrailComponent;
 class UStaticMeshComponent;
+class UInstancedStaticMeshComponent;
 class UStaticMesh;
 class UPrimitiveComponent;
 class ALDPlayerController;
@@ -290,6 +291,35 @@ private:
     bool bPlaced = false;
 };
 
+// Client-only presentation of one public ground state (spec §12): the kind's own line pattern in its colour (never colour
+// alone) and the owner's seat-coloured outline, which drains around the footprint as its life runs out. Two instanced
+// meshes per state; it never collides, blocks or hides anything.
+UCLASS()
+class LOCKDOWN_API ALDObservedGroundProxy : public AActor
+{
+    GENERATED_BODY()
+public:
+    ALDObservedGroundProxy();
+    void Apply(const FLDObservedGroundState& Ground, double SampledAtServerSec);
+    void Present(double AtServerSec);
+    static FLinearColor KindColor(uint8 Kind);
+    // The footprint outline (closed, local space) and the kind's pattern segments for a state of this shape.
+    static void Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out);
+    static void Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out);
+    int32 OutlineShown() const { return ShownOutline; }
+private:
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Lines;
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Rim;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> KindTint;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SeatTint;
+    FLDObservedGroundState Shown;
+    bool bShown=false;
+    double ExpiresAtServerSec=0, LifeSeconds=1;
+    TArray<FVector> RimPoints;
+    int32 ShownOutline=-1;
+    static FTransform SegmentTransform(const FVector& A, const FVector& B, double Thickness);
+};
+
 UCLASS()
 class LOCKDOWN_API ALDWorldViewRelay : public AActor
 {
@@ -309,6 +339,7 @@ public:
     int32 ProxyCount() const { return Proxies.Num(); }
     uint32 ImmediateHitCount() const { return AcceptedImmediateHits; }
     int32 ProjectileProxyCount() const { return ProjectileProxies.Num(); }
+    int32 GroundProxyCount() const { return GroundProxies.Num(); }
     // Display location (body centre) of a unit presented right now: its proxy's interpolated pose. False unless the
     // current frame lists this handle and epoch and its proxy is placed, so callers never label a hidden or stale unit.
     bool ReadPresentedLocation(const FGuid& Handle, uint32 ObservationEpoch, FVector& OutWorld) const;
@@ -370,6 +401,8 @@ private:
     TArray<FLDObservedClear> LastClears;
     UPROPERTY() TMap<FGuid,TObjectPtr<ALDObservedEntityProxy>> Proxies;
     UPROPERTY() TMap<FGuid,TObjectPtr<ALDObservedProjectileProxy>> ProjectileProxies;
+    // Public ground states of the current frame, by their observed id.
+    UPROPERTY() TMap<uint8,TObjectPtr<ALDObservedGroundProxy>> GroundProxies;
     UPROPERTY() TObjectPtr<ALDOwnBodyMarker> OwnMarker;
     UPROPERTY() TObjectPtr<UTexture2D> FogTexture;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> FogMaterial;

@@ -128,7 +128,8 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
-        << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep;
+        << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep
+        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -283,7 +284,8 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         || uint8(Unit.HitLook) > uint8(ELDObservedHitLook::Electric)
         || (Unit.HitFlags & ~HitFlagsMask) != 0
         || ((Unit.HitFlags & ShieldBroken) != 0 && (Unit.HitFlags & ShieldAbsorbed) == 0)
-        || Unit.RecentHitAgePlusOneMs > RecentHitWindowMs
+        || Unit.RecentHitAgePlusOneMs > RecentHitWindowMs || Unit.RecentReaction > 15
+        || (Unit.RecentReaction != 0) != (Unit.RecentReactionAgePlusOneMs != 0) || Unit.RecentReactionAgePlusOneMs > RecentReactionWindowMs
         || (Unit.RecentHitId.IsValid() != (Unit.RecentHitAgePlusOneMs != 0))
         || (Unit.RecentHitAgePlusOneMs == 0 && (Unit.HitLook != ELDObservedHitLook::None || Unit.HitFlags != 0))
         || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0)))

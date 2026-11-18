@@ -312,8 +312,10 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         return ConvertGroundAt(Foot,Kind,Applier,GustDirection,NowMs,Error);
     }
     // A reaction: the held element is consumed (firestorm keeps its fire, thunderstorm shocks again); the trigger is the new
-    // element's applier.
+    // element's applier. Observers float its name over the target.
     const FLDReactionRule Rule=LDCombatElements::RuleOf(Reaction,Terms);
+    Target.Cues.LastReaction=uint8(Reaction);
+    Target.Cues.LastReactionAtMs=NowMs;
     const FLDCombatBodyRef Primary{Target.Victim,Target.Identity};
     const int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms);
     const FGuid ReactionId=FGuid::NewGuid();

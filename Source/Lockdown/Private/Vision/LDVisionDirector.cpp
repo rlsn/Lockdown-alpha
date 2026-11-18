@@ -182,7 +182,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
         && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook && A.HitFlags == B.HitFlags
-        && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
+        && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0) && A.RecentReaction == B.RecentReaction
         && A.RecentHitId == B.RecentHitId
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
@@ -1219,6 +1219,10 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         Unit.RecentHitId = Facts.LastHitId;
         Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
             ? uint16(NowMs - Facts.LastHitAtMs + 1) : 0;
+        const bool bReaction = Facts.LastReaction != 0 && Facts.LastReactionAtMs > 0 && Facts.LastReactionAtMs <= NowMs
+            && NowMs - Facts.LastReactionAtMs < LDObservation::RecentReactionWindowMs;
+        Unit.RecentReaction = bReaction ? Facts.LastReaction : 0;
+        Unit.RecentReactionAgePlusOneMs = bReaction ? uint16(NowMs - Facts.LastReactionAtMs + 1) : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         if (Facts.ActionCue != ELDObservedActionCue::None)
         {
