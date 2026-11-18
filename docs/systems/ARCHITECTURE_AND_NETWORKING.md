@@ -437,7 +437,7 @@ Host（Listen Host 的权威代码）在试玩期记录完整权威信息：
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
 | `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/劲/护盾、等级、经验、待选、当前订单与目标点、正在前摇的动作、公开状态 |
-| `LD_CAST` | `LDGameModeTrace.cpp`，每次权威推进后 | 读 Combat 构筑台账的 `ability_casts`（每次成功释放 Q/W/E 记一次，二次施放也算一次；内置冲刺与私人训练不计），有新增时每名参赛者一行：权威时间、生命、本局累计次数 `casts` 与本次新增 `added`；没命中的释放也在内 |
+| `LD_CAST` | `LDGameModeTrace.cpp`，每次权威推进后与结果锁定时 | 读 Combat 构筑台账的 `ability_casts`（每次成功释放 Q/W/E 记一次，二次施放也算一次；内置冲刺与私人训练不计），有新增时每名参赛者一行：权威时间、生命、本局累计次数 `casts` 与本次新增 `added`；没命中的释放也在内。`t` 与 `life` 是提交该释放的那次推进结束时的值，最多晚一次推进（固定 60 FPS 约 17 ms），同一推进里先释放后阵亡的技能也可能记在死亡时刻之后 |
 | `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
 | `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级 |
 | `LD_REWARD` / `LD_LEVEL_UP` | `LDGrowthDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（`cause=death`/`map_event`/`dev_fixture`，`role=killer`/`assist`/`recipient`）、经验及其结余、等级变化、获得的三选一次数 |

@@ -259,8 +259,10 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             hit(11, 11000, b, a, "basic", "50.00"),
             line(12, "LogLDTrace", "Log", f"LD_CAST t=12000 contender={a} life=1 casts=3 added=2"),
             hit(12, 12000, a, b, "card:card_y16", "40.00"),
-            hit(12, 12000, a, b, "learned:active_zap", "60.00"),
+            # Commit order: the reaction resolves inside the triggering hit, whose LD_HIT follows, then the queued settle.
             line(12, "LogLDCombat", "Log", f"LD_REACTION t=12000 kind=Overload trigger={a} via=learned:active_zap primary={b} struck=1 r=60.00 fire_settles=0"),
+            hit(12, 12000, a, b, "learned:active_zap", "60.00"),
+            hit(12, 12000, a, b, "learned:active_zap", "60.00"),
             hit(13, 13000, a, b, "learned:active_zap", "600.00", "factor_bp=120000 factors=card_k06:5000,overdrive:6000"),
             line(13, "LogLDMatch", "Display", f"LD_DEATH_RECEIPT contender={b} life=1 respawn_at_ms=1 t=13000 killer={a} cause=Contender fatal=learned:active_zap fatal_body={a} assisters=- no_reward=None victim_level=1"),
             line(13, "LogLDCombat", "Log", f"LD_MOMENTUM entity={b} life=1 basic=20.00 combat=10.00 skill=0.00 reaction=0.00 dodge=15.00 other=0.00 idle=-5.00 spent=30.00 overdrive=0 end=60.00"),
@@ -268,23 +270,33 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             line(14, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=1 basic=0.00 combat=10.00 skill=45.00 reaction=10.00 dodge=0.00 other=0.00 idle=0.00 spent=100.00 overdrive=1 end=0.00"),
             line(14, "LogLDCombat", "Log", f"LD_PERFECT_DODGE t=11500 entity={b} life=1 effect=x source=y momentum=15.00"),
             # A rest-room training dummy is a contender-kind body outside the roster: never a contender for the metrics.
-            hit(15, 15000, a, HOST, "learned:active_zap", "700.00"),
+            hit(15, 15000, a, HOST, "learned:active_zap", "700.00", "factor_bp=900000 factors=card_k06:5000"),
+            # Rest-room training: A's rest life 0 (every heartbeat before the first field entry) and the dummy's own ledger.
+            line(16, "LogLDMatch", "Display", f"LD_TRAINING_DUMMY_SPAWN owner={a} dummy={HOST} level=1 slot=0"),
+            line(16, "LogLDMatch", "Display", "LD_FIELD_ENTER generation=4 segment=0 at_ms=5000 field_t_ms=0 final=0"),
+            line(16, "LogLDTrace", "Log", f"LD_HEARTBEAT t=1000 contender={a} phase=Alive life=0 pos=0,0,0"),
+            line(16, "LogLDTrace", "Log", f"LD_HEARTBEAT t=10000 contender={a} phase=Alive life=1 pos=0,0,0"),
+            line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=0 basic=500.00 combat=0.00 skill=0.00 reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=3 end=0.00"),
+            line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={HOST} life=1 basic=0.00 combat=0.00 skill=0.00 reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=0 end=50.00"),
+            line(16, "LogLDCombat", "Log", f"LD_PERFECT_DODGE t=2000 entity={a} life=0 effect=x source=y momentum=15.00"),
+            line(16, "LogLDCombat", "Log", f"LD_REACTION t=2000 kind=Melt trigger={a} via=learned:active_zap primary={HOST} struck=0 r=1.00 fire_settles=0"),
         ]
         (self.root / "P2.log").write_text("\n".join(rows) + "\n", encoding="utf-8")
         text = summarize(collect([str(self.root / "P2.log")]), metrics_only=True)
         self.assertNotIn("### Roster", text)
         self.assertNotIn("### Deaths", text)
         metrics = text.split("### Metrics (spec §16)")[1].split("## Metrics across")[0]
-        # 850 on contenders: skill 100 + 600, card 40, the Overload settle 60 (reaction), basic 50.
-        self.assertIn("hits on contenders: 850 dmg: basic 5.9%, skill 82.4%, card/component 4.7%, reaction 7.1%, other 0.0%", metrics)
+        # 910 on contenders: skill 100 + 60 (the trigger) + 600, card 40, the Overload settle 60 (reaction), basic 50.
+        self.assertIn("hits on contenders: 910 dmg: basic 5.5%, skill 83.5%, card/component 4.4%, reaction 6.6%, other 0.0%", metrics)
         # A's fight holds its three releases; B's fight its one (it died at 13000).
         self.assertIn("Casts per person per fight (Q/W/E releases): n=2 mean 2.0 median 2.0 min 1.0 max 3.0", metrics)
         self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 2.9 s", metrics)
-        self.assertIn("Momentum income: 110 over 2 lives (basic 18.2%, combat 18.2%, skill 40.9%, reaction 9.1%, dodge 13.6%, "
-                      "other 0.0%); idle drift -5, spent 130, overdrives 1, perfect dodges 1", metrics)
-        # A dealt 800 in 3.0 s of fight (10000..13000); the L1 bare build would deal 72 x 3.0 = 216.
+        self.assertIn("Momentum income: 110 over 2 field lives (basic 18.2%, combat 18.2%, skill 40.9%, reaction 9.1%, dodge 13.6%, "
+                      "other 0.0%); idle drift -5, spent 130, overdrives 1, perfect dodges 1 "
+                      "(3 rest-training ledger/dodge lines left out)", metrics)
+        # A dealt 860 in 3.0 s of fight (10000..13000); the L1 bare build would deal 72 x 3.0 = 216.
         self.assertIn("Breakout builds (output / same-level bare build >= 3, baseline spec §3.9 estimate", metrics)
-        self.assertIn("): 1 (A x3.70, B x0.24)", metrics)
+        self.assertIn("): 1 (A x3.98, B x0.24)", metrics)
         self.assertIn("Outrageous hits (>= 60% of the target's max HP): 1", metrics)
         self.assertIn("Longest chain: 6 steps (1 of 1 chains >= 5)", metrics)
         self.assertIn("Damage factors: 6 hits, max factor_bp 120000; sources card_k06 2, overdrive 1", metrics)
@@ -296,9 +308,14 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("Cards pick rate (picked / offered), 3 ids, 2 below 4%:", across)
         self.assertIn("| card_k06 | 1 | 1 | 100.0% |", across)
         self.assertIn("Actives pick rate: no data (none offered)", across)
+        # With an older Host's match beside it, casts come only from the match that has LD_CAST lines.
+        mixed = summarize(collect([str(self.root / "P2.log"), str(self.root / "Host.log")]), metrics_only=True)
+        across = mixed.split("## Metrics across 2 matches with Host lines")[1]
+        self.assertIn("| Casts per person per fight, any level | — | n=2 mean 2.0", across)
+        self.assertIn("Casts leave out 1 matches without LD_CAST lines.", across)
         # A measured baseline replaces the estimate and is named in the report.
         measured = summarize(collect([str(self.root / "P2.log")]), baseline=parse_baseline("1=300"), metrics_only=True)
-        self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.89, B x0.06)", measured)
+        self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.96, B x0.06)", measured)
 
     def test_baseline_points_interpolate_and_extend(self):
         points = parse_baseline("10=154,1=72")

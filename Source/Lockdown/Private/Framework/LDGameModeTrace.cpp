@@ -142,7 +142,9 @@ void ALDGameMode::LogPlaytestCasts()
 {
     // Combat counts one ability_casts fact per successful Q/W/E release of a match life, a recast included (the innate dash
     // and private training count nothing); this reads that count and writes what is new since the last advance, so a
-    // release that hits nothing is still on record.
+    // release that hits nothing is still on record. t and life are the authority time and life at the end of the advance
+    // that committed the release (at most one advance after it); the result lock writes the last advance's releases.
+    if (!UE_LOG_ACTIVE(LogLDTrace, Log) || !Combat) { return; }
     const FLDBuildLedger& Ledger = Combat->GetBuildLedger();
     for (const FGuid& Id : RosterOrder)
     {

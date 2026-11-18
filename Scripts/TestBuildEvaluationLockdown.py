@@ -818,13 +818,14 @@ class EvidenceTest(AdapterCase):
                  f"LD_CAST t=9000 contender={S} life=2 casts=2 added=1",
                  f"LD_CAST t=11500 contender={O} life=2 casts=1 added=1",
                  f"LD_CAST t=12000 contender={S} life=2 casts=4 added=2",
+                 f"LD_CAST t=20017 contender={O} life=2 casts=2 added=1",  # the outcome's own advance
                  f"LD_CAST t=21000 contender={S} life=2 casts=5 added=1")  # after the outcome
         out = self.evidence(text=trace(*casts))
         self.assertEqual(out["status"], "Completed", out["reason"])
         # The first hit between the duelists lands at 10000, the opponent dies at 20000.
         self.assertEqual(out["metrics"]["engage_to_kill_ms"], {"value": 10000, "censored": False})
         self.assertEqual(out["metrics"]["subject_casts"], {"value": 3, "censored": False})
-        self.assertEqual(out["metrics"]["opponent_casts"], {"value": 1, "censored": False})
+        self.assertEqual(out["metrics"]["opponent_casts"], {"value": 2, "censored": False})
         value = result(kind="timeout", ended_at_ms=50000)
         value["contenders"][1] = contender("opponent", 1, O, hp=10000)
         timeout = self.evidence(value, trace(*casts, drop=("lethal", "death", "death_reward")))

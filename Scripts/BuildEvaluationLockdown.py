@@ -40,6 +40,7 @@ NATIVE_RUN_SCHEMA = "lockdown.build_evaluation.native_run"
 NATIVE_INPUT_SCHEMA_VERSION = 5
 NATIVE_RESULT_SCHEMA_VERSION = 6
 SEED_DERIVATION = 1
+CAST_LAG_MS = 50
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
@@ -109,9 +110,11 @@ METRICS = {
                                          "death (time to kill), censored at the duel timeout (counted from the duel start when "
                                          "no hit landed)"},
     "subject_casts": {"unit": "casts", "kind": "continuous", "direction": "descriptive",
-                      "description": "the subject's Q/W/E releases (LD_CAST) from first-field entry to the outcome"},
+                      "description": "the subject's Q/W/E releases (LD_CAST) from first-field entry to the outcome "
+                                     "(and the outcome's own advance, at most 50 ms later)"},
     "opponent_casts": {"unit": "casts", "kind": "continuous", "direction": "descriptive",
-                       "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome"},
+                       "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome "
+                                      "(and the outcome's own advance, at most 50 ms later)"},
 }
 
 
@@ -1200,7 +1203,8 @@ def case_evidence(case, manifest, caps, result, trace_text):
         if tag == "LD_CAST" and row.get("contender") in duelists:
             if not row.get("t", "").isdigit() or not row.get("added", "").isdigit() or int(row["added"]) < 1:
                 reasons.append("TraceIncomplete: LD_CAST has no valid authority time or count")
-            elif t0 <= int(row["t"]) <= t_out:
+            # LD_CAST carries the end of the advance that committed the release (at most one 60 FPS advance later).
+            elif t0 <= int(row["t"]) <= t_out + CAST_LAG_MS:
                 casts[roles[row["contender"]]] += int(row["added"])
     # A duelist's skill hit proves a Q/W/E release; a trace without any LD_CAST then comes from a Host build that predates
     # the cast trace, and its cast counts would be zeros of the wrong shape.

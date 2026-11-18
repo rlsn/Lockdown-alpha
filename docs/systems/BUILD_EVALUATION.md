@@ -273,7 +273,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 | `subject_hp_end_bp` | Case 结束时主体生命比例（死亡为 0）；时限可能落在两帧之间，终态是探针结束时的帧状态，不是精确时限快照 |
 | `decision_time_ms` | 第一野外段入口到第一名对决者死亡，到时删失 |
 | `engage_to_kill_ms` | 双方之间第一条已提交命中到第一名对决者死亡（击杀时间），到时删失；没有命中时从第一野外段入口算 |
-| `subject_casts` / `opponent_casts` | 第一野外段入口至结果时该方的 Q/W/E 释放次数（`LD_CAST added` 之和，见[运行日志合同](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)） |
+| `subject_casts` / `opponent_casts` | 第一野外段入口至结果（含结果所在的那次推进，至多 50 ms）该方的 Q/W/E 释放次数（`LD_CAST added` 之和，见[运行日志合同](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)） |
 
 轨迹里有对决者的技能命中（`via=learned:`）却没有任何 `LD_CAST` 行时判 `TraceIncomplete`：这是缺少施法行的旧 Host 构建，
 不能把施法次数记成 0。`LD_CAST` 缺时间、`added` 小于 1 同样判 `TraceIncomplete`。
