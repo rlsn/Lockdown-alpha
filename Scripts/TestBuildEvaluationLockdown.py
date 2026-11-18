@@ -264,7 +264,7 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
         self.assertEqual(lockdown.level_for(self.content["progression"], 180), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 179, 180, 599, 600)], [1, 2, 2, 3, 3])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 47, 48, 179, 180)], [1, 1, 2, 2, 3])
 
 
 class PlanTest(AdapterCase):
@@ -321,8 +321,8 @@ class PlanTest(AdapterCase):
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
         self.assertTrue(any("has 2 rules but its supply of 600 XP gives 3 active opportunities" in item for item in needs["problems"]))
-        needs = self.requirements({"choices": ["ai_select"] * 2}, supply=180)
-        self.assertEqual(needs["problems"], [], "180 XP gives the opening opportunity and the level-3 one")
+        needs = self.requirements({"choices": ["ai_select"] * 2}, supply=108)
+        self.assertEqual(needs["problems"], [], "108 XP gives the opening opportunity and the level-2 one")
         needs = self.requirements({"choices": [{"rule": "definition", "definition": "active_stare_down"}, "ai_select", "ai_select"]})
         self.assertTrue(any("ordinal 1 can never offer active_stare_down" in item for item in needs["problems"]))
         needs = self.requirements({"choices": ["ai_select", {"rule": "definition", "definition": "active_stare_down"}, "ai_select"]})
@@ -436,7 +436,7 @@ class PlanTest(AdapterCase):
             "takes no element": plan([*build[:1], {**build[1], "element": "fire"}, *build[2:]]),
             "no copy of card_thick_hide is installed": plan([*build[:4], {"step": "uninstall", "at": "field",
                                                                           "card": "card_thick_hide"}, build[5]]),
-            "holds 7 cards": plan([*build[:4], *[{"step": "install", "at": "field", "card": name, "target": place}
+            "holds 6 cards": plan([*build[:4], *[{"step": "install", "at": "field", "card": name, "target": place}
                                                   for name, place in (("card_third_breath", "basic"), ("card_double_dash", "dash"),
                                                                       ("card_thick_hide", "body"), ("card_spiky_hide", "body"),
                                                                       ("card_spiky_hide", "body"))], build[5]]),

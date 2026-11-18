@@ -111,6 +111,8 @@ struct FLDDemoCardParameters
     UPROPERTY() int32 VocabWeight = 0;
     // Spec §3.13: vouchers for skipping one card offer.
     UPROPERTY() int32 SkipVouchers = 0;
+    // #305: the idle time Y22 and K16 may carry into a fight (CARDS.IdleCarrySec); they count nothing else outside one.
+    UPROPERTY() int64 IdleCarryMs = 0;
 };
 
 // Spec §3.13 vouchers (饭票): what each source pays (the last hit that clears a camp of each tier, the Boss's last hit, a

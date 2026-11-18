@@ -35,9 +35,9 @@ bool FLDMomentumIncomeTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoMomentumParameters& P = Catalog->Get().Parameters.Momentum;
-    TestTrue(TEXT("The approved incomes: basic 10 per 1.334 s, skill hit 5, reaction 10, perfect dodge 15, combat 3/s"),
+    TestTrue(TEXT("The approved incomes: basic 10 per 1.334 s, skill hit 5, reaction 10, perfect dodge 15, combat 5/s"),
         P.BasicPerRefP2 == 1000 && P.BasicRefIntervalMs == 1334 && P.SkillHitP2 == 500 && P.ReactionP2 == 1000
-        && P.PerfectDodgeP2 == 1500 && P.CombatPerSec.Numerator == 3 * P.CombatPerSec.Denominator);
+        && P.PerfectDodgeP2 == 1500 && P.CombatPerSec.Numerator == 5 * P.CombatPerSec.Denominator);
     TestEqual(TEXT("A basic at the reference interval gains the reference amount"), LDMomentum::BasicGainP2(P, 1334), int64(1000));
     // Momentum per second from basics does not depend on attack speed: faster swings gain less each.
     const double Reference = double(LDMomentum::BasicGainP2(P, 1334)) * 1000. / 1334.;
@@ -94,8 +94,8 @@ bool FLDMomentumIdleTest::RunTest(const FString& Parameters)
     const FLDDemoRational Rate = P.CombatPerSec;
     FString Error;
     int64 Bar = 4000, Remainder = 0, Combat = 0, Idle = 0;
-    TestTrue(TEXT("One second in combat gains 3"), LDMomentum::Settle(P, Rate, TOptional<int64>(0), 0, 1000, Bar, Remainder, Combat, Idle, Error)
-        && Bar == 4300 && Combat == 300 && Idle == 0);
+    TestTrue(TEXT("One second in combat gains 5"), LDMomentum::Settle(P, Rate, TOptional<int64>(0), 0, 1000, Bar, Remainder, Combat, Idle, Error)
+        && Bar == 4500 && Combat == 500 && Idle == 0);
     TestTrue(TEXT("The combat window is half-open: idle from IdleDelaySec after the last combat event"),
         LDMomentum::InCombat(P, TOptional<int64>(0), P.IdleDelayMs - 1) && !LDMomentum::InCombat(P, TOptional<int64>(0), P.IdleDelayMs)
         && !LDMomentum::InCombat(P, TOptional<int64>(), 0));
@@ -148,8 +148,8 @@ bool FLDOverdriveReadyTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoOverdriveParameters& O = Catalog->Get().Parameters.Overdrive;
-    TestTrue(TEXT("Overdrive needs the whole bar: 100"), O.ThresholdP2 == 10000 && !LDMomentum::OverdriveReady(O, 9999)
-        && LDMomentum::OverdriveReady(O, 10000));
+    TestTrue(TEXT("Overdrive needs 60 momentum"), O.ThresholdP2 == 6000 && !LDMomentum::OverdriveReady(O, 5999)
+        && LDMomentum::OverdriveReady(O, 6000));
     TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 300 && O.ScaleBp == 16000 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
         && O.WaterSlowMs == 1500 && O.ShockReactionBp == 5000 && O.RotDurationBp == 20000);
     return true;

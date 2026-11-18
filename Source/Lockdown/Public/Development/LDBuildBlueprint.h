@@ -12,9 +12,12 @@ struct FLDDemoContentDefinitions;
 namespace LDBuildBlueprint
 {
     inline constexpr TCHAR Schema[] = TEXT("lockdown.build-blueprint");
-    inline constexpr int32 SchemaVersion = 3;
+    inline constexpr int32 SchemaVersion = 4;
     inline constexpr TCHAR Extension[] = TEXT(".ldbuild.json");
     inline constexpr TCHAR OriginAuto[] = TEXT("auto");
+    // #305: the stored text of a skill branch path ("" for rank 1) and back; false for an unknown text.
+    LOCKDOWN_API FString BranchText(ELDSkillBranch Branch);
+    LOCKDOWN_API bool ParseBranch(const FString& Text, ELDSkillBranch& Out);
     inline constexpr TCHAR OriginExport[] = TEXT("export");
     inline constexpr TCHAR ModeDemo[] = TEXT("demo");
     // One file at most; a larger record is never truncated (the automatic save fails instead).
@@ -70,7 +73,10 @@ struct FLDBlueprintActive
     // "Q", "W" or "E".
     FString Slot;
     FString Ability;
-    bool operator==(const FLDBlueprintActive& Other) const { return Slot == Other.Slot && Ability == Other.Ability; }
+    // #305: the skill branch path taken ("" at rank 1, then "2A", "2B", "3A1", "3A2", "3B1" or "3B2").
+    FString Branch;
+    bool operator==(const FLDBlueprintActive& Other) const
+    { return Slot == Other.Slot && Ability == Other.Ability && Branch == Other.Branch; }
 };
 
 // One installed card: its definition, where it sits (basic, skill, dash or body), the skill it sits on and a chosen element

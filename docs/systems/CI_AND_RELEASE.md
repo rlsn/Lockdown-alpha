@@ -65,14 +65,15 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
   每次发布都在 `main` 最新提交之上本地提交 `chore: release version X`（写入版本与 `bReleaseBuild=True`），打包这个提交。
   它不推送到 `main`（`main` ruleset 要求 PR，个人仓库也无法把 GitHub Actions 加入 bypass），
   只随 tag `vX` 推送；所以包内版本、清单与 tag 一致，`main` 上的 ini 保持基础版本，已发布的版本以 tag 为准。
-- 增量 `BuildEditor.ps1`、`RunTests.ps1 -Full -ImportTests Run`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
+- 增量 `BuildEditor.ps1`、`RunTests.ps1 -Full -ImportTests Run`、编辑器版连打 3 局 AI 对局（`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount 3`，
+  随机热点、牌与词条下出现权威故障或任何错误日志即失败）、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
   把 Archive、manifest、`Package.log` 与 `README.txt` 启动说明打成 `Lockdown-vX-win64.zip`，
   调试符号 `Lockdown.pdb`（约占解压后包体的三分之一）不进主包，按原相对路径单独打成 `Lockdown-vX-win64-symbols.zip`，
   解压到同一目录即位于 exe 旁；本地 `PackageWin64.ps1` 的输出仍保留它。
   推送 tag `vX` 并以这两个文件发布为 Release `vX`；发布失败时撤回刚推送的 tag，重跑会再次发布。
   随后只保留最新两个 `vX.Y.Z` Release，更早的删除但保留 tag：tag 保存已发布的提交，也是下一个版本号的依据。
 - 产品版本参与加入房间的校验，试玩时所有玩家需使用同一个 Release。
-该包不跑任何 `RunDemo*Check` 场景，不能代替里程碑验收。
+该包本身不跑任何 `RunDemo*Check` 场景（AI 对局在编辑器版上），不能代替里程碑验收。
 
 runner 不装成服务，只在手动打开期间接任务；关闭期间排队的运行在 GitHub 上最多等待 24 小时。
 一台 runner 同时只跑一个任务，Start 在本机已有任何 runner 进程时拒绝启动，

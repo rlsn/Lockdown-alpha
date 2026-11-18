@@ -53,33 +53,33 @@ ACTIVE_IDS = ("active_elbow", "active_pants_down", "active_crotch_grab", "active
               "active_school_bag")
 # (target mode, range cm or None, windup s, momentum cost, cooldown s, in the opening pool).
 ACTIVE_FRAMES = {
-    "active_elbow": ("Unit", 220, r(".15"), 25, 6, True),
-    "active_pants_down": ("Unit", 400, r(".2"), 30, 9, True),
-    "active_crotch_grab": ("Unit", 200, r(".2"), 35, 10, True),
-    "active_account_banned": ("Unit", 600, r(".25"), 30, 9, True),
-    "active_unplug": ("Unit", 300, r(".2"), 25, 8, True),
-    "active_snark_bolt": ("DirectionProjectile", 850, r(".2"), 30, 6, True),
-    "active_seethe": ("Self", None, r(".25"), 30, 7, True),
-    "active_quick_meeting": ("GroundPoint", 650, r(".25"), 35, 8, True),
-    "active_hose_down": ("DirectionLine", 600, r(".2"), 25, 7, True),
-    "active_zap": ("Unit", 650, r(".25"), 30, 7, True),
-    "active_bail_out": ("DirectionDash", None, 0, 20, 7, True),
-    "active_apology_slide": ("DirectionDash", None, r(".15"), 25, 8, True),
-    "active_charged_ram": ("DirectionDash", None, r(".1"), 30, 9, True),
-    "active_not_mad": ("Self", None, 0, 25, 10, False),
-    "active_stare_down": ("Self", None, r(".2"), 30, 12, False),
-    "active_brace": ("Self", None, r(".1"), 25, 12, False),
-    "active_triple_combo": ("Self", None, 0, 20, 9, True),
-    "active_calculus_drop": ("GroundPoint", 650, r(".25"), 35, 8, True),
-    "active_flyer_trap": ("GroundPoint", 550, r(".15"), 30, 9, False),
-    "active_dirty_puddle": ("GroundPoint", 600, r(".25"), 30, 9, True),
-    "active_sock_shot": ("DirectionProjectile", 750, r(".15"), 30, 8, True),
-    "active_open_mic": ("DirectionCone", 450, r(".2"), 30, 7, True),
+    "active_elbow": ("Unit", 220, r(".15"), 25, r("4.2"), True),
+    "active_pants_down": ("Unit", 400, r(".2"), 30, r("6.3"), True),
+    "active_crotch_grab": ("Unit", 200, r(".2"), 35, 7, True),
+    "active_account_banned": ("Unit", 600, r(".25"), 30, r("6.3"), True),
+    "active_unplug": ("Unit", 300, r(".2"), 25, r("5.6"), True),
+    "active_snark_bolt": ("DirectionProjectile", 850, r(".2"), 30, r("4.2"), True),
+    "active_seethe": ("Self", None, r(".25"), 30, r("4.9"), True),
+    "active_quick_meeting": ("GroundPoint", 650, r(".25"), 35, r("5.6"), True),
+    "active_hose_down": ("DirectionLine", 600, r(".2"), 25, r("4.9"), True),
+    "active_zap": ("Unit", 650, r(".25"), 30, r("4.9"), True),
+    "active_bail_out": ("DirectionDash", None, 0, 20, r("4.9"), True),
+    "active_apology_slide": ("DirectionDash", None, r(".15"), 25, r("5.6"), True),
+    "active_charged_ram": ("DirectionDash", None, r(".1"), 30, r("6.3"), True),
+    "active_not_mad": ("Self", None, 0, 25, 7, False),
+    "active_stare_down": ("Self", None, r(".2"), 30, r("8.4"), False),
+    "active_brace": ("Self", None, r(".1"), 25, r("8.4"), False),
+    "active_triple_combo": ("Self", None, 0, 20, r("6.3"), True),
+    "active_calculus_drop": ("GroundPoint", 650, r(".25"), 35, r("5.6"), True),
+    "active_flyer_trap": ("GroundPoint", 550, r(".15"), 30, r("6.3"), False),
+    "active_dirty_puddle": ("GroundPoint", 600, r(".25"), 30, r("6.3"), True),
+    "active_sock_shot": ("DirectionProjectile", 750, r(".15"), 30, r("5.6"), True),
+    "active_open_mic": ("DirectionCone", 450, r(".2"), 30, r("4.9"), True),
     # Issue #287 P4 N1-N3 (N1 and N3 open).
-    "active_cola_shake": ("DirectionCone", 400, r(".15"), 25, 6, True),
-    "active_desk_fan": ("GroundPoint", 500, r(".2"), 35, 10, False),
-    "active_stale_takeout": ("DirectionProjectile", 700, r(".2"), 30, 8, True),
-    "active_school_bag": ("GroundPoint", 450, r(".2"), 30, 11, False),
+    "active_cola_shake": ("DirectionCone", 400, r(".15"), 25, r("4.2"), True),
+    "active_desk_fan": ("GroundPoint", 500, r(".2"), 35, 7, False),
+    "active_stale_takeout": ("DirectionProjectile", 700, r(".2"), 30, r("5.6"), True),
+    "active_school_bag": ("GroundPoint", 450, r(".2"), 30, r("7.7"), False),
 }
 
 
@@ -301,11 +301,11 @@ class ApprovedDemoData(unittest.TestCase):
     def test_every_approved_parameter_value_and_unit(self):
         expected = {}
         for stat, unit, values in (
-            ("MaxHP", "hp", ("860", "80", "1", "3000")),
-            ("AD", "points", ("70", "3.2", "0", "250")),
-            ("AP", "points", ("0", "0", "0", "300")),
-            ("Armor", "points", ("18", "2", "0", "200")),
-            ("MagicResist", "points", ("18", "2", "0", "200")),
+            ("MaxHP", "hp", ("860", "80", "1", "20000")),
+            ("AD", "points", ("70", "3.2", "0", "2000")),
+            ("AP", "points", ("0", "0", "0", "3000")),
+            ("Armor", "points", ("18", "2", "0", "1000")),
+            ("MagicResist", "points", ("18", "2", "0", "1000")),
             ("HPRegen", "hp/s", ("1.60", "0.12", "0", "12")),
         ):
             for suffix, value in zip(("Base", "PerLevel", "Min", "Max"), values):
@@ -318,18 +318,18 @@ class ApprovedDemoData(unittest.TestCase):
             # Momentum, combo, overdrive and skill ranks (issue #287 spec §3.3-§3.6, approved with every P1 number).
             ("SKILL.GrowthPerLevel", "ratio", ".04"), ("SKILL.CooldownFloorSec", "ms", ".3"),
             ("MOMENTUM.Max", "momentum", "100"), ("MOMENTUM.Start", "momentum", "50"),
-            ("MOMENTUM.CombatPerSec", "momentum/s", "3"), ("MOMENTUM.BasicPerRefInterval", "momentum", "10"),
+            ("MOMENTUM.CombatPerSec", "momentum/s", "5"), ("MOMENTUM.BasicPerRefInterval", "momentum", "10"),
             ("MOMENTUM.BasicRefIntervalSec", "ms", "1.334"), ("MOMENTUM.SkillHit", "momentum", "5"),
             ("MOMENTUM.Reaction", "momentum", "10"), ("MOMENTUM.PerfectDodge", "momentum", "15"),
             ("MOMENTUM.PerfectDodgeWindowSec", "ms", ".3"), ("MOMENTUM.IdleDelaySec", "ms", "5"),
             ("MOMENTUM.IdleReturnPerSec", "momentum/s", "10"), ("COMBO.ResetSec", "ms", "1.5"),
-            ("OVERDRIVE.Threshold", "momentum", "100"), ("OVERDRIVE.HoldSec", "ms", ".3"), ("OVERDRIVE.Scale", "ratio", "1.6"),
+            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".3"), ("OVERDRIVE.Scale", "ratio", "1.6"),
             ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("OVERDRIVE.GustPushCm", "cm", "300"), ("OVERDRIVE.GustPushSec", "ms", ".25"),
             ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", ".25"),
             ("AI.CardSkipChance", "ratio", ".3"),
-            ("CHAIN.EndSec", "ms", "3"),
+            ("CHAIN.EndSec", "ms", "3"), ("CARDS.IdleCarrySec", "ms", "5"),
             ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
@@ -402,7 +402,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.KeystoneAgilityEmpowerDurationSec", "ms", "3"),
             # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
             ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"),
-            ("COMBAT.ReactionBase", "points", "30"), ("COMBAT.ReactionPerLevel", "points", "1.5"),
+            ("COMBAT.ReactionBase", "points", "30"), ("COMBAT.ReactionPerLevel", "points", "4"),
             ("COMBAT.ReactionAPRatio", "ratio", ".25"), ("COMBAT.FogRadiusCm", "cm", "250"), ("COMBAT.FogSec", "ms", "3"),
             ("COMBAT.FogIntervalSec", "ms", "1"), ("COMBAT.ConductRadiusCm", "cm", "450"), ("COMBAT.ConductSlow", "ratio", ".3"),
             ("COMBAT.ConductSlowSec", "ms", "1.5"), ("COMBAT.OverloadRadiusCm", "cm", "200"),
@@ -480,7 +480,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("EXPLORE.VendingDrinkHits", 5),
             ("GROWTH.KeystoneThresholdPoints", 18),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
-            ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 5), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
+            ("CARDS.CapacityBase", 4), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
             ("CARDS.RerollsPerRest", 1), ("CARDS.LockSlots", 1), ("CARDS.VocabWeight", 2),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): vouchers, the rest shop, chain ends and the AI's skip.
@@ -666,7 +666,7 @@ class ApprovedDemoData(unittest.TestCase):
                          {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap", "active_desk_fan",
                           "active_school_bag"})
         self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 20)
-        self.assertEqual(self.data["progression"]["active_offer_levels"], (3, 6))
+        self.assertEqual(self.data["progression"]["active_offer_levels"], (2, 4))
         self.assertEqual(set(self.data["progression"]),
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
 

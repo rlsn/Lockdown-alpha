@@ -295,7 +295,7 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 | --- | --- |
 | `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | `PrepareExperience`：严格递增阈值、逐级跨阈值、16 级 MAX、无 17 级阈值 |
 | `REWARD.PlayerXP`、`CAMP.*.RewardXP` | `CommitDeathReward`；每成员每 Life 一次 |
-| `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints`、`active_offer_levels`、`abilities[].opening` | 点数派生、开局与 3/6 级机会、无放回抽样与排除 |
+| `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints`、`active_offer_levels`、`abilities[].opening` | 点数派生、开局与 2/4 级机会、无放回抽样与排除 |
 | `GROWTH.BuildSafeWindowSec` | Combat 交战窗口，只供 HUD 折叠，不限制成长命令 |
 | `stats[].per_point` | Combat 最终投影 |
 | `POLICY.MissingSourceCooldown=ContinueServerTime`、`POLICY.DeadChoiceCommit=Allowed`、`POLICY.ResourceMaxChange=PreserveRatio` | 失源/重学/死亡计时；死亡中成长只改持久 Build、不治疗；活体一次最终同比换算（`FORMULA.ResourceMaxChange=FloorFinalRatioRejectAliveUnderflow`） |
@@ -304,7 +304,7 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 
 `RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowth*` 覆盖：线编码与旧族/旧原因的拒绝（`DemoGrowthWire`）、请求窗口
 （`DemoGrowthRequests`）、等级/点数派生（含满级后的每 240 XP 点数）/机会/种子（`DemoGrowthProgression`）、
-开局机会与开局点数及 3、6 级机会（`DemoGrowthOpening`）、候选池与开局池排除、合格不足与空池排队（`DemoGrowthOpeningPool`）、
+开局机会与开局点数及 2、4 级机会（`DemoGrowthOpening`）、候选池与开局池排除、合格不足与空池排队（`DemoGrowthOpeningPool`）、
 本人视图白名单（`DemoGrowthPrivacySchema`）、合法性矩阵与三种命令的原子 Apply（`DemoGrowthBuildRules`）、
 director 提交链（受理形状、倒计时学习与加点、重放/冲突/旧修订、交战后立即选择学习与加点、满槽与图纸、死亡时选择学到空槽与加点、
 空池排队后再抽、关局，`DemoGrowthBuildCommands`；其中开局牌三选一在开局技能之后出现（放弃开局技能也出现）、锁定与重抽、选牌同次装进 Combat、

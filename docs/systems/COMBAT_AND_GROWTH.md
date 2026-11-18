@@ -201,7 +201,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
   A01/K02/Y04/Y16 等牌、脑力关键石与分支的 `momentum_gain`/`momentum_steal`/`zone_momentum`。野怪没有劲（`CAMP.MomentumPolicy=NotApplicable`）。
 - **连击**：`AttackStart` 成功后按 `NextComboStep` 推进并把 `ComboRatioBp` 乘进普攻原始量（暴击前），第 3 段的命中表现用暴击档；
   前摇被取消的普攻不推进；死亡、新生命与休息清零。公开观察把本次普攻段数放进 `ActionComboStep`。
-- **爆劲**：客户端劲满时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；
+- **爆劲**：客户端劲不少于本人门槛（`OVERDRIVE.Threshold`，Y11 更低；本人视图 `OverdriveThresholdP2`）时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；
   服务器只在蓄力至少一半时长、释放瞬间 `OverdriveReady` 才由 `ApplyOverdrive` 把伤害、护盾、治疗的基础量与系数乘 `OVERDRIVE.Scale` 并按技能元素加料
   （烫加灼烧层；湿换减速；麻在命中后排一次 `OVERDRIVE.ShockReactionRatio` 倍反应伤害；冻定身 `OVERDRIVE.ChillRootSec`；馊乘馊的时长；吹推开
   `OVERDRIVE.GustPushCm` 并在落点留目标所挂元素的地面状态），然后劲清零。
@@ -410,7 +410,8 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   的 Bp 相加，再把各组的 (1 + ΣBp) 相乘，结果以 `DAMAGE.FactorTechCap` 为技术上限（触顶 `LD_DAMAGE_FACTOR_CAPPED`），负值、无名键或
   int64 溢出明确失败。`EvaluateDamage` 读 `DamageFactorBp`（10000 = ×1），在暴击之后、抗性之前乘一次。释放时锁定的乘区
   （K09/K12 `skill_damage_factor`、K16 闲置、K17 成长）挂在 `FLDCombatCastLedger::Factors` 上，随本次释放的每个原生直接命中生效；
-  K04 记号、Y22 蓄力、Y27 反应倍率与力道关键石在命中时加入。`LD_HIT` 写 `factor_bp` 与 `factors=键:Bp,...`。
+  K04 记号、Y22 蓄力、Y27 反应倍率与力道关键石在命中时加入。Y22 与 K16 只按当前交战（`MarkEngaged` 记下的 `FightStartedAtMs`，
+  距上次战斗事件不超过 `MOMENTUM.IdleDelaySec`）中的闲置计时，开打前最多带入 `CARDS.IdleCarrySec`（`IdleCountFloorMs`）。`LD_HIT` 写 `factor_bp` 与 `factors=键:Bp,...`。
 - **连锁保护**（spec §3.8）：`FLDCombatHit::ChainDepth` 是派生深度；`ApplyPendingHits` 给每个派生命中记上一层，超过 `CHAIN.MaxDepth`
   的不再派生（`ChainAllows` 在卡牌派生处同样判断），一个权威步最多处理 `CHAIN.MaxEffectsPerStep` 个派生，其余留给下一步，
   都记 `LD_CHAIN_GUARD`。

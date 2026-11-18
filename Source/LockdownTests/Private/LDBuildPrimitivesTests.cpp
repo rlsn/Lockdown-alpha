@@ -2946,8 +2946,8 @@ bool FLDCardRuleK12Test::RunTest(const FString& Parameters)
     return RunCardRule(*this, {TEXT("card_blood_price"), ELDDemoEffectOp::HpCost, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
 {
     FLDCombatActiveTerms Terms;
-    return HostTerms(*this, F, Holder, Terms) && TestTrue(TEXT("K12: the skill pays 0.6% max HP per momentum instead"),
-        Terms.HPCostBpPerMomentum == 60 * Copies);
+    return HostTerms(*this, F, Holder, Terms) && TestTrue(TEXT("K12: the skill pays 0.25% max HP per momentum instead"),
+        Terms.HPCostBpPerMomentum == 25 * Copies);
 });
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK13Test, "Lockdown.Rules.Combat.Cards.K13",

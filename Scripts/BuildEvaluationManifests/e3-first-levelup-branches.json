@@ -38,11 +38,13 @@
               {
                 "rule": "option_index",
                 "index": 0
-              }
+              },
+              "ai_select"
             ]
           },
           "opponent": {
             "choices": [
+              "ai_select",
               "ai_select",
               "ai_select"
             ]
@@ -58,11 +60,13 @@
               {
                 "rule": "option_index",
                 "index": 1
-              }
+              },
+              "ai_select"
             ]
           },
           "opponent": {
             "choices": [
+              "ai_select",
               "ai_select",
               "ai_select"
             ]
@@ -78,11 +82,13 @@
               {
                 "rule": "option_index",
                 "index": 2
-              }
+              },
+              "ai_select"
             ]
           },
           "opponent": {
             "choices": [
+              "ai_select",
               "ai_select",
               "ai_select"
             ]

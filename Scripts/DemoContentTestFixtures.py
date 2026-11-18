@@ -199,7 +199,7 @@ def content_fixture():
         "VOUCHER.MiniFlag": 12, "VOUCHER.Arena": 18, "VOUCHER.BountyKill": 11, "VOUCHER.BountyAssist": 4, "VOUCHER.Locker": 6,
         "GROWTH.KeystoneThresholdPoints": 18,
         "CARDS.CapacityBase": 5, "CARDS.LevelsPerSlot": 4, "CARDS.OfferSize": 3, "CARDS.FreeRerolls": 2,
-        "CARDS.RerollsPerRest": 1, "CARDS.LockSlots": 1, "CARDS.VocabWeight": 3, "CARDS.SkipVouchers": 2,
+        "CARDS.RerollsPerRest": 1, "CARDS.LockSlots": 1, "CARDS.VocabWeight": 3, "CARDS.SkipVouchers": 2, "CARDS.IdleCarrySec": q("s", 4),
         "VOUCHER.CampLow": 1, "VOUCHER.CampHigh": 3, "VOUCHER.CampElite": 5, "VOUCHER.CampAncient": 9, "VOUCHER.Boss": 15,
         "VOUCHER.Kill": 7, "VOUCHER.Assist": 3, "VOUCHER.Airdrop": 4, "VOUCHER.ActiveSkip": 6,
         "SHOP.CardSlots": 3, "SHOP.VocabCardSlots": 1, "SHOP.VocabWeight": 2, "SHOP.SkillSlots": 1, "SHOP.CardPrice": 5,

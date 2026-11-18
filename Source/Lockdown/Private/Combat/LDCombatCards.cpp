@@ -374,7 +374,8 @@ bool ALDCombatDirector::ReleaseFactors(const FLDBodyCombatState& Body, const FLD
     for (const FLDPassiveEffectRef& Ref : Idle)
     {
         if (!Track || Track->ReadyAtMs>NowMs || Ref.Effect.IntervalMs<=0) { continue; }
-        const int64 Steps=(NowMs-FMath::Max<int64>(Track->ReadyAtMs,0))/Ref.Effect.IntervalMs;
+        const int64 From=FMath::Max3<int64>(Track->ReadyAtMs,0,IdleCountFloorMs(Body,NowMs));
+        const int64 Steps=(NowMs-From)/Ref.Effect.IntervalMs;
         if (Steps>0) { Out.Add({Ref.Key,Steps*Ref.Effect.RatioBp}); }
     }
     // K17: every contender hit of the host this match.
@@ -509,11 +510,35 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::IdleCharge,Charges,Error)) { return false; }
         for (const FLDPassiveEffectRef& Ref : Charges)
         {
-            const int64 Steps=Ref.Effect.IntervalMs>0 ? (NowMs-Source->IdleSinceMs)/Ref.Effect.IntervalMs : 0;
+            const int64 From=FMath::Max<int64>(Source->IdleSinceMs,IdleCountFloorMs(*Source,NowMs));
+            const int64 Steps=Ref.Effect.IntervalMs>0 ? (NowMs-From)/Ref.Effect.IntervalMs : 0;
             if (Steps>0) { Out.Add({Ref.Key,Steps*Ref.Effect.RatioBp}); }
         }
     }
     return true;
+}
+
+void ALDCombatDirector::MarkEngaged(FLDBodyCombatState& Body, int64 NowMs) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    const int64 WindowMs=Content ? Content->Get().Parameters.Momentum.IdleDelayMs : 0;
+    if (!Body.MomentumEngagedAtMs.IsSet() || NowMs-Body.MomentumEngagedAtMs.GetValue()>WindowMs || Body.FightStartedAtMs<=0)
+    {
+        Body.FightStartedAtMs=NowMs;
+    }
+    Body.LastCombatAtMs=NowMs;
+    Body.MomentumEngagedAtMs=NowMs;
+}
+
+int64 ALDCombatDirector::IdleCountFloorMs(const FLDBodyCombatState& Body, int64 NowMs) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content) { return NowMs; }
+    const auto& P=Content->Get().Parameters;
+    const bool bInFight=Body.MomentumEngagedAtMs.IsSet() && Body.FightStartedAtMs>0
+        && NowMs-Body.MomentumEngagedAtMs.GetValue()<=P.Momentum.IdleDelayMs;
+    // Out of a fight only the carry counts; inside one, the whole fight plus the carry before it.
+    return (bInFight ? Body.FightStartedAtMs : NowMs)-P.Cards.IdleCarryMs;
 }
 
 // ---------------------------------------------------------------- basics
@@ -583,7 +608,7 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
             LedgerCardTriggered(Body,Doubles[0].Key);
         }
     }
-    // A09: attack speed past its maximum turns into extra-strike chance (every full 100% is a certain strike).
+    // A09: attack speed past the card threshold turns into extra-strike chance (every full 100% is a certain strike).
     TArray<FLDPassiveEffectRef> Overcaps;
     if (!CardsOn(Projection,ELDDemoEffectOp::OvercapExtraHit,Basic,Overcaps,Error)) { return false; }
     if (!Overcaps.IsEmpty())
@@ -600,13 +625,13 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
                 +R(Row->Dev.AdditiveRatio)+R(Row->Temporary.AdditiveRatio);
             Uncapped=Flat*Ratio;
         }
-        const double Max=Cm(Content->Get().Parameters.AttackSpeed.Max);
         int64 ChanceBp=0;
         for (const FLDPassiveEffectRef& Ref : Overcaps)
         {
-            const double Step=Cm(Ref.Effect.StepRate);
-            if (Step<=0 || Uncapped<=Max) { continue; }
-            ChanceBp+=int64(FMath::FloorToDouble((Uncapped-Max)/Step+1e-9))*Ref.Effect.RatioBp;
+            // #305: past the card's own threshold (ExtraDistanceCm attacks/s), not the attack-speed maximum.
+            const double Step=Cm(Ref.Effect.StepRate), Threshold=Cm(Ref.Effect.ExtraDistanceCm);
+            if (Step<=0 || Threshold<=0 || Uncapped<=Threshold) { continue; }
+            ChanceBp+=int64(FMath::FloorToDouble((Uncapped-Threshold)/Step+1e-9))*Ref.Effect.RatioBp;
         }
         int32 Strikes=int32(ChanceBp/10000);
         if (ChanceBp%10000>0 && CritRandom.RandRange(0,9999)<ChanceBp%10000) { ++Strikes; }

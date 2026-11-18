@@ -175,7 +175,7 @@ def effect(value):
         ("burn_ratio", "RatioBp"),
     ):
         # A05/A10 rates are rationals (card_terms places them).
-        if source in value and not (value.get("op") == "speed_factor" and source == "threshold"):
+        if source in value and not (value.get("op") in ("speed_factor", "overcap_extra_hit") and source == "threshold"):
             result[dest] = scalar(value[source])
     for source in ("count", "stacks", "charges"):
         if source in value:
@@ -235,6 +235,7 @@ def card_terms(value, result):
     elif op == "armor_to_hp":
         result["BaseP2"] = scalar(value["max_hp"])
     elif op == "overcap_extra_hit":
+        result["ExtraDistanceCm"] = rational(value["threshold"])
         result["StepRate"] = rational(value["step"])
     elif op == "element_duration":
         result["MultiplierBp"] = scalar(value["multiplier"])
@@ -566,6 +567,7 @@ def parameter_projection(parameters):
     result["ChainEndMs"] = scalar(parameters["CHAIN.EndSec"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
         "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "LockSlots", "VocabWeight", "SkipVouchers")}
+    result["Cards"]["IdleCarryMs"] = scalar(parameters["CARDS.IdleCarrySec"])
     result["Vouchers"] = {dest: parameters["VOUCHER." + dest] for dest in (
         "CampLow", "CampHigh", "CampElite", "CampAncient", "Boss", "Kill", "Assist", "Airdrop", "ActiveSkip",
         "MiniFlag", "Arena", "BountyKill", "BountyAssist", "Locker")}

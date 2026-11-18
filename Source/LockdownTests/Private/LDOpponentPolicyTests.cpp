@@ -2498,7 +2498,72 @@ bool RunObjective(FAutomationTestBase& Test)
         LDOpponentPolicy::Decide(Frame, C, Drop).Reason == ELDOpponentReason::ContestAirdrop);
     return bGood;
 }
+
+// #305 spec §11.3: a healthy body chases a visible second-hand dealer, opens a seen locker (holding on it to channel), and
+// buys a vending buff in passing when it has vouchers to spare beyond a skill point, once per buff duration.
+bool RunExplore(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.Self.FootCm = FVector(500, -500, 0);
+    bool bGood = true;
+
+    auto Frame = Base;
+    Frame.POIs.Add(POI(TEXT("locker_3"), ELDOpponentPOIKind::Locker, 1500, -500));
+    FLDOpponentPolicyState Walker;
+    const auto Walk = LDOpponentPolicy::Decide(Frame, C, Walker);
+    bGood &= Expect(Test, TEXT("A seen locker in reach draws a healthy body"), Walk, EMode::Objective, EBody::MoveGround, TEXT("locker_3"))
+        && Test.TestTrue(TEXT("Opening a locker is its own reason"), Walk.Reason == ELDOpponentReason::OpenLocker);
+    Frame.Self.FootCm = FVector(1510, -500, 0);
+    FLDOpponentPolicyState Stander;
+    bGood &= Expect(Test, TEXT("On the locker the body holds still to channel the pickup"), LDOpponentPolicy::Decide(Frame, C, Stander),
+        EMode::Objective, EBody::None);
+    Frame.Self.FootCm = Base.Self.FootCm;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Test.TestTrue(TEXT("Below the entry health a locker waits"),
+        LDOpponentPolicy::Decide(Frame, C, Hurt).Reason != ELDOpponentReason::OpenLocker);
+
+    Frame = Base;
+    FLDOpponentUnit Dealer = Unit(77, ELDOpponentUnitKind::CampMember, 1200, -300);
+    Dealer.bPeddler = true;
+    Frame.Units.Add(Dealer);
+    Frame.POIs.Add(POI(TEXT("locker_3"), ELDOpponentPOIKind::Locker, 1500, -500));
+    FLDOpponentPolicyState Hunter;
+    const auto Chase = LDOpponentPolicy::Decide(Frame, C, Hunter);
+    bGood &= Test.TestTrue(TEXT("The visible dealer is chased ahead of a locker"), Chase.Reason == ELDOpponentReason::ChaseDealer
+        && Chase.Body.Handle == Dealer.Handle);
+
+    Frame = Base;
+    Frame.Self.NearbyVending = TEXT("vending_0");
+    const auto& P = C.Get().Parameters;
+    Frame.Self.Vouchers = P.Explore.VendingBuffPrice + P.Shop.SkillPointPrice;
+    FLDOpponentPolicyState Buyer;
+    bGood &= Test.TestEqual(TEXT("With vouchers to spare beyond a skill point it buys the attack-speed buff"),
+        int32(LDOpponentPolicy::Decide(Frame, C, Buyer).Vending), 1);
+    Frame.Public.NowMs += 1000;
+    bGood &= Test.TestEqual(TEXT("Not again within the buff's duration"), int32(LDOpponentPolicy::Decide(Frame, C, Buyer).Vending), 0);
+    Frame.Public.NowMs += P.Explore.VendingBuffMs;
+    bGood &= Test.TestEqual(TEXT("Once the buff has run out it buys again"), int32(LDOpponentPolicy::Decide(Frame, C, Buyer).Vending), 1);
+    Frame.Self.Vouchers -= 1;
+    FLDOpponentPolicyState Saver;
+    bGood &= Test.TestEqual(TEXT("It keeps a skill point's vouchers"), int32(LDOpponentPolicy::Decide(Frame, C, Saver).Vending), 0);
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentExploreTest, "Lockdown.Rules.DemoOpponentPolicy.Explore",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentExploreTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunExplore(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentObjectiveTest, "Lockdown.Rules.DemoOpponentPolicy.Objective",

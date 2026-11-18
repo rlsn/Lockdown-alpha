@@ -945,7 +945,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         return false;
     }
-    if (!F.Fixed(TEXT("CHAIN.EndSec"), TEXT("ms"), TEXT("ms"), P.ChainEndMs, 1, 600000)) { return false; }
+    if (!F.Fixed(TEXT("CHAIN.EndSec"), TEXT("ms"), TEXT("ms"), P.ChainEndMs, 1, 600000)
+        || !F.Fixed(TEXT("CARDS.IdleCarrySec"), TEXT("ms"), TEXT("ms"), P.Cards.IdleCarryMs, 1, 600000)) { return false; }
     // Spec §3.13 voucher amounts and shop prices (positive whole vouchers).
     for (const auto& Field : {
         TPair<const TCHAR*, int32*>(TEXT("VOUCHER.CampLow"), &P.Vouchers.CampLow), {TEXT("VOUCHER.CampHigh"), &P.Vouchers.CampHigh},
@@ -2043,7 +2044,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         { return false; }
         break;
     case ELDDemoEffectOp::OvercapExtraHit:
-        if (!F.Fraction(TEXT("step"), TEXT("attacks/s"), Out.StepRate, true)
+        // A09: attack speed past ExtraDistanceCm attacks/s (its threshold) turns into extra-strike chance.
+        if (!F.Fraction(TEXT("threshold"), TEXT("attacks/s"), Out.ExtraDistanceCm, true)
+            || !Check.Require(Out.ExtraDistanceCm.Numerator > 0, Path, TEXT("an attack-speed threshold must be positive"))
+            || !F.Fraction(TEXT("step"), TEXT("attacks/s"), Out.StepRate, true)
             || !Check.Require(Out.StepRate.Numerator > 0, Path, TEXT("an attack-speed step must be positive"))
             || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
         break;

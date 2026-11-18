@@ -408,6 +408,8 @@ struct FLDBodyCombatState
     int64 HpRegenMicroP2=0, MomentumMicroP2=0;
     // The last real combat event of this life for momentum (LastCombatAt without the spawn and rest starts); unset = idle.
     TOptional<int64> MomentumEngagedAtMs;
+    // When the current fight began: the first combat event after more than MOMENTUM.IdleDelaySec without one (0 = none yet).
+    int64 FightStartedAtMs=0;
     LDMomentum::FLedger MomentumLedger;
     // The combo step the last released basic of this life took (0 = none) and its AttackStart instant.
     uint8 ComboStep=0;
@@ -1690,6 +1692,11 @@ private:
     // One proc of an installed card of Holder that committed a real result (a hit, heal, shield, momentum, status, cut or
     // change of an outcome); never a passive stat term, a candidate or a refused proc.
     void LedgerCardTriggered(const FLDBodyCombatState& Holder, FName Card);
+    // A real combat event of Body at NowMs: refreshes the momentum engagement and opens a new fight after an idle gap.
+    void MarkEngaged(FLDBodyCombatState& Body, int64 NowMs) const;
+    // #305: Y22 and K16 count idle time only inside the current fight plus CARDS.IdleCarrySec carried in from before it; the
+    // earliest instant their idle may count from.
+    int64 IdleCountFloorMs(const FLDBodyCombatState& Body, int64 NowMs) const;
     // One own combat action request of Entity that Combat refused for a gameplay gate (busy, cooldown, attack cadence,
     // momentum, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
     void LedgerActionRefused(const FGuid& Entity, ELDCombatReject Reason);

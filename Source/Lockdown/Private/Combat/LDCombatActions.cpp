@@ -481,8 +481,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     CancelChannel(*Body);
     Body->Action=Action;
     Body->BasicTiming=Timing.Value.GetValue();
-    Body->LastCombatAtMs=Now;
-    Body->MomentumEngagedAtMs=Now;
+    MarkEngaged(*Body,Now);
     ++Body->StateRevision;
     // #198: an accepted basic windup is a combat action of the build safe window.
     MarkBuildUnsafe(Caller.EntityId,Now);
@@ -1620,7 +1619,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     // K06: the repeats of this release.
     if (!ScheduleAutoRecasts(Body,Source,Terms,Action,Now,Error)) { return false; }
-    if (bDealsDamage) { Body.LastCombatAtMs=Now; Body.MomentumEngagedAtMs=Now; }
+    if (bDealsDamage) { MarkEngaged(Body,Now); }
     // #198: an offensive release is a combat action of the build safe window; a self buff, shield or plain dash is not.
     if (LDCombatSourceRules::IsOffensive(*ValuesDef)) { MarkBuildUnsafe(Body.Victim.EntityId,Now); }
     if (bTimedBonus && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }

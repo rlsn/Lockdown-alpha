@@ -1128,11 +1128,15 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
     Card.bMomentum=(Unit.AuthorizedFieldMask&LDObservation::Momentum)!=0;
     if(Card.bMomentum)
     {
-        // The public bar is a 0..255 fraction: the card shows its share, and a full bar (a possible overdrive) glows.
+        // The public bar is a 0..255 fraction: the card shows its share, and a bar at the public overdrive threshold (a possible
+        // overdrive) glows.
         Card.Momentum.bKnown=true;
         Card.Momentum.Fraction=float(Unit.MomentumBar)/float(LDObservation::MomentumBarFull);
         Card.Momentum.Text=FString::Printf(TEXT("%s %d%%"),LDTerms::Momentum,FMath::RoundToInt(Card.Momentum.Fraction*100.f));
-        Card.bMomentumFull=Unit.MomentumBar==LDObservation::MomentumBarFull;
+        const int64 MaxP2=Content?Content->Parameters.Momentum.MaxP2:0;
+        const int64 ReadyBar=MaxP2>0?FMath::DivideAndRoundUp<int64>(Content->Parameters.Overdrive.ThresholdP2*LDObservation::MomentumBarFull,MaxP2)
+            :int64(LDObservation::MomentumBarFull);
+        Card.bMomentumFull=int64(Unit.MomentumBar)>=ReadyBar;
         Card.bCharging=Unit.bCharging;
     }
     FString Statuses;

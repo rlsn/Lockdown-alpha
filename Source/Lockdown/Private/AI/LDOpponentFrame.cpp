@@ -178,6 +178,7 @@ bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const F
         Mapped.Handle = Unit.Handle;
         Mapped.Epoch = Unit.ObservationEpoch;
         Mapped.FootCm = Unit.FeetCm;
+        Mapped.bPeddler = Unit.bPeddler;
         if (Unit.AuthorizedFieldMask & LDObservation::Health)
         {
             Mapped.HpP2 = Unit.Health.CurrentP2;

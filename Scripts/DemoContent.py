@@ -740,7 +740,7 @@ def _validate_action(target, effects, path):
 # Effect fields that make a card operation do something (the native importer refuses the same shapes).
 _CARD_MAGNITUDES = {
     "combo_momentum": ("momentum",), "basic_cooldown_cut": ("cooldown",), "combo_knockback": ("distance",),
-    "combo_double": ("damage_ratio",), "overcap_extra_hit": ("step", "ratio"), "basic_ap_rider": ("ap_ratio",),
+    "combo_double": ("damage_ratio",), "overcap_extra_hit": ("threshold", "step", "ratio"), "basic_ap_rider": ("ap_ratio",),
     "focus_attack_speed": ("ratio",), "skill_hit_momentum": ("momentum",), "auto_recast": ("damage_ratio",),
     "skill_damage_factor": ("ratio",), "hp_cost": ("ratio",), "skill_ad_rider": ("ad_ratio",), "skill_growth": ("ratio",),
     "dash_split": ("distance",), "last_stand": ("threshold",), "reaction_momentum": ("momentum",), "armor_to_hp": ("max_hp",),

@@ -352,7 +352,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
-    if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; Body->MomentumEngagedAtMs=NowMs; }
+    if (Damage.DamageP2>0) { MarkEngaged(*Body,NowMs); }
     // #198 build safe window: hostile positive damage marks its victim and the contender credited with it (burn ticks
     // and zone pulses included); a self-inflicted hit marks nobody.
     if (Damage.DamageP2>0 && Hit.SourceEntity!=Body->Victim.EntityId)
@@ -440,7 +440,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         {
             // A training dummy refills at zero rather than dying, so emptying it is no kill.
             const uint8 Dealt=LDCombatCues::ClassifyDealt(bCritical,ShieldBeforeP2,Damage,
-                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy);
+                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy, Hit.CastLedger && Hit.CastLedger->bOverdrive);
             // One receipt per authority instant: an area release confirms its strongest hit whatever the target order.
             if (Source->Cues.LastDealtAtMs!=NowMs || LDCombatCues::DealtRank(Dealt)>LDCombatCues::DealtRank(Source->Cues.LastDealtFlags))
             {

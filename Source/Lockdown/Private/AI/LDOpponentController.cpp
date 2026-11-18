@@ -341,6 +341,12 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
+    // #305: a vending purchase goes through the same queue a player's machine button uses; a refusal is only reported.
+    if (Decision.Vending != 0)
+    {
+        const ELDVendingResult Bought = Mode->QueueVending(Binding.GetContender(), Frame.Self.Life, ELDVendingItem(Decision.Vending), 0);
+        if (Bought != ELDVendingResult::Queued) { Problem = FString::Printf(TEXT("vending refused result=%u"), uint32(Bought)); }
+    }
     Report(Frame, Decision, Problem);
 }
 
@@ -433,6 +439,22 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Me.Phase = Own.LifePhase;
     Me.Life = Own.Life;
     Me.NearbyRestService = Own.NearbyRestService;
+    // #305 spec §11.3: the own pacing view's vending machine within reach and the lockers it has seen and not opened; a
+    // seen locker joins the places as its own registered anchor (never one it has not seen).
+    Me.NearbyVending = Own.Pacing.NearbyVending;
+    if (const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr)
+    {
+        for (const FLDLockerView& Locker : Own.Pacing.SeenLockers)
+        {
+            const FLDMapBinding* Anchor = Locker.bOpened ? nullptr : Registry->Resolve(Locker.AnchorId, Registry->Generation);
+            if (!Anchor || Anchor->Surface.IsNone()) { continue; }
+            FLDOpponentPOI& Place = Frame.POIs.AddDefaulted_GetRef();
+            Place.Id = Anchor->Id;
+            Place.Kind = ELDOpponentPOIKind::Locker;
+            Place.SurfaceId = Anchor->Surface;
+            Place.FootCm = Anchor->Position;
+        }
+    }
     // Unspawned or left: the policy stops without any further read.
     if (Own.LifePhase != ELDLifePhase::Alive && Own.LifePhase != ELDLifePhase::Dead) { return true; }
     // The own Combat view also explains a dead contender's persistent build; its card growth joins the derived attributes.

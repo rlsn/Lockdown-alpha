@@ -108,6 +108,7 @@ TSharedRef<FJsonObject> WriteStructure(const FLDBlueprintStructure& Structure, c
         const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
         Row->SetField(TEXT("slot"), JsonStr(Active.Slot));
         Row->SetField(TEXT("ability"), JsonStr(Active.Ability));
+        Row->SetField(TEXT("branch"), JsonStr(Active.Branch));
         Actives.Add(JsonObj(Row));
     }
     TArray<FValue> Cards;
@@ -172,7 +173,10 @@ bool ReadStructure(FFields& Fields, FLDBlueprintStructure& Out)
     {
         FFields Row(Check, (*Actives)[Index], FString::Printf(TEXT("%s.actives[%d]"), *Path, Index));
         FLDBlueprintActive Active;
-        if (!Row.Text(TEXT("slot"), Active.Slot, 1, 1) || !Row.Identifier(TEXT("ability"), Active.Ability) || !Row.Done()
+        ELDSkillBranch Branch = ELDSkillBranch::None;
+        if (!Row.Text(TEXT("slot"), Active.Slot, 1, 1) || !Row.Identifier(TEXT("ability"), Active.Ability)
+            || !Row.Text(TEXT("branch"), Active.Branch, 0, 3) || !Row.Done()
+            || !Check.Require(LDBuildBlueprint::ParseBranch(Active.Branch, Branch), Row.Path, TEXT("branch must be a skill branch path"))
             || !Check.Require(SlotOrder(Active.Slot) != INDEX_NONE, Row.Path, TEXT("slot must be Q, W or E"))
             || !Check.Require(Out.Actives.IsEmpty() || SlotOrder(Out.Actives.Last().Slot) < SlotOrder(Active.Slot), Row.Path,
                 TEXT("actives must be unique and sorted by slot"))
@@ -323,7 +327,7 @@ FLDBlueprintStructure FLDBuildLedger::StructureOf(const FLDBuildProjectionInput&
     for (const FLDLearnedActiveValue& Active : Build.Actives)
     {
         const TCHAR* Slot = LDBuildBlueprintDetail::SlotOf(Active.Entry);
-        if (Slot) { Out.Actives.Add({Slot, Active.AbilityId.ToString()}); }
+        if (Slot) { Out.Actives.Add({Slot, Active.AbilityId.ToString(), LDBuildBlueprint::BranchText(Active.Branch)}); }
     }
     Out.Actives.Sort([](const FLDBlueprintActive& A, const FLDBlueprintActive& B)
     { return LDBuildBlueprintDetail::SlotOrder(A.Slot) < LDBuildBlueprintDetail::SlotOrder(B.Slot); });
@@ -786,4 +790,28 @@ void LDBuildBlueprint::Notices(const FLDBlueprintRecord& Record, const FLDDemoCo
     {
         Out.Add(FString::Printf(TEXT("失效安装：本机目录没有 %s，只显示原始编号。"), *Id));
     }
+}
+
+FString LDBuildBlueprint::BranchText(ELDSkillBranch Branch)
+{
+    switch (Branch)
+    {
+    case ELDSkillBranch::A: return TEXT("2A");
+    case ELDSkillBranch::B: return TEXT("2B");
+    case ELDSkillBranch::A1: return TEXT("3A1");
+    case ELDSkillBranch::A2: return TEXT("3A2");
+    case ELDSkillBranch::B1: return TEXT("3B1");
+    case ELDSkillBranch::B2: return TEXT("3B2");
+    default: return FString();
+    }
+}
+
+bool LDBuildBlueprint::ParseBranch(const FString& Text, ELDSkillBranch& Out)
+{
+    for (const ELDSkillBranch Branch : {ELDSkillBranch::None, ELDSkillBranch::A, ELDSkillBranch::B, ELDSkillBranch::A1,
+        ELDSkillBranch::A2, ELDSkillBranch::B1, ELDSkillBranch::B2})
+    {
+        if (BranchText(Branch).Equals(Text, ESearchCase::CaseSensitive)) { Out = Branch; return true; }
+    }
+    return false;
 }

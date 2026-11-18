@@ -1606,8 +1606,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     FString HealthLine=Health.Text;
     if(Health.bKnown&&ShieldPoints>0){HealthLine+=FString::Printf(TEXT(" · %s %.0f"),LDTerms::Shield,FMath::CeilToDouble(ShieldPoints));}
     HealthBar->SetPercent(Health.Fraction);HudSetText(HealthText,HealthLine);
-    // A full bar glows overdrive gold and says so; the bar has no rate text (momentum is no steady regeneration).
-    const bool bFullBar=Momentum.bKnown&&Momentum.Fraction>=1.f;
+    // A bar at the own overdrive threshold (OVERDRIVE.Threshold, or Y11's lower one) glows overdrive gold and says so; the bar
+    // has no rate text (momentum is no steady regeneration).
+    const bool bFullBar=Momentum.bKnown&&OwnCombat&&OwnCombat->OverdriveThresholdP2>0&&OwnCombat->MomentumP2>=OwnCombat->OverdriveThresholdP2;
     MomentumBar->SetPercent(Momentum.Fraction);MomentumBar->SetFillColorAndOpacity(bFullBar?LDHUDStyle::Overdrive:LDHUDStyle::Momentum);
     HudSetText(MomentumText,bFullBar?Momentum.Text+TEXT(" · ")+LDTerms::Overdrive:Momentum.Text);
     HudSetText(HealthRegenText,LDHUD::RegenText(O,OwnCombat,true));
