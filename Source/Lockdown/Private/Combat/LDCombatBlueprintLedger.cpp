@@ -124,6 +124,8 @@ void ALDCombatDirector::LedgerRegenerated(const FLDBodyCombatState& Body, int64 
 
 void ALDCombatDirector::LedgerCardTriggered(const FLDBodyCombatState& Holder, FName Card)
 {
+    // Spec §6.5: a card trigger is one step of the chain it fired in.
+    if (const ILDLifeAuthority* Mode=Authority()) { ChainStep(Holder.Victim.EntityId,Card,Mode->GetAuthorityNowMs()); }
     if (Holder.Victim.Kind!=ELDVictimKind::Contender || Card.IsNone() || LDCombatBlueprintLedgerDetail::IsTraining(Holder))
     {
         return;

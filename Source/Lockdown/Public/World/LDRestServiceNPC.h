@@ -17,7 +17,6 @@ public:
 private:
     UPROPERTY(ReplicatedUsing=OnRep_Service) ELDRestService Service = ELDRestService::None;
     UPROPERTY() TObjectPtr<class UStaticMeshComponent> Body;
-    UPROPERTY() TObjectPtr<class UStaticMesh> MerchantMesh;
     UPROPERTY() TObjectPtr<class UStaticMesh> TrainerMesh;
     UFUNCTION() void OnRep_Service();
 };

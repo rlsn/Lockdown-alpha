@@ -317,8 +317,14 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.CardSerial = Intent.CardSerial;
         break;
     }
-    case ELDOpponentBuildKind::BuyNpcOffer:
-        Out.Kind = ELDBuildCommandKind::BuyNpcOffer;
+    case ELDOpponentBuildKind::ShopBuy:
+        if (!Progression.Shop.bStocked || Progression.Shop.Revision != Intent.OfferRevision)
+        {
+            return Fail(Error, TEXT("The shop was restocked since the purchase was chosen."));
+        }
+        Out.Kind = ELDBuildCommandKind::ShopBuy;
+        Out.OfferRevision = Intent.OfferRevision;
+        Out.Slot = Intent.Slot;
         break;
     case ELDOpponentBuildKind::Respec:
         Out.Kind = ELDBuildCommandKind::Respec;

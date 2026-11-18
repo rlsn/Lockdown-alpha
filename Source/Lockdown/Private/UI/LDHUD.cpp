@@ -3,6 +3,8 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDResultBuild.h"
 #include "UI/LDRecapChain.h"
+#include "UI/LDChainCodex.h"
+#include "Combat/LDChainRules.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTween.h"
 #include "UI/LDTerms.h"
@@ -578,6 +580,27 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DamageCard->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));DamageCard->SetPadding(FMargin(24,18));DamageCard->SetContent(DamageBox);
             ResultBox->AddChildToVerticalBox(DamageCard)->SetPadding(FMargin(0,HudResultGap,0,0));
         }
+        // Spec §12 结算“本局最离谱”: one line per contender (at most six), shrunk to fit, never scrolled.
+        ResultHighlightCells.Reset();
+        {
+            auto* HighlightBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            UTextBlock* HighlightHeading=Text(LDTerms::ResultHighlights,LDHUDStyle::TypeHeading);HudFace(HighlightHeading,true,0);
+            HighlightBox->AddChildToVerticalBox(HighlightHeading)->SetPadding(FMargin(0,0,0,8));
+            for(int32 Index=0;Index<LDHUD::ResultHighlightsMax;++Index)
+            {
+                UTextBlock* Cell=OneLine(TEXT(""),14,0);Cell->SetColorAndOpacity(LDHUDStyle::UIText);
+                auto* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
+                Fit->SetContent(Cell);
+                if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);}
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(HudResultWidth-48.f);Box->SetContent(Fit);
+                HighlightBox->AddChildToVerticalBox(Box)->SetPadding(FMargin(0,2,0,0));ResultHighlightCells.Add(Cell);
+            }
+            auto* HighlightCard=WidgetTree->ConstructWidget<UBorder>();HighlightCard->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
+            HighlightCard->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));HighlightCard->SetPadding(FMargin(24,14));HighlightCard->SetContent(HighlightBox);
+            HighlightCard->SetVisibility(ESlateVisibility::Collapsed);
+            ResultBox->AddChildToVerticalBox(HighlightCard)->SetPadding(FMargin(0,HudResultGap,0,0));
+            ResultHighlightsCard=HighlightCard;
+        }
         // Actions sit bottom-right: the blueprint viewer, leave, and the host's return to Lobby as the one primary button.
         auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();
         ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,HudResultGap,0,0));
@@ -678,6 +701,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
         // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (VISION_AND_UI readability).
         SelfName=OneLine(TEXT(""),LDHUDStyle::TypeLabel,0);HudFace(SelfName,true,0);SelfName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SelfName->SetVisibility(ESlateVisibility::Visible);NameBox->AddChildToVerticalBox(SelfName);
+        VoucherText=OneLine(TEXT(""),LDHUDStyle::TypeCaption,0);HudFace(VoucherText,true,0);VoucherText->SetColorAndOpacity(LDHUDStyle::TextAccent);
+        VoucherText->SetVisibility(ESlateVisibility::HitTestInvisible);NameBox->AddChildToVerticalBox(VoucherText);
         auto* NameSlot=SelfHead->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         // The 属性 entry turns the stat icons below into the attribute view and back (alive or dead, never a panel). The DEV
         // test entry shows only in a DEV test room (#78).
@@ -979,6 +1004,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
             Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // Spec §3.13: a library card let go over the open shop's sell zone is sold there.
+            Storage->DropOutside=[this](FName Component,FVector2D At){return ChoicesPanel&&ChoicesPanel->SellAt(Component,At);};
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
         if(ChoicesPanel)
@@ -1555,6 +1582,31 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const int64 Unspent=Progression&&Progression->bValid&&Progression->Generation==O.Match?FMath::Max<int64>(0,Progression->UnspentPoints):0;
         HudSetText(PointsBadgeText,FString::Printf(TEXT("%lld"),Unspent));
         HudSetShown(PointsBadge,Unspent>0,ESlateVisibility::Visible);
+        // Spec §12: the vouchers beside the portrait (the world feedback flies each gain in); pick tickets only when held.
+        const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==O.Match;
+        const FString Vouchers=bGrowth?(Progression->PickTickets>0?FString::Printf(TEXT("%s %d · %s %d"),LDTerms::VoucherGlyph,Progression->Vouchers,
+            LDTerms::PickTicketGlyph,Progression->PickTickets):FString::Printf(TEXT("%s %d"),LDTerms::VoucherGlyph,Progression->Vouchers)):FString();
+        HudSetText(VoucherText,Vouchers);
+        HudSetShown(VoucherText,bGrowth,ESlateVisibility::HitTestInvisible);
+    }
+    // Spec §6.5: every chain end of the own view reaches the local codex once; a key it had not seen shows one line.
+    if(OwnCombat&&!OwnCombat->Chains.IsEmpty())
+    {
+        if(ChainMatch!=O.Match){ChainMatch=O.Match;ChainSerial=0;}
+        TArray<FLDChainCodexEntry> Codex;
+        bool bLoaded=false,bChanged=false;
+        for(const FLDChainEndView& End:OwnCombat->Chains)
+        {
+            if(End.Serial<=ChainSerial){continue;}
+            ChainSerial=End.Serial;
+            if(!bLoaded){Codex=LDChainCodex::Load();bLoaded=true;}
+            bChanged=true;
+            if(LDChainCodex::Record(Codex,LDChain::Text(End.Key,TEXT(">")),End.Steps,FDateTime::UtcNow().ToUnixTimestamp()))
+            {
+                ShowToast(LDHUD::NewChainNotice(DisplayDefinitions(),End.Key));
+            }
+        }
+        if(bChanged&&!LDChainCodex::Save(Codex)){UE_LOG(LogLDUI,Warning,TEXT("LD_UI_CHAIN_CODEX_SAVE_FAILED entries=%d"),Codex.Num());}
     }
 
     // New world commands follow Combat's input half (menu/Settings, child confirmation or text edit, held keys);
@@ -1630,10 +1682,11 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
             In.bStage=ChoicesPanel&&ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel&&ChoicesPanel->IsFinalStage();
             In.bServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
+            In.bShop=ChoicesPanel&&ChoicesPanel->IsShopShown();
             if(ChoicesPanel&&In.bServices)
             {
                 const ELDRestService Service=ChoicesPanel->GetServiceContext();
-                In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):TEXT("训练师");
+                In.NpcName=TEXT("训练师");
                 In.bCharacterServices=Service==ELDRestService::Trainer;
             }
             Workshop->Present(In);
@@ -2500,6 +2553,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         for(UWidget* Widget:{ResultWinnerBand.Get(),ResultActionsBox.Get()}){LDTween::SetOpacity(Widget,1.f);LDTween::SetScale(Widget,1.f);LDTween::SetTranslation(Widget,FVector2D::ZeroVector);}
         HudSetShown(ResultDamageHeading,false,ESlateVisibility::HitTestInvisible);
         for(UTextBlock* Cell:ResultDamageCells){HudSetShown(Cell,false,ESlateVisibility::HitTestInvisible);}
+        HudSetShown(ResultHighlightsCard,false,ESlateVisibility::HitTestInvisible);
         return;
     }
     AnimateResult();
@@ -2514,6 +2568,16 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
             const bool bCell=Damage.bAvailable&&Damage.Rows.IsValidIndex(Index);
             HudSetText(ResultDamageCells[Index],bCell?Damage.Rows[Index]:FString());
             HudSetShown(ResultDamageCells[Index],bCell,ESlateVisibility::HitTestInvisible);
+        }
+        const LDHUD::FResultHighlightsView Highlights=LDHUD::ResultHighlights(PC.DamageSummary,Result,PC.OwnerState.ContenderId,DisplayDefinitions());
+        HudSetShown(ResultHighlightsCard,Highlights.bAvailable,ESlateVisibility::HitTestInvisible);
+        for(int32 Index=0;Index<ResultHighlightCells.Num();++Index)
+        {
+            const bool bRow=Highlights.bAvailable&&Highlights.Rows.IsValidIndex(Index);
+            HudSetText(ResultHighlightCells[Index],bRow?FString::Printf(TEXT("%s    %s    %s %s"),*Highlights.Rows[Index].Name,
+                *Highlights.Rows[Index].Chain,LDTerms::BestHit,*Highlights.Rows[Index].Best):FString());
+            if(bRow){ResultHighlightCells[Index]->SetColorAndOpacity(Highlights.Rows[Index].bOwn?LDHUDStyle::TextAccent:LDHUDStyle::UIText);}
+            HudSetShown(ResultHighlightCells[Index],bRow,ESlateVisibility::HitTestInvisible);
         }
     }
     if(ShownResultId==Result.ResultId&&ShownResultSerial==Result.ResultSerial){return;}

@@ -163,10 +163,15 @@ CARD_FRAMES = {
     "card_punch_think": ("边打边想", "basic", "trigger"),
     "card_solid_punch": ("拳拳到肉", "basic", "trigger"),
     "card_third_shove": ("第三拳滚蛋", "basic", "trigger"),
+    "card_long_arm": ("隔空抽你", "basic", "modify"),
     "card_both_hands": ("左右开弓", "basic", "modify"),
+    "card_wide_swing": ("抡圆了打", "basic", "modify"),
+    "card_fist_skill": ("拳里带招", "basic", "modify"),
     "card_quick_hands": ("手快有手慢无", "basic", "convert"),
+    "card_slow_craft": ("慢工出细活", "basic", "convert"),
     "card_scholar_punch": ("读书人打架", "basic", "convert"),
     "card_heated_up": ("越打越上头", "basic", "grow"),
+    "card_muscle_memory": ("熟能生巧", "basic", "grow"),
     "card_breach_fist": ("越揍越不经打", "basic", "grow"),
     "card_fire_fist": ("拳头冒火", "basic", "element"),
     "card_water_fist": ("拳头甩脏水", "basic", "element"),
@@ -175,15 +180,22 @@ CARD_FRAMES = {
     "card_rot_fist": ("拳头带馊", "basic", "element"),
     "card_next_up": ("打完换下一招", "skill", "trigger"),
     "card_pay_back": ("一招回本", "skill", "trigger"),
+    "card_quick_takedown": ("收人头不用等", "skill", "trigger"),
     "card_setup_line": ("先垫一句", "skill", "trigger"),
+    "card_pin_amp": ("按住了就放大", "skill", "trigger"),
     "card_encore": ("再来一遍", "skill", "modify"),
+    "card_crowd_hit": ("一群人一起挨", "skill", "modify"),
     "card_again_now": ("再来一下别喘", "skill", "modify"),
     "card_big_one": ("攒够一顿狠的", "skill", "modify"),
+    "card_long_reach": ("站远点照样抽你", "skill", "modify"),
+    "card_hold_longer": ("按住多揍一会", "skill", "modify"),
     "card_blood_price": ("拿命换", "skill", "convert"),
     "card_lend_fist": ("拳头借给技能", "skill", "convert"),
+    "card_held_breath": ("憋着的气", "skill", "convert"),
     "card_hurt_heal": ("打疼了我回血", "skill", "convert"),
     "card_held_shot": ("憋着一发狠的", "skill", "grow"),
     "card_practice": ("越用越顺手", "skill", "grow"),
+    "card_combo_chain": ("一招接一招", "skill", "grow"),
     "card_add_fire": ("掺点火", "skill", "element"),
     "card_add_water": ("掺点水", "skill", "element"),
     "card_add_shock": ("掺点电", "skill", "element"),
@@ -194,8 +206,12 @@ CARD_FRAMES = {
     "card_bump_reset": ("撞着就刷新", "dash", "trigger"),
     "card_bump_again": ("撞着了再撞", "dash", "trigger"),
     "card_dash_punch": ("蹿过去抡一拳", "dash", "trigger"),
+    "card_dodge_strike": ("闪完就打", "dash", "trigger"),
     "card_double_dash": ("两段冲刺", "dash", "modify"),
     "card_pass_through": ("穿人而过", "dash", "modify"),
+    "card_head_down": ("闷头撞到底", "dash", "modify"),
+    "card_paid_dash": ("冲刺耗劲", "dash", "convert"),
+    "card_slippery": ("越躲越快", "dash", "grow"),
     "card_ice_trail": ("一路结冰", "dash", "element"),
     "card_move_turf": ("挪地盘", "dash", "element"),
     "card_shock_dash": ("冲刺挂麻", "dash", "element"),
@@ -204,25 +220,30 @@ CARD_FRAMES = {
     "card_hang_on": ("死扛", "body", "trigger"),
     "card_reaction_refund": ("反应回本", "body", "trigger"),
     "card_wave_after": ("一波接一波", "body", "trigger"),
+    "card_shell_burst": ("壳碎了也崩你", "body", "trigger"),
     "card_hard_skin": ("挨揍起硬皮", "body", "trigger"),
     "card_ball_kick": ("拿你当球踢", "body", "trigger"),
     "card_skill_crit": ("技能也能暴击", "body", "modify"),
     "card_skill_drain": ("吸血对技能生效", "body", "modify"),
+    "card_short_breath": ("气短", "body", "modify"),
     "card_double_stall": ("双摊位", "body", "modify"),
     "card_thick_hide": ("皮糙肉厚", "body", "convert"),
     "card_overfed": ("吃撑了", "body", "convert"),
     "card_berserk": ("残血狂暴", "body", "convert"),
     "card_quick_brain": ("脑子转得快", "body", "convert"),
     "card_punch_heal": ("揍人续命", "body", "convert"),
+    "card_run_hit": ("跑起来打", "body", "convert"),
     "card_grow_fat": ("越吃越壮", "body", "grow"),
     "card_kill_streak": ("越杀越猛", "body", "grow"),
     "card_tough_skin": ("越挨越硬", "body", "grow"),
     "card_charge_up": ("攒个大的", "body", "grow"),
     "card_turf_growth": ("地头蛇", "body", "grow"),
+    "card_tally": ("揍一下记一笔", "body", "grow"),
     "card_live_wire": ("浑身带电", "body", "element"),
     "card_long_soak": ("久泡", "body", "element"),
     "card_louder_blast": ("炸得更响", "body", "element"),
     "card_endless_burn": ("烧不完", "body", "element"),
+    "card_burn_guard": ("烧着还挺扛揍", "body", "element"),
 }
 
 
@@ -269,7 +290,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (5, 12, 10))
+                          self.data["identity"]["projection_revision"]), (6, 13, 10))
+        self.assertIn("#292 P5 cards, vouchers, rest shop, pick tickets and chains approved", approval["decision"])
         self.assertIn("#287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved", approval["decision"])
         self.assertFalse({"components", "workshop_capacity"} & (set(self.data) | set(self.data["progression"])))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
@@ -306,6 +328,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("OVERDRIVE.GustPushCm", "cm", "300"), ("OVERDRIVE.GustPushSec", "ms", ".25"),
             ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", ".25"),
+            ("AI.CardSkipChance", "ratio", ".3"),
+            ("CHAIN.EndSec", "ms", "3"),
             ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
@@ -444,7 +468,6 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             ("COMBAT.ShockEveryNthHit", 3), ("COMBAT.MethaneBurnStacks", 2), ("COMBAT.FirestormBurnScale", 2), ("COMBAT.CorrodeBreachStacks", 3), ("GROUND.FireBurnStacks", 1), ("GROUND.MaxPerOwner", 6), ("GROUND.MaxTotal", 40),
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
-            ("GROWTH.NpcActivePoints", 5), ("GROWTH.ActiveSkipPoints", 5), ("GROWTH.NpcActiveSkipPoints", 3),
             # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             ("GROWTH.KeystoneThresholdPoints", 18),
@@ -452,6 +475,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 5), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
             ("CARDS.RerollsPerRest", 1), ("CARDS.LockSlots", 1), ("CARDS.VocabWeight", 2),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.BreakoutCardScore", 5),
+            # Spec §3.13, §6.5 and §13 (P5): vouchers, the rest shop, chain ends and the AI's skip.
+            ("CARDS.SkipVouchers", 3), ("VOUCHER.CampLow", 2), ("VOUCHER.CampHigh", 4), ("VOUCHER.CampElite", 8), ("VOUCHER.CampAncient", 12), ("VOUCHER.Boss", 20), ("VOUCHER.Kill", 10), ("VOUCHER.Assist", 4), ("VOUCHER.Airdrop", 6), ("VOUCHER.ActiveSkip", 8), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 6), ("SHOP.SkillPrice", 10), ("SHOP.RefreshPrice", 2), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 25), ("SHOP.SkillPointMaxPerMatch", 3), ("SHOP.SellPrice", 3), ("CHAIN.MinKeySteps", 3),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
@@ -496,7 +521,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "knockback": 20, "silence": 25, "burn": 26,
                                            "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
                                            "camp_enraged": 34, "camp_guarding": 35, "chilled": 36, "rotten": 37})
-        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "gust": 235, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242})
+        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "gust": 235, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242, "basic_projectile": 243, "combo_sweep": 244, "combo_cast": 245, "speed_factor": 246, "hit_growth": 247, "control_amp": 248, "reshape": 249, "shield_spend": 250, "recent_cast_amp": 251, "dodge_free_cast": 252, "dash_ram": 253, "overdrive_short": 254, "tally": 255})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -637,8 +662,8 @@ class ApprovedDemoData(unittest.TestCase):
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
 
     def test_all_cards_in_native_order(self):
-        # Spec §7: the 55 P2 and 9 P4 cards in native ID order 200-284 with their form, type and one to four vocabulary keys;
-        # Y25 alone chooses an element.
+        # Spec §7: the 55 P2, 9 P4 and 21 P5 cards in native ID order 200-284 with their form, type and up to four vocabulary
+        # keys (K07 and K10 carry none); Y25 alone chooses an element.
         self.assertEqual([row["id"] for row in self.data["cards"]], list(CARD_FRAMES))
         previous = 199
         for identity, (_, form, kind) in CARD_FRAMES.items():
@@ -647,9 +672,10 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertTrue(previous < row["native_id"] <= 284)
                 previous = row["native_id"]
                 self.assertEqual((row["form"], row["type"]), (form, kind))
-                self.assertTrue(1 <= len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
+                self.assertTrue(len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
+                self.assertEqual(len(row["vocab"]) == 0, identity in ("card_crowd_hit", "card_long_reach"))
                 self.assertEqual("choose_element" in row, identity == "card_live_wire")
-        self.assertEqual(len(CARD_FRAMES), 64)
+        self.assertEqual(len(CARD_FRAMES), 85)
 
     def test_retired_content_ids_stay_reserved_and_absent(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")

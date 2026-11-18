@@ -414,21 +414,38 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
 - **连锁保护**（spec §3.8）：`FLDCombatHit::ChainDepth` 是派生深度；`ApplyPendingHits` 给每个派生命中记上一层，超过 `CHAIN.MaxDepth`
   的不再派生（`ChainAllows` 在卡牌派生处同样判断），一个权威步最多处理 `CHAIN.MaxEffectsPerStep` 个派生，其余留给下一步，
   都记 `LD_CHAIN_GUARD`。
+- **连锁记录**（spec §6.5，`LDCombatChains.cpp`、纯规则 `Combat\LDChainRules`）：`FLDCombatHit` 与 `FLDCombatAction` 带 `ChainId`。
+  技能、普攻与冲刺的释放各开一条连锁（`OpenChain`），`EffectChains` 把释放的 EffectId 映到它，派生命中在 `ApplyPendingHits` 继承；
+  释放与命中结算期间 `CurrentChain` 指向当前连锁。步骤来自牌的触发（`LedgerCardTriggered`）、元素反应、地面状态生成与参赛者击杀
+  （`LDChain::ReactionStep/GroundStep/KillStep`）。`AdvanceChains`（`LDCombatDriver` 每步调用）在 `CHAIN.EndSec` 没有新步时结束连锁；
+  至少 `CHAIN.MinKeySteps` 种不同步骤的连锁得出键（`LDChain::Key`，步骤种类按首次出现排列），记 `LD_CHAIN`（每人只记最长的
+  `LoggedPerOwner` = 5 条，`KeepLongest`），本人最近 `OwnerRecentEnds` = 4 条写进 `FLDCombatOwnerView::Chains`（只给主人，带递增 `Serial`）。
+  `ReadResultHighlights` 给结算的每名参赛者最长连锁与对参赛者最高的一下（`FLDDamageSummaryView::Highlights`）。
 - **普攻牌**：A01 第 3 段回劲；A02 普攻命中随机一个未就绪技能冷却减少；A03 第 3 段命中算一次技能命中（劲与技能命中类牌，
   不触发技能本身效果）；A04 第 3 段真实击退；A06 第 3 段变成 N+1 下，各 0.8；A09 超出攻速上限的部分换成多打一下的概率；
   A11 附加法强魔法伤害（`FLDCombatHit::bRider` 骑乘命中，与主击共享暴击与乘区，不再触发）；A12 同一目标连续命中叠攻速；
-  A14/A15 主击加破防/灼烧层；A16/A17 主击挂湿/麻。
+  A14/A15 主击加破防/灼烧层；A16/A17 主击挂湿/麻；A05 普攻变成飞行物（射程投影加长，命中即停）；A07 第 3 段扇形横扫；
+  A08 第 3 段命中按 Q 的射程以缩放效果放 Q（`QueueComboCast`，不耗劲、不进冷却、不触发爆劲）；A10 低攻速换普攻乘区；
+  A13 普攻命中参赛者计数成长攻击力。
 - **技能牌**（宿主是 `Active` 那个已学技能）：K01/D02 命中或接触后其他技能冷却减少（`HasteOtherActives`）；K02 命中回劲；K04 记号；
   K06 释放后排程 N 次自动重放（`ScheduleAutoRecasts`，60% 效果、不耗劲，`RunAutoRecasts` 在动作阶段执行）；K08/K09 冷却与劲耗
   倍率在 `CompileCardActive` 编进 `FLDCombatActiveTerms`（同名相加）；K12 改用生命支付（`HPCostBpPerMomentum`，生命不足拒绝）；
+  K03 本技能命中过的参赛者在助攻窗口内死亡且主人得到击杀或助攻时刷新本技能冷却；K05 造成控制后武装下一个技能乘区
+  （`ControlAmp*`）；K07/K10 改造范围与射程（`host_hit_types` 限定宿主；K10 远距命中乘区）；K11 控制时长与冷却（`host_control`）；
+  K14 命中时消耗护盾转为同类型伤害；K18 按最近施放的其他技能数加乘区（`RecentCasts`）；
   K13 附加攻击力物理伤害（骑乘命中）；K15 技能吸血；K16 就绪后闲置计时；K17 命中参赛者累计成长；K19–K21 命中挂元素；K25 触发反应时本技能冷却减少。
 - **冲刺牌**：D01 接触敌人刷新冲刺冷却（每次冲刺一次）；D03 冲刺结束武装强化普攻；D05 冲刺分段（`SplitSegments`，同名多份多段，
-  冷却不变）；D06 穿过敌人，对每个穿过的身体经 `MakeBasicStrike` 打一次普攻（算普攻命中，不推进连击）；D12 接触挂麻。
+  冷却不变）；D06 穿过敌人，对每个穿过的身体经 `MakeBasicStrike` 打一次普攻（算普攻命中，不推进连击）；D12 接触挂麻；
+  D04 完美闪避后下一个技能免劲（`FreeCasts`，`OnPerfectDodgeCards`）；D07 冲刺加长并撞人（`DashRamHit`）；D08 冲刺耗劲换冷却
+  （`DashMomentumCostP2`）；D09 完美闪避计数成长移速。
 - **本体牌**：Y01 直接伤害（含护盾吸收）按 25%/份反弹魔法伤害，反弹不再反弹、可吸血；Y02 击杀或助攻刷新全部技能冷却并回满劲
   （`OnCardTakedown`）；Y03 低血 2 s 内每次伤害降为 1（每条命一次）；Y04/Y05 反应回劲/挂新元素；Y07 受伤护盾（冷却按持有者）；
   Y08 击退撞墙眩晕、撞人两人受伤；Y09 技能可暴击；Y10 吸血对技能生效；Y14 溢出治疗转护盾（`OverhealShield`，与现有护盾取强）；
   Y16 技能急速换技能命中回劲；Y17 普攻吸血；Y19/Y20/Y21 本局成长（计数乘以当前持有的成长牌，`CardGrowthTerms`；成长事件时 `RefreshCardGrowth` 重算，构筑变更的 `PrepareBuildChange` 按提议的牌重算，卸下即失去、加装即按已有计数生效）；A11/K13 的附带伤害不触发任何效果，包括受击方的技能分支效果；Y22 不造成伤害的时间转下一次伤害乘区；
-  Y25 光环把选定元素挂给 200 cm 内对你造成直接伤害的人；Y26 你施加的元素持续时间 ×2；Y27 你触发的反应伤害乘区；Y28 灼烧上限。
+  Y25 光环把选定元素挂给 200 cm 内对你造成直接伤害的人；Y26 你施加的元素持续时间 ×2；Y27 你触发的反应伤害乘区；Y28 灼烧上限；
+  Y06 护盾被打破时周围魔法伤害（`OnShieldBrokenCards`）；Y11 每个身体自己的爆劲门槛与倍率（`OverdriveThresholdOf/ScaleOf`，
+  多份取同一值；`FLDCombatOwnerView::OverdriveThresholdP2` 供 HUD 与输入）；Y18 移速高于基础换乘区；Y24 命中记账、满额兑现
+  （`OnTallyHit`）；Y29 造成的灼烧伤害转护盾（`OnBurnDealtCards`）。
 - 牌的状态（Y03 一条命一次、A12 目标与层数、K06 排队的重放、K16/Y22 计时、K17/Y19–Y21 累计）在 `LDCombatRest.cpp` 按生命或对局重置；
   只读预览（`LDWorkshopPreview`）只覆盖 K08/K09 的冷却劲耗与 Y13，其余写为部分。
 
@@ -679,7 +696,7 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 馊的削减、跳伤与刷新，`Combat.GroundState.Transitions/Caps`覆盖每条“再加元素”转换、元素命中引起的转换、各种站立效果只对敌人、冰面移动参数、
 每人 6 / 全场 40 与同一技能一份的淘汰、公开事实与线上记录，`Combat.OneVsOne.Bounce`覆盖 S10 单挑弹回与有他人时先弹他人，
 `Combat.Damage.FactorProduct/SameCardAdds/TechCap` 覆盖乘区分组相乘、同名相加与技术上限，`Combat.Chain.Guard` 覆盖连锁深度与每步上限，
-`Combat.Cards.<编号>`（64 条）各在真实 Combat 里装一份与两份该牌，检查投影接受、每份作为该牌乘区键下的独立效果被读取与位置，
+`Combat.Chain.Key` 覆盖连锁键的步骤计数与门槛，`Combat.Cards.<编号>`（85 条）各在真实 Combat 里装一份与两份该牌，检查投影接受、每份作为该牌乘区键下的独立效果被读取与位置，
 并检查可在无对局时观察的结果（K06 重放次数与延迟、K08/K09 冷却与劲耗、K09/K12 乘区、Y01 反弹与不再反弹、Y13 生命上限、Y15 缺血攻速、
 Y25 元素与缺元素拒绝；A18/A19 普攻挂冻与馊、K22–K24 宿主挂冻、馊与吹、D10 路径冰带、D11 挪动一次、Y12 多留一份、Y23 站立乘区与离开清零）；其余牌的触发行为由 `Combat.Events.*` 与原生场景覆盖，未覆盖的写在 PR 里。
 `Combat.Events.*`在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻与灼烧入口驱动：S08 火与电同批先火后电及雾的即时潮湿、

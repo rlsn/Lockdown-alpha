@@ -38,7 +38,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 公共休息室与野外共用唯一地面与同一连接：地面向东延伸，野外东墙是隔墙，休息室四面封闭。
 `RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
-`RestService` 的 `rest_service_1` 与 `rest_service_3` 分别为技能商人、训练师（`rest_service_2` 不承载服务），三个定位点，位于 y=-500 cm、x=7100/7500/7900 cm；
+`RestService` 的 `rest_service_3` 为训练师（`rest_service_1`、`rest_service_2` 不承载服务），三个定位点，位于 y=-500 cm、x=7100/7500/7900 cm；
 服务交互仍复用 `AIRDROP.PickupRadiusCm` 的150 cm范围。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
 y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
 训练锚点不进入野外 POI 或小地图地点。六个 `PKSignup` 锚点是公共报名圈里的不同站位，报名范围复用 `AIRDROP.PickupRadiusCm`。

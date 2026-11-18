@@ -1,11 +1,11 @@
 {
   "identity": {
-    "schema_version": 5,
-    "handler_revision": 12,
+    "schema_version": 6,
+    "handler_revision": 13,
     "projection_revision": 10,
     "approval": {
       "status": "approved",
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers."
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision."
     }
   },
   "parameters": {
@@ -139,9 +139,6 @@
     "GROWTH.MaxLevelPointsXP": 240,
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.KeystoneThresholdPoints": 18,
-    "GROWTH.NpcActivePoints": 5,
-    "GROWTH.ActiveSkipPoints": 5,
-    "GROWTH.NpcActiveSkipPoints": 3,
     "GROWTH.BuildSafeWindowSec": {"unit": "s", "value": 4},
     "CARDS.CapacityBase": 6,
     "CARDS.LevelsPerSlot": 5,
@@ -150,9 +147,32 @@
     "CARDS.RerollsPerRest": 1,
     "CARDS.LockSlots": 1,
     "CARDS.VocabWeight": 2,
+    "CARDS.SkipVouchers": 3,
+    "VOUCHER.CampLow": 2,
+    "VOUCHER.CampHigh": 4,
+    "VOUCHER.CampElite": 8,
+    "VOUCHER.CampAncient": 12,
+    "VOUCHER.Boss": 20,
+    "VOUCHER.Kill": 10,
+    "VOUCHER.Assist": 4,
+    "VOUCHER.Airdrop": 6,
+    "VOUCHER.ActiveSkip": 8,
+    "SHOP.CardSlots": 4,
+    "SHOP.VocabCardSlots": 2,
+    "SHOP.VocabWeight": 3,
+    "SHOP.SkillSlots": 2,
+    "SHOP.CardPrice": 6,
+    "SHOP.SkillPrice": 10,
+    "SHOP.RefreshPrice": 2,
+    "SHOP.RefreshStep": 1,
+    "SHOP.SkillPointPrice": 25,
+    "SHOP.SkillPointMaxPerMatch": 3,
+    "SHOP.SellPrice": 3,
     "DAMAGE.FactorTechCap": {"unit": "ratio", "value": 1000},
     "CHAIN.MaxDepth": 16,
     "CHAIN.MaxEffectsPerStep": 256,
+    "CHAIN.EndSec": {"unit": "s", "value": 3},
+    "CHAIN.MinKeySteps": 3,
     "CAMP.ResetArrivalRadiusCm": {"unit": "cm", "value": 100},
     "CAMP.ReturnDeadEndPlans": 3,
     "CAMP.ReturnDeadEndSec": {"unit": "s", "value": 6},
@@ -198,6 +218,7 @@
     "AI.CardVocabScore": 2,
     "AI.BreakoutChance": {"unit": "ratio", "value": 0.25},
     "AI.BreakoutCardScore": 5,
+    "AI.CardSkipChance": {"unit": "ratio", "value": 0.3},
     "COMBAT.BreachPerStack": {"unit": "points", "value": 3},
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachSec": {"unit": "s", "value": 4},
@@ -781,12 +802,28 @@
       "effects": [{"op": "combo_knockback", "distance": {"unit": "cm", "value": 150}, "duration": {"unit": "s", "value": 0.12}}]
     },
     {
+      "id": "card_long_arm", "form": "basic", "type": "modify", "vocab": ["basic_hit"],
+      "effects": [{"op": "basic_projectile", "distance": {"unit": "cm", "value": 330}, "speed": {"unit": "cm/s", "value": 1800}, "radius": {"unit": "cm", "value": 55}}]
+    },
+    {
       "id": "card_both_hands", "form": "basic", "type": "modify", "vocab": ["combo3", "basic_hit"],
       "effects": [{"op": "combo_double", "damage_ratio": {"unit": "ratio", "value": 0.8}}]
     },
     {
+      "id": "card_wide_swing", "form": "basic", "type": "modify", "vocab": ["combo3"],
+      "effects": [{"op": "combo_sweep", "angle": {"unit": "degrees", "value": 160}, "ratio": {"unit": "ratio", "value": 0.6}}]
+    },
+    {
+      "id": "card_fist_skill", "form": "basic", "type": "modify", "vocab": ["combo3", "skill_cast"],
+      "effects": [{"op": "combo_cast", "damage_ratio": {"unit": "ratio", "value": 0.4}}]
+    },
+    {
       "id": "card_quick_hands", "form": "basic", "type": "convert", "vocab": ["attack_speed", "basic_hit"],
       "effects": [{"op": "overcap_extra_hit", "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.1}}]
+    },
+    {
+      "id": "card_slow_craft", "form": "basic", "type": "convert", "vocab": ["attack_speed"],
+      "effects": [{"op": "speed_factor", "trigger": "AttackSpeedBelow", "threshold": {"unit": "attacks/s", "value": 1}, "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.08}}]
     },
     {
       "id": "card_scholar_punch", "form": "basic", "type": "convert", "vocab": ["basic_hit"],
@@ -795,6 +832,10 @@
     {
       "id": "card_heated_up", "form": "basic", "type": "grow", "vocab": ["attack_speed", "basic_hit"],
       "effects": [{"op": "focus_attack_speed", "ratio": {"unit": "ratio", "value": 0.04}, "duration": {"unit": "s", "value": 3}}]
+    },
+    {
+      "id": "card_muscle_memory", "form": "basic", "type": "grow", "vocab": ["basic_hit"],
+      "effects": [{"op": "hit_growth", "trigger": "BasicHit", "count": 25, "stats": {"ADFlat": {"unit": "points", "value": 1}}}]
     },
     {
       "id": "card_breach_fist", "form": "basic", "type": "grow", "vocab": ["basic_hit", "armor"],
@@ -829,12 +870,24 @@
       "effects": [{"op": "skill_hit_momentum", "momentum": {"unit": "momentum", "value": 6}}]
     },
     {
+      "id": "card_quick_takedown", "form": "skill", "type": "trigger", "vocab": ["kill"],
+      "effects": [{"op": "takedown_reset"}]
+    },
+    {
       "id": "card_setup_line", "form": "skill", "type": "trigger", "vocab": ["skill_hit"],
       "effects": [{"op": "setup_mark", "duration": {"unit": "s", "value": 4}, "ratio": {"unit": "ratio", "value": 0.35}}]
     },
     {
+      "id": "card_pin_amp", "form": "skill", "type": "trigger", "vocab": ["control"], "host_control": true,
+      "effects": [{"op": "control_amp", "ratio": {"unit": "ratio", "value": 0.4}, "duration": {"unit": "s", "value": 3}}]
+    },
+    {
       "id": "card_encore", "form": "skill", "type": "modify", "vocab": ["skill_cast"],
       "effects": [{"op": "auto_recast", "delay": {"unit": "s", "value": 0.6}, "damage_ratio": {"unit": "ratio", "value": 0.6}}]
+    },
+    {
+      "id": "card_crowd_hit", "form": "skill", "type": "modify", "vocab": [], "host_hit_types": ["projectile", "area"],
+      "effects": [{"op": "reshape", "area": {"unit": "ratio", "value": 1.6}}]
     },
     {
       "id": "card_again_now", "form": "skill", "type": "modify", "vocab": ["skill_cast", "momentum"],
@@ -845,12 +898,24 @@
       "effects": [{"op": "cooldown_cost", "cooldown_ratio": {"unit": "ratio", "value": 1.5}, "cost_ratio": {"unit": "ratio", "value": 1}}, {"op": "skill_damage_factor", "ratio": {"unit": "ratio", "value": 0.8}}]
     },
     {
+      "id": "card_long_reach", "form": "skill", "type": "modify", "vocab": [], "host_hit_types": ["targeted", "projectile"],
+      "effects": [{"op": "reshape", "range": {"unit": "ratio", "value": 0.5}, "far": {"unit": "cm", "value": 550}, "far_ratio": {"unit": "ratio", "value": 0.25}}]
+    },
+    {
+      "id": "card_hold_longer", "form": "skill", "type": "modify", "vocab": ["control"], "host_control": true,
+      "effects": [{"op": "reshape", "control": {"unit": "ratio", "value": 0.4}}, {"op": "cooldown_cost", "cooldown_ratio": {"unit": "ratio", "value": 1.2}, "cost_ratio": {"unit": "ratio", "value": 1}}]
+    },
+    {
       "id": "card_blood_price", "form": "skill", "type": "convert", "vocab": ["low_hp", "heal"],
       "effects": [{"op": "hp_cost", "ratio": {"unit": "ratio", "value": 0.006}}, {"op": "skill_damage_factor", "ratio": {"unit": "ratio", "value": 0.2}}]
     },
     {
       "id": "card_lend_fist", "form": "skill", "type": "convert", "vocab": ["skill_hit"],
       "effects": [{"op": "skill_ad_rider", "ad_ratio": {"unit": "ratio", "value": 0.6}, "damage_type": "Physical"}]
+    },
+    {
+      "id": "card_held_breath", "form": "skill", "type": "convert", "vocab": ["shield"],
+      "effects": [{"op": "shield_spend", "ratio": {"unit": "ratio", "value": 0.5}}]
     },
     {
       "id": "card_hurt_heal", "form": "skill", "type": "convert", "vocab": ["heal", "skill_hit"],
@@ -863,6 +928,10 @@
     {
       "id": "card_practice", "form": "skill", "type": "grow", "vocab": ["skill_hit"],
       "effects": [{"op": "skill_growth", "ratio": {"unit": "ratio", "value": 0.02}}]
+    },
+    {
+      "id": "card_combo_chain", "form": "skill", "type": "grow", "vocab": ["skill_cast"],
+      "effects": [{"op": "recent_cast_amp", "interval": {"unit": "s", "value": 4}, "ratio": {"unit": "ratio", "value": 0.2}}]
     },
     {
       "id": "card_add_fire", "form": "skill", "type": "element", "vocab": ["element"],
@@ -905,12 +974,28 @@
       "effects": [{"op": "empower_basic", "trigger": "DashComplete", "base": {"unit": "points", "value": 0}, "ad_ratio": {"unit": "ratio", "value": 1}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}, "charges": 1}]
     },
     {
+      "id": "card_dodge_strike", "form": "dash", "type": "trigger", "vocab": ["perfect_dodge", "momentum"],
+      "effects": [{"op": "dodge_free_cast"}]
+    },
+    {
       "id": "card_double_dash", "form": "dash", "type": "modify", "vocab": ["dash"],
       "effects": [{"op": "dash_split", "distance": {"unit": "cm", "value": 200}, "duration": {"unit": "s", "value": 1}}]
     },
     {
       "id": "card_pass_through", "form": "dash", "type": "modify", "vocab": ["dash_contact", "basic_hit"],
       "effects": [{"op": "dash_phase"}]
+    },
+    {
+      "id": "card_head_down", "form": "dash", "type": "modify", "vocab": ["dash_contact", "knockback"],
+      "effects": [{"op": "dash_ram", "ratio": {"unit": "ratio", "value": 0.6}, "base": {"unit": "points", "value": 30}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "distance": {"unit": "cm", "value": 150}, "duration": {"unit": "s", "value": 0.12}}]
+    },
+    {
+      "id": "card_paid_dash", "form": "dash", "type": "convert", "vocab": ["momentum", "dash"],
+      "effects": [{"op": "cooldown_cost", "cooldown_ratio": {"unit": "ratio", "value": 0.4}, "cost_ratio": {"unit": "ratio", "value": 1}, "momentum": {"unit": "momentum", "value": 15}}]
+    },
+    {
+      "id": "card_slippery", "form": "dash", "type": "grow", "vocab": ["perfect_dodge", "move_speed"],
+      "effects": [{"op": "hit_growth", "trigger": "PerfectDodge", "count": 1, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.015}}}]
     },
     {
       "id": "card_ice_trail", "form": "dash", "type": "element", "vocab": ["ground"],
@@ -945,6 +1030,10 @@
       "effects": [{"op": "reaction_element"}]
     },
     {
+      "id": "card_shell_burst", "form": "body", "type": "trigger", "vocab": ["shield_break"],
+      "effects": [{"op": "shield_burst_break", "base": {"unit": "points", "value": 60}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.03}, "radius": {"unit": "cm", "value": 300}}]
+    },
+    {
       "id": "card_hard_skin", "form": "body", "type": "trigger", "vocab": ["damaged", "shield"],
       "effects": [{"op": "triggered_shield", "trigger": "Damaged", "base": {"unit": "hp", "value": 45}, "max_hp_ratio": {"unit": "ratio", "value": 0.04}, "duration": {"unit": "s", "value": 3}, "interval": {"unit": "s", "value": 8}}]
     },
@@ -959,6 +1048,10 @@
     {
       "id": "card_skill_drain", "form": "body", "type": "modify", "vocab": ["heal", "skill_hit"],
       "effects": [{"op": "lifesteal_skills"}]
+    },
+    {
+      "id": "card_short_breath", "form": "body", "type": "modify", "vocab": ["overdrive", "momentum"],
+      "effects": [{"op": "overdrive_short", "momentum": {"unit": "momentum", "value": 70}, "multiplier": {"unit": "ratio", "value": 1.4}}]
     },
     {
       "id": "card_double_stall", "form": "body", "type": "modify", "vocab": ["ground"],
@@ -985,6 +1078,10 @@
       "effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.15}}]
     },
     {
+      "id": "card_run_hit", "form": "body", "type": "convert", "vocab": ["move_speed"],
+      "effects": [{"op": "speed_factor", "trigger": "MoveSpeedAbove", "step_ratio": {"unit": "ratio", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.05}}]
+    },
+    {
       "id": "card_grow_fat", "form": "body", "type": "grow", "vocab": ["heal", "max_hp"],
       "effects": [{"op": "heal_growth", "heal": {"unit": "hp", "value": 200}, "max_hp": {"unit": "hp", "value": 10}}]
     },
@@ -1005,6 +1102,10 @@
       "effects": [{"op": "ground_growth", "ratio": {"unit": "ratio", "value": 0.03}, "interval": {"unit": "s", "value": 1}}]
     },
     {
+      "id": "card_tally", "form": "body", "type": "grow", "vocab": ["skill_hit", "basic_hit"],
+      "effects": [{"op": "tally", "count": 5, "base": {"unit": "points", "value": 12}, "ap_ratio": {"unit": "ratio", "value": 0.1}, "duration": {"unit": "s", "value": 6}}]
+    },
+    {
       "id": "card_live_wire", "form": "body", "type": "element", "vocab": ["element", "damaged"], "choose_element": ["fire", "water", "electric", "chill", "rot"],
       "effects": [{"op": "element_aura", "radius": {"unit": "cm", "value": 200}}]
     },
@@ -1019,6 +1120,10 @@
     {
       "id": "card_endless_burn", "form": "body", "type": "element", "vocab": ["element"],
       "effects": [{"op": "burn_cap", "count": 10}]
+    },
+    {
+      "id": "card_burn_guard", "form": "body", "type": "element", "vocab": ["element", "shield"],
+      "effects": [{"op": "overheal_shield", "burn_ratio": {"unit": "ratio", "value": 0.3}, "duration": {"unit": "s", "value": 3}}]
     }
   ],
   "camps": {
@@ -1098,10 +1203,15 @@
     {"id": "card_punch_think", "namespace": "DemoContent", "name_key": "card_punch_think.name", "name_text": "边打边想", "description_key": "card_punch_think.description", "description_text": "普攻命中时，随机一个还在冷却的技能冷却减少 [basic_cooldown_cut.refund] 秒。", "icon_id": "icon_card_punch_think"},
     {"id": "card_solid_punch", "namespace": "DemoContent", "name_key": "card_solid_punch.name", "name_text": "拳拳到肉", "description_key": "card_solid_punch.description", "description_text": "第三拳命中同时算一次技能命中：触发技能命中类的牌和劲，不触发技能本身的效果。", "icon_id": "icon_card_solid_punch"},
     {"id": "card_third_shove", "namespace": "DemoContent", "name_key": "card_third_shove.name", "name_text": "第三拳滚蛋", "description_key": "card_third_shove.description", "description_text": "第三拳把主目标推开 [combo_knockback.distance] 厘米，撞到墙或人会停下。", "icon_id": "icon_card_third_shove"},
+    {"id": "card_long_arm", "namespace": "DemoContent", "name_key": "card_long_arm.name", "name_text": "隔空抽你", "description_key": "card_long_arm.description", "description_text": "普攻射程 +[basic_projectile.distance] 厘米，变成会被躲开的飞行物，命中即停。", "icon_id": "icon_card_long_arm"},
     {"id": "card_both_hands", "namespace": "DemoContent", "name_key": "card_both_hands.name", "name_text": "左右开弓", "description_key": "card_both_hands.description", "description_text": "第三拳变成两下，每下 [combo_double.multiplier]% 伤害，两下都算普攻命中；每多一张多打一下。", "icon_id": "icon_card_both_hands"},
+    {"id": "card_wide_swing", "namespace": "DemoContent", "name_key": "card_wide_swing.name", "name_text": "抡圆了打", "description_key": "card_wide_swing.description", "description_text": "第三段变成身前 [combo_sweep.angle]° 横扫：主目标全额，其他人 [combo_sweep.ratio]%。", "icon_id": "icon_card_wide_swing"},
+    {"id": "card_fist_skill", "namespace": "DemoContent", "name_key": "card_fist_skill.name", "name_text": "拳里带招", "description_key": "card_fist_skill.description", "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。", "icon_id": "icon_card_fist_skill"},
     {"id": "card_quick_hands", "namespace": "DemoContent", "name_key": "card_quick_hands.name", "name_text": "手快有手慢无", "description_key": "card_quick_hands.description", "description_text": "攻速超过上限的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。", "icon_id": "icon_card_quick_hands"},
+    {"id": "card_slow_craft", "namespace": "DemoContent", "name_key": "card_slow_craft.name", "name_text": "慢工出细活", "description_key": "card_slow_craft.description", "description_text": "攻速每比 [speed_factor.threshold] 次/秒低 [speed_factor.step]，普攻伤害 +[speed_factor.ratio]%。", "icon_id": "icon_card_slow_craft"},
     {"id": "card_scholar_punch", "namespace": "DemoContent", "name_key": "card_scholar_punch.name", "name_text": "读书人打架", "description_key": "card_scholar_punch.description", "description_text": "普攻额外造成 [basic_ap_rider.amount] 魔法伤害，跟着这一拳一起结算。", "icon_id": "icon_card_scholar_punch"},
     {"id": "card_heated_up", "namespace": "DemoContent", "name_key": "card_heated_up.name", "name_text": "越打越上头", "description_key": "card_heated_up.description", "description_text": "连续打同一个人，每下攻速 +[focus_attack_speed.ratio]%，没有上限；换人或 [focus_attack_speed.duration] 秒没打就清零。", "icon_id": "icon_card_heated_up"},
+    {"id": "card_muscle_memory", "namespace": "DemoContent", "name_key": "card_muscle_memory.name", "name_text": "熟能生巧", "description_key": "card_muscle_memory.description", "description_text": "普攻每命中参赛者 [hit_growth.count] 次，本局攻击力 +[hit_growth.ADFlat]。", "icon_id": "icon_card_muscle_memory"},
     {"id": "card_breach_fist", "namespace": "DemoContent", "name_key": "card_breach_fist.name", "name_text": "越揍越不经打", "description_key": "card_breach_fist.description", "description_text": "普攻命中施加 [breach.basic_count] 层破防。", "icon_id": "icon_card_breach_fist"},
     {"id": "card_fire_fist", "namespace": "DemoContent", "name_key": "card_fire_fist.name", "name_text": "拳头冒火", "description_key": "card_fire_fist.description", "description_text": "普攻命中施加 [burn.basic_count] 层灼烧。", "icon_id": "icon_card_fire_fist"},
     {"id": "card_water_fist", "namespace": "DemoContent", "name_key": "card_water_fist.name", "name_text": "拳头甩脏水", "description_key": "card_water_fist.description", "description_text": "普攻命中让目标潮湿。", "icon_id": "icon_card_water_fist"},
@@ -1110,15 +1220,22 @@
     {"id": "card_rot_fist", "namespace": "DemoContent", "name_key": "card_rot_fist.name", "name_text": "拳头带馊", "description_key": "card_rot_fist.description", "description_text": "普攻命中让目标馊。", "icon_id": "icon_card_rot_fist"},
     {"id": "card_next_up", "namespace": "DemoContent", "name_key": "card_next_up.name", "name_text": "打完换下一招", "description_key": "card_next_up.description", "description_text": "这个技能命中时，你其他技能的冷却各减少 [hit_haste_other.refund] 秒。", "icon_id": "icon_card_next_up"},
     {"id": "card_pay_back", "namespace": "DemoContent", "name_key": "card_pay_back.name", "name_text": "一招回本", "description_key": "card_pay_back.description", "description_text": "这个技能每次命中回 [skill_hit_momentum.limit] 劲。", "icon_id": "icon_card_pay_back"},
+    {"id": "card_quick_takedown", "namespace": "DemoContent", "name_key": "card_quick_takedown.name", "name_text": "收人头不用等", "description_key": "card_quick_takedown.description", "description_text": "这个技能造成击杀或助攻时，它的冷却刷新。", "icon_id": "icon_card_quick_takedown"},
     {"id": "card_setup_line", "namespace": "DemoContent", "name_key": "card_setup_line.name", "name_text": "先垫一句", "description_key": "card_setup_line.description", "description_text": "这个技能命中给目标挂 [setup_mark.duration] 秒记号；你别的技能打中有记号的人伤害 +[setup_mark.ratio]% 并消耗记号。", "icon_id": "icon_card_setup_line"},
+    {"id": "card_pin_amp", "namespace": "DemoContent", "name_key": "card_pin_amp.name", "name_text": "按住了就放大", "description_key": "card_pin_amp.description", "description_text": "这个技能造成控制后 [control_amp.duration] 秒内，你的下一个技能伤害 +[control_amp.ratio]%。", "icon_id": "icon_card_pin_amp"},
     {"id": "card_encore", "namespace": "DemoContent", "name_key": "card_encore.name", "name_text": "再来一遍", "description_key": "card_encore.description", "description_text": "这个技能放完 [auto_recast.delay] 秒后朝同一目标或方向自动再放一次，[auto_recast.multiplier]% 效果，不耗劲；每多一张多放一次。", "icon_id": "icon_card_encore"},
+    {"id": "card_crowd_hit", "namespace": "DemoContent", "name_key": "card_crowd_hit.name", "name_text": "一群人一起挨", "description_key": "card_crowd_hit.description", "description_text": "这个技能的范围、飞行物半径和直线宽度变为 [reshape.multiplier]%，伤害不变。", "icon_id": "icon_card_crowd_hit"},
     {"id": "card_again_now", "namespace": "DemoContent", "name_key": "card_again_now.name", "name_text": "再来一下别喘", "description_key": "card_again_now.description", "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。", "icon_id": "icon_card_again_now"},
     {"id": "card_big_one", "namespace": "DemoContent", "name_key": "card_big_one.name", "name_text": "攒够一顿狠的", "description_key": "card_big_one.description", "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，伤害 +[skill_damage_factor.ratio]%。", "icon_id": "icon_card_big_one"},
+    {"id": "card_long_reach", "namespace": "DemoContent", "name_key": "card_long_reach.name", "name_text": "站远点照样抽你", "description_key": "card_long_reach.description", "description_text": "这个技能射程 +[reshape.ratio]%；命中时离目标至少 [reshape.distance] 厘米，伤害 +[reshape.secondary_ratio]%。", "icon_id": "icon_card_long_reach"},
+    {"id": "card_hold_longer", "namespace": "DemoContent", "name_key": "card_hold_longer.name", "name_text": "按住多揍一会", "description_key": "card_hold_longer.description", "description_text": "这个技能的控制时长 +[reshape.cost_ratio]%（仍计递减），冷却变为 [cooldown_cost.secondary_ratio]%。", "icon_id": "icon_card_hold_longer"},
     {"id": "card_blood_price", "namespace": "DemoContent", "name_key": "card_blood_price.name", "name_text": "拿命换", "description_key": "card_blood_price.description", "description_text": "这个技能改用生命支付，每点劲换成 [hp_cost.ratio]% 生命上限，不再耗劲；伤害 +[skill_damage_factor.ratio]%；生命不够时放不出。", "icon_id": "icon_card_blood_price"},
     {"id": "card_lend_fist", "namespace": "DemoContent", "name_key": "card_lend_fist.name", "name_text": "拳头借给技能", "description_key": "card_lend_fist.description", "description_text": "这个技能每次直接命中额外造成 [skill_ad_rider.amount] 物理伤害。", "icon_id": "icon_card_lend_fist"},
+    {"id": "card_held_breath", "namespace": "DemoContent", "name_key": "card_held_breath.name", "name_text": "憋着的气", "description_key": "card_held_breath.description", "description_text": "这个技能命中时消耗你身上护盾的 [shield_spend.ratio]%，变成同样类型的等量伤害。", "icon_id": "icon_card_held_breath"},
     {"id": "card_hurt_heal", "namespace": "DemoContent", "name_key": "card_hurt_heal.name", "name_text": "打疼了我回血", "description_key": "card_hurt_heal.description", "description_text": "这个技能实际造成的生命伤害的 [skill_lifesteal.ratio]% 治疗自己。", "icon_id": "icon_card_hurt_heal"},
     {"id": "card_held_shot", "namespace": "DemoContent", "name_key": "card_held_shot.name", "name_text": "憋着一发狠的", "description_key": "card_held_shot.description", "description_text": "这个技能就绪后每闲置 [idle_ready_amp.interval] 秒，下一次伤害 +[idle_ready_amp.ratio]%，没有上限，放出后清零。", "icon_id": "icon_card_held_shot"},
     {"id": "card_practice", "namespace": "DemoContent", "name_key": "card_practice.name", "name_text": "越用越顺手", "description_key": "card_practice.description", "description_text": "这个技能每命中参赛者一次，本局伤害 +[skill_growth.ratio]%，没有上限。", "icon_id": "icon_card_practice"},
+    {"id": "card_combo_chain", "namespace": "DemoContent", "name_key": "card_combo_chain.name", "name_text": "一招接一招", "description_key": "card_combo_chain.description", "description_text": "放这个技能时，过去 [recent_cast_amp.interval] 秒内你每放过一个其他技能，这次伤害 +[recent_cast_amp.ratio]%。", "icon_id": "icon_card_combo_chain"},
     {"id": "card_add_fire", "namespace": "DemoContent", "name_key": "card_add_fire.name", "name_text": "掺点火", "description_key": "card_add_fire.description", "description_text": "这个技能命中施加 [skill_element.count] 层灼烧。", "icon_id": "icon_card_add_fire"},
     {"id": "card_add_water", "namespace": "DemoContent", "name_key": "card_add_water.name", "name_text": "掺点水", "description_key": "card_add_water.description", "description_text": "这个技能命中让目标潮湿。", "icon_id": "icon_card_add_water"},
     {"id": "card_add_shock", "namespace": "DemoContent", "name_key": "card_add_shock.name", "name_text": "掺点电", "description_key": "card_add_shock.description", "description_text": "这个技能命中让目标感电。", "icon_id": "icon_card_add_shock"},
@@ -1129,8 +1246,12 @@
     {"id": "card_bump_reset", "namespace": "DemoContent", "name_key": "card_bump_reset.name", "name_text": "撞着就刷新", "description_key": "card_bump_reset.description", "description_text": "冲刺撞到敌人时，冲刺冷却立刻刷新；每次冲刺一次。", "icon_id": "icon_card_bump_reset"},
     {"id": "card_bump_again", "namespace": "DemoContent", "name_key": "card_bump_again.name", "name_text": "撞着了再撞", "description_key": "card_bump_again.description", "description_text": "冲刺撞到敌人时，所有技能冷却减少 [hit_haste_other.refund] 秒。", "icon_id": "icon_card_bump_again"},
     {"id": "card_dash_punch", "namespace": "DemoContent", "name_key": "card_dash_punch.name", "name_text": "蹿过去抡一拳", "description_key": "card_dash_punch.description", "description_text": "冲刺结束后 [empower_basic.duration] 秒内，下一次普攻多造成 [empower_basic.amount] 物理伤害。", "icon_id": "icon_card_dash_punch"},
+    {"id": "card_dodge_strike", "namespace": "DemoContent", "name_key": "card_dodge_strike.name", "name_text": "闪完就打", "description_key": "card_dodge_strike.description", "description_text": "完美闪避后，你的下一个技能不耗劲。", "icon_id": "icon_card_dodge_strike"},
     {"id": "card_double_dash", "namespace": "DemoContent", "name_key": "card_double_dash.name", "name_text": "两段冲刺", "description_key": "card_double_dash.description", "description_text": "冲刺分成两段，每段 [dash_split.distance] 厘米；第一段后 [dash_split.duration] 秒内再按冲刺放第二段，冷却不变。", "icon_id": "icon_card_double_dash"},
     {"id": "card_pass_through", "namespace": "DemoContent", "name_key": "card_pass_through.name", "name_text": "穿人而过", "description_key": "card_pass_through.description", "description_text": "冲刺穿过敌人身体，对每个穿过的人打一次普攻（不推进连击）。", "icon_id": "icon_card_pass_through"},
+    {"id": "card_head_down", "namespace": "DemoContent", "name_key": "card_head_down.name", "name_text": "闷头撞到底", "description_key": "card_head_down.description", "description_text": "冲刺距离 +[dash_ram.ratio]%；撞到的敌人受到 [dash_ram.amount] 物理伤害并被撞开 [dash_ram.distance] 厘米。", "icon_id": "icon_card_head_down"},
+    {"id": "card_paid_dash", "namespace": "DemoContent", "name_key": "card_paid_dash.name", "name_text": "冲刺耗劲", "description_key": "card_paid_dash.description", "description_text": "冲刺消耗 [cooldown_cost.limit] 劲，冷却变为 [cooldown_cost.secondary_ratio]%。", "icon_id": "icon_card_paid_dash"},
+    {"id": "card_slippery", "namespace": "DemoContent", "name_key": "card_slippery.name", "name_text": "越躲越快", "description_key": "card_slippery.description", "description_text": "每次完美闪避，本局移速 +[hit_growth.MoveSpeedBonusRatio]%，没有上限。", "icon_id": "icon_card_slippery"},
     {"id": "card_ice_trail", "namespace": "DemoContent", "name_key": "card_ice_trail.name", "name_text": "一路结冰", "description_key": "card_ice_trail.description", "description_text": "冲刺路径留下宽 [dash_ice.radius] 厘米的冰面，持续 [dash_ice.duration] 秒。", "icon_id": "icon_card_ice_trail"},
     {"id": "card_move_turf", "namespace": "DemoContent", "name_key": "card_move_turf.name", "name_text": "挪地盘", "description_key": "card_move_turf.description", "description_text": "冲刺结束时，把你最近放下的地面状态、区域或陷阱挪到脚下（每个只能挪一次）。", "icon_id": "icon_card_move_turf"},
     {"id": "card_shock_dash", "namespace": "DemoContent", "name_key": "card_shock_dash.name", "name_text": "冲刺挂麻", "description_key": "card_shock_dash.description", "description_text": "冲刺撞到的敌人感电。", "icon_id": "icon_card_shock_dash"},
@@ -1139,25 +1260,30 @@
     {"id": "card_hang_on", "namespace": "DemoContent", "name_key": "card_hang_on.name", "name_text": "死扛", "description_key": "card_hang_on.description", "description_text": "生命低于 [last_stand.ratio]% 时，接下来 [last_stand.duration] 秒每次受到的伤害降为一点；每条命一次。", "icon_id": "icon_card_hang_on"},
     {"id": "card_reaction_refund", "namespace": "DemoContent", "name_key": "card_reaction_refund.name", "name_text": "反应回本", "description_key": "card_reaction_refund.description", "description_text": "你触发反应时回 [reaction_momentum.limit] 劲。", "icon_id": "icon_card_reaction_refund"},
     {"id": "card_wave_after", "namespace": "DemoContent", "name_key": "card_wave_after.name", "name_text": "一波接一波", "description_key": "card_wave_after.description", "description_text": "你触发反应后，给目标挂上一个和刚被消耗的不同的随机元素。", "icon_id": "icon_card_wave_after"},
+    {"id": "card_shell_burst", "namespace": "DemoContent", "name_key": "card_shell_burst.name", "name_text": "壳碎了也崩你", "description_key": "card_shell_burst.description", "description_text": "护盾被打破时，对身边 [shield_burst_break.radius] 厘米内的敌人造成 [shield_burst_break.amount] 魔法伤害。", "icon_id": "icon_card_shell_burst"},
     {"id": "card_hard_skin", "namespace": "DemoContent", "name_key": "card_hard_skin.name", "name_text": "挨揍起硬皮", "description_key": "card_hard_skin.description", "description_text": "受到敌人伤害后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；之后 [triggered_shield.interval] 秒内不再起盾。", "icon_id": "icon_card_hard_skin"},
     {"id": "card_ball_kick", "namespace": "DemoContent", "name_key": "card_ball_kick.name", "name_text": "拿你当球踢", "description_key": "card_ball_kick.description", "description_text": "你造成的击退撞上墙时眩晕 [knockback_impact.secondary_duration] 秒；撞上另一个敌人时两人各受 [knockback_impact.amount] 物理伤害。", "icon_id": "icon_card_ball_kick"},
     {"id": "card_skill_crit", "namespace": "DemoContent", "name_key": "card_skill_crit.name", "name_text": "技能也能暴击", "description_key": "card_skill_crit.description", "description_text": "你的技能伤害也能暴击，用你的暴击率。", "icon_id": "icon_card_skill_crit"},
     {"id": "card_skill_drain", "namespace": "DemoContent", "name_key": "card_skill_drain.name", "name_text": "吸血对技能生效", "description_key": "card_skill_drain.description", "description_text": "你的吸血也按技能实际造成的生命伤害生效。", "icon_id": "icon_card_skill_drain"},
+    {"id": "card_short_breath", "namespace": "DemoContent", "name_key": "card_short_breath.name", "name_text": "气短", "description_key": "card_short_breath.description", "description_text": "劲到 [overdrive_short.limit] 就能爆劲，爆劲倍率变为 [overdrive_short.multiplier]%。", "icon_id": "icon_card_short_breath"},
     {"id": "card_double_stall", "namespace": "DemoContent", "name_key": "card_double_stall.name", "name_text": "双摊位", "description_key": "card_double_stall.description", "description_text": "你的区域、陷阱和地面状态技能可以多留一份。", "icon_id": "icon_card_double_stall"},
     {"id": "card_thick_hide", "namespace": "DemoContent", "name_key": "card_thick_hide.name", "name_text": "皮糙肉厚", "description_key": "card_thick_hide.description", "description_text": "每点护甲给你 [armor_to_hp.amount] 生命上限。", "icon_id": "icon_card_thick_hide"},
     {"id": "card_overfed", "namespace": "DemoContent", "name_key": "card_overfed.name", "name_text": "吃撑了", "description_key": "card_overfed.description", "description_text": "溢出的治疗变成护盾，最多 [overheal_shield.multiplier]% 生命上限，持续 [overheal_shield.duration] 秒。", "icon_id": "icon_card_overfed"},
     {"id": "card_berserk", "namespace": "DemoContent", "name_key": "card_berserk.name", "name_text": "残血狂暴", "description_key": "card_berserk.description", "description_text": "每少百分之一的生命，攻速 +[missing_hp_attack_speed.ratio]%。", "icon_id": "icon_card_berserk"},
     {"id": "card_quick_brain", "namespace": "DemoContent", "name_key": "card_quick_brain.name", "name_text": "脑子转得快", "description_key": "card_quick_brain.description", "description_text": "技能急速每 [haste_momentum.amount] 点，你每次技能命中多回 [haste_momentum.limit] 劲。", "icon_id": "icon_card_quick_brain"},
     {"id": "card_punch_heal", "namespace": "DemoContent", "name_key": "card_punch_heal.name", "name_text": "揍人续命", "description_key": "card_punch_heal.description", "description_text": "普攻吸血 [lifesteal.ratio]%。", "icon_id": "icon_card_punch_heal"},
+    {"id": "card_run_hit", "namespace": "DemoContent", "name_key": "card_run_hit.name", "name_text": "跑起来打", "description_key": "card_run_hit.description", "description_text": "移速每比基础高 [speed_factor.secondary_ratio]%，伤害 +[speed_factor.ratio]%。", "icon_id": "icon_card_run_hit"},
     {"id": "card_grow_fat", "namespace": "DemoContent", "name_key": "card_grow_fat.name", "name_text": "越吃越壮", "description_key": "card_grow_fat.description", "description_text": "你每回复 [heal_growth.amount] 生命，本局生命上限 +[heal_growth.limit]，没有上限。", "icon_id": "icon_card_grow_fat"},
     {"id": "card_kill_streak", "namespace": "DemoContent", "name_key": "card_kill_streak.name", "name_text": "越杀越猛", "description_key": "card_kill_streak.description", "description_text": "每次击杀参赛者，本局攻击力 +[kill_growth.ADFlat]、法强 +[kill_growth.APFlat]；助攻给 [kill_growth.ratio]%。", "icon_id": "icon_card_kill_streak"},
     {"id": "card_tough_skin", "namespace": "DemoContent", "name_key": "card_tough_skin.name", "name_text": "越挨越硬", "description_key": "card_tough_skin.description", "description_text": "每被控制一次，本局护甲 +[control_growth.ArmorFlat]、魔抗 +[control_growth.MagicResistFlat]，没有上限。", "icon_id": "icon_card_tough_skin"},
     {"id": "card_charge_up", "namespace": "DemoContent", "name_key": "card_charge_up.name", "name_text": "攒个大的", "description_key": "card_charge_up.description", "description_text": "不造成伤害的每 [idle_charge.interval] 秒，下一次伤害 +[idle_charge.ratio]%，没有上限；造成伤害后清零（持续伤害不清零）。", "icon_id": "icon_card_charge_up"},
     {"id": "card_turf_growth", "namespace": "DemoContent", "name_key": "card_turf_growth.name", "name_text": "地头蛇", "description_key": "card_turf_growth.description", "description_text": "站在自己的地面状态上，每 [ground_growth.interval] 秒伤害提高 [ground_growth.ratio]%（乘区），离开清零。", "icon_id": "icon_card_turf_growth"},
+    {"id": "card_tally", "namespace": "DemoContent", "name_key": "card_tally.name", "name_text": "揍一下记一笔", "description_key": "card_tally.description", "description_text": "每次命中记一笔，满 [tally.count] 笔兑现：每笔 [tally.amount] 魔法伤害；[tally.duration] 秒没有新账就清空。", "icon_id": "icon_card_tally"},
     {"id": "card_live_wire", "namespace": "DemoContent", "name_key": "card_live_wire.name", "name_text": "浑身带电", "description_key": "card_live_wire.description", "description_text": "装上时选一种元素；在你身边 [element_aura.radius] 厘米内对你造成直接伤害的人被挂上它。", "icon_id": "icon_card_live_wire"},
     {"id": "card_long_soak", "namespace": "DemoContent", "name_key": "card_long_soak.name", "name_text": "久泡", "description_key": "card_long_soak.description", "description_text": "你施加的元素持续时间变为 [element_duration.multiplier]%。", "icon_id": "icon_card_long_soak"},
     {"id": "card_louder_blast", "namespace": "DemoContent", "name_key": "card_louder_blast.name", "name_text": "炸得更响", "description_key": "card_louder_blast.description", "description_text": "你触发的反应伤害 +[reaction_factor.ratio]%。", "icon_id": "icon_card_louder_blast"},
     {"id": "card_endless_burn", "namespace": "DemoContent", "name_key": "card_endless_burn.name", "name_text": "烧不完", "description_key": "card_endless_burn.description", "description_text": "你施加的灼烧最多叠到 [burn_cap.count] 层。", "icon_id": "icon_card_endless_burn"},
+    {"id": "card_burn_guard", "namespace": "DemoContent", "name_key": "card_burn_guard.name", "name_text": "烧着还挺扛揍", "description_key": "card_burn_guard.description", "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒，与现有护盾取强。", "icon_id": "icon_card_burn_guard"},
     {"id": "final_bowling", "namespace": "DemoContent", "name_key": "final_bowling.name", "name_text": "人肉保龄球", "description_key": "final_bowling.description", "description_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。原来源位移距离降低；二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "effect_key": "final_bowling.effect", "effect_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。", "cost_key": "final_bowling.cost", "cost_text": "原来源位移距离降低。", "notes_key": "final_bowling.notes", "notes_text": "二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "icon_id": "icon_final_bowling"},
     {"id": "final_forced_exit", "namespace": "DemoContent", "name_key": "final_forced_exit.name", "name_text": "强制退场", "description_key": "final_forced_exit.description", "description_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。原硬控时间降低，仍吃递减；提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "effect_key": "final_forced_exit.effect", "effect_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。", "cost_key": "final_forced_exit.cost", "cost_text": "原硬控时间降低，仍吃递减。", "notes_key": "final_forced_exit.notes", "notes_text": "提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "icon_id": "icon_final_forced_exit"},
     {"id": "final_traffic", "namespace": "DemoContent", "name_key": "final_traffic.name", "name_text": "交通管制", "description_key": "final_traffic.description", "description_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。该冲刺基础冷却增加；新带替换旧带，不伤害、不挡路。", "effect_key": "final_traffic.effect", "effect_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。", "cost_key": "final_traffic.cost", "cost_text": "该冲刺基础冷却增加。", "notes_key": "final_traffic.notes", "notes_text": "新带替换旧带，不伤害、不挡路。", "icon_id": "icon_final_traffic"},

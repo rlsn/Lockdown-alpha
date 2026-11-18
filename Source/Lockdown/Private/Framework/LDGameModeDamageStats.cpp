@@ -82,6 +82,12 @@ ELDReactionAssistDelivery ALDGameMode::SendReactionAssist(const FGuid& Setter, c
 void ALDGameMode::PublishDamageSummaries()
 {
     if (!HasAuthority() || !bResultLocked || !ResultView.ResultId.IsValid() || !Combat) { return; }
+    // Spec §6.5: a chain still open at the close (the winning kill's among them) counts for 本局最离谱.
+    FString ChainError;
+    if (!Combat->FinishOpenChains(GetAuthorityNowMs(), ChainError))
+    {
+        UE_LOG(LogLDMatch, Error, TEXT("LD_CHAIN_FINISH_FAILED generation=%u %s"), MatchContext.Generation, *ChainError);
+    }
     for (const auto& Pair : Contenders)
     {
         ALDPlayerController* Controller = Pair.Key.Get();
@@ -96,6 +102,7 @@ void ALDGameMode::PublishDamageSummaries()
                 View.Match, *LDLog::Id(Contender.Session), View.Lines.Num());
             continue;
         }
+        Combat->ReadResultHighlights(View.Highlights);
         int64 TotalP2 = 0;
         for (const FLDDamageLine& Line : View.Lines) { TotalP2 += Line.DamageP2; }
         UE_LOG(LogLDMatch, Display, TEXT("LD_DAMAGE_SUMMARY generation=%u contender=%s lines=%d damage_p2=%lld"),

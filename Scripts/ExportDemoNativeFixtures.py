@@ -136,7 +136,7 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete")
+TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete", "PerfectDodge", "AttackSpeedBelow", "MoveSpeedAbove")
 # ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
 ELEMENTS = ("none", "fire", "water", "electric", "chill", "rot", "gust")
 CARD_FORMS = ("basic", "skill", "dash", "body")
@@ -172,8 +172,10 @@ def effect(value):
         # #198 F workshop terms.
         ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
         ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
+        ("burn_ratio", "RatioBp"),
     ):
-        if source in value:
+        # A05/A10 rates are rationals (card_terms places them).
+        if source in value and not (value.get("op") == "speed_factor" and source == "threshold"):
             result[dest] = scalar(value[source])
     for source in ("count", "stacks", "charges"):
         if source in value:
@@ -238,6 +240,33 @@ def card_terms(value, result):
         result["MultiplierBp"] = scalar(value["multiplier"])
     elif op == "kill_growth" and "assist_ratio" in value:
         result["RatioBp"] = scalar(value["assist_ratio"])
+    # Issue #292 P5 cards.
+    elif op == "cooldown_cost" and "momentum" in value:
+        result["BaseP2"] = 0
+        result["LimitP2"] = scalar(value["momentum"])
+    elif op == "basic_projectile":
+        result["ExtraDistanceCm"] = rational(value["speed"])
+    elif op == "speed_factor":
+        result["RatioBp"] = scalar(value["ratio"])
+        if "threshold" in value:
+            result["ExtraDistanceCm"] = rational(value["threshold"])
+            result["StepRate"] = rational(value["step"])
+        if "step_ratio" in value:
+            result["SecondaryRatioBp"] = scalar(value["step_ratio"])
+    elif op == "reshape":
+        result["MultiplierBp"] = scalar(value["area"]) if "area" in value else 0
+        result["RatioBp"] = scalar(value["range"]) if "range" in value else 0
+        result["DistanceCm"] = rational(value["far"]) if "far" in value else rational()
+        result["SecondaryRatioBp"] = scalar(value["far_ratio"]) if "far_ratio" in value else 0
+        result["CostRatioBp"] = scalar(value["control"]) if "control" in value else 0
+    elif op == "overdrive_short":
+        result["BaseP2"] = 0
+        result["LimitP2"] = scalar(value["momentum"])
+        result["MultiplierBp"] = scalar(value["multiplier"])
+    elif op == "dash_ram":
+        result["DamageType"] = 0
+    elif op == "tally":
+        result["DamageType"] = 1
 
 
 GROUND_KINDS = ("none", "puddle", "ice", "fire", "miasma", "field", "blizzard")
@@ -357,6 +386,8 @@ def card(row):
     return {
         "Id": row["id"], "NativeId": row["native_id"], "Form": CARD_FORMS.index(row["form"]), "Type": CARD_TYPES.index(row["type"]),
         "VocabMask": vocab_mask(row["vocab"]), "ChooseElements": [ELEMENTS.index(element) for element in row.get("choose_element", [])],
+        "HostHitTypes": sum(1 << HIT_TYPES.index(kind) for kind in row.get("host_hit_types", [])),
+        "bHostControl": bool(row.get("host_control", False)),
         "Effects": [effect(value) for value in row["effects"]],
     }
 
@@ -466,12 +497,11 @@ def parameter_projection(parameters):
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("SHOWDOWN.RespawnLimit", "ShowdownRespawnLimit"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
-        ("GROWTH.NpcActivePoints", "NpcActivePoints"),
-        ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.NpcActiveSkipPoints", "NpcActiveSkipPoints"),
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"),
         ("CHAIN.MaxDepth", "ChainMaxDepth"), ("CHAIN.MaxEffectsPerStep", "ChainMaxEffectsPerStep"),
+        ("CHAIN.MinKeySteps", "ChainMinKeySteps"),
     ):
         result[dest] = parameters[source]
     for group in ("Elements", "Ground"):
@@ -542,8 +572,14 @@ def parameter_projection(parameters):
         value = parameters[source]
         result[group][field] = rational(value) if kind == "cm" else value if kind == "int" else scalar(value)
     result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
+    result["ChainEndMs"] = scalar(parameters["CHAIN.EndSec"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
-        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "LockSlots", "VocabWeight")}
+        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "LockSlots", "VocabWeight", "SkipVouchers")}
+    result["Vouchers"] = {dest: parameters["VOUCHER." + dest] for dest in (
+        "CampLow", "CampHigh", "CampElite", "CampAncient", "Boss", "Kill", "Assist", "Airdrop", "ActiveSkip")}
+    result["Shop"] = {dest: parameters["SHOP." + dest] for dest in (
+        "CardSlots", "VocabCardSlots", "VocabWeight", "SkillSlots", "CardPrice", "SkillPrice", "RefreshPrice", "RefreshStep",
+        "SkillPointPrice", "SkillPointMaxPerMatch", "SellPrice")}
     result["AI"] = {}
     for source, dest in (
         ("RetreatHPRatio", "RetreatHPBp"), ("ResumeFarmHPRatio", "ResumeFarmHPBp"),
@@ -560,6 +596,7 @@ def parameter_projection(parameters):
     result["AI"]["BreakoutCardScore"] = parameters["AI.BreakoutCardScore"]
     result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])
     result["AI"]["EnemyGroundPathCostBp"] = scalar(parameters["AI.EnemyGroundPathCost"])
+    result["AI"]["CardSkipChanceBp"] = scalar(parameters["AI.CardSkipChance"])
     result["Momentum"] = {
         "MaxP2": scalar(parameters["MOMENTUM.Max"]), "StartP2": scalar(parameters["MOMENTUM.Start"]),
         "CombatPerSec": rational(parameters["MOMENTUM.CombatPerSec"]),

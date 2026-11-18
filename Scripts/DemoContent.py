@@ -30,8 +30,8 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 5
-HANDLER_REVISION = 12
+SCHEMA_VERSION = 6
+HANDLER_REVISION = 13
 PROJECTION_REVISION = 10
 NATIVE_IDS_SCHEMA_VERSION = 2
 INT64_MAX = (1 << 63) - 1
@@ -91,24 +91,32 @@ CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_ele
                            "last_stand", "reaction_momentum", "reaction_element", "skill_crit", "lifesteal_skills",
                            "armor_to_hp", "overheal_shield", "missing_hp_attack_speed", "haste_momentum", "heal_growth",
                            "kill_growth", "control_growth", "idle_charge", "element_aura", "element_duration",
-                           "reaction_factor", "burn_cap", "dash_ice", "ground_relocate", "double_stall", "ground_growth"))
-CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic"}
+                           "reaction_factor", "burn_cap", "dash_ice", "ground_relocate", "double_stall", "ground_growth",
+                           # Issue #292 P5 cards (spec §7).
+                           "basic_projectile", "combo_sweep", "combo_cast", "speed_factor", "hit_growth", "control_amp",
+                           "reshape", "shield_spend", "recent_cast_amp", "dodge_free_cast", "dash_ram", "overdrive_short",
+                           "tally"))
+# burn, breach and empower_basic also have an active form; shield_burst_break is S13 A1's branch and Y06's card.
+CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic", "shield_burst_break"}
 EFFECT_OPS = EFFECT_OPS | CARD_ONLY_OPS
 # The operations a card of each form may carry: skill cards change or answer their host skill, dash cards the D dash,
 # basic cards the primary basic and body cards the holder.
 FORM_OPS = {
     "basic": frozenset(("burn", "breach", "basic_element", "combo_momentum", "basic_cooldown_cut", "combo_skill_hit",
-                        "combo_knockback", "combo_double", "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed")),
+                        "combo_knockback", "combo_double", "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed",
+                        "basic_projectile", "combo_sweep", "combo_cast", "speed_factor", "hit_growth")),
     "skill": frozenset(("hit_haste_other", "skill_hit_momentum", "setup_mark", "auto_recast", "cooldown_cost",
                         "skill_damage_factor", "hp_cost", "skill_ad_rider", "skill_lifesteal", "idle_ready_amp",
-                        "skill_growth", "skill_element", "reaction_haste")),
+                        "skill_growth", "skill_element", "reaction_haste", "takedown_reset", "control_amp", "reshape",
+                        "shield_spend", "recent_cast_amp")),
     "dash": frozenset(("dash_contact_reset", "hit_haste_other", "empower_basic", "dash_split", "dash_phase",
-                       "dash_contact_element", "dash_ice", "ground_relocate")),
+                       "dash_contact_element", "dash_ice", "ground_relocate", "dodge_free_cast", "dash_ram", "cooldown_cost",
+                       "hit_growth")),
     "body": frozenset(("thorns", "takedown_reset", "last_stand", "reaction_momentum", "reaction_element", "triggered_shield",
                        "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
                        "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
                        "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap",
-                       "double_stall", "ground_growth")),
+                       "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally")),
 }
 CARD_FORMS = ("basic", "skill", "dash", "body")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
@@ -736,11 +744,17 @@ _CARD_MAGNITUDES = {
     "focus_attack_speed": ("ratio",), "skill_hit_momentum": ("momentum",), "auto_recast": ("damage_ratio",),
     "skill_damage_factor": ("ratio",), "hp_cost": ("ratio",), "skill_ad_rider": ("ad_ratio",), "skill_growth": ("ratio",),
     "dash_split": ("distance",), "last_stand": ("threshold",), "reaction_momentum": ("momentum",), "armor_to_hp": ("max_hp",),
-    "overheal_shield": ("cap_ratio",), "missing_hp_attack_speed": ("ratio",), "haste_momentum": ("haste", "momentum"),
+    "missing_hp_attack_speed": ("ratio",), "haste_momentum": ("haste", "momentum"),
     "heal_growth": ("heal", "max_hp"), "idle_charge": ("ratio",), "element_aura": ("radius",), "reaction_factor": ("ratio",),
     "dash_ice": ("width", "duration"), "ground_growth": ("ratio", "interval"),
     "idle_ready_amp": ("ratio",), "thorns": ("ratio",), "skill_lifesteal": ("ratio",), "lifesteal": ("ratio",),
+    "basic_projectile": ("distance", "speed", "radius"), "combo_sweep": ("angle", "ratio"), "combo_cast": ("damage_ratio",),
+    "speed_factor": ("ratio",), "control_amp": ("ratio",), "shield_spend": ("ratio",), "recent_cast_amp": ("ratio",),
+    "dash_ram": ("ratio", "distance"), "overdrive_short": ("momentum", "multiplier"), "tally": ("base",),
+    "shield_burst_break": ("radius",),
 }
+# Spec §7 P5: skill cards that only fit some hosts name them (K07, K10 by delivery; K05, K11 a host that controls).
+CONTROL_OPS = frozenset(("root", "stun", "silence", "disarm", "taunt"))
 
 
 def _validate_cards(data):
@@ -755,6 +769,15 @@ def _validate_cards(data):
         ops = _effect_set(row["effects"], identity)
         require(ops <= FORM_OPS[row["form"]], "CardForm", identity,
                 f"a {row['form']} card cannot carry {sorted(ops - FORM_OPS[row['form']])}")
+        require(row["form"] == "skill" or ("host_hit_types" not in row and "host_control" not in row), "CardForm", identity,
+                "only a skill card limits its host")
+        if "host_hit_types" in row:
+            require(len(set(row["host_hit_types"])) == len(row["host_hit_types"]), "InvalidReference", identity,
+                    "host hit types are distinct")
+        require(("reshape" in ops) <= ("host_hit_types" in row or "host_control" in row), "CardHost", identity,
+                "a reshaping card names the hosts it fits")
+        require(("control_amp" in ops) <= ("host_control" in row), "CardHost", identity,
+                "a control card fits a host that controls")
         require(("choose_element" in row) == ("element_aura" in ops), "CardElementChoice", identity,
                 "an element aura names its element choices and nothing else does")
         if "choose_element" in row:
@@ -763,6 +786,11 @@ def _validate_cards(data):
             require(set(row["choose_element"]) <= set(AURA_ELEMENTS), "InvalidReference", identity,
                     "an aura holds an element a target can hold (gust is never held)")
         for effect in row["effects"]:
+            if effect["op"] == "overheal_shield":
+                # Y14 shields overflowing heals (cap_ratio), Y29 the burn it deals (burn_ratio): exactly one, positive.
+                shares = [key for key in ("cap_ratio", "burn_ratio") if key in effect]
+                require(len(shares) == 1 and quantity(effect[shares[0]]) > 0, "IneffectiveEffect", identity,
+                        "an overheal shield names one positive cap_ratio or burn_ratio")
             fields = _CARD_MAGNITUDES.get(effect["op"])
             if fields is not None:
                 require(all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,
@@ -782,6 +810,31 @@ def _validate_cards(data):
                 _positive_stats(effect["stats"], identity)
                 require(set(effect["stats"]) <= {"ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat"}, "UnknownField",
                         identity, "match growth adds flat attack, power or resistances")
+            if effect["op"] == "speed_factor":
+                below = effect["trigger"] == "AttackSpeedBelow"
+                require(("threshold" in effect and "step" in effect and "step_ratio" not in effect) if below
+                        else ("step_ratio" in effect and "threshold" not in effect and "step" not in effect), "ObjectShape",
+                        identity, "an attack-speed factor names its threshold and step; a move-speed factor its step ratio")
+                require(row["form"] == ("basic" if below else "body"), "CardForm", identity,
+                        "the attack-speed factor rides the basic; the move-speed factor the body")
+            if effect["op"] == "hit_growth":
+                _positive_stats(effect["stats"], identity)
+                basic = effect["trigger"] == "BasicHit"
+                require(row["form"] == ("basic" if basic else "dash"), "CardForm", identity,
+                        "basic hits grow a basic card; perfect dodges a dash card")
+                require(set(effect["stats"]) <= ({"ADFlat", "APFlat"} if basic else {"MoveSpeedBonusRatio"}), "UnknownField",
+                        identity, "basic hits grow attack or power; perfect dodges grow move speed")
+            if effect["op"] == "reshape":
+                fields = {key for key in ("area", "range", "far", "far_ratio", "control") if key in effect}
+                require(fields and all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,
+                        "a reshape changes at least one term")
+                require(("far" in fields) == ("far_ratio" in fields), "ObjectShape", identity, "a far bonus names its distance")
+                require("area" not in fields or quantity(effect["area"]) > 1, "NumericDomain", identity, "an area only grows")
+            if effect["op"] == "cooldown_cost" and "momentum" in effect:
+                require(row["form"] == "dash" and quantity(effect["momentum"]) > 0, "CardForm", identity,
+                        "only the D dash takes a flat momentum cost")
+            if effect["op"] == "overdrive_short":
+                require(quantity(effect["multiplier"]) > 1, "NumericDomain", identity, "an overdrive still scales up")
             if effect["op"] == "element_duration":
                 require(quantity(effect["multiplier"]) > 1, "NumericDomain", identity, "an element duration only grows")
 
@@ -975,7 +1028,7 @@ def validate_definitions(data, ids):
 
 CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
                          "secondary_ratio", "secondary_duration", "basic_count", "refund", "burst", "limit",
-                         "multiplier", "angle", "cost_ratio", "extra_duration", "step"))
+                         "multiplier", "angle", "cost_ratio", "extra_duration", "step", "threshold"))
 CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
 # A stat card names one bonus of its single point: [per_point.<Stat>].
 PER_POINT = "per_point"
@@ -1215,8 +1268,15 @@ def validate_numbers(data):
             "CardCapacity", "CARDS.CapacityBase", "the workshop capacity stays within the build wire")
     require(quantity(params["DAMAGE.FactorTechCap"]) > 1, "NumericDomain", "DAMAGE.FactorTechCap",
             "the technical cap sits above one")
-    require(params["GROWTH.NpcActiveSkipPoints"] < params["GROWTH.NpcActivePoints"], "InvalidPolicy",
-            "GROWTH.NpcActiveSkipPoints", "declining a purchased offer must cost points overall")
+    # Spec §3.13: the rest shop stocks SHOP.SkillSlots skills and SHOP.CardSlots cards (SHOP.VocabCardSlots of them by the
+    # SHOP.VocabWeight weighting); the shelf travels as one fixed array.
+    require(params["SHOP.VocabCardSlots"] <= params["SHOP.CardSlots"], "ShopShelf", "SHOP.VocabCardSlots",
+            "the weighted card slots are some of the card slots")
+    require(params["SHOP.CardSlots"] + params["SHOP.SkillSlots"] <= 8, "ShopShelf", "SHOP.CardSlots",
+            "the shelf stays within the owner view")
+    require(params["SHOP.CardSlots"] <= len(data["cards"]), "ShopShelf", "SHOP.CardSlots", "a shelf shows distinct cards")
+    require(params["SHOP.SellPrice"] < params["SHOP.CardPrice"], "InvalidPolicy", "SHOP.SellPrice",
+            "selling a card never pays more than buying one")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and all(sum(m["tier"] == tier for m in monsters.values()) == 3 for tier in CAMP_TIERS),

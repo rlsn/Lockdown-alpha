@@ -4025,4 +4025,193 @@ bool FLDCardRuleY23Test::RunTest(const FString& Parameters)
         });
 }
 
+
+// Issue #292 P5 cards (Lockdown.Rules.Combat.Cards.<code>), installed as one and two copies like the P2 and P4 cards; the ones
+// whose result Combat compiles without a match also check it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA07Test, "Lockdown.Rules.Combat.Cards.A07",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA07Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_wide_swing"), ELDDemoEffectOp::ComboSweep, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA08Test, "Lockdown.Rules.Combat.Cards.A08",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA08Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_fist_skill"), ELDDemoEffectOp::ComboCast, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA10Test, "Lockdown.Rules.Combat.Cards.A10",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA10Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_slow_craft"), ELDDemoEffectOp::SpeedFactor, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA13Test, "Lockdown.Rules.Combat.Cards.A13",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA13Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_muscle_memory"), ELDDemoEffectOp::HitGrowth, ELDCardTargetKind::Basic});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK03Test, "Lockdown.Rules.Combat.Cards.K03",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK03Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_quick_takedown"), ELDDemoEffectOp::TakedownReset, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK05Test, "Lockdown.Rules.Combat.Cards.K05",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK05Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_pin_amp"), ELDDemoEffectOp::ControlAmp, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK07Test, "Lockdown.Rules.Combat.Cards.K07",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK07Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_crowd_hit"), ELDDemoEffectOp::Reshape, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK11Test, "Lockdown.Rules.Combat.Cards.K11",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK11Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_hold_longer"), ELDDemoEffectOp::Reshape, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK14Test, "Lockdown.Rules.Combat.Cards.K14",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK14Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_held_breath"), ELDDemoEffectOp::ShieldSpend, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK18Test, "Lockdown.Rules.Combat.Cards.K18",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK18Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_combo_chain"), ELDDemoEffectOp::RecentCastAmp, ELDCardTargetKind::Skill});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD04Test, "Lockdown.Rules.Combat.Cards.D04",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD04Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_dodge_strike"), ELDDemoEffectOp::DodgeFreeCast, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD09Test, "Lockdown.Rules.Combat.Cards.D09",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD09Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_slippery"), ELDDemoEffectOp::HitGrowth, ELDCardTargetKind::Dash});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY06Test, "Lockdown.Rules.Combat.Cards.Y06",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY06Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_shell_burst"), ELDDemoEffectOp::ShieldBurstBreak, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY11Test, "Lockdown.Rules.Combat.Cards.Y11",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY11Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_short_breath"), ELDDemoEffectOp::OverdriveShort, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY18Test, "Lockdown.Rules.Combat.Cards.Y18",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY18Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_run_hit"), ELDDemoEffectOp::SpeedFactor, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY24Test, "Lockdown.Rules.Combat.Cards.Y24",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY24Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_tally"), ELDDemoEffectOp::Tally, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY29Test, "Lockdown.Rules.Combat.Cards.Y29",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleY29Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body});
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA05Test, "Lockdown.Rules.Combat.Cards.A05",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleA05Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_long_arm"), ELDDemoEffectOp::BasicProjectile, ELDCardTargetKind::Basic},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            // Each copy adds its 330 cm to the basic range (the flight itself starts at the landing).
+            const FLDDemoRational& Range = F.Body(Holder).AttributeProjection.Final.AttackRangeCm;
+            const double Cm = Range.Denominator > 0 ? double(Range.Numerator) / double(Range.Denominator) : 0.;
+            const FLDDemoRational& Approved = F.Catalog->Get().Parameters.AttackRangeCm.Base;
+            const double Base = double(Approved.Numerator) / double(FMath::Max<int64>(Approved.Denominator, 1));
+            return TestTrue(FString::Printf(TEXT("A05 x%d: range %.0f (base %.0f)"), Copies, Cm, Base),
+                FMath::IsNearlyEqual(Cm, FMath::Min(Base + 330. * Copies, 1000.), 0.5));
+        });
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK10Test, "Lockdown.Rules.Combat.Cards.K10",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleK10Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_long_reach"), ELDDemoEffectOp::Reshape, ELDCardTargetKind::Skill},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            FLDCombatActiveTerms Plain, Terms;
+            if (!ActiveTerms(*this, F, CardHost, Plain) || !HostTerms(*this, F, Holder, Terms)) { return false; }
+            const auto Cm = [](const FLDDemoRational& V) { return V.Denominator > 0 ? double(V.Numerator) / double(V.Denominator) : 0.; };
+            // Copies add +50% each to the cast range of a unit host.
+            return TestTrue(FString::Printf(TEXT("K10 x%d: range %.1f -> %.1f"), Copies, Cm(Plain.Target.RangeCm), Cm(Terms.Target.RangeCm)),
+                FMath::IsNearlyEqual(Cm(Terms.Target.RangeCm), Cm(Plain.Target.RangeCm) * (1. + .5 * Copies), .01));
+        });
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD07Test, "Lockdown.Rules.Combat.Cards.D07",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD07Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_head_down"), ELDDemoEffectOp::DashRam, ELDCardTargetKind::Dash},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            FLDCombatActiveTerms Terms;
+            FString Error;
+            if (!TestTrue(TEXT("The D dash compiles: ") + Error, FAccess::Compile(*F.Driver, F.Body(Holder).AttributeProjection,
+                SourceOf(ELDCombatSourceKind::Innate, TEXT("innate_dash")), Terms, Error))) { return false; }
+            return TestEqual(FString::Printf(TEXT("D07 x%d: the dash runs +60%% per copy"), Copies), Terms.DashScaleBp, int64(10000 + 6000 * Copies));
+        });
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD08Test, "Lockdown.Rules.Combat.Cards.D08",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleD08Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_paid_dash"), ELDDemoEffectOp::CooldownCost, ELDCardTargetKind::Dash},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            FLDCombatActiveTerms Terms;
+            FString Error;
+            if (!TestTrue(TEXT("The D dash compiles: ") + Error, FAccess::Compile(*F.Driver, F.Body(Holder).AttributeProjection,
+                SourceOf(ELDCombatSourceKind::Innate, TEXT("innate_dash")), Terms, Error))) { return false; }
+            // Copies add their momentum and their cooldown deltas (x(1 - 0.6 n), never below zero).
+            return TestTrue(FString::Printf(TEXT("D08 x%d: the D pays 15 momentum per copy, cooldown scale %lld"), Copies, Terms.CooldownScaleBp),
+                Terms.DashMomentumCostP2 == 1500 * Copies && Terms.CooldownScaleBp == FMath::Max<int64>(10000 - 6000 * Copies, 0));
+        });
+}
+
+
 #endif

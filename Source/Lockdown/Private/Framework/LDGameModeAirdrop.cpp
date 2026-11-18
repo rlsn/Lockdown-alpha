@@ -1,5 +1,7 @@
 #include "Framework/LDGameMode.h"
 #include "Core/LDLog.h"
+#include "Development/LDDevelopmentDirector.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
@@ -69,6 +71,14 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
     {
         Error = FString::Printf(TEXT("The airdrop %llu payout to %s was refused: outcome %u, %s."), Airdrop.Serial,
             *Claimer.ToString(), uint32(Outcome), LDGrowthWire::ReasonName(Reason));
+        return false;
+    }
+    // Spec §3.13: the claim also pays its vouchers.
+    if (const ELDGrowthReason VoucherReason = Development ? Development->GrantVouchers(Claimer, Parameters.Vouchers.Airdrop, 0,
+            TEXT("airdrop"), Permit) : ELDGrowthReason::AuthorityFault; VoucherReason != ELDGrowthReason::None)
+    {
+        Error = FString::Printf(TEXT("The airdrop %llu vouchers to %s were refused: %s."), Airdrop.Serial, *Claimer.ToString(),
+            LDGrowthWire::ReasonName(VoucherReason));
         return false;
     }
     bool bApplied = false;

@@ -259,7 +259,28 @@ inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(
 inline constexpr TCHAR OfferLinks[]=TEXT("可接");
 inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
 inline FString OfferLinksUnavailable(const FString& Reason){return FString::Printf(TEXT("可接预览不可用：%s"),*Reason);}
-inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
+inline FString OfferSkipVouchers(int64 Vouchers){return FString::Printf(TEXT("+%lld 饭票"),Vouchers);}
+// Spec §3.13 vouchers and the rest shop.
+inline FString VouchersGained(int32 Vouchers){return FString::Printf(TEXT("+%d 饭票"),Vouchers);}
+inline FString CardSold(const FString& Name,int32 Vouchers){return FString::Printf(TEXT("卖掉 %s，+%d 饭票"),*Name,Vouchers);}
+inline const TCHAR* const ShopRefreshed=TEXT("货架已刷新");
+inline const TCHAR* const ShopTitle=TEXT("商店");
+inline const TCHAR* const ChainCodex=TEXT("连锁图鉴");
+inline FString ChainCodexCount(int32 Count){return FString::Printf(TEXT("已发现 %d 种连锁"),Count);}
+inline FString ChainLongest(int32 Steps){return FString::Printf(TEXT("最长 %d 步"),Steps);}
+inline FString ShopToggle(int32 Vouchers){return FString::Printf(TEXT("商店 · 票 %d"),Vouchers);}
+inline FString ShopRefresh(int32 Price){return FString::Printf(TEXT("刷新 %d票"),Price);}
+inline FString ShopSkillPoint(int32 Price,int32 Bought,int32 Max){return FString::Printf(TEXT("技能点 %d票  %d/%d"),Price,Bought,Max);}
+inline FString ShopPrice(int32 Price){return FString::Printf(TEXT("%d票"),Price);}
+inline const TCHAR* const ShopSoldMark=TEXT("已售");
+inline FString ShopSell(int32 Price){return FString::Printf(TEXT("出售 +%d票"),Price);}
+inline FString PickTicketUse(int32 Count){return FString::Printf(TEXT("点名券 ×%d"),Count);}
+inline const TCHAR* const PickTicketBack=TEXT("返回货架");
+inline const TCHAR* const VoucherGlyph=TEXT("票");
+inline const TCHAR* const PickTicketGlyph=TEXT("点名券");
+inline const TCHAR* const ResultHighlights=TEXT("本局最离谱");
+inline const TCHAR* const BestHit=TEXT("最高一下");
+inline const TCHAR* const SkillPointBought=TEXT("买到 1 个技能点");
 inline constexpr TCHAR OfferSkip[]=TEXT("不选");
 inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");
 inline constexpr TCHAR OfferWaiting[]=TEXT("现在没有合格的技能候选，这次机会保留，有合格候选时再出现。");
@@ -293,7 +314,6 @@ inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("
 
 // 休息服务（#198，APP_SPEC §4.4/§5）：只在休息的配装窗口（配装与派奖）可用，服务器裁决每一条命令。
 inline constexpr TCHAR RestServices[]=TEXT("休息服务");
-inline FString NpcOffer(int64 Points){return FString::Printf(TEXT("NPC：花 %lld 点抽 3 个主动"),Points);}
 inline constexpr TCHAR Respec[]=TEXT("洗点");
 inline FString ReplaceInto(const FString& Key){return FString(TEXT("替换 "))+Key;}
 inline FString ForgetSlot(const FString& Key,const FString& Name){return FString::Printf(TEXT("遗忘 %s：%s"),*Key,*Name);}
@@ -303,7 +323,6 @@ inline FString ForgetConfirm(const FString& Key,const FString& Name)
 {return FString::Printf(TEXT("遗忘 %s：%s？不退还，之后还能再抽到"),*Key,*Name);}
 inline constexpr TCHAR ConfirmAction[]=TEXT("确认");
 inline constexpr TCHAR CancelAction[]=TEXT("取消");
-inline FString NpcBought(int64 Points){return FString::Printf(TEXT("已花 %lld 点，NPC 端来 3 个主动，选一个"),Points);}
 inline FString Respecced(int64 Refunded,int64 Left){return FString::Printf(TEXT("已洗点：返还 %lld 点，现有 %lld 点未分配"),Refunded,Left);}
 inline FString Replaced(const FString& NewName,const FString& Key,const FString& OldName)
 {return FString::Printf(TEXT("已在 %s 用 %s 替换 %s"),*Key,*NewName,*OldName);}

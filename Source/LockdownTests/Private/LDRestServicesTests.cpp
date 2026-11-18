@@ -37,9 +37,7 @@ bool RestTestFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentS
     {
         (Ability.Opening ? OutOpening : OutLater).Add(FName(*Ability.Id));
     }
-    bool bGood = Test.TestTrue(TEXT("Fixture carries the NPC price, skip rewards and opening points"),
-        Content.Parameters.NpcActivePoints == 5 && Content.Parameters.ActiveSkipPoints == 5
-        && Content.Parameters.NpcActiveSkipPoints == 3 && Content.Parameters.OpeningPoints == 3);
+    bool bGood = Test.TestTrue(TEXT("Fixture carries the opening points"), Content.Parameters.OpeningPoints == 3);
     bGood &= Test.TestTrue(TEXT("Fixture carries at least six opening actives and three later-only actives"),
         OutOpening.Num() >= 6 && OutLater.Num() >= 3);
     bGood &= Test.TestTrue(TEXT("Fixture carries the five point-bought stats"), Content.Stats.Num() == 5);
@@ -47,7 +45,7 @@ bool RestTestFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentS
 }
 
 FLDGrowthBuild RestTestBuild(const FLDDemoContentDefinitions& Content, uint8 Level, TArray<FLDLearnedActive> Actives,
-    TArray<FName> Blueprints = {}, TArray<int32> Points = {}, int64 Permanent = 0)
+    TArray<FName> Blueprints = {}, TArray<int32> Points = {}, int64 Awarded = 0)
 {
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
     Build.Level = Level;
@@ -57,12 +55,12 @@ FLDGrowthBuild RestTestBuild(const FLDDemoContentDefinitions& Content, uint8 Lev
     {
         Build.StatPoints = MoveTemp(Points);
     }
-    Build.PermanentSpentPoints = Permanent;
+    Build.AwardedPoints = Awarded;
     LDProgression::NormalizeBuild(Build);
     return Build;
 }
 
-// The opening opportunity chosen and nothing queued: the state in which the NPC may sell one.
+// The opening opportunity chosen and nothing queued.
 FLDProgressionState RestTestSettled(int64 XP)
 {
     FLDProgressionState Progression;
@@ -96,7 +94,10 @@ const TCHAR* RestTestKindName(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::ActiveChoice: return TEXT("ActiveChoice");
     case ELDBuildCommandKind::LearnBlueprint: return TEXT("LearnBlueprint");
     case ELDBuildCommandKind::AllocatePoints: return TEXT("AllocatePoints");
-    case ELDBuildCommandKind::BuyNpcOffer: return TEXT("BuyNpcOffer");
+    case ELDBuildCommandKind::ShopBuy: return TEXT("ShopBuy");
+    case ELDBuildCommandKind::ShopRefresh: return TEXT("ShopRefresh");
+    case ELDBuildCommandKind::ShopSell: return TEXT("ShopSell");
+    case ELDBuildCommandKind::UsePickTicket: return TEXT("UsePickTicket");
     case ELDBuildCommandKind::Respec: return TEXT("Respec");
     case ELDBuildCommandKind::ReplaceActive: return TEXT("ReplaceActive");
     case ELDBuildCommandKind::ForgetActive: return TEXT("ForgetActive");
@@ -108,14 +109,15 @@ bool RestTestRunGates(FAutomationTestBase& Test)
 {
     using EKind = ELDBuildCommandKind;
     using EReason = ELDGrowthReason;
-    const EKind Kinds[] = {EKind::ActiveChoice, EKind::LearnBlueprint, EKind::AllocatePoints, EKind::BuyNpcOffer, EKind::Respec,
-        EKind::ReplaceActive, EKind::ForgetActive};
+    // Spec §3.13/§11.3: the shop keeps the rest window like the trainer (without its NPC); a pick ticket is open like the build.
+    const EKind Kinds[] = {EKind::ActiveChoice, EKind::LearnBlueprint, EKind::AllocatePoints, EKind::ShopBuy, EKind::Respec,
+        EKind::ReplaceActive, EKind::ForgetActive, EKind::ShopRefresh, EKind::ShopSell, EKind::UsePickTicket};
     struct FRow
     {
         const TCHAR* What;
         LDProgression::FBuildContext Context;
         bool bRest;
-        EReason Expected[7];
+        EReason Expected[10];
     };
     const EReason NotRest = EReason::NotRestWindow;
     const EReason NoReplace = EReason::ReplacementNotAllowed;
@@ -123,20 +125,23 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     const EReason Closed = EReason::PhaseClosed;
     const FRow Matrix[] = {
         {TEXT("field, alive (in combat or not)"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), false,
-            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace}},
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest, NotRest, EReason::None}},
         {TEXT("field, dead"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead), false,
-            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace}},
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest, NotRest, EReason::None}},
         {TEXT("rest window, alive"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive), true,
-            {EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None}},
+            {EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None,
+             EReason::None, EReason::None}},
         {TEXT("rest window, dead"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead), true,
-            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead}},
+            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead,
+             EReason::Dead, EReason::None}},
         {TEXT("rest PK or return step"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), false,
-            {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked}},
+            {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked, Locked, Locked, EReason::None}},
         {TEXT("closed"), RestTestContext(ERestTestStage::Closed, ELDLifePhase::Alive), false,
-            {Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
+            {Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
         {TEXT("unspawned in the rest window"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Unspawned), true,
             {EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged,
-             EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged}}};
+             EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged,
+             EReason::LifePhaseChanged, EReason::LifePhaseChanged}}};
     bool bGood = true;
     constexpr int32 KindCount = UE_ARRAY_COUNT(Kinds);
     for (const FRow& Row : Matrix)
@@ -154,22 +159,24 @@ bool RestTestRunGates(FAutomationTestBase& Test)
         LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive)), EReason::None);
     bGood &= RestTestReason(Test, TEXT("LearnGate in a PK step (#222)"),
         LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), EReason::None);
-    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(29), uint8(255)})
+    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(20), uint8(29), uint8(40), uint8(255)})
     {
         bGood &= RestTestReason(Test, FString::Printf(TEXT("Command kind %u is refused, not mapped to a neighbour"), uint32(Unknown)),
             LDProgression::CommandGate(static_cast<EKind>(Unknown), Rest), EReason::InvalidRequest);
     }
 
-    const TPair<EKind, uint8> KindNumbers[] = {{EKind::BuyNpcOffer, 20}, {EKind::Respec, 21}, {EKind::ReplaceActive, 22},
-        {EKind::ForgetActive, 23}};
+    const TPair<EKind, uint8> KindNumbers[] = {{EKind::Respec, 21}, {EKind::ReplaceActive, 22}, {EKind::ForgetActive, 23},
+        {EKind::ShopBuy, 36}, {EKind::ShopRefresh, 37}, {EKind::ShopSell, 38}, {EKind::UsePickTicket, 39}};
     for (const TPair<EKind, uint8>& Row : KindNumbers)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("%s travels as %u"), RestTestKindName(Row.Key), uint32(Row.Value)),
             int32(static_cast<uint8>(Row.Key)), int32(Row.Value));
     }
     const TPair<EReason, uint16> ReasonNumbers[] = {{EReason::ReplacementNotAllowed, 48}, {EReason::BuildLocked, 70},
-        {EReason::NpcPoolTooSmall, 71}, {EReason::OfferOutstanding, 72}, {EReason::NothingToRespec, 73}, {EReason::SlotEmpty, 74},
-        {EReason::NotRestWindow, 75}, {EReason::RestServiceUnavailable, 76}};
+        {EReason::OfferOutstanding, 72}, {EReason::NothingToRespec, 73}, {EReason::SlotEmpty, 74},
+        {EReason::NotRestWindow, 75}, {EReason::RestServiceUnavailable, 76}, {EReason::NotEnoughVouchers, 200},
+        {EReason::ShopSoldOut, 201}, {EReason::ShopStale, 202}, {EReason::SkillPointLimit, 203}, {EReason::NoShop, 204},
+        {EReason::NoPickTicket, 205}, {EReason::NotSeen, 206}, {EReason::CardInstalled, 207}};
     for (const TPair<EReason, uint16>& Row : ReasonNumbers)
     {
         const FString Name = LDGrowthWire::ReasonName(Row.Key);
@@ -177,142 +184,12 @@ bool RestTestRunGates(FAutomationTestBase& Test)
             LDGrowthWire::Raw(Row.Key) == Row.Value && Name != TEXT("Unknown")
             && Name == LDGrowthWire::ReasonName(LDGrowthWire::Reason(Row.Value)));
     }
-    for (const uint16 Unassigned : {uint16(77)})
+    // 71 (the retired skill merchant's pool reason) and 77 carry no name.
+    for (const uint16 Unassigned : {uint16(71), uint16(77), uint16(208)})
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Unassigned growth reason %u has no name"), uint32(Unassigned)),
             FString(LDGrowthWire::ReasonName(LDGrowthWire::Reason(Unassigned))), FString(TEXT("Unknown")));
     }
-    return bGood;
-}
-
-bool RestTestRunNpc(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    TArray<FName> Opening, Later;
-    if (!RestTestFixture(Test, Catalog, Opening, Later))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    const int64 Cost = Content.Parameters.NpcActivePoints;
-    const FGuid Secret(0x198C, 1, 2, 3);
-    const FGuid Contender(0x198C, 4, 5, 6);
-    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
-    FLDGrowthBuild Out;
-    FLDProgressionState OutProgression;
-    LDProgression::FNpcOfferOutcome Outcome;
-    const auto Buy = [&](const FLDGrowthBuild& From, const FLDProgressionState& Progression, const LDProgression::FBuildContext& Context)
-    {
-        return LDProgression::ApplyBuyNpcOffer(Content, From, Progression, Secret, Contender, Context, Out, OutProgression, Outcome);
-    };
-    const auto Uncharged = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected, const FLDGrowthBuild& From,
-        const FLDProgressionState& Progression)
-    {
-        bool bGood = RestTestReason(Test, What, Actual, Expected);
-        bGood &= Test.TestTrue(FString::Printf(TEXT("%s charges nothing and opens no opportunity"), What),
-            Out.PermanentSpentPoints == From.PermanentSpentPoints && Out.StatPoints == From.StatPoints
-            && OutProgression.ActiveEarned == Progression.ActiveEarned && OutProgression.NpcPurchased == Progression.NpcPurchased
-            && OutProgression.LastOfferRevision == Progression.LastOfferRevision
-            && OutProgression.Offer.IsSet() == Progression.Offer.IsSet() && Outcome.PointsPaid == 0);
-        return bGood;
-    };
-
-    // Every opening active learned or kept as a blueprint: only the later-only actives remain, so a drawn offer can only
-    // come from the whole pool.
-    TArray<FLDLearnedActive> Learned = {{Opening[0], 0}, {Opening[1], 1}, {Opening[2], 2}};
-    TArray<FName> OpeningBlueprints(Opening.GetData() + 3, Opening.Num() - 3);
-    FLDGrowthBuild OnlyLater = RestTestBuild(Content, 1, Learned, OpeningBlueprints);
-    OnlyLater.AwardedPoints = Cost - Content.Parameters.OpeningPoints;
-    const FLDProgressionState Settled = RestTestSettled(0);
-    bool bGood = RestTestReason(Test, TEXT("The NPC sells with exactly its price unspent"), Buy(OnlyLater, Settled, Rest),
-        ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("The payment is exactly GROWTH.NpcActivePoints, permanently spent"),
-        Outcome.PointsPaid == Cost && Out.PermanentSpentPoints == Cost && RestTestUnspent(Content, Out, 0) == 0
-        && Out.StatPoints == OnlyLater.StatPoints && Out.Actives.Num() == 3 && Out.PendingBlueprints == OnlyLater.PendingBlueprints);
-    bGood &= Test.TestTrue(TEXT("One new opportunity is earned and its offer is fixed at payment"),
-        Outcome.Ordinal == 2 && OutProgression.ActiveEarned == 2 && OutProgression.ActiveConsumed == 1
-        && OutProgression.NpcPurchased == 1 && OutProgression.QueuedActiveOpportunities() == 1 && OutProgression.Offer.IsSet()
-        && OutProgression.Offer->Ordinal == 2 && OutProgression.Offer->OfferId.IsValid()
-        && OutProgression.Offer->Revision == 2 && OutProgression.LastOfferRevision == 2);
-    if (OutProgression.Offer.IsSet())
-    {
-        const TArray<FName>& Options = OutProgression.Offer->Options;
-        TArray<FName> Expected;
-        LDProgression::DrawActiveOffer(Content, OnlyLater, 2, LDProgression::OfferSeed(Secret, Contender, 2), Expected);
-        bGood &= Test.TestTrue(TEXT("The offer holds three distinct later-only actives (the whole pool, not the opening one)"),
-            Options.Num() == 3 && Options[0] != Options[1] && Options[0] != Options[2] && Options[1] != Options[2]
-            && Options.ContainsByPredicate([&](FName Id) { return Later.Contains(Id); })
-            && !Options.ContainsByPredicate([&](FName Id) { return Opening.Contains(Id); }));
-        bGood &= Test.TestTrue(TEXT("The offer is the deterministic draw of the bought ordinal's seed"), Options == Expected);
-    }
-    if (OutProgression.Offer.IsSet())
-    {
-        const FLDActiveOfferState PurchasedOffer = OutProgression.Offer.GetValue();
-        const FLDGrowthBuild PurchasedBuild = Out;
-        int64 Awarded = 0;
-        bGood &= Test.TestTrue(TEXT("Declining a purchased offer returns three points after paying five"),
-            PurchasedOffer.bNpcPurchased
-            && LDProgression::ApplySkipActiveOffer(Content, PurchasedBuild, PurchasedOffer, Rest, Out, Awarded) == ELDGrowthReason::None
-            && Awarded == 3 && RestTestUnspent(Content, Out, 0) == 3 && Out.PermanentSpentPoints == 5);
-        FLDActiveOfferState EarnedOffer = PurchasedOffer;
-        EarnedOffer.bNpcPurchased = false;
-        bGood &= Test.TestTrue(TEXT("Declining an earned offer awards five points"),
-            LDProgression::ApplySkipActiveOffer(Content, PurchasedBuild, EarnedOffer, Rest, Out, Awarded) == ELDGrowthReason::None
-            && Awarded == 5 && Out.AwardedPoints == PurchasedBuild.AwardedPoints + 5);
-        FLDGrowthBuild Overflow = PurchasedBuild;
-        Overflow.AwardedPoints = MAX_int64 - 2;
-        bGood &= Test.TestTrue(TEXT("Declining an offer refuses overflow without changing the build"),
-            LDProgression::ApplySkipActiveOffer(Content, Overflow, EarnedOffer, Rest, Out, Awarded) == ELDGrowthReason::ArithmeticOverflow
-            && Awarded == 0 && Out.AwardedPoints == Overflow.AwardedPoints);
-    }
-
-    // The same purchase on a build with every eligible active offered as well: the draw is uniform without replacement.
-    FLDGrowthBuild Fresh = RestTestBuild(Content, 1, {{Opening[0], 0}});
-    Fresh.AwardedPoints = Cost - Content.Parameters.OpeningPoints;
-    bGood &= Test.TestTrue(TEXT("A fresh build buys three distinct actives none of which it holds"),
-        Buy(Fresh, Settled, Rest) == ELDGrowthReason::None && OutProgression.Offer.IsSet() && OutProgression.Offer->Options.Num() == 3
-        && !OutProgression.Offer->Options.Contains(Opening[0]));
-
-    // Refusals never charge.
-    FLDProgressionState Offered = Settled;
-    Offered.ActiveEarned = 2;
-    Offered.Offer.Emplace(RestTestOffer(2, {Later[0], Later[1], Later[2]}));
-    bGood &= Uncharged(TEXT("A purchase while an active offer is outstanding"), Buy(Fresh, Offered, Rest),
-        ELDGrowthReason::OfferOutstanding, Fresh, Offered);
-    FLDProgressionState Waiting = Settled;
-    Waiting.ActiveEarned = 2;
-    bGood &= Uncharged(TEXT("A purchase while an opportunity waits for an eligible active"), Buy(Fresh, Waiting, Rest),
-        ELDGrowthReason::OfferOutstanding, Fresh, Waiting);
-    TArray<FName> MostBlueprints = OpeningBlueprints;
-    for (int32 Index = 0; Index < Later.Num() - 2; ++Index)
-    {
-        MostBlueprints.Add(Later[Index]);
-    }
-    const FLDGrowthBuild TwoLeft = RestTestBuild(Content, 1, Learned, MostBlueprints);
-    bGood &= Uncharged(TEXT("A purchase with only two eligible actives"), Buy(TwoLeft, Settled, Rest), ELDGrowthReason::NpcPoolTooSmall,
-        TwoLeft, Settled);
-    FLDGrowthBuild Short = RestTestBuild(Content, 1, {{Opening[0], 0}}, {}, {1, 0, 0, 0, 0});
-    Short.AwardedPoints = Cost - Content.Parameters.OpeningPoints;
-    bGood &= Uncharged(TEXT("A purchase one point short"), Buy(Short, Settled, Rest), ELDGrowthReason::NotEnoughPoints, Short, Settled);
-    FLDGrowthBuild Paid = RestTestBuild(Content, 1, {{Opening[0], 0}}, {}, {}, Cost);
-    Paid.AwardedPoints = Cost - Content.Parameters.OpeningPoints;
-    bGood &= Uncharged(TEXT("A second purchase with the points already paid"), Buy(Paid, Settled, Rest), ELDGrowthReason::NotEnoughPoints,
-        Paid, Settled);
-    bGood &= Uncharged(TEXT("A purchase on the field"), Buy(Fresh, Settled, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive)),
-        ELDGrowthReason::NotRestWindow, Fresh, Settled);
-    bGood &= Uncharged(TEXT("A purchase while builds are locked"),
-        Buy(Fresh, Settled, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), ELDGrowthReason::BuildLocked,
-        Fresh, Settled);
-
-    // The bought opportunity stays an opportunity of its own when the level adds the next one.
-    LDProgression::FExperienceChange Change;
-    FLDProgressionState Bought = Settled;
-    Bought.ActiveEarned = 2;
-    Bought.NpcPurchased = 1;
-    bGood &= Test.TestTrue(TEXT("XP plans see only the level part of the earned opportunities"),
-        LDProgression::PlanExperience(Content.Progression, 0, 1, uint8(Bought.ActiveEarned - Bought.NpcPurchased), 108, Change)
-            == ELDGrowthReason::None
-        && Change.LevelAfter == 3 && int32(Change.ActiveEarnedAfter) + Bought.NpcPurchased == 3);
     return bGood;
 }
 
@@ -325,24 +202,23 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
         return false;
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    const int64 Cost = Content.Parameters.NpcActivePoints;
     const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     FLDGrowthBuild Out;
     int64 Refunded = -1;
-    // Level 3 at 108 XP earned 9 points: 4 allocated and the NPC price paid.
+    // Level 3 at 108 XP earned 9 points, 4 of them allocated, plus 2 PK points.
     const int64 XP = 108;
-    const FLDGrowthBuild Built = RestTestBuild(Content, 3, {{Opening[0], 0}}, {}, {1, 0, 2, 0, 1}, Cost);
+    const FLDGrowthBuild Built = RestTestBuild(Content, 3, {{Opening[0], 0}}, {}, {1, 0, 2, 0, 1}, 2);
     const int64 Before = RestTestUnspent(Content, Built, XP);
-    bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated minus paid is unspent"), Before, 9 - 4 - Cost);
+    bool bGood = Test.TestEqual(TEXT("Before the respec, earned plus awarded minus allocated is unspent"), Before, int64(9 + 2 - 4));
     bGood &= RestTestReason(Test, TEXT("A respec in the rest window"),
         LDProgression::ApplyRespec(Content, Built, XP, Rest, Out, Refunded), ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("Only the allocated points return; the permanent spend stays"),
-        Refunded == 4 && Out.StatPoints == TArray<int32>({0, 0, 0, 0, 0}) && Out.PermanentSpentPoints == Cost
-        && RestTestUnspent(Content, Out, XP) == 9 - Cost && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
+    bGood &= Test.TestTrue(TEXT("Every allocated point returns"),
+        Refunded == 4 && Out.StatPoints == TArray<int32>({0, 0, 0, 0, 0})
+        && RestTestUnspent(Content, Out, XP) == 9 + 2 && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
     const FLDGrowthBuild Respecced = Out;
     bGood &= RestTestReason(Test, TEXT("A respec with nothing allocated"),
         LDProgression::ApplyRespec(Content, Respecced, XP, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
-    bGood &= Test.TestTrue(TEXT("A refused respec refunds nothing"), Refunded == 0 && Out.PermanentSpentPoints == Cost);
+    bGood &= Test.TestTrue(TEXT("A refused respec refunds nothing"), Refunded == 0);
     bGood &= RestTestReason(Test, TEXT("A respec on the field"),
         LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out, Refunded),
         ELDGrowthReason::NotRestWindow);
@@ -350,11 +226,9 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     bGood &= RestTestReason(Test, TEXT("A respec while builds are locked"),
         LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), Out,
             Refunded), ELDGrowthReason::BuildLocked);
-    bGood &= RestTestReason(Test, TEXT("A respec of a build that paid more than it earned"),
-        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {1, 0, 0, 0, 0}, 3), 0, Rest, Out, Refunded),
+    bGood &= RestTestReason(Test, TEXT("A respec of a build that allocated more than it earned"),
+        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {5, 0, 0, 0, 0}), 0, Rest, Out, Refunded),
         ELDGrowthReason::AuthorityFault);
-    bGood &= RestTestReason(Test, TEXT("A negative permanent spend is a broken record"),
-        LDProgression::ValidateBuild(Content, RestTestBuild(Content, 1, {}, {}, {}, -1)), ELDGrowthReason::DataInvalid);
     return bGood;
 }
 
@@ -558,17 +432,7 @@ bool FLDDemoRestServicesGatesTest::RunTest(const FString& Parameters)
     return RestTestRunGates(*this);
 }
 
-// #198 §4.4: the NPC charges exactly GROWTH.NpcActivePoints for one opportunity whose three-active offer of the whole pool
-// is fixed at payment; an outstanding offer or queued opportunity, a pool under three and missing points charge nothing.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoRestServicesNpcTest, "Lockdown.Rules.DemoRest.Services.Npc",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoRestServicesNpcTest::RunTest(const FString& Parameters)
-{
-    return RestTestRunNpc(*this);
-}
-
-// #198 §5: a respec returns only the allocated points; the permanent NPC spend stays.
+// #198 §5: a respec returns the allocated points.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoRestServicesRespecTest, "Lockdown.Rules.DemoRest.Services.Respec",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

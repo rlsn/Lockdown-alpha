@@ -212,9 +212,6 @@ public:
     bool ReviewField(ALDPlayerController& PC,const FLDPublicMatchView& View,double Now);
     uint64 UIRewardTicket = 0, UIBuildRevisionBefore = 0;
     int64 UIPointsBefore = 0;
-    bool bUIServicePurchaseSent = false, bUIServicePurchaseChecked = false;
-    uint64 UIServiceRevisionBefore = 0;
-    int64 UIServicePointsBefore = 0;
     double UIShotDueAt = 0, UIBuildDueAt = 0;
     double UIReadyFoldDueAt=0;
     double Deadline = 0, LastCommandAt = -100, ReturnedAt = 0;
@@ -964,18 +961,18 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             }
             if(Growth->QueuedActiveOpportunities){return true;}
         }
-        if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant)
+        if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer)
         {
-            // Beside the merchant the open workshop shows its service on the board; the 构筑 button opens the workshop.
+            // Beside the trainer the open workshop shows its services on the board; the 构筑 button opens the workshop.
             if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                TEXT("UI: the workshop opens beside the merchant"))){return false;}
+                TEXT("UI: the workshop opens beside the trainer"))){return false;}
             RestServiceReviewStage = 2;
             ConfigureService();
             return true;
         }
         ULDMapRegistry* Registry = Owner.GetWorld() ? Owner.GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
         const FLDMapBinding* Service = Registry
-            ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(1)), Registry->Generation) : nullptr;
+            ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(3)), Registry->Generation) : nullptr;
         if (Owner.Navigation && Owner.CanWorldCommand() && Service)
         {
             Owner.Navigation->NavigateGround(Service->Position, Service->Surface);
@@ -987,10 +984,10 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     }
     if (RestServiceReviewStage == 1)
     {
-        if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant && Owner.HUDUI)
+        if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer && Owner.HUDUI)
         {
             if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                TEXT("UI: the workshop opens beside the merchant after walking"))){return false;}
+                TEXT("UI: the workshop opens beside the trainer after walking"))){return false;}
             RestServiceReviewStage = 2;
             ConfigureService();
             return true;
@@ -1001,28 +998,6 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     if (RestServiceReviewStage == 2)
     {
         if(Now<RestReviewDueAt){return true;}
-        if (!UIReview.IsEmpty() && !bUIServicePurchaseChecked)
-        {
-            const FLDProgressionView* Growth = Owner.ReadOwnProgression();
-            if (!Growth || Panel->HasPendingRequest()) { return true; }
-            if (!bUIServicePurchaseSent)
-            {
-                UIServiceRevisionBefore = Growth->BuildRevision;
-                UIServicePointsBefore = Growth->UnspentPoints;
-                if (!Check(LDSlateProbeInput::SendClick(Panel->NpcButton), TEXT("UI: actual pointer submits the visible NPC purchase"))) { return false; }
-                bUIServicePurchaseSent = true;
-                RestReviewDueAt = Now + .5;
-                return true;
-            }
-            if (Now < RestReviewDueAt || Growth->BuildRevision <= UIServiceRevisionBefore) { return true; }
-            const bool bAppliedOnce = Growth->UnspentPoints == UIServicePointsBefore - Content->Get().Parameters.NpcActivePoints;
-            const bool bRefused = !Panel->NpcButton->GetIsEnabled()&&!Panel->NpcBlocked->GetText().IsEmpty();
-            if (!Check(bAppliedOnce && bRefused && Owner.HUDUI->Toast && !Owner.HUDUI->Toast->GetText().IsEmpty(),
-                TEXT("UI: service purchase charges once, its result is toasted and the unavailable next purchase explains why inside its service window"))) { return false; }
-            bUIServicePurchaseChecked = true;
-            RestReviewDueAt = Now + .65;
-            return true;
-        }
         if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
         if (bRestReviewCapturePending)
         {
@@ -1789,7 +1764,7 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
     if (!Growth || !Growth->bValid || Growth->Generation != View.Generation) { return true; }
     const auto Budget = [](const FLDProgressionView& Owner)
     {
-        int64 Total = Owner.UnspentPoints + Owner.PermanentSpentPoints;
+        int64 Total = Owner.UnspentPoints;
         for (const FLDStatPointsView& Stat : Owner.StatPoints) { Total += Stat.Points; }
         return Total;
     };
@@ -1998,13 +1973,13 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                     &&LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDTrainingReset"))),
                     TEXT("UI: payout exposes actual training reset but not the build-only ready button"))){return Finish();}
                 auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-                const auto* Anchor=Registry?Registry->Resolve(TEXT("rest_service_1"),Registry->Generation):nullptr;
+                const auto* Anchor=Registry?Registry->Resolve(TEXT("rest_service_3"),Registry->Generation):nullptr;
                 if(!Check(Anchor&&PC.Navigation,TEXT("UI: payout service anchor is available"))){return Finish();}
                 PC.Navigation->NavigateGround(Anchor->Position,Anchor->Surface);UIPayoutStep=1;return true;
             }
             if(UIPayoutStep==1)
             {
-                if(PC.OwnerState.NearbyRestService!=ELDRestService::SkillMerchant){return true;}
+                if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
                 if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
                     TEXT("UI: owning connection opens the workshop beside an NPC during payout"))){return Finish();}
                 UIPayoutStep=2;return true;
@@ -2017,8 +1992,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 return true;
             }
             if(!Panel->IsServiceShown()){return true;}
-            if(!Check(Panel->IsServiceShown()&&Panel->NpcBox->IsVisible()
-                &&!Cast<UTextBlock>(Panel->NpcButton->GetContent())->GetText().IsEmpty()
+            if(!Check(Panel->IsServiceShown()&&Panel->RespecBox->IsVisible()
+                &&!Cast<UTextBlock>(Panel->RespecButton->GetContent())->GetText().IsEmpty()
                 &&!HUD->GetWidgetFromName(TEXT("HUDPKSidePanel"))->GetParent()->IsVisible(),
                 TEXT("UI: payout interaction presents its real service actions and reasons"))){return Finish();}
             const FString Name=Role+TEXT("PayoutService.png");

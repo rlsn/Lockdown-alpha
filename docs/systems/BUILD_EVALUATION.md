@@ -233,7 +233,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（牌库�
 一方写 `"keep_points_unspent": true` 时改为全部点数保持未分配（加点与洗点相抵、净加点为 0），用于裸构筑基线。
 这个字段只在 Adapter 里，原生输入不变：有构筑计划的一方本来就不由生产规则加点；没有构筑计划时写它在准入时拒绝。
 
-不可规划、明确判 `UnsupportedDecision` 并附原因的决策：`buy_npc_offer`（NPC 购买会新增计划须命名序号的主动机会）、
+不可规划、明确判 `UnsupportedDecision` 并附原因的决策：
 `forget_active`（AI 没有单独遗忘命令；替换会遗忘被替换的主动）、`pick_card`（有计划的一方跳过牌三选一，牌只来自 `level_cards`）、
 选择规则里的 `replace`（`replace_at_choice`：主动选择只学进空槽或留作图纸，替换是单独的休息步骤）。
 

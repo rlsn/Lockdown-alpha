@@ -416,6 +416,29 @@ namespace LDHUD
     LOCKDOWN_API FDamageListView DeathRecap(const FLDDeathRecapView& Recap,const FLDOwnerState& Own,const FLDLobbyView& Lobby,const FLDDemoContentDefinitions* Content);
     // The result page's own damage: available only for the summary of exactly the result shown. One row per source.
     LOCKDOWN_API FDamageListView DamageSummary(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FLDDemoContentDefinitions* Content);
+    // Spec §6.5 chains: a step kind's display name (a card or skill name, a reaction, a ground state, 击杀) and a key as one line.
+    LOCKDOWN_API FString ChainStepName(const FLDDemoContentDefinitions* Content,FName Step);
+    LOCKDOWN_API FString ChainKeyText(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key);
+    // The one-line prompt of a chain the local codex had not seen: "新连锁：A → B → C".
+    LOCKDOWN_API FString NewChainNotice(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key);
+    // Spec §12 结算“本局最离谱”: one row per contender of the result (its standings order, at most ResultHighlightsMax): its
+    // longest chain and its strongest hit on a contender (source, points, share of that target's max HP). Available only for
+    // the summary of exactly the result shown.
+    inline constexpr int32 ResultHighlightsMax=6;
+    struct FResultHighlightRow
+    {
+        FString Name;
+        FString Chain;
+        FString Best;
+        bool bOwn=false;
+    };
+    struct FResultHighlightsView
+    {
+        bool bAvailable=false;
+        TArray<FResultHighlightRow> Rows;
+    };
+    LOCKDOWN_API FResultHighlightsView ResultHighlights(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FGuid& Self,
+        const FLDDemoContentDefinitions* Content);
     // The prompt said to a reaction's setter: "你的潮湿被老王引爆（导电）". It reports the detonation only; assist credit
     // still comes from the setter's own contribution within REWARD.AssistWindowSec, as for every assist.
     LOCKDOWN_API FString ReactionAssistText(const FLDDemoContentDefinitions* Content,const FLDReactionAssistView& View,const FString& TriggerName);
@@ -631,8 +654,9 @@ namespace LDHUD
         bool bCanAllocate=false;
         FString AllocateBlocked;
         // #198 rest services: open only in a rest build window (the build and payout steps), alive.
-        bool bCanBuyNpc=false;
-        FString NpcBlocked;
+        // Spec §3.13: the rest shop (buy, refresh, sell) is open in the rest build window.
+        bool bCanShop=false;
+        FString ShopBlocked;
         bool bCanRespec=false;
         FString RespecBlocked;
         bool bCanReplace=false;

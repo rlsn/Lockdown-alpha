@@ -16606,6 +16606,36 @@
     {
       "effects": [
         {
+          "distance": {
+            "denominator": 1,
+            "numerator": 330,
+            "unit": "cm"
+          },
+          "op": "basic_projectile",
+          "opcode": 243,
+          "radius": {
+            "denominator": 1,
+            "numerator": 55,
+            "unit": "cm"
+          },
+          "speed": {
+            "denominator": 1,
+            "numerator": 1800,
+            "unit": "cm/s"
+          }
+        }
+      ],
+      "form": "basic",
+      "id": "card_long_arm",
+      "native_id": 204,
+      "type": "modify",
+      "vocab": [
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
           "damage_ratio": {
             "bp": 8000,
             "unit": "ratio"
@@ -16621,6 +16651,50 @@
       "vocab": [
         "combo3",
         "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "angle": {
+            "denominator": 1,
+            "numerator": 160,
+            "unit": "degrees"
+          },
+          "op": "combo_sweep",
+          "opcode": 244,
+          "ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "basic",
+      "id": "card_wide_swing",
+      "native_id": 206,
+      "type": "modify",
+      "vocab": [
+        "combo3"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "damage_ratio": {
+            "bp": 4000,
+            "unit": "ratio"
+          },
+          "op": "combo_cast",
+          "opcode": 245
+        }
+      ],
+      "form": "basic",
+      "id": "card_fist_skill",
+      "native_id": 207,
+      "type": "modify",
+      "vocab": [
+        "combo3",
+        "skill_cast"
       ]
     },
     {
@@ -16646,6 +16720,36 @@
       "vocab": [
         "attack_speed",
         "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "speed_factor",
+          "opcode": 246,
+          "ratio": {
+            "bp": 800,
+            "unit": "ratio"
+          },
+          "step": {
+            "denominator": 10,
+            "numerator": 1,
+            "unit": "attacks/s"
+          },
+          "threshold": {
+            "denominator": 1,
+            "numerator": 1,
+            "unit": "attacks/s"
+          },
+          "trigger": "AttackSpeedBelow"
+        }
+      ],
+      "form": "basic",
+      "id": "card_slow_craft",
+      "native_id": 209,
+      "type": "convert",
+      "vocab": [
+        "attack_speed"
       ]
     },
     {
@@ -16689,6 +16793,29 @@
       "type": "grow",
       "vocab": [
         "attack_speed",
+        "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "count": 25,
+          "op": "hit_growth",
+          "opcode": 247,
+          "stats": {
+            "ADFlat": {
+              "p2": 100,
+              "unit": "points"
+            }
+          },
+          "trigger": "BasicHit"
+        }
+      ],
+      "form": "basic",
+      "id": "card_muscle_memory",
+      "native_id": 212,
+      "type": "grow",
+      "vocab": [
         "basic_hit"
       ]
     },
@@ -16837,6 +16964,21 @@
     {
       "effects": [
         {
+          "op": "takedown_reset",
+          "opcode": 215
+        }
+      ],
+      "form": "skill",
+      "id": "card_quick_takedown",
+      "native_id": 221,
+      "type": "trigger",
+      "vocab": [
+        "kill"
+      ]
+    },
+    {
+      "effects": [
+        {
           "duration": {
             "ms": 4000,
             "unit": "ms"
@@ -16855,6 +16997,30 @@
       "type": "trigger",
       "vocab": [
         "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "control_amp",
+          "opcode": 248,
+          "ratio": {
+            "bp": 4000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "host_control": true,
+      "id": "card_pin_amp",
+      "native_id": 223,
+      "type": "trigger",
+      "vocab": [
+        "control"
       ]
     },
     {
@@ -16879,6 +17045,27 @@
       "vocab": [
         "skill_cast"
       ]
+    },
+    {
+      "effects": [
+        {
+          "area": {
+            "bp": 16000,
+            "unit": "ratio"
+          },
+          "op": "reshape",
+          "opcode": 249
+        }
+      ],
+      "form": "skill",
+      "host_hit_types": [
+        "projectile",
+        "area"
+      ],
+      "id": "card_crowd_hit",
+      "native_id": 225,
+      "type": "modify",
+      "vocab": []
     },
     {
       "effects": [
@@ -16938,6 +17125,68 @@
     {
       "effects": [
         {
+          "far": {
+            "denominator": 1,
+            "numerator": 550,
+            "unit": "cm"
+          },
+          "far_ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          },
+          "op": "reshape",
+          "opcode": 249,
+          "range": {
+            "bp": 5000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "host_hit_types": [
+        "targeted",
+        "projectile"
+      ],
+      "id": "card_long_reach",
+      "native_id": 228,
+      "type": "modify",
+      "vocab": []
+    },
+    {
+      "effects": [
+        {
+          "control": {
+            "bp": 4000,
+            "unit": "ratio"
+          },
+          "op": "reshape",
+          "opcode": 249
+        },
+        {
+          "cooldown_ratio": {
+            "bp": 12000,
+            "unit": "ratio"
+          },
+          "cost_ratio": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "op": "cooldown_cost",
+          "opcode": 130
+        }
+      ],
+      "form": "skill",
+      "host_control": true,
+      "id": "card_hold_longer",
+      "native_id": 229,
+      "type": "modify",
+      "vocab": [
+        "control"
+      ]
+    },
+    {
+      "effects": [
+        {
           "op": "hp_cost",
           "opcode": 207,
           "ratio": {
@@ -16981,6 +17230,25 @@
       "type": "convert",
       "vocab": [
         "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "shield_spend",
+          "opcode": 250,
+          "ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_held_breath",
+      "native_id": 232,
+      "type": "convert",
+      "vocab": [
+        "shield"
       ]
     },
     {
@@ -17043,6 +17311,29 @@
       "type": "grow",
       "vocab": [
         "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "interval": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "op": "recent_cast_amp",
+          "opcode": 251,
+          "ratio": {
+            "bp": 2000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "skill",
+      "id": "card_combo_chain",
+      "native_id": 236,
+      "type": "grow",
+      "vocab": [
+        "skill_cast"
       ]
     },
     {
@@ -17240,6 +17531,22 @@
     {
       "effects": [
         {
+          "op": "dodge_free_cast",
+          "opcode": 252
+        }
+      ],
+      "form": "dash",
+      "id": "card_dodge_strike",
+      "native_id": 247,
+      "type": "trigger",
+      "vocab": [
+        "perfect_dodge",
+        "momentum"
+      ]
+    },
+    {
+      "effects": [
+        {
           "distance": {
             "denominator": 1,
             "numerator": 200,
@@ -17275,6 +17582,95 @@
       "vocab": [
         "dash_contact",
         "basic_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 4000,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 3000,
+            "unit": "points"
+          },
+          "distance": {
+            "denominator": 1,
+            "numerator": 150,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "dash_ram",
+          "opcode": 253,
+          "ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "dash",
+      "id": "card_head_down",
+      "native_id": 250,
+      "type": "modify",
+      "vocab": [
+        "dash_contact",
+        "knockback"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "cooldown_ratio": {
+            "bp": 4000,
+            "unit": "ratio"
+          },
+          "cost_ratio": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "momentum": {
+            "p2": 1500,
+            "unit": "momentum"
+          },
+          "op": "cooldown_cost",
+          "opcode": 130
+        }
+      ],
+      "form": "dash",
+      "id": "card_paid_dash",
+      "native_id": 251,
+      "type": "convert",
+      "vocab": [
+        "momentum",
+        "dash"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "count": 1,
+          "op": "hit_growth",
+          "opcode": 247,
+          "stats": {
+            "MoveSpeedBonusRatio": {
+              "bp": 150,
+              "unit": "ratio"
+            }
+          },
+          "trigger": "PerfectDodge"
+        }
+      ],
+      "form": "dash",
+      "id": "card_slippery",
+      "native_id": 252,
+      "type": "grow",
+      "vocab": [
+        "perfect_dodge",
+        "move_speed"
       ]
     },
     {
@@ -17431,6 +17827,38 @@
     {
       "effects": [
         {
+          "ap_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 6000,
+            "unit": "points"
+          },
+          "max_hp_ratio": {
+            "bp": 300,
+            "unit": "ratio"
+          },
+          "op": "shield_burst_break",
+          "opcode": 184,
+          "radius": {
+            "denominator": 1,
+            "numerator": 300,
+            "unit": "cm"
+          }
+        }
+      ],
+      "form": "body",
+      "id": "card_shell_burst",
+      "native_id": 261,
+      "type": "trigger",
+      "vocab": [
+        "shield_break"
+      ]
+    },
+    {
+      "effects": [
+        {
           "base": {
             "p2": 4500,
             "unit": "hp"
@@ -17524,6 +17952,30 @@
       "vocab": [
         "heal",
         "skill_hit"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "momentum": {
+            "p2": 7000,
+            "unit": "momentum"
+          },
+          "multiplier": {
+            "bp": 14000,
+            "unit": "ratio"
+          },
+          "op": "overdrive_short",
+          "opcode": 254
+        }
+      ],
+      "form": "body",
+      "id": "card_short_breath",
+      "native_id": 266,
+      "type": "modify",
+      "vocab": [
+        "overdrive",
+        "momentum"
       ]
     },
     {
@@ -17652,6 +18104,30 @@
     {
       "effects": [
         {
+          "op": "speed_factor",
+          "opcode": 246,
+          "ratio": {
+            "bp": 500,
+            "unit": "ratio"
+          },
+          "step_ratio": {
+            "bp": 1000,
+            "unit": "ratio"
+          },
+          "trigger": "MoveSpeedAbove"
+        }
+      ],
+      "form": "body",
+      "id": "card_run_hit",
+      "native_id": 273,
+      "type": "convert",
+      "vocab": [
+        "move_speed"
+      ]
+    },
+    {
+      "effects": [
+        {
           "heal": {
             "p2": 20000,
             "unit": "hp"
@@ -17775,6 +18251,35 @@
       ]
     },
     {
+      "effects": [
+        {
+          "ap_ratio": {
+            "bp": 1000,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 1200,
+            "unit": "points"
+          },
+          "count": 5,
+          "duration": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "op": "tally",
+          "opcode": 255
+        }
+      ],
+      "form": "body",
+      "id": "card_tally",
+      "native_id": 279,
+      "type": "grow",
+      "vocab": [
+        "skill_hit",
+        "basic_hit"
+      ]
+    },
+    {
       "choose_element": [
         "fire",
         "water",
@@ -17854,6 +18359,30 @@
       "type": "element",
       "vocab": [
         "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "burn_ratio": {
+            "bp": 3000,
+            "unit": "ratio"
+          },
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "overheal_shield",
+          "opcode": 222
+        }
+      ],
+      "form": "body",
+      "id": "card_burn_guard",
+      "native_id": 284,
+      "type": "element",
+      "vocab": [
+        "element",
+        "shield"
       ]
     }
   ],
@@ -19723,6 +20252,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_burn_guard.description",
+      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒，与现有护盾取强。",
+      "icon_id": "icon_card_burn_guard",
+      "id": "card_burn_guard",
+      "name_key": "card_burn_guard.name",
+      "name_text": "烧着还挺扛揍",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_charge_up.description",
       "description_text": "不造成伤害的每 [idle_charge.interval] 秒，下一次伤害 +[idle_charge.ratio]%，没有上限；造成伤害后清零（持续伤害不清零）。",
       "icon_id": "icon_card_charge_up",
@@ -19732,12 +20270,39 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_combo_chain.description",
+      "description_text": "放这个技能时，过去 [recent_cast_amp.interval] 秒内你每放过一个其他技能，这次伤害 +[recent_cast_amp.ratio]%。",
+      "icon_id": "icon_card_combo_chain",
+      "id": "card_combo_chain",
+      "name_key": "card_combo_chain.name",
+      "name_text": "一招接一招",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_crowd_hit.description",
+      "description_text": "这个技能的范围、飞行物半径和直线宽度变为 [reshape.multiplier]%，伤害不变。",
+      "icon_id": "icon_card_crowd_hit",
+      "id": "card_crowd_hit",
+      "name_key": "card_crowd_hit.name",
+      "name_text": "一群人一起挨",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_dash_punch.description",
       "description_text": "冲刺结束后 [empower_basic.duration] 秒内，下一次普攻多造成 [empower_basic.amount] 物理伤害。",
       "icon_id": "icon_card_dash_punch",
       "id": "card_dash_punch",
       "name_key": "card_dash_punch.name",
       "name_text": "蹿过去抡一拳",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_dodge_strike.description",
+      "description_text": "完美闪避后，你的下一个技能不耗劲。",
+      "icon_id": "icon_card_dodge_strike",
+      "id": "card_dodge_strike",
+      "name_key": "card_dodge_strike.name",
+      "name_text": "闪完就打",
       "namespace": "DemoContent"
     },
     {
@@ -19786,6 +20351,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_fist_skill.description",
+      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。",
+      "icon_id": "icon_card_fist_skill",
+      "id": "card_fist_skill",
+      "name_key": "card_fist_skill.name",
+      "name_text": "拳里带招",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_grow_fat.description",
       "description_text": "你每回复 [heal_growth.amount] 生命，本局生命上限 +[heal_growth.limit]，没有上限。",
       "icon_id": "icon_card_grow_fat",
@@ -19813,6 +20387,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_head_down.description",
+      "description_text": "冲刺距离 +[dash_ram.ratio]%；撞到的敌人受到 [dash_ram.amount] 物理伤害并被撞开 [dash_ram.distance] 厘米。",
+      "icon_id": "icon_card_head_down",
+      "id": "card_head_down",
+      "name_key": "card_head_down.name",
+      "name_text": "闷头撞到底",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_heated_up.description",
       "description_text": "连续打同一个人，每下攻速 +[focus_attack_speed.ratio]%，没有上限；换人或 [focus_attack_speed.duration] 秒没打就清零。",
       "icon_id": "icon_card_heated_up",
@@ -19822,12 +20405,30 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_held_breath.description",
+      "description_text": "这个技能命中时消耗你身上护盾的 [shield_spend.ratio]%，变成同样类型的等量伤害。",
+      "icon_id": "icon_card_held_breath",
+      "id": "card_held_breath",
+      "name_key": "card_held_breath.name",
+      "name_text": "憋着的气",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_held_shot.description",
       "description_text": "这个技能就绪后每闲置 [idle_ready_amp.interval] 秒，下一次伤害 +[idle_ready_amp.ratio]%，没有上限，放出后清零。",
       "icon_id": "icon_card_held_shot",
       "id": "card_held_shot",
       "name_key": "card_held_shot.name",
       "name_text": "憋着一发狠的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_hold_longer.description",
+      "description_text": "这个技能的控制时长 +[reshape.cost_ratio]%（仍计递减），冷却变为 [cooldown_cost.secondary_ratio]%。",
+      "icon_id": "icon_card_hold_longer",
+      "id": "card_hold_longer",
+      "name_key": "card_hold_longer.name",
+      "name_text": "按住多揍一会",
       "namespace": "DemoContent"
     },
     {
@@ -19885,6 +20486,24 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_long_arm.description",
+      "description_text": "普攻射程 +[basic_projectile.distance] 厘米，变成会被躲开的飞行物，命中即停。",
+      "icon_id": "icon_card_long_arm",
+      "id": "card_long_arm",
+      "name_key": "card_long_arm.name",
+      "name_text": "隔空抽你",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_long_reach.description",
+      "description_text": "这个技能射程 +[reshape.ratio]%；命中时离目标至少 [reshape.distance] 厘米，伤害 +[reshape.secondary_ratio]%。",
+      "icon_id": "icon_card_long_reach",
+      "id": "card_long_reach",
+      "name_key": "card_long_reach.name",
+      "name_text": "站远点照样抽你",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_long_soak.description",
       "description_text": "你施加的元素持续时间变为 [element_duration.multiplier]%。",
       "icon_id": "icon_card_long_soak",
@@ -19912,6 +20531,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_muscle_memory.description",
+      "description_text": "普攻每命中参赛者 [hit_growth.count] 次，本局攻击力 +[hit_growth.ADFlat]。",
+      "icon_id": "icon_card_muscle_memory",
+      "id": "card_muscle_memory",
+      "name_key": "card_muscle_memory.name",
+      "name_text": "熟能生巧",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_next_up.description",
       "description_text": "这个技能命中时，你其他技能的冷却各减少 [hit_haste_other.refund] 秒。",
       "icon_id": "icon_card_next_up",
@@ -19930,6 +20558,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_paid_dash.description",
+      "description_text": "冲刺消耗 [cooldown_cost.limit] 劲，冷却变为 [cooldown_cost.secondary_ratio]%。",
+      "icon_id": "icon_card_paid_dash",
+      "id": "card_paid_dash",
+      "name_key": "card_paid_dash.name",
+      "name_text": "冲刺耗劲",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_pass_through.description",
       "description_text": "冲刺穿过敌人身体，对每个穿过的人打一次普攻（不推进连击）。",
       "icon_id": "icon_card_pass_through",
@@ -19945,6 +20582,15 @@
       "id": "card_pay_back",
       "name_key": "card_pay_back.name",
       "name_text": "一招回本",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_pin_amp.description",
+      "description_text": "这个技能造成控制后 [control_amp.duration] 秒内，你的下一个技能伤害 +[control_amp.ratio]%。",
+      "icon_id": "icon_card_pin_amp",
+      "id": "card_pin_amp",
+      "name_key": "card_pin_amp.name",
+      "name_text": "按住了就放大",
       "namespace": "DemoContent"
     },
     {
@@ -19993,6 +20639,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_quick_takedown.description",
+      "description_text": "这个技能造成击杀或助攻时，它的冷却刷新。",
+      "icon_id": "icon_card_quick_takedown",
+      "id": "card_quick_takedown",
+      "name_key": "card_quick_takedown.name",
+      "name_text": "收人头不用等",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_reaction_refund.description",
       "description_text": "你触发反应时回 [reaction_momentum.limit] 劲。",
       "icon_id": "icon_card_reaction_refund",
@@ -20008,6 +20663,15 @@
       "id": "card_rot_fist",
       "name_key": "card_rot_fist.name",
       "name_text": "拳头带馊",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_run_hit.description",
+      "description_text": "移速每比基础高 [speed_factor.secondary_ratio]%，伤害 +[speed_factor.ratio]%。",
+      "icon_id": "icon_card_run_hit",
+      "id": "card_run_hit",
+      "name_key": "card_run_hit.name",
+      "name_text": "跑起来打",
       "namespace": "DemoContent"
     },
     {
@@ -20029,6 +20693,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_shell_burst.description",
+      "description_text": "护盾被打破时，对身边 [shield_burst_break.radius] 厘米内的敌人造成 [shield_burst_break.amount] 魔法伤害。",
+      "icon_id": "icon_card_shell_burst",
+      "id": "card_shell_burst",
+      "name_key": "card_shell_burst.name",
+      "name_text": "壳碎了也崩你",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_shock_dash.description",
       "description_text": "冲刺撞到的敌人感电。",
       "icon_id": "icon_card_shock_dash",
@@ -20047,6 +20720,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "card_short_breath.description",
+      "description_text": "劲到 [overdrive_short.limit] 就能爆劲，爆劲倍率变为 [overdrive_short.multiplier]%。",
+      "icon_id": "icon_card_short_breath",
+      "id": "card_short_breath",
+      "name_key": "card_short_breath.name",
+      "name_text": "气短",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "card_skill_crit.description",
       "description_text": "你的技能伤害也能暴击，用你的暴击率。",
       "icon_id": "icon_card_skill_crit",
@@ -20062,6 +20744,24 @@
       "id": "card_skill_drain",
       "name_key": "card_skill_drain.name",
       "name_text": "吸血对技能生效",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_slippery.description",
+      "description_text": "每次完美闪避，本局移速 +[hit_growth.MoveSpeedBonusRatio]%，没有上限。",
+      "icon_id": "icon_card_slippery",
+      "id": "card_slippery",
+      "name_key": "card_slippery.name",
+      "name_text": "越躲越快",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_slow_craft.description",
+      "description_text": "攻速每比 [speed_factor.threshold] 次/秒低 [speed_factor.step]，普攻伤害 +[speed_factor.ratio]%。",
+      "icon_id": "icon_card_slow_craft",
+      "id": "card_slow_craft",
+      "name_key": "card_slow_craft.name",
+      "name_text": "慢工出细活",
       "namespace": "DemoContent"
     },
     {
@@ -20089,6 +20789,15 @@
       "id": "card_takedown",
       "name_key": "card_takedown.name",
       "name_text": "人头刷新",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_tally.description",
+      "description_text": "每次命中记一笔，满 [tally.count] 笔兑现：每笔 [tally.amount] 魔法伤害；[tally.duration] 秒没有新账就清空。",
+      "icon_id": "icon_card_tally",
+      "id": "card_tally",
+      "name_key": "card_tally.name",
+      "name_text": "揍一下记一笔",
       "namespace": "DemoContent"
     },
     {
@@ -20152,6 +20861,15 @@
       "id": "card_wave_after",
       "name_key": "card_wave_after.name",
       "name_text": "一波接一波",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "card_wide_swing.description",
+      "description_text": "第三段变成身前 [combo_sweep.angle]° 横扫：主目标全额，其他人 [combo_sweep.ratio]%。",
+      "icon_id": "icon_card_wide_swing",
+      "id": "card_wide_swing",
+      "name_key": "card_wide_swing.name",
+      "name_text": "抡圆了打",
       "namespace": "DemoContent"
     },
     {
@@ -20855,12 +21573,12 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision.",
       "status": "approved"
     },
-    "handler_revision": 12,
+    "handler_revision": 13,
     "projection_revision": 10,
-    "schema_version": 5
+    "schema_version": 6
   },
   "parameters": {
     "AI.BreakoutCardScore": 5,
@@ -20871,6 +21589,10 @@
     "AI.CaptureReactionBudgetSec": {
       "ms": 2000,
       "unit": "ms"
+    },
+    "AI.CardSkipChance": {
+      "bp": 3000,
+      "unit": "ratio"
     },
     "AI.CardVocabScore": 2,
     "AI.DecisionIntervalSec": {
@@ -21032,9 +21754,15 @@
     "CARDS.LockSlots": 1,
     "CARDS.OfferSize": 3,
     "CARDS.RerollsPerRest": 1,
+    "CARDS.SkipVouchers": 3,
     "CARDS.VocabWeight": 2,
+    "CHAIN.EndSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
     "CHAIN.MaxDepth": 16,
     "CHAIN.MaxEffectsPerStep": 256,
+    "CHAIN.MinKeySteps": 3,
     "COMBAT.BlizzardRatio": {
       "bp": 5000,
       "unit": "ratio"
@@ -21428,7 +22156,6 @@
       "ms": 500,
       "unit": "ms"
     },
-    "GROWTH.ActiveSkipPoints": 5,
     "GROWTH.BuildSafeWindowSec": {
       "ms": 4000,
       "unit": "ms"
@@ -21436,8 +22163,6 @@
     "GROWTH.KeystoneThresholdPoints": 18,
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.MaxLevelPointsXP": 240,
-    "GROWTH.NpcActivePoints": 5,
-    "GROWTH.NpcActiveSkipPoints": 3,
     "GROWTH.OpeningPoints": 3,
     "GROWTH.PointsPerLevel": 3,
     "LEADER.CircleMaxOffsetCm": {
@@ -21684,6 +22409,17 @@
     },
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
+    "SHOP.CardPrice": 6,
+    "SHOP.CardSlots": 4,
+    "SHOP.RefreshPrice": 2,
+    "SHOP.RefreshStep": 1,
+    "SHOP.SellPrice": 3,
+    "SHOP.SkillPointMaxPerMatch": 3,
+    "SHOP.SkillPointPrice": 25,
+    "SHOP.SkillPrice": 10,
+    "SHOP.SkillSlots": 2,
+    "SHOP.VocabCardSlots": 2,
+    "SHOP.VocabWeight": 3,
     "SHOWDOWN.ClosureStartsSec": {
       "ms": 75000,
       "unit": "ms"
@@ -21959,6 +22695,15 @@
       "numerator": 1050,
       "unit": "cm"
     },
+    "VOUCHER.ActiveSkip": 8,
+    "VOUCHER.Airdrop": 6,
+    "VOUCHER.Assist": 4,
+    "VOUCHER.Boss": 20,
+    "VOUCHER.CampAncient": 12,
+    "VOUCHER.CampElite": 8,
+    "VOUCHER.CampHigh": 4,
+    "VOUCHER.CampLow": 2,
+    "VOUCHER.Kill": 10,
     "XP.BaseToNext": 48,
     "XP.IncreasePerLevel": 12
   },

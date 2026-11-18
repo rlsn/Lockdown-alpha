@@ -7,6 +7,7 @@
 #include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDDamageRecap.h"
+#include "Combat/LDChainRules.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDMonsterRules.h"
@@ -197,6 +198,8 @@ struct FLDCombatActiveTerms
     int64 SplitWindowMs=0;
     // A gust overdrive (spec §3.5): its hits leave the ground state of the element their target held where the push lands.
     bool bOverdriveGustGround=false;
+    // D08: the innate dash pays this much momentum (copies add).
+    int64 DashMomentumCostP2=0;
 };
 
 // Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun, final bowling).
@@ -323,6 +326,8 @@ struct FLDCombatAction
     // K06: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
     bool bAutoRecast=false;
     int64 AutoRecastScaleBp=10000;
+    // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
+    FGuid ChainId;
 };
 
 // A K06 repeat of one release, due at DueMs: the same action toward the same target or direction (LDCombatCards.cpp).
@@ -331,6 +336,16 @@ struct FLDCombatAutoRecast
     FLDCombatBodyRef Body;
     FLDCombatAction Action;
     int64 DueMs=0;
+    // The card that queued it (K06 card_encore, A08 card_fist_skill).
+    FName Card;
+};
+
+// K03: a learned skill's latest native hit on a contender life by one contributor (the assist window decides).
+struct FLDSkillContribution
+{
+    FGuid Contributor;
+    FName Skill;
+    int64 AtMs=0;
 };
 
 struct FLDBodyCombatState
@@ -461,6 +476,15 @@ struct FLDBodyCombatState
     int64 IdleSinceMs=0;
     int32 SplitDashLeft=0;
     int64 SplitDashUntilMs=0;
+    // Issue #292 P5 cards: D04's free next casts, K05's next-skill bonus (its card and window), K18's recent releases (skill and
+    // instant), Y24's open tally (marks and the last mark's instant) and K03's skill contributions on this contender life.
+    int32 FreeCasts=0;
+    FName ControlAmpCard;
+    int64 ControlAmpBp=0, ControlAmpUntilMs=0;
+    TArray<TPair<FName,int64>> RecentCasts;
+    int32 TallyMarks=0;
+    int64 TallyAtMs=0;
+    TArray<FLDSkillContribution> SkillContributions;
     // Skill branch state (LDCombatBranchDirector.cpp).
     FLDCombatBranchState Branch;
 };
@@ -473,6 +497,8 @@ struct FLDCardGrowth
     int32 Kills=0, Assists=0, ControlsTaken=0;
     // K17: hits on contenders of each installed copy's host (by card serial).
     TMap<uint16,int32> SkillHits;
+    // A13: primary basic hits on contenders; D09: perfect dodges.
+    int32 BasicHits=0, PerfectDodges=0;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -562,6 +588,8 @@ struct FLDCombatHit
     TArray<FLDDamageFactor> Factors;
     // Spec §3.8: the steps of the effect chain this hit is (0 for an action's own hit; a hit derived from another is one more).
     uint8 ChainDepth=0;
+    // Spec §6.5: the chain this hit belongs to when it was derived from another; an action's own hits find theirs by EffectId.
+    FGuid ChainId;
     // A rider of another hit (A11, K13): its own damage type, the parent's crit and factors, never a trigger or a hit count.
     bool bRider=false;
     // A primary basic's extra strike (A06, A09): a basic hit for triggers, no combo advance.
@@ -842,6 +870,11 @@ struct FLDCombatProjectile
     FGuid StartContact;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
+    // A05's flying basic: the strikes and riders that land with its primary (A06, A09, A11), retargeted to the struck body.
+    TArray<FLDCombatHit> Riders;
+    // A08 on a flying third basic: its free Q is queued at the first contact, toward the body struck (bComboCast).
+    bool bComboCast=false;
+    FLDCombatAction ComboBasic;
 };
 
 // A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, and (#198) a slow check and a burn check
@@ -949,6 +982,11 @@ public:
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
+    // Spec §6.5: the chain ends Entity's owner receives (its recent ones) and every contender's 本局最离谱 row.
+    void ReadOwnerChains(const FGuid& Entity, TArray<FLDChainEndView>& Out) const;
+    void ReadResultHighlights(TArray<FLDResultHighlight>& Out) const;
+    // The match closes: every open chain ends now (bookkeeping only, no gameplay effect) so the result counts the last ones.
+    bool FinishOpenChains(int64 NowMs, FString& Error) { return AdvanceChains(NowMs,Error,true); }
 
     // ---- Navigation and camp bodies (server, inside the current Actions permit).
     bool ReadCombatBody(const FLDCombatBodyRef& Body, FLDCombatBodyRead& Out) const;
@@ -1487,10 +1525,24 @@ private:
         int64 NowMs, FString& Error);
     // A completed reaction: Y04 momentum, Y05's next element and K25's cut.
     bool OnCardReaction(const FLDCombatReactionFact& Fact, int64 NowMs, FString& Error);
-    // A contender kill or assist credited to Entity: Y02's refresh and Y20's growth.
-    bool OnCardTakedown(const FGuid& Entity, bool bKill, int64 NowMs, FString& Error);
-    // Y21: a hard control actually landed on Victim.
+    // A contender kill or assist credited to Entity: Y02's refresh, Y20's growth and K03's host refresh (a host whose native hit
+    // reached Victim within WindowMs, the fatal one included).
+    bool OnCardTakedown(const FGuid& Entity, bool bKill, const FLDBodyCombatState& Victim, int64 WindowMs, int64 NowMs, FString& Error);
+    // Y21: a hard control actually landed on Victim; K05: one from a host skill arms its holder's next-skill bonus.
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
+    // Issue #292 P5 cards: D04/D09 on a perfect dodge of Body; Y06 on a broken shield of Holder; Y29 a share of the burn damage
+    // Source dealt as its shield; Y24's tally of a hit of Source on Target.
+    bool OnPerfectDodgeCards(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error);
+    bool OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error);
+    bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // Y11: Body's overdrive threshold and scale (OVERDRIVE.Threshold / OVERDRIVE.Scale unless an overdrive_short card replaces them).
+    int64 OverdriveThresholdOf(const FLDBodyCombatState& Body) const;
+    int64 OverdriveScaleOf(const FLDBodyCombatState& Body) const;
+    // D07: an innate dash ramming Target deals the card's damage and pushes it away.
+    bool DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target, FString& Error);
+    // A08: a landed third basic step queues a free Q release toward its target at the card's share.
+    bool QueueComboCast(FLDBodyCombatState& Body, const FLDCombatAction& Basic, const FLDCombatHit& Primary, int64 NowMs, FString& Error);
     // The grow cards' match growth as projection terms (Y19, Y20, Y21): the counters times the grow cards Projection holds,
     // sorted by stat. A projection without grow cards gives none.
     bool CardGrowthTerms(const FLDAttributeProjection& Projection, const FLDCardGrowth& Counters, TArray<FLDDemoStatBonus>& Out,
@@ -1656,6 +1708,39 @@ private:
     uint64 NextAreaSerial=0;
     // K06 repeats waiting for their instant.
     TArray<FLDCombatAutoRecast> AutoRecasts;
+    // Spec §6.5 chains (LDCombatChains.cpp): the open chains by ChainId, the release effects that map to them, each owner's
+    // ended chains and highlights, and the chain current while an action releases or a hit of it resolves.
+    struct FChainTrack
+    {
+        FGuid Owner;
+        TArray<FName> Steps;
+        int64 DamageP2=0;
+        int64 LastStepMs=0;
+        TArray<FGuid> Effects;
+    };
+    struct FChainOwner
+    {
+        uint32 NextSerial=1;
+        TArray<FLDChainEndView> Recent;
+        TArray<int32> Logged;
+        FLDResultHighlight Best;
+    };
+    TMap<FGuid,FChainTrack> OpenChains;
+    TMap<FGuid,FGuid> EffectChains;
+    TMap<FGuid,FChainOwner> ChainOwners;
+    FGuid CurrentChain;
+    // The chain the last successful ReleaseAbility belonged to, so a card step recorded after it (K06, A08) joins it.
+    FGuid LastReleaseChain;
+    // A contender's action (EffectId) opens a chain or continues Inherit while it is open; none for camp members and dummies.
+    FGuid OpenChain(const FLDBodyCombatState& Body, const FGuid& EffectId, const FGuid& Inherit, int64 NowMs);
+    FGuid ChainOfHit(const FLDCombatHit& Hit) const;
+    // One step of the current chain when Entity owns it.
+    void ChainStep(const FGuid& Entity, FName Kind, int64 NowMs);
+    // Damage of a committed hit: its chain's total and its owner's strongest hit on a contender.
+    void ChainDamage(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, int64 DamageP2);
+    // Ends every chain CHAIN.EndSec past its last step (every open chain with bAll): the counted ones reach their owner and
+    // the longest the log.
+    bool AdvanceChains(int64 NowMs, FString& Error, bool bAll=false);
     // Spec §3.8: effects derived in the current authority step (LD_CHAIN_GUARD reason=Step past CHAIN.MaxEffectsPerStep).
     int32 StepDerivedEffects=0;
     // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.

@@ -200,15 +200,16 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         [](FLDBuildCommand& Mutated) { Mutated.FinalTargetKind = ELDFinalModTargetKind::Dash; });
     // Client-sent enums are whitelisted, never mapped to a neighbour.
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
-        ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::BuyNpcOffer, ELDBuildCommandKind::Respec,
+        ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::ShopBuy, ELDBuildCommandKind::ShopRefresh,
+        ELDBuildCommandKind::ShopSell, ELDBuildCommandKind::UsePickTicket, ELDBuildCommandKind::Respec,
         ELDBuildCommandKind::ReplaceActive, ELDBuildCommandKind::ForgetActive, ELDBuildCommandKind::SkipActiveOffer,
         ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill, ELDBuildCommandKind::PickCard, ELDBuildCommandKind::SkipCards,
         ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::LockCard, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    // 10-13, 24 and 25 are the retired component commands.
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(24), uint8(25), uint8(29), uint8(36), uint8(255)})
+    // 10-13, 24 and 25 are the retired component commands, 20 the retired skill merchant; 36-39 are the shop's, 40 is unused.
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(20), uint8(24), uint8(25), uint8(29), uint8(40), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -898,11 +899,14 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Cards"), TEXT("CardCapacity"),
          TEXT("QueuedCardOffers"), TEXT("bHasCardOffer"), TEXT("CardOffer"), TEXT("CardRerolls"), TEXT("CatalogDigest"),
-         TEXT("PermanentSpentPoints"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
+         TEXT("Vouchers"), TEXT("Shop"), TEXT("PickTickets"), TEXT("SeenCards"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
          TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
          TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
-        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
+        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipVouchers")});
+    bGood &= GrowthTestExactFields(Test, FLDShopView::StaticStruct(), {TEXT("bStocked"), TEXT("Revision"), TEXT("Slots"),
+        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax"), TEXT("SellPrice")});
+    bGood &= GrowthTestExactFields(Test, FLDShopSlotView::StaticStruct(), {TEXT("Kind"), TEXT("DefinitionId"), TEXT("Price"), TEXT("bSold")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot"), TEXT("Branch")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
     bGood &= GrowthTestExactFields(Test, FLDCardInstanceView::StaticStruct(),
@@ -922,7 +926,8 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
         FLDCardInstanceView::StaticStruct(), FLDCardTargetView::StaticStruct(), FLDCardOfferView::StaticStruct(),
-        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct()};
+        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct(),
+        FLDShopView::StaticStruct(), FLDShopSlotView::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
     {
@@ -1311,14 +1316,14 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("AllocatePoints, %s"), Row.What),
             LDProgression::CommandGate(EKind::AllocatePoints, *Row.Context), Row.Allocate);
     }
-    // The NPC services keep the rest build window (#222: "NPC 服务仍受原有阶段、位置与费用约束").
-    for (const EKind Kind : {EKind::BuyNpcOffer, EKind::Respec})
+    // The rest shop and the respec keep the rest build window (#222: "NPC 服务仍受原有阶段、位置与费用约束").
+    for (const EKind Kind : {EKind::ShopBuy, EKind::ShopRefresh, EKind::ShopSell, EKind::Respec})
     {
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("NPC kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
             ELDGrowthReason::NotRestWindow);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("NPC kind %d in a PK step"), int32(Kind)),
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d in a PK step"), int32(Kind)),
             LDProgression::CommandGate(Kind, RestLocked), ELDGrowthReason::BuildLocked);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("NPC kind %d in the build window"), int32(Kind)),
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d in the build window"), int32(Kind)),
             LDProgression::CommandGate(Kind, RestAlive), ELDGrowthReason::None);
     }
     for (const EKind Kind : {EKind::ReplaceActive, EKind::ForgetActive})
@@ -2808,8 +2813,9 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const auto FightOf = [&](const FGuid& Id) -> FLDCombatEntityRecord& { return Driver->Records.FindChecked(Id); };
 
     const FLDProgressionView SkipOpening = Development->ReadProgression(Skipper);
-    if (!TestTrue(TEXT("The opening offer advertises five points for declining"),
-        SkipOpening.bHasActiveOffer && SkipOpening.ActiveOffer.SkipPoints == 5)) { return false; }
+    const int32 SkipVouchers = Content.Parameters.Vouchers.ActiveSkip;
+    if (!TestTrue(TEXT("The opening offer advertises its vouchers for declining"),
+        SkipOpening.bHasActiveOffer && SkipOpening.ActiveOffer.SkipVouchers == SkipVouchers && SkipVouchers > 0)) { return false; }
     FLDBuildCommand SkipStale = Skip(Skipper);
     ++SkipStale.OfferRevision;
     Rejected(Commit(Skipper, SkipStale, 100, TEXT("Skipping against a stale offer revision")),
@@ -2817,9 +2823,10 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDBuildCommand SkipOpeningCommand = Skip(Skipper);
     const FLDBuildReceipt SkipOpeningReceipt = Commit(Skipper, SkipOpeningCommand, 101, TEXT("Skipping the opening offer"));
     const FLDProgressionView AfterSkipOpening = Development->ReadProgression(Skipper);
-    TestTrue(TEXT("Skipping consumes the offer once, awards points and still opens the opening card offer"),
-        SkipOpeningReceipt.Header.Outcome == ELDReceiptOutcome::Applied && SkipOpeningReceipt.PointsAwarded == 5
-        && SkipOpeningReceipt.OpportunityOrdinal == 1 && SkipOpeningReceipt.UnspentPointsAfter == 8
+    TestTrue(TEXT("Skipping consumes the offer once, pays vouchers (no points) and still opens the opening card offer"),
+        SkipOpeningReceipt.Header.Outcome == ELDReceiptOutcome::Applied && SkipOpeningReceipt.VouchersDelta == SkipVouchers
+        && SkipOpeningReceipt.VouchersAfter == SkipVouchers && AfterSkipOpening.Vouchers == SkipVouchers
+        && SkipOpeningReceipt.OpportunityOrdinal == 1 && SkipOpeningReceipt.UnspentPointsAfter == 3
         && BuildOf(Skipper).Actives.IsEmpty() && ProgressionOf(Skipper).ActiveConsumed == 1
         && ProgressionOf(Skipper).Records.Num() == 1 && ProgressionOf(Skipper).Records[0].Chosen.IsNone()
         && AfterSkipOpening.bHasCardOffer && AfterSkipOpening.CardOffer.Source == ELDCardOfferSource::Opening
@@ -2828,14 +2835,14 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDSubmitResult SkipReplay = Development->QueueBuild(Skipper, SkipOpeningCommand);
     TestTrue(TEXT("Replaying a skip returns the original award without awarding again"),
         SkipReplay.Status == ELDAdmissionStatus::Final && SkipReplay.bHasBuildReceipt
-        && SkipReplay.BuildReceipt.PointsAwarded == 5 && BuildOf(Skipper).Revision == RevisionAfterSkip
-        && Unspent(Skipper) == 8);
+        && SkipReplay.BuildReceipt.VouchersDelta == SkipVouchers && BuildOf(Skipper).Revision == RevisionAfterSkip
+        && ProgressionOf(Skipper).Vouchers == SkipVouchers && Unspent(Skipper) == 3);
     FLDBuildCommand SkipConsumed = Skip(Skipper);
     SkipConsumed.OfferId = SkipOpening.ActiveOffer.OfferId;
     SkipConsumed.OfferRevision = SkipOpening.ActiveOffer.OfferRevision;
     Rejected(Commit(Skipper, SkipConsumed, 102, TEXT("Skipping an already consumed offer")),
         ELDGrowthReason::OfferAlreadyCommitted, TEXT("Skipping an already consumed offer"));
-    TestEqual(TEXT("An already consumed offer awards no points"), Unspent(Skipper), int64(8));
+    TestEqual(TEXT("An already consumed offer awards no vouchers"), ProgressionOf(Skipper).Vouchers, SkipVouchers);
 
     // ---- Admission: the shape of each kind, the match and the membership ----
     const FLDProgressionView Opening = Development->ReadProgression(Tester);
@@ -3088,12 +3095,12 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDBuildReceipt FirstQueuedSkip = Commit(Skipper, Skip(Skipper), StepAtMs + 1, TEXT("Skipping the first queued offer"));
     const FLDProgressionView NextSkip = Development->ReadProgression(Skipper);
     TestTrue(TEXT("Skipping one queued offer generates the next distinct group"),
-        FirstQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && FirstQueuedSkip.PointsAwarded == 5
+        FirstQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && FirstQueuedSkip.VouchersDelta == SkipVouchers
         && NextSkip.QueuedActiveOpportunities == 1 && NextSkip.bHasActiveOffer && NextSkip.ActiveOffer.OpportunityOrdinal == 3
         && NextSkip.ActiveOffer.OfferId != QueuedSkips.ActiveOffer.OfferId);
     const FLDBuildReceipt LastQueuedSkip = Commit(Skipper, Skip(Skipper), StepAtMs + 1, TEXT("Skipping the next queued offer"));
     TestTrue(TEXT("The next group is consumed independently"),
-        LastQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && LastQueuedSkip.PointsAwarded == 5
+        LastQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && LastQueuedSkip.VouchersDelta == SkipVouchers
         && Development->ReadProgression(Skipper).QueuedActiveOpportunities == 0 && ProgressionOf(Skipper).ActiveConsumed == 3);
     if (!Reward(Tester, 1, 108)) { return false; }
     const FLDProgressionView Three = Development->ReadProgression(Tester);

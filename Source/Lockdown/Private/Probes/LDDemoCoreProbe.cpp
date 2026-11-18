@@ -77,11 +77,7 @@ public:
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     bool bRoomLeaveRequested=false;
     bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
-    bool bReadyWindowObserved=false, bLeftFirstService=false, bChoicesPanelOpened=false, bServicePanelOpened=false, bServicePanelClosed=false;
-    bool bNpcPurchaseSent=false, bNpcPurchaseApplied=false;
-    uint64 NpcPurchaseRevision=0;
-    int64 NpcPurchasePointsBefore=0;
-    double NpcPurchaseSentAt=0;
+    bool bReadyWindowObserved=false, bServicePanelOpened=false;
     double RestObservationStartedAt=0;
     int32 SharedTrainingStage=0;
     uint32 ObservedRestLife=1;
@@ -857,13 +853,14 @@ public:
                     if (RestServiceStage==0 && PC->CanWorldCommand() && Movement->IsMovingOnGround()
                         && Movement->CurrentFloor.IsWalkableFloor())
                     {
-                        const auto* Service=Registry->Resolve(TEXT("rest_service_1"),Registry->Generation);
-                        if (!Check(Service!=nullptr,TEXT("The first rest service is registered"))) { return Finish(); }
+                        // Spec §10.2: the trainer is the shared room's one rest service (the shop lives in the workshop).
+                        const auto* Service=Registry->Resolve(TEXT("rest_service_3"),Registry->Generation);
+                        if (!Check(Service!=nullptr,TEXT("The trainer's rest service is registered"))) { return Finish(); }
                         Nav->NavigateGround(Service->Position,Service->Surface);
                         RestServiceOrder=Nav->LocalIdentity();
                         RestServiceStage=1;
                     }
-                    else if (RestServiceStage==1 && PC->OwnerState.NearbyRestService==ELDRestService::SkillMerchant)
+                    else if (RestServiceStage==1 && PC->OwnerState.NearbyRestService==ELDRestService::Trainer)
                     {
                         ULDChoicesPanel* Panel=PC->HUDUI?PC->HUDUI->ChoicesPanel.Get():nullptr;
                         if (!Panel || !PC->RootUI)
@@ -871,62 +868,15 @@ public:
                             Check(false,TEXT("The remote owner has the shared choices panel and root UI"));
                             return Finish();
                         }
-                        if (!bChoicesPanelOpened)
-                        {
-                            if (!Check(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices),
-                                TEXT("The remote owner opens the shared choices panel"))) { return Finish(); }
-                            Panel->OpenPanel();
-                            if (!Check(Panel->IsPanelOpen(),TEXT("The remote choices panel is visible before resolving its opening offer")))
-                            {
-                                return Finish();
-                            }
-                            bChoicesPanelOpened=true;
-                            return true;
-                        }
-                        const FLDProgressionView* Growth=PC->ReadOwnProgression();
-                        if (!Growth || !Growth->bValid) { return true; }
-                        if (Panel->HasPendingRequest()) { return true; }
-                        if (bNpcPurchaseSent)
-                        {
-                            if (Growth->BuildRevision==NpcPurchaseRevision
-                                || Growth->UnspentPoints!=NpcPurchasePointsBefore-Content->Get().Parameters.NpcActivePoints)
-                            {
-                                if (FPlatformTime::Seconds()-NpcPurchaseSentAt<=10.) { return true; }
-                                Check(false,TEXT("The non-host NPC purchase did not receive an applied owner projection"));
-                                return Finish();
-                            }
-                            bNpcPurchaseApplied=Growth->BuildRevision==NpcPurchaseRevision+1
-                                && Growth->bHasActiveOffer && Growth->QueuedActiveOpportunities==1
-                                && Growth->UnspentPoints==NpcPurchasePointsBefore-Content->Get().Parameters.NpcActivePoints;
-                            if (!Check(bNpcPurchaseApplied,TEXT("The non-host owner receives an applied NPC purchase with the authoritative point charge")))
-                            {
-                                return Finish();
-                            }
-                            const auto* Service=Registry->Resolve(TEXT("rest_service_3"),Registry->Generation);
-                            if (!Check(Service!=nullptr,TEXT("The trainer's rest service is registered"))) { return Finish(); }
-                            Nav->NavigateGround(Service->Position,Service->Surface);
-                            RestServiceOrder=Nav->LocalIdentity();
-                            RestServiceStage=2;
-                            return true;
-                        }
-                        if (Growth->bHasActiveOffer)
-                        {
-                            const int64 Price=Content->Get().Parameters.NpcActivePoints;
-                            const bool bNeedSkip=Growth->UnspentPoints<Price
-                                && Growth->ActiveOffer.SkipPoints>=Price-Growth->UnspentPoints;
-                            if (bNeedSkip ? !Panel->SkipOffer() : !Panel->ChooseOffer(0)) { return true; }
-                            return true;
-                        }
-                        if (Growth->QueuedActiveOpportunities>0) { return true; }
                         if (!bServicePanelOpened)
                         {
                             // The open workshop shows the nearby NPC's services on the board (the next HUD refresh lays them out).
                             Panel->SetServiceContext(PC->OwnerState.NearbyRestService);
                             if (!Panel->IsPanelOpen())
                             {
-                                if (!PC->RootUI || !PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
+                                if (!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
                                 {
-                                    Check(false,TEXT("The remote owner opens the workshop beside the NPC"));
+                                    Check(false,TEXT("The remote owner opens the workshop beside the trainer"));
                                     return Finish();
                                 }
                                 return true;
@@ -935,43 +885,12 @@ public:
                             bServicePanelOpened=true;
                             return true;
                         }
-                        if (!bNpcPurchaseSent)
-                        {
-                            const int64 Price=Content->Get().Parameters.NpcActivePoints;
-                            if (Growth->UnspentPoints<Price)
-                            {
-                                Check(false,TEXT("The remote owner has enough opening points for the NPC purchase"));
-                                return Finish();
-                            }
-                            NpcPurchaseRevision=Growth->BuildRevision;
-                            NpcPurchasePointsBefore=Growth->UnspentPoints;
-                            if (!Panel->BuyNpcOffer())
-                            {
-                                Check(false,TEXT("The remote owner submits the skill merchant purchase through the shared panel"));
-                                return Finish();
-                            }
-                            NpcPurchaseSentAt=FPlatformTime::Seconds();
-                            bNpcPurchaseSent=true;
-                            return true;
-                        }
+                        Check(bServicePanelOpened && PC->OwnerState.NearbyRestService==ELDRestService::Trainer,
+                            TEXT("The non-host owner walks to the trainer and the workshop shows its services"));
+                        if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
+                        RestServiceStage=2;
                     }
-                    else if (RestServiceStage==2)
-                    {
-                        bLeftFirstService |= PC->OwnerState.NearbyRestService==ELDRestService::None;
-                        if (bLeftFirstService && PC->HUDUI && PC->HUDUI->ChoicesPanel)
-                        {
-                            bServicePanelClosed |= !PC->HUDUI->ChoicesPanel->IsServiceShown();
-                        }
-                        if (bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::Trainer)
-                        {
-                            Check(bLeftFirstService && bServicePanelOpened && bServicePanelClosed
-                                && bNpcPurchaseApplied && PC->OwnerState.NearbyRestService==ELDRestService::Trainer,
-                                TEXT("The non-host owner completes an NPC purchase, then the services leave the workshop on leaving before the next service"));
-                            if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
-                            RestServiceStage=3;
-                        }
-                    }
-                    if ((RestServiceStage==1 || RestServiceStage==2)
+                    if (RestServiceStage==1
                         && ((Nav->LatestReceipt().Identity==RestServiceOrder
                             && (Nav->LatestReceipt().Status==ELDOrderStatus::Rejected
                                 || Nav->LatestReceipt().Status==ELDOrderStatus::Cancelled))

@@ -301,6 +301,8 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoSta
     Out.UnspentPoints = Progression.UnspentPoints;
     Out.OffersConsumed = Progression.ActiveOpportunitiesConsumed;
     Out.QueuedOpportunities = Progression.QueuedActiveOpportunities;
+    Out.Vouchers = Progression.Vouchers;
+    Out.Shop = Progression.Shop;
     Error.Reset();
     return true;
 }

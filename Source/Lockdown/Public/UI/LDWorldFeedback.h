@@ -18,8 +18,9 @@ class ALDGameState;
 namespace LDWorldFeedback
 {
     // DealtConfirm: the own receipt of a hit the own body landed (LDHitFeel), shown as a short word in front of it.
+    // Vouchers: the own voucher gain (spec §12 飞入), a reward beside the own body.
     enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast, DealtConfirm,
-        UnitReaction };
+        UnitReaction, Vouchers };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
@@ -34,8 +35,14 @@ namespace LDWorldFeedback
                                    // components it granted (#198 B), joined; empty when unknown or none
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
         uint8 HitFlags=0;          // DealtConfirm: the receipt's LDObservation::EHitFlags
+        int32 Tier=0;              // DamageTaken/UnitDamage: DamageTier of the hit against the body's max HP
         uint8 Element=0;           // UnitReaction: the element that set it off (ELDCombatElement), its ink
     };
+    // Spec §12: a damage number grows with its share of the struck body's max HP: 0 below 10%, 1 to 30%, 2 to 60%, 3 from 60%
+    // (the top tier shakes).
+    LOCKDOWN_API int32 DamageTier(int64 DamageP2,int64 MaxHpP2);
+    // The font scale of a tier (1 for tier 0).
+    LOCKDOWN_API float DamageTierScale(int32 Tier);
     // One sample of the SC-07 inputs: the owner's own projections, room-public DTOs and the current authorized frame of
     // this match and life (nullptr otherwise). The tracker re-checks every match, life and generation itself.
     struct FSample
@@ -115,6 +122,7 @@ namespace LDWorldFeedback
         // Earned stat points: the unspent plus the allocated ones, so an allocation in the same sample never hides a grant.
         int64 PointsEarned=0;
         int64 XP=0;
+        int32 Vouchers=0;
         bool bKills=false;
         uint64 KillSerial=0;
         bool bFrame=false;

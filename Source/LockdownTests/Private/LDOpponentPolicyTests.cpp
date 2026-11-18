@@ -1573,12 +1573,22 @@ bool RunRequests(FAutomationTestBase& Test)
     Pick.OfferRevision = 4;
     Pick.Option = TEXT("card_not_offered");
     bGood &= Test.TestFalse(TEXT("A card outside the offer is refused"), LDOpponentRequests::BuildCommand(Pick, Progression, C, 7, Command, Error));
-    FLDOpponentBuildIntent Npc;
-    Npc.Kind = ELDOpponentBuildKind::BuyNpcOffer;
-    bGood &= Test.TestTrue(TEXT("An NPC purchase carries only the guards: ") + Error,
-        LDOpponentRequests::BuildCommand(Npc, Progression, C, 8, Command, Error) && Command.Kind == ELDBuildCommandKind::BuyNpcOffer
-        && Command.ExpectedBuildRevision == 9 && Command.Life == 1 && Command.ExpectedLifePhase == ELDLifePhase::Dead
-        && Command.CardSerial == 0 && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty());
+    FLDOpponentBuildIntent Shop;
+    Shop.Kind = ELDOpponentBuildKind::ShopBuy;
+    Shop.Slot = FLDBuildCommand::ShopSkillPointSlot;
+    Shop.OfferRevision = 6;
+    bGood &= Test.TestFalse(TEXT("A shop purchase without a stocked shelf is refused"),
+        LDOpponentRequests::BuildCommand(Shop, Progression, C, 8, Command, Error));
+    FLDProgressionView Stocked = Progression;
+    Stocked.Shop.bStocked = true;
+    Stocked.Shop.Revision = 6;
+    bGood &= Test.TestTrue(TEXT("A shop purchase names the shelf revision and slot: ") + Error,
+        LDOpponentRequests::BuildCommand(Shop, Stocked, C, 8, Command, Error) && Command.Kind == ELDBuildCommandKind::ShopBuy
+        && Command.OfferRevision == 6 && Command.Slot == FLDBuildCommand::ShopSkillPointSlot && !Command.OfferId.IsValid()
+        && Command.ExpectedBuildRevision == 9 && Command.Life == 1 && Command.CardSerial == 0 && Command.PointCounts.IsEmpty());
+    Stocked.Shop.Revision = 7;
+    bGood &= Test.TestFalse(TEXT("A purchase against a restocked shelf is refused"),
+        LDOpponentRequests::BuildCommand(Shop, Stocked, C, 8, Command, Error));
     FLDOpponentBuildIntent Respec;
     Respec.Kind = ELDOpponentBuildKind::Respec;
     bGood &= Test.TestTrue(TEXT("A respec carries only the guards: ") + Error,
@@ -2772,49 +2782,62 @@ bool RestFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& C, FLDOp
     Out.Public.Phase = ELDMatchPhase::Rest;
     Out.Public.Timeline.Stage = ELDMatchStage::Rest;
     Out.Public.Timeline.Step = ELDRestStep::Build;
-    // A mid rest (R1); the opening rest R0 differs only for the NPC (RunNpcGate).
+    // A mid rest (R1).
     Out.Public.Timeline.RestIndex = 1;
     Out.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {});
     return true;
 }
-// #198 J2 coordinator decision: the opening rest R0 never buys the NPC (its opening points go to the stats); a mid rest buys
-// only for an empty Q/W/E slot and only when the unspent points cover the price.
-bool RunNpcGate(FAutomationTestBase& Test)
+// Spec §13 rest shop: the skill point first (while affordable and not bought out; the AI saves for it), then the
+// best-scoring affordable card; never a skill, never a sale.
+bool RunShopBuy(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
     const FLDDemoContentSnapshot& C = *Catalog;
-    using EKind = ELDOpponentBuildKind;
+    const FLDDemoShopParameters& Terms = C.Get().Parameters.Shop;
     FLDOpponentDecisionFrame Mid;
     if (!RestFrame(Test, C, Mid)) { return false; }
-    const int64 Price = C.Get().Parameters.NpcActivePoints;
-    if (!Test.TestTrue(TEXT("The approved content prices the NPC"), Price > 0)) { return false; }
     Mid.Self.Actives = {{TEXT("active_elbow"), 0}};
-    Mid.Self.UnspentPoints = Price;
-    Mid.Self.NearbyRestService = ELDRestService::SkillMerchant;
-    const auto BuildOf = [&C](const FLDOpponentDecisionFrame& Of)
-    {
-        FLDOpponentPolicyState Fresh;
-        return LDOpponentPolicy::Decide(Of, C, Fresh).Build.Kind;
-    };
-    auto Opening = Mid;
-    Opening.Public.Timeline.RestIndex = 0;
-    auto Short = Mid;
-    Short.Self.UnspentPoints = Price - 1;
-    auto Full = Mid;
-    Full.Self.Actives = {{TEXT("active_elbow"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_snark_bolt"), 2}};
-    bool bGood = Test.TestTrue(TEXT("A mid rest with an empty slot and the price buys the NPC offer"),
-        LDOpponentPolicy::WantsNpcOffer(Mid.Self, C, 1) && BuildOf(Mid) == EKind::BuyNpcOffer);
-    for (uint8 Index = 2; Index <= 3; ++Index)
-    {
-        bGood &= Test.TestTrue(FString::Printf(TEXT("R%u buys like R1"), Index), LDOpponentPolicy::WantsNpcOffer(Mid.Self, C, Index));
-    }
-    bGood &= Test.TestTrue(TEXT("The opening rest R0 spends the opening points on the stats instead"),
-        !LDOpponentPolicy::WantsNpcOffer(Opening.Self, C, 0) && BuildOf(Opening) == EKind::AllocatePoints);
-    bGood &= Test.TestTrue(TEXT("Points short of the price: no purchase"),
-        !LDOpponentPolicy::WantsNpcOffer(Short.Self, C, 1) && BuildOf(Short) == EKind::AllocatePoints);
-    bGood &= Test.TestTrue(TEXT("No empty Q/W/E slot: no purchase"),
-        !LDOpponentPolicy::WantsNpcOffer(Full.Self, C, 1) && BuildOf(Full) == EKind::AllocatePoints);
+    FLDShopView& Shop = Mid.Self.Shop;
+    Shop.bStocked = true;
+    Shop.Revision = 3;
+    Shop.SkillPointPrice = Terms.SkillPointPrice;
+    Shop.SkillPointsMax = Terms.SkillPointMaxPerMatch;
+    Shop.Slots = {{ELDShopItemKind::Skill, TEXT("active_not_mad"), Terms.SkillPrice, false},
+        {ELDShopItemKind::Card, TEXT("card_spiky_hide"), Terms.CardPrice, false},
+        {ELDShopItemKind::Card, TEXT("card_third_breath"), Terms.CardPrice, false}};
+    Mid.Self.Vouchers = Terms.SkillPointPrice;
+    uint8 Slot = 0;
+    bool bGood = Test.TestTrue(TEXT("With the skill point's price the AI buys the skill point"),
+        LDOpponentPolicy::SelectShopBuy(Mid.Self, C, NAME_None, Slot) && Slot == FLDBuildCommand::ShopSkillPointSlot);
+    FLDOpponentPolicyState Fresh;
+    const FLDOpponentDecision Decision = LDOpponentPolicy::Decide(Mid, C, Fresh);
+    bGood &= Test.TestTrue(TEXT("The rest decision sends that purchase with the shelf revision"),
+        Decision.Build.Kind == ELDOpponentBuildKind::ShopBuy && Decision.Build.Slot == FLDBuildCommand::ShopSkillPointSlot
+        && Decision.Build.OfferRevision == 3);
+    auto Saving = Mid;
+    Saving.Self.Vouchers = Terms.SkillPointPrice - 1;
+    bGood &= Test.TestTrue(TEXT("Short of the skill point the AI buys an affordable card instead"),
+        LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot) && Slot >= 1 && Slot <= 2);
+    Saving.Self.Vouchers = Terms.CardPrice - 1;
+    bGood &= Test.TestFalse(TEXT("Short of every price the AI buys nothing"), LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot));
+    auto Cards = Mid;
+    Cards.Self.Shop.SkillPointsBought = Terms.SkillPointMaxPerMatch;
+    Cards.Self.Vouchers = Terms.CardPrice;
+    bGood &= Test.TestTrue(TEXT("Once the skill points are bought out the AI buys a card, never the skill"),
+        LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot) && Slot >= 1 && Slot <= 2);
+    // card_third_breath shares combo3/momentum with nothing here; card_spiky_hide shares nothing either: the jitter decides,
+    // but a sold slot is never chosen.
+    Cards.Self.Shop.Slots[1].bSold = true;
+    bGood &= Test.TestTrue(TEXT("A sold slot is skipped"), LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot) && Slot == 2);
+    Cards.Self.Shop.Slots[2].bSold = true;
+    bGood &= Test.TestFalse(TEXT("Nothing affordable left: no purchase"), LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot));
+    auto Field = Mid;
+    Field.Public.Phase = ELDMatchPhase::Development;
+    Field.Public.Timeline.Stage = ELDMatchStage::Field;
+    FLDOpponentPolicyState FieldState;
+    bGood &= Test.TestTrue(TEXT("The field never shops"),
+        LDOpponentPolicy::Decide(Field, C, FieldState).Build.Kind != ELDOpponentBuildKind::ShopBuy);
     return bGood;
 }
 
@@ -2828,16 +2851,16 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
     using EReason = ELDOpponentReason;
     FLDOpponentDecisionFrame Frame;
     if (!RestFrame(Test, C, Frame)) { return false; }
+    // An elbow (AD) build with points in brains wants a respec at the trainer.
     Frame.Self.Actives = {{TEXT("active_elbow"), 0}};
-    Frame.Self.UnspentPoints = C.Get().Parameters.NpcActivePoints;
-    for (uint8 Index = 1; Index <= 3; ++Index)
+    Frame.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {{TEXT("stat_brains"), 2}});
     {
         FLDOpponentPOI& Place = Frame.RestServicePOIs.AddDefaulted_GetRef();
-        Place.Id = FName(*FString::Printf(TEXT("rest_service_%d"), Index));
+        Place.Id = TEXT("rest_service_3");
         Place.Kind = ELDOpponentPOIKind::RestService;
-        Place.RestService = static_cast<ELDRestService>(Index);
+        Place.RestService = ELDRestService::Trainer;
         Place.SurfaceId = TEXT("demo_ground");
-        Place.FootCm = FVector(1000 * Index, 0, 0);
+        Place.FootCm = FVector(3000, 0, 0);
     }
     const auto Decide = [&C](const FLDOpponentDecisionFrame& Input)
     {
@@ -2845,34 +2868,31 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
         return LDOpponentPolicy::Decide(Input, C, State);
     };
     bool bGood = Test.TestTrue(TEXT("Each AI rest intent uses the authority's service mapping"),
-        LDOpponentPolicy::RestServiceForBuild(EBuild::BuyNpcOffer) == ELDRestService::SkillMerchant
+        LDOpponentPolicy::RestServiceForBuild(EBuild::ShopBuy) == ELDRestService::None
         && LDOpponentPolicy::RestServiceForBuild(EBuild::InstallCard) == ELDRestService::None
         && LDOpponentPolicy::RestServiceForBuild(EBuild::Respec) == ELDRestService::Trainer
         && LDOpponentPolicy::RestServiceForBuild(EBuild::ReplaceActive) == ELDRestService::Trainer
         && LDOpponentPolicy::RestServiceForBuild(EBuild::AllocatePoints) == ELDRestService::None
         && LDProgression::RestServiceFor(ELDBuildCommandKind::ForgetActive) == ELDRestService::Trainer);
     FLDOpponentDecision Decision = Decide(Frame);
-    bGood &= Test.TestTrue(TEXT("A distant purchase walks to the merchant without sending the build"),
+    bGood &= Test.TestTrue(TEXT("A distant respec walks to the trainer without sending the build"),
         Decision.Reason == EReason::RestService && Decision.Body.Kind == EBody::MoveGround
-        && Decision.Body.POI == TEXT("rest_service_1") && Decision.Build.Kind == EBuild::None);
+        && Decision.Body.POI == TEXT("rest_service_3") && Decision.Build.Kind == EBuild::None);
     auto Walking = Frame;
     Walking.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Walking.Order.Status = ELDOpponentOrderStatus::Active;
-    Walking.Order.POI = TEXT("rest_service_1");
+    Walking.Order.POI = TEXT("rest_service_3");
     Decision = Decide(Walking);
-    bGood &= Test.TestTrue(TEXT("An existing merchant walk is kept"),
+    bGood &= Test.TestTrue(TEXT("An existing trainer walk is kept"),
         Decision.Body.Kind == EBody::Keep && Decision.Build.Kind == EBuild::None);
     auto Acting = Frame;
     Acting.Self.bChanneling = true;
     bGood &= Test.TestTrue(TEXT("A channel finishes before walking"), Decide(Acting).Body.Kind == EBody::Keep);
     auto Nearby = Frame;
-    Nearby.Self.NearbyRestService = ELDRestService::SkillMerchant;
-    Decision = Decide(Nearby);
-    bGood &= Test.TestTrue(TEXT("Only the matching nearby service permits the purchase"),
-        Decision.Build.Kind == EBuild::BuyNpcOffer && Decision.Body.Kind == EBody::None);
     Nearby.Self.NearbyRestService = ELDRestService::Trainer;
-    bGood &= Test.TestTrue(TEXT("A different nearby service does not permit the purchase"),
-        Decide(Nearby).Body.Kind == EBody::MoveGround && Decide(Nearby).Build.Kind == EBuild::None);
+    Decision = Decide(Nearby);
+    bGood &= Test.TestTrue(TEXT("Beside the trainer the respec is sent"),
+        Decision.Build.Kind == EBuild::Respec && Decision.Body.Kind == EBody::None);
     auto Missing = Frame;
     Missing.RestServicePOIs.Reset();
     bGood &= Test.TestTrue(TEXT("A missing service anchor is an explicit provider stop"),
@@ -2897,11 +2917,11 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
     Disk.SurfaceId = TEXT("demo_ground");
     Signup.SignupPOI = Disk;
     Decision = Decide(Signup);
-    bGood &= Test.TestTrue(TEXT("The sign-up window takes priority over an NPC purchase"),
+    bGood &= Test.TestTrue(TEXT("The sign-up window takes priority over a trainer visit"),
         Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
         && Decision.Body.POI == Disk.Id && Decision.Build.Kind == EBuild::None);
-    Signup.Self.NearbyRestService = ELDRestService::SkillMerchant;
-    bGood &= Test.TestTrue(TEXT("Even a nearby purchase waits during sign-up"),
+    Signup.Self.NearbyRestService = ELDRestService::Trainer;
+    bGood &= Test.TestTrue(TEXT("Even a nearby respec waits during sign-up"),
         Decide(Signup).Build.Kind == EBuild::None);
     return bGood;
 }
@@ -3017,12 +3037,12 @@ bool RunTraining(FAutomationTestBase& Test)
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentNpcGateTest, "Lockdown.Rules.DemoOpponentPolicy.NpcGate",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentShopBuyTest, "Lockdown.Rules.DemoOpponentPolicy.ShopBuy",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDDemoOpponentNpcGateTest::RunTest(const FString& Parameters)
+bool FLDDemoOpponentShopBuyTest::RunTest(const FString& Parameters)
 {
-    return LDOpponentComponentTests::RunNpcGate(*this);
+    return LDOpponentComponentTests::RunShopBuy(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestServiceTravelTest, "Lockdown.Rules.DemoOpponentPolicy.RestServiceTravel",

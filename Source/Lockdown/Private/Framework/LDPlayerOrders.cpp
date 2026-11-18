@@ -384,7 +384,8 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
         || View->Unavailable==ELDCombatReject::MomentumShort);
     if (IsLocalController() && CanWorldCommand() && Terms && View && !View->DefinitionId.IsNone()
         && View->SourceKind==ELDCombatSourceKind::Learned && bStaleOnlyReason && bClock && View->ReadyAtMs<=NowMs
-        && CombatView.MomentumP2>=Terms->ThresholdP2 && CombatView.MomentumP2>=View->MomentumCostP2 && !bOverdriveHolding)
+        && CombatView.MomentumP2>=(CombatView.OverdriveThresholdP2>0 ? CombatView.OverdriveThresholdP2 : Terms->ThresholdP2)
+        && CombatView.MomentumP2>=View->MomentumCostP2 && !bOverdriveHolding)
     {
         if (bOverdriveArmed) { EndOverdriveHold(); }
         OverdriveEntry=Entry;

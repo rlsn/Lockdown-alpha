@@ -277,13 +277,14 @@ private:
         {
             const FLDDemoStatBonus& Bonus = Build.CardGrowth[Index];
             const FString Field = FString::Printf(TEXT("CardGrowth[%d]"), Index);
+            // D09 grows the move speed ratio; every other growth is flat.
             const bool bKnown = Bonus.Stat == ELDDemoBonusStat::MaxHPFlat || Bonus.Stat == ELDDemoBonusStat::ADFlat
                 || Bonus.Stat == ELDDemoBonusStat::APFlat || Bonus.Stat == ELDDemoBonusStat::ArmorFlat
-                || Bonus.Stat == ELDDemoBonusStat::MagicResistFlat;
+                || Bonus.Stat == ELDDemoBonusStat::MagicResistFlat || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio;
             if (!bKnown || Bonus.Amount < 0 || Build.CardGrowth.FilterByPredicate(
                 [&Bonus](const FLDDemoStatBonus& Other) { return Other.Stat == Bonus.Stat; }).Num() != 1)
             {
-                return Refuse(EError::InputDomain, Field, TEXT("Card growth is one nonnegative flat term per stat"));
+                return Refuse(EError::InputDomain, Field, TEXT("Card growth is one nonnegative term per stat"));
             }
         }
         return true;
@@ -307,6 +308,14 @@ private:
             for (const FLDDemoEffectDefinition& Effect : Row.Effects)
             {
                 HPPerArmorP2 += Effect.GetOp() == ELDDemoEffectOp::ArmorToHp ? Effect.BaseP2 : 0;
+                // A05: a flying basic reaches farther (its range bonus is the card's distance).
+                if (Effect.GetOp() == ELDDemoEffectOp::BasicProjectile && Effect.DistanceCm.Numerator > 0)
+                {
+                    FLDDemoStatBonus Range;
+                    Range.Stat = ELDDemoBonusStat::AttackRangeCmFlat;
+                    Range.Cm = Effect.DistanceCm;
+                    if (!AddBonus(Range, &FAttributeSum::Cards, One, TEXT("Cards.basic_projectile"))) { return false; }
+                }
             }
         }
         if (HPPerArmorP2 > 0)

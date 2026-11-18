@@ -10,6 +10,8 @@
 #include "Development/LDSkillGrowth.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDDamageRecap.h"
+#include "Combat/LDChainRules.h"
+#include "Combat/LDCombatElements.h"
 #include "PK/LDPKRules.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
@@ -1223,6 +1225,64 @@ LDHUD::FDamageListView LDHUD::DamageSummary(const FLDDamageSummaryView& Summary,
     return View;
 }
 
+FString LDHUD::ChainStepName(const FLDDemoContentDefinitions* Content,FName Step)
+{
+    const FString Id=Step.ToString();
+    if(Step==LDChain::KillStep()){return TEXT("击杀");}
+    if(Id==TEXT("basic")){return LDTerms::BasicAttack;}
+    if(Id.StartsWith(TEXT("reaction_")))
+    {
+        for(uint8 Index=1;Index<=uint8(ELDCombatReaction::Smoke);++Index)
+        {
+            if(LDChain::ReactionStep(LDCombatElements::ReactionName(ELDCombatReaction(Index)))==Step){return LDTerms::ReactionTerm(Index);}
+        }
+        return Id;
+    }
+    if(Id.StartsWith(TEXT("ground_")))
+    {
+        for(uint8 Index=1;Index<UE_ARRAY_COUNT(LDTerms::GroundNames);++Index)
+        {
+            if(LDChain::GroundStep(LDCombatElements::GroundName(ELDGroundStateKind(Index)))==Step){return LDTerms::GroundNames[Index];}
+        }
+        return Id;
+    }
+    return ContentName(Content,Id);
+}
+FString LDHUD::ChainKeyText(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key)
+{
+    return FString::JoinBy(Key,TEXT(" → "),[Content](FName Step){return ChainStepName(Content,Step);});
+}
+FString LDHUD::NewChainNotice(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key)
+{
+    return TEXT("新连锁：")+ChainKeyText(Content,Key);
+}
+LDHUD::FResultHighlightsView LDHUD::ResultHighlights(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FGuid& Self,
+    const FLDDemoContentDefinitions* Content)
+{
+    FResultHighlightsView View;
+    if(!Result.ResultId.IsValid()||Summary.ResultId!=Result.ResultId||Summary.Match!=Result.Generation){return View;}
+    View.bAvailable=true;
+    for(const FLDResultRow& Row:Result.Rows)
+    {
+        if(View.Rows.Num()>=ResultHighlightsMax){break;}
+        const FLDResultHighlight* Highlight=Summary.Highlights.FindByPredicate([&Row](const FLDResultHighlight& Each){return Each.Contender==Row.ContenderId;});
+        FResultHighlightRow& Out=View.Rows.AddDefaulted_GetRef();
+        Out.Name=Row.Name;
+        Out.bOwn=Row.ContenderId==Self;
+        Out.Chain=Highlight&&Highlight->LongestSteps>0
+            ?FString::Printf(TEXT("%s（%d 步）"),*ChainKeyText(Content,Highlight->LongestKey),Highlight->LongestSteps):FString(TEXT("—"));
+        if(Highlight&&Highlight->BestDamageP2>0)
+        {
+            const FString Source=ChainStepName(Content,Highlight->BestSource);
+            const int64 Points=HudWholePoints(Highlight->BestDamageP2,true);
+            const int64 Percent=Highlight->BestTargetMaxHpP2>0?(Highlight->BestDamageP2*100+Highlight->BestTargetMaxHpP2/2)/Highlight->BestTargetMaxHpP2:0;
+            Out.Best=FString::Printf(TEXT("%s %lld（%lld%%）"),*Source,Points,Percent);
+        }
+        else{Out.Best=TEXT("—");}
+    }
+    return View;
+}
+
 LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext& Context)
 {
     FActionView View;
@@ -1558,6 +1618,7 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     case EField::Angle: Out=HudRational(Effect->AngleDegrees);return true;
     // A09: the attack-speed step in attacks per second.
     case EField::Step: Out=HudRational(Effect->StepRate);return true;
+    case EField::Threshold: Out=HudRational(Effect->ExtraDistanceCm);return true;
     case EField::Stat:
     {
         const FLDDemoStatBonus* Stat=Effect->Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S){return S.Stat==Token.Stat;});
@@ -1844,7 +1905,7 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::AllocatePoints,Context),View.bCanAllocate,View.AllocateBlocked);
     // A card install, move or uninstall is admitted exactly as growth admits it (LDProgression::InstallGate).
     Gate(LDProgression::InstallGate(Context),View.bCanInstall,View.InstallBlocked);
-    Gate(LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer,Context),View.bCanBuyNpc,View.NpcBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::ShopBuy,Context),View.bCanShop,View.ShopBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::Respec,Context),View.bCanRespec,View.RespecBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive,Context),View.bCanReplace,View.ReplaceBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::FinalMod,Context),View.bCanFinalMod,View.FinalModBlocked);
@@ -1863,7 +1924,20 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     switch(Receipt.Kind)
     {
     case ELDBuildCommandKind::SkipActiveOffer:
-        return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
+        return Receipt.VouchersDelta>0?LDTerms::VouchersGained(Receipt.VouchersDelta):Missing;
+    case ELDBuildCommandKind::ShopBuy:
+    case ELDBuildCommandKind::UsePickTicket:
+    {
+        if(Receipt.DefinitionId.IsNone()){return Receipt.Kind==ELDBuildCommandKind::ShopBuy?LDTerms::SkillPointBought:Missing;}
+        const FString Name=ContentName(Content,Receipt.DefinitionId.ToString());
+        if(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned){return LDTerms::LearnedInto(Name,Keys.Of(Receipt.LearnedSlot));}
+        if(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint){return LDTerms::StoredAsBlueprint(Name,BuildBlockedText(ELDGrowthReason::NoEmptySlot));}
+        return LDTerms::CardStored(Name,FString());
+    }
+    case ELDBuildCommandKind::ShopRefresh:
+        return LDTerms::ShopRefreshed;
+    case ELDBuildCommandKind::ShopSell:
+        return Receipt.VouchersDelta>0&&!Receipt.CardId.IsNone()?LDTerms::CardSold(ContentName(Content,Receipt.CardId.ToString()),Receipt.VouchersDelta):Missing;
     case ELDBuildCommandKind::FinalMod:
         return !Receipt.DefinitionId.IsNone()
             ?FString::Printf(TEXT("终局改装：%s 已生效。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
@@ -1881,8 +1955,6 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         int64 Spent=0;for(const uint8 Count:Receipt.PointsSpent){Spent+=Count;}
         return LDTerms::PointsAdded(Spent,Receipt.UnspentPointsAfter);
     }
-    case ELDBuildCommandKind::BuyNpcOffer:
-        return Receipt.NpcPointsPaid>0?LDTerms::NpcBought(Receipt.NpcPointsPaid):Missing;
     case ELDBuildCommandKind::Respec:
         return Receipt.PointsRefunded>0?LDTerms::Respecced(Receipt.PointsRefunded,Receipt.UnspentPointsAfter):Missing;
     case ELDBuildCommandKind::ReplaceActive:
@@ -1903,7 +1975,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     case ELDBuildCommandKind::UninstallCard:
         if(Receipt.CardId.IsNone()||Receipt.bCardInstalled){return Missing;}
         return LDTerms::CardRemoved(ContentName(Content,Receipt.CardId.ToString()));
-    case ELDBuildCommandKind::SkipCards: return LDTerms::CardsSkipped;
+    case ELDBuildCommandKind::SkipCards: return Receipt.VouchersDelta>0?LDTerms::VouchersGained(Receipt.VouchersDelta):FString(LDTerms::CardsSkipped);
     case ELDBuildCommandKind::RerollCards: return LDTerms::CardsRerolled(Receipt.CardRerollsAfter);
     case ELDBuildCommandKind::LockCard:
         return Receipt.CardId.IsNone()?FString(LDTerms::CardUnlocked):LDTerms::CardLocked(ContentName(Content,Receipt.CardId.ToString()));
@@ -2296,7 +2368,7 @@ bool LDHUD::FOfferMotionTicket::Matches(const FLDBuildReceipt& Receipt,uint32 Cu
         &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
         &&Receipt.Kind==Kind&&Receipt.OfferId==Offer;
     if(!bIdentity){return false;}
-    if(Kind==ELDBuildCommandKind::SkipActiveOffer){return Option.IsNone()&&Receipt.PointsAwarded>0;}
+    if(Kind==ELDBuildCommandKind::SkipActiveOffer){return Option.IsNone()&&Receipt.VouchersDelta>0;}
     return Kind==ELDBuildCommandKind::ActiveChoice&&!Option.IsNone()&&Receipt.DefinitionId==Option
         &&(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint
             ||(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned&&Receipt.LearnedSlot<3));
@@ -2424,12 +2496,11 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
     case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("休息时才能替换或遗忘技能");
-    case ELDGrowthReason::BuildLocked: return TEXT("PK 与返回倒计时期间不能找 NPC");
-    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("能抽的主动不足 3 个，NPC 没收点数");
+    case ELDGrowthReason::BuildLocked: return TEXT("PK 与返回倒计时期间不能逛商店或找训练师");
     case ELDGrowthReason::OfferOutstanding: return TEXT("还有没选的技能，先选完");
     case ELDGrowthReason::NothingToRespec: return TEXT("还没加过点，不用洗");
     case ELDGrowthReason::SlotEmpty: return TEXT("这个技能槽是空的");
-    case ELDGrowthReason::NotRestWindow: return TEXT("休息时才能找 NPC 或洗点");
+    case ELDGrowthReason::NotRestWindow: return TEXT("休息时才能逛商店或洗点");
     case ELDGrowthReason::RestServiceUnavailable: return TEXT("请靠近对应的服务NPC");
     case ELDGrowthReason::NotOwned: return TEXT("你没有这张牌");
     case ELDGrowthReason::AlreadyInstalled: return TEXT("这张牌已经装上了");
@@ -2439,6 +2510,14 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoCardOffer: return TEXT("这组牌已经失效");
     case ELDGrowthReason::NoReroll: return TEXT("没有重抽次数了");
     case ELDGrowthReason::NotInOffer: return TEXT("这张牌不在这组里");
+    case ELDGrowthReason::NotEnoughVouchers: return TEXT("饭票不够");
+    case ELDGrowthReason::ShopSoldOut: return TEXT("这一格已经卖掉了");
+    case ELDGrowthReason::ShopStale: return TEXT("货架已经换过了");
+    case ELDGrowthReason::SkillPointLimit: return TEXT("本局的技能点已经买满了");
+    case ELDGrowthReason::NoShop: return TEXT("商店还没开张");
+    case ELDGrowthReason::NoPickTicket: return TEXT("没有点名券");
+    case ELDGrowthReason::NotSeen: return TEXT("本局还没见过这张牌");
+    case ELDGrowthReason::CardInstalled: return TEXT("先把这张牌卸下来再卖");
     case ELDGrowthReason::NoSkillPoint: return LDTerms::NoSkillPointReason;
     case ELDGrowthReason::BranchUnavailable: return LDTerms::BranchUnavailableReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");

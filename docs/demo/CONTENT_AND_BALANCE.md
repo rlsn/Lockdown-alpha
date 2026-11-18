@@ -339,15 +339,12 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `GROWTH.PointsPerLevel` | 3 | 每次升到 2–16 级各给的点数；已确认决定 |
 | `GROWTH.MaxLevelPointsXP` | 240 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
 | `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不再发牌三选一 |
-| `GROWTH.NpcActivePoints` | 5 | 休息 NPC 一次支付这么多点数换一次只含主动的三选一 |
-| `GROWTH.ActiveSkipPoints` | 5 | 放弃一组开局或升级主动候选时获得的属性点 |
-| `GROWTH.NpcActiveSkipPoints` | 3 | 放弃一组已付费 NPC 主动候选时获得的属性点 |
 | `GROWTH.BuildSafeWindowSec` | 4 s | 交战窗口（§4.3）：只供 HUD 在交战中收起野外文字摘要；不限制任何成长命令 |
 | `progression.active_offer_levels` | [3, 6] | 额外主动机会的等级 |
 
 基础点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
 ⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）及池空奖励；
-另加主动机会、PK 和野外的奖励点数。未分配点数 = 已得 − 五维点数之和 − 永久消费，不能为负。
+另加 PK 和野外的奖励点数。未分配点数 = 已得 − 五维点数之和，不能为负。
 不计额外奖励时开局与正常成长到 16 级共 48 点；之后每满 240 XP 再得 3 点。
 
 **技能等级成长**：固定项随拥有者等级 L 乘 G(L)，再乘技能等级倍率，`SKILL.GrowthPerLevel=0.04`：
@@ -487,8 +484,8 @@ $$
 
 ### 4.4 构筑牌与参数
 
-64 张构筑牌（P2 55 张、P4 元素批 9 张）为 **运行中**：写在 `content.json` 的 `cards`（`form`、`type`、`vocab`、`effects`，Y25
-另有 `choose_element`），原生编号 200–284（按目录编号排列，中间留给 P5 的牌）。数值来自[实施规格](https://github.com/rlsn/Lockdown-alpha/issues/287) §7
+85 张构筑牌（P2 55 张、P4 元素批 9 张、P5 21 张）为 **运行中**：写在 `content.json` 的 `cards`（`form`、`type`、`vocab`、`effects`，Y25
+另有 `choose_element`；K05/K11 的 `host_control` 与 K07/K10 的 `host_hit_types` 限定可装的技能），原生编号 200–284（按目录编号排列）。数值来自[实施规格](https://github.com/rlsn/Lockdown-alpha/issues/287) §7
 （用户已批准，首轮试玩输入，不是平衡验收）。规则见 [App Spec §4.4](../APP_SPEC.md#44-构筑牌)。
 
 **参数**（运行中）：
@@ -500,8 +497,11 @@ $$
 | `CARDS.VocabWeight` | 2 | 与已装牌或已学技能共享词汇的牌的抽取权重；其他牌为 1 |
 | `CARDS.FreeRerolls`、`CARDS.RerollsPerRest` | 3、1 | 开局重抽次数；R1–R3 每次休息再给的次数 |
 | `CARDS.LockSlots` | 1 | 一组里可锁定的张数；锁定的牌重抽后与下一组都在第一位 |
+| `CARDS.SkipVouchers` | 3 | 跳过一组牌三选一得到的饭票 |
 | `DAMAGE.FactorTechCap` | ×1000 | 一次伤害乘区之积的技术上限（只防溢出，`LD_DAMAGE_FACTOR_CAPPED`） |
 | `CHAIN.MaxDepth`、`CHAIN.MaxEffectsPerStep` | 16、256 | 连锁最深步数；一个权威步最多产生的后续效果，其余顺延（`LD_CHAIN_GUARD`） |
+| `CHAIN.EndSec`、`CHAIN.MinKeySteps` | 3 s、3 | 连锁多久没有新的一步就结束；结束时至少有几种不同步骤才算一把连锁键（App Spec §4.4） |
+| `AI.CardSkipChance` | 30% | 一组牌里没有一张和构筑共享词汇时 AI 跳过换饭票的概率 |
 | `AI.CardVocabScore`、`AI.BreakoutChance`、`AI.BreakoutCardScore` | 2、25%、5 | AI 选牌时每个共享词汇加分；开局抽质变目标的概率；目标样板里的牌额外加分（[对手 AI](../systems/OPPONENT_AI.md)） |
 
 **词汇**：`basic_hit`、`combo3`、`skill_hit`、`skill_cast`、`overdrive`、`reaction`、`element`、`dash`、`dash_contact`、`perfect_dodge`、
@@ -520,10 +520,15 @@ $$
 | A02 | `card_punch_think` | 边打边想 | 触发 | 普攻命中 → 随机一个未就绪技能冷却 −0.5 s | basic_hit, skill_cast |
 | A03 | `card_solid_punch` | 拳拳到肉 | 触发 | 第 3 段命中同时算一次“技能命中”（触发技能命中类牌与劲，不触发任何技能本身效果） | combo3, skill_hit |
 | A04 | `card_third_shove` | 第三拳滚蛋 | 触发 | 第 3 段把主目标推开 150 cm / 0.12 s（真实阻挡，可撞墙） | combo3, knockback |
+| A05 | `card_long_arm` | 隔空抽你 | 改造 | 普攻射程 +330 cm，变成会被躲开的飞行物（1800 cm/s、半径 55 cm），命中即停 | basic_hit |
 | A06 | `card_both_hands` | 左右开弓 | 改造 | 第 3 段变成两下，各 0.8 倍，两下都算普攻命中 | combo3, basic_hit |
+| A07 | `card_wide_swing` | 抡圆了打 | 改造 | 第 3 段变成身前 160° 横扫：主目标全额，其他人 60% | combo3 |
+| A08 | `card_fist_skill` | 拳里带招 | 改造 | 第 3 段命中 → 以 40% 效果放出 Q 技能（不耗劲、不进冷却、不触发爆劲；按 Q 的射程） | combo3, skill_cast |
 | A09 | `card_quick_hands` | 手快有手慢无 | 转换 | 攻速超过上限的部分，每 0.1 次/秒 → 每次普攻多打一下的概率 +10%（可超过 100%：每满 100% 必定多一下） | attack_speed, basic_hit |
+| A10 | `card_slow_craft` | 慢工出细活 | 转换 | 攻速每比 1 次/秒低 0.1，普攻伤害 +8%（乘区） | attack_speed |
 | A11 | `card_scholar_punch` | 读书人打架 | 转换 | 普攻额外造成 40% 法强的魔法伤害（并入主击） | basic_hit |
 | A12 | `card_heated_up` | 越打越上头 | 成长 | 连续打同一个人，每下攻速 +4%，无上限；换目标或 3 s 没打清零 | attack_speed, basic_hit |
+| A13 | `card_muscle_memory` | 熟能生巧 | 成长 | 普攻每命中参赛者 25 次，本局攻击力 +1 | basic_hit |
 | A14 | `card_breach_fist` | 越揍越不经打 | 成长 | 普攻命中挂 1 层破防（每层双抗 −3，上限 5，4 s） | basic_hit, armor |
 | A15 | `card_fire_fist` | 拳头冒火 | 元素 | 普攻命中挂 1 层灼烧 | element, basic_hit |
 | A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 普攻命中挂湿 | element, basic_hit |
@@ -532,15 +537,22 @@ $$
 | A19 | `card_rot_fist` | 拳头带馊 | 元素 | 普攻命中挂馊 | element, basic_hit |
 | K01 | `card_next_up` | 打完换下一招 | 触发 | 这个技能命中 → 其他已学技能冷却各 −1 s | skill_hit, skill_cast |
 | K02 | `card_pay_back` | 一招回本 | 触发 | 这个技能每次命中回 6 劲 | skill_hit, momentum |
+| K03 | `card_quick_takedown` | 收人头不用等 | 触发 | 这个技能命中过的参赛者在助攻窗口内死亡、你得到击杀或助攻 → 本技能冷却刷新 | kill |
 | K04 | `card_setup_line` | 先垫一句 | 触发 | 这个技能命中挂记号 4 s；你的其他技能命中有记号的人 +35%（乘区）并消耗记号 | skill_hit |
+| K05 | `card_pin_amp` | 按住了就放大 | 触发 | 只装在有控制的技能上：这个技能造成控制后 3 s 内，你的下一个技能伤害 +40%（乘区） | control |
 | K06 | `card_encore` | 再来一遍 | 改造 | 这个技能释放后 0.6 s 在同一目标/方向自动再放一次，60% 效果，不耗劲；每多一份多一次 | skill_cast |
+| K07 | `card_crowd_hit` | 一群人一起挨 | 改造 | 只装在飞行物或范围技能上：范围、飞行物半径与直线宽度 ×1.6，伤害不变 | — |
 | K08 | `card_again_now` | 再来一下别喘 | 改造 | 冷却 −35%，劲耗 +50% | skill_cast, momentum |
 | K09 | `card_big_one` | 攒够一顿狠的 | 改造 | 冷却 +50%，伤害 ×1.8（乘区） | skill_hit |
+| K10 | `card_long_reach` | 站远点照样抽你 | 改造 | 只装在指向或飞行物技能上：射程 +50%；命中时离目标至少 550 cm 则伤害 +25%（乘区） | — |
+| K11 | `card_hold_longer` | 按住多揍一会 | 改造 | 只装在有控制的技能上：控制时长 +40%（仍计递减），冷却 ×1.2 | control |
 | K12 | `card_blood_price` | 拿命换 | 转换 | 这个技能改用生命支付（每 1 劲 = 0.6% 生命上限），不再耗劲；伤害 +20%（乘区）；生命不足时拒绝 | low_hp, heal |
 | K13 | `card_lend_fist` | 拳头借给技能 | 转换 | 这个技能额外造成 60% 攻击力的物理伤害（并入原生直接命中） | skill_hit |
+| K14 | `card_held_breath` | 憋着的气 | 转换 | 这个技能命中时消耗你身上护盾的 50%，变成同类型的等量伤害 | shield |
 | K15 | `card_hurt_heal` | 打疼了我回血 | 转换 | 这个技能实际生命伤害的 25% 治疗自己 | heal, skill_hit |
 | K16 | `card_held_shot` | 憋着一发狠的 | 成长 | 这个技能就绪后每闲置 1 s，下一次伤害 +15%（乘区），无上限，释放后清零 | idle |
 | K17 | `card_practice` | 越用越顺手 | 成长 | 这个技能每命中参赛者一次，本局伤害 +2%（乘区），无上限 | skill_hit |
+| K18 | `card_combo_chain` | 一招接一招 | 成长 | 放这个技能时，过去 4 s 内你每放过一个其他技能，这次伤害 +20%（乘区） | skill_cast |
 | K19 | `card_add_fire` | 掺点火 | 元素 | 这个技能命中挂 2 层灼烧 | element |
 | K20 | `card_add_water` | 掺点水 | 元素 | 这个技能命中挂湿 | element |
 | K21 | `card_add_shock` | 掺点电 | 元素 | 这个技能命中挂麻 | element |
@@ -551,8 +563,12 @@ $$
 | D01 | `card_bump_reset` | 撞着就刷新 | 触发 | 冲刺接触敌人 → 冲刺冷却刷新（每次冲刺最多一次） | dash_contact |
 | D02 | `card_bump_again` | 撞着了再撞 | 触发 | 冲刺接触敌人 → 所有技能冷却 −1.5 s | dash_contact, skill_cast |
 | D03 | `card_dash_punch` | 蹿过去抡一拳 | 触发 | 冲刺结束 → 3 s 内下一次普攻 +100% 攻击力（并入主击） | dash, basic_hit |
+| D04 | `card_dodge_strike` | 闪完就打 | 触发 | 完美闪避后，你的下一个技能不耗劲 | perfect_dodge, momentum |
 | D05 | `card_double_dash` | 两段冲刺 | 改造 | 冲刺分两段，各 200 cm，第二段需在 1 s 内再按 D；冷却不变 | dash |
 | D06 | `card_pass_through` | 穿人而过 | 改造 | 冲刺穿过敌人身体（不被阻挡），对每个穿过的人造成一次普攻（算普攻命中，不推进连击） | dash_contact, basic_hit |
+| D07 | `card_head_down` | 闷头撞到底 | 改造 | 冲刺距离 +60%；撞到的敌人受 30 + 0.4 × 攻击力物理伤害并被撞开 150 cm / 0.12 s | dash_contact, knockback |
+| D08 | `card_paid_dash` | 冲刺耗劲 | 转换 | 冲刺消耗 15 劲，冷却 ×0.4 | momentum, dash |
+| D09 | `card_slippery` | 越躲越快 | 成长 | 每次完美闪避，本局移速 +1.5%，无上限 | perfect_dodge, move_speed |
 | D10 | `card_ice_trail` | 一路结冰 | 元素 | 冲刺路径留冰面（宽 160 cm，5 s；每份一条） | ground |
 | D11 | `card_move_turf` | 挪地盘 | 元素 | 冲刺结束 → 把你最近放下的地面状态、区域或陷阱挪到脚下（每个只挪一次；跟随你的区域不算） | ground |
 | D12 | `card_shock_dash` | 冲刺挂麻 | 元素 | 冲刺接触的敌人挂麻 | element, dash_contact |
@@ -561,25 +577,30 @@ $$
 | Y03 | `card_hang_on` | 死扛 | 触发 | 生命低于 15% → 2 s 内受到的每次伤害降为 1（每条命一次） | low_hp |
 | Y04 | `card_reaction_refund` | 反应回本 | 触发 | 触发反应 → 回 15 劲 | reaction, momentum |
 | Y05 | `card_wave_after` | 一波接一波 | 触发 | 触发反应 → 给目标挂一个随机的、与刚被消耗的不同的元素（不含吹） | reaction, element |
+| Y06 | `card_shell_burst` | 壳碎了也崩你 | 触发 | 护盾被打破 → 300 cm 内的敌人受 60 + 3% 生命上限魔法伤害 | shield_break |
 | Y07 | `card_hard_skin` | 挨揍起硬皮 | 触发 | 受到敌方正伤害后获得护盾 45 + 4%H，3 s；获得后 8 s 才能再获得 | damaged, shield |
 | Y08 | `card_ball_kick` | 拿你当球踢 | 触发 | 你造成的击退撞上固定障碍 → 眩晕 0.8 s；撞上另一敌人 → 两人各受 P 60 + 0.5AD | knockback, wall_impact |
 | Y09 | `card_skill_crit` | 技能也能暴击 | 改造 | 你的技能可以暴击（用你的暴击率，倍率 2） | crit, skill_hit |
 | Y10 | `card_skill_drain` | 吸血对技能生效 | 改造 | 你的吸血也按技能实际生命伤害生效 | heal, skill_hit |
+| Y11 | `card_short_breath` | 气短 | 改造 | 劲到 70 就能爆劲，爆劲倍率 140%（多份取同一门槛，不叠加） | overdrive, momentum |
 | Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份 | ground |
 | Y13 | `card_thick_hide` | 皮糙肉厚 | 转换 | 每 1 点护甲 → 生命上限 +6 | armor, max_hp |
 | Y14 | `card_overfed` | 吃撑了 | 转换 | 溢出的治疗变成护盾（上限 30% 生命上限，5 s，与现有护盾取强） | heal, shield |
 | Y15 | `card_berserk` | 残血狂暴 | 转换 | 每少 1% 生命，攻速 +1% | low_hp, attack_speed |
 | Y16 | `card_quick_brain` | 脑子转得快 | 转换 | 技能急速每 10 点，你每次技能命中多回 1 劲 | momentum, skill_hit |
 | Y17 | `card_punch_heal` | 揍人续命 | 转换 | 普攻吸血 15% | heal, basic_hit |
+| Y18 | `card_run_hit` | 跑起来打 | 转换 | 移速每比基础高 10%，伤害 +5%（乘区） | move_speed |
 | Y19 | `card_grow_fat` | 越吃越壮 | 成长 | 每回复 200 生命，本局生命上限 +10，无上限 | heal, max_hp |
 | Y20 | `card_kill_streak` | 越杀越猛 | 成长 | 每次击杀参赛者本局攻击力 +4、法强 +6；每次助攻一半 | kill |
 | Y21 | `card_tough_skin` | 越挨越硬 | 成长 | 每被控制一次，本局护甲 +3、魔抗 +3，无上限 | controlled, armor |
 | Y22 | `card_charge_up` | 攒个大的 | 成长 | 不造成伤害的每 1 s，下一次伤害 +20%（乘区），无上限；造成伤害后清零（持续伤害不清零） | idle |
 | Y23 | `card_turf_growth` | 地头蛇 | 成长 | 站在自己的地面状态上，每满 1 s 伤害 +3%（乘区），无上限；离开清零 | ground |
+| Y24 | `card_tally` | 揍一下记一笔 | 成长 | 每次命中记一笔，满 5 笔兑现：每笔 12 + 0.1 × 法强魔法伤害；6 s 没有新账就清空 | skill_hit, basic_hit |
 | Y25 | `card_live_wire` | 浑身带电 | 元素 | 安装时选一种元素（烫/湿/麻/冻/馊）；你身上常驻该元素的光环，200 cm 内对你造成直接伤害的人被挂上 | element, damaged |
 | Y26 | `card_long_soak` | 久泡 | 元素 | 你施加的元素持续时间 ×2 | element |
 | Y27 | `card_louder_blast` | 炸得更响 | 元素 | 你触发的反应伤害 ×1.6（乘区） | reaction |
 | Y28 | `card_endless_burn` | 烧不完 | 元素 | 你施加的灼烧上限 5 → 10 层 | element |
+| Y29 | `card_burn_guard` | 烧着还挺扛揍 | 元素 | 你造成的灼烧伤害的 30% 变成护盾，3 s，与现有护盾取强 | element, shield |
 
 **元素、反应与地面状态**（运行中，规格 §3.10、§8）：
 
@@ -634,6 +655,27 @@ $$
 
 - `GROUND.GustMoveCm` = 300 cm。性能保护：`GROUND.MaxPerOwner` = 6、`GROUND.MaxTotal` = 40，超出时最早的消失（不是玩法上限）。
 - 地面状态是公开信息：在视野内时发布类型、形状、圆心、半径、剩余时间与主人座位色（[视野与界面](../systems/VISION_AND_UI.md)）。
+
+#### 4.4.1 饭票、休息商店与连锁
+
+规则见 [App Spec §4.5](../APP_SPEC.md#45-饭票休息商店与点名券)。数值来自[实施规格](https://github.com/rlsn/Lockdown-alpha/issues/287) §3.12–§3.13
+（用户已批准，首轮试玩输入，不是平衡验收）；流动商贩、悬赏与储物柜的来源属于 P6，尚未进入运行数据。
+
+| 参数 | 值 | 作用 |
+| --- | --- | --- |
+| `VOUCHER.CampLow`、`VOUCHER.CampHigh`、`VOUCHER.CampElite`、`VOUCHER.CampAncient` | 2、4、8、12 | 清空一个营地时给最后一击者的饭票（按档） |
+| `VOUCHER.Boss` | 20 | Boss 击杀者 |
+| `VOUCHER.Kill`、`VOUCHER.Assist` | 10、4 | 击杀参赛者；每名助攻者 |
+| `VOUCHER.Airdrop` | 6 | 领取空投 |
+| `VOUCHER.ActiveSkip` | 8 | 跳过一组主动候选（取代原来的属性点补偿） |
+| `SHOP.CardSlots`、`SHOP.VocabCardSlots`、`SHOP.VocabWeight` | 4、2、3 | 牌位数；其中按词汇加权的位数与共享词汇的权重（其余位均匀） |
+| `SHOP.SkillSlots` | 2 | 技能位数（既未学也非图纸的主动，均匀） |
+| `SHOP.CardPrice`、`SHOP.SkillPrice` | 6、10 | 牌与技能的价格 |
+| `SHOP.RefreshPrice`、`SHOP.RefreshStep` | 2、1 | 第一次刷新的价格；本次休息里每刷一次的涨价，下次休息重置 |
+| `SHOP.SkillPointPrice`、`SHOP.SkillPointMaxPerMatch` | 25、3 | 技能点价格；每局最多买几个 |
+| `SHOP.SellPrice` | 3 | 卖掉牌库里一张牌得到的饭票 |
+
+远古营地第一次被某玩家清空时另给他一张点名券（每人一次）。
 
 ### 4.5 关键词、状态与共用战斗规则
 

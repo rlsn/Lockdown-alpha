@@ -72,9 +72,22 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
             && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch != ELDSkillBranch::None
             && uint8(Command.Branch) <= uint8(ELDSkillBranch::B2);
-    case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
         return bNoOffer && bNoActive && bNoCard;
+    // Spec §3.13: a shelf slot (or the skill point) of the stock revision OfferRevision; a refresh of that stock.
+    case ELDBuildCommandKind::ShopBuy:
+        return !Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire()
+            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
+            && Command.Branch == ELDSkillBranch::None && bNoCard
+            && (Command.Slot < 8 || Command.Slot == FLDBuildCommand::ShopSkillPointSlot);
+    case ELDBuildCommandKind::ShopRefresh:
+        return !Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
+    case ELDBuildCommandKind::ShopSell:
+        return bNoOffer && bNoActive && bTarget && Target.IsEmpty() && Command.CardSerial != 0 && !Command.bInstallIfPossible
+            && Command.ReplacingSerial == 0;
+    // Spec §11.3: the ticket names an active or a card.
+    case ELDBuildCommandKind::UsePickTicket:
+        return !Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option.Decode(Decoded) && bNoActive && bNoCard;
     case ELDBuildCommandKind::AllocatePoints:
     {
         int32 Total = 0;
@@ -455,7 +468,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         View.ActiveOffer.OpportunityOrdinal = Offer.Ordinal;
         View.ActiveOffer.OfferRevision = Offer.Revision;
         View.ActiveOffer.Options = Offer.Options;
-        View.ActiveOffer.SkipPoints = Offer.bNpcPurchased ? Definitions.Parameters.NpcActiveSkipPoints : Definitions.Parameters.ActiveSkipPoints;
+        View.ActiveOffer.SkipVouchers = Definitions.Parameters.Vouchers.ActiveSkip;
     }
     View.Cards.Reserve(Build.Cards.Num());
     for (const FLDCardInstance& Card : Build.Cards)
@@ -477,7 +490,25 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     }
     View.CardRerolls = LDProgression::CardRerollsLeft(Progression);
     View.CatalogDigest = Definitions.Identity.Root;
-    View.PermanentSpentPoints = Build.PermanentSpentPoints;
+    View.Vouchers = Progression.Vouchers;
+    View.PickTickets = Progression.PickTickets;
+    View.SeenCards = Progression.SeenCards;
+    const FLDDemoShopParameters& ShopTerms = Definitions.Parameters.Shop;
+    View.Shop.bStocked = Progression.Shop.bStocked;
+    View.Shop.Revision = Progression.Shop.Revision;
+    for (const FLDShopSlot& Slot : Progression.Shop.Slots)
+    {
+        FLDShopSlotView& Row = View.Shop.Slots.AddDefaulted_GetRef();
+        Row.Kind = Slot.Kind;
+        Row.DefinitionId = Slot.Definition;
+        Row.Price = LDProgression::ShopPrice(Definitions.Parameters, Slot.Kind);
+        Row.bSold = Slot.bSold;
+    }
+    View.Shop.RefreshPrice = LDProgression::ShopRefreshPrice(Definitions.Parameters, Progression.Shop);
+    View.Shop.SkillPointPrice = ShopTerms.SkillPointPrice;
+    View.Shop.SkillPointsBought = Build.BoughtSkillPoints;
+    View.Shop.SkillPointsMax = ShopTerms.SkillPointMaxPerMatch;
+    View.Shop.SellPrice = ShopTerms.SellPrice;
     View.HeldBlueprints = Progression.HeldBlueprints;
     View.FieldRewards = Progression.FieldRewards;
     View.bFinalModPending = Progression.FinalMod.IsPending();
@@ -697,6 +728,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     const FLDProgressionState& Progression = Record->Progression;
     FLDGrowthBuild NewBuild;
     FLDProgressionState NewProgression = Progression;
+    // Progression aliases the record, which the install replaces: the receipt's voucher delta reads this copy.
+    const int32 VouchersBefore = Progression.Vouchers;
     bool bProgressionChanged = false;
     LDProgression::FChoiceOutcome Choice;
     FName Definition;
@@ -704,10 +737,9 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     // ReplaceActive / ForgetActive / InstallCard with a replacement: the cards that went back to the library.
     TArray<uint16> Reclaimed;
     int64 Refunded = 0;
-    int64 NpcPaid = 0;
-    int64 PointsAwarded = 0;
     uint8 Ordinal = 0;
     LDProgression::FCardPickOutcome Picked;
+    LDProgression::FShopOutcome Shopped;
     // The points of the committed record no longer derive: the boundary must fault.
     const auto PointsFault = [&]()
     {
@@ -745,9 +777,11 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         {
             return Reject(ELDGrowthReason::DataInvalid);
         }
+        int32 SkipVouchers = 0;
+        if (Command.Kind == ELDBuildCommandKind::SkipActiveOffer) { NewBuild = Build; }
         const ELDGrowthReason ChoiceReason = Command.Kind == ELDBuildCommandKind::ActiveChoice
             ? LDProgression::ApplyActiveChoice(Definitions, Build, Definition, Command.bLearnIfPossible, Command.Slot, Context, NewBuild, Choice)
-            : LDProgression::ApplySkipActiveOffer(Definitions, Build, Offer, Context, NewBuild, PointsAwarded);
+            : LDProgression::ApplySkipActiveOffer(Definitions, Build, Progression, Context, NewProgression, SkipVouchers);
         if (ChoiceReason != ELDGrowthReason::None)
         {
             return Reject(ChoiceReason);
@@ -790,23 +824,40 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         }
         break;
     }
-    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::ShopBuy:
+    case ELDBuildCommandKind::ShopRefresh:
+    case ELDBuildCommandKind::ShopSell:
+    case ELDBuildCommandKind::UsePickTicket:
     {
-        LDProgression::FNpcOfferOutcome Npc;
-        const ELDGrowthReason NpcReason = LDProgression::ApplyBuyNpcOffer(Definitions, Build, Progression, MatchSecret, ContenderId,
-            Context, NewBuild, NewProgression, Npc);
-        if (NpcReason == ELDGrowthReason::AuthorityFault)
+        ELDGrowthReason ShopReason = ELDGrowthReason::None;
+        int32 Paid = 0;
+        NewBuild = Build;
+        if (Command.Kind == ELDBuildCommandKind::ShopBuy)
         {
-            return PointsFault();
+            ShopReason = LDProgression::ApplyShopBuy(Definitions, Build, Progression, Command.Slot, Command.OfferRevision, Context,
+                NewBuild, NewProgression, Shopped);
         }
-        if (NpcReason != ELDGrowthReason::None)
+        else if (Command.Kind == ELDBuildCommandKind::ShopRefresh)
         {
-            return Reject(NpcReason);
+            ShopReason = LDProgression::ApplyShopRefresh(Definitions, Build, Progression, Command.OfferRevision, MatchSecret,
+                ContenderId, Context, NewProgression, Paid);
         }
-        // The payment and its fixed offer install together on the next build revision (InstallBuild).
-        NewProgression.Offer->GeneratedBuildRevision = Build.Revision + 1;
-        Ordinal = Npc.Ordinal;
-        NpcPaid = Npc.PointsPaid;
+        else if (Command.Kind == ELDBuildCommandKind::ShopSell)
+        {
+            ShopReason = LDProgression::ApplyShopSell(Definitions, Build, Progression, Command.CardSerial, Context, NewBuild,
+                NewProgression, Paid);
+        }
+        else
+        {
+            Command.Option.Decode(Definition);
+            ShopReason = LDProgression::ApplyUsePickTicket(Definitions, Build, Progression, Definition, Context, NewBuild,
+                NewProgression, Shopped);
+        }
+        if (ShopReason != ELDGrowthReason::None)
+        {
+            return Reject(ShopReason);
+        }
+        Choice = Shopped.Choice;
         bProgressionChanged = true;
         break;
     }
@@ -978,17 +1029,33 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     }
     Receipt.SkillPointsAfter = LDProgression::SkillPoints(Definitions, Record->Build);
     Receipt.PointsRefunded = Refunded;
-    Receipt.PointsAwarded = PointsAwarded;
-    Receipt.NpcPointsPaid = NpcPaid;
+    Receipt.VouchersDelta = Record->Progression.Vouchers - VouchersBefore;
+    Receipt.VouchersAfter = Record->Progression.Vouchers;
+    Receipt.PickTicketsAfter = Record->Progression.PickTickets;
     Receipt.UninstalledCards = Reclaimed;
     if (Command.Kind == ELDBuildCommandKind::PickCard)
     {
         Receipt.CardSerial = Picked.Serial;
     }
+    if (Command.Kind == ELDBuildCommandKind::ShopBuy || Command.Kind == ELDBuildCommandKind::UsePickTicket)
+    {
+        Receipt.CardSerial = Shopped.CardSerial;
+        Receipt.DefinitionId = Shopped.Definition;
+    }
+    if (Command.Kind == ELDBuildCommandKind::ShopSell)
+    {
+        Receipt.CardSerial = Command.CardSerial;
+    }
     const FLDCardInstance* Committed = Receipt.CardSerial != 0 ? Record->Build.FindCard(Receipt.CardSerial) : nullptr;
     if (Committed)
     {
         Receipt.CardId = Committed->Id;
+    }
+    else if (Command.Kind == ELDBuildCommandKind::ShopSell)
+    {
+        // The sold card left the build; its id is the one the pre-commit build held.
+        const FLDCardInstance* Sold = Build.FindCard(Command.CardSerial);
+        Receipt.CardId = Sold ? Sold->Id : NAME_None;
     }
     Receipt.bCardInstalled = Committed && Committed->IsInstalled();
     Receipt.InstallStoredReason = LDGrowthWire::Raw(Picked.StoredReason);
@@ -1012,6 +1079,19 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             Choice.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Choice.StoredReason),
             uint32(Record->Build.Level), uint32(Record->Progression.QueuedActiveOpportunities()));
     }
+    else if (Command.Kind == ELDBuildCommandKind::ShopBuy || Command.Kind == ELDBuildCommandKind::ShopRefresh
+        || Command.Kind == ELDBuildCommandKind::ShopSell || Command.Kind == ELDBuildCommandKind::UsePickTicket)
+    {
+        const FLDShopState& Shop = Record->Progression.Shop;
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_SHOP t=%lld contender=%s kind=%s slot=%s item=%s serial=%u vouchers=%+d after=%d tickets=%d refreshes=%d stock=%s"),
+            GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
+            Command.Kind == ELDBuildCommandKind::ShopBuy ? (Command.Slot == FLDBuildCommand::ShopSkillPointSlot ? TEXT("skill_point")
+                : *FString::FromInt(Command.Slot)) : TEXT("-"),
+            !Receipt.DefinitionId.IsNone() ? *Receipt.DefinitionId.ToString() : !Receipt.CardId.IsNone() ? *Receipt.CardId.ToString() : TEXT("-"),
+            uint32(Receipt.CardSerial), Receipt.VouchersDelta, Receipt.VouchersAfter, Receipt.PickTicketsAfter, Shop.Refreshes,
+            *FString::JoinBy(Shop.Slots, TEXT(","), [](const FLDShopSlot& Slot)
+            { return Slot.bSold ? FString(TEXT("sold")) : Slot.Definition.ToString(); }));
+    }
     else if (DevelopmentIsCardKind(Command.Kind))
     {
         UE_LOG(LogLDGrowth, Log, TEXT("LD_CARD t=%lld contender=%s kind=%s card=%s serial=%u installed=%s target=%s stored=%s reclaimed=%s rerolls=%d capacity=%d/%d"),
@@ -1026,20 +1106,13 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     {
         const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
             || Command.Kind == ELDBuildCommandKind::ForgetActive || Command.Kind == ELDBuildCommandKind::RankUpSkill;
-        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u reclaimed=%s"),
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld vouchers=%+d ordinal=%u reclaimed=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Receipt.DefinitionId.IsNone() ? TEXT("-") : *Receipt.DefinitionId.ToString(),
             bNamesSlot ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
             Command.Kind == ELDBuildCommandKind::AllocatePoints ? *DevelopmentPointsText(Command.PointCounts) : TEXT("-"),
-            Unspent, uint32(Record->Build.Level), Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString(), Refunded, NpcPaid,
-            uint32(Ordinal), *DevelopmentSerialsText(Reclaimed));
-        if (Command.Kind == ELDBuildCommandKind::BuyNpcOffer && Record->Progression.Offer.IsSet())
-        {
-            // Host playtest record of the actives shown, like every drawn head (DrawHead).
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_OFFER t=%lld contender=%s ordinal=%u level=%u cards=%s source=npc"),
-                GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), uint32(Record->Build.Level),
-                *FString::JoinBy(Record->Progression.Offer->Options, TEXT(","), [](FName Id) { return Id.ToString(); }));
-        }
+            Unspent, uint32(Record->Build.Level), Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString(), Refunded,
+            Receipt.VouchersDelta, uint32(Ordinal), *DevelopmentSerialsText(Reclaimed));
     }
     if (Command.Kind == ELDBuildCommandKind::RankUpSkill)
     {
@@ -1183,6 +1256,75 @@ bool ALDDevelopmentDirector::GrantRestRerolls(const FLDGameplayWritePermit& Perm
     return true;
 }
 
+bool ALDDevelopmentDirector::StockRestShops(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Growth || !Content.IsValid() || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None)
+    {
+        Error = TEXT("rest shops need a world permit and the growth domain");
+        return false;
+    }
+    // Every shelf is drawn before any is installed, so a failure leaves every shop as it was.
+    TMap<FGuid, FLDProgressionState> Stocked;
+    for (TPair<FGuid, FRecord>& Pair : Records)
+    {
+        FLDProgressionState Next = Pair.Value.Progression;
+        if (Next.Revision == MAX_uint64) { Error = FString::Printf(TEXT("the progression revision of %s is exhausted"), *LDLog::Id(Pair.Key)); return false; }
+        const ELDGrowthReason Reason = LDProgression::StockShop(Content->Get(), Pair.Value.Build, Next, MatchSecret, Pair.Key, true);
+        if (Reason != ELDGrowthReason::None)
+        {
+            Error = FString::Printf(TEXT("the rest shop of %s does not stock: %s"), *LDLog::Id(Pair.Key), LDGrowthWire::ReasonName(Reason));
+            return false;
+        }
+        ++Next.Revision;
+        Stocked.Add(Pair.Key, MoveTemp(Next));
+    }
+    for (TPair<FGuid, FLDProgressionState>& Pair : Stocked)
+    {
+        Records[Pair.Key].Progression = MoveTemp(Pair.Value);
+        GameMode->Growth->MarkDirty(Pair.Key);
+        const FLDShopState& Shop = Records[Pair.Key].Progression.Shop;
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_SHOP_STOCK t=%lld contender=%s stock=%u slots=%s vouchers=%d"), GameMode->GetAuthorityNowMs(),
+            *LDLog::Id(Pair.Key), Shop.Stocks, *FString::JoinBy(Shop.Slots, TEXT(","), [](const FLDShopSlot& Slot) { return Slot.Definition.ToString(); }),
+            Records[Pair.Key].Progression.Vouchers);
+    }
+    return true;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::GrantVouchers(const FGuid& ContenderId, int32 Vouchers, int32 PickTickets, const TCHAR* Cause,
+    const FLDGameplayWritePermit& Permit)
+{
+    ALDGameMode* GameMode = Mode();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!GameMode || !GameMode->Growth || !Content.IsValid() || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None)
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    if (!Record) { return ELDGrowthReason::NotContender; }
+    if (Vouchers < 0 || PickTickets < 0 || (Vouchers == 0 && PickTickets == 0)) { return ELDGrowthReason::DataInvalid; }
+    FLDProgressionState Next = Record->Progression;
+    if (Next.Revision == MAX_uint64 || Next.PickTickets > MAX_int32 - PickTickets) { return ELDGrowthReason::ArithmeticOverflow; }
+    if (const ELDGrowthReason Reason = LDProgression::GrantVouchers(Next, Vouchers); Reason != ELDGrowthReason::None) { return Reason; }
+    Next.PickTickets += PickTickets;
+    ++Next.Revision;
+    Record->Progression = MoveTemp(Next);
+    GameMode->Growth->MarkDirty(ContenderId);
+    UE_LOG(LogLDGrowth, Log, TEXT("LD_VOUCHER t=%lld contender=%s cause=%s vouchers=%+d after=%d tickets=%+d tickets_after=%d"),
+        GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), Cause, Vouchers, Record->Progression.Vouchers, PickTickets,
+        Record->Progression.PickTickets);
+    return ELDGrowthReason::None;
+}
+
+bool ALDDevelopmentDirector::TakeAncientTicket(const FGuid& ContenderId)
+{
+    FRecord* Record = Records.Find(ContenderId);
+    if (!Record || Record->Progression.bAncientTicketTaken) { return false; }
+    Record->Progression.bAncientTicketTaken = true;
+    return true;
+}
+
 bool ALDDevelopmentDirector::ReadBuildRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const
 {
     const FRecord* Record=Records.Find(ContenderId);
@@ -1315,20 +1457,11 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
     }
     LDProgression::FExperienceChange Change;
     const FLDProgressionState& Current = Record->Progression;
-    // NPC opportunities are not earned by level; the plan only sees the level part and the purchases carry over.
-    if (Current.NpcPurchased > Current.ActiveEarned)
-    {
-        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, TEXT("The contender bought more opportunities than it earned."));
-    }
     const ELDGrowthReason PlanReason = LDProgression::PlanExperience(Content->Get().Progression,
-        Current.CumulativeXP, Record->Build.Level, uint8(Current.ActiveEarned - Current.NpcPurchased), GrantXP, Change);
+        Current.CumulativeXP, Record->Build.Level, Current.ActiveEarned, GrantXP, Change);
     if (PlanReason != ELDGrowthReason::None)
     {
         return DevelopmentPrepareFailure(PlanReason, TEXT("The XP grant does not fit the contender's progression."));
-    }
-    if (int32(Change.ActiveEarnedAfter) + int32(Current.NpcPurchased) > MAX_uint8)
-    {
-        return DevelopmentPrepareFailure(ELDGrowthReason::CapacityExceeded, TEXT("The active opportunity count is exhausted."));
     }
     FLDPreparedGrowthChange Prepared;
     Prepared.ContenderId = ContenderId;
@@ -1348,7 +1481,7 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         }
         ++NewProgression.Revision;
         NewProgression.CumulativeXP = Change.NewXP;
-        NewProgression.ActiveEarned = uint8(Change.ActiveEarnedAfter + NewProgression.NpcPurchased);
+        NewProgression.ActiveEarned = Change.ActiveEarnedAfter;
     }
     if (Change.LevelAfter != Change.LevelBefore)
     {
@@ -1664,11 +1797,9 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
     {
         return false;
     }
-    // Every level opportunity of the match draws one head; the current head, if any, is already drawn. NPC opportunities
-    // draw their fixed offer at payment and never take a preset.
+    // Every level opportunity of the match draws one head; the current head, if any, is already drawn.
     const TArray<TArray<FName>>* Queued = DevOfferQueue.Find(ContenderId);
-    const int32 Drawn = int32(Record->Progression.ActiveConsumed) + (Record->Progression.Offer.IsSet() ? 1 : 0)
-        - int32(Record->Progression.NpcPurchased);
+    const int32 Drawn = int32(Record->Progression.ActiveConsumed) + (Record->Progression.Offer.IsSet() ? 1 : 0);
     const int32 Opportunities = 1 + Content->Get().Progression.ActiveOfferLevels.Num();
     if (Drawn + (Queued ? Queued->Num() : 0) >= Opportunities)
     {
@@ -1851,8 +1982,7 @@ ELDGrowthReason ALDDevelopmentDirector::DevApplyBreakoutPreset(const FGuid& Cont
     NewBuild.NextCardSerial = uint16(NewBuild.NextCardSerial + Base);
     FLDProgressionState NewProgression = Record->Progression;
     NewProgression.CumulativeXP = XP;
-    NewProgression.ActiveEarned = uint8(LDProgression::ActiveOpportunitiesAt(Definitions.Progression, NewBuild.Level)
-        + NewProgression.NpcPurchased);
+    NewProgression.ActiveEarned = LDProgression::ActiveOpportunitiesAt(Definitions.Progression, NewBuild.Level);
     NewProgression.ActiveConsumed = NewProgression.ActiveEarned;
     NewProgression.Offer.Reset();
     NewProgression.Records.Reset();

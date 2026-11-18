@@ -355,6 +355,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceCards(Now,Error) || !AdvanceFinalMods(Now,Error)) { return false; }
     // Every hit of this boundary, then the C01 windows it closed.
     if (!ApplyPendingHits(Now,Error)) { return false; }
+    // Spec §6.5: chains idle past CHAIN.EndSec end here.
+    if (!AdvanceChains(Now,Error)) { return false; }
     // Slows and HP changes of this boundary reach the effective attributes before the next motion step.
     if (!RefreshAllTemporary(Now,Error)) { return false; }
     if (PendingContacts.IsEmpty()) { return true; }

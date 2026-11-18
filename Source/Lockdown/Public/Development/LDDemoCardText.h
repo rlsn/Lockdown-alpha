@@ -26,7 +26,9 @@ namespace LDDemoCardText
         // A skill branch's third duration (ExtraDuration, StepMs) in seconds.
         ExtraDuration,
         // A card's attack-speed step (StepRate) in attacks per second.
-        Step
+        Step,
+        // A05's flight speed and A10's attack-speed threshold (ExtraDistanceCm) as a plain number.
+        Threshold
     };
 
     struct FToken

@@ -355,7 +355,6 @@ class PlanTest(AdapterCase):
 
     def test_unplannable_decisions_are_unsupported_with_their_reason(self):
         plans = {
-            "buy_npc_offer": {"choices": ["ai_select"] * 3, "build": [{"step": "buy_npc_offer", "at": "opening_rest"}]},
             "forget_active": {"choices": ["ai_select"] * 3, "build": [{"step": "forget", "at": "opening_rest", "slot": "Q"}]},
             "pick_card": {"choices": ["ai_select"] * 3, "build": [{"step": "pick_card", "at": "field"}]},
             "replace_at_choice": {"choices": ["ai_select", {"rule": "definition", "definition": "active_seethe", "replace": "Q"},

@@ -509,6 +509,21 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
     }
     if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
+    // Spec §6.5: the hit's damage joins its chain and its owner's strongest hit.
+    if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
+    // Issue #292 P5: Y06 bursts on a broken shield; Y29 shields a share of the burn its source dealt; K03 remembers the native
+    // skill hits on a contender life (its takedown refresh reads them).
+    if (!bProtected && bShieldBroken && Hit.SourceEntity!=Body->Victim.EntityId && !OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+    if (!bProtected && Source && Hit.bBurnTick && Hit.SourceEntity!=Body->Victim.EntityId
+        && !OnBurnDealtCards(*Source,Damage.HPLostP2,NowMs,Error)) { return false; }
+    if (!bProtected && bNativeDirect && Damage.DamageP2>0 && Body->Victim.Kind==ELDVictimKind::Contender && Hit.CreditOwner.IsValid()
+        && Hit.CreditOwner!=Body->Victim.EntityId)
+    {
+        FLDSkillContribution* Row=Body->SkillContributions.FindByPredicate([&Hit](const FLDSkillContribution& Each)
+        { return Each.Contributor==Hit.CreditOwner && Each.Skill==Hit.Source.DefinitionId; });
+        if (!Row) { Row=&Body->SkillContributions.AddDefaulted_GetRef(); Row->Contributor=Hit.CreditOwner; Row->Skill=Hit.Source.DefinitionId; }
+        Row->AtMs=NowMs;
+    }
     // Cards on this committed hit (both sides; LDCombatCards.cpp).
     if (!bProtected && !OnCardHit(Hit,*Body,Source,Damage,NowMs,Error)) { return false; }
     if (!OnFinalHit(Hit,*Body,Source,bEffective,bControlled,NowMs,Error)) { return false; }
@@ -565,9 +580,15 @@ bool ALDCombatDirector::ApplyPendingHits(int64 NowMs, FString& Error)
     {
         const FLDCombatHit Hit=PendingHits[Index];
         const int32 Before=PendingHits.Num();
-        if (!ApplyHit(Hit,Error)) { return false; }
+        // Spec §6.5: the hit's chain is current while it resolves; everything it derives inherits it.
+        const FGuid Chain=ChainOfHit(Hit);
+        {
+            TGuardValue<FGuid> ChainScope(CurrentChain,Chain);
+            if (!ApplyHit(Hit,Error)) { return false; }
+        }
         for (int32 Derived=PendingHits.Num()-1; Derived>=Before; --Derived)
         {
+            if (!PendingHits[Derived].ChainId.IsValid()) { PendingHits[Derived].ChainId=Chain; }
             PendingHits[Derived].ChainDepth=uint8(FMath::Min<int32>(FMath::Max<int32>(PendingHits[Derived].ChainDepth,Hit.ChainDepth+1),255));
             if (int32(PendingHits[Derived].ChainDepth)>MaxDepth)
             {
@@ -703,6 +724,26 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 Contact.DeliveryScaleBp=Scale/10000*Bp+Scale%10000*Bp/10000;
             }
             PendingHits.Add(Contact);
+            // A05: the flying basic's strikes and riders on its aimed target land on the body it struck; hits aimed at other
+            // bodies (an A07 sweep and its riders) keep their own targets and land once, with the first contact.
+            for (const FLDCombatHit& Rider : Projectile.Riders)
+            {
+                const bool bOnPrimary=Rider.Target==Projectile.Payload.Target;
+                if (!bOnPrimary && !bFirstContact) { continue; }
+                FLDCombatHit Landed=Rider;
+                Landed.HitId=FGuid::NewGuid();
+                if (bOnPrimary) { Landed.Target=Targets[Struck].Body; }
+                PendingHits.Add(MoveTemp(Landed));
+            }
+            // A08 on a flying third basic: the free Q goes toward the first body the flight struck, in the basic's chain.
+            if (bFirstContact && Projectile.bComboCast)
+            {
+                if (FLDBodyCombatState* Holder=FindBody(Projectile.SourceBody); Holder && !Holder->bPendingDeath)
+                {
+                    TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Projectile.EffectId));
+                    if (!QueueComboCast(*Holder,Projectile.ComboBasic,Contact,NowMs,Error)) { return false; }
+                }
+            }
             Projectile.Struck.Add(Targets[Struck].Body.Victim.EntityId);
             const FVector At=FMath::Lerp(SegmentFrom,Stop,StruckAt);
             if (Projectile.PierceRemaining>0 && !Projectile.bReturn)
@@ -1108,10 +1149,13 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     // Y02/Y20: the kill and every frozen assist of a contender death reach the takers' cards.
     if (Body.Victim.Kind==ELDVictimKind::Contender && Basis.bCreditOwnerEligibleAtDeath)
     {
-        if (!OnCardTakedown(Hit.CreditOwner,true,Death.OccurredAtMs,Error)) { return false; }
+        const int64 WindowMs=Content->Get().Parameters.AssistWindowMs;
+        // Spec §6.5: a contender kill is one step of the fatal hit's chain.
+        ChainStep(Hit.CreditOwner,LDChain::KillStep(),Death.OccurredAtMs);
+        if (!OnCardTakedown(Hit.CreditOwner,true,Body,WindowMs,Death.OccurredAtMs,Error)) { return false; }
         for (const FGuid& Assister : Death.Assisters)
         {
-            if (Assister!=Hit.CreditOwner && !OnCardTakedown(Assister,false,Death.OccurredAtMs,Error)) { return false; }
+            if (Assister!=Hit.CreditOwner && !OnCardTakedown(Assister,false,Body,WindowMs,Death.OccurredAtMs,Error)) { return false; }
         }
     }
     PendingDeaths.Add(MoveTemp(Death));

@@ -80,6 +80,8 @@ public:
         // player (its name rides on the phase bar) puts its services on the board.
         bool bStage=false;
         bool bFinalStage=false;
+        // Spec §3.13: the open shop shelf takes the board's place (the library stays to sell from).
+        bool bShop=false;
         FString NpcName;
         bool bServices=false;
         // The trainer's respec takes the foot of the character column.
@@ -177,7 +179,7 @@ private:
     // Every rectangle of the current layout, in local units.
     struct FRects
     {
-        FBox2D Title,Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage;
+        FBox2D Title,Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage,Shop;
         FBox2D Column[LDHUD::StorageColumnCount];
         float HeadHeight=0.f;
         float HeadTop=0.f;

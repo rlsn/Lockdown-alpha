@@ -23,6 +23,7 @@
 #include "Components/ButtonSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Spacer.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
@@ -211,8 +212,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 Box->SetVisibility(ESlateVisibility::Collapsed);
                 return Box;
             };
-            NpcButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){BuyNpcOffer();},false,TEXT("GrowthRestNpc"));
-            NpcBox=Boxed(NpcButton.Get(),NpcBlocked,420.f);
             RespecButton=LDWidgets::HoldButton(WidgetTree,LDTerms::Respec,[this](){Respec();},TEXT("GrowthRestRespec"));
             RespecBox=Boxed(RespecButton.Get(),RespecBlocked,300.f);
             // Mockup 05: 洗点 spans the foot of the character column; 遗忘 is the right click on a skill head.
@@ -236,6 +235,57 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             UScaleBox* Fit=LDWidgets::Fit(WidgetTree,Body);ServiceFit=Fit;
             UBorder* Dock=LDWidgets::Panel(WidgetTree,Fit,FMargin(24,18));Dock->SetBrushColor(LDHUDStyle::UIRaised.CopyWithNewOpacity(1.f));
             Dock->SetVisibility(ESlateVisibility::Collapsed);ServiceDock=Dock;RestSection=Dock;
+        }
+        {
+            // Spec §3.13 rest shop over the board: vouchers, refresh, the skill point and the pick tickets on the head line, the
+            // skill then card slots with their prices, the sell zone a library card is dragged onto. Shrinks to fit, never
+            // scrolls.
+            ShopToggleButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleShop();},false,TEXT("GrowthShopToggle"));
+            ShopToggleButton->SetVisibility(ESlateVisibility::Collapsed);
+            auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
+            auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
+            UTextBlock* Title=LDWidgets::Text(WidgetTree,LDTerms::ShopTitle,LDHUDStyle::TypeHeading,NAME_None,LDUIFonts::ERole::Title);
+            Title->SetAutoWrapText(false);
+            Head->AddChildToHorizontalBox(Title)->SetVerticalAlignment(VAlign_Center);
+            ShopVouchers=Text(TEXT(""),LDHUDStyle::TypeBody);ShopVouchers->SetAutoWrapText(false);ShopVouchers->SetColorAndOpacity(LDHUDStyle::TextAccent);
+            auto* VoucherSlot=Head->AddChildToHorizontalBox(ShopVouchers);VoucherSlot->SetVerticalAlignment(VAlign_Center);VoucherSlot->SetPadding(FMargin(18,0,0,0));
+            Head->AddChildToHorizontalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            ShopTicketButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleTicketPicker();},false,TEXT("GrowthShopTicket"));
+            ShopRefreshButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){RefreshShopShelf();},false,TEXT("GrowthShopRefresh"));
+            ShopPointButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){BuyShopSkillPoint();},false,TEXT("GrowthShopSkillPoint"));
+            for(ULDCommandButton* Button:{ShopTicketButton.Get(),ShopRefreshButton.Get(),ShopPointButton.Get()})
+            {auto* ButtonSlot=Head->AddChildToHorizontalBox(Button);ButtonSlot->SetVerticalAlignment(VAlign_Center);ButtonSlot->SetPadding(FMargin(10,0,0,0));}
+            Body->AddChildToVerticalBox(Head)->SetHorizontalAlignment(HAlign_Fill);
+            ShopBlockedText=Wrapped(LDHUDStyle::TypeCaption,900.f);ShopBlockedText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            ShopBlockedText->SetVisibility(ESlateVisibility::Collapsed);
+            Body->AddChildToVerticalBox(ShopBlockedText)->SetPadding(FMargin(0,6,0,0));
+            ShopSlotRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            for(int32 Index=0;Index<8;++Index)
+            {
+                auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();
+                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthShopSlot%d"),Index)),[this,Index](){BuyShopSlot(Index);});
+                Cell->AddChildToVerticalBox(Card.Frame)->SetHorizontalAlignment(HAlign_Center);
+                UTextBlock* Price=Text(TEXT(""),LDHUDStyle::TypeBody);Price->SetAutoWrapText(false);Price->SetJustification(ETextJustify::Center);
+                Cell->AddChildToVerticalBox(Price)->SetHorizontalAlignment(HAlign_Center);
+                Cell->SetVisibility(ESlateVisibility::Collapsed);
+                ShopSlotRow->AddChildToHorizontalBox(Cell)->SetPadding(FMargin(Index?12:0,0,0,0));
+                ShopCards.Add(Card);ShopPrices.Add(Price);ShopCells.Add(Cell);RowWidgets.Add(Cell);
+            }
+            Body->AddChildToVerticalBox(ShopSlotRow)->SetPadding(FMargin(0,18,0,0));
+            TicketPicks=WidgetTree->ConstructWidget<UWrapBox>();TicketPicks->SetExplicitWrapSize(true);TicketPicks->SetWrapSize(960.f);
+            TicketPicks->SetInnerSlotPadding(FVector2D(8,8));TicketPicks->SetVisibility(ESlateVisibility::Collapsed);
+            Body->AddChildToVerticalBox(TicketPicks)->SetPadding(FMargin(0,18,0,0));
+            ShopSellText=Text(TEXT(""),LDHUDStyle::TypeBody);ShopSellText->SetAutoWrapText(false);ShopSellText->SetJustification(ETextJustify::Center);
+            ShopSellText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            ShopSellZone=WidgetTree->ConstructWidget<UBorder>();
+            ShopSellZone->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,6.f,LDHUDStyle::PanelRim,1.5f));
+            ShopSellZone->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.55f));ShopSellZone->SetPadding(FMargin(24,16));
+            ShopSellZone->SetHorizontalAlignment(HAlign_Center);ShopSellZone->SetContent(ShopSellText);
+            Body->AddChildToVerticalBox(ShopSellZone)->SetPadding(FMargin(0,20,0,0));
+            UScaleBox* ShopFit=LDWidgets::Fit(WidgetTree,Body);
+            if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Body->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Center);FitSlot->SetVerticalAlignment(VAlign_Top);}
+            UBorder* ShopFrame=LDWidgets::Panel(WidgetTree,ShopFit,FMargin(28,22));ShopFrame->SetBrushColor(LDHUDStyle::UIRaised.CopyWithNewOpacity(1.f));
+            ShopFrame->SetVisibility(ESlateVisibility::Collapsed);ShopPanel=ShopFrame;
         }
         {
             // The centre stage: title, chance line, the big cards (moved here from their tray rows) and the final sources.
@@ -311,7 +361,8 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         // workshop's rectangles.
         Layer=WidgetTree->ConstructWidget<UCanvasPanel>();Layer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Item:{StageBox.Get(),static_cast<UWidget*>(StageBack.Get()),FinalDesc.Get(),static_cast<UWidget*>(FinalLockButton.Get()),
-            static_cast<UWidget*>(FinalLockNote.Get()),RespecBox.Get(),NpcBox.Get(),static_cast<UWidget*>(TrainerPicks.Get()),ServiceDock.Get()})
+            static_cast<UWidget*>(FinalLockNote.Get()),RespecBox.Get(),static_cast<UWidget*>(TrainerPicks.Get()),ServiceDock.Get(),
+            ShopPanel.Get(),static_cast<UWidget*>(ShopToggleButton.Get())})
         {UCanvasPanelSlot* ItemSlot=Layer->AddChildToCanvas(Item);ItemSlot->SetAutoSize(true);ItemSlot->SetZOrder(Item==ServiceDock.Get()?3:Item==StageBox.Get()?1:2);LayerSlots.Add(Item,ItemSlot);}
         auto* Layers=WidgetTree->ConstructWidget<UOverlay>();Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Each:{static_cast<UWidget*>(TrayFrame.Get()),static_cast<UWidget*>(Layer.Get())})
@@ -455,6 +506,7 @@ const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailVi
     Row(OfferRow,OfferCards);if(OfferRow&&OfferRow->IsVisible()){Over(SkipCard);}Row(CardRow,CardCards);Row(BlueprintCardRow,BlueprintCards);
     Row(FinalModRow,FinalCards);Row(FinalSourceRow,FinalSourceCards);
     Row(StageSourceLine,FinalColumnCards);Row(FinalSourceChoiceLine,FinalSourceCards);
+    if(ShopPanel&&ShopPanel->IsVisible()){Row(ShopSlotRow,ShopCards);}
     if(!Found&&OfferRow->IsVisible()&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
     if(!Found){return nullptr;}
     Out=Found->Detail;
@@ -504,6 +556,7 @@ bool ULDChoicesPanel::ClosePanel()
     LDWidgets::ReleaseHolds(WidgetTree);
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);
     PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;bOpen=false;
+    bShopOpen=false;bTicketPicker=false;
     bFinalFeedbackAllowed=false;
     const LDHUD::FOfferMotionTicket PendingOffer=OfferMotion.Ticket;
     OfferMotion=FOfferMotion();
@@ -667,6 +720,7 @@ void ULDChoicesPanel::RefreshAll()
     RefreshOffer();RefreshFinalMod();RefreshCardOffer(bTiles||bIconOnlyTray||(bQuickShown&&bQuickCompact));
     RefreshBlueprintCards();RefreshBlueprints();RefreshRest();
     RefreshStage();
+    RefreshShopPanel();
     LayoutLayer();
     bCardsStale=false;
 }
@@ -857,8 +911,8 @@ void ULDChoicesPanel::RefreshOffer()
         GrowthShown(Card.Links,Card.bBig&&Card.LinkIcons.Num()>0&&Card.LinkIcons[0]->GetVisibility()!=ESlateVisibility::Collapsed,ESlateVisibility::Visible);
     }
     if(!bOffer){GrowthShown(SkipCard.Frame,false);return;}
-    const int64 Points=Latest.ActiveOffer.SkipPoints;
-    const FString SkipName=Points>0?FString::Printf(TEXT("不选 +%lld 点"),Points):FString(TEXT("不选"));
+    const int64 Points=Latest.ActiveOffer.SkipVouchers;
+    const FString SkipName=Points>0?LDTerms::OfferSkipVouchers(Points):FString(TEXT("不选"));
     const FString SkipKey=SkipName+TEXT("|")+Gate.ChooseBlocked;
     if(CardStale(SkipCard,SkipKey))
     {
@@ -867,7 +921,7 @@ void ULDChoicesPanel::RefreshOffer()
         Detail.Body=Points>0?FString(TEXT("放弃本组技能，本次机会不再保留。")):FString(TEXT("奖励数据缺失。"));
         if(!Gate.bCanChoose){Detail.Body+=TEXT("\n\n")+Gate.ChooseBlocked;}
         ShowFace(SkipCard,SkipKey,SkipName,FString(),Points>0?FString::Printf(TEXT("+%lld"),Points):FString(TEXT("+")),Detail);
-        GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipPoints(Points):FString());
+        GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipVouchers(Points):FString());
     }
     ShowLook(SkipCard,bQuickShown&&bQuickCompact,Points>0&&Gate.bCanChoose&&!PendingRequest,bVisible);
     // The skip card's name is only 不选; its points are the glyph on a tile and the facts line on the stage.
@@ -1254,7 +1308,7 @@ bool ULDChoicesPanel::ChooseOffer(int32 Index)
 }
 bool ULDChoicesPanel::SkipOffer()
 {
-    if(!HasAvailableOffer()||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipPoints<=0){return false;}
+    if(!HasAvailableOffer()||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipVouchers<=0){return false;}
     if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
     if(!Gate.bCanChoose){Tell(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
     FLDBuildCommand Command;
@@ -1374,17 +1428,6 @@ bool ULDChoicesPanel::LearnBlueprint(int32 Index,uint8 Key)
     Command.Slot=Key;
     return Send(Command);
 }
-FString ULDChoicesPanel::NpcRefusal() const
-{
-    if(!Gate.bCanBuyNpc){return Gate.NpcBlocked;}
-    if(ServiceContext!=ELDRestService::SkillMerchant){return TEXT("请先靠近技能商人");}
-    if(!LatestContent){return TEXT("内容数据同步中");}
-    const int64 Price=LatestContent->Parameters.NpcActivePoints;
-    if(Price<=0){return TEXT("NPC 价格数据缺失");}
-    if(Latest.bHasActiveOffer||Latest.QueuedActiveOpportunities>0){return LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding);}
-    if(Latest.UnspentPoints<Price){return FString::Printf(TEXT("未分配点数不够（要 %lld 点）"),Price);}
-    return FString();
-}
 FString ULDChoicesPanel::RespecRefusal() const
 {
     if(!Gate.bCanRespec){return Gate.RespecBlocked;}
@@ -1433,18 +1476,14 @@ void ULDChoicesPanel::RefreshRest()
     GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
     const bool bServices=IsServiceShown();
     GrowthShown(ServiceDock,bServices&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
-    GrowthShown(NpcBox,bServices&&ServiceContext==ELDRestService::SkillMerchant);
     GrowthShown(RespecBox,bServices&&ServiceContext==ELDRestService::Trainer);
     if(!bShown){return;}
-    const int64 Price=LatestContent?LatestContent->Parameters.NpcActivePoints:0;
-    GrowthText(Cast<UTextBlock>(NpcButton->GetContent()),Price>0?LDTerms::NpcOffer(Price):FString(TEXT("NPC：价格数据缺失")));
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
     {
         GrowthEnabled(Button,Refusal.IsEmpty()&&!PendingRequest);
         GrowthText(Why,Refusal);
         GrowthShown(Why,!Refusal.IsEmpty(),ESlateVisibility::HitTestInvisible);
     };
-    Service(NpcButton,NpcBlocked,NpcRefusal());
     Service(RespecButton,RespecBlocked,RespecRefusal());
     {
         // The trainer's 洗点 says how many points it gives back.
@@ -1478,16 +1517,6 @@ void ULDChoicesPanel::RefreshRest()
         RestConfirmButton->SetHoldRequired(true);
         GrowthEnabled(RestConfirmButton,Refusal.IsEmpty()&&!PendingRequest);
     }
-}
-bool ULDChoicesPanel::BuyNpcOffer()
-{
-    if(!Usable()){return false;}
-    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
-    const FString Refusal=NpcRefusal();
-    if(!Refusal.IsEmpty()){Tell(TEXT("没有提交：")+Refusal);return false;}
-    FLDBuildCommand Command;
-    Command.Kind=ELDBuildCommandKind::BuyNpcOffer;
-    return Send(Command);
 }
 bool ULDChoicesPanel::Respec()
 {
@@ -1556,6 +1585,174 @@ bool ULDChoicesPanel::CloseChildConfirmation()
     CancelRestAction();
     return true;
 }
+bool ULDChoicesPanel::IsShopOffered() const
+{
+    return bOpen&&Places.bActive&&!bStageShown&&Usable()&&LatestStage==LDProgression::EMatchStage::Rest&&Latest.Shop.bStocked;
+}
+bool ULDChoicesPanel::IsShopShown() const
+{
+    return bShopOpen&&IsShopOffered();
+}
+bool ULDChoicesPanel::ToggleShop()
+{
+    if(!IsShopOffered()){bShopOpen=false;return false;}
+    bShopOpen=!bShopOpen;bTicketPicker=false;
+    if(bShopOpen){CancelRestAction();}
+    RefreshAll();
+    return true;
+}
+bool ULDChoicesPanel::ToggleTicketPicker()
+{
+    if(!IsShopShown()){return false;}
+    if(!bTicketPicker&&Latest.PickTickets<1){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::NoPickTicket));return false;}
+    bTicketPicker=!bTicketPicker;
+    RefreshAll();
+    return true;
+}
+void ULDChoicesPanel::RefreshShopPanel()
+{
+    if(!ShopPanel){return;}
+    const bool bOffered=IsShopOffered();
+    if(!bOffered){bShopOpen=false;bTicketPicker=false;}
+    if(Latest.PickTickets<1){bTicketPicker=false;}
+    const bool bShown=bShopOpen&&bOffered;
+    GrowthShown(ShopToggleButton,bOffered,ESlateVisibility::Visible);
+    GrowthShown(ShopPanel,bShown,ESlateVisibility::Visible);
+    if(!bOffered){return;}
+    const FLDShopView& Shop=Latest.Shop;
+    GrowthText(Cast<UTextBlock>(ShopToggleButton->GetContent()),bShown?FString(LDTerms::ShopTitle)+TEXT(" ×"):LDTerms::ShopToggle(Latest.Vouchers));
+    GrowthTint(ShopToggleButton,bShown?LDHUDStyle::UIAction:LDHUDStyle::CardIdle);
+    if(!bShown){return;}
+    const bool bCan=Gate.bCanShop&&!PendingRequest;
+    GrowthText(ShopVouchers,FString::Printf(TEXT("%s %d"),LDTerms::VoucherGlyph,Latest.Vouchers));
+    GrowthText(ShopBlockedText,Gate.bCanShop?FString():Gate.ShopBlocked);
+    GrowthShown(ShopBlockedText,!Gate.bCanShop,ESlateVisibility::HitTestInvisible);
+    GrowthText(Cast<UTextBlock>(ShopRefreshButton->GetContent()),LDTerms::ShopRefresh(Shop.RefreshPrice));
+    GrowthEnabled(ShopRefreshButton,bCan&&Latest.Vouchers>=Shop.RefreshPrice&&!bTicketPicker);
+    GrowthText(Cast<UTextBlock>(ShopPointButton->GetContent()),LDTerms::ShopSkillPoint(Shop.SkillPointPrice,Shop.SkillPointsBought,Shop.SkillPointsMax));
+    GrowthEnabled(ShopPointButton,bCan&&Latest.Vouchers>=Shop.SkillPointPrice&&Shop.SkillPointsBought<Shop.SkillPointsMax&&!bTicketPicker);
+    GrowthText(Cast<UTextBlock>(ShopTicketButton->GetContent()),bTicketPicker?FString(LDTerms::PickTicketBack):LDTerms::PickTicketUse(Latest.PickTickets));
+    GrowthShown(ShopTicketButton,Latest.PickTickets>0||bTicketPicker,ESlateVisibility::Visible);
+    GrowthEnabled(ShopTicketButton,!PendingRequest);
+    GrowthShown(ShopSlotRow,!bTicketPicker,ESlateVisibility::SelfHitTestInvisible);
+    GrowthShown(ShopSellZone,!bTicketPicker,ESlateVisibility::Visible);
+    GrowthText(ShopSellText,LDTerms::ShopSell(Shop.SellPrice));
+    GrowthShown(TicketPicks,bTicketPicker,ESlateVisibility::SelfHitTestInvisible);
+    for(int32 Index=0;Index<ShopCards.Num();++Index)
+    {
+        FTrayCard& Card=ShopCards[Index];
+        const bool bHas=!bTicketPicker&&Shop.Slots.IsValidIndex(Index);
+        GrowthShown(ShopCells[Index],bHas,ESlateVisibility::SelfHitTestInvisible);
+        if(!bHas){continue;}
+        const FLDShopSlotView& Row=Shop.Slots[Index];
+        Card.Component=Row.DefinitionId;
+        const bool bAfford=Latest.Vouchers>=Row.Price;
+        const FString Outcome=Row.bSold?FString(LDTerms::ShopSoldMark):!Gate.bCanShop?Gate.ShopBlocked
+            :bAfford?LDTerms::ShopPrice(Row.Price):LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughVouchers);
+        const FString Key=FString::Printf(TEXT("%llu|%d|"),Shop.Revision,Index)+Row.DefinitionId.ToString()+TEXT("|")+Outcome;
+        if(CardStale(Card,Key))
+        {
+            if(Row.Kind==ELDShopItemKind::Skill)
+            {
+                const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Row.DefinitionId,LatestContent,LatestStats);
+                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome));
+            }
+            else
+            {
+                const LDHUD::FCardFaceView View=LDHUD::CardFace(Row.DefinitionId,LatestContent,LatestStats);
+                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,Outcome));
+            }
+        }
+        ShowLook(Card,false,bCan&&!Row.bSold&&bAfford,true);
+        GrowthText(ShopPrices[Index],Row.bSold?FString(LDTerms::ShopSoldMark):LDTerms::ShopPrice(Row.Price));
+        ShopPrices[Index]->SetColorAndOpacity(Row.bSold||!bAfford?LDHUDStyle::TextSecondary:LDHUDStyle::TextAccent);
+    }
+    TicketOptions.Reset();
+    if(bTicketPicker&&LatestContent)
+    {
+        // Spec §11.3: the skills the shop could shelf (neither learned nor kept), then the cards seen this match.
+        LDProgression::EligibleBlueprints(*LatestContent,LDProgression::BuildFromView(*LatestContent,Latest),TicketOptions);
+        TicketOptions.Append(Latest.SeenCards);
+    }
+    for(int32 Index=0;Index<FMath::Max(TicketOptions.Num(),TicketButtons.Num());++Index)
+    {
+        if(Index>=TicketOptions.Num()){GrowthShown(TicketButtons[Index],false);continue;}
+        if(!TicketButtons.IsValidIndex(Index))
+        {
+            ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){UsePickTicket(Index);},false,
+                FName(*FString::Printf(TEXT("GrowthPickTicket%d"),Index)));
+            RowWidgets.Add(Pick);TicketPicks->AddChildToWrapBox(Pick);TicketButtons.Add(Pick);
+        }
+        ULDCommandButton* Pick=TicketButtons[Index];
+        GrowthText(Cast<UTextBlock>(Pick->GetContent()),LDHUD::ContentName(LatestContent,TicketOptions[Index].ToString()));
+        GrowthShown(Pick,true,ESlateVisibility::Visible);
+        GrowthEnabled(Pick,!PendingRequest&&Gate.bCanChoose);
+    }
+}
+bool ULDChoicesPanel::ShopCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out)
+{
+    if(!IsShopShown()){return false;}
+    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanShop){Tell(TEXT("没有提交：")+Gate.ShopBlocked);return false;}
+    Out=FLDBuildCommand();Out.Kind=Kind;Out.OfferRevision=Latest.Shop.Revision;
+    return true;
+}
+bool ULDChoicesPanel::BuyShopSlot(int32 Index)
+{
+    FLDBuildCommand Command;
+    if(!Latest.Shop.Slots.IsValidIndex(Index)||!ShopCommand(ELDBuildCommandKind::ShopBuy,Command)){return false;}
+    const FLDShopSlotView& Row=Latest.Shop.Slots[Index];
+    if(Row.bSold){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::ShopSoldOut));return false;}
+    if(Latest.Vouchers<Row.Price){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughVouchers));return false;}
+    Command.Slot=uint8(Index);
+    LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);
+    return Send(Command);
+}
+bool ULDChoicesPanel::BuyShopSkillPoint()
+{
+    FLDBuildCommand Command;
+    if(!ShopCommand(ELDBuildCommandKind::ShopBuy,Command)){return false;}
+    const FLDShopView& Shop=Latest.Shop;
+    if(Shop.SkillPointsBought>=Shop.SkillPointsMax){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::SkillPointLimit));return false;}
+    if(Latest.Vouchers<Shop.SkillPointPrice){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughVouchers));return false;}
+    Command.Slot=FLDBuildCommand::ShopSkillPointSlot;
+    return Send(Command);
+}
+bool ULDChoicesPanel::RefreshShopShelf()
+{
+    FLDBuildCommand Command;
+    if(!ShopCommand(ELDBuildCommandKind::ShopRefresh,Command)){return false;}
+    if(Latest.Vouchers<Latest.Shop.RefreshPrice){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughVouchers));return false;}
+    return Send(Command);
+}
+bool ULDChoicesPanel::SellAt(FName Component,FVector2D Absolute)
+{
+    if(!IsShopShown()||bTicketPicker||!ShopSellZone||!ShopSellZone->IsVisible()||!ShopSellZone->GetCachedGeometry().IsUnderLocation(Absolute)){return false;}
+    SellCard(Component);
+    return true;
+}
+bool ULDChoicesPanel::SellCard(FName Component)
+{
+    const FLDCardInstanceView* Owned=LDHUD::FindCard(Latest,Component);
+    if(!Owned){return false;}
+    if(Owned->IsInstalled()){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::CardInstalled));return false;}
+    FLDBuildCommand Command;
+    if(!ShopCommand(ELDBuildCommandKind::ShopSell,Command)){return false;}
+    Command.OfferRevision=0;Command.CardSerial=Owned->Serial;
+    return Send(Command);
+}
+bool ULDChoicesPanel::UsePickTicket(int32 Index)
+{
+    if(!IsShopShown()||!bTicketPicker||!TicketOptions.IsValidIndex(Index)){return false;}
+    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanChoose){Tell(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
+    if(Latest.PickTickets<1){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::NoPickTicket));return false;}
+    FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::UsePickTicket;
+    if(!FLDDefinitionWire::Encode(TicketOptions[Index],Command.Option)){Tell(TEXT("没有提交：这个标识无效。"));return false;}
+    bTicketPicker=false;
+    LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);
+    return Send(Command);
+}
 bool ULDChoicesPanel::LearnBlueprintCard(int32 Index)
 {
     const uint8 Key=FirstEmptySlot();
@@ -1618,7 +1815,7 @@ void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
                 if(bOpen&&GrowthHasArea(OfferMotion.Chosen.Icon))
                 {
                     if(Receipt.Kind==ELDBuildCommandKind::SkipActiveOffer)
-                    {OfferMotion.Chosen.Glyph=FString::Printf(TEXT("+%lld"),Receipt.PointsAwarded);}
+                    {OfferMotion.Chosen.Glyph=FString::Printf(TEXT("+%d"),Receipt.VouchersDelta);}
                     OfferMotion.Result=Receipt.ChoiceResult;OfferMotion.Slot=Receipt.LearnedSlot;OfferMotion.StartedAt=UiNow();
                 }
             }
@@ -1849,9 +2046,10 @@ void ULDChoicesPanel::LayoutLayer()
         PlaceOnLayer(FinalLockButton,Actions,FVector2D(.5f,.4f));
         PlaceOnLayer(FinalLockNote,Actions,FVector2D(.5f,.78f));
     }
+    PlaceOnLayer(ShopToggleButton,Places.ShopButton,FVector2D(0.f,.5f));
+    if(IsShopShown()){PlaceOnLayer(ShopPanel,Places.Shop,FVector2D::ZeroVector,true);}
     if(!IsServiceShown()){return;}
     PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);
-    PlaceOnLayer(NpcBox,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);
     for(uint8 Key=0;Key<3;++Key)

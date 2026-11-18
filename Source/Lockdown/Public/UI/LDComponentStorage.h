@@ -66,6 +66,8 @@ public:
     TFunction<uint64(const FLDBuildCommand&,ELDGrowthReason&)> SubmitBuild;
     TFunction<uint64()> PeekRequestId;
     TFunction<void(const FString&)> Notify;
+    // A drag let go over neither the storage nor a column: true when another panel took the card (the shop's sell zone).
+    TFunction<bool(FName,FVector2D)> DropOutside;
     // The end of a drag, also the probes' entry: the card Component let go over Column (and the installed card Host there, or
     // None), or over the storage. Returns whether a command was sent or the chooser opened.
     bool DropOn(FName Component,LDHUD::EStorageColumn Column,FName Host);

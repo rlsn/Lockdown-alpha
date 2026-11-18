@@ -1,4 +1,7 @@
 #include "UI/LDHUDModel.h"
+#include "Combat/LDChainRules.h"
+#include "Combat/LDDamageRecap.h"
+#include "Combat/LDCombatElements.h"
 #include "UI/LDBlueprintPanel.h"
 #include "Development/LDDemoCardText.h"
 #include "UI/LDTerms.h"
@@ -1071,7 +1074,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     FLDProgressionView View;View.bValid=true;View.Generation=1;View.Life=1;View.Level=1;View.BuildRevision=1;
     View.bHasActiveOffer=true;View.ActiveOffer.OfferId=FGuid(1,2,3,4);View.ActiveOffer.OfferRevision=1;
     for(int32 Index=0;Index<FMath::Min(3,Content.Abilities.Num());++Index){View.ActiveOffer.Options.Add(FName(*Content.Abilities[Index].Id));}
-    View.ActiveOffer.SkipPoints=1;
+    View.ActiveOffer.SkipVouchers=1;
     ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
     Input.bStage=true;Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
     const FVector2D LayoutSize(1920,1080);
@@ -1784,6 +1787,38 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
     }
     return true;
 }
+// Spec §12 结算“本局最离谱”: one row per contender of the result in its order (at most six), its longest chain as step names and its
+// strongest hit as source, points and the share of that target's max HP; nothing for another result.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDUIResultHighlightsTest,"Lockdown.Rules.UI.ResultHighlights",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDUIResultHighlightsTest::RunTest(const FString& Parameters)
+{
+    FLDResultView Result;Result.Generation=3;Result.ResultId=FGuid(1,2,3,4);
+    TArray<FGuid> Ids;
+    for(int32 Index=0;Index<7;++Index)
+    {
+        FLDResultRow& Row=Result.Rows.AddDefaulted_GetRef();Row.ContenderId=FGuid(9,Index+1,0,0);Row.Name=FString::Printf(TEXT("P%d"),Index+1);
+        Ids.Add(Row.ContenderId);
+    }
+    FLDDamageSummaryView Summary;Summary.Match=3;Summary.ResultId=Result.ResultId;
+    FLDResultHighlight& First=Summary.Highlights.AddDefaulted_GetRef();
+    First.Contender=Ids[0];First.LongestKey={FName(TEXT("hud_rules_card")),LDChain::ReactionStep(TEXT("Overload")),LDChain::KillStep()};First.LongestSteps=5;
+    First.BestSource=FName(TEXT("basic"));First.BestDamageP2=62000;First.BestTargetMaxHpP2=100000;
+    FLDResultHighlight& Second=Summary.Highlights.AddDefaulted_GetRef();Second.Contender=Ids[1];
+    const LDHUD::FResultHighlightsView View=LDHUD::ResultHighlights(Summary,Result,Ids[1],nullptr);
+    bool bGood=TestTrue(TEXT("Available for the result shown, at most six rows in its order"),View.bAvailable&&View.Rows.Num()==LDHUD::ResultHighlightsMax
+        &&View.Rows[0].Name==TEXT("P1")&&View.Rows[5].Name==TEXT("P6"));
+    bGood&=TestEqualSensitive(TEXT("The longest chain reads its step names and length"),View.Rows[0].Chain,
+        FString::Printf(TEXT("hud_rules_card → %s → 击杀（5 步）"),*LDTerms::ReactionTerm(uint8(ELDCombatReaction::Overload))));
+    bGood&=TestEqualSensitive(TEXT("The strongest hit reads its source, points and share of max HP"),View.Rows[0].Best,
+        FString::Printf(TEXT("%s 620（62%%）"),LDTerms::BasicAttack));
+    bGood&=TestTrue(TEXT("A contender without a chain or a hit reads a dash; the own row is marked"),View.Rows[1].Chain==TEXT("—")
+        &&View.Rows[1].Best==TEXT("—")&&View.Rows[1].bOwn&&!View.Rows[0].bOwn&&View.Rows[2].Chain==TEXT("—"));
+    bGood&=TestEqualSensitive(TEXT("A new chain's prompt"),LDHUD::NewChainNotice(nullptr,{FName(TEXT("a_card")),LDChain::KillStep()}),
+        FString(TEXT("新连锁：a_card → 击杀")));
+    Summary.ResultId=FGuid(5,6,7,8);
+    bGood&=TestFalse(TEXT("Another result's summary shows nothing"),LDHUD::ResultHighlights(Summary,Result,Ids[1],nullptr).bAvailable);
+    return bGood;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBuildGateTest,"Lockdown.Rules.HUDBuildGate",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
 {
@@ -1791,20 +1826,20 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     using EStage=LDProgression::EMatchStage;
     LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive);
     TestTrue(TEXT("A rest build window allows every build step and rest service"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate&&Gate.bCanInstall
-        &&Gate.bCanBuyNpc&&Gate.bCanRespec&&Gate.bCanReplace&&Gate.bCanForget&&Gate.bInRest
-        &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty()&&Gate.NpcBlocked.IsEmpty());
+        &&Gate.bCanShop&&Gate.bCanRespec&&Gate.bCanReplace&&Gate.bCanForget&&Gate.bInRest
+        &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty()&&Gate.ShopBlocked.IsEmpty());
     Gate=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive);
     TestTrue(TEXT("#222: a PK or return step keeps the own build open and locks only the rest services"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
-        &&Gate.bCanInstall&&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
-    TestEqualSensitive(TEXT("The locked reason names the lock"),Gate.NpcBlocked,LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
+        &&Gate.bCanInstall&&!Gate.bCanShop&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
+    TestEqualSensitive(TEXT("The locked reason names the lock"),Gate.ShopBlocked,LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
     Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Dead);
     TestTrue(TEXT("#222: a dead contender in a rest chooses, learns, allocates and installs; the services wait for a living body"),
-        Gate.bCanChoose&&Gate.bCanAllocate&&Gate.bCanLearn&&Gate.bCanInstall&&!Gate.bCanBuyNpc&&!Gate.bCanForget);
+        Gate.bCanChoose&&Gate.bCanAllocate&&Gate.bCanLearn&&Gate.bCanInstall&&!Gate.bCanShop&&!Gate.bCanForget);
     Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive);
     TestTrue(TEXT("#222: on the field every own build step is open, in combat too"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate&&Gate.bCanInstall
         &&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty());
-    TestTrue(TEXT("The field hides the rest services and names why they are refused"),!Gate.bInRest&&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget
-        &&Gate.NpcBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Gate.ReplaceBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::ReplacementNotAllowed));
+    TestTrue(TEXT("The field hides the rest services and names why they are refused"),!Gate.bInRest&&!Gate.bCanShop&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget
+        &&Gate.ShopBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Gate.ReplaceBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::ReplacementNotAllowed));
     Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead);
     TestTrue(TEXT("#222: a dead contender on the field builds as well"),Gate.bCanChoose&&Gate.bCanAllocate&&Gate.bCanLearn&&Gate.bCanInstall);
     Gate=LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive);
@@ -1880,19 +1915,21 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     FinalView.FinalMod.TargetId=TEXT("active_other");
     TestFalse(TEXT("A later binding cannot replay the previous stamp"),LDHUD::FinalStampReady(FinalView,9,Final,true));
     TestFalse(TEXT("A view alone cannot start a stamp"),LDHUD::FinalStampReady(FinalView,0,Final,true));
-    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsAwarded=5;
-    TestEqualSensitive(TEXT("A skipped offer names the awarded points"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已放弃本组技能，获得 5 属性点。")));
-    Receipt.PointsAwarded=0;
+    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.VouchersDelta=8;
+    TestEqualSensitive(TEXT("A skipped offer names the vouchers paid"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::VouchersGained(8));
+    Receipt.VouchersDelta=0;
     TestEqualSensitive(TEXT("A skip receipt without its award claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::NotEnoughPoints);
     TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("没有生效：未分配点数不够")));
     {
         // #198 rest services: each applied receipt names what it did; a missing field never reads as a success.
         FLDBuildReceipt Rest;Rest.Header.Outcome=ELDReceiptOutcome::Applied;
-        Rest.Kind=ELDBuildCommandKind::BuyNpcOffer;Rest.NpcPointsPaid=4;
-        TestEqualSensitive(TEXT("An NPC purchase names the points paid"),LDHUD::BuildReceiptText(Rest,nullptr),LDTerms::NpcBought(4));
-        Rest.NpcPointsPaid=0;
-        TestEqualSensitive(TEXT("An NPC receipt without its payment claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+        Rest.Kind=ELDBuildCommandKind::ShopSell;Rest.VouchersDelta=3;Rest.CardId=TEXT("hud_rules_fixture_card");
+        TestEqualSensitive(TEXT("A sale names the card and the vouchers"),LDHUD::BuildReceiptText(Rest,nullptr),
+            LDTerms::CardSold(TEXT("hud_rules_fixture_card"),3));
+        Rest.VouchersDelta=0;
+        TestEqualSensitive(TEXT("A sale receipt without its payment claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+        Rest.CardId=NAME_None;
         Rest.Kind=ELDBuildCommandKind::Respec;Rest.PointsRefunded=5;Rest.UnspentPointsAfter=7;
         TestEqualSensitive(TEXT("A respec names the refund and the unspent points"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("已洗点：返还 5 点，现有 7 点未分配")));
         Rest.Kind=ELDBuildCommandKind::ReplaceActive;Rest.ChoiceResult=ELDBuildChoiceResult::Learned;Rest.LearnedSlot=1;
@@ -1903,11 +1940,13 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         TestEqualSensitive(TEXT("A replacement without the forgotten active claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
         Rest.Kind=ELDBuildCommandKind::ForgetActive;Rest.ForgottenId=TEXT("hud_rules_fixture_old");
         TestEqualSensitive(TEXT("A forget names the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr),LDTerms::Forgotten(TEXT("hud_rules_fixture_old")));
-        Rest.Header.Outcome=ELDReceiptOutcome::Rejected;Rest.Header.Reason=uint16(ELDGrowthReason::NpcPoolTooSmall);
+        Rest.Header.Outcome=ELDReceiptOutcome::Rejected;Rest.Header.Reason=uint16(ELDGrowthReason::NotEnoughVouchers);
         TestEqualSensitive(TEXT("A refused rest service names its reason"),LDHUD::BuildReceiptText(Rest,nullptr),
-            FString(TEXT("没有生效："))+LDHUD::GrowthReasonText(ELDGrowthReason::NpcPoolTooSmall));
-        const ELDGrowthReason RestReasons[]={ELDGrowthReason::ReplacementNotAllowed,ELDGrowthReason::BuildLocked,ELDGrowthReason::NpcPoolTooSmall,
-            ELDGrowthReason::OfferOutstanding,ELDGrowthReason::NothingToRespec,ELDGrowthReason::SlotEmpty,ELDGrowthReason::NotRestWindow};
+            FString(TEXT("没有生效："))+LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughVouchers));
+        const ELDGrowthReason RestReasons[]={ELDGrowthReason::ReplacementNotAllowed,ELDGrowthReason::BuildLocked,
+            ELDGrowthReason::OfferOutstanding,ELDGrowthReason::NothingToRespec,ELDGrowthReason::SlotEmpty,ELDGrowthReason::NotRestWindow,
+            ELDGrowthReason::NotEnoughVouchers,ELDGrowthReason::ShopSoldOut,ELDGrowthReason::ShopStale,ELDGrowthReason::SkillPointLimit,
+            ELDGrowthReason::NoShop,ELDGrowthReason::NoPickTicket,ELDGrowthReason::NotSeen,ELDGrowthReason::CardInstalled};
         TSet<FString> Seen;
         for(const ELDGrowthReason Reason:RestReasons)
         {

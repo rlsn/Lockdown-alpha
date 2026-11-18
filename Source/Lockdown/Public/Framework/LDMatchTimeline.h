@@ -18,13 +18,14 @@ UENUM()
 enum class ELDRestStep : uint8 { None = 0, Build = 1, Draw = 2, Betting = 3, PKReady = 4, PK = 5, Settlement = 6, Payout = 7, Return = 8 };
 
 UENUM()
-// 2 (the component artisan) is retired; its rest-room anchor rest_service_2 hosts no service.
-enum class ELDRestService : uint8 { None = 0, SkillMerchant = 1, Trainer = 3 };
+// 1 (the skill merchant) and 2 (the component artisan) are retired; their rest-room anchors rest_service_1 and
+// rest_service_2 host no service.
+enum class ELDRestService : uint8 { None = 0, Trainer = 3 };
 
 // The service the shared rest room's anchor rest_service_<Index> hosts (None for a retired one).
 inline ELDRestService RestServiceAtAnchor(int32 Index)
 {
-    return Index == 1 ? ELDRestService::SkillMerchant : Index == 3 ? ELDRestService::Trainer : ELDRestService::None;
+    return Index == 3 ? ELDRestService::Trainer : ELDRestService::None;
 }
 
 UENUM()

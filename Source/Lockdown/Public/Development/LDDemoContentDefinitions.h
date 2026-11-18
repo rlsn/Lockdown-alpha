@@ -85,6 +85,8 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 CardVocabScore = 0;
     UPROPERTY() int64 BreakoutChanceBp = 0;
     UPROPERTY() int64 BreakoutCardScore = 0;
+    // An offer sharing no vocabulary key with the AI's build is skipped for vouchers with this chance (AI.CardSkipChance).
+    UPROPERTY() int64 CardSkipChanceBp = 0;
 };
 
 // Build cards (spec §3.12): capacity CapacityBase + floor((level - 1) / LevelsPerSlot); every offer shows OfferSize cards
@@ -103,6 +105,47 @@ struct FLDDemoCardParameters
     UPROPERTY() int32 RerollsPerRest = 0;
     UPROPERTY() int32 LockSlots = 0;
     UPROPERTY() int32 VocabWeight = 0;
+    // Spec §3.13: vouchers for skipping one card offer.
+    UPROPERTY() int32 SkipVouchers = 0;
+};
+
+// Spec §3.13 vouchers (饭票): what each source pays (the last hit that clears a camp of each tier, the Boss's last hit, a
+// contender kill and each assist, the airdrop claim and skipping an active offer).
+USTRUCT()
+struct FLDDemoVoucherParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 CampLow = 0;
+    UPROPERTY() int32 CampHigh = 0;
+    UPROPERTY() int32 CampElite = 0;
+    UPROPERTY() int32 CampAncient = 0;
+    UPROPERTY() int32 Boss = 0;
+    UPROPERTY() int32 Kill = 0;
+    UPROPERTY() int32 Assist = 0;
+    UPROPERTY() int32 Airdrop = 0;
+    UPROPERTY() int32 ActiveSkip = 0;
+};
+
+// Spec §3.13 rest shop: SkillSlots skills and CardSlots cards per stock (VocabCardSlots of the cards drawn with VocabWeight for a
+// candidate sharing the build's vocabulary, the rest uniformly), the prices, the refresh price rising RefreshStep per refresh
+// of one rest, a skill point (at most SkillPointMaxPerMatch per match) and the voucher paid for a sold library card.
+USTRUCT()
+struct FLDDemoShopParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 CardSlots = 0;
+    UPROPERTY() int32 VocabCardSlots = 0;
+    UPROPERTY() int32 VocabWeight = 0;
+    UPROPERTY() int32 SkillSlots = 0;
+    UPROPERTY() int32 CardPrice = 0;
+    UPROPERTY() int32 SkillPrice = 0;
+    UPROPERTY() int32 RefreshPrice = 0;
+    UPROPERTY() int32 RefreshStep = 0;
+    UPROPERTY() int32 SkillPointPrice = 0;
+    UPROPERTY() int32 SkillPointMaxPerMatch = 0;
+    UPROPERTY() int32 SellPrice = 0;
 };
 
 // Momentum (劲), the one skill resource of a contender (CONTENT_AND_BALANCE §3.3, LDMomentum). Camp members hold none.
@@ -449,13 +492,11 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 MaxLevelPointsXP = 0;
     UPROPERTY() int64 MaxLevelPoints = 0;
     UPROPERTY() int64 KeystoneThresholdPoints = 0;
-    // Points charged by the skill merchant and awarded for declining an active opportunity.
-    UPROPERTY() int64 NpcActivePoints = 0;
-    UPROPERTY() int64 ActiveSkipPoints = 0;
-    UPROPERTY() int64 NpcActiveSkipPoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
     UPROPERTY() FLDDemoAIParameters AI;
     UPROPERTY() FLDDemoCardParameters Cards;
+    UPROPERTY() FLDDemoVoucherParameters Vouchers;
+    UPROPERTY() FLDDemoShopParameters Shop;
     UPROPERTY() FLDDemoElementParameters Elements;
     UPROPERTY() FLDDemoGroundParameters Ground;
     // Spec §3.7: the product of a hit's damage factors stops at DamageFactorTechCapBp (DAMAGE.FactorTechCap, a technical
@@ -464,6 +505,9 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 DamageFactorTechCapBp = 0;
     UPROPERTY() int32 ChainMaxDepth = 0;
     UPROPERTY() int32 ChainMaxEffectsPerStep = 0;
+    // Spec §6.5: a chain ends ChainEndMs after its last step (CHAIN.EndSec); its key counts from ChainMinKeySteps kinds.
+    UPROPERTY() int64 ChainEndMs = 0;
+    UPROPERTY() int32 ChainMinKeySteps = 0;
 };
 
 UENUM()
@@ -547,7 +591,8 @@ enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, Directio
 // #198 B: DashComplete arms an empower_basic of a component when a voluntary dash (D or an active dash) completes with
 // a positive displacement (B12).
 UENUM()
-enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete };
+// PerfectDodge: D09's growth; AttackSpeedBelow / MoveSpeedAbove: which speed a speed_factor card reads (A10, Y18).
+enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete, PerfectDodge, AttackSpeedBelow, MoveSpeedAbove };
 
 // The element a card effect, branch or Y25 choice names (content "fire|water|electric|chill|rot|gust"; electric is the shock
 // element). Fire is burn stacks; the others are LDCombatElements marks, gust a push.
@@ -927,6 +972,10 @@ struct FLDDemoCardDefinition
     UPROPERTY() uint32 VocabMask = 0;
     // Y25: the elements an install may choose; empty for every other card.
     UPROPERTY() TArray<ELDDemoElement> ChooseElements;
+    // Spec §7.2 skill cards that fit only some hosts: one bit per ELDDemoHitType the host must deliver (0 = any), and a host
+    // that controls (root, stun, silence, disarm or taunt in its level-1 value set).
+    UPROPERTY() uint8 HostHitTypes = 0;
+    UPROPERTY() bool bHostControl = false;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 

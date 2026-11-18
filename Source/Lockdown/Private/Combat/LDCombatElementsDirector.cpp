@@ -484,6 +484,8 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Fact.HitId=HitId;
     Fact.AtMs=NowMs;
     OnReactionCompleted(Fact);
+    // Spec §6.5: the reaction is one step of the chain it resolved in.
+    ChainStep(Applier.SourceEntity,LDChain::ReactionStep(LDCombatElements::ReactionName(Reaction)),NowMs);
     // The trigger's cards on this reaction (Y04, Y05, K25).
     if (!OnCardReaction(Fact,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_REACTION t=%lld kind=%s held=%s incoming=%s trigger=%s via=%s primary=%s struck=%d r=%s fire_settles=%d ground=%s"),

@@ -566,6 +566,8 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         auto* Body=FindBody(Dash.Body);
         if (!Body || Body->bPendingDeath || Dash.Struck.Contains(Contact.Target)) { continue; }
         Dash.Struck.Add(Contact.Target);
+        // Spec §6.5: the contact's cards and hits are steps of the dash's own chain (while it is open).
+        TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Dash.EffectId));
         const bool bNativeHit=Dash.NativeHit.IsSet() && Dash.NativeHitsRemaining>0;
         if (bNativeHit)
         {
@@ -601,6 +603,8 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             if (!ApplyElement(*Struck, Kind, Applier, Kind==ELDCombatElement::Fire ? 1 : 0, FGuid::NewGuid(), NowMs, Error)) { return false; }
             LedgerCardTriggered(*Body, Shock.Key);
         }
+        // D07: the D dash rams the body it touches.
+        if (Struck && !Struck->bPendingDeath && !DashRamHit(*Body, Dash, Contact.Target, Error)) { return false; }
         // D02: the hosted dash's first real contact cuts the holder's skills (once per action).
         if (!HasteOtherActives(*Body, Dash.Source, Dash.EffectId, NowMs, Error)) { return false; }
         if (!OnDashContact(*Body, Dash, NowMs, Error)) { return false; }
