@@ -187,6 +187,18 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             }
         }
 
+        // Spec §12: an ownerless ground state at the own foot (it acts on everyone, the own body included).
+        Heading(TEXT("地面状态（脚下生成，无主，对所有人生效）"));
+        {
+            UHorizontalBox* Line=Row();
+            static const TCHAR* const Names[]={TEXT("水洼"),TEXT("冰面"),TEXT("火场"),TEXT("毒雾"),TEXT("电场"),TEXT("风雪区")};
+            for(int32 Kind=1;Kind<=6;++Kind)
+            {
+                if(Kind==4){Line=Row();}
+                AddButton(Line,Names[Kind-1],[this,Kind](){Send(ELDDevTestOp::SpawnGroundState,Kind);},FName(*FString::Printf(TEXT("DevTestGround%d"),Kind)));
+            }
+        }
+
         Heading(TEXT("测试属性（叠加在构筑之上，0 去掉该项）"));
         StatBoxes.Reset();StatLines.Reset();
         const TConstArrayView<LDDevTest::FStatField> Fields=LDDevTest::StatFields();

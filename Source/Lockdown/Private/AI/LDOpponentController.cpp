@@ -1,4 +1,5 @@
 #include "AI/LDOpponentController.h"
+#include "Character/LDCharacter.h"
 #include "Core/LDLog.h"
 #include "AI/LDOpponentFrame.h"
 #include "CollisionShape.h"
@@ -489,6 +490,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
+    if (const ALDCharacter* OwnBody = Cast<ALDCharacter>(GetPawn())) { Me.Seat = OwnBody->PresentationKey; }
+    LDOpponentFrame::ReadGrounds(View, Me.Seat, Frame.Grounds);
 #if WITH_DEV_AUTOMATION_TESTS
     // Only annotate already authorized visible units; the policy never queries hidden contenders.
     for (auto& Unit : Frame.Units) { Unit.bProtected |= Mode.IsDevPeaceful(Unit.ContenderId); }

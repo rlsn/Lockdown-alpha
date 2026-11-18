@@ -48,6 +48,26 @@ int32 ALDCombatDirector::DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 No
     return Reset;
 }
 
+bool ALDCombatDirector::DevSpawnGround(const FGuid& Contender, uint8 Kind, const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    if (!CombatDevPermitValid(Core(), Permit, Detail)) { return false; }
+    ALDCharacter* Actor = nullptr;
+    FLDBodyCombatState* Body = FindEntityBody(Contender, &Actor);
+    const ILDLifeAuthority* Mode = Authority();
+    if (!Body || Body->bPendingDeath || !Actor || !Mode || Kind < 1 || Kind > 6)
+    {
+        Detail = TEXT("A DEV ground state needs a living body and a ground-state kind 1..6.");
+        return false;
+    }
+    // Ownerless: no entity owns it, so it acts on every body and nobody gains from it.
+    FLDElementApplier Nobody;
+    Nobody.Level = 1;
+    if (!SpawnGround(static_cast<ELDGroundStateKind>(Kind), Nobody, FootOf(*Actor), Mode->GetAuthorityNowMs(), Detail)) { return false; }
+    Detail = FString::Printf(TEXT("%s at %s"), LDCombatElements::GroundName(static_cast<ELDGroundStateKind>(Kind)), *FootOf(*Actor).ToString());
+    return true;
+}
+
 bool ALDCombatDirector::DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail)
 {
     Detail.Reset();

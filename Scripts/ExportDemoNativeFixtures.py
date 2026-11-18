@@ -138,7 +138,7 @@ def target(value=None):
 
 TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete")
 # ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
-ELEMENTS = ("none", "fire", "water", "electric")
+ELEMENTS = ("none", "fire", "water", "electric", "chill", "rot", "gust")
 CARD_FORMS = ("basic", "skill", "dash", "body")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 
@@ -154,6 +154,7 @@ def effect(value):
         "LimitP2": 0, "bEveryContact": False, "Element": 0, "AngleDegrees": rational(), "CostRatioBp": 0,
         "ExtraDurationMs": 0, "ExtraDistanceCm": rational(), "Scope": 0, "RecastControl": 0,
         "bOwnOnly": False, "bOnCatch": False, "bCenterOnly": False, "bAsDash": False, "bFreeDirection": False, "bAlwaysCrit": False,
+        "GroundKind": 0, "bCarryElement": False,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -208,6 +209,7 @@ def effect(value):
             result["BasicCount"] = value["slow_waves"]
     branch_terms(value, result)
     card_terms(value, result)
+    element_terms(value, result)
     # #198 dash_contact: First touches one body (Count 1); Every touches each body once.
     if value.get("targets") == "First":
         result["Count"] = 1
@@ -236,6 +238,36 @@ def card_terms(value, result):
         result["MultiplierBp"] = scalar(value["multiplier"])
     elif op == "kill_growth" and "assist_ratio" in value:
         result["RatioBp"] = scalar(value["assist_ratio"])
+
+
+GROUND_KINDS = ("none", "puddle", "ice", "fire", "miasma", "field", "blizzard")
+
+
+def element_terms(value, result):
+    """Issue #287 spec §8 element and ground-state fields, into the slots the native importer reads them into."""
+    op = value.get("op")
+    if op == "ground_state":
+        result["GroundKind"] = GROUND_KINDS.index(value["kind"])
+        result["RatioBp"] = scalar(value["radius_ratio"]) if "radius_ratio" in value else 0
+        result["SecondaryRatioBp"] = scalar(value["vulnerable"]) if "vulnerable" in value else 0
+        result["MultiplierBp"] = scalar(value["attack_slow"]) if "attack_slow" in value else 0
+    elif op == "fan":
+        result["RadiusCm"] = rational(value["length"])
+        result["ExtraDistanceCm"] = rational(value["width"])
+        result["AngleDegrees"] = rational(value["sweep"]) if "sweep" in value else rational()
+        result["ExtraDurationMs"] = scalar(value["stun_duration"]) if "stun_duration" in value else 0
+        result["SecondaryDurationMs"] = 0
+        result["bCarryElement"] = bool(value.get("carry_element", False))
+    elif op == "dash_ice":
+        result["RadiusCm"] = rational(value["width"])
+    elif op == "channel_cone" and "final_root" in value:
+        result["ExtraDurationMs"] = scalar(value["final_root"])
+    elif op == "follow_up":
+        if "rot_duration" in value:
+            result["ExtraDurationMs"] = scalar(value["rot_duration"])
+        if "momentum" in value:
+            result["LimitP2"] = scalar(value["momentum"])
+            result["BaseP2"] = scalar(value["base"]) if "base" in value else 0
 
 
 def branch_terms(value, result):

@@ -30,6 +30,7 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::SetPeaceful:
     case ELDDevTestOp::TeleportToCamera:
     case ELDDevTestOp::ApplyBreakoutPreset:
+    case ELDDevTestOp::SpawnGroundState:
         return true;
     default:
         return false;
@@ -55,6 +56,7 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::SetPeaceful: return TEXT("SetPeaceful");
     case ELDDevTestOp::TeleportToCamera: return TEXT("TeleportToCamera");
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("ApplyBreakoutPreset");
+    case ELDDevTestOp::SpawnGroundState: return TEXT("SpawnGroundState");
     default: return TEXT("Unknown");
     }
 }
@@ -73,7 +75,8 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     const bool bPositive = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::AllocatePoints;
     const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
     if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0
-        : Command.Op == ELDDevTestOp::SetPeaceful ? (Command.Amount < 0 || Command.Amount > 1) : Command.Amount != 0))
+        : Command.Op == ELDDevTestOp::SetPeaceful ? (Command.Amount < 0 || Command.Amount > 1)
+        : Command.Op == ELDDevTestOp::SpawnGroundState ? (Command.Amount < 1 || Command.Amount > 6) : Command.Amount != 0))
     {
         return ELDGrowthReason::NumericDomain;
     }
@@ -201,6 +204,7 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::SetPeaceful: return TEXT("和平模式");
     case ELDDevTestOp::TeleportToCamera: return TEXT("传送到镜头位置");
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("质变样板");
+    case ELDDevTestOp::SpawnGroundState: return TEXT("生成地面状态");
     default: return TEXT("未知操作");
     }
 }

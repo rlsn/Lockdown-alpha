@@ -49,7 +49,7 @@ ACTIVE_IDS = ("active_elbow", "active_pants_down", "active_crotch_grab", "active
               "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_hose_down", "active_zap",
               "active_bail_out", "active_apology_slide", "active_charged_ram", "active_not_mad", "active_stare_down",
               "active_brace", "active_triple_combo", "active_calculus_drop", "active_flyer_trap", "active_dirty_puddle",
-              "active_sock_shot", "active_open_mic")
+              "active_sock_shot", "active_open_mic", "active_cola_shake", "active_desk_fan", "active_stale_takeout")
 # (target mode, range cm or None, windup s, momentum cost, cooldown s, in the opening pool).
 ACTIVE_FRAMES = {
     "active_elbow": ("Unit", 220, r(".15"), 25, 6, True),
@@ -265,8 +265,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (4, 11, 10))
-        self.assertIn("#287 P2 build cards approved", approval["decision"])
+                          self.data["identity"]["projection_revision"]), (5, 12, 10))
+        self.assertIn("#287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved", approval["decision"])
         self.assertFalse({"components", "workshop_capacity"} & (set(self.data) | set(self.data["progression"])))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")

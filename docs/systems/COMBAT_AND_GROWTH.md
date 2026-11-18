@@ -203,7 +203,8 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
   前摇被取消的普攻不推进；死亡、新生命与休息清零。公开观察把本次普攻段数放进 `ActionComboStep`。
 - **爆劲**：客户端劲满时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；
   服务器只在蓄力至少一半时长、释放瞬间 `OverdriveReady` 才由 `ApplyOverdrive` 把伤害、护盾、治疗的基础量与系数乘 `OVERDRIVE.Scale` 并按技能元素加料
-  （烫加灼烧层；湿换减速；麻在命中后排一次 `OVERDRIVE.ShockReactionRatio` 倍反应伤害；馊乘削减时长；吹的末波推开），然后劲清零。
+  （烫加灼烧层；湿换减速；麻在命中后排一次 `OVERDRIVE.ShockReactionRatio` 倍反应伤害；冻定身 `OVERDRIVE.ChillRootSec`；馊乘馊的时长；吹推开
+  `OVERDRIVE.GustPushCm` 并在落点留目标所挂元素的地面状态），然后劲清零。
   不满足时按普通施放结算，不拒绝。眩晕、沉默、击退、劲跌破门槛或死亡经 `EndOverdriveCharge` 取消蓄力，不扣劲；本人视图的 `ChargingEntry` 发布当前蓄力的技能。
 - **完美闪避**：D 冲刺开始时在身体上记 `DashStartedAtMs` 与当时脚点；带预警的效果（前摇 ≥ 0.15s 的弹道、直线、扇形、自身范围、地面落点、
   陷阱爆炸、野怪预警技能）结算时调用 `ResolvePerfectDodges(EffectId, Source, InArea)`：开始时在判定内、结算时不在、
@@ -498,42 +499,72 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **普攻命中缩短三个主动冷却**：触发项 `cooldown_refund` 的 `BasicHit` 触发（无窗口）在每次普攻主击时缩短 Q/W/E 三个技能的剩余冷却。
 - 属性 `MomentumRegenFlat`（交战中的劲回复固定值，`EAttribute::MomentumRegen`）与 `HPRegenFlat` 同形。
 
-### 水火电与反应（`LDCombatElements`、`LDCombatElementsDirector.cpp`）
+### 元素、反应与地面状态（`LDCombatElements`、`LDCombatElementsDirector.cpp`、`LDCombatGroundDirector.cpp`）
 
-纯规则在 `Combat\LDCombatElements`（反应表、R、S16 记录与反震量、S21 削减、命中类别），身体记录上的应用在 `LDCombatElementsDirector.cpp`；
-参数是 `COMBAT.Wet*`、`COMBAT.Electrified*`、`COMBAT.Discharge*`、`COMBAT.Reaction*`、`COMBAT.Fog*`、`COMBAT.Conduct*`、`COMBAT.Overload*`
-（`FLDElementTerms::From`，不可用即明确失败）。数值单点见[内容与数值](../demo/CONTENT_AND_BALANCE.md) §4.4。
+纯规则在 `Combat\LDCombatElements`（6 × 6 反应表 `ReactionOf`、每种反应的表项 `RuleOf`、R、麻的计数、馊的跳伤与削减、地面状态的转换表
+`GroundConversion`、所含判定 `GroundContains`、上限淘汰 `GroundEvictions`、S16 记录与反震量、命中类别），身体记录上的应用在
+`LDCombatElementsDirector.cpp`，地面状态在 `LDCombatGroundDirector.cpp`。参数是 `COMBAT.*` 的元素与反应项和 `GROUND.*`
+（`FLDElementTerms::From`、`FLDGroundTerms::From`，不可用即明确失败）。数值单点见[内容与数值](../demo/CONTENT_AND_BALANCE.md) §4.4。
 
-- **元素槽**：每个目标生命一个元素。火 = 存在活的灼烧层；水（潮湿）与电（感电）是 `FLDBodyCombatState::ElementMark`（施加者与其等级、法强快照、
-  到期时刻）；潮湿另带一个 `COMBAT.WetSlow` 的减速实例（`SlowEffectId`，与标记同生同灭，最强减速生效）。同元素刷新（施加者换成最新者）。
-- **批次**：`ApplyHit` 在伤害、控制与 `ApplyKeywordStacks` 之后、`bControllable` 时调用 `ApplyElements`：先火（命中的 `BurnStacks` 与存活来源的
-  触发项 `burn` 与牌的火），再水（原生 `bApplyWet`，再牌的水），再电（原生 `bApplyElectric`，再牌的电）；
-  每次 `ApplyElement` 安装、刷新或与已有的不同元素反应，反应的即时结果可接后面的元素。原生元素读命中的施加者快照 `ElementLevel/ElementAPP2`
-  （释放时由 `StampElementSnapshot` 填写）；牌的水电以该牌为来源、按存活持有者当时的等级与法强施加。
-- **反应**（`ELDCombatReaction`，触发者 = 新元素施加者，两种元素都被消费）：R = `COMBAT.ReactionBase` + `COMBAT.ReactionPerLevel`×(L−1) +
-  `COMBAT.ReactionAPRatio`×法强（魔法，不乘 G）。火的部分立即结算：已有火按 `BurnRemainingShares` 各归原施加者与来源，新火按其完整预算归触发者；
-  这些结算命中带 `bBurnTick`。起雾（火＋水）：主目标受 R，在主目标脚下生成固定雾区（`FLDCombatFog`，每拥有者一个，新雾替换旧雾），
-  生成时（`PulseFog`，在造成它的元素批次继续之前，所以同一命中后面的电已经遇到潮湿）与之后每 `COMBAT.FogIntervalSec` 给区内**无元素**敌人潮湿；导电（水＋电）：主目标与其 `COMBAT.ConductRadiusCm` 内此刻潮湿的敌人各受 R
-  并减速，被波及者的潮湿被消费；过载（火＋电）：主目标 `COMBAT.OverloadRadiusCm` 内的敌人（含主目标）各受 R 与 `COMBAT.OverloadBreachStacks` 层破防。
-  完成的反应经 `OnReactionCompleted` 记入本次 Effects 的 `ReactionFacts`（触发者、触发来源、主目标、命中），并写 `LD_REACTION` 日志。
-- **放电**：感电目标受到正伤害后（在本次命中的元素之前判定，所以新施的电不读父伤害），若已过 `DischargeReadyAtMs`，向
-  `COMBAT.DischargeRadiusCm` 内离它最近的另一合法敌人放 R（施加者快照，不施电），目标的放电间隔 `COMBAT.DischargeIntervalSec` 属于目标；找不到对象不占间隔。
-- **结算伤害**：反应、放电与提前结算的命中 `bStatusSettle`（或 `bBurnTick`），没有元素载荷，不吸血，不是技能命中；
+- **元素槽**：`ELDCombatElement` 为 烫 1、湿 2、麻 3（原“电”的编号）、冻 4、馊 5、吹 6。每个目标生命一个元素：烫 = 存在活的灼烧层；湿、麻、冻、馊是
+  `FLDBodyCombatState::ElementMark`（施加者与其等级、法强快照、到期时刻）。湿带一个移速减速实例，冻带一个移速减速与一个攻速减速实例
+  （`SlowEffectId`、`AttackSlowEffectId`，与标记同生同灭）；麻记从挂上起受到的直接伤害次数 `ShockHits`；馊记削减比例 `HealCutBp` 与下次跳伤
+  `NextTickMs`。同元素刷新时长并换成最新施加者（麻保留计数，馊保留节奏并取较强削减）。吹从不挂上。
+- **批次**：`ApplyHit` 在伤害、控制与 `ApplyKeywordStacks` 之后、`bControllable` 时调用 `ApplyElements`：先烫（命中的 `BurnStacks`、存活来源的
+  触发项 `burn` 与牌的火），再按 湿、麻、冻、馊、吹 依次施加命中的原生元素（`FLDCombatHit::NativeElements` 位）与牌的同种元素（`CardElements`）。
+  原生元素读命中的施加者快照 `ElementLevel/ElementAPP2`（释放时由 `StampElementSnapshot` 填写）；牌的元素以该牌为来源、按存活持有者当时的
+  等级与法强施加。命中可带馊的自有削减与时长（`RotCutBp`、`RotMs`，S21 3A1、N3 3B1）、吹的自有推开距离与方向（`GustPushCm`、`GustDirection`，
+  风扇与末波）以及吹的爆劲落点地面状态（`bGustGround`）。
+- **麻**：持有者受到直接伤害（不是 `bStatusSettle`、`bBurnTick`、`bPeriodic` 或麻自己的打击）时 `CountShock` 计数，第 `COMBAT.ShockEveryNthHit`
+  次由 `StrikeShock` 对持有者与施加者在 `COMBAT.ShockSplashRadiusCm` 内的其他敌人各造成 `COMBAT.ShockRatio` × R（`bOverchargeDischarge`，不再计数，
+  写 `LD_SHOCK`）。S10 3B1 过载期间由 `OnBranchHitTaken` 每次受击都放电，计数不动。
+- **馊**：`AdvanceElements` 按 `COMBAT.RotTickSec` 从挂上起逐跳结算施加者快照的 `RotTickP2`（周期性状态伤害，含到期那一跳）；
+  `HealBody` 与 `GrantShieldTo` 对新治疗、新护盾先按 `AfterRotP2` 削减（护盾削减后再做替换判断），已有护盾不变。
+- **吹**：`PushGust` 排一次无伤害的状态命中，沿 `GustDirection`（没有时为施加者脚点指向目标）推开 `COMBAT.GustPushCm`；冰面上的击退距离 ×
+  `GROUND.IceDisplacementScale`。吹的爆劲另在推开落点生成目标所挂元素对应的地面状态。
+- **反应**（`ELDCombatReaction` 1–15，触发者 = 新元素施加者）：R = `COMBAT.ReactionBase` + `COMBAT.ReactionPerLevel`×(L−1) +
+  `COMBAT.ReactionAPRatio`×法强（魔法，不乘 G）。旧元素被消耗（火旋保留灼烧、雷暴重新挂麻）；起雾立即结算灼烧（已有火按 `BurnRemainingShares`
+  各归原施加者与来源，新火按其完整预算归触发者，命中带 `bBurnTick`），其他消耗烫的反应直接清掉灼烧。主目标的反应命中按表带伤害倍数与控制或状态
+  （过载与腐蚀的破防、导电减速、冻住定身、熏缴械、冻疮攻速、泼洒与雷暴的击退），周围附带按表打击 `RuleOf` 的半径内其他敌人（导电只打此刻湿的、
+  并消耗其湿）；发酵、沼气爆、雷暴、火旋在主目标上施加新的馊、灼烧、麻或加倍灼烧；碎冰在目标上记 `ShatterBp/ShatterUntilMs`，下一次技能命中取
+  这一乘区并用掉。随后新元素对脚下地面状态做转换，再由反应在脚下（雷暴为击退落点）生成表中的地面状态。触发者获得 `MOMENTUM.Reaction`；完成的反应经
+  `OnReactionCompleted` 记入本次 Effects 的 `ReactionFacts`（含被消耗的元素），并写 `LD_REACTION`（`kind`、`held`、`incoming`、`r`、`ground`）；
+  目标身体的 `Cues.LastReaction/LastReactionAtMs` 供观察者头顶飘字。
+- **地面状态**（`FLDGroundState`：公开序号、种类、主人快照、圆心、半径，D10 的带形半长、N1 的扇形角、到期、下次结算、版本、来源）：
+  `SpawnGround` 生成；技能自己放下的（施加者来源为已学技能且带释放 id）同一技能只留 1 份（Y12 每份 +1），然后按 `GroundEvictions` 让主人超出
+  `GROUND.MaxPerOwner`、全场超出 `GROUND.MaxTotal` 的最早者先消失（写 `LD_GROUND_EVICT`）。`AdvanceGround` 在每个 Effects 步：到期移除；
+  逐个到点的结算对主人的敌人（脚在形状内）施加站立效果（水洼湿、火场灼烧、毒雾馊与 N3 3A1 攻速降低、电场 0.3R 与麻、风雪区减速与冻）；
+  再读每个活身体脚下：踩在敌方冰面上记 `bOnEnemyIce`（移动参数），踩在自己的地面状态上记 Y23 的起点 `TurfSinceMs`。`ConvertGroundAt` 处理
+  “再加元素”：转换后归新施加者、重置寿命；吹动的保留主人；起雾、沼气爆（区内每人 `COMBAT.MethaneRatio` × R）与电场放电（`GROUND.FieldDischargeRadiusCm`
+  内每个敌人 R）都算新施加者，写 `LD_GROUND_CONVERT`。地面状态不改寻路、不挡视线、不碰撞。
+- **冰面惯性**：权威移动参数。服务器 `ALDCombatDirector::ReadMoveAccelScale` 在 `bOnEnemyIce` 时给 `GROUND.IceAccelScale`，本人 `CombatView.MoveAccelScale`
+  发布同一值；`ULDCharacterMovementComponent::GetMaxAcceleration`/`GetMaxBrakingDeceleration` 两侧都乘它（服务器读 Combat，拥有客户端读本人视图），
+  预测与校正用同一参数。冲刺距离与击退距离在敌方冰面上 × `GROUND.IceDisplacementScale`。
+- **结算伤害**：反应、麻、馊、地面状态与提前结算的命中 `bStatusSettle`（或 `bBurnTick`），没有元素载荷，不吸血，不是技能命中；
   `LDCombatElements::CategoryOf` 给出 AI 规范 §8 的类别（`BasicPrimary`、`SkillDirect`、`SkillHit`、`StatusSettle`）；区域原生脉冲与 S16 反震是 `SkillDirect`。
-- **来源离局**：其雾区、S10 弹射与它施加的潮湿/感电（含潮湿减速）一起结束。
+- **来源离局**：其雾区、风扇、地面状态、S10 弹射与它施加的元素（含减速）一起结束。
 - **S09 直线**（`ELDDemoTargetMode::DirectionLine`）：释放时 `CollectLineTargets` 取施法者脚下沿方向 `RangeCm`、半宽 `LineHalfWidthCm` 带内、
   视线可达的合法身体，击退沿施放方向（锚点设在目标脚后）。**S10 弹射**（`chain_bounce`）：首目标照常命中，`FLDCombatChain` 之后每 `interval`
-  从上一个被击中者（死亡则用其最后脚点）找 `radius` 内最近、未被这次弹射击中的合法敌人，伤害按 `DeliveryScaleBp` 逐跳乘 `ratio`；找不到就结束。
-  **S13**：`dash_contact` 的 `targets: Every` 让每个实际接触者各受一次原生命中（`bEveryContact`），出发时授盾。
+  从上一个被击中者（死亡则用其最后脚点）找 `radius` 内最近、未被这次弹射击中的合法敌人；没有就弹回第一个目标（规格 §9，单挑时连续弹回），
+  伤害按 `DeliveryScaleBp` 逐跳乘 `ratio`；第一个目标已死则结束。**S13**：`dash_contact` 的 `targets: Every` 让每个实际接触者各受一次原生命中。
+- **S22 / N1 扇形**（`channel_cone`）：吹只随最后一波（`bFinalGust`，沿施放方向），N1 3B1 的定身也只在最后一波（`final_root`）；N1 2A 在释放时以
+  施法者脚下为顶点、沿施放方向生成扇形冰面（`ground_state`）。
+- **N2 风扇**（`fan`，`FLDCombatFan`）：放在目标点（不超过射程），朝施放方向；`AdvanceFans` 每 `interval` 对前方 `length` × `width` 矩形内主人的敌人
+  施加一次吹（推开 `distance`，带 3A1 撞墙眩晕；3A2 时带上主人最后施加给别人的元素 `LastAppliedElement`），吹到人时按 3B1 回劲，并对圆心在矩形内的
+  地面状态做一次吹的转换（火场与毒雾被吹走、电场放电）；2B 的朝向按三角波左右摆。主人死亡或离局结束；同一技能只留 1 个（Y12 每份 +1）。
+  观察者看到它当前吹的矩形（`Wind` 外观）。
+- **N3 与 S21 3A2**：弹道去程终点（命中点或射程尽头）按 `ground_state` 生成毒雾（N3 2A 半径 ×1.5、3A1 攻速降低、3A2 7s）。N3 2B 的二次爆炸是
+  `follow_up`（3B1 带 8s 馊，3B2 落下时回劲）。
 - **S16 顶着揍**（`brace`，`FLDCombatBrace`）：释放时固定减伤比例、记录上限（`limit`，随 G）与反震基础（`base`，随 G）；期间来源不是自己的伤害在
   `EvaluateDamage` 中于抗性、乘区与投送比例之后被削 `BraceCutBp`，实际削掉的 `BraceCutP2` 计入记录（最多上限，受保护目标为 0）。
   不因攻击、移动或施法取消；自然结束时存活身体在当时脚下对 `radius` 内敌人造成 `base + record_ratio×记录` 的魔法直接伤害（`LD_BRACE_ANSWER`）；
   死亡（`bPendingDeath`）、离局或新释放直接丢弃，不补爆。状态 `braced` 显示剩余时间。
 - **S20**：`zone_wet` 让每次区域脉冲同时施潮湿，`zone_haste`（`UpdateZoneHaste`）在拥有者及其本场队友（释放时的 PK 隔离组与同一非零 PK 方）
   脚站在区内时给一份以区域效果 id 为键、到区域结束的移速限时增益，离开、死亡或冻结即撤；敌人与区外队友没有。
-- **S21 馊水糊脸**（`grievous`，`FLDCombatGrievous`）：命中给目标较强比例与较晚到期；`HealBody` 与 `GrantShieldTo` 对新治疗、新护盾先按比例削减
-  （护盾削减后再做替换判断），已有护盾不变；状态 `soured`。
-- 观察：`wet`、`electrified`、`braced`、`soured` 是公开状态（30–33）；观察唯一性检查是 64 位掩码，`LDObservation::MaxStatuses` 为 16。
+- 牌：A18/A19 是普攻的 `basic_element`，K22–K24 是宿主的 `skill_element`；D10（`dash_ice`）与 D11（`ground_relocate`）在 D 完成时
+  （`ResolveDashCompletions`）生成路径冰带或把主人最新的地面状态、区域或未触发陷阱挪到脚下（各一次，跟随的区域不算）；Y12（`double_stall`）
+  在陷阱、风扇与技能放下的地面状态上多留一份；Y23（`ground_growth`）由 `GroundFactors` 按站上自己地面状态的整秒数给乘区，N1 3A1 的冰面易伤也在这里。
+- 观察：`wet`、`electrified`（麻）、`braced`、`chilled`、`rotten` 是公开状态（30–32、36、37）；观察唯一性检查是 64 位掩码。
 
 交战窗口（`GROWTH.BuildSafeWindowSec`）由 Combat 记在实体记录的 `LastBuildUnsafeAtMs` 上（跨生命保留，只前进）：它不限制任何成长命令，只供 HUD 在交战中收起野外摘要。
 `StartNavAttack` 受理的普攻起手、`LDCombatSourceRules::IsOffensive` 的主动释放、`ApplyHit` 中来源不是自己的正伤害（标记受害者并记入
@@ -641,11 +672,14 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的单级数值；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、施法聚能、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`覆盖关键词纯规则、沉默与解除、共享破防与灼烧、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
-`DemoElements.Rules/FogAndSlot/BraceAndGrievous`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
+`DemoElements.Rules/FogAndSlot/Brace`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震，
+`Combat.Elements.Matrix/Shock/Rot`覆盖 6 × 6 表与十五种反应在真实目标上的伤害倍数、控制或状态、附带、地面状态与触发者回劲、麻的第三击与溅射、
+馊的削减、跳伤与刷新，`Combat.GroundState.Transitions/Caps`覆盖每条“再加元素”转换、元素命中引起的转换、各种站立效果只对敌人、冰面移动参数、
+每人 6 / 全场 40 与同一技能一份的淘汰、公开事实与线上记录，`Combat.OneVsOne.Bounce`覆盖 S10 单挑弹回与有他人时先弹他人，
 `Combat.Damage.FactorProduct/SameCardAdds/TechCap` 覆盖乘区分组相乘、同名相加与技术上限，`Combat.Chain.Guard` 覆盖连锁深度与每步上限，
-`Combat.Cards.<编号>`（55 条）各在真实 Combat 里装一份与两份该牌，检查投影接受、每份作为该牌乘区键下的独立效果被读取与位置，
+`Combat.Cards.<编号>`（64 条）各在真实 Combat 里装一份与两份该牌，检查投影接受、每份作为该牌乘区键下的独立效果被读取与位置，
 并检查可在无对局时观察的结果（K06 重放次数与延迟、K08/K09 冷却与劲耗、K09/K12 乘区、Y01 反弹与不再反弹、Y13 生命上限、Y15 缺血攻速、
-Y25 元素与缺元素拒绝）；其余牌的触发行为由 `Combat.Events.*` 与原生场景覆盖，未覆盖的写在 PR 里。
+Y25 元素与缺元素拒绝；A18/A19 普攻挂冻与馊、K22–K24 宿主挂冻、馊与吹、D10 路径冰带、D11 挪动一次、Y12 多留一份、Y23 站立乘区与离开清零）；其余牌的触发行为由 `Combat.Events.*` 与原生场景覆盖，未覆盖的写在 PR 里。
 `Combat.Events.*`在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻与灼烧入口驱动：S08 火与电同批先火后电及雾的即时潮湿、
 S19 触发后引信与到期不爆、S20 队友加速等，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，

@@ -1,4 +1,5 @@
 #include "Probes/LDDemoPerfBudgetProbe.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -61,6 +62,9 @@ namespace
         TWeakObjectPtr<ACameraActor> Camera;
         FString Directory;
         TArray<FPerfBody> Bodies;
+        // Spec §17: the crowd scene also carries the full public load of ground states (GROUND.MaxTotal footprints, every
+        // kind and shape, each with its owner outline), drawn by the same client proxies a match uses.
+        TArray<TWeakObjectPtr<ALDObservedGroundProxy>> Grounds;
         TArray<TSharedPtr<FJsonValue>> Windows, Checks, Primers;
         TArray<FPerfSample> Samples;
         double StartedAt = FPlatformTime::Seconds(), PhaseAt = 0., Clock = 0., SentAt = 0.;
@@ -152,6 +156,28 @@ namespace
                 ++Index;
             }
             if (!Check(Bodies.Num() == LDArt::SeatCount + UE_ARRAY_COUNT(Tiers), FString::Printf(TEXT("Spawned %d presented bodies"), Bodies.Num()))) { return false; }
+            for (int32 Ground = 0; Ground < LDObservation::MaxGroundStates; ++Ground)
+            {
+                FLDObservedGroundState State;
+                State.Id = uint8(Ground + 1);
+                State.Kind = uint8(1 + Ground % 6);
+                State.Shape = static_cast<ELDObservedGroundShape>(Ground % 3);
+                State.OwnerSeat = uint8(Ground % LDObservation::MaxPresentations);
+                State.CentreCm = Focus + Across * ((Ground % 8 - 3.5) * 220.) + Down * ((Ground / 8) * 220. - 440.);
+                State.RadiusCm = 180.f;
+                State.ExtentCm = State.Shape == ELDObservedGroundShape::Band ? 200.f : State.Shape == ELDObservedGroundShape::Sector ? 60.f : 0.f;
+                State.Heading = uint8(Ground * 37);
+                State.LifeMs = 6000;
+                State.RemainingMs = 3000;
+                FActorSpawnParameters Params;
+                Params.ObjectFlags |= RF_Transient;
+                ALDObservedGroundProxy* Proxy = Target.SpawnActor<ALDObservedGroundProxy>(ALDObservedGroundProxy::StaticClass(),
+                    FTransform(State.CentreCm), Params);
+                if (!Proxy) { continue; }
+                Proxy->Apply(State, 0.);
+                Grounds.Add(Proxy);
+            }
+            if (!Check(Grounds.Num() == LDObservation::MaxGroundStates, FString::Printf(TEXT("Spawned %d ground states"), Grounds.Num()))) { return false; }
             auto* Local = Cast<ALDPlayerController>(Target.GetFirstPlayerController());
             if (!Check(Local != nullptr, TEXT("Budget fixture has a local Lockdown controller"))) { return false; }
             Controller = Local;
@@ -212,6 +238,7 @@ namespace
         void SetCrowd(bool bShown)
         {
             for (const FPerfBody& Body : Bodies) { if (Body.Actor.IsValid()) { Body.Actor->SetActorHiddenInGame(!bShown); } }
+            for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : Grounds) { if (Ground.IsValid()) { Ground->SetActorHiddenInGame(!bShown); } }
         }
 
         void Animate(float Delta)

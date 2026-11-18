@@ -1,5 +1,6 @@
 #include "AI/LDOpponentPolicy.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDCombatElements.h"
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
@@ -112,6 +113,8 @@ struct FSourceShape
     bool bShield = false;
     bool bDispelRoot = false;
     bool bDash = false;
+    // The skill's element (ELDCombatElement numbering; spec §13 reaction choice).
+    uint8 Element = 0;
     // #147: a self cast that hits bodies around the caster (SelfArea), a ground zone, and an empowered next basic.
     double AreaRadiusCm = 0;
     double ZoneRadiusCm = 0;
@@ -169,6 +172,7 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
     if (!Catalog.FindAbility(Source.DefinitionId, Ability, Error) || !Ability) { return false; }
     Out.Mode = Ability->Target.Mode;
     Out.RangeCm = ToDouble(Ability->Target.RangeCm);
+    Out.Element = uint8(Ability->Element);
     ReadEffects(Ability->Values.Effects, Out);
     return true;
 }
@@ -503,11 +507,27 @@ TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Targ
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
     if (C.Self.bChanneling) { return {}; }
-    static constexpr ELDOpponentSourceSlot Slots[] = {
+    static constexpr ELDOpponentSourceSlot Fixed[] = {
         ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::E, ELDOpponentSourceSlot::Dash};
+    // Spec §13 element and reaction choice: among damaging skills, one whose element reacts with the element the target
+    // visibly holds goes first, then one that lays an element on a clean target; otherwise the fixed order.
+    TArray<ELDOpponentSourceSlot, TInlineAllocator<4>> Ordered(Fixed, UE_ARRAY_COUNT(Fixed));
+    if (Need.Target)
+    {
+        const auto Score = [&C, &Need](ELDOpponentSourceSlot Slot)
+        {
+            const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
+            FSourceShape Shape;
+            if (!Source || !ResolveSource(*Source, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
+            const ELDCombatElement Held = static_cast<ELDCombatElement>(Need.Target->HeldElement);
+            if (LDCombatElements::ReactionOf(Held, static_cast<ELDCombatElement>(Shape.Element)) != ELDCombatReaction::None) { return 2; }
+            return Held == ELDCombatElement::None && Shape.Element != uint8(ELDCombatElement::Gust) ? 1 : 0;
+        };
+        Ordered.StableSort([&Score](ELDOpponentSourceSlot A, ELDOpponentSourceSlot B) { return Score(A) > Score(B); });
+    }
     for (int32 Tier = 0; Tier < 4; ++Tier)
     {
-        for (const ELDOpponentSourceSlot Slot : Slots)
+        for (const ELDOpponentSourceSlot Slot : (Tier == 3 ? TConstArrayView<ELDOpponentSourceSlot>(Ordered) : TConstArrayView<ELDOpponentSourceSlot>(Fixed)))
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
@@ -649,6 +669,36 @@ TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C)
         Body.Source = ELDOpponentSourceSlot::Dash;
         Body.TargetMode = ELDDemoTargetMode::DirectionDash;
         Body.Direction = Away.GetSafeNormal2D();
+        Body.Key.Category = ELDOpponentFailure::Activation;
+        Body.Key.Slot = uint8(ELDOpponentSourceSlot::Dash);
+        if (C.CanAttempt(Body.Key)) { return Body; }
+    }
+    return {};
+}
+
+// Issue #287 spec §13: the AI never stays in an enemy's ground state; standing in one it dashes out away from its centre
+// with the ready D (a warning dodge comes first).
+TOptional<FLDOpponentBodyIntent> LeaveGroundIntent(const FContext& C)
+{
+    const FLDOpponentSource* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
+    if (!Dash || !Dash->bReady) { return {}; }
+    for (const FLDOpponentGround& Ground : C.Frame.Grounds)
+    {
+        if (!Ground.bEnemy) { continue; }
+        FLDGroundState Shape;
+        Shape.CentreCm = Ground.View.CentreCm;
+        Shape.RadiusCm = Ground.View.RadiusCm;
+        Shape.Heading = FVector2D(FRotator(0, Ground.View.Heading * 360. / 256., 0).Vector());
+        Shape.HalfLengthCm = Ground.View.Shape == ELDObservedGroundShape::Band ? Ground.View.ExtentCm : 0;
+        Shape.AngleDegrees = Ground.View.Shape == ELDObservedGroundShape::Sector ? Ground.View.ExtentCm : 0;
+        if (!LDCombatElements::GroundContains(Shape, C.Self.FootCm)) { continue; }
+        FVector Away = (C.Self.FootCm - Ground.View.CentreCm).GetSafeNormal2D();
+        if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
+        FLDOpponentBodyIntent Body;
+        Body.Kind = EBody::Activate;
+        Body.Source = ELDOpponentSourceSlot::Dash;
+        Body.TargetMode = ELDDemoTargetMode::DirectionDash;
+        Body.Direction = Away;
         Body.Key.Category = ELDOpponentFailure::Activation;
         Body.Key.Slot = uint8(ELDOpponentSourceSlot::Dash);
         if (C.CanAttempt(Body.Key)) { return Body; }
@@ -2374,6 +2424,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         if (const TOptional<FLDOpponentBodyIntent> Dodge = DodgeIntent(C))
         {
             Body(Dodge.GetValue());
+            return Finish(State.Mode, EReason::EngageTarget);
+        }
+        if (const TOptional<FLDOpponentBodyIntent> Leave = LeaveGroundIntent(C))
+        {
+            Body(Leave.GetValue());
             return Finish(State.Mode, EReason::EngageTarget);
         }
     }

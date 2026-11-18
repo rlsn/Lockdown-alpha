@@ -2539,8 +2539,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields F(Check, Value, TEXT("content"));
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
-    if (!Identity.Int(TEXT("schema_version"), Revision, 4, 4)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 11, 11)
+    if (!Identity.Int(TEXT("schema_version"), Revision, 5, 5)
+        || !Identity.Int(TEXT("handler_revision"), Revision, 12, 12)
         || !Identity.Int(TEXT("projection_revision"), Revision, 10, 10))
     {
         return false;
@@ -2844,7 +2844,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 4\n#define LD_DEMO_CONTENT_HANDLER_REVISION 11\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 5\n#define LD_DEMO_CONTENT_HANDLER_REVISION 12\n")
         TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 10\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
@@ -2887,8 +2887,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     }
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
-        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 4, 4)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 11, 11)
+        || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 5, 5)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 12, 12)
         || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 10, 10)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)

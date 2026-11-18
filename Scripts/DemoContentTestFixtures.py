@@ -343,7 +343,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"
     next(row for row in display if row["id"] == "card_fire_fist")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 4, "handler_revision": 11, "projection_revision": 10,
+        "identity": {"schema_version": 5, "handler_revision": 12, "projection_revision": 10,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},

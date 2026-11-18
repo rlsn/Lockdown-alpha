@@ -22,6 +22,8 @@ namespace LDOpponentFrame
         const FLDDemoContentSnapshot& Catalog, TArray<FLDOpponentUnit>& Out, FString& Error);
     // The enemy warnings of one observation frame that are still pending (their public outline only).
     LOCKDOWN_API void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out);
+    // Spec §13: the public ground states in sight; those whose owner seat is not OwnSeat are an enemy's.
+    LOCKDOWN_API void ReadGrounds(const FLDWorldView& View, uint8 OwnSeat, TArray<FLDOpponentGround>& Out);
     // Own actives, blueprints, stat points, the current active offer and queued opportunities, and (#198 B) the owned
     // components (with their placement) and opening base pick; derived attributes come from the shared pure projection over
     // the allocated points and installed components.
