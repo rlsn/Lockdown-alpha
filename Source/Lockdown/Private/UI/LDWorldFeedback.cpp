@@ -99,6 +99,25 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
             Reaction.Element=Combat->Cues.LastReactionElement;Reaction.Name=LDTerms::ReactionTerm(Combat->Cues.LastReaction);
         }
     }
+    // #305: a new perfect dodge of this life and a newly ended counted chain each float a word; the first view only primes.
+    if(bNewLife){PerfectDodges=Combat->PerfectDodges;}
+    else if(Combat->PerfectDodges>PerfectDodges)
+    {
+        PerfectDodges=Combat->PerfectDodges;
+        FEvent& Dodge=Out.AddDefaulted_GetRef();Dodge.Kind=EKind::PerfectDodge;Dodge.bOwn=true;Dodge.Amount=1;
+    }
+    // A chain that ended while this body was not shown (an interruption, the wait for the next life) only moves the
+    // baseline: it never floats over the resumed or respawned body.
+    for(const FLDChainEndView& End:Combat->Chains)
+    {
+        if(End.Serial<=ChainSerial){continue;}
+        if(bChains&&!bNewLife)
+        {
+            FEvent& Chain=Out.AddDefaulted_GetRef();Chain.Kind=EKind::ChainEnd;Chain.bOwn=true;Chain.Amount=End.Steps;
+        }
+        ChainSerial=End.Serial;
+    }
+    bChains=true;
     // The confirmation word takes the receipt the body's confirmation layer takes (LDHitFeel::TakeFreshReceipt), checked
     // on every sample rather than per revision: a receipt ahead of the clock waits, a stale one is only skipped and the
     // first view of a life only primes it.
@@ -277,6 +296,8 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
     case EKind::UnitReaction: return Event.Name+TEXT("！");
     case EKind::DealtConfirm: return LDHitFeel::Word(Event.HitFlags);
+    case EKind::PerfectDodge: return FString(LDTerms::PerfectDodge)+TEXT("！");
+    case EKind::ChainEnd: return LDTerms::ChainEndFloat(int32(Event.Amount));
     }
     return FString();
 }
@@ -370,6 +391,8 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::Vouchers: return {FLinearColor(1.f,.82f,.3f),LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::UnitReaction: return {FLinearColor(1.f,.85f,.35f),LDHUDStyle::TypeTitle};
+    case LDWorldFeedback::EKind::PerfectDodge: return {FLinearColor(.45f,.95f,1.f),LDHUDStyle::TypeTitle};
+    case LDWorldFeedback::EKind::ChainEnd: return {FLinearColor(1.f,.6f,.2f),LDHUDStyle::TypeTitle};
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
     }
 }
@@ -437,7 +460,8 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
     // adds up and pops the number again without restarting its rise. Each reward publication keeps its own lines.
     const bool bReward=WorldFeedbackIsReward(Event.Kind);
     // A reaction is its own word: two reactions on one unit never add up.
-    LDWorldFeedback::FFloater* Same=bReward||Event.Kind==LDWorldFeedback::EKind::UnitReaction?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
+    LDWorldFeedback::FFloater* Same=bReward||Event.Kind==LDWorldFeedback::EKind::UnitReaction||Event.Kind==LDWorldFeedback::EKind::PerfectDodge
+        ||Event.Kind==LDWorldFeedback::EKind::ChainEnd?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
     {return Shown.Event.Kind==Event.Kind&&WorldFeedbackSameAnchor(Shown.Event,Event)&&Now-Shown.BornAt<=WorldFeedbackMergeSeconds;});
     if(Same)
     {

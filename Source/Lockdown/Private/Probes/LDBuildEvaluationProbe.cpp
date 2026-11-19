@@ -5,9 +5,11 @@
 #include "AI/LDOpponentController.h"
 #include "Algo/Find.h"
 #include "Containers/Ticker.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDDevGrowthFixture.h"
+#include "Development/LDDevTestProtocol.h"
 #include "Development/LDGrowthDirector.h"
 #include "Development/LDProgressionRules.h"
 #include "Dom/JsonObject.h"
@@ -340,7 +342,7 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     const TArray<TSharedPtr<FJsonValue>>* Presets = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* Build = nullptr;
     if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("opening_preset"),
-            TEXT("presets"), TEXT("level_cards"), TEXT("build"), TEXT("stance")}, Where, Error)
+            TEXT("presets"), TEXT("level_cards"), TEXT("build"), TEXT("stance"), TEXT("breakout_preset")}, Where, Error)
         || !ReadString(Object, TEXT("role"), Where, Out.Role, Error)
         || !ReadInteger(Object, TEXT("slot"), Where, 0, DuelAISlots - 1, Slot, Error)
         || !ReadInteger(Object, TEXT("supply_xp"), Where, 0, 1000000, Supply, Error)
@@ -359,6 +361,17 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     }
     Out.Slot = int32(Slot);
     Out.SupplyXP = Supply;
+    if (Object.HasField(TEXT("breakout_preset")))
+    {
+        FString Preset;
+        if (!ReadString(Object, TEXT("breakout_preset"), Where, Preset, Error)) { return false; }
+        if (!LDBreakoutPresets::Find(FName(*Preset)))
+        {
+            Error = Where + TEXT(".breakout_preset: not a breakout sample: ") + Preset;
+            return false;
+        }
+        Out.BreakoutPreset = FName(*Preset);
+    }
     if (Object.HasField(TEXT("stance")))
     {
         const FString At = Where + TEXT(".stance");
@@ -1113,9 +1126,37 @@ public:
             bSupplySent = true;
             for (int32 Index = 0; Index < LDBuildEvaluation::DuelAISlots; ++Index)
             {
+                const FLDEvalContenderPlan& Plan = Row.Contenders[Index];
+                // #305: a breakout sample replaces the supply with its own max-level build, through the DEV test command a
+                // tester's panel sends (applied in the next Transactions phase).
+                if (!Plan.BreakoutPreset.IsNone())
+                {
+                    FLDDevTestCommand Command;
+                    Command.Generation = Mode.GetMatchContext().Generation;
+                    FLDContenderLifeRead LifeRead;
+                    FString LifeError;
+                    if (!Mode.ReadContenderLife(Mode.GetMatchContext(), Sides[Index].Contender, LifeRead, LifeError))
+                    {
+                        EndCase(Mode, World, TEXT("Invalid"), TEXT("breakout sample: ") + LifeError);
+                        return true;
+                    }
+                    Command.Life = LifeRead.Life;
+                    Command.RequestId = 1;
+                    Command.Op = ELDDevTestOp::ApplyBreakoutPreset;
+                    const FLDDevTestResult Queued = !Mode.Growth || !FLDDefinitionWire::Encode(Plan.BreakoutPreset, Command.Definition)
+                        ? FLDDevTestResult() : Mode.Growth->QueueDevTest(Sides[Index].Contender, Command, true);
+                    if (Queued.Status != ELDAdmissionStatus::AcceptedPending)
+                    {
+                        EndCase(Mode, World, TEXT("Invalid"), FString::Printf(TEXT("breakout sample %s refused (status %u reason %u)"),
+                            *Plan.BreakoutPreset.ToString(), uint32(Queued.Status), uint32(Queued.Reason)));
+                        return true;
+                    }
+                    UE_LOG(LogLDTest, Display, TEXT("LD_EVAL_BREAKOUT_PRESET contender=%s preset=%s"),
+                        *Sides[Index].Contender.ToString(), *Plan.BreakoutPreset.ToString());
+                    continue;
+                }
                 if (Row.Contenders[Index].SupplyXP <= 0) { continue; }
                 FString Error;
-                const FLDEvalContenderPlan& Plan = Row.Contenders[Index];
                 Sides[Index].Ticket = !Mode.Growth ? 0 : Plan.LevelCards.IsEmpty()
                     ? Mode.Growth->DevGrantReward(Sides[Index].Contender, Plan.SupplyXP, Error)
                     : Mode.Growth->DevGrantEvaluationReward(Sides[Index].Contender, Plan.SupplyXP, Plan.LevelCards, Error);

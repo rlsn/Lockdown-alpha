@@ -36,11 +36,12 @@ namespace LDObservation
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
     constexpr int32 CoverageBytes = CoverageCells / 8;
     // BeginMatch rejects a locked roster plus approved camp members that could exceed this. #97: derived from the
-    // approved content: five other contenders, 80 camp members (18 x 3, 10 x 2, 4 x 1, 2 x 1)
-    // and the Boss, 86 units; the wire counts are uint8.
+    // approved content: five other contenders, 80 camp members (18 x 3, 10 x 2, 4 x 1, 2 x 1), one teambuild member for each
+    // of the 16 High, Elite and Ancient camps (spec §11.2), the second-hand dealer and the Boss, 103 units; the wire counts are
+    // uint8.
     // BeginMatch also checks every other resting contender, one owned dummy per contender and all authored shared targets.
     // Lockdown.Rules.CampDecision fails when the approved camps outgrow this bound.
-    constexpr int32 MaxUnits = 86;
+    constexpr int32 MaxUnits = 103;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
     constexpr int32 MaxStatuses = 19;

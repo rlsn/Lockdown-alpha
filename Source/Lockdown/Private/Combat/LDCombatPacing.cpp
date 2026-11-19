@@ -160,6 +160,9 @@ bool ALDCombatDirector::ApplyTyphoon(const FVector2D& Direction, double PushCm, 
         Hit.HitId=FGuid::NewGuid();
         Hit.EffectId=Hit.HitId;
         Hit.Target={Body.Victim,Body.Identity};
+        // A zero-damage settle like an element gust: it still needs a hit class and damage type to pass evaluation.
+        Hit.HitClass=ELDCombatHitClass::Ability;
+        Hit.DamageType=ELDDemoDamageType::Magical;
         Hit.bStatusSettle=true;
         Hit.KnockbackCm=PushCm;
         Hit.KnockbackMs=Terms.GustPushMs;

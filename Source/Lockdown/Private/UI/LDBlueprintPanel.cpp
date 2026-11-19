@@ -75,7 +75,9 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
     for(const TCHAR* Slot:{TEXT("Q"),TEXT("W"),TEXT("E")})
     {
         const FLDBlueprintActive* Active=Structure.Actives.FindByPredicate([Slot](const FLDBlueprintActive& Row){return Row.Slot==Slot;});
-        Slots.Add(FString::Printf(TEXT("%s %s"),Slot,Active?*BlueprintName(Definitions,Active->Ability):TEXT("—")));
+        // #305: the branch path taken follows the skill's name.
+        const FString Branch=Active&&!Active->Branch.IsEmpty()?TEXT(" ")+Active->Branch:FString();
+        Slots.Add(FString::Printf(TEXT("%s %s%s"),Slot,Active?*BlueprintName(Definitions,Active->Ability):TEXT("—"),*Branch));
     }
     TArray<FString> Stats;
     for(const FLDBlueprintStat& Stat:Structure.Stats){Stats.Add(FString::Printf(TEXT("%s %d"),*BlueprintName(Definitions,Stat.Stat),Stat.Points));}
@@ -281,7 +283,7 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
         const FString KeyName=LDHUD::SlotKey(Key);
         const FLDBlueprintActive* Active=Record.FinalBuild.Actives.FindByPredicate([&KeyName](const FLDBlueprintActive& Row){return Row.Slot==KeyName;});
         const FString Id=Active?Active->Ability:FString();
-        const FString Name=Active?BlueprintName(Local,Id):FString(TEXT("空槽"));
+        const FString Name=Active?BlueprintName(Local,Id)+(Active->Branch.IsEmpty()?FString():TEXT(" ")+Active->Branch):FString(TEXT("空槽"));
         const bool bHeld=Own&&(LDHUD::ActiveInSlot(*Own,Key)==FName(*Id)||Own->PendingBlueprints.Contains(FName(*Id))
             ||Own->Actives.ContainsByPredicate([&Id](const FLDActiveSlotView& Row){return Row.DefinitionId==FName(*Id);}));
         FString Description;

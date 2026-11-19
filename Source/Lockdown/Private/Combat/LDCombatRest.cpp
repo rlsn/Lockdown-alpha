@@ -273,6 +273,7 @@ bool ALDCombatDirector::ResetTraining(const FGuid& OwnerId, const FGuid& Dummy, 
         Body->Resources.MomentumP2=Catalog()->Get().Parameters.Momentum.StartP2;
         Body->MomentumMicroP2=0;
         Body->MomentumEngagedAtMs.Reset();
+        Body->FightStartedAtMs=0;
         Body->ComboStep=0;
         ++Body->Resources.Revision;
     }

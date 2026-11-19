@@ -5,30 +5,30 @@
     "projection_revision": 10,
     "approval": {
       "status": "approved",
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision."
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision. #305 overhaul review follow-up approved (\"Start everything! Put them into one PR\"): actives at 2/4, skill cooldowns x0.7, combat momentum 5/s, overdrive at 60 (Y11 35), idle carry 5s, A09/A10/A13/K12 values, stat caps raised, reaction 4/level, cards 4 + 1 per 3 levels."
     }
   },
   "parameters": {
     "STAT.MaxHP.Base": {"unit": "hp", "value": 860},
     "STAT.MaxHP.PerLevel": {"unit": "hp", "value": 80},
     "STAT.MaxHP.Min": {"unit": "hp", "value": 1},
-    "STAT.MaxHP.Max": {"unit": "hp", "value": 3000},
+    "STAT.MaxHP.Max": {"unit": "hp", "value": 20000},
     "STAT.AD.Base": {"unit": "points", "value": 70},
     "STAT.AD.PerLevel": {"unit": "points", "value": 3.2},
     "STAT.AD.Min": {"unit": "points", "value": 0},
-    "STAT.AD.Max": {"unit": "points", "value": 250},
+    "STAT.AD.Max": {"unit": "points", "value": 2000},
     "STAT.AP.Base": {"unit": "points", "value": 0},
     "STAT.AP.PerLevel": {"unit": "points", "value": 0},
     "STAT.AP.Min": {"unit": "points", "value": 0},
-    "STAT.AP.Max": {"unit": "points", "value": 300},
+    "STAT.AP.Max": {"unit": "points", "value": 3000},
     "STAT.Armor.Base": {"unit": "points", "value": 18},
     "STAT.Armor.PerLevel": {"unit": "points", "value": 2},
     "STAT.Armor.Min": {"unit": "points", "value": 0},
-    "STAT.Armor.Max": {"unit": "points", "value": 200},
+    "STAT.Armor.Max": {"unit": "points", "value": 1000},
     "STAT.MagicResist.Base": {"unit": "points", "value": 18},
     "STAT.MagicResist.PerLevel": {"unit": "points", "value": 2},
     "STAT.MagicResist.Min": {"unit": "points", "value": 0},
-    "STAT.MagicResist.Max": {"unit": "points", "value": 200},
+    "STAT.MagicResist.Max": {"unit": "points", "value": 1000},
     "STAT.HPRegen.Base": {"unit": "hp/s", "value": 1.60},
     "STAT.HPRegen.PerLevel": {"unit": "hp/s", "value": 0.12},
     "STAT.HPRegen.Min": {"unit": "hp/s", "value": 0},
@@ -48,7 +48,7 @@
     "SKILL.CooldownFloorSec": {"unit": "s", "value": 0.3},
     "MOMENTUM.Max": {"unit": "momentum", "value": 100},
     "MOMENTUM.Start": {"unit": "momentum", "value": 50},
-    "MOMENTUM.CombatPerSec": {"unit": "momentum/s", "value": 3},
+    "MOMENTUM.CombatPerSec": {"unit": "momentum/s", "value": 5},
     "MOMENTUM.BasicPerRefInterval": {"unit": "momentum", "value": 10},
     "MOMENTUM.BasicRefIntervalSec": {"unit": "s", "value": 1.334},
     "MOMENTUM.SkillHit": {"unit": "momentum", "value": 5},
@@ -59,7 +59,7 @@
     "MOMENTUM.IdleReturnPerSec": {"unit": "momentum/s", "value": 10},
     "COMBO.StepRatios": [{"unit": "ratio", "value": 0.9}, {"unit": "ratio", "value": 0.9}, {"unit": "ratio", "value": 1.3}],
     "COMBO.ResetSec": {"unit": "s", "value": 1.5},
-    "OVERDRIVE.Threshold": {"unit": "momentum", "value": 100},
+    "OVERDRIVE.Threshold": {"unit": "momentum", "value": 60},
     "OVERDRIVE.HoldSec": {"unit": "s", "value": 0.3},
     "OVERDRIVE.Scale": {"unit": "ratio", "value": 1.6},
     "OVERDRIVE.FireBurnStacks": 3,
@@ -126,14 +126,15 @@
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.KeystoneThresholdPoints": 18,
     "GROWTH.BuildSafeWindowSec": {"unit": "s", "value": 4},
-    "CARDS.CapacityBase": 6,
-    "CARDS.LevelsPerSlot": 5,
+    "CARDS.CapacityBase": 4,
+    "CARDS.LevelsPerSlot": 3,
     "CARDS.OfferSize": 3,
     "CARDS.FreeRerolls": 3,
     "CARDS.RerollsPerRest": 1,
     "CARDS.LockSlots": 1,
     "CARDS.VocabWeight": 2,
     "CARDS.SkipVouchers": 3,
+    "CARDS.IdleCarrySec": {"unit": "s", "value": 5},
     "VOUCHER.CampLow": 2,
     "VOUCHER.CampHigh": 4,
     "VOUCHER.CampElite": 8,
@@ -285,7 +286,7 @@
     "COMBAT.WetSec": {"unit": "s", "value": 4},
     "COMBAT.WetSlow": {"unit": "ratio", "value": 0.15},
     "COMBAT.ReactionBase": {"unit": "points", "value": 30},
-    "COMBAT.ReactionPerLevel": {"unit": "points", "value": 1.5},
+    "COMBAT.ReactionPerLevel": {"unit": "points", "value": 4},
     "COMBAT.ReactionAPRatio": {"unit": "ratio", "value": 0.25},
     "COMBAT.FogRadiusCm": {"unit": "cm", "value": 250},
     "COMBAT.FogSec": {"unit": "s", "value": 3},
@@ -405,7 +406,7 @@
     {
       "id": "active_elbow", "opening": true, "cooldown_family": "cd_elbow", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 220}}, "windup": {"unit": "s", "value": 0.15},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 6},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 4.2},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0.6}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.25}}],
       "ranks": {
         "2A": {"name": "给我过来", "text": "改为把目标拉到身前 [pull.radius] 厘米。", "patches": [{"op": "add", "effect": {"op": "pull", "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.25}, "min_distance": {"unit": "cm", "value": 120}}}]},
@@ -419,7 +420,7 @@
     {
       "id": "active_pants_down", "opening": true, "cooldown_family": "cd_pants_down", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 400}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 9},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "root", "duration": {"unit": "s", "value": 1.2}}],
       "ranks": {
         "2A": {"name": "裤腰带", "text": "射程变远。", "patches": [{"op": "target", "range": {"unit": "cm", "value": 650}}]},
@@ -433,7 +434,7 @@
     {
       "id": "active_crotch_grab", "opening": true, "cooldown_family": "cd_crotch_grab", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 200}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 10},
+      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 7},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0.6}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "stun", "duration": {"unit": "s", "value": 0.8}}],
       "ranks": {
         "2A": {"name": "憋大招", "text": "眩晕改为 [stun.duration] 秒，冷却变长。", "patches": [{"op": "set", "effect": "stun", "field": "duration", "value": {"unit": "s", "value": 1.2}}, {"op": "cooldown", "add": {"unit": "s", "value": 3}}]},
@@ -447,7 +448,7 @@
     {
       "id": "active_account_banned", "opening": true, "cooldown_family": "cd_account_banned", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0.25},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 9},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "silence", "duration": {"unit": "s", "value": 1.2}}],
       "ranks": {
         "2A": {"name": "骂到自闭", "text": "沉默期间每秒造成 [follow_up.amount] 魔法伤害。", "patches": [{"op": "add", "effect": {"op": "follow_up", "delay": {"unit": "s", "value": 1}, "count": 1, "interval": {"unit": "s", "value": 1}, "base": {"unit": "points", "value": 20}, "ap_ratio": {"unit": "ratio", "value": 0.2}, "damage_type": "Magical"}}]},
@@ -461,7 +462,7 @@
     {
       "id": "active_unplug", "opening": true, "cooldown_family": "cd_unplug", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 300}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 8},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 5.6},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 45}, "ad_ratio": {"unit": "ratio", "value": 0.45}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.4}}],
       "ranks": {
         "2A": {"name": "拧断", "text": "缴械改为 [disarm.duration] 秒，冷却变长。", "patches": [{"op": "set", "effect": "disarm", "field": "duration", "value": {"unit": "s", "value": 2.0}}, {"op": "cooldown", "add": {"unit": "s", "value": 2}}]},
@@ -475,7 +476,7 @@
     {
       "id": "active_snark_bolt", "opening": true, "cooldown_family": "cd_snark_bolt", "element": "none", "hit_type": "projectile",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 850}, "projectile_radius": {"unit": "cm", "value": 55}, "projectile_speed": {"unit": "cm/s", "value": 1600}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 4.2},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 90}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.9}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}],
       "ranks": {
         "2A": {"name": "大号鞋", "text": "弹道变大。", "patches": [{"op": "target", "projectile_radius": {"unit": "cm", "value": 110}}]},
@@ -489,7 +490,7 @@
     {
       "id": "active_seethe", "opening": true, "cooldown_family": "cd_seethe", "element": "fire", "hit_type": "area",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0.25},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 7},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 4.9},
       "effects": [{"op": "self_area", "radius": {"unit": "cm", "value": 300}}, {"op": "damage", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "max_hp_ratio": {"unit": "ratio", "value": 0.02}, "damage_type": "Magical"}, {"op": "burn", "stacks": 2}],
       "ranks": {
         "2A": {"name": "越烧越旺", "text": "灼烧改为 [burn.count] 层。", "patches": [{"op": "set", "effect": "burn", "field": "stacks", "value": 4}]},
@@ -503,7 +504,7 @@
     {
       "id": "active_quick_meeting", "opening": true, "cooldown_family": "cd_quick_meeting", "element": "fire", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 650}}, "windup": {"unit": "s", "value": 0.25},
-      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 8},
+      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 5.6},
       "effects": [{"op": "zone", "radius": {"unit": "cm", "value": 240}, "duration": {"unit": "s", "value": 3}, "interval": {"unit": "s", "value": 1}, "delay": {"unit": "s", "value": 0}, "count": 3}, {"op": "zone_damage", "base": {"unit": "points", "value": 30}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.25}, "damage_type": "Magical"}, {"op": "zone_slow", "ratio": {"unit": "ratio", "value": 0.2}, "interval": {"unit": "s", "value": 1}, "duration": {"unit": "s", "value": 0.5}}, {"op": "zone_burn", "stacks": 1, "interval": {"unit": "s", "value": 1}}],
       "ranks": {
         "2A": {"name": "边走边开", "text": "区域跟着你走，半径变为 [zone_tether.ratio]%。", "patches": [{"op": "add", "effect": {"op": "zone_tether", "radius_ratio": {"unit": "ratio", "value": 0.8}}}]},
@@ -517,7 +518,7 @@
     {
       "id": "active_bail_out", "opening": true, "cooldown_family": "cd_bail_out", "element": "none", "hit_type": "dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
-      "momentum_cost": {"unit": "momentum", "value": 20}, "cooldown": {"unit": "s", "value": 7},
+      "momentum_cost": {"unit": "momentum", "value": 20}, "cooldown": {"unit": "s", "value": 4.9},
       "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.2}}, {"op": "empower_basic", "base": {"unit": "points", "value": 45}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}],
       "ranks": {
         "2A": {"name": "隔空连打", "text": "强化存 [empower_basic.count] 次，每次伤害降低；有强化时普攻射程 +[empower_reach.distance] 厘米。", "patches": [{"op": "set", "effect": "empower_basic", "field": "charges", "value": 3}, {"op": "scale", "effect": "empower_basic", "fields": ["base", "ad_ratio"], "ratio": 0.7}, {"op": "add", "effect": {"op": "empower_reach", "range": {"unit": "cm", "value": 250}, "damage_ratio": {"unit": "ratio", "value": 1}}}]},
@@ -531,7 +532,7 @@
     {
       "id": "active_apology_slide", "opening": true, "cooldown_family": "cd_apology_slide", "element": "none", "hit_type": "dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0.15},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 8},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 5.6},
       "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.3}}, {"op": "dash_contact", "targets": "First"}, {"op": "damage", "base": {"unit": "points", "value": 65}, "ad_ratio": {"unit": "ratio", "value": 0.5}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}],
       "ranks": {
         "2A": {"name": "铲倒", "text": "减速改为定身 [root.duration] 秒。", "patches": [{"op": "remove", "effect": "slow"}, {"op": "add", "effect": {"op": "root", "duration": {"unit": "s", "value": 0.6}}}]},
@@ -545,7 +546,7 @@
     {
       "id": "active_not_mad", "opening": false, "cooldown_family": "cd_not_mad", "element": "none", "hit_type": "self",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 10},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 7},
       "effects": [{"op": "shield", "base": {"unit": "hp", "value": 80}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "duration": {"unit": "s", "value": 3}, "max_hp_ratio": {"unit": "ratio", "value": 0.05}}, {"op": "dispel_slow"}, {"op": "dispel_root"}],
       "ranks": {
         "2A": {"name": "铁锅", "text": "护盾变为 [shield.amount]，持续 [shield.duration] 秒。", "patches": [{"op": "scale", "effect": "shield", "fields": ["base", "ap_ratio", "max_hp_ratio"], "ratio": 1.5}, {"op": "set", "effect": "shield", "field": "duration", "value": {"unit": "s", "value": 4}}]},
@@ -559,7 +560,7 @@
     {
       "id": "active_stare_down", "opening": false, "cooldown_family": "cd_stare_down", "element": "none", "hit_type": "area",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 12},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 8.4},
       "effects": [{"op": "taunt", "radius": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 1.0}}, {"op": "timed_stat_bonus", "stats": {"ArmorFlat": {"unit": "points", "value": 14}, "MagicResistFlat": {"unit": "points", "value": 14}}, "duration": {"unit": "s", "value": 3}}],
       "ranks": {
         "2A": {"name": "嘴硬", "text": "嘲讽改为 [taunt.duration] 秒。", "patches": [{"op": "set", "effect": "taunt", "field": "duration", "value": {"unit": "s", "value": 1.4}}]},
@@ -573,7 +574,7 @@
     {
       "id": "active_triple_combo", "opening": true, "cooldown_family": "cd_triple_combo", "element": "none", "hit_type": "self",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
-      "momentum_cost": {"unit": "momentum", "value": 20}, "cooldown": {"unit": "s", "value": 9},
+      "momentum_cost": {"unit": "momentum", "value": 20}, "cooldown": {"unit": "s", "value": 6.3},
       "effects": [{"op": "empower_basic", "base": {"unit": "points", "value": 18}, "ad_ratio": {"unit": "ratio", "value": 0.12}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 5}, "charges": 3, "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.25}}}],
       "ranks": {
         "2A": {"name": "多抽两下", "text": "强化 [empower_basic.count] 次，每次伤害降低。", "patches": [{"op": "set", "effect": "empower_basic", "field": "charges", "value": 5}, {"op": "scale", "effect": "empower_basic", "fields": ["base", "ad_ratio"], "ratio": 0.75}]},
@@ -587,7 +588,7 @@
     {
       "id": "active_calculus_drop", "opening": true, "cooldown_family": "cd_calculus_drop", "element": "none", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 650}}, "windup": {"unit": "s", "value": 0.25},
-      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 8},
+      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 5.6},
       "effects": [{"op": "ground_impact", "radius": {"unit": "cm", "value": 200}, "inner_radius": {"unit": "cm", "value": 80}, "outer_ratio": {"unit": "ratio", "value": 0.6}, "delay": {"unit": "s", "value": 0.55}}, {"op": "damage", "base": {"unit": "points", "value": 110}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 1.0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
       "ranks": {
         "2A": {"name": "连环砖", "text": "落下后 [echo_impact.delay] 秒同点再落一次，[echo_impact.multiplier]% 伤害。", "patches": [{"op": "add", "effect": {"op": "echo_impact", "delay": {"unit": "s", "value": 0.8}, "damage_ratio": {"unit": "ratio", "value": 0.5}, "cooldown_ratio": {"unit": "ratio", "value": 1}}}]},
@@ -601,7 +602,7 @@
     {
       "id": "active_flyer_trap", "opening": false, "cooldown_family": "cd_flyer_trap", "element": "none", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 550}}, "windup": {"unit": "s", "value": 0.15},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 9},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
       "effects": [{"op": "contact_trap", "radius": {"unit": "cm", "value": 180}, "trigger_radius": {"unit": "cm", "value": 100}, "delay": {"unit": "s", "value": 0.45}, "duration": {"unit": "s", "value": 6}}, {"op": "damage", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.3}, "duration": {"unit": "s", "value": 1.5}}],
       "ranks": {
         "2A": {"name": "雷区", "text": "每人同时 [contact_trap.count] 张陷阱。", "patches": [{"op": "set", "effect": "contact_trap", "field": "max", "value": 2}]},
@@ -615,7 +616,7 @@
     {
       "id": "active_open_mic", "opening": true, "cooldown_family": "cd_open_mic", "element": "gust", "hit_type": "area",
       "target": {"mode": "DirectionCone", "range": {"unit": "cm", "value": 450}, "angle": {"unit": "degrees", "value": 70}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 7},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 4.9},
       "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.3}, "count": 3, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.2}}, {"op": "damage", "base": {"unit": "points", "value": 35}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "gust"}],
       "ranks": {
         "2A": {"name": "喷五波", "text": "改为 [channel_cone.count] 波，每波伤害降低。", "patches": [{"op": "set", "effect": "channel_cone", "field": "count", "value": 5}, {"op": "scale", "effect": "damage", "fields": ["base", "ad_ratio", "ap_ratio", "max_hp_ratio"], "ratio": 0.75}]},
@@ -629,7 +630,7 @@
     {
       "id": "active_hose_down", "opening": true, "cooldown_family": "cd_hose_down", "element": "water", "hit_type": "area",
       "target": {"mode": "DirectionLine", "range": {"unit": "cm", "value": 600}, "half_width": {"unit": "cm", "value": 80}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 7},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 4.9},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.55}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 180}, "duration": {"unit": "s", "value": 0.15}}, {"op": "wet"}],
       "ranks": {
         "2A": {"name": "拉回来", "text": "改为把命中的人拉近。", "patches": [{"op": "add", "effect": {"op": "pull", "distance": {"unit": "cm", "value": 180}, "duration": {"unit": "s", "value": 0.15}, "min_distance": {"unit": "cm", "value": 120}}}]},
@@ -643,7 +644,7 @@
     {
       "id": "active_zap", "opening": true, "cooldown_family": "cd_zap", "element": "shock", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 650}}, "windup": {"unit": "s", "value": 0.25},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 7},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 4.9},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "electrify"}, {"op": "chain_bounce", "count": 2, "radius": {"unit": "cm", "value": 350}, "ratio": {"unit": "ratio", "value": 0.7}, "interval": {"unit": "s", "value": 0.15}}],
       "ranks": {
         "2A": {"name": "多弹两下", "text": "最多弹 [chain_bounce.count] 次。", "patches": [{"op": "set", "effect": "chain_bounce", "field": "count", "value": 4}]},
@@ -657,7 +658,7 @@
     {
       "id": "active_charged_ram", "opening": true, "cooldown_family": "cd_charged_ram", "element": "shock", "hit_type": "dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0.1},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 9},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
       "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 450}, "duration": {"unit": "s", "value": 0.3}}, {"op": "shield", "base": {"unit": "hp", "value": 60}, "ap_ratio": {"unit": "ratio", "value": 0}, "duration": {"unit": "s", "value": 2}, "max_hp_ratio": {"unit": "ratio", "value": 0.04}}, {"op": "dash_contact", "targets": "Every"}, {"op": "damage", "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "electrify"}],
       "ranks": {
         "2A": {"name": "满电", "text": "护盾变为 [shield.amount]。", "patches": [{"op": "scale", "effect": "shield", "fields": ["base", "ap_ratio", "max_hp_ratio"], "ratio": 1.6}]},
@@ -671,7 +672,7 @@
     {
       "id": "active_brace", "opening": false, "cooldown_family": "cd_brace", "element": "none", "hit_type": "self",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0.1},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 12},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 8.4},
       "effects": [{"op": "brace", "duration": {"unit": "s", "value": 3}, "ratio": {"unit": "ratio", "value": 0.2}, "limit": {"unit": "points", "value": 120}, "radius": {"unit": "cm", "value": 300}, "base": {"unit": "points", "value": 50}, "record_ratio": {"unit": "ratio", "value": 0.6}}],
       "ranks": {
         "2A": {"name": "硬顶", "text": "减伤改为 [brace.ratio]%，记录上限变高。", "patches": [{"op": "set", "effect": "brace", "field": "ratio", "value": {"unit": "ratio", "value": 0.35}}, {"op": "scale", "effect": "brace", "fields": ["limit"], "ratio": 1.5}]},
@@ -685,7 +686,7 @@
     {
       "id": "active_dirty_puddle", "opening": true, "cooldown_family": "cd_dirty_puddle", "element": "water", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0.25},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 9},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
       "effects": [{"op": "zone", "radius": {"unit": "cm", "value": 220}, "duration": {"unit": "s", "value": 4}, "interval": {"unit": "s", "value": 1}, "delay": {"unit": "s", "value": 0}, "count": 4}, {"op": "zone_damage", "base": {"unit": "points", "value": 22}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.2}, "damage_type": "Magical"}, {"op": "zone_wet"}, {"op": "zone_haste", "ratio": {"unit": "ratio", "value": 0.15}}],
       "ranks": {
         "2A": {"name": "拖着泼", "text": "区域跟着你走，半径变为 [zone_tether.ratio]%。", "patches": [{"op": "add", "effect": {"op": "zone_tether", "radius_ratio": {"unit": "ratio", "value": 0.8}}}]},
@@ -699,7 +700,7 @@
     {
       "id": "active_sock_shot", "opening": true, "cooldown_family": "cd_sock_shot", "element": "rot", "hit_type": "projectile",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 750}, "projectile_radius": {"unit": "cm", "value": 55}, "projectile_speed": {"unit": "cm/s", "value": 1500}}, "windup": {"unit": "s", "value": 0.15},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 8},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 5.6},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "attack_slow", "ratio": {"unit": "ratio", "value": 0.2}, "duration": {"unit": "s", "value": 3}}, {"op": "rot"}],
       "ranks": {
         "2A": {"name": "糊满脸", "text": "攻速降低改为 [attack_slow.ratio]%。", "patches": [{"op": "set", "effect": "attack_slow", "field": "ratio", "value": {"unit": "ratio", "value": 0.35}}]},
@@ -714,7 +715,7 @@
     {
       "id": "active_cola_shake", "opening": true, "cooldown_family": "cd_cola_shake", "element": "chill", "hit_type": "area",
       "target": {"mode": "DirectionCone", "range": {"unit": "cm", "value": 400}, "angle": {"unit": "degrees", "value": 60}}, "windup": {"unit": "s", "value": 0.15},
-      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 6},
+      "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 4.2},
       "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.25}, "count": 1}, {"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.5}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "chill"}],
       "ranks": {
         "2A": {"name": "喷地成冰", "text": "扇形区留冰面 [ground_state.duration] 秒。", "patches": [{"op": "add", "effect": {"op": "ground_state", "kind": "ice", "duration": {"unit": "s", "value": 3}}}]},
@@ -728,7 +729,7 @@
     {
       "id": "active_desk_fan", "opening": false, "cooldown_family": "cd_desk_fan", "element": "gust", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 500}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 10},
+      "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 7},
       "effects": [{"op": "fan", "duration": {"unit": "s", "value": 4}, "interval": {"unit": "s", "value": 0.5}, "length": {"unit": "cm", "value": 600}, "width": {"unit": "cm", "value": 200}, "distance": {"unit": "cm", "value": 60}}, {"op": "gust"}],
       "ranks": {
         "2A": {"name": "大风扇", "text": "风更宽，推开 [fan.distance] 厘米。", "patches": [{"op": "set", "effect": "fan", "field": "width", "value": {"unit": "cm", "value": 300}}, {"op": "set", "effect": "fan", "field": "distance", "value": {"unit": "cm", "value": 100}}]},
@@ -742,7 +743,7 @@
     {
       "id": "active_stale_takeout", "opening": true, "cooldown_family": "cd_stale_takeout", "element": "rot", "hit_type": "projectile",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 700}, "projectile_radius": {"unit": "cm", "value": 60}, "projectile_speed": {"unit": "cm/s", "value": 1400}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 8},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 5.6},
       "effects": [{"op": "damage", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.7}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "rot"}, {"op": "ground_state", "kind": "miasma"}],
       "ranks": {
         "2A": {"name": "全家桶", "text": "毒雾更大。", "patches": [{"op": "set", "effect": "ground_state", "field": "radius_ratio", "value": {"unit": "ratio", "value": 1.5}}]},
@@ -756,7 +757,7 @@
     {
       "id": "active_school_bag", "opening": false, "cooldown_family": "cd_school_bag", "element": "none", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 450}}, "windup": {"unit": "s", "value": 0.2},
-      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 11},
+      "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 7.7},
       "effects": [{"op": "bag", "duration": {"unit": "s", "value": 4}, "count": 1, "hp_base": {"unit": "hp", "value": 150}, "hp_per_level": {"unit": "hp", "value": 20}, "radius": {"unit": "cm", "value": 200}, "size": {"unit": "cm", "value": 40}}, {"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
       "ranks": {
         "2A": {"name": "两个书包", "text": "同时可以放 [bag.count] 个书包。", "patches": [{"op": "set", "effect": "bag", "field": "count", "value": 2}]},
@@ -862,11 +863,11 @@
     },
     {
       "id": "card_quick_hands", "form": "basic", "type": "convert", "vocab": ["attack_speed", "basic_hit"],
-      "effects": [{"op": "overcap_extra_hit", "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.1}}]
+      "effects": [{"op": "overcap_extra_hit", "threshold": {"unit": "attacks/s", "value": 2}, "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.1}}]
     },
     {
       "id": "card_slow_craft", "form": "basic", "type": "convert", "vocab": ["attack_speed"],
-      "effects": [{"op": "speed_factor", "trigger": "AttackSpeedBelow", "threshold": {"unit": "attacks/s", "value": 1}, "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.08}}]
+      "effects": [{"op": "speed_factor", "trigger": "AttackSpeedBelow", "threshold": {"unit": "attacks/s", "value": 1.2}, "step": {"unit": "attacks/s", "value": 0.1}, "ratio": {"unit": "ratio", "value": 0.08}}]
     },
     {
       "id": "card_scholar_punch", "form": "basic", "type": "convert", "vocab": ["basic_hit"],
@@ -878,7 +879,7 @@
     },
     {
       "id": "card_muscle_memory", "form": "basic", "type": "grow", "vocab": ["basic_hit"],
-      "effects": [{"op": "hit_growth", "trigger": "BasicHit", "count": 25, "stats": {"ADFlat": {"unit": "points", "value": 1}}}]
+      "effects": [{"op": "hit_growth", "trigger": "BasicHit", "count": 10, "stats": {"ADFlat": {"unit": "points", "value": 1}}}]
     },
     {
       "id": "card_breach_fist", "form": "basic", "type": "grow", "vocab": ["basic_hit", "armor"],
@@ -950,7 +951,7 @@
     },
     {
       "id": "card_blood_price", "form": "skill", "type": "convert", "vocab": ["low_hp", "heal"],
-      "effects": [{"op": "hp_cost", "ratio": {"unit": "ratio", "value": 0.006}}, {"op": "skill_damage_factor", "ratio": {"unit": "ratio", "value": 0.2}}]
+      "effects": [{"op": "hp_cost", "ratio": {"unit": "ratio", "value": 0.0025}}, {"op": "skill_damage_factor", "ratio": {"unit": "ratio", "value": 0.2}}]
     },
     {
       "id": "card_lend_fist", "form": "skill", "type": "convert", "vocab": ["skill_hit"],
@@ -1094,7 +1095,7 @@
     },
     {
       "id": "card_short_breath", "form": "body", "type": "modify", "vocab": ["overdrive", "momentum"],
-      "effects": [{"op": "overdrive_short", "momentum": {"unit": "momentum", "value": 70}, "multiplier": {"unit": "ratio", "value": 1.4}}]
+      "effects": [{"op": "overdrive_short", "momentum": {"unit": "momentum", "value": 35}, "multiplier": {"unit": "ratio", "value": 1.4}}]
     },
     {
       "id": "card_double_stall", "form": "body", "type": "modify", "vocab": ["ground"],
@@ -1231,7 +1232,7 @@
   "progression": {
     "max_level": 16, "active_slots": 3, "xp_start": 0,
     "xp_thresholds": [0, 48, 108, 180, 264, 360, 468, 588, 720, 864, 1020, 1188, 1368, 1560, 1764, 1980],
-    "active_offer_levels": [3, 6]
+    "active_offer_levels": [2, 4]
   },
   "world": {
     "map_id": "demo_world",
@@ -1248,7 +1249,7 @@
     {"id": "card_both_hands", "namespace": "DemoContent", "name_key": "card_both_hands.name", "name_text": "左右开弓", "description_key": "card_both_hands.description", "description_text": "第三拳变成两下，每下 [combo_double.multiplier]% 伤害，两下都算普攻命中；每多一张多打一下。", "icon_id": "icon_card_both_hands"},
     {"id": "card_wide_swing", "namespace": "DemoContent", "name_key": "card_wide_swing.name", "name_text": "抡圆了打", "description_key": "card_wide_swing.description", "description_text": "第三段变成身前 [combo_sweep.angle]° 横扫：主目标全额，其他人 [combo_sweep.ratio]%。", "icon_id": "icon_card_wide_swing"},
     {"id": "card_fist_skill", "namespace": "DemoContent", "name_key": "card_fist_skill.name", "name_text": "拳里带招", "description_key": "card_fist_skill.description", "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。", "icon_id": "icon_card_fist_skill"},
-    {"id": "card_quick_hands", "namespace": "DemoContent", "name_key": "card_quick_hands.name", "name_text": "手快有手慢无", "description_key": "card_quick_hands.description", "description_text": "攻速超过上限的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。", "icon_id": "icon_card_quick_hands"},
+    {"id": "card_quick_hands", "namespace": "DemoContent", "name_key": "card_quick_hands.name", "name_text": "手快有手慢无", "description_key": "card_quick_hands.description", "description_text": "攻速超过 [overcap_extra_hit.threshold] 次/秒的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。", "icon_id": "icon_card_quick_hands"},
     {"id": "card_slow_craft", "namespace": "DemoContent", "name_key": "card_slow_craft.name", "name_text": "慢工出细活", "description_key": "card_slow_craft.description", "description_text": "攻速每比 [speed_factor.threshold] 次/秒低 [speed_factor.step]，普攻伤害 +[speed_factor.ratio]%。", "icon_id": "icon_card_slow_craft"},
     {"id": "card_scholar_punch", "namespace": "DemoContent", "name_key": "card_scholar_punch.name", "name_text": "读书人打架", "description_key": "card_scholar_punch.description", "description_text": "普攻额外造成 [basic_ap_rider.amount] 魔法伤害，跟着这一拳一起结算。", "icon_id": "icon_card_scholar_punch"},
     {"id": "card_heated_up", "namespace": "DemoContent", "name_key": "card_heated_up.name", "name_text": "越打越上头", "description_key": "card_heated_up.description", "description_text": "连续打同一个人，每下攻速 +[focus_attack_speed.ratio]%，没有上限；换人或 [focus_attack_speed.duration] 秒没打就清零。", "icon_id": "icon_card_heated_up"},

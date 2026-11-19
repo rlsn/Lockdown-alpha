@@ -31,6 +31,9 @@ struct FLDEvalContenderPlan
     TArray<TArray<FName>> Presets;
     // #198 workshop plan (empty: the production follow-up rule builds), in order.
     TArray<FLDEvaluationBuildStep> Build;
+    // #305 diagnostic: a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of the XP supply; None
+    // for none. The sample brings its own level, skills, branches, cards and points.
+    FName BreakoutPreset;
     // Optional "stance" object (absent: pursue): {"kind": "kite"|"burst"|"hold"|"guard", "standoff_cm": N,
     // "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, with the optional operation knobs "reaction_ms",
     // "aim_error_cm" and "skip_bp" on any stance; {"kind": "pursue"} is written only to carry knobs.

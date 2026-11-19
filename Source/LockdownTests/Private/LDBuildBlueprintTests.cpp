@@ -107,7 +107,7 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A composed record serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error));
     const FString Text=BlueprintUtf8(Bytes);
     TestTrue(TEXT("The file names its schema and version"),Text.Contains(TEXT("\"schema\": \"lockdown.build-blueprint\""))
-        &&Text.Contains(TEXT("\"schema_version\": 3"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
+        &&Text.Contains(TEXT("\"schema_version\": 4"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
     const int32 Debt=Text.Find(FString(TEXT("\""))+LDBuildBlueprint::FactKey(ELDBlueprintFact::DamageReduced)+TEXT("\""),
         ESearchCase::CaseSensitive,ESearchDir::FromEnd);
     const FString DebtObject=Debt==INDEX_NONE?FString():Text.Mid(Debt,160);
@@ -139,6 +139,24 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     }
     TArray<uint8> Again;
     TestTrue(TEXT("Serialization is canonical: a read record writes the same bytes"),LDBuildBlueprint::Serialize(Parsed,Again,Error)&&Again==Bytes);
+    // #305: a skill's branch path is part of the recorded build and round-trips; an unknown path is refused.
+    TestTrue(TEXT("A rank 1 skill records an empty branch"),Text.Contains(TEXT("\"branch\": \"\"")));
+    FLDBlueprintRecord Ranked=Record;
+    Ranked.FinalBuild.Actives[0].Branch=TEXT("3A1");
+    Ranked.Versions.Last().Structure.Actives[0].Branch=TEXT("3A1");
+    TArray<uint8> RankedBytes;
+    FLDBlueprintRecord RankedBack;
+    TestTrue(TEXT("A branch path survives the round trip"),LDBuildBlueprint::Serialize(Ranked,RankedBytes,Error)
+        &&LDBuildBlueprint::Parse(RankedBytes,LDBuildBlueprint::MaxFileBytes,RankedBack,Detail)==ELDBlueprintParseError::None
+        &&RankedBack.FinalBuild.Actives[0].Branch==TEXT("3A1"));
+    const FString Bad=BlueprintUtf8(RankedBytes).Replace(TEXT("\"branch\": \"3A1\""),TEXT("\"branch\": \"4C\""));
+    FTCHARToUTF8 BadUtf8(*Bad);
+    TArray<uint8> BadBytes((const uint8*)BadUtf8.Get(),BadUtf8.Length());
+    TestTrue(TEXT("An unknown branch path is refused"),
+        LDBuildBlueprint::Parse(BadBytes,LDBuildBlueprint::MaxFileBytes,RankedBack,Detail)!=ELDBlueprintParseError::None);
+    ELDSkillBranch Branch=ELDSkillBranch::None;
+    TestTrue(TEXT("Every branch path names itself"),LDBuildBlueprint::BranchText(ELDSkillBranch::B2)==TEXT("3B2")
+        &&LDBuildBlueprint::ParseBranch(TEXT("2B"),Branch)&&Branch==ELDSkillBranch::B&&!LDBuildBlueprint::ParseBranch(TEXT("3C1"),Branch));
     return true;
 }
 
@@ -169,7 +187,7 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Text that is no JSON is refused"),BlueprintParseText(TEXT("lockdown build"))==ELDBlueprintParseError::NotJson);
     TestTrue(TEXT("Another schema is refused"),BlueprintParseText(Text.Replace(TEXT("lockdown.build-blueprint"),TEXT("lockdown.other-record")))==ELDBlueprintParseError::WrongSchema);
     TestTrue(TEXT("An unknown schema version is refused, not guessed"),
-        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 3"),TEXT("\"schema_version\": 4")))==ELDBlueprintParseError::UnknownVersion);
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")))==ELDBlueprintParseError::UnknownVersion);
     TestTrue(TEXT("A dash FIN cannot smuggle a named active into its binding"),
         BlueprintParseText(Text.Replace(TEXT("\"target_id\": \"\""),TEXT("\"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
@@ -232,7 +250,7 @@ bool FLDBuildBlueprintPruneTest::RunTest(const FString& Parameters)
         if(!BlueprintSample(*this,FGuid::NewGuid(),Base-FTimespan::FromDays(29),Future)){return false;}
         LDBuildBlueprint::Serialize(Future,Bytes,Error);
         const FString Unknown=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(Future.MatchId));
-        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 3"),TEXT("\"schema_version\": 4")),*Unknown,
+        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")),*Unknown,
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
         Foreign.Add(Unknown);
         const FString Broken=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(FGuid::NewGuid().ToString(EGuidFormats::Digits)));

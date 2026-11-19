@@ -451,8 +451,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         1020, 1188, 1368, 1560, 1764, 1980};
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 3 and 6"),
-        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({3, 6}));
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2 and 4"),
+        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 4}));
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20);
     bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),
@@ -536,17 +536,17 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             LDProgression::LevelForXP(BrokenCurve, 0, Level), ELDGrowthReason::DataInvalid);
     }
 
-    // The opening opportunity is ordinal 1; reaching level 3 and level 6 each add exactly one more.
-    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 1}, {3, 2}, {5, 2}, {6, 3}, {10, 3}, {16, 3}};
+    // The opening opportunity is ordinal 1; reaching level 2 and level 4 each add exactly one more.
+    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 3}, {5, 3}, {10, 3}, {16, 3}};
     for (const TPair<int32, int32>& Row : OpportunityCases)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Active opportunities held at level %d"), Row.Key),
             int32(LDProgression::ActiveOpportunitiesAt(Curve, uint8(Row.Key))), Row.Value);
     }
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 47, 1, 1, TEXT("47 XP at level 1 keeps only the opening opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 48, 2, 1, TEXT("Level 2 adds no active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 48, 2, 60, 3, 2, TEXT("Level 3 adds the first extra active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 360, 6, 3, TEXT("Crossing levels 3 and 6 at once adds both"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 48, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 48, 2, 60, 3, 2, TEXT("Level 3 adds no active opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 360, 6, 3, TEXT("Crossing levels 2 and 4 at once adds both"));
     bGood &= GrowthTestPlan(Test, Curve, 864, 10, 504, 13, 3, TEXT("504 XP at level 10 reaches level 13 without another"));
     bGood &= GrowthTestPlan(Test, Curve, 1980, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
@@ -1082,7 +1082,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     }
     bGood &= Test.TestNotEqual(TEXT("Each contender draws its own opening offer"), FirstOffers[Human], FirstOffers[Bot]);
 
-    // XP only moves the level; levels 3 and 6 queue one active opportunity each behind the kept opening offer.
+    // XP only moves the level; levels 2 and 4 queue one active opportunity each behind the kept opening offer.
     const FLDPrepareGrowthResult Zero = Development->PrepareExperience(Human, 0);
     bGood &= Test.TestTrue(TEXT("A zero grant changes nothing and advances no revision"), Zero.IsSuccess() && !Zero.Value->ChangesBuild()
         && Zero.Value->Progression().Revision == Development->FindProgression(Human)->Revision);
@@ -1091,16 +1091,16 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         && Short.Value->Build().Level == 1 && Short.Value->Progression().ActiveEarned == 1 && !Short.Value->ChangesBuild()
         && Short.Value->Progression().Offer.IsSet() && Short.Value->Progression().Offer->OfferId == FirstOffers[Human]);
     const FLDPrepareGrowthResult Two = Development->PrepareExperience(Human, 48);
-    bGood &= Test.TestTrue(TEXT("Level 2 changes the build but queues no active opportunity"), Two.IsSuccess()
-        && Two.Value->Build().Level == 2 && Two.Value->ChangesBuild() && Two.Value->Progression().ActiveEarned == 1
+    bGood &= Test.TestTrue(TEXT("Level 2 changes the build and queues opportunity 2"), Two.IsSuccess()
+        && Two.Value->Build().Level == 2 && Two.Value->ChangesBuild() && Two.Value->Progression().ActiveEarned == 2
         && Two.Value->Build().StatPoints == Development->FindBuild(Human)->StatPoints);
     const FLDPrepareGrowthResult Three = Development->PrepareExperience(Human, 108);
-    bGood &= Test.TestTrue(TEXT("Level 3 queues opportunity 2 behind the unchanged opening offer"), Three.IsSuccess()
+    bGood &= Test.TestTrue(TEXT("Level 3 keeps opportunity 2 queued behind the unchanged opening offer"), Three.IsSuccess()
         && Three.Value->Build().Level == 3 && Three.Value->Progression().ActiveEarned == 2
         && Three.Value->Progression().QueuedActiveOpportunities() == 2
         && Three.Value->Progression().Offer.IsSet() && Three.Value->Progression().Offer->OfferId == FirstOffers[Human]);
     const FLDPrepareGrowthResult Six = Development->PrepareExperience(Human, 360);
-    bGood &= Test.TestTrue(TEXT("Level 6 queues opportunity 3"), Six.IsSuccess() && Six.Value->Build().Level == 6
+    bGood &= Test.TestTrue(TEXT("By level 6 opportunity 3 (level 4) is queued"), Six.IsSuccess() && Six.Value->Build().Level == 6
         && Six.Value->Progression().ActiveEarned == 3 && Six.Value->Progression().QueuedActiveOpportunities() == 3);
     // Levels 2..6 each receive their named card instead of a level-up offer.
     const TArray<FName> FixedCards = {FName(TEXT("card_third_breath")), FName(TEXT("card_third_breath")),
@@ -2617,6 +2617,21 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A late final-field map reward cannot grant XP or components"),
         FieldOutcome == ELDRewardOutcome::PermanentlyRejected && FieldReason == ELDGrowthReason::PhaseClosed
         && TotalXP() == BeforeFinalDeath);
+    // #305: the audit affix's skill point is paid at a camp clear, inside DeathsAndRewards; it changes no Combat projection.
+    bool bPointGranted = false;
+    FString PointError;
+    ++StepAtMs;
+    if (Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) != ELDCommitReject::None
+        || !Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+        || !Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards,
+            [&](const FLDGameplayWritePermit& Permit)
+            {
+                bPointGranted = Mode->Development->GrantSkillPoint(Killer, TEXT("ca_audit"), Permit, PointError);
+                return true;
+            }, Error)
+        || !Mode->FinishAuthorityStep(*Driver, Error))
+    { AddError(Error); return false; }
+    TestTrue(TEXT("A skill point reward commits in the death and reward phase: ") + PointError, bPointGranted);
     return true;
 }
 
@@ -3553,44 +3568,44 @@ bool FLDGrowthCardsCapacityTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    // Spec §3.12: 6 slots at levels 1-5, then one more every five levels: 9 at level 16.
-    bool bGood = TestTrue(TEXT("Capacity 6 / 6 / 7 / 8 / 9 at levels 1 / 5 / 6 / 11 / 16"),
-        LDProgression::CardCapacity(Content.Parameters, 1) == 6 && LDProgression::CardCapacity(Content.Parameters, 5) == 6
-        && LDProgression::CardCapacity(Content.Parameters, 6) == 7 && LDProgression::CardCapacity(Content.Parameters, 11) == 8
-        && LDProgression::CardCapacity(Content.Parameters, 16) == 9);
+    // #305: 4 slots at levels 1-3, then one more every three levels: 9 at level 16.
+    bool bGood = TestTrue(TEXT("Capacity 4 / 4 / 5 / 6 / 8 / 9 at levels 1 / 3 / 4 / 7 / 13 / 16"),
+        LDProgression::CardCapacity(Content.Parameters, 1) == 4 && LDProgression::CardCapacity(Content.Parameters, 3) == 4
+        && LDProgression::CardCapacity(Content.Parameters, 4) == 5 && LDProgression::CardCapacity(Content.Parameters, 7) == 6
+        && LDProgression::CardCapacity(Content.Parameters, 13) == 8 && LDProgression::CardCapacity(Content.Parameters, 16) == 9);
     FLDGrowthBuild Build = Learned(Content, 1);
     FLDCardTarget OnBody;
     OnBody.Kind = ELDCardTargetKind::Body;
-    for (int32 Index = 0; Index < 7; ++Index)
+    for (int32 Index = 0; Index < 5; ++Index)
     {
         uint16 Serial = 0;
         LDProgression::ReceiveCard(Content, Build, TEXT("card_spiky_hide"), uint16(Index + 2), Serial);
     }
     FLDGrowthBuild Out;
-    for (uint16 Serial = 1; Serial <= 6; ++Serial)
+    for (uint16 Serial = 1; Serial <= 4; ++Serial)
     {
         bGood &= GrowthTestReason(*this, FString::Printf(TEXT("Copy %u fits"), Serial),
             LDProgression::ApplyInstallCard(Content, Build, Serial, OnBody, Live(), Out), ELDGrowthReason::None);
         Build = Out;
     }
-    bGood &= GrowthTestReason(*this, TEXT("The seventh at level 1 is refused"),
-        LDProgression::ApplyInstallCard(Content, Build, 7, OnBody, Live(), Out), ELDGrowthReason::WorkshopFull);
-    bGood &= TestEqual(TEXT("A refused install changes nothing"), LDProgression::InstalledCards(Out), 6);
+    bGood &= GrowthTestReason(*this, TEXT("The fifth at level 1 is refused"),
+        LDProgression::ApplyInstallCard(Content, Build, 5, OnBody, Live(), Out), ELDGrowthReason::WorkshopFull);
+    bGood &= TestEqual(TEXT("A refused install changes nothing"), LDProgression::InstalledCards(Out), 4);
     TArray<uint16> Swapped;
     bGood &= GrowthTestReason(*this, TEXT("A full workshop swaps one card for another"),
-        LDProgression::ApplyInstallCard(Content, Build, 7, OnBody, Live(), Out, 1, &Swapped), ELDGrowthReason::None);
+        LDProgression::ApplyInstallCard(Content, Build, 5, OnBody, Live(), Out, 1, &Swapped), ELDGrowthReason::None);
     bGood &= TestTrue(TEXT("The replaced card goes back to the library"), Swapped == TArray<uint16>({1}) && !Out.FindCard(1)->IsInstalled()
-        && Out.FindCard(7)->IsInstalled() && LDProgression::InstalledCards(Out) == 6);
+        && Out.FindCard(5)->IsInstalled() && LDProgression::InstalledCards(Out) == 4);
     FLDGrowthBuild Freed;
-    bGood &= GrowthTestReason(*this, TEXT("An uninstall frees a slot"), LDProgression::ApplyUninstallCard(Content, Build, 6, Live(), Freed),
+    bGood &= GrowthTestReason(*this, TEXT("An uninstall frees a slot"), LDProgression::ApplyUninstallCard(Content, Build, 4, Live(), Freed),
         ELDGrowthReason::None) && GrowthTestReason(*this, TEXT("The freed slot takes the next card"),
-        LDProgression::ApplyInstallCard(Content, Freed, 7, OnBody, Live(), Out), ELDGrowthReason::None);
+        LDProgression::ApplyInstallCard(Content, Freed, 5, OnBody, Live(), Out), ELDGrowthReason::None);
     FLDGrowthBuild Over = Build;
-    Over.FindCard(7)->Target = OnBody;
+    Over.FindCard(5)->Target = OnBody;
     bGood &= GrowthTestReason(*this, TEXT("A stored build past its capacity is invalid"), LDProgression::ValidateBuild(Content, Over),
         ELDGrowthReason::DataInvalid);
-    Over.Level = 6;
-    bGood &= GrowthTestReason(*this, TEXT("Level 6 holds seven"), LDProgression::ValidateBuild(Content, Over), ELDGrowthReason::None);
+    Over.Level = 4;
+    bGood &= GrowthTestReason(*this, TEXT("Level 4 holds five"), LDProgression::ValidateBuild(Content, Over), ELDGrowthReason::None);
     return bGood;
 }
 

@@ -615,15 +615,15 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
         LDTerms::BossDownBy(TEXT("甲"),LDTerms::Boss));
     // D27: the 上热搜 line names the leader (#144: no bounty); the leader is told directly.
     FLDLeaderView Named;
-    TestTrue(TEXT("Nobody named shows no leader line"),LDHUD::LeaderLine(Named,Me,FString()).IsEmpty());
+    TestTrue(TEXT("Nobody named shows no leader line"),LDHUD::LeaderLine(Named.Leader,Me,FString()).IsEmpty());
     Named.Leader=FGuid::NewGuid();Named.RefreshedAtMs=20000;
-    TestEqualSensitive(TEXT("Another contender's notice names the public roster name"),LDHUD::LeaderLine(Named,Me,TEXT("甲")),
+    TestEqualSensitive(TEXT("Another contender's notice names the public roster name"),LDHUD::LeaderLine(Named.Leader,Me,TEXT("甲")),
         LDTerms::LeaderNamed(TEXT("甲")));
-    TestTrue(TEXT("The notice is called 上热搜 and carries no bounty"),LDHUD::LeaderLine(Named,Me,TEXT("甲")).StartsWith(LDTerms::Leader)
-        &&!LDHUD::LeaderLine(Named,Me,TEXT("甲")).Contains(TEXT("赏金")));
-    TestEqualSensitive(TEXT("An unlisted leader is not given an invented name"),LDHUD::LeaderLine(Named,Me,FString()),LDTerms::LeaderNamed(TEXT("未列名参赛者")));
+    TestTrue(TEXT("The notice is called 上热搜 and carries no bounty"),LDHUD::LeaderLine(Named.Leader,Me,TEXT("甲")).StartsWith(LDTerms::Leader)
+        &&!LDHUD::LeaderLine(Named.Leader,Me,TEXT("甲")).Contains(TEXT("赏金")));
+    TestEqualSensitive(TEXT("An unlisted leader is not given an invented name"),LDHUD::LeaderLine(Named.Leader,Me,FString()),LDTerms::LeaderNamed(TEXT("未列名参赛者")));
     Named.Leader=Me;
-    TestEqualSensitive(TEXT("The leader is told its place is public"),LDHUD::LeaderLine(Named,Me,TEXT("我")),LDTerms::LeaderSelf());
+    TestEqualSensitive(TEXT("The leader is told its place is public"),LDHUD::LeaderLine(Named.Leader,Me,TEXT("我")),LDTerms::LeaderSelf());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCardTextTest,"Lockdown.Rules.HUDCardText",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

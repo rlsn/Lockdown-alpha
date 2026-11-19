@@ -532,4 +532,59 @@ bool FLDWorldFeedbackReactionsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The same occurrence seen older stays quiet"),Reactions(WorldFeedbackTestObserve(Seen,View)).IsEmpty());
     return true;
 }
+// #305: a perfect dodge and the end of a counted chain each float one word over the own body; the first view only primes.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldFeedbackDodgeAndChainTest,"Lockdown.Rules.WorldFeedback.DodgeAndChain",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDWorldFeedbackDodgeAndChainTest::RunTest(const FString& Parameters)
+{
+    using LDWorldFeedback::EKind;
+    const auto Only=[](const FWorldFeedbackTestEvents& Events,EKind Kind)
+    {
+        FWorldFeedbackTestEvents Out;
+        for(const LDWorldFeedback::FEvent& Event:Events){if(Event.Kind==Kind){Out.Add(Event);}}
+        return Out;
+    };
+    LDWorldFeedback::FTracker Own;
+    FLDCombatOwnerView Combat=WorldFeedbackTestBody(4,1,1,1000,50000);
+    Combat.PerfectDodges=2;
+    FLDChainEndView Old;Old.Serial=3;Old.Steps=4;
+    Combat.Chains={Old};
+    LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(4,1,FGuid::NewGuid());Sample.OwnCombat=&Combat;
+    const FWorldFeedbackTestEvents First=WorldFeedbackTestObserve(Own,Sample);
+    TestTrue(TEXT("Dodges and chains already there when the life is first seen stay quiet"),
+        Only(First,EKind::PerfectDodge).IsEmpty()&&Only(First,EKind::ChainEnd).IsEmpty());
+    Combat.PerfectDodges=3;
+    FLDChainEndView Fresh;Fresh.Serial=4;Fresh.Steps=5;
+    Combat.Chains={Old,Fresh};
+    const FWorldFeedbackTestEvents Next=WorldFeedbackTestObserve(Own,Sample);
+    const FWorldFeedbackTestEvents Dodges=Only(Next,EKind::PerfectDodge),Chains=Only(Next,EKind::ChainEnd);
+    TestTrue(TEXT("A new perfect dodge floats its word over the own body"),Dodges.Num()==1&&Dodges[0].bOwn
+        &&LDWorldFeedback::Text(Dodges[0])==FString(LDTerms::PerfectDodge)+TEXT("！"));
+    TestTrue(TEXT("A newly ended chain floats its steps once"),Chains.Num()==1&&Chains[0].Amount==5
+        &&LDWorldFeedback::Text(Chains[0])==LDTerms::ChainEndFloat(5));
+    const FWorldFeedbackTestEvents Again=WorldFeedbackTestObserve(Own,Sample);
+    TestTrue(TEXT("Neither floats twice"),Only(Again,EKind::PerfectDodge).IsEmpty()&&Only(Again,EKind::ChainEnd).IsEmpty());
+    // A chain that ends while the view is interrupted stays quiet on the resumed body; the next one floats.
+    Own.Interrupt();
+    FLDChainEndView Missed;Missed.Serial=5;Missed.Steps=6;
+    Combat.Chains={Fresh,Missed};
+    TestTrue(TEXT("A chain that ended during an interruption does not replay"),
+        Only(WorldFeedbackTestObserve(Own,Sample),EKind::ChainEnd).IsEmpty());
+    FLDChainEndView After;After.Serial=6;After.Steps=7;
+    Combat.Chains={Missed,After};
+    const FWorldFeedbackTestEvents Resumed=Only(WorldFeedbackTestObserve(Own,Sample),EKind::ChainEnd);
+    TestTrue(TEXT("The first chain after the interruption floats once"),Resumed.Num()==1&&Resumed[0].Amount==7);
+    // A chain that ends while dead stays quiet over the next life.
+    FLDCombatOwnerView Reborn=WorldFeedbackTestBody(4,2,1,2000,50000);
+    Reborn.PerfectDodges=3;
+    FLDChainEndView Posthumous;Posthumous.Serial=7;Posthumous.Steps=8;
+    Reborn.Chains={After,Posthumous};
+    LDWorldFeedback::FSample NextLife=WorldFeedbackTestSample(4,2,Sample.Self);NextLife.OwnCombat=&Reborn;
+    TestTrue(TEXT("A chain that ended before the next life does not float over it"),
+        Only(WorldFeedbackTestObserve(Own,NextLife),EKind::ChainEnd).IsEmpty());
+    FLDChainEndView Living;Living.Serial=8;Living.Steps=9;
+    Reborn.Chains={Posthumous,Living};
+    const FWorldFeedbackTestEvents SecondLife=Only(WorldFeedbackTestObserve(Own,NextLife),EKind::ChainEnd);
+    TestTrue(TEXT("A chain of the next life floats once"),SecondLife.Num()==1&&SecondLife[0].Amount==9);
+    return true;
+}
 #endif

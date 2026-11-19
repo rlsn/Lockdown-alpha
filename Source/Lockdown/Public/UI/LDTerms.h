@@ -269,6 +269,8 @@ inline const TCHAR* const ShopTitle=TEXT("商店");
 inline const TCHAR* const ChainCodex=TEXT("连锁图鉴");
 inline FString ChainCodexCount(int32 Count){return FString::Printf(TEXT("已发现 %d 种连锁"),Count);}
 inline FString ChainLongest(int32 Steps){return FString::Printf(TEXT("最长 %d 步"),Steps);}
+// #305: the float over the own body when a counted chain of its ends.
+inline FString ChainEndFloat(int32 Steps){return FString::Printf(TEXT("连锁 ×%d！"),Steps);}
 inline FString ShopToggle(int32 Vouchers){return FString::Printf(TEXT("商店 · 票 %d"),Vouchers);}
 inline FString ShopRefresh(int32 Price){return FString::Printf(TEXT("刷新 %d票"),Price);}
 inline FString ShopSkillPoint(int32 Price,int32 Bought,int32 Max){return FString::Printf(TEXT("技能点 %d票  %d/%d"),Price,Bought,Max);}

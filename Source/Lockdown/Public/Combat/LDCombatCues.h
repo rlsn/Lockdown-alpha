@@ -36,7 +36,11 @@ namespace LDCombatCues
     // the target's life. Never part of an observed hit.
     constexpr uint8 DealtLethal=8;
     static_assert((DealtLethal & LDObservation::HitFlagsMask)==0, "The lethal receipt bit is outside the observed hit flags.");
-    LOCKDOWN_API uint8 ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal);
-    // The confirmation strength of receipt flags: lethal, then critical, then a broken shield, then any other hit.
+    // Owner receipt only: the confirmed blow came from an overdrive release (#305: it reads as its own heavy hit).
+    constexpr uint8 DealtOverdrive=16;
+    static_assert((DealtOverdrive & (LDObservation::HitFlagsMask | DealtLethal))==0, "The overdrive receipt bit is its own.");
+    LOCKDOWN_API uint8 ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal,
+        bool bOverdrive=false);
+    // The confirmation strength of receipt flags: lethal, then overdrive, then critical, then a broken shield, then any hit.
     LOCKDOWN_API int32 DealtRank(uint8 DealtFlags);
 }

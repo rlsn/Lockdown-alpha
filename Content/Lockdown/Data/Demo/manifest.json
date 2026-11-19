@@ -1,10 +1,10 @@
 {
-  "author_schema_sha256": "696c181d1d2f2b82f153c5639fb97f09e850a8dce9b47857d5a659df1e23c179",
+  "author_schema_sha256": "5122f41f5d9c9d18518569ed04e28fca8b6b2ae3527d7de492b01fbfc62f9c2b",
   "content": {
     "file": "demo_content.json",
-    "sha256": "d1c9a718c3a433f0bbf83438a70a110b3846c3756ea4f416f2bbe02bd972091b"
+    "sha256": "6339cc63045463e3caca346de529a5ab578bab56eee1a98d80435f78101c9707"
   },
-  "display_sha256": "006c9fc59ec2e44a826cf0d4d7490a2b1943de51d5c6bd353603ad269793ca0a",
+  "display_sha256": "ce6e88205f527cbf3f71ac25c0c6f203449a041f598b5ac36629eb596870bf11",
   "format": "lockdown-demo-content",
   "handler_revision": 14,
   "native_contract_sha256": "b83b9e2998dd5ae960fe6a3a8a2eee49c397f85cc78b068255f7629bcd422b73",

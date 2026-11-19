@@ -245,7 +245,7 @@ class CapabilitiesTest(AdapterCase):
                          "Y25 chooses an element")
         self.assertEqual(self.caps["content"]["cards"], len(cards))
         self.assertEqual(set(self.caps["decisions"]),
-                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards",
+                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards", "breakout_preset",
                           "allocate_points", "install_card", "uninstall_card", "respec_points", "learn_blueprint", "replace_active"})
         self.assertTrue(all(row["description"] for row in self.caps["decisions"].values()))
         for decision, reason in lockdown.UNPLANNABLE.values():
@@ -264,7 +264,7 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
         self.assertEqual(lockdown.level_for(self.content["progression"], 180), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 179, 180, 599, 600)], [1, 2, 2, 3, 3])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 47, 48, 179, 180)], [1, 1, 2, 2, 3])
 
 
 class PlanTest(AdapterCase):
@@ -303,26 +303,44 @@ class PlanTest(AdapterCase):
                         self.caps, self.caps["scenarios"][value["scenario"]["kind"]], value, arm, lockdown), [],
                         "shipped experiments must use supported mechanics and decisions")
 
-    def test_pending_breakout_manifest_is_a_valid_experiment_waiting_for_its_presets(self):
-        # The #287 §7.6 samples need the breakout_preset side field and #289's DEV presets; until both exist the manifest
-        # stays outside the admitted set above, but its experiment shape is checked now.
-        paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests" / "pending-p2").glob("*.json"))
-        self.assertTrue(paths)
-        for path in paths:
-            value = core.validate_manifest(core.read_json(path))
-            arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
-            reference = arms.pop(value["design"]["reference"])
-            self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
-            self.assertEqual(len(arms), 9)
-            for arm, plan in arms.items():
+    def test_breakout_manifest_runs_every_sample_against_a_bare_build(self):
+        # #287 §7.6: each DEV breakout sample (breakout_preset) faces the same-level bare build.
+        value = core.validate_manifest(core.read_json(ROOT / "Scripts" / "BuildEvaluationManifests" / "p3-breakout-samples.json"))
+        arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
+        reference = arms.pop(value["design"]["reference"])
+        self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
+        self.assertEqual(len(arms), 10)
+        for arm, plan in arms.items():
+            with self.subTest(arm=arm):
+                self.assertEqual(lockdown.requirements(value["scenario"], plan, self.caps)["problems"], [])
                 self.assertEqual(plan["subject"].get("breakout_preset"), f"breakout_{arm}")
                 self.assertEqual(plan["opponent"], reference["opponent"], "every sample faces the same-level bare build")
+
+    def test_breakout_sample_is_judged_by_its_committed_preset(self):
+        # A breakout side is proven by the authority's one LD_DEV_BREAKOUT_PRESET and its terminal level and cards; its
+        # ordinary offers and choices are not evidence.
+        plan = {"subject": {"choices": ["ai_select"], "breakout_preset": "breakout_lifesteal"}, "opponent": {"choices": []}}
+        ids = {"subject": "A" * 32, "opponent": "B" * 32}
+        rows = {"subject": {"level": 16, "cards": [{}] * 5, "actives": [], "blueprints": []},
+                "opponent": {"level": 16, "cards": [], "actives": [], "blueprints": []}}
+        applied = ("LD_DEV_BREAKOUT_PRESET", {"contender": ids["subject"], "preset": "breakout_lifesteal", "level": "16", "cards": "5"}, 0)
+        stray = ("LD_CHOICE", {"contender": ids["subject"], "ordinal": "1", "t": "5", "level": "1"}, 0)
+        self.assertEqual(lockdown.breakout_roles(plan), {"subject"})
+        self.assertEqual(lockdown.breakout_problems([applied], ids, plan, rows), [])
+        self.assertEqual(lockdown.selection_problems([stray, applied], ids, plan, rows, 100), [])
+        self.assertTrue(lockdown.breakout_problems([], ids, plan, rows))
+        self.assertTrue(lockdown.breakout_problems([applied, applied], ids, plan, rows))
+        rows["subject"]["level"] = 15
+        self.assertTrue(lockdown.breakout_problems([applied], ids, plan, rows))
+        other = ("LD_DEV_BREAKOUT_PRESET", {"contender": ids["opponent"], "preset": "breakout_lifesteal", "level": "16", "cards": "5"}, 0)
+        rows["subject"]["level"] = 16
+        self.assertTrue(lockdown.breakout_problems([applied, other], ids, plan, rows))
 
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
         self.assertTrue(any("has 2 rules but its supply of 600 XP gives 3 active opportunities" in item for item in needs["problems"]))
-        needs = self.requirements({"choices": ["ai_select"] * 2}, supply=180)
-        self.assertEqual(needs["problems"], [], "180 XP gives the opening opportunity and the level-3 one")
+        needs = self.requirements({"choices": ["ai_select"] * 2}, supply=108)
+        self.assertEqual(needs["problems"], [], "108 XP gives the opening opportunity and the level-2 one")
         needs = self.requirements({"choices": [{"rule": "definition", "definition": "active_stare_down"}, "ai_select", "ai_select"]})
         self.assertTrue(any("ordinal 1 can never offer active_stare_down" in item for item in needs["problems"]))
         needs = self.requirements({"choices": ["ai_select", {"rule": "definition", "definition": "active_stare_down"}, "ai_select"]})
@@ -436,7 +454,7 @@ class PlanTest(AdapterCase):
             "takes no element": plan([*build[:1], {**build[1], "element": "fire"}, *build[2:]]),
             "no copy of card_thick_hide is installed": plan([*build[:4], {"step": "uninstall", "at": "field",
                                                                           "card": "card_thick_hide"}, build[5]]),
-            "holds 7 cards": plan([*build[:4], *[{"step": "install", "at": "field", "card": name, "target": place}
+            "holds 6 cards": plan([*build[:4], *[{"step": "install", "at": "field", "card": name, "target": place}
                                                   for name, place in (("card_third_breath", "basic"), ("card_double_dash", "dash"),
                                                                       ("card_thick_hide", "body"), ("card_spiky_hide", "body"),
                                                                       ("card_spiky_hide", "body"))], build[5]]),

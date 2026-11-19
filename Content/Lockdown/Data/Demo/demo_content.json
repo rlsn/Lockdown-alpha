@@ -4,7 +4,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -85,7 +85,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -148,7 +148,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -234,7 +234,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -331,7 +331,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -406,7 +406,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -477,7 +477,7 @@
         }
       ],
       "cooldown": {
-        "ms": 9000,
+        "ms": 6300,
         "unit": "ms"
       },
       "cooldown_family": "cd_account_banned",
@@ -541,7 +541,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -615,7 +615,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -709,7 +709,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -796,7 +796,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -874,7 +874,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -972,7 +972,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -1067,7 +1067,7 @@
         }
       ],
       "cooldown": {
-        "ms": 8000,
+        "ms": 5600,
         "unit": "ms"
       },
       "cooldown_family": "cd_apology_slide",
@@ -1149,7 +1149,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -1223,7 +1223,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -1287,7 +1287,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -1365,7 +1365,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -1456,7 +1456,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -1547,7 +1547,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -1612,7 +1612,7 @@
         }
       ],
       "cooldown": {
-        "ms": 7000,
+        "ms": 4900,
         "unit": "ms"
       },
       "cooldown_family": "cd_bail_out",
@@ -1677,7 +1677,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -1731,7 +1731,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -1793,7 +1793,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -1855,7 +1855,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -1917,7 +1917,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -1992,7 +1992,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -2062,7 +2062,7 @@
         }
       ],
       "cooldown": {
-        "ms": 12000,
+        "ms": 8400,
         "unit": "ms"
       },
       "cooldown_family": "cd_brace",
@@ -2121,7 +2121,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -2210,7 +2210,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -2283,7 +2283,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -2376,7 +2376,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -2466,7 +2466,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -2543,7 +2543,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -2625,7 +2625,7 @@
         }
       ],
       "cooldown": {
-        "ms": 8000,
+        "ms": 5600,
         "unit": "ms"
       },
       "cooldown_family": "cd_calculus_drop",
@@ -2703,7 +2703,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -2794,7 +2794,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -2885,7 +2885,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -2993,7 +2993,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -3093,7 +3093,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -3192,7 +3192,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -3300,7 +3300,7 @@
         }
       ],
       "cooldown": {
-        "ms": 9000,
+        "ms": 6300,
         "unit": "ms"
       },
       "cooldown_family": "cd_charged_ram",
@@ -3396,7 +3396,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -3475,7 +3475,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -3544,7 +3544,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -3627,7 +3627,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -3706,7 +3706,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -3779,7 +3779,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -3856,7 +3856,7 @@
         }
       ],
       "cooldown": {
-        "ms": 6000,
+        "ms": 4200,
         "unit": "ms"
       },
       "cooldown_family": "cd_cola_shake",
@@ -3930,7 +3930,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 13000,
+            "ms": 10000,
             "unit": "ms"
           },
           "effects": [
@@ -3989,7 +3989,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4061,7 +4061,7 @@
         },
         {
           "cooldown": {
-            "ms": 13000,
+            "ms": 10000,
             "unit": "ms"
           },
           "effects": [
@@ -4142,7 +4142,7 @@
         },
         {
           "cooldown": {
-            "ms": 13000,
+            "ms": 10000,
             "unit": "ms"
           },
           "effects": [
@@ -4214,7 +4214,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4287,7 +4287,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4373,7 +4373,7 @@
         }
       ],
       "cooldown": {
-        "ms": 10000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_crotch_grab",
@@ -4437,7 +4437,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4500,7 +4500,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4568,7 +4568,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4635,7 +4635,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4699,7 +4699,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4771,7 +4771,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -4839,7 +4839,7 @@
         }
       ],
       "cooldown": {
-        "ms": 10000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_desk_fan",
@@ -4907,7 +4907,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -4997,7 +4997,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -5089,7 +5089,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -5195,7 +5195,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -5293,7 +5293,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -5389,7 +5389,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -5485,7 +5485,7 @@
         }
       ],
       "cooldown": {
-        "ms": 9000,
+        "ms": 6300,
         "unit": "ms"
       },
       "cooldown_family": "cd_dirty_puddle",
@@ -5572,7 +5572,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -5654,7 +5654,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -5718,7 +5718,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -5812,7 +5812,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -5899,7 +5899,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -5967,7 +5967,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -6044,7 +6044,7 @@
         }
       ],
       "cooldown": {
-        "ms": 6000,
+        "ms": 4200,
         "unit": "ms"
       },
       "cooldown_family": "cd_elbow",
@@ -6113,7 +6113,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -6199,7 +6199,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -6284,7 +6284,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -6383,7 +6383,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -6474,7 +6474,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -6573,7 +6573,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -6655,7 +6655,7 @@
         }
       ],
       "cooldown": {
-        "ms": 9000,
+        "ms": 6300,
         "unit": "ms"
       },
       "cooldown_family": "cd_flyer_trap",
@@ -6745,7 +6745,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -6837,7 +6837,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -6911,7 +6911,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -7016,7 +7016,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -7112,7 +7112,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -7190,7 +7190,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -7272,7 +7272,7 @@
         }
       ],
       "cooldown": {
-        "ms": 7000,
+        "ms": 4900,
         "unit": "ms"
       },
       "cooldown_family": "cd_hose_down",
@@ -7351,7 +7351,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -7404,7 +7404,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -7501,7 +7501,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -7562,7 +7562,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -7623,7 +7623,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -7728,7 +7728,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7000,
             "unit": "ms"
           },
           "effects": [
@@ -7833,7 +7833,7 @@
         }
       ],
       "cooldown": {
-        "ms": 10000,
+        "ms": 7000,
         "unit": "ms"
       },
       "cooldown_family": "cd_not_mad",
@@ -7891,7 +7891,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -7969,7 +7969,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -8047,7 +8047,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -8133,7 +8133,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -8212,7 +8212,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -8307,7 +8307,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -8394,7 +8394,7 @@
         }
       ],
       "cooldown": {
-        "ms": 7000,
+        "ms": 4900,
         "unit": "ms"
       },
       "cooldown_family": "cd_open_mic",
@@ -8477,7 +8477,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -8536,7 +8536,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -8612,7 +8612,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -8685,7 +8685,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -8758,7 +8758,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -8842,7 +8842,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -8918,7 +8918,7 @@
         }
       ],
       "cooldown": {
-        "ms": 9000,
+        "ms": 6300,
         "unit": "ms"
       },
       "cooldown_family": "cd_pants_down",
@@ -8982,7 +8982,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -9085,7 +9085,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -9164,7 +9164,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -9275,7 +9275,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -9386,7 +9386,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -9481,7 +9481,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -9560,7 +9560,7 @@
         }
       ],
       "cooldown": {
-        "ms": 8000,
+        "ms": 5600,
         "unit": "ms"
       },
       "cooldown_family": "cd_quick_meeting",
@@ -9660,7 +9660,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 11000,
+            "ms": 7700,
             "unit": "ms"
           },
           "effects": [
@@ -9738,7 +9738,7 @@
         },
         {
           "cooldown": {
-            "ms": 11000,
+            "ms": 7700,
             "unit": "ms"
           },
           "effects": [
@@ -9820,7 +9820,7 @@
         },
         {
           "cooldown": {
-            "ms": 11000,
+            "ms": 7700,
             "unit": "ms"
           },
           "effects": [
@@ -9903,7 +9903,7 @@
         },
         {
           "cooldown": {
-            "ms": 11000,
+            "ms": 7700,
             "unit": "ms"
           },
           "effects": [
@@ -9986,7 +9986,7 @@
         },
         {
           "cooldown": {
-            "ms": 11000,
+            "ms": 7700,
             "unit": "ms"
           },
           "effects": [
@@ -10082,7 +10082,7 @@
         },
         {
           "cooldown": {
-            "ms": 11000,
+            "ms": 7700,
             "unit": "ms"
           },
           "effects": [
@@ -10173,7 +10173,7 @@
         }
       ],
       "cooldown": {
-        "ms": 11000,
+        "ms": 7700,
         "unit": "ms"
       },
       "cooldown_family": "cd_school_bag",
@@ -10256,7 +10256,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -10316,7 +10316,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -10389,7 +10389,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -10462,7 +10462,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -10522,7 +10522,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -10599,7 +10599,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -10680,7 +10680,7 @@
         }
       ],
       "cooldown": {
-        "ms": 7000,
+        "ms": 4900,
         "unit": "ms"
       },
       "cooldown_family": "cd_seethe",
@@ -10745,7 +10745,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -10816,7 +10816,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -10895,7 +10895,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -10999,7 +10999,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -11076,7 +11076,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -11156,7 +11156,7 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4200,
             "unit": "ms"
           },
           "effects": [
@@ -11248,7 +11248,7 @@
         }
       ],
       "cooldown": {
-        "ms": 6000,
+        "ms": 4200,
         "unit": "ms"
       },
       "cooldown_family": "cd_snark_bolt",
@@ -11324,7 +11324,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -11401,7 +11401,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -11495,7 +11495,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -11576,7 +11576,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -11663,7 +11663,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -11757,7 +11757,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -11852,7 +11852,7 @@
         }
       ],
       "cooldown": {
-        "ms": 8000,
+        "ms": 5600,
         "unit": "ms"
       },
       "cooldown_family": "cd_sock_shot",
@@ -11934,7 +11934,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -12009,7 +12009,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -12102,7 +12102,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -12181,7 +12181,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -12260,7 +12260,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -12357,7 +12357,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -12454,7 +12454,7 @@
         }
       ],
       "cooldown": {
-        "ms": 8000,
+        "ms": 5600,
         "unit": "ms"
       },
       "cooldown_family": "cd_stale_takeout",
@@ -12530,7 +12530,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -12586,7 +12586,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -12661,7 +12661,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -12729,7 +12729,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -12794,7 +12794,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -12877,7 +12877,7 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 8400,
             "unit": "ms"
           },
           "effects": [
@@ -12966,7 +12966,7 @@
         }
       ],
       "cooldown": {
-        "ms": 12000,
+        "ms": 8400,
         "unit": "ms"
       },
       "cooldown_family": "cd_stare_down",
@@ -13027,7 +13027,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -13080,7 +13080,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -13133,7 +13133,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -13190,7 +13190,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -13244,7 +13244,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -13301,7 +13301,7 @@
         },
         {
           "cooldown": {
-            "ms": 9000,
+            "ms": 6300,
             "unit": "ms"
           },
           "effects": [
@@ -13355,7 +13355,7 @@
         }
       ],
       "cooldown": {
-        "ms": 9000,
+        "ms": 6300,
         "unit": "ms"
       },
       "cooldown_family": "cd_triple_combo",
@@ -13413,7 +13413,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7600,
             "unit": "ms"
           },
           "effects": [
@@ -13472,7 +13472,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -13543,7 +13543,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7600,
             "unit": "ms"
           },
           "effects": [
@@ -13623,7 +13623,7 @@
         },
         {
           "cooldown": {
-            "ms": 10000,
+            "ms": 7600,
             "unit": "ms"
           },
           "effects": [
@@ -13696,7 +13696,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -13767,7 +13767,7 @@
         },
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
@@ -13842,7 +13842,7 @@
         }
       ],
       "cooldown": {
-        "ms": 8000,
+        "ms": 5600,
         "unit": "ms"
       },
       "cooldown_family": "cd_unplug",
@@ -13906,7 +13906,7 @@
       "branches": [
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -13979,7 +13979,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -14034,7 +14034,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -14112,7 +14112,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -14193,7 +14193,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -14256,7 +14256,7 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 4900,
             "unit": "ms"
           },
           "effects": [
@@ -14311,7 +14311,7 @@
         }
       ],
       "cooldown": {
-        "ms": 7000,
+        "ms": 4900,
         "unit": "ms"
       },
       "cooldown_family": "cd_zap",
@@ -16710,6 +16710,11 @@
             "denominator": 10,
             "numerator": 1,
             "unit": "attacks/s"
+          },
+          "threshold": {
+            "denominator": 1,
+            "numerator": 2,
+            "unit": "attacks/s"
           }
         }
       ],
@@ -16737,8 +16742,8 @@
             "unit": "attacks/s"
           },
           "threshold": {
-            "denominator": 1,
-            "numerator": 1,
+            "denominator": 5,
+            "numerator": 6,
             "unit": "attacks/s"
           },
           "trigger": "AttackSpeedBelow"
@@ -16799,7 +16804,7 @@
     {
       "effects": [
         {
-          "count": 25,
+          "count": 10,
           "op": "hit_growth",
           "opcode": 247,
           "stats": {
@@ -17190,7 +17195,7 @@
           "op": "hp_cost",
           "opcode": 207,
           "ratio": {
-            "bp": 60,
+            "bp": 25,
             "unit": "ratio"
           }
         },
@@ -17958,7 +17963,7 @@
       "effects": [
         {
           "momentum": {
-            "p2": 7000,
+            "p2": 3500,
             "unit": "momentum"
           },
           "multiplier": {
@@ -20631,7 +20636,7 @@
     },
     {
       "description_key": "card_quick_hands.description",
-      "description_text": "攻速超过上限的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。",
+      "description_text": "攻速超过 [overcap_extra_hit.threshold] 次/秒的部分，每 [overcap_extra_hit.step] 次每秒让普攻多打一下的概率 +[overcap_extra_hit.ratio]%；超过一百的部分必定多打。",
       "icon_id": "icon_card_quick_hands",
       "id": "card_quick_hands",
       "name_key": "card_quick_hands.name",
@@ -21573,7 +21578,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision. #305 overhaul review follow-up approved (\"Start everything! Put them into one PR\"): actives at 2/4, skill cooldowns x0.7, combat momentum 5/s, overdrive at 60 (Y11 35), idle carry 5s, A09/A10/A13/K12 values, stat caps raised, reaction 4/level, cards 4 + 1 per 3 levels.",
       "status": "approved"
     },
     "handler_revision": 14,
@@ -21789,9 +21794,13 @@
       "ms": 3500,
       "unit": "ms"
     },
-    "CARDS.CapacityBase": 6,
+    "CARDS.CapacityBase": 4,
     "CARDS.FreeRerolls": 3,
-    "CARDS.LevelsPerSlot": 5,
+    "CARDS.IdleCarrySec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "CARDS.LevelsPerSlot": 3,
     "CARDS.LockSlots": 1,
     "CARDS.OfferSize": 3,
     "CARDS.RerollsPerRest": 1,
@@ -21992,7 +22001,7 @@
       "unit": "points"
     },
     "COMBAT.ReactionPerLevel": {
-      "p2": 150,
+      "p2": 400,
       "unit": "points"
     },
     "COMBAT.RotAPRatioPerSec": {
@@ -22432,7 +22441,7 @@
     },
     "MOMENTUM.CombatPerSec": {
       "denominator": 1,
-      "numerator": 3,
+      "numerator": 5,
       "unit": "momentum/s"
     },
     "MOMENTUM.IdleDelaySec": {
@@ -22531,7 +22540,7 @@
       "unit": "ratio"
     },
     "OVERDRIVE.Threshold": {
-      "p2": 10000,
+      "p2": 6000,
       "unit": "momentum"
     },
     "OVERDRIVE.WaterSlow": {
@@ -22685,7 +22694,7 @@
       "unit": "points"
     },
     "STAT.AD.Max": {
-      "p2": 25000,
+      "p2": 200000,
       "unit": "points"
     },
     "STAT.AD.Min": {
@@ -22701,7 +22710,7 @@
       "unit": "points"
     },
     "STAT.AP.Max": {
-      "p2": 30000,
+      "p2": 300000,
       "unit": "points"
     },
     "STAT.AP.Min": {
@@ -22717,7 +22726,7 @@
       "unit": "points"
     },
     "STAT.Armor.Max": {
-      "p2": 20000,
+      "p2": 100000,
       "unit": "points"
     },
     "STAT.Armor.Min": {
@@ -22798,7 +22807,7 @@
       "unit": "points"
     },
     "STAT.MagicResist.Max": {
-      "p2": 20000,
+      "p2": 100000,
       "unit": "points"
     },
     "STAT.MagicResist.Min": {
@@ -22814,7 +22823,7 @@
       "unit": "hp"
     },
     "STAT.MaxHP.Max": {
-      "p2": 300000,
+      "p2": 2000000,
       "unit": "hp"
     },
     "STAT.MaxHP.Min": {
@@ -22903,8 +22912,8 @@
   },
   "progression": {
     "active_offer_levels": [
-      3,
-      6
+      2,
+      4
     ],
     "active_slots": 3,
     "max_level": 16,

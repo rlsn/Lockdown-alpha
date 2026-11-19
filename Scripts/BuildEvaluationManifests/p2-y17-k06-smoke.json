@@ -45,7 +45,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -85,7 +86,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -119,7 +121,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -165,7 +168,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [

@@ -507,15 +507,21 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 ### 6.6 野外目标与死亡选点
 
 AI 只读公开对局视图里的野外目标（`FLDPublicMatchView::Objective`：种类、阶段、`mini_flag_*` 点或旗杆、圆心与半径），不读服务器抽签或未来时刻。
-`LDOpponentFrame::ReadPublicPOIs` 把 `mini_flag_*` 锚点作为公开地点（种类 `MiniFlag`）；外卖柜与售货机不是 AI 地点。
+`LDOpponentFrame::ReadPublicPOIs` 把 `mini_flag_*` 锚点作为公开地点（种类 `MiniFlag`）；外卖柜与售货机不是静态 AI 地点。
+本人见过且还没开的外卖柜（本人 `Pacing.SeenLockers`）每帧作为种类 `Locker` 的地点加入，按注册锚点取地面；没见过的柜子不进入。
 
 1. **去目标**：目标预告或开放中、本人生命不低于 `AI.ObjectiveEntryHPRatio`、离目标地点（小迷你旗点，擂台为旗杆）不超过 `AI.ObjectiveReachCm`、
    不在自己开打的营地战中、去该地点的路径没有被失败记录抑制时，走向目标（模式 `Objective`、原因 `ContestObjective`）；
    到了圆内中心一带就停下等开放或喷漆。它排在天降外卖之后、旗杆争夺与刷野之前；圈内看见对手时由普通交战分支先处理。
-2. **死亡选点**：死亡时服务器立即替 AI 选候选出生点（`ALDGameMode::ChooseSpawnForAI` 调 `LDFieldPacing::NearestCandidate`），
+2. **藏起来的东西**（排在野外目标之后、上热搜追猎与刷野之前，同样不离开自己开打的营地战）：
+   生命不低于 `AI.ObjectiveEntryHPRatio` 时，先打 `AI.ObjectiveReachCm` 内可见的二手贩子（原因 `ChaseDealer`，普通攻击订单），
+   再走向这个距离内最近的已见外卖柜，站到柜子半径一半以内就停下读条（原因 `OpenLocker`）。
+   野外存活时，本人视图报告身边有售货机（`Pacing.NearbyVending`）且饭票不少于售货机增益价加一个技能点的价格时，
+   买攻速增益（`FLDOpponentDecision::Vending`，经 `ALDGameMode::QueueVending` 与玩家按钮同一队列），每个增益时长内最多买一次。
+3. **死亡选点**：死亡时服务器立即替 AI 选候选出生点（`ALDGameMode::ChooseSpawnForAI` 调 `LDFieldPacing::NearestCandidate`），
    选离最近公开目标（开放或预告中的野外目标中心、旗杆）更近的一个；不经策略，也不读隐藏信息。
 
-`DemoOpponentPolicy.Objective` 覆盖去目标的条件、到点停下、过期与已决目标不去、未知地点不去、擂台走向旗杆和天降外卖优先。
+`DemoOpponentPolicy.Explore` 覆盖外卖柜、二手贩子与售货机；`DemoOpponentPolicy.Objective` 覆盖去目标的条件、到点停下、过期与已决目标不去、未知地点不去、擂台走向旗杆和天降外卖优先。
 
 ## 7. SC-09：参数与内容唯一来源
 

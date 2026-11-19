@@ -210,6 +210,8 @@ struct FContext
     double DormRadiusCm = 0;
     double AirdropRadiusCm = 0;
     double ObjectiveReachCm = 0;
+    // #305: a body this close to a locker anchor stands well inside its pickup radius (EXPLORE.LockerRadiusCm / 2).
+    double LockerStandCm = 0;
     double LeaderRadiusCm = 0;
     // D26: the visible Boss and the band in which it acquires a contender (its aggro radius plus its reach).
     const FLDOpponentUnit* Boss = nullptr;
@@ -233,6 +235,7 @@ struct FContext
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
         AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
         ObjectiveReachCm = ToDouble(Content.Parameters.AI.ObjectiveReachCm);
+        LockerStandCm = ToDouble(Content.Parameters.Explore.LockerRadiusCm) / 2.;
         LeaderRadiusCm = ToDouble(Content.Parameters.LeaderCircleRadiusCm);
         const FLDDemoMonsterDefinition* BossBody = Content.Monsters.FindByPredicate(
             [&Content](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::Boss && M.Id == Content.Boss.Id; });
@@ -240,7 +243,7 @@ struct FContext
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(ObjectiveReachCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(ObjectiveReachCm > 0) || !(LockerStandCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture)
         {
             return false;
         }
@@ -336,6 +339,26 @@ struct FContext
             : Goal.Kind == ELDObjectiveKind::MiniFlag && !Goal.AnchorId.IsNone() ? FindPOI(Goal.AnchorId) : nullptr;
         if (Place && Goal.Kind == ELDObjectiveKind::MiniFlag && Place->Kind != ELDOpponentPOIKind::MiniFlag) { Place = nullptr; }
         return Place && Distance(Place->FootCm) <= ObjectiveReachCm && CanAttempt(PathKey(Place->Id)) ? Place : nullptr;
+    }
+    // #305 spec §11.3: the nearest seen, unopened locker within the objective reach for a body at the objective entry
+    // health, when its walk is not suppressed; nullptr otherwise.
+    const FLDOpponentPOI* LockerTarget() const
+    {
+        if (!RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ObjectiveEntryHPBp)) { return nullptr; }
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind != ELDOpponentPOIKind::Locker || Distance(POI.FootCm) > ObjectiveReachCm || !CanAttempt(PathKey(POI.Id))) { continue; }
+            if (!Best || Distance(POI.FootCm) < Distance(Best->FootCm)) { Best = &POI; }
+        }
+        return Best;
+    }
+    // #305 spec §11.3: the visible second-hand dealer within the objective reach for a body at the objective entry health.
+    const FLDOpponentUnit* DealerTarget() const
+    {
+        if (!RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ObjectiveEntryHPBp)) { return nullptr; }
+        return Frame.Units.FindByPredicate([this](const FLDOpponentUnit& Unit)
+            { return Unit.bPeddler && Unit.HpP2.IsSet() && Unit.HpP2.GetValue() > 0 && Distance(Unit.FootCm) <= ObjectiveReachCm; });
     }
     // D27: the public place nearest the centre of another contender's 上热搜 circle, inside that circle, when its walk
     // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
@@ -2201,6 +2224,18 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         ForgetBody(State);
         return Finish(EMode::Stopped, EReason::Stopped);
     }
+    // #305 spec §11.3: passing a vending machine in the field, a body with vouchers to spare beyond one skill point buys
+    // the attack-speed buff, at most once per buff duration.
+    if (bRunning && Self.Phase == ELDLifePhase::Alive && !Self.NearbyVending.IsNone())
+    {
+        const auto& Parameters = Catalog.Get().Parameters;
+        if (Self.Vouchers >= Parameters.Explore.VendingBuffPrice + Parameters.Shop.SkillPointPrice
+            && (State.VendingAskedAtMs == 0 || Frame.Public.NowMs - State.VendingAskedAtMs >= Parameters.Explore.VendingBuffMs))
+        {
+            Out.Vending = 1; // ELDVendingItem::AttackSpeed
+            State.VendingAskedAtMs = Frame.Public.NowMs;
+        }
+    }
     if (bRest)
     {
         // Everyone stays in the shared rest room.
@@ -2470,6 +2505,21 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         EndVisit(State, false);
         Body(C.Distance(Goal->FootCm) * 2. <= double(Frame.Public.Objective.RadiusCm) ? Halt(C) : MoveTo(C, *Goal));
         return Finish(EMode::Objective, EReason::ContestObjective);
+    }
+    // #305 spec §11.3: below the objectives, a healthy body chases the visible dealer, then opens a seen locker (standing
+    // on it channels the pickup), never out of a camp fight it began.
+    const FLDOpponentUnit* Dealer = State.VisitEngagedAtMs == 0 ? C.DealerTarget() : nullptr;
+    if (Dealer && !HandleSuppressed(C, *Dealer))
+    {
+        EndVisit(State, false);
+        Body(AttackBody(C, *Dealer));
+        return Finish(EMode::Objective, EReason::ChaseDealer);
+    }
+    if (const FLDOpponentPOI* Locker = State.VisitEngagedAtMs == 0 ? C.LockerTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(C.Distance(Locker->FootCm) <= C.LockerStandCm ? Halt(C) : MoveTo(C, *Locker));
+        return Finish(EMode::Objective, EReason::OpenLocker);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

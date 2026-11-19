@@ -51,12 +51,15 @@ uint8 LDCombatCues::ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const F
     return Flags;
 }
 
-uint8 LDCombatCues::ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal)
+uint8 LDCombatCues::ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal,
+    bool bOverdrive)
 {
-    return ClassifyImpact(bCritical,ShieldBeforeP2,Damage) | (bLethal && Damage.DamageP2>0 ? DealtLethal : 0);
+    return ClassifyImpact(bCritical,ShieldBeforeP2,Damage) | (bLethal && Damage.DamageP2>0 ? DealtLethal : 0)
+        | (bOverdrive && Damage.DamageP2>0 ? DealtOverdrive : 0);
 }
 
 int32 LDCombatCues::DealtRank(uint8 DealtFlags)
 {
-    return (DealtFlags & DealtLethal) ? 3 : (DealtFlags & LDObservation::Critical) ? 2 : (DealtFlags & LDObservation::ShieldBroken) ? 1 : 0;
+    return (DealtFlags & DealtLethal) ? 4 : (DealtFlags & DealtOverdrive) ? 3 : (DealtFlags & LDObservation::Critical) ? 2
+        : (DealtFlags & LDObservation::ShieldBroken) ? 1 : 0;
 }

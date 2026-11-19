@@ -990,8 +990,11 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
             if (Error.IsEmpty()) { Error = FString::Printf(TEXT("Camp %s has no approved member definition."), *Camp.AnchorId); }
             return false;
         }
-        CampMembers += Monster->CountPerCamp;
+        // Spec §11.2: a High, Elite or Ancient camp may add its teambuild member.
+        CampMembers += Monster->CountPerCamp + (Monster->Tier == ELDDemoCampTier::Low ? 0 : 1);
     }
+    // Spec §11.3: the second-hand dealer is one more camp body while it stays.
+    ++CampMembers;
     const int64 Contenders = Core->ReadLobby().Members.Num();
     // An observer sees at most every other contender, every camp member and the Boss.
     if (Contenders < 1 || Contenders + CampMembers > LDObservation::MaxUnits)

@@ -110,6 +110,12 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         run: ./Scripts/RunTests.ps1 -Full -ImportTests Run
 
+      # Three AI matches in a row with random hotspots, cards and affixes: any authority fault or logged error fails the
+      # night before a package is cut.
+      - name: AI matches
+        if: steps.version.outputs.skip != 'true'
+        run: ./Scripts/RunDemoOpponentCheck.ps1 -Telemetry -MatchCount 3
+
       - name: Package Win64
         if: steps.version.outputs.skip != 'true'
         run: ./Scripts/PackageWin64.ps1
@@ -154,7 +160,7 @@ jobs:
             '- 反馈问题时附上自己的日志和标记序号；需要查原因时，房主也附上同一局的日志。'
             ''
             '说明'
-            '- 本包在规则测试（RunTests.ps1）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'
+            '- 本包在规则测试（RunTests.ps1）与编辑器版连打 3 局 AI 对局（RunDemoOpponentCheck.ps1 -Telemetry）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'
             '- 打包成功不代表 Demo 验收通过，验收状态见 docs/demo/READINESS.md。'
             "- 调试符号 Lockdown.pdb 单独放在同一 Release 的 Lockdown-v$env:VERSION-win64-symbols.zip，试玩不需要。"
             '  需要可读的崩溃调用栈时，把它解压到同一目录（与本包的 Archive 合并），再重现问题。'

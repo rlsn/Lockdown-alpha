@@ -1429,7 +1429,10 @@ ELDGrowthReason ALDDevelopmentDirector::InstallBuild(const FGuid& ContenderId, F
         }
         Projection.Emplace(MoveTemp(Prepared.Value.GetValue()));
     }
-    if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    // A build command commits in Transactions. A reward that only changes the record and never Combat's projection (the
+    // audit affix's skill point at a camp clear) lands in DeathsAndRewards like the other rewards of that kill.
+    if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None
+        && (Projection.IsSet() || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None))
     {
         return ELDGrowthReason::AuthorityFault;
     }

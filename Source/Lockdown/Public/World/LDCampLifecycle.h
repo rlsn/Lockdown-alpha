@@ -13,6 +13,10 @@ struct FLDCampMemberSpec
 {
     FName MemberId;
     FVector HomeCm = FVector::ZeroVector;
+    // Spec §11.2 teambuild: the reserved extra member of a High, Elite or Ancient camp, home at its anchor. It spawns only
+    // with a spawn that carries the teambuild affix, as the spawn's selected species for High camps and as a High-tier
+    // species otherwise; without it the slot stays empty and never holds back a clear.
+    bool bTeambuild = false;
 };
 
 // Read-only projection of the validated content and world roots, not a second tunable table.
@@ -28,6 +32,10 @@ struct FLDCampSpec
     FVector AnchorCm = FVector::ZeroVector;
     int64 RespawnMs = 0;
     TArray<FLDCampMemberSpec> Members;
+    // The fixed High-tier species the teambuild member of an Elite or Ancient camp wears, with its native creature id.
+    // None and 0 for a High camp (its teambuild member is of each spawn's selected species) and for a Low camp (no slot).
+    FName TeambuildMonsterId;
+    uint8 TeambuildCreatureId = 0;
 };
 
 struct LOCKDOWN_API FLDCampRoster

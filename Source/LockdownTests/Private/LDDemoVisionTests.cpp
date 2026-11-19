@@ -1852,10 +1852,15 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
         FMath::Max(ContenderAll.Num(), CampAll.Num()), LDObservation::MaxStatuses);
 
     FLDWorldView Frame = ActiveFrame(7, 3, 44);
+    // The frame holds the most contender-kind units one observer can ever see (every other contender and one owned
+    // dummy for each contender, the rest-phase maximum; the field has five) and fills the rest of the bound with camp
+    // members, as the approved roster does.
+    constexpr int32 MaxContenderKind = 2 * LDObservation::MaxPresentations - 1;
     for (int32 Index = 0; Index < LDObservation::MaxUnits; ++Index)
     {
-        FLDObservedUnitView Unit = Index % 2 ? CampUnit(Index + 1) : ContenderUnit(Index + 1);
-        Unit.Statuses = Index % 2 ? CampAll : ContenderAll;
+        const bool bCamp = Index % 2 != 0 || Index >= 2 * MaxContenderKind;
+        FLDObservedUnitView Unit = bCamp ? CampUnit(Index + 1) : ContenderUnit(Index + 1);
+        Unit.Statuses = bCamp ? CampAll : ContenderAll;
         for (FLDObservedStatus& Status : Unit.Statuses) { if (Status.StatusId == uint8(ELDDemoStatusId::Burn)) { Status.Stacks = 5; } }
         FString Error;
         TestTrue(TEXT("A unit with every public status of its kind is valid"), LDObservation::ValidateUnit(Unit, Error));
@@ -1866,13 +1871,14 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("A frame of fully debuffed units round-trips"), Wire(Frame, Read, &Bytes) && Read.Units.Num() == LDObservation::MaxUnits))
     { return false; }
     AddInfo(FString::Printf(TEXT("Fully debuffed observation frame: %lld bytes"), Bytes));
-    // The four-tier roster permits 86 observed units and two extra camp statuses. Keep an explicit 32 KiB full-frame
-    // budget, also with every allowed warning/flight present; transport uses partial unreliable bunches.
+    // The roster permits 103 observed units, at most eleven of them contender-kind. Keep an explicit 36 KiB full-frame
+    // budget, also with every allowed warning/flight present; transport uses partial unreliable bunches (the engine
+    // builds them up to 64 KiB).
     for(int32 Index=0;Index<LDObservation::MaxProjectiles;++Index)
     {FLDObservedProjectileView P;P.Handle=FGuid::NewGuid();P.PositionCm=FVector(Index*5,0,2);P.Look=ELDObservedProjectileLook::Chalk;Frame.Projectiles.Add(P);}
     TestTrue(TEXT("A full unit and warning frame round-trips"),Wire(Frame,Read,&Bytes));
     AddInfo(FString::Printf(TEXT("Fully debuffed frame with maximum flights: %lld bytes"),Bytes));
-    TestTrue(TEXT("and stays inside the explicit 32 KiB frame capacity"), Bytes < 32768);
+    TestTrue(TEXT("and stays inside the explicit 36 KiB frame capacity"), Bytes < 36864);
     TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()
         && Read.Units[1].Statuses.Num() == CampAll.Num()
         && Read.Units[0].Statuses.ContainsByPredicate([](const FLDObservedStatus& Row)

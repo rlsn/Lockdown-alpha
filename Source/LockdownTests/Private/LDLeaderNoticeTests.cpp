@@ -136,6 +136,27 @@ bool FLDLeaderNoticeRulesTest::RunTest(const FString& Parameters)
     View.ServerNowMs = View.StartedAtMs = View.OpenAtMs = 0;
     TestFalse(TEXT("A room outside a match names no leader"), LDCapture::ValidatePublicMatchView(View, Error));
 
+    // Spec §11.1 rumor day: two are named; the leader's death leaves the runner-up named alone, which stays a valid view.
+    FLDLeaderState Rumor = MakeState();
+    Rumor.Rules.Leaders = 2;
+    TestTrue(TEXT("A rumor day names the top two"), Rumor.Refresh(R1, {Candidate(1, 5, 0), Candidate(2, 4, 0)})
+        && Rumor.Leader == A && Rumor.RunnerUp == B);
+    View = ViewAt(Rumor, R1);
+    TestTrue(TEXT("Two named contenders are a valid public view: ") + Error, LDCapture::ValidatePublicMatchView(View, Error));
+    TestTrue(TEXT("The leader's death keeps the runner-up named"), Rumor.LeaderDied(A, R1 + 100)
+        && !Rumor.Leader.IsValid() && Rumor.RunnerUp == B && Rumor.View().RunnerUp == B);
+    View = ViewAt(Rumor, R1 + 100);
+    TestTrue(TEXT("A runner-up named alone is a valid public view: ") + Error, LDCapture::ValidatePublicMatchView(View, Error));
+    View.Leader.RunnerUpCentreCm = FVector::ZeroVector;
+    View.Leader.RunnerUp.Invalidate();
+    TestFalse(TEXT("Nobody named carries no refresh time, on a rumor day too"), LDCapture::ValidatePublicMatchView(View, Error));
+    View = ViewAt(Rumor, R1 + 100);
+    View.Leader.Leader = View.Leader.RunnerUp;
+    View.Leader.CircleCentreCm = View.Leader.RunnerUpCentreCm;
+    TestFalse(TEXT("The same contender is never named twice"), LDCapture::ValidatePublicMatchView(View, Error));
+    TestTrue(TEXT("The runner-up's death ends the rumor notice"), Rumor.LeaderDied(B, R1 + 200) && Rumor.View().RefreshedAtMs == 0
+        && !Rumor.View().RunnerUp.IsValid());
+
     FLDLeaderState Invalid = MakeState();
     Invalid.Rules.CircleMaxOffsetCm = Invalid.Rules.CircleRadiusCm + 1.;
     TestFalse(TEXT("An offset beyond the radius could leave the leader outside: invalid rules"), Invalid.IsActive());

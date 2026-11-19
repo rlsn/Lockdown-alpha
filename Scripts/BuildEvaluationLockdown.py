@@ -174,6 +174,9 @@ def describe(project_root):
             "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
             "preset_offer": {"description": "a diagnostic opening offer or a later one-to-three-active offer prepared by DevQueueOffer",
                              "sample_classes": ["diagnostic"]},
+            "breakout_preset": {"description": "a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of "
+                                               "the side's XP supply: its max-level skills, branches, cards and points",
+                                "sample_classes": ["diagnostic"]},
             "preset_level_cards": {"description": "the card each level 2..level of the supply gives instead of its card offer "
                                                   "(a planned side skips every card offer)", "sample_classes": ["diagnostic"]},
             "allocate_points": {"description": "build step allocate_points: exact points per stat id in one command; a planned "
@@ -250,9 +253,13 @@ def _rule(rule, where):
 def _side_plan(plan, role):
     side = plan.get(role)
     if (not isinstance(side, dict) or "choices" not in side
-            or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent"}):
+            or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent",
+                            "breakout_preset"}):
         raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_cards, build, "
-                         "stance and keep_points_unspent)")
+                         "stance, keep_points_unspent and breakout_preset)")
+    preset = side.get("breakout_preset")
+    if preset is not None and (not isinstance(preset, str) or not preset.startswith("breakout_")):
+        raise ValueError(f"plan.{role}.breakout_preset: a DEV breakout sample id (breakout_*)")
     if not isinstance(side.get("keep_points_unspent", False), bool):
         raise ValueError(f"plan.{role}.keep_points_unspent: true or false")
     if not isinstance(side["choices"], list):
@@ -524,6 +531,8 @@ def requirements(scenario, plan, caps):
             mechanics |= needs[0]
             decisions |= needs[1]
             problems += needs[2]
+        if plan[role].get("breakout_preset"):
+            decisions.add("breakout_preset")
         if level_cards:
             decisions.add("preset_level_cards")
             mechanics.update(level_cards)
@@ -636,6 +645,8 @@ def native_input(run_id, manifest, caps, cases):
             stance = _stance(plan, role)
             if stance is not None:
                 row["stance"] = stance
+            if plan[role].get("breakout_preset"):
+                row["breakout_preset"] = plan[role]["breakout_preset"]
             contenders.append(row)
         out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
                     "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
@@ -677,11 +688,37 @@ def _roles(result):
     return {row["contender"]: row["role"] for row in result["contenders"]}
 
 
+def breakout_roles(plan):
+    """The sides whose build is a DEV breakout sample: the sample replaces the whole build at the field entry, so the
+    ordinary supply, choice, build-step and level-card evidence does not apply to them (breakout_problems does)."""
+    return {role for role in ROLES if plan[role].get("breakout_preset")}
+
+
+def breakout_problems(events, ids, plan, contenders):
+    """Prove each breakout sample was committed once by the authority and that the side ends on it."""
+    problems = []
+    for role in sorted(breakout_roles(plan)):
+        preset = plan[role]["breakout_preset"]
+        applied = [fields for tag, fields, _ in events if tag == "LD_DEV_BREAKOUT_PRESET" and fields.get("contender") == ids[role]]
+        if len(applied) != 1 or applied[0].get("preset") != preset:
+            problems.append(f"PresetNotApplied: the {role} needs exactly one committed {preset}")
+            continue
+        row, fields = contenders[role], applied[0]
+        if (not fields.get("level", "").isdigit() or not fields.get("cards", "").isdigit()
+                or row["level"] != int(fields["level"]) or len(row["cards"]) != int(fields["cards"])):
+            problems.append(f"PresetNotApplied: the {role} ends at level {row['level']} with {len(row['cards'])} cards, "
+                            f"{preset} committed level {fields.get('level')} with {fields.get('cards')} cards")
+    for tag, fields, _ in events:
+        if tag == "LD_DEV_BREAKOUT_PRESET" and not any(fields.get("contender") == ids[role] for role in breakout_roles(plan)):
+            problems.append("PresetNotApplied: a breakout sample was committed for a side that plans none")
+    return problems
+
+
 def selection_problems(events, ids, plan, contenders, t_out):
     """Validate both sides' active offer and committed choice at every planned ordinal, and the terminal build."""
     problems = []
-    roles = {contender: role for role, contender in ids.items()}
-    choices = {role: _side_plan(plan, role)[0] for role in ROLES}
+    roles = {contender: role for role, contender in ids.items() if role not in breakout_roles(plan)}
+    choices = {role: [] if role in breakout_roles(plan) else _side_plan(plan, role)[0] for role in ROLES}
     selections = {role: {ordinal: {"offer": None, "choice": None} for ordinal in range(1, len(choices[role]) + 1)}
                   for role in ROLES}
     for tag, fields, _ in events:
@@ -803,6 +840,8 @@ def build_problems(events, ids, plan, contenders, t_out, caps):
     enters = [fields for tag, fields, _ in events if tag == "LD_FIELD_ENTER" and fields.get("segment") == "0"]
     field_at = int(enters[0]["at_ms"]) if len(enters) == 1 and enters[0].get("at_ms", "").isdigit() else None
     for role in ROLES:
+        if role in breakout_roles(plan):
+            continue
         steps = _side_build(plan, role)
         row = contenders[role]
         if row["planned_steps"] != len(steps):
@@ -856,6 +895,8 @@ def level_card_problems(events, ids, plan, contenders, t_out, caps, supply):
     problems = []
     params = caps["scenarios"]["duel_site"]["parameters"]
     for role in ROLES:
+        if role in breakout_roles(plan):
+            continue
         expected = _level_cards(plan, role)
         own = [(index, tag, fields) for index, (tag, fields, _) in enumerate(events) if fields.get("contender") == ids[role]]
         staged = [(index, fields) for index, tag, fields in own if tag == "LD_EVAL_CARD_PRESET"]
@@ -1034,15 +1075,18 @@ def case_evidence(case, manifest, caps, result, trace_text):
     else:
         reasons.append(f"TraceIncomplete: outcome {outcome['kind']}")
         t_out = int(result["ended_at_ms"])
+    samples = breakout_roles(next(arm["plan"] for arm in manifest["design"]["arms"] if arm["id"] == case["arm"]))
     for row in result["contenders"]:
         if not row["progression_valid"] or not row["profile_bound"]:
             reasons.append(f"Setup: the {row['role']} had no seeded identity or evaluation profile")
+        if row["supply_xp"] != params["supply_xp"][row["role"]]:
+            reasons.append(f"SupplyMismatch: the {row['role']} native supply differs from the plan")
+        if row["role"] in samples:
+            continue
         if row["choices"] != row["planned_choices"]:
             reasons.append(f"PlanNotReached: the {row['role']} consumed {row['choices']} of {row['planned_choices']} planned choices")
         if row["supply_xp"] > 0 and row["supply_status"] != "Granted":
             reasons.append(f"SupplyMissing: the {row['role']} supply is {row['supply_status']}")
-        if row["supply_xp"] != params["supply_xp"][row["role"]]:
-            reasons.append(f"SupplyMismatch: the {row['role']} native supply differs from the plan")
         if row["presets_queued"] != row["presets_requested"]:
             reasons.append(f"PresetNotApplied: the {row['role']} queued {row['presets_queued']} of {row['presets_requested']} presets")
         planned = _side_plan(next(arm["plan"] for arm in manifest["design"]["arms"] if arm["id"] == case["arm"]), row["role"])[0]
@@ -1065,9 +1109,11 @@ def case_evidence(case, manifest, caps, result, trace_text):
                                f" at t={t}")
             out["violations"] += hit_violations(fields)
     for role in ROLES:
-        if supplied[role] != params["supply_xp"][role]:
+        # A breakout sample stands in for its side's supply: the sample sets the level, no dev_fixture XP is granted.
+        if supplied[role] != (0 if role in samples else params["supply_xp"][role]):
             reasons.append(f"SupplyMismatch: the {role} received {supplied[role]} dev_fixture XP, planned {params['supply_xp'][role]}")
     plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
+    reasons += breakout_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows})
     reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out)
     reasons += build_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out, caps)
     reasons += level_card_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows},

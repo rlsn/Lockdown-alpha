@@ -37,7 +37,7 @@
 | 一种基础角色，开局只有物理普攻 | 设计基值与普攻形态，不新增开局技能或不同职业 |
 | 1 根旗杆（喷漆区）、34 个营地（18 小野、10 中野、4 大野、2 远古）、每档 3 种野怪、12 个野外出生点 | 营地固定档位、刷新随机选该档一种，同档整营难度与产出接近；坐标、合法路径及遮挡由世界模块维护 |
 | 十二点等概率、允许重复的开局与复活抽样 | 不按危险、视野或距离筛点；只处理合法落地与防重叠 |
-| 等级 1 至 16；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一 | XP 曲线与成长参数见 §4.1、§4.3；候选可按来源放弃换点，没有重抽 |
+| 等级 1 至 16；开局 3 属性点与一次开局主动三选一，每次升级 3 点，2、4 级各额外一次主动三选一 | XP 曲线与成长参数见 §4.1、§4.3；候选可按来源放弃换点，没有重抽 |
 | Q/W/E 最多 3 个角色主动；技能 1–3 级，4/8/12 级各得 1 个技能点 | 只能学到空槽；满槽替换只在休息（§4.4），野外满槽时新主动保留为待学图纸；遗忘后再用需重新获得 |
 | 野怪最后一击独得经验；参赛者击杀另有助攻；每条生命的击杀与助攻奖励一起只发一次 | 不加附近分摊、按伤害比例分成或回位奖励 |
 | 死亡保留等级、XP、技能、属性点、待学图纸及待选机会 | 冷却继续经过服务器时间；死亡只损失等待与位置 |
@@ -119,11 +119,11 @@
 
 | 稳定参数键 | 单位/类型 | Base；PerLevel | 合法结果范围 | 依赖、理由与可复算样例 |
 | --- | --- | --- | --- | --- |
-| `STAT.MaxHP.Base/PerLevel` | HP 点/P2 | 860；80 | 1..3000 | 同级对打 L1 击杀时间 10–12s 的校准值（§4.2 末尾的测量）；L10=1580 |
-| `STAT.AD.Base/PerLevel` | 物攻点/P2 | 70；3.2 | 0..250 | 普攻 1.0 AD；L5=82.8，L10=98.8 |
-| `STAT.AP.Base/PerLevel` | 法强点/P2 | 0；0 | 0..300 | 通过脑力属性点与技能构筑；不让 AP 隐式强化普攻 |
-| `STAT.Armor.Base/PerLevel` | 护甲点/P2 | 18；2 | 0..200 | 首版无负抗/穿透；L10=36，不是 36% 减伤 |
-| `STAT.MagicResist.Base/PerLevel` | 魔抗点/P2 | 18；2 | 0..200 | 与护甲用相同点制公式；不能直接填入旧 MR 比例字段 |
+| `STAT.MaxHP.Base/PerLevel` | HP 点/P2 | 860；80 | 1..20000 | 同级对打击杀时间按 10–16s 校准（技能次数优先于击杀时间，§4.2 末尾的测量）；L10=1580 |
+| `STAT.AD.Base/PerLevel` | 物攻点/P2 | 70；3.2 | 0..2000 | 普攻 1.0 AD；L5=82.8，L10=98.8 |
+| `STAT.AP.Base/PerLevel` | 法强点/P2 | 0；0 | 0..3000 | 通过脑力属性点与技能构筑；不让 AP 隐式强化普攻 |
+| `STAT.Armor.Base/PerLevel` | 护甲点/P2 | 18；2 | 0..1000 | 首版无负抗/穿透；L10=36，不是 36% 减伤 |
+| `STAT.MagicResist.Base/PerLevel` | 魔抗点/P2 | 18；2 | 0..1000 | 与护甲用相同点制公式；不能直接填入旧 MR 比例字段 |
 | `STAT.BaseAttackSpeed` | 次/秒/Rate | 0.75 | 正数 | 约 1.334s 一个基础攻击节拍；一级只用普攻同级对打约 13.6s |
 | `STAT.AttackSpeedPerLevelRatio` | 每级加成/R4 | 0.02 | 0..1 | 与身手属性点等同类来源相加；L10 无其他来源 AS=0.885 |
 | `STAT.HPRegen.Base/PerLevel` | HP 点/秒/Rate | 1.60；0.12 | 0..12 | 基础回复始终有效，体格属性点另外增加；L10=2.68/s |
@@ -152,7 +152,7 @@
 | --- | --- | --- |
 | `MOMENTUM.Max` | 100 | 上限 |
 | `MOMENTUM.Start` | 50 | 开局、复活、每次休息开始时设为此值 |
-| `MOMENTUM.CombatPerSec` | 3/秒 | 交战中（距本条生命最近一次真实战斗事件不到 `MOMENTUM.IdleDelaySec`）每秒增加；脑力每点另加 0.06/秒 |
+| `MOMENTUM.CombatPerSec` | 5/秒 | 交战中（距本条生命最近一次真实战斗事件不到 `MOMENTUM.IdleDelaySec`）每秒增加；脑力每点另加 0.06/秒 |
 | `MOMENTUM.BasicPerRefInterval` | 10 | 普攻主击命中获得 10 × 本次攻击间隔 ÷ `MOMENTUM.BasicRefIntervalSec`，向下取 P2；每秒所得与攻速无关（约 7.5/秒） |
 | `MOMENTUM.BasicRefIntervalSec` | 1.334s | 基础攻速 0.75 的攻击间隔 |
 | `MOMENTUM.SkillHit` | 5 | 一次技能释放对每个目标的第一次原生直接命中给一次 |
@@ -164,7 +164,7 @@
 | `AIRDROP.Momentum` | 40 | 领取外卖获得 |
 | `COMBO.StepRatios` | 0.9、0.9、1.3 | 普攻三段的原始量倍率，先于暴击；第 3 段用暴击档的命中停顿 |
 | `COMBO.ResetSec` | 1.5s | 距上次成功普攻起手超过即回到第 1 段；前摇取消的普攻不推进 |
-| `OVERDRIVE.Threshold` | 100 | 释放瞬间劲至少这么多才按爆劲结算，否则按普通施放结算 |
+| `OVERDRIVE.Threshold` | 60 | 释放瞬间劲至少这么多才按爆劲结算，否则按普通施放结算；爆劲花掉全部劲 |
 | `OVERDRIVE.HoldSec` | 0.3s | 劲满时按住技能键这么久发出爆劲请求；服务器看到的蓄力至少一半才承认 |
 | `OVERDRIVE.Scale` | 1.6 | 伤害、护盾、治疗的基础量与系数整体乘；控制时长不乘 |
 | `OVERDRIVE.FireBurnStacks` | 3 | 烫：额外灼烧层数（区域按跳数分摊） |
@@ -279,7 +279,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | 词条 | 参数 | 规则 |
 | --- | --- | --- |
 | 加班 | `AFFIX.OvertimeAttackSpeed` 0.3、`OvertimeVoucherScale` 2 | 成员攻速 +30%；清营饭票 ×2 |
-| 团建 | `AFFIX.TeambuildXPScale` 1.5 | 成员经验 ×1.5 |
+| 团建 | `AFFIX.TeambuildXPScale` 1.5 | 营地多刷一名成员（高档营地为本营种类，精英与远古营地为一只高档种），站在营地锚点；成员经验 ×1.5 |
 | 冰箱 | `AFFIX.FridgeCardOffer` 3 | 攻击挂冻、脚下常驻冰面；清营得一组三选一 |
 | 奖金 | `AFFIX.BonusHP` 0.4、`BonusCardOffer` 5 | 成员生命 +40%；清营得一组五选一 |
 | 裁员 | `AFFIX.LayoffAttack` 0.3、`LayoffVouchers` 8 | 同营每倒下一个，其余攻击 +30%（可叠）；清营另得 8 饭票 |
@@ -360,7 +360,7 @@ AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）
 | `GROWTH.MaxLevelPointsXP` | 240 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
 | `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不再发牌三选一 |
 | `GROWTH.BuildSafeWindowSec` | 4 s | 交战窗口（§4.3）：只供 HUD 在交战中收起野外文字摘要；不限制任何成长命令 |
-| `progression.active_offer_levels` | [3, 6] | 额外主动机会的等级 |
+| `progression.active_offer_levels` | [2, 4] | 额外主动机会的等级 |
 
 基础点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
 ⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）及池空奖励；
@@ -401,34 +401,34 @@ $$
 
 | 编号 | ID / 名称 | 状态 | 开局池 | 目标、射程、前摇 | 劲 / 冷却 | 效果 |
 | --- | --- | --- | --- | --- | --- | --- |
-| S01 | `active_elbow` 滚远点 | 运行中 | 是 | 单位 220cm；0.15s | 25 / 6s | P 55 + 0.6 攻击力；把目标沿施法者指向目标的方向击退 300cm，0.25s |
-| S02 | `active_pants_down` 扒裤子 | 运行中 | 是 | 单位 400cm；0.2s | 30 / 9s | P 40 + 0.4 攻击力；定身 1.2s |
-| S03 | `active_crotch_grab` 掏蛋子 | 运行中 | 是 | 单位 200cm；0.2s | 35 / 10s | P 60 + 0.6 攻击力；眩晕 0.8s |
-| S04 | `active_account_banned` 给老子闭嘴 | 运行中 | 是 | 单位 600cm；0.25s | 30 / 9s | M 55 + 0.6 法强；沉默 1.2s |
-| S05 | `active_unplug` 拧你手腕 | 运行中 | 是 | 单位 300cm；0.2s | 25 / 8s | P 45 + 0.45 攻击力；缴械 1.4s |
-| S06 | `active_snark_bolt` 甩你一鞋 | 运行中 | 是 | 方向弹道 850cm，弹道半径 55cm，1600cm/s；0.2s | 30 / 6s | 首个命中的敌人受 M 90 + 0.9 法强，减速 25%，1.5s；命中即停，不穿透 |
-| S07 | `active_seethe` 烫你屁股 | 运行中 | 是 | 自身 300cm；0.25s | 30 / 7s | 烫：M 60 + 0.6 法强 + 2% H；2 层灼烧 |
-| S08 | `active_quick_meeting` 脚底开锅 | 运行中 | 是 | 地面点 650cm，半径 240cm；0.25s | 35 / 8s | 烫：固定区域 3s，释放后 0、1、2s 各一跳；每跳 M 30 + 0.25 法强、1 层灼烧、减速 20%，0.5s |
-| S09 | `active_hose_down` 滋你一脸 | 运行中 | 是 | 方向直线 600cm，半宽 80cm；0.2s | 25 / 7s | 湿：直线上的敌人受 M 55 + 0.55 法强；沿施放方向击退 180cm，0.15s；潮湿 |
-| S10 | `active_zap` 电你个哆嗦 | 运行中 | 是 | 单位 650cm；0.25s | 30 / 7s | 麻：M 60 + 0.65 法强；麻；之后每 0.15s 弹一次，最多 2 次，每次为上一次的 70%：350cm 内有未被弹过的其他敌人就弹给最近的一个，没有就弹回第一个目标 |
-| S11 | `active_bail_out` 贴脸补一拳 | 运行中 | 是 | 方向冲刺 350cm / 0.2s；无前摇 | 20 / 7s | 3s 内下一次普攻多造成 P 45 + 0.4 攻击力，并入普攻主击 |
-| S12 | `active_apology_slide` 铲你脚脖子 | 运行中 | 是 | 方向冲刺 400cm / 0.3s；0.15s | 25 / 8s | 只对第一个真实接触的敌人：P 65 + 0.5 攻击力 + 0.3 法强，减速 25%，1.5s |
-| S13 | `active_charged_ram` 带电撞你 | 运行中 | 是 | 方向冲刺 450cm / 0.3s；0.1s | 30 / 9s | 麻：出发获得护盾 60 + 4% H，2s；每个实际接触的敌人各一次：M 40 + 0.35 法强、麻；身体阻挡仍有效 |
-| S14 | `active_not_mad` 锅盖挡脸 | 运行中 | 否 | 自身；无前摇 | 25 / 10s | 护盾 80 + 0.6 法强 + 5% H，3s；解除减速和定身（不解除缴械） |
-| S15 | `active_stare_down` 来打老子啊 | 运行中 | 否 | 自身 300cm；0.2s | 30 / 12s | 嘲讽 300cm 内的参赛者 1.0s；自身护甲、魔抗各 +14（乘 G），3s |
-| S16 | `active_brace` 顶着揍 | 运行中 | 否 | 自身；0.1s | 25 / 12s | 3s 内受到的敌方伤害减 20%，仍可移动、普攻、施法和冲刺；记录本技能实际减掉的伤害，最多 120（乘 G 与等级倍率）；自然结束时在自身 300cm 反震 M 50 + 记录量的 60%；死亡、离局不反震 |
-| S17 | `active_triple_combo` 左右开抽 | 运行中 | 是 | 自身；无前摇 | 20 / 9s | 5s 内接下来 3 次本体普攻各多造成 P 18 + 0.12 攻击力，并入普攻主击；仍有次数时攻速 +25% |
-| S18 | `active_calculus_drop` 板砖糊脸 | 运行中 | 是 | 地面点 650cm；0.25s | 35 / 8s | 释放 0.55s 后在固定点落下：80cm 内 M 110 + 1.0 法强，80–200cm 为中心伤害的 60%；落点有可见预警 |
-| S19 | `active_flyer_trap` 踩一脚试试 | 运行中 | 否 | 地面点 550cm；0.15s | 30 / 9s | 放一张陷阱，保留 6s；敌人进入 100cm 后 0.45s 在陷阱处爆炸，半径 180cm：M 100 + 0.75 法强，减速 30%，1.5s；到期未触发不爆炸 |
-| S20 | `active_dirty_puddle` 满地泼脏水 | 运行中 | 是 | 地面点 600cm，半径 220cm；0.25s | 30 / 9s | 湿：固定区域 4s，释放后 0、1、2、3s 各一跳；每跳 M 22 + 0.2 法强并施加潮湿；自己与本场队友在区内移速 +15% |
-| S21 | `active_sock_shot` 馊水糊脸 | 运行中 | 是 | 方向弹道 750cm，弹道半径 55cm，1500cm/s；0.15s | 30 / 8s | 馊：首个命中的敌人受 M 80 + 0.75 法强；攻速降低 20%，3s；馊 |
-| S22 | `active_open_mic` 扯嗓子喷你 | 运行中 | 是 | 方向扇形 450cm / 70°；0.2s | 30 / 7s | 吹：释放后 0、0.3、0.6s 三波，方向锁定，每波 M 35 + 0.3 法强；只有最后一波减速 30%，1.2s，并附带吹（沿施放方向） |
-| N1 | `active_cola_shake` 冰可乐摇一摇 | 运行中 | 是 | 方向扇形 400cm / 60°；0.15s | 25 / 6s | 冻：M 55 + 0.5 法强；冻 |
-| N2 | `active_desk_fan` 电风扇 | 运行中 | 否 | 地面点 500cm 放置，朝向 = 施放方向；0.2s | 35 / 10s | 吹：风扇 4s，每 0.5s 向前方 600 × 200cm 矩形吹一次：推开 60cm 并附带吹；风推动范围内的火场与毒雾（电场被吹会放电） |
-| N3 | `active_stale_takeout` 过期外卖 | 运行中 | 是 | 方向弹道 700cm，弹道半径 60cm，1400cm/s；0.2s | 30 / 8s | 馊：首个命中的敌人受 M 75 + 0.7 法强；馊；落点（命中点或终点）留毒雾 4s |
-| N4 | `active_school_bag` 占座书包 | 运行中 | 否 | 地面点 450cm；0.2s | 30 / 11s | 放下一个书包（障碍物，不是身体）：生命 150 + 20 × (L−1)，身体半径 40cm，挡住所有身体的移动和敌人的弹道，不挡视线；敌人的弹道、地面爆炸、扇形与释放范围按原始伤害打它；4s 后或被打掉时在半径 200cm 内爆炸，敌人受 M 80 + 0.6 法强；同一技能只留 1 个（Y12 每份 +1） |
+| S01 | `active_elbow` 滚远点 | 运行中 | 是 | 单位 220cm；0.15s | 25 / 4.2s | P 55 + 0.6 攻击力；把目标沿施法者指向目标的方向击退 300cm，0.25s |
+| S02 | `active_pants_down` 扒裤子 | 运行中 | 是 | 单位 400cm；0.2s | 30 / 6.3s | P 40 + 0.4 攻击力；定身 1.2s |
+| S03 | `active_crotch_grab` 掏蛋子 | 运行中 | 是 | 单位 200cm；0.2s | 35 / 7s | P 60 + 0.6 攻击力；眩晕 0.8s |
+| S04 | `active_account_banned` 给老子闭嘴 | 运行中 | 是 | 单位 600cm；0.25s | 30 / 6.3s | M 55 + 0.6 法强；沉默 1.2s |
+| S05 | `active_unplug` 拧你手腕 | 运行中 | 是 | 单位 300cm；0.2s | 25 / 5.6s | P 45 + 0.45 攻击力；缴械 1.4s |
+| S06 | `active_snark_bolt` 甩你一鞋 | 运行中 | 是 | 方向弹道 850cm，弹道半径 55cm，1600cm/s；0.2s | 30 / 4.2s | 首个命中的敌人受 M 90 + 0.9 法强，减速 25%，1.5s；命中即停，不穿透 |
+| S07 | `active_seethe` 烫你屁股 | 运行中 | 是 | 自身 300cm；0.25s | 30 / 4.9s | 烫：M 60 + 0.6 法强 + 2% H；2 层灼烧 |
+| S08 | `active_quick_meeting` 脚底开锅 | 运行中 | 是 | 地面点 650cm，半径 240cm；0.25s | 35 / 5.6s | 烫：固定区域 3s，释放后 0、1、2s 各一跳；每跳 M 30 + 0.25 法强、1 层灼烧、减速 20%，0.5s |
+| S09 | `active_hose_down` 滋你一脸 | 运行中 | 是 | 方向直线 600cm，半宽 80cm；0.2s | 25 / 4.9s | 湿：直线上的敌人受 M 55 + 0.55 法强；沿施放方向击退 180cm，0.15s；潮湿 |
+| S10 | `active_zap` 电你个哆嗦 | 运行中 | 是 | 单位 650cm；0.25s | 30 / 4.9s | 麻：M 60 + 0.65 法强；麻；之后每 0.15s 弹一次，最多 2 次，每次为上一次的 70%：350cm 内有未被弹过的其他敌人就弹给最近的一个，没有就弹回第一个目标 |
+| S11 | `active_bail_out` 贴脸补一拳 | 运行中 | 是 | 方向冲刺 350cm / 0.2s；无前摇 | 20 / 4.9s | 3s 内下一次普攻多造成 P 45 + 0.4 攻击力，并入普攻主击 |
+| S12 | `active_apology_slide` 铲你脚脖子 | 运行中 | 是 | 方向冲刺 400cm / 0.3s；0.15s | 25 / 5.6s | 只对第一个真实接触的敌人：P 65 + 0.5 攻击力 + 0.3 法强，减速 25%，1.5s |
+| S13 | `active_charged_ram` 带电撞你 | 运行中 | 是 | 方向冲刺 450cm / 0.3s；0.1s | 30 / 6.3s | 麻：出发获得护盾 60 + 4% H，2s；每个实际接触的敌人各一次：M 40 + 0.35 法强、麻；身体阻挡仍有效 |
+| S14 | `active_not_mad` 锅盖挡脸 | 运行中 | 否 | 自身；无前摇 | 25 / 7s | 护盾 80 + 0.6 法强 + 5% H，3s；解除减速和定身（不解除缴械） |
+| S15 | `active_stare_down` 来打老子啊 | 运行中 | 否 | 自身 300cm；0.2s | 30 / 8.4s | 嘲讽 300cm 内的参赛者 1.0s；自身护甲、魔抗各 +14（乘 G），3s |
+| S16 | `active_brace` 顶着揍 | 运行中 | 否 | 自身；0.1s | 25 / 8.4s | 3s 内受到的敌方伤害减 20%，仍可移动、普攻、施法和冲刺；记录本技能实际减掉的伤害，最多 120（乘 G 与等级倍率）；自然结束时在自身 300cm 反震 M 50 + 记录量的 60%；死亡、离局不反震 |
+| S17 | `active_triple_combo` 左右开抽 | 运行中 | 是 | 自身；无前摇 | 20 / 6.3s | 5s 内接下来 3 次本体普攻各多造成 P 18 + 0.12 攻击力，并入普攻主击；仍有次数时攻速 +25% |
+| S18 | `active_calculus_drop` 板砖糊脸 | 运行中 | 是 | 地面点 650cm；0.25s | 35 / 5.6s | 释放 0.55s 后在固定点落下：80cm 内 M 110 + 1.0 法强，80–200cm 为中心伤害的 60%；落点有可见预警 |
+| S19 | `active_flyer_trap` 踩一脚试试 | 运行中 | 否 | 地面点 550cm；0.15s | 30 / 6.3s | 放一张陷阱，保留 6s；敌人进入 100cm 后 0.45s 在陷阱处爆炸，半径 180cm：M 100 + 0.75 法强，减速 30%，1.5s；到期未触发不爆炸 |
+| S20 | `active_dirty_puddle` 满地泼脏水 | 运行中 | 是 | 地面点 600cm，半径 220cm；0.25s | 30 / 6.3s | 湿：固定区域 4s，释放后 0、1、2、3s 各一跳；每跳 M 22 + 0.2 法强并施加潮湿；自己与本场队友在区内移速 +15% |
+| S21 | `active_sock_shot` 馊水糊脸 | 运行中 | 是 | 方向弹道 750cm，弹道半径 55cm，1500cm/s；0.15s | 30 / 5.6s | 馊：首个命中的敌人受 M 80 + 0.75 法强；攻速降低 20%，3s；馊 |
+| S22 | `active_open_mic` 扯嗓子喷你 | 运行中 | 是 | 方向扇形 450cm / 70°；0.2s | 30 / 4.9s | 吹：释放后 0、0.3、0.6s 三波，方向锁定，每波 M 35 + 0.3 法强；只有最后一波减速 30%，1.2s，并附带吹（沿施放方向） |
+| N1 | `active_cola_shake` 冰可乐摇一摇 | 运行中 | 是 | 方向扇形 400cm / 60°；0.15s | 25 / 4.2s | 冻：M 55 + 0.5 法强；冻 |
+| N2 | `active_desk_fan` 电风扇 | 运行中 | 否 | 地面点 500cm 放置，朝向 = 施放方向；0.2s | 35 / 7s | 吹：风扇 4s，每 0.5s 向前方 600 × 200cm 矩形吹一次：推开 60cm 并附带吹；风推动范围内的火场与毒雾（电场被吹会放电） |
+| N3 | `active_stale_takeout` 过期外卖 | 运行中 | 是 | 方向弹道 700cm，弹道半径 60cm，1400cm/s；0.2s | 30 / 5.6s | 馊：首个命中的敌人受 M 75 + 0.7 法强；馊；落点（命中点或终点）留毒雾 4s |
+| N4 | `active_school_bag` 占座书包 | 运行中 | 否 | 地面点 450cm；0.2s | 30 / 7.7s | 放下一个书包（障碍物，不是身体）：生命 150 + 20 × (L−1)，身体半径 40cm，挡住所有身体的移动和敌人的弹道，不挡视线；敌人的弹道、地面爆炸、扇形与释放范围按原始伤害打它；4s 后或被打掉时在半径 200cm 内爆炸，敌人受 M 80 + 0.6 法强；同一技能只留 1 个（Y12 每份 +1） |
 
-- **开局池**：20 个主动带 `opening: true`（S01–S13、S17、S18、S20–S22、N1、N3）；S14、S15、S16、S19、N2、N4 只在 3、6 级机会出现。
+- **开局池**：20 个主动带 `opening: true`（S01–S13、S17、S18、S20–S22、N1、N3）；S14、S15、S16、S19、N2、N4 只在 2、4 级机会出现。
 - 同一技能自己放下的地面状态（N1 冰面、N3 与 S21 3A2 毒雾）与风扇同时只留一份，新的使旧的消失；Y12 每份多留一份。
 - 扯嗓子喷你的后两波是持续动作，不是预先发射的独立效果；死亡、眩晕、沉默、嘲讽、击退、停止或切换攻击/技能取消后续波，
   不退款。移动、定身、减速或缴械不自动取消；定身仍禁止移动。后续波继续造成自身伤害。
@@ -491,7 +491,7 @@ $$
 | 规则 | 内容与参数 |
 | --- | --- |
 | 开局（1 号机会） | 成长 `BeginMatch` 时给出；从 `opening: true` 的主动中等概率、不放回抽 3 个 |
-| 3、6 级 | `progression.active_offer_levels=[3,6]`：每达到其中一级加一次机会，从全部主动中等概率、不放回抽 3 个；该级的点数照发 |
+| 2、4 级 | `progression.active_offer_levels=[2,4]`：每达到其中一级加一次机会，从全部主动中等概率、不放回抽 3 个；该级的点数照发 |
 | 排除与不足 | 已学主动与待学图纸不进入候选；只有 1–2 个合格时只给这些；没有合格时机会排队、不生成候选，构筑变化后重新判定；排队不阻挡加点 |
 | 队列与随机 | 同时只有一组候选，其余机会排队；随机由本局私有种子、参赛者与机会序号决定，同一序号重试不换种子；没有权重、没有重抽 |
 | 选择 | 选中项成为待学图纸；有空槽时同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），Q/W/E 已满时存为图纸，回执写明原因（没有空槽）；对局进行中随时可选（交战中、死亡等待、休息每个步骤） |
@@ -512,7 +512,8 @@ $$
 
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
-| `CARDS.CapacityBase`、`CARDS.LevelsPerSlot` | 6、5 | 容量 = 6 + ⌊(等级 − 1) / 5⌋：L1–L5 6 格，L6 7 格，L11 8 格，L16 9 格；所有位置共用，没有分列上限 |
+| `CARDS.CapacityBase`、`CARDS.LevelsPerSlot` | 4、3 | 容量 = 4 + ⌊(等级 − 1) / 3⌋：L1–L3 4 格，L4 5 格，L7 6 格，L10 7 格，L13 8 格，L16 9 格；所有位置共用，没有分列上限 |
+| `CARDS.IdleCarrySec` | 5 s | 攒个大的（Y22）与憋着一发狠的（K16）只在交战中累计闲置；开打前最多带入这么多秒 |
 | `CARDS.OfferSize` | 3 | 每组牌三选一的张数（不重复） |
 | `CARDS.VocabWeight` | 2 | 与已装牌或已学技能共享词汇的牌的抽取权重；其他牌为 1 |
 | `CARDS.FreeRerolls`、`CARDS.RerollsPerRest` | 3、1 | 开局重抽次数；R1–R3 每次休息再给的次数 |
@@ -544,11 +545,11 @@ $$
 | A06 | `card_both_hands` | 左右开弓 | 改造 | 第 3 段变成两下，各 0.8 倍，两下都算普攻命中 | combo3, basic_hit |
 | A07 | `card_wide_swing` | 抡圆了打 | 改造 | 第 3 段变成身前 160° 横扫：主目标全额，其他人 60% | combo3 |
 | A08 | `card_fist_skill` | 拳里带招 | 改造 | 第 3 段命中 → 以 40% 效果放出 Q 技能（不耗劲、不进冷却、不触发爆劲；按 Q 的射程） | combo3, skill_cast |
-| A09 | `card_quick_hands` | 手快有手慢无 | 转换 | 攻速超过上限的部分，每 0.1 次/秒 → 每次普攻多打一下的概率 +10%（可超过 100%：每满 100% 必定多一下） | attack_speed, basic_hit |
-| A10 | `card_slow_craft` | 慢工出细活 | 转换 | 攻速每比 1 次/秒低 0.1，普攻伤害 +8%（乘区） | attack_speed |
+| A09 | `card_quick_hands` | 手快有手慢无 | 转换 | 攻速超过 2 次/秒的部分，每 0.1 次/秒 → 每次普攻多打一下的概率 +10%（可超过 100%：每满 100% 必定多一下） | attack_speed, basic_hit |
+| A10 | `card_slow_craft` | 慢工出细活 | 转换 | 攻速每比 1.2 次/秒低 0.1，普攻伤害 +8%（乘区） | attack_speed |
 | A11 | `card_scholar_punch` | 读书人打架 | 转换 | 普攻额外造成 40% 法强的魔法伤害（并入主击） | basic_hit |
 | A12 | `card_heated_up` | 越打越上头 | 成长 | 连续打同一个人，每下攻速 +4%，无上限；换目标或 3 s 没打清零 | attack_speed, basic_hit |
-| A13 | `card_muscle_memory` | 熟能生巧 | 成长 | 普攻每命中参赛者 25 次，本局攻击力 +1 | basic_hit |
+| A13 | `card_muscle_memory` | 熟能生巧 | 成长 | 普攻每命中参赛者 10 次，本局攻击力 +1 | basic_hit |
 | A14 | `card_breach_fist` | 越揍越不经打 | 成长 | 普攻命中挂 1 层破防（每层双抗 −3，上限 5，4 s） | basic_hit, armor |
 | A15 | `card_fire_fist` | 拳头冒火 | 元素 | 普攻命中挂 1 层灼烧 | element, basic_hit |
 | A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 普攻命中挂湿 | element, basic_hit |
@@ -566,11 +567,11 @@ $$
 | K09 | `card_big_one` | 攒够一顿狠的 | 改造 | 冷却 +50%，伤害 ×1.8（乘区） | skill_hit |
 | K10 | `card_long_reach` | 站远点照样抽你 | 改造 | 只装在指向或飞行物技能上：射程 +50%；命中时离目标至少 550 cm 则伤害 +25%（乘区） | — |
 | K11 | `card_hold_longer` | 按住多揍一会 | 改造 | 只装在有控制的技能上：控制时长 +40%（仍计递减），冷却 ×1.2 | control |
-| K12 | `card_blood_price` | 拿命换 | 转换 | 这个技能改用生命支付（每 1 劲 = 0.6% 生命上限），不再耗劲；伤害 +20%（乘区）；生命不足时拒绝 | low_hp, heal |
+| K12 | `card_blood_price` | 拿命换 | 转换 | 这个技能改用生命支付（每 1 劲 = 0.25% 生命上限），不再耗劲；伤害 +20%（乘区）；生命不足时拒绝 | low_hp, heal |
 | K13 | `card_lend_fist` | 拳头借给技能 | 转换 | 这个技能额外造成 60% 攻击力的物理伤害（并入原生直接命中） | skill_hit |
 | K14 | `card_held_breath` | 憋着的气 | 转换 | 这个技能命中时消耗你身上护盾的 50%，变成同类型的等量伤害 | shield |
 | K15 | `card_hurt_heal` | 打疼了我回血 | 转换 | 这个技能实际生命伤害的 25% 治疗自己 | heal, skill_hit |
-| K16 | `card_held_shot` | 憋着一发狠的 | 成长 | 这个技能就绪后每闲置 1 s，下一次伤害 +15%（乘区），无上限，释放后清零 | idle |
+| K16 | `card_held_shot` | 憋着一发狠的 | 成长 | 这个技能就绪后每闲置 1 s，下一次伤害 +15%（乘区），无上限，释放后清零；只算交战中的闲置，开打前最多带入 5 s | idle |
 | K17 | `card_practice` | 越用越顺手 | 成长 | 这个技能每命中参赛者一次，本局伤害 +2%（乘区），无上限 | skill_hit |
 | K18 | `card_combo_chain` | 一招接一招 | 成长 | 放这个技能时，过去 4 s 内你每放过一个其他技能，这次伤害 +20%（乘区） | skill_cast |
 | K19 | `card_add_fire` | 掺点火 | 元素 | 这个技能命中挂 2 层灼烧 | element |
@@ -602,7 +603,7 @@ $$
 | Y08 | `card_ball_kick` | 拿你当球踢 | 触发 | 你造成的击退撞上固定障碍 → 眩晕 0.8 s；撞上另一敌人 → 两人各受 P 60 + 0.5AD | knockback, wall_impact |
 | Y09 | `card_skill_crit` | 技能也能暴击 | 改造 | 你的技能可以暴击（用你的暴击率，倍率 2） | crit, skill_hit |
 | Y10 | `card_skill_drain` | 吸血对技能生效 | 改造 | 你的吸血也按技能实际生命伤害生效 | heal, skill_hit |
-| Y11 | `card_short_breath` | 气短 | 改造 | 劲到 70 就能爆劲，爆劲倍率 140%（多份取同一门槛，不叠加） | overdrive, momentum |
+| Y11 | `card_short_breath` | 气短 | 改造 | 劲到 35 就能爆劲，爆劲倍率 140%（多份取同一门槛，不叠加） | overdrive, momentum |
 | Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份 | ground |
 | Y13 | `card_thick_hide` | 皮糙肉厚 | 转换 | 每 1 点护甲 → 生命上限 +6 | armor, max_hp |
 | Y14 | `card_overfed` | 吃撑了 | 转换 | 溢出的治疗变成护盾（上限 30% 生命上限，5 s，与现有护盾取强） | heal, shield |
@@ -613,7 +614,7 @@ $$
 | Y19 | `card_grow_fat` | 越吃越壮 | 成长 | 每回复 200 生命，本局生命上限 +10，无上限 | heal, max_hp |
 | Y20 | `card_kill_streak` | 越杀越猛 | 成长 | 每次击杀参赛者本局攻击力 +4、法强 +6；每次助攻一半 | kill |
 | Y21 | `card_tough_skin` | 越挨越硬 | 成长 | 每被控制一次，本局护甲 +3、魔抗 +3，无上限 | controlled, armor |
-| Y22 | `card_charge_up` | 攒个大的 | 成长 | 不造成伤害的每 1 s，下一次伤害 +20%（乘区），无上限；造成伤害后清零（持续伤害不清零） | idle |
+| Y22 | `card_charge_up` | 攒个大的 | 成长 | 不造成伤害的每 1 s，下一次伤害 +20%（乘区），无上限；造成伤害后清零（持续伤害不清零）；只算交战中的闲置，开打前最多带入 5 s | idle |
 | Y23 | `card_turf_growth` | 地头蛇 | 成长 | 站在自己的地面状态上，每满 1 s 伤害 +3%（乘区），无上限；离开清零 | ground |
 | Y24 | `card_tally` | 揍一下记一笔 | 成长 | 每次命中记一笔，满 5 笔兑现：每笔 12 + 0.1 × 法强魔法伤害；6 s 没有新账就清空 | skill_hit, basic_hit |
 | Y25 | `card_live_wire` | 浑身带电 | 元素 | 安装时选一种元素（烫/湿/麻/冻/馊）；你身上常驻该元素的光环，200 cm 内对你造成直接伤害的人被挂上 | element, damaged |
@@ -630,7 +631,7 @@ $$
 
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
-| `COMBAT.ReactionBase`、`COMBAT.ReactionPerLevel`、`COMBAT.ReactionAPRatio` | 30、1.5、0.25 | 反应伤害 R = 30 + 1.5(L − 1) + 0.25 × 法强，魔法伤害，不乘 G；L 与法强取触发者（新元素的施加者） |
+| `COMBAT.ReactionBase`、`COMBAT.ReactionPerLevel`、`COMBAT.ReactionAPRatio` | 30、4、0.25 | 反应伤害 R = 30 + 4(L − 1) + 0.25 × 法强，魔法伤害，不乘 G；L 与法强取触发者（新元素的施加者） |
 | `COMBAT.WetSec`、`COMBAT.WetSlow` | 4 s、0.15 | 湿：移速 −15% |
 | `COMBAT.ShockSec`、`COMBAT.ShockEveryNthHit`、`COMBAT.ShockRatio`、`COMBAT.ShockSplashRadiusCm` | 4 s、3、0.5、350 cm | 麻：持有者每第 3 次受到直接伤害，额外受 0.5R；施加者的其他敌人在 350cm 内时也受 0.5R。这份伤害不是直接伤害，不推进计数，不触发反弹与命中类牌 |
 | `COMBAT.ChillSec`、`COMBAT.ChillAttackSlow`、`COMBAT.ChillMoveSlow` | 4 s、0.15、0.10 | 冻：攻速 −15%、移速 −10% |
@@ -878,7 +879,7 @@ Root（定身）在施加瞬间清零被定身者的喷漆进度；若他仍独�
 ### 6.1 经验与击杀
 
 `XP.Start=0`、`XP.MaxLevel=16` 是 Spec 固定值
-（`content.json` 的 `progression.xp_start / max_level`，另有 `active_slots=3`、`active_offer_levels=[3,6]`）。
+（`content.json` 的 `progression.xp_start / max_level`，另有 `active_slots=3`、`active_offer_levels=[2,4]`）。
 XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的第二账。
 
 | 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
@@ -1294,7 +1295,7 @@ XP和派生升级机会应先同时 Prepare，
 | `ABILITY.*` → 完整 effect/geometry 定义 | `LDDemoContentImport` 的 typed 定义；`LDCombatActions`/`LDCombatEffects` 按 `ELDDemoEffectOp` 分派 | 缺字段、额外/未知操作、参数与目标类型不匹配、小数截断 | 每个伤害/系数/盾量/控制期限的变化，以及拥有者等级经 G(L) 的变化，都影响实际结果，不只SHA |
 | `ABILITY.*` 的劲耗/时间/族 → cost/timing/source 投影 | `LDCombatActions`（释放扣劲）、`LDCombatSources`（`FLDCombatTrack` 冷却轨道） | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣劲/冷却；改技能 momentum_cost 确实改变劲耗；换槽/重学不能重置 |
 | `EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDCombatEffects`、`LDCombatSources`、`LDTacticalRules`（Root/屏障/回复） | 未支持事件、递归、模糊source、未知状态/stack族 | 吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
-| `XP.*`、`REWARD.*`、`GROWTH.*`、`stats`、`progression` → progression/reward/build 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（点数/主动机会/候选/学习/加点）、`ALDGrowthDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧候选、重放death、溢出 | 开局点数与一次主动机会、逐级点数、3/6 级机会与 16 级后按 XP 给点；击杀者与助攻者的XP一起一次提交；16级边界、死亡中选择与学习、构筑命令随时准入（只有阶段关闭拒绝） |
+| `XP.*`、`REWARD.*`、`GROWTH.*`、`stats`、`progression` → progression/reward/build 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（点数/主动机会/候选/学习/加点）、`ALDGrowthDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧候选、重放death、溢出 | 开局点数与一次主动机会、逐级点数、2/4 级机会与 16 级后按 XP 给点；击杀者与助攻者的XP一起一次提交；16级边界、死亡中选择与学习、构筑命令随时准入（只有阶段关闭拒绝） |
 | `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | `ALDCampDirector`/`LDCampLifecycle`/`LDCampDecision`、GameMode 生命与喷漆/守护（`LDGameModeLife`、`LDGameModeCapture`） | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查喷漆与守护完成 |
 | 定义/handler/family/schema ID → 不可变索引/来源键 | `LDDemoContentIds.h` 原生编号、`FLDDefinitionWire`、`FLDCombatSourceRef` | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重学仍读应有债务 |
 | 名称/说明/图标/目标预览 → 本人或获准的表现投影 | `LDDemoContentText`（`DemoContent` 字符串表）、HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效 |

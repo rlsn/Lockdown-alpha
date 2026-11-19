@@ -271,6 +271,7 @@ int32 ALDCombatDirector::DevFinishReset(const FGuid& Contender, int64 NowMs)
         DevRefillPool(Body->Resources, Catalog()->Get().Parameters.Momentum.StartP2);
         Body->MomentumMicroP2 = 0;
         Body->MomentumEngagedAtMs.Reset();
+        Body->FightStartedAtMs = 0;
         Body->ComboStep = 0;
         EndOverdriveCharge(*Body);
     }

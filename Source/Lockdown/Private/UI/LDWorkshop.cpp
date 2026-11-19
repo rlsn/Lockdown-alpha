@@ -203,13 +203,14 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             AttributeList=WidgetTree->ConstructWidget<UVerticalBox>();Column->AddChildToVerticalBox(AttributeList)->SetPadding(FMargin(0,26,0,0));
             UTextBlock* ReactionTitle=Label(LDTerms::WorkshopReactions,13,LDUIPaint::Hex(0x667086));
             {FSlateFontInfo Font=ReactionTitle->GetFont();Font.LetterSpacing=200;ReactionTitle->SetFont(Font);}
-            Column->AddChildToVerticalBox(ReactionTitle)->SetPadding(FMargin(0,26,0,10));
+            ReactionBlock=WidgetTree->ConstructWidget<UVerticalBox>();Column->AddChildToVerticalBox(ReactionBlock);
+            ReactionBlock->AddChildToVerticalBox(ReactionTitle)->SetPadding(FMargin(0,26,0,10));
             // .rx: all fifteen element pairs as chips in a five-by-three grid (lit first, then near, then the rest): two
             // element discs (painted under their characters), a small plus and the reaction's name. No scrolling: the
             // column scales down when it does not fit.
             auto* ReactionGrid=WidgetTree->ConstructWidget<UUniformGridPanel>();
             ReactionGrid->SetSlotPadding(FMargin(2.f));
-            Column->AddChildToVerticalBox(ReactionGrid);
+            ReactionBlock->AddChildToVerticalBox(ReactionGrid);
             for(int32 Index=0;Index<WorkshopReactionChips;++Index)
             {
                 FReaction& Reaction=Reactions.AddDefaulted_GetRef();
@@ -235,13 +236,17 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 ReactionGrid->AddChildToUniformGrid(RowHeight,Index/WorkshopReactionColumns,Index%WorkshopReactionColumns);
                 Built.Add(Plus);Built.Add(Line);Built.Add(RowHeight);
             }
-            RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);
-            Column->AddChildToVerticalBox(RespecSpace)->SetHorizontalAlignment(HAlign_Fill);
-            // The column scales down (never up) when larger text would push it past the panel.
             // The column keeps the panel's inner width and scales down (never up) when larger text would push it past the
             // panel's height.
             auto* ColumnWidth=WidgetTree->ConstructWidget<USizeBox>();ColumnWidth->SetWidthOverride(WorkshopCharacterWidth-48.f);ColumnWidth->SetContent(Column);
-            CharacterFit=LDWidgets::Fit(WidgetTree,ColumnWidth);CharacterPanel=Surface(CharacterFit,FMargin(24,22));Add(CharacterPanel,2);
+            CharacterFit=LDWidgets::Fit(WidgetTree,ColumnWidth);
+            // The trainer's respec foot sits under the scaled column at full size: its button and reason lines are laid
+            // over it by the choices panel and do not scale with the column.
+            auto* Stack=WidgetTree->ConstructWidget<UVerticalBox>();
+            Stack->AddChildToVerticalBox(CharacterFit)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);
+            Stack->AddChildToVerticalBox(RespecSpace)->SetHorizontalAlignment(HAlign_Fill);
+            CharacterPanel=Surface(Stack,FMargin(24,22));Add(CharacterPanel,2);
         }
         {
             // The board: its surface, the capacity row (cells painted) and one head per column; the storage lays the
@@ -883,7 +888,9 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(LevelLine,Latest.Level.Experience);
     const int64 Unspent=View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
-    if(RespecSpace){const float Foot=Latest.bCharacterServices?96.f:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
+    if(RespecSpace){const float Foot=Latest.bCharacterServices?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
+    // With the trainer the respec foot replaces the reactions so the stats and attributes keep a legible size.
+    WorkshopShown(ReactionBlock,!Latest.bCharacterServices);
     WorkshopText(PointsText,FString::FromInt(Unspent));
     // The stat rows follow the catalog's design order; each "+" spends one point through the band's stat bar.
     if(Content&&StatRows.IsEmpty())
@@ -966,7 +973,7 @@ void ULDWorkshop::RefreshCharacter()
         {
             auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Line);
             auto* Height=WidgetTree->ConstructWidget<USizeBox>();Height->SetContent(Line);Built.Add(Height);
-            AttributeList->AddChildToVerticalBox(Height)->SetPadding(FMargin(0,Index?6.f:0.f,0,0));
+            AttributeList->AddChildToVerticalBox(Height)->SetPadding(FMargin(0,Index?1.f:0.f,0,0));
         }
         auto* Line=Cast<UHorizontalBox>(Cast<USizeBox>(AttributeList->GetChildAt(AttributeList->GetChildrenCount()-1))->GetContent());
         UTextBlock* Name=LDWidgets::Text(WidgetTree,TEXT(""),14,FName(*FString::Printf(TEXT("WorkshopAttributeName%d"),Index)));Name->SetAutoWrapText(false);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
@@ -976,12 +983,14 @@ void ULDWorkshop::RefreshCharacter()
         auto* NameSlot=Half->AddChildToHorizontalBox(Name);NameSlot->SetVerticalAlignment(VAlign_Center);
         auto* ValueSlot=Half->AddChildToHorizontalBox(Value);ValueSlot->SetPadding(FMargin(12,0,0,0));ValueSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* Fit=LDWidgets::Fit(WidgetTree,Half);
-        auto* HalfSlot=Line->AddChildToHorizontalBox(Fit);HalfSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HalfSlot->SetPadding(FMargin(Index%2?18.f:0.f,0,0,5));
+        auto* HalfSlot=Line->AddChildToHorizontalBox(Fit);HalfSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HalfSlot->SetPadding(FMargin(Index%2?18.f:0.f,0,0,0));
         AttributeHalves.Add(Fit);
         AttributeNames.Add(Name);AttributeValues.Add(Value);ScaleFresh(Name);ScaleFresh(Value);
     }
-    // The fitting cells need a stable row height, not a height derived from their own scaled desired size.
-    for(UWidget* Row:AttributeList->GetAllChildren()){Cast<USizeBox>(Row)->SetHeightOverride(26.f*TextScale);}
+    // The fitting cells need a stable row height, not a height derived from their own scaled desired size. The row is
+    // taller than the value's line (about 29 units), so the fitting box never scales to the row's exact height: at
+    // 1280x720 pixel rounding makes small text a fraction taller than the size the box measured and it would stick out.
+    for(UWidget* Row:AttributeList->GetAllChildren()){Cast<USizeBox>(Row)->SetHeightOverride(32.f*TextScale);}
     for(int32 Index=0;Index<AttributeNames.Num();++Index)
     {
         const bool bHas=Shown.IsValidIndex(Index);
@@ -1262,7 +1271,7 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
     {
         for(const FReaction& Reaction:Reactions)
         {
-            if(!Reaction.Row||!Reaction.Row->GetCachedGeometry().IsUnderLocation(Pointer)){continue;}
+            if(!Reaction.Row||!ReactionBlock||!ReactionBlock->IsVisible()||!Reaction.Row->GetCachedGeometry().IsUnderLocation(Pointer)){continue;}
             const FString Name=LDWorkshop::ReactionName(Reaction.First,Reaction.Second);
             const FString Pair=LDHUD::ElementName(Reaction.First)+TEXT(" + ")+LDHUD::ElementName(Reaction.Second);
             ShowTextDock(TEXT("R|")+Name,Name,Pair,LDTerms::ReactionExplanation(Name),FString(),FString());
@@ -1513,7 +1522,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         }
         for(const FReaction& Reaction:Reactions)
         {
-            if(!Shown(Reaction.Row)){continue;}
+            if(!Shown(Reaction.Row)||!Shown(ReactionBlock)){continue;}
             const FBox2D Row=Box(Reaction.Row);
             if(Reaction.bLit)
             {

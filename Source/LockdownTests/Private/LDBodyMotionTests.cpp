@@ -190,13 +190,23 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
         LDHitFeel::Word(0)==TEXT("啪！") && LDHitFeel::Word(LDObservation::ShieldAbsorbed)==TEXT("铛！")
         && LDHitFeel::Word(LDObservation::Critical|LDObservation::ShieldAbsorbed)==TEXT("暴击！")
         && LDHitFeel::Word(LDObservation::ShieldBroken)==TEXT("破盾！")
-        && LDHitFeel::Word(LDCombatCues::DealtLethal)==TEXT("终结！"));
+        && LDHitFeel::Word(LDCombatCues::DealtLethal)==TEXT("终结！")
+        && LDHitFeel::Word(LDCombatCues::DealtOverdrive)==TEXT("爆劲！")
+        && LDHitFeel::Word(LDCombatCues::DealtOverdrive|LDCombatCues::DealtLethal)==TEXT("终结！"));
+    TestTrue(TEXT("An overdrive blow weighs like a critical hit and outranks one in the same instant"),
+        LDHitFeel::TierOf(LDCombatCues::DealtOverdrive)==LDHitFeel::ETier::Critical
+        && LDCombatCues::DealtRank(LDCombatCues::DealtOverdrive)>LDCombatCues::DealtRank(LDObservation::Critical)
+        && LDCombatCues::DealtRank(LDCombatCues::DealtLethal)>LDCombatCues::DealtRank(LDCombatCues::DealtOverdrive));
     FLDDamageEvaluation Dealt, Absorbed;
     Dealt.DamageP2=100;
     TestTrue(TEXT("The lethal receipt bit only marks a blow that dealt damage"),
         (LDCombatCues::ClassifyDealt(false,0,Dealt,true) & LDCombatCues::DealtLethal)!=0
         && (LDCombatCues::ClassifyDealt(false,0,Absorbed,true) & LDCombatCues::DealtLethal)==0
         && (LDCombatCues::ClassifyDealt(false,0,Dealt,false) & LDCombatCues::DealtLethal)==0);
+    TestTrue(TEXT("The overdrive receipt bit only marks an overdrive blow that dealt damage"),
+        (LDCombatCues::ClassifyDealt(false,0,Dealt,false,true) & LDCombatCues::DealtOverdrive)!=0
+        && (LDCombatCues::ClassifyDealt(false,0,Absorbed,false,true) & LDCombatCues::DealtOverdrive)==0
+        && (LDCombatCues::ClassifyDealt(false,0,Dealt,false) & LDCombatCues::DealtOverdrive)==0);
     LDHitFeel::ResetAll();
     TestTrue(TEXT("Stepping moves one step and stops at the ends of the range"),
         LDHitFeel::Step(0,1) && FMath::IsNearlyEqual(LDHitFeel::Read().StopSeconds,.07f) && !LDHitFeel::IsAllDefault());

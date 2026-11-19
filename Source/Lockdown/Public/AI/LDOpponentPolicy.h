@@ -34,6 +34,8 @@ enum class ELDOpponentReason : uint8
     TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss,
     // P6 spec §10.3: a live mid-field objective within reach.
     ContestObjective,
+    // #305 spec §11.3: a seen, still stocked delivery locker within reach, and the visible second-hand dealer.
+    OpenLocker, ChaseDealer,
     // #198 §16.3: a visible shared training dummy engaged in the rest build window once nothing is left to build.
     Train, RestService
 };
@@ -144,6 +146,8 @@ struct FLDOpponentSelf
     // Spec §3.13: the own vouchers and rest shop.
     int32 Vouchers = 0;
     FLDShopView Shop;
+    // #305: the vending machine within reach (own pacing view; None = none).
+    FName NearbyVending;
     // Owned cards by serial, the level's card capacity and the current card offer.
     TArray<FLDOpponentCard> Cards;
     int32 CardCapacity = 0;
@@ -218,7 +222,10 @@ struct FLDOpponentUnit
     bool bProtected = false;
     // The element it visibly holds (ELDCombatElement from its public statuses; 0 = none or not authorized).
     uint8 HeldElement = 0;
+    // Spec §11.3: the visible second-hand dealer (its public look).
+    bool bPeddler = false;
 };
+
 
 // A public ground state in sight (spec §13): its kind (ELDGroundStateKind), footprint and whether an enemy owns it.
 struct FLDOpponentGround
@@ -229,7 +236,8 @@ struct FLDOpponentGround
 };
 
 // Service places are carried only by rest frames, not the field POI list.
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, RestService };
+// Locker (#305): a delivery locker this contender has seen and not opened (its own pacing view); never a static place.
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, RestService, Locker };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -367,6 +375,8 @@ struct FLDOpponentDecision
     ELDOpponentReason Reason = ELDOpponentReason::None;
     FLDOpponentBodyIntent Body;
     FLDOpponentBuildIntent Build;
+    // #305 spec §11.3: a vending purchase at the machine within reach (ELDVendingItem; 0 = none).
+    uint8 Vending = 0;
 };
 
 // What a domain's final answer to one intent teaches the failure memory (OPPONENT_AI.md §3.3).
@@ -429,6 +439,8 @@ struct FLDOpponentPolicyState
     bool bHasRefusedWalk = false;
     FName VisitPOI;
     int64 VisitEngagedAtMs = 0;
+    // #305: when the last vending purchase was asked for (0 = never this match).
+    int64 VendingAskedAtMs = 0;
     FName ExplorePOI;
     FGuid TargetHandle;
     uint32 TargetEpoch = 0;
