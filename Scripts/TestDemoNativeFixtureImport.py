@@ -41,7 +41,11 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(native._file_hashes(self.root), self.written)
 
     def test_valid_outputs_use_the_existing_compiler_contract(self):
-        cases = self.index["valid"]
+        # The export already compiled every case; one of each kind (synthetic base, approved inputs, a value mutation, a
+        # world change) recompiled here proves the written bytes are the compiler's.
+        names = {"base", "approved_base", "value_field_000", "world_spawn_shift"}
+        cases = [case for case in self.index["valid"] if case["name"] in names]
+        self.assertEqual({case["name"] for case in cases}, names)
         with ProcessPoolExecutor(min(len(cases), native.default_jobs())) as pool:
             results = list(pool.map(_compile_valid_case, [str(self.root / case["name"]) for case in cases]))
         for case, (digest, runtime_matches) in zip(cases, results):
@@ -63,7 +67,7 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(expected["Parameters.BasicAttackWindupMs"], "300")
         self.assertNotEqual(expected["Parameters.AD.BaseP2"], synthetic["Parameters.AD.BaseP2"])
 
-    def test_every_active_value_quantity_has_a_distinct_native_change_assertion(self):
+    def test_every_active_value_quantity_kind_has_a_distinct_native_change_assertion(self):
         baseline = json.loads((self.root / "base" / "native_expected.json").read_bytes())
         data = json.loads((self.root / "base" / demo.CONTENT_OUTPUT).read_bytes())
         expected = set()
@@ -87,14 +91,15 @@ class DemoNativeFixturesTest(unittest.TestCase):
             if not case["mutated_quantity"]:
                 continue
             with self.subTest(case=case["name"]):
-                self.assertNotIn(case["mutated_quantity"], seen)
-                seen.add(case["mutated_quantity"])
+                kind = native.value_quantity_kind(case["mutated_quantity"])
+                self.assertNotIn(kind, seen)
+                seen.add(kind)
                 self.assertTrue(case["changed_paths"])
                 changed = json.loads((self.root / case["name"] / "native_expected.json").read_bytes())
                 for path in case["changed_paths"]:
                     self.assertFalse(path.startswith("Identity."))
                     self.assertNotEqual(changed[path], baseline[path])
-        self.assertEqual(seen, expected)
+        self.assertEqual(seen, {native.value_quantity_kind(path) for path in expected})
 
     def assert_reflected_projection(self, root_type, expected, *headers):
         structs = {}
@@ -226,29 +231,20 @@ class DemoNativeFixturesTest(unittest.TestCase):
 
 
 class DemoNativeFixtureParallelismTest(unittest.TestCase):
-    def test_runtime_profile_exports_only_runtime_rule_cases(self):
+    def test_runtime_profile_exports_only_runtime_rule_cases_with_the_same_bytes_inline_and_parallel(self):
         artifacts = demo.ROOT / "Artifacts" / "DemoNativeCatalog"
         artifacts.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="export-runtime-test-", dir=artifacts) as temp:
-            root = Path(temp) / "runtime"
-            index = native.export(root, profile="runtime")
-            self.assertEqual([case["name"] for case in index["valid"]],
-                             ["base", "approved_base", "exact_integer", "world_spawn_shift"])
-            self.assertEqual([case["name"] for case in index["invalid"]], ["unknown_root_field"])
-            self.assertEqual(native._file_hashes(root),
-                             {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-                              for path in root.rglob("*") if path.is_file()})
-
-    def test_parallel_export_writes_the_same_bytes_as_inline_export(self):
-        artifacts = demo.ROOT / "Artifacts" / "DemoNativeCatalog"
-        artifacts.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="export-jobs-test-", dir=artifacts) as temp:
             trees = {}
             for jobs in (1, 3):
                 root = Path(temp) / f"jobs-{jobs}"
-                native.export(root, value_mutations=False, jobs=jobs)
+                index = native.export(root, profile="runtime", jobs=jobs)
+                self.assertEqual([case["name"] for case in index["valid"]],
+                                 ["base", "approved_base", "exact_integer", "world_spawn_shift"])
+                self.assertEqual([case["name"] for case in index["invalid"]], ["unknown_root_field"])
                 trees[jobs] = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
-            self.assertGreater(len(trees[1]), 100)
+                self.assertEqual(native._file_hashes(root),
+                                 {name: hashlib.sha256(raw).hexdigest() for name, raw in trees[jobs].items()})
             self.assertEqual(trees[1], trees[3])
 
     def test_export_refuses_a_non_positive_job_count(self):

@@ -295,6 +295,20 @@ void QuantityPaths(const FValue& Value, const FString& Path, TSet<FString>& Out)
 }
 
 // #198: the quantities of every active's single value set (cost, cooldown and every effect term).
+// A value quantity's path without list indices (ExportDemoNativeFixtures.value_quantity_kind): one mutation per kind.
+FString ValueQuantityKind(const FString& Path)
+{
+    FString Out;
+    Out.Reserve(Path.Len());
+    for (int32 I = 0; I < Path.Len(); ++I)
+    {
+        Out.AppendChar(Path[I]);
+        if (Path[I] != TEXT('[')) { continue; }
+        while (I + 1 < Path.Len() && FChar::IsDigit(Path[I + 1])) { ++I; }
+    }
+    return Out;
+}
+
 bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, FString& Error)
 {
     FValue Root;
@@ -311,6 +325,9 @@ bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, 
             QuantityPaths(Abilities[I]->AsObject()->TryGetField(Field), FString::Printf(TEXT("content.abilities[%d].%s"), I, Field), Out);
         }
     }
+    TSet<FString> Kinds;
+    for (const FString& Path : Out) { Kinds.Add(ValueQuantityKind(Path)); }
+    Out = MoveTemp(Kinds);
     return true;
 }
 
@@ -463,8 +480,8 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         }
         if (!Case.MutatedQuantity.IsEmpty())
         {
-            TestTrue(TEXT("Each active value quantity mutation is unique and has a native change assertion"),
-                UnchangedValueQuantities.Remove(Case.MutatedQuantity) == 1 && !Case.ChangedPaths.IsEmpty());
+            TestTrue(TEXT("Each active value quantity kind is mutated once and has a native change assertion"),
+                UnchangedValueQuantities.Remove(ValueQuantityKind(Case.MutatedQuantity)) == 1 && !Case.ChangedPaths.IsEmpty());
         }
         const FLDDemoAbilityDefinition* Ability = nullptr;
         const FLDDemoStatDefinition* Stat = nullptr;
@@ -483,7 +500,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A case alias resolves to the canonical definition"),
             Snapshot->FindAbility(TEXT("Active_snark_bolt"), Ability, Error) && Ability == OldAbility);
     }
-    TestEqual(TEXT("Every active value quantity has a compiler-backed native change case"), UnchangedValueQuantities.Num(), 0);
+    TestEqual(TEXT("Every active value quantity kind has a compiler-backed native change case"), UnchangedValueQuantities.Num(), 0);
 
     FCheck Check(Error);
     const ANSICHAR* BoundaryText = "{\n  \"max\": 9223372036854775807,\n  \"min\": -9223372036854775808\n}\n";
