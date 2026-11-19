@@ -321,7 +321,7 @@ void ULDNavigationComponent::CastAtUnit(const FLDCombatActionRequest& Cast, bool
     Request.bQueue=bQueue;
     HoldMoveForCast(Cast);
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { ClearHeldCast(); return; }
-    if (HeldCastSequence!=0) { HeldCastOrder=Local; }
+    if (HeldCastSequence==Cast.DirectSequence) { HeldCastOrder=Local; }
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Request.Observed,Request.ObservationEpoch); }
 }
 
@@ -335,18 +335,25 @@ void ULDNavigationComponent::CastAtPoint(const FLDCombatActionRequest& Cast, con
     Request.bQueue=bQueue;
     HoldMoveForCast(Cast);
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { ClearHeldCast(); return; }
-    if (HeldCastSequence!=0) { HeldCastOrder=Local; }
+    if (HeldCastSequence==Cast.DirectSequence) { HeldCastOrder=Local; }
 }
 
-// Set before the order is sent: a listen host can receive the cast's receipts inside the send.
+// Set before the order is sent: a listen host can receive the cast's receipts inside the send. The wait for an earlier
+// cast is kept aside: a refused newer cast (cooldown, momentum) restores it, so the body never walks out of the earlier
+// cast's windup.
 void ULDNavigationComponent::HoldMoveForCast(const FLDCombatActionRequest& Cast)
 {
+    PriorHeldCastOrder=HeldCastOrder;
+    PriorHeldCastSequence=HeldCastSequence;
+    bPriorHeldCastSettled=bHeldCastSettled;
+    PriorHeldCastOrderEndedAt=HeldCastOrderEndedAt;
     ClearHeldCast();
     if (bHeldMove) { HeldCastSequence=Cast.DirectSequence; }
 }
 
 void ULDNavigationComponent::ClearHeldCast()
 {
+    bHeldCastRestored=false;
     HeldCastOrder={};
     HeldCastSequence=0;
     HeldCastOrderEndedAt=-1.;
@@ -355,9 +362,21 @@ void ULDNavigationComponent::ClearHeldCast()
 
 void ULDNavigationComponent::NoteCombatReceipt(const FLDCombatActionReceipt& Receipt)
 {
-    if (HeldCastSequence!=0 && Receipt.DirectSequence==HeldCastSequence
-        && (Receipt.Phase==ELDCombatPhase::Finished || Receipt.Phase==ELDCombatPhase::Rejected))
-    { bHeldCastSettled=true; }
+    const bool bEnded=Receipt.Phase==ELDCombatPhase::Finished || Receipt.Phase==ELDCombatPhase::Rejected;
+    if (PriorHeldCastSequence!=0 && Receipt.DirectSequence==PriorHeldCastSequence && bEnded) { bPriorHeldCastSettled=true; }
+    if (HeldCastSequence==0 || Receipt.DirectSequence!=HeldCastSequence || !bEnded) { return; }
+    // A refusal of the newer cast changes nothing for the body: the wait goes back to the earlier cast still running.
+    if (Receipt.Phase==ELDCombatPhase::Rejected && PriorHeldCastSequence!=0 && !bPriorHeldCastSettled)
+    {
+        HeldCastSequence=PriorHeldCastSequence;
+        HeldCastOrder=PriorHeldCastOrder;
+        HeldCastOrderEndedAt=PriorHeldCastOrderEndedAt;
+        bHeldCastSettled=false;
+        bHeldCastRestored=true;
+        PriorHeldCastSequence=0;
+        return;
+    }
+    bHeldCastSettled=true;
 }
 
 // The accepted attack may be older than Local, which can name a queued or refused request.
@@ -864,6 +883,7 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     // Shift click is a single queued step.
     bHeldMove=!bQueue && Local.Order!=Before;
     ClearHeldCast();
+    PriorHeldCastSequence=0;
     bHeldResume=false;
     HeldSentAt=GetWorld()->GetTimeSeconds();
     HeldPoint=GroundHit.ImpactPoint;
@@ -1016,7 +1036,8 @@ void ULDNavigationComponent::TickHeldMove()
     const double Now=GetWorld()->GetTimeSeconds();
     if (HeldCastSequence!=0)
     {
-        if (HeldCastOrder==Local)
+        // A restored wait names an order a refused newer cast already replaced as Local: it still holds.
+        if (HeldCastOrder==Local || bHeldCastRestored)
         {
             if (bLocalPending || ClientActive==HeldCastOrder) { return; }
             // The order ends when Combat admits the cast; the body is free once that action finished or was refused.

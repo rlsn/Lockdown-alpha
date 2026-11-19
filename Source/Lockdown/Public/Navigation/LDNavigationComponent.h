@@ -270,6 +270,12 @@ private:
     double HeldCastOrderEndedAt=-1.;
     bool bHeldCastSettled=false;
     bool bHeldResume=false;
+    // The wait of the cast before the newest one, restored when the newest is refused.
+    FLDMoveIdentity PriorHeldCastOrder;
+    uint64 PriorHeldCastSequence=0;
+    double PriorHeldCastOrderEndedAt=-1.;
+    bool bPriorHeldCastSettled=false;
+    bool bHeldCastRestored=false;
     void HoldMoveForCast(const FLDCombatActionRequest& Cast);
     void ClearHeldCast();
 public:
