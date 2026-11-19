@@ -312,25 +312,26 @@ void ULDNavigationComponent::SendAttackUnit(const FGuid& Observed, uint32 Observ
 
 void ULDNavigationComponent::CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue)
 {
-    bHeldMove=false;
+    if (bQueue) { bHeldMove=false; }
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::CastUnit;
     Request.Observed=Cast.Target.Observed;
     Request.ObservationEpoch=Cast.Target.ObservationEpoch;
     Request.bQueue=bQueue;
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { return; }
+    if (bHeldMove) { HeldCastOrder=Local; }
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Request.Observed,Request.ObservationEpoch); }
 }
 
 void ULDNavigationComponent::CastAtPoint(const FLDCombatActionRequest& Cast, const FVector& PointCm, bool bQueue)
 {
-    bHeldMove=false;
+    if (bQueue) { bHeldMove=false; }
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::CastPoint;
     Request.GroundCm=PointCm;
     Request.SurfaceHint=GroundSurfaceHint();
     Request.bQueue=bQueue;
-    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast);
+    if (SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast) && bHeldMove) { HeldCastOrder=Local; }
 }
 
 // The accepted attack may be older than Local, which can name a queued or refused request.
@@ -397,7 +398,8 @@ void ULDNavigationComponent::StepCastFollowUp(const FLDOrderReceipt& Receipt)
     ClearCastFollowUp();
     UE_LOG(LogLDNav,Log,TEXT("LD_CAST_FOLLOW_UP cast=%u step=%s visible=%d"),FollowUp.Identity.Order,
         Step==LDOrderRules::ECastFollowUp::Attack?TEXT("Attack"):TEXT("Drop"),bVisible?1:0);
-    if (Step!=LDOrderRules::ECastFollowUp::Attack) { return; }
+    // The held move button decides what follows the cast.
+    if (Step!=LDOrderRules::ECastFollowUp::Attack || bHeldMove) { return; }
     SendAttackUnit(FollowUp.Observed,FollowUp.ObservationEpoch,false,true);
 }
 
@@ -835,6 +837,7 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing, and a
     // Shift click is a single queued step.
     bHeldMove=!bQueue && Local.Order!=Before;
+    HeldCastOrder={};
     HeldSentAt=GetWorld()->GetTimeSeconds();
     HeldPoint=GroundHit.ImpactPoint;
 }
@@ -980,6 +983,13 @@ void ULDNavigationComponent::TickHeldMove()
     {
         bHeldMove=false;
         return;
+    }
+    // A cast sent during the hold runs first (walk into reach, cast); once it ended, or a newer own order replaced
+    // it, the walk follows the pointer again.
+    if (HeldCastOrder.Order!=0)
+    {
+        if (HeldCastOrder==Local && (bLocalPending || ClientActive==HeldCastOrder)) { return; }
+        HeldCastOrder={};
     }
     if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
     const double Now=GetWorld()->GetTimeSeconds();

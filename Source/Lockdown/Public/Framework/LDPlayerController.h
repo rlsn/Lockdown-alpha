@@ -248,7 +248,9 @@ private:
     bool bControlsSuppressed=false;
     UPROPERTY() TObjectPtr<class UInputMappingContext> NavigationInputContext;
     bool bNavigationContextActive=false;
-    bool bFreshInputRequired=false;
+    // Keys that were physically down when local input was released: each is ignored until it is let go once, so a
+    // held key never fires again on its own while every other key and button keeps working.
+    TSet<FKey> StaleKeys;
     TWeakObjectPtr<APawn> PreferencesPawn;
     TArray<uint32> V05BindingHandles;
     FGuid Inspected;

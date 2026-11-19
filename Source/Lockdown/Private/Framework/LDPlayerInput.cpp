@@ -82,7 +82,7 @@ bool ALDPlayerController::IsWorldLifeValid() const
 }
 
 bool ALDPlayerController::IsWorldInputSuppressed() const
-{ return bControlsSuppressed || bFreshInputRequired || IsWorldInputCaptured(); }
+{ return bControlsSuppressed || IsWorldInputCaptured(); }
 
 bool ALDPlayerController::IsWorldInputCaptured() const
 {
@@ -99,7 +99,17 @@ bool ALDPlayerController::CanCameraCommand() const
 
 void ALDPlayerController::ReleaseLocalInput()
 {
-    bFreshInputRequired=true;
+    StaleKeys.Reset();
+    for (const FKey& Mouse : {EKeys::LeftMouseButton,EKeys::RightMouseButton})
+    { if (LDPlayerInputDetail::PhysicalDown(this,Mouse)) { StaleKeys.Add(Mouse); } }
+    if (Controls)
+    {
+        for (const auto& Binding : Controls->Definitions())
+        {
+            const FKey Key=Controls->Key(Binding.Action);
+            if (Key.IsValid() && LDPlayerInputDetail::PhysicalDown(this,Key)) { StaleKeys.Add(Key); }
+        }
+    }
     CancelArmedCombat();
     QueuedCombat={};
     if (Navigation) { Navigation->Recenter(false); }
@@ -156,12 +166,8 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         HUDUI->AddToViewport(30);
     }
     if (!bNavigationContextActive) { RebuildV05Mappings(); Navigation->bFollowCamera=Controls->bStartFollowing; }
-    if (bFreshInputRequired)
-    {
-        bool Down=LDPlayerInputDetail::PhysicalDown(this,EKeys::LeftMouseButton)||LDPlayerInputDetail::PhysicalDown(this,EKeys::RightMouseButton);
-        for (const auto& Binding : Controls->Definitions()) { Down|=LDPlayerInputDetail::PhysicalDown(this,Controls->Key(Binding.Action)); }
-        if (!Down) { bFreshInputRequired=false; }
-    }
+    for (auto It=StaleKeys.CreateIterator(); It; ++It)
+    { if (!LDPlayerInputDetail::PhysicalDown(this,*It)) { It.RemoveCurrent(); } }
     // A child confirmation or text edit that opens over an armed preview cancels it before the next frame (MOVEMENT_INPUT_AND_CAMERA input ownership).
     if (IsWorldInputCaptured()) { CancelArmedCombat(); }
     FlushQueuedCombat();
@@ -216,14 +222,19 @@ void ALDPlayerController::V05Back()
     if (CancelArmedCombat()) { return; }
     if (HUDUI && HUDUI->CancelStorage()) { return; }
     if (RootUI->CloseTopPanel()) { return; }
-    if (!bFreshInputRequired) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
+    if (!StaleKeys.Contains(BindingKey(TEXT("Back")))) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
 }
 
 void ALDPlayerController::V05Pressed(FName Action)
 {
     if (Action==TEXT("Back")) { V05Back(); return; }
     if (IsDevFreeCameraActive()) { return; }
-    if (bControlsSuppressed || bFreshInputRequired) { return; }
+    if (bControlsSuppressed) { return; }
+    if (StaleKeys.Contains(BindingKey(Action)))
+    {
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT dropped action=%s reason=stale-key"),*Action.ToString());
+        return;
+    }
     // The HUD's stat icons <-> attribute view, alive or dead (VISION_AND_UI pages).
     if (Action==TEXT("Attributes")) { if (HUDUI) { HUDUI->ToggleAttributeView(); } return; }
     // A child confirmation or a text edit owns every other key and click until it closes (MOVEMENT_INPUT_AND_CAMERA input ownership).
@@ -251,8 +262,15 @@ void ALDPlayerController::V05Pressed(FName Action)
     if (!CanWorldCommand()) { return; }
     if (Action==TEXT("Select"))
     {
-        if (RootUI && RootUI->PointerOverUI()) { return; }
+        if (RootUI && RootUI->PointerOverUI())
+        {
+            if (ArmedEntry!=ELDCombatEntry::None)
+            { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT dropped action=Select reason=over-ui armed=%u"),uint32(ArmedEntry)); }
+            return;
+        }
         if (ConfirmArmedCombat()) { return; }
+        if (bOverdriveHolding)
+        { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT dropped action=Select reason=not-armed holding=%u"),uint32(OverdriveEntry)); }
         FGuid Handle;
         uint32 ObservationEpoch=0;
         ObservedUnderPointer(Handle,ObservationEpoch);
@@ -260,9 +278,9 @@ void ALDPlayerController::V05Pressed(FName Action)
     }
     else if (Action==TEXT("Navigate"))
     {
-        // A right click while something is armed only cancels it; the next right click is an ordinary order.
+        // A right click while something is armed cancels it and is an ordinary order in the same click.
         if (RootUI && RootUI->PointerOverUI()) { return; }
-        if (CancelArmedCombat()) { return; }
+        CancelArmedCombat();
         // Shift queues the click behind the current order (shift queue) instead of replacing it.
         Navigation->ClickMove(IsQueueModifierDown());
     }

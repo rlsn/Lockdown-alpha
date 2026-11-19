@@ -42,6 +42,7 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
     if (bHeld && LDPlayerOrdersDetail::IsArmedMode(Mode))
     {
         bAttackMoveArmed=false;
+        if (ArmedEntry!=Entry) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed entry=%u"),uint32(Entry)); }
         ArmedEntry=Entry;
         // The D dash goes toward the pointer at once; without ground under the pointer the server refuses it explicitly.
         if (LDCombatPreInput::FiresOnPress(Entry))
@@ -104,6 +105,7 @@ bool ALDPlayerController::CancelArmedCombat()
     // A real cancel (S, Escape, a menu, a move order, a new life or source revision) also ends a running or completed
     // overdrive hold and the visible charge with it.
     if (bOverdriveHolding || bOverdriveArmed) { EndOverdriveHold(); }
+    if (ArmedEntry!=ELDCombatEntry::None) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry)); }
     return ClearArmedAim();
 }
 
@@ -190,6 +192,8 @@ bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim, const FV
     SendCombatAction(Entry,Aim,IsQueueModifierDown(),AimCm);
     // An overdrive the send neither consumed nor queued ends here instead of lingering as a visible charge.
     if (bOverdriveArmed && OverdriveEntry==Entry && QueuedCombat.Entry!=Entry) { EndOverdriveHold(); }
+    // Confirmed before the hold completed: an ordinary cast, and the hold ends with it.
+    if (bOverdriveHolding && OverdriveEntry==Entry) { EndOverdriveHold(); }
     return true;
 }
 
@@ -392,6 +396,11 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
         OverdriveHoldStartSec=FPlatformTime::Seconds();
         bOverdriveHolding=true;
         SendCharge(Entry,true);
+        // An aimed skill is armed from the press itself: a left click during the hold is an ordinary cast, and only a
+        // hold that completes turns the armed aim into overdrive. Quick cast and self skills fire on activation, so
+        // for them the release still decides.
+        if (LDPlayerOrdersDetail::IsArmedMode(ELDDemoTargetMode(View->TargetMode)) && !(Controls && Controls->GetQuickCast()))
+        { ActivateCombatEntry(Entry); }
         return;
     }
     ActivateCombatEntry(Entry);
@@ -402,7 +411,7 @@ void ALDPlayerController::ReleaseSkill(ELDCombatEntry Entry)
     if (!bOverdriveHolding || Entry!=OverdriveEntry) { return; }
     // Let go before the hold completed: the charge ends and the press is an ordinary cast.
     EndOverdriveHold();
-    ActivateCombatEntry(Entry);
+    if (ArmedEntry!=Entry) { ActivateCombatEntry(Entry); }
 }
 
 void ALDPlayerController::TickOverdriveHold()
@@ -526,10 +535,15 @@ void ALDPlayerController::OnRep_CombatView()
         CombatView=LatestCombatView;
         return;
     }
-    // An armed preview belongs to the life and the source revision it was armed against.
+    // An armed preview belongs to its life and to the skill it was armed for: a build change elsewhere (a level, a
+    // stat point, a card) keeps it, and the confirmation is sent against the current source revision.
     if (bNewLine || CombatView.SourceRevision!=LatestCombatView.SourceRevision)
     {
-        CancelArmedCombat();
+        const FLDCombatEntryView* Was=LDPlayerOrdersDetail::FindEntry(LatestCombatView,ArmedEntry);
+        const FLDCombatEntryView* Now=LDPlayerOrdersDetail::FindEntry(CombatView,ArmedEntry);
+        const bool bSameSkill=ArmedEntry!=ELDCombatEntry::None && Was && Now && Was->DefinitionId==Now->DefinitionId
+            && Was->TargetMode==Now->TargetMode;
+        if (bNewLine || !bSameSkill) { CancelArmedCombat(); }
         if (QueuedCombat.Entry!=ELDCombatEntry::None)
         {
             QueuedCombat={};

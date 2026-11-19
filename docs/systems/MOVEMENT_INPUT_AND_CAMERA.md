@@ -39,7 +39,8 @@
 | Shift + 上述右键、A 左键、Q/W/E/D | 订单带 `bQueue`，技能经 `ServerQueueCombatAction` 排队；不预输入、不按住重复；地面步骤显示小圈与虚线 | 排在当前订单与已排步骤之后，最多 `LDOrderRules::MaxQueuedSteps`（8）步 |
 | Esc | 子确认/模态 → 准备态 → 主面板 → 菜单，每次一层 | 不 Stop、不发命令 |
 
-已有准备态（Q/W/E/D 或 A）时右键只取消准备并消费这次点击，再次右键才走普通分派（`V05Pressed`）。
+已有准备态（Q/W/E/D 或 A）时右键取消准备，同一次点击照常走普通分派（`V05Pressed`）。
+按住右键期间发出的不排队施放订单（`CastUnit`/`CastPoint`）先执行；它结束或被更新的本人订单取代后，仍按住右键就继续按指针重发 `MoveGround`（`HeldCastOrder`），这时不发施法后的自动攻击。
 右键分派顺序为指针下可见单位 → 地面（`ULDNavigationComponent::ClickMove`），一次点击只产生一类订单，被拒绝不改发另一类。
 
 ### 能力目标
@@ -65,7 +66,7 @@
   作为普通 Direct 请求发出（新序号、当前来源修订）。S、新生命/新局、输入被抑制或保留超过 1 s 丢弃（超时提示“前一个技能未结束，预输入已取消”）；
   `SourceRevision` 变化取消（提示“技能已变化，预输入已取消”）。普攻不需要预输入。
 - 每个 Direct 请求携带 Generation/Life、单调 `DirectSequence`、入口、目标与 owner view 的 `ExpectedSourceRevision`。
-  owner view 的生命或 `SourceRevision` 变化时撤销准备（`OnRep_CombatView`），HP/劲变化不撤销。按钮可用性与冷却只读 Combat owner view。
+  owner view 的生命变化、或准备中的入口换了技能（`DefinitionId`/目标模式）时撤销准备（`OnRep_CombatView`）；其他构筑变化（升级、加点、装牌）与 HP/劲变化不撤销，确认时按当前 `SourceRevision` 发送。按钮可用性与冷却只读 Combat owner view。
   能力确认越距由服务器拒绝，**不自动走近**；只有普攻、攻击移动与 `CastUnit/CastPoint` 订单负责接近。
 
 ### 指针反馈
@@ -266,7 +267,7 @@ Combat 的资源/冷却/来源拒绝沿 Combat 回执呈现，操作层不复制
 | 合法新订单 / 无效新订单 | 新标记 / 失败提示 | 激活时原子替换原订单 / 原订单继续，攻击类仍已解除保护 |
 | 死亡 / 新生命 | `ResetLife` 清准备、指针与路线 | `EndLifeOrders`；旧生命请求 `StaleLife` |
 | 目标失视野 / 授权死亡 | 悬停圈与攻击标记消失 | `TargetUnavailable` 结束 / AttackUnit `TargetDied`，AttackMove 续行 |
-| 来源变化 | 撤销准备 | Combat 按 `ExpectedSourceRevision` 重验 |
+| 来源变化 | 准备中的入口换了技能时撤销准备 | Combat 按 `ExpectedSourceRevision` 重验 |
 | 失焦 | 清按键，Stop，停心跳与指针 | 当前订单结束 |
 | 菜单/面板/子确认 | 只阻止新世界命令 | 订单与心跳继续 |
 | 心跳中断 / 离开 | — | `Expired` / `Left` |
@@ -306,8 +307,9 @@ Combat 的资源/冷却/来源拒绝沿 Combat 回执呈现，操作层不复制
 
 - `IsWorldLifeValid`：`PublicMatch`（唯一代次/阶段来源）的代次等于本人 Core 生命投影的 Match，阶段为 Rest/Development/CaptureOpen（返回倒计时内命令照常发出，
   由服务器以 `NotStarted` 拒绝），本人 Alive 且持有身体。失去它是唯一会让 Navigation 结束已接受订单的本地条件。
-- `IsWorldInputSuppressed`：菜单/设置打开（`SetMenuOpen`）、文本编辑或子确认（`IsWorldInputCaptured`），以及菜单、焦点或映射变化后仍未松开的键（fresh-press）。
+- `IsWorldInputSuppressed`：菜单/设置打开（`SetMenuOpen`）、文本编辑或子确认（`IsWorldInputCaptured`）。
   只拦新世界命令（订单、Q/W/E/D、A、S、世界与小地图点击、镜头键与缩放；HUD 图标经 `ActivateCombatEntry` 同样被拦）；已接受订单继续移动并发心跳。
+- 菜单、焦点或映射变化（`ReleaseLocalInput`）时仍按着的键各自记入 `StaleKeys`：该键松开一次之前它自己的按下被忽略，其他键与鼠标键照常生效。
   这些变化只经 `ReleaseLocalInput` 取消准备态与回中锁存；子确认在准备态之上打开时控制器下一帧前撤销准备态。
 - 鼠标点击、悬停、缩放与边缘平移另查 `ULDUIRoot::PointerOverUI()`。小地图拖动经 Slate 鼠标捕获保持到松开，期间关闭边缘平移。
 - **失焦**：操作系统失焦时 `FlushPressedKeys` 并由 Navigation 发一次 Stop，失焦期间不发心跳、不处理指针；回焦需新手势，不自动续走。

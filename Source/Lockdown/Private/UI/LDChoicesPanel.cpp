@@ -422,7 +422,8 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
         Face->AddChildToVerticalBox(Card.Links)->SetPadding(FMargin(0,14,0,0));
         if(UVerticalBoxSlot* LinksSlot=Cast<UVerticalBoxSlot>(Card.Links->Slot)){LinksSlot->SetHorizontalAlignment(HAlign_Center);}
     }
-    Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),false,ButtonName);RowWidgets.Add(Card.Button);
+    // A world button: picking a card in the field never takes keyboard focus from the game.
+    Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),true,ButtonName);RowWidgets.Add(Card.Button);
     Card.Button->SetContent(Face);GrowthTint(Card.Button,LDHUDStyle::CardIdle);
     {auto Style=Card.Button->GetStyle();Style.NormalPadding=FMargin(TrayCardPadding);Style.PressedPadding=FMargin(TrayCardPadding);Card.Button->SetStyle(Style);}
     // After SetContent: replacing the caption makes a new, centred slot; the face fills the card instead.

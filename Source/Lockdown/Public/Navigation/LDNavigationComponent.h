@@ -263,6 +263,8 @@ private:
     FVector HeldPoint=FVector::ZeroVector;
     double HeldSentAt=0;
     bool bHeldMove=false;
+    // The cast order sent while the move button was held: the held move waits for its end, then follows the pointer again.
+    FLDMoveIdentity HeldCastOrder;
     // ---- Owning client.
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
     // False when the order was not sent (no life, suppressed input or exhausted identities).
