@@ -22,7 +22,7 @@
   },
   "sample_class": "diagnostic",
   "assumptions": [
-    "双方固定同一开局主动及 L3 主动；两组主角在 L2–L4 固定获得 Y17、K06、Y07 三张等级牌（跳过全部牌三选一）；对手不装牌；不代表自然抽取概率。",
+    "双方固定同一开局主动及 L3 主动；两组主角在 L2、L4 固定获得 Y17、K06 两张等级牌（跳过全部牌三选一）；对手不装牌；不代表自然抽取概率。",
     "两组主角均把 Y17 装到本体、分配十二点力道；只有实验组把 K06 装到 L3 主动上。",
     "仅用于检查事务、证据与跨进程重放；单个种子不支持强度结论。"
   ],
@@ -70,8 +70,7 @@
             ],
             "level_cards": [
               "card_punch_heal",
-              "card_encore",
-              "card_hard_skin"
+              "card_encore"
             ]
           },
           "opponent": {
@@ -152,8 +151,7 @@
             ],
             "level_cards": [
               "card_punch_heal",
-              "card_encore",
-              "card_hard_skin"
+              "card_encore"
             ]
           },
           "opponent": {

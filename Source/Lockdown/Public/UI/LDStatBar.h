@@ -36,6 +36,8 @@ public:
     // The "+" of the stat at Index (design order): queues one point and sends it as soon as it may. False with a toast when
     // refused locally (no data, closed stage, no unspent point left).
     bool Allocate(int32 Index);
+    // Whether Allocate(Index) would queue a point now; no notice (the held "+" asks before each repeat).
+    bool CanAllocate(int32 Index) const;
     // Stat icons <-> attribute view; each match starts on the stat icons.
     void ToggleView();
     void SetDetailsHeld(bool bHeld);

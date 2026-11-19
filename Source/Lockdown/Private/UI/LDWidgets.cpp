@@ -216,7 +216,37 @@ void ULDCommandButton::Animate(float Target,double Duration)
 void ULDCommandButton::StopTicker(FTSTicker::FDelegateHandle& Handle)
 {if(Handle.IsValid()){FTSTicker::GetCoreTicker().RemoveTicker(Handle);Handle.Reset();}}
 void ULDCommandButton::ReleaseSlateResources(bool bReleaseChildren)
-{StopTicker(FeelTicker);Super::ReleaseSlateResources(bReleaseChildren);}
+{StopTicker(FeelTicker);StopTicker(RepeatTicker);Super::ReleaseSlateResources(bReleaseChildren);}
+namespace
+{
+// A held repeating button waits this long, then repeats at this interval.
+constexpr double RepeatDelay=.35;
+constexpr double RepeatInterval=.1;
+}
+void ULDCommandButton::EnableRepeat(TFunction<bool()> Again)
+{
+    RepeatCallback=MoveTemp(Again);
+    OnPressed.AddUniqueDynamic(this,&ULDCommandButton::RepeatPressed);OnReleased.AddUniqueDynamic(this,&ULDCommandButton::RepeatReleased);
+}
+void ULDCommandButton::RepeatPressed()
+{
+    bRepeated=false;
+    StopTicker(RepeatTicker);
+    if(!RepeatCallback){return;}
+    RepeatNextAt=FPlatformTime::Seconds()+RepeatDelay;
+    RepeatTicker=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,[this](float)
+    {
+        if(!IsPressed()||!GetIsEnabled()||!IsVisible()){RepeatTicker.Reset();return false;}
+        const double Now=FPlatformTime::Seconds();
+        if(Now<RepeatNextAt){return true;}
+        RepeatNextAt=Now+RepeatInterval;
+        bRepeated=true;
+        if(RepeatCallback()){PlayCue(ELDAudioCue::UIClick);return true;}
+        RepeatTicker.Reset();return false;
+    }));
+}
+// A release outside the button raises no click, so the mark of a repeated hold never waits for one.
+void ULDCommandButton::RepeatReleased(){StopTicker(RepeatTicker);if(!IsHovered()){bRepeated=false;}}
 float ULDHoldButton::HoldProgress() const
 {return HoldStartedAt<0.?0.f:FMath::Clamp(float((FPlatformTime::Seconds()-HoldStartedAt)/LDHUDStyle::MotionHoldConfirm),0.f,1.f);}
 void ULDHoldButton::HoldPressed()

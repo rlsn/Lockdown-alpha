@@ -105,7 +105,12 @@ bool ALDPlayerController::CancelArmedCombat()
     // A real cancel (S, Escape, a menu, a move order, a new life or source revision) also ends a running or completed
     // overdrive hold and the visible charge with it.
     if (bOverdriveHolding || bOverdriveArmed) { EndOverdriveHold(); }
-    if (ArmedEntry!=ELDCombatEntry::None) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry)); }
+    if (ArmedEntry!=ELDCombatEntry::None)
+    {
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry));
+        ArmedCancelEntry=ArmedEntry;
+        ++ArmedCancelSerial;
+    }
     return ClearArmedAim();
 }
 

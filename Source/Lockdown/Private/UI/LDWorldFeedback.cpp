@@ -174,8 +174,7 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
             FEvent& LevelEvent=Out.AddDefaulted_GetRef();LevelEvent.Kind=EKind::LevelUp;LevelEvent.Level=Progression->Level;
             LevelEvent.Amount=FMath::Max<int64>(0,WorldFeedbackPointsEarned(*Progression)-PointsEarned);
             LevelEvent.Offers=FMath::Max(0,int32(Progression->ActiveOpportunitiesEarned)-int32(OffersEarned));
-            // Every level crossed queues one card offer.
-            LevelEvent.CardOffers=int32(Progression->Level)-int32(Level);
+            LevelEvent.CardOffers=int32(Progression->Level)/Sample.CardOfferEveryLevels-int32(Level)/Sample.CardOfferEveryLevels;
         }
     }
     bGrowth=bProgress;
@@ -529,6 +528,7 @@ void LDWorldFeedback::MakeSample(const ALDPlayerController& PC,const ALDGameStat
     Out.Match=Own.Match;Out.Life=Own.Life;Out.LifePhase=Own.LifePhase;Out.Self=Own.ContenderId;
     Out.OwnCombat=Own.Life!=0&&Combat.bHasBody&&Combat.Generation==Own.Match&&Combat.Life==Own.Life?&Combat:nullptr;
     Out.Progression=PC.ReadOwnProgression();
+    if(Content){Out.CardOfferEveryLevels=FMath::Max(1,Content->Parameters.Cards.OfferEveryLevels);}
     Out.KillFeed=&Public.KillFeed;Out.PublicGeneration=Public.PublicMatch.Generation;
     Out.bClock=PC.ReadDemoAuthorityTimeMs(Out.NowMs);
     Out.Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;

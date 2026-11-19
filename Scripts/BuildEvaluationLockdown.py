@@ -177,7 +177,7 @@ def describe(project_root):
             "breakout_preset": {"description": "a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of "
                                                "the side's XP supply: its max-level skills, branches, cards and points",
                                 "sample_classes": ["diagnostic"]},
-            "preset_level_cards": {"description": "the card each level 2..level of the supply gives instead of its card offer "
+            "preset_level_cards": {"description": "the card each card-offer level (2..level, every CARDS.OfferEveryLevels) of the supply gives instead of its offer "
                                                   "(a planned side skips every card offer)", "sample_classes": ["diagnostic"]},
             "allocate_points": {"description": "build step allocate_points: exact points per stat id in one command; a planned "
                                                "build spends every point its supply earns, or none when the side sets "
@@ -207,6 +207,7 @@ def describe(project_root):
                                "active_offer_levels": progression["active_offer_levels"],
                                "card_capacity_base": int(content["parameters"]["CARDS.CapacityBase"]),
                                "card_levels_per_slot": int(content["parameters"]["CARDS.LevelsPerSlot"]),
+                               "card_offer_every_levels": int(content["parameters"]["CARDS.OfferEveryLevels"]),
                                "opening_points": int(content["parameters"]["GROWTH.OpeningPoints"]),
                                "points_per_level": int(content["parameters"]["GROWTH.PointsPerLevel"]),
                                "stat_design_order": [stat["id"] for stat in
@@ -295,9 +296,10 @@ def _level_cards(plan, role):
 MAX_LEVEL_CARDS = 23
 
 
-def card_levels(level):
-    """The levels 2..level a supply crosses: each gives one card offer, replaced by one level card."""
-    return list(range(2, level + 1))
+def card_levels(level, every=1):
+    """The levels 2..level a supply crosses that CARDS.OfferEveryLevels divides: each gives one card offer, replaced by
+    one level card."""
+    return [n for n in range(2, level + 1) if n % every == 0]
 
 
 def card_capacity(params, level):
@@ -538,8 +540,9 @@ def requirements(scenario, plan, caps):
             mechanics.update(level_cards)
             params = caps["scenarios"]["duel_site"]["parameters"]
             level = level_for({"xp_to_next": params["xp_to_next"]}, supply[role])
-            if len(level_cards) != len(card_levels(level)):
-                problems.append(f"IllegalDecision: plan.{role}.level_cards needs {len(card_levels(level))} cards for levels 2..{level}")
+            offered = card_levels(level, params["card_offer_every_levels"])
+            if len(level_cards) != len(offered):
+                problems.append(f"IllegalDecision: plan.{role}.level_cards needs {len(offered)} cards for levels 2..{level}")
             for card in level_cards:
                 kind = caps["mechanics"].get(card, {}).get("kind")
                 if kind and kind != "card":
@@ -1531,7 +1534,7 @@ def limitations(manifest, caps):
         "计划规定每次主动机会选哪个主动（并总是请求立即学会）。没有构筑步骤的一方，学习图纸、加点、选牌与装牌用生产 AI 规则；"
         "有构筑步骤的一方由计划拥有全部构筑命令（主动选择除外），只按顺序发送计划的逐属性加点、指定位置装牌（Y25 带元素）、"
         "卸牌、洗点、学习与替换，生产规则不再为它构筑；它必须花完供给赚到的全部点数。",
-        "有构筑步骤的一方跳过全部牌三选一（抽取是随机的）；它的牌只来自计划的 level_cards，供给跨过的每一级一张，"
+        "有构筑步骤的一方跳过全部牌三选一（抽取是随机的）；它的牌只来自计划的 level_cards，供给跨过的每个给牌等级一张，"
         "随野外供给入库。计划要装的牌不在库里、指定主动没出现或 growth 拒绝某一步时，该 Case 判 Invalid（PlanNotReached），"
         "不强塞也不改用别的牌。休息窗口只有供给之前的开局休息，所以替换与洗点以及学习图纸在 duel_site 中是 IllegalDecision。",
         "NPC 购买、单独遗忘、选牌与选择时直接替换不可规划（UnsupportedDecision，附原因）。",

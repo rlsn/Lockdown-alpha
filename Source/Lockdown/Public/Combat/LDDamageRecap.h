@@ -49,6 +49,38 @@ struct FLDDamageSummaryView
     UPROPERTY() TArray<FLDResultHighlight> Highlights;
 };
 
+// How often one card of the build triggered (a card definition id or an installed card's key).
+USTRUCT()
+struct FLDCardTriggerRow
+{
+    GENERATED_BODY()
+    UPROPERTY() FName Card;
+    UPROPERTY() int32 Count = 0;
+};
+
+// Owner-only build statistics of the running match, sent when a rest begins (ALDGameMode::SendBuildStats): the own
+// committed damage per source and the trigger count of each card, both without training. Serial grows with every send.
+USTRUCT()
+struct FLDBuildStatsView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint32 Match = 0;
+    UPROPERTY() uint32 Serial = 0;
+    UPROPERTY() TArray<FLDDamageLine> Lines;
+    UPROPERTY() TArray<FLDCardTriggerRow> Triggers;
+};
+
+// Owner-only summary of one training combo on a dummy (ALDGameMode::SendTrainingCombos): the damage per source of the hits
+// that followed each other within the quiet gap, sent once the gap passed. Serial grows with every send.
+USTRUCT()
+struct FLDTrainingComboView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint32 Match = 0;
+    UPROPERTY() uint32 Serial = 0;
+    UPROPERTY() TArray<FLDDamageLine> Lines;
+};
+
 // One committed hit on a victim life, kept only while it can still fall inside the recap window.
 struct FLDDamageSample
 {

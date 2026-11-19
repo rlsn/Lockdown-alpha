@@ -924,6 +924,7 @@ void ULDWorkshop::RefreshCharacter()
             const int32 StatIndex=Index;
             Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,StatIndex](){if(StatBar.IsValid()){StatBar->Allocate(StatIndex);}},true,
                 FName(*FString::Printf(TEXT("WorkshopStatPlus%d"),StatIndex)));
+            Row.Plus->EnableRepeat([this,StatIndex](){return StatBar.IsValid()&&StatBar->CanAllocate(StatIndex)&&StatBar->Allocate(StatIndex);});
             LDWidgets::SetLook(Row.Plus,LDUIPaint::EButton::Plus);
             if(UTextBlock* PlusText=Cast<UTextBlock>(Row.Plus->GetContent()))
             {PlusText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,24));PlusText->SetJustification(ETextJustify::Center);PlusText->SetRenderTranslation(FVector2D(0,-3));}

@@ -27,8 +27,8 @@ STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "st
 
 
 # Supply to level 8: one level card for each of levels 2..8 (copies may repeat).
-LEVEL8_CARDS = ("card_spiky_hide", "card_encore", "card_live_wire", "card_third_breath", "card_double_dash", "card_thick_hide",
-                "card_spiky_hide")
+# Level 8 crosses the even levels 2, 4, 6 and 8: four level cards.
+LEVEL8_CARDS = ("card_spiky_hide", "card_encore", "card_live_wire", "card_thick_hide")
 
 
 def stat_points(*points):
@@ -412,7 +412,7 @@ class PlanTest(AdapterCase):
         self.assertIn("UnsupportedMechanic: card_unknown is not in the adapter's runtime catalog",
                       {case["arm"]: case["reason"] for case in cases}["t"])
 
-    def test_level_cards_are_diagnostic_and_one_per_level_crossed(self):
+    def test_level_cards_are_diagnostic_and_one_per_offer_level(self):
         subject = {"choices": ["ai_select"] * 3, "level_cards": list(LEVEL8_CARDS)}
         needs = self.requirements(subject)
         self.assertEqual(needs["problems"], [])
@@ -423,12 +423,12 @@ class PlanTest(AdapterCase):
         cases, _ = self.plan_cases(subject, sample="legal_search")
         self.assertTrue(all(case["status"] == "Unsupported" for case in cases))
         self.assertIn("diagnostic", {case["arm"]: case["reason"] for case in cases}["t"])
-        for invalid, reason in ((list(LEVEL8_CARDS[:-1]), "needs 7 cards"), ([*LEVEL8_CARDS[:-1], "active_seethe"], "not a card")):
+        for invalid, reason in ((list(LEVEL8_CARDS[:-1]), "needs 4 cards"), ([*LEVEL8_CARDS[:-1], "active_seethe"], "not a card")):
             with self.subTest(cards=invalid):
                 problems = self.requirements({**subject, "level_cards": invalid})["problems"]
                 self.assertTrue(any(reason in item for item in problems), problems)
         with self.assertRaisesRegex(ValueError, "card ids"):
-            self.requirements({**subject, "level_cards": ["Card-Punch"] * 7})
+            self.requirements({**subject, "level_cards": ["Card-Punch"] * 4})
 
     def test_workshop_plans_duel_site_cannot_carry_out_are_illegal(self):
         build = WORKSHOP["build"]
