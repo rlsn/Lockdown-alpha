@@ -121,8 +121,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 3 * Seg + 60000 && View.FieldEndT == -1);
-    // Start to the flagpole: four rests (25 + 5 s each) and three 160 s segments, 600 s.
-    bGood &= TestEqual(TEXT("The flagpole opens 600 s after the start"), Final - Start, int64(600000));
+    // Start to the flagpole: R0 (45 + 5 s), three rests (40 + 5 s each) and three 160 s segments, 665 s.
+    bGood &= TestEqual(TEXT("The flagpole opens 665 s after the start"), Final - Start, int64(665000));
     return bGood;
 }
 
