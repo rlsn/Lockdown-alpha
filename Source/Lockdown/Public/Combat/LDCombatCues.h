@@ -31,14 +31,16 @@ namespace LDCombatCues
     // from a direct delivery, never a damage-over-time tick, settlement, reflection or ledger payment.
     LOCKDOWN_API bool ConfirmsDealt(const FLDCombatHit& Hit, int64 DamageP2);
     LOCKDOWN_API ELDObservedHitLook ClassifyHit(const FLDCombatHit& Hit);
-    LOCKDOWN_API uint8 ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage);
+    LOCKDOWN_API uint8 ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bOverdrive=false);
     // Owner receipt only (FLDCombatCueFacts::LastDealtFlags, above LDObservation::HitFlagsMask): the confirmed blow ended
     // the target's life. Never part of an observed hit.
     constexpr uint8 DealtLethal=8;
     static_assert((DealtLethal & LDObservation::HitFlagsMask)==0, "The lethal receipt bit is outside the observed hit flags.");
-    // Owner receipt only: the confirmed blow came from an overdrive release (#305: it reads as its own heavy hit).
-    constexpr uint8 DealtOverdrive=16;
-    static_assert((DealtOverdrive & (LDObservation::HitFlagsMask | DealtLethal))==0, "The overdrive receipt bit is its own.");
+    // The confirmed blow came from an overdrive release (#305: it reads as its own heavy hit). The same bit as the public
+    // observed flag (LDObservation::Overdriven), so the struck body's viewers see the overdrive hit too.
+    constexpr uint8 DealtOverdrive=LDObservation::Overdriven;
+    static_assert((DealtOverdrive & DealtLethal)==0 && (DealtOverdrive & LDObservation::HitFlagsMask)==DealtOverdrive,
+        "The overdrive receipt bit is the observed overdrive flag and never the lethal bit.");
     LOCKDOWN_API uint8 ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal,
         bool bOverdrive=false);
     // The confirmation strength of receipt flags: lethal, then overdrive, then critical, then a broken shield, then any hit.

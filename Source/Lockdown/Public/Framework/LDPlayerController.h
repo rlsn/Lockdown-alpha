@@ -201,6 +201,8 @@ public:
     bool ConfirmArmedEntry(const FLDCombatTarget& Aim, const FVector* AimCm=nullptr);
     // The local overdrive hold of Entry for the slot ring: 0..1 while held, 1 once the overdrive is armed, 0 otherwise.
     float OverdriveHoldProgress(ELDCombatEntry Entry) const;
+    // The Q/W/E whose overdrive hold is running or armed locally (None otherwise).
+    ELDCombatEntry HeldOverdriveEntry() const { return bOverdriveHolding || bOverdriveArmed ? OverdriveEntry : ELDCombatEntry::None; }
     // Shift held (either side): the world command being issued joins the server's shift queue instead of replacing
     // the current order (ULDNavigationComponent, 2026-11-06 user decision). Fixed modifier, never a rebindable action.
     bool IsQueueModifierDown() const;

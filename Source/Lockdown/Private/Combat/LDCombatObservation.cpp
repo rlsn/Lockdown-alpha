@@ -38,6 +38,12 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
         Facts.ActingReleaseAtMs=Body.ChannelStartedAtMs;
     }
     Facts.DashUntilMs=Body.DashUntilMs;
+    // The cast these describe: the acting Q/W/E, else the last released one (a basic that started inside the released
+    // cast's cue window leaves that cast's facts in place).
+    const bool bActingCast=Body.Action.IsSet() && Body.Action->Kind!=ELDCombatActionKind::Basic;
+    Facts.bOverdriveCast=bActingCast ? Body.Action->bOverdrive : Body.bReleasedOverdrive;
+    const FLDCombatSourceRef& CastSource=bActingCast ? Body.Action->Source : Body.ReleasedSource;
+    Facts.CastDefinitionId=CastSource.Kind==ELDCombatSourceKind::Learned ? CastSource.DefinitionId : NAME_None;
     return Facts;
 }
 
@@ -53,6 +59,8 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionAbility=0;
     InOut.ActionComboStep=0;
     InOut.bCharging=false;
+    InOut.ChargeAtMs=0;
+    InOut.bOverdriveCast=false;
     InOut.MomentumBar=0;
     InOut.LastReaction=0;
     InOut.LastReactionAtMs=0;
@@ -69,6 +77,9 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         const int64 Bar=FMath::Clamp<int64>(State->Resources.MomentumP2,0,MaxP2)*LDObservation::MomentumBarFull/MaxP2;
         InOut.MomentumBar=uint8(Bar);
         InOut.bCharging=State->OverdriveCharge.IsSet();
+        InOut.ChargeAtMs=InOut.bCharging ? State->OverdriveCharge->StartMs : 0;
+        // An overdrive release shows on its Cast cue like the charge before it (spec: the charge is public).
+        InOut.bOverdriveCast=Cue.Cue==ELDObservedActionCue::Cast && PresentedCueFactsOf(*State).bOverdriveCast;
         if (Cue.Cue==ELDObservedActionCue::Attack)
         {
             const bool bActingBasic=State->Action.IsSet() && State->Action->Kind==ELDCombatActionKind::Basic

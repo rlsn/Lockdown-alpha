@@ -240,8 +240,13 @@ void ULDHumanoidVisualComponent::ClearImpacts()
     if (auto* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearFor(*this); }
     if (IsValid(SwingTrail)) { SwingTrail->DeactivateImmediate(); }
     if (IsValid(CastCharge)) { CastCharge->DeactivateImmediate(); }
+    if (IsValid(DashTrail)) { DashTrail->DeactivateImmediate(); }
+    if (IsValid(ChargeColumn)) { ChargeColumn->DeactivateImmediate(); }
     bTrailEmitting = false;
     bCastEmitting = false;
+    bDashing = false;
+    bChargeShown = false;
+    bChargeReady = false;
 }
 
 bool ULDHumanoidVisualComponent::CanShowImpact() const
@@ -354,7 +359,8 @@ void ULDHumanoidVisualComponent::UpdateCastCharge(float Charge, float EffectScal
     const float Thin = FMath::Clamp(EffectScale, 0.f, 1.f);
     const bool bStart = !bCastEmitting || ActionOnset != CastActionOnset;
     if (bStart && bCastEmitting) { CastCharge->DeactivateImmediate(); }
-    FLinearColor Colour = Catalog->CastTint * Tuning.CastGlow;
+    const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
+    FLinearColor Colour = (Skill ? Skill->Tint : Catalog->CastTint) * Tuning.CastGlow;
     Colour.A = Catalog->CastTint.A * Strength * Thin;
     CastCharge->SetVariableFloat(TEXT("User.Scale"), Tuning.CastScale * (.25f + .75f * Strength) * FMath::Sqrt(Thin));
     CastCharge->SetVariableFloat(TEXT("User.SparkRate"), Tuning.CastSparksPerSecond * Strength * Thin);
@@ -364,6 +370,134 @@ void ULDHumanoidVisualComponent::UpdateCastCharge(float Charge, float EffectScal
         CastActionOnset = ActionOnset;
         bCastEmitting = true;
         CastCharge->Activate(true);
+    }
+}
+
+void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
+{
+    // Once per cast, when its timeline reaches the release: the skill's own burst at the casting hand (an aura or a
+    // dash at the chest).
+    if (Action != LDBodyMotion::EAction::Cast || !Art || ReleasedOnset == ActionOnset || ShownAge() < ActionImpactSeconds) { return; }
+    ReleasedOnset = ActionOnset;
+    const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
+    UWorld* World = GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!Impacts || !CanShowImpact()) { return; }
+    if (bOverdriveCast)
+    {
+        // An overdrive release: the shockwave and its burst over the skill's own release.
+        const FTransform& Space = Pivot->GetComponentTransform();
+        const FVector Chest = Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight));
+        Impacts->Layers(this, Chest, Space.TransformPosition(FVector(0, 0, -HalfHeight)),
+            LDHitVfx::ForOverdriveRelease(EffectScale, Impacts->LayerTuning()), 0.f);
+        Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this);
+    }
+    if (!Skill) { return; }
+    const bool bBody = Skill->Release == LDHitVfx::EBurst::Aura || Skill->Release == LDHitVfx::EBurst::Dash;
+    const FVector At = bBody ? Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .45f * HeightCm - HalfHeight))
+        : Mesh->GetSocketLocation(Art->HandBone);
+    Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
+}
+
+void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale)
+{
+    const bool bNow = FApp::CanEverRender() && CanShowImpact() && Art && EffectScale > 0.f
+        && LDHitVfx::IsDashing(float(Velocity.Size2D()), bKnockback, bFalling);
+    if (!bNow)
+    {
+        if (bDashing && IsValid(DashTrail)) { DashTrail->Deactivate(); }
+        bDashing = false;
+        return;
+    }
+    UWorld* World = GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    const ULDCombatVfxCatalog* Catalog = Impacts ? Impacts->GetCatalog() : nullptr;
+    if (!Catalog || !Catalog->SwingTrail) { return; }
+    const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
+    const FLinearColor Tint = Skill ? Skill->Tint : FLinearColor(.35f, .65f, 1.f);
+    const LDHitVfx::FTrail Trail = LDHitVfx::DashTrailOf(Tint, EffectScale);
+    if (!IsValid(DashTrail))
+    {
+        DashTrail = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
+        if (!DashTrail) { return; }
+        DashTrail->SetAutoActivate(false);
+        DashTrail->SetAsset(Catalog->SwingTrail);
+        DashTrail->SetupAttachment(Pivot);
+        DashTrail->SetRelativeLocation(FVector(0, 0, .55f * HeightCm - HalfHeight));
+        DashTrail->RegisterComponent();
+    }
+    DashTrail->SetVariableFloat(TEXT("User.Width"), Trail.WidthCm);
+    DashTrail->SetVariableFloat(TEXT("User.Lifetime"), Trail.Lifetime);
+    DashTrail->SetVariableFloat(TEXT("User.SpawnRate"), Trail.Rate);
+    DashTrail->SetVariableLinearColor(TEXT("User.Colour"), Trail.Colour);
+    // Afterimages: a posed translucent copy of the body every interval while the dash lasts.
+    const LDHitVfx::FGhosts Ghosts = LDHitVfx::GhostsOf(Tint, EffectScale);
+    if (Ghosts.bShow && (!bDashing || Clock - LastGhostAt >= Ghosts.IntervalSeconds))
+    {
+        LastGhostAt = Clock;
+        Impacts->Ghost(*Mesh, Ghosts, *this);
+    }
+    if (!bDashing)
+    {
+        bDashing = true;
+        DashTrail->Activate(true);
+        // Dust kicked where the dash starts.
+        Impacts->Kit(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight + 6.f)),
+            LDHitVfx::BurstOf(LDHitVfx::EBurst::Dash, Tint, EffectScale), this);
+    }
+}
+
+void ULDHumanoidVisualComponent::UpdateOverdrive(float EffectScale)
+{
+    UWorld* World = GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!Impacts || !Art || !FApp::CanEverRender()) { return; }
+    const bool bShow = bCharging && CanShowImpact() && EffectScale > 0.f;
+    const FTransform& Space = Pivot->GetComponentTransform();
+    const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight + 4.f));
+    const FVector Chest = Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight));
+    const float Hold = Impacts->OverdriveHoldSeconds();
+    if (bShow)
+    {
+        if (!bChargeShown)
+        {
+            bChargeShown = true;
+            bChargeReady = false;
+            // Start from the charge's real age: a body seen mid-hold shows the charge where it is.
+            ChargeOnset = Clock - (FMath::IsFinite(ChargeAge) ? FMath::Max(ChargeAge, 0.f) : 0.f);
+        }
+        const float Progress = ChargeProgress >= 0.f ? ChargeProgress : Hold > 0.f ? float(Clock - ChargeOnset) / Hold : 1.f;
+        const LDHitVfx::FZone Column = LDHitVfx::ChargeZoneOf(Progress, EffectScale);
+        UNiagaraSystem* Zone = Impacts->GetZoneSystem();
+        if (Zone && !IsValid(ChargeColumn))
+        {
+            ChargeColumn = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
+            if (ChargeColumn)
+            {
+                ChargeColumn->SetAutoActivate(false);
+                ChargeColumn->SetAsset(Zone);
+                ChargeColumn->SetupAttachment(Pivot);
+                ChargeColumn->RegisterComponent();
+            }
+        }
+        if (IsValid(ChargeColumn))
+        {
+            ChargeColumn->SetWorldLocation(Feet);
+            ULDImpactFxSubsystem::ApplyZone(*ChargeColumn, Column, 45.f, Column.Velocity);
+            if (!ChargeColumn->IsActive()) { ChargeColumn->Activate(true); }
+        }
+        if (!bChargeReady && Progress >= 1.f)
+        {
+            bChargeReady = true;
+            Impacts->Layers(this, Chest, Feet, LDHitVfx::ForChargeReady(EffectScale, Impacts->LayerTuning()), 0.f);
+        }
+        return;
+    }
+    if (bChargeShown)
+    {
+        // The charge ended (released, let go or cancelled); the release itself is the cast's (UpdateRelease).
+        bChargeShown = false;
+        if (IsValid(ChargeColumn)) { ChargeColumn->Deactivate(); }
     }
 }
 
@@ -735,6 +869,19 @@ float ULDHumanoidVisualComponent::ShownAge() const
 void ULDHumanoidVisualComponent::PlayFall()
 {
     ClearImpacts();
+    // A visible fall cracks the ground under it; the crack plays out on its own while the body sinks.
+    UWorld* World = GetWorld();
+    if (auto* Impacts = World && FallAt < 0 ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
+    {
+        const APlayerController* Viewer = GEngine ? GEngine->GetFirstLocalPlayerController(World) : nullptr;
+        const ALDPlayerController* LocalController = Cast<ALDPlayerController>(Viewer);
+        const float EffectScale = LocalController && LocalController->Controls && LocalController->Controls->bReduceCombatEffects ? .45f : 1.f;
+        const FTransform& Space = GetComponentTransform();
+        Impacts->Layers(nullptr, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
+            Space.TransformPosition(FVector(0, 0, -HalfHeight)), LDHitVfx::ForKill(EffectScale, Impacts->LayerTuning()), 0.f);
+        Impacts->Kit(Space.TransformPosition(FVector(0, 0, .3f * HeightCm - HalfHeight)),
+            LDHitVfx::BurstOf(LDHitVfx::EBurst::Kill, FLinearColor(1.f, .25f, .08f), EffectScale));
+    }
     FallAt = Clock;
     Action = LDBodyMotion::EAction::None;
     RetractAt = -1;
@@ -882,6 +1029,9 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     PlayClip(bFalling, bRooted || bFalling ? 0.f : float(Velocity.Size2D()));
     UpdateSwingTrail(ShownAge(), EffectScale);
     UpdateCastCharge(Shown.Charge, EffectScale);
+    UpdateRelease(EffectScale);
+    UpdateDash(Velocity, bFalling, EffectScale);
+    UpdateOverdrive(EffectScale);
 
     // The release spark follows the striking or casting hand.
     const FTransform& Space = Pivot->GetComponentTransform();
@@ -899,8 +1049,22 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         if (CanShowImpact() && Impacts)
         {
             const FVector At = Space.TransformPosition(FVector(18.f, 0, -HalfHeight + .72f * HeightCm));
+            const FVector Ground = Space.TransformPosition(Feet);
             for (const FPendingImpact& Impact : PendingImpacts)
-            { Impacts->Burst(*this, At, Impact.Look, Impact.Flags, float(Clock - Impact.Onset), EffectScale); }
+            {
+                const float Age = float(Clock - Impact.Onset);
+                Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
+                Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, Impact.Flags, EffectScale, Impacts->LayerTuning()), Age);
+                LDHitVfx::EBurst Element;
+                FLinearColor Tint;
+                // The extra hit particles follow the same impact controls as the Niagara burst and the layers.
+                const LDHitFeel::FTuning Feel = LDHitFeel::Read();
+                const bool bImpactOn = Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f;
+                if (bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
+                { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
+                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
+                { Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this); }
+            }
         }
         PendingImpacts.Reset();
     }

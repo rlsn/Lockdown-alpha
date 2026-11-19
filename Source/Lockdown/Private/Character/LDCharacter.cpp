@@ -5,6 +5,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDImpactFx.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/GameInstance.h"
@@ -201,9 +202,29 @@ void ALDCharacter::Tick(float Delta)
             bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
     }
     bShownPredicted=bPredicted;
+    // The shown cast's own skill look (LDHitVfx::SkillLookOf): the authority's cue facts name the acting or released
+    // learned ability, so a release snapshot that already cleared the action slot keeps it.
+    uint8 CastAbility=0;
+    if (bCue && Selected.Cue==ELDObservedActionCue::Cast)
+    {
+        if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Facts.CastDefinitionId)) { CastAbility=Skill->Ability; }
+    }
+    Body->SetCastAbility(CastAbility);
+    // The own hold runs on the local key timer, so the column and the ready flare do not wait for replication.
+    const bool bHolding=PC->OverdriveHoldProgress(PC->HeldOverdriveEntry())>0.f;
+    Body->SetCharging(bHolding || (bCurrentView && View.ChargingEntry!=ELDCombatEntry::None),0.f,
+        bHolding ? PC->OverdriveHoldProgress(PC->HeldOverdriveEntry()) : -1.f);
+    Body->SetOverdriveCast(bCue && Selected.Cue==ELDObservedActionCue::Cast && Facts.bOverdriveCast);
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
-    { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
-        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags,View.Cues.LastHitId,View.Cues.LastHitAtMs); }
+    {
+        const bool bFresh=Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
+            static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags,View.Cues.LastHitId,View.Cues.LastHitAtMs);
+        // Taking a hit tints the screen edge faintly red; a stronger flash of the own hit still playing wins.
+        ULDImpactFxSubsystem* Hurt=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+        FLinearColor Playing;
+        if (bFresh && Hurt && NowMs-View.Cues.LastHitAtMs<200 && Hurt->ScreenFlashAlpha(Playing)<=0.f)
+        { Hurt->FlashScreen(LDHitVfx::HurtFlashOf(PC->Controls && PC->Controls->bReduceCombatEffects)); }
+    }
     // The own hit confirmation (LDHitFeel): each fresh receipt of a hit this body landed holds its striking pose, flares
     // its hand and kicks its camera along its facing. Hits it takes never move this camera or its pose.
     const bool bReduced=PC->Controls && PC->Controls->bReduceCombatEffects;
@@ -216,6 +237,9 @@ void ALDCharacter::Tick(float Delta)
             Body->SetConfirm(0.f,Confirm.StopSeconds,Confirm.SparkScale);
             KickAge=0.f;
             KickCm=Confirm.KickCm*(bReduced ? .45f : 1.f);
+            // A kill, critical hit or broken shield flashes the screen edge and fringes the lens (off when reduced).
+            if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
+            { Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(View.Cues.LastDealtFlags,bReduced)); }
             UGameInstance* Instance=GetGameInstance();
             ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
             if (Audio)
@@ -230,6 +254,10 @@ void ALDCharacter::Tick(float Delta)
     KickAge+=Delta;
     const float Kick=PC->Controls && PC->Controls->bCameraShake ? LDBodyMotion::KickOffset(KickAge,KickCm,LDHitFeel::Read().KickSeconds) : 0.f;
     Camera->SetRelativeLocation(CameraArm->GetComponentRotation().UnrotateVector(GetActorForwardVector().GetSafeNormal2D()*Kick));
+    const ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+    const float Fringe=Impacts && !bReduced ? Impacts->ScreenFringe() : 0.f;
+    Camera->PostProcessSettings.bOverride_SceneFringeIntensity=Fringe>0.f;
+    Camera->PostProcessSettings.SceneFringeIntensity=Fringe;
 }
 
 bool ALDCharacter::PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock)

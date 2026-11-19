@@ -874,6 +874,8 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
                 After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
                 After->Cues.ReleasedAtMs=Now;
                 After->ReleasedSource=Action.Source;
+                // ReleaseAbility stored the resolved overdrive of an ability; a basic never is one.
+                if (Action.Kind==ELDCombatActionKind::Basic) { After->bReleasedOverdrive=false; }
                 MarkViewChanged(After->Victim.EntityId);
             }
         };
@@ -1152,6 +1154,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
         && LDMomentum::OverdriveReady(BodyOverdrive,Body.Resources.MomentumP2);
     if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
+    // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
+    // releases a normal cast).
+    Body.bReleasedOverdrive=bOverdrive;
     // K06: a repeat releases at its share of the damage.
     if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
     const FLDDemoAbilityValues* ValuesDef=&Terms.Values;

@@ -2,6 +2,9 @@
 #include "Character/LDCharacter.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDHitVfx.h"
+#include "Framework/LDDemoEntry.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Character/LDImpactFx.h"
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatEvaluationTypes.h"
@@ -304,6 +307,202 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A withdrawn swing rewinds to rest and then ends"),
         FMath::IsNearlyEqual(LDBodyMotion::RetractAge(.3f,0.f),.3f) && LDBodyMotion::RetractAge(.3f,LDBodyMotion::RetractSeconds*.5f)<.3f
         && LDBodyMotion::RetractAge(.3f,LDBodyMotion::RetractSeconds)<0.f && LDBodyMotion::RetractAge(.3f,-.01f)<0.f);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBodyMotionHitLayersTest, "Lockdown.Rules.DemoBodyMotion.HitLayers",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
+{
+    using namespace LDHitVfx;
+    auto Has=[](const FRecipe& Recipe, EMask Mask, EPlace Place)
+    { return Recipe.Layers.ContainsByPredicate([Mask,Place](const FLayer& Layer){ return Layer.Mask==Mask && Layer.Place==Place; }); };
+    const FRecipe Plain=ForHit(ELDObservedHitLook::None,0,1.f);
+    const FRecipe Crit=ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f);
+    TestTrue(TEXT("An ordinary hit flashes a star and rings the ground"), Has(Plain,EMask::Star,EPlace::Sprite) && Has(Plain,EMask::Ring,EPlace::Ground));
+    const FLayer* PlainStar=Plain.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
+    const FLayer* CritStar=Crit.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
+    TestTrue(TEXT("A critical hit changes shape, not only colour: a larger cross star and a second ring"),
+        CritStar && PlainStar && CritStar->Mask==EMask::Cross && CritStar->SizeCm>=1.5f*PlainStar->SizeCm
+        && Crit.Layers.FilterByPredicate([](const FLayer& L){ return L.Mask==EMask::Ring; }).Num()==2);
+    const FRecipe Shield=ForHit(ELDObservedHitLook::Fire,LDObservation::ShieldAbsorbed,1.f);
+    const FRecipe Broken=ForHit(ELDObservedHitLook::None,LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken,1.f);
+    const FLayer* Shell=Shield.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Shell; });
+    const FLayer* Burst=Broken.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Shell; });
+    TestTrue(TEXT("A shield shows its hex shell and a broken one bursts outwards over a wide ring"),
+        Shell && Shell->Mask==EMask::Hex && Burst && Burst->ToScale>Shell->ToScale && Has(Broken,EMask::Ring,EPlace::Ground));
+    TestTrue(TEXT("Each look has its own signature"),
+        Has(ForHit(ELDObservedHitLook::Fire,0,1.f),EMask::Burn,EPlace::Ground) && Has(ForHit(ELDObservedHitLook::Water,0,1.f),EMask::Ripple,EPlace::Ground)
+        && Has(ForHit(ELDObservedHitLook::Electric,0,1.f),EMask::Bolt,EPlace::Upright) && Has(ForHit(ELDObservedHitLook::Magic,0,1.f),EMask::Sigil,EPlace::Ground)
+        && Has(Shield,EMask::Burn,EPlace::Ground));
+    const FRecipe Reduced=ForHit(ELDObservedHitLook::None,LDObservation::Critical,.45f);
+    TestTrue(TEXT("Reduced effects drop only the repeat layers and dim the rest; the tier's shape stays"),
+        Reduced.Layers.Num()==Crit.Layers.Num()-1 && Has(Reduced,EMask::Cross,EPlace::Sprite) && Has(Reduced,EMask::Ring,EPlace::Ground)
+        && Reduced.Layers[0].Glow.R<Crit.Layers[0].Glow.R && Has(ForHit(ELDObservedHitLook::Electric,0,.45f),EMask::Bolt,EPlace::Upright));
+    const float NaN=std::numeric_limits<float>::quiet_NaN();
+    TestTrue(TEXT("A zero or invalid effect scale shows nothing"),
+        ForHit(ELDObservedHitLook::None,0,0.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::None,0,NaN).Layers.IsEmpty() && ForKill(NaN).Layers.IsEmpty());
+    const FRecipe Kill=ForKill(1.f);
+    const FLayer* Crack=Kill.Layers.FindByPredicate([](const FLayer& L){ return L.Mask==EMask::Crack; });
+    TestTrue(TEXT("A fall cracks the ground for two seconds under a shock ring"), Crack && Crack->Place==EPlace::Ground
+        && FMath::IsNearlyEqual(Crack->Seconds,2.f) && Has(Kill,EMask::Ring,EPlace::Ground) && ForKill(.45f).Layers.Num()==Kill.Layers.Num()-1);
+    for (int32 Look=0; Look<=int32(ELDObservedHitLook::Electric); ++Look)
+    {
+        for (uint8 Flags=0; Flags<=LDObservation::HitFlagsMask; ++Flags)
+        {
+            TestTrue(TEXT("Every hit fits the fixed layer budget"), ForHit(ELDObservedHitLook(Look),Flags,1.f).Layers.Num()<=MaxLayers);
+        }
+    }
+    const FLayer& Star=*PlainStar;
+    TestTrue(TEXT("Brightness rises to its peak, fades and ends at its duration; scale grows towards its end"),
+        Brightness(Star,-.01f)==0.f && FMath::IsNearlyEqual(Brightness(Star,Star.PeakAt*Star.Seconds),1.f,.01f)
+        && Brightness(Star,.8f*Star.Seconds)<Brightness(Star,.4f*Star.Seconds) && Brightness(Star,Star.Seconds)==0.f
+        && ScaleAt(Star,0.f)<ScaleAt(Star,Star.Seconds) && FMath::IsNearlyEqual(ScaleAt(Star,Star.Seconds),Star.ToScale));
+    const FLayer* Echo=Crit.Layers.FindByPredicate([](const FLayer& L){ return L.bOptional; });
+    TestTrue(TEXT("A delayed layer stays dark until its delay"), Echo && Brightness(*Echo,Echo->DelaySeconds*.5f)==0.f && Brightness(*Echo,Echo->DelaySeconds+.02f)>0.f);
+    // Distance compensation is one factor for every sprite: far away the ordinary star holds 60 px of 1080 lines and a
+    // critical cross stays 1.5x it; up close nothing grows.
+    const float Far=SpriteCompensation(2000.f,90.f);
+    const float PlainFar=PlainStar->SizeCm*PlainStar->ToScale*Far, CritFar=CritStar->SizeCm*CritStar->ToScale*Far;
+    const float ViewCm=2.f*2000.f*FMath::Tan(FMath::DegreesToRadians(45.f));
+    TestTrue(TEXT("Far away every sprite grows by one factor, so the tiers keep their size ratio"),
+        Far>1.f && PlainFar/ViewCm*1080.f>=MinSpritePx-.5f && FMath::IsNearlyEqual(CritFar/PlainFar,CritStar->SizeCm/PlainStar->SizeCm,.001f)
+        && CritFar>=1.5f*PlainFar);
+    TestTrue(TEXT("Up close or with an invalid view nothing is compensated"), SpriteCompensation(100.f,90.f)==1.f
+        && SpriteCompensation(NaN,90.f)==1.f && SpriteCompensation(2000.f,0.f)==1.f);
+    // Saved and live tuning reach the layers; an impact size or duration of zero turns them off.
+    LDHitFeel::ResetAll();
+    const LDHitFeel::FTuning Start=LDHitFeel::Read();
+    const FLayerTuning Neutral=TuningOf(Start,1.f,1.f,1.f);
+    TestTrue(TEXT("At the starting controls and neutral asset values the layers are unchanged"), FMath::IsNearlyEqual(Neutral.Size,1.f)
+        && FMath::IsNearlyEqual(Neutral.Seconds,1.f) && FMath::IsNearlyEqual(Neutral.Glow,1.f)
+        && FMath::IsNearlyEqual(ForHit(ELDObservedHitLook::None,0,1.f,Neutral).Layers[0].SizeCm,PlainStar->SizeCm));
+    LDHitFeel::FTuning Bigger=Start; Bigger.ImpactScale*=2.f; Bigger.ImpactSeconds*=2.f;
+    const FRecipe Tuned=ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f,TuningOf(Bigger,1.f,1.f,.5f));
+    TestTrue(TEXT("Live size and duration and the saved glow scale every layer, delays included"),
+        FMath::IsNearlyEqual(Tuned.Layers[0].SizeCm,2.f*Crit.Layers[0].SizeCm) && FMath::IsNearlyEqual(Tuned.Layers[0].Seconds,2.f*Crit.Layers[0].Seconds)
+        && FMath::IsNearlyEqual(Tuned.Layers[2].DelaySeconds,2.f*Crit.Layers[2].DelaySeconds) && Tuned.Layers[0].Glow.R<Crit.Layers[0].Glow.R);
+    LDHitFeel::FTuning NoSize=Start; NoSize.ImpactScale=0.f;
+    LDHitFeel::FTuning NoTime=Start; NoTime.ImpactSeconds=0.f;
+    TestTrue(TEXT("An impact size or duration of zero, or a zero asset value, shows no layers"),
+        ForHit(ELDObservedHitLook::Fire,0,1.f,TuningOf(NoSize,1.f,1.f,1.f)).Layers.IsEmpty()
+        && ForKill(1.f,TuningOf(NoTime,1.f,1.f,1.f)).Layers.IsEmpty() && ForHit(ELDObservedHitLook::None,0,1.f,TuningOf(Start,0.f,1.f,1.f)).Layers.IsEmpty());
+    const FScreenFlash KillFlash=ScreenFlashOf(LDCombatCues::DealtLethal|LDObservation::Critical,false);
+    const FScreenFlash CritFlash=ScreenFlashOf(LDObservation::Critical,false);
+    TestTrue(TEXT("A kill flashes red over a critical hit's gold, a broken shield cyan, an ordinary hit nothing"),
+        KillFlash.Colour.R>KillFlash.Colour.G*4.f && CritFlash.Colour.G>CritFlash.Colour.B && ScreenFlashOf(LDObservation::ShieldBroken,false).Colour.B>.5f
+        && ScreenFlashOf(0,false).Seconds==0.f && KillFlash.Fringe>CritFlash.Fringe);
+    TestTrue(TEXT("Reduced effects turn the screen flash off; the flash fades out over its duration"),
+        ScreenFlashOf(LDCombatCues::DealtLethal,true).Seconds==0.f && ScreenFlashAlpha(KillFlash,0.f)==KillFlash.Colour.A
+        && ScreenFlashAlpha(KillFlash,KillFlash.Seconds*.5f)<KillFlash.Colour.A && ScreenFlashAlpha(KillFlash,KillFlash.Seconds)==0.f);
+    // The particle kit: every skill has its own look, element hits and effects have presets, dashes are detected.
+    TSet<uint8> Abilities;
+    TSet<FName> AbilityIds;
+    for (const FSkillLook& Skill : SkillLooks())
+    {
+        Abilities.Add(Skill.Ability);
+        AbilityIds.Add(FName(Skill.Id));
+        TestTrue(FString::Printf(TEXT("%s has its own look"), Skill.Id), SkillLookOf(Skill.Ability) == &Skill && SkillLookOf(FName(Skill.Id)) == &Skill
+            && !BurstOf(Skill.Release, Skill.Tint, 1.f).IsEmpty());
+    }
+    TestTrue(TEXT("The skill table names 26 distinct abilities"), SkillLooks().Num() == 26 && Abilities.Num() == 26 && AbilityIds.Num() == 26
+        && SkillLookOf(uint8(0)) == nullptr && SkillLookOf(FName()) == nullptr);
+    for (int32 Kind = 0; Kind < int32(EBurst::Count); ++Kind)
+    {
+        const FBurst Full = BurstOf(EBurst(Kind), FLinearColor::White, 1.f);
+        const FBurst Thin = BurstOf(EBurst(Kind), FLinearColor::White, .45f);
+        TestTrue(TEXT("Every burst preset shows particles and reduced effects only thin them"), !Full.IsEmpty()
+            && Thin.Sparks <= Full.Sparks && Thin.Smoke <= Full.Smoke && Thin.Sparks + Thin.Smoke < Full.Sparks + Full.Smoke
+            && Thin.Scale == Full.Scale && Thin.SparkColour == Full.SparkColour);
+    }
+    TestTrue(TEXT("Embers rise, droplets fall, arcs float"), BurstOf(EBurst::Flame, FLinearColor::White, 1.f).Gravity.Z > 0.
+        && BurstOf(EBurst::Splash, FLinearColor::White, 1.f).Gravity.Z < -980. && BurstOf(EBurst::Zap, FLinearColor::White, 1.f).Gravity.IsZero()
+        && BurstOf(EBurst::Strike, FLinearColor::White, NaN).IsEmpty());
+    EBurst Element;
+    FLinearColor ElementTint;
+    TestTrue(TEXT("Element hits add their particles, an ordinary hit none"), HitBurstOf(ELDObservedHitLook::Fire, Element, ElementTint)
+        && Element == EBurst::Flame && HitBurstOf(ELDObservedHitLook::Electric, Element, ElementTint) && Element == EBurst::Zap
+        && !HitBurstOf(ELDObservedHitLook::None, Element, ElementTint));
+    const FZone Small = ZoneOf(ELDObservedProjectileLook::AreaFire, 150.f, 1.f);
+    const FZone Wide = ZoneOf(ELDObservedProjectileLook::AreaFire, 300.f, 1.f);
+    TestTrue(TEXT("A ground zone loops particles at a density that follows its area; a flight has a trail instead"),
+        Small.bShow && Wide.Rate > 3.f * Small.Rate && ZoneOf(ELDObservedProjectileLook::AreaFire, 150.f, .45f).Rate < Small.Rate
+        && !ZoneOf(ELDObservedProjectileLook::Chalk, 150.f, 1.f).bShow && TrailOf(ELDObservedProjectileLook::Chalk, 1.f).bShow
+        && !TrailOf(ELDObservedProjectileLook::AreaFire, 1.f).bShow && !ZoneOf(ELDObservedProjectileLook::AreaFire, NaN, 1.f).bShow);
+    TestTrue(TEXT("Launches, landings and flight ends have bursts"), AppearBurstOf(ELDObservedProjectileLook::Chalk, Element, ElementTint)
+        && Element == EBurst::Muzzle && EndBurstOf(ELDObservedProjectileLook::BookShadow, Element, ElementTint) && Element == EBurst::Slam
+        && !EndBurstOf(ELDObservedProjectileLook::AreaFire, Element, ElementTint));
+    TestTrue(TEXT("A dash streaks; a run, a knock-back or a fall does not"), IsDashing(1500.f, false, false) && !IsDashing(675.f, false, false)
+        && !IsDashing(1500.f, true, false) && !IsDashing(1500.f, false, true) && DashTrailOf(FLinearColor::White, 1.f).bShow
+        && DashTrailOf(FLinearColor::White, .45f).WidthCm < DashTrailOf(FLinearColor::White, 1.f).WidthCm);
+    TestTrue(TEXT("Taking a hit tints the edge faintly; reduced effects turn it off"), HurtFlashOf(false).Seconds > 0.f
+        && HurtFlashOf(false).Colour.A < ScreenFlashOf(LDObservation::Critical, false).Colour.A && HurtFlashOf(true).Seconds == 0.f);
+    // Overdrive (#305): a public hit flag with its own shapes, the heaviest flash short of a kill, a charge and a release.
+    const FRecipe Over=ForHit(ELDObservedHitLook::None,LDObservation::Overdriven,1.f);
+    const FLayer* OverStar=Over.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
+    TestTrue(TEXT("An overdrive hit shows a cross larger than a critical one, its own wide ring and a sigil"),
+        OverStar && OverStar->Mask==EMask::Cross && OverStar->SizeCm>CritStar->SizeCm && Has(Over,EMask::Sigil,EPlace::Ground)
+        && Over.Layers.FilterByPredicate([](const FLayer& L){ return L.Mask==EMask::Ring; }).Num()==1 && OverStar->Glow.B>OverStar->Glow.G);
+    TestTrue(TEXT("The overdrive bit is public and is the owner receipt's overdrive bit"),
+        (LDObservation::HitFlagsMask & LDObservation::Overdriven)!=0 && LDCombatCues::DealtOverdrive==LDObservation::Overdriven
+        && (LDCombatCues::DealtLethal & LDObservation::HitFlagsMask)==0);
+    const FScreenFlash OverFlash=ScreenFlashOf(LDCombatCues::DealtOverdrive|LDObservation::Critical,false);
+    TestTrue(TEXT("A kill still outranks overdrive, which outranks a critical hit on the screen edge"),
+        OverFlash.Seconds>0.f && OverFlash.Colour.B>OverFlash.Colour.G && OverFlash.Fringe>CritFlash.Fringe
+        && ScreenFlashOf(LDCombatCues::DealtOverdrive|LDCombatCues::DealtLethal,false).Colour==KillFlash.Colour
+        && ScreenFlashOf(LDCombatCues::DealtOverdrive,true).Seconds==0.f);
+    const FZone ChargeStart=ChargeZoneOf(0.f,1.f), ChargeFull=ChargeZoneOf(1.f,1.f);
+    TestTrue(TEXT("The charge column grows with the hold and thins with reduced effects"), ChargeStart.bShow && ChargeFull.Rate>ChargeStart.Rate
+        && ChargeFull.Velocity.Z>ChargeStart.Velocity.Z && ChargeZoneOf(5.f,1.f).Rate==ChargeFull.Rate && ChargeZoneOf(1.f,.45f).Rate<ChargeFull.Rate
+        && !ChargeZoneOf(NaN,1.f).bShow && !ForChargeReady(1.f).Layers.IsEmpty() && ForChargeReady(.45f).Layers.Num()<ForChargeReady(1.f).Layers.Num());
+    // The overdrive release is public only on a Cast cue and only with the momentum authorization.
+    FLDObservedUnitView Caster;
+    Caster.Handle=FGuid::NewGuid(); Caster.ObservationEpoch=1; Caster.StateRevision=1;
+    Caster.Kind=ELDObservedUnitKind::Contender; Caster.AuthorizedFieldMask=LDObservation::ContenderFields;
+    Caster.Presentation=2; Caster.FeetCm=FVector(100,-200,2); Caster.Facing=1234;
+    Caster.ContenderId=FGuid::NewGuid(); Caster.Level=3; Caster.Health.CurrentP2=45000; Caster.Health.MaxP2=60000;
+    Caster.ActionCue=ELDObservedActionCue::Cast; Caster.bOverdriveCast=true;
+    FString CasterError;
+    const bool bCastOk=LDObservation::ValidateUnit(Caster,CasterError);
+    FLDObservedUnitView NoCast=Caster; NoCast.ActionCue=ELDObservedActionCue::None;
+    FLDObservedUnitView Hidden=Caster; Hidden.AuthorizedFieldMask&=~LDObservation::Momentum;
+    FLDObservedUnitView StrayAge=Caster; StrayAge.ChargeAgeMs=120;
+    FLDObservedUnitView Held=Caster; Held.bCharging=true; Held.ChargeAgeMs=120;
+    TestTrue(TEXT("A charge age rides only a held charge"), !LDObservation::ValidateUnit(StrayAge,CasterError) && LDObservation::ValidateUnit(Held,CasterError));
+    TestTrue(*FString::Printf(TEXT("An overdrive release rides a Cast cue under the momentum authorization (%s)"),*CasterError),
+        bCastOk && !LDObservation::ValidateUnit(NoCast,CasterError) && !LDObservation::ValidateUnit(Hidden,CasterError));
+    const FRecipe Release=ForOverdriveRelease(1.f);
+    TestTrue(TEXT("The release is a shockwave: cross, rings, sigil and crack"), Has(Release,EMask::Cross,EPlace::Sprite)
+        && Has(Release,EMask::Ring,EPlace::Ground) && Has(Release,EMask::Sigil,EPlace::Ground) && Has(Release,EMask::Crack,EPlace::Ground)
+        && Release.Layers.Num()<=MaxLayers && ForOverdriveRelease(.45f).Layers.Num()==Release.Layers.Num()-1);
+    const FBurst OverBurst=BurstOf(EBurst::Overdrive,FLinearColor::White,1.f);
+    TestTrue(TEXT("The overdrive burst is the heaviest particle preset short of a kill and keeps its own colour"),
+        OverBurst.Sparks>BurstOf(EBurst::Strike,FLinearColor::White,1.f).Sparks && OverBurst.SparkColour.B>OverBurst.SparkColour.G);
+    // Afterimages.
+    const FGhosts Ghosts=GhostsOf(FLinearColor::White,1.f), FewGhosts=GhostsOf(FLinearColor::White,.45f);
+    TestTrue(TEXT("A dash leaves afterimages that fade out; reduced effects leave half as many"), Ghosts.bShow
+        && FewGhosts.IntervalSeconds>=2.f*Ghosts.IntervalSeconds-.001f && GhostFade(Ghosts,0.f)>GhostFade(Ghosts,Ghosts.Seconds*.5f)
+        && GhostFade(Ghosts,Ghosts.Seconds)==0.f && GhostFade(Ghosts,-.1f)==0.f && !GhostsOf(FLinearColor::White,0.f).bShow);
+    // Every active ability of the approved content has its own look.
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FString ContentError;
+    if (TestTrue(TEXT("The approved content loads"), LDDemoEntry::LoadRuntimeContent(Content,ContentError) && Content.IsValid()))
+    {
+        int32 Actives=0;
+        for (const FLDDemoAbilityDefinition& Ability : Content->Get().Abilities)
+        {
+            if (!Ability.Id.StartsWith(TEXT("active_"))) { continue; }
+            ++Actives;
+            const FSkillLook* Skill=SkillLookOf(FName(*Ability.Id));
+            TestTrue(FString::Printf(TEXT("%s has a skill look with its native id"),*Ability.Id), Skill && Skill->Ability==Ability.NativeId);
+        }
+        TestEqual(TEXT("The skill table covers exactly the approved actives"), SkillLooks().Num(), Actives);
+    }
+    TestTrue(TEXT("Every mask has a manifest id and a texture package"), [](){
+        for (int32 Mask=0; Mask<int32(EMask::Count); ++Mask)
+        { if (FCString::Strlen(MaskId(EMask(Mask)))==0 || !TexturePackage(MaskId(EMask(Mask))).StartsWith(Folder)) { return false; } }
+        return true; }());
     return true;
 }
 

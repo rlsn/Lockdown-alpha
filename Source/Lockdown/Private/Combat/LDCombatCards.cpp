@@ -1620,6 +1620,20 @@ bool ALDCombatDirector::OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHi
     return true;
 }
 
+FLDCombatCueFacts ALDCombatDirector::PresentedCueFactsOf(const FLDBodyCombatState& Body) const
+{
+    FLDCombatCueFacts Facts=CueFactsOf(Body);
+    // Only a cast still winding up is rechecked against the bar; a released one keeps its resolved value.
+    if (Facts.bOverdriveCast && Body.Action.IsSet() && Body.Action->Kind!=ELDCombatActionKind::Basic)
+    {
+        const FLDDemoContentSnapshot* Content=Catalog();
+        FLDDemoOverdriveParameters Terms=Content ? Content->Get().Parameters.Overdrive : FLDDemoOverdriveParameters();
+        Terms.ThresholdP2=OverdriveThresholdOf(Body);
+        Facts.bOverdriveCast=Content && LDMomentum::OverdriveReady(Terms,Body.Resources.MomentumP2);
+    }
+    return Facts;
+}
+
 int64 ALDCombatDirector::OverdriveThresholdOf(const FLDBodyCombatState& Body) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();

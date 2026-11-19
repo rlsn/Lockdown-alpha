@@ -1,6 +1,8 @@
 #include "UI/LDWorldFeedback.h"
 #include "Core/LDLog.h"
 #include "Character/LDHitFeel.h"
+#include "Character/LDImpactFx.h"
+#include "Combat/LDCombatCues.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -357,6 +359,7 @@ constexpr double WorldFeedbackWordAheadCm=90.;
 constexpr double WorldFeedbackWordCm=70.;
 constexpr double WorldFeedbackWordSeconds=.45;
 constexpr double WorldFeedbackWordPopSeconds=.08;
+constexpr double WorldFeedbackWordShakeSeconds=.05;
 constexpr float WorldFeedbackWordRise=14.f;
 // Level-up effect around the own feet: two expanding rings and rising light streaks.
 constexpr double WorldFeedbackRingSeconds=.9;
@@ -598,8 +601,22 @@ void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
 int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
+    const UWorld* World=GetWorld();
+    // The own screen edge flash of a kill, critical hit or broken shield: a tinted vignette under every line.
+    if(const ULDImpactFxSubsystem* Impacts=World?World->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
+    {
+        FLinearColor Edge;
+        const float EdgeAlpha=Impacts->ScreenFlashAlpha(Edge);
+        if(EdgeAlpha>0.f&&Impacts->GetScreenEdge())
+        {
+            if(EdgeBrush.GetResourceObject()!=Impacts->GetScreenEdge()){EdgeBrush.SetResourceObject(Impacts->GetScreenEdge());}
+            EdgeBrush.DrawAs=ESlateBrushDrawType::Image;
+            Edge.A=EdgeAlpha;
+            FSlateDrawElement::MakeBox(E,Base+1,G.ToPaintGeometry(),&EdgeBrush,ESlateDrawEffect::None,Edge);
+        }
+    }
     if(Floaters.IsEmpty()&&Banners.IsEmpty()&&LevelUpAt<0.){return Base;}
-    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());const UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const ALDGameState* Public=World?World->GetGameState<ALDGameState>():nullptr;
     FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
     if(!PC||!Public||!Renderer){return Base;}
@@ -705,10 +722,21 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
             const float WordProgress=float(Age/WorldFeedbackWordSeconds);
             const float WordAlpha=WordProgress<.55f?1.f:FMath::Clamp((1.f-WordProgress)/.45f,0.f,1.f);
             const bool bCritical=(Floater.Event.HitFlags&LDObservation::Critical)!=0;
-            FLinearColor WordInk=bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);WordInk.A*=WordAlpha;
-            const FSlateFontInfo WordFont=WorldFeedbackFont(bCritical?LDHUDStyle::TypeBanner:LDHUDStyle::TypeTitle,TextScale,3,WordAlpha);
-            const FVector2f WordAnchor(WordAt.X,WordAt.Y-WorldFeedbackWordRise*TextScale*WorldFeedbackEaseOut(WordProgress));
-            Draw(3,Floater.Text,WordFont,WordInk,WordAnchor,.5f,WorldFeedbackPop(Age,WorldFeedbackWordPopSeconds,bCritical?2.f:1.7f));
+            const bool bOverdriveWord=(Floater.Event.HitFlags&LDCombatCues::DealtOverdrive)!=0;
+            const bool bHeavy=bCritical||bOverdriveWord||(Floater.Event.HitFlags&LDCombatCues::DealtLethal)!=0;
+            // Overdrive in its own magenta, a critical hit gold, else warm white.
+            FLinearColor WordInk=bOverdriveWord?FLinearColor(1.f,.32f,.82f):bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);
+            WordInk.A*=WordAlpha;
+            const FSlateFontInfo WordFont=WorldFeedbackFont(bHeavy?LDHUDStyle::TypeBanner:LDHUDStyle::TypeTitle,TextScale,3,WordAlpha);
+            FVector2f WordAnchor(WordAt.X,WordAt.Y-WorldFeedbackWordRise*TextScale*WorldFeedbackEaseOut(WordProgress));
+            // A heavy word (critical or kill) overshoots further and shakes for its first two frames; an ordinary one
+            // overshoots less, so the heavy tier stands out.
+            if(bHeavy&&Age<WorldFeedbackWordShakeSeconds)
+            {
+                const float Shake=float(1.-Age/WorldFeedbackWordShakeSeconds)*5.f*TextScale;
+                WordAnchor.X+=Shake*FMath::Sin(float(Age)*157.f);WordAnchor.Y+=Shake*FMath::Cos(float(Age)*131.f);
+            }
+            Draw(3,Floater.Text,WordFont,WordInk,WordAnchor,.5f,WorldFeedbackPop(Age,WorldFeedbackWordPopSeconds,bHeavy?1.8f:1.35f));
             continue;
         }
         if(Age<0.||Age>=LDHUDStyle::FloatSeconds){continue;}

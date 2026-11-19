@@ -67,6 +67,17 @@ public:
     // LDBodyMotion::RetractSeconds once the next cue ends it, instead of snapping to idle.
     void SetHold(float HoldSeconds);
     void Retract();
+    // The ability of the shown cast (ELDDemoAbilityId; 0 = none or the innate dash): its own tint on the cast charge,
+    // its release burst at the action's release and its dash trail colour (LDHitVfx::SkillLookOf).
+    void SetCastAbility(uint8 Ability) { CastAbility = Ability; }
+    // The public overdrive charge (FLDObservedUnitView::bCharging; the own body's ChargingEntry): an energy column while
+    // held, a ready flare once OVERDRIVE.HoldSec passes, and the release shockwave when it ends as a cast begins.
+    // AgeSeconds: how long the charge has been held (authority age for a proxy); Progress: the own key's hold progress
+    // 0..1 when known (ALDPlayerController::OverdriveHoldProgress), which then drives the column and the ready flare.
+    void SetCharging(bool bInCharging, float AgeSeconds = 0.f, float Progress = -1.f)
+    { bCharging = bInCharging; ChargeAge = AgeSeconds; ChargeProgress = Progress; }
+    // The shown cast is an overdrive release (public, FLDObservedUnitView::bOverdriveCast): its release plays the shockwave.
+    void SetOverdriveCast(bool bInOverdrive) { bOverdriveCast = bInOverdrive; }
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
     void PlayFall();
@@ -99,10 +110,15 @@ private:
     void QueueImpact(double Onset, ELDObservedHitLook HitLook, uint8 HitFlags);
     void UpdateSwingTrail(float AgeSeconds, float EffectScale);
     void UpdateCastCharge(float Charge, float EffectScale);
+    void UpdateRelease(float EffectScale);
+    void UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale);
+    void UpdateOverdrive(float EffectScale);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UNiagaraComponent> SwingTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
     // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
     // restore entries for subobjects that no longer exist.
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Parts;
@@ -124,6 +140,13 @@ private:
     FVector PreviousTrailPoint = FVector::ZeroVector;
     double TrailActionOnset = -1;
     double CastActionOnset = -1;
+    double ReleasedOnset = -1;
+    uint8 CastAbility = 0;
+    bool bDashing = false;
+    double LastGhostAt = -1;
+    bool bCharging = false, bChargeShown = false, bChargeReady = false, bOverdriveCast = false;
+    double ChargeOnset = -1;
+    float ChargeAge = 0, ChargeProgress = -1;
     uint8 Cue = 0;
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
     uint8 HitFlags = 0;

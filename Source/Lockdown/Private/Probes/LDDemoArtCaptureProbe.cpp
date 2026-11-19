@@ -14,6 +14,7 @@
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDImpactFx.h"
+#include "Combat/LDCombatCues.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -59,6 +60,16 @@ namespace
         uint8 HitFlags = 0;
         bool bHit = false;
         float HitAgeSeconds = .08f;
+        bool bKill = false;
+        // The particle kit: a skill cast reaching its release, a dash streaking across, a visible skill effect.
+        uint8 CastAbility = 0;
+        bool bDash = false;
+        bool bEffect = false;
+        ELDObservedProjectileLook Effect = ELDObservedProjectileLook::Chalk;
+        float EffectRadius = 0.f;
+        float CaptureDelay = 0.f;
+        // Overdrive: 1 holds a charge through the shot, 2 releases a held charge as a cast.
+        uint8 Overdrive = 0;
     };
 
     // Floor points a body can stand on, with the camera arm lengths the player can zoom between.
@@ -80,6 +91,10 @@ namespace
         int32 Stage = 0, Shot = 0;
         uint64 VfxCaptureFrame = 0;
         bool bVfxPrepared = false;
+        bool bVfxDash = false;
+        double VfxReleaseAt = -1.;
+        FVector VfxDashFrom = FVector::ZeroVector;
+        TWeakObjectPtr<ALDObservedProjectileProxy> VfxEffect;
         bool Failed = false, bCombatVfx = false;
 
         bool Check(bool Passed, const FString& Name)
@@ -456,7 +471,34 @@ namespace
                 {TEXT("VFX-ShieldBreak"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None,
                     LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken, true},
                 {TEXT("VFX-Fire"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Fire, 0, true},
+                {TEXT("VFX-Water"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Water, 0, true},
+                {TEXT("VFX-Electric"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Electric, 0, true},
+                {TEXT("VFX-Magic"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::Magic, 0, true},
+                {TEXT("VFX-Shield"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, LDObservation::ShieldAbsorbed, true},
                 {TEXT("VFX-Cast"), Focus, LDCamera::DefaultArmLength, false, 2},
+                {TEXT("VFX-SkillZap"), Focus, LDCamera::DefaultArmLength, false, 2, ELDObservedHitLook::None, 0, false, .08f, false,
+                    uint8(ELDDemoAbilityId::ActiveZap), false, false, ELDObservedProjectileLook::Chalk, 0.f, .24f},
+                {TEXT("VFX-SkillSeethe"), Focus, LDCamera::DefaultArmLength, false, 2, ELDObservedHitLook::None, 0, false, .08f, false,
+                    uint8(ELDDemoAbilityId::ActiveSeethe), false, false, ELDObservedProjectileLook::Chalk, 0.f, .26f},
+                {TEXT("VFX-SkillNotMad"), Focus, LDCamera::DefaultArmLength, false, 2, ELDObservedHitLook::None, 0, false, .08f, false,
+                    uint8(ELDDemoAbilityId::ActiveNotMad), false, false, ELDObservedProjectileLook::Chalk, 0.f, .26f},
+                {TEXT("VFX-Dash"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    uint8(ELDDemoAbilityId::ActiveBailOut), true, false, ELDObservedProjectileLook::Chalk, 0.f, .2f},
+                {TEXT("VFX-ZoneFire"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    0, false, true, ELDObservedProjectileLook::AreaFire, 220.f, .9f},
+                {TEXT("VFX-ZoneWater"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    0, false, true, ELDObservedProjectileLook::AreaWater, 220.f, .9f},
+                {TEXT("VFX-ZoneElectric"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    0, false, true, ELDObservedProjectileLook::AreaElectric, 220.f, .6f},
+                {TEXT("VFX-Chalk"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    0, false, true, ELDObservedProjectileLook::Chalk, 0.f, .1f},
+                {TEXT("VFX-OverdriveHit"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, LDObservation::Overdriven, true},
+                {TEXT("VFX-OverdriveCharge"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    0, false, false, ELDObservedProjectileLook::Chalk, 0.f, .45f, 1},
+                {TEXT("VFX-OverdriveRelease"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
+                    uint8(ELDDemoAbilityId::ActiveZap), false, false, ELDObservedProjectileLook::Chalk, 0.f, .5f, 2},
+                // Last: the fall leaves the victim fallen.
+                {TEXT("VFX-Kill"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, 0, false, .08f, true},
             };
             if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoCastVfxCapture")))
             {
@@ -484,7 +526,15 @@ namespace
             auto* Victim = VfxVictim.Get();
             if (!Attacker || !Victim) { return Check(false, TEXT("Combat VFX bodies remain available")); }
             auto* Impacts = World->GetSubsystem<ULDImpactFxSubsystem>();
-            if (Impacts) { Impacts->ClearFor(*Victim); }
+            if (Impacts) { Impacts->ClearFor(*Victim); Impacts->ClearFor(*Attacker); }
+            if (ALDObservedProjectileProxy* Old = VfxEffect.Get()) { Old->Destroy(); }
+            VfxEffect.Reset();
+            if (bVfxDash) { Attacker->GetOwner()->SetActorLocation(VfxDashFrom); }
+            bVfxDash = false;
+            Attacker->SetCastAbility(Current.CastAbility);
+            Attacker->SetCharging(Current.Overdrive != 0);
+            Attacker->SetOverdriveCast(false);
+            VfxReleaseAt = Current.Overdrive == 2 ? FPlatformTime::Seconds() + .4 : -1.;
             Victim->Animate(FVector::ZeroVector, .5f);
             Attacker->SetCue(Current.Action, Current.Action ? (Current.bHit ? .36f : .22f) : -1.f, .4f);
             Attacker->Animate(FVector::ZeroVector, 0.f);
@@ -492,7 +542,45 @@ namespace
             {
                 Victim->SetHitReaction(Current.HitAgeSeconds, Current.HitLook, Current.HitFlags);
                 Victim->Animate(FVector::ZeroVector, 0.f);
-                if (!Check(Impacts && Impacts->LiveCount() == 1, TEXT("A fresh shown hit creates one impact effect"))) { return false; }
+                LDHitVfx::EBurst Element;
+                FLinearColor ElementTint;
+                const int32 Expected = 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
+                    + ((Current.HitFlags & LDObservation::Overdriven) ? 1 : 0);
+                if (!Check(Impacts && Impacts->LiveCount() == Expected,
+                    TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles"))) { return false; }
+                Check(Impacts->LiveLayerCount() == LDHitVfx::ForHit(Current.HitLook, Current.HitFlags, 1.f, Impacts->LayerTuning()).Layers.Num(),
+                    TEXT("A fresh shown hit spawns its shaped layers"));
+                // The own receipt of the same tier flashes the screen edge (drawn by the world feedback layer).
+                Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(Current.HitFlags, false));
+            }
+            if (Current.bDash)
+            {
+                // Streak the attacker across the shot at dash speed (moved by Tick).
+                bVfxDash = true;
+                VfxDashFrom = Attacker->GetOwner()->GetActorLocation();
+                Attacker->Animate(FVector(1500.f, 0.f, 0.f), 0.f);
+            }
+            if (Current.bEffect)
+            {
+                FActorSpawnParameters Spawn;
+                Spawn.ObjectFlags |= RF_Transient;
+                ALDObservedProjectileProxy* Effect = World->SpawnActor<ALDObservedProjectileProxy>(Spawn);
+                if (!Check(Effect != nullptr, TEXT("Capture effect proxy spawned"))) { return false; }
+                FLDObservedProjectileView View;
+                View.Handle = FGuid::NewGuid();
+                View.Look = Current.Effect;
+                View.RadiusCm = Current.EffectRadius;
+                View.PositionCm = Victim->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                View.Heading = uint16(225.f / 360.f * 65536.f);
+                Effect->Apply(View, 100.);
+                Effect->Present(100.);
+                VfxEffect = Effect;
+            }
+            if (Current.bKill && Impacts)
+            {
+                Victim->PlayFall();
+                Check(Impacts->LiveLayerCount() == LDHitVfx::ForKill(1.f, Impacts->LayerTuning()).Layers.Num(), TEXT("A visible fall cracks the ground"));
+                Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(LDCombatCues::DealtLethal, false));
             }
             return true;
         }
@@ -587,7 +675,20 @@ namespace
             if (!World.IsValid()) { return Finish(TEXT("The Demo world ended before the art capture completed")); }
             if (bCombatVfx)
             {
-                if (auto* Body = VfxAttacker.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
+                if (auto* Body = VfxAttacker.Get(); Body && VfxReleaseAt > 0. && FPlatformTime::Seconds() >= VfxReleaseAt)
+                {
+                    // The held charge ends as the authority's overdrive cast begins (public bOverdriveCast) and releases.
+                    VfxReleaseAt = -1.;
+                    Body->SetCharging(false);
+                    Body->SetOverdriveCast(true);
+                    Body->SetCue(2, .1f, .1f);
+                }
+                if (auto* Body = VfxAttacker.Get())
+                {
+                    const FVector Dash(bVfxDash ? 1500.f : 0.f, 0.f, 0.f);
+                    if (bVfxDash) { Body->GetOwner()->AddActorWorldOffset(Dash * Delta); }
+                    Body->Animate(Dash, Delta);
+                }
                 if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
             }
             if (!PendingImage.IsEmpty())
@@ -637,11 +738,22 @@ namespace
                 if (!PrepareVfxShot(Current)) { return Finish(); }
                 bVfxPrepared = true;
                 VfxCaptureFrame = GFrameCounter + 2;
-                VfxCaptureAt = Current.Action == 1 && !Current.bHit ? Now + .17 : Current.Action == 2 ? Now + .11 : Now;
+                VfxCaptureAt = Current.CaptureDelay > 0.f ? Now + Current.CaptureDelay
+                    : Current.Action == 1 && !Current.bHit ? Now + .17 : Current.Action == 2 ? Now + .11 : Now;
                 return true;
             }
             if (bCombatVfx && (GFrameCounter < VfxCaptureFrame || Now < VfxCaptureAt)) { return true; }
             bVfxPrepared = false;
+            if (bCombatVfx)
+            {
+                const auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+                if (Current.bDash) { Check(Impacts && Impacts->LiveGhostCount() > 0, TEXT("A dash leaves afterimages")); }
+                if (Current.Overdrive == 2)
+                {
+                    Check(Impacts && Impacts->LiveLayerCount() >= LDHitVfx::ForOverdriveRelease(1.f, Impacts->LayerTuning()).Layers.Num(),
+                        TEXT("A held charge released as a cast shows the overdrive shockwave"));
+                }
+            }
             PendingImage = Directory / (Current.Name + TEXT(".png"));
             Images.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(PendingImage)));
             FScreenshotRequest::RequestScreenshot(PendingImage, false, false);

@@ -481,6 +481,11 @@ struct FLDCombatCueFacts
     UPROPERTY() uint8 ReleasedComboStep=0;
     UPROPERTY() int64 ReleasedStartedAtMs=0;
     UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life
+    // The acting Q/W/E, else the last released one, was admitted as an overdrive release (its Cast cue's overdrive).
+    UPROPERTY() bool bOverdriveCast=false;
+    // The learned Q/W/E of the acting non-basic action, else of the last released one (None for a basic or the innate
+    // dash): the own body's skill look survives a release snapshot that already cleared the action slot.
+    UPROPERTY() FName CastDefinitionId;
     UPROPERTY() int64 DashUntilMs=0;
     UPROPERTY() int64 LastHitAtMs=0;                 // 0 = not hit in this life
     UPROPERTY() FGuid LastHitId;                      // identity of the last resolved hit in this life

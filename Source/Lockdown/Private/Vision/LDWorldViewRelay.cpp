@@ -1,4 +1,6 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Character/LDImpactFx.h"
+#include "NiagaraComponent.h"
 #include "Combat/LDCombatBagBlocker.h"
 #include "Combat/LDCombatElements.h"
 #include "Vision/LDFogDistanceField.h"
@@ -472,6 +474,10 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.Cue = Unit.ActionCue;
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
+    Shown.ActionAbility = Unit.ActionAbility;
+    Shown.bCharging = Unit.bCharging;
+    Shown.ChargeAgeMs = Unit.ChargeAgeMs;
+    Shown.bOverdriveCast = Unit.bOverdriveCast;
     Shown.HitLook = Unit.HitLook;
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
     Shown.RecentHitId = Unit.RecentHitId;
@@ -508,6 +514,10 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
+        Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
+        Body->SetCharging(Reached.bCharging,
+            float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
+        Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
             AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags, Reached.RecentHitId,
@@ -840,6 +850,13 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     ShownRadius=Effect.RadiusCm; ShownInnerRadius=Effect.InnerRadiusCm; ShownAngle=Effect.AngleDegrees;
     ShownLength=Effect.LengthCm;bShownOwn=Effect.bOwn;
     ShownColor=Color;
+    ShownHeading=FRotator(0,float(Effect.Heading)/65536.f*360.f,0);
+    if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
+    {
+        USceneComponent* Anchor=bFlight ? static_cast<USceneComponent*>(Trail) : RootComponent.Get();
+        ParticleScale=Impacts->LocalEffectScale();
+        Particles=Impacts->ShowEffect(*Anchor,Particles,Effect.Look,Effect.RadiusCm,ShownHeading);
+    }
     if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     Trail->SetReturning(IsObservedReturn(Effect.Look));
@@ -957,6 +974,8 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         Points.Reset();
         SetActorLocationAndRotation(Point.Location, FRotator(0, Point.Yaw, 0));
         bPlaced = true;
+        ShownLook = Projectile.Look;
+        PlayBurst(false);
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
         {
             EffectTint = UMaterialInstanceDynamic::Create(Material, this);
@@ -983,8 +1002,24 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
 void ALDObservedProjectileProxy::Present(double AtServerSec)
 {
     if (Points.IsEmpty()) { return; }
+    // The reduced-effects setting changed: rebuild the particles at the new density and width.
+    if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+        Impacts && ParticleScale>=0.f && Impacts->LocalEffectScale()!=ParticleScale)
+    {
+        USceneComponent* Anchor=IsObservedFlight(ShownLook) ? static_cast<USceneComponent*>(Trail) : RootComponent.Get();
+        ParticleScale=Impacts->LocalEffectScale();
+        Particles=Impacts->ShowEffect(*Anchor,Particles,ShownLook,ShownRadius,ShownHeading);
+    }
     const LDObservedPresentation::FPose Pose = LDObservedPresentation::Sample(Points, AtServerSec);
     SetActorLocationAndRotation(Pose.Location, FRotator(0, Pose.Yaw, 0));
+    // A directional zone (a cone, the sweeping fan's wind) blows along the presented heading as it turns.
+    ShownHeading=FRotator(0, Pose.Yaw, 0);
+    if (IsValid(Particles) && ParticleScale>0.f && !IsObservedFlight(ShownLook))
+    {
+        const LDHitVfx::FZone Zone=LDHitVfx::ZoneOf(ShownLook,ShownRadius,ParticleScale);
+        if (Zone.bShow && !FVector2D(Zone.Velocity).IsNearlyZero())
+        { Particles->SetVariableVec3(TEXT("User.Velocity"),ShownHeading.RotateVector(Zone.Velocity)); }
+    }
     if (AccentTint)
     {
         const double Remaining=WarningAtServerSec>AtServerSec ? WarningAtServerSec-AtServerSec : 0.;
@@ -994,9 +1029,36 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
     if (Pose.Reached > 0) { Points.RemoveAt(0, Pose.Reached); }
 }
 
-void ALDObservedProjectileProxy::End(double LocalSeconds)
+void ALDObservedProjectileProxy::PlayBurst(bool bEnd)
 {
-    if (EndedAt < 0) { EndedAt = LocalSeconds; }
+    if (bEnd && (!bPlaced || !bNaturalEnd)) { return; }
+    LDHitVfx::EBurst Kind;
+    FLinearColor Tint;
+    ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+    if (!Impacts || (!bEnd && IsHidden()) || !(bEnd ? LDHitVfx::EndBurstOf(ShownLook,Kind,Tint) : LDHitVfx::AppearBurstOf(ShownLook,Kind,Tint))) { return; }
+    const LDHitVfx::FBurst Burst=LDHitVfx::BurstOf(Kind,Tint,Impacts->LocalEffectScale());
+    if (bEnd) { Impacts->Kit(GetActorLocation(),Burst); }
+    else { Impacts->Kit(GetActorLocation(),Burst,*this); }
+}
+
+void ALDObservedProjectileProxy::EndPlay(const EEndPlayReason::Type Reason)
+{
+    // Its launch or landing burst leaves with it; only a natural end's burst (PlayBurst(true)) plays on alone.
+    if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr) { Impacts->ClearForActor(*this); }
+    Super::EndPlay(Reason);
+}
+
+bool ALDObservedProjectileProxy::LastPath(FVector& Last, FVector& Next) const
+{
+    if (Points.IsEmpty()) { return false; }
+    Last=Points.Last().Location;
+    Next=Points.Num()>1 ? Last+(Last-Points[Points.Num()-2].Location) : Last;
+    return true;
+}
+
+void ALDObservedProjectileProxy::End(double LocalSeconds, bool bInNaturalEnd)
+{
+    if (EndedAt < 0) { EndedAt = LocalSeconds; bNaturalEnd = bInNaturalEnd; }
     if (!IsObservedFlight(ShownLook)) { SetActorHiddenInGame(true); }
 }
 
@@ -1313,10 +1375,35 @@ void ALDWorldViewRelay::SyncProxies()
     {
         if (Flying.Contains(It.Key())) { continue; }
         // A current frame that no longer lists a flight lets it finish its authorized samples; any other view ends it now.
-        if (bCurrent && IsValid(It.Value())) { It.Value()->End(Local); continue; }
+        // It ended in plain sight (and may show its end burst) only when its last position and the next step of its
+        // path lie in the observer's current coverage, so leaving sight is never shown as a hit or a landing; a warning
+        // (a dropped book) also needs its landing time to have come.
+        if (bCurrent && IsValid(It.Value()))
+        {
+            FVector Last, Next;
+            const bool bSeen=It.Value()->LastPath(Last,Next) && CoversPoint(*Snapshot.Frame,Last) && CoversPoint(*Snapshot.Frame,Next)
+                && (It.Value()->WarningDue(Snapshot.Frame->SampledAtServerSec) || !It.Value()->HasWarning());
+            It.Value()->End(Local,bSeen);
+            continue;
+        }
         if (IsValid(It.Value())) { It.Value()->Destroy(); }
         It.RemoveCurrent();
     }
+}
+
+bool ALDWorldViewRelay::CoversPoint(const FLDWorldView& Frame, const FVector& Point) const
+{
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
+    FVector Min = FVector::ZeroVector, Max = FVector::ZeroVector;
+    FString Error;
+    if (!Geometry || Geometry->Surfaces.Num() != 1 || !Geometry->Surfaces[0].MinCm.ToVector(Min, Error)
+        || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error) || Max.X <= Min.X || Max.Y <= Min.Y
+        || Frame.Footprint.SourceStatus != ELDObservationSource::ActiveBody) { return false; }
+    const int32 Side = LDObservation::CoverageSide;
+    const int32 X = FMath::FloorToInt32((Point.X - Min.X) / (Max.X - Min.X) * Side);
+    const int32 Y = FMath::FloorToInt32((Point.Y - Min.Y) / (Max.Y - Min.Y) * Side);
+    return X >= 0 && X < Side && Y >= 0 && Y < Side && LDObservation::CoverageBit(Frame.Footprint.CurrentBits, Y * Side + X);
 }
 
 void ALDWorldViewRelay::PresentProxies(float Delta)
@@ -1330,7 +1417,8 @@ void ALDWorldViewRelay::PresentProxies(float Delta)
         ALDObservedProjectileProxy* Flight = It.Value();
         if (IsValid(Flight)) { Flight->Present(At); }
         if (IsValid(Flight) && !Flight->IsFinished(At, Local)) { continue; }
-        if (IsValid(Flight)) { Flight->Destroy(); }
+        // A naturally finished effect ends with its burst (a flight's hit, a dropped book's landing).
+        if (IsValid(Flight)) { Flight->PlayBurst(true); Flight->Destroy(); }
         It.RemoveCurrent();
     }
 }

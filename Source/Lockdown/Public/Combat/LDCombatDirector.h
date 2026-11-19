@@ -432,6 +432,8 @@ struct FLDBodyCombatState
     FLDCombatCueFacts Cues;
     // Source of the last released action (the visible Cast cue's ability once its windup released).
     FLDCombatSourceRef ReleasedSource;
+    // The last released action was admitted as an overdrive release (FLDCombatCueFacts::bOverdriveCast).
+    bool bReleasedOverdrive=false;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
     // #112 C2 mechanics (LDCombatMechanicsDirector.cpp): forced displacement windows (blocking every voluntary action).
@@ -1546,6 +1548,10 @@ private:
     bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // Y11: Body's overdrive threshold and scale (OVERDRIVE.Threshold / OVERDRIVE.Scale unless an overdrive_short card replaces them).
     int64 OverdriveThresholdOf(const FLDBodyCombatState& Body) const;
+    // Cue facts with the overdrive cast as it will resolve: an acting Q/W/E admitted as overdrive counts only while the
+    // bar still holds this body's threshold (the release decides by the same LDMomentum::OverdriveReady); a released one
+    // keeps the resolved value ReleaseAbility stored.
+    FLDCombatCueFacts PresentedCueFactsOf(const FLDBodyCombatState& Body) const;
     int64 OverdriveScaleOf(const FLDBodyCombatState& Body) const;
     // D07: an innate dash ramming Target deals the card's damage and pushes it away.
     bool DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target, FString& Error);

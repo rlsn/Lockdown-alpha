@@ -172,6 +172,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoBuildExpansion.ConditionalTriggers",
         "Lockdown.Rules.DemoCombatEvaluation.ControlAmplify",
         "Lockdown.Rules.DemoBodyMotion.Timelines",
+        "Lockdown.Rules.DemoBodyMotion.HitLayers",
         "Lockdown.Rules.DemoPathSteering.HeldGoal",
         "Lockdown.Rules.DemoPathSteering.RestCrowd",
         "Lockdown.Rules.DemoCombatCues.Selection",
