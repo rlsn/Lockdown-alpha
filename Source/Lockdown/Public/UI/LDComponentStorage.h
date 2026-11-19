@@ -28,7 +28,7 @@ namespace LDUIPaint {struct FContext;}
 // installed one back onto the storage uninstalls it, onto another place moves it (an uninstall, then an install once the
 // view shows it), onto an installed card of a full workshop replaces that one. Each card is keyed by LDHUD::CardKey (its
 // definition numbered by its serial). Local presentation over the own progression view; the server decides every command.
-// Open in combat, while dead and in a rest; a closed match stage refuses with its reason.
+// Open in combat, while dead and in a PK; a closed match stage refuses with its reason.
 class ULDPaintLayer;
 class UTexture2D;
 UCLASS()
@@ -343,6 +343,13 @@ private:
     void BuildTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId);
     void BuildWorkshopCard(FName Component,bool bFresh,float Size,int32 Group,int32 Copies);
     void AddCopiesBadge(UOverlay* Face,int32 Copies);
+    // What each installed card did this match so far (damage, else its trigger count), by card definition; the workshop
+    // board writes it on the tile's top-right corner.
+    TMap<FName,FString> Contributions;
+    uint32 ContributionSerial=0;
+public:
+    void SetContributions(uint32 Serial,const TMap<FName,FString>& Rows){if(Serial!=ContributionSerial){ContributionSerial=Serial;Contributions=Rows;}}
+private:
     void BuildWorkshopTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId,float Size);
     void LayoutWorkshop(const FGeometry& Geometry,FVector2D Pointer);
     // The face looks of this frame (both layouts): hover, held, legal and replace places and the refusal.

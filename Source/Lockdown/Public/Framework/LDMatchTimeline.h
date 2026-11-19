@@ -8,13 +8,14 @@ struct FLDDemoContentParameters;
 // #198 outer match flow (approved outer parameters, issue #198 comment 6752601175 §1/§8/§9): an opening rest R0, then
 // three field segments each followed by a mid rest R1..R3, then the final field where the flagpole opens. One monotonic
 // authority clock drives everything; the field progress T is a derived accumulator that only advances while a field
-// segment runs (it is not a second world tick). Rests pause T.
+// segment runs (it is not a second world tick). Rests and PK pause T.
 UENUM()
 enum class ELDMatchStage : uint8 { None = 0, Rest = 1, Field = 2, FinalField = 3 };
 
-// The two steps of one rest (spec §10.1): the build step (shop, workshop, trainer, training), then the return countdown.
+// The sub-steps of one rest. Build doubles as PK sign-up during its last REST.SignupSec in R1 and R2; Payout lets everyone
+// adjust again. Draw..Settlement only run when at least two contenders signed up (session D plugs the PK itself in).
 UENUM()
-enum class ELDRestStep : uint8 { None = 0, Build = 1, Return = 2 };
+enum class ELDRestStep : uint8 { None = 0, Build = 1, Draw = 2, Betting = 3, PKReady = 4, PK = 5, Settlement = 6, Payout = 7, Return = 8 };
 
 UENUM()
 // 1 (the skill merchant) and 2 (the component artisan) are retired; their rest-room anchors rest_service_1 and
@@ -44,14 +45,21 @@ struct LOCKDOWN_API FLDTimelineView
     UPROPERTY() uint8 FieldSegment = 0;
     UPROPERTY() ELDRestStep Step = ELDRestStep::None;
     UPROPERTY() int64 StepStartedAtMs = 0;
-    // Rest steps: the scheduled end. Field: the authority ms at which T reaches FieldEndT; final field: MAX_int64.
+    // Rest steps: the scheduled end (PK: its latest end). Field: the authority ms at which T reaches FieldEndT; final
+    // field: MAX_int64.
     UPROPERTY() int64 StepEndsAtMs = 0;
+    // R1/R2 build step: from here until StepEndsAtMs (inclusive) the step doubles as PK sign-up.
+    UPROPERTY() int64 SignupOpensAtMs = 0;
     // T at FieldStartedAtMs while a field runs; the frozen T otherwise.
     UPROPERTY() int64 FieldBaseMs = 0;
     UPROPERTY() int64 FieldStartedAtMs = 0;
     // T at which the current/next timed segment ends; -1 for the final field.
     UPROPERTY() int64 FieldEndT = 0;
-    // Sorted ids of the humans that pressed ready in this build step; filled by GameMode, not the reducer.
+    // Locked PK entrants of this rest (0 before the lock); R0/R3 never hold a PK and fewer than two skip to Return.
+    UPROPERTY() uint8 LockedEntrants = 0;
+    UPROPERTY() bool bPKSkipped = false;
+    // Public: standing in the sign-up disk is a visible act. Sorted contender ids; filled by GameMode, not the reducer.
+    UPROPERTY() TArray<FGuid> Signups;
     UPROPERTY() TArray<FGuid> ReadyContenders;
 };
 
@@ -68,6 +76,13 @@ struct LOCKDOWN_API FLDTimelineParameters
     int64 FieldSegmentMs = 0;
     int64 OpeningBuildMs = 0;
     int64 BuildMs = 0;
+    int64 SignupMs = 0;
+    int64 DrawMs = 0;
+    int64 BettingMs = 0;
+    int64 PKReadyMs = 0;
+    int64 PKMaxMs = 0;
+    int64 SettlementMs = 0;
+    int64 PayoutMs = 0;
     int64 ReturnMs = 0;
 
     static bool FromContent(const FLDDemoContentParameters& Content, FLDTimelineParameters& Out, FString& Error);
@@ -103,8 +118,11 @@ public:
     uint8 GetFieldSegment() const { return FieldSegment; }
     bool IsRest() const { return Stage == ELDMatchStage::Rest; }
     bool IsFieldRunning() const { return Stage == ELDMatchStage::Field || Stage == ELDMatchStage::FinalField; }
-    // The rest step in which build commands, the shop, the trainer, respec and training are open.
-    bool IsRestBuildOpen() const { return Stage == ELDMatchStage::Rest && Step == ELDRestStep::Build; }
+    // The rest steps in which build commands, the NPC, respec and training are open.
+    bool IsRestBuildOpen() const { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::Build || Step == ELDRestStep::Payout); }
+    // Sign-up is open in the last SignupMs of the build step, up to and including its deadline instant: operations
+    // committed at the deadline settle before the lock.
+    bool IsSignupOpen(int64 AtMs) const;
     int64 GetStepEndsAtMs() const { return StepEndsAtMs; }
 
     // Field progress T at an authority instant (frozen outside the field; 0 before the first field).
@@ -114,20 +132,23 @@ public:
     int64 FieldDueAuthorityMs(int64 AtMs, int64 FieldAtMs) const;
     // The next exact boundary the driver must stop at; MAX_int64 in the final field.
     int64 NextDueMs() const;
-
-    // Applies every transition due at or before AtMs. Without bAllowLock a due build lock stops the chain (the caller locks
-    // later in the same boundary, after its build commands). bBodiesReady says whether every body of a due field entry
-    // stands prepared: without it the entry holds (approved outer parameters §1: entry freezes while the scene is not
-    // ready), the step stays due and the chain stops; once ready, a held entry happens at the AtMs it became ready, not at
-    // its old scheduled instant.
-    bool Advance(int64 AtMs, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out, FString& Error);
+    // Applies every transition due at or before AtMs. SignedUp is read once, when the build step locks. Without
+    // bAllowLock a due build lock stops the chain (the caller locks later in the same boundary). bBodiesReady says whether
+    // every body of a due entry (PKReady -> PK, Return -> field) stands prepared: without it the entry holds (approved
+    // outer parameters §1: entry freezes while the scene is not ready), the step stays due and the chain stops; once
+    // ready, a held entry happens at the AtMs it became ready, not at its old scheduled instant.
+    bool Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out, FString& Error);
     // Whether the build step's lock is due at or before AtMs.
     bool IsBuildLockDue(int64 AtMs) const { return Stage == ELDMatchStage::Rest && Step == ELDRestStep::Build && StepEndsAtMs <= AtMs; }
-    // Whether the field entry after Return is due at or before AtMs.
-    bool IsEntryDue(int64 AtMs) const { return Stage == ELDMatchStage::Rest && Step == ELDRestStep::Return && StepEndsAtMs <= AtMs; }
+    // Whether a body entry (the PK start after PKReady or the field after Return) is due at or before AtMs.
+    bool IsEntryDue(int64 AtMs) const
+    { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::PKReady || Step == ELDRestStep::Return) && StepEndsAtMs <= AtMs; }
     // Whether a due entry is currently held for its bodies.
     bool IsEntryHeld() const { return bEntryHeld; }
-    // All humans are ready: the build step ends at AtMs (never later than scheduled).
+    // PK ended early (a winner or a draw is decided): the PK step now ends at AtMs; the next Advance settles it.
+    bool FinishPK(int64 AtMs, FString& Error);
+    // All humans are ready: the build step ends at AtMs, except that a PK rest keeps its remaining sign-up window
+    // (at most SignupMs more); never later than scheduled.
     bool FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Error);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV only: queue the real final rest return from a timed field, with T at the last segment end.
@@ -154,6 +175,8 @@ private:
     int64 StepEndsAtMs = 0;
     int64 FieldBaseMs = 0;
     int64 FieldStartedAtMs = 0;
+    uint8 LockedEntrants = 0;
+    bool bPKSkipped = false;
     bool bEntryHeld = false;
 };
 
@@ -161,8 +184,10 @@ namespace LDMatchTimeline
 {
     LOCKDOWN_API const TCHAR* StepName(ELDRestStep Step);
     LOCKDOWN_API const TCHAR* StageName(ELDMatchStage Stage);
+    inline bool IsPKRest(uint8 RestIndex) { return RestIndex > 0 && RestIndex < FLDTimelineParameters::TimedSegments; }
     // Field progress T a client derives from the public timeline at ServerNowMs (the authority's own rule).
     LOCKDOWN_API int64 FieldNowFromView(const FLDTimelineView& View, int64 ServerNowMs);
-    // The open rest step (build/training) of a public timeline.
-    inline bool IsRestBuildOpen(const FLDTimelineView& View) { return View.Stage == ELDMatchStage::Rest && View.Step == ELDRestStep::Build; }
+    // The open rest steps (build/training and payout) of a public timeline.
+    inline bool IsRestBuildOpen(const FLDTimelineView& View)
+    { return View.Stage == ELDMatchStage::Rest && (View.Step == ELDRestStep::Build || View.Step == ELDRestStep::Payout); }
 }

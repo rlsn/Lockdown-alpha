@@ -20,6 +20,7 @@ struct FLDDemoTargetDefinition;
 struct FLDDemoAbilityValues;
 struct FLDDemoStatDefinition;
 struct FLDLobbyView;
+struct FLDPKParameters;
 namespace LDHUD
 {
     // How often the owning controller samples the HUD read model; a slower frame rate samples once per frame. A sample
@@ -193,20 +194,116 @@ namespace LDHUD
     LOCKDOWN_API FString RestReturnCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     // The player-facing name of a rest step; empty for None.
     LOCKDOWN_API FString RestStepText(ELDRestStep Step);
-    // #198 timeline banner over the public capture line. Rest: "休息 R{n} · <step> · 剩 X 秒" and, in the return countdown, that
-    // the build is locked. Field: "野外 n/3 · 下次休息 m:ss" from the field progress T
+    // #198 timeline banner over the public capture line. Rest: "休息 R{n} · <step> · 剩 X 秒" and a detail line: in the build
+    // step the PK sign-up window (opens in X s, with where the sign-up disk is / open with X s left), the number standing in
+    // their disks and whether Self does; after the lock "PK 跳过" or the entrants, and that the build is locked outside the
+    // build and payout steps. Field: "野外 n/3 · 下次休息 m:ss" from the field progress T
     // (LDMatchTimeline::FieldNowFromView); final field: "最终野外 · 旗杆开放". Empty for another generation's timeline or no
     // stage. Without a clock no remainder is guessed.
     struct FTimelineView
     {
         FString Headline;
         FString Detail;
+        // The build step of a rest: the own sign-up disk is drawn (ALDSignupMarker).
+        bool bSignupStep=false;
+        // The sign-up window is open at NowMs: standing in the own disk signs up (the server judges the committed foot).
+        bool bSignupOpen=false;
+        // The public sign-ups name Self (it stands in its disk).
+        bool bSignedUp=false;
     };
     LOCKDOWN_API FTimelineView TimelineBanner(const FLDPublicMatchView& Public,const FGuid& Self,bool bClock,int64 NowMs);
     LOCKDOWN_API bool TimelineDetailVisible(const FLDPublicMatchView& Public,const FTimelineView& Timeline,bool bChoicesRestOpen);
     LOCKDOWN_API FString RestReadyText(ELDRestReadyResult Result);
     // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
     LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);
+    // ---- #198 session D: the PK of a rest and its spectators (public FLDPublicMatchView::PK, approved issue #198 comment
+    // 6752601175). Presentation only: the server decides every bet and throw and the outcome. ----
+    // 单挑 / 混战 / NvN from the drawn format: Teams split Entrants evenly over SideCount ("2v2", "3v3"). Empty for None or
+    // a malformed team split.
+    LOCKDOWN_API FString PKFormatText(ELDPKFormat Format,uint8 SideCount,int32 Entrants);
+    // Relationship to an observed, publicly identified PK entrant. Team labels exist only for the current public team PK.
+    LOCKDOWN_API FString PKRelationText(const FLDPublicMatchView& Public,const FGuid& Self,const FGuid& Target);
+    // The public PK of this rest: the match, its timeline and its PK name the same generation, the stage is a rest and the
+    // PK has a serial (0: this rest has no PK).
+    LOCKDOWN_API bool HasPK(const FLDPublicMatchView& Public);
+    // Self watches the arena: HasPK, the PKReady or PK step, and Self is not a living entrant (a spectator, an eliminated or
+    // a forfeited entrant). The camera centres on PK.ArenaCentreCm meanwhile (ALDCharacter::CalcCamera); the caller checks
+    // that the public view is the own match.
+    LOCKDOWN_API bool IsSpectatingPK(const FLDPublicMatchView& Public,const FGuid& Self);
+    // The contenders of one side in seat order, by public roster name ("、"-joined; an unlisted one is LDTerms::PKUnlisted).
+    LOCKDOWN_API FString PKSideNames(const FLDPKView& PK,uint8 Side,const FLDLobbyView& Lobby);
+    // The player-facing result of an own bet (ALDPlayerController::OnPKBet); only Placed reads as done, every refusal says why.
+    LOCKDOWN_API FString PKBetText(ELDPKBetResult Result);
+    // The player-facing result of an own throw (ALDPlayerController::OnPKThrow); only Thrown reads as done.
+    LOCKDOWN_API FString PKThrowText(ELDPKThrowResult Result);
+    // The own throw cooldown from the last answer's ReadyAtMs against the same-match authority time: "投掷冷却 X 秒" (like
+    // CooldownText, never 0.0 while time remains); empty when ready (ReadyAtMs <= NowMs or none); syncing without a clock.
+    LOCKDOWN_API FString PKThrowCooldown(int64 ReadyAtMs,bool bClock,int64 NowMs);
+    // The frozen result of a decided PK: the winning side's names, 平局 or 本场无效; empty while undecided.
+    LOCKDOWN_API FString PKResultText(const FLDPKView& PK,const FLDLobbyView& Lobby);
+    struct FPKAwardRow
+    {
+        FString Name;
+        // "参与 +1 · 胜者 +2 · 竞猜 +1 · 共 4 点" (zero parts left out).
+        FString Points;
+        int64 Total=0;
+        bool bSelf=false;
+    };
+    // One row per PK.Awards entry with any points, in award order; names from the public roster.
+    LOCKDOWN_API TArray<FPKAwardRow> PKAwardRows(const FLDPKView& PK,const FLDLobbyView& Lobby,const FGuid& Self);
+    struct FPKSideView
+    {
+        uint8 Side=0;
+        // The side's names with each member's 出局/离场 mark once the fight started, then the public bet count.
+        FString Line;
+        // "押 <names>" for the bet button.
+        FString BetAction;
+        bool bOwnSide=false;
+        bool bOwnBet=false;
+        bool bWinner=false;
+        // Every member is out (eliminated or forfeited) after the fight started.
+        bool bOut=false;
+    };
+    struct FPKPanelInput
+    {
+        FGuid Self;
+        bool bClock=false;
+        int64 NowMs=0;
+        // The last own throw answer's ReadyAtMs for this PK (0: none yet).
+        int64 ThrowReadyAtMs=0;
+        bool bThrowArmed=false;
+        bool bThrowInFlight=false;
+        // Approved ring parameters for the ring line; null shows no ring line.
+        const FLDPKParameters* Params=nullptr;
+    };
+    // The PK panel under the timeline: shown from the Draw to the Payout step of a rest with a PK. Bets show to an eligible
+    // bettor (PK.Bettors) during the betting step only; the throw shows to an eligible bettor during the PK step while the
+    // fight runs; the result and awards show in the settlement and payout steps. Eliminated entrants are read-only.
+    struct FPKPanelView
+    {
+        bool bVisible=false;
+        FString Title;
+        // PKReady: "N 秒后开打 …"; PK: "最长还剩 N 秒 …" (whole seconds rounded up to the step end).
+        FString Countdown;
+        // "安全圈 18.0 米 · 10 秒后缩到 6.0 米" during the PK step with parameters and a clock.
+        FString Ring;
+        TArray<FPKSideView> Sides;
+        FString Role;
+        bool bSpectating=false;
+        bool bCanBet=false;
+        uint8 OwnBet=0;
+        bool bCanThrow=false;
+        // The throw button can be pressed now (not cooling, not in flight).
+        bool bThrowReady=false;
+        FString ThrowAction;
+        bool bResult=false;
+        FString Result;
+        bool bOwnWin=false;
+        TArray<FPKAwardRow> Awards;
+    };
+    LOCKDOWN_API FPKPanelView PKPanel(const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,const FPKPanelInput& Input);
+    // The ring clock: ms since PK.FightStartedAtMs at NowMs (0 before the fight or without a clock).
+    LOCKDOWN_API int64 PKRingElapsedMs(const FLDPKView& PK,bool bClock,int64 NowMs);
     // ---- P6 (spec §10-§12): daily modifiers, camp affixes, the death screen's spawn choice and the vending machine ----
     // The hover text of a daily modifier or a camp affix, its numbers from the approved content.
     LOCKDOWN_API FString DailyDescription(ELDDailyModifier Modifier,const FLDDemoContentParameters& Parameters);
@@ -896,7 +993,7 @@ namespace LDHUD
     // When the docked growth panel folds back to the 构筑 button by itself, so an automatic opening does not keep covering the
     // battlefield. Folding only hides the panel: the offer, the blueprints, the staged points and any submitted request keep
     // their state, and nothing is chosen. Local presentation time only.
-    // #222: the player builds at any time, so a panel the player opened never folds by itself (not in combat, a rest or on a
+    // #222: the player builds at any time, so a panel the player opened never folds by itself (not in combat, a PK or on a
     // hit). An automatic opening folds after AutoOpenSeconds or on an own-body hit, unless the player engages with it.
     class LOCKDOWN_API FChoicesFold
     {

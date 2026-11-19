@@ -716,8 +716,6 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["DAILY.PatrolBossAppearSec"].update(value=200), "InvalidTiming"),
             (lambda data: data["parameters"]["EXPLORE.PeddlerLatestSec"].update(value=250), "InvalidTiming"),
             (lambda data: data["parameters"].pop("EXPLORE.VendingDrinkHits"), "MissingField"),
-            (lambda data: data["parameters"].update({"REST.SignupSec": {"unit": "s", "value": 10}}), "UnknownField"),
-            (lambda data: data["parameters"].update({"PK.TeamFormatRatio": {"unit": "ratio", "value": 0.5}}), "UnknownField"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):

@@ -119,7 +119,6 @@ public:
     // LDProgression::DefaultCardTarget), its lock carries it into the next offer (again: unlocks), 重抽 redraws the offer
     // keeping the lock, 跳过 lets it go.
     bool PickCardOffer(int32 Index);
-    bool LockCardOffer(int32 Index);
     bool RerollCardOffer();
     bool SkipCardOffer();
     bool ConfirmRestAction();
@@ -259,7 +258,6 @@ private:
     UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
     // The card offer row: a cell per card (the card over its lock) and the reroll/skip column.
     UPROPERTY() TObjectPtr<UWrapBox> CardRow;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CardLocks;
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardCells;
     UPROPERTY() TObjectPtr<UWidget> CardActions;
     UPROPERTY() TObjectPtr<ULDCommandButton> CardRerollButton;

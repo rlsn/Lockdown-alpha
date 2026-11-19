@@ -204,8 +204,8 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     FLDGrowthBuild Out;
     int64 Refunded = -1;
-    // Level 3 at 108 XP earned 9 points, 4 of them allocated.
-    const int64 XP = 108;
+    // Level 3 at 140 XP earned 9 points, 4 of them allocated.
+    const int64 XP = 140;
     const FLDGrowthBuild Built = RestTestBuild(Content, 3, {{Opening[0], 0}}, {}, {1, 0, 2, 0, 1});
     const int64 Before = RestTestUnspent(Content, Built, XP);
     bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated is unspent"), Before, int64(9 - 4));

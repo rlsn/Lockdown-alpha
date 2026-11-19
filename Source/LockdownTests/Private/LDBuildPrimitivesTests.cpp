@@ -74,7 +74,7 @@ struct FLDBuildPrimitivesAccess
         for(int32 Index=0;Index<32&&!Mode.IsShowdown();++Index)
         {
             TArray<FLDTimelineEvent> Events;
-            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(),true,true,Events,Error)){return false;}
+            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(), 0,true,true,Events,Error)){return false;}
         }
         if(!Mode.IsShowdown()){Error=TEXT("Fixture did not reach the real final field stage.");return false;}
         return true;
@@ -3852,10 +3852,41 @@ bool FLDCardRuleA18Test::RunTest(const FString& Parameters)
             Basic.HitClass = ELDCombatHitClass::BasicPrimary;
             Basic.DamageType = ELDDemoDamageType::Physical;
             FString Error;
+            // The card rides the last combo step only: the first step leaves the target unmarked.
+            Basic.ComboStep = 1;
+            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
+            Basic.HitId = FGuid::NewGuid();
+            Basic.ComboStep = 3;
             const bool bApplied = F.Apply(Basic, Error);
-            return TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A primary basic chills its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
+            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A third-step basic chills its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
                 && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_ice_fist")));
         });
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleMixedBasicElementsTest, "Lockdown.Rules.Combat.Cards.MixedBasicElements",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleMixedBasicElementsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    // Two fire fists beside an ice fist: fire is first in the fixed order, so the third step burns and never chills.
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    const TArray<FCard> Rows = {{TEXT("card_fire_fist"), ELDCardTargetKind::Basic}, {TEXT("card_fire_fist"), ELDCardTargetKind::Basic},
+        {TEXT("card_ice_fist"), ELDCardTargetKind::Basic}};
+    if (!InstallCards(*this, F, Holder, 6, Rows)) { return false; }
+    const FLDCombatBodyRef Target = F.AddBody();
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 150, 0);
+    FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
+    Basic.HitClass = ELDCombatHitClass::BasicPrimary;
+    Basic.DamageType = ELDDemoDamageType::Physical;
+    Basic.ComboStep = 3;
+    FString Error;
+    const bool bApplied = F.Apply(Basic, Error);
+    return TestTrue(TEXT("The mixed third-step basic lands: ") + Error, bApplied)
+        && TestTrue(TEXT("Fire goes before chill: the target burns with the fire fists' layers and is not chilled"),
+            F.Body(Target).Burn.Layers.Num() >= 2 && F.Body(Target).Burn.Layers[0].Source.DefinitionId == FName(TEXT("card_fire_fist"))
+            && F.Body(Target).ElementMark.Kind != ELDCombatElement::Chill);
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA19Test, "Lockdown.Rules.Combat.Cards.A19",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -3872,8 +3903,13 @@ bool FLDCardRuleA19Test::RunTest(const FString& Parameters)
             Basic.HitClass = ELDCombatHitClass::BasicPrimary;
             Basic.DamageType = ELDDemoDamageType::Physical;
             FString Error;
+            // The card rides the last combo step only: the first step leaves the target unmarked.
+            Basic.ComboStep = 1;
+            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
+            Basic.HitId = FGuid::NewGuid();
+            Basic.ComboStep = 3;
             const bool bApplied = F.Apply(Basic, Error);
-            return TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A primary basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
+            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A third-step basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
         });
 }
 

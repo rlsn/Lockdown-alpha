@@ -33,7 +33,7 @@ namespace LDWorldFeedback
         uint32 Epoch=0;
         int32 Level=0;             // LevelUp: the level reached
         int32 Offers=0;            // LevelUp: active opportunities newly earned with it (#198)
-        int32 CardOffers=0;        // LevelUp: card offers it queued (one per level)
+        int32 CardOffers=0;        // LevelUp: card offers it queued
         FString Name;              // Kill: the victim's public roster name; UnitCast: the cast's display name; LevelUp: the
                                    // components it granted (#198 B), joined; empty when unknown or none
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
@@ -56,6 +56,8 @@ namespace LDWorldFeedback
         FGuid Self;
         const FLDCombatOwnerView* OwnCombat=nullptr;
         const FLDProgressionView* Progression=nullptr;
+        // CARDS.OfferEveryLevels: a level-up brings a card offer only at levels this divides.
+        int32 CardOfferEveryLevels=1;
         const FLDKillFeedView* KillFeed=nullptr;
         uint32 PublicGeneration=0;
         // Authority clock sample, used only for the kill-feed freshness rule.

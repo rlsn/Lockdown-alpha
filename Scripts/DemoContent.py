@@ -1159,7 +1159,8 @@ def validate_numbers(data):
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
     for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
-                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "SHOWDOWN.RingFinalRadiusCm",
+                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "THROW.RadiusCm", "THROW.RangeCm",
+                "SHOWDOWN.RingFinalRadiusCm",
                 "OBJECTIVE.FlagRadiusCm", "OBJECTIVE.ArenaRadiusCm", "EXPLORE.LockerRadiusCm", "EXPLORE.PeddlerOffsetCm",
                 "DAILY.TyphoonPushCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
@@ -1233,6 +1234,17 @@ def validate_numbers(data):
     require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.Momentum") > 0
             and p("AIRDROP.MoveSpeedRatio") > 0 and p("AIRDROP.MoveSpeedSec") > 0,
             "InvalidPolicy", "AIRDROP", "healing, momentum and move-speed rewards must all be positive")
+    # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
+    require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
+            "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
+    # #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
+    require(0 < p("PK.RingShrinkStartSec") < p("PK.RingMidSec") < p("PK.RingFinalSec") < p("REST.PKMaxSec"),
+            "InvalidTiming", "PK.RingFinalSec", "ring shrink steps must be ordered and finish before the PK cap")
+    require(0 < p("PK.RingFinalRadiusCm") < p("PK.RingMidRadiusCm") < p("PK.ArenaRadiusCm"),
+            "InvalidGeometry", "PK.RingFinalRadiusCm", "ring radii must shrink strictly inside the arena")
+    for key in ("PK.RingDamageEarlyMaxHPRatioPerSec", "PK.RingDamageMidMaxHPRatioPerSec",
+                "PK.RingDamageFinalMaxHPRatioPerSec", "THROW.SlowRatio"):
+        require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage and throw slow must be positive")
     # The final showdown ring shrinks linearly from SHOWDOWN.RingRadiusCm to SHOWDOWN.RingFinalRadiusCm and hurts outside.
     require(0 < p("SHOWDOWN.RingFinalRadiusCm") < p("SHOWDOWN.RingRadiusCm"), "InvalidGeometry", "SHOWDOWN.RingFinalRadiusCm",
             "the showdown ring must shrink")
@@ -1258,11 +1270,8 @@ def validate_numbers(data):
     # GROWTH.MaxLevelPointsXP beyond the top threshold grants GROWTH.MaxLevelPoints.
     checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
                 "GROWTH.OpeningPoints")
-    # Spec §3.12: capacity grows one slot every CARDS.LevelsPerSlot levels; an offer shows CARDS.OfferSize distinct cards and
-    # a lock keeps at most one of them for the next offer.
+    # Spec §3.12: capacity grows one slot every CARDS.LevelsPerSlot levels; an offer shows CARDS.OfferSize distinct cards.
     require(params["CARDS.OfferSize"] <= len(data["cards"]), "CardPool", "CARDS.OfferSize", "an offer needs distinct cards")
-    require(params["CARDS.LockSlots"] < params["CARDS.OfferSize"], "CardPool", "CARDS.LockSlots",
-            "a locked card leaves room for new ones")
     require(params["CARDS.CapacityBase"] + (data["progression"]["max_level"] - 1) // params["CARDS.LevelsPerSlot"] <= 32,
             "CardCapacity", "CARDS.CapacityBase", "the workshop capacity stays within the build wire")
     require(quantity(params["DAMAGE.FactorTechCap"]) > 1, "NumericDomain", "DAMAGE.FactorTechCap",
@@ -1526,11 +1535,15 @@ def parse_world_contract(raw, world_raw):
 def validate_world_references(data, world, anchors):
     refs = data["world"]
     require(refs["map_id"] == world["map_id"], "InvalidReference", "world.map_id", "different world identity")
-    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]]}
+    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]],
+                "PKSpawn": refs["pk_spawn_ids"], "PKThrow": [refs["pk_throw_id"]]}
     for kind, identities in expected.items():
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
                 "InvalidReference", kind, "missing, extra or wrong-kind world anchor")
+    # #198: the PK ring is read in index order, so the content lists it exactly as pk_spawn_0..5.
+    require(list(refs["pk_spawn_ids"]) == [f"pk_spawn_{n}" for n in range(6)],
+            "InvalidReference", "world.pk_spawn_ids", "PK spawns must be listed as pk_spawn_0 to pk_spawn_5 in order")
     # Spec §10.4/§11.3: spawn choice draws distinct spawn anchors; lockers draw distinct locker anchors.
     require(data["parameters"]["LIFE.SpawnChoiceCount"] <= len(refs["spawn_ids"]), "InvalidReference", "LIFE.SpawnChoiceCount",
             "spawn choice needs that many distinct spawn anchors")

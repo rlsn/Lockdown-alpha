@@ -108,7 +108,6 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
-    case ELDBuildCommandKind::LockCard:
     case ELDBuildCommandKind::InstallCard:
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:
@@ -231,6 +230,8 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NoRewardOwnerLeft: return TEXT("NoRewardOwnerLeft");
     case ELDGrowthReason::DeathConflict: return TEXT("DeathConflict");
     case ELDGrowthReason::StaleDeath: return TEXT("StaleDeath");
+    case ELDGrowthReason::NoRewardPKArena: return TEXT("NoRewardPKArena");
+    case ELDGrowthReason::PKAwardDuplicate: return TEXT("PKAwardDuplicate");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("FieldRewardDuplicate");
     case ELDGrowthReason::FinalLocked: return TEXT("FinalLocked");
     case ELDGrowthReason::NoFinalMod: return TEXT("NoFinalMod");

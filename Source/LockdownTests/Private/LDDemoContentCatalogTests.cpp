@@ -1398,9 +1398,9 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         && Forms[int32(ELDCardForm::Dash)] == 12 && Forms[int32(ELDCardForm::Body)] == 29);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
-    TestTrue(TEXT("Capacity 4 plus one per three levels, three-card offers, three free rerolls plus one per rest, one lock"),
-        Cards.CapacityBase == 4 && Cards.LevelsPerSlot == 3 && Cards.OfferSize == 3 && Cards.FreeRerolls == 3
-        && Cards.RerollsPerRest == 1 && Cards.LockSlots == 1 && Cards.VocabWeight == 2);
+    TestTrue(TEXT("Capacity 6 plus one per three levels, three-card offers, three free rerolls plus one per rest"),
+        Cards.CapacityBase == 6 && Cards.LevelsPerSlot == 3 && Cards.OfferSize == 3 && Cards.FreeRerolls == 3
+        && Cards.RerollsPerRest == 1 && Cards.VocabWeight == 2);
     TestTrue(TEXT("The chain guard is read"), Definitions.Parameters.ChainMaxDepth > 0 && Definitions.Parameters.ChainMaxEffectsPerStep > 0);
     const FLDDemoCardDefinition* Missing = nullptr;
     TestFalse(TEXT("An absent card stays absent"), Snapshot->FindCard(TEXT("card_missing"), Missing, Error));

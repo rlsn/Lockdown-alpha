@@ -106,9 +106,6 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
         return bOfferNamed && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
-    case ELDBuildCommandKind::LockCard:
-        // An all-zero Option clears the lock.
-        return bOfferNamed && LDGrowthWire::DecodeOptional(Command.Option, Decoded) && bNoActive && bNoCard;
     case ELDBuildCommandKind::InstallCard:
         return bNoOffer && bNoActive && bTarget && !Target.IsEmpty() && Command.CardSerial != 0 && !Command.bInstallIfPossible
             && Command.ReplacingSerial != Command.CardSerial;
@@ -123,7 +120,7 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
 bool DevelopmentIsCardKind(ELDBuildCommandKind Kind)
 {
     return Kind == ELDBuildCommandKind::PickCard || Kind == ELDBuildCommandKind::SkipCards || Kind == ELDBuildCommandKind::RerollCards
-        || Kind == ELDBuildCommandKind::LockCard || Kind == ELDBuildCommandKind::InstallCard
+        || Kind == ELDBuildCommandKind::InstallCard
         || Kind == ELDBuildCommandKind::UninstallCard;
 }
 
@@ -383,6 +380,7 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { MatchSecret = Seeds->MatchSecret; }
 #endif
     Records = MoveTemp(NewRecords);
+    PaidPKAwards.Reset();
 #if WITH_DEV_AUTOMATION_TESTS
     // Presets staged in the Lobby serve this match's first heads, the opening offer included; nothing older survives.
     LDDevGrowthFixture::TakeStaged(Roster, DevOfferQueue);
@@ -485,7 +483,6 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         View.CardOffer.OfferRevision = Offer.Revision;
         View.CardOffer.Source = Offer.Source;
         View.CardOffer.Options = Offer.Options;
-        View.CardOffer.Locked = Offer.Locked;
     }
     View.CardRerolls = LDProgression::CardRerollsLeft(Progression);
     View.CatalogDigest = Definitions.Identity.Root;
@@ -926,7 +923,6 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
-    case ELDBuildCommandKind::LockCard:
     {
         // The offer guards: the current offer by id, then its revision.
         if (!Progression.CardOffer.IsSet() || Progression.CardOffer->OfferId != Command.OfferId)
@@ -951,14 +947,10 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         {
             CardReason = LDProgression::ApplySkipCards(Definitions, Progression, Command.OfferId, Context, NewProgression);
         }
-        else if (Command.Kind == ELDBuildCommandKind::RerollCards)
+        else
         {
             CardReason = LDProgression::ApplyRerollCards(Definitions, Build, Progression, Command.OfferId, MatchSecret, ContenderId,
                 Context, NewProgression);
-        }
-        else
-        {
-            CardReason = LDProgression::ApplyLockCard(Definitions, Progression, Command.OfferId, Definition, Context, NewProgression);
         }
         if (CardReason != ELDGrowthReason::None)
         {
@@ -1129,6 +1121,36 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     Record->Unpublished.Add(Receipt);
     GameMode->Growth->MarkDirty(ContenderId);
     return Receipt;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId,
+    bool bExtraFinalModCard, const FLDGameplayWritePermit& Permit)
+{
+    ALDGameMode* GameMode = Mode();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!GameMode || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    if (!Record) { return ELDGrowthReason::NotContender; }
+    if (Points < 1 || !AwardId.IsValid()) { return ELDGrowthReason::InvalidRequest; }
+    if (PaidPKAwards.Contains(AwardId)) { return ELDGrowthReason::PKAwardDuplicate; }
+    FLDGrowthBuild NewBuild = Record->Build;
+    if (NewBuild.AwardedPoints > MAX_int64 - Points) { return ELDGrowthReason::ArithmeticOverflow; }
+    NewBuild.AwardedPoints += Points;
+    FLDProgressionState NewProgression = Record->Progression;
+    const bool bNewCard = bExtraFinalModCard && !NewProgression.bExtraFinalModCard;
+    if (bNewCard && NewProgression.FinalMod.OfferId.IsValid()) { return ELDGrowthReason::PhaseClosed; }
+    NewProgression.bExtraFinalModCard |= bNewCard;
+    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), bNewCard, Permit);
+    if (Reason == ELDGrowthReason::None)
+    {
+        PaidPKAwards.Add(AwardId);
+        GameMode->Growth->MarkDirty(ContenderId);
+        UE_LOG(LogLDGrowth, Display, TEXT("LD_PK_POINTS contender=%s award=%s points=%lld awarded_total=%lld"),
+            *LDLog::Id(ContenderId), *LDLog::Id(AwardId), Points, Record->Build.AwardedPoints);
+    }
+    return Reason;
 }
 
 bool ALDDevelopmentDirector::GrantExtraFinalModCard(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error)
@@ -1514,10 +1536,11 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         }
         NewBuild.Level = Change.LevelAfter;
         ++NewBuild.Revision;
-        // Spec §6.4: each level crossed queues one card offer in this same commit; the level is reached once per match, so no
+        // Spec §6.4: each level crossed that CARDS.OfferEveryLevels divides queues one card offer in this same commit; the level is reached once per match, so no
         // reward, death or reconnect ever queues it again.
         const ELDGrowthReason QueueReason = LDProgression::QueueCardOffers(NewProgression, ELDCardOfferSource::LevelUp,
-            int32(Change.LevelAfter) - int32(Change.LevelBefore), Prepared.OfferFirst, Prepared.OfferLast);
+            LDProgression::LevelUpCardOffers(Content->Get().Parameters.Cards, Change.LevelBefore, Change.LevelAfter),
+            Prepared.OfferFirst, Prepared.OfferLast);
         if (QueueReason != ELDGrowthReason::None)
         {
             return DevelopmentPrepareFailure(QueueReason, TEXT("The level-up card offers do not fit the queue."));
@@ -2017,7 +2040,6 @@ ELDGrowthReason ALDDevelopmentDirector::DevApplyBreakoutPreset(const FGuid& Cont
     }
     NewProgression.CardQueue.Reset();
     NewProgression.CardOffer.Reset();
-    NewProgression.CarriedLock = NAME_None;
     const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), true, Permit);
     if (Reason == ELDGrowthReason::None)
     {

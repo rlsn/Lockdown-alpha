@@ -377,7 +377,7 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
     TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
         LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 20 秒"));
-    TestTrue(TEXT("A rest has no detail line"),View.Detail.IsEmpty());
+    TestFalse(TEXT("A PK rest's build step carries the sign-up line"),View.Detail.IsEmpty());
     View=LDHUD::TimelineBanner(Public,Self,false,0);
     TestTrue(TEXT("Without the authority clock nothing is guessed"),View.Headline.EndsWith(TEXT("时间同步中")));
     TestTrue(TEXT("No return countdown outside the return step"),LDHUD::RestReturnCountdown(Public,true,110000).IsEmpty());

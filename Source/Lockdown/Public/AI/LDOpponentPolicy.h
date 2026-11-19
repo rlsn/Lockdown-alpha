@@ -8,6 +8,7 @@
 #include "Framework/LDCaptureTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "Development/LDProgressionRules.h"
+#include "PK/LDPKRules.h"
 #include "World/LDFieldPacing.h"
 
 class FLDDemoContentSnapshot;
@@ -22,6 +23,8 @@ enum class ELDOpponentMode : uint8
     Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Contest, Farm, Explore,
     // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
     Airdrop,
+    // #198 D: the rest PK: signing up, betting, throwing as a spectator or fighting as an entrant.
+    PK,
     // P6 spec §10.3: going for a live mini flag or the arena.
     Objective
 };
@@ -32,6 +35,8 @@ enum class ELDOpponentReason : uint8
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ContestCapture, FarmCamp, Explore, NoLegalTarget,
     TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss,
+    // #198 D: PK sign-up, bet and throw requests, an entrant's fight and its walk back inside the ring.
+    PKSignUp, PKBet, PKThrow, PKFight, PKRing,
     // P6 spec §10.3: a live mid-field objective within reach.
     ContestObjective,
     // #305 spec §11.3: a seen, still stocked delivery locker within reach, and the visible second-hand dealer.
@@ -196,7 +201,10 @@ struct FLDOpponentPublicMatch
     TArray<FName> MarkedCamps;
     // D27: the public 上热搜 notice; Leader invalid when nobody is named.
     FGuid Leader;
+    uint8 LeaderLevel = 0;
     FVector LeaderCircleCentreCm = FVector::ZeroVector;
+    // #198 D: the current rest's public PK (Serial 0: none), exactly as every participant's public view shows it.
+    FLDPKView PK;
     // P6 spec §10.3: the public mid-field objective (Serial 0: none yet this segment).
     FLDObjectiveView Objective;
     // The public room roster's contender ids (FLDLobbyView members), as every participant's HUD reads them; the adapter reads
@@ -235,9 +243,9 @@ struct FLDOpponentGround
     bool bEnemy = false;
 };
 
-// Service places are carried only by rest frames, not the field POI list.
+// Sign-up and service places are carried only by rest frames, not the field POI list.
 // Locker (#305): a delivery locker this contender has seen and not opened (its own pacing view); never a static place.
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, RestService, Locker };
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, RestService, Locker, PKSignup };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -283,6 +291,11 @@ struct FLDOpponentDecisionFrame
     TOptional<double> CapturePathCm;
     // A build request awaits its final receipt; no second build change is proposed meanwhile.
     bool bBuildChangeInFlight = false;
+    // #198 D: when this contender may throw again in the current PK, from its own latest throw answer (0 when none).
+    int64 PKThrowReadyAtMs = 0;
+    // #198 站圈报名 (user decision A on issue #198): in a rest, the own PK sign-up disk (its roster slot's public anchor);
+    // unset outside a rest. Never part of POIs, so no field decision ever walks there.
+    TOptional<FLDOpponentPOI> SignupPOI;
     TArray<FLDOpponentPOI> RestServicePOIs;
 };
 
@@ -369,6 +382,21 @@ struct FLDOpponentBuildIntent
     FLDOpponentRetryKey Key;
 };
 
+// #198 D: one PK request, as a player sends it through the same server entries: bet on one side, or throw at a ground
+// point of the running arena. The sign-up is no request: the body walks into its own sign-up disk (站圈报名).
+enum class ELDOpponentPKKind : uint8 { None, Bet, Throw };
+
+struct FLDOpponentPKIntent
+{
+    ELDOpponentPKKind Kind = ELDOpponentPKKind::None;
+    // Bet / Throw: the public PK serial the request is for.
+    uint32 Serial = 0;
+    // Bet: the side 1..SideCount.
+    uint8 Side = 0;
+    // Throw: the current foot of the chosen visible entrant.
+    FVector TargetCm = FVector::ZeroVector;
+};
+
 struct FLDOpponentDecision
 {
     ELDOpponentMode Mode = ELDOpponentMode::Stopped;
@@ -377,6 +405,7 @@ struct FLDOpponentDecision
     FLDOpponentBuildIntent Build;
     // #305 spec §11.3: a vending purchase at the machine within reach (ELDVendingItem; 0 = none).
     uint8 Vending = 0;
+    FLDOpponentPKIntent PK;
 };
 
 // What a domain's final answer to one intent teaches the failure memory (OPPONENT_AI.md §3.3).
@@ -447,6 +476,8 @@ struct FLDOpponentPolicyState
     int64 TargetEngagedAtMs = 0;
     TArray<FLDOpponentVisit> Visits;
     FLDOpponentRetryLedger Failures;
+    // #198 D: a bet is sent once per PK whatever its answer (no retry storm): the PK serial whose bet this adapter sent.
+    uint32 PKBetSerial = 0;
     // Spec §13 breakout goal: the breakout preset (LDBreakoutPresets) this AI chases this match, None for none; drawn once.
     FName BreakoutGoal;
     bool bBreakoutDrawn = false;
@@ -555,6 +586,25 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
     // True when the own foot is inside the public capture circle of the frame's static capture POI.
     LOCKDOWN_API bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog);
+    // ---- #198 D rest PK (OPPONENT_AI.md §6.6; issue #198 comment 6752601175 §2-§6): deterministic, public reads only ----
+    // The PK sign-up window of a build step is open at Public.NowMs (from SignupOpensAtMs until before StepEndsAtMs) and
+    // Self does not stand in the public sign-up yet. Every AI signs up, walking into its own sign-up disk; there is no
+    // chance.
+    LOCKDOWN_API bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self);
+    // Self's public bet side in this PK; 0 without one.
+    LOCKDOWN_API uint8 PKOwnBetSide(const FLDPKView& PK, const FGuid& Self);
+    // The side to bet on in the betting step: the lowest-seat entrant's side, for an eligible bettor without a public bet; 0
+    // otherwise.
+    LOCKDOWN_API uint8 PKBetSide(const FLDOpponentPublicMatch& Public, const FGuid& Self);
+    // The visible contender unit of the lowest seat among the living entrants whose side is not BetSide and whose foot lies
+    // within ThrowRangeCm (XY) of the public throw anchor; nullptr when none of them is in this observation frame.
+    LOCKDOWN_API const FLDOpponentUnit* PKThrowTarget(const FLDPKView& PK, uint8 BetSide, const TArray<FLDOpponentUnit>& Units,
+        double ThrowRangeCm);
+    // Other is a locked entrant on Self's side (only the team format shares a side); never Self itself.
+    LOCKDOWN_API bool IsPKTeammate(const FLDPKView& PK, const FGuid& Self, const FGuid& Other);
+    // An entrant at FootCm must walk back toward the arena centre at NowMs: outside the current safe radius, or outside the
+    // previewed next radius while one is shown (LDPKRules on the approved ring parameters). False before the fight starts.
+    LOCKDOWN_API bool PKRingRetreat(const FLDPKParameters& Params, const FLDPKView& PK, const FVector& FootCm, int64 NowMs);
     // The owner's visible training target by the HUD's roster rule: lowest handle first; nullptr
     // outside a rest, without one, or when the own id is not on the roster (an unread roster names nothing).
     LOCKDOWN_API const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame);

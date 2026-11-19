@@ -20348,7 +20348,7 @@
     },
     {
       "description_key": "card_fire_fist.description",
-      "description_text": "普攻命中施加 [burn.basic_count] 层灼烧。",
+      "description_text": "第三段普攻命中施加 [burn.basic_count] 层灼烧。",
       "icon_id": "icon_card_fire_fist",
       "id": "card_fire_fist",
       "name_key": "card_fire_fist.name",
@@ -20447,7 +20447,7 @@
     },
     {
       "description_key": "card_ice_fist.description",
-      "description_text": "普攻命中让目标冻。",
+      "description_text": "第三段普攻命中让目标冻。",
       "icon_id": "icon_card_ice_fist",
       "id": "card_ice_fist",
       "name_key": "card_ice_fist.name",
@@ -20663,7 +20663,7 @@
     },
     {
       "description_key": "card_rot_fist.description",
-      "description_text": "普攻命中让目标馊。",
+      "description_text": "第三段普攻命中让目标馊。",
       "icon_id": "icon_card_rot_fist",
       "id": "card_rot_fist",
       "name_key": "card_rot_fist.name",
@@ -20717,7 +20717,7 @@
     },
     {
       "description_key": "card_shock_fist.description",
-      "description_text": "普攻命中让目标感电。",
+      "description_text": "第三段普攻命中让目标感电。",
       "icon_id": "icon_card_shock_fist",
       "id": "card_shock_fist",
       "name_key": "card_shock_fist.name",
@@ -20852,7 +20852,7 @@
     },
     {
       "description_key": "card_water_fist.description",
-      "description_text": "普攻命中让目标潮湿。",
+      "description_text": "第三段普攻命中让目标潮湿。",
       "icon_id": "icon_card_water_fist",
       "id": "card_water_fist",
       "name_key": "card_water_fist.name",
@@ -21660,6 +21660,7 @@
       "bp": 3500,
       "unit": "ratio"
     },
+    "AI.LeaderHuntMaxLevelGap": 2,
     "AI.LowCampReserveHPRatio": {
       "bp": 1500,
       "unit": "ratio"
@@ -21674,7 +21675,7 @@
       "unit": "cm"
     },
     "AI.ResumeFarmHPRatio": {
-      "bp": 6000,
+      "bp": 4500,
       "unit": "ratio"
     },
     "AI.RetreatHPRatio": {
@@ -21794,14 +21795,14 @@
       "ms": 3500,
       "unit": "ms"
     },
-    "CARDS.CapacityBase": 4,
+    "CARDS.CapacityBase": 6,
     "CARDS.FreeRerolls": 3,
     "CARDS.IdleCarrySec": {
       "ms": 5000,
       "unit": "ms"
     },
     "CARDS.LevelsPerSlot": 3,
-    "CARDS.LockSlots": 1,
+    "CARDS.OfferEveryLevels": 2,
     "CARDS.OfferSize": 3,
     "CARDS.RerollsPerRest": 1,
     "CARDS.SkipVouchers": 3,
@@ -21999,6 +22000,10 @@
     "COMBAT.ReactionBase": {
       "p2": 3000,
       "unit": "points"
+    },
+    "COMBAT.ReactionLockSec": {
+      "ms": 3000,
+      "unit": "ms"
     },
     "COMBAT.ReactionPerLevel": {
       "p2": 400,
@@ -22551,6 +22556,64 @@
       "ms": 1500,
       "unit": "ms"
     },
+    "PK.ArenaRadiusCm": {
+      "denominator": 1,
+      "numerator": 1800,
+      "unit": "cm"
+    },
+    "PK.BettingPoolMaxPoints": 2,
+    "PK.ParticipationPoints": 1,
+    "PK.RewardMultiplier": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
+    "PK.RingDamageEarlyMaxHPRatioPerSec": {
+      "bp": 500,
+      "unit": "ratio"
+    },
+    "PK.RingDamageFinalMaxHPRatioPerSec": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "PK.RingDamageMidMaxHPRatioPerSec": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "PK.RingDamageTickSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "PK.RingFinalRadiusCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "PK.RingFinalSec": {
+      "ms": 38000,
+      "unit": "ms"
+    },
+    "PK.RingMidRadiusCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "PK.RingMidSec": {
+      "ms": 25000,
+      "unit": "ms"
+    },
+    "PK.RingPreviewSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "PK.RingShrinkStartSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "PK.TeamFormatRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "PK.WinnerPointsMax": 3,
     "REGEN.OutOfCombatDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -22559,8 +22622,16 @@
       "bp": 150,
       "unit": "ratio"
     },
+    "REST.BettingSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
     "REST.BuildSec": {
-      "ms": 25000,
+      "ms": 40000,
+      "unit": "ms"
+    },
+    "REST.DrawSec": {
+      "ms": 3000,
       "unit": "ms"
     },
     "REST.EntryReadyTimeoutSec": {
@@ -22568,7 +22639,19 @@
       "unit": "ms"
     },
     "REST.OpeningBuildSec": {
-      "ms": 25000,
+      "ms": 45000,
+      "unit": "ms"
+    },
+    "REST.PKMaxSec": {
+      "ms": 45000,
+      "unit": "ms"
+    },
+    "REST.PKReadySec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "REST.PayoutSec": {
+      "ms": 3000,
       "unit": "ms"
     },
     "REST.ReturnSearchRadiusCm": {
@@ -22578,6 +22661,14 @@
     },
     "REST.ReturnSec": {
       "ms": 5000,
+      "unit": "ms"
+    },
+    "REST.SettlementSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "REST.SignupSec": {
+      "ms": 10000,
       "unit": "ms"
     },
     "REWARD.AssistWindowSec": {
@@ -22844,6 +22935,36 @@
       "numerator": 173,
       "unit": "cm/s"
     },
+    "THROW.CooldownSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "THROW.ExposeSec": {
+      "ms": 2000,
+      "unit": "ms"
+    },
+    "THROW.RadiusCm": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "cm"
+    },
+    "THROW.RangeCm": {
+      "denominator": 1,
+      "numerator": 4000,
+      "unit": "cm"
+    },
+    "THROW.SlowRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "THROW.SlowSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "THROW.TelegraphSec": {
+      "ms": 800,
+      "unit": "ms"
+    },
     "UNIT.BasicAttackRangeCm": {
       "denominator": 1,
       "numerator": 220,
@@ -22882,8 +23003,8 @@
     "VOUCHER.Kill": 10,
     "VOUCHER.Locker": 8,
     "VOUCHER.MiniFlag": 15,
-    "XP.BaseToNext": 48,
-    "XP.IncreasePerLevel": 12
+    "XP.BaseToNext": 60,
+    "XP.IncreasePerLevel": 20
   },
   "policies": {
     "BasicSecondaryTriggers": "Disabled",
@@ -22920,38 +23041,38 @@
     "xp_start": 0,
     "xp_thresholds": [
       0,
-      48,
-      108,
-      180,
-      264,
+      60,
+      140,
+      240,
       360,
-      468,
-      588,
-      720,
-      864,
-      1020,
-      1188,
-      1368,
-      1560,
-      1764,
-      1980
+      500,
+      660,
+      840,
+      1040,
+      1260,
+      1500,
+      1760,
+      2040,
+      2340,
+      2660,
+      3000
     ],
     "xp_to_next": [
-      48,
       60,
-      72,
-      84,
-      96,
-      108,
+      80,
+      100,
       120,
-      132,
-      144,
-      156,
-      168,
+      140,
+      160,
       180,
-      192,
-      204,
-      216
+      200,
+      220,
+      240,
+      260,
+      280,
+      300,
+      320,
+      340
     ]
   },
   "stats": [
@@ -23071,6 +23192,15 @@
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
+    "pk_spawn_ids": [
+      "pk_spawn_0",
+      "pk_spawn_1",
+      "pk_spawn_2",
+      "pk_spawn_3",
+      "pk_spawn_4",
+      "pk_spawn_5"
+    ],
+    "pk_throw_id": "pk_throw",
     "spawn_ids": [
       "s00",
       "s01",

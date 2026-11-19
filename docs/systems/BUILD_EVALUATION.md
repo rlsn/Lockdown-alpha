@@ -196,7 +196,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 
 一方计划的 `build` 是有序步骤列表，每步写 `step` 与窗口 `at`：`opening_rest`（开局休息 R0 的配装窗口，开局选择之后、野外供给之前）
 或 `field`（野外，供给到达的等级与全部计划选择都已完成之后）。开局休息的步骤必须排在野外步骤之前，至多 32 步（原生上限）。
-有计划的一方跳过每一组牌三选一（抽取是随机的）；它的牌只来自 `level_cards`（仅 `diagnostic`）：供给跨过的每一级一张，
+有计划的一方跳过每一组牌三选一（抽取是随机的）；它的牌只来自 `level_cards`（仅 `diagnostic`）：供给跨过的每个给牌等级（`CARDS.OfferEveryLevels` 整除的等级）一张，
 数量必须等于跨过的等级数（2..供给等级），同名可以重复；它们经正常奖励提交在野外供给时进牌库（`LD_EVAL_CARD_PRESET`，
 `LD_LEVEL_UP card_offers=0`），不自动安装。
 

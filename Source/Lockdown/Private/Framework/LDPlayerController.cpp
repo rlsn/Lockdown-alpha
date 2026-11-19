@@ -182,6 +182,22 @@ void ALDPlayerController::ClientDamageSummary_Implementation(const FLDDamageSumm
     DamageSummary=Summary;
 }
 
+void ALDPlayerController::ClientBuildStats_Implementation(const FLDBuildStatsView& Stats)
+{
+    FString Error;
+    if (Stats.Match==0 || !LDDamageRecap::ValidateLines(Stats.Lines,Error) || Stats.Match<BuildStats.Match
+        || (Stats.Match==BuildStats.Match && Stats.Serial<=BuildStats.Serial)) { return; }
+    BuildStats=Stats;
+}
+
+void ALDPlayerController::ClientTrainingCombo_Implementation(const FLDTrainingComboView& Combo)
+{
+    FString Error;
+    if (Combo.Match==0 || !LDDamageRecap::ValidateLines(Combo.Lines,Error) || Combo.Match<TrainingCombo.Match
+        || (Combo.Match==TrainingCombo.Match && Combo.Serial<=TrainingCombo.Serial)) { return; }
+    TrainingCombo=Combo;
+}
+
 void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);

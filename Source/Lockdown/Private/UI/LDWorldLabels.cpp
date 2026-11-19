@@ -395,9 +395,14 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 Public->PublicMatch.Phase==ELDMatchPhase::Rest):FString(),Content,Frame->SampledAtServerSec);
             if(bContender)
             {
-                // Nobody can be attacked in a rest; the shared training dummies stay attackable.
+                const FString Relation=LDHUD::PKRelationText(Public->PublicMatch,Own.ContenderId,Unit.ContenderId);
+                if(!Entry.Label.Name.IsEmpty()&&!Relation.IsEmpty()){Entry.Label.Name+=TEXT(" · ")+Relation;}
+                // Nobody can be attacked in a rest outside the PK itself, and a PK teammate never can; the shared training
+                // dummies stay attackable.
+                const ELDRestStep Step=Public->PublicMatch.Timeline.Step;
+                const bool bFighting=Step==ELDRestStep::PKReady||Step==ELDRestStep::PK;
                 const bool bDummy=Entry.Label.Name.StartsWith(LDTerms::TrainingDummy);
-                Entry.Label.bPeaceful=!bDummy&&Public->PublicMatch.Phase==ELDMatchPhase::Rest;
+                Entry.Label.bPeaceful=!bDummy&&((Public->PublicMatch.Phase==ELDMatchPhase::Rest&&!bFighting)||Relation==LDTerms::PKTeammate);
             }
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;

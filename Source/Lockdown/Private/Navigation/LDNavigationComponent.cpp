@@ -1,5 +1,6 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Core/LDLog.h"
+#include "Combat/LDCombatPreInput.h"
 #include "UI/LDCursor.h"
 #include "UI/LDTerms.h"
 #include "Navigation/LDOrderRules.h"
@@ -312,25 +313,51 @@ void ULDNavigationComponent::SendAttackUnit(const FGuid& Observed, uint32 Observ
 
 void ULDNavigationComponent::CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue)
 {
-    bHeldMove=false;
+    if (bQueue) { bHeldMove=false; }
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::CastUnit;
     Request.Observed=Cast.Target.Observed;
     Request.ObservationEpoch=Cast.Target.ObservationEpoch;
     Request.bQueue=bQueue;
-    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { return; }
+    HoldMoveForCast(Cast);
+    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { HeldCastSequences.Remove(Cast.DirectSequence); return; }
+    if (bHeldMove) { HeldCastOrder=Local; }
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Request.Observed,Request.ObservationEpoch); }
 }
 
 void ULDNavigationComponent::CastAtPoint(const FLDCombatActionRequest& Cast, const FVector& PointCm, bool bQueue)
 {
-    bHeldMove=false;
+    if (bQueue) { bHeldMove=false; }
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::CastPoint;
     Request.GroundCm=PointCm;
     Request.SurfaceHint=GroundSurfaceHint();
     Request.bQueue=bQueue;
-    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast);
+    HoldMoveForCast(Cast);
+    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { HeldCastSequences.Remove(Cast.DirectSequence); return; }
+    if (bHeldMove) { HeldCastOrder=Local; }
+}
+
+// Set before the order is sent: a listen host can receive the cast's receipts inside the send. Every cast sent during
+// the hold is waited for until its own Combat receipt ends it, so a refused later cast never frees an earlier windup.
+void ULDNavigationComponent::HoldMoveForCast(const FLDCombatActionRequest& Cast)
+{
+    if (!bHeldMove) { ClearHeldCast(); return; }
+    HeldCastSequences.AddUnique(Cast.DirectSequence);
+    HeldCastQuietSince=-1.;
+}
+
+void ULDNavigationComponent::ClearHeldCast()
+{
+    HeldCastOrder={};
+    HeldCastSequences.Reset();
+    HeldCastQuietSince=-1.;
+}
+
+void ULDNavigationComponent::NoteCombatReceipt(const FLDCombatActionReceipt& Receipt)
+{
+    if (Receipt.Phase==ELDCombatPhase::Finished || Receipt.Phase==ELDCombatPhase::Rejected)
+    { HeldCastSequences.Remove(Receipt.DirectSequence); }
 }
 
 // The accepted attack may be older than Local, which can name a queued or refused request.
@@ -397,7 +424,8 @@ void ULDNavigationComponent::StepCastFollowUp(const FLDOrderReceipt& Receipt)
     ClearCastFollowUp();
     UE_LOG(LogLDNav,Log,TEXT("LD_CAST_FOLLOW_UP cast=%u step=%s visible=%d"),FollowUp.Identity.Order,
         Step==LDOrderRules::ECastFollowUp::Attack?TEXT("Attack"):TEXT("Drop"),bVisible?1:0);
-    if (Step!=LDOrderRules::ECastFollowUp::Attack) { return; }
+    // The held move button decides what follows the cast.
+    if (Step!=LDOrderRules::ECastFollowUp::Attack || bHeldMove) { return; }
     SendAttackUnit(FollowUp.Observed,FollowUp.ObservationEpoch,false,true);
 }
 
@@ -835,6 +863,8 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing, and a
     // Shift click is a single queued step.
     bHeldMove=!bQueue && Local.Order!=Before;
+    ClearHeldCast();
+    bHeldResume=false;
     HeldSentAt=GetWorld()->GetTimeSeconds();
     HeldPoint=GroundHit.ImpactPoint;
 }
@@ -981,10 +1011,32 @@ void ULDNavigationComponent::TickHeldMove()
         bHeldMove=false;
         return;
     }
-    if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
+    // A cast sent during the hold runs first (walk into reach, cast); once it ended, or a newer own order replaced
+    // it, the walk follows the pointer again.
     const double Now=GetWorld()->GetTimeSeconds();
+    if (HeldCastOrder.Order!=0)
+    {
+        // The cast order runs first (walk into reach, cast); a refused one leaves Local naming it with nothing pending.
+        if (HeldCastOrder==Local && (bLocalPending || ClientActive==HeldCastOrder)) { return; }
+        // Then every cast of this hold must have ended at Combat. A cast whose order ended without a Combat receipt is
+        // given up once the body has shown no own windup for half a second.
+        int64 NowMs=0;
+        PC->ReadDemoAuthorityTimeMs(NowMs);
+        if (LDCombatPreInput::IsWindingUp(PC->CombatView,NowMs)) { HeldCastQuietSince=-1.; return; }
+        if (!HeldCastSequences.IsEmpty())
+        {
+            if (HeldCastQuietSince<0) { HeldCastQuietSince=Now; }
+            if (Now-HeldCastQuietSince<.5) { return; }
+        }
+        ClearHeldCast();
+        bHeldResume=true;
+    }
+    if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
     FHitResult GroundHit;
-    if (!GroundUnderPointer(GroundHit) || !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)) { return; }
+    if (!GroundUnderPointer(GroundHit)) { return; }
+    // The first order after a cast goes out even when the pointer never moved; later repeats need the usual shift.
+    if (bHeldResume ? Now-HeldSentAt<LDOrderRules::HeldMoveRepeatSeconds
+        : !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)) { return; }
     const FVector Goal=GroundHit.ImpactPoint;
     bool bKnown=false;
     const FName Hint=GroundSurfaceHint();
@@ -1000,6 +1052,7 @@ void ULDNavigationComponent::TickHeldMove()
     }
     HeldSentAt=Now;
     HeldPoint=GroundHit.ImpactPoint;
+    bHeldResume=false;
 }
 
 void ULDNavigationComponent::PanTo(const FVector& Point)

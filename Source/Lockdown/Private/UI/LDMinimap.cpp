@@ -170,7 +170,7 @@ constexpr double MinimapRegionReachCm=1000.;
 bool MinimapRestAnchor(ELDDemoWorldAnchorKind Kind)
 {
     return Kind==ELDDemoWorldAnchorKind::RestSpawn||Kind==ELDDemoWorldAnchorKind::RestService||Kind==ELDDemoWorldAnchorKind::TrainingDummy
-;
+        ||Kind==ELDDemoWorldAnchorKind::PKSignup;
 }
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
@@ -246,8 +246,9 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         // P6 spec §11.3: vending machines are public; lockers show only once seen (owner view) and mini flags only while live.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Vending){Site.Kind=FLDMinimapStatic::ESite::Vending;}
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Locker||Anchor.Kind==ELDDemoWorldAnchorKind::MiniFlag){continue;}
-        // #198: rest-space anchors are not field sites.
-        else if(Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn
+        // #198: PK and rest-space anchors are not field sites.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
+            ||Anchor.Kind==ELDDemoWorldAnchorKind::PKSignup||Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn
             ||Anchor.Kind==ELDDemoWorldAnchorKind::RestService||Anchor.Kind==ELDDemoWorldAnchorKind::TrainingDummy
             ||Anchor.Kind==ELDDemoWorldAnchorKind::FinalSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::FinalCapture){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
@@ -654,7 +655,20 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 FVector Presented=FVector::ZeroVector;const FVector2f At=Spot(Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Presented)?Presented:FVector(Unit.FeetCm));
                 if(Unit.Kind==ELDObservedUnitKind::Contender)
                 {
-                    Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
+                    const FString Relation=PublicState?LDHUD::PKRelationText(PublicState->PublicMatch,Own.ContenderId,Unit.ContenderId):FString();
+                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide)
+                    {
+                        Diamond(8,At,10.f,Ink);Diamond(9,At,7.f,LDHUD::PaletteColor(Unit.Presentation));
+                    }
+                    else
+                    {
+                        Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
+                        if(Relation==LDTerms::PKEnemy)
+                        {
+                            Lines(10,{At+FVector2f(-2.f,-2.f),At+FVector2f(2.f,2.f)},FLinearColor::White,1.5f);
+                            Lines(10,{At+FVector2f(-2.f,2.f),At+FVector2f(2.f,-2.f)},FLinearColor::White,1.5f);
+                        }
+                    }
                 }
                 // P6 spec §11.3: the second-hand dealer, a green diamond with a pale core.
                 else if(Unit.Kind==ELDObservedUnitKind::CampMember&&Unit.bPeddler)

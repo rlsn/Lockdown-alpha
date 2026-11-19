@@ -37,6 +37,7 @@ public:
     bool Rebuild(FString& Error);
     bool Ensure(FString& Error);
     const FLDMapBinding* Resolve(FName Id,uint32 ExpectedGeneration) const;
+    bool SharedSignupCentre(FVector& OutCentre) const;
     const TArray<FLDMapBinding>& Sites() const { return Bindings; }
     const TArray<FLDMapBinding>& ServiceSeats() const { return ServiceBindings; }
     FString CanonicalBindings() const;
@@ -66,7 +67,7 @@ public:
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
     // The same request bookkeeping as DrawSpawnAnchor, but a named anchor instead of a uniform draw: the contender's fixed
-    // rest seat, a final spawn, or the field spawn the dead contender chose (spec §10.4). ReserveSpawnPlacement then picks
+    // rest seat, a PK ring spawn, a final spawn, or the field spawn the dead contender chose (spec §10.4). ReserveSpawnPlacement then picks
     // its free offset.
     bool SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName Anchor,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);

@@ -30,7 +30,7 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
     }
     const auto& AI = Out->Get().Parameters.AI;
     return Test.TestTrue(TEXT("Fixture carries the approved first-play AI parameters"),
-        AI.RetreatHPBp == 2500 && AI.ResumeFarmHPBp == 6000 && AI.HighCampEntryHPBp == 8000
+        AI.RetreatHPBp == 2500 && AI.ResumeFarmHPBp == 4500 && AI.HighCampEntryHPBp == 8000
         && AI.HighCampReserveHPBp == 3500 && AI.LowCampReserveHPBp == 1500 && AI.CaptureReactionBudgetMs == 2000
         && AI.DecisionIntervalMs == 250 && AI.RetryMaxAttempts == 3 && AI.RetryInitialBackoffMs == 250
         && AI.RetryMaxBackoffMs == 500 && AI.ExploreRevisitIntervalMs == 20000 && AI.EngagementBudgetMs == 40000);
@@ -656,7 +656,8 @@ bool RunPriorities(FAutomationTestBase& Test)
         }
         Frame.Public.NowMs += 10000;
         Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
-        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+        // Below AI.ResumeFarmHPRatio, so the body is still recovering rather than farming.
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 2 / 5;
         const auto Exhausted = LDOpponentPolicy::Decide(Frame, C, Bounded);
         auto Paused = Frame;
         Paused.Public.Circle = ELDOpponentCircle::Contested;

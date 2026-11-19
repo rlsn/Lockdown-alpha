@@ -11,6 +11,7 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDChainCodex.h"
+#include "Misc/ConfigCacheIni.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
@@ -270,12 +271,14 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
         ULDCommandButton* Settings=MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);});
         ULDCommandButton* Codex=MakeButton(LDTerms::ChainCodex,TEXT("ChainCodex"),[this](){OpenCodex();});
+        ULDCommandButton* HowTo=MakeButton(LDTerms::HowTo,TEXT("HowTo"),[this](){OpenHowTo();});
         ULDCommandButton* Exit=MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);});
-        Glass(Settings);Glass(Codex);Glass(Exit);
-        // Three signs share the start button's 420 width.
-        Row->AddChildToHorizontalBox(Sign(Settings,132,58));
-        Row->AddChildToHorizontalBox(Sign(Codex,132,58))->SetPadding(FMargin(12,0,0,0));
-        Row->AddChildToHorizontalBox(Sign(Exit,132,58))->SetPadding(FMargin(12,0,0,0));
+        Glass(Settings);Glass(Codex);Glass(HowTo);Glass(Exit);
+        // Four signs share the start button's 420 width.
+        Row->AddChildToHorizontalBox(Sign(Settings,96,58));
+        Row->AddChildToHorizontalBox(Sign(Codex,96,58))->SetPadding(FMargin(12,0,0,0));
+        Row->AddChildToHorizontalBox(Sign(HowTo,96,58))->SetPadding(FMargin(12,0,0,0));
+        Row->AddChildToHorizontalBox(Sign(Exit,96,58))->SetPadding(FMargin(12,0,0,0));
         Stack(Row,0);
     }
     {
@@ -290,6 +293,33 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         Add(Codex,CodexRows,6);
         CodexBack=MakeButton(TEXT("返回"),TEXT("ChainCodexBack"),[this](){CloseCodex();});
         Add(Codex,CodexBack,8);
+    }
+    {
+        // 怎么玩: one card at a time, a title and one line, with its place in the six.
+        UVerticalBox* HowTo=nullptr;
+        HowToPage=MakePage(Canvas,720,HowTo);
+        HowToPage->SetVisibility(ESlateVisibility::Collapsed);
+        Add(HowTo,Label(LDTerms::HowTo,LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
+        HowToCount=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted);
+        Add(HowTo,HowToCount,2);
+        HowToTitle=Label(FString(),LDHUDStyle::TypePage,LDHUDStyle::UIText);
+        Add(HowTo,HowToTitle,14);
+        HowToBody=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::UIText);
+        HowToBody->SetAutoWrapText(true);
+        Add(HowTo,HowToBody,8);
+        auto* Pager=WidgetTree->ConstructWidget<UHorizontalBox>();
+        Pager->AddChildToHorizontalBox(MakeButton(TEXT("上一张"),TEXT("HowToPrevious"),[this](){ShowHowTo(HowToIndex-1);}));
+        Pager->AddChildToHorizontalBox(MakeButton(TEXT("下一张"),TEXT("HowToNext"),[this](){ShowHowTo(HowToIndex+1);}))->SetPadding(FMargin(12,0,0,0));
+        Add(HowTo,Pager,16);
+        HowToBack=MakeButton(TEXT("返回"),TEXT("HowToBack"),[this](){CloseHowTo();});
+        Add(HowTo,HowToBack,8);
+    }
+    // The first main menu on this computer opens 怎么玩 by itself.
+    if(PC.IsFrontend()&&GConfig)
+    {
+        bool bSeen=false;
+        GConfig->GetBool(TEXT("Lockdown.HowTo"),TEXT("bSeen"),bSeen,GGameUserSettingsIni);
+        if(!bSeen){OpenHowTo();}
     }
 
     StartPage=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -1038,6 +1068,42 @@ void ULDUIRoot::OpenCodex()
     CodexBack->SetKeyboardFocus();
 }
 
+void ULDUIRoot::ShowHowTo(int32 Index)
+{
+    if(!HowToPage){return;}
+    HowToIndex=FMath::Clamp(Index,0,LDTerms::HowToCards-1);
+    HowToCount->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"),HowToIndex+1,LDTerms::HowToCards)));
+    HowToTitle->SetText(FText::FromString(LDTerms::HowToTitle(HowToIndex)));
+    HowToBody->SetText(FText::FromString(LDTerms::HowToBody(HowToIndex)));
+}
+
+void ULDUIRoot::OpenHowTo()
+{
+    if(!HowToPage||!FrontendPage||bHowToOpen||bCodexOpen){return;}
+    ShowHowTo(0);
+    bHowToOpen=true;
+    FrontendPage->SetVisibility(ESlateVisibility::Collapsed);
+    if(FrontendLogo){FrontendLogo->SetVisibility(ESlateVisibility::Collapsed);}
+    HowToPage->SetVisibility(ESlateVisibility::Visible);
+    HowToBack->SetKeyboardFocus();
+}
+
+bool ULDUIRoot::CloseHowTo()
+{
+    if(!bHowToOpen){return false;}
+    bHowToOpen=false;
+    if(GConfig)
+    {
+        GConfig->SetBool(TEXT("Lockdown.HowTo"),TEXT("bSeen"),true,GGameUserSettingsIni);
+        GConfig->Flush(false,GGameUserSettingsIni);
+    }
+    HowToPage->SetVisibility(ESlateVisibility::Collapsed);
+    FrontendPage->SetVisibility(ESlateVisibility::Visible);
+    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    if(StartButton){StartButton->SetKeyboardFocus();}
+    return true;
+}
+
 bool ULDUIRoot::CloseCodex()
 {
     if(!bCodexOpen){return false;}
@@ -1300,7 +1366,7 @@ bool ULDUIRoot::CloseTopPanel()
         Open->ClosePanel();
         return true;
     }
-    if(PC->IsFrontend()){return CloseCodex()||CloseStartPage();}
+    if(PC->IsFrontend()){return CloseHowTo()||CloseCodex()||CloseStartPage();}
     if(bMenuOpen){CloseMenu();return true;}
     return false;
 }
@@ -1324,7 +1390,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     {
         // The main menu is the frontend's base page: Menu only closes Settings or the Start page and never quits.
         if(Panel!=ELDUIMainPanel::Menu){return;}
-        if(PanelOpen(SettingsPanel)){SettingsPanel->ClosePanel();}else if(!CloseCodex()){CloseStartPage();}
+        if(PanelOpen(SettingsPanel)){SettingsPanel->ClosePanel();}else if(!CloseHowTo()&&!CloseCodex()){CloseStartPage();}
         return;
     }
     if(bInLobby){return;}

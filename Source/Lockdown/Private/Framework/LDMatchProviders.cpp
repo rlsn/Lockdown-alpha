@@ -38,6 +38,7 @@ const TCHAR* LDMatchProviders::Name(ELDMatchProvider Provider)
     case ELDMatchProvider::Camps: return TEXT("Camps");
     case ELDMatchProvider::Vision: return TEXT("Vision");
     case ELDMatchProvider::OpponentAI: return TEXT("OpponentAI");
+    case ELDMatchProvider::PK: return TEXT("PK");
     default: return TEXT("Unknown");
     }
 }

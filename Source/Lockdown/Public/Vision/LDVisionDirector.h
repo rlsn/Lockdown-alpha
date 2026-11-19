@@ -145,19 +145,23 @@ private:
 };
 
 // How one observer may see one skill-effect projection: the permissions its source's group gives bodies (#198 R15).
-// Hidden: another isolation group (the rest space, the frozen world). Sight: a sight line from the observer's foot.
-enum class ELDObservedFlightAccess : uint8 { Hidden, Sight };
+// Hidden: another isolation group (another rest space, the PK for a non-spectator, the frozen world). Sight: a sight line
+// from the observer's foot. SharedSight: from the foot or a living PK teammate's (the PK's shared team sight). Granted: no
+// sight line needed (a spectator watching the whole arena).
+enum class ELDObservedFlightAccess : uint8 { Hidden, Sight, SharedSight, Granted };
 
 namespace LDObservation
 {
     // R15: the access one observer has to one skill effect from the isolation groups (the effect's source acts in
-    // SourceGroup, or is a suspended world body when !bSourceActs; the observer's own group when bObserverGroup).
+    // SourceGroup, or is a suspended world body when !bSourceActs; the observer's own group when bObserverGroup), the
+    // running arena's group (invalid without one) and the observer's PK role.
     LOCKDOWN_API ELDObservedFlightAccess ClassifyFlight(bool bSourceActs, const FGuid& SourceGroup, bool bObserverGroup,
-        const FGuid& ObserverGroup);
-    // Effects the observer may see under Access, nearest to SourceFootCm first, at most MaxProjectiles. An effect beyond
-    // the registered ground is simply out of sight; non-finite geometry or a changed world is a fault.
+        const FGuid& ObserverGroup, const FGuid& ArenaGroup, bool bSpectating, bool bPKObserver);
+    // Effects the observer may see under Access, nearest to SourceFootCm first, at most MaxProjectiles. SharedFeetCm are
+    // the living PK teammates' feet. An effect beyond the registered ground is simply out of sight; non-finite geometry
+    // or a changed world is a fault.
     LOCKDOWN_API bool SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
-        const TArray<FLDObservedProjectileFact>& Facts,
+        const TArray<FVector>& SharedFeetCm, const TArray<FLDObservedProjectileFact>& Facts,
         TFunctionRef<ELDObservedFlightAccess(const FLDObservedProjectileFact&)> Access,
         TArray<const FLDObservedProjectileFact*>& Out, FString& Error);
 }
@@ -241,7 +245,7 @@ public:
         double OccurredAtSeconds, FString& Error);
     ELDObservedResolve ResolveObservedUnit(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
         uint32 ObservationEpoch, ELDObservationPurpose Purpose, FLDAuthorityTargetSample& Out, FString* Diagnostic = nullptr) const;
-    // Rechecks the existing presentation permission; not an attack/order authorization.
+    // Rechecks the existing presentation permission, including PK shared sight; not an attack/order authorization.
     ELDObservedResolve ResolvePresentedUnit(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
         uint32 ObservationEpoch, FLDAuthorityTargetSample& Out, FString* Diagnostic = nullptr) const;
     bool EnumerateVisibleUnits(const ALDPlayerController& RegisteredCaller, ELDObservationPurpose Purpose,

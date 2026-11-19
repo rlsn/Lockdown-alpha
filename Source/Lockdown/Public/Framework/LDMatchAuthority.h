@@ -10,7 +10,8 @@ class ILDMatchAuthority
 public:
     virtual const FLDMatchContext& GetMatchContext() const = 0;
     virtual bool IsGameplayWriteOpen(const FLDMatchContext& Context) const = 0;
-    // The rest return countdown locks every input. Contender: the acting contender.
+    // The rest return countdown and the PK ready countdown lock every input; while the PK runs only PK lives act.
+    // Contender: the acting contender (invalid: judged as a non-PK life).
     virtual bool IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender = FGuid()) const = 0;
     virtual bool IsShowdown() const = 0;
     virtual const FLDAuthorityStep& GetAuthorityStep() const = 0;

@@ -91,11 +91,9 @@ const FLDCardOfferState* ProgressionCurrentCardOffer(const FLDProgressionState& 
         ? &Progression.CardOffer.GetValue() : nullptr;
 }
 
-// The current offer resolves: the queue head is consumed and a lock on any card but Taken carries to the next offer.
-void ProgressionResolveCardOffer(FLDProgressionState& Progression, FName Taken)
+// The current offer resolves: the queue head is consumed.
+void ProgressionResolveCardOffer(FLDProgressionState& Progression)
 {
-    const FName Locked = Progression.CardOffer->Locked;
-    Progression.CarriedLock = Locked != Taken ? Locked : NAME_None;
     Progression.CardOffer.Reset();
     Progression.CardQueue.RemoveAt(0);
 }
@@ -280,9 +278,14 @@ ELDGrowthReason LDProgression::UnspentPoints(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
-    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent))
+    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent) || Build.AwardedPoints < 0)
     {
         return ELDGrowthReason::DataInvalid;
+    }
+    // #198 session D: PK participation, winner and betting points add to the earned ones.
+    if (!ProgressionCheckedAdd(Earned, Build.AwardedPoints, Earned))
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
     }
     // Points are only ever allocated out of the unspent ones, so a deficit is a broken authority record.
     if (Spent > Earned)
@@ -451,7 +454,7 @@ ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
         return ELDGrowthReason::LifePhaseChanged;
     }
     // #222 (2026-11-12, "all the time 可以学新技能和加点 all the time"): learning is open on the field, in every rest step
-    // and in the death wait alike; there is no build safe window and no build lock any more.
+    // (PK included) and in the death wait alike; there is no build safe window and no build lock any more.
     return Context.Stage == EMatchStage::Closed ? ELDGrowthReason::PhaseClosed : ELDGrowthReason::None;
 }
 
@@ -486,7 +489,6 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
-    case ELDBuildCommandKind::LockCard:
     case ELDBuildCommandKind::InstallCard:
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:
@@ -505,7 +507,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     const bool bDead = Context.LifePhase == ELDLifePhase::Dead;
     switch (Kind)
     {
-    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a rest; the
+    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a PK; the
     // server still checks the resources, slots and structure of each one.
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::SkipActiveOffer:
@@ -515,7 +517,6 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
-    case ELDBuildCommandKind::LockCard:
     case ELDBuildCommandKind::InstallCard:
     case ELDBuildCommandKind::UninstallCard:
     // Issue #287 spec §4.5: a rank-up is open any time of a running match, in combat and in the death wait alike.
@@ -1151,6 +1152,12 @@ bool LDProgression::DefaultCardTarget(const FLDDemoContentDefinitions& Content, 
     return true;
 }
 
+int32 LDProgression::LevelUpCardOffers(const FLDDemoCardParameters& Cards, int32 Before, int32 After)
+{
+    const int32 Every = FMath::Max(1, Cards.OfferEveryLevels);
+    return After > Before ? After / Every - Before / Every : 0;
+}
+
 int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source)
 {
     switch (Source)
@@ -1166,27 +1173,19 @@ int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, E
 }
 
 ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
-    FName Locked, uint64 Seed, TArray<FName>& Out)
+    uint64 Seed, TArray<FName>& Out)
 {
     Out.Reset();
     const FLDDemoCardParameters& Parameters = Content.Parameters.Cards;
-    if (Size < 1 || Parameters.VocabWeight < 1 || (!Locked.IsNone() && !ProgressionFindCard(Content, Locked)))
+    if (Size < 1 || Parameters.VocabWeight < 1)
     {
         return ELDGrowthReason::DataInvalid;
-    }
-    if (!Locked.IsNone())
-    {
-        Out.Add(Locked);
     }
     const uint32 Vocab = BuildVocab(Content, Build);
     TArray<TPair<FName, int64>> Pool;
     for (const FLDDemoCardDefinition& Card : Content.Cards)
     {
-        const FName Id(*Card.Id);
-        if (Id != Locked)
-        {
-            Pool.Emplace(Id, (Card.VocabMask & Vocab) != 0 ? int64(Parameters.VocabWeight) : 1);
-        }
+        Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Parameters.VocabWeight) : 1);
     }
     uint64 State = Seed;
     while (Out.Num() < Size && !Pool.IsEmpty())
@@ -1252,13 +1251,12 @@ ELDGrowthReason LDProgression::RefreshCardOffer(const FLDDemoContentDefinitions&
     Offer.Ordinal = uint16(Progression.CardOffersEarned - Progression.CardQueue.Num() + 1);
     Offer.Source = Progression.CardQueue[0];
     if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer.Source),
-        Progression.CarriedLock, CardOfferSeed(MatchSecret, Contender, Offer.Ordinal, 0), Offer.Options); Reason != ELDGrowthReason::None)
+        CardOfferSeed(MatchSecret, Contender, Offer.Ordinal, 0), Offer.Options); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
     Offer.OfferId = FGuid::NewGuid();
     Offer.Revision = ++Progression.LastCardOfferRevision;
-    Progression.CarriedLock = NAME_None;
     MarkSeenCards(Progression, Offer.Options);
     Progression.CardOffer = MoveTemp(Offer);
     bOutDrawn = true;
@@ -1319,7 +1317,7 @@ ELDGrowthReason LDProgression::ApplyPickCard(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
-    ProgressionResolveCardOffer(OutProgression, Option);
+    ProgressionResolveCardOffer(OutProgression);
     if (bInstallIfPossible)
     {
         FLDGrowthBuild Installed;
@@ -1351,7 +1349,7 @@ ELDGrowthReason LDProgression::ApplySkipCards(const FLDDemoContentDefinitions& C
         OutProgression = Progression;
         return Reason;
     }
-    ProgressionResolveCardOffer(OutProgression, NAME_None);
+    ProgressionResolveCardOffer(OutProgression);
     return ELDGrowthReason::None;
 }
 
@@ -1375,7 +1373,7 @@ ELDGrowthReason LDProgression::ApplyRerollCards(const FLDDemoContentDefinitions&
     }
     FLDCardOfferState Redrawn = *Offer;
     ++Redrawn.Rerolls;
-    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer->Source), Offer->Locked,
+    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer->Source),
         CardOfferSeed(MatchSecret, Contender, Offer->Ordinal, Redrawn.Rerolls), Redrawn.Options); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -1385,32 +1383,6 @@ ELDGrowthReason LDProgression::ApplyRerollCards(const FLDDemoContentDefinitions&
     MarkSeenCards(OutProgression, Redrawn.Options);
     OutProgression.CardOffer = MoveTemp(Redrawn);
     ++OutProgression.CardRerollsUsed;
-    return ELDGrowthReason::None;
-}
-
-ELDGrowthReason LDProgression::ApplyLockCard(const FLDDemoContentDefinitions& Content, const FLDProgressionState& Progression,
-    const FGuid& OfferId, FName Option, const FBuildContext& Context, FLDProgressionState& OutProgression)
-{
-    OutProgression = Progression;
-    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::LockCard, Context); Reason != ELDGrowthReason::None)
-    {
-        return Reason;
-    }
-    if (Content.Parameters.Cards.LockSlots < 1)
-    {
-        return ELDGrowthReason::InvalidRequest;
-    }
-    const FLDCardOfferState* Offer = ProgressionCurrentCardOffer(Progression, OfferId);
-    if (!Offer)
-    {
-        return ELDGrowthReason::NoCardOffer;
-    }
-    if (!Option.IsNone() && !Offer->Options.Contains(Option))
-    {
-        return ELDGrowthReason::NotInOffer;
-    }
-    OutProgression.CardOffer->Locked = Option;
-    OutProgression.CardOffer->Revision = ++OutProgression.LastCardOfferRevision;
     return ELDGrowthReason::None;
 }
 

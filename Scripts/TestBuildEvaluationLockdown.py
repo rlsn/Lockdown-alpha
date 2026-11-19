@@ -20,15 +20,15 @@ import BuildEvaluationLockdown as lockdown  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 S, O, H, CAMP = "1" * 32, "2" * 32, "3" * 32, "4" * 32
 CONTENT_ROOT = hashlib.sha256((ROOT / "Content/Lockdown/Data/Demo/manifest.json").read_bytes()).hexdigest()
-# 600 XP reaches level 8: the opening opportunity plus the ones of levels 3 and 6.
-SUPPLY = 600
+# 840 XP reaches level 8: the opening opportunity plus the ones of levels 3 and 6.
+SUPPLY = 840
 # The stats' design order (ascending native id), the order of every per-stat row and points= list.
 STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "stat_agility")
 
 
 # Supply to level 8: one level card for each of levels 2..8 (copies may repeat).
-LEVEL8_CARDS = ("card_spiky_hide", "card_encore", "card_live_wire", "card_third_breath", "card_double_dash", "card_thick_hide",
-                "card_spiky_hide")
+# Level 8 crosses the even levels 2, 4, 6 and 8: four level cards.
+LEVEL8_CARDS = ("card_spiky_hide", "card_encore", "card_live_wire", "card_thick_hide")
 
 
 def stat_points(*points):
@@ -113,9 +113,9 @@ def trace(*extra, drop=()):
         ("field", "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"),
         ("s_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={S} life=2 pos=100,0,0"),
         ("o_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={O} life=2 pos=-100,5,0"),
-        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->8 "),
+        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=840 xp_after=840 level=1->8 "),
         ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=5"),
-        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->8 "),
+        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=840 xp_after=840 level=1->8 "),
         ("o_level", f"LD_LEVEL_UP t=5016 contender={O} level=1->8 choices_earned=2 unspent_points=5"),
         ("s_offer2", f"LD_OFFER t=5016 contender={S} ordinal=2 level=6 cards=active_flyer_trap,active_seethe,active_stare_down"),
         ("o_offer2", f"LD_OFFER t=5016 contender={O} ordinal=2 level=6 cards=active_stare_down,active_calculus_drop,active_seethe"),
@@ -134,7 +134,7 @@ def trace(*extra, drop=()):
         ("hit2", hit(11000, O, S, "50.00", "10.00", "40.00", "620.00", "580.00")),
         ("lethal", hit(20000, S, O, "600.00", "0.00", "520.00", "520.00", "0.00")),
         ("death", f"LD_DEATH_RECEIPT contender={O} life=1 respawn_at_ms=35000 t=20000 killer={S} cause=Contender fatal=basic fatal_body={S} assisters=- no_reward=None victim_level=6"),
-        ("death_reward", f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=740 level=6->6 victim={O} victim_life=1 victim_kind=contender"),
+        ("death_reward", f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=980 level=6->6 victim={O} victim_life=1 victim_kind=contender"),
         ("late_heartbeat", heartbeat(21000, S, "101,0,0", hp="580.00/620.00")),
     ]
     lines = [line for key, line in lines if key not in drop]
@@ -143,7 +143,7 @@ def trace(*extra, drop=()):
 
 # Workshop: the subject owns its build. Three opening points go to strength in the opening rest; on the field the level
 # cards arrive with the supply, Y01 goes onto the body, K06 onto the opening active, Y25 onto the body with fire, Y01 comes off
-# again and the 21 level points go to physique: every one of the 24 points 600 XP earns.
+# again and the 21 level points go to physique: every one of the 24 points 840 XP earns.
 WORKSHOP = {
     "choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
     "level_cards": list(LEVEL8_CARDS),
@@ -156,7 +156,7 @@ WORKSHOP = {
         {"step": "allocate_points", "at": "field", "points": {"stat_physique": 21}},
     ],
 }
-REWARD_LINE = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->8 "
+REWARD_LINE = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=840 xp_after=840 level=1->8 "
 PRESET_LINE = f"LD_EVAL_CARD_PRESET t=10 contender={S} ticket=1 cards={','.join(LEVEL8_CARDS)}"
 
 
@@ -262,9 +262,9 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual((duel["parameters"]["opening_points"], duel["parameters"]["points_per_level"]),
                          (self.content["parameters"]["GROWTH.OpeningPoints"], self.content["parameters"]["GROWTH.PointsPerLevel"]))
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
-        self.assertEqual(lockdown.level_for(self.content["progression"], 180), 4)
+        self.assertEqual(lockdown.level_for(self.content["progression"], 240), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 47, 48, 179, 180)], [1, 1, 2, 2, 3])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 239, 240)], [1, 1, 2, 2, 3])
 
 
 class PlanTest(AdapterCase):
@@ -338,9 +338,9 @@ class PlanTest(AdapterCase):
 
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
-        self.assertTrue(any("has 2 rules but its supply of 600 XP gives 3 active opportunities" in item for item in needs["problems"]))
-        needs = self.requirements({"choices": ["ai_select"] * 2}, supply=108)
-        self.assertEqual(needs["problems"], [], "108 XP gives the opening opportunity and the level-2 one")
+        self.assertTrue(any("has 2 rules but its supply of 840 XP gives 3 active opportunities" in item for item in needs["problems"]))
+        needs = self.requirements({"choices": ["ai_select"] * 2}, supply=140)
+        self.assertEqual(needs["problems"], [], "140 XP gives the opening opportunity and the level-2 one")
         needs = self.requirements({"choices": [{"rule": "definition", "definition": "active_stare_down"}, "ai_select", "ai_select"]})
         self.assertTrue(any("ordinal 1 can never offer active_stare_down" in item for item in needs["problems"]))
         needs = self.requirements({"choices": ["ai_select", {"rule": "definition", "definition": "active_stare_down"}, "ai_select"]})
@@ -412,7 +412,7 @@ class PlanTest(AdapterCase):
         self.assertIn("UnsupportedMechanic: card_unknown is not in the adapter's runtime catalog",
                       {case["arm"]: case["reason"] for case in cases}["t"])
 
-    def test_level_cards_are_diagnostic_and_one_per_level_crossed(self):
+    def test_level_cards_are_diagnostic_and_one_per_offer_level(self):
         subject = {"choices": ["ai_select"] * 3, "level_cards": list(LEVEL8_CARDS)}
         needs = self.requirements(subject)
         self.assertEqual(needs["problems"], [])
@@ -423,12 +423,12 @@ class PlanTest(AdapterCase):
         cases, _ = self.plan_cases(subject, sample="legal_search")
         self.assertTrue(all(case["status"] == "Unsupported" for case in cases))
         self.assertIn("diagnostic", {case["arm"]: case["reason"] for case in cases}["t"])
-        for invalid, reason in ((list(LEVEL8_CARDS[:-1]), "needs 7 cards"), ([*LEVEL8_CARDS[:-1], "active_seethe"], "not a card")):
+        for invalid, reason in ((list(LEVEL8_CARDS[:-1]), "needs 4 cards"), ([*LEVEL8_CARDS[:-1], "active_seethe"], "not a card")):
             with self.subTest(cards=invalid):
                 problems = self.requirements({**subject, "level_cards": invalid})["problems"]
                 self.assertTrue(any(reason in item for item in problems), problems)
         with self.assertRaisesRegex(ValueError, "card ids"):
-            self.requirements({**subject, "level_cards": ["Card-Punch"] * 7})
+            self.requirements({**subject, "level_cards": ["Card-Punch"] * 4})
 
     def test_workshop_plans_duel_site_cannot_carry_out_are_illegal(self):
         build = WORKSHOP["build"]
@@ -454,10 +454,6 @@ class PlanTest(AdapterCase):
             "takes no element": plan([*build[:1], {**build[1], "element": "fire"}, *build[2:]]),
             "no copy of card_thick_hide is installed": plan([*build[:4], {"step": "uninstall", "at": "field",
                                                                           "card": "card_thick_hide"}, build[5]]),
-            "holds 6 cards": plan([*build[:4], *[{"step": "install", "at": "field", "card": name, "target": place}
-                                                  for name, place in (("card_third_breath", "basic"), ("card_double_dash", "dash"),
-                                                                      ("card_thick_hide", "body"), ("card_spiky_hide", "body"),
-                                                                      ("card_spiky_hide", "body"))], build[5]]),
             "no point is allocated by an earlier step": plan([{"step": "respec", "at": "opening_rest"}, *build]),
             "never leaves a blueprint pending": plan([*build, {"step": "learn", "at": "field", "blueprint": "active_seethe",
                                                                "slot": "E"}]),
@@ -818,7 +814,7 @@ class EvidenceTest(AdapterCase):
         reciprocal_hit = hit(20000, O, S, "580.00", "0.00", "580.00", "580.00", "0.00")
         reciprocal_death = (f"LD_DEATH_RECEIPT contender={S} life=1 respawn_at_ms=35000 t=20000 "
                             f"killer={O} cause=Contender fatal=basic fatal_body={O} assisters=- no_reward=None victim_level=6")
-        reciprocal_reward = (f"LD_REWARD t=20000 contender={O} cause=death role=killer xp=140 xp_after=740 level=6->6 "
+        reciprocal_reward = (f"LD_REWARD t=20000 contender={O} cause=death role=killer xp=140 xp_after=980 level=6->6 "
                              f"victim={S} victim_life=1 victim_kind=contender")
         text = trace(reciprocal_hit, reciprocal_death, reciprocal_reward)
         out = self.evidence(value, text)
@@ -835,14 +831,14 @@ class EvidenceTest(AdapterCase):
     def test_non_supply_rewards_at_the_outcome_boundary_are_uncontrolled(self):
         timeout = result(kind="timeout", ended_at_ms=50000)
         timeout["contenders"][1] = contender("opponent", 1, O, hp=10000)
-        boundary = f"LD_REWARD t=50000 contender={S} cause=map_event role=recipient xp=40 xp_after=640 level=6->6 "
+        boundary = f"LD_REWARD t=50000 contender={S} cause=map_event role=recipient xp=40 xp_after=880 level=6->6 "
         out = self.evidence(timeout, trace(boundary, drop=("lethal", "death", "death_reward")))
         self.assertEqual(out["status"], "Invalid")
         self.assertIn("UncontrolledXP", out["reason"])
         after = boundary.replace("t=50000", "t=50001")
         self.assertEqual(self.evidence(timeout, trace(after, drop=("lethal", "death", "death_reward")))["status"], "Completed")
         self.assertEqual(self.evidence()["status"], "Completed", "the deciding kill's own reward is exempt")
-        killer_reward = (f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=740 level=6->6 "
+        killer_reward = (f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=980 level=6->6 "
                          f"victim={O} victim_life=1 victim_kind=contender")
         self.assertIn(killer_reward, trace())
         for original, replacement in (("cause=death", "cause=map_event"), (f"victim={O}", f"victim={CAMP}"),
@@ -851,13 +847,13 @@ class EvidenceTest(AdapterCase):
                 out = self.evidence(text=trace().replace(killer_reward, killer_reward.replace(original, replacement, 1)))
                 self.assertEqual(out["status"], "Invalid")
                 self.assertIn("UncontrolledXP", out["reason"])
-        extra = f"LD_REWARD t=20000 contender={O} cause=map_event role=recipient xp=40 xp_after=640 level=6->6 "
+        extra = f"LD_REWARD t=20000 contender={O} cause=map_event role=recipient xp=40 xp_after=880 level=6->6 "
         self.assertIn("UncontrolledXP", self.evidence(text=trace(extra))["reason"])
 
     def test_contamination_and_missing_evidence_invalidate_the_case(self):
         cases = {
             "ExternalInteraction": trace(hit(12000, CAMP, S, "30.00", "0.00", "30.00", "580.00", "550.00", "monster_scavenger")),
-            "UncontrolledXP": trace(f"LD_REWARD t=12000 contender={S} cause=death role=killer xp=40 xp_after=640 level=6->6 "),
+            "UncontrolledXP": trace(f"LD_REWARD t=12000 contender={S} cause=death role=killer xp=40 xp_after=880 level=6->6 "),
             "SupplyMismatch": trace(drop=("o_reward",)),
             "TraceIncomplete": trace(drop=("death",)),
         }
@@ -884,7 +880,7 @@ class EvidenceTest(AdapterCase):
         traces = (
             trace().replace("LD_DEATH_RECEIPT contender=", "LD_DEATH_RECEIPT missing=", 1).replace("t=20000 killer=", "t=bad killer=", 1),
             trace().replace("LD_HIT t=10000", "LD_HIT t=missing", 1),
-            trace().replace("cause=dev_fixture role=recipient xp=600", "cause=dev_fixture role=recipient xp=bad", 1),
+            trace().replace("cause=dev_fixture role=recipient xp=840", "cause=dev_fixture role=recipient xp=bad", 1),
         )
         for text in traces:
             with self.subTest(trace=text[:60]):

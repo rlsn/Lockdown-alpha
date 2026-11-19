@@ -301,6 +301,7 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     // The cards and tiles are rebuilt only for another build, catalog or numbers.
     FString Key=FString::Printf(TEXT("%u|%llu|%p|%u|%lld|%lld|%lld|%lld"),Match,Latest.BuildRevision,Content,uint32(Stats.Level),
         int64(Stats.ADP2),int64(Stats.APP2),int64(Stats.MaxHPP2),int64(Stats.ArmorP2));
+    Key+=FString::Printf(TEXT("|S%u"),ContributionSerial);
     for(const LDHUD::FStoredView& Stored:Model.Stored){Key+=FString::Printf(TEXT("|%s*%d%d"),*Stored.Card.ToString(),Stored.Copies,int32(Stored.bFresh));}
     if(Workshop.bActive)
     {
@@ -502,6 +503,14 @@ void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquipp
     Icon->SetBrush(StorageRound(FaceRadius(Kind,Size),FLinearColor::Transparent,0.f));Icon->SetBrushColor(LDHUDStyle::IconFill);
     Icon->SetVisibility(ESlateVisibility::Visible);
     AddCopiesBadge(Face,Entry.Copies);
+    if(const FString* Did=Contributions.Find(LDHUD::CardDefinition(Entry.Card)))
+    {
+        // What this card did so far this match, on the top-right corner.
+        UTextBlock* Done=LDWidgets::Text(WidgetTree,*Did,LDHUDStyle::TypeMicro);Done->SetAutoWrapText(false);StorageBold(Done,2);Built.Add(Done);
+        Done->SetColorAndOpacity(LDHUDStyle::TextAccent);
+        auto* DoneSlot=Face->AddChildToOverlay(Done);DoneSlot->SetHorizontalAlignment(HAlign_Right);DoneSlot->SetVerticalAlignment(VAlign_Top);
+        DoneSlot->SetPadding(FMargin(0,1,3,0));
+    }
     if(!Entry.Note.IsEmpty())
     {
         UTextBlock* Note=LDWidgets::Text(WidgetTree,Entry.Note,LDHUDStyle::TypeMicro);Note->SetAutoWrapText(false);StorageBold(Note,2);Built.Add(Note);

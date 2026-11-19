@@ -217,11 +217,30 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
+    // #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
+    if (!Check.Require(P.RestSignupMs > 0 && P.RestSignupMs <= P.RestBuildMs && P.RestSignupMs <= P.RestOpeningBuildMs,
+        TEXT("REST.SignupSec"), TEXT("PK sign-up must fit inside every rest build window")))
+    {
+        return false;
+    }
     // The final showdown ring shrinks inside its start and hurts outside.
     if (!Check.Require(N.LT(N.Value(0), N.Value(P.ShowdownRingFinalRadiusCm))
             && N.LT(N.Value(P.ShowdownRingFinalRadiusCm), N.Value(P.ShowdownRingRadiusCm))
             && P.ShowdownRingEarlyDamageBp > 0 && P.ShowdownRingLateDamageBp > 0 && P.ShowdownRingTickMs > 0,
             TEXT("SHOWDOWN.RingFinalRadiusCm"), TEXT("the showdown ring must shrink and hurt outside")))
+    {
+        return false;
+    }
+    // #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
+    if (!Check.Require(P.PKRingShrinkStartMs > 0 && P.PKRingShrinkStartMs < P.PKRingMidMs && P.PKRingMidMs < P.PKRingFinalMs
+            && P.PKRingFinalMs < P.RestPKMaxMs && P.PKRingPreviewMs > 0 && P.PKRingTickMs > 0,
+            TEXT("PK.RingFinalSec"), TEXT("ring shrink steps must be ordered and finish before the PK cap"))
+        || !Check.Require(N.LT(N.Value(0), N.Value(P.PKRingFinalRadiusCm))
+            && N.LT(N.Value(P.PKRingFinalRadiusCm), N.Value(P.PKRingMidRadiusCm))
+            && N.LT(N.Value(P.PKRingMidRadiusCm), N.Value(P.PKArenaRadiusCm)),
+            TEXT("PK.RingFinalRadiusCm"), TEXT("ring radii must shrink strictly inside the arena"))
+        || !Check.Require(N.LT(N.Value(0), N.Value(P.ThrowRadiusCm)) && N.LT(N.Value(0), N.Value(P.ThrowRangeCm)),
+            TEXT("THROW"), TEXT("throw radius and range must be positive")))
     {
         return false;
     }

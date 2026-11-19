@@ -33,9 +33,10 @@
 // ends the remaining field respawn waits, cancels every in-flight effect and control, and gives everyone a fresh rest life
 // at full HP and MOMENTUM.Start with every cooldown ready. A rest -> field boundary does the same in reverse: every rest life is retired and
 // the next field life stands at the remembered field foot (or within REST.ReturnSearchRadiusCm, else a normal spawn; a
-// contender dead at the rest entry takes a normal spawn) with the shared LIFE.ProtectionSec. The field bodies are prepared
-// jointly and stand only together; while any is blocked the entry holds (T and the flagpole wait), each attempt under a
-// newer spawn identity, until REST.EntryReadyTimeoutSec ends it explicitly (approved outer parameters §1/§8).
+// contender dead at the rest entry takes a normal spawn) with the shared LIFE.ProtectionSec. The field bodies (and a PK's
+// arena bodies) are prepared jointly and stand only together; while any is blocked the entry holds (T, the flagpole and
+// the PK clock wait), each attempt under a newer spawn identity, until REST.EntryReadyTimeoutSec ends it explicitly
+// (approved outer parameters §1/§8).
 
 bool ALDGameMode::InitializeTimeline(FString& Error)
 {
@@ -47,10 +48,14 @@ bool ALDGameMode::InitializeTimeline(FString& Error)
         return false;
     }
     TimelineRevision = 1;
+    RestSignups.Reset();
     RestReady.Reset();
+    LockedEntrants.Reset();
     RestReturns.Reset();
     RestLives.Reset();
+    PKLives.Reset();
     PendingPhasePlacement.Reset();
+    PendingPKEntry.Reset();
     bFieldReturnStarted = false;
     ReleasePhasePrepared(PreparedFieldReturn);
     UE_LOG(LogLDMatch, Display, TEXT("LD_TIMELINE_BEGIN generation=%u at_ms=%lld rest=0 build_ends_at_ms=%lld"),
@@ -66,7 +71,14 @@ bool ALDGameMode::IsRestPhase(const FLDMatchContext& Context) const
 
 bool ALDGameMode::IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender) const
 {
-    return IsRestPhase(Context) && Timeline.GetStep() == ELDRestStep::Return;
+    if (!IsRestPhase(Context)) { return false; }
+    switch (Timeline.GetStep())
+    {
+    case ELDRestStep::Return:
+    case ELDRestStep::PKReady: return true;
+    case ELDRestStep::PK: return !PKLives.Contains(Contender);
+    default: return false;
+    }
 }
 
 LDProgression::EMatchStage ALDGameMode::ReadBuildStage(const FLDMatchContext& Match) const
@@ -185,6 +197,75 @@ void ALDGameMode::PublishTimeline()
     bLobbyDirty = true;
 }
 
+bool ALDGameMode::SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, double& OutRadiusCm) const
+{
+    OutCentreCm = FVector::ZeroVector;
+    OutRadiusCm = 0;
+    const int32 Slot = RosterOrder.IndexOfByKey(Contender);
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!DemoContent || !Registry || Slot == INDEX_NONE || Slot >= LDDemoWorld::PKSignups) { return false; }
+    const FLDDemoRational& Radius = DemoContent->Get().Parameters.AirdropPickupRadiusCm;
+    if (Radius.Denominator <= 0 || Radius.Numerator <= 0 || !Registry->SharedSignupCentre(OutCentreCm)) { return false; }
+    OutRadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
+    return true;
+}
+
+bool ALDGameMode::RefreshRestSignups(FString& Error)
+{
+    // During the sign-up window every contender uses the same disk (XY, boundary inside).
+    TSet<FGuid> Inside;
+    const FLDMatchProviderHooks* PK = LDMatchProviders::Find(ELDMatchProvider::PK);
+    if (IsRestPhase(MatchContext) && Timeline.IsSignupOpen(AuthorityNowMs) && PK && PK->RestStep)
+    {
+        for (const FGuid& Id : RosterOrder)
+        {
+            const FLDLifeRecord* Life = Lives.Find(Id);
+            if (!IsMemberPresent(Id) || !RestLives.Contains(Id) || !Life || Life->Phase != ELDLifePhase::Alive) { continue; }
+            FVector Centre;
+            double Radius = 0;
+            if (!SignupDiskFor(Id, Centre, Radius))
+            {
+                Error = FString::Printf(TEXT("Contender %s has no registered PK sign-up disk."), *LDLog::Id(Id));
+                return false;
+            }
+            if (FVector::DistSquared2D(Life->MotionLastFoot, Centre) <= Radius * Radius) { Inside.Add(Id); }
+        }
+    }
+    bool bChanged = Inside.Num() != RestSignups.Num();
+    for (const FGuid& Id : Inside)
+    {
+        if (RestSignups.Contains(Id)) { continue; }
+        bChanged = true;
+        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_SIGNUP contender=%s join=1 rest=%u at_ms=%lld signups=%d"), *LDLog::Id(Id),
+            Timeline.GetRestIndex(), AuthorityNowMs, Inside.Num());
+    }
+    for (const FGuid& Id : RestSignups)
+    {
+        if (Inside.Contains(Id)) { continue; }
+        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_SIGNUP contender=%s join=0 rest=%u at_ms=%lld signups=%d"), *LDLog::Id(Id),
+            Timeline.GetRestIndex(), AuthorityNowMs, Inside.Num());
+    }
+    if (bChanged)
+    {
+        RestSignups = MoveTemp(Inside);
+        bPublicMatchDirty = true;
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None || !IsRestPhase(MatchContext)
+        || !Timeline.FinishPK(Permit.GetBoundary().AtMs, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Only a running PK ends early, under the current permit."); }
+        return false;
+    }
+    PublishTimeline();
+    return true;
+}
+
 bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Timeline.IsActive())
@@ -225,15 +306,17 @@ bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString&
         }
     }
     if (!PrepareEntry(Permit, bBodiesReady, Error)
-        || !Timeline.Advance(Permit.GetBoundary().AtMs, false, bBodiesReady, Events, Error)
+        || !Timeline.Advance(Permit.GetBoundary().AtMs, RestSignups.Num(), false, bBodiesReady, Events, Error)
         || !ApplyTimelineEvents(Events, Permit, Error)
         || !RetryPhasePlacements(Permit, Error)
         || (IsRestPhase(MatchContext) && !bFieldReturnStarted && !PendingSharedTrainingPlacements.IsEmpty()
             && !SpawnSharedTrainingDummies(Permit, Error))
+        || !RefreshRestSignups(Error)
         || (IsRestPhase(MatchContext) && !ProcessTrainingResets(Permit, Error)))
     {
         return false;
     }
+    if (IsRestPhase(MatchContext)) { SendTrainingCombos(); }
     if (!Events.IsEmpty()) { PublishTimeline(); }
     Error.Reset();
     return true;
@@ -244,15 +327,32 @@ bool ALDGameMode::PrepareEntry(const FLDGameplayWritePermit& Permit, bool& bBodi
     bBodiesReady = true;
     if (!IsRestPhase(MatchContext) || !DemoContent) { Error.Reset(); return true; }
     const int64 AtMs = Permit.GetBoundary().AtMs;
+    if (!PendingPKEntry.IsEmpty() && Timeline.GetStep() == ELDRestStep::PKReady)
+    {
+        bool bPlaced = false;
+        if (!TryPKEntry(Permit, bPlaced, Error)) { return false; }
+    }
     if (!Timeline.IsEntryDue(AtMs)) { Error.Reset(); return true; }
     const int64 TimeoutMs = DemoContent->Get().Parameters.RestEntryReadyTimeoutMs;
     const int64 HeldMs = AtMs - Timeline.GetStepEndsAtMs();
-    if (!PrepareFieldReturn(Permit, bBodiesReady, Error)) { return false; }
+    if (Timeline.GetStep() == ELDRestStep::Return)
+    {
+        if (!PrepareFieldReturn(Permit, bBodiesReady, Error)) { return false; }
+        if (!bBodiesReady && HeldMs >= TimeoutMs)
+        {
+            Error = FString::Printf(TEXT("LD_REST_RETURN_UNREADY rest=%u: the field return could not stand every contender within %lld ms of its boundary."),
+                Timeline.GetRestIndex(), TimeoutMs);
+            return false;
+        }
+        Error.Reset();
+        return true;
+    }
+    bBodiesReady = PendingPKEntry.IsEmpty();
     if (!bBodiesReady && HeldMs >= TimeoutMs)
     {
-        Error = FString::Printf(TEXT("LD_REST_RETURN_UNREADY rest=%u: the field return could not stand every contender within %lld ms of its boundary."),
-            Timeline.GetRestIndex(), TimeoutMs);
-        return false;
+        // The arena never became legal: this PK is NoContest and the entry no longer waits.
+        if (!AbandonPKEntry(Permit, Error)) { return false; }
+        bBodiesReady = true;
     }
     Error.Reset();
     return true;
@@ -267,12 +367,23 @@ bool ALDGameMode::LockTimelineBuild(const FLDGameplayWritePermit& Permit, FStrin
     }
     const int64 AtMs = Permit.GetBoundary().AtMs;
     if (!Timeline.IsBuildLockDue(AtMs)) { return true; }
+    // Whoever stands in its sign-up disk at the deadline (this boundary's committed feet) enters; only present contenders
+    // still standing in their rest space do, and the locked list never changes afterwards.
+    if (!RefreshRestSignups(Error)) { return false; }
+    LockedEntrants.Reset();
+    for (const FGuid& Id : RestSignups)
+    {
+        if (IsMemberPresent(Id) && RestLives.Contains(Id)) { LockedEntrants.Add(Id); }
+    }
+    LockedEntrants.Sort();
+    RestSignups.Reset();
     TArray<FLDTimelineEvent> Events;
-    // The lock enters Return, never a body entry, so no body readiness is claimed here.
-    if (!Timeline.Advance(AtMs, true, false, Events, Error)) { return false; }
+    // The lock enters Draw or Return, never a body entry, so no body readiness is claimed here.
+    if (!Timeline.Advance(AtMs, LockedEntrants.Num(), true, false, Events, Error)) { return false; }
+    if (Timeline.GetStep() == ELDRestStep::Return) { LockedEntrants.Reset(); }
     for (const FLDTimelineEvent& Event : Events)
     {
-        // The lock enters Return, which moves no body, so no RespawnsAndWorld work can be due here.
+        // The lock enters Draw or Return; neither moves a body, so no RespawnsAndWorld work can be due here.
         if (Event.Kind == ELDTimelineEventKind::EnterRest || Event.Kind == ELDTimelineEventKind::EnterField)
         {
             Error = TEXT("A build lock cannot enter a rest or a field in the same Transactions phase.");
@@ -286,6 +397,7 @@ bool ALDGameMode::LockTimelineBuild(const FLDGameplayWritePermit& Permit, FStrin
 
 bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, const FLDGameplayWritePermit& Permit, FString& Error)
 {
+    const FLDMatchProviderHooks* PK = LDMatchProviders::Find(ELDMatchProvider::PK);
     for (const FLDTimelineEvent& Event : Events)
     {
         switch (Event.Kind)
@@ -296,6 +408,8 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             // The phase changes first: the retiring field lives leave the spray roster as a rest boundary.
             MatchPhase = ELDMatchPhase::Rest;
             if (!MoveContendersToRest(Permit, Error) || !EnterRestWorld(Permit, Error)) { return false; }
+            // The workshop of this rest shows what each installed card did so far.
+            SendBuildStats();
             // Spec §6.4: every rest after the opening one adds its card rerolls.
             if (Event.RestIndex > 0)
             {
@@ -314,11 +428,16 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
         case ELDTimelineEventKind::EnterStep:
             UE_LOG(LogLDMatch, Display, TEXT("LD_REST_STEP generation=%u rest=%u step=%s at_ms=%lld"),
                 MatchContext.Generation, Event.RestIndex, LDMatchTimeline::StepName(Event.Step), Event.AtMs);
-            if (Event.Step == ELDRestStep::Build) { RestReady.Reset(); }
+            if (Event.Step == ELDRestStep::Build)
+            {
+                RestSignups.Reset();
+                RestReady.Reset();
+                LockedEntrants.Reset();
+            }
             break;
         case ELDTimelineEventKind::LockBuild:
-            UE_LOG(LogLDMatch, Display, TEXT("LD_REST_LOCK generation=%u rest=%u at_ms=%lld"), MatchContext.Generation, Event.RestIndex,
-                Event.AtMs);
+            UE_LOG(LogLDMatch, Display, TEXT("LD_REST_LOCK generation=%u rest=%u at_ms=%lld entrants=%lld pk=%s"),
+                MatchContext.Generation, Event.RestIndex, Event.AtMs, Event.Value, Event.Value >= 2 ? TEXT("run") : TEXT("skipped"));
             break;
         case ELDTimelineEventKind::EnterField:
         {
@@ -354,6 +473,22 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
 #endif
             break;
         }
+        }
+        // Session D's PK hears every step entry and the lock; without it the rest simply skips its PK.
+        if (PK && PK->RestStep && (Event.Kind == ELDTimelineEventKind::EnterStep || Event.Kind == ELDTimelineEventKind::LockBuild))
+        {
+            FLDRestStepNotice Notice;
+            Notice.Match = MatchContext;
+            Notice.RestIndex = Event.RestIndex;
+            Notice.Step = Event.Step;
+            Notice.bBuildLocked = Event.Kind == ELDTimelineEventKind::LockBuild;
+            Notice.AtMs = Event.AtMs;
+            Notice.Entrants = LockedEntrants;
+            if (!PK->RestStep(*this, Notice, Permit, Error))
+            {
+                if (Error.IsEmpty()) { Error = TEXT("The PK provider refused a rest step."); }
+                return false;
+            }
         }
     }
     Error.Reset();
@@ -435,8 +570,8 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
         return false;
     }
     const FLDCombatBodyRef Body = Life->Body;
-    // A rest life never joined the spray roster.
-    if (!RestLives.Contains(Contender))
+    // #198 session D: a PK life (like a rest life) never joined the spray roster.
+    if (!RestLives.Contains(Contender) && !PKLives.Contains(Contender))
     {
         // A field life leaves the spray roster without a kill, a death count or a reward.
         FLDCaptureEligibilityEvent Retired;
@@ -472,6 +607,7 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
         Life->NativeMotion.Reset();
     }
     RestLives.Remove(Contender);
+    PKLives.Remove(Contender);
     if (Controller) { SyncOwner(Controller); }
     NotifyLife(Body, ELDLifeChange::PhaseRetired, Life->Revision, AuthorityNowMs);
     Error.Reset();
@@ -827,7 +963,7 @@ bool ALDGameMode::CommitFieldReturn(bool bFinalField, const FLDGameplayWritePerm
 
 bool ALDGameMode::RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    // Only rest lives wait here; the field return stands its bodies jointly.
+    // Only rest lives wait here; the field return and a PK entry stand their bodies jointly.
     if (PendingPhasePlacement.IsEmpty() || !IsRestPhase(MatchContext) || bFieldReturnStarted) { return true; }
     TArray<FGuid> Pending = PendingPhasePlacement.Array();
     Pending.Sort();

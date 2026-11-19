@@ -113,6 +113,8 @@ void ULDStatBar::BuildCells()
         Cell.StatId=FName(*StatOrder[Index]->Id);
         // The "+" sits right above the icon in a reserved strip, so moving the pointer up to it never leaves the cell.
         Cell.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,Index](){Allocate(Index);},true,FName(*(TEXT("HUDStatPlus_")+StatOrder[Index]->Id)));
+        // Held, it keeps adding a point at a time until the points run out.
+        Cell.Plus->EnableRepeat([this,Index](){return CanAllocate(Index)&&Allocate(Index);});
         {
             FButtonStyle Style=Cell.Plus->GetStyle();
             Style.Normal=StatRound(5.f,LDHUDStyle::Rim,1.f);Style.Normal.TintColor=FSlateColor(StatPlusFill);
@@ -295,6 +297,11 @@ const UWidget* ULDStatBar::Hovered(LDHUD::FActionDetailView& Out) const
     return Cell.Box;
 }
 
+bool ULDStatBar::CanAllocate(int32 Index) const
+{
+    return Usable()&&Cells.IsValidIndex(Index)&&Gate.bCanAllocate&&Available()>0
+        &&LDHUD::StatPointsOf(Latest,Cells[Index].StatId)+Queued[Index]+InFlight[Index]<MAX_uint8;
+}
 bool ULDStatBar::Allocate(int32 Index)
 {
     const auto Refuse=[this](const FString& Why){if(Notify){Notify(FString(TEXT("加点："))+Why);}return false;};

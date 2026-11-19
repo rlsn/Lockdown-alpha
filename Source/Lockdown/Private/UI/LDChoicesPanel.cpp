@@ -149,11 +149,8 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                     FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthCard%d"),Index)),[this,Index](){PickCardOffer(Index);});
                     auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Cell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
                     Cell->AddChildToVerticalBox(Card.Frame)->SetHorizontalAlignment(HAlign_Center);
-                    ULDCommandButton* Lock=LDWidgets::Button(WidgetTree,LDTerms::CardLock,[this,Index](){LockCardOffer(Index);},true,
-                        FName(*FString::Printf(TEXT("GrowthCardLock%d"),Index)));
-                    Cell->AddChildToVerticalBox(Lock)->SetHorizontalAlignment(HAlign_Center);
                     CardRow->AddChildToWrapBox(Cell);RowWidgets.Add(Cell);
-                    CardCards.Add(Card);CardLocks.Add(Lock);CardCells.Add(Cell);
+                    CardCards.Add(Card);CardCells.Add(Cell);
                 }
                 auto* Actions=WidgetTree->ConstructWidget<UVerticalBox>();Actions->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
                 CardRerollButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){RerollCardOffer();},true,TEXT("GrowthCardReroll"));
@@ -422,7 +419,8 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
         Face->AddChildToVerticalBox(Card.Links)->SetPadding(FMargin(0,14,0,0));
         if(UVerticalBoxSlot* LinksSlot=Cast<UVerticalBoxSlot>(Card.Links->Slot)){LinksSlot->SetHorizontalAlignment(HAlign_Center);}
     }
-    Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),false,ButtonName);RowWidgets.Add(Card.Button);
+    // A world button: picking a card in the field never takes keyboard focus from the game.
+    Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),true,ButtonName);RowWidgets.Add(Card.Button);
     Card.Button->SetContent(Face);GrowthTint(Card.Button,LDHUDStyle::CardIdle);
     {auto Style=Card.Button->GetStyle();Style.NormalPadding=FMargin(TrayCardPadding);Style.PressedPadding=FMargin(TrayCardPadding);Card.Button->SetStyle(Style);}
     // After SetContent: replacing the caption makes a new, centred slot; the face fills the card instead.
@@ -609,7 +607,7 @@ void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
     if(bOwnHit&&OfferMotion.StartedAt>=0.){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
     if(bOwnHit){bFinalFeedbackAllowed=false;}
-    // #222: only an automatic opening folds by itself; a tray the player opened stays, in combat and in a rest too.
+    // #222: only an automatic opening folds by itself; a tray the player opened stays, in combat and in a PK too.
     if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
     {
         UE_LOG(LogLDUI,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));
@@ -1133,11 +1131,6 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
                 LDHUD::CardChoiceDetail(View,Outcome));
         }
         ShowLook(Card,bTiles,bCan,bVisible);
-        // The locked card carries over to the next offer (and stays through a reroll).
-        ULDCommandButton* Lock=CardLocks[Index];
-        GrowthShown(Lock,!bTiles&&LatestContent&&LatestContent->Parameters.Cards.LockSlots>0,ESlateVisibility::Visible);
-        GrowthEnabled(Lock,bCan);
-        GrowthTint(Lock,Latest.CardOffer.Locked==Id?LDHUDStyle::UIAction:LDHUDStyle::CardIdle);
     }
     GrowthShown(CardActions,bShow&&!bTiles);
     GrowthText(Cast<UTextBlock>(CardRerollButton->GetContent()),LDTerms::CardReroll(Latest.CardRerolls));
@@ -1168,15 +1161,6 @@ bool ULDChoicesPanel::PickCardOffer(int32 Index)
         if(!Target.Active.IsNone()&&!FLDDefinitionWire::Encode(Target.Active,Command.TargetDefinition)){Tell(TEXT("没有提交：技能标识无效。"));return false;}
     }
     LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);
-    return Send(Command);
-}
-bool ULDChoicesPanel::LockCardOffer(int32 Index)
-{
-    FLDBuildCommand Command;
-    if(!ShownCardOptions.IsValidIndex(Index)||!CardOfferCommand(ELDBuildCommandKind::LockCard,Command)){return false;}
-    // Locking the locked card again clears the lock (an all-zero Option).
-    const FName Id=ShownCardOptions[Index];
-    if(Latest.CardOffer.Locked!=Id&&!FLDDefinitionWire::Encode(Id,Command.Option)){Tell(TEXT("没有提交：这张牌的标识无效。"));return false;}
     return Send(Command);
 }
 bool ULDChoicesPanel::RerollCardOffer()

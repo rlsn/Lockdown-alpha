@@ -263,6 +263,18 @@ private:
     FVector HeldPoint=FVector::ZeroVector;
     double HeldSentAt=0;
     bool bHeldMove=false;
+    // The casts sent while the move button was held: the held move waits until the latest cast order ended and every one
+    // of their Combat actions finished or was refused, then the first repeat goes out without the pointer having to move.
+    FLDMoveIdentity HeldCastOrder;
+    TArray<uint64> HeldCastSequences;
+    double HeldCastQuietSince=-1.;
+    bool bHeldResume=false;
+    void HoldMoveForCast(const FLDCombatActionRequest& Cast);
+    void ClearHeldCast();
+public:
+    // Owning client: every combat receipt, so a held move resumes only after its cast left the body free.
+    void NoteCombatReceipt(const FLDCombatActionReceipt& Receipt);
+private:
     // ---- Owning client.
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
     // False when the order was not sent (no life, suppressed input or exhausted identities).

@@ -791,8 +791,30 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("MATCH.FieldSegmentSec"), TEXT("ms"), TEXT("ms"), &P.FieldSegmentMs, 1, MAX_int64},
         {TEXT("REST.OpeningBuildSec"), TEXT("ms"), TEXT("ms"), &P.RestOpeningBuildMs, 1, MAX_int64},
         {TEXT("REST.BuildSec"), TEXT("ms"), TEXT("ms"), &P.RestBuildMs, 1, MAX_int64},
+        {TEXT("REST.SignupSec"), TEXT("ms"), TEXT("ms"), &P.RestSignupMs, 1, MAX_int64},
+        {TEXT("REST.DrawSec"), TEXT("ms"), TEXT("ms"), &P.RestDrawMs, 1, MAX_int64},
+        {TEXT("REST.BettingSec"), TEXT("ms"), TEXT("ms"), &P.RestBettingMs, 1, MAX_int64},
+        {TEXT("REST.PKReadySec"), TEXT("ms"), TEXT("ms"), &P.RestPKReadyMs, 1, MAX_int64},
+        {TEXT("REST.PKMaxSec"), TEXT("ms"), TEXT("ms"), &P.RestPKMaxMs, 1, MAX_int64},
+        {TEXT("REST.SettlementSec"), TEXT("ms"), TEXT("ms"), &P.RestSettlementMs, 1, MAX_int64},
+        {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 1, MAX_int64},
         {TEXT("REST.ReturnSec"), TEXT("ms"), TEXT("ms"), &P.RestReturnMs, 1, MAX_int64},
         {TEXT("REST.EntryReadyTimeoutSec"), TEXT("ms"), TEXT("ms"), &P.RestEntryReadyTimeoutMs, 1, MAX_int64},
+        {TEXT("PK.RingShrinkStartSec"), TEXT("ms"), TEXT("ms"), &P.PKRingShrinkStartMs, 1, MAX_int64},
+        {TEXT("PK.RingMidSec"), TEXT("ms"), TEXT("ms"), &P.PKRingMidMs, 1, MAX_int64},
+        {TEXT("PK.RingFinalSec"), TEXT("ms"), TEXT("ms"), &P.PKRingFinalMs, 1, MAX_int64},
+        {TEXT("PK.RingPreviewSec"), TEXT("ms"), TEXT("ms"), &P.PKRingPreviewMs, 1, MAX_int64},
+        {TEXT("PK.RingDamageTickSec"), TEXT("ms"), TEXT("ms"), &P.PKRingTickMs, 1, MAX_int64},
+        {TEXT("PK.RingDamageEarlyMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingEarlyDamageBp, 1, 10000},
+        {TEXT("PK.RingDamageMidMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingMidDamageBp, 1, 10000},
+        {TEXT("PK.RingDamageFinalMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingFinalDamageBp, 1, 10000},
+        {TEXT("PK.TeamFormatRatio"), TEXT("ratio"), TEXT("bp"), &P.PKTeamFormatBp, 0, 10000},
+        {TEXT("PK.RewardMultiplier"), TEXT("ratio"), TEXT("bp"), &P.PKRewardMultiplierBp, 10000, MAX_int64},
+        {TEXT("THROW.CooldownSec"), TEXT("ms"), TEXT("ms"), &P.ThrowCooldownMs, 1, MAX_int64},
+        {TEXT("THROW.TelegraphSec"), TEXT("ms"), TEXT("ms"), &P.ThrowTelegraphMs, 1, MAX_int64},
+        {TEXT("THROW.SlowRatio"), TEXT("ratio"), TEXT("bp"), &P.ThrowSlowBp, 1, 10000},
+        {TEXT("THROW.SlowSec"), TEXT("ms"), TEXT("ms"), &P.ThrowSlowMs, 1, MAX_int64},
+        {TEXT("THROW.ExposeSec"), TEXT("ms"), TEXT("ms"), &P.ThrowExposeMs, 1, MAX_int64},
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
         {TEXT("SHOWDOWN.RingPreviewSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownRingPreviewMs, 1, MAX_int32},
         {TEXT("SHOWDOWN.RingDamageTickSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownRingTickMs, 1, MAX_int32},
@@ -852,6 +874,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.ReactionBase"), TEXT("points"), TEXT("p2"), &P.ReactionBaseP2, 0, MAX_int64},
         {TEXT("COMBAT.ReactionPerLevel"), TEXT("points"), TEXT("p2"), &P.ReactionPerLevelP2, 0, MAX_int64},
         {TEXT("COMBAT.ReactionAPRatio"), TEXT("ratio"), TEXT("bp"), &P.ReactionAPRatioBp, 0, MAX_int64},
+        {TEXT("COMBAT.ReactionLockSec"), TEXT("ms"), TEXT("ms"), &P.ReactionLockMs, 1, MAX_int64},
         {TEXT("COMBAT.FogSec"), TEXT("ms"), TEXT("ms"), &P.FogMs, 1, MAX_int64},
         {TEXT("COMBAT.FogIntervalSec"), TEXT("ms"), TEXT("ms"), &P.FogIntervalMs, 1, MAX_int64},
         {TEXT("COMBAT.ConductSlow"), TEXT("ratio"), TEXT("bp"), &P.ConductSlowBp, 1, 9999},
@@ -892,6 +915,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.FogRadiusCm"), &P.FogRadiusCm},
         {TEXT("COMBAT.ConductRadiusCm"), &P.ConductRadiusCm}, {TEXT("COMBAT.OverloadRadiusCm"), &P.OverloadRadiusCm},
         {TEXT("REST.ReturnSearchRadiusCm"), &P.RestReturnSearchRadiusCm},
+        {TEXT("PK.ArenaRadiusCm"), &P.PKArenaRadiusCm}, {TEXT("PK.RingMidRadiusCm"), &P.PKRingMidRadiusCm},
+        {TEXT("PK.RingFinalRadiusCm"), &P.PKRingFinalRadiusCm},
+        {TEXT("THROW.RadiusCm"), &P.ThrowRadiusCm}, {TEXT("THROW.RangeCm"), &P.ThrowRangeCm},
         {TEXT("SHOWDOWN.RingRadiusCm"), &P.ShowdownRingRadiusCm}, {TEXT("SHOWDOWN.RingFinalRadiusCm"), &P.ShowdownRingFinalRadiusCm}})
     {
         if (!F.Fraction(Field.Key, TEXT("cm"), *Field.Out, true))
@@ -913,7 +939,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
         {TEXT("GROWTH.KeystoneThresholdPoints"), &P.KeystoneThresholdPoints, 1},
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
-        {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1}})
+        {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1},
+        {TEXT("AI.LeaderHuntMaxLevelGap"), &P.AI.LeaderHuntMaxLevelGap, 0},
+        {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
+        {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
     {
         if (!F.Int(Field.Key, *Field.Out, Field.Min))
         {
@@ -924,26 +953,22 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     for (const auto& Field : {
         TPair<const TCHAR*, int32*>(TEXT("CARDS.CapacityBase"), &P.Cards.CapacityBase), {TEXT("CARDS.LevelsPerSlot"), &P.Cards.LevelsPerSlot},
         {TEXT("CARDS.OfferSize"), &P.Cards.OfferSize}, {TEXT("CARDS.FreeRerolls"), &P.Cards.FreeRerolls},
-        {TEXT("CARDS.RerollsPerRest"), &P.Cards.RerollsPerRest}, {TEXT("CARDS.LockSlots"), &P.Cards.LockSlots},
+        {TEXT("CARDS.RerollsPerRest"), &P.Cards.RerollsPerRest},
         {TEXT("CARDS.VocabWeight"), &P.Cards.VocabWeight}, {TEXT("CHAIN.MaxDepth"), &P.ChainMaxDepth},
         {TEXT("CHAIN.MaxEffectsPerStep"), &P.ChainMaxEffectsPerStep}, {TEXT("CHAIN.MinKeySteps"), &P.ChainMinKeySteps},
-        {TEXT("CARDS.SkipVouchers"), &P.Cards.SkipVouchers},
+        {TEXT("CARDS.SkipVouchers"), &P.Cards.SkipVouchers}, {TEXT("CARDS.OfferEveryLevels"), &P.Cards.OfferEveryLevels},
         {TEXT("SHOP.CardSlots"), &P.Shop.CardSlots}, {TEXT("SHOP.VocabCardSlots"), &P.Shop.VocabCardSlots},
         {TEXT("SHOP.VocabWeight"), &P.Shop.VocabWeight}, {TEXT("SHOP.SkillSlots"), &P.Shop.SkillSlots},
         {TEXT("SHOP.SkillPointMaxPerMatch"), &P.Shop.SkillPointMaxPerMatch}})
     {
         const bool bMayBeZero = FCString::Strcmp(Field.Key, TEXT("CARDS.FreeRerolls")) == 0
-            || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0 || FCString::Strcmp(Field.Key, TEXT("CARDS.LockSlots")) == 0;
+            || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0;
         // The chain guard's per-step budget is a fan-out ceiling, not a small card count.
         const int32 Max = FCString::Strcmp(Field.Key, TEXT("CHAIN.MaxEffectsPerStep")) == 0 ? 4096 : 64;
         if (!F.SmallInt(Field.Key, *Field.Value, bMayBeZero ? 0 : 1, Max))
         {
             return false;
         }
-    }
-    if (!Check.Require(P.Cards.LockSlots < P.Cards.OfferSize, TEXT("CARDS.LockSlots"), TEXT("a locked card leaves room for new ones")))
-    {
-        return false;
     }
     if (!F.Fixed(TEXT("CHAIN.EndSec"), TEXT("ms"), TEXT("ms"), P.ChainEndMs, 1, 600000)
         || !F.Fixed(TEXT("CARDS.IdleCarrySec"), TEXT("ms"), TEXT("ms"), P.Cards.IdleCarryMs, 1, 600000)) { return false; }
@@ -2955,7 +2980,24 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns)
         || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 1, LDDemoWorld::MaxCamps)
         || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
+        || !Ids(World.Take(TEXT("pk_spawn_ids")), Out.World.PKSpawnIds, Check, World.Path + TEXT(".pk_spawn_ids"),
+            LDDemoWorld::PKSpawns, LDDemoWorld::PKSpawns)
+        || !World.Identifier(TEXT("pk_throw_id"), Out.World.PKThrowId)
         || !World.Done())
+    {
+        return false;
+    }
+    // #198: the PK ring is read in index order, so the references are exactly pk_spawn_0..5 and pk_throw.
+    for (int32 Index = 0; Index < Out.World.PKSpawnIds.Num(); ++Index)
+    {
+        if (!Check.Require(Out.World.PKSpawnIds[Index].Equals(FString::Printf(TEXT("pk_spawn_%d"), Index), ESearchCase::CaseSensitive),
+            World.Path + TEXT(".pk_spawn_ids"), TEXT("PK spawns must be pk_spawn_0 to pk_spawn_5 in order")))
+        {
+            return false;
+        }
+    }
+    if (!Check.Require(Out.World.PKThrowId.Equals(TEXT("pk_throw"), ESearchCase::CaseSensitive),
+        World.Path + TEXT(".pk_throw_id"), TEXT("the PK throw anchor must be pk_throw")))
     {
         return false;
     }

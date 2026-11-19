@@ -26,7 +26,7 @@ Demo 没有装备与金钱；成长由经验、等级、派生的五维点数、
 额外奖励点数 `AwardedPoints`、商店买到的技能点 `BoughtSkillPoints`、按序号排序的牌 `Cards` 与下一个序号 `NextCardSerial`、构筑修订、DEV 额外技能点 `DevSkillPoints`）与
 `FLDProgressionState`（累计 XP、已得/已用主动机会、唯一队首候选组及其修订、已消费机会记录、饭票 `Vouchers`、点名券 `PickTickets`
 与是否已领远古营地的那张 `bAncientTicketTaken`、本局见过的牌 `SeenCards`、商店 `Shop`（`FLDShopState`：货架、进货与刷新次数、修订）、
-牌三选一队列 `CardQueue` 与 `CardOffersEarned`、当前牌组 `CardOffer`、带到下一组的锁定 `CarriedLock`、重抽 `CardRerollsGranted`/`CardRerollsUsed`）。
+牌三选一队列 `CardQueue` 与 `CardOffersEarned`、当前牌组 `CardOffer`、重抽 `CardRerollsGranted`/`CardRerollsUsed`）。
 基础点数由 `LDProgression::EarnedPoints` 根据等级与 XP 派生（开局 `GROWTH.OpeningPoints`、每升一级 `GROWTH.PointsPerLevel`，
 满级后每满 `GROWTH.MaxLevelPointsXP` 再加 `GROWTH.MaxLevelPoints`），未分配点数 = 派生值 + `AwardedPoints` − 已分配；结果为负是
 `AuthorityFault`。本人视图的 `UnspentPoints` 按此计算。技能点 = `SKILL.PointLevels` 中已达到的个数 + `BoughtSkillPoints` − Σ（技能等级 − 1）。
@@ -40,9 +40,9 @@ Demo 没有装备与金钱；成长由经验、等级、派生的五维点数、
 技能牌所在的主动被遗忘或替换时，它们在同一次提交里先回到牌库（见下表 `ReplaceActive`/`ForgetActive`）。
 已装的牌按序号进入 `FLDBuildProjectionInput::Cards`，牌库里的不进 Combat。死亡、复活与重连不改牌。
 
-- **牌三选一队列**：开局（`BeginMatch`）入队一次（`ELDCardOfferSource::Opening`），每次升级（2..MaxLevel）入队一次（`LevelUp`），
+- **牌三选一队列**：开局（`BeginMatch`）入队一次（`ELDCardOfferSource::Opening`），升到能被 `CARDS.OfferEveryLevels` 整除的等级时入队一次（`LevelUp`，`LDProgression::LevelUpCardOffers`），
   空投/Boss 的牌奖励与精英营地标记各入队一次（`FieldReward`）。队首在开局机会处理（选定或放弃）之后才抽出（`RefreshCardOffer`），
-  一次只有一组；抽取 `DrawCardOffer`：`CARDS.OfferSize` 张互异的牌，锁定的牌在第一位，其余按权重无放回抽取——与本构筑词汇
+  一次只有一组；抽取 `DrawCardOffer`：`CARDS.OfferSize` 张互异的牌，按权重无放回抽取——与本构筑词汇
   （已装的牌与已学技能，`BuildVocab`）共享至少一个键的为 `CARDS.VocabWeight`，否则为 1；种子由本局私有 `MatchSecret`、参赛者、序号与重抽次数派生
   （`CardOfferSeed`）。重抽次数：开局 `CARDS.FreeRerolls`，R1–R3 每次休息加 `CARDS.RerollsPerRest`（`GrantRestRerolls`）。
 - **容量**：每张已装的牌占 1 格；`ApplyInstallCard` 在位置合法之后检查容量，满为 `WorkshopFull` = 151，不改构筑；
@@ -79,9 +79,8 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换走 `ReplaceActive`）为 `SlotOccupied`，图纸保留 |
 | `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
 | `PickCard` = 30 | `OfferId`、`OfferRevision`、`Option` = 当前牌组中的一张；`bInstallIfPossible` 时 `CardTarget`/`TargetDefinition`/`Element` 为位置 | 这张牌进牌库（新序号，`OfferOrdinal` 为本组序号）；带位置时位置合法且有空格就同次装上（`bCardInstalled`），否则留在牌库并写 `InstallStoredReason`；本组结束（锁定的另一张带到下一组）。没有该组为 `NoCardOffer` = 190，不在组内为 `NotInOffer` = 192，修订不符为 `OfferGuardStale` |
-| `SkipCards` = 31 | `OfferId`、`OfferRevision` | 本组结束，给 `CARDS.SkipVouchers` 饭票；锁定照样带到下一组 |
-| `RerollCards` = 32 | `OfferId`、`OfferRevision` | 花一次重抽：锁定的牌留在第一位，其余重抽，组换新 `OfferId` 与修订；没有剩余重抽为 `NoReroll` = 191 |
-| `LockCard` = 33 | `OfferId`、`OfferRevision`、`Option`（全零 = 解锁） | 锁定组内一张（只有一个锁位，`CARDS.LockSlots`）；不在组内为 `NotInOffer` |
+| `SkipCards` = 31 | `OfferId`、`OfferRevision` | 本组结束，给 `CARDS.SkipVouchers` 饭票 |
+| `RerollCards` = 32 | `OfferId`、`OfferRevision` | 花一次重抽：整组重抽，组换新 `OfferId` 与修订；没有剩余重抽为 `NoReroll` = 191 |
 | `InstallCard` = 34 | `CardSerial`、位置（`CardTarget`/`TargetDefinition`/`Element`），可带 `ReplacingSerial` | 把一张库里的牌装到位置上：未持有 `NotOwned`，已装 `AlreadyInstalled`，位置不合法 `InvalidTarget`，满了 `WorkshopFull`；带 `ReplacingSerial` 时它先卸回牌库，容量按卸下后判断，回执 `UninstalledCards` 列出它。搬动是先卸后装两条命令 |
 | `UninstallCard` = 35 | `CardSerial` | 卸回牌库：未持有 `NotOwned`，未装 `NotInstalled` |
 | `ShopBuy` = 36 | `OfferRevision` = 商店修订、`Slot` = 货架位或 `ShopSkillPointSlot`（0xFE） | 买一个货架位：技能有空槽就学到最低空槽、否则存为图纸，牌进牌库（新序号）；技能点加到 `BoughtSkillPoints`。价格见内容与数值 §4.4.1；回执 `VouchersDelta`（负）、`VouchersAfter`，牌另带 `CardSerial`/`CardId`。修订不符为 `ShopStale` = 202，已卖为 `ShopSoldOut` = 201，饭票不够为 `NotEnoughVouchers` = 200，技能点买满为 `SkillPointLimit` = 203，没有进货为 `NoShop` = 204，都不收费 |
@@ -109,7 +108,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 （`PlanTrackBindings` 按定义找回原轨道与就绪时刻），重学沿用原冷却债。
 
 合法性矩阵（`LDProgression::CommandGate`/`LearnGate`/`InstallGate`/`IsRestWindow`，提交时 `ALDDevelopmentDirector` 经
-`ALDGameMode::ReadBuildStage` 与时间线读阶段及本人生命阶段）。最终野外之外自己的构筑命令在对局进行中受理：`ActiveChoice`、`SkipActiveOffer`、`LearnBlueprint`、`AllocatePoints`、`PickCard`、`SkipCards`、`RerollCards`、`LockCard`、`InstallCard`、
+`ALDGameMode::ReadBuildStage` 与时间线读阶段及本人生命阶段）。最终野外之外自己的构筑命令在对局进行中受理：`ActiveChoice`、`SkipActiveOffer`、`LearnBlueprint`、`AllocatePoints`、`PickCard`、`SkipCards`、`RerollCards`、`InstallCard`、
 `UninstallCard`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
 
 | 阶段（`EMatchStage`） | 自己的构筑（含 `RankUpSkill`、`UsePickTicket`） | ShopBuy / ShopRefresh / ShopSell / Respec | ReplaceActive / ForgetActive |
@@ -118,7 +117,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许 | `Dead` | `Dead` |
 | `Live`（野外段与最终野外），活着（交战中也一样） | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `Live`，死亡 | 允许，不复活、不治疗、不改复活时间 | `NotRestWindow` | `ReplacementNotAllowed` |
-| `RestLocked`（返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
+| `RestLocked`（PK 的抽签、押注、准备、对打、结算与返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
 | `Closed`（结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
 
 生命阶段不是 Alive/Dead（Unspawned、Left）时每种命令都为 `LifePhaseChanged`。没有构筑安全窗：`NotSafe`（52）与 `RestOnly`（63）已退役，
@@ -139,7 +138,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 主动与牌三选一的候选和商店货架都记入 `SeenCards`（点名券的牌池）。
 它不改变原有请求/生命/构筑修订和回执去重；重放已完成请求不重新收费。OwnerState 只发布本人的 NearbyRestService，不公开其他人成长。
 
-牌命令（`LDProgression::InstallGate(Context)` 即 `LearnGate`）：选牌、跳过、重抽、锁定、装牌、卸牌与搬动都按上表“自己的构筑”判断；
+牌命令（`LDProgression::InstallGate(Context)` 即 `LearnGate`）：选牌、跳过、重抽、装牌、卸牌与搬动都按上表“自己的构筑”判断；
 `PickCard` 的同次安装只看位置是否合法与是否有空格，不满足时留在牌库并写 `InstallStoredReason`。
 
 交战窗口（不再是构筑门）：Combat 在实体记录上保存 `LastBuildUnsafeAtMs`（跨生命，不回退），普攻起手、进攻性主动释放、
@@ -307,9 +306,9 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 开局机会与开局点数及 2、4 级机会（`DemoGrowthOpening`）、候选池与开局池排除、合格不足与空池排队（`DemoGrowthOpeningPool`）、
 本人视图白名单（`DemoGrowthPrivacySchema`）、合法性矩阵与三种命令的原子 Apply（`DemoGrowthBuildRules`）、
 director 提交链（受理形状、倒计时学习与加点、重放/冲突/旧修订、交战后立即选择学习与加点、满槽与图纸、死亡时选择学到空槽与加点、
-空池排队后再抽、关局，`DemoGrowthBuildCommands`；其中开局牌三选一在开局技能之后出现（放弃开局技能也出现）、锁定与重抽、选牌同次装进 Combat、
+空池排队后再抽、关局，`DemoGrowthBuildCommands`；其中开局牌三选一在开局技能之后出现（放弃开局技能也出现）、选牌同次装进 Combat、
 重选同组 `NoCardOffer`、野外卸下与重装、升到 3 级各入队一组牌三选一）与技能等级成长 G(L)（`DemoGrowthSkillGrowth`）；
-`Lockdown.Rules.Growth.Cards.Offer/Reroll/Lock/Duplicates/Capacity` 覆盖牌组的抽取与词汇加权、开局机会之后才抽、选牌与跳过、重抽次数与锁定、
+`Lockdown.Rules.Growth.Cards.Offer/Reroll/Duplicates/Capacity` 覆盖牌组的抽取与词汇加权、开局机会之后才抽、选牌与跳过、重抽次数、
 同名多份各占一格与同位置叠放、容量 6–9 与满时替换；`Lockdown.Rules.Dev.BreakoutPresets` 覆盖九个质变样板都是合法的满级构筑并被 Combat 投影；
 `Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务的纯规则：每种命令在 Live/Rest/RestLocked/Closed 的合法性（自己的构筑在三个开放阶段都受理、休息服务与商店在 RestLocked 为 `BuildLocked`）与 `IsRestWindow`、
 休息种类与原因的线编号（`Gates`），洗点只退已分配点数（`Respec`），替换消费图纸并遗忘旧主动、遗忘清空槽位并让该主动重新合格，

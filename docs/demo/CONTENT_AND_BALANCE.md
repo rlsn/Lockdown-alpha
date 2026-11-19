@@ -200,7 +200,7 @@ Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。
 | `FORMULA.CooldownMs` | $\lceil1000\times BaseCDSec\times100/(100+H)\rceil$ → 本次释放持续时间 | H 非负；6s、H=30 得 4616ms。10s 释放得到 ReadyAt=14.616s，随后升级不改这个端点 |
 | `FORMULA.Regen` | rate × 同一权威时间的实际 elapsed + 亚P2积分余数 → 可提交的0.01点及新余数 | 见 `POLICY.RegenIntegration`；活体才恢复，满资源丢弃溢出。1.6/s 分1000次1ms仍回复1.60 |
 | `FORMULA.ResourceMaxChange` | 以P2整数计算 $\lfloor oldCurrent\times finalNewMax/oldMax\rfloor$ | 用户要求保持比例，最终一次向下量化；40/100→150为60→30为12→150为60→100回40；零上限/活HP下溢见§10.3 |
-| `FORMULA.XPToNext` | $48+12(L-1)$，仅 $L=1..15$ | 正整数；达到十六级不再升级，之后按 `GROWTH.MaxLevelPointsXP` 给点（§4.1）。累计阈值为 0/48/108/180/264/360/468/588/720/864/1020/1188/1368/1560/1764/1980 |
+| `FORMULA.XPToNext` | $60+20(L-1)$，仅 $L=1..15$ | 正整数；达到十六级不再升级，之后按 `GROWTH.MaxLevelPointsXP` 给点（§4.1）。累计阈值为 0/60/140/240/360/500/660/840/1040/1260/1500/1760/2040/2340/2660/3000 |
 
 普攻节拍从通过初始合法性检查的 AttackStart 提交；技能则在成功 release 才提交
 劲/冷却。前摇内复查目标/来源，导航不负责扣费或退节拍。基础普攻命中前失效是一次已开始的
@@ -234,8 +234,19 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `SHOWDOWN.RingDamageTickSec` | s/Sec | 0.25 | 圈外伤害每 250 ms 按真实圈外时间结算一次 |
 | `SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec` / `LateMaxHPRatioPerSec` | ratio/R4 | 0.05 / 0.12 | 封街前一半、后一半圈外每秒扣最大生命的比例，直扣生命，须大于 0 |
 | `MATCH.FieldSegmentSec` | s/Sec | 160 | 三段定时野外各 160 s；野外进度 T 只在野外推进，休息暂停 T；R3 返场十秒后开放终局旗杆 |
-| `REST.OpeningBuildSec` | s/Sec | 25 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
-| `REST.BuildSec` | s/Sec | 25 | R1–R3 构筑/试招窗；所有真人准备后立即结束；AI 不阻塞 |
+| `REST.OpeningBuildSec` | s/Sec | 45 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
+| `REST.BuildSec` | s/Sec | 40 | R1–R3 构筑/试招窗；所有真人准备后立即结束；AI 不阻塞 |
+| `REST.SignupSec` | s/Sec | 10 | R1、R2 配装的最后这么久兼作 PK 报名窗；全员准备提前结束时保留 |
+| `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 3 / 5 / 3 | PK 公布赛制与分队、押注、准备（锁输入）|
+| `REST.PKMaxSec` | s/Sec | 45 | PK 对打上限；提前分出胜负即结束 |
+| `REST.SettlementSec` / `REST.PayoutSec` | s/Sec | 3 / 3 | PK 结算与派奖（派奖时可再配装）；单次 PK 最多 62 s |
+| `PK.ArenaRadiusCm` / `PK.RingMidRadiusCm` / `PK.RingFinalRadiusCm` | cm | 1800 / 600 / 150 | PK 圈：开打后 `PK.RingShrinkStartSec` 起缩，`PK.RingMidSec` 到中圈，`PK.RingFinalSec` 到终圈 |
+| `PK.RingShrinkStartSec` / `PK.RingMidSec` / `PK.RingFinalSec` / `PK.RingPreviewSec` | s/Sec | 5 / 25 / 38 / 5 | 缩圈时间点与下一圈的预告提前量 |
+| `PK.RingDamageTickSec`；`PK.RingDamage{Early,Mid,Final}MaxHPRatioPerSec` | s；比例 | 0.25；0.05 / 0.12 / 0.25 | 圈外每秒损失开打时最大生命的比例，按三个阶段 |
+| `PK.TeamFormatRatio` | 比例 | 0.5 | 4 或 6 人时抽到两队对抗的概率 |
+| `PK.RewardMultiplier`；`PK.ParticipationPoints` / `PK.WinnerPointsMax` / `PK.BettingPoolMaxPoints` | 比例；点 | 1.5；1 / 3 / 2 | PK 三个属性点奖池的基数与倍率 |
+| `THROW.CooldownSec` / `THROW.TelegraphSec` / `THROW.RadiusCm` / `THROW.RangeCm` | s；cm | 10 / 0.8 / 120 / 4000 | 观众投掷：冷却、落点预警、命中半径、射程 |
+| `THROW.SlowRatio` / `THROW.SlowSec` / `THROW.ExposeSec` | 比例；s | 0.2 / 1 / 2 | 投掷命中：减速与暴露位置 |
 | `REST.ReturnSec` | s/Sec | 5 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；NPC 服务与商店关闭） |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
 | `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 返回野外是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
@@ -512,12 +523,12 @@ $$
 
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
-| `CARDS.CapacityBase`、`CARDS.LevelsPerSlot` | 4、3 | 容量 = 4 + ⌊(等级 − 1) / 3⌋：L1–L3 4 格，L4 5 格，L7 6 格，L10 7 格，L13 8 格，L16 9 格；所有位置共用，没有分列上限 |
+| `CARDS.CapacityBase`、`CARDS.LevelsPerSlot` | 6、3 | 容量 = 6 + ⌊(等级 − 1) / 3⌋：L1–L3 6 格，L4 7 格，L7 8 格，L10 9 格，L13 10 格，L16 11 格；所有位置共用，没有分列上限 |
 | `CARDS.IdleCarrySec` | 5 s | 攒个大的（Y22）与憋着一发狠的（K16）只在交战中累计闲置；开打前最多带入这么多秒 |
 | `CARDS.OfferSize` | 3 | 每组牌三选一的张数（不重复） |
+| `CARDS.OfferEveryLevels` | 2 | 升到能被它整除的等级时给一次牌三选一（2、4、…、16 级，共 8 组）；属性点仍每级给 |
 | `CARDS.VocabWeight` | 2 | 与已装牌或已学技能共享词汇的牌的抽取权重；其他牌为 1 |
 | `CARDS.FreeRerolls`、`CARDS.RerollsPerRest` | 3、1 | 开局重抽次数；R1–R3 每次休息再给的次数 |
-| `CARDS.LockSlots` | 1 | 一组里可锁定的张数；锁定的牌重抽后与下一组都在第一位 |
 | `CARDS.SkipVouchers` | 3 | 跳过一组牌三选一得到的饭票 |
 | `DAMAGE.FactorTechCap` | ×1000 | 一次伤害乘区之积的技术上限（只防溢出，`LD_DAMAGE_FACTOR_CAPPED`） |
 | `CHAIN.MaxDepth`、`CHAIN.MaxEffectsPerStep` | 16、256 | 连锁最深步数；一个权威步最多产生的后续效果，其余顺延（`LD_CHAIN_GUARD`） |
@@ -551,11 +562,11 @@ $$
 | A12 | `card_heated_up` | 越打越上头 | 成长 | 连续打同一个人，每下攻速 +4%，无上限；换目标或 3 s 没打清零 | attack_speed, basic_hit |
 | A13 | `card_muscle_memory` | 熟能生巧 | 成长 | 普攻每命中参赛者 10 次，本局攻击力 +1 | basic_hit |
 | A14 | `card_breach_fist` | 越揍越不经打 | 成长 | 普攻命中挂 1 层破防（每层双抗 −3，上限 5，4 s） | basic_hit, armor |
-| A15 | `card_fire_fist` | 拳头冒火 | 元素 | 普攻命中挂 1 层灼烧 | element, basic_hit |
-| A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 普攻命中挂湿 | element, basic_hit |
-| A17 | `card_shock_fist` | 拳头漏电 | 元素 | 普攻命中挂麻 | element, basic_hit |
-| A18 | `card_ice_fist` | 拳头冰镇 | 元素 | 普攻命中挂冻 | element, basic_hit |
-| A19 | `card_rot_fist` | 拳头带馊 | 元素 | 普攻命中挂馊 | element, basic_hit |
+| A15 | `card_fire_fist` | 拳头冒火 | 元素 | 第 3 段普攻命中挂 1 层灼烧 | element, basic_hit |
+| A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 第 3 段普攻命中挂湿 | element, basic_hit |
+| A17 | `card_shock_fist` | 拳头漏电 | 元素 | 第 3 段普攻命中挂麻 | element, basic_hit |
+| A18 | `card_ice_fist` | 拳头冰镇 | 元素 | 第 3 段普攻命中挂冻 | element, basic_hit |
+| A19 | `card_rot_fist` | 拳头带馊 | 元素 | 第 3 段普攻命中挂馊 | element, basic_hit |
 | K01 | `card_next_up` | 打完换下一招 | 触发 | 这个技能命中 → 其他已学技能冷却各 −1 s | skill_hit, skill_cast |
 | K02 | `card_pay_back` | 一招回本 | 触发 | 这个技能每次命中回 6 劲 | skill_hit, momentum |
 | K03 | `card_quick_takedown` | 收人头不用等 | 触发 | 这个技能命中过的参赛者在助攻窗口内死亡、你得到击杀或助攻 → 本技能冷却刷新 | kill |
@@ -632,6 +643,7 @@ $$
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
 | `COMBAT.ReactionBase`、`COMBAT.ReactionPerLevel`、`COMBAT.ReactionAPRatio` | 30、4、0.25 | 反应伤害 R = 30 + 4(L − 1) + 0.25 × 法强，魔法伤害，不乘 G；L 与法强取触发者（新元素的施加者） |
+| `COMBAT.ReactionLockSec` | 3 s | 同一目标发生反应后这么久内不再发生反应；期间会引发反应的元素不挂上，同种元素照常刷新 |
 | `COMBAT.WetSec`、`COMBAT.WetSlow` | 4 s、0.15 | 湿：移速 −15% |
 | `COMBAT.ShockSec`、`COMBAT.ShockEveryNthHit`、`COMBAT.ShockRatio`、`COMBAT.ShockSplashRadiusCm` | 4 s、3、0.5、350 cm | 麻：持有者每第 3 次受到直接伤害，额外受 0.5R；施加者的其他敌人在 350cm 内时也受 0.5R。这份伤害不是直接伤害，不推进计数，不触发反弹与命中类牌 |
 | `COMBAT.ChillSec`、`COMBAT.ChillAttackSlow`、`COMBAT.ChillMoveSlow` | 4 s、0.15、0.10 | 冻：攻速 −15%、移速 −10% |
@@ -884,10 +896,10 @@ XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的�
 
 | 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `XP.Threshold[L]` | 0 | 48 | 108 | 180 | 264 | 360 | 468 | 588 | 720 | 864 | 1020 | 1188 | 1368 | 1560 | 1764 | 1980 |
+| `XP.Threshold[L]` | 0 | 60 | 140 | 240 | 360 | 500 | 660 | 840 | 1040 | 1260 | 1500 | 1760 | 2040 | 2340 | 2660 | 3000 |
 | 该级到下级 XP | 48 | 60 | 72 | 84 | 96 | 108 | 120 | 132 | 144 | 156 | 168 | 180 | 192 | 204 | 216 | 不再升级 |
 
-阈值保存在 `progression.xp_thresholds`，并须与参数 `XP.BaseToNext=48`、`XP.IncreasePerLevel=12`（`FORMULA.XPToNext`）一致。
+阈值保存在 `progression.xp_thresholds`，并须与参数 `XP.BaseToNext=60`、`XP.IncreasePerLevel=20`（`FORMULA.XPToNext`）一致。
 比赛开始时（成长 `BeginMatch`，即 Progression 提供者 Prepare，早于发育期开放）每名参赛者（真人与 AI）得到 `GROWTH.OpeningPoints`
 与 1 号主动机会，并固定其首组开局候选；之后每达到一级得到 `GROWTH.PointsPerLevel`，达到 `progression.active_offer_levels` 的等级
 各加一次主动机会；复活不再授予，新局重建。真人的开局面板在本局首次显示该候选时自动打开一次，不代选。
@@ -904,7 +916,7 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | --- | --- | --- |
 | `REWARD.PlayerXP`（`.Base=100`、`.PerLevel=20`） | $100+20(L_{victim}-1)$ | 击杀Lv1得100XP、Lv10得280XP；以致死瞬间受害者等级快照 |
 | `REWARD.AssistWindowSec` | 15s | 受害者死亡前15s内（含）有过正伤害（含被护盾吸收）或任一控制/减益的其他在局参赛者算助攻，每次新贡献重新计时；死亡界面的承伤列表用同一窗口 |
-| `CAMP.Low.RewardXP`（怪物 `reward_xp`） | 每只14XP | 小野整组42XP，首次升级（80XP）需要两个完整小营 |
+| `CAMP.Low.RewardXP`（怪物 `reward_xp`） | 每只14XP | 小野整组42XP，首次升级（60XP）需要两个完整小营 |
 | `CAMP.High.RewardXP` | 每只40XP | 中野两只，整组80XP |
 | `CAMP.Elite.RewardXP` | 每只180XP | 大野整组180XP；1级只有普攻的角色单挑打不过 |
 | `CAMP.Ancient.RewardXP` | 每只300XP | 远古整组300XP |
@@ -1040,7 +1052,8 @@ $k=\min(\text{CAMP.GrowthMaxStage},\lfloor T_{生成}/\text{CAMP.GrowthStageSec}
 | ID | 建议值/单位 | 使用边界 |
 | --- | --- | --- |
 | `AI.RetreatHPRatio` | .25 / 比例 | 自己低血量时优先合法撤退/恢复，不通过直接改HP或传送 |
-| `AI.ResumeFarmHPRatio` | .60 / 比例 | 恢复到此再评估营地；不是无敌保护阈值 |
+| `AI.ResumeFarmHPRatio` | .45 / 比例 | 恢复到此再评估营地；不是无敌保护阈值 |
+| `AI.LeaderHuntMaxLevelGap` | 2 / 等级数 | 上热搜者的公开等级比自己高出超过这么多时不去追 |
 | `AI.HighCampEntryHPRatio` | .80 / 比例 | 还须比较自己实际构筑的预期耗血，不只看等级 |
 | `AI.HighCampReserveHPRatio` | .35 / 比例 | 保守站桩模型后预计仍留至少此比例，才把高营视为合适目标 |
 | `AI.LowCampReserveHPRatio` | .15 / 比例 | 同样按自己的实际HP/攻击与可见怪物/目录估计，不读取隐藏血量 |
@@ -1067,7 +1080,7 @@ $k=\min(\text{CAMP.GrowthMaxStage},\lfloor T_{生成}/\text{CAMP.GrowthStageSec}
 仓库检查与真人试玩都没有覆盖它们。主动候选的分布、构筑命令的随时准入、硬控递减链与喷漆打断矩阵须由规则测试验证，
 本节不代替测试结果。
 
-XP 曲线：每级所需从 48 起线性增加 12，864 累计 XP 达到十级，1980 达到十六级。
+XP 曲线：每级所需从 60 起线性增加 20，1260 累计 XP 达到十级，3000 达到十六级。
 营地供给、清营时间与升级节奏没有按当前 34 营地布局重新复算，需在试玩中测量。
 
 ### 7.4 取整、资源与冷却反例

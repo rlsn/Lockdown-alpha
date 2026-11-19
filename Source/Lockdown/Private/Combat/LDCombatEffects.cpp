@@ -281,17 +281,20 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     const bool bEffective=Damage.HPLostP2>0 || Damage.ShieldAbsorbedP2>0;
     // Cards' elements on this hit: A16-A19 on a primary basic, K19-K24 on an effective native hit of their host skill. Derived,
     // reflected, rider, status and settle hits carry none. Each is a ledger trigger once the element batch applies it.
-    TArray<FName> ElementTriggers;
+    struct FElementTrigger { FName Key; FLDCombatSourceRef Source; bool bFire=false; };
+    TArray<FElementTrigger> ElementTriggers;
     if (Source && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bBurnTick && !Hit.bFromShieldTrigger && !Hit.bRider)
     {
         if (Hit.HitClass==ELDCombatHitClass::BasicPrimary)
         {
+            // A16-A19 ride the last step of the basic combo only; a bought drink still rides every basic it covers.
             TArray<FLDPassiveEffectRef> Elements;
-            if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::BasicElement,Elements,Error)) { return false; }
+            if (int32(Hit.ComboStep)==Content->Get().Parameters.Combo.StepRatiosBp.Num()
+                && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::BasicElement,Elements,Error)) { return false; }
             for (const FLDPassiveEffectRef& Ref : Elements)
             {
                 if (!ApplyCardElement(Hit,Ref.Effect.Element,0,Ref.Source,Error)) { return false; }
-                ElementTriggers.Add(Ref.Key);
+                ElementTriggers.Add({Ref.Key,Ref.Source,Ref.Effect.Element==ELDDemoElement::Fire});
             }
             // Spec §11.3 vending drink: the next basics carry the bought element.
             if (Source->DrinkHits>0 && Source->DrinkElement>=1 && Source->DrinkElement<=5)
@@ -308,7 +311,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             for (const FLDPassiveEffectRef& Ref : Mixed)
             {
                 if (!ApplyCardElement(Hit,Ref.Effect.Element,Ref.Effect.Count,Ref.Source,Error)) { return false; }
-                ElementTriggers.Add(Ref.Key);
+                ElementTriggers.Add({Ref.Key,Ref.Source,Ref.Effect.Element==ELDDemoElement::Fire});
             }
         }
     }
@@ -419,8 +422,17 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // and shock strikes never count. Then the hit's element batch applies.
     if (bControllable && Damage.DamageP2>0 && !Hit.bStatusSettle && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bOverchargeDischarge
         && !Hit.bRider && !CountShock(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
-    if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error)) { return false; }
-    if (bControllable) { for (const FName& Card : ElementTriggers) { LedgerCardTriggered(*Source,Card); } }
+    FLDAppliedCardElement AppliedCard;
+    if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error,&AppliedCard)) { return false; }
+    // Only the card element that took effect is a trigger: every fire card of the hit shares its one fire application; a
+    // card the fixed order passed over, or one the reaction lock dropped, triggered nothing.
+    if (bControllable && AppliedCard.bApplied)
+    {
+        for (const FElementTrigger& Card : ElementTriggers)
+        {
+            if (AppliedCard.bFire ? Card.bFire : (!Card.bFire && Card.Source==AppliedCard.Source)) { LedgerCardTriggered(*Source,Card.Key); }
+        }
+    }
     bool bSendOwnHit=false;
     ELDObservedHitLook OwnHitLook=ELDObservedHitLook::None;
     uint8 OwnHitFlags=0;
@@ -1135,7 +1147,9 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
         Basis.bPeddlerAtDeath=Body.bPeddler;
     }
     // Credit eligibility is frozen at the fatal moment; a later leave or level-up never rewrites it.
-    if (!Hit.CreditOwner.IsValid()) { Basis.NoRewardReason=ELDNoRewardReason::NoOwner; }
+    // #198 session D: a PK arena death is isolated from field growth rewards (no kill or assist reward).
+    if (Body.PKSide!=0) { Basis.NoRewardReason=ELDNoRewardReason::PKArena; }
+    else if (!Hit.CreditOwner.IsValid()) { Basis.NoRewardReason=ELDNoRewardReason::NoOwner; }
     else if (Hit.CreditOwner==Death.VictimContender) { Basis.NoRewardReason=ELDNoRewardReason::SelfInflicted; }
     else if (!Mode->IsContenderPresent(Hit.CreditOwner)) { Basis.NoRewardReason=ELDNoRewardReason::OwnerLeft; }
     else

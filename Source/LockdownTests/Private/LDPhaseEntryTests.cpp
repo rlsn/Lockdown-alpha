@@ -39,24 +39,24 @@ bool FLDRestEntryHoldTest::RunTest(const FString& Parameters)
     // R0 runs its build and return into field segment 0, which runs into R1's return countdown.
     while (Line.GetStage() != ELDMatchStage::Rest || Line.GetRestIndex() != 1 || Line.GetStep() != ELDRestStep::Return)
     {
-        Line.Advance(Line.NextDueMs(), true, true, Events, Error);
+        Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error);
     }
     const int64 FieldDue = Line.NextDueMs();
     // A partially unready return: nobody stands, T stays frozen at segment 1's end and segment 2 (and in R3 the flagpole)
     // does not start.
     Events.Reset();
-    bGood &= TestTrue(TEXT("An unready field return holds: no field entry, T frozen"), Line.Advance(FieldDue, true, false, Events, Error)
+    bGood &= TestTrue(TEXT("An unready field return holds: no field entry, T frozen"), Line.Advance(FieldDue, 0, true, false, Events, Error)
         && !FindEvent(Events, ELDTimelineEventKind::EnterField) && Line.IsRest() && !Line.IsFieldRunning()
         && Line.FieldMsAt(FieldDue + 2000) == P.FieldSegmentMs && Line.IsEntryHeld());
     bGood &= TestTrue(TEXT("The held return enters the field when every body stands; T starts there"),
-        Line.Advance(FieldDue + 2000, true, true, Events, Error) && FindEvent(Events, ELDTimelineEventKind::EnterField)
+        Line.Advance(FieldDue + 2000, 0, true, true, Events, Error) && FindEvent(Events, ELDTimelineEventKind::EnterField)
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->AtMs == FieldDue + 2000 && Line.IsFieldRunning()
         && Line.FieldMsAt(FieldDue + 3000) == P.FieldSegmentMs + 1000 && Line.NextDueMs() == FieldDue + 2000 + P.FieldSegmentMs);
     // An unheld entry keeps its exact scheduled instant.
-    while (Line.GetStage() != ELDMatchStage::Rest || Line.GetStep() != ELDRestStep::Return) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
+    while (Line.GetStage() != ELDMatchStage::Rest || Line.GetStep() != ELDRestStep::Return) { Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error); }
     const int64 Field2Due = Line.NextDueMs();
     Events.Reset();
-    bGood &= TestTrue(TEXT("A ready return enters at its scheduled boundary"), Line.Advance(Field2Due, true, true, Events, Error)
+    bGood &= TestTrue(TEXT("A ready return enters at its scheduled boundary"), Line.Advance(Field2Due, 0, true, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->AtMs == Field2Due);
     return bGood;
 }

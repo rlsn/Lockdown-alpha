@@ -355,12 +355,15 @@ void ALDCombatDirector::UpdateZoneHaste(const FLDCombatZone& Zone, int64 NowMs)
     {
         FLDBodyCombatState& Body=Pair.Value;
         const ALDCharacter* Actor=Pair.Key.Get();
-        // Spec §9 S20: its owner only; never an enemy.
+        // Spec §9 S20: its owner and the owner's current-match teammates (the PK group and side it was released in); never
+        // an enemy.
         const bool bOwner=Body.Victim.EntityId==Zone.SourceEntity;
+        const bool bMate=!bOwner && Zone.OwnerPKSide!=0 && Body.PKSide==Zone.OwnerPKSide
+            && Body.IsolationGroup==Zone.OwnerGroup && Body.Victim.Kind==ELDVictimKind::Contender;
         const bool bHeld=Body.TimedBonuses.ContainsByPredicate([&Zone](const FLDCombatTimedBonus& Row)
         { return Row.EffectId==Zone.EffectId; });
-        if (!bOwner && !bHeld) { continue; }
-        const bool bInside=bOwner && Actor && !Body.bPendingDeath && !Body.bSuspended && NowMs<Zone.EndMs
+        if (!bOwner && !bMate && !bHeld) { continue; }
+        const bool bInside=(bOwner || bMate) && Actor && !Body.bPendingDeath && !Body.bSuspended && NowMs<Zone.EndMs
             && (Zone.bFinalSplit ? Zones.ContainsByPredicate([&Zone,Actor,NowMs](const FLDCombatZone& Child)
                 {
                     return Child.EffectId==Zone.EffectId && NowMs<Child.EndMs
@@ -484,6 +487,8 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         if (const FLDDemoEffectDefinition* Haste=FindOp(Values,ELDDemoEffectOp::ZoneHaste))
         {
             Zone.HasteBp=Haste->RatioBp;
+            Zone.OwnerGroup=Body.IsolationGroup;
+            Zone.OwnerPKSide=Body.PKSide;
         }
         if (const FLDDemoEffectDefinition* Damage=FindOp(Values,ELDDemoEffectOp::ZoneDamage))
         {

@@ -79,6 +79,45 @@ ELDReactionAssistDelivery ALDGameMode::SendReactionAssist(const FGuid& Setter, c
     return ELDReactionAssistDelivery::Sent;
 }
 
+void ALDGameMode::SendBuildStats()
+{
+    if (!HasAuthority() || !Combat) { return; }
+    for (const auto& Pair : Contenders)
+    {
+        ALDPlayerController* Controller = Pair.Key.Get();
+        const FLDContenderRecord& Contender = Pair.Value;
+        if (!Controller || Contender.Kind != ELDContenderKind::Human || Contender.bLeft) { continue; }
+        FLDBuildStatsView View;
+        View.Match = MatchContext.Generation;
+        View.Serial = ++BuildStatsSerial;
+        if (!Combat->DamageTotalsOf(Contender.Session, View.Lines) || !Combat->CardTriggersOf(Contender.Session, View.Triggers)
+            || View.Lines.Num() > LDDamageRecap::MaxLines)
+        {
+            UE_LOG(LogLDMatch, Warning, TEXT("LD_BUILD_STATS_SKIPPED generation=%u contender=%s lines=%d"),
+                View.Match, *LDLog::Id(Contender.Session), View.Lines.Num());
+            continue;
+        }
+        Controller->ClientBuildStats(View);
+    }
+}
+
+void ALDGameMode::SendTrainingCombos()
+{
+    if (!HasAuthority() || !Combat) { return; }
+    TMap<FGuid, TArray<FLDDamageLine>> Finished;
+    Combat->TakeFinishedTrainingCombos(GetAuthorityNowMs(), TrainingComboQuietMs, Finished);
+    for (TPair<FGuid, TArray<FLDDamageLine>>& Pair : Finished)
+    {
+        ALDPlayerController* Controller = FindContenderController(Pair.Key);
+        if (!Controller || Pair.Value.IsEmpty() || Pair.Value.Num() > LDDamageRecap::MaxLines) { continue; }
+        FLDTrainingComboView View;
+        View.Match = MatchContext.Generation;
+        View.Serial = ++BuildStatsSerial;
+        View.Lines = MoveTemp(Pair.Value);
+        Controller->ClientTrainingCombo(View);
+    }
+}
+
 void ALDGameMode::PublishDamageSummaries()
 {
     if (!HasAuthority() || !bResultLocked || !ResultView.ResultId.IsValid() || !Combat) { return; }

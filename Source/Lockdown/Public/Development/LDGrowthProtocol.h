@@ -39,9 +39,8 @@ enum class ELDBuildCommandKind : uint8
     // Spend one skill point on the next rank of a learned skill (issue #287 spec §4.5, SC-05).
     RankUpSkill = 28,
     // Spec §6.4: take one card of the current offer (installed in the same commit when a legal target was named and a slot
-    // is free), skip the offer, reroll it (keeping a lock), lock one of its cards (or clear the lock); install or uninstall
-    // an owned card.
-    PickCard = 30, SkipCards = 31, RerollCards = 32, LockCard = 33, InstallCard = 34, UninstallCard = 35,
+    // is free), skip the offer, reroll it; install or uninstall an owned card. 33 is retired.
+    PickCard = 30, SkipCards = 31, RerollCards = 32, InstallCard = 34, UninstallCard = 35,
     // Spec §3.13 rest shop: buy shelf slot Slot (or a skill point, Slot ShopSkillPointSlot), refresh the shelf, sell the library
     // card CardSerial. Spec §11.3: spend a pick ticket on Option (an active, or a card seen this match).
     ShopBuy = 36, ShopRefresh = 37, ShopSell = 38, UsePickTicket = 39
@@ -129,8 +128,8 @@ enum class ELDGrowthReason : uint16
     NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, InvalidTarget = 64,
     // WorkshopFull: every capacity slot of the level holds an installed card. 150 (TargetConflict) is retired.
     WorkshopFull = 151,
-    // #198 rest: an NPC service in a rest step outside the build window (the return countdown); #222 keeps the own build
-    // commands open there.
+    // #198 rest: an NPC service in a rest step outside the build and payout windows (draw, betting, PK, settlement, return
+    // countdown); #222 keeps the own build commands open there.
     BuildLocked = 70,
     // 71 (NpcPoolTooSmall, the retired skill merchant) is reserved.
     // An active offer is outstanding.
@@ -145,6 +144,8 @@ enum class ELDGrowthReason : uint16
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,
     NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114,
+    // #198 session D (allocated 140-149): a PK arena death pays no kill/assist reward; a PK award identity paid twice.
+    NoRewardPKArena = 140, PKAwardDuplicate = 141,
     // FieldRewardDuplicate: a map event paid twice.
     FieldRewardDuplicate = 167,
     // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
@@ -307,8 +308,6 @@ struct LOCKDOWN_API FLDCardOfferView
     UPROPERTY() uint64 OfferRevision = 0;
     UPROPERTY() ELDCardOfferSource Source = ELDCardOfferSource::None;
     UPROPERTY() TArray<FName> Options;
-    // The locked option (it moves into the next offer), or None.
-    UPROPERTY() FName Locked;
 };
 
 USTRUCT()
@@ -470,8 +469,7 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() FLDDefinitionWire Blueprint;
     // AllocatePoints: one count per stat in the stats' design order, at least one point in total.
     UPROPERTY() TArray<uint8> PointCounts;
-    // PickCard, SkipCards, RerollCards and LockCard name the offer by OfferId/OfferRevision; PickCard and LockCard the card
-    // by Option (an all-zero LockCard Option clears the lock).
+    // PickCard, SkipCards and RerollCards name the offer by OfferId/OfferRevision; PickCard the card by Option.
     // PickCard: install the card in the same commit on CardTarget when it is legal and a slot is free, else keep it.
     UPROPERTY() bool bInstallIfPossible = false;
     // InstallCard / UninstallCard: the owned card; InstallCard and PickCard: the target.

@@ -65,7 +65,10 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // neither block nor hide a body, like at a dorm.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint
             || Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag || Anchor.Kind == ELDDemoWorldAnchorKind::Locker
-            || Anchor.Kind == ELDDemoWorldAnchorKind::Vending) { continue; }
+            || Anchor.Kind == ELDDemoWorldAnchorKind::Vending
+            // A PK spawn, the throw anchor or the sign-up disk is a placement or judgment target only.
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;

@@ -17,12 +17,18 @@ class LOCKDOWN_API ULDCommandButton : public UButton
 public:
     TFunction<void()> Callback;
     TFunction<void()> PressCallback,ReleaseCallback;
-    UFUNCTION() void Execute(){if(Callback){Callback();}}
+    // A click runs Callback; the click that ends a hold which already repeated runs nothing more.
+    UFUNCTION() void Execute(){if(bRepeated){bRepeated=false;return;}if(Callback){Callback();}}
     UFUNCTION() void Press(){if(PressCallback){PressCallback();}}
     UFUNCTION() void Release(){if(ReleaseCallback){ReleaseCallback();}}
     // LDWidgets buttons answer hover and press with a small scale (LDHUDStyle motion) and the interface hover and click cues.
     // The motion is presentation only: the command runs on the click itself, never after an animation.
     void EnableFeel();
+    // Hold to repeat: after a short delay the button runs Again at a steady interval while it stays pressed and enabled, and
+    // stops for this hold once Again returns false. A short click still runs Callback once.
+    void EnableRepeat(TFunction<bool()> Again);
+    UFUNCTION() void RepeatPressed();
+    UFUNCTION() void RepeatReleased();
     UFUNCTION() void FeelHovered();
     UFUNCTION() void FeelUnhovered();
     UFUNCTION() void FeelPressed();
@@ -40,6 +46,10 @@ protected:
     void StopTicker(FTSTicker::FDelegateHandle& Handle);
     LDTween::FTrack Scale{1.f,1.f};
     FTSTicker::FDelegateHandle FeelTicker;
+    TFunction<bool()> RepeatCallback;
+    FTSTicker::FDelegateHandle RepeatTicker;
+    double RepeatNextAt=0.;
+    bool bRepeated=false;
 };
 // A layer that paints through a callback in its own geometry (a canvas fills it); placed under a panel's widgets, it draws
 // their surfaces, frames and tiles with LDUIPaint. It takes no input.

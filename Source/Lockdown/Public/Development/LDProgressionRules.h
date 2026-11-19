@@ -67,6 +67,8 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FLDLearnedActive> Actives;
     // Chosen actives waiting to be learned (待学图纸), sorted by id; never a learned id.
     TArray<FName> PendingBlueprints;
+    // #198 session D: points paid by PK settlements (participation, winner share, betting pool). Unspent until allocated.
+    int64 AwardedPoints = 0;
     // Owned cards sorted by serial; NextCardSerial is the serial of the next card received (never reused in a match).
     TArray<FLDCardInstance> Cards;
     uint16 NextCardSerial = 1;
@@ -117,7 +119,6 @@ struct FLDCardOfferState
     uint16 Ordinal = 0;
     ELDCardOfferSource Source = ELDCardOfferSource::None;
     TArray<FName> Options;
-    FName Locked;
     uint64 Revision = 0;
     uint32 Rerolls = 0;
 };
@@ -169,12 +170,11 @@ struct FLDProgressionState
     TArray<FLDActiveOpportunityRecord> Records;
     // Spec §6.4 card offer queue: the sources of the earned and unresolved offers, head first; CardOffersEarned numbers them
     // (the head's ordinal is CardOffersEarned - CardQueue.Num() + 1). The head's offer is drawn once the opening opportunity is
-    // resolved. CarriedLock is the card a resolved offer locked; the next offer shows it.
+    // resolved.
     TArray<ELDCardOfferSource> CardQueue;
     uint16 CardOffersEarned = 0;
     TOptional<FLDCardOfferState> CardOffer;
     uint64 LastCardOfferRevision = 0;
-    FName CarriedLock;
     // CARDS.FreeRerolls at match start plus CARDS.RerollsPerRest at each mid-match rest, and the ones used.
     int32 CardRerollsGranted = 0;
     int32 CardRerollsUsed = 0;
@@ -212,9 +212,10 @@ namespace LDProgression
         uint8 ActiveEarnedAfter = 0;
     };
 
-    // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest's
-    // build step; RestLocked in its return countdown, which closes only the NPC services (#222); Closed otherwise (results
-    // and every other phase).
+    // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest
+    // build window (the build/training windows and the payout); RestLocked in the other rest steps (draw, betting, PK,
+    // settlement, return countdown), which close only the NPC services (#222); Closed otherwise (results and every other
+    // phase).
     enum class EMatchStage : uint8 { Live, Rest, RestLocked, Closed };
 
     // The server's view of one contender when a build command commits.
@@ -257,7 +258,7 @@ namespace LDProgression
     // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
     // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
     LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
-    // Earned minus allocated; AuthorityFault when they exceed what was earned.
+    // Earned (with the PK awards) minus allocated; AuthorityFault when they exceed what was earned.
     LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
         int64& Out);
     // The level-1 build of a match start: no actives, blueprints, cards or allocated points.
@@ -385,10 +386,10 @@ namespace LDProgression
     // place exists now (a skill card without a learned skill).
     LOCKDOWN_API bool DefaultCardTarget(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
         FLDCardTarget& Out);
-    // Up to CARDS.OfferSize distinct cards: Locked first when set, then a weighted draw without replacement over every other
+    // Up to CARDS.OfferSize distinct cards: a weighted draw without replacement over every
     // definition (CARDS.VocabWeight when it shares a vocabulary key with BuildVocab, else 1), deterministic in Seed.
     // Size distinct cards (CardOfferSize of the offer's source).
-    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size, FName Locked,
+    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
         uint64 Seed, TArray<FName>& Out);
     // Private random material of one card offer ordinal and its Reroll-th reroll.
     LOCKDOWN_API uint64 CardOfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint16 Ordinal, uint32 Reroll);
@@ -424,10 +425,6 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyRerollCards(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLDProgressionState& Progression, const FGuid& OfferId, const FGuid& MatchSecret, const FGuid& Contender,
         const FBuildContext& Context, FLDProgressionState& OutProgression);
-    // LockCard: Option (one of the offer's) becomes its locked card; None clears the lock. NoCardOffer, NotInOffer;
-    // InvalidRequest when locks are off (CARDS.LockSlots 0).
-    LOCKDOWN_API ELDGrowthReason ApplyLockCard(const FLDDemoContentDefinitions& Content, const FLDProgressionState& Progression,
-        const FGuid& OfferId, FName Option, const FBuildContext& Context, FLDProgressionState& OutProgression);
     // InstallCard: the owned card Serial onto Target. NotOwned, AlreadyInstalled, InvalidTarget, WorkshopFull. A non-zero
     // Replacing (another installed card) goes back to the library in the same commit and frees its slot (OutUninstalled).
     LOCKDOWN_API ELDGrowthReason ApplyInstallCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
@@ -510,6 +507,8 @@ namespace LDProgression
         ELDCardOfferSource OfferSource = ELDCardOfferSource::FieldReward;
     };
     // The number of cards an offer of Source shows: CARDS.OfferSize, or a P6 source's own size.
+    // Card offers queued by levelling from Before to After: one per level crossed that CARDS.OfferEveryLevels divides.
+    LOCKDOWN_API int32 LevelUpCardOffers(const FLDDemoCardParameters& Cards, int32 Before, int32 After);
     LOCKDOWN_API int32 CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source);
     // Kind's build part for Build, deterministic in Seed. BuildDraw: a fair roll between a uniform eligible active blueprint
     // and one card offer (the card offer when no active is eligible). Blueprint: one uniform eligible active, BlueprintHeld

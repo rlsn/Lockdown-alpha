@@ -134,6 +134,15 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> CodexRows;
     UPROPERTY() TObjectPtr<ULDCommandButton> CodexBack;
     bool bCodexOpen = false;
+    // 怎么玩: the main menu's page of six short cards (one title and one line each), paged with 上一张/下一张. It opens by
+    // itself the first time this computer shows the main menu (a local flag) and from its button afterwards.
+    UPROPERTY() TObjectPtr<USizeBox> HowToPage;
+    UPROPERTY() TObjectPtr<UTextBlock> HowToTitle;
+    UPROPERTY() TObjectPtr<UTextBlock> HowToBody;
+    UPROPERTY() TObjectPtr<UTextBlock> HowToCount;
+    UPROPERTY() TObjectPtr<ULDCommandButton> HowToBack;
+    bool bHowToOpen = false;
+    int32 HowToIndex = 0;
     UPROPERTY() TObjectPtr<UTextBlock> MenuPhase;
     UPROPERTY() TObjectPtr<UTextBlock> MenuPause;
     UPROPERTY() TObjectPtr<UTextBlock> MenuFeedback;
@@ -187,6 +196,9 @@ private:
     bool CloseStartPage();
     void OpenCodex();
     bool CloseCodex();
+    void OpenHowTo();
+    bool CloseHowTo();
+    void ShowHowTo(int32 Index);
     void UpdateStartControls();
     void RestoreFrontendPage(ALDPlayerController& PC);
     void OpenMenu();

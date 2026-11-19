@@ -342,9 +342,22 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
             # Issue #287 spec §10 (P6): three 160 s field segments and 25 s rests.
             ("MATCH.FieldSegmentSec", "ms", "160"),
-            ("REST.OpeningBuildSec", "ms", "25"), ("REST.BuildSec", "ms", "25"),
+            ("REST.OpeningBuildSec", "ms", "45"), ("REST.BuildSec", "ms", "40"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
+            # The rest PK (R1 and R2): sign-up inside the build step, then draw, betting, ready, fight, settlement and payout.
+            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "3"), ("REST.BettingSec", "ms", "5"),
+            ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "3"),
+            ("REST.PayoutSec", "ms", "3"),
+            ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
+            ("PK.RingShrinkStartSec", "ms", "5"), ("PK.RingMidSec", "ms", "25"), ("PK.RingFinalSec", "ms", "38"),
+            ("PK.RingPreviewSec", "ms", "5"), ("PK.RingDamageTickSec", "ms", ".25"),
+            ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", ".05"), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", ".12"),
+            ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", ".25"), ("PK.TeamFormatRatio", "ratio", ".5"),
+            ("PK.RewardMultiplier", "ratio", "1.5"),
+            ("THROW.CooldownSec", "ms", "10"), ("THROW.TelegraphSec", "ms", ".8"), ("THROW.RadiusCm", "cm", "120"),
+            ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
+            ("THROW.ExposeSec", "ms", "2"),
             # Issue #287 spec §10-§11 (P6): the showdown ring, respawn, objectives, hotspots, affixes and hidden things.
             ("SHOWDOWN.RingRadiusCm", "cm", "1800"), ("SHOWDOWN.RingFinalRadiusCm", "cm", "600"), ("SHOWDOWN.RingPreviewSec", "ms", "10"),
             ("SHOWDOWN.RingDamageTickSec", "ms", "0.25"), ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", "0.05"), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", "0.12"),
@@ -379,7 +392,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
-            ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
+            ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".45"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
             ("AI.DecisionIntervalSec", "ms", ".25"), ("AI.RetryPolicy.InitialBackoffSec", "ms", ".25"),
@@ -403,7 +416,7 @@ class ApprovedDemoData(unittest.TestCase):
             # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
             ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"),
             ("COMBAT.ReactionBase", "points", "30"), ("COMBAT.ReactionPerLevel", "points", "4"),
-            ("COMBAT.ReactionAPRatio", "ratio", ".25"), ("COMBAT.FogRadiusCm", "cm", "250"), ("COMBAT.FogSec", "ms", "3"),
+            ("COMBAT.ReactionAPRatio", "ratio", ".25"), ("COMBAT.ReactionLockSec", "ms", "3"), ("COMBAT.FogRadiusCm", "cm", "250"), ("COMBAT.FogSec", "ms", "3"),
             ("COMBAT.FogIntervalSec", "ms", "1"), ("COMBAT.ConductRadiusCm", "cm", "450"), ("COMBAT.ConductSlow", "ratio", ".3"),
             ("COMBAT.ConductSlowSec", "ms", "1.5"), ("COMBAT.OverloadRadiusCm", "cm", "200"),
             ("COMBAT.ShockSec", "ms", "4"),
@@ -463,7 +476,7 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("XP.BaseToNext", 48), ("XP.IncreasePerLevel", 12),
+            ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20),
             ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
@@ -471,6 +484,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             ("COMBAT.ShockEveryNthHit", 3), ("COMBAT.MethaneBurnStacks", 2), ("COMBAT.FirestormBurnScale", 2), ("COMBAT.CorrodeBreachStacks", 3), ("GROUND.FireBurnStacks", 1), ("GROUND.MaxPerOwner", 6), ("GROUND.MaxTotal", 40),
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
+            ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # Issue #287 spec §10-§11 (P6) counts.
             ("LIFE.SpawnChoiceCount", 2), ("OBJECTIVE.FlagCardOffer", 3), ("OBJECTIVE.ArenaCardOffer", 5), ("VOUCHER.MiniFlag", 15),
             ("VOUCHER.Arena", 20), ("VOUCHER.BountyKill", 15), ("VOUCHER.BountyAssist", 5), ("VOUCHER.Locker", 8),
@@ -480,11 +494,11 @@ class ApprovedDemoData(unittest.TestCase):
             ("EXPLORE.VendingDrinkHits", 5),
             ("GROWTH.KeystoneThresholdPoints", 18),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
-            ("CARDS.CapacityBase", 4), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
-            ("CARDS.RerollsPerRest", 1), ("CARDS.LockSlots", 1), ("CARDS.VocabWeight", 2),
-            ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.BreakoutCardScore", 5),
+            ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
+            ("CARDS.RerollsPerRest", 1), ("CARDS.VocabWeight", 2),
+            ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): vouchers, the rest shop, chain ends and the AI's skip.
-            ("CARDS.SkipVouchers", 3), ("VOUCHER.CampLow", 2), ("VOUCHER.CampHigh", 4), ("VOUCHER.CampElite", 8), ("VOUCHER.CampAncient", 12), ("VOUCHER.Boss", 20), ("VOUCHER.Kill", 10), ("VOUCHER.Assist", 4), ("VOUCHER.Airdrop", 6), ("VOUCHER.ActiveSkip", 8), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 6), ("SHOP.SkillPrice", 10), ("SHOP.RefreshPrice", 2), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 25), ("SHOP.SkillPointMaxPerMatch", 3), ("SHOP.SellPrice", 3), ("CHAIN.MinKeySteps", 3),
+            ("CARDS.SkipVouchers", 3), ("CARDS.OfferEveryLevels", 2), ("VOUCHER.CampLow", 2), ("VOUCHER.CampHigh", 4), ("VOUCHER.CampElite", 8), ("VOUCHER.CampAncient", 12), ("VOUCHER.Boss", 20), ("VOUCHER.Kill", 10), ("VOUCHER.Assist", 4), ("VOUCHER.Airdrop", 6), ("VOUCHER.ActiveSkip", 8), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 6), ("SHOP.SkillPrice", 10), ("SHOP.RefreshPrice", 2), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 25), ("SHOP.SkillPointMaxPerMatch", 3), ("SHOP.SellPrice", 3), ("CHAIN.MinKeySteps", 3),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
@@ -879,9 +893,9 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"],
-                         (0, 48, 108, 180, 264, 360, 468, 588, 720, 864, 1020, 1188, 1368, 1560, 1764, 1980))
+                         (0, 60, 140, 240, 360, 500, 660, 840, 1040, 1260, 1500, 1760, 2040, 2340, 2660, 3000))
         self.assertEqual(self.data["progression"]["xp_to_next"],
-                         (48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216))
+                         (60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
             ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 25000, 14, 1250),

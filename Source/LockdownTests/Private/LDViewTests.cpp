@@ -23,7 +23,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
-        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK"),
         TEXT("Showdown"),TEXT("OwnerBankedGuardMs"),TEXT("DailyModifiers"),TEXT("Objective")},TEXT("The public flagpole carries only public objective and timeline state"));
     ExpectStruct(FLDShowdownView::StaticStruct(),{TEXT("bStarted"),TEXT("StartedAtMs"),TEXT("EndsAtMs"),
         TEXT("RespawnsCloseAtMs"),TEXT("ClosureAtMs"),TEXT("SprayMs"),TEXT("GuardMs"),TEXT("CentreCm"),
@@ -40,8 +40,8 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         TEXT("RevealAtMs"),TEXT("EndAtMs")},TEXT("The public camp marker never names its claimer"));
     // D27: the leader notice is deliberately public, but only as a fuzzy circle; never the leader's exact position.
     // Spec §11.1 rumor day: the runner-up is named the same way, with its own fuzzy circle.
-    ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs"),TEXT("RunnerUp"),
-        TEXT("RunnerUpCentreCm")},TEXT("The public leader notice names only the trending contenders and their fuzzy circles"));
+    ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("LeaderLevel"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs"),TEXT("RunnerUp"),
+        TEXT("RunnerUpCentreCm")},TEXT("The public leader notice names only the trending contenders, the leader's level and their fuzzy circles"));
     // D26: the Boss view names only its phase, its appearance and leave times and the last hit; its body is under fog of war.
     ExpectStruct(FLDBossView::StaticStruct(),{TEXT("Phase"),TEXT("AppearAtMs"),TEXT("LeaveAtMs"),TEXT("KilledBy"),TEXT("DownAtMs")},
         TEXT("The public Boss view never carries the Boss's position or health"));
