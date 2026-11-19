@@ -1055,6 +1055,31 @@ class WorldGeometryFunctions(unittest.TestCase):
         self.assertTrue(clear((2500, 150, 300), (2100, 380, 150)))
 
 
+class AuthorContractUnknownFields(unittest.TestCase):
+    """The producer checks each authored object kind with its own field list; an unknown field at every one of them is
+    refused. Direct contract calls, no import: the full-import refusal keeps one case per schema node kind."""
+
+    def test_every_author_object_refuses_an_unconsumed_field(self):
+        source = content.parse_json((content.ROOT / content.WORLD_SOURCE).read_bytes(), "world author")
+        world.validate_author_contract(deepcopy(source))
+        blockers = source["geometry"]["blockers"]
+        polygon = next(i for i, row in enumerate(blockers) if row["shape"] == "polygon")
+        cylinder = next(i for i, row in enumerate(blockers) if row["shape"] == "cylinder")
+        place = next(i for i, row in enumerate(source["anchors"]) if "members" not in row)
+        camp = next(i for i, row in enumerate(source["anchors"]) if len(row.get("members", ())) == 2)
+        for path in ((), ("approval",), ("geometry",), ("geometry", "surfaces", 0), ("geometry", "surfaces", 0, "min_cm"),
+                     ("geometry", "surfaces", 0, "max_cm"), ("geometry", "blockers", polygon),
+                     ("geometry", "blockers", polygon, "polygon_cm", 3), ("geometry", "blockers", cylinder),
+                     ("geometry", "blockers", cylinder, "center_cm"), ("placement",), ("placement", "spawn_offsets_cm", 6),
+                     ("anchors", place), ("anchors", place, "position_cm"), ("anchors", camp),
+                     ("anchors", camp, "members", 1), ("anchors", camp, "members", 1, "position_cm")):
+            with self.subTest(path=path):
+                author = deepcopy(source)
+                ApprovedDemoRefusals.at(author, path)["unconsumed_value"] = 1
+                with self.assertRaisesRegex(content.ContentError, "AuthorField.*unconsumed_value"):
+                    world.validate_author_contract(author)
+
+
 class ApprovedDemoRefusals(unittest.TestCase):
     def setUp(self):
         base = content.ROOT / "Artifacts" / "DemoContent"
