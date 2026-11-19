@@ -1258,11 +1258,8 @@ def validate_numbers(data):
     # GROWTH.MaxLevelPointsXP beyond the top threshold grants GROWTH.MaxLevelPoints.
     checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
                 "GROWTH.OpeningPoints")
-    # Spec §3.12: capacity grows one slot every CARDS.LevelsPerSlot levels; an offer shows CARDS.OfferSize distinct cards and
-    # a lock keeps at most one of them for the next offer.
+    # Spec §3.12: capacity grows one slot every CARDS.LevelsPerSlot levels; an offer shows CARDS.OfferSize distinct cards.
     require(params["CARDS.OfferSize"] <= len(data["cards"]), "CardPool", "CARDS.OfferSize", "an offer needs distinct cards")
-    require(params["CARDS.LockSlots"] < params["CARDS.OfferSize"], "CardPool", "CARDS.LockSlots",
-            "a locked card leaves room for new ones")
     require(params["CARDS.CapacityBase"] + (data["progression"]["max_level"] - 1) // params["CARDS.LevelsPerSlot"] <= 32,
             "CardCapacity", "CARDS.CapacityBase", "the workshop capacity stays within the build wire")
     require(quantity(params["DAMAGE.FactorTechCap"]) > 1, "NumericDomain", "DAMAGE.FactorTechCap",

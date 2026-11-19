@@ -21802,7 +21802,6 @@
       "unit": "ms"
     },
     "CARDS.LevelsPerSlot": 3,
-    "CARDS.LockSlots": 1,
     "CARDS.OfferSize": 3,
     "CARDS.RerollsPerRest": 1,
     "CARDS.SkipVouchers": 3,

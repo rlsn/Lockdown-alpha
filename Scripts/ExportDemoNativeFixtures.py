@@ -567,7 +567,7 @@ def parameter_projection(parameters):
     result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
     result["ChainEndMs"] = scalar(parameters["CHAIN.EndSec"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
-        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "LockSlots", "VocabWeight", "SkipVouchers")}
+        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "VocabWeight", "SkipVouchers")}
     result["Cards"]["IdleCarryMs"] = scalar(parameters["CARDS.IdleCarrySec"])
     result["Vouchers"] = {dest: parameters["VOUCHER." + dest] for dest in (
         "CampLow", "CampHigh", "CampElite", "CampAncient", "Boss", "Kill", "Assist", "Airdrop", "ActiveSkip",

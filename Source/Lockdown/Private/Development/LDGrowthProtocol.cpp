@@ -108,7 +108,6 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
-    case ELDBuildCommandKind::LockCard:
     case ELDBuildCommandKind::InstallCard:
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:

@@ -926,7 +926,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     for (const auto& Field : {
         TPair<const TCHAR*, int32*>(TEXT("CARDS.CapacityBase"), &P.Cards.CapacityBase), {TEXT("CARDS.LevelsPerSlot"), &P.Cards.LevelsPerSlot},
         {TEXT("CARDS.OfferSize"), &P.Cards.OfferSize}, {TEXT("CARDS.FreeRerolls"), &P.Cards.FreeRerolls},
-        {TEXT("CARDS.RerollsPerRest"), &P.Cards.RerollsPerRest}, {TEXT("CARDS.LockSlots"), &P.Cards.LockSlots},
+        {TEXT("CARDS.RerollsPerRest"), &P.Cards.RerollsPerRest},
         {TEXT("CARDS.VocabWeight"), &P.Cards.VocabWeight}, {TEXT("CHAIN.MaxDepth"), &P.ChainMaxDepth},
         {TEXT("CHAIN.MaxEffectsPerStep"), &P.ChainMaxEffectsPerStep}, {TEXT("CHAIN.MinKeySteps"), &P.ChainMinKeySteps},
         {TEXT("CARDS.SkipVouchers"), &P.Cards.SkipVouchers},
@@ -935,17 +935,13 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SHOP.SkillPointMaxPerMatch"), &P.Shop.SkillPointMaxPerMatch}})
     {
         const bool bMayBeZero = FCString::Strcmp(Field.Key, TEXT("CARDS.FreeRerolls")) == 0
-            || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0 || FCString::Strcmp(Field.Key, TEXT("CARDS.LockSlots")) == 0;
+            || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0;
         // The chain guard's per-step budget is a fan-out ceiling, not a small card count.
         const int32 Max = FCString::Strcmp(Field.Key, TEXT("CHAIN.MaxEffectsPerStep")) == 0 ? 4096 : 64;
         if (!F.SmallInt(Field.Key, *Field.Value, bMayBeZero ? 0 : 1, Max))
         {
             return false;
         }
-    }
-    if (!Check.Require(P.Cards.LockSlots < P.Cards.OfferSize, TEXT("CARDS.LockSlots"), TEXT("a locked card leaves room for new ones")))
-    {
-        return false;
     }
     if (!F.Fixed(TEXT("CHAIN.EndSec"), TEXT("ms"), TEXT("ms"), P.ChainEndMs, 1, 600000)
         || !F.Fixed(TEXT("CARDS.IdleCarrySec"), TEXT("ms"), TEXT("ms"), P.Cards.IdleCarryMs, 1, 600000)) { return false; }

@@ -97,8 +97,7 @@ struct FLDDemoAIParameters
 
 // Build cards (spec §3.12): capacity CapacityBase + floor((level - 1) / LevelsPerSlot); every offer shows OfferSize cards
 // drawn by weight without replacement (VocabWeight for a candidate sharing a vocabulary key with the installed cards or
-// learned skills, 1 otherwise); FreeRerolls rerolls at match start and RerollsPerRest more at each mid-match rest; LockSlots
-// cards of an offer may be kept for the next one.
+// learned skills, 1 otherwise); FreeRerolls rerolls at match start and RerollsPerRest more at each mid-match rest.
 USTRUCT()
 struct FLDDemoCardParameters
 {
@@ -109,7 +108,6 @@ struct FLDDemoCardParameters
     UPROPERTY() int32 OfferSize = 0;
     UPROPERTY() int32 FreeRerolls = 0;
     UPROPERTY() int32 RerollsPerRest = 0;
-    UPROPERTY() int32 LockSlots = 0;
     UPROPERTY() int32 VocabWeight = 0;
     // Spec §3.13: vouchers for skipping one card offer.
     UPROPERTY() int32 SkipVouchers = 0;

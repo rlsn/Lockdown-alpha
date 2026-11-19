@@ -106,9 +106,6 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
         return bOfferNamed && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
-    case ELDBuildCommandKind::LockCard:
-        // An all-zero Option clears the lock.
-        return bOfferNamed && LDGrowthWire::DecodeOptional(Command.Option, Decoded) && bNoActive && bNoCard;
     case ELDBuildCommandKind::InstallCard:
         return bNoOffer && bNoActive && bTarget && !Target.IsEmpty() && Command.CardSerial != 0 && !Command.bInstallIfPossible
             && Command.ReplacingSerial != Command.CardSerial;
@@ -123,7 +120,7 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
 bool DevelopmentIsCardKind(ELDBuildCommandKind Kind)
 {
     return Kind == ELDBuildCommandKind::PickCard || Kind == ELDBuildCommandKind::SkipCards || Kind == ELDBuildCommandKind::RerollCards
-        || Kind == ELDBuildCommandKind::LockCard || Kind == ELDBuildCommandKind::InstallCard
+        || Kind == ELDBuildCommandKind::InstallCard
         || Kind == ELDBuildCommandKind::UninstallCard;
 }
 
@@ -485,7 +482,6 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         View.CardOffer.OfferRevision = Offer.Revision;
         View.CardOffer.Source = Offer.Source;
         View.CardOffer.Options = Offer.Options;
-        View.CardOffer.Locked = Offer.Locked;
     }
     View.CardRerolls = LDProgression::CardRerollsLeft(Progression);
     View.CatalogDigest = Definitions.Identity.Root;
@@ -926,7 +922,6 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
     case ELDBuildCommandKind::RerollCards:
-    case ELDBuildCommandKind::LockCard:
     {
         // The offer guards: the current offer by id, then its revision.
         if (!Progression.CardOffer.IsSet() || Progression.CardOffer->OfferId != Command.OfferId)
@@ -951,14 +946,10 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         {
             CardReason = LDProgression::ApplySkipCards(Definitions, Progression, Command.OfferId, Context, NewProgression);
         }
-        else if (Command.Kind == ELDBuildCommandKind::RerollCards)
+        else
         {
             CardReason = LDProgression::ApplyRerollCards(Definitions, Build, Progression, Command.OfferId, MatchSecret, ContenderId,
                 Context, NewProgression);
-        }
-        else
-        {
-            CardReason = LDProgression::ApplyLockCard(Definitions, Progression, Command.OfferId, Definition, Context, NewProgression);
         }
         if (CardReason != ELDGrowthReason::None)
         {
@@ -2017,7 +2008,6 @@ ELDGrowthReason ALDDevelopmentDirector::DevApplyBreakoutPreset(const FGuid& Cont
     }
     NewProgression.CardQueue.Reset();
     NewProgression.CardOffer.Reset();
-    NewProgression.CarriedLock = NAME_None;
     const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), true, Permit);
     if (Reason == ELDGrowthReason::None)
     {

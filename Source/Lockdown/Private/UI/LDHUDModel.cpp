@@ -1734,8 +1734,6 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         return LDTerms::CardRemoved(ContentName(Content,Receipt.CardId.ToString()));
     case ELDBuildCommandKind::SkipCards: return Receipt.VouchersDelta>0?LDTerms::VouchersGained(Receipt.VouchersDelta):FString(LDTerms::CardsSkipped);
     case ELDBuildCommandKind::RerollCards: return LDTerms::CardsRerolled(Receipt.CardRerollsAfter);
-    case ELDBuildCommandKind::LockCard:
-        return Receipt.CardId.IsNone()?FString(LDTerms::CardUnlocked):LDTerms::CardLocked(ContentName(Content,Receipt.CardId.ToString()));
     default: return Missing;
     }
 }

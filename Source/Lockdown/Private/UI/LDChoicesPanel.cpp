@@ -149,11 +149,8 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                     FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthCard%d"),Index)),[this,Index](){PickCardOffer(Index);});
                     auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Cell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
                     Cell->AddChildToVerticalBox(Card.Frame)->SetHorizontalAlignment(HAlign_Center);
-                    ULDCommandButton* Lock=LDWidgets::Button(WidgetTree,LDTerms::CardLock,[this,Index](){LockCardOffer(Index);},true,
-                        FName(*FString::Printf(TEXT("GrowthCardLock%d"),Index)));
-                    Cell->AddChildToVerticalBox(Lock)->SetHorizontalAlignment(HAlign_Center);
                     CardRow->AddChildToWrapBox(Cell);RowWidgets.Add(Cell);
-                    CardCards.Add(Card);CardLocks.Add(Lock);CardCells.Add(Cell);
+                    CardCards.Add(Card);CardCells.Add(Cell);
                 }
                 auto* Actions=WidgetTree->ConstructWidget<UVerticalBox>();Actions->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
                 CardRerollButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){RerollCardOffer();},true,TEXT("GrowthCardReroll"));
@@ -1134,11 +1131,6 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
                 LDHUD::CardChoiceDetail(View,Outcome));
         }
         ShowLook(Card,bTiles,bCan,bVisible);
-        // The locked card carries over to the next offer (and stays through a reroll).
-        ULDCommandButton* Lock=CardLocks[Index];
-        GrowthShown(Lock,!bTiles&&LatestContent&&LatestContent->Parameters.Cards.LockSlots>0,ESlateVisibility::Visible);
-        GrowthEnabled(Lock,bCan);
-        GrowthTint(Lock,Latest.CardOffer.Locked==Id?LDHUDStyle::UIAction:LDHUDStyle::CardIdle);
     }
     GrowthShown(CardActions,bShow&&!bTiles);
     GrowthText(Cast<UTextBlock>(CardRerollButton->GetContent()),LDTerms::CardReroll(Latest.CardRerolls));
@@ -1169,15 +1161,6 @@ bool ULDChoicesPanel::PickCardOffer(int32 Index)
         if(!Target.Active.IsNone()&&!FLDDefinitionWire::Encode(Target.Active,Command.TargetDefinition)){Tell(TEXT("没有提交：技能标识无效。"));return false;}
     }
     LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);
-    return Send(Command);
-}
-bool ULDChoicesPanel::LockCardOffer(int32 Index)
-{
-    FLDBuildCommand Command;
-    if(!ShownCardOptions.IsValidIndex(Index)||!CardOfferCommand(ELDBuildCommandKind::LockCard,Command)){return false;}
-    // Locking the locked card again clears the lock (an all-zero Option).
-    const FName Id=ShownCardOptions[Index];
-    if(Latest.CardOffer.Locked!=Id&&!FLDDefinitionWire::Encode(Id,Command.Option)){Tell(TEXT("没有提交：这张牌的标识无效。"));return false;}
     return Send(Command);
 }
 bool ULDChoicesPanel::RerollCardOffer()

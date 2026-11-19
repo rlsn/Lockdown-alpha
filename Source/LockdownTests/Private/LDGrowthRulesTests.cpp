@@ -205,7 +205,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         ELDBuildCommandKind::ShopSell, ELDBuildCommandKind::UsePickTicket, ELDBuildCommandKind::Respec,
         ELDBuildCommandKind::ReplaceActive, ELDBuildCommandKind::ForgetActive, ELDBuildCommandKind::SkipActiveOffer,
         ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill, ELDBuildCommandKind::PickCard, ELDBuildCommandKind::SkipCards,
-        ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::LockCard, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard})
+        ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
@@ -914,7 +914,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
         {TEXT("Serial"), TEXT("DefinitionId"), TEXT("OfferOrdinal"), TEXT("Target")});
     bGood &= GrowthTestExactFields(Test, FLDCardTargetView::StaticStruct(), {TEXT("Kind"), TEXT("Active"), TEXT("Element")});
     bGood &= GrowthTestExactFields(Test, FLDCardOfferView::StaticStruct(),
-        {TEXT("OfferId"), TEXT("Ordinal"), TEXT("OfferRevision"), TEXT("Source"), TEXT("Options"), TEXT("Locked")});
+        {TEXT("OfferId"), TEXT("Ordinal"), TEXT("OfferRevision"), TEXT("Source"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDFieldRewardView::StaticStruct(),
         {TEXT("Event"), TEXT("Serial"), TEXT("XP"), TEXT("Result"), TEXT("Definition")});
     bGood &= GrowthTestExactFields(Test, FLDFinalModSourceView::StaticStruct(),
@@ -3002,7 +3002,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDProgressionView Picking = Development->ReadProgression(Tester);
     if (!TestTrue(TEXT("The chosen opening active opens the opening card offer with the free rerolls and six slots"),
         Picking.bHasCardOffer && Picking.CardOffer.Source == ELDCardOfferSource::Opening && Picking.CardOffer.Ordinal == 1
-        && Picking.CardOffer.Options.Num() == 3 && GrowthTestDistinct(Picking.CardOffer.Options) && Picking.CardOffer.Locked.IsNone()
+        && Picking.CardOffer.Options.Num() == 3 && GrowthTestDistinct(Picking.CardOffer.Options)
         && Picking.Cards.IsEmpty() && Picking.CardRerolls == Content.Parameters.Cards.FreeRerolls
         && Picking.CardCapacity == Content.Parameters.Cards.CapacityBase)) { return false; }
     // A card kind against the current card offer.
@@ -3052,26 +3052,6 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Bad = Good;
     Bad.CardSerial = 1;
     Refused(TEXT("An active choice naming a card"), Bad, ELDGrowthReason::InvalidRequest);
-    // Spec §6.4: one lock; a reroll spends one reroll, keeps the locked card and redraws the rest.
-    const FLDBuildReceipt Locked = Commit(Tester, CardOffer(Tester, ELDBuildCommandKind::LockCard, Taken), 1005, TEXT("Locking a card"));
-    const FLDProgressionView LockedView = Development->ReadProgression(Tester);
-    TestTrue(TEXT("The lock is applied and shown on the same offer"), Locked.Header.Outcome == ELDReceiptOutcome::Applied
-        && LockedView.CardOffer.OfferId == Picking.CardOffer.OfferId && LockedView.CardOffer.Locked == Taken
-        && LockedView.CardOffer.OfferRevision > Picking.CardOffer.OfferRevision);
-    FName Outside;
-    for (const FLDDemoCardDefinition& Row : Content.Cards)
-    {
-        if (!LockedView.CardOffer.Options.Contains(FName(*Row.Id))) { Outside = FName(*Row.Id); break; }
-    }
-    Rejected(Commit(Tester, CardOffer(Tester, ELDBuildCommandKind::LockCard, Outside), 1005,
-        TEXT("Locking a card outside the offer")), ELDGrowthReason::NotInOffer, TEXT("Locking a card outside the offer"));
-    const FLDBuildReceipt Rerolled = Commit(Tester, CardOffer(Tester, ELDBuildCommandKind::RerollCards), 1005, TEXT("Rerolling the offer"));
-    const FLDProgressionView RerolledView = Development->ReadProgression(Tester);
-    TestTrue(TEXT("A reroll spends one reroll, keeps the locked card and redraws three distinct cards"),
-        Rerolled.Header.Outcome == ELDReceiptOutcome::Applied && Rerolled.CardRerollsAfter == Picking.CardRerolls - 1
-        && RerolledView.CardRerolls == Picking.CardRerolls - 1 && RerolledView.CardOffer.Options.Num() == 3
-        && RerolledView.CardOffer.Options[0] == Taken && RerolledView.CardOffer.Locked == Taken
-        && GrowthTestDistinct(RerolledView.CardOffer.Options));
     FLDBuildCommand Pick = CardOffer(Tester, ELDBuildCommandKind::PickCard, Taken);
     Pick.bInstallIfPossible = true;
     Place(Pick, TakenAt);
@@ -3211,7 +3191,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
 
     // ---- Dead: a choice is stored, a learn waits for the next life, points can be allocated ----
     Mode->Lives.FindChecked(Tester).Phase = ELDLifePhase::Dead;
-    if (!Reward(Tester, 2, 252)) { return false; }
+    if (!Reward(Tester, 2, 360)) { return false; }
     const FLDProgressionView Six = Development->ReadProgression(Tester);
     TestTrue(TEXT("Level 6 queues opportunity 3 with an offer of the remaining actives and adds 9 points"), Six.Level == 6
         && Six.ActiveOpportunitiesEarned == 3 && Six.QueuedActiveOpportunities == 1 && Six.bHasActiveOffer
@@ -3376,15 +3356,15 @@ bool FLDGrowthCardsOfferTest::RunTest(const FString& Parameters)
     const FLDGrowthBuild Build = Learned(Content, 3);
     // Spec §6.4: three distinct cards, fixed by the seed, weighted x2 toward the build's vocabulary.
     TArray<FName> Options, Again;
-    bool bGood = GrowthTestReason(*this, TEXT("An offer draws"), LDProgression::DrawCardOffer(Content, Build, 3, NAME_None, 7, Options),
+    bool bGood = GrowthTestReason(*this, TEXT("An offer draws"), LDProgression::DrawCardOffer(Content, Build, 3, 7, Options),
         ELDGrowthReason::None);
-    LDProgression::DrawCardOffer(Content, Build, 3, NAME_None, 7, Again);
+    LDProgression::DrawCardOffer(Content, Build, 3, 7, Again);
     bGood &= TestTrue(TEXT("Three distinct cards, fixed by the seed"), Options.Num() == 3 && GrowthTestDistinct(Options) && Options == Again);
     const uint32 Vocab = LDProgression::BuildVocab(Content, Build);
     int32 Shared = 0, Total = 0;
     for (uint64 Seed = 1; Seed <= 400; ++Seed)
     {
-        LDProgression::DrawCardOffer(Content, Build, 3, NAME_None, Seed, Options);
+        LDProgression::DrawCardOffer(Content, Build, 3, Seed, Options);
         const FName First = Options[0];
         const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([First](const FLDDemoCardDefinition& Row) { return FName(*Row.Id) == First; });
         Shared += Card && (Card->VocabMask & Vocab) != 0;
@@ -3470,47 +3450,6 @@ bool FLDGrowthCardsRerollTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("One more per rest"), Content.Parameters.Cards.RerollsPerRest, 1)
         && GrowthTestReason(*this, TEXT("A rest reroll"), LDProgression::ApplyRerollCards(Content, Build, Progression,
             Progression.CardOffer->OfferId, Secret, Contender, Live(), Out), ELDGrowthReason::None);
-    return bGood;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthCardsLockTest, "Lockdown.Rules.Growth.Cards.Lock",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDGrowthCardsLockTest::RunTest(const FString& Parameters)
-{
-    using namespace GrowthCardTests;
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    const FLDGrowthBuild Build = Learned(Content, 3);
-    FLDProgressionState Progression = Queued(Content, 2);
-    bool bDrawn = false;
-    LDProgression::RefreshCardOffer(Content, Build, Progression, Secret, Contender, bDrawn);
-    if (!TestTrue(TEXT("An offer is current"), bDrawn)) { return false; }
-    const FName Kept = Progression.CardOffer->Options[2];
-    FLDProgressionState Locked;
-    bool bGood = GrowthTestReason(*this, TEXT("Locking one card"), LDProgression::ApplyLockCard(Content, Progression,
-        Progression.CardOffer->OfferId, Kept, Live(), Locked), ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("The lock is on the same offer with a new revision"), Locked.CardOffer->Locked == Kept
-        && Locked.CardOffer->OfferId == Progression.CardOffer->OfferId && Locked.CardOffer->Revision > Progression.CardOffer->Revision);
-    FLDProgressionState Rerolled;
-    LDProgression::ApplyRerollCards(Content, Build, Locked, Locked.CardOffer->OfferId, Secret, Contender, Live(), Rerolled);
-    bGood &= TestTrue(TEXT("A reroll keeps the locked card first"), Rerolled.CardOffer->Options.Num() == 3
-        && Rerolled.CardOffer->Options[0] == Kept && Rerolled.CardOffer->Locked == Kept);
-    // Taking another card carries the lock into the next offer.
-    FLDGrowthBuild Out;
-    FLDProgressionState Taken;
-    LDProgression::FCardPickOutcome Outcome;
-    const FName Other = Rerolled.CardOffer->Options[1];
-    LDProgression::ApplyPickCard(Content, Build, Rerolled, Rerolled.CardOffer->OfferId, Other, false, FLDCardTarget(), Live(), Out, Taken,
-        Outcome);
-    LDProgression::RefreshCardOffer(Content, Out, Taken, Secret, Contender, bDrawn);
-    bGood &= TestTrue(TEXT("The locked card is shown first in the next offer"), bDrawn && Taken.CardOffer->Options[0] == Kept
-        && Taken.CardOffer->Locked.IsNone() && Taken.CarriedLock.IsNone());
-    FLDProgressionState Cleared;
-    bGood &= GrowthTestReason(*this, TEXT("Clearing a lock"), LDProgression::ApplyLockCard(Content, Locked, Locked.CardOffer->OfferId,
-        NAME_None, Live(), Cleared), ELDGrowthReason::None) && TestTrue(TEXT("Cleared"), Cleared.CardOffer->Locked.IsNone());
-    bGood &= GrowthTestReason(*this, TEXT("Locking a card outside the offer"), LDProgression::ApplyLockCard(Content, Progression,
-        Progression.CardOffer->OfferId, FName(TEXT("card_missing")), Live(), Cleared), ELDGrowthReason::NotInOffer);
     return bGood;
 }
 

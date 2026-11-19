@@ -39,9 +39,8 @@ enum class ELDBuildCommandKind : uint8
     // Spend one skill point on the next rank of a learned skill (issue #287 spec §4.5, SC-05).
     RankUpSkill = 28,
     // Spec §6.4: take one card of the current offer (installed in the same commit when a legal target was named and a slot
-    // is free), skip the offer, reroll it (keeping a lock), lock one of its cards (or clear the lock); install or uninstall
-    // an owned card.
-    PickCard = 30, SkipCards = 31, RerollCards = 32, LockCard = 33, InstallCard = 34, UninstallCard = 35,
+    // is free), skip the offer, reroll it; install or uninstall an owned card. 33 is retired.
+    PickCard = 30, SkipCards = 31, RerollCards = 32, InstallCard = 34, UninstallCard = 35,
     // Spec §3.13 rest shop: buy shelf slot Slot (or a skill point, Slot ShopSkillPointSlot), refresh the shelf, sell the library
     // card CardSerial. Spec §11.3: spend a pick ticket on Option (an active, or a card seen this match).
     ShopBuy = 36, ShopRefresh = 37, ShopSell = 38, UsePickTicket = 39
@@ -307,8 +306,6 @@ struct LOCKDOWN_API FLDCardOfferView
     UPROPERTY() uint64 OfferRevision = 0;
     UPROPERTY() ELDCardOfferSource Source = ELDCardOfferSource::None;
     UPROPERTY() TArray<FName> Options;
-    // The locked option (it moves into the next offer), or None.
-    UPROPERTY() FName Locked;
 };
 
 USTRUCT()
@@ -470,8 +467,7 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() FLDDefinitionWire Blueprint;
     // AllocatePoints: one count per stat in the stats' design order, at least one point in total.
     UPROPERTY() TArray<uint8> PointCounts;
-    // PickCard, SkipCards, RerollCards and LockCard name the offer by OfferId/OfferRevision; PickCard and LockCard the card
-    // by Option (an all-zero LockCard Option clears the lock).
+    // PickCard, SkipCards and RerollCards name the offer by OfferId/OfferRevision; PickCard the card by Option.
     // PickCard: install the card in the same commit on CardTarget when it is legal and a slot is free, else keep it.
     UPROPERTY() bool bInstallIfPossible = false;
     // InstallCard / UninstallCard: the owned card; InstallCard and PickCard: the target.

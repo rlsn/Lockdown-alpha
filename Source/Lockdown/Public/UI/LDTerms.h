@@ -144,8 +144,6 @@ inline FString CardStored(const FString& Name,const FString& Why)
 inline FString CardRemoved(const FString& Name){return FString::Printf(TEXT("已拆下：%s"),*Name);}
 inline constexpr TCHAR CardsSkipped[]=TEXT("已跳过这组牌");
 inline FString CardsRerolled(int32 Left){return FString::Printf(TEXT("已重抽，还剩 %d 次"),Left);}
-inline FString CardLocked(const FString& Name){return FString::Printf(TEXT("已锁定：%s"),*Name);}
-inline constexpr TCHAR CardUnlocked[]=TEXT("已取消锁定");
 // 升级横幅的第二行：这次升级得到的属性点、主动机会与牌三选一。
 inline FString LevelUpGains(int64 Points,int32 Offers,int32 CardOffers)
 {
@@ -311,7 +309,6 @@ inline const TCHAR* CardTypeName(uint8 Type)
 inline constexpr TCHAR CardStageTitle[]=TEXT("选一张牌");
 inline FString CardOfferOf(int32 Ordinal,int32 Queued){return Queued>1?FString::Printf(TEXT("还有 %d 组"),Queued-1):FString();}
 inline FString CardReroll(int32 Left){return FString::Printf(TEXT("重抽 %d"),Left);}
-inline constexpr TCHAR CardLock[]=TEXT("锁定");
 inline constexpr TCHAR CardSkip[]=TEXT("跳过");
 inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("已加 %lld 点，还剩 %lld 点"),Spent,Left);}
 

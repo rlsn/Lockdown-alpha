@@ -517,7 +517,6 @@ $$
 | `CARDS.OfferSize` | 3 | 每组牌三选一的张数（不重复） |
 | `CARDS.VocabWeight` | 2 | 与已装牌或已学技能共享词汇的牌的抽取权重；其他牌为 1 |
 | `CARDS.FreeRerolls`、`CARDS.RerollsPerRest` | 3、1 | 开局重抽次数；R1–R3 每次休息再给的次数 |
-| `CARDS.LockSlots` | 1 | 一组里可锁定的张数；锁定的牌重抽后与下一组都在第一位 |
 | `CARDS.SkipVouchers` | 3 | 跳过一组牌三选一得到的饭票 |
 | `DAMAGE.FactorTechCap` | ×1000 | 一次伤害乘区之积的技术上限（只防溢出，`LD_DAMAGE_FACTOR_CAPPED`） |
 | `CHAIN.MaxDepth`、`CHAIN.MaxEffectsPerStep` | 16、256 | 连锁最深步数；一个权威步最多产生的后续效果，其余顺延（`LD_CHAIN_GUARD`） |

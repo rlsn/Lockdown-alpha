@@ -131,7 +131,6 @@
     "CARDS.OfferSize": 3,
     "CARDS.FreeRerolls": 3,
     "CARDS.RerollsPerRest": 1,
-    "CARDS.LockSlots": 1,
     "CARDS.VocabWeight": 2,
     "CARDS.SkipVouchers": 3,
     "CARDS.IdleCarrySec": {"unit": "s", "value": 5},

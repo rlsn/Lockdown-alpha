@@ -117,7 +117,6 @@ struct FLDCardOfferState
     uint16 Ordinal = 0;
     ELDCardOfferSource Source = ELDCardOfferSource::None;
     TArray<FName> Options;
-    FName Locked;
     uint64 Revision = 0;
     uint32 Rerolls = 0;
 };
@@ -169,12 +168,11 @@ struct FLDProgressionState
     TArray<FLDActiveOpportunityRecord> Records;
     // Spec §6.4 card offer queue: the sources of the earned and unresolved offers, head first; CardOffersEarned numbers them
     // (the head's ordinal is CardOffersEarned - CardQueue.Num() + 1). The head's offer is drawn once the opening opportunity is
-    // resolved. CarriedLock is the card a resolved offer locked; the next offer shows it.
+    // resolved.
     TArray<ELDCardOfferSource> CardQueue;
     uint16 CardOffersEarned = 0;
     TOptional<FLDCardOfferState> CardOffer;
     uint64 LastCardOfferRevision = 0;
-    FName CarriedLock;
     // CARDS.FreeRerolls at match start plus CARDS.RerollsPerRest at each mid-match rest, and the ones used.
     int32 CardRerollsGranted = 0;
     int32 CardRerollsUsed = 0;
@@ -385,10 +383,10 @@ namespace LDProgression
     // place exists now (a skill card without a learned skill).
     LOCKDOWN_API bool DefaultCardTarget(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id,
         FLDCardTarget& Out);
-    // Up to CARDS.OfferSize distinct cards: Locked first when set, then a weighted draw without replacement over every other
+    // Up to CARDS.OfferSize distinct cards: a weighted draw without replacement over every
     // definition (CARDS.VocabWeight when it shares a vocabulary key with BuildVocab, else 1), deterministic in Seed.
     // Size distinct cards (CardOfferSize of the offer's source).
-    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size, FName Locked,
+    LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
         uint64 Seed, TArray<FName>& Out);
     // Private random material of one card offer ordinal and its Reroll-th reroll.
     LOCKDOWN_API uint64 CardOfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint16 Ordinal, uint32 Reroll);
@@ -424,10 +422,6 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyRerollCards(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLDProgressionState& Progression, const FGuid& OfferId, const FGuid& MatchSecret, const FGuid& Contender,
         const FBuildContext& Context, FLDProgressionState& OutProgression);
-    // LockCard: Option (one of the offer's) becomes its locked card; None clears the lock. NoCardOffer, NotInOffer;
-    // InvalidRequest when locks are off (CARDS.LockSlots 0).
-    LOCKDOWN_API ELDGrowthReason ApplyLockCard(const FLDDemoContentDefinitions& Content, const FLDProgressionState& Progression,
-        const FGuid& OfferId, FName Option, const FBuildContext& Context, FLDProgressionState& OutProgression);
     // InstallCard: the owned card Serial onto Target. NotOwned, AlreadyInstalled, InvalidTarget, WorkshopFull. A non-zero
     // Replacing (another installed card) goes back to the library in the same commit and frees its slot (OutUninstalled).
     LOCKDOWN_API ELDGrowthReason ApplyInstallCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,

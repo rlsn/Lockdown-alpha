@@ -523,7 +523,6 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Dev.BreakoutPresets",
         "Lockdown.Rules.Growth.Cards.Capacity",
         "Lockdown.Rules.Growth.Cards.Duplicates",
-        "Lockdown.Rules.Growth.Cards.Lock",
         "Lockdown.Rules.Growth.Cards.Offer",
         "Lockdown.Rules.Growth.Cards.Reroll",
     }
