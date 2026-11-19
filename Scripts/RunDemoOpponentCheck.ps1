@@ -9,6 +9,12 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
     # DEV telemetry instead of the full-room check: one idle headless Listen Host and three AI play -MatchCount matches in a
     # row; each match gets -TimeoutSeconds. Writes one MatchNN.json per match and Summary.json; it judges nothing.
     [switch]$Telemetry, [ValidateRange(1,50)][int]$MatchCount=1,
+    # Telemetry only: the Host advances a fixed 1/60 s step as fast as the machine allows (-UseFixedTimeStep -FPS=60, as
+    # RunBuildEvaluation.ps1 does) instead of following the wall clock. -TimeoutSeconds stays wall-clock time per match.
+    [switch]$Accelerated,
+    # The interface part of the full-room check alone: the same three roles start the match, the rendered Host takes the
+    # opening rest's review screenshots and layout checks, and the run ends there. Nobody plays the match out.
+    [switch]$UIOnly,
     # Telemetry only: DEV content hot reload (-LDDevContentReload, editor build only), so a re-synced demo_content.json
     # is played without rebuilding C++. Each match records the content root it played.
     [switch]$DevContentReload)
@@ -17,8 +23,11 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
 Assert-LDDemoInputs
 if ($Telemetry -and $NetEmulation) { throw 'Telemetry runs the Host alone on loopback; -NetEmulation has no connection to impair.' }
 if (-not $Telemetry -and $PSBoundParameters.ContainsKey('MatchCount')) { throw '-MatchCount applies only to -Telemetry.' }
+if ($Accelerated -and -not $Telemetry) { throw '-Accelerated applies only to -Telemetry; the full-room check runs on real connections in real time.' }
+if ($UIOnly -and $Telemetry) { throw '-UIOnly is the interface part of the full-room check; it does not combine with -Telemetry.' }
 if ($DevContentReload -and (-not $Telemetry -or $PackageRoot)) { throw '-DevContentReload applies only to -Telemetry on the editor build; a package must be cooked again.' }
-$scenario = if ($Telemetry) { 'DemoOpponent-Telemetry' } else { 'DemoOpponent-FullRoom' }
+$scenario = if ($Telemetry) { 'DemoOpponent-Telemetry' + $(if ($Accelerated) { '-Accelerated' } else { '' }) }
+    elseif ($UIOnly) { 'DemoOpponent-UI' } else { 'DemoOpponent-FullRoom' }
 $output = New-LDArtifactDirectory ($scenario + $(if ($PackageRoot) { '-Packaged' } else { '' }) +
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
@@ -39,10 +48,11 @@ function Start-OpponentRole {
         # The Host renders (1280x720 offscreen) so it can keep HUD screenshots of the match; clients and the telemetry
         # Host stay headless.
         $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
-            elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })" }
+            elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })$(if ($Accelerated) { ' -UseFixedTimeStep -FPS=60' })" }
             else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
+        if ($UIOnly) { $arguments += ' -LDDemoOpponentUIOnly' }
         if ($LogCmds) { $arguments += " -LogCmds=""$LogCmds""" }
         $arguments
     }
@@ -57,6 +67,46 @@ function Get-OpponentFailure {
         }
     }
     return 'no role report explains it'
+}
+
+# Every failed check of a role's report with its detail (widget rectangles for a layout check), one per line.
+function Get-OpponentFailedChecks {
+    param($Report)
+    @($Report.checks | Where-Object { $_.status -eq 'failed' } | ForEach-Object {
+        # detail is optional (only interface checks write it); StrictMode refuses a missing property.
+        $detail = $_.PSObject.Properties['detail']
+        "FAILED: $($_.name)$(if ($detail -and $detail.Value) { " -- $($detail.Value)" })" })
+}
+
+function Invoke-OpponentUI {
+    Start-OpponentRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoOpponentHost'
+    Wait-HostLobby
+    foreach ($index in 1..2) {
+        $url = '127.0.0.1:{0}?Name=DemoOpponentClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
+        Start-OpponentRole "Client$index" $url
+    }
+    # A failing Host writes its report and exits with a non-zero code, so wait on the report rather than on the harness'
+    # early-exit guard: every failed check is then read from the report itself.
+    $file = Join-Path $evidence 'Host.json'
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + 60)
+    while (-not (Test-Path -LiteralPath $file)) {
+        $processes[0].Refresh()
+        if ($processes[0].HasExited -and -not (Test-Path -LiteralPath $file)) { throw "Opponent interface check Host exited without a report. Evidence: $output" }
+        if ([DateTime]::UtcNow -ge $deadline) { throw "Opponent interface check timed out: $output" }
+        Start-Sleep -Milliseconds 200
+    }
+    $report = Read-LDDemoReport -Harness $harness -Name 'Host.json'
+    $failed = @(Get-OpponentFailedChecks $report)
+    foreach ($line in $failed) { Write-Host $line }
+    if (-not $report.passed -or $failed.Count) {
+        throw "Opponent interface check failed with $($failed.Count) failed check(s), all listed above: $($report.detail). Evidence: $output"
+    }
+    Stop-LDDemoClients -Harness $harness -Message 'Interface review done' -ExitError "Opponent interface check client did not exit cleanly: $output"
+    Stop-LDDemoHost -Harness $harness
+    $errors = @(Get-LDDemoLogErrors -Harness $harness)
+    if ($errors.Count) { throw "Opponent interface check logged an error: $($errors[0].Line). Evidence: $output" }
+    $interface = @($report.checks | Where-Object { $_.name -like 'UI: *' })
+    Write-Host "DEV-only opening-rest interface check passed: $($interface.Count) interface check(s) and $(@($report.summary.screenshots).Count) review screenshot(s) at 1280x720 and 1920x1080, text scale 100% and 125%, on a real Listen Host with two owning clients and three AI. The match was not played out; the screenshots still need a human look. Evidence: $output"
 }
 
 # Clients can connect as soon as the Host's lobby exists; its own HostJoined marker comes many seconds later, once the
@@ -78,6 +128,7 @@ function Invoke-OpponentTelemetry {
     Start-OpponentRole 'Telemetry' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoTelemetryHost'
     # The Host ends itself after the last match, or on the first failure with its reason in Telemetry.json.
     $process = $processes[0]
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
     if (-not $process.WaitForExit((($TimeoutSeconds * $MatchCount) + 60) * 1000)) { throw "Opponent telemetry timed out: $output" }
     $file = Join-Path $evidence 'Telemetry.json'
     if (-not (Test-Path -LiteralPath $file)) { throw "Opponent telemetry left no report (exit $($process.ExitCode)): $output" }
@@ -90,11 +141,15 @@ function Invoke-OpponentTelemetry {
     $errors = @(Get-LDDemoLogErrors -Harness $harness -Pattern 'Fatal error|Assertion failed|Log(?!Python:)\w+: (Error|Fatal):|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Opponent telemetry logged an error: $($errors[0].Line). Evidence: $output" }
     Invoke-LDTool -Tool 'python' -ToolArguments @('-B', (Join-Path $PSScriptRoot 'SummarizeOpponentTelemetry.py'), $evidence) -LogPath (Join-Path $output 'Summary.txt')
+    $played = [math]::Round((@($report.files | ForEach-Object { (Get-Content -LiteralPath (Join-Path $evidence $_) -Raw | ConvertFrom-Json).duration_ms }) | Measure-Object -Sum).Sum / 1000)
+    $step = if ($report.fixed_time_step) { "a fixed $([math]::Round(1 / $report.fixed_delta_seconds)) steps/s, unrendered" } else { 'real time' }
+    Write-Host "Telemetry pace: $played s of match time in $([int]$watch.Elapsed.TotalSeconds) s of wall time including start-up ($step)."
     Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
 }
 
 try {
     if ($Telemetry) { Invoke-OpponentTelemetry; return }
+    if ($UIOnly) { Invoke-OpponentUI; return }
     Start-OpponentRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoOpponentHost'
     Wait-HostLobby
     foreach ($index in 1..2) {
@@ -106,6 +161,7 @@ try {
         $r = Read-LDDemoReport -Harness $harness -Name "$_.json"
         # A check this match gave no occasion for is listed below as not exercised; it is neither a pass nor a failure.
         if (-not $r.passed -or $r.role -ne $_ -or @($r.checks | Where-Object { $_.status -ne 'passed' -and $_.status -ne 'not_exercised' }).Count -ne 0) {
+            foreach ($line in (Get-OpponentFailedChecks $r)) { Write-Host "$_ $line" }
             throw "Opponent scenario evidence failed for $_`: $($r.detail). Evidence: $output"
         }
         $r

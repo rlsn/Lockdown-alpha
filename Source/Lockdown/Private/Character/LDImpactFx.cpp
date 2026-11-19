@@ -112,6 +112,7 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
 #endif
+    WarmUp();
     if (!BurstSystem || !ZoneSystem)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_PARTICLE_KIT asset=missing burst=%s zone=%s"),
@@ -562,6 +563,15 @@ float ULDImpactFxSubsystem::ScreenFringe() const
 void ULDImpactFxSubsystem::Tick(float DeltaTime)
 {
     const float Step = FMath::IsFinite(DeltaTime) ? FMath::Max(DeltaTime, 0.f) : 0.f;
+    if (!Warming.IsEmpty())
+    {
+        WarmSeconds += Step;
+        if (WarmSeconds >= 1.f)
+        {
+            for (const TWeakObjectPtr<UNiagaraComponent>& Effect : Warming) { if (UNiagaraComponent* Warmed = Effect.Get()) { Warmed->DestroyComponent(); } }
+            Warming.Reset();
+        }
+    }
     for (int32 Index = Live.Num() - 1; Index >= 0; --Index)
     {
         FLive& Burst = Live[Index];
@@ -626,9 +636,15 @@ LDHitVfx::FLayerTuning ULDImpactFxSubsystem::LayerTuning() const
 
 float ULDImpactFxSubsystem::LocalEffectScale() const
 {
+    // The world's own controller list: a world without a game instance (a test fixture) has no engine world context.
     const UWorld* World = GetWorld();
-    const ALDPlayerController* Local = Cast<ALDPlayerController>(GEngine && World ? GEngine->GetFirstLocalPlayerController(World) : nullptr);
-    return Local && Local->Controls && Local->Controls->bReduceCombatEffects ? .45f : 1.f;
+    if (!World) { return 1.f; }
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        const ALDPlayerController* Local = Cast<ALDPlayerController>(It->Get());
+        if (Local && Local->IsLocalController()) { return Local->Controls && Local->Controls->bReduceCombatEffects ? .45f : 1.f; }
+    }
+    return 1.f;
 }
 
 UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing,
@@ -671,4 +687,79 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNia
     }
     if (!Effect->IsActive()) { Effect->Activate(true); }
     return Effect;
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone,
+    float RadiusCm, const FVector& Velocity, const FVector& Offset)
+{
+    if (!FApp::CanEverRender() || !ZoneSystem || !Zone.bShow)
+    {
+        if (IsValid(Existing)) { Existing->DestroyComponent(); }
+        return nullptr;
+    }
+    UNiagaraComponent* Effect = Existing;
+    if (!IsValid(Effect) || Effect->GetAsset() != ZoneSystem)
+    {
+        if (IsValid(Effect)) { Effect->DestroyComponent(); }
+        Effect = NewObject<UNiagaraComponent>(Owner.GetOwner(), NAME_None, RF_Transient);
+        if (!Effect) { return nullptr; }
+        Effect->SetAutoActivate(false);
+        Effect->SetAsset(ZoneSystem);
+        Effect->SetupAttachment(&Owner);
+        Effect->RegisterComponent();
+    }
+    Effect->SetRelativeLocation(Offset + FVector(0, 0, 6.f));
+    ApplyZone(*Effect, Zone, RadiusCm, Velocity);
+    if (!Effect->IsActive()) { Effect->Activate(true); }
+    return Effect;
+}
+
+void ULDImpactFxSubsystem::WarmUp()
+{
+    if (!FApp::CanEverRender() || !GetWorld()) { return; }
+    // Textures, materials, meshes and the approved hold time load now rather than on the first hit.
+    const bool bLayers = LoadLayerAssets();
+    OverdriveHoldSeconds();
+    if (bLayers)
+    {
+        FreeSlots.Add(TakeSlot(false));
+        FreeSlots.Add(TakeSlot(true));
+    }
+    const FVector Under(0., 0., -20000.);
+    TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
+    if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
+    for (UNiagaraSystem* System : Systems)
+    {
+        if (!System) { continue; }
+        UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), System, Under, FRotator::ZeroRotator,
+            FVector(1.f), false, true, ENCPoolMethod::None, false);
+        if (!Effect) { continue; }
+        Warming.Add(Effect);
+        ++WarmedCount;
+    }
+    UE_LOG(LogLDContent, Display, TEXT("LD_VFX_WARMUP systems=%d layers=%d"), WarmedCount, bLayers ? 2 : 0);
+}
+
+void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
+{
+    const UObject* Asset = Source.GetSkinnedAsset();
+    if (!FApp::CanEverRender() || !Asset || WarmedMeshes.Contains(Asset) || !LoadLayerAssets() || GhostSlots.Num() >= MaxGhosts) { return; }
+    WarmedMeshes.Add(Asset);
+    // One hidden copy with the ghost material: its PSOs precache at registration, and the slot serves the first dash.
+    auto* Copy = NewObject<UPoseableMeshComponent>(LayerHost, NAME_None, RF_Transient);
+    Copy->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Copy->SetGenerateOverlapEvents(false);
+    Copy->SetCanEverAffectNavigation(false);
+    Copy->SetCastShadow(false);
+    Copy->bReceivesDecals = false;
+    Copy->SetUsingAbsoluteLocation(true);
+    Copy->SetUsingAbsoluteRotation(true);
+    Copy->SetUsingAbsoluteScale(true);
+    Copy->SetHiddenInGame(true);
+    Copy->RegisterComponent();
+    UMaterialInstanceDynamic* Paint = UMaterialInstanceDynamic::Create(GhostMaterial, this);
+    Copy->SetSkinnedAssetAndUpdate(Source.GetSkinnedAsset());
+    for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
+    FreeGhosts.Add(GhostSlots.Add(Copy));
+    GhostPaints.Add(Paint);
 }

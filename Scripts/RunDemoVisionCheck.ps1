@@ -84,7 +84,7 @@ try {
             throw "The rendered owning client left no screenshot: $output"
         }
     }
-    Stop-LDDemoClients -Harness $harness -Message $(if ($headless) { 'Leave room' } else { 'Disconnect owning clients' }) -ExitError "Owning client did not exit cleanly: $output"
+    Stop-LDDemoClients -Harness $harness -Message 'Leave room' -ExitError "Owning client did not exit cleanly: $output"
     Wait-LDDemoEvidence -Harness $harness -Names @('Disconnects.json')
     $disconnect = Read-LDDemoReport -Harness $harness -Name 'Disconnects.json'
     if (-not $disconnect.passed -or $disconnect.departed_contenders -ne 2) {

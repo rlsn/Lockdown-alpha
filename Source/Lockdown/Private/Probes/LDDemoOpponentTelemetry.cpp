@@ -16,6 +16,7 @@
 #include "Framework/LDPlayerController.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
@@ -107,6 +108,9 @@ public:
     uint32 MatchGeneration = 0;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TArray<TSharedPtr<FJsonValue>> Files;
+    // Wall-clock seconds each match took, lobby to the next lobby: against duration_ms it shows the speed of a fixed-step run.
+    TArray<TSharedPtr<FJsonValue>> WallSeconds;
+    double MatchWallStart = 0;
 
     // Per match.
     int64 StartedAtMs = -1, NextCurveMs = 0, OpenedAtMs = -1, FirstKillMs = -1, FirstDeathMs = -1;
@@ -152,6 +156,10 @@ public:
         Report->SetNumberField(TEXT("matches_requested"), Matches);
         Report->SetNumberField(TEXT("matches_completed"), Completed);
         Report->SetArrayField(TEXT("files"), Files);
+        Report->SetBoolField(TEXT("fixed_time_step"), FApp::UseFixedTimeStep());
+        Report->SetNumberField(TEXT("fixed_delta_seconds"), FApp::UseFixedTimeStep() ? FApp::GetFixedDeltaTime() : 0.);
+        Report->SetBoolField(TEXT("rendered"), FApp::CanEverRender());
+        Report->SetArrayField(TEXT("match_wall_seconds"), WallSeconds);
         Report->SetStringField(TEXT("scope"), TEXT("DEV-only telemetry: one idle Listen Host and three opponent AI through the normal lobby, several matches in a row. Records how the matches went; it does not judge the AI or the balance."));
         const bool bWritten = Save(Report, TEXT("Telemetry.json"));
         UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY passed=%d matches=%d/%d detail=%s"), bPassed && bWritten,
@@ -372,6 +380,8 @@ public:
         const FString Name = FString::Printf(TEXT("Match%02d.json"), Completed + 1);
         if (!Save(Match, Name)) { return Fail(TEXT("Could not persist telemetry file ") + Name); }
         Files.Add(MakeShared<FJsonValueString>(Name));
+        WallSeconds.Add(MakeShared<FJsonValueNumber>(FMath::RoundToDouble((FPlatformTime::Seconds() - MatchWallStart) * 10.) / 10.));
+        MatchWallStart = FPlatformTime::Seconds();
         ++Completed;
         UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY match=%d reason=%s duration_ms=%lld"), Completed,
             ReasonName(Result.Reason), Result.DurationMs);
@@ -510,6 +520,7 @@ void LDDemoTests::StartOpponentTelemetry(ALDPlayerController& Controller, const 
     Telemetry->TimeoutSeconds = TimeoutSeconds;
     // Each match, lobby to the next lobby, gets its own bounded deadline.
     Telemetry->Deadline = FPlatformTime::Seconds() + TimeoutSeconds;
+    Telemetry->MatchWallStart = FPlatformTime::Seconds();
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Telemetry](float) { return Telemetry->Tick(); }), .1f);
 }
 #endif

@@ -130,6 +130,8 @@ namespace LDObservedPresentation
         bool bCharging = false;   // the public overdrive charge
         uint16 ChargeAgeMs = 0;
         bool bOverdriveCast = false;  // the Cast cue is an overdrive release
+        uint8 RecentReaction = 0, RecentReactionElement = 0;
+        uint16 RecentReactionAgePlusOneMs = 0;
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
         FGuid RecentHitId;
@@ -328,7 +330,13 @@ public:
     static void Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out);
     static void Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out);
     int32 OutlineShown() const { return ShownOutline; }
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+    const class UNiagaraComponent* GetParticles() const { return Particles; }
 private:
+    // The kind's looping particles (LDHitVfx::GroundZoneOf) over the pattern, rebuilt with the shape or the effect scale.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> Particles;
+    float ParticleScale = -1.f;
+    void ShowParticles();
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Lines;
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Rim;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> KindTint;

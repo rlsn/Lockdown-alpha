@@ -103,6 +103,8 @@ namespace LDDemoVisionScenario
 const TCHAR* const VisionRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
 // Each owner has a separate legal arrival disk near the public capture anchor.
 constexpr double ArrivalCm = 150.0;
+// One waypoint's bound, repeated orders included.
+constexpr double WalkWaypointSeconds = 30.0;
 
 struct FLDSeenUnit
 {
@@ -214,6 +216,11 @@ public:
     TArray<FVector> ArrivalGoals;
     int32 FixtureRoute = 0;
     int32 NativeQueries = 0;
+    // The other two roles' arrival goals are keepouts of this role's route, added once; a waypoint whose order ended
+    // short (another walker stood on it) is ordered again within WalkWaypointSeconds.
+    bool bGoalKeepouts = false;
+    double WalkOrderedAt = 0;
+    int32 WalkReorders = 0;
     double MaxRouteSeconds = 0;
     double MaxRouteTickSeconds = 0, MaxQuerySeconds = 0, RouteStarted = 0;
     bool bPlanning = false;
@@ -535,6 +542,12 @@ public:
                 if (Now >= NextCommandAt) { Owner.SetDemoAICount(0); NextCommandAt = Now + 1; }
                 return true;
             }
+            // The match's daily modifiers are fixed to two that touch neither sight nor bodies (a shop sale and the
+            // monster XP scale): a drawn blackout shortens the fixture's sight radius and a typhoon pushes the three
+            // contenders off their mutually visible targets.
+            ALDGameMode* Mode = Owner.GetWorld() ? Owner.GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
+            if (!Mode) { return Fail(TEXT("#1"), TEXT("The Listen Host has no authority game mode to fix the daily modifiers")); }
+            Mode->DevDailyPreset = {ELDDailyModifier::Sale, ELDDailyModifier::Exam};
             if (!Mark(TEXT("LobbyConfigured.json"))) { return Finish(); }
             bLobbyConfigured = true;
         }
@@ -605,6 +618,16 @@ public:
         }
         const int32 RoleIndex = Role == TEXT("Host") ? 0 : Role == TEXT("Client1") ? 1 : Role == TEXT("Client2") ? 2 : INDEX_NONE;
         if (RoleIndex == INDEX_NONE) { return Fail(TEXT("#1"), TEXT("The Vision fixture role is unknown")); }
+        if (!bGoalKeepouts)
+        {
+            // Bodies block each other and a route is planned once: a role that arrives first must not stand on another's way.
+            bGoalKeepouts = true;
+            const double Radius = 2 * Body->GetCapsuleComponent()->GetScaledCapsuleRadius() + LDPathSteering::WaypointToleranceCm;
+            for (int32 Other = 0; Other < ArrivalGoals.Num(); ++Other)
+            {
+                if (Other != RoleIndex) { WalkKeepouts.Add({ArrivalGoals[Other], Radius}); }
+            }
+        }
         const auto Result = PlanWalk(Registry, Body->GetNavAgentLocation(), ArrivalGoals[RoleIndex], WalkWaypoints, Why);
         if (Result == LDScenarioWalk::EPlan::Failed)
         { return Fail(TEXT("#1"), TEXT("The owner's bounded Vision fixture route is unavailable: ") + Why); }
@@ -639,9 +662,18 @@ public:
             Stage = 4;
             return true;
         }
-        if (Now - StageAt < 1) { return true; }
-        return Fail(TEXT("#1"), FString::Printf(TEXT("The bounded Vision fixture route stopped before waypoint %d/%d: "),
-            WalkWaypoint + 1, WalkWaypoints.Num()) + Owner.IntentFeedback);
+        if (Now - FMath::Max(StageAt, WalkOrderedAt) < 1) { return true; }
+        if (Now - StageAt < WalkWaypointSeconds)
+        {
+            // Two roles from one dorm share their first waypoints: the order of the one behind ends short of a point the
+            // other still stands on. The same waypoint is ordered again until its bounded time is up.
+            WalkOrderedAt = Now;
+            ++WalkReorders;
+            Owner.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
+            return true;
+        }
+        return Fail(TEXT("#1"), FString::Printf(TEXT("The bounded Vision fixture route stopped before waypoint %d/%d after %d repeated order(s): "),
+            WalkWaypoint + 1, WalkWaypoints.Num(), WalkReorders) + Owner.IntentFeedback);
     }
 
     bool TickSight(double Now, UWorld& InWorld, ALDPlayerController& Owner)
@@ -1075,8 +1107,8 @@ public:
         {
             if (Exists(TEXT("FinishClients")))
             {
-                if (!HeadlessOnly())
-                { FPlatformMisc::RequestExitWithStatus(false, 0); return false; }
+                // Every mode leaves through the formal room exit: ending the process is an unexpected disconnect, whose
+                // contender the authority keeps for reconnection (and so still presents).
                 if (!bReactionLeaveRequested)
                 {
                     ALDPlayerController* Owner = Controller.Get();

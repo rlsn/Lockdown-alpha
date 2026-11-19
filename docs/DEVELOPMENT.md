@@ -81,7 +81,13 @@ git lfs pull                     # 新工作区的 Content 只有 LFS 指针，�
 .\Scripts\Verify.ps1 -Plan -Rules Auto                  # include 图推导规则选择；仅计划
 .\Scripts\Verify.ps1 -Rules Auto                        # 执行有界的受影响规则子集
 .\Scripts\Verify.ps1 -Force                             # 不复用通过结果
+.\Scripts\RunChain.ps1 -Filter <测试全名> -Scenario Vision,OpponentUI   # 构建 → 定向规则测试 → 指定场景，一条命令
 ```
+
+`RunChain.ps1` 依次跑增量构建（`-NoBuild` 跳过）、`-Filter` 给出的规则测试与 `-Scenario` 列出的场景，任一步失败即停，
+结束时汇总每步的结果、耗时与证据目录；它只是把手工串联的几条命令合成一条，不是门禁。
+`Verify.ps1`、`RunTests.ps1`、经 `Common.ps1` 启动的脚本与 `LocalVerification.py` 自行把控制台和 Python 子进程设为 UTF-8，
+中文区域的机器上不需要先设 `PYTHONUTF8` 或 `PYTHONIOENCODING`。
 
 它比较工作区（含未提交与未跟踪文件）与 `origin/main` 的合并基点：
 

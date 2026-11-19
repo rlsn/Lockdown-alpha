@@ -15,6 +15,13 @@ import uuid
 from CIChangeScope import INCLUDE, changed_paths, dependency_closure, python_imports
 from CheckRuleReport import REGISTRATION
 
+# UTF-8 for this process and every check it starts, whatever the system locale (a zh-CN Windows defaults to GBK).
+os.environ.setdefault("PYTHONUTF8", "1")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parents[1]
 MAX_PYTHON_MODULES = 12
 MAX_RULE_TESTS = 80

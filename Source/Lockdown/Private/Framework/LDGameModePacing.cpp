@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -60,7 +61,10 @@ bool ALDGameMode::InitializePacing(FString& Error)
     const FLDDemoContentDefinitions& Content = DemoContent->Get();
     const auto& P = Content.Parameters;
 #if WITH_DEV_AUTOMATION_TESTS
-    if (!DevDailyPreset.IsEmpty()) { DailyModifiers = DevDailyPreset; }
+    // Build evaluation (-LDBuildEvaluation only): an armed Case plays without daily modifiers. They change combat (wet,
+    // chill, shock, fog) and a typhoon pushes the duelists, so a drawn pair would be an uncontrolled factor of the Case.
+    if (LDEvaluationSeeds::Armed()) { DailyModifiers.Reset(); }
+    else if (!DevDailyPreset.IsEmpty()) { DailyModifiers = DevDailyPreset; }
     else
 #endif
     LDPacing::DrawDailyModifiers(SeedOf(MatchContext.LedgerMatch, 0xDA11), P.Daily.Count, DailyModifiers);

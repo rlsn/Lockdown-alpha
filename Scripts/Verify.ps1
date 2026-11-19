@@ -10,6 +10,11 @@ param(
     [string[]]$Paths,
     [switch]$Json
 )
+# UTF-8 for this process and every child it starts, whatever the system locale (a zh-CN console defaults to GBK).
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
 $ErrorActionPreference = 'Stop'
 if ($Paths -and -not $Plan) { throw '-Paths is a simulation option and requires -Plan.' }
 if ($Json -and -not $Plan) { throw '-Json requires -Plan.' }

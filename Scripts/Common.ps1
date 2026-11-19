@@ -1,5 +1,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# UTF-8 for this process and every child it starts, whatever the system locale (a zh-CN console defaults to GBK).
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
 
 function Get-LDProjectRoot {
     (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path

@@ -162,6 +162,16 @@ namespace LDHitVfx
     LOCKDOWN_API FGhosts GhostsOf(const FLinearColor& Tint, float EffectScale);
     LOCKDOWN_API float GhostFade(const FGhosts& Ghosts, float AgeSeconds);
 
+    // An element reaction on a body (ELDCombatElement 1..6, the element that set it off; spec 12 floats its name in the
+    // same colour): a cross flash and a ground ring in that colour plus the element's particles.
+    LOCKDOWN_API FLinearColor ElementTint(uint8 Element);
+    LOCKDOWN_API EBurst ElementBurst(uint8 Element);
+    LOCKDOWN_API FRecipe ForReaction(uint8 Element, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
+    // A public ground state (ELDGroundStateKind): looping particles over its footprint under its line pattern, and the
+    // burst a freshly laid one appears with. The pattern and the owner outline stay (never colour alone).
+    LOCKDOWN_API FZone GroundZoneOf(uint8 Kind, float RadiusCm, float EffectScale);
+    LOCKDOWN_API bool GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint);
+
     // Overdrive (#305): one colour for its charge, release and hits.
     LOCKDOWN_API FLinearColor OverdriveTint();
     // The charge while the key is held with a full bar (public, FLDObservedUnitView::bCharging): an energy column at the

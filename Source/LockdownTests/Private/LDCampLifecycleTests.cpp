@@ -357,7 +357,9 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
     FString Error;
     FLDCampMatchState State;
     const FLDMatchContext Match{3, FGuid(9, 9, 9, 9)};
-    if (!State.Begin(Match, Roster(*this), Error) || !State.CommitSpawn(1, Spawned(State, 1), 1, Error))
+    // Camp 1 is a High camp: without a teambuild affix only its first member spawns and the reserved slot stays empty.
+    if (!State.Begin(Match, Roster(*this), Error)
+        || !State.CommitSpawn(1, MakeArrayView(Spawned(State, 1).GetData(), 1), 1, Error))
     {
         AddError(Error);
         return false;
@@ -410,7 +412,7 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Resumed return keeps the epoch"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Returning), bBegan, Error)
         && !bBegan && State.FindLiving(G)->ReturnEpoch == 1);
     TestEqual(TEXT("Returning still ignores fresh contacts after rest"),
-        State.ApplyContact({G, Contender(2), 3.875}, Error), ELDCampContactResult::StaleEvent);
+        int32(State.ApplyContact({G, Contender(2), 3.875}, Error)), int32(ELDCampContactResult::StaleEvent));
     TestFalse(TEXT("Returning cannot turn back to Engaged"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Engaged), bBegan, Error));
     FLDCampResetKey Wrong = Key;
     Wrong.ReturnEpoch = 2;
@@ -438,7 +440,7 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
         && bBegan && State.FindLiving(G)->ReturnEpoch == 2);
     TestFalse(TEXT("An old key cannot reset the new return"), State.CompleteReset(Key, 7, Error));
     TestEqual(TEXT("Death while returning is an ordinary single death"),
-        State.RecordDeath({Match.LedgerMatch, G.Victim}, 8000, Error), ELDCampDeathResult::CampCleared);
+        int32(State.RecordDeath({Match.LedgerMatch, G.Victim}, 8000, Error)), int32(ELDCampDeathResult::CampCleared));
     FLDCampResetKey Current;
     Current = {Match.LedgerMatch, G.Victim, 2};
     TestFalse(TEXT("A dead member cannot be reset"), State.CompleteReset(Current, 9, Error));

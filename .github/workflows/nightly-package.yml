@@ -7,7 +7,8 @@
 #      and writes it, with bReleaseBuild=True, into Config/DefaultGame.ini in a local commit on top of main's tip. That
 #      commit is never pushed to main (the main ruleset requires a PR); only its tag is pushed, so the package, its
 #      manifest and the tag agree while main's ini keeps the base version and shows "build <commit>" on the title.
-#   2. Build, rule tests and package that commit.
+#   2. Build and package that commit. Nothing is tested again here: every commit on main passed the PR check, and the
+#      run only cuts a playtest package from it.
 #   3. Push tag vX.Y.Z, publish Release vX.Y.Z with the zipped package and its separate symbols zip, then delete all
 #      but the two newest vX.Y.Z Releases. Their tags stay: they hold the released commits and the version sequence.
 # With nothing new on main the run stops after checkout; a manual run with `force` releases the next patch anyway.
@@ -106,16 +107,6 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         run: ./Scripts/BuildEditor.ps1
 
-      - name: Rule tests
-        if: steps.version.outputs.skip != 'true'
-        run: ./Scripts/RunTests.ps1 -Full -ImportTests Run
-
-      # Three AI matches in a row with random hotspots, cards and affixes: any authority fault or logged error fails the
-      # night before a package is cut.
-      - name: AI matches
-        if: steps.version.outputs.skip != 'true'
-        run: ./Scripts/RunDemoOpponentCheck.ps1 -Telemetry -MatchCount 3
-
       - name: Package Win64
         if: steps.version.outputs.skip != 'true'
         run: ./Scripts/PackageWin64.ps1
@@ -160,7 +151,7 @@ jobs:
             '- 反馈问题时附上自己的日志和标记序号；需要查原因时，房主也附上同一局的日志。'
             ''
             '说明'
-            '- 本包在规则测试（RunTests.ps1）与编辑器版连打 3 局 AI 对局（RunDemoOpponentCheck.ps1 -Telemetry）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'
+            '- 本包取自 main 上已通过 PR 检查的提交，打包时不再重跑测试；未在此包上运行任何 RunDemo*Check 场景。'
             '- 打包成功不代表 Demo 验收通过，验收状态见 docs/demo/READINESS.md。'
             "- 调试符号 Lockdown.pdb 单独放在同一 Release 的 Lockdown-v$env:VERSION-win64-symbols.zip，试玩不需要。"
             '  需要可读的崩溃调用栈时，把它解压到同一目录（与本包的 Archive 合并），再重现问题。'

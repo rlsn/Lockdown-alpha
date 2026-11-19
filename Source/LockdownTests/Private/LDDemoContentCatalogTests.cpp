@@ -1257,7 +1257,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     }
     TestEqual(TEXT("Twenty-six single-level actives (S01-S22, N1-N4)"), Definitions.Abilities.Num(), 26);
     TestEqual(TEXT("Twenty actives form the opening pool (S01-S13, S17, S18, S20-S22, N1, N3)"), OpeningPool, 20);
-    TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
+    TestTrue(TEXT("Levels 2 and 4 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{2, 4});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
         P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 240 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
@@ -1272,9 +1272,9 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16, ELDSkillBranch::None);
     if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
     TestTrue(TEXT("Level 1 uses the authored G=1 values"),
-        First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 6000 && First->MomentumCostP2 == 2500 && First->CooldownMs == 6000);
+        First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 6000 && First->MomentumCostP2 == 2500 && First->CooldownMs == 4200);
     TestTrue(TEXT("Level 16 grows the base by G(16)=1.6 and keeps ratios, cost and cooldown"),
-        Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 6000 && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 6000);
+        Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 6000 && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 4200);
     const FLDDemoAbilityDefinition Detached = *Elbow;
     TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),
         !Snapshot->FindValues(*Elbow, 0, ELDSkillBranch::None) && !Snapshot->FindValues(*Elbow, 17, ELDSkillBranch::None) && !Snapshot->FindValues(Detached, 1, ELDSkillBranch::None));
@@ -1358,8 +1358,8 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         && Forms[int32(ELDCardForm::Dash)] == 12 && Forms[int32(ELDCardForm::Body)] == 29);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
-    TestTrue(TEXT("Capacity 6 plus one per five levels, three-card offers, three free rerolls plus one per rest, one lock"),
-        Cards.CapacityBase == 6 && Cards.LevelsPerSlot == 5 && Cards.OfferSize == 3 && Cards.FreeRerolls == 3
+    TestTrue(TEXT("Capacity 4 plus one per three levels, three-card offers, three free rerolls plus one per rest, one lock"),
+        Cards.CapacityBase == 4 && Cards.LevelsPerSlot == 3 && Cards.OfferSize == 3 && Cards.FreeRerolls == 3
         && Cards.RerollsPerRest == 1 && Cards.LockSlots == 1 && Cards.VocabWeight == 2);
     TestTrue(TEXT("The chain guard is read"), Definitions.Parameters.ChainMaxDepth > 0 && Definitions.Parameters.ChainMaxEffectsPerStep > 0);
     const FLDDemoCardDefinition* Missing = nullptr;

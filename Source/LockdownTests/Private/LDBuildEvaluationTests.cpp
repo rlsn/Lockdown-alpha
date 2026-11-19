@@ -271,6 +271,20 @@ bool RunPolicy(FAutomationTestBase& Test)
     Decision = Decide(Approach, Profile, State);
     bGood &= Test.TestTrue(TEXT("Approaching: a walk to the meeting place"), Decision.Body.Kind == ELDOpponentBodyKind::MoveGround
         && Decision.Body.POI == FName(TEXT("capture")) && State.Phase == ELDEvaluationPhase::Approaching);
+    // A body that stands on the route does not step aside: without progress the walker takes one step to the side.
+    auto Stuck = Approach;
+    Stuck.Public.NowMs += LDEvaluationPolicy::ApproachStuckMs;
+    Decision = Decide(Stuck, Profile, State);
+    bGood &= Test.TestTrue(TEXT("Approaching without progress: one side step off the straight line to the meeting place"),
+        Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.POI.IsNone() && State.Sidesteps == 1
+        && FMath::IsNearlyEqual(FVector::Dist2D(Decision.Body.Point, Stuck.Self.FootCm), LDEvaluationPolicy::ApproachSidestepCm, 1.)
+        && FMath::Abs(Decision.Body.Point.Y - Stuck.Self.FootCm.Y) > LDEvaluationPolicy::ApproachSidestepCm * .9);
+    auto Moved = Stuck;
+    Moved.Self.FootCm += FVector(LDEvaluationPolicy::ApproachProgressCm + 1., 0, 0);
+    Moved.Public.NowMs += LDEvaluationPolicy::ApproachStuckMs - 1;
+    Decision = Decide(Moved, Profile, State);
+    bGood &= Test.TestTrue(TEXT("Approaching with progress walks on to the meeting place"),
+        Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.POI == FName(TEXT("capture")) && State.Sidesteps == 1);
     auto Arrived = Approach;
     Arrived.Self.FootCm = FVector(2900, 0, 0);
     State = {};

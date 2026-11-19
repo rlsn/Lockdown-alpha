@@ -161,7 +161,11 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
    `definition`（实际 Offer 中的指定主动）。规定的主动不在实际 Offer 中时 Case 判 `Invalid`，不替换成别的主动。
 5. 构筑：没有 `build` 的一方由生产规则（`LDOpponentPolicy::DecideFollowUpBuild`）学习、加点、选牌与装牌；
    有 `build` 的一方由计划拥有除主动选择外的全部构筑命令，生产规则不再为它构筑（见下节）。
-6. 计划选择与构筑步骤全部完成后双方走向公开地点 `site`，看见指定对手即用生产 AI 的交战（`LDOpponentPolicy::EngageUnit`）攻击，
+6. 评估对局不抽当日热点（`LD_PACING_BEGIN` 的 `daily` 为空）：热点会改动战斗（潮湿、寒冷、感电、雾）且台风会推开对决者，
+   抽到哪两个不受 Case 控制。
+7. 计划选择与构筑步骤全部完成后双方走向公开地点 `site`。途中 2.5 秒内前进不足 100 cm（路线上站着不让路的营地成员，
+   行走不绕开身体）时向一侧走一步 400 cm 再继续，同侧三步后换另一侧（`LDEvaluationPolicy` 的 `Approach*` 常量）。
+   看见指定对手即用生产 AI 的交战（`LDOpponentPolicy::EngageUnit`）攻击，
    不撤退；第一名对决者死亡或到 `duel_timeout_ms` 结束，Host 结束本局并回到大厅。同一权威时刻双方互杀记为已观察到的
    `trade`，须有双方对应的致死命中与死亡回执，不能按通知顺序算作一方获胜。
    时限从第一野外段入口起算，必须严格早于第一野外段结束和 Boss 出现。

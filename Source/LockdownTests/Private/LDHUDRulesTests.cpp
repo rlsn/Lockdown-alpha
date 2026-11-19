@@ -1911,7 +1911,7 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("K08 compares the compiled cooldown without claiming a conditional effect"),
         Preview.Status==EStatus::Ready&&!Preview.bPartial
         &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
-            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("9s")&&Line.After==TEXT("5.85s");}));
+            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("6.3s")&&Line.After==TEXT("4.095s");}));
     ++View.CombatInstalledRevision;
     TestTrue(TEXT("Mismatched installed revisions wait for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
     --View.CombatInstalledRevision;
@@ -1945,8 +1945,8 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     }
     int64 OldCooldown=0,NewCooldown=0;FString Error;
     if(!TestTrue(TEXT("Both expected cooldowns use the authority formula"),
-        LDTactical::CooldownDurationMs(9000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
-        &&LDTactical::CooldownDurationMs(5850,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
+        LDTactical::CooldownDurationMs(6300,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
+        &&LDTactical::CooldownDurationMs(4095,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
     {return false;}
     const LDWorkshopPreview::FResult Live=LDWorkshopPreview::Compare(Input);
     const LDWorkshopPreview::FLine* Cooldown=Live.Lines.FindByPredicate([](const LDWorkshopPreview::FLine& Line)
