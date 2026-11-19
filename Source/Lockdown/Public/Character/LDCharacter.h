@@ -49,6 +49,11 @@ private:
     // The local owner and life this body was last shown for: its removal after that life's death leaves a fall.
     TWeakObjectPtr<class ALDPlayerController> ShownOwner;
     uint32 ShownLife = 0;
+    // The presentation key the body's look (model, worn parts and their cloth) was built for, or -1 before the body is
+    // first shown. Only the local owner ever shows this body; every other authority body (camp members, the Boss, AI and
+    // remote contenders on the Listen Host) stays hidden and is seen through observation proxies, so it builds no look.
+    int32 LookKey = -1;
+    void EnsureLook();
     // The last own hit receipt seen (LDHitFeel) and the camera kick it started along the facing.
     int64 ConfirmedAtMs = 0;
     float KickAge = 1.f;

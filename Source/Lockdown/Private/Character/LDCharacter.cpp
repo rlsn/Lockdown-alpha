@@ -123,7 +123,7 @@ void ALDCharacter::BeginPlay()
     }
     if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
     PredictWindupMs=Content->Get().Parameters.BasicAttackWindupMs;
-    OnRep_Presentation();
+    // The look is built when the body is first shown (EnsureLook), not here: most bodies are never shown on this machine.
 }
 
 void ALDCharacter::Tick(float Delta)
@@ -132,6 +132,7 @@ void ALDCharacter::Tick(float Delta)
     auto* PC=Cast<ALDPlayerController>(GetController());
     const bool OwnBody=PC && PC->GetLocalPlayer() && PC->GetPawn()==this
         && PC->OwnerState.LifePhase==ELDLifePhase::Alive && PC->OwnerState.BodyRef.IsValid();
+    if (OwnBody) { EnsureLook(); }
     // Only on a change: a propagated SetVisibility rebuilds the render state of every part under the body, even unchanged.
     if (Body->GetVisibleFlag()!=OwnBody) { Body->SetVisibility(OwnBody,true); }
     if (!OwnBody) { return; }
@@ -342,7 +343,14 @@ FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLe
     const FRotator Rotation = Arm->GetRelativeRotation();
     return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * ArmLength);
 }
-void ALDCharacter::OnRep_Presentation() { Body->ApplyPalette(PresentationKey); }
+void ALDCharacter::EnsureLook()
+{
+    if (LookKey==int32(PresentationKey)) { return; }
+    LookKey=PresentationKey;
+    Body->ApplyPalette(PresentationKey);
+}
+// A key that arrives after the body was shown rebuilds the look; before that, the first showing builds it.
+void ALDCharacter::OnRep_Presentation() { if (LookKey>=0) { EnsureLook(); } }
 void ALDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
