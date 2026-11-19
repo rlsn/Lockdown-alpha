@@ -18,6 +18,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 import time
@@ -1015,6 +1016,12 @@ def _export(output, *, profile, value_mutations, jobs, written):
 ABILITY_VALUE_FIELDS = ("momentum_cost", "cooldown", "effects")
 
 
+def value_quantity_kind(path):
+    """A value quantity's path without its list indices: the projection is the same for every active and effect row,
+    so one mutation per kind covers it."""
+    return re.sub(r"\[\d+\]", "[]", path)
+
+
 def _value_mutation(author, path):
     """Change one quantity of an active's value set by the smallest step its storage keeps."""
     changed = deepcopy(author)
@@ -1070,9 +1077,15 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     if value_mutations:
         author = fixtures.content_fixture()
         paths = [path for path, _ in _quantities(author) if path[0] == "abilities" and path[2] in ABILITY_VALUE_FIELDS]
-        for index_number, path in enumerate(paths):
-            changed = _value_mutation(author, path)
+        kinds = set()
+        index_number = -1
+        for path in paths:
             source_path = "content" + "".join(f"[{key}]" if type(key) is int else "." + key for key in path) + ".value"
+            if value_quantity_kind(source_path) in kinds:
+                continue
+            kinds.add(value_quantity_kind(source_path))
+            index_number += 1
+            changed = _value_mutation(author, path)
             native_quantity = base.catalog.field_projection[source_path][0].rsplit(".", 1)[0]
             valid(f"value_field_{index_number:03d}", changed, mutated_quantity=native_quantity)
 
