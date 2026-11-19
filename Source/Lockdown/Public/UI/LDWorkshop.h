@@ -208,6 +208,8 @@ private:
     UPROPERTY() TObjectPtr<UBorder> PointsBox;
     // The foot of the character column the trainer's respec takes (no height without the trainer).
     UPROPERTY() TObjectPtr<USizeBox> RespecSpace;
+    // The element reactions title and grid; the trainer's respec foot takes their place.
+    UPROPERTY() TObjectPtr<UVerticalBox> ReactionBlock;
     UPROPERTY() TObjectPtr<UTextBlock> PointsText;
     UPROPERTY() TObjectPtr<UVerticalBox> StatList;
     UPROPERTY() TObjectPtr<UVerticalBox> AttributeList;

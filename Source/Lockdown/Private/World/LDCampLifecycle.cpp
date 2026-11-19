@@ -65,9 +65,11 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         // Spec §11.2: every High, Elite and Ancient camp reserves one teambuild member at its anchor.
         if (Spec.Tier != ELDDemoCampTier::Low)
         {
-            const FLDDemoMonsterDefinition* High = Spec.Tier == ELDDemoCampTier::High ? Monster
+            // A High camp's teambuild member is of the species each spawn selects; Elite and Ancient camps bring one fixed
+            // High-tier species.
+            const FLDDemoMonsterDefinition* High = Spec.Tier == ELDDemoCampTier::High ? nullptr
                 : Content.Monsters.FindByPredicate([](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::High; });
-            if (!High)
+            if (!High && Spec.Tier != ELDDemoCampTier::High)
             {
                 Error = FString::Printf(TEXT("Camp %s has no approved High-tier member for its teambuild slot."), *CampText);
                 return false;
@@ -83,8 +85,11 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             }
             Members.Add(Team.MemberId);
             Spec.Members.Add(MoveTemp(Team));
-            Spec.TeambuildMonsterId = FName(*High->Id);
-            Spec.TeambuildCreatureId = High->NativeId;
+            if (High)
+            {
+                Spec.TeambuildMonsterId = FName(*High->Id);
+                Spec.TeambuildCreatureId = High->NativeId;
+            }
         }
         bLow |= Spec.Tier == ELDDemoCampTier::Low;
         bHigh |= Spec.Tier == ELDDemoCampTier::High;
@@ -508,7 +513,8 @@ bool FLDCampMatchState::AppendObservedFacts(const FLDCombatBodyRef& Body, FLDObs
     }
     // The teambuild member wears its own species, not the camp's.
     const FLDCampSpec& Spec = Roster->Camps[Camp];
-    const uint8 CreatureId = Spec.Members.IsValidIndex(Slot) && Spec.Members[Slot].bTeambuild ? Spec.TeambuildCreatureId : Camps[Camp].CreatureId;
+    const uint8 CreatureId = Spec.Members.IsValidIndex(Slot) && Spec.Members[Slot].bTeambuild && Spec.TeambuildCreatureId != 0
+        ? Spec.TeambuildCreatureId : Camps[Camp].CreatureId;
     const uint8 Returning = uint8(ELDDemoStatusId::CampReturning);
     const bool bListed = InOut.Statuses.ContainsByPredicate([Returning](const FLDObservedStatus& S) { return S.StatusId == Returning; });
     const bool bReturning = Member->Brain.Phase == ELDCampBrainPhase::Returning;

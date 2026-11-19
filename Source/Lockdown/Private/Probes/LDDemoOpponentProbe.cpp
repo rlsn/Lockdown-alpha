@@ -794,9 +794,18 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
                 ++AttributeCount;
                 const auto* Value=Owner.HUDUI->Workshop->WidgetTree->FindWidget(
                     FName(*FString::Printf(TEXT("WorkshopAttributeValue%d"),Index)));
-                bAttributesFit&=Value&&Label->GetCachedGeometry().GetLayoutBoundingRect().Right+1.f
+                const bool bFits=Value&&Label->GetCachedGeometry().GetLayoutBoundingRect().Right+1.f
                     <=Value->GetCachedGeometry().GetLayoutBoundingRect().Left
                     &&LDSlateProbeInput::FullyVisible(Label,Label->GetParent()->GetParent());
+                if(!bFits)
+                {
+                    const FSlateRect L=Label->GetCachedGeometry().GetLayoutBoundingRect();
+                    const FSlateRect V=Value?Value->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();
+                    const FSlateRect F=Label->GetParent()->GetParent()->GetCachedGeometry().GetLayoutBoundingRect();
+                    UE_LOG(LogLDTest,Warning,TEXT("LD_WORKSHOP_ATTRIBUTE_MISFIT index=%d label=(%.1f,%.1f,%.1f,%.1f) value=(%.1f,%.1f,%.1f,%.1f) fit=(%.1f,%.1f,%.1f,%.1f) visible=%d"),
+                        Index,L.Left,L.Top,L.Right,L.Bottom,V.Left,V.Top,V.Right,V.Bottom,F.Left,F.Top,F.Right,F.Bottom,Label->IsVisible()?1:0);
+                }
+                bAttributesFit&=bFits;
             }
             if(!Check(AttributeCount>0&&bAttributesFit,TEXT("UI: workshop attribute labels and values fit without overlap or truncation"))){return;}
         }

@@ -104,14 +104,26 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Low camp keeps both member homes"), Out.Camps[0].Members.Num(), 2);
     TestTrue(TEXT("Low camp reserves no teambuild slot"), !Out.Camps[0].Members.Last().bTeambuild && Out.Camps[0].TeambuildMonsterId.IsNone());
     TestEqual(TEXT("High camp keeps its single member home and reserves a teambuild slot"), Out.Camps[1].Members.Num(), 2);
-    TestTrue(TEXT("The teambuild slot is last, homed at the anchor and wears the camp's own High species"),
+    TestTrue(TEXT("The teambuild slot is last, homed at the anchor and follows each spawn's selected High species"),
         Out.Camps[1].Members.Last().bTeambuild && !Out.Camps[1].Members[0].bTeambuild
-        && Out.Camps[1].Members.Last().HomeCm == Out.Camps[1].AnchorCm && Out.Camps[1].TeambuildMonsterId == TEXT("monster_guardian")
-        && Out.Camps[1].TeambuildCreatureId == uint8(ELDDemoMonsterId::MonsterGuardian));
+        && Out.Camps[1].Members.Last().HomeCm == Out.Camps[1].AnchorCm && Out.Camps[1].TeambuildMonsterId.IsNone()
+        && Out.Camps[1].TeambuildCreatureId == 0);
     TestEqual(TEXT("Native creature identity is the approved monster"), Out.Camps[1].CreatureId, uint8(ELDDemoMonsterId::MonsterGuardian));
     TestEqual(TEXT("Refresh delay comes from the camp tier definition"), Out.Camps[0].RespawnMs, int64(40000));
     TestEqual(TEXT("Anchor coordinate is exact"), Out.Camps[3].AnchorCm, FVector(-1528, -2103, 0));
     TestEqual(TEXT("Lookup by stable camp id"), Out.FindCamp(TEXT("h2")), 3);
+    {
+        // An Elite camp brings one fixed High-tier species as its teambuild member.
+        FFixture Elite = MakeFixture();
+        FLDDemoMonsterDefinition Monster = Elite.Content.Monsters[1];
+        Monster.Id = TEXT("monster_elite_fixture"); Monster.NativeId = 250; Monster.Tier = ELDDemoCampTier::Elite;
+        Elite.Content.Monsters.Add(Monster);
+        Elite.Content.Camps[3].MonsterId = Monster.Id;
+        FLDCampRoster WithElite;
+        TestTrue(TEXT("An Elite camp compiles with its teambuild slot"), LDCamp::BuildRoster(Elite.Content, Elite.World, WithElite, Error)
+            && WithElite.Camps[3].Members.Last().bTeambuild && WithElite.Camps[3].TeambuildMonsterId == TEXT("monster_guardian")
+            && WithElite.Camps[3].TeambuildCreatureId == uint8(ELDDemoMonsterId::MonsterGuardian));
+    }
     const FLDCampRoster Before = Out;
     auto Reject = [&](const TCHAR* Name, TFunctionRef<void(FFixture&)> Mutate)
     {

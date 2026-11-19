@@ -499,7 +499,8 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.CampAnchorFootCm = Spec.AnchorCm;
             Input.MemberHome = {Input.World, Spec.Members[Slot].HomeCm, Spec.SurfaceId};
             Input.Brain = Member.Brain;
-            Input.MonsterId = Spec.Members[Slot].bTeambuild ? Spec.TeambuildMonsterId : State.FindCamp(Camp)->SelectedSpecies;
+            Input.MonsterId = Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone()
+                ? Spec.TeambuildMonsterId : State.FindCamp(Camp)->SelectedSpecies;
             Input.bObservationComplete = true;
             Input.MovementAllowed = Body.bMovementAllowed && !Body.bActionInProgress;
             Input.AttackAllowed = Body.bAttackAllowed;
@@ -1113,8 +1114,10 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Mode->HasDaily(ELDDailyModifier::Overtime), AffixRoll, AffixPick);
     const bool bTeambuildSlot = !Spec.Members.IsEmpty() && Spec.Members.Last().bTeambuild;
     const int32 SlotCount = Spec.Members.Num() - (bTeambuildSlot && Affix != ELDCampAffix::Teambuild ? 1 : 0);
-    const FLDDemoMonsterDefinition* TeamMonster = nullptr;
-    if (SlotCount == Spec.Members.Num() && bTeambuildSlot && !Content->FindMonster(Spec.TeambuildMonsterId.ToString(), TeamMonster, Error))
+    // A High camp's teambuild member is of this spawn's selected species.
+    const FLDDemoMonsterDefinition* TeamMonster = Monster;
+    if (SlotCount == Spec.Members.Num() && bTeambuildSlot && !Spec.TeambuildMonsterId.IsNone()
+        && !Content->FindMonster(Spec.TeambuildMonsterId.ToString(), TeamMonster, Error))
     {
         return false;
     }
@@ -1155,7 +1158,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
         Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot],
-            Spec.Members[Slot].bTeambuild ? Spec.TeambuildMonsterId : Selected, Stage, Affix});
+            Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone() ? Spec.TeambuildMonsterId : Selected, Stage, Affix});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }
