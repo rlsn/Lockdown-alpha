@@ -1342,9 +1342,8 @@ Nav连续普攻仅增加请求中的AttackCycle，仍复用Combat节拍与同一
 运行时由已验证内容注册 `DemoContent` 字符串表，缺失条目是内容错误。技能与构筑牌说明用 `[效果.字段]`、五维说明用 `[per_point.<属性>]` 占位，
 数字由 typed 字段按当前等级与属性算出后填入，不写死；其他说明不含数字，
 等级、费用、冷却、射程与期限等数值由 typed 字段显示。
-导入器（`LDDemoContentImport`）校验这些键与图标语义 ID 的规范形式。技能、五维属性、构筑牌与状态的图标是本项目生成的雾港图标集
-（`SourceData\UI\ui_icons.json` 列出 `SourceData\UI\Icons` 的 64 px PNG 与来源，#85），角色与野怪暂无图标；
-五维属性暂用语义相近的现有图标，之后由表现票替换；B06、B18 暂用滚远点、烫你屁股的图标副本。
+导入器（`LDDemoContentImport`）校验这些键与图标语义 ID 的规范形式。主动技能、五维属性、构筑牌、状态、冲刺、回复与终局改装使用雾港涂鸦图标集。
+`SourceData\UI\ui_icons.json` 登记 `SourceData\UI\Icons` 中带彩色满底的 128 × 128 PNG 和来源。角色与野怪暂无图标。
 图标不画等级、键位或正负面，这些由 UI 表达，不能复制外部游戏素材，也不能只靠颜色分辨。
 
 状态显示名为：`root`「定身」、`shield`「护盾」、`camp_returning`「回位」；
