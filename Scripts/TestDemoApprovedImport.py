@@ -881,7 +881,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["xp_thresholds"],
                          (0, 60, 140, 240, 360, 500, 660, 840, 1040, 1260, 1500, 1760, 2040, 2340, 2660, 3000))
         self.assertEqual(self.data["progression"]["xp_to_next"],
-                         (48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216))
+                         (60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
             ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 25000, 14, 1250),
