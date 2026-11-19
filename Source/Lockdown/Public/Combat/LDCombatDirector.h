@@ -1418,7 +1418,12 @@ private:
     ELDCombatElement ElementOfBody(const FLDBodyCombatState& Body, int64 NowMs) const;
     // The element batch of one committed hit on a controllable Target: fire (the hit's layers and its living source's held
     // burn triggers), then water, shock, chill, rot and gust, each applying, refreshing or reacting with the element held.
-    bool ApplyElements(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
+    // OutCard: which card element of the hit took effect (none when the hit carried none, or the reaction lock dropped it).
+    struct FLDAppliedCardElement { bool bApplied=false; bool bFire=false; FLDCombatSourceRef Source; };
+    bool ApplyElements(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error,
+        FLDAppliedCardElement* OutCard=nullptr);
+    // Whether the last ApplyElement took effect (false when the target was dying or the reaction lock dropped it).
+    bool bElementApplied=false;
     // One element on Target: installs or refreshes it, or reacts with a different one held (spec §8.2 table), and converts
     // the ground states under Target's foot (spec §8.3).
     bool ApplyElement(FLDBodyCombatState& Target, ELDCombatElement Kind, const FLDElementApplier& Applier, int32 FireStacks,

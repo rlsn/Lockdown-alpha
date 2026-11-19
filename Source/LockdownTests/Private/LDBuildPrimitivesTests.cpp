@@ -3852,8 +3852,13 @@ bool FLDCardRuleA18Test::RunTest(const FString& Parameters)
             Basic.HitClass = ELDCombatHitClass::BasicPrimary;
             Basic.DamageType = ELDDemoDamageType::Physical;
             FString Error;
+            // The card rides the last combo step only: the first step leaves the target unmarked.
+            Basic.ComboStep = 1;
+            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
+            Basic.HitId = FGuid::NewGuid();
+            Basic.ComboStep = 3;
             const bool bApplied = F.Apply(Basic, Error);
-            return TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A primary basic chills its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
+            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A third-step basic chills its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
                 && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_ice_fist")));
         });
 }
@@ -3872,8 +3877,13 @@ bool FLDCardRuleA19Test::RunTest(const FString& Parameters)
             Basic.HitClass = ELDCombatHitClass::BasicPrimary;
             Basic.DamageType = ELDDemoDamageType::Physical;
             FString Error;
+            // The card rides the last combo step only: the first step leaves the target unmarked.
+            Basic.ComboStep = 1;
+            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
+            Basic.HitId = FGuid::NewGuid();
+            Basic.ComboStep = 3;
             const bool bApplied = F.Apply(Basic, Error);
-            return TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A primary basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
+            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A third-step basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
         });
 }
 
