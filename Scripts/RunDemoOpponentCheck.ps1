@@ -85,7 +85,9 @@ function Invoke-OpponentTelemetry {
     if (-not $report.passed -or $process.ExitCode -ne 0) {
         throw "Opponent telemetry failed after $($report.matches_completed) of $MatchCount match(es): $($report.detail). Evidence: $output"
     }
-    $errors = @(Get-LDDemoLogErrors -Harness $harness)
+    # The nightly packaging gate: an Error or Fatal line of any category fails the run, not only the game's own. Python
+    # lines are the editor plugins' own start-up noise and stay out, as in the other scenarios.
+    $errors = @(Get-LDDemoLogErrors -Harness $harness -Pattern 'Fatal error|Assertion failed|Log(?!Python:)\w+: (Error|Fatal):|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Opponent telemetry logged an error: $($errors[0].Line). Evidence: $output" }
     Invoke-LDTool -Tool 'python' -ToolArguments @('-B', (Join-Path $PSScriptRoot 'SummarizeOpponentTelemetry.py'), $evidence) -LogPath (Join-Path $output 'Summary.txt')
     Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"

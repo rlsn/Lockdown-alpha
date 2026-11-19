@@ -106,10 +106,12 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
         PerfectDodges=Combat->PerfectDodges;
         FEvent& Dodge=Out.AddDefaulted_GetRef();Dodge.Kind=EKind::PerfectDodge;Dodge.bOwn=true;Dodge.Amount=1;
     }
+    // A chain that ended while this body was not shown (an interruption, the wait for the next life) only moves the
+    // baseline: it never floats over the resumed or respawned body.
     for(const FLDChainEndView& End:Combat->Chains)
     {
         if(End.Serial<=ChainSerial){continue;}
-        if(bChains)
+        if(bChains&&!bNewLife)
         {
             FEvent& Chain=Out.AddDefaulted_GetRef();Chain.Kind=EKind::ChainEnd;Chain.bOwn=true;Chain.Amount=End.Steps;
         }
