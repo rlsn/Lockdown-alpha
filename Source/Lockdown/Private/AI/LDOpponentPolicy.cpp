@@ -366,7 +366,9 @@ struct FContext
     const FLDOpponentPOI* LeaderHuntTarget() const
     {
         if (!Frame.Public.Leader.IsValid() || Frame.Public.Leader == Self.ContenderId
-            || Self.Level < Catalog.Get().Parameters.LeaderMinLevel || !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.HighCampEntryHPBp))
+            || Self.Level < Catalog.Get().Parameters.LeaderMinLevel || !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.HighCampEntryHPBp)
+            // A leader too far above this body's level is left alone (its level is public with the notice).
+            || int64(Frame.Public.LeaderLevel) > int64(Self.Level) + AI.LeaderHuntMaxLevelGap)
         {
             return nullptr;
         }

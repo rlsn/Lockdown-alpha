@@ -421,6 +421,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Owner = Public.GraffitiOwner;
     Frame.Public.GuardDueAtMs = Public.GuardDueAtMs;
     Frame.Public.Leader = Public.Leader.Leader;
+    Frame.Public.LeaderLevel = Public.Leader.LeaderLevel;
     Frame.Public.LeaderCircleCentreCm = Public.Leader.CircleCentreCm;
     // P6 spec §10.3: the public mid-field objective, as every participant reads it.
     Frame.Public.Objective = Public.Objective;

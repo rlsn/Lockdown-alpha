@@ -78,6 +78,8 @@ struct FLDLeaderView
 {
     GENERATED_BODY()
     UPROPERTY() FGuid Leader;
+    // The leader's level at the refresh that named it (0 without a leader).
+    UPROPERTY() uint8 LeaderLevel = 0;
     UPROPERTY() FVector CircleCentreCm = FVector::ZeroVector;
     UPROPERTY() int64 RefreshedAtMs = 0;
     // Spec §11.1 rumor day: the second trending contender and its own blurred circle (invalid otherwise).

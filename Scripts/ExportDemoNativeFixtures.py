@@ -627,6 +627,7 @@ def parameter_projection(parameters):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
     result["AI"]["CardVocabScore"] = parameters["AI.CardVocabScore"]
+    result["AI"]["LeaderHuntMaxLevelGap"] = parameters["AI.LeaderHuntMaxLevelGap"]
     result["AI"]["BreakoutChanceBp"] = scalar(parameters["AI.BreakoutChance"])
     result["AI"]["BreakoutCardScore"] = parameters["AI.BreakoutCardScore"]
     result["AI"]["DodgeChanceBp"] = scalar(parameters["AI.DodgeChance"])

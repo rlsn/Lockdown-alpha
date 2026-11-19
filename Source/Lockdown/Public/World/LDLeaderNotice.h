@@ -50,6 +50,7 @@ struct LOCKDOWN_API FLDLeaderState
     // The refresh index (1-based) last applied; zero before the first.
     uint64 RefreshIndex = 0;
     FGuid Leader;
+    uint8 LeaderLevel = 0;
     FVector CircleCentreCm = FVector::ZeroVector;
     int64 RefreshedAtMs = 0;
     FGuid RunnerUp;

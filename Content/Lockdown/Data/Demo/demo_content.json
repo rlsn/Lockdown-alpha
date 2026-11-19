@@ -21660,6 +21660,7 @@
       "bp": 3500,
       "unit": "ratio"
     },
+    "AI.LeaderHuntMaxLevelGap": 2,
     "AI.LowCampReserveHPRatio": {
       "bp": 1500,
       "unit": "ratio"
@@ -21674,7 +21675,7 @@
       "unit": "cm"
     },
     "AI.ResumeFarmHPRatio": {
-      "bp": 6000,
+      "bp": 4500,
       "unit": "ratio"
     },
     "AI.RetreatHPRatio": {

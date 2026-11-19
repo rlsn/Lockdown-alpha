@@ -196,6 +196,7 @@ struct FLDOpponentPublicMatch
     TArray<FName> MarkedCamps;
     // D27: the public 上热搜 notice; Leader invalid when nobody is named.
     FGuid Leader;
+    uint8 LeaderLevel = 0;
     FVector LeaderCircleCentreCm = FVector::ZeroVector;
     // P6 spec §10.3: the public mid-field objective (Serial 0: none yet this segment).
     FLDObjectiveView Objective;

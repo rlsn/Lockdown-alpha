@@ -79,10 +79,13 @@ bool FLDLeaderState::Refresh(int64 NowMs, TConstArrayView<LDLeaderNotice::FCandi
         OutCentre = Body->FootCm + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.);
     };
     Place(Picked.IsValidIndex(0) ? Picked[0] : FGuid(), Leader, CircleCentreCm);
+    const LDLeaderNotice::FCandidate* Named = Leader.IsValid()
+        ? Candidates.FindByPredicate([this](const LDLeaderNotice::FCandidate& C) { return C.Contender == Leader; }) : nullptr;
+    LeaderLevel = Named ? Named->Level : 0;
     Place(Picked.IsValidIndex(1) ? Picked[1] : FGuid(), RunnerUp, RunnerUpCentreCm);
     RefreshedAtMs = Leader.IsValid() || RunnerUp.IsValid() ? NowMs : 0;
     const FLDLeaderView After = View();
-    return After.Leader != Before.Leader || After.RunnerUp != Before.RunnerUp || After.RefreshedAtMs != Before.RefreshedAtMs;
+    return After.Leader != Before.Leader || After.LeaderLevel != Before.LeaderLevel || After.RunnerUp != Before.RunnerUp || After.RefreshedAtMs != Before.RefreshedAtMs;
 }
 
 bool FLDLeaderState::LeaderDied(const FGuid& Contender, int64 NowMs)
@@ -98,6 +101,7 @@ bool FLDLeaderState::LeaderDied(const FGuid& Contender, int64 NowMs)
     else
     {
         Leader.Invalidate();
+        LeaderLevel = 0;
         CircleCentreCm = FVector::ZeroVector;
     }
     if (!Leader.IsValid() && !RunnerUp.IsValid()) { RefreshedAtMs = 0; }
@@ -117,6 +121,7 @@ FLDLeaderView FLDLeaderState::View() const
     FLDLeaderView Out;
     if (!Leader.IsValid() && !RunnerUp.IsValid()) { return Out; }
     Out.Leader = Leader;
+    Out.LeaderLevel = LeaderLevel;
     Out.CircleCentreCm = CircleCentreCm;
     Out.RefreshedAtMs = RefreshedAtMs;
     Out.RunnerUp = RunnerUp;

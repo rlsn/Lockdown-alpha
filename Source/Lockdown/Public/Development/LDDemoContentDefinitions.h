@@ -87,6 +87,8 @@ struct FLDDemoAIParameters
     // and learned skills; with BreakoutChance an AI takes one breakout preset as its goal at match start and its cards
     // score BreakoutCardScore more.
     UPROPERTY() int64 CardVocabScore = 0;
+    // An AI walks toward the trending leader only while the leader's public level is at most this far above its own.
+    UPROPERTY() int64 LeaderHuntMaxLevelGap = 0;
     UPROPERTY() int64 BreakoutChanceBp = 0;
     UPROPERTY() int64 BreakoutCardScore = 0;
     // An offer sharing no vocabulary key with the AI's build is skipped for vouchers with this chance (AI.CardSkipChance).

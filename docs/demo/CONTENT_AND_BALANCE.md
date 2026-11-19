@@ -1041,7 +1041,8 @@ $k=\min(\text{CAMP.GrowthMaxStage},\lfloor T_{生成}/\text{CAMP.GrowthStageSec}
 | ID | 建议值/单位 | 使用边界 |
 | --- | --- | --- |
 | `AI.RetreatHPRatio` | .25 / 比例 | 自己低血量时优先合法撤退/恢复，不通过直接改HP或传送 |
-| `AI.ResumeFarmHPRatio` | .60 / 比例 | 恢复到此再评估营地；不是无敌保护阈值 |
+| `AI.ResumeFarmHPRatio` | .45 / 比例 | 恢复到此再评估营地；不是无敌保护阈值 |
+| `AI.LeaderHuntMaxLevelGap` | 2 / 等级数 | 上热搜者的公开等级比自己高出超过这么多时不去追 |
 | `AI.HighCampEntryHPRatio` | .80 / 比例 | 还须比较自己实际构筑的预期耗血，不只看等级 |
 | `AI.HighCampReserveHPRatio` | .35 / 比例 | 保守站桩模型后预计仍留至少此比例，才把高营视为合适目标 |
 | `AI.LowCampReserveHPRatio` | .15 / 比例 | 同样按自己的实际HP/攻击与可见怪物/目录估计，不读取隐藏血量 |

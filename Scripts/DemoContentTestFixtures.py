@@ -207,7 +207,7 @@ def content_fixture():
         "SHOP.SkillPointMaxPerMatch": 2, "SHOP.SellPrice": 2,
         "DAMAGE.FactorTechCap": q("ratio", 500), "CHAIN.MaxDepth": 8, "CHAIN.MaxEffectsPerStep": 64,
         "CHAIN.EndSec": q("s", 2), "CHAIN.MinKeySteps": 2,
-        "AI.CardVocabScore": 3, "AI.BreakoutChance": q("ratio", 0.5), "AI.BreakoutCardScore": 4, "AI.CardSkipChance": q("ratio", 0.2),
+        "AI.CardVocabScore": 3, "AI.LeaderHuntMaxLevelGap": 1, "AI.BreakoutChance": q("ratio", 0.5), "AI.BreakoutCardScore": 4, "AI.CardSkipChance": q("ratio", 0.2),
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
