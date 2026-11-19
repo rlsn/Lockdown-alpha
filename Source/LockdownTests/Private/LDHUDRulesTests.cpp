@@ -372,19 +372,18 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     const FGuid Self=FGuid::NewGuid();
     FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Rest;
     FLDTimelineView& Timeline=Public.Timeline;
-    // R3 holds no PK, so its build step has no sign-up line.
-    Timeline.Generation=4;Timeline.Stage=ELDMatchStage::Rest;Timeline.RestIndex=3;Timeline.FieldSegment=1;Timeline.Step=ELDRestStep::Build;
+    Timeline.Generation=4;Timeline.Stage=ELDMatchStage::Rest;Timeline.RestIndex=1;Timeline.FieldSegment=1;Timeline.Step=ELDRestStep::Build;
     Timeline.StepStartedAtMs=100000;Timeline.StepEndsAtMs=125000;
     LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
     TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
-        LDTerms::RestLabel(3)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 20 秒"));
-    TestTrue(TEXT("A rest without a PK has no detail line"),View.Detail.IsEmpty());
+        LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 20 秒"));
+    TestFalse(TEXT("A PK rest's build step carries the sign-up line"),View.Detail.IsEmpty());
     View=LDHUD::TimelineBanner(Public,Self,false,0);
     TestTrue(TEXT("Without the authority clock nothing is guessed"),View.Headline.EndsWith(TEXT("时间同步中")));
     TestTrue(TEXT("No return countdown outside the return step"),LDHUD::RestReturnCountdown(Public,true,110000).IsEmpty());
     Timeline.Step=ELDRestStep::Return;Timeline.StepStartedAtMs=130000;Timeline.StepEndsAtMs=135000;
     View=LDHUD::TimelineBanner(Public,Self,true,131200);
-    TestTrue(TEXT("The return step counts down"),View.Headline==LDTerms::RestLabel(3)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒"));
+    TestTrue(TEXT("The return step counts down"),View.Headline==LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒"));
     TestEqualSensitive(TEXT("The return countdown shows whole seconds rounded up"),LDHUD::RestReturnCountdown(Public,true,131200),FString(TEXT("4")));
     TestEqualSensitive(TEXT("The last millisecond still reads 1"),LDHUD::RestReturnCountdown(Public,true,134999),FString(TEXT("1")));
     TestEqualSensitive(TEXT("Reaching the end holds 1 until the authority enters the field"),LDHUD::RestReturnCountdown(Public,true,136000),FString(TEXT("1")));
