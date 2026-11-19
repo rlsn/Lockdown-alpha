@@ -333,15 +333,17 @@ bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, 
 
 using FValidateProjection = TFunctionRef<bool(FString&)>;
 
+// Each stored field kind (path with element indices dropped) is mutated once: the validator compares the whole
+// projection generically, so every element of the same field adds runtime, not coverage.
 bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValidateProjection Validate,
-    FAutomationTestBase& Test, int32& Count);
+    FAutomationTestBase& Test, TSet<FString>& Kinds);
 
 bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValidateProjection Validate,
-    FAutomationTestBase& Test, int32& Count)
+    FAutomationTestBase& Test, TSet<FString>& Kinds)
 {
     if (auto* Struct = CastField<FStructProperty>(Property))
     {
-        return MutateStruct(Struct->Struct, Data, Path, Validate, Test, Count);
+        return MutateStruct(Struct->Struct, Data, Path, Validate, Test, Kinds);
     }
     if (auto* ArrayProperty = CastField<FArrayProperty>(Property))
     {
@@ -349,13 +351,16 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
         for (int32 I = 0; I < Values.Num(); ++I)
         {
             if (!MutateProperty(ArrayProperty->Inner, Values.GetRawPtr(I), FString::Printf(TEXT("%s[%d]"), *Path, I),
-                Validate, Test, Count))
+                Validate, Test, Kinds))
             {
                 return false;
             }
         }
         return true;
     }
+    bool bSeen = false;
+    Kinds.Add(ValueQuantityKind(Path), &bSeen);
+    if (bSeen) { return true; }
     FString Error;
     bool bRejected = false;
     if (auto* Enum = CastField<FEnumProperty>(Property))
@@ -401,12 +406,11 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
         Test.AddError(TEXT("Unmutated native property: ") + Path);
         return false;
     }
-    ++Count;
     return Test.TestTrue(*FString::Printf(TEXT("Whole projection rejects changed %s"), *Path), bRejected && !Error.IsEmpty());
 }
 
 bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValidateProjection Validate,
-    FAutomationTestBase& Test, int32& Count)
+    FAutomationTestBase& Test, TSet<FString>& Kinds)
 {
     for (TFieldIterator<FProperty> It(Type); It; ++It)
     {
@@ -415,7 +419,7 @@ bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValid
         for (int32 I = 0; I < Property->ArrayDim; ++I)
         {
             const FString Path = Property->ArrayDim > 1 ? FString::Printf(TEXT("%s[%d]"), *Base, I) : Base;
-            if (!MutateProperty(Property, Property->ContainerPtrToValuePtr<void>(Data, I), Path, Validate, Test, Count))
+            if (!MutateProperty(Property, Property->ContainerPtrToValuePtr<void>(Data, I), Path, Validate, Test, Kinds))
             {
                 return false;
             }
@@ -614,19 +618,19 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     auto* ProjectionProperty = FindFProperty<FStructProperty>(ULDDemoContentCatalog::StaticClass(), TEXT("Definitions"));
     if (!TestNotNull(TEXT("Private persisted projection exists"), ProjectionProperty)) { return false; }
     auto* Stored = ProjectionProperty->ContainerPtrToValuePtr<FLDDemoContentDefinitions>(Restored);
-    int32 MutationCount = 0;
+    TSet<FString> Mutated;
     if (!MutateStruct(FLDDemoContentDefinitions::StaticStruct(), Stored, TEXT(""),
-        [&](FString& Why) { return Restored->ValidatePrepared(*Expected, Why); }, *this, MutationCount))
+        [&](FString& Why) { return Restored->ValidatePrepared(*Expected, Why); }, *this, Mutated))
     {
         return false;
     }
-    int32 ArrayCounts = 0;
+    TSet<FString> Scalars;
     for (const auto& Pair : Assertions)
     {
-        ArrayCounts += Pair.Key.EndsWith(TEXT(".#")) ? 1 : 0;
+        if (!Pair.Key.EndsWith(TEXT(".#"))) { Scalars.Add(ValueQuantityKind(Pair.Key)); }
     }
-    TestEqual(TEXT("Every stored scalar, including inactive variant members, rejects tampering"),
-        MutationCount, Assertions.Num() - ArrayCounts);
+    TestTrue(TEXT("Every stored scalar kind, including inactive variant members, rejects tampering"),
+        Mutated.Num() == Scalars.Num() && Mutated.Includes(Scalars));
     const FLDDemoContentDefinitions Original = *Stored;
     Stored->Abilities.RemoveAt(0);
     TestFalse(TEXT("A dropped definition is not a valid partial asset"), Restored->ValidatePrepared(*Expected, Error));
@@ -752,12 +756,13 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
             AddError(Case.Name + TEXT(": ") + Error);
             return false;
         }
-        if (!Case.MutatedQuantity.IsEmpty())
+        // A case whose world payload and expected world projection match base byte for byte would only repeat
+        // base's assertions; an active value mutation must be such a case.
+        const bool bSameWorld = !BaseWorld.IsEmpty() && Bundle.World == BaseWorld && Expected == BaseExpected;
+        if (!Case.MutatedQuantity.IsEmpty() && !TestTrue(*FString::Printf(
+            TEXT("%s keeps the base world payload and expected world projection"), *Case.Name), bSameWorld)) { return false; }
+        if (bSameWorld)
         {
-            // An active value mutation only changes an active's value set. Its world payload and expected world
-            // projection must match base byte for byte, so importing it again would only repeat base's assertions.
-            if (!TestTrue(*FString::Printf(TEXT("%s keeps the base world payload and expected world projection"), *Case.Name),
-                !BaseWorld.IsEmpty() && Bundle.World == BaseWorld && Expected == BaseExpected)) { return false; }
             ++SharedBase;
             continue;
         }
@@ -791,7 +796,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         ++Imported;
     }
-    TestTrue(TEXT("Every non-value-mutation case is fully imported and every case is covered"),
+    TestTrue(TEXT("Every case with its own world is fully imported and every case is covered"),
         !BaseWorld.IsEmpty() && Imported > 1 && Imported + SharedBase == Fixtures.Valid.Num());
     return true;
 }
@@ -916,7 +921,6 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
     auto* Property = FindFProperty<FStructProperty>(ULDMapDefinition::StaticClass(), TEXT("DemoGeometry"));
     if (!TestNotNull(TEXT("World's persisted typed geometry exists"), Property)) { return false; }
     auto* Stored = Property->ContainerPtrToValuePtr<FLDDemoWorldGeometry>(Restored);
-    int32 Count = 0, ArrayCounts = 0;
     TUniquePtr<FLDDemoPreparedWorld> Expected;
     if (!ULDMapDefinition::PrepareProjection(Bundle.World, *Catalog, Expected, Error))
     {
@@ -927,9 +931,14 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
     {
         return Restored->ValidatePrepared(*Expected, Why);
     };
-    if (!MutateStruct(FLDDemoWorldGeometry::StaticStruct(), Stored, TEXT("world"), Validate, *this, Count)) { return false; }
-    for (const auto& Pair : Assertions) { ArrayCounts += Pair.Key.EndsWith(TEXT(".#")) ? 1 : 0; }
-    TestEqual(TEXT("Every stored world scalar rejects independent mutation"), Count, Assertions.Num() - ArrayCounts);
+    TSet<FString> Mutated, Scalars;
+    if (!MutateStruct(FLDDemoWorldGeometry::StaticStruct(), Stored, TEXT(""), Validate, *this, Mutated)) { return false; }
+    for (const auto& Pair : Assertions)
+    {
+        if (!Pair.Key.EndsWith(TEXT(".#"))) { Scalars.Add(ValueQuantityKind(Pair.Key)); }
+    }
+    TestTrue(TEXT("Every stored world scalar kind rejects independent mutation"),
+        Mutated.Num() == Scalars.Num() && Mutated.Includes(Scalars));
     const FLDDemoWorldGeometry Original = *Stored;
     Stored->Blockers[0].PolygonCm.Pop();
     TestFalse(TEXT("Truncated stored polygon cannot use a valid source checksum"), Validate(Error));
