@@ -316,6 +316,26 @@ class PlanTest(AdapterCase):
                 self.assertEqual(plan["subject"].get("breakout_preset"), f"breakout_{arm}")
                 self.assertEqual(plan["opponent"], reference["opponent"], "every sample faces the same-level bare build")
 
+    def test_breakout_sample_is_judged_by_its_committed_preset(self):
+        # A breakout side is proven by the authority's one LD_DEV_BREAKOUT_PRESET and its terminal level and cards; its
+        # ordinary offers and choices are not evidence.
+        plan = {"subject": {"choices": ["ai_select"], "breakout_preset": "breakout_lifesteal"}, "opponent": {"choices": []}}
+        ids = {"subject": "A" * 32, "opponent": "B" * 32}
+        rows = {"subject": {"level": 16, "cards": [{}] * 5, "actives": [], "blueprints": []},
+                "opponent": {"level": 16, "cards": [], "actives": [], "blueprints": []}}
+        applied = ("LD_DEV_BREAKOUT_PRESET", {"contender": ids["subject"], "preset": "breakout_lifesteal", "level": "16", "cards": "5"}, 0)
+        stray = ("LD_CHOICE", {"contender": ids["subject"], "ordinal": "1", "t": "5", "level": "1"}, 0)
+        self.assertEqual(lockdown.breakout_roles(plan), {"subject"})
+        self.assertEqual(lockdown.breakout_problems([applied], ids, plan, rows), [])
+        self.assertEqual(lockdown.selection_problems([stray, applied], ids, plan, rows, 100), [])
+        self.assertTrue(lockdown.breakout_problems([], ids, plan, rows))
+        self.assertTrue(lockdown.breakout_problems([applied, applied], ids, plan, rows))
+        rows["subject"]["level"] = 15
+        self.assertTrue(lockdown.breakout_problems([applied], ids, plan, rows))
+        other = ("LD_DEV_BREAKOUT_PRESET", {"contender": ids["opponent"], "preset": "breakout_lifesteal", "level": "16", "cards": "5"}, 0)
+        rows["subject"]["level"] = 16
+        self.assertTrue(lockdown.breakout_problems([applied, other], ids, plan, rows))
+
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
         self.assertTrue(any("has 2 rules but its supply of 600 XP gives 3 active opportunities" in item for item in needs["problems"]))
