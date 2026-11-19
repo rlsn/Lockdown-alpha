@@ -255,7 +255,9 @@ void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, c
     if (Public.Occupier == Frame.Self.ContenderId)
     {
         ++Tally.PausedHolds;
-        Tally.PausedHoldsKept += Decision.Mode == ELDOpponentMode::DefendOrHold ? 1 : 0;
+        // In the final field every body contests the circle (Contest), the holder included: it stays and fights there.
+        Tally.PausedHoldsKept += Decision.Mode == ELDOpponentMode::DefendOrHold
+            || (Public.Timeline.Stage == ELDMatchStage::FinalField && Decision.Mode == ELDOpponentMode::Contest) ? 1 : 0;
         Tally.PausedHoldsReleased += bReleased ? 1 : 0;
         return;
     }

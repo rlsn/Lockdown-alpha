@@ -634,7 +634,9 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
             {
                 Track.DeadSeenAtMs = Now;
                 const FLDGrowthBuild* Build = Mode.Development ? Mode.Development->FindBuild(Track.Contender) : nullptr;
-                Track.RespawnWaitMs = Mode.FieldRespawnWaitMs(Build ? Build->Level : 1);
+                // A final life waits in the bounded showdown queue (longer, or no respawn at all); only a field death is
+                // held to the field delay.
+                Track.RespawnWaitMs = Mode.IsShowdown() ? -1 : Mode.FieldRespawnWaitMs(Build ? Build->Level : 1);
                 ++Track.Deaths;
                 Track.ActBase = Body;
             }
@@ -644,7 +646,8 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         {
             const int64 Waited = Now - Track.DeadSeenAtMs;
             Track.LongestRespawnMs = FMath::Max(Track.LongestRespawnMs, Waited);
-            Track.bRespawnsValid &= Life.Life == Track.Life + 1 && Waited <= Track.RespawnWaitMs + RespawnSlackMs;
+            Track.bRespawnsValid &= Life.Life == Track.Life + 1
+                && (Track.RespawnWaitMs < 0 || Waited <= Track.RespawnWaitMs + RespawnSlackMs);
             ++Track.Respawns;
             Track.DeadSeenAtMs = -1;
             Track.ActCheckDueMs = Now + ActAfterRespawnMs;
@@ -1063,7 +1066,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         if (const ALDOpponentController* AI = Track.Controller.Get()) { Track.Tally = AI->GetRequestTally(); }
         ReadGrowth(Mode, Track);
         // A death whose respawn time had not come when the match closed is not a late respawn.
-        if (Track.DeadSeenAtMs >= 0 && EndedAtMs - Track.DeadSeenAtMs > Track.RespawnWaitMs + RespawnSlackMs) { Track.bRespawnsValid = false; }
+        if (Track.DeadSeenAtMs >= 0 && Track.RespawnWaitMs >= 0 && EndedAtMs - Track.DeadSeenAtMs > Track.RespawnWaitMs + RespawnSlackMs)
+        { Track.bRespawnsValid = false; }
         // A respawn shortly before the close settles against the final tally once it acted or its window had passed.
         if (Track.ActCheckDueMs >= 0)
         {
