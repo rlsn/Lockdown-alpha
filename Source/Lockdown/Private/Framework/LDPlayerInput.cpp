@@ -71,8 +71,13 @@ FString ALDPlayerController::ControlSummary() const
 
 FVector2D ALDPlayerController::CameraPanAxis() const
 {
-    return FVector2D((IsInputKeyDown(BindingKey(TEXT("PanRight")))?1:0)-(IsInputKeyDown(BindingKey(TEXT("PanLeft")))?1:0),
-        (IsInputKeyDown(BindingKey(TEXT("PanUp")))?1:0)-(IsInputKeyDown(BindingKey(TEXT("PanDown")))?1:0));
+    // A pan key held through a menu or focus change pans again only after it was let go once (StaleKeys).
+    const auto Held=[this](const TCHAR* Action)
+    {
+        const FKey Key=BindingKey(FName(Action));
+        return IsInputKeyDown(Key) && !StaleKeys.Contains(Key) ? 1 : 0;
+    };
+    return FVector2D(Held(TEXT("PanRight"))-Held(TEXT("PanLeft")),Held(TEXT("PanUp"))-Held(TEXT("PanDown")));
 }
 
 bool ALDPlayerController::IsWorldLifeValid() const

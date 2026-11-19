@@ -411,7 +411,8 @@ void ALDPlayerController::ReleaseSkill(ELDCombatEntry Entry)
     if (!bOverdriveHolding || Entry!=OverdriveEntry) { return; }
     // Let go before the hold completed: the charge ends and the press is an ordinary cast.
     EndOverdriveHold();
-    if (ArmedEntry!=Entry) { ActivateCombatEntry(Entry); }
+    // Armed from the press already: nothing to repeat. Quick cast was not activated on the press, so it reads the aim now.
+    if (ArmedEntry!=Entry || (Controls && Controls->GetQuickCast())) { ActivateCombatEntry(Entry); }
 }
 
 void ALDPlayerController::TickOverdriveHold()
@@ -520,6 +521,7 @@ void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActi
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT receipt match=%u life=%u sequence=%llu entry=%u phase=%u reject=%u token=%llu"),
         Receipt.Generation,Receipt.Life,Receipt.DirectSequence,uint32(Receipt.Entry),uint32(Receipt.Phase),
         uint32(Receipt.Reject),Receipt.CombatToken);
+    if (Navigation) { Navigation->NoteCombatReceipt(Receipt); }
     if (!CombatReceipts.Push(Receipt)) { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
 }
 

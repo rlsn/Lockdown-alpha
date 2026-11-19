@@ -40,7 +40,7 @@
 | Esc | 子确认/模态 → 准备态 → 主面板 → 菜单，每次一层 | 不 Stop、不发命令 |
 
 已有准备态（Q/W/E/D 或 A）时右键取消准备，同一次点击照常走普通分派（`V05Pressed`）。
-按住右键期间发出的不排队施放订单（`CastUnit`/`CastPoint`）先执行；它结束或被更新的本人订单取代后，仍按住右键就继续按指针重发 `MoveGround`（`HeldCastOrder`），这时不发施法后的自动攻击。
+按住右键期间发出的不排队施放订单（`CastUnit`/`CastPoint`）先执行；订单结束且对应 Combat 动作的回执为 Finished 或 Rejected 后（`NoteCombatReceipt`；没有回执时等 0.5 s 且本人不在前摇中），仍按住右键就继续按指针重发 `MoveGround`，恢复的第一条不要求指针移动，这时不发施法后的自动攻击；被更新的本人订单取代则不再等待。
 右键分派顺序为指针下可见单位 → 地面（`ULDNavigationComponent::ClickMove`），一次点击只产生一类订单，被拒绝不改发另一类。
 
 ### 能力目标
