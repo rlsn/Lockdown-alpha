@@ -124,9 +124,13 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     // and a card's fire on this hit (K19, ApplyCardElement), at the living source's level and AP now. Ticks,
     // settles, reflections, added damage and shield answers carry none of the source's triggers.
     const FLDElementExtras Extras=ExtrasOf(Hit);
-    if (Hit.BurnStacks>0
-        && !ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error)) { return false; }
     const bool bLivingSource=Source && !Source->bPendingDeath;
+    // A hit carries one element: a card's element on it replaces the hit's own, and of several cards the first in the
+    // fixed order (fire, water, shock, chill, rot, gust) applies. So one release never reacts with itself.
+    const bool bCardFire=bLivingSource && Hit.CardBurnStacks>0;
+    const bool bCardElement=bCardFire || (bLivingSource && !Hit.CardElements.IsEmpty());
+    if (Hit.BurnStacks>0 && !bCardElement
+        && !ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error)) { return false; }
     const auto SourceApplier=[this,Source,CastLedger=Hit.CastLedger](const FLDCombatSourceRef& Ref)
     {
         FLDElementApplier Applier;
@@ -139,8 +143,11 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         Applier.CastLedger=CastLedger;
         return Applier;
     };
+    // A15's fire rides the last step of the basic combo only, like the other basic element cards.
+    const int32 LastComboStep=Catalog() ? Catalog()->Get().Parameters.Combo.StepRatiosBp.Num() : 0;
+    bool bFireApplied=Hit.BurnStacks>0 && !bCardElement;
     if (bLivingSource && Hit.HitClass==ELDCombatHitClass::BasicPrimary && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
-        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger)
+        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger && !bCardFire && int32(Hit.ComboStep)==LastComboStep)
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Burn,Passives,Error)) { return false; }
@@ -151,25 +158,32 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
             { return false; }
             // A15's layers on this primary basic are one trigger.
             LedgerCardTriggered(*Source,Ref.Key);
+            bFireApplied=true;
         }
     }
-    if (bLivingSource && Hit.CardBurnStacks>0
-        && !ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource),Hit.CardBurnStacks,Hit.HitId,
+    if (bCardFire)
+    {
+        if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource),Hit.CardBurnStacks,Hit.HitId,
             NowMs,Error)) { return false; }
+        bFireApplied=true;
+    }
+    if (bFireApplied) { return true; }
     // Water, shock, chill, rot, gust: the hit's native element (its release snapshot) before a card's own application
     // (A16-A19, K20-K24, D12 at the living source's level and AP now, credited to that card).
     for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
         ELDCombatElement::Rot,ELDCombatElement::Gust})
     {
-        if ((Hit.NativeElements & LDCombatElements::Bit(Kind))!=0
-            && !ApplyElement(Target,Kind,ApplierOf(Hit),0,Hit.HitId,NowMs,Error,Extras)) { return false; }
-        if (!bLivingSource) { continue; }
+        if (!bCardElement)
+        {
+            if ((Hit.NativeElements & LDCombatElements::Bit(Kind))==0) { continue; }
+            return ApplyElement(Target,Kind,ApplierOf(Hit),0,Hit.HitId,NowMs,Error,Extras);
+        }
         for (const auto& Card : Hit.CardElements)
         {
             if (Card.Key!=Kind) { continue; }
             FLDElementExtras CardExtras;
             CardExtras.GustDirection=Extras.GustDirection;
-            if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error,CardExtras)) { return false; }
+            return ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error,CardExtras);
         }
     }
     return true;
@@ -215,6 +229,9 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         if (FindBody(Applier.SourceBody,&ApplierActor) && ApplierActor) { GustDirection=(Foot-FootOf(*ApplierActor)).GetSafeNormal2D(); }
     }
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
+    // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole (no mark,
+    // no credit, no momentum); the same element still refreshes and a free body still takes a new one.
+    if (NowMs<Target.ReactionLockedUntilMs && LDCombatElements::ReactionOf(Held,Kind)!=ELDCombatReaction::None) { return true; }
     // Who applied the held element, the setters of a reaction's rule chain: the mark's latest applier; for fire, the applier
     // of every layer that still had ticks to settle (filled from the settled shares below).
     TArray<FGuid> HeldSetters;
@@ -327,6 +344,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Target.Cues.LastReaction=uint8(Reaction);
     Target.Cues.LastReactionAtMs=NowMs;
     Target.Cues.LastReactionElement=uint8(Kind);
+    Target.ReactionLockedUntilMs=NowMs+Terms.ReactionLockMs;
     const FLDCombatBodyRef Primary{Target.Victim,Target.Identity};
     const int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms);
     const FGuid ReactionId=FGuid::NewGuid();

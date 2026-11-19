@@ -20348,7 +20348,7 @@
     },
     {
       "description_key": "card_fire_fist.description",
-      "description_text": "普攻命中施加 [burn.basic_count] 层灼烧。",
+      "description_text": "第三段普攻命中施加 [burn.basic_count] 层灼烧。",
       "icon_id": "icon_card_fire_fist",
       "id": "card_fire_fist",
       "name_key": "card_fire_fist.name",
@@ -20447,7 +20447,7 @@
     },
     {
       "description_key": "card_ice_fist.description",
-      "description_text": "普攻命中让目标冻。",
+      "description_text": "第三段普攻命中让目标冻。",
       "icon_id": "icon_card_ice_fist",
       "id": "card_ice_fist",
       "name_key": "card_ice_fist.name",
@@ -20663,7 +20663,7 @@
     },
     {
       "description_key": "card_rot_fist.description",
-      "description_text": "普攻命中让目标馊。",
+      "description_text": "第三段普攻命中让目标馊。",
       "icon_id": "icon_card_rot_fist",
       "id": "card_rot_fist",
       "name_key": "card_rot_fist.name",
@@ -20717,7 +20717,7 @@
     },
     {
       "description_key": "card_shock_fist.description",
-      "description_text": "普攻命中让目标感电。",
+      "description_text": "第三段普攻命中让目标感电。",
       "icon_id": "icon_card_shock_fist",
       "id": "card_shock_fist",
       "name_key": "card_shock_fist.name",
@@ -20852,7 +20852,7 @@
     },
     {
       "description_key": "card_water_fist.description",
-      "description_text": "普攻命中让目标潮湿。",
+      "description_text": "第三段普攻命中让目标潮湿。",
       "icon_id": "icon_card_water_fist",
       "id": "card_water_fist",
       "name_key": "card_water_fist.name",
@@ -21999,6 +21999,10 @@
     "COMBAT.ReactionBase": {
       "p2": 3000,
       "unit": "points"
+    },
+    "COMBAT.ReactionLockSec": {
+      "ms": 3000,
+      "unit": "ms"
     },
     "COMBAT.ReactionPerLevel": {
       "p2": 400,

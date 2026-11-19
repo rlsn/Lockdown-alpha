@@ -551,11 +551,11 @@ $$
 | A12 | `card_heated_up` | 越打越上头 | 成长 | 连续打同一个人，每下攻速 +4%，无上限；换目标或 3 s 没打清零 | attack_speed, basic_hit |
 | A13 | `card_muscle_memory` | 熟能生巧 | 成长 | 普攻每命中参赛者 10 次，本局攻击力 +1 | basic_hit |
 | A14 | `card_breach_fist` | 越揍越不经打 | 成长 | 普攻命中挂 1 层破防（每层双抗 −3，上限 5，4 s） | basic_hit, armor |
-| A15 | `card_fire_fist` | 拳头冒火 | 元素 | 普攻命中挂 1 层灼烧 | element, basic_hit |
-| A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 普攻命中挂湿 | element, basic_hit |
-| A17 | `card_shock_fist` | 拳头漏电 | 元素 | 普攻命中挂麻 | element, basic_hit |
-| A18 | `card_ice_fist` | 拳头冰镇 | 元素 | 普攻命中挂冻 | element, basic_hit |
-| A19 | `card_rot_fist` | 拳头带馊 | 元素 | 普攻命中挂馊 | element, basic_hit |
+| A15 | `card_fire_fist` | 拳头冒火 | 元素 | 第 3 段普攻命中挂 1 层灼烧 | element, basic_hit |
+| A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 第 3 段普攻命中挂湿 | element, basic_hit |
+| A17 | `card_shock_fist` | 拳头漏电 | 元素 | 第 3 段普攻命中挂麻 | element, basic_hit |
+| A18 | `card_ice_fist` | 拳头冰镇 | 元素 | 第 3 段普攻命中挂冻 | element, basic_hit |
+| A19 | `card_rot_fist` | 拳头带馊 | 元素 | 第 3 段普攻命中挂馊 | element, basic_hit |
 | K01 | `card_next_up` | 打完换下一招 | 触发 | 这个技能命中 → 其他已学技能冷却各 −1 s | skill_hit, skill_cast |
 | K02 | `card_pay_back` | 一招回本 | 触发 | 这个技能每次命中回 6 劲 | skill_hit, momentum |
 | K03 | `card_quick_takedown` | 收人头不用等 | 触发 | 这个技能命中过的参赛者在助攻窗口内死亡、你得到击杀或助攻 → 本技能冷却刷新 | kill |
@@ -632,6 +632,7 @@ $$
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
 | `COMBAT.ReactionBase`、`COMBAT.ReactionPerLevel`、`COMBAT.ReactionAPRatio` | 30、4、0.25 | 反应伤害 R = 30 + 4(L − 1) + 0.25 × 法强，魔法伤害，不乘 G；L 与法强取触发者（新元素的施加者） |
+| `COMBAT.ReactionLockSec` | 3 s | 同一目标发生反应后这么久内不再发生反应；期间会引发反应的元素不挂上，同种元素照常刷新 |
 | `COMBAT.WetSec`、`COMBAT.WetSlow` | 4 s、0.15 | 湿：移速 −15% |
 | `COMBAT.ShockSec`、`COMBAT.ShockEveryNthHit`、`COMBAT.ShockRatio`、`COMBAT.ShockSplashRadiusCm` | 4 s、3、0.5、350 cm | 麻：持有者每第 3 次受到直接伤害，额外受 0.5R；施加者的其他敌人在 350cm 内时也受 0.5R。这份伤害不是直接伤害，不推进计数，不触发反弹与命中类牌 |
 | `COMBAT.ChillSec`、`COMBAT.ChillAttackSlow`、`COMBAT.ChillMoveSlow` | 4 s、0.15、0.10 | 冻：攻速 −15%、移速 −10% |

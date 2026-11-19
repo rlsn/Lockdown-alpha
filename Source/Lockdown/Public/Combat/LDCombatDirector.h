@@ -458,6 +458,8 @@ struct FLDBodyCombatState
     // Elements (LDCombatElements): the water, shock, chill or rot mark (fire is Burn), the S16 stance and a shatter (shock +
     // chill): the next skill hit on this life within ShatterUntilMs takes ShatterBp more (its own factor), then it ends.
     FLDCombatElementMark ElementMark;
+    // COMBAT.ReactionLockSec: until this authority ms an element that would react with the held one is not applied.
+    int64 ReactionLockedUntilMs=0;
     FLDCombatBrace Brace;
     int64 ShatterBp=0, ShatterUntilMs=0;
     // Spec §8.3: the enemy ice ground state this body's foot stood on at the last ground advance (movement inertia and the

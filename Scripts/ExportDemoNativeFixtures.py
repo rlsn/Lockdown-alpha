@@ -463,7 +463,7 @@ def parameter_projection(parameters):
         ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"),
         # #198 elements and reactions.
         ("COMBAT.WetSec", "WetMs"), ("COMBAT.WetSlow", "WetSlowBp"), ("COMBAT.ReactionBase", "ReactionBaseP2"),
-        ("COMBAT.ReactionPerLevel", "ReactionPerLevelP2"), ("COMBAT.ReactionAPRatio", "ReactionAPRatioBp"),
+        ("COMBAT.ReactionPerLevel", "ReactionPerLevelP2"), ("COMBAT.ReactionAPRatio", "ReactionAPRatioBp"), ("COMBAT.ReactionLockSec", "ReactionLockMs"),
         ("COMBAT.FogSec", "FogMs"), ("COMBAT.FogIntervalSec", "FogIntervalMs"),
         ("COMBAT.ConductSlow", "ConductSlowBp"), ("COMBAT.ConductSlowSec", "ConductSlowMs"),
     ):

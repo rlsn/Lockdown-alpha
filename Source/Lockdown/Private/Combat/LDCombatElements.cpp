@@ -41,6 +41,7 @@ FLDElementTerms FLDElementTerms::From(const FLDDemoContentParameters& Parameters
     Terms.ReactionBaseP2=Parameters.ReactionBaseP2;
     Terms.ReactionPerLevelP2=Parameters.ReactionPerLevelP2;
     Terms.ReactionAPRatioBp=Parameters.ReactionAPRatioBp;
+    Terms.ReactionLockMs=Parameters.ReactionLockMs;
     Terms.FogRadiusCm=Cm(Parameters.FogRadiusCm);
     Terms.FogMs=Parameters.FogMs;
     Terms.FogIntervalMs=Parameters.FogIntervalMs;

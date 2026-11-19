@@ -286,8 +286,10 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         if (Hit.HitClass==ELDCombatHitClass::BasicPrimary)
         {
+            // A16-A19 ride the last step of the basic combo only; a bought drink still rides every basic it covers.
             TArray<FLDPassiveEffectRef> Elements;
-            if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::BasicElement,Elements,Error)) { return false; }
+            if (int32(Hit.ComboStep)==Content->Get().Parameters.Combo.StepRatiosBp.Num()
+                && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::BasicElement,Elements,Error)) { return false; }
             for (const FLDPassiveEffectRef& Ref : Elements)
             {
                 if (!ApplyCardElement(Hit,Ref.Effect.Element,0,Ref.Source,Error)) { return false; }

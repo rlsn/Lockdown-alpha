@@ -115,7 +115,7 @@ def content_fixture():
         ("COMBAT.KeystoneAgilityADRatio", "ratio", 0.125),
         ("COMBAT.KeystoneAgilityEmpowerDurationSec", "s", 3),
         ("COMBAT.WetSec", "s", 3), ("COMBAT.WetSlow", "ratio", 0.1),
-        ("COMBAT.ReactionBase", "points", 10), ("COMBAT.ReactionPerLevel", "points", 0.5), ("COMBAT.ReactionAPRatio", "ratio", 0.125),
+        ("COMBAT.ReactionBase", "points", 10), ("COMBAT.ReactionPerLevel", "points", 0.5), ("COMBAT.ReactionAPRatio", "ratio", 0.125), ("COMBAT.ReactionLockSec", "s", 2),
         ("COMBAT.FogRadiusCm", "cm", 200), ("COMBAT.FogSec", "s", 2), ("COMBAT.FogIntervalSec", "s", 0.5),
         ("COMBAT.ConductRadiusCm", "cm", 400), ("COMBAT.ConductSlow", "ratio", 0.25), ("COMBAT.ConductSlowSec", "s", 1.25),
         ("COMBAT.OverloadRadiusCm", "cm", 150),

@@ -548,6 +548,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ReactionBaseP2 = 0;
     UPROPERTY() int64 ReactionPerLevelP2 = 0;
     UPROPERTY() int64 ReactionAPRatioBp = 0;
+    // After a reaction on a body no other reaction happens on it for this long; a different element is not applied meanwhile.
+    UPROPERTY() int64 ReactionLockMs = 0;
     UPROPERTY() FLDDemoRational FogRadiusCm;
     UPROPERTY() int64 FogMs = 0;
     UPROPERTY() int64 FogIntervalMs = 0;

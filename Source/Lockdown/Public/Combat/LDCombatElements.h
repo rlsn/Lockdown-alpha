@@ -55,6 +55,7 @@ struct LOCKDOWN_API FLDElementTerms
     int64 ReactionBaseP2 = 0;
     int64 ReactionPerLevelP2 = 0;
     int64 ReactionAPRatioBp = 0;
+    int64 ReactionLockMs = 0;
     double FogRadiusCm = 0;
     int64 FogMs = 0;
     int64 FogIntervalMs = 0;
