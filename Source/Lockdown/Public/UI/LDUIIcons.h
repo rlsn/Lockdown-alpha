@@ -4,7 +4,7 @@
 class UImage;
 class UTexture2D;
 
-// Skill, passive, attribute, opening and status icons (#85). The 64 px PNGs of SourceData\UI\Icons are listed with their
+// Skill, attribute, build card, final mod and status icons. The PNGs in SourceData\UI\Icons are listed with their
 // SHA-256 in SourceData\UI\ui_icons.json and imported by Scripts\ImportDemoArt.ps1 -Mode ImportUI (LDDemoUIImageImport) into
 // /Game/Lockdown/Art/UI/Icons/T_<IconId>, which is always cooked. A content display row names its icon by IconId
 // (icon_<contentId>); the dash and the two recoveries have no display row and use the ids below.
