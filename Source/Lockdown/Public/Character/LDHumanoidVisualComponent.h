@@ -76,9 +76,10 @@ public:
     // 0..1 when known (ALDPlayerController::OverdriveHoldProgress), which then drives the column and the ready flare.
     void SetCharging(bool bInCharging, float AgeSeconds = 0.f, float Progress = -1.f)
     { bCharging = bInCharging; ChargeAge = AgeSeconds; ChargeProgress = Progress; }
-    // A public element reaction on this body AgeSeconds ago (ELDCombatReaction, the element that set it off): a fresh one
-    // flashes its cross and ring and bursts the element's particles once. An old or repeated one shows nothing.
-    void SetReaction(uint8 Reaction, uint8 Element, float AgeSeconds);
+    // A public element reaction on this body AgeSeconds ago (ELDCombatReaction, the element that set it off), committed at
+    // AtServerSec on the authority clock: a fresh one flashes its cross and ring and bursts the element's particles once.
+    // An old one, or the same reaction at the same authority time seen again, shows nothing.
+    void SetReaction(uint8 Reaction, uint8 Element, float AgeSeconds, double AtServerSec);
     // The shown cast is an overdrive release (public, FLDObservedUnitView::bOverdriveCast): its release plays the shockwave.
     void SetOverdriveCast(bool bInOverdrive) { bOverdriveCast = bInOverdrive; }
     void PlayAppear();
@@ -150,7 +151,7 @@ private:
     bool bCharging = false, bChargeShown = false, bChargeReady = false, bOverdriveCast = false;
     double ChargeOnset = -1;
     float ChargeAge = 0, ChargeProgress = -1;
-    double ReactionOnset = -1;
+    double ReactionOnset = -1, ReactionAtServerSec = -1;
     uint8 ShownReaction = 0, PendingReactionElement = 0;
     bool bPendingReaction = false, bGhostWarmed = false;
     uint8 Cue = 0;

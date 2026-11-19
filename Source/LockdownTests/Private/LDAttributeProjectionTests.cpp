@@ -25,7 +25,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
     const FLDDemoContentParameters& P = Out->Get().Parameters;
     const FLDDemoProgressionDefinition& Progression = Out->Get().Progression;
     return Test.TestTrue(TEXT("Fixture carries the approved first-play attribute parameters"),
-        P.MaxHP.BaseP2 == 86000 && P.MaxHP.PerLevelP2 == 8000 && P.Momentum.CombatPerSec.Numerator == 3 && P.Momentum.CombatPerSec.Denominator == 1
+        P.MaxHP.BaseP2 == 86000 && P.MaxHP.PerLevelP2 == 8000 && P.Momentum.CombatPerSec.Numerator == 5 && P.Momentum.CombatPerSec.Denominator == 1
         && P.AD.BaseP2 == 7000 && P.AD.PerLevelP2 == 320 && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.AttackSpeed.Base.Numerator == 3 && P.AttackSpeed.Base.Denominator == 4 && P.AttackSpeedPerLevelBp == 200
         && P.MoveSpeedCmPerSec.Base.Numerator == 300 && P.MoveSpeedCmPerSec.Base.Denominator == 1
@@ -57,7 +57,7 @@ struct FExpectedAttributes
     FLDDemoRational MoveSpeedCmPerSec;
     FLDDemoRational AttackRangeCm;
     FLDDemoRational HPRegenPerSec;
-    FLDDemoRational MomentumRegenPerSec = MakeRational(3);
+    FLDDemoRational MomentumRegenPerSec = MakeRational(5);
     int64 CritChanceBp = 0;
     int64 CooldownHasteP2 = 0;
 };
@@ -403,7 +403,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
             EAttribute::Armor, MakeRational(25), Zero},
         {TEXT("stat_strength"), [](FExpectedAttributes& E) { E.ADP2 = 12380; E.CritChanceBp = 400; },
             EAttribute::AD, MakeRational(25), Zero},
-        {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MomentumRegenPerSec = MakeRational(18, 5); },
+        {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MomentumRegenPerSec = MakeRational(28, 5); },
             EAttribute::AP, MakeRational(60), Zero},
         {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(207, 200); E.MoveSpeedCmPerSec = MakeRational(315); },
             EAttribute::AttackSpeed, Zero, MakeRational(1, 5)},
@@ -515,9 +515,9 @@ bool RunEnvelope(FAutomationTestBase& Test)
         return ProjectBuild(Test, Label, MakeBuild(16, {FLDStatPointsValue(Stat, Points)}), *Catalog, Projection);
     };
     // Level 16 holds 3 + 15 x 3 = 48 points; every stat stays inside its bound with all of them except max HP (base 2060, AD 118,
-    // resistances 48, HP regeneration 3.4, momentum regeneration 3, attack speed 0.75 x 1.3).
+    // resistances 48, HP regeneration 3.4, momentum regeneration 5, attack speed 0.75 x 1.3).
     if (!Envelope(TEXT("Physique envelope"), TEXT("stat_physique"), 48)) { return false; }
-    bool bGood = Test.TestEqual(TEXT("HP envelope 2060 + 48 x 40 clamps to the 3000 maximum"), Projection.Final.MaxHPP2, int64(300000));
+    bool bGood = Test.TestEqual(TEXT("HP envelope is 2060 + 48 x 40, under the 20000 maximum"), Projection.Final.MaxHPP2, int64(398000));
     bGood &= ExpectRational(Test, TEXT("HP regeneration envelope is 3.4 + 48 x 0.08"), Projection.Final.HPRegenPerSec, MakeRational(181, 25));
     if (!Envelope(TEXT("Thick skin envelope"), TEXT("stat_thick_skin"), 48)) { return false; }
     bGood &= Test.TestTrue(TEXT("Resistance envelope is 48 + 48 x 2.5"), Projection.Final.ArmorP2 == 16800 && Projection.Final.MagicResistP2 == 16800);
@@ -526,23 +526,23 @@ bool RunEnvelope(FAutomationTestBase& Test)
         Projection.Final.ADP2 == 23800 && Projection.Final.CritChanceBp == 1920);
     if (!Envelope(TEXT("Brains envelope"), TEXT("stat_brains"), 48)) { return false; }
     bGood &= Test.TestTrue(TEXT("AP envelope is 48 x 6 with 48 haste"), Projection.Final.APP2 == 28800 && Projection.Final.CooldownHasteP2 == 4800);
-    bGood &= ExpectRational(Test, TEXT("Momentum regeneration envelope is 3 + 48 x 0.06"), Projection.Final.MomentumRegenPerSec, MakeRational(147, 25));
+    bGood &= ExpectRational(Test, TEXT("Momentum regeneration envelope is 5 + 48 x 0.06"), Projection.Final.MomentumRegenPerSec, MakeRational(197, 25));
     if (!Envelope(TEXT("Agility envelope"), TEXT("stat_agility"), 48)) { return false; }
     bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 0.75 x 2.26"), Projection.Final.AttackSpeed, MakeRational(339, 200));
     bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 300 x 1.24"), Projection.Final.MoveSpeedCmPerSec, MakeRational(372));
     bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 590, 133);
 
-    // Past level 16 every full 240 XP adds 3 points; the attributes then clamp to their catalog bounds and say so.
-    if (!Envelope(TEXT("Brains past the cap"), TEXT("stat_brains"), 78)) { return false; }
-    bGood &= Test.TestTrue(TEXT("AP clamps to 300; 78 haste and 3 + 78 x 0.06 momentum/s stay under their bounds"), Projection.Final.APP2 == 30000
+    // Past level 16 every full 240 XP adds 3 points; with the raised caps 78 points of one stat still stay inside its bound.
+    if (!Envelope(TEXT("Brains past level 16"), TEXT("stat_brains"), 78)) { return false; }
+    bGood &= Test.TestTrue(TEXT("78 brains: AP 468, 78 haste and 5 + 78 x 0.06 momentum/s, none clamped"), Projection.Final.APP2 == 46800
         && Projection.Final.CooldownHasteP2 == 7800
-        && Projection.Final.MomentumRegenPerSec.Numerator * 25 == 192 * Projection.Final.MomentumRegenPerSec.Denominator);
-    bGood &= Test.TestTrue(TEXT("Only the clamped row says so"), Projection.Contributions[int32(EAttribute::AP)].bClamped
+        && Projection.Final.MomentumRegenPerSec.Numerator * 25 == 242 * Projection.Final.MomentumRegenPerSec.Denominator
+        && !Projection.Contributions[int32(EAttribute::AP)].bClamped
         && !Projection.Contributions[int32(EAttribute::CooldownHaste)].bClamped
         && !Projection.Contributions[int32(EAttribute::MomentumRegen)].bClamped);
-    if (!Envelope(TEXT("Physique past the cap"), TEXT("stat_physique"), 78)) { return false; }
-    bGood &= Test.TestTrue(TEXT("Max HP clamps to 3000"), Projection.Final.MaxHPP2 == 300000
-        && Projection.Contributions[int32(EAttribute::MaxHP)].bClamped);
+    if (!Envelope(TEXT("Physique past level 16"), TEXT("stat_physique"), 78)) { return false; }
+    bGood &= Test.TestTrue(TEXT("78 physique: max HP 2060 + 78 x 40 under the 20000 maximum"), Projection.Final.MaxHPP2 == 518000
+        && !Projection.Contributions[int32(EAttribute::MaxHP)].bClamped);
     return bGood;
 }
 

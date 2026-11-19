@@ -26,7 +26,7 @@ $scripts = @{
 }
 $steps = [System.Collections.Generic.List[object]]::new()
 if (-not $NoBuild) { $steps.Add(@{Name = 'Build'; Script = 'BuildEditor.ps1'; Arguments = @{}}) }
-if ($Filter) { $steps.Add(@{Name = 'Rules'; Script = 'RunTests.ps1'; Arguments = @{Filter = $Filter; ImportTests = 'Skip'}}) }
+if ($Filter) { $steps.Add(@{Name = 'Rules'; Script = 'RunTests.ps1'; Arguments = @{Filter = $Filter; ImportTests = 'Run'}}) }
 foreach ($name in $Scenario) { $steps.Add(@{Name = $name; Script = $scripts[$name][0]; Arguments = $scripts[$name][1]}) }
 
 $results = [System.Collections.Generic.List[object]]::new()
@@ -37,7 +37,8 @@ foreach ($step in $steps) {
     $status = 'passed'; $detail = ''
     Write-Host "== $($step.Name): $($step.Script)"
     try {
-        $lines = & (Join-Path $PSScriptRoot $step.Script) @arguments 2>&1 | ForEach-Object { Write-Host $_; "$_" }
+        # *>&1: the evidence lines are Write-Host output (the information stream).
+        $lines = & (Join-Path $PSScriptRoot $step.Script) @arguments *>&1 | ForEach-Object { Write-Host $_; "$_" }
         $detail = @($lines | Where-Object { $_ -match 'Evidence: |inspect visually: ' } | Select-Object -Last 1) -join ''
     } catch {
         $status = 'FAILED'; $detail = "$($_.Exception.Message)"; $failed = $step.Name

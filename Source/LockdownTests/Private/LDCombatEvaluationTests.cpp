@@ -17,7 +17,7 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
     return Test.TestTrue(TEXT("Fixture uses the approved first-play damage and timing parameters"),
         P.AD.BaseP2 == 7000 && P.AP.BaseP2 == 0 && P.MaxHP.BaseP2 == 86000
         && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
-        && P.Armor.MaxP2 == 20000 && P.MagicResist.MaxP2 == 20000
+        && P.Armor.MaxP2 == 100000 && P.MagicResist.MaxP2 == 100000
         && P.CritMultiplierBp == 20000 && Out->Get().Formulas.ResistanceScaleP2 == 10000
         && P.AttackSpeed.Base.Numerator == 3 && P.AttackSpeed.Base.Denominator == 4
         && P.BasicAttackWindupMs == 300);

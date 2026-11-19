@@ -523,8 +523,9 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
         if (Reached.RecentReactionAgePlusOneMs)
         {
+            const double ReactionAge = double(Reached.RecentReactionAgePlusOneMs - 1) / 1000.0;
             Body->SetReaction(Reached.RecentReaction, Reached.RecentReactionElement,
-                float(double(Reached.RecentReactionAgePlusOneMs - 1) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
+                float(ReactionAge + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)), Points[Pose.Reached].At - ReactionAge);
         }
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,

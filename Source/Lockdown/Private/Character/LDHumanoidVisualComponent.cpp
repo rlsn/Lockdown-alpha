@@ -827,14 +827,15 @@ bool ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHit
     return false;
 }
 
-void ULDHumanoidVisualComponent::SetReaction(uint8 Reaction, uint8 Element, float AgeSeconds)
+void ULDHumanoidVisualComponent::SetReaction(uint8 Reaction, uint8 Element, float AgeSeconds, double AtServerSec)
 {
-    if (Reaction == 0 || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= .4f || FallAt >= 0) { return; }
-    const double Onset = Clock - AgeSeconds;
-    // ShownReaction alone says whether one was recorded: a fresh proxy that first sees an aged reaction has a negative onset.
-    if (ShownReaction == Reaction && Onset <= ReactionOnset + LDBodyMotion::SameInstanceSeconds) { return; }
+    if (Reaction == 0 || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= .4f || FallAt >= 0
+        || !FMath::IsFinite(AtServerSec)) { return; }
+    // Identity is the authority commit time (millisecond resolution): two reactions 50 ms apart are two events.
+    if (ShownReaction == Reaction && FMath::Abs(AtServerSec - ReactionAtServerSec) < .002) { return; }
     ShownReaction = Reaction;
-    ReactionOnset = Onset;
+    ReactionAtServerSec = AtServerSec;
+    ReactionOnset = Clock - AgeSeconds;
     PendingReactionElement = Element;
     bPendingReaction = true;
 }

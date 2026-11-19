@@ -73,7 +73,9 @@ function Get-OpponentFailure {
 function Get-OpponentFailedChecks {
     param($Report)
     @($Report.checks | Where-Object { $_.status -eq 'failed' } | ForEach-Object {
-        "FAILED: $($_.name)$(if ($_.detail) { " -- $($_.detail)" })" })
+        # detail is optional (only interface checks write it); StrictMode refuses a missing property.
+        $detail = $_.PSObject.Properties['detail']
+        "FAILED: $($_.name)$(if ($detail -and $detail.Value) { " -- $($detail.Value)" })" })
 }
 
 function Invoke-OpponentUI {

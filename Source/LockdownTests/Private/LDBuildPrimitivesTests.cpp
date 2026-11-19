@@ -2602,8 +2602,8 @@ bool FLDOverdriveReleaseTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A shield's base, AP and max-HP shares are 1.6 times"), FindEffect(Over.Values, ELDDemoEffectOp::Shield)->BaseP2
         == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->BaseP2 * 16 / 10
         && FindEffect(Over.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp * 16 / 10);
-    TestTrue(TEXT("Only a full bar may overdrive"), !LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 9999)
-        && LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 10000));
+    TestTrue(TEXT("Only a bar at the approved 60 momentum may overdrive"), !LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 5999)
+        && LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 6000));
     return true;
 }
 

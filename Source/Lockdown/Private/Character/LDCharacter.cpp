@@ -226,7 +226,8 @@ void ALDCharacter::Tick(float Delta)
         { Hurt->FlashScreen(LDHitVfx::HurtFlashOf(PC->Controls && PC->Controls->bReduceCombatEffects)); }
     }
     if (bCurrentView && View.Cues.LastReaction!=0 && View.Cues.LastReactionAtMs>0 && NowMs>=View.Cues.LastReactionAtMs)
-    { Body->SetReaction(View.Cues.LastReaction,View.Cues.LastReactionElement,float(NowMs-View.Cues.LastReactionAtMs)/1000.f); }
+    { Body->SetReaction(View.Cues.LastReaction,View.Cues.LastReactionElement,float(NowMs-View.Cues.LastReactionAtMs)/1000.f,
+        double(View.Cues.LastReactionAtMs)/1000.0); }
     // The own hit confirmation (LDHitFeel): each fresh receipt of a hit this body landed holds its striking pose, flares
     // its hand and kicks its camera along its facing. Hits it takes never move this camera or its pose.
     const bool bReduced=PC->Controls && PC->Controls->bReduceCombatEffects;
