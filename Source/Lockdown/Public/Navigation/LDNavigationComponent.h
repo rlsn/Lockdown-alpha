@@ -263,19 +263,12 @@ private:
     FVector HeldPoint=FVector::ZeroVector;
     double HeldSentAt=0;
     bool bHeldMove=false;
-    // The cast sent while the move button was held: the held move waits until its order ended and its Combat action
-    // finished or was refused (bHeldCastSettled), then the first repeat goes out without the pointer having to move.
+    // The casts sent while the move button was held: the held move waits until the latest cast order ended and every one
+    // of their Combat actions finished or was refused, then the first repeat goes out without the pointer having to move.
     FLDMoveIdentity HeldCastOrder;
-    uint64 HeldCastSequence=0;
-    double HeldCastOrderEndedAt=-1.;
-    bool bHeldCastSettled=false;
+    TArray<uint64> HeldCastSequences;
+    double HeldCastQuietSince=-1.;
     bool bHeldResume=false;
-    // The wait of the cast before the newest one, restored when the newest is refused.
-    FLDMoveIdentity PriorHeldCastOrder;
-    uint64 PriorHeldCastSequence=0;
-    double PriorHeldCastOrderEndedAt=-1.;
-    bool bPriorHeldCastSettled=false;
-    bool bHeldCastRestored=false;
     void HoldMoveForCast(const FLDCombatActionRequest& Cast);
     void ClearHeldCast();
 public:
