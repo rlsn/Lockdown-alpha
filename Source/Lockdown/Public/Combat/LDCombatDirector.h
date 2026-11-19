@@ -432,6 +432,8 @@ struct FLDBodyCombatState
     FLDCombatCueFacts Cues;
     // Source of the last released action (the visible Cast cue's ability once its windup released).
     FLDCombatSourceRef ReleasedSource;
+    // The last released action was admitted as an overdrive release (FLDCombatCueFacts::bOverdriveCast).
+    bool bReleasedOverdrive=false;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
     // #112 C2 mechanics (LDCombatMechanicsDirector.cpp): forced displacement windows (blocking every voluntary action).

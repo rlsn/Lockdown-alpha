@@ -29,8 +29,10 @@ namespace LDObservation
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
-    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
-    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
+    // Overdriven: the hit came from an overdrive release. Public like the charge that preceded it (spec: the charge ring
+    // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -135,6 +137,8 @@ struct FLDObservedUnitView
     // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
     UPROPERTY() uint8 MomentumBar = 0;
     UPROPERTY() bool bCharging = false;
+    // Contenders: the shown Cast cue is an overdrive release (authorized with the momentum bar, like the charge).
+    UPROPERTY() bool bOverdriveCast = false;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
     UPROPERTY() uint8 ActionComboStep = 0;
     // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
@@ -291,6 +295,7 @@ struct FLDObservedPublicFacts
     // The combo step of an Attack cue and a held overdrive charge (contenders).
     uint8 ActionComboStep = 0;
     bool bCharging = false;
+    bool bOverdriveCast = false;
     uint8 MomentumBar = 0;
     // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
     uint8 LastReaction = 0;

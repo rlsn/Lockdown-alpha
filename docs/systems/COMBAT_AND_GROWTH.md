@@ -201,7 +201,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
   A01/K02/Y04/Y16 等牌、脑力关键石与分支的 `momentum_gain`/`momentum_steal`/`zone_momentum`。野怪没有劲（`CAMP.MomentumPolicy=NotApplicable`）。
 - **连击**：`AttackStart` 成功后按 `NextComboStep` 推进并把 `ComboRatioBp` 乘进普攻原始量（暴击前），第 3 段的命中表现用暴击档；
   前摇被取消的普攻不推进；死亡、新生命与休息清零。公开观察把本次普攻段数放进 `ActionComboStep`。
-- **爆劲**：客户端劲不少于本人门槛（`OVERDRIVE.Threshold`，Y11 更低；本人视图 `OverdriveThresholdP2`）时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；
+- **爆劲**：客户端劲不少于本人门槛（`OVERDRIVE.Threshold`，Y11 更低；本人视图 `OverdriveThresholdP2`）时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；受理为爆劲的施法在提示事实里记 `bOverdriveCast`（公开为观察字段，表现层据此播放释放冲击）；
   服务器只在蓄力至少一半时长、释放瞬间 `OverdriveReady` 才由 `ApplyOverdrive` 把伤害、护盾、治疗的基础量与系数乘 `OVERDRIVE.Scale` 并按技能元素加料
   （烫加灼烧层；湿换减速；麻在命中后排一次 `OVERDRIVE.ShockReactionRatio` 倍反应伤害；冻定身 `OVERDRIVE.ChillRootSec`；馊乘馊的时长；吹推开
   `OVERDRIVE.GustPushCm` 并在落点留目标所挂元素的地面状态），然后劲清零。
@@ -691,7 +691,8 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 `DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算，`DemoMechanics.ShieldEvents/Knockback/Periodic` 覆盖护盾打破判定、
 击退方向与区域脉冲时刻；`DemoControl.ActionMatrix/EmpowerOnce/ExpansionContent` 覆盖动作禁止矩阵、强化普攻消费与条目的类型化导入与显示；
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的单级数值；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
-`DemoBodyMotion.HitLayers` 覆盖命中分层的档位与外观形状、降低特效、地裂、星芒尺寸补偿与屏幕边缘闪；`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、施法聚能、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
+`DemoBodyMotion.HitLayers` 覆盖命中分层的档位与外观形状、降低特效、地裂、星芒尺寸补偿与屏幕边缘闪，粒子套件、26 个技能外观与已批准内容一致、
+冲刺残影，以及爆劲的公开命中标记、公开的爆劲施法（只随 Cast、需劲条授权）、蓄力与命中形状；`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、施法聚能、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`覆盖关键词纯规则、沉默与解除、共享破防与灼烧、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/Brace`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震，
 `Combat.Skills.N4Bag`覆盖书包的生命、只挡敌方弹道、只受敌方伤害、到期与被打掉的爆炸、同技能数量与 3A1 墙及其公开记录，

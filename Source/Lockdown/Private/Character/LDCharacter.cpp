@@ -202,18 +202,16 @@ void ALDCharacter::Tick(float Delta)
             bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
     }
     bShownPredicted=bPredicted;
-    // The shown cast's own skill look (LDHitVfx::SkillLookOf): the slot of the latest action names its ability.
+    // The shown cast's own skill look (LDHitVfx::SkillLookOf): the authority's cue facts name the acting or released
+    // learned ability, so a release snapshot that already cleared the action slot keeps it.
     uint8 CastAbility=0;
-    if (bCue && Selected.Cue==ELDObservedActionCue::Cast && View.ActionEntry!=ELDCombatEntry::None)
+    if (bCue && Selected.Cue==ELDObservedActionCue::Cast)
     {
-        for (const FLDCombatEntryView& Entry : View.Entries)
-        {
-            if (Entry.Entry!=View.ActionEntry) { continue; }
-            if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Entry.DefinitionId)) { CastAbility=Skill->Ability; }
-            break;
-        }
+        if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Facts.CastDefinitionId)) { CastAbility=Skill->Ability; }
     }
     Body->SetCastAbility(CastAbility);
+    Body->SetCharging(bCurrentView && View.ChargingEntry!=ELDCombatEntry::None);
+    Body->SetOverdriveCast(bCue && Selected.Cue==ELDObservedActionCue::Cast && Facts.bOverdriveCast);
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     {
         const bool bFresh=Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,

@@ -127,6 +127,8 @@ namespace LDObservedPresentation
         uint16 CueAgeMs = 0;
         uint16 CueImpactDelayMs = 0;
         uint8 ActionAbility = 0;  // the Cast cue's ability, 0 otherwise
+        bool bCharging = false;   // the public overdrive charge
+        bool bOverdriveCast = false;  // the Cast cue is an overdrive release
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
         FGuid RecentHitId;
@@ -267,9 +269,17 @@ public:
     ALDObservedProjectileProxy();
     void Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec);
     void Present(double AtServerSec);
-    void End(double LocalSeconds);
+    // bNaturalEnd: the authority ended it in plain sight (ALDWorldViewRelay checks the observer's coverage); only then
+    // does it play its end burst. A visibility removal, reset or stale view never does.
+    void End(double LocalSeconds, bool bNaturalEnd = false);
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+    // The last authorized position and the one its path heads to next (equal for a still effect).
+    bool LastPath(FVector& Last, FVector& Next) const;
+    bool WarningDue(double AtServerSec) const { return WarningAtServerSec > 0. && AtServerSec >= WarningAtServerSec - .15; }
+    bool HasWarning() const { return WarningAtServerSec > 0.; }
     bool IsFinished(double AtServerSec, double LocalSeconds) const;
-    // The look's appear burst (a launch, a landing) or end burst (a flight's hit, a dropped book), free-standing.
+    // The look's appear burst (a launch, a landing; it lives with this proxy) or, after a natural end, its end burst
+    // (a flight's hit, a dropped book), which plays out on its own.
     void PlayBurst(bool bEnd);
     FGuid ObservedHandle;
     const ULDFlightTrailComponent* GetTrail() const { return Trail; }
@@ -284,6 +294,10 @@ private:
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
     // The look's particles (LDHitVfx::TrailOf / ZoneOf), rebuilt with the look.
     UPROPERTY() TObjectPtr<class UNiagaraComponent> Particles;
+    // The local effect scale the particles were built with; a change of the reduced-effects setting rebuilds them.
+    float ParticleScale = -1.f;
+    FRotator ShownHeading = FRotator::ZeroRotator;
+    bool bNaturalEnd = false;
     void ApplyLook(const FLDObservedProjectileView& Effect);
     ELDObservedProjectileLook ShownLook=ELDObservedProjectileLook::Chalk;
     float ShownRadius=-1, ShownInnerRadius=-1, ShownAngle=-1;
@@ -379,6 +393,8 @@ private:
     // Delayed authority time at which proxies and flights are posed.
     double PresentationAt(double LocalSeconds) const { return LocalSeconds - ClockOffset - ShownDelay; }
     void PresentProxies(float Delta);
+    // Whether the frame's current coverage (the observer's sight) holds the ground cell under Point.
+    bool CoversPoint(const FLDWorldView& Frame, const FVector& Point) const;
     // Fades tagged props that hide the own body or a presented unit from the camera (LDPropFade).
     void FadeOccludingProps(const ALDPlayerController& Owning, float Delta);
     struct FFadeableProp

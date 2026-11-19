@@ -41,10 +41,11 @@ ELDObservedHitLook LDCombatCues::ClassifyHit(const FLDCombatHit& Hit)
     return Hit.DamageType==ELDDemoDamageType::Magical ? ELDObservedHitLook::Magic : ELDObservedHitLook::None;
 }
 
-uint8 LDCombatCues::ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage)
+uint8 LDCombatCues::ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bOverdrive)
 {
     uint8 Flags=0;
     if (bCritical && Damage.DamageP2>0) { Flags|=LDObservation::Critical; }
+    if (bOverdrive && Damage.DamageP2>0) { Flags|=LDObservation::Overdriven; }
     if (Damage.ShieldAbsorbedP2>0) { Flags|=LDObservation::ShieldAbsorbed; }
     if (LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2))
     { Flags|=LDObservation::ShieldBroken; }
@@ -54,8 +55,7 @@ uint8 LDCombatCues::ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const F
 uint8 LDCombatCues::ClassifyDealt(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage, bool bLethal,
     bool bOverdrive)
 {
-    return ClassifyImpact(bCritical,ShieldBeforeP2,Damage) | (bLethal && Damage.DamageP2>0 ? DealtLethal : 0)
-        | (bOverdrive && Damage.DamageP2>0 ? DealtOverdrive : 0);
+    return ClassifyImpact(bCritical,ShieldBeforeP2,Damage,bOverdrive) | (bLethal && Damage.DamageP2>0 ? DealtLethal : 0);
 }
 
 int32 LDCombatCues::DealtRank(uint8 DealtFlags)

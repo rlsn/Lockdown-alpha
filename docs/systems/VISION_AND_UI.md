@@ -50,7 +50,7 @@
 - 遮挡只来自注册世界中 `BlocksSight` 的凸多边形：线段触到边或角即算遮挡，世界只有一层。
 - 镜头位置、缩放和小地图手势都不授予视野。
 - 观察者没有存活身体时，帧为显式 `NoLivingBody`：没有覆盖、单位或终结记录。死亡镜头只看静态和公开信息。
-- 参赛者单位只携带 SC-07 白名单：参赛者 Id（客户端经公开名册换成名称）、等级、HP、劲比例条（`MomentumBar` 0..255，不给精确值）、爆劲蓄力（`bCharging`）、普攻连击段（`ActionComboStep`）、公开状态，
+- 参赛者单位只携带 SC-07 白名单：参赛者 Id（客户端经公开名册换成名称）、等级、HP、劲比例条（`MomentumBar` 0..255，不给精确值）、爆劲蓄力（`bCharging`）、当前施法是否为爆劲释放（`bOverdriveCast`，只随 Cast 提示）、普攻连击段（`ActionComboStep`）、公开状态，
   以及 Q/W/E 三个主动的原生 id 与等级（`Actives`，字段位 `LDObservation::Actives`）。
   `Actives` 由 Combat 的 `PublicActivesOf` 在构筑安装和身体准备时写进同一公开事实，只随当前可见单位下发、失视即撤销；
   codec 要求每槽“id 与等级同为 0 或同为非 0”、等级不超过 `LDObservation::MaxActiveRank`（2）、非空槽的 id 两两不同，营地成员三个槽均为 0，接收端只接受批准目录里的主动技能。
@@ -134,7 +134,7 @@
 - 被命中的身体没有受击动作：不后仰、不后退、不停顿、不打断攻击/施法，只叠加闪光与按公开 `HitLook` 着色的胸口火花
   （`LDBodyMotion::HitOverlay`）。本人用合法 owner cue 的 `LastHitAtMs`；
   可见代理使用授权快照里的命中年龄，在呈现时钟到达样本时触发，不依赖血量下降，也不推断施害者。
-  权威命中结果标记暴击、护盾吸收和破盾：暴击放大火花，护盾吸收显示青色火花，破盾的护盾条向外散开。
+  权威命中结果标记暴击、护盾吸收、破盾和爆劲（`Overdriven`，公开）：暴击放大火花，护盾吸收显示青色火花，破盾的护盾条向外散开，爆劲火星更多更快且为品红。
   每次新看到的命中还在胸口产生本机 Niagara 粒子（`LDImpactFx`）：沿速度方向伸长的火星、柔边烟尘、核心闪光，
   护盾吸收时加青色碎片（破盾更多）；暴击更多更快，颜色按护盾青、暴击金、`HitLook` 或暖色。
   同一命中再叠加按档位和外观区分形状的分层（`LDHitVfx::ForHit`，`ULDImpactFxSubsystem::Layers`）：
@@ -147,8 +147,9 @@
   大小、时长与亮度是 `DA_CombatVfx` 的 `LayerSize`、`LayerSeconds`、`LayerGlow`（保存的美术调参）乘以实时的
   `ld.Feel.ImpactScale`、`ImpactMs`、`ImpactGlow` 相对初值（`LDHitVfx::TuningOf`）；命中粒子的整体大小或持续时间为 0 时分层也不显示。
   遮罩由 `SourceData\VFX\Blender\hit_textures.py` 在 Blender 里渲染进 `SourceData\VFX`，
-  `ImportDemoArt.ps1 -Mode ImportVFX`（`LDDemoVfxImport`）导入为 `Art\VFX\Hit` 的纹理，并由代码重建
-  `M_LDHitLayer`（半透明无光照：Glow × 遮罩 R + Ink，不透明度 = 遮罩 A × Fade）与 `M_LDHitShell`（叠加：网格 + 菲涅尔边缘）；
+  `ImportDemoArt.ps1 -Mode ImportVFX`（`LDDemoVfxImport`）导入为 `Art\VFX\Hit` 的纹理，并在图与代码不一致时由代码重建
+  `M_LDHitLayer`（半透明无光照：Glow × 遮罩 R + Ink，不透明度 = 遮罩 A × Fade）、`M_LDHitShell`（叠加：网格 + 菲涅尔边缘）
+  与 `M_LDHitGhost`（骨骼残影：Glow × (边缘 + 0.3)，不透明度 = Fade × (0.25 + 0.75 边缘)）；
   改形状就改脚本重渲染、更新清单再导入，不手改资产。资产缺失时记录 `LD_HIT_LAYERS asset=missing` 错误并不显示分层。
 - 粒子套件（`LDHitVfx` 的 `FBurst`/`FZone`/`FTrail`，`ULDImpactFxSubsystem::Kit`/`ShowEffect`）：`DA_CombatVfx` 的 `Burst`、`Zone`
   指向可编辑的 `NS_LDBurst`（由 `NS_LDImpact` 派生，另把火星的重力与阻力开放为 `User.Gravity`、`User.Drag`）与 `NS_LDZone`
@@ -158,11 +159,19 @@
   - 每个主动技能（`SkillLooks`，覆盖全部 26 个 `ELDDemoAbilityId`）有自己的色调和释放爆发：施法聚能按技能色调着色，
     动作时间线到释放点时在出手手部（光环与冲刺在胸口）爆发一次；代理用公开的 `ActionAbility`，本人用当前动作槽位的技能。
   - 元素命中在命中粒子之外再加该元素的粒子（火、水、电、魔法）；可见倒地加击杀爆发。
-  - 任何身体的水平速度超过 `DashSpeedCmPerSec`=950 cm/s（快于所有跑动，击退和倒地除外）时，胸口拖出冲刺带并在起点扬尘，颜色取当前技能或默认蓝。
+  - 任何身体的水平速度超过 `DashSpeedCmPerSec`=950 cm/s（快于所有跑动，击退和倒地除外）时，胸口拖出冲刺带并在起点扬尘，颜色取当前技能或默认蓝；
+    同时每 45 ms 留下一个残影（`GhostsOf`）：身体当前姿势的半透明副本（`UPoseableMeshComponent`，代码生成的菲涅尔材质 `M_LDHitGhost`），
+    0.3 秒内淡出；残影池最多 24 个，随身体隐藏、倒地或移除立即清除；降低特效时间隔加倍。
   - 可见技能效果（`ALDObservedProjectileProxy`）：飞行物带缎带拖尾，出现时喷口烟，正常结束时按外观爆发（粉笔打击、袜子腐烂、书本落地砸地）；
     地面区域按外观循环粒子（火焰上窜、水泡、电火花、紫色光点、尘土），密度随面积变化，出现时落地爆发；喊话锥体与风向前吹出粒子。
     视野清除或重置时随代理立即消失，不播结束爆发。
   - 本人受到命中时屏幕边缘淡红闪 0.2 秒（`HurtFlashOf`），不覆盖仍在播放的更强屏幕闪。
+  - 爆劲（统一品红，`OverdriveTint`）：蓄力公开可见（`FLDObservedUnitView::bCharging`，本人用 `ChargingEntry`），蓄力期间脚下升起随蓄力进度变强的能量柱（`ChargeZoneOf`），
+    蓄满 `OVERDRIVE.HoldSec`（客户端读取已批准内容）时脚下法阵与十字星闪一次（`ForChargeReady`）。权威按爆劲受理的施法公开为
+    `FLDObservedUnitView::bOverdriveCast`（`FLDCombatCueFacts::bOverdriveCast`；只随 Cast 提示、与劲条同一授权，校验拒绝其他组合），
+    该施法时间线到释放点时播放释放冲击：大十字星、两道冲击环、法阵与地裂（`ForOverdriveRelease`）加爆劲粒子；短按或被打断的蓄力是普通施法，不播。爆劲命中是公开的命中标记 `LDObservation::Overdriven`（与本人回执的 `LDCombatCues::DealtOverdrive` 同一位）：
+    受击身体上换成更大的品红十字星，加专属冲击环、法阵与爆劲粒子，Niagara 命中火星更多更快；本人回执屏幕边缘品红闪与色差（仅次于击杀），
+    “爆劲！”用品红大字并抖动。
   - 降低特效：粒子数量和区域密度乘 0.45，拖尾变窄；颜色、形状和预设不变，受击边缘闪关闭。
   `DA_CombatVfx` 指向可编辑的 `NS_LDImpact`、`NS_LDSwingTrail`、`NS_LDCastCharge` 与挥击/施法颜色；美术可替换系统、材质和发射器，
   运行时通过用户参数传入本机调参。命中效果限制同时存活数并使用 Niagara 池；隐藏、倒地或代理销毁时立即清除对应效果，

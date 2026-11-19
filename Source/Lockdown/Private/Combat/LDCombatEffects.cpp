@@ -433,7 +433,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             Body->Cues.LastHitAtMs=NowMs;
             Body->Cues.LastHitId=Hit.HitId;
             Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
-            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage);
+            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage,Hit.CastLedger && Hit.CastLedger->bOverdrive);
         }
         MarkViewChanged(Body->Victim.EntityId);
         if (Source && LDCombatCues::ConfirmsDealt(Hit,Damage.DamageP2))

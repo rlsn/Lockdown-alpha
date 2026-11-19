@@ -14,6 +14,10 @@ class UNiagaraSystem;
 class UMaterialInterface;
 class UStaticMesh;
 class UStaticMeshComponent;
+class UPoseableMeshComponent;
+class USkeletalMeshComponent;
+class UMaterialInstanceDynamic;
+class FLDDemoContentSnapshot;
 class UTexture2D;
 namespace LDHitFeel { struct FTuning; }
 
@@ -56,8 +60,19 @@ public:
     UTexture2D* GetScreenEdge() const { return ScreenEdge; }
     // One particle-kit burst at a world point. Bound to Source (cleared with it) or free-standing when Source is null.
     void Kit(const FVector& At, const LDHitVfx::FBurst& Burst, const ULDHumanoidVisualComponent* Source = nullptr);
+    // A burst that lives only while Owner does (a visible skill effect's launch or landing): a reset or visibility removal
+    // that destroys the proxy removes it at once.
+    void Kit(const FVector& At, const LDHitVfx::FBurst& Burst, const AActor& Owner);
     // 0.45 while the local player reduces combat effects, else 1.
     float LocalEffectScale() const;
+    // One afterimage of Source's current pose (LDHitVfx::FGhosts), cleared with Owner. Pooled up to MaxGhosts.
+    void Ghost(const USkeletalMeshComponent& Source, const LDHitVfx::FGhosts& Ghosts, const ULDHumanoidVisualComponent& Owner);
+    int32 LiveGhostCount() const { return LiveGhosts.Num(); }
+    static constexpr int32 MaxGhosts = 24;
+    // OVERDRIVE.HoldSec from the approved content (when a charge is full, LDHitVfx::ForChargeReady); 0 if unavailable.
+    float OverdriveHoldSeconds();
+    // Applies a zone look (LDHitVfx::FZone) to a looping NS_LDZone component.
+    static void ApplyZone(UNiagaraComponent& Effect, const LDHitVfx::FZone& Zone, float RadiusCm, const FVector& Velocity);
     // The catalog's saved layer tuning times the live impact controls (LDHitVfx::TuningOf).
     LDHitVfx::FLayerTuning LayerTuning() const;
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
@@ -66,6 +81,8 @@ public:
     UNiagaraSystem* GetBurstSystem() const { return BurstSystem; }
     UNiagaraSystem* GetZoneSystem() const { return ZoneSystem; }
     void ClearFor(const ULDHumanoidVisualComponent& Source);
+    // Removes the bursts bound to Owner at once (a skill-effect proxy removed by a reset or visibility change).
+    void ClearForActor(const AActor& Owner);
     int32 LiveCount() const { return Live.Num(); }
     int32 LiveLayerCount() const { return LiveLayers.Num(); }
     static constexpr int32 MaxLayers = 48;
@@ -74,6 +91,7 @@ private:
     struct FLive
     {
         TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        TWeakObjectPtr<const AActor> OwnerActor;
         bool bBound = true;
         TWeakObjectPtr<UNiagaraComponent> Effect;
         float InitialAge = 0;
@@ -92,6 +110,14 @@ private:
     };
     void Release(int32 Index);
     void ReleaseLayer(int32 Index);
+    struct FLiveGhost
+    {
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Owner;
+        int32 Slot = INDEX_NONE;
+        float Age = 0;
+        LDHitVfx::FGhosts Look;
+    };
+    void ReleaseGhost(int32 Index);
     bool LoadLayerAssets();
     int32 TakeSlot(bool bShell);
     void Configure(UStaticMeshComponent& Mesh, bool bShell);
@@ -109,12 +135,20 @@ private:
     TArray<bool> SlotShell;
     TArray<int32> FreeSlots;
     TArray<FLiveLayer> LiveLayers;
+    UPROPERTY() TObjectPtr<UMaterialInterface> GhostMaterial;
+    UPROPERTY() TArray<TObjectPtr<UPoseableMeshComponent>> GhostSlots;
+    UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> GhostPaints;
+    TArray<int32> FreeGhosts;
+    TArray<FLiveGhost> LiveGhosts;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    bool bContentTried = false;
     bool bLayerAssetsTried = false, bLayerAssetsReady = false;
     LDHitVfx::FScreenFlash Flash;
     double FlashAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
-    void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds);
+    void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds, const AActor* OwnerActor = nullptr);
+    UNiagaraComponent* SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst);
     TArray<FLive> Live;
 };

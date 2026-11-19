@@ -874,6 +874,7 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
                 After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
                 After->Cues.ReleasedAtMs=Now;
                 After->ReleasedSource=Action.Source;
+                After->bReleasedOverdrive=Action.bOverdrive && Action.Kind!=ELDCombatActionKind::Basic;
                 MarkViewChanged(After->Victim.EntityId);
             }
         };

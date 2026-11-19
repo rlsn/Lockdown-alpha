@@ -722,8 +722,11 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
             const float WordProgress=float(Age/WorldFeedbackWordSeconds);
             const float WordAlpha=WordProgress<.55f?1.f:FMath::Clamp((1.f-WordProgress)/.45f,0.f,1.f);
             const bool bCritical=(Floater.Event.HitFlags&LDObservation::Critical)!=0;
-            const bool bHeavy=bCritical||(Floater.Event.HitFlags&LDCombatCues::DealtLethal)!=0;
-            FLinearColor WordInk=bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);WordInk.A*=WordAlpha;
+            const bool bOverdriveWord=(Floater.Event.HitFlags&LDCombatCues::DealtOverdrive)!=0;
+            const bool bHeavy=bCritical||bOverdriveWord||(Floater.Event.HitFlags&LDCombatCues::DealtLethal)!=0;
+            // Overdrive in its own magenta, a critical hit gold, else warm white.
+            FLinearColor WordInk=bOverdriveWord?FLinearColor(1.f,.32f,.82f):bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);
+            WordInk.A*=WordAlpha;
             const FSlateFontInfo WordFont=WorldFeedbackFont(bHeavy?LDHUDStyle::TypeBanner:LDHUDStyle::TypeTitle,TextScale,3,WordAlpha);
             FVector2f WordAnchor(WordAt.X,WordAt.Y-WorldFeedbackWordRise*TextScale*WorldFeedbackEaseOut(WordProgress));
             // A heavy word (critical or kill) overshoots further and shakes for its first two frames; an ordinary one

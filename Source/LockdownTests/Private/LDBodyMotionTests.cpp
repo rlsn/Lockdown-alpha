@@ -3,6 +3,8 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDHitVfx.h"
+#include "Framework/LDDemoEntry.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Character/LDImpactFx.h"
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatEvaluationTypes.h"
@@ -436,6 +438,64 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
         && DashTrailOf(FLinearColor::White, .45f).WidthCm < DashTrailOf(FLinearColor::White, 1.f).WidthCm);
     TestTrue(TEXT("Taking a hit tints the edge faintly; reduced effects turn it off"), HurtFlashOf(false).Seconds > 0.f
         && HurtFlashOf(false).Colour.A < ScreenFlashOf(LDObservation::Critical, false).Colour.A && HurtFlashOf(true).Seconds == 0.f);
+    // Overdrive (#305): a public hit flag with its own shapes, the heaviest flash short of a kill, a charge and a release.
+    const FRecipe Over=ForHit(ELDObservedHitLook::None,LDObservation::Overdriven,1.f);
+    const FLayer* OverStar=Over.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
+    TestTrue(TEXT("An overdrive hit shows a cross larger than a critical one, its own wide ring and a sigil"),
+        OverStar && OverStar->Mask==EMask::Cross && OverStar->SizeCm>CritStar->SizeCm && Has(Over,EMask::Sigil,EPlace::Ground)
+        && Over.Layers.FilterByPredicate([](const FLayer& L){ return L.Mask==EMask::Ring; }).Num()==1 && OverStar->Glow.B>OverStar->Glow.G);
+    TestTrue(TEXT("The overdrive bit is public and is the owner receipt's overdrive bit"),
+        (LDObservation::HitFlagsMask & LDObservation::Overdriven)!=0 && LDCombatCues::DealtOverdrive==LDObservation::Overdriven
+        && (LDCombatCues::DealtLethal & LDObservation::HitFlagsMask)==0);
+    const FScreenFlash OverFlash=ScreenFlashOf(LDCombatCues::DealtOverdrive|LDObservation::Critical,false);
+    TestTrue(TEXT("A kill still outranks overdrive, which outranks a critical hit on the screen edge"),
+        OverFlash.Seconds>0.f && OverFlash.Colour.B>OverFlash.Colour.G && OverFlash.Fringe>CritFlash.Fringe
+        && ScreenFlashOf(LDCombatCues::DealtOverdrive|LDCombatCues::DealtLethal,false).Colour==KillFlash.Colour
+        && ScreenFlashOf(LDCombatCues::DealtOverdrive,true).Seconds==0.f);
+    const FZone ChargeStart=ChargeZoneOf(0.f,1.f), ChargeFull=ChargeZoneOf(1.f,1.f);
+    TestTrue(TEXT("The charge column grows with the hold and thins with reduced effects"), ChargeStart.bShow && ChargeFull.Rate>ChargeStart.Rate
+        && ChargeFull.Velocity.Z>ChargeStart.Velocity.Z && ChargeZoneOf(5.f,1.f).Rate==ChargeFull.Rate && ChargeZoneOf(1.f,.45f).Rate<ChargeFull.Rate
+        && !ChargeZoneOf(NaN,1.f).bShow && !ForChargeReady(1.f).Layers.IsEmpty() && ForChargeReady(.45f).Layers.Num()<ForChargeReady(1.f).Layers.Num());
+    // The overdrive release is public only on a Cast cue and only with the momentum authorization.
+    FLDObservedUnitView Caster;
+    Caster.Handle=FGuid::NewGuid(); Caster.ObservationEpoch=1; Caster.StateRevision=1;
+    Caster.Kind=ELDObservedUnitKind::Contender; Caster.AuthorizedFieldMask=LDObservation::ContenderFields;
+    Caster.Presentation=2; Caster.FeetCm=FVector(100,-200,2); Caster.Facing=1234;
+    Caster.ContenderId=FGuid::NewGuid(); Caster.Level=3; Caster.Health.CurrentP2=45000; Caster.Health.MaxP2=60000;
+    Caster.ActionCue=ELDObservedActionCue::Cast; Caster.bOverdriveCast=true;
+    FString CasterError;
+    const bool bCastOk=LDObservation::ValidateUnit(Caster,CasterError);
+    FLDObservedUnitView NoCast=Caster; NoCast.ActionCue=ELDObservedActionCue::None;
+    FLDObservedUnitView Hidden=Caster; Hidden.AuthorizedFieldMask&=~LDObservation::Momentum;
+    TestTrue(*FString::Printf(TEXT("An overdrive release rides a Cast cue under the momentum authorization (%s)"),*CasterError),
+        bCastOk && !LDObservation::ValidateUnit(NoCast,CasterError) && !LDObservation::ValidateUnit(Hidden,CasterError));
+    const FRecipe Release=ForOverdriveRelease(1.f);
+    TestTrue(TEXT("The release is a shockwave: cross, rings, sigil and crack"), Has(Release,EMask::Cross,EPlace::Sprite)
+        && Has(Release,EMask::Ring,EPlace::Ground) && Has(Release,EMask::Sigil,EPlace::Ground) && Has(Release,EMask::Crack,EPlace::Ground)
+        && Release.Layers.Num()<=MaxLayers && ForOverdriveRelease(.45f).Layers.Num()==Release.Layers.Num()-1);
+    const FBurst OverBurst=BurstOf(EBurst::Overdrive,FLinearColor::White,1.f);
+    TestTrue(TEXT("The overdrive burst is the heaviest particle preset short of a kill and keeps its own colour"),
+        OverBurst.Sparks>BurstOf(EBurst::Strike,FLinearColor::White,1.f).Sparks && OverBurst.SparkColour.B>OverBurst.SparkColour.G);
+    // Afterimages.
+    const FGhosts Ghosts=GhostsOf(FLinearColor::White,1.f), FewGhosts=GhostsOf(FLinearColor::White,.45f);
+    TestTrue(TEXT("A dash leaves afterimages that fade out; reduced effects leave half as many"), Ghosts.bShow
+        && FewGhosts.IntervalSeconds>=2.f*Ghosts.IntervalSeconds-.001f && GhostFade(Ghosts,0.f)>GhostFade(Ghosts,Ghosts.Seconds*.5f)
+        && GhostFade(Ghosts,Ghosts.Seconds)==0.f && GhostFade(Ghosts,-.1f)==0.f && !GhostsOf(FLinearColor::White,0.f).bShow);
+    // Every active ability of the approved content has its own look.
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FString ContentError;
+    if (TestTrue(TEXT("The approved content loads"), LDDemoEntry::LoadRuntimeContent(Content,ContentError) && Content.IsValid()))
+    {
+        int32 Actives=0;
+        for (const FLDDemoAbilityDefinition& Ability : Content->Get().Abilities)
+        {
+            if (!Ability.Id.StartsWith(TEXT("active_"))) { continue; }
+            ++Actives;
+            const FSkillLook* Skill=SkillLookOf(FName(*Ability.Id));
+            TestTrue(FString::Printf(TEXT("%s has a skill look with its native id"),*Ability.Id), Skill && Skill->Ability==Ability.NativeId);
+        }
+        TestEqual(TEXT("The skill table covers exactly the approved actives"), SkillLooks().Num(), Actives);
+    }
     TestTrue(TEXT("Every mask has a manifest id and a texture package"), [](){
         for (int32 Mask=0; Mask<int32(EMask::Count); ++Mask)
         { if (FCString::Strlen(MaskId(EMask(Mask)))==0 || !TexturePackage(MaskId(EMask(Mask))).StartsWith(Folder)) { return false; } }

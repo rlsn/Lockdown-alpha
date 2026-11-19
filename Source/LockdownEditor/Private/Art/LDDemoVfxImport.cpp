@@ -164,10 +164,20 @@ namespace
         return Expression;
     }
 
+    enum class EVfxMaterial : uint8 { Layer, Shell, Ghost };
+
+    const TCHAR* VfxPackageOf(EVfxMaterial Kind)
+    {
+        return Kind == EVfxMaterial::Layer ? LDHitVfx::LayerMaterial : Kind == EVfxMaterial::Shell ? LDHitVfx::ShellMaterial : LDHitVfx::GhostMaterial;
+    }
+
     // Layer: translucent unlit, emissive = Glow x Mask.r + Ink, opacity = Mask.a x Fade (two-sided sprites and marks).
     // Shell: additive unlit sphere, emissive = Glow x Fade x (tiled Mask.r + fresnel rim).
-    UMaterial* VfxBuildMaterial(const TCHAR* PackageName, bool bShell, UTexture2D* DefaultMask, FString& Error)
+    // Ghost: translucent unlit skeletal afterimage, emissive = Glow x (rim + 0.3), opacity = Fade x (0.25 + 0.75 rim).
+    UMaterial* VfxBuildMaterial(EVfxMaterial Kind, UTexture2D* DefaultMask, FString& Error)
     {
+        const TCHAR* PackageName = VfxPackageOf(Kind);
+        const bool bShell = Kind == EVfxMaterial::Shell;
         const FString Name = FPackageName::GetShortName(PackageName);
         UMaterial* Material = VfxLoad<UMaterial>(PackageName);
         if (!Material) { Material = NewObject<UMaterial>(CreatePackage(PackageName), *Name, RF_Public | RF_Standalone); }
@@ -186,6 +196,40 @@ namespace
             if (FExpressionInput* Input = Material->GetExpressionInputForProperty(EMaterialProperty(Property))) { Input->Expression = nullptr; }
         }
         UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
+        if (Kind == EVfxMaterial::Ghost)
+        {
+            auto* GhostGlow = VfxAdd<UMaterialExpressionVectorParameter>(*Material);
+            GhostGlow->ParameterName = LDHitVfx::GlowParameter;
+            GhostGlow->DefaultValue = FLinearColor::White;
+            auto* GhostFade = VfxAdd<UMaterialExpressionScalarParameter>(*Material);
+            GhostFade->ParameterName = LDHitVfx::FadeParameter;
+            GhostFade->DefaultValue = 1.f;
+            auto* Rim = VfxAdd<UMaterialExpressionFresnel>(*Material);
+            Rim->Exponent = 2.5f;
+            Rim->BaseReflectFraction = .04f;
+            auto* Lit = VfxAdd<UMaterialExpressionAdd>(*Material);
+            Lit->A.Connect(0, Rim);
+            Lit->ConstB = .3f;
+            auto* Emissive = VfxAdd<UMaterialExpressionMultiply>(*Material);
+            Emissive->A.Connect(0, Lit);
+            Emissive->B.Connect(0, GhostGlow);
+            auto* Edge = VfxAdd<UMaterialExpressionMultiply>(*Material);
+            Edge->A.Connect(0, Rim);
+            Edge->ConstB = .75f;
+            auto* Body = VfxAdd<UMaterialExpressionAdd>(*Material);
+            Body->A.Connect(0, Edge);
+            Body->ConstB = .25f;
+            auto* Opacity = VfxAdd<UMaterialExpressionMultiply>(*Material);
+            Opacity->A.Connect(0, Body);
+            Opacity->B.Connect(0, GhostFade);
+            Inputs->EmissiveColor.Connect(0, Emissive);
+            Inputs->Opacity.Connect(0, Opacity);
+            Material->BlendMode = BLEND_Translucent;
+            Material->TwoSided = false;
+            Material->SetUsageByFlag(MATUSAGE_SkeletalMesh, true);
+        }
+        else
+        {
         auto* Mask = VfxAdd<UMaterialExpressionTextureSampleParameter2D>(*Material);
         Mask->ParameterName = LDHitVfx::MaskParameter;
         Mask->Texture = DefaultMask;
@@ -237,6 +281,7 @@ namespace
             Material->BlendMode = BLEND_Additive;
             Material->TwoSided = false;
         }
+        }
         Material->SetShadingModel(MSM_Unlit);
         Material->bUseEmissiveForDynamicAreaLighting = false;
         // Identities derive from the package and graph position, so a rebuild of the same code keeps every GUID.
@@ -252,22 +297,26 @@ namespace
         return Material;
     }
 
-    bool VfxCheckMaterial(const UMaterial* Material, const TCHAR* PackageName, bool bShell, FString& Error)
+    bool VfxCheckMaterial(const UMaterial* Material, EVfxMaterial Kind, FString& Error)
     {
+        const TCHAR* PackageName = VfxPackageOf(Kind);
+        const bool bShell = Kind == EVfxMaterial::Shell, bGhost = Kind == EVfxMaterial::Ghost;
         if (!Material) { return VfxFail(Error, FString(PackageName) + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
         TArray<FName> Parameters;
         for (const UMaterialExpression* Expression : Material->GetExpressions())
         {
             if (Expression && !Expression->GetParameterName().IsNone()) { Parameters.Add(Expression->GetParameterName()); }
         }
-        TArray<FName> Expected{LDHitVfx::MaskParameter, LDHitVfx::GlowParameter, LDHitVfx::FadeParameter};
-        if (!bShell) { Expected.Add(LDHitVfx::InkParameter); }
+        TArray<FName> Expected{LDHitVfx::GlowParameter, LDHitVfx::FadeParameter};
+        if (!bGhost) { Expected.Add(LDHitVfx::MaskParameter); }
+        if (Kind == EVfxMaterial::Layer) { Expected.Add(LDHitVfx::InkParameter); }
         Parameters.Sort(FNameLexicalLess());
         Expected.Sort(FNameLexicalLess());
         const UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
-        const bool bGraph = Inputs && Parameters == Expected && Material->GetExpressions().Num() == (bShell ? 8 : 7)
+        const bool bGraph = Inputs && Parameters == Expected && Material->GetExpressions().Num() == (bGhost ? 8 : bShell ? 8 : 7)
             && Inputs->EmissiveColor.IsConnected() && Inputs->Opacity.IsConnected() == !bShell
-            && Material->BlendMode == (bShell ? BLEND_Additive : BLEND_Translucent) && Material->GetShadingModels().HasOnlyShadingModel(MSM_Unlit);
+            && Material->BlendMode == (bShell ? BLEND_Additive : BLEND_Translucent) && Material->GetShadingModels().HasOnlyShadingModel(MSM_Unlit)
+            && (!bGhost || Material->GetUsageByFlag(MATUSAGE_SkeletalMesh));
         return bGraph || VfxFail(Error, FString::Printf(TEXT("%s does not hold the importer's graph (%d expressions, %d parameters); ")
             TEXT("run ImportDemoArt.ps1 -Mode ImportVFX to rebuild it."), PackageName, Material->GetExpressions().Num(), Parameters.Num()));
     }
@@ -309,12 +358,14 @@ bool LDDemoVfxImport::Import(FString& Error)
         }
         if (Spec.Id == LDHitVfx::MaskId(LDHitVfx::EMask::Star)) { Star = Texture; }
     }
-    for (const bool bShell : {false, true})
+    for (const EVfxMaterial Kind : {EVfxMaterial::Layer, EVfxMaterial::Shell, EVfxMaterial::Ghost})
     {
-        const TCHAR* Package = bShell ? LDHitVfx::ShellMaterial : LDHitVfx::LayerMaterial;
-        UMaterial* Material = VfxBuildMaterial(Package, bShell, Star, Error);
-        if (!Material || !VfxCheckMaterial(Material, Package, bShell, Error) || !VfxSave(*Material, Error)) { return false; }
-        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MATERIAL_BUILT %s"), Package);
+        // A material already holding the importer's graph is left as it is, so a re-import does not churn its bytes.
+        FString Ignored;
+        if (VfxCheckMaterial(VfxLoad<UMaterial>(VfxPackageOf(Kind)), Kind, Ignored)) { continue; }
+        UMaterial* Material = VfxBuildMaterial(Kind, Star, Error);
+        if (!Material || !VfxCheckMaterial(Material, Kind, Error) || !VfxSave(*Material, Error)) { return false; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MATERIAL_BUILT %s"), VfxPackageOf(Kind));
     }
     Error.Reset();
     return true;
@@ -340,6 +391,9 @@ bool LDDemoVfxImport::Validate(FString& Error)
                 + TEXT(".png; run ImportDemoArt.ps1 -Mode ImportVFX."));
         }
     }
-    return VfxCheckMaterial(VfxLoad<UMaterial>(LDHitVfx::LayerMaterial), LDHitVfx::LayerMaterial, false, Error)
-        && VfxCheckMaterial(VfxLoad<UMaterial>(LDHitVfx::ShellMaterial), LDHitVfx::ShellMaterial, true, Error);
+    for (const EVfxMaterial Kind : {EVfxMaterial::Layer, EVfxMaterial::Shell, EVfxMaterial::Ghost})
+    {
+        if (!VfxCheckMaterial(VfxLoad<UMaterial>(VfxPackageOf(Kind)), Kind, Error)) { return false; }
+    }
+    return true;
 }
