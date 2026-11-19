@@ -3884,8 +3884,10 @@ bool FLDCardRuleMixedBasicElementsTest::RunTest(const FString& Parameters)
     FString Error;
     const bool bApplied = F.Apply(Basic, Error);
     return TestTrue(TEXT("The mixed third-step basic lands: ") + Error, bApplied)
-        && TestTrue(TEXT("Fire goes before chill: the target carries the fire fist's fire"), F.Body(Target).ElementMark.Kind == ELDCombatElement::Fire
-            && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_fire_fist")));
+        && TestTrue(TEXT("Fire goes before chill: both fire fists add a burn layer"), F.Body(Target).ElementMark.Kind == ELDCombatElement::None
+            && F.Body(Target).Burn.Layers.Num() == 2
+            && F.Body(Target).Burn.Layers[0].Source.DefinitionId == FName(TEXT("card_fire_fist"))
+            && F.Body(Target).Burn.Layers[1].Source.DefinitionId == FName(TEXT("card_fire_fist")));
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA19Test, "Lockdown.Rules.Combat.Cards.A19",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

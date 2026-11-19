@@ -656,7 +656,7 @@ bool RunPriorities(FAutomationTestBase& Test)
         }
         Frame.Public.NowMs += 10000;
         Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
-        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 2 / 5;
         const auto Exhausted = LDOpponentPolicy::Decide(Frame, C, Bounded);
         auto Paused = Frame;
         Paused.Public.Circle = ELDOpponentCircle::Contested;
