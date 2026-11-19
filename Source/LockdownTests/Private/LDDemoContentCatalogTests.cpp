@@ -334,16 +334,22 @@ bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, 
 using FValidateProjection = TFunctionRef<bool(FString&)>;
 
 // Each stored field kind (path with element indices dropped) is mutated once: the validator compares the whole
-// projection generically, so every element of the same field adds runtime, not coverage.
+// projection generically, so every element of the same field adds runtime, not coverage. A text kind's case-only
+// mutation is tracked apart: it waits for the first value whose case can change (an earlier one may be empty).
+struct FMutated
+{
+    TSet<FString> Kinds, CaseKinds;
+};
+
 bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValidateProjection Validate,
-    FAutomationTestBase& Test, TSet<FString>& Kinds);
+    FAutomationTestBase& Test, FMutated& Done);
 
 bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValidateProjection Validate,
-    FAutomationTestBase& Test, TSet<FString>& Kinds)
+    FAutomationTestBase& Test, FMutated& Done)
 {
     if (auto* Struct = CastField<FStructProperty>(Property))
     {
-        return MutateStruct(Struct->Struct, Data, Path, Validate, Test, Kinds);
+        return MutateStruct(Struct->Struct, Data, Path, Validate, Test, Done);
     }
     if (auto* ArrayProperty = CastField<FArrayProperty>(Property))
     {
@@ -351,36 +357,29 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
         for (int32 I = 0; I < Values.Num(); ++I)
         {
             if (!MutateProperty(ArrayProperty->Inner, Values.GetRawPtr(I), FString::Printf(TEXT("%s[%d]"), *Path, I),
-                Validate, Test, Kinds))
+                Validate, Test, Done))
             {
                 return false;
             }
         }
         return true;
     }
-    bool bSeen = false;
-    Kinds.Add(ValueQuantityKind(Path), &bSeen);
-    if (bSeen) { return true; }
+    const FString Kind = ValueQuantityKind(Path);
     FString Error;
     bool bRejected = false;
     if (auto* Enum = CastField<FEnumProperty>(Property))
     {
         Property = Enum->GetUnderlyingProperty();
     }
-    if (auto* Bool = CastField<FBoolProperty>(Property))
-    {
-        const bool Old = Bool->GetPropertyValue(Data);
-        Bool->SetPropertyValue(Data, !Old);
-        bRejected = !Validate(Error);
-        Bool->SetPropertyValue(Data, Old);
-    }
-    else if (auto* Text = CastField<FStrProperty>(Property))
+    auto* Text = CastField<FStrProperty>(Property);
+    if (Text && !Done.CaseKinds.Contains(Kind))
     {
         const FString Old = Text->GetPropertyValue(Data);
         FString CaseOnly = Old.ToUpper();
         if (CaseOnly.Equals(Old, ESearchCase::CaseSensitive)) { CaseOnly = Old.ToLower(); }
         if (!CaseOnly.Equals(Old, ESearchCase::CaseSensitive))
         {
+            Done.CaseKinds.Add(Kind);
             Text->SetPropertyValue(Data, CaseOnly);
             const bool CaseRejected = !Validate(Error);
             Text->SetPropertyValue(Data, Old);
@@ -390,6 +389,20 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
                 return false;
             }
         }
+    }
+    bool bSeen = false;
+    Done.Kinds.Add(Kind, &bSeen);
+    if (bSeen) { return true; }
+    if (auto* Bool = CastField<FBoolProperty>(Property))
+    {
+        const bool Old = Bool->GetPropertyValue(Data);
+        Bool->SetPropertyValue(Data, !Old);
+        bRejected = !Validate(Error);
+        Bool->SetPropertyValue(Data, Old);
+    }
+    else if (Text)
+    {
+        const FString Old = Text->GetPropertyValue(Data);
         Text->SetPropertyValue(Data, Old + TEXT("_corrupt"));
         bRejected = !Validate(Error);
         Text->SetPropertyValue(Data, Old);
@@ -410,7 +423,7 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
 }
 
 bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValidateProjection Validate,
-    FAutomationTestBase& Test, TSet<FString>& Kinds)
+    FAutomationTestBase& Test, FMutated& Done)
 {
     for (TFieldIterator<FProperty> It(Type); It; ++It)
     {
@@ -419,7 +432,7 @@ bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValid
         for (int32 I = 0; I < Property->ArrayDim; ++I)
         {
             const FString Path = Property->ArrayDim > 1 ? FString::Printf(TEXT("%s[%d]"), *Base, I) : Base;
-            if (!MutateProperty(Property, Property->ContainerPtrToValuePtr<void>(Data, I), Path, Validate, Test, Kinds))
+            if (!MutateProperty(Property, Property->ContainerPtrToValuePtr<void>(Data, I), Path, Validate, Test, Done))
             {
                 return false;
             }
@@ -618,7 +631,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     auto* ProjectionProperty = FindFProperty<FStructProperty>(ULDDemoContentCatalog::StaticClass(), TEXT("Definitions"));
     if (!TestNotNull(TEXT("Private persisted projection exists"), ProjectionProperty)) { return false; }
     auto* Stored = ProjectionProperty->ContainerPtrToValuePtr<FLDDemoContentDefinitions>(Restored);
-    TSet<FString> Mutated;
+    FMutated Mutated;
     if (!MutateStruct(FLDDemoContentDefinitions::StaticStruct(), Stored, TEXT(""),
         [&](FString& Why) { return Restored->ValidatePrepared(*Expected, Why); }, *this, Mutated))
     {
@@ -630,7 +643,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
         if (!Pair.Key.EndsWith(TEXT(".#"))) { Scalars.Add(ValueQuantityKind(Pair.Key)); }
     }
     TestTrue(TEXT("Every stored scalar kind, including inactive variant members, rejects tampering"),
-        Mutated.Num() == Scalars.Num() && Mutated.Includes(Scalars));
+        Mutated.Kinds.Num() == Scalars.Num() && Mutated.Kinds.Includes(Scalars));
     const FLDDemoContentDefinitions Original = *Stored;
     Stored->Abilities.RemoveAt(0);
     TestFalse(TEXT("A dropped definition is not a valid partial asset"), Restored->ValidatePrepared(*Expected, Error));
@@ -931,14 +944,15 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
     {
         return Restored->ValidatePrepared(*Expected, Why);
     };
-    TSet<FString> Mutated, Scalars;
+    FMutated Mutated;
+    TSet<FString> Scalars;
     if (!MutateStruct(FLDDemoWorldGeometry::StaticStruct(), Stored, TEXT(""), Validate, *this, Mutated)) { return false; }
     for (const auto& Pair : Assertions)
     {
         if (!Pair.Key.EndsWith(TEXT(".#"))) { Scalars.Add(ValueQuantityKind(Pair.Key)); }
     }
     TestTrue(TEXT("Every stored world scalar kind rejects independent mutation"),
-        Mutated.Num() == Scalars.Num() && Mutated.Includes(Scalars));
+        Mutated.Kinds.Num() == Scalars.Num() && Mutated.Kinds.Includes(Scalars));
     const FLDDemoWorldGeometry Original = *Stored;
     Stored->Blockers[0].PolygonCm.Pop();
     TestFalse(TEXT("Truncated stored polygon cannot use a valid source checksum"), Validate(Error));
