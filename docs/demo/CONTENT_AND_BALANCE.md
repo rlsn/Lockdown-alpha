@@ -1,6 +1,6 @@
 # Demo 首版内容与数值
 
-本报告面向 v0.11.0 Demo 的实施与首次实际试玩。产品约束来自
+本报告面向 v0.14.0 Demo 的实施与首次实际试玩。产品约束来自
 [App Spec](../APP_SPEC.md)；**用户已批准本文的首版内容与数值方案，
 作为首次实际试玩输入。** 这包括现有目录、公式、精度与参数方案；批准不等于平衡验收通过。
 批准值的唯一运行输入是 `SourceData\Demo\content.json`（经 `Scripts\SyncDemoContentData.py` 生成载荷与原生契约），
@@ -325,7 +325,7 @@ AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）
 
 ## 4. 技能、状态和属性目录
 
-**v0.11 规则工坊目录与数值已进入运行数据，未经平衡测试。**
+**规则工坊目录与数值已进入运行数据，未经平衡测试。**
 批准范围是[玩法与完整目录](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6739619912)
 （下称“目录”）与 [AI 实现规范](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6739620418)（下称“AI 规范”）中的
 22 个主动与 55 张构筑牌的效果与数值，五维每点收益、G 曲线，满级每 240XP 给 3 点。外层参数
