@@ -137,6 +137,9 @@ struct FLDObservedUnitView
     // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
     UPROPERTY() uint8 MomentumBar = 0;
     UPROPERTY() bool bCharging = false;
+    // How long the shown charge has been held on the authority clock (0 without a charge), so a body entering sight
+    // mid-hold shows the charge where it is.
+    UPROPERTY() uint16 ChargeAgeMs = 0;
     // Contenders: the shown Cast cue is an overdrive release (authorized with the momentum bar, like the charge).
     UPROPERTY() bool bOverdriveCast = false;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
@@ -295,6 +298,7 @@ struct FLDObservedPublicFacts
     // The combo step of an Attack cue and a held overdrive charge (contenders).
     uint8 ActionComboStep = 0;
     bool bCharging = false;
+    int64 ChargeAtMs = 0;
     bool bOverdriveCast = false;
     uint8 MomentumBar = 0;
     // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.

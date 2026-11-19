@@ -174,15 +174,16 @@ namespace
     // Layer: translucent unlit, emissive = Glow x Mask.r + Ink, opacity = Mask.a x Fade (two-sided sprites and marks).
     // Shell: additive unlit sphere, emissive = Glow x Fade x (tiled Mask.r + fresnel rim).
     // Ghost: translucent unlit skeletal afterimage, emissive = Glow x (rim + 0.3), opacity = Fade x (0.25 + 0.75 rim).
-    UMaterial* VfxBuildMaterial(EVfxMaterial Kind, UTexture2D* DefaultMask, FString& Error)
+    // Scratch: build the same graph into a transient material instead (the reference VfxCheckMaterial compares with).
+    UMaterial* VfxBuildMaterial(EVfxMaterial Kind, UTexture2D* DefaultMask, FString& Error, UMaterial* Scratch = nullptr)
     {
         const TCHAR* PackageName = VfxPackageOf(Kind);
         const bool bShell = Kind == EVfxMaterial::Shell;
         const FString Name = FPackageName::GetShortName(PackageName);
-        UMaterial* Material = VfxLoad<UMaterial>(PackageName);
+        UMaterial* Material = Scratch ? Scratch : VfxLoad<UMaterial>(PackageName);
         if (!Material) { Material = NewObject<UMaterial>(CreatePackage(PackageName), *Name, RF_Public | RF_Standalone); }
         if (!Material || !DefaultMask) { VfxFail(Error, FString(TEXT("Cannot create the effect material ")) + PackageName); return nullptr; }
-        Material->PreEditChange(nullptr);
+        if (!Scratch) { Material->PreEditChange(nullptr); }
         FMaterialExpressionCollection& Collection = Material->GetExpressionCollection();
         TArray<UObject*> Previous(Collection.Expressions);
         Previous.Append(Collection.EditorComments);
@@ -292,9 +293,48 @@ namespace
             Expression->MaterialExpressionGuid = FGuid(Seed, uint32(Index), 0x4C44u, 3u);
             if (Expression->HasAParameterName()) { Expression->GetParameterExpressionId() = FGuid(Seed, uint32(Index), 0x4C44u, 4u); }
         }
+        if (Scratch) { return Material; }
         Material->PostEditChange();
         Material->MarkPackageDirty();
         return Material;
+    }
+
+    // Everything the generated graph fixes: settings, each expression's type, parameter, constants and input links,
+    // and the material's own inputs. Two materials with the same signature render the same graph.
+    FString VfxSignature(const UMaterial& Material)
+    {
+        FString Out = FString::Printf(TEXT("blend=%d two=%d unlit=%d|"), int32(Material.BlendMode), Material.TwoSided ? 1 : 0,
+            Material.GetShadingModels().HasOnlyShadingModel(MSM_Unlit) ? 1 : 0);
+        const auto Expressions = Material.GetExpressions();
+        const auto IndexOf = [&Expressions](const UMaterialExpression* Wanted)
+        {
+            for (int32 Index = 0; Index < Expressions.Num(); ++Index) { if (Expressions[Index] == Wanted) { return Index; } }
+            return -1;
+        };
+        const auto Link = [&IndexOf](const FExpressionInput* Input)
+        { return Input && Input->Expression ? FString::Printf(TEXT("<%d.%d"), IndexOf(Input->Expression), Input->OutputIndex) : FString(TEXT("<-")); };
+        for (const UMaterialExpression* Expression : Expressions)
+        {
+            if (!Expression) { Out += TEXT("null|"); continue; }
+            Out += Expression->GetClass()->GetName() + TEXT(":") + Expression->GetParameterName().ToString();
+            if (const auto* Add = Cast<UMaterialExpressionAdd>(Expression)) { Out += FString::Printf(TEXT(" a=%.3f b=%.3f"), Add->ConstA, Add->ConstB); }
+            if (const auto* Multiply = Cast<UMaterialExpressionMultiply>(Expression)) { Out += FString::Printf(TEXT(" a=%.3f b=%.3f"), Multiply->ConstA, Multiply->ConstB); }
+            if (const auto* Rim = Cast<UMaterialExpressionFresnel>(Expression)) { Out += FString::Printf(TEXT(" e=%.3f r=%.3f"), Rim->Exponent, Rim->BaseReflectFraction); }
+            if (const auto* Tiling = Cast<UMaterialExpressionTextureCoordinate>(Expression)) { Out += FString::Printf(TEXT(" u=%.3f v=%.3f"), Tiling->UTiling, Tiling->VTiling); }
+            if (const auto* Scalar = Cast<UMaterialExpressionScalarParameter>(Expression)) { Out += FString::Printf(TEXT(" d=%.3f"), Scalar->DefaultValue); }
+            if (const auto* Vector = Cast<UMaterialExpressionVectorParameter>(Expression)) { Out += TEXT(" d=") + Vector->DefaultValue.ToString(); }
+            if (const auto* Sample = Cast<UMaterialExpressionTextureSampleParameter2D>(Expression)) { Out += FString::Printf(TEXT(" s=%d"), int32(Sample->SamplerType)); }
+            for (int32 Index = 0; ; ++Index)
+            {
+                const FExpressionInput* Input = const_cast<UMaterialExpression*>(Expression)->GetInput(Index);
+                if (!Input) { break; }
+                Out += Link(Input);
+            }
+            Out += TEXT("|");
+        }
+        for (const EMaterialProperty Property : {MP_EmissiveColor, MP_Opacity, MP_OpacityMask, MP_BaseColor})
+        { Out += Link(const_cast<UMaterial&>(Material).GetExpressionInputForProperty(Property)); }
+        return Out;
     }
 
     bool VfxCheckMaterial(const UMaterial* Material, EVfxMaterial Kind, FString& Error)
@@ -317,6 +357,18 @@ namespace
             && Inputs->EmissiveColor.IsConnected() && Inputs->Opacity.IsConnected() == !bShell
             && Material->BlendMode == (bShell ? BLEND_Additive : BLEND_Translucent) && Material->GetShadingModels().HasOnlyShadingModel(MSM_Unlit)
             && (!bGhost || Material->GetUsageByFlag(MATUSAGE_SkeletalMesh));
+        // The whole graph must equal a freshly generated one: a rewired link or a changed constant fails and is rebuilt.
+        if (bGraph)
+        {
+            UTexture2D* Star = VfxLoad<UTexture2D>(LDHitVfx::TexturePackage(LDHitVfx::MaskId(LDHitVfx::EMask::Star)));
+            UMaterial* Reference = NewObject<UMaterial>(GetTransientPackage());
+            FString Ignored;
+            if (!Star || !VfxBuildMaterial(Kind, Star, Ignored, Reference) || VfxSignature(*Material) != VfxSignature(*Reference))
+            {
+                return VfxFail(Error, FString::Printf(TEXT("%s differs from the importer's graph (links, constants or settings); ")
+                    TEXT("run ImportDemoArt.ps1 -Mode ImportVFX to rebuild it."), PackageName));
+            }
+        }
         return bGraph || VfxFail(Error, FString::Printf(TEXT("%s does not hold the importer's graph (%d expressions, %d parameters); ")
             TEXT("run ImportDemoArt.ps1 -Mode ImportVFX to rebuild it."), PackageName, Material->GetExpressions().Num(), Parameters.Num()));
     }

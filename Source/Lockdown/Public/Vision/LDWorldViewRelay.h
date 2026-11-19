@@ -128,6 +128,7 @@ namespace LDObservedPresentation
         uint16 CueImpactDelayMs = 0;
         uint8 ActionAbility = 0;  // the Cast cue's ability, 0 otherwise
         bool bCharging = false;   // the public overdrive charge
+        uint16 ChargeAgeMs = 0;
         bool bOverdriveCast = false;  // the Cast cue is an overdrive release
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
@@ -275,7 +276,8 @@ public:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     // The last authorized position and the one its path heads to next (equal for a still effect).
     bool LastPath(FVector& Last, FVector& Next) const;
-    bool WarningDue(double AtServerSec) const { return WarningAtServerSec > 0. && AtServerSec >= WarningAtServerSec - .15; }
+    // Against the removal frame's authority sample time (not the delayed playback clock).
+    bool WarningDue(double SampledAtServerSec) const { return WarningAtServerSec > 0. && SampledAtServerSec >= WarningAtServerSec - .15; }
     bool HasWarning() const { return WarningAtServerSec > 0.; }
     bool IsFinished(double AtServerSec, double LocalSeconds) const;
     // The look's appear burst (a launch, a landing; it lives with this proxy) or, after a natural end, its end burst

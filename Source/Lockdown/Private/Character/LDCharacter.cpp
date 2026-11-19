@@ -210,7 +210,10 @@ void ALDCharacter::Tick(float Delta)
         if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Facts.CastDefinitionId)) { CastAbility=Skill->Ability; }
     }
     Body->SetCastAbility(CastAbility);
-    Body->SetCharging(bCurrentView && View.ChargingEntry!=ELDCombatEntry::None);
+    // The own hold runs on the local key timer, so the column and the ready flare do not wait for replication.
+    const bool bHolding=PC->OverdriveHoldProgress(PC->HeldOverdriveEntry())>0.f;
+    Body->SetCharging(bHolding || (bCurrentView && View.ChargingEntry!=ELDCombatEntry::None),0.f,
+        bHolding ? PC->OverdriveHoldProgress(PC->HeldOverdriveEntry()) : -1.f);
     Body->SetOverdriveCast(bCue && Selected.Cue==ELDObservedActionCue::Cast && Facts.bOverdriveCast);
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     {

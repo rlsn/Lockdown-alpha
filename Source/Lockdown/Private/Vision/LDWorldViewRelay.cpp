@@ -476,6 +476,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.ActionAbility = Unit.ActionAbility;
     Shown.bCharging = Unit.bCharging;
+    Shown.ChargeAgeMs = Unit.ChargeAgeMs;
     Shown.bOverdriveCast = Unit.bOverdriveCast;
     Shown.HitLook = Unit.HitLook;
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
@@ -514,7 +515,8 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
-        Body->SetCharging(Reached.bCharging);
+        Body->SetCharging(Reached.bCharging,
+            float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
         Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
@@ -1010,6 +1012,14 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
     }
     const LDObservedPresentation::FPose Pose = LDObservedPresentation::Sample(Points, AtServerSec);
     SetActorLocationAndRotation(Pose.Location, FRotator(0, Pose.Yaw, 0));
+    // A directional zone (a cone, the sweeping fan's wind) blows along the presented heading as it turns.
+    ShownHeading=FRotator(0, Pose.Yaw, 0);
+    if (IsValid(Particles) && ParticleScale>0.f && !IsObservedFlight(ShownLook))
+    {
+        const LDHitVfx::FZone Zone=LDHitVfx::ZoneOf(ShownLook,ShownRadius,ParticleScale);
+        if (Zone.bShow && !FVector2D(Zone.Velocity).IsNearlyZero())
+        { Particles->SetVariableVec3(TEXT("User.Velocity"),ShownHeading.RotateVector(Zone.Velocity)); }
+    }
     if (AccentTint)
     {
         const double Remaining=WarningAtServerSec>AtServerSec ? WarningAtServerSec-AtServerSec : 0.;
@@ -1372,7 +1382,7 @@ void ALDWorldViewRelay::SyncProxies()
         {
             FVector Last, Next;
             const bool bSeen=It.Value()->LastPath(Last,Next) && CoversPoint(*Snapshot.Frame,Last) && CoversPoint(*Snapshot.Frame,Next)
-                && (It.Value()->WarningDue(PresentationAt(Local)) || !It.Value()->HasWarning());
+                && (It.Value()->WarningDue(Snapshot.Frame->SampledAtServerSec) || !It.Value()->HasWarning());
             It.Value()->End(Local,bSeen);
             continue;
         }

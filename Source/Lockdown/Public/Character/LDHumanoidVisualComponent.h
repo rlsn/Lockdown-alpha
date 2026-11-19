@@ -72,7 +72,10 @@ public:
     void SetCastAbility(uint8 Ability) { CastAbility = Ability; }
     // The public overdrive charge (FLDObservedUnitView::bCharging; the own body's ChargingEntry): an energy column while
     // held, a ready flare once OVERDRIVE.HoldSec passes, and the release shockwave when it ends as a cast begins.
-    void SetCharging(bool bInCharging) { bCharging = bInCharging; }
+    // AgeSeconds: how long the charge has been held (authority age for a proxy); Progress: the own key's hold progress
+    // 0..1 when known (ALDPlayerController::OverdriveHoldProgress), which then drives the column and the ready flare.
+    void SetCharging(bool bInCharging, float AgeSeconds = 0.f, float Progress = -1.f)
+    { bCharging = bInCharging; ChargeAge = AgeSeconds; ChargeProgress = Progress; }
     // The shown cast is an overdrive release (public, FLDObservedUnitView::bOverdriveCast): its release plays the shockwave.
     void SetOverdriveCast(bool bInOverdrive) { bOverdriveCast = bInOverdrive; }
     void PlayAppear();
@@ -143,6 +146,7 @@ private:
     double LastGhostAt = -1;
     bool bCharging = false, bChargeShown = false, bChargeReady = false, bOverdriveCast = false;
     double ChargeOnset = -1;
+    float ChargeAge = 0, ChargeProgress = -1;
     uint8 Cue = 0;
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
     uint8 HitFlags = 0;

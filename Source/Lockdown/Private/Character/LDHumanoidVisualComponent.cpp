@@ -463,9 +463,10 @@ void ULDHumanoidVisualComponent::UpdateOverdrive(float EffectScale)
         {
             bChargeShown = true;
             bChargeReady = false;
-            ChargeOnset = Clock;
+            // Start from the charge's real age: a body seen mid-hold shows the charge where it is.
+            ChargeOnset = Clock - (FMath::IsFinite(ChargeAge) ? FMath::Max(ChargeAge, 0.f) : 0.f);
         }
-        const float Progress = Hold > 0.f ? float(Clock - ChargeOnset) / Hold : 1.f;
+        const float Progress = ChargeProgress >= 0.f ? ChargeProgress : Hold > 0.f ? float(Clock - ChargeOnset) / Hold : 1.f;
         const LDHitVfx::FZone Column = LDHitVfx::ChargeZoneOf(Progress, EffectScale);
         UNiagaraSystem* Zone = Impacts->GetZoneSystem();
         if (Zone && !IsValid(ChargeColumn))

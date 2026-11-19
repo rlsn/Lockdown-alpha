@@ -467,6 +467,9 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     const bool bCastOk=LDObservation::ValidateUnit(Caster,CasterError);
     FLDObservedUnitView NoCast=Caster; NoCast.ActionCue=ELDObservedActionCue::None;
     FLDObservedUnitView Hidden=Caster; Hidden.AuthorizedFieldMask&=~LDObservation::Momentum;
+    FLDObservedUnitView StrayAge=Caster; StrayAge.ChargeAgeMs=120;
+    FLDObservedUnitView Held=Caster; Held.bCharging=true; Held.ChargeAgeMs=120;
+    TestTrue(TEXT("A charge age rides only a held charge"), !LDObservation::ValidateUnit(StrayAge,CasterError) && LDObservation::ValidateUnit(Held,CasterError));
     TestTrue(*FString::Printf(TEXT("An overdrive release rides a Cast cue under the momentum authorization (%s)"),*CasterError),
         bCastOk && !LDObservation::ValidateUnit(NoCast,CasterError) && !LDObservation::ValidateUnit(Hidden,CasterError));
     const FRecipe Release=ForOverdriveRelease(1.f);

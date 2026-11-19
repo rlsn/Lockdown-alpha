@@ -1213,6 +1213,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Unit.Level = Facts.Level;
             Unit.MomentumBar = Facts.MomentumBar;
             Unit.bCharging = Facts.bCharging;
+            Unit.ChargeAgeMs = Facts.bCharging ? uint16(FMath::Clamp<int64>(NowMs - Facts.ChargeAtMs, 0, MAX_uint16)) : 0;
             Unit.bOverdriveCast = Facts.bOverdriveCast;
             Unit.Actives = Facts.Actives;
         }
