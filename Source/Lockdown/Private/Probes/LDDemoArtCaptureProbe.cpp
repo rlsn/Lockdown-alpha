@@ -629,12 +629,12 @@ namespace
             if (Current.ReactionElement != 0)
             {
                 const int32 Before = Impacts ? Impacts->LiveLayerCount() : 0;
-                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .03f, 100.);
+                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .03f, 100. + Shot);
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 Check(Impacts && Impacts->LiveLayerCount() - Before == LDHitVfx::ForReaction(Current.ReactionElement, 1.f, Impacts->LayerTuning()).Layers.Num(),
                     TEXT("A fresh element reaction flashes its layers once"));
                 const int32 After = Impacts ? Impacts->LiveLayerCount() : 0;
-                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .05f, 100.);
+                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .05f, 100. + Shot);
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 Check(Impacts && Impacts->LiveLayerCount() == After, TEXT("The same reaction seen again adds nothing"));
             }
