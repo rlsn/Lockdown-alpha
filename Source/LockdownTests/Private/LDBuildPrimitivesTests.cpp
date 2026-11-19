@@ -74,7 +74,7 @@ struct FLDBuildPrimitivesAccess
         for(int32 Index=0;Index<32&&!Mode.IsShowdown();++Index)
         {
             TArray<FLDTimelineEvent> Events;
-            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(),true,true,Events,Error)){return false;}
+            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(), 0,true,true,Events,Error)){return false;}
         }
         if(!Mode.IsShowdown()){Error=TEXT("Fixture did not reach the real final field stage.");return false;}
         return true;

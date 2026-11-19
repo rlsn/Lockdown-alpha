@@ -241,7 +241,7 @@ T+11 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/
 `NextTimelineDueMs` 让每个休息步骤与野外段终点成为精确步边界；driver 在 RespawnsAndWorld 开头调用 `AdvanceTimeline`，
 在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算，再进入返回倒计时；不锁构筑）。休息中 driver 跳过营地运动、营地意图与世界推进，
 Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果取消与资源补满见[休息、野外进度与阶段边界](#休息野外进度与阶段边界)。
-写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build 步骤为 Rest、Return 步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务。
+写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build 与 Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务。
 返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
 这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行；成长命令与真人同一闸门，但 AI 策略在休息中只在配装步骤做构筑决策。
 P6 野外节奏（`LDGameModePacing.cpp`）：`InitializePacing` 在开局抽今日热点（`LDPacing::DrawDailyModifiers`，本局私有种子）、
@@ -345,9 +345,18 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
   `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许攻击共享训练目标。
 - **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，只可准备不可撤销；OwnerState 发布 `bRestReady`/`bCanRestReady`，`ReadyContenders` 只含真人。
   全部仍在局真人准备后 `FinishBuildEarly` 把配装截止改为当前时刻，同一边界锁定并进入返回倒计时。新休息/新局清空准备。
-- **步骤**：Build（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`）→ Return `REST.ReturnSec`。锁定在 Transactions 末尾（`LockTimelineBuild`，截止时刻提交的构筑命令有效），
-  其余转换在 RespawnsAndWorld 开头（`AdvanceTimeline`）。`ReadBuildStage`：Build 为 Rest，Return 为 RestLocked，野外为 Live；自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务与商店（`BuildLocked`）。
+- **步骤**：Build（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`；R1、R2 的最后 `REST.SignupSec` 兼作 PK 站圈报名）→ R1/R2 锁定报名者不少于 2 人时
+  Draw / Betting / PKReady / PK（至多 `REST.PKMaxSec`）/ Settlement / Payout → Return `REST.ReturnSec`；R0、R3 与报名不足时直接进入 Return。锁定在 Transactions 末尾（`LockTimelineBuild`，截止时刻提交的构筑命令有效），
+  其余转换在 RespawnsAndWorld 开头（`AdvanceTimeline`）。`ReadBuildStage`：Build 与 Payout 为 Rest，其余休息步骤为 RestLocked，野外为 Live；自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务与商店（`BuildLocked`）。
   Return 步骤 `IsInputLocked` 为真：订单（含 Shift 步骤）回 `ELDOrderFailure::NotStarted`，普攻、Q/W/E 与 D 回 `ELDCombatReject::NotStarted`，进入野外后重放仍得同一拒绝。AI 身体决策只在 Development/CaptureOpen 运行。
+- **PK**：可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`），经 `FLDMatchProviderHooks::RestStep` 收到每次步骤进入与报名锁定；没有该提供者时跳过 PK。
+  报名没有 RPC：`RefreshRestSignups` 在报名窗口内每拍按休息生命的已提交脚点是否在公共圆盘内（圆心为六个 `pk_signup_<槽位>` 的平均位置，
+  半径 `AIRDROP.PickupRadiusCm`，边界算在内）重算 `Timeline.Signups`，截止时再算一次并锁定；全员准备（`FinishBuildEarly`）在 PK 休息里只把配装缩短到剩 `REST.SignupSec`。
+  Draw 用本局私有随机流抽赛制、阵营与六个 `PKSpawn` 定位点的旋转；PKReady 经 `EnterPKLives` 共同结束休息生命并放置 PK 生命（独立隔离组与 `PKSide`，无保护、无喷漆资格）；
+  PK 步骤里落投掷、每 `PK.RingDamageTickSec` 结算圈伤，判定出结果即提前结束；Settlement 把 PK 生命送回休息位，并经 `ALDDevelopmentDirector::GrantPKPoints` 发属性点
+  （每场每人一个业务身份，重复为 `PKAwardDuplicate`）。PK 死亡记 `NoRewardPKArena`，不计击杀、死亡与奖励。押注与投掷经 `ServerPKBet`/`ServerPKThrow` 交
+  `ALDPKDirector::SubmitBet`/`SubmitThrow`，回 `ClientPKBet`/`ClientPKThrow`；AI 走同一入口。公开读模型是 `FLDPublicMatchView::PK`（`FLDPKView`）。
+  入场超过 `REST.EntryReadyTimeoutSec` 仍放不下时本场记无效（`LD_PK_ARENA_BLOCKED`）。
 - **共同入场**：返回野外由 `PrepareJointPhase` 先为全部目标准备位置与战斗状态，全部成功才 `CommitPhaseBody` 一起提交；有人放不下就全部释放并撤回出生请求（`ULDMapRegistry::WithdrawSpawnRequest`），
   下次以新请求身份重试。未就绪时 `FLDMatchTimeline::Advance` 的 `bBodiesReady` 为假，时间线停在边界（`IsEntryHeld`），T、旗杆与复活都不开始；等待记 `LD_REST_RETURN_HELD`，
   超过 `REST.EntryReadyTimeoutSec` 为 `LD_REST_RETURN_UNREADY` 权威故障。
@@ -497,6 +506,7 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 | --- | --- |
 | `MATCH.FieldSegmentSec` | `FLDMatchTimeline` 的三段定时野外 |
 | `REST.OpeningBuildSec/BuildSec/ReturnSec` | 休息步骤（`FLDTimelineParameters::Validate` 与导入校验） |
+| `REST.SignupSec/DrawSec/BettingSec/PKReadySec/PKMaxSec/SettlementSec/PayoutSec` | R1、R2 的 PK 步骤（`ELDRestStep::Draw..Payout`；`LDMatchTimeline::IsPKRest`）。可选提供者 `ELDMatchProvider::PK` 经 `FLDMatchProviderHooks::RestStep` 收到每个休息步骤与配装锁定，`ALDPKDirector` 据此抽签、放置 PK 生命、判定与派奖；没有该提供者时报名被忽略、每次休息跳过 PK |
 | `OBJECTIVE.*`、`DAILY.*`、`AFFIX.*`、`EXPLORE.*`、`LIFE.RespawnBaseSec/RespawnPerLevelSec/SpawnChoiceCount/SpawnChoiceSec` | `FLDObjectiveState`、`LDPacing`、`FLDLockerState`、`FLDPeddlerPlan` 与 `LDGameModePacing.cpp`、营地与 Combat 的热点/词条调整 |
 | `REST.ReturnSearchRadiusCm`、`REST.EntryReadyTimeoutSec` | 返场就近搜索；共同入场最长等待 |
 | `CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`CAPTURE.RadiusCm` | 喷漆与守护归约、世界查询、UI/AI |

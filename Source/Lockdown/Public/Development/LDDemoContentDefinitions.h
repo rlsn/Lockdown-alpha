@@ -111,6 +111,8 @@ struct FLDDemoCardParameters
     UPROPERTY() int32 VocabWeight = 0;
     // Spec §3.13: vouchers for skipping one card offer.
     UPROPERTY() int32 SkipVouchers = 0;
+    // A level-up queues a card offer only at levels this divides (1: every level).
+    UPROPERTY() int32 OfferEveryLevels = 0;
     // #305: the idle time Y22 and K16 may carry into a fight (CARDS.IdleCarrySec); they count nothing else outside one.
     UPROPERTY() int64 IdleCarryMs = 0;
 };
@@ -446,15 +448,56 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ShowdownClosureStartsMs = 0;
     // #198: each of the three field segments; the field progress T only advances in the field.
     UPROPERTY() int64 FieldSegmentMs = 0;
-    // #198 rest phases: the R0 and R1-R3 build windows, then the return-to-field countdown.
+    // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
+    // PK ready lock, PK cap, settlement, payout and the return-to-field countdown.
     UPROPERTY() int64 RestOpeningBuildMs = 0;
     UPROPERTY() int64 RestBuildMs = 0;
+    UPROPERTY() int64 RestSignupMs = 0;
+    UPROPERTY() int64 RestDrawMs = 0;
+    UPROPERTY() int64 RestBettingMs = 0;
+    UPROPERTY() int64 RestPKReadyMs = 0;
+    UPROPERTY() int64 RestPKMaxMs = 0;
+    UPROPERTY() int64 RestSettlementMs = 0;
+    UPROPERTY() int64 RestPayoutMs = 0;
     UPROPERTY() int64 RestReturnMs = 0;
-    // #198 approved outer parameters §1: a field return whose bodies cannot all stand waits at most this long after its
-    // boundary (then it is an explicit fault).
+    // #198 approved outer parameters §1: a PK start or field return whose bodies cannot all stand waits at most this long
+    // after its boundary (then the PK is NoContest and an unready field return is an explicit fault).
     UPROPERTY() int64 RestEntryReadyTimeoutMs = 0;
     // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
     UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
+    // #198 PK ring centred on the capture anchor: PKArenaRadiusCm until PKRingShrinkStartMs, linear to PKRingMidRadiusCm
+    // at PKRingMidMs, linear to PKRingFinalRadiusCm at PKRingFinalMs, then held until RestPKMaxMs. The next ring is
+    // shown PKRingPreviewMs ahead. Ring damage is the start-of-PK max HP times the early/mid/final share per second of
+    // real outside time ([0, Mid), [Mid, Final), [Final, Max)), settled every PKRingTickMs.
+    UPROPERTY() FLDDemoRational PKArenaRadiusCm;
+    UPROPERTY() FLDDemoRational PKRingMidRadiusCm;
+    UPROPERTY() FLDDemoRational PKRingFinalRadiusCm;
+    UPROPERTY() int64 PKRingShrinkStartMs = 0;
+    UPROPERTY() int64 PKRingMidMs = 0;
+    UPROPERTY() int64 PKRingFinalMs = 0;
+    UPROPERTY() int64 PKRingPreviewMs = 0;
+    UPROPERTY() int64 PKRingTickMs = 0;
+    UPROPERTY() int64 PKRingEarlyDamageBp = 0;
+    UPROPERTY() int64 PKRingMidDamageBp = 0;
+    UPROPERTY() int64 PKRingFinalDamageBp = 0;
+    // #198/#225 PK format and points: the three base award pools are multiplied by PKRewardMultiplierBp, rounded up,
+    // then split with serial rotation; participation is based on eligible entrants, wins use ceil(N/2) capped at
+    // PKWinnerPointsMax, and betting uses min(PKBettingPoolMaxPoints, eligible spectators).
+    UPROPERTY() int64 PKTeamFormatBp = 0;
+    UPROPERTY() int64 PKRewardMultiplierBp = 0;
+    UPROPERTY() int64 PKParticipationPoints = 0;
+    UPROPERTY() int64 PKWinnerPointsMax = 0;
+    UPROPERTY() int64 PKBettingPoolMaxPoints = 0;
+    // #198 spectator throw from the fixed off-arena throw anchor: ThrowCooldownMs from a successful throw,
+    // ThrowTelegraphMs warning, ThrowRadiusCm impact within ThrowRangeCm, ThrowSlowBp slow for ThrowSlowMs and
+    // Exposed for ThrowExposeMs.
+    UPROPERTY() int64 ThrowCooldownMs = 0;
+    UPROPERTY() int64 ThrowTelegraphMs = 0;
+    UPROPERTY() FLDDemoRational ThrowRadiusCm;
+    UPROPERTY() FLDDemoRational ThrowRangeCm;
+    UPROPERTY() int64 ThrowSlowBp = 0;
+    UPROPERTY() int64 ThrowSlowMs = 0;
+    UPROPERTY() int64 ThrowExposeMs = 0;
     // The final showdown ring: ShowdownRingRadiusCm at the closure start, shrinking linearly to ShowdownRingFinalRadiusCm at
     // the end; outside it a contender loses the early share of its max HP per second in the first half of the closure and
     // the late share in the second, settled every ShowdownRingTickMs.
@@ -1216,6 +1259,10 @@ struct FLDDemoWorldReferences
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
     UPROPERTY() FString CaptureId;
+    // #198 PK on the original map: the six ring spawns pk_spawn_0..5 in index order and the fixed off-arena
+    // spectator throw anchor; both resolve through ULDMapRegistry::Resolve like the other anchors.
+    UPROPERTY() TArray<FString> PKSpawnIds;
+    UPROPERTY() FString PKThrowId;
 };
 
 USTRUCT()

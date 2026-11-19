@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 
 // #198 rest training reset: the owning connection's intent; the authority decides it in ALDGameMode::SubmitTrainingReset.
+// The PK sign-up has no request: standing in the own sign-up disk is the sign-up (ALDGameMode::RefreshRestSignups).
 
 void ALDPlayerController::SubmitTrainingReset()
 {

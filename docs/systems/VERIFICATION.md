@@ -146,6 +146,7 @@ Editor/Game 构建、Bootstrap Validate、相关原生规则
 
 ### 休息与外层流程
 
+`Lockdown.Rules.DemoPK.FormatDraw/Ring/Outcome/Awards`（`LDPKRulesTests.cpp`）覆盖 PK 的纯规则：赛制与分队抽签、缩圈半径与圈外时长切分、胜负与平局判定、三个奖池的分配；PK 的时间线步骤、入场、押注、投掷、观战视野与界面没有规则测试，也没有拥有连接场景。
 `Lockdown.Rules.DemoRest.Timeline` 覆盖纯时间线：批准时长、锁定保持、野外进度 T 在休息中冻结而在野外推进、开局到旗杆开放 600 s、最终野外与客户端 T 推导；`Lockdown.Rules.DemoRest.ReadyEarly` 覆盖全员准备立即结束配装；`Lockdown.Rules.DemoRest.PhasePolicy` 覆盖隔离组、冻结身体、阶段边界清理与补满；`Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务（见[成长事务](GROWTH_TRANSACTIONS.md)）；`Lockdown.Rules.DemoRest.EntryHold` 覆盖入场未就绪时返回→野外停在边界、就绪后按实际时刻进入，`Lockdown.Rules.DemoRest.SpawnIdentity` 覆盖撤回的出生请求以新序号重试、不触发 `RequestConflict`，`Lockdown.Rules.DemoShowdown.Ring`/`RingOutsideTime` 覆盖封街圈的缩圈、两档圈伤与按真实圈外时长切分，`Lockdown.Rules.DemoVision.EffectAccess` 覆盖隔离组与冻结身体的飞行物可见权限。
 `Lockdown.Rules.DemoRest.Objective.Flag`/`Objective.Arena`/`Respawn.Choice`/`Bounty`/`DailyModifiers`/`CampAffixes`/`Explore.Locker`/`Explore.Peddler`/`Explore.Vending` 覆盖野外目标、死亡选点、悬赏、今日热点、营地词条与隐藏物的纯规则，`Lockdown.Rules.DemoOpponentPolicy.Objective` 覆盖 AI 去野外目标，`Lockdown.Rules.HUDPacingView` 覆盖死亡选点与售货机面板模型。
 拥有连接场景探针按新规则检查 AI 在 R0 选择开局主动；

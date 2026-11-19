@@ -345,6 +345,19 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.OpeningBuildSec", "ms", "45"), ("REST.BuildSec", "ms", "40"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
+            # The rest PK (R1 and R2): sign-up inside the build step, then draw, betting, ready, fight, settlement and payout.
+            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "3"), ("REST.BettingSec", "ms", "5"),
+            ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "3"),
+            ("REST.PayoutSec", "ms", "3"),
+            ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
+            ("PK.RingShrinkStartSec", "ms", "5"), ("PK.RingMidSec", "ms", "25"), ("PK.RingFinalSec", "ms", "38"),
+            ("PK.RingPreviewSec", "ms", "5"), ("PK.RingDamageTickSec", "ms", ".25"),
+            ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", ".05"), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", ".12"),
+            ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", ".25"), ("PK.TeamFormatRatio", "ratio", ".5"),
+            ("PK.RewardMultiplier", "ratio", "1.5"),
+            ("THROW.CooldownSec", "ms", "10"), ("THROW.TelegraphSec", "ms", ".8"), ("THROW.RadiusCm", "cm", "120"),
+            ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
+            ("THROW.ExposeSec", "ms", "2"),
             # Issue #287 spec §10-§11 (P6): the showdown ring, respawn, objectives, hotspots, affixes and hidden things.
             ("SHOWDOWN.RingRadiusCm", "cm", "1800"), ("SHOWDOWN.RingFinalRadiusCm", "cm", "600"), ("SHOWDOWN.RingPreviewSec", "ms", "10"),
             ("SHOWDOWN.RingDamageTickSec", "ms", "0.25"), ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", "0.05"), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", "0.12"),
@@ -471,6 +484,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             ("COMBAT.ShockEveryNthHit", 3), ("COMBAT.MethaneBurnStacks", 2), ("COMBAT.FirestormBurnScale", 2), ("COMBAT.CorrodeBreachStacks", 3), ("GROUND.FireBurnStacks", 1), ("GROUND.MaxPerOwner", 6), ("GROUND.MaxTotal", 40),
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
+            ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # Issue #287 spec §10-§11 (P6) counts.
             ("LIFE.SpawnChoiceCount", 2), ("OBJECTIVE.FlagCardOffer", 3), ("OBJECTIVE.ArenaCardOffer", 5), ("VOUCHER.MiniFlag", 15),
             ("VOUCHER.Arena", 20), ("VOUCHER.BountyKill", 15), ("VOUCHER.BountyAssist", 5), ("VOUCHER.Locker", 8),
@@ -484,7 +498,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("CARDS.RerollsPerRest", 1), ("CARDS.VocabWeight", 2),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): vouchers, the rest shop, chain ends and the AI's skip.
-            ("CARDS.SkipVouchers", 3), ("VOUCHER.CampLow", 2), ("VOUCHER.CampHigh", 4), ("VOUCHER.CampElite", 8), ("VOUCHER.CampAncient", 12), ("VOUCHER.Boss", 20), ("VOUCHER.Kill", 10), ("VOUCHER.Assist", 4), ("VOUCHER.Airdrop", 6), ("VOUCHER.ActiveSkip", 8), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 6), ("SHOP.SkillPrice", 10), ("SHOP.RefreshPrice", 2), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 25), ("SHOP.SkillPointMaxPerMatch", 3), ("SHOP.SellPrice", 3), ("CHAIN.MinKeySteps", 3),
+            ("CARDS.SkipVouchers", 3), ("CARDS.OfferEveryLevels", 2), ("VOUCHER.CampLow", 2), ("VOUCHER.CampHigh", 4), ("VOUCHER.CampElite", 8), ("VOUCHER.CampAncient", 12), ("VOUCHER.Boss", 20), ("VOUCHER.Kill", 10), ("VOUCHER.Assist", 4), ("VOUCHER.Airdrop", 6), ("VOUCHER.ActiveSkip", 8), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 6), ("SHOP.SkillPrice", 10), ("SHOP.RefreshPrice", 2), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 25), ("SHOP.SkillPointMaxPerMatch", 3), ("SHOP.SellPrice", 3), ("CHAIN.MinKeySteps", 3),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)

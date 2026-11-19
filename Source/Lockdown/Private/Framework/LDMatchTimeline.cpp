@@ -8,6 +8,13 @@ bool FLDTimelineParameters::FromContent(const FLDDemoContentParameters& Content,
     Out.FieldSegmentMs = Content.FieldSegmentMs;
     Out.OpeningBuildMs = Content.RestOpeningBuildMs;
     Out.BuildMs = Content.RestBuildMs;
+    Out.SignupMs = Content.RestSignupMs;
+    Out.DrawMs = Content.RestDrawMs;
+    Out.BettingMs = Content.RestBettingMs;
+    Out.PKReadyMs = Content.RestPKReadyMs;
+    Out.PKMaxMs = Content.RestPKMaxMs;
+    Out.SettlementMs = Content.RestSettlementMs;
+    Out.PayoutMs = Content.RestPayoutMs;
     Out.ReturnMs = Content.RestReturnMs;
     return Out.Validate(Error);
 }
@@ -16,7 +23,8 @@ bool FLDTimelineParameters::Validate(FString& Error) const
 {
     // Each value is bounded by an int32 of seconds so every sum of a whole match stays far inside int64.
     constexpr int64 Bound = int64(MAX_int32) * 1000;
-    const int64 Durations[] = {FieldSegmentMs, OpeningBuildMs, BuildMs, ReturnMs};
+    const int64 Durations[] = {FieldSegmentMs, OpeningBuildMs, BuildMs, SignupMs, DrawMs, BettingMs, PKReadyMs, PKMaxMs,
+        SettlementMs, PayoutMs, ReturnMs};
     for (const int64 Duration : Durations)
     {
         if (Duration <= 0 || Duration > Bound)
@@ -24,6 +32,11 @@ bool FLDTimelineParameters::Validate(FString& Error) const
             Error = TEXT("Every approved timeline duration must be positive and bounded.");
             return false;
         }
+    }
+    if (SignupMs > BuildMs || SignupMs > OpeningBuildMs)
+    {
+        Error = TEXT("The PK sign-up must fit inside every rest build window.");
+        return false;
     }
     Error.Reset();
     return true;
@@ -46,6 +59,13 @@ bool FLDMatchTimeline::Begin(const FLDTimelineParameters& InParameters, int64 St
         return false;
     }
     return true;
+}
+
+bool FLDMatchTimeline::IsSignupOpen(int64 AtMs) const
+{
+    return Stage == ELDMatchStage::Rest && LDMatchTimeline::IsPKRest(RestIndex)
+        && Step == ELDRestStep::Build && AtMs >= StepEndsAtMs - Parameters.SignupMs
+        && AtMs <= StepEndsAtMs;
 }
 
 int64 FLDMatchTimeline::FieldMsAt(int64 AtMs) const
@@ -84,6 +104,12 @@ int64 FLDMatchTimeline::StepDuration(ELDRestStep InStep) const
     switch (InStep)
     {
     case ELDRestStep::Build: return RestIndex == 0 ? Parameters.OpeningBuildMs : Parameters.BuildMs;
+    case ELDRestStep::Draw: return Parameters.DrawMs;
+    case ELDRestStep::Betting: return Parameters.BettingMs;
+    case ELDRestStep::PKReady: return Parameters.PKReadyMs;
+    case ELDRestStep::PK: return Parameters.PKMaxMs;
+    case ELDRestStep::Settlement: return Parameters.SettlementMs;
+    case ELDRestStep::Payout: return Parameters.PayoutMs;
     case ELDRestStep::Return: return Parameters.ReturnMs;
     default: return 0;
     }
@@ -99,6 +125,8 @@ bool FLDMatchTimeline::EnterRest(uint8 Index, int64 AtMs, TArray<FLDTimelineEven
     Stage = ELDMatchStage::Rest;
     RestIndex = Index;
     FieldSegment = Index;
+    LockedEntrants = 0;
+    bPKSkipped = false;
     FLDTimelineEvent& Event = Out.AddDefaulted_GetRef();
     Event.Kind = ELDTimelineEventKind::EnterRest;
     Event.RestIndex = Index;
@@ -142,7 +170,7 @@ bool FLDMatchTimeline::EnterField(int64 AtMs, TArray<FLDTimelineEvent>& Out, FSt
     return true;
 }
 
-bool FLDMatchTimeline::Advance(int64 AtMs, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out, FString& Error)
+bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out, FString& Error)
 {
     if (!IsActive())
     {
@@ -171,15 +199,23 @@ bool FLDMatchTimeline::Advance(int64 AtMs, bool bAllowLock, bool bBodiesReady, T
         case ELDRestStep::Build:
         {
             if (!bAllowLock) { Error.Reset(); return true; }
+            const int32 Entrants = LDMatchTimeline::IsPKRest(RestIndex) ? SignedUp : 0;
+            LockedEntrants = uint8(FMath::Min(Entrants, 255));
             FLDTimelineEvent& Lock = Out.AddDefaulted_GetRef();
             Lock.Kind = ELDTimelineEventKind::LockBuild;
             Lock.RestIndex = RestIndex;
             Lock.FieldSegment = FieldSegment;
             Lock.Step = ELDRestStep::Build;
             Lock.AtMs = Due;
-            bStepped = EnterStep(ELDRestStep::Return, Due, Out, Error);
+            Lock.Value = Entrants;
+            // R0/R3 are not PK rests; in R1/R2 fewer than two entrants also skip straight to Return.
+            bPKSkipped = Entrants < 2;
+            bStepped = EnterStep(bPKSkipped ? ELDRestStep::Return : ELDRestStep::Draw, Due, Out, Error);
             break;
         }
+        case ELDRestStep::Draw: bStepped = EnterStep(ELDRestStep::Betting, Due, Out, Error); break;
+        case ELDRestStep::Betting: bStepped = EnterStep(ELDRestStep::PKReady, Due, Out, Error); break;
+        case ELDRestStep::PKReady:
         case ELDRestStep::Return:
         {
             if (!bBodiesReady)
@@ -188,18 +224,33 @@ bool FLDMatchTimeline::Advance(int64 AtMs, bool bAllowLock, bool bBodiesReady, T
                 Error.Reset();
                 return true;
             }
-            // A held entry starts when its bodies stand ready; the paused T starts then.
+            // A held entry starts when its bodies stand ready; the paused T and the PK's full length start then.
             const int64 At = bEntryHeld ? AtMs : Due;
             bEntryHeld = false;
-            bStepped = EnterField(At, Out, Error);
+            bStepped = Step == ELDRestStep::PKReady ? EnterStep(ELDRestStep::PK, At, Out, Error) : EnterField(At, Out, Error);
             break;
         }
+        case ELDRestStep::PK: bStepped = EnterStep(ELDRestStep::Settlement, Due, Out, Error); break;
+        case ELDRestStep::Settlement: bStepped = EnterStep(ELDRestStep::Payout, Due, Out, Error); break;
+        case ELDRestStep::Payout: bStepped = EnterStep(ELDRestStep::Return, Due, Out, Error); break;
         default: Error = TEXT("A rest has no current step."); return false;
         }
         if (!bStepped) { return false; }
     }
     Error = TEXT("The timeline did not settle within a bounded number of transitions.");
     return false;
+}
+
+bool FLDMatchTimeline::FinishPK(int64 AtMs, FString& Error)
+{
+    if (Stage != ELDMatchStage::Rest || Step != ELDRestStep::PK || AtMs < StepStartedAtMs || AtMs > StepEndsAtMs)
+    {
+        Error = TEXT("Only a running PK can end early, inside its own window.");
+        return false;
+    }
+    StepEndsAtMs = AtMs;
+    Error.Reset();
+    return true;
 }
 
 bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Error)
@@ -210,8 +261,12 @@ bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Err
         Error = TEXT("Ready only applies inside the current rest build window.");
         return false;
     }
-    StepEndsAtMs = AtMs;
-    bChanged = true;
+    const int64 Keep = LDMatchTimeline::IsPKRest(RestIndex) ? Parameters.SignupMs : 0;
+    if (StepEndsAtMs - AtMs > Keep)
+    {
+        StepEndsAtMs = AtMs + Keep;
+        bChanged = true;
+    }
     Error.Reset();
     return true;
 }
@@ -225,8 +280,8 @@ bool FLDMatchTimeline::DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>
         return false;
     }
     StepEndsAtMs = AtMs;
-    // Field bodies are still prepared by the normal return path.
-    if (!Advance(AtMs, true, false, Out, Error)) { return false; }
+    // Zero entrants means no PK. Field bodies are still prepared by the normal return path.
+    if (!Advance(AtMs, 0, true, false, Out, Error)) { return false; }
     StepEndsAtMs = AtMs;
     // Transactions follows this step's world phase: entry can first commit at the next actual world boundary.
     bEntryHeld = true;
@@ -242,6 +297,7 @@ bool FLDMatchTimeline::DevSkipToFinalRest(int64 AtMs, TArray<FLDTimelineEvent>& 
     }
     FieldBaseMs = int64(FLDTimelineParameters::TimedSegments) * Parameters.FieldSegmentMs;
     if (!EnterRest(FLDTimelineParameters::TimedSegments, AtMs, Out, Error)) { return false; }
+    bPKSkipped = true;
     return EnterStep(ELDRestStep::Return, AtMs, Out, Error);
 }
 #endif
@@ -257,9 +313,13 @@ FLDTimelineView FLDMatchTimeline::MakeView(uint32 Generation, uint64 Revision) c
     View.Step = Step;
     View.StepStartedAtMs = StepStartedAtMs;
     View.StepEndsAtMs = StepEndsAtMs;
+    View.SignupOpensAtMs = Stage == ELDMatchStage::Rest && LDMatchTimeline::IsPKRest(RestIndex)
+        && Step == ELDRestStep::Build ? StepEndsAtMs - Parameters.SignupMs : 0;
     View.FieldBaseMs = FieldBaseMs;
     View.FieldStartedAtMs = FieldStartedAtMs;
     View.FieldEndT = Stage == ELDMatchStage::FinalField ? -1 : int64(FieldSegment + 1) * Parameters.FieldSegmentMs;
+    View.LockedEntrants = LockedEntrants;
+    View.bPKSkipped = bPKSkipped;
     return View;
 }
 
@@ -276,6 +336,12 @@ const TCHAR* LDMatchTimeline::StepName(ELDRestStep Step)
     switch (Step)
     {
     case ELDRestStep::Build: return TEXT("build");
+    case ELDRestStep::Draw: return TEXT("draw");
+    case ELDRestStep::Betting: return TEXT("betting");
+    case ELDRestStep::PKReady: return TEXT("pk_ready");
+    case ELDRestStep::PK: return TEXT("pk");
+    case ELDRestStep::Settlement: return TEXT("settlement");
+    case ELDRestStep::Payout: return TEXT("payout");
     case ELDRestStep::Return: return TEXT("return");
     default: return TEXT("none");
     }

@@ -523,6 +523,19 @@ AI 只读公开对局视图里的野外目标（`FLDPublicMatchView::Objective`�
 
 `DemoOpponentPolicy.Explore` 覆盖外卖柜、二手贩子与售货机；`DemoOpponentPolicy.Objective` 覆盖去目标的条件、到点停下、过期与已决目标不去、未知地点不去、擂台走向旗杆和天降外卖优先。
 
+### 6.7 休息 PK 与观战
+
+AI 只读公开对局视图里的时间线与 `FLDPublicMatchView::PK`（参赛者及阵营、可押注者、押注、场地中心、开打时刻），不读未来赛制或随机结果；
+请求走真人同一入口，由权威重新校验。没有专属数值：缩圈用 `PK.*`，投掷距离与冷却用 `THROW.*`。
+
+1. **报名**：R1、R2 的报名窗口内，存活的 AI 以普通移动订单走向本人名单槽位的 `pk_signup_<槽位>`（`Frame.SignupPOI`），进圈后留到锁定；窗口内不训练，也不找训练师。
+2. **押注**：押注步骤中本人有资格且还没押时，押座位最低的参赛者所在的一方，每场只发一次。
+3. **投掷**：对打进行中，已押注的观众在本人冷却结束后，朝观察帧里可见、不属于所押一方、在 `THROW.RangeCm` 内的存活参赛者中座位最低者的脚点投掷；看不到就不投。
+4. **参赛**：沿用野外的交战策略，但只把其他阵营的存活参赛者当作目标与威胁；脚点在当前圈外或下一圈预告外时先走回场地中心。准备步骤输入锁定，什么也不发。
+
+模式 `PK`，原因 `PKSignUp`/`PKBet`/`PKThrow`/`PKFight`/`PKRing`；纯判断在 `LDOpponentPolicy`（`WantsPKSignUp`、`PKBetSide`、`PKThrowTarget`、`PKRingRetreat`），
+请求在 `ALDOpponentController::DispatchPK`，押注与投掷各输出一行 `LD_AI_PK_BET`/`LD_AI_PK_THROW`（含结果码）。这部分没有规则测试与拥有连接场景。
+
 ## 7. SC-09：参数与内容唯一来源
 
 以下键由内容域定义并已批准，**本文不提供第二份数值表**。

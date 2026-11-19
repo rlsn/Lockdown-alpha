@@ -4,6 +4,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
+#include "PK/LDPKDirector.h"
 
 // #198 rest phases: the Combat side of the approved phase-boundary resource policy (issue #198 comment 6752601175 §8)
 // and of the shared rest space. Field bodies have no isolation group; rest lives share one group, so nothing
@@ -18,7 +19,16 @@ bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyComba
 #endif
     if (IsOutOfGroup(SourceEntity,Target)) { return true; }
     // Sharing visibility is not permission to damage/control another trainee (or oneself through a released effect).
-    return Target.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Target.bTrainingDummy;
+    if (Target.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Target.bTrainingDummy) { return true; }
+    // #198 session D: PK friendly fire is off; a body still affects itself.
+    if (Target.PKSide==0 || SourceEntity==Target.Victim.EntityId) { return false; }
+    uint8 SourceSide=0;
+    if (const FLDBodyCombatState* Source=FindEntityBody(SourceEntity)) { SourceSide=Source->PKSide; }
+    else if (const ALDGameMode* Mode=Core(); Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive())
+    {
+        SourceSide=Mode->PKDirector->SideOf(SourceEntity);
+    }
+    return SourceSide!=0 && SourceSide==Target.PKSide;
 }
 
 bool ALDCombatDirector::ActingGroup(const FGuid& Entity, FGuid& OutGroup) const
@@ -35,6 +45,11 @@ bool ALDCombatDirector::ActingGroup(const FGuid& Entity, FGuid& OutGroup) const
         // A contender between lives keeps the group of the space it is in: its released effects never cross it.
         const ALDGameMode* Mode=Core();
         if (Mode && Mode->IsInRestSpace(Entity)) { OutGroup=ALDGameMode::RestIsolationGroup(); }
+        // #198 session D: an entrant between lives during the PK keeps the PK group.
+        else if (Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive() && Mode->PKDirector->SideOf(Entity)!=0)
+        {
+            OutGroup=Mode->PKDirector->GetGroup();
+        }
     }
     return true;
 }

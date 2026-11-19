@@ -310,6 +310,16 @@ void ALDCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
     // The fixed, collision-free arm's tick may precede movement. Evaluate its pose at camera time, not last tick.
     FVector Origin=CameraArm->GetComponentLocation();
     float ArmLength=CameraArm->TargetArmLength;
+    // #198 PK spectators: while the own player watches a PK (LDHUD::IsSpectatingPK of the own match) the same fixed arm
+    // looks at the public arena centre from its longest zoom instead of at this body; the authority grants the view.
+    const auto* OwnPC=IsLocallyControlled()?Cast<ALDPlayerController>(GetController()):nullptr;
+    const auto* Public=OwnPC&&GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
+    if(Public&&Public->PublicMatch.Generation!=0&&Public->PublicMatch.Generation==OwnPC->OwnerState.Match
+        &&LDHUD::IsSpectatingPK(Public->PublicMatch,OwnPC->OwnerState.ContenderId)&&!Public->PublicMatch.PK.ArenaCentreCm.ContainsNaN())
+    {
+        Origin=Public->PublicMatch.PK.ArenaCentreCm;
+        ArmLength=LDCamera::MaxArmLength;
+    }
     const FTransform Pose=DefaultArmCameraPose(Origin,ArmLength);
     OutResult.Location=Pose.TransformPosition(Camera->GetRelativeLocation());
     OutResult.Rotation=Pose.Rotator();

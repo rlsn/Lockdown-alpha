@@ -24,8 +24,9 @@ public:
     virtual bool IsContenderPresent(const FGuid& Contender) const = 0;
     // Life-domain protection (immune to damage and control); Combat reads it at the hit point.
     virtual bool IsContenderProtected(const FGuid& ContenderId) const = 0;
-    // Whether a contender currently has a shared-room rest life, not a field life.
+    // Whether a contender currently has a shared-room rest life, not a field or PK life.
     virtual bool IsInRestSpace(const FGuid& Contender) const = 0;
+    virtual bool IsPKLife(const FGuid& Contender) const = 0;
     // Shared training dummies keep each slot's generation-time level chassis and no build; they grant nothing.
     virtual bool IsTrainingDummy(const FGuid& Entity) const = 0;
     // D21 (#79): the public dorm disks of this match; empty outside a running match.

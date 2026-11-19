@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "PK/LDPKDirector.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -68,6 +69,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         { Consider(Body.LastCombatAtMs+DormDelayMs); }
         // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
+        // #198 session D: a throw's Exposed ends on its exact boundary.
+        Consider(Body.ExposedUntilMs);
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
     }
     // #112 mechanics: zone pulses and their records' ends.
@@ -89,6 +92,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Mode->NextShowdownDueMs());
         // P6: mid-field objective, daily modifier, locker and dealer instants (field progress T).
         Consider(Mode->NextPacingDueMs());
+        // #198 session D: PK ring ticks and throw landings.
+        if (Mode->PKDirector) { Consider(Mode->PKDirector->NextDueMs()); }
         // Opening time and the Solo completion must each be an exact step boundary; a resume inside a paused
         // contest is closed at its own instant by CaptureCompletesInsideStep, so it adds no stop here.
         Consider(Mode->NextCaptureDueMs());
@@ -186,12 +191,14 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             { return RunActions(Permit,Error); },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Effects,[&](const FLDGameplayWritePermit& Permit)
             {
-                // The showdown street burns after this boundary's ordinary effects.
-                return RunEffects(Permit,Error) && Mode->AdvanceShowdownEffects(Permit,Error);
+                // #198 session D: throws land and the PK ring burns after this boundary's ordinary effects.
+                return RunEffects(Permit,Error) && (!Mode->PKDirector || Mode->PKDirector->AdvanceEffects(Permit,Error))
+                    && Mode->AdvanceShowdownEffects(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
             {
-                return RunDeaths(Permit,Error);
+                // #198 session D: the PK is judged after every death of the boundary (a decided PK ends here).
+                return RunDeaths(Permit,Error) && (!Mode->PKDirector || Mode->PKDirector->JudgeAfterDeaths(Permit,Error));
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             {
@@ -212,7 +219,9 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimFieldPacing(Permit,Error)
                         && Mode->RetryFieldRewards(Permit,Error)))
                     && Mode->Growth->ProcessTransactions(Permit,Error)
-                    && Mode->LockTimelineBuild(Permit,Error);
+                    && Mode->LockTimelineBuild(Permit,Error)
+                    // #198 session D: a settled PK pays its frozen awards once.
+                    && (!Mode->PKDirector || Mode->PKDirector->ProcessTransactions(Permit,Error));
             },Error));
         if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)

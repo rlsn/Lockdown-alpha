@@ -38,6 +38,9 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 公共休息室与野外共用唯一地面与同一连接：地面向东延伸，野外东墙是隔墙，休息室四面封闭。
 `RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
+`PKSignup` 的 `pk_signup_0..5` 在休息室里，六个点的平均位置是公共报名圈的圆心，各点也是 AI 按名单槽位站的位置；
+`PKSpawn` 的 `pk_spawn_0..5`（`world.pk_spawn_ids`）围着旗杆，是 PK 的出生点；`PKThrow` 的 `pk_throw`（`world.pk_throw_id`）是观众投掷的射程原点。
+这三类都不加入野外随机出生池。
 `RestService` 的 `rest_service_3` 为训练师（`rest_service_1`、`rest_service_2` 不承载服务），三个定位点，位于 y=-500 cm、x=7100/7500/7900 cm；
 服务交互仍复用 `AIRDROP.PickupRadiusCm` 的150 cm范围。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
 y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
@@ -99,7 +102,7 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker、Ven
 `camps.placements.monster_id`是固定档位代表，运行按该定义的tier聚合三种候选，不是本次生成结果。
 同档必须具有相同成员数量、奖励与刷新时间。`FLDCampGroupState`保存本次选种与准备中的选种，
 SpawnBlocked重试保留抽签；整组生命提交后才切换当前种类。公开POI保留档位代表，动态CreatureId只经合法观察发布。
-移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`vending_*`）新增语义点，
+移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`vending_*`、`pk_signup_*`、`pk_spawn_*`、`pk_throw`）新增语义点，
 保留现存点和人工布景；现存必需点缺失、重复身份或成员落点重叠会拒绝，不能用此入口重建被删除的点。
 该定向同步不刷新碰撞、导航或美术，也不代表完整Bootstrap通过；新增成员的实际胶囊落地及接线由拥有连接营地场景验证。
 普通布景不参与成员数量或档位判定；全场景源快照导出对未注册静态碰撞的限制仍存在。

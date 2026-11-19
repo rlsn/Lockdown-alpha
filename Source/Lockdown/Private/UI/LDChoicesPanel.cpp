@@ -607,7 +607,7 @@ void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
     if(bOwnHit&&OfferMotion.StartedAt>=0.){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
     if(bOwnHit){bFinalFeedbackAllowed=false;}
-    // #222: only an automatic opening folds by itself; a tray the player opened stays, in combat and in a rest too.
+    // #222: only an automatic opening folds by itself; a tray the player opened stays, in combat and in a PK too.
     if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
     {
         UE_LOG(LogLDUI,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));

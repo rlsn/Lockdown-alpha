@@ -358,6 +358,10 @@ struct FLDBodyCombatState
     bool bSuspended=false;
     // A shared training target never dies (refills at 0 HP) and grants nothing.
     bool bTrainingDummy=false;
+    // #198 session D PK: the body's side in the PK isolation group (0: none). Same-side bodies never affect each other
+    // (friendly fire off). ExposedUntilMs: a spectator throw revealed it to the PK entrants until then (half-open).
+    uint8 PKSide=0;
+    int64 ExposedUntilMs=0;
     struct FResources
     {
         // Momentum lives here beside HP and the shield; its maximum is the fixed MOMENTUM.Max.
@@ -918,11 +922,14 @@ struct FLDCombatZone
     int64 BurnIntervalMs=0, NextBurnAtMs=0;
     int32 PulseBurnStacks=0;
     // #198: the owner's element snapshot (level, AP) at release; zone_wet makes every pulse apply wet; zone_haste gives
-    // the owner HasteBp move speed while its foot stands inside.
+    // the owner and its current-match teammates (OwnerGroup/OwnerPKSide at release, PK side 0: none) HasteBp move speed
+    // while their foot stands inside.
     int32 ElementLevel=1;
     int64 ElementAPP2=0;
     bool bWet=false;
     int64 HasteBp=0;
+    FGuid OwnerGroup;
+    uint8 OwnerPKSide=0;
     // Skill branches: the owner's damage cut and momentum per pulse while its foot stands inside (S08 A2, S20 A2).
     int64 GuardBp=0, MomentumP2=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
@@ -1059,6 +1066,11 @@ public:
     // This match's committed damage credited to Contender per source, largest first (LDCombatBlueprintLedger.cpp). False for
     // an entity without a contender record; a contender that dealt none has an empty list.
     bool DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageLine>& Out) const;
+    // This match's trigger count of each of Contender's cards (training excluded), by card name; false like DamageTotalsOf.
+    bool CardTriggersOf(const FGuid& Contender, TArray<FLDCardTriggerRow>& Out) const;
+    // Training combos (damage on a training dummy, per source) whose last hit is at least QuietMs old at NowMs: each is
+    // handed out once, by its contender, and forgotten.
+    void TakeFinishedTrainingCombos(int64 NowMs, int64 QuietMs, TMap<FGuid,TArray<FLDDamageLine>>& Out);
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
@@ -1157,15 +1169,18 @@ public:
     bool ResetTraining(const FGuid& Owner, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error);
     // Retires the dummy's body and drops its Combat record (a dummy entity never returns).
     void RetireTrainingEntity(const FLDCombatBodyRef& Body);
-    // Whether SourceEntity and Target are in different isolation groups (or either is suspended); vision uses this, and
-    // IsIsolated adds the rest room's no-harm rule.
+    // ---- #198 session D PK (Combat/LDCombatPK.cpp) ----
+    // Whether SourceEntity and Target are in different isolation groups (or either is suspended); vision uses this (team
+    // mates still see each other), IsIsolated adds the PK friendly-fire rule.
     bool IsOutOfGroup(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
     // The isolation group Entity acts in (its body's, or for a contender between lives the space it is in); false when it
     // is a suspended world body. Vision gives skill effects the permissions of their source's group (#198 R15).
     bool ActingGroup(const FGuid& Entity, FGuid& OutGroup) const;
-    // Environmental damage (the final showdown's street closure, Combat/LDCombatEnvironment.cpp): straight to HP, no
-    // resistance, shield, reduction, delay, reflection, trigger or reward; a lethal amount locks a normal unowned death.
-    // Effects permit.
+    // A PK life joins the PK isolation group with its side. RespawnsAndWorld permit.
+    bool SetPKBody(const FLDCombatBodyRef& Body, const FGuid& Group, uint8 Side, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Environmental damage (the PK ring and the final showdown's street closure, Combat/LDCombatEnvironment.cpp): straight
+    // to HP, no resistance, shield, reduction, delay, reflection, trigger or reward; a lethal amount locks a normal
+    // unowned death. Effects permit.
     bool ApplyEnvironmentDamage(const FLDCombatBodyRef& Body, int64 AmountP2, const FLDGameplayWritePermit& Permit, FString& Error);
     // ---- P6 (Combat/LDCombatPacing.cpp) ----
     // Whether the body took a hit after SinceMs (a locker channel breaks on damage).
@@ -1186,8 +1201,17 @@ public:
     // Spec §11.1 typhoon: every field contender is pushed PushCm along Direction (walls stop it) and every ground state
     // drifts as far. RespawnsAndWorld permit.
     bool ApplyTyphoon(const FVector2D& Direction, double PushCm, const FLDGameplayWritePermit& Permit, FString& Error);
+    // A spectator throw landing on a PK body (approved §6): a SlowBp slow for SlowMs through the control path (the
+    // strongest slow wins, the end refreshes on a real hit) and Exposed until now + ExposeMs. No damage, hard control,
+    // growth or credit. Effects permit.
+    bool ApplyThrowHit(const FLDCombatBodyRef& Body, const FGuid& EffectId, int64 SlowBp, int64 SlowMs, int64 ExposeMs,
+        const FLDGameplayWritePermit& Permit, FString& Error);
     // Current and maximum HP of a living body; false when Combat does not hold it.
     bool ReadBodyHealth(const FLDCombatBodyRef& Body, int64& OutHpP2, int64& OutMaxHpP2) const;
+    // Whether the body is Exposed at NowMs.
+    bool IsExposed(const FLDCombatBodyRef& Body, int64 NowMs) const;
+    // Line of sight between two feet with the area rule (ELDSightResult::Visible), for the throw's landing.
+    bool HasAreaSight(const FVector& FromCm, const FVector& ToCm, bool& bOutVisible, FString& Error) const;
 
 private:
     friend class ALDGameMode;
@@ -1384,8 +1408,8 @@ private:
         FString& Error);
     // Zones due at NowMs (Effects, before the hits).
     bool AdvanceMechanics(int64 NowMs, FString& Error);
-    // S20 zone_haste: the zone owner holds the zone's move speed while its foot stands inside it; leaving, dying or the
-    // zone ending drops it.
+    // S20 zone_haste: the zone owner and its current-match teammates (same isolation group and PK side) hold the zone's
+    // move speed while their foot stands inside it; leaving, dying or the zone ending drops it.
     void UpdateZoneHaste(const FLDCombatZone& Zone, int64 NowMs);
     bool ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs);
     int64 NextMechanicsDueMs(int64 NowMs) const;
@@ -1794,4 +1818,9 @@ private:
     FLDBuildLedger BuildLedger;
     // Per contender: the match total of committed damage credited to it, one row per source.
     TMap<FGuid,TArray<FLDDamageLine>> DamageTotals;
+    // Per contender: how often each card triggered in this match (training excluded).
+    TMap<FGuid,TMap<FName,int32>> CardTriggerCounts;
+    // Per contender: the running training combo on a dummy and the authority ms of its last hit.
+    struct FTrainingCombo { TArray<FLDDamageLine> Lines; int64 LastAtMs=0; };
+    TMap<FGuid,FTrainingCombo> TrainingCombos;
 };

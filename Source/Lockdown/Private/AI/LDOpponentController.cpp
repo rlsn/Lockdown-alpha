@@ -11,6 +11,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "PK/LDPKDirector.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
@@ -145,6 +146,20 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The approved AI decision interval is not positive.");
         return false;
     }
+    // Each contender approaches a separate standing position inside the shared sign-up disk.
+    FVector SignupCentre;
+    double SignupRadius = 0;
+    const FLDMapBinding* SignupAnchor = nullptr;
+    if (Mode->SignupDiskFor(InBinding.GetContender(), SignupCentre, SignupRadius))
+    {
+        const int32 Slot = Mode->GetRosterOrder().IndexOfByKey(InBinding.GetContender());
+        SignupAnchor = Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Slot)), Registry->Generation);
+    }
+    if (!SignupAnchor)
+    {
+        Error = TEXT("The opponent's roster slot has no registered PK sign-up position.");
+        return false;
+    }
     TArray<FLDOpponentPOI> Services;
     for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
     {
@@ -167,6 +182,11 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     Binding = InBinding;
     Content = MoveTemp(Snapshot);
     POIs = MoveTemp(Places);
+    SignupPOI = FLDOpponentPOI();
+    SignupPOI.Id = SignupAnchor->Id;
+    SignupPOI.Kind = ELDOpponentPOIKind::PKSignup;
+    SignupPOI.SurfaceId = SignupAnchor->Surface;
+    SignupPOI.FootCm = SignupAnchor->Position;
     RestServicePOIs = MoveTemp(Services);
 #if WITH_DEV_AUTOMATION_TESTS
     Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());
@@ -233,11 +253,11 @@ void ALDOpponentController::ReportTally()
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u builds=%u builds_refused=%u paused_holds=%u/%u/%u ")
-        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u objectives=%u"), *Binding.GetContender().ToString(),
+        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u objectives=%u pk=%u/%u/%u/%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
         Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.Builds, Tally.BuildsRefused, Tally.PausedHolds,
         Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
-        Tally.OrdersRejected, Tally.Objectives);
+        Tally.OrdersRejected, Tally.Objectives, Tally.PKSignUps, Tally.PKBets, Tally.PKThrows, Tally.PKRefused);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -349,6 +369,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
         const ELDVendingResult Bought = Mode->QueueVending(Binding.GetContender(), Frame.Self.Life, ELDVendingItem(Decision.Vending), 0);
         if (Bought != ELDVendingResult::Queued) { Problem = FString::Printf(TEXT("vending refused result=%u"), uint32(Bought)); }
     }
+    DispatchPK(*Mode, Frame, Decision.PK, NowMs, Problem);
     Report(Frame, Decision, Problem);
 }
 
@@ -406,6 +427,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     if (Public.Phase == ELDMatchPhase::Rest)
     {
+        Frame.SignupPOI = SignupPOI;
         Frame.RestServicePOIs = RestServicePOIs;
     }
     Frame.Public.Phase = Public.Phase;
@@ -423,6 +445,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Leader = Public.Leader.Leader;
     Frame.Public.LeaderLevel = Public.Leader.LeaderLevel;
     Frame.Public.LeaderCircleCentreCm = Public.Leader.CircleCentreCm;
+    // #198 D: the public PK (entrants, sides, bettors, bets, arena centre, fight start), as every participant reads it.
+    Frame.Public.PK = Public.PK;
     // P6 spec §10.3: the public mid-field objective, as every participant reads it.
     Frame.Public.Objective = Public.Objective;
     // The own claim comes from the owner view; the public view never names the claimer.
@@ -790,6 +814,7 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
         Current.Epoch = Incumbent.Intent.Epoch;
     }
     Frame.bBuildChangeInFlight = Build.bHas;
+    Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
 }
 
 void ALDOpponentController::AbandonCharge(ALDGameMode& Mode, const FReads& Reads)
@@ -916,10 +941,12 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     FLDMoveIdentity Identity;
     FLDSpatialOrderRequest Request;
     FString Error;
-    // Rest walks are admitted only to the registered service anchors.
+    // Rest walks are admitted only to the own sign-up disk or the registered service anchors.
+    const bool bSignupWalk = Frame.SignupPOI.IsSet() && Intent.Kind == ELDOpponentBodyKind::MoveGround && Intent.POI == SignupPOI.Id;
     const bool bServiceWalk = Intent.Kind == ELDOpponentBodyKind::MoveGround
         && Frame.RestServicePOIs.ContainsByPredicate([&Intent](const FLDOpponentPOI& Place) { return Place.Id == Intent.POI; });
-    const TArray<FLDOpponentPOI>& Places = bServiceWalk ? Frame.RestServicePOIs : Frame.POIs;
+    const TArray<FLDOpponentPOI> SignupPlaces = bSignupWalk ? TArray<FLDOpponentPOI>{SignupPOI} : TArray<FLDOpponentPOI>();
+    const TArray<FLDOpponentPOI>& Places = bSignupWalk ? SignupPlaces : bServiceWalk ? Frame.RestServicePOIs : Frame.POIs;
     if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, false, Identity)
         || !LDOpponentRequests::BuildOrder(Intent, Places, Identity, Request, Error))
     {
@@ -927,10 +954,11 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
         return;
     }
+    Tally.PKSignUps += bSignupWalk ? 1 : 0;
     // Spec §13: a field walk goes around a visible enemy ground state when that is cheaper by AI.EnemyGroundPathCost.
     // Rest walks stay on their registered anchors. A newer submission replaces a still-queued candidate in Navigation.
     FVector Waypoint;
-    const bool bDetour = !bServiceWalk && RouteAroundGrounds(Frame, Self.FootCm, Request, Waypoint);
+    const bool bDetour = !bSignupWalk && !bServiceWalk && RouteAroundGrounds(Frame, Self.FootCm, Request, Waypoint);
     const FVector FinalCm = Request.GroundCm;
     if (bDetour) { Request.GroundCm = Waypoint; }
     SubmitWalk(Reads, Intent, Request, bDetour, FinalCm, Self, NowMs, Problem);
@@ -972,6 +1000,50 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
         Problem = FString::Printf(TEXT("build request refused status=%u reason=%u"), uint8(Result.Status), uint32(Result.Reason));
     }
     Learn(Intent.Key, Settle, Self, NowMs);
+}
+
+void ALDOpponentController::DispatchPK(ALDGameMode& Mode, const FLDOpponentDecisionFrame& Frame,
+    const FLDOpponentPKIntent& Intent, int64 NowMs, FString& Problem)
+{
+    if (Intent.Kind == ELDOpponentPKKind::None) { return; }
+    const uint32 Generation = Binding.GetMatch().Generation;
+    const FString Contender = Binding.GetContender().ToString();
+    if (!Mode.PKDirector)
+    {
+        // A bet or throw names a public PK, so its director must exist; a missing one is an explicit stop of this request.
+        ++Tally.PKRefused;
+        Problem = TEXT("A PK request arrived without the match's PK director.");
+        return;
+    }
+    if (Intent.Kind == ELDOpponentPKKind::Bet)
+    {
+        ++Tally.PKBets;
+        const ELDPKBetResult Result = Mode.PKDirector->SubmitBet(Binding.GetContender(), Generation, Intent.Serial, Intent.Side);
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_PK_BET contender=%s gen=%u pk=%u side=%u result=%u"), *Contender, Generation,
+            Intent.Serial, uint32(Intent.Side), uint32(Result));
+        if (Result != ELDPKBetResult::Placed)
+        {
+            ++Tally.PKRefused;
+            Problem = FString::Printf(TEXT("PK bet refused result=%u"), uint32(Result));
+        }
+        return;
+    }
+    ++Tally.PKThrows;
+    int64 ReadyAtMs = 0;
+    const ELDPKThrowResult Result = Mode.PKDirector->SubmitThrow(Binding.GetContender(), Generation, Intent.Serial,
+        Intent.TargetCm, ReadyAtMs);
+    PKThrowSerial = Intent.Serial;
+    // A thrown or cooling-down answer names the own ready time; any other refusal waits one approved throw cooldown before
+    // the next attempt, so a refused target is never re-sent on every decision.
+    PKThrowReadyAtMs = Result == ELDPKThrowResult::Thrown || Result == ELDPKThrowResult::CoolingDown
+        ? ReadyAtMs : FMath::Max(ReadyAtMs, NowMs + Content->Get().Parameters.ThrowCooldownMs);
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_PK_THROW contender=%s gen=%u pk=%u result=%u ready_ms=%lld"), *Contender, Generation,
+        Intent.Serial, uint32(Result), PKThrowReadyAtMs);
+    if (Result != ELDPKThrowResult::Thrown)
+    {
+        ++Tally.PKRefused;
+        Problem = FString::Printf(TEXT("PK throw refused result=%u"), uint32(Result));
+    }
 }
 
 void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision,

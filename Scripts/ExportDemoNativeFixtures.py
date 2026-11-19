@@ -99,7 +99,7 @@ def expected_world_projection(compilation):
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "MiniFlag",
                                       "Locker", "Vending", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn",
-                                      "FinalCapture").index(row["kind"]),
+                                      "FinalCapture", "PKSpawn", "PKThrow", "PKSignup").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -425,8 +425,17 @@ def parameter_projection(parameters):
         ("SHOWDOWN.SecondRespawnSec", "ShowdownSecondRespawnMs"), ("SHOWDOWN.RespawnCutoffSec", "ShowdownRespawnCutoffMs"),
         ("SHOWDOWN.ClosureStartsSec", "ShowdownClosureStartsMs"),
         ("MATCH.FieldSegmentSec", "FieldSegmentMs"),
-        ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"),
+        ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.SignupSec", "RestSignupMs"),
+        ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
+        ("REST.PKMaxSec", "RestPKMaxMs"), ("REST.SettlementSec", "RestSettlementMs"), ("REST.PayoutSec", "RestPayoutMs"),
         ("REST.ReturnSec", "RestReturnMs"), ("REST.EntryReadyTimeoutSec", "RestEntryReadyTimeoutMs"),
+        ("PK.RingShrinkStartSec", "PKRingShrinkStartMs"), ("PK.RingMidSec", "PKRingMidMs"), ("PK.RingFinalSec", "PKRingFinalMs"),
+        ("PK.RingPreviewSec", "PKRingPreviewMs"), ("PK.RingDamageTickSec", "PKRingTickMs"),
+        ("PK.RingDamageEarlyMaxHPRatioPerSec", "PKRingEarlyDamageBp"), ("PK.RingDamageMidMaxHPRatioPerSec", "PKRingMidDamageBp"),
+        ("PK.RingDamageFinalMaxHPRatioPerSec", "PKRingFinalDamageBp"), ("PK.TeamFormatRatio", "PKTeamFormatBp"),
+        ("PK.RewardMultiplier", "PKRewardMultiplierBp"),
+        ("THROW.CooldownSec", "ThrowCooldownMs"), ("THROW.TelegraphSec", "ThrowTelegraphMs"),
+        ("THROW.SlowRatio", "ThrowSlowBp"), ("THROW.SlowSec", "ThrowSlowMs"), ("THROW.ExposeSec", "ThrowExposeMs"),
         ("SHOWDOWN.RingPreviewSec", "ShowdownRingPreviewMs"), ("SHOWDOWN.RingDamageTickSec", "ShowdownRingTickMs"),
         ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ShowdownRingEarlyDamageBp"),
         ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ShowdownRingLateDamageBp"),
@@ -478,6 +487,9 @@ def parameter_projection(parameters):
         ("COMBAT.FogRadiusCm", "FogRadiusCm"),
         ("COMBAT.ConductRadiusCm", "ConductRadiusCm"), ("COMBAT.OverloadRadiusCm", "OverloadRadiusCm"),
         ("REST.ReturnSearchRadiusCm", "RestReturnSearchRadiusCm"),
+        ("PK.ArenaRadiusCm", "PKArenaRadiusCm"), ("PK.RingMidRadiusCm", "PKRingMidRadiusCm"),
+        ("PK.RingFinalRadiusCm", "PKRingFinalRadiusCm"),
+        ("THROW.RadiusCm", "ThrowRadiusCm"), ("THROW.RangeCm", "ThrowRangeCm"),
         ("SHOWDOWN.RingRadiusCm", "ShowdownRingRadiusCm"), ("SHOWDOWN.RingFinalRadiusCm", "ShowdownRingFinalRadiusCm"),
     ):
         result[dest] = rational(parameters[source])
@@ -491,6 +503,8 @@ def parameter_projection(parameters):
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("SHOWDOWN.RespawnLimit", "ShowdownRespawnLimit"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
+        ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
+        ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("LIFE.SpawnChoiceCount", "SpawnChoiceCount"),
         ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"),
         ("CHAIN.MaxDepth", "ChainMaxDepth"), ("CHAIN.MaxEffectsPerStep", "ChainMaxEffectsPerStep"),
@@ -567,7 +581,7 @@ def parameter_projection(parameters):
     result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
     result["ChainEndMs"] = scalar(parameters["CHAIN.EndSec"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
-        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "VocabWeight", "SkipVouchers")}
+        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "VocabWeight", "SkipVouchers", "OfferEveryLevels")}
     result["Cards"]["IdleCarryMs"] = scalar(parameters["CARDS.IdleCarrySec"])
     result["Vouchers"] = {dest: parameters["VOUCHER." + dest] for dest in (
         "CampLow", "CampHigh", "CampElite", "CampAncient", "Boss", "Kill", "Assist", "Airdrop", "ActiveSkip",
@@ -753,6 +767,7 @@ def expected_projection(compilation):
         )},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("capture_id", "CaptureId"),
+            ("pk_spawn_ids", "PKSpawnIds"), ("pk_throw_id", "PKThrowId"),
         )},
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],

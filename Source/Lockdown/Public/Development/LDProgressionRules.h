@@ -67,6 +67,8 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FLDLearnedActive> Actives;
     // Chosen actives waiting to be learned (待学图纸), sorted by id; never a learned id.
     TArray<FName> PendingBlueprints;
+    // #198 session D: points paid by PK settlements (participation, winner share, betting pool). Unspent until allocated.
+    int64 AwardedPoints = 0;
     // Owned cards sorted by serial; NextCardSerial is the serial of the next card received (never reused in a match).
     TArray<FLDCardInstance> Cards;
     uint16 NextCardSerial = 1;
@@ -210,9 +212,10 @@ namespace LDProgression
         uint8 ActiveEarnedAfter = 0;
     };
 
-    // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest's
-    // build step; RestLocked in its return countdown, which closes only the NPC services (#222); Closed otherwise (results
-    // and every other phase).
+    // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest
+    // build window (the build/training windows and the payout); RestLocked in the other rest steps (draw, betting, PK,
+    // settlement, return countdown), which close only the NPC services (#222); Closed otherwise (results and every other
+    // phase).
     enum class EMatchStage : uint8 { Live, Rest, RestLocked, Closed };
 
     // The server's view of one contender when a build command commits.
@@ -255,7 +258,7 @@ namespace LDProgression
     // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
     // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
     LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
-    // Earned minus allocated; AuthorityFault when they exceed what was earned.
+    // Earned (with the PK awards) minus allocated; AuthorityFault when they exceed what was earned.
     LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
         int64& Out);
     // The level-1 build of a match start: no actives, blueprints, cards or allocated points.
@@ -504,6 +507,8 @@ namespace LDProgression
         ELDCardOfferSource OfferSource = ELDCardOfferSource::FieldReward;
     };
     // The number of cards an offer of Source shows: CARDS.OfferSize, or a P6 source's own size.
+    // Card offers queued by levelling from Before to After: one per level crossed that CARDS.OfferEveryLevels divides.
+    LOCKDOWN_API int32 LevelUpCardOffers(const FLDDemoCardParameters& Cards, int32 Before, int32 After);
     LOCKDOWN_API int32 CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source);
     // Kind's build part for Build, deterministic in Seed. BuildDraw: a fair roll between a uniform eligible active blueprint
     // and one card offer (the card offer when no active is eligible). Blueprint: one uniform eligible active, BlueprintHeld

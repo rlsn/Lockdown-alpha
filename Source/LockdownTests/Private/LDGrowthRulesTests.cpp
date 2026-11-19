@@ -1102,12 +1102,12 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     const FLDPrepareGrowthResult Six = Development->PrepareExperience(Human, 500);
     bGood &= Test.TestTrue(TEXT("By level 6 opportunity 3 (level 4) is queued"), Six.IsSuccess() && Six.Value->Build().Level == 6
         && Six.Value->Progression().ActiveEarned == 3 && Six.Value->Progression().QueuedActiveOpportunities() == 3);
-    // Levels 2..6 each receive their named card instead of a level-up offer.
+    // The card-offer levels 2, 4 and 6 each receive their named card instead of a level-up offer.
     const TArray<FName> FixedCards = {FName(TEXT("card_third_breath")), FName(TEXT("card_third_breath")),
-        FName(TEXT("card_hard_skin")), FName(TEXT("card_thick_hide")), FName(TEXT("card_third_breath"))};
+        FName(TEXT("card_hard_skin"))};
     const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 500, FixedCards);
     bGood &= Test.TestTrue(TEXT("The evaluation XP preparation replaces exactly the earned level-up offers without committing"),
-        Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && Fixed.Value->Build().Cards.Num() == 5
+        Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && Fixed.Value->Build().Cards.Num() == 3
         && Fixed.Value->Build().Cards[0].Id == FixedCards[0] && Fixed.Value->Build().Cards[2].Id == FixedCards[2]
         && Fixed.Value->CardOfferLast() < Fixed.Value->CardOfferFirst()
         && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
@@ -2216,7 +2216,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         TArray<FLDTimelineEvent> Events;
         FString TimelineError;
         if (!TestTrue(TEXT("The fixture timeline reaches field 1"), Mode->Timeline.Begin(Fast, 0, TimelineError)
-            && Mode->Timeline.Advance(1, true, true, Events, TimelineError) && Mode->Timeline.Advance(2, true, true, Events, TimelineError)
+            && Mode->Timeline.Advance(1, 0, true, true, Events, TimelineError) && Mode->Timeline.Advance(2, 0, true, true, Events, TimelineError)
             && Mode->Timeline.GetStage() == ELDMatchStage::Field))
         {
             AddError(TimelineError);
@@ -2581,11 +2581,11 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Create a timeline for the final field"),
         FLDTimelineParameters::FromContent(Tuning, TimelineParameters, Error)
         && Mode->Timeline.Begin(TimelineParameters, 0, Error)
-        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), true, true, TimelineEvents, Error)
-        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), true, true, TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
         && Mode->Timeline.DevSkipToFinalRest(Mode->Timeline.MakeView(Mode->MatchContext.Generation, 1).FieldStartedAtMs,
             TimelineEvents, Error)
-        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), true, true, TimelineEvents, Error)))
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)))
     { AddError(Error); return false; }
 
     const int64 BeforeFinalDeath = TotalXP();

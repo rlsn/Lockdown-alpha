@@ -236,6 +236,17 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `MATCH.FieldSegmentSec` | s/Sec | 160 | 三段定时野外各 160 s；野外进度 T 只在野外推进，休息暂停 T；R3 返场十秒后开放终局旗杆 |
 | `REST.OpeningBuildSec` | s/Sec | 45 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
 | `REST.BuildSec` | s/Sec | 40 | R1–R3 构筑/试招窗；所有真人准备后立即结束；AI 不阻塞 |
+| `REST.SignupSec` | s/Sec | 10 | R1、R2 配装的最后这么久兼作 PK 报名窗；全员准备提前结束时保留 |
+| `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 3 / 5 / 3 | PK 公布赛制与分队、押注、准备（锁输入）|
+| `REST.PKMaxSec` | s/Sec | 45 | PK 对打上限；提前分出胜负即结束 |
+| `REST.SettlementSec` / `REST.PayoutSec` | s/Sec | 3 / 3 | PK 结算与派奖（派奖时可再配装）；单次 PK 最多 62 s |
+| `PK.ArenaRadiusCm` / `PK.RingMidRadiusCm` / `PK.RingFinalRadiusCm` | cm | 1800 / 600 / 150 | PK 圈：开打后 `PK.RingShrinkStartSec` 起缩，`PK.RingMidSec` 到中圈，`PK.RingFinalSec` 到终圈 |
+| `PK.RingShrinkStartSec` / `PK.RingMidSec` / `PK.RingFinalSec` / `PK.RingPreviewSec` | s/Sec | 5 / 25 / 38 / 5 | 缩圈时间点与下一圈的预告提前量 |
+| `PK.RingDamageTickSec`；`PK.RingDamage{Early,Mid,Final}MaxHPRatioPerSec` | s；比例 | 0.25；0.05 / 0.12 / 0.25 | 圈外每秒损失开打时最大生命的比例，按三个阶段 |
+| `PK.TeamFormatRatio` | 比例 | 0.5 | 4 或 6 人时抽到两队对抗的概率 |
+| `PK.RewardMultiplier`；`PK.ParticipationPoints` / `PK.WinnerPointsMax` / `PK.BettingPoolMaxPoints` | 比例；点 | 1.5；1 / 3 / 2 | PK 三个属性点奖池的基数与倍率 |
+| `THROW.CooldownSec` / `THROW.TelegraphSec` / `THROW.RadiusCm` / `THROW.RangeCm` | s；cm | 10 / 0.8 / 120 / 4000 | 观众投掷：冷却、落点预警、命中半径、射程 |
+| `THROW.SlowRatio` / `THROW.SlowSec` / `THROW.ExposeSec` | 比例；s | 0.2 / 1 / 2 | 投掷命中：减速与暴露位置 |
 | `REST.ReturnSec` | s/Sec | 5 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；NPC 服务与商店关闭） |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
 | `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 返回野外是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
@@ -515,6 +526,7 @@ $$
 | `CARDS.CapacityBase`、`CARDS.LevelsPerSlot` | 6、3 | 容量 = 6 + ⌊(等级 − 1) / 3⌋：L1–L3 6 格，L4 7 格，L7 8 格，L10 9 格，L13 10 格，L16 11 格；所有位置共用，没有分列上限 |
 | `CARDS.IdleCarrySec` | 5 s | 攒个大的（Y22）与憋着一发狠的（K16）只在交战中累计闲置；开打前最多带入这么多秒 |
 | `CARDS.OfferSize` | 3 | 每组牌三选一的张数（不重复） |
+| `CARDS.OfferEveryLevels` | 2 | 升到能被它整除的等级时给一次牌三选一（2、4、…、16 级，共 8 组）；属性点仍每级给 |
 | `CARDS.VocabWeight` | 2 | 与已装牌或已学技能共享词汇的牌的抽取权重；其他牌为 1 |
 | `CARDS.FreeRerolls`、`CARDS.RerollsPerRest` | 3、1 | 开局重抽次数；R1–R3 每次休息再给的次数 |
 | `CARDS.SkipVouchers` | 3 | 跳过一组牌三选一得到的饭票 |

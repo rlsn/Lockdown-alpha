@@ -21802,6 +21802,7 @@
       "unit": "ms"
     },
     "CARDS.LevelsPerSlot": 3,
+    "CARDS.OfferEveryLevels": 2,
     "CARDS.OfferSize": 3,
     "CARDS.RerollsPerRest": 1,
     "CARDS.SkipVouchers": 3,
@@ -22555,6 +22556,64 @@
       "ms": 1500,
       "unit": "ms"
     },
+    "PK.ArenaRadiusCm": {
+      "denominator": 1,
+      "numerator": 1800,
+      "unit": "cm"
+    },
+    "PK.BettingPoolMaxPoints": 2,
+    "PK.ParticipationPoints": 1,
+    "PK.RewardMultiplier": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
+    "PK.RingDamageEarlyMaxHPRatioPerSec": {
+      "bp": 500,
+      "unit": "ratio"
+    },
+    "PK.RingDamageFinalMaxHPRatioPerSec": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "PK.RingDamageMidMaxHPRatioPerSec": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "PK.RingDamageTickSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "PK.RingFinalRadiusCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "PK.RingFinalSec": {
+      "ms": 38000,
+      "unit": "ms"
+    },
+    "PK.RingMidRadiusCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "PK.RingMidSec": {
+      "ms": 25000,
+      "unit": "ms"
+    },
+    "PK.RingPreviewSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "PK.RingShrinkStartSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "PK.TeamFormatRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "PK.WinnerPointsMax": 3,
     "REGEN.OutOfCombatDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -22563,8 +22622,16 @@
       "bp": 150,
       "unit": "ratio"
     },
+    "REST.BettingSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
     "REST.BuildSec": {
       "ms": 40000,
+      "unit": "ms"
+    },
+    "REST.DrawSec": {
+      "ms": 3000,
       "unit": "ms"
     },
     "REST.EntryReadyTimeoutSec": {
@@ -22575,6 +22642,18 @@
       "ms": 45000,
       "unit": "ms"
     },
+    "REST.PKMaxSec": {
+      "ms": 45000,
+      "unit": "ms"
+    },
+    "REST.PKReadySec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "REST.PayoutSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
     "REST.ReturnSearchRadiusCm": {
       "denominator": 1,
       "numerator": 300,
@@ -22582,6 +22661,14 @@
     },
     "REST.ReturnSec": {
       "ms": 5000,
+      "unit": "ms"
+    },
+    "REST.SettlementSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "REST.SignupSec": {
+      "ms": 10000,
       "unit": "ms"
     },
     "REWARD.AssistWindowSec": {
@@ -22848,6 +22935,36 @@
       "numerator": 173,
       "unit": "cm/s"
     },
+    "THROW.CooldownSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "THROW.ExposeSec": {
+      "ms": 2000,
+      "unit": "ms"
+    },
+    "THROW.RadiusCm": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "cm"
+    },
+    "THROW.RangeCm": {
+      "denominator": 1,
+      "numerator": 4000,
+      "unit": "cm"
+    },
+    "THROW.SlowRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "THROW.SlowSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "THROW.TelegraphSec": {
+      "ms": 800,
+      "unit": "ms"
+    },
     "UNIT.BasicAttackRangeCm": {
       "denominator": 1,
       "numerator": 220,
@@ -23075,6 +23192,15 @@
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
+    "pk_spawn_ids": [
+      "pk_spawn_0",
+      "pk_spawn_1",
+      "pk_spawn_2",
+      "pk_spawn_3",
+      "pk_spawn_4",
+      "pk_spawn_5"
+    ],
+    "pk_throw_id": "pk_throw",
     "spawn_ids": [
       "s00",
       "s01",

@@ -70,7 +70,8 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         // P6 spec §11.3: lockers are hidden until seen and vending machines are no AI errand.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Locker || Anchor.Kind == ELDDemoWorldAnchorKind::Vending) { continue; }
         // Rest-only places are supplied separately and never considered by field decisions.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
             || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy
             || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture) { continue; }
         FLDOpponentPOI POI;

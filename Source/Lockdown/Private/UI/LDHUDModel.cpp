@@ -12,6 +12,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDCombatElements.h"
+#include "PK/LDPKRules.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
 
@@ -381,6 +382,12 @@ FString LDHUD::RestStepText(ELDRestStep Step)
     switch(Step)
     {
     case ELDRestStep::Build: return LDTerms::RestBuild;
+    case ELDRestStep::Draw: return LDTerms::RestDraw;
+    case ELDRestStep::Betting: return LDTerms::RestBetting;
+    case ELDRestStep::PKReady: return LDTerms::RestPKReady;
+    case ELDRestStep::PK: return LDTerms::RestPK;
+    case ELDRestStep::Settlement: return LDTerms::RestSettlement;
+    case ELDRestStep::Payout: return LDTerms::RestPayout;
     case ELDRestStep::Return: return LDTerms::RestReturn;
     default: return FString();
     }
@@ -418,13 +425,37 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     }
     View.Headline=LDTerms::RestLabel(Timeline.RestIndex)+TEXT(" · ")+RestStepText(Timeline.Step)+TEXT(" · ")
         +(!bClock?FString(TEXT("时间同步中"))
-        :FString::Printf(TEXT("剩 %lld 秒"),Seconds(Timeline.StepEndsAtMs-NowMs)));
+        :FString::Printf(TEXT("%s %lld 秒"),Timeline.Step==ELDRestStep::PK?TEXT("最长剩"):TEXT("剩"),Seconds(Timeline.StepEndsAtMs-NowMs)));
     if(Timeline.RestIndex==FLDTimelineParameters::TimedSegments)
     {
         View.Headline=FString(TEXT("最终休息 · "))+RestStepText(Timeline.Step)+TEXT(" · ")
             +(bClock?Clock(Timeline.StepEndsAtMs-NowMs):FString(TEXT("时间同步中")));
         return View;
     }
+    TArray<FString> Detail;
+    if(Timeline.Step==ELDRestStep::Build)
+    {
+        View.bSignupStep=true;
+        View.bSignedUp=Self.IsValid()&&Timeline.Signups.Contains(Self);
+        if(!bClock){Detail.Add(TEXT("PK 报名时间同步中"));}
+        else if(NowMs<Timeline.SignupOpensAtMs)
+        {
+            Detail.Add(LDTerms::SignupOpensIn(Seconds(Timeline.SignupOpensAtMs-NowMs)));
+        }
+        else if(NowMs<=Timeline.StepEndsAtMs){View.bSignupOpen=true;Detail.Add(LDTerms::SignupOpenFor(Seconds(Timeline.StepEndsAtMs-NowMs)));}
+        else{Detail.Add(TEXT("PK 报名已截止"));}
+        if(View.bSignupOpen||!Timeline.Signups.IsEmpty())
+        {
+            Detail.Add(LDTerms::SignedUpCount(Timeline.Signups.Num()));
+            Detail.Add(View.bSignedUp?FString(LDTerms::SignedUpSelf):FString(LDTerms::NotSignedUpSelf));
+        }
+    }
+    else
+    {
+        // #222: builds stay open through the PK steps, so no 配装已锁定 line; only the NPC services wait for the payout.
+        Detail.Add(Timeline.bPKSkipped?FString(LDTerms::PKSkipped):LDTerms::PKEntrants(Timeline.LockedEntrants));
+    }
+    View.Detail=FString::Join(Detail,TEXT(" · "));
     return View;
 }
 bool LDHUD::TimelineDetailVisible(const FLDPublicMatchView& Public,const FTimelineView& Timeline,bool bChoicesRestOpen)
@@ -458,6 +489,226 @@ FString LDHUD::TrainingResetText(ELDTrainingResetResult Result)
     case ELDTrainingResetResult::NoDummy: return FString(TEXT("没有"))+LDTerms::TrainingDummy+TEXT("（休息位被占）");
     default: return FString::Printf(TEXT("重置训练结果未知 #%d"),int32(Result));
     }
+}
+FString LDHUD::PKFormatText(ELDPKFormat Format,uint8 SideCount,int32 Entrants)
+{
+    switch(Format)
+    {
+    case ELDPKFormat::Duel: return LDTerms::PKDuel;
+    case ELDPKFormat::FreeForAll: return LDTerms::PKFreeForAll;
+    case ELDPKFormat::Teams:
+        return SideCount>=2&&Entrants>=int32(SideCount)&&Entrants%int32(SideCount)==0?LDTerms::PKTeams(Entrants/int32(SideCount)):FString();
+    default: return FString();
+    }
+}
+FString LDHUD::PKRelationText(const FLDPublicMatchView& Public,const FGuid& Self,const FGuid& Target)
+{
+    if(!Self.IsValid()||!Target.IsValid()||!HasPK(Public)||Public.PK.Format!=ELDPKFormat::Teams){return FString();}
+    const FLDPKEntrantView* TargetEntry=Public.PK.FindEntrant(Target);
+    if(!TargetEntry||TargetEntry->Side==0||TargetEntry->Side>Public.PK.SideCount){return FString();}
+    const FLDPKEntrantView* SelfEntry=Public.PK.FindEntrant(Self);
+    if(!SelfEntry||IsSpectatingPK(Public,Self)){return LDTerms::PKSide(TargetEntry->Side);}
+    if(Self==Target){return FString(LDTerms::PKOwnSide);}
+    return SelfEntry->Side==TargetEntry->Side?FString(LDTerms::PKTeammate):FString(LDTerms::PKEnemy);
+}
+bool LDHUD::HasPK(const FLDPublicMatchView& Public)
+{
+    return Public.Generation!=0&&Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Generation==Public.Generation
+        &&Public.Timeline.Stage==ELDMatchStage::Rest&&Public.PK.Serial!=0&&Public.PK.Generation==Public.Generation;
+}
+bool LDHUD::IsSpectatingPK(const FLDPublicMatchView& Public,const FGuid& Self)
+{
+    const ELDRestStep Step=Public.Timeline.Step;
+    if(!Self.IsValid()||!HasPK(Public)||(Step!=ELDRestStep::PKReady&&Step!=ELDRestStep::PK)||Public.PK.Outcome==ELDPKOutcome::NoContest){return false;}
+    // Like ALDPKDirector::CanSpectate: everyone but a living entrant watches the arena.
+    const FLDPKEntrantView* Own=Public.PK.FindEntrant(Self);
+    return !Own||!Own->bAlive;
+}
+FString LDHUD::PKSideNames(const FLDPKView& PK,uint8 Side,const FLDLobbyView& Lobby)
+{
+    TArray<FString> Names;
+    for(const FLDPKEntrantView& Entrant:PK.Entrants)
+    {
+        if(Entrant.Side!=Side){continue;}
+        const FString Name=RosterName(Lobby,Entrant.Contender);
+        Names.Add(Name.IsEmpty()?FString(LDTerms::PKUnlisted):Name);
+    }
+    return FString::Join(Names,TEXT("、"));
+}
+FString LDHUD::PKBetText(ELDPKBetResult Result)
+{
+    switch(Result)
+    {
+    case ELDPKBetResult::Placed: return TEXT("已押注（押注结束前可以改）");
+    case ELDPKBetResult::NotSpectator: return TEXT("你不是本场观众，不能押注");
+    case ELDPKBetResult::WindowClosed: return TEXT("现在不是押注时间，本次没有改动");
+    case ELDPKBetResult::UnknownSide: return TEXT("没有这一方，本次没有押注");
+    case ELDPKBetResult::StaleMatch: return TEXT("已不是当前对局或这场 PK，没有押注");
+    case ELDPKBetResult::NotContender: return TEXT("不是本局参赛者，不能押注");
+    case ELDPKBetResult::NoPK: return TEXT("本次休息没有 PK，不能押注");
+    default: return FString::Printf(TEXT("押注结果未知 #%d"),int32(Result));
+    }
+}
+FString LDHUD::PKThrowText(ELDPKThrowResult Result)
+{
+    switch(Result)
+    {
+    case ELDPKThrowResult::Thrown: return TEXT("已投掷：落点已标出，稍后落地");
+    case ELDPKThrowResult::NotSpectator: return TEXT("你不是本场观众，不能投掷");
+    case ELDPKThrowResult::NotRunning: return TEXT("PK 没在进行，不能投掷");
+    case ELDPKThrowResult::CoolingDown: return TEXT("投掷还在冷却，这次没扔出去");
+    case ELDPKThrowResult::OutsideArena: return TEXT("落点要在竞技场里，这次没扔出去");
+    case ELDPKThrowResult::OutOfRange: return TEXT("落点超出投掷距离，这次没扔出去");
+    case ELDPKThrowResult::NotGround: return TEXT("落点不是能落地的地面，这次没扔出去");
+    case ELDPKThrowResult::StaleMatch: return TEXT("已不是当前对局或这场 PK，没有投掷");
+    case ELDPKThrowResult::NotContender: return TEXT("不是本局参赛者，不能投掷");
+    case ELDPKThrowResult::NoPK: return TEXT("本次休息没有 PK，不能投掷");
+    default: return FString::Printf(TEXT("投掷结果未知 #%d"),int32(Result));
+    }
+}
+FString LDHUD::PKThrowCooldown(int64 ReadyAtMs,bool bClock,int64 NowMs)
+{
+    if(ReadyAtMs<=0){return FString();}
+    if(!bClock){return LDTerms::PKThrowCoolingSync;}
+    return ReadyAtMs>NowMs?LDTerms::PKThrowCooling(CooldownText(ReadyAtMs-NowMs)):FString();
+}
+FString LDHUD::PKResultText(const FLDPKView& PK,const FLDLobbyView& Lobby)
+{
+    switch(PK.Outcome)
+    {
+    case ELDPKOutcome::Won:
+    {
+        const FString Names=PKSideNames(PK,PK.WinnerSide,Lobby);
+        return LDTerms::PKWinners(Names.IsEmpty()?LDTerms::PKSide(PK.WinnerSide):Names);
+    }
+    case ELDPKOutcome::Draw: return LDTerms::PKDraw;
+    case ELDPKOutcome::NoContest: return LDTerms::PKNoContest;
+    default: return FString();
+    }
+}
+TArray<LDHUD::FPKAwardRow> LDHUD::PKAwardRows(const FLDPKView& PK,const FLDLobbyView& Lobby,const FGuid& Self)
+{
+    TArray<FPKAwardRow> Rows;
+    for(const FLDPKAwardView& Award:PK.Awards)
+    {
+        const int64 Total=int64(Award.Participation)+int64(Award.Winner)+int64(Award.Bet);
+        if(Total<=0){continue;}
+        TArray<FString> Parts;
+        if(Award.Participation>0){Parts.Add(FString::Printf(TEXT("%s +%d"),LDTerms::PKAwardParticipation,int32(Award.Participation)));}
+        if(Award.Winner>0){Parts.Add(FString::Printf(TEXT("%s +%d"),LDTerms::PKAwardWinner,int32(Award.Winner)));}
+        if(Award.Bet>0){Parts.Add(FString::Printf(TEXT("%s +%d"),LDTerms::PKAwardBet,int32(Award.Bet)));}
+        Parts.Add(LDTerms::PKAwardTotal(Total));
+        FPKAwardRow& Row=Rows.AddDefaulted_GetRef();
+        const FString Name=RosterName(Lobby,Award.Contender);
+        Row.Name=Name.IsEmpty()?FString(LDTerms::PKUnlisted):Name;
+        Row.Points=FString::Join(Parts,TEXT(" · "));
+        Row.Total=Total;
+        Row.bSelf=Self.IsValid()&&Award.Contender==Self;
+    }
+    return Rows;
+}
+int64 LDHUD::PKRingElapsedMs(const FLDPKView& PK,bool bClock,int64 NowMs)
+{
+    return bClock&&PK.FightStartedAtMs>0&&NowMs>PK.FightStartedAtMs?NowMs-PK.FightStartedAtMs:0;
+}
+LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,const FPKPanelInput& In)
+{
+    FPKPanelView View;
+    const FLDPKView& PK=Public.PK;
+    const ELDRestStep Step=Public.Timeline.Step;
+    if(!HasPK(Public)||Step<ELDRestStep::Draw||Step>ELDRestStep::Payout){return View;}
+    View.bVisible=true;
+    const int32 Entrants=PK.Entrants.Num();
+    const FString Format=PKFormatText(PK.Format,PK.SideCount,Entrants);
+    View.Title=LDTerms::PKTitle(PK.Serial,Format.IsEmpty()?FString(LDTerms::PKFormatPending):Format,Entrants);
+    const bool bDecided=PK.Outcome==ELDPKOutcome::Won||PK.Outcome==ELDPKOutcome::Draw||PK.Outcome==ELDPKOutcome::NoContest;
+    const bool bRunning=PK.Outcome==ELDPKOutcome::Running;
+    // Whole seconds rounded up, like the timeline banner.
+    const auto Seconds=[](int64 Ms){return Ms>0?(Ms+999)/1000:int64(0);};
+    if(Step==ELDRestStep::PKReady||(Step==ELDRestStep::PK&&!bDecided))
+    {
+        if(!In.bClock){View.Countdown=LDTerms::PKClockSync;}
+        // The authority starts the fight; a local clock that reaches the end first holds 1.
+        else if(Step==ELDRestStep::PKReady){View.Countdown=LDTerms::PKStartsIn(FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-In.NowMs)));}
+        else{View.Countdown=LDTerms::PKTimeLeft(Seconds(Public.Timeline.StepEndsAtMs-In.NowMs));}
+    }
+    if(Step==ELDRestStep::PK&&bRunning&&In.Params&&In.bClock&&PK.FightStartedAtMs>0)
+    {
+        const FLDPKParameters& Params=*In.Params;
+        const int64 Elapsed=PKRingElapsedMs(PK,In.bClock,In.NowMs);
+        const auto Meters=[](double Cm){return FString::Printf(TEXT("%.1f"),Cm/100.);};
+        View.Ring=LDTerms::PKRingNow(Meters(LDPKRules::RingRadiusCm(Params,Elapsed)));
+        double NextCm=0;int64 NextAtMs=0;
+        if(LDPKRules::RingPreview(Params,Elapsed,NextCm,NextAtMs))
+        {
+            View.Ring+=TEXT(" · ")+(Elapsed<Params.ShrinkStartMs?LDTerms::PKRingSoon(Meters(NextCm),Seconds(Params.ShrinkStartMs-Elapsed))
+                :LDTerms::PKRingShrinking(Meters(NextCm)));
+        }
+    }
+    const bool bFought=PK.FightStartedAtMs>0;
+    const FLDPKEntrantView* Own=In.Self.IsValid()?PK.FindEntrant(In.Self):nullptr;
+    const FLDPKBetView* OwnBet=In.Self.IsValid()?PK.Bets.FindByPredicate([&In](const FLDPKBetView& Bet){return Bet.Spectator==In.Self;}):nullptr;
+    View.OwnBet=OwnBet?OwnBet->Side:0;
+    for(int32 Side=1;Side<=int32(PK.SideCount);++Side)
+    {
+        FPKSideView& Row=View.Sides.AddDefaulted_GetRef();
+        Row.Side=uint8(Side);
+        TArray<FString> Members;
+        bool bAny=false,bAnyIn=false;
+        for(const FLDPKEntrantView& Entrant:PK.Entrants)
+        {
+            if(Entrant.Side!=Side){continue;}
+            bAny=true;
+            const FString Listed=RosterName(Lobby,Entrant.Contender);
+            FString Name=Listed.IsEmpty()?FString(LDTerms::PKUnlisted):Listed;
+            if(Entrant.bForfeited){Name+=FString(TEXT("（"))+LDTerms::PKForfeit+TEXT("）");}
+            else if(bFought&&!Entrant.bAlive){Name+=FString(TEXT("（"))+LDTerms::PKOut+TEXT("）");}
+            else{bAnyIn=true;}
+            Members.Add(Name);
+            if(Own&&Entrant.Contender==In.Self){Row.bOwnSide=true;}
+        }
+        int32 Bets=0;
+        for(const FLDPKBetView& Bet:PK.Bets){if(Bet.Side==Side){++Bets;}}
+        const FString Names=PKSideNames(PK,uint8(Side),Lobby);
+        Row.BetAction=LDTerms::PKBetOn(Names.IsEmpty()?LDTerms::PKSide(Side):Names);
+        Row.bOwnBet=View.OwnBet==Side;
+        Row.bWinner=PK.Outcome==ELDPKOutcome::Won&&PK.WinnerSide==Side;
+        Row.bOut=bAny&&!bAnyIn;
+        FString Line=FString::Join(Members,TEXT("、"));
+        if(PK.Format==ELDPKFormat::Teams){Line=LDTerms::PKSide(Side)+TEXT("：")+Line;}
+        if(Bets>0){Line+=TEXT(" · ")+LDTerms::PKBetCount(Bets);}
+        if(Row.bOwnSide){Line+=TEXT(" · ")+FString(LDTerms::PKOwnSide);}
+        if(Row.bOwnBet){Line+=TEXT(" · ")+FString(LDTerms::PKOwnBet);}
+        Row.Line=Line;
+    }
+    const bool bBettor=!Own&&In.Self.IsValid()&&PK.IsBettor(In.Self);
+    View.bSpectating=IsSpectatingPK(Public,In.Self);
+    if(Own)
+    {
+        const bool bOut=Own->bForfeited||(bFought&&!Own->bAlive);
+        if(Step<=ELDRestStep::Betting){View.Role=LDTerms::PKRoleEntrant;}
+        else if(Step<=ELDRestStep::PK&&!bDecided){View.Role=bOut?LDTerms::PKRoleOut:LDTerms::PKRoleFighter;}
+    }
+    else if(bBettor&&Step==ELDRestStep::Betting){View.Role=LDTerms::PKRoleBet;}
+    else if(bBettor&&Step==ELDRestStep::PK&&bRunning){View.Role=LDTerms::PKRoleThrow;}
+    else if(Step==ELDRestStep::PKReady||(Step==ELDRestStep::PK&&!bDecided)){View.Role=LDTerms::PKRoleWatch;}
+    View.bCanBet=bBettor&&Step==ELDRestStep::Betting;
+    View.bCanThrow=bBettor&&Step==ELDRestStep::PK&&bRunning;
+    if(View.bCanThrow)
+    {
+        const FString Cooling=PKThrowCooldown(In.ThrowReadyAtMs,In.bClock,In.NowMs);
+        View.bThrowReady=Cooling.IsEmpty()&&!In.bThrowInFlight;
+        View.ThrowAction=In.bThrowInFlight?FString(LDTerms::PKThrowSending):!Cooling.IsEmpty()?Cooling
+            :In.bThrowArmed?FString(LDTerms::PKThrowAim):FString(LDTerms::PKThrow);
+    }
+    if((Step==ELDRestStep::Settlement||Step==ELDRestStep::Payout)&&bDecided)
+    {
+        View.bResult=true;
+        View.Result=PKResultText(PK,Lobby);
+        View.bOwnWin=Own&&PK.Outcome==ELDPKOutcome::Won&&Own->Side==PK.WinnerSide;
+        View.Awards=PKAwardRows(PK,Lobby,In.Self);
+    }
+    return View;
 }
 LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
     int64 SprayMs,int64 GuardMs)
@@ -2251,7 +2502,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
     case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("休息时才能替换或遗忘技能");
-    case ELDGrowthReason::BuildLocked: return TEXT("返场倒计时期间不能逛商店或找训练师");
+    case ELDGrowthReason::BuildLocked: return TEXT("PK 与返回倒计时期间不能逛商店或找训练师");
     case ELDGrowthReason::OfferOutstanding: return TEXT("还有没选的技能，先选完");
     case ELDGrowthReason::NothingToRespec: return TEXT("还没加过点，不用洗");
     case ELDGrowthReason::SlotEmpty: return TEXT("这个技能槽是空的");
@@ -2521,7 +2772,7 @@ void LDHUD::FChoicesFold::Closed()
 }
 bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
 {
-    // #222: a panel the player opened (or engaged with) stays until the player closes it, in combat too.
+    // #222: a panel the player opened (or engaged with) stays until the player closes it, in combat and in a PK too.
     if(!bOpen||!bAutomatic){return false;}
     // Engaging with the automatic opening makes it the player's own.
     if(bEngaged){bAutomatic=false;return false;}

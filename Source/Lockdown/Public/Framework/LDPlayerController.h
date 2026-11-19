@@ -8,6 +8,7 @@
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
 #include "Framework/LDPacingTypes.h"
+#include "PK/LDPKTypes.h"
 #include "Templates/PimplPtr.h"
 class FLDDemoContentSnapshot;
 struct FLDDemoOverdriveParameters;
@@ -79,6 +80,11 @@ public:
     UFUNCTION(Client,Reliable) void ClientDamageSummary(const FLDDamageSummaryView& Summary);
     FLDDeathRecapView DeathRecap;
     FLDDamageSummaryView DamageSummary;
+    // Owner-only build statistics and the last training combo (Combat/LDDamageRecap.h); an older match's view is dropped.
+    UFUNCTION(Client,Reliable) void ClientBuildStats(const FLDBuildStatsView& Stats);
+    UFUNCTION(Client,Reliable) void ClientTrainingCombo(const FLDTrainingComboView& Combo);
+    FLDBuildStatsView BuildStats;
+    FLDTrainingComboView TrainingCombo;
     // Owner-only reaction assist prompts (Combat/LDDamageRecap.h), newest last, each stamped with a client-local Serial;
     // the HUD tells each once (a toast and an event feed line). A malformed prompt is dropped.
     UFUNCTION(Client,Reliable) void ClientReactionAssist(const FLDReactionAssistView& View);
@@ -103,7 +109,7 @@ public:
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
     UFUNCTION(Client,Reliable) void ClientBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     // ---- end Growth ----
-    // ---- #198 rest training and ready (Framework/LDPlayerRest.cpp) ----
+    // ---- #198 rest training (Framework/LDPlayerRest.cpp); the PK sign-up is standing in the own sign-up disk ----
     // Resets the own training in the rest space (owner and dummy refilled, cooldowns ready); OnTrainingReset answers.
     void SubmitTrainingReset();
     void SubmitRestReady(bool bReady);
@@ -129,6 +135,20 @@ public:
     FLDOnVending OnVending;
     UFUNCTION(Server,Reliable) void ServerVending(uint32 Generation, uint32 Life, ELDVendingItem Item, uint8 Element);
     UFUNCTION(Client,Reliable) void ClientVending(ELDVendingResult Result);
+    // ---- #198 PK spectators (PK/LDPlayerPK.cpp): an eligible spectator bets on one side of the current PK (Side
+    // 1..SideCount, changeable until the betting step ends) and throws at a ground point of the arena while the PK runs.
+    // Results arrive as OnPKBet / OnPKThrow (a Listen Host inside the call); the authority decides in ALDPKDirector.
+    void SubmitPKBet(uint8 Side);
+    void SubmitPKThrow(const FVector& TargetCm);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnPKBet, ELDPKBetResult);
+    FLDOnPKBet OnPKBet;
+    // ReadyAtMs: authority ms from which this spectator may throw again (on Thrown and CoolingDown; 0 otherwise).
+    DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnPKThrow, ELDPKThrowResult, int64);
+    FLDOnPKThrow OnPKThrow;
+    UFUNCTION(Server,Reliable) void ServerPKBet(uint32 Generation,uint32 Serial,uint8 Side);
+    UFUNCTION(Client,Reliable) void ClientPKBet(ELDPKBetResult Result);
+    UFUNCTION(Server,Reliable) void ServerPKThrow(uint32 Generation,uint32 Serial,FVector_NetQuantize TargetCm);
+    UFUNCTION(Client,Reliable) void ClientPKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
     // ---- end rest ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.
@@ -176,6 +196,10 @@ public:
     // A resolved press aim uses the same confirmation path without requiring a mouse viewport (owning input probes).
     void ActivateCombatEntry(ELDCombatEntry Entry, const FLDCombatTarget* PressAim=nullptr, const FVector* AimCm=nullptr);
     bool ReadArmedCombatEntry(ELDCombatEntry& Out) const;
+    // The armed skill last cancelled without a cast (a right click, S, Back, a menu, a new life) and how many were: the
+    // HUD flashes that slot once per cancel.
+    uint32 GetArmedCancelSerial() const { return ArmedCancelSerial; }
+    ELDCombatEntry GetArmedCancelEntry() const { return ArmedCancelEntry; }
     // #97 local slot order (dragging a HUD slot onto another swaps them): SkillAtKey[i] is the combat entry the i-th skill
     // key (Skill1, Skill2, SkillE) and HUD skill slot fire and show. Local presentation and key routing only, like a key
     // binding: the server still sees entries Q/W/E. Each match starts in the default order.
@@ -308,6 +332,8 @@ private:
     // The next Direct request of this life with the current source revision; false (and a notice) when exhausted.
     bool NextCombatRequest(ELDCombatEntry Entry, const FLDCombatTarget& Target, FLDCombatActionRequest& Out);
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;
+    ELDCombatEntry ArmedCancelEntry=ELDCombatEntry::None;
+    uint32 ArmedCancelSerial=0;
     bool bAttackMoveArmed=false;
     // Overdrive hold (CONTENT_AND_BALANCE §3.5): a Q/W/E pressed with a full bar waits for its release (a normal cast) or
     // OVERDRIVE.HoldSec (an overdrive request); the charge intent tells the server while the key is held. bOverdriveArmed

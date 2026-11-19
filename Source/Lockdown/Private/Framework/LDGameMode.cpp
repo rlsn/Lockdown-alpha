@@ -220,9 +220,12 @@ void ALDGameMode::Logout(AController* Exiting)
         Left.Change=ELDLifeChange::Left;
         Left.OccurredAtMs=AuthorityNowMs;
         RemoveLifeBinding(Session);
-        // #198: a leaver is out of every pending rest placement.
+        // #198: a leaver is out of the rest sign-up and of every pending rest placement (locked PK entrants stay for D).
+        RestSignups.Remove(Session);
         PendingPhasePlacement.Remove(Session);
         RestLives.Remove(Session);
+        // #198 session D: a PK entrant that leaves forfeits (ALDPKDirector reads presence at its next judgement).
+        PKLives.Remove(Session);
         RestReturns.Remove(Session);
         RetireTrainingDummy(Session);
         Record->State.bActive=false;

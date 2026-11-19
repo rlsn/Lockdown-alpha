@@ -40,7 +40,7 @@ Demo 没有装备与金钱；成长由经验、等级、派生的五维点数、
 技能牌所在的主动被遗忘或替换时，它们在同一次提交里先回到牌库（见下表 `ReplaceActive`/`ForgetActive`）。
 已装的牌按序号进入 `FLDBuildProjectionInput::Cards`，牌库里的不进 Combat。死亡、复活与重连不改牌。
 
-- **牌三选一队列**：开局（`BeginMatch`）入队一次（`ELDCardOfferSource::Opening`），每次升级（2..MaxLevel）入队一次（`LevelUp`），
+- **牌三选一队列**：开局（`BeginMatch`）入队一次（`ELDCardOfferSource::Opening`），升到能被 `CARDS.OfferEveryLevels` 整除的等级时入队一次（`LevelUp`，`LDProgression::LevelUpCardOffers`），
   空投/Boss 的牌奖励与精英营地标记各入队一次（`FieldReward`）。队首在开局机会处理（选定或放弃）之后才抽出（`RefreshCardOffer`），
   一次只有一组；抽取 `DrawCardOffer`：`CARDS.OfferSize` 张互异的牌，按权重无放回抽取——与本构筑词汇
   （已装的牌与已学技能，`BuildVocab`）共享至少一个键的为 `CARDS.VocabWeight`，否则为 1；种子由本局私有 `MatchSecret`、参赛者、序号与重抽次数派生
@@ -117,7 +117,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许 | `Dead` | `Dead` |
 | `Live`（野外段与最终野外），活着（交战中也一样） | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `Live`，死亡 | 允许，不复活、不治疗、不改复活时间 | `NotRestWindow` | `ReplacementNotAllowed` |
-| `RestLocked`（返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
+| `RestLocked`（PK 的抽签、押注、准备、对打、结算与返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
 | `Closed`（结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
 
 生命阶段不是 Alive/Dead（Unspawned、Left）时每种命令都为 `LifePhaseChanged`。没有构筑安全窗：`NotSafe`（52）与 `RestOnly`（63）已退役，

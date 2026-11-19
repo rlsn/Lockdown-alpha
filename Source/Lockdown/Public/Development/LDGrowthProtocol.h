@@ -128,8 +128,8 @@ enum class ELDGrowthReason : uint16
     NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, InvalidTarget = 64,
     // WorkshopFull: every capacity slot of the level holds an installed card. 150 (TargetConflict) is retired.
     WorkshopFull = 151,
-    // #198 rest: an NPC service in a rest step outside the build window (the return countdown); #222 keeps the own build
-    // commands open there.
+    // #198 rest: an NPC service in a rest step outside the build and payout windows (draw, betting, PK, settlement, return
+    // countdown); #222 keeps the own build commands open there.
     BuildLocked = 70,
     // 71 (NpcPoolTooSmall, the retired skill merchant) is reserved.
     // An active offer is outstanding.
@@ -144,6 +144,8 @@ enum class ELDGrowthReason : uint16
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,
     NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114,
+    // #198 session D (allocated 140-149): a PK arena death pays no kill/assist reward; a PK award identity paid twice.
+    NoRewardPKArena = 140, PKAwardDuplicate = 141,
     // FieldRewardDuplicate: a map event paid twice.
     FieldRewardDuplicate = 167,
     // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field

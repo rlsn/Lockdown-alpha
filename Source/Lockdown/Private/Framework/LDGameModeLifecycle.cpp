@@ -368,9 +368,10 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
         || Support.Grounded!=Batch->FinalSupport.Grounded || Support.Floor!=Batch->FinalSupport.Floor)
     { return ELDCommitReject::GeometryUnavailable; }
     // Capture reads every accepted contender batch synchronously; the driver releases it next step. A rest life (#198
-    // shared rest space) has no spray eligibility.
+    // shared rest space) and a PK life (#198 D: the PK runs no flagpole and its lives never join the spray roster) have
+    // no spray eligibility.
     if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive() && !RestLives.Contains(Body.Victim.EntityId)
-        && !TrainingDummyIds.Contains(Body.Victim.EntityId))
+        && !PKLives.Contains(Body.Victim.EntityId) && !TrainingDummyIds.Contains(Body.Victim.EntityId))
     {
         const auto Captured=PublishCaptureMotion(Permit,*Batch);
         if (Captured!=ELDCommitReject::None) { return Captured; }

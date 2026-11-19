@@ -8,11 +8,11 @@
 
 namespace LDCombatBlueprintLedgerDetail
 {
-// §16.3: a rest life and its own training dummy share their owner's isolation group; training results
+// §16.3: a rest life and its own training dummy share their owner's isolation group without a PK side; training results
 // are owner-only rehearsal, never match facts of the build.
 bool IsTraining(const FLDBodyCombatState& Body)
 {
-    return Body.IsolationGroup.IsValid();
+    return Body.IsolationGroup.IsValid() && Body.PKSide==0;
 }
 
 // The refusals a player reads as "this build could not do that now"; protocol, staleness and phase refusals are not facts.
@@ -130,6 +130,7 @@ void ALDCombatDirector::LedgerCardTriggered(const FLDBodyCombatState& Holder, FN
     {
         return;
     }
+    ++CardTriggerCounts.FindOrAdd(Holder.Victim.EntityId).FindOrAdd(Card);
     const int32 Version=LedgerVersion(Holder.Victim.EntityId);
     if (Version!=INDEX_NONE) { BuildLedger.Add(Holder.Victim.EntityId,Version,ELDBlueprintFact::Triggers,1); }
 }
@@ -147,6 +148,17 @@ void ALDCombatDirector::LedgerActionRefused(const FGuid& Entity, ELDCombatReject
 // another body, shield-absorbed part included, never private training.
 void ALDCombatDirector::RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage, int64 NowMs)
 {
+    // A contender's hit on a training dummy feeds only its own training combo.
+    if (Damage.DamageP2>0 && Victim.bTrainingDummy && Hit.CreditOwner.IsValid())
+    {
+        const FLDCombatEntityRecord* Trainee=FindRecord(Hit.CreditOwner);
+        if (Trainee && Trainee->Kind==ELDVictimKind::Contender)
+        {
+            FTrainingCombo& Combo=TrainingCombos.FindOrAdd(Hit.CreditOwner);
+            LDDamageRecap::AddTotal(Combo.Lines,Hit.Source,Damage.DamageP2);
+            Combo.LastAtMs=NowMs;
+        }
+    }
     if (Damage.DamageP2<=0 || Hit.SourceEntity==Victim.Victim.EntityId || LDCombatBlueprintLedgerDetail::IsTraining(Victim)) { return; }
     const FLDCombatEntityRecord* Credited=Hit.CreditOwner.IsValid() && Hit.CreditOwner!=Victim.Victim.EntityId ? FindRecord(Hit.CreditOwner) : nullptr;
     const bool bContenderOwner=Credited && Credited->Kind==ELDVictimKind::Contender;
@@ -174,6 +186,35 @@ void ALDCombatDirector::RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombat
         if (const FLDCombatEntityRecord* Monster=FindRecord(Hit.SourceBody.Victim.EntityId)) { Line.MonsterId=Monster->MonsterAtLife(Hit.SourceBody.Victim.Life); }
     }
     LDDamageRecap::Record(Victim.DamageLog,Line,NowMs,Content->Get().Parameters.AssistWindowMs);
+}
+
+bool ALDCombatDirector::CardTriggersOf(const FGuid& Contender, TArray<FLDCardTriggerRow>& Out) const
+{
+    Out.Reset();
+    const FLDCombatEntityRecord* Record=FindRecord(Contender);
+    if (!Record || Record->Kind!=ELDVictimKind::Contender) { return false; }
+    if (const TMap<FName,int32>* Counts=CardTriggerCounts.Find(Contender))
+    {
+        for (const TPair<FName,int32>& Pair : *Counts)
+        {
+            FLDCardTriggerRow& Row=Out.AddDefaulted_GetRef();
+            Row.Card=Pair.Key;
+            Row.Count=Pair.Value;
+        }
+    }
+    Out.Sort([](const FLDCardTriggerRow& A, const FLDCardTriggerRow& B) { return A.Card.LexicalLess(B.Card); });
+    return true;
+}
+
+void ALDCombatDirector::TakeFinishedTrainingCombos(int64 NowMs, int64 QuietMs, TMap<FGuid,TArray<FLDDamageLine>>& Out)
+{
+    for (auto It=TrainingCombos.CreateIterator(); It; ++It)
+    {
+        if (NowMs-It.Value().LastAtMs<QuietMs) { continue; }
+        LDDamageRecap::SortTotals(It.Value().Lines);
+        Out.Add(It.Key(),MoveTemp(It.Value().Lines));
+        It.RemoveCurrent();
+    }
 }
 
 bool ALDCombatDirector::DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageLine>& Out) const

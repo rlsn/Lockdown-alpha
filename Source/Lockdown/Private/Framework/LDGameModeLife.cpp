@@ -402,7 +402,10 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     int64 RespawnAt = 0;
     // #198: a rest life has no field eligibility; it stands up again at once at its shared-room seat.
     // Spec §10.4: a field death waits 6 + 0.5 x level s; final lives use the bounded showdown queue.
-    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId);
+    // #198 session D: a PK death is an elimination, never a field death: the contender stands up again in its private
+    // rest space at once and watches the rest of the PK (no capture eligibility, K/D or respawn wait).
+    const bool bPKLife = PKLives.Contains(Fact.Key.Victim.EntityId);
+    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId) || bPKLife;
     const FGuid Id = Fact.Key.Victim.EntityId;
     const bool bFinal = !bRestLife && Showdown.bStarted;
     const FLDGrowthBuild* DeadBuild = Development ? Development->FindBuild(Id) : nullptr;
@@ -453,6 +456,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     if (!bRestLife && !bFinal && RespawnAt > 0) { OpenSpawnChoice(Id, Life->Life, Fact.OccurredAtMs); }
     // Spec §10.4: a trending contender's death pays its killer and assisters the bounty.
     if (!bRestLife && LeaderNotice.IsTrending(Id)) { BountyDeaths.Add(Fact.Key); }
+    PKLives.Remove(Fact.Key.Victim.EntityId);
     Life->Body = {};
     if (auto* Body = Life->Actor.Get())
     {
@@ -461,7 +465,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     }
     Life->Actor.Reset();
     if (Controller) { SyncOwner(Controller); }
-    // A rest life stands up again at once and has no death banner, so it gets no recap.
+    // A rest or PK life stands up again at once and has no death banner, so it gets no recap.
     if (!bRestLife) { SendDeathRecap(Fact); }
     NotifyLife(Fact.VictimBody, ELDLifeChange::Died, Life->Revision, Fact.OccurredAtMs);
     // Killer (credit owner), fatal source and assisters are appended after the original fields (docs/DEVELOPMENT.md).

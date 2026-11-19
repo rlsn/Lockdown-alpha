@@ -278,9 +278,14 @@ ELDGrowthReason LDProgression::UnspentPoints(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
-    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent))
+    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent) || Build.AwardedPoints < 0)
     {
         return ELDGrowthReason::DataInvalid;
+    }
+    // #198 session D: PK participation, winner and betting points add to the earned ones.
+    if (!ProgressionCheckedAdd(Earned, Build.AwardedPoints, Earned))
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
     }
     // Points are only ever allocated out of the unspent ones, so a deficit is a broken authority record.
     if (Spent > Earned)
@@ -449,7 +454,7 @@ ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
         return ELDGrowthReason::LifePhaseChanged;
     }
     // #222 (2026-11-12, "all the time 可以学新技能和加点 all the time"): learning is open on the field, in every rest step
-    // and in the death wait alike; there is no build safe window and no build lock any more.
+    // (PK included) and in the death wait alike; there is no build safe window and no build lock any more.
     return Context.Stage == EMatchStage::Closed ? ELDGrowthReason::PhaseClosed : ELDGrowthReason::None;
 }
 
@@ -502,7 +507,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     const bool bDead = Context.LifePhase == ELDLifePhase::Dead;
     switch (Kind)
     {
-    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a rest; the
+    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a PK; the
     // server still checks the resources, slots and structure of each one.
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::SkipActiveOffer:
@@ -1145,6 +1150,12 @@ bool LDProgression::DefaultCardTarget(const FLDDemoContentDefinitions& Content, 
         return false;
     }
     return true;
+}
+
+int32 LDProgression::LevelUpCardOffers(const FLDDemoCardParameters& Cards, int32 Before, int32 After)
+{
+    const int32 Every = FMath::Max(1, Cards.OfferEveryLevels);
+    return After > Before ? After / Every - Before / Every : 0;
 }
 
 int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source)

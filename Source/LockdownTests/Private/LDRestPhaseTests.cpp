@@ -52,9 +52,9 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
             && !FindEvent(SkipEvents, ELDTimelineEventKind::EnterField));
         SkipEvents.Reset();
         bGood &= TestTrue(TEXT("An unready skipped entry waits; T stays frozen"),
-            Skip.Advance(1000, false, false, SkipEvents, Error) && SkipEvents.IsEmpty() && Skip.IsRest());
+            Skip.Advance(1000, 0, false, false, SkipEvents, Error) && SkipEvents.IsEmpty() && Skip.IsRest());
         bGood &= TestTrue(TEXT("The ready entry starts T at its actual commit"),
-            Skip.Advance(1050, false, true, SkipEvents, Error) && Skip.IsFieldRunning()
+            Skip.Advance(1050, 0, false, true, SkipEvents, Error) && Skip.IsFieldRunning()
             && Skip.FieldMsAt(1050) == 0 && FindEvent(SkipEvents, ELDTimelineEventKind::EnterField));
         SkipEvents.Reset();
         bGood &= TestFalse(TEXT("A repeated skip cannot advance a running field"), Skip.DevFinishPreparation(1051, SkipEvents, Error));
@@ -79,14 +79,14 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         Line.IsRest() && Line.GetRestIndex() == 0 && Line.GetStep() == ELDRestStep::Build && Line.FieldMsAt(Start + 20000) == 0
         && Line.IsRestBuildOpen() && !Line.IsFieldRunning() && Line.NextDueMs() == Start + P.OpeningBuildMs);
     bGood &= TestTrue(TEXT("Without the lock permission the due build lock waits"),
-        Line.Advance(Start + P.OpeningBuildMs, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + P.OpeningBuildMs));
+        Line.Advance(Start + P.OpeningBuildMs, 0, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + P.OpeningBuildMs));
     bGood &= TestTrue(TEXT("The build lock goes straight to the return countdown"),
-        Line.Advance(Start + P.OpeningBuildMs, true, true, Events, Error)
+        Line.Advance(Start + P.OpeningBuildMs, 0, true, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::LockBuild) && Line.GetStep() == ELDRestStep::Return && !Line.IsRestBuildOpen()
         && Line.NextDueMs() == Start + P.OpeningBuildMs + P.ReturnMs);
     Events.Reset();
     const int64 Field1 = Start + P.OpeningBuildMs + P.ReturnMs;
-    bGood &= TestTrue(TEXT("The return countdown ends in field 1 at T=0"), Line.Advance(Field1, true, true, Events, Error)
+    bGood &= TestTrue(TEXT("The return countdown ends in field 1 at T=0"), Line.Advance(Field1, 0, true, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterField) && Line.GetStage() == ELDMatchStage::Field
         && Line.GetFieldSegment() == 0 && Line.FieldMsAt(Field1) == 0 && Line.IsFieldRunning());
     bGood &= TestTrue(TEXT("T runs with the authority clock in the field"), Line.FieldMsAt(Field1 + 12345) == 12345);
@@ -96,26 +96,26 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Field 1 ends after one segment"), Line.NextDueMs() == Field1 + Seg);
     Events.Reset();
     const int64 Rest1 = Field1 + Seg;
-    bGood &= TestTrue(TEXT("The segment end enters R1 with T frozen"), Line.Advance(Rest1, false, true, Events, Error)
+    bGood &= TestTrue(TEXT("The segment end enters R1 with T frozen"), Line.Advance(Rest1, 0, false, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterRest) && Line.GetRestIndex() == 1 && Line.FieldMsAt(Rest1 + 99999) == Seg
         && Line.NextDueMs() == Rest1 + P.BuildMs && Line.FieldDueAuthorityMs(Rest1, Seg + 20000) == MAX_int64);
     bGood &= TestTrue(TEXT("A whole mid rest lasts its build and return"),
-        Line.Advance(Rest1 + P.BuildMs, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
+        Line.Advance(Rest1 + P.BuildMs, 0, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
         && Line.NextDueMs() == Rest1 + P.BuildMs + P.ReturnMs);
-    while (Line.GetStage() == ELDMatchStage::Rest) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
+    while (Line.GetStage() == ELDMatchStage::Rest) { Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error); }
     bGood &= TestTrue(TEXT("Field 2 resumes at the T where segment 1 ended"), Line.GetFieldSegment() == 1
         && Line.FieldMsAt(Rest1 + P.BuildMs + P.ReturnMs) == Seg);
-    while (Line.GetStage() != ELDMatchStage::Field || Line.GetFieldSegment() != 2) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
+    while (Line.GetStage() != ELDMatchStage::Field || Line.GetFieldSegment() != 2) { Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error); }
     const int64 Field3 = Line.GetStepEndsAtMs() - P.FieldSegmentMs;
     bGood &= TestTrue(TEXT("Field 3 runs from the end of segment 2"), Line.FieldMsAt(Field3) == 2 * Seg);
-    Line.Advance(Line.NextDueMs(), false, true, Events, Error);
+    Line.Advance(Line.NextDueMs(), 0, false, true, Events, Error);
     bGood &= TestTrue(TEXT("R3 at the end of segment 3"), Line.GetRestIndex() == 3 && Line.FieldMsAt(Line.NextDueMs()) == 3 * Seg);
-    Line.Advance(Line.NextDueMs(), true, true, Events, Error);
+    Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error);
     bGood &= TestTrue(TEXT("The final build deadline returns everyone to the showdown"), Line.GetStep() == ELDRestStep::Return);
     Events.Reset();
     const int64 Final = Line.NextDueMs();
     bGood &= TestTrue(TEXT("R3 returns to final field; the showdown owner, not the growth timeline, schedules its end"),
-        Line.Advance(Final, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
+        Line.Advance(Final, 0, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->FieldSegment == 3 && Line.NextDueMs() == MAX_int64
         && Line.FieldMsAt(Final + 60000) == 3 * Seg + 60000);
     const FLDTimelineView View = Line.MakeView(3, 7);
@@ -138,7 +138,7 @@ bool FLDRestReadyEarlyTest::RunTest(const FString& Parameters)
     bool bChanged = false;
     bool bGood = TestTrue(TEXT("Begin the approved opening rest"), Line.Begin(P, 1000, Error));
     TArray<FLDTimelineEvent> Events;
-    while (Line.GetRestIndex() != 1 || !Line.IsRest()) { Line.Advance(Line.NextDueMs(), true, true, Events, Error); }
+    while (Line.GetRestIndex() != 1 || !Line.IsRest()) { Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error); }
     const int64 Ready = Line.GetStepEndsAtMs() - P.BuildMs + 4000;
     bGood &= TestTrue(TEXT("R1 opens on its build window with T frozen at segment 1's end"),
         Line.GetStep() == ELDRestStep::Build && Line.FieldMsAt(Ready) == P.FieldSegmentMs);
@@ -147,7 +147,7 @@ bool FLDRestReadyEarlyTest::RunTest(const FString& Parameters)
     bGood &= TestFalse(TEXT("A repeated ready at the ended step changes nothing"), Line.FinishBuildEarly(Ready, bChanged, Error));
     Events.Reset();
     bGood &= TestTrue(TEXT("The lock then runs the whole return countdown"),
-        Line.Advance(Ready, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
+        Line.Advance(Ready, 0, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
         && Line.GetStepEndsAtMs() == Ready + P.ReturnMs);
     bGood &= TestFalse(TEXT("Ready cannot skip the return countdown"), Line.FinishBuildEarly(Ready + 1, bChanged, Error));
     bGood &= TestTrue(TEXT("A new match restores the full opening window"), Line.Begin(P, 20000, Error)

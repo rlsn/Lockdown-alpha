@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDMatchTimeline.h"
 #include "Framework/LDShowdownSettings.h"
+#include "PK/LDPKTypes.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "World/LDFieldPacing.h"
@@ -139,6 +140,8 @@ struct FLDPublicMatchView
     UPROPERTY() TArray<FLDFieldMarkerView> Markers;
     // #198: the outer timeline (rest steps, field segment and T).
     UPROPERTY() FLDTimelineView Timeline;
+    // #198 session D: the current rest's PK (Serial 0: none); public like the sign-ups.
+    UPROPERTY() FLDPKView PK;
     UPROPERTY() FLDShowdownView Showdown;
     UPROPERTY() int64 OwnerBankedGuardMs = 0;
     // Spec §11.1/§10.3 (P6): the match's daily modifiers and the current (or last) mid-field objective.
