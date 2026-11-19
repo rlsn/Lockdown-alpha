@@ -14,7 +14,10 @@
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDImpactFx.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "UI/LDWorldFeedback.h"
 #include "Combat/LDCombatCues.h"
+#include "Combat/LDCombatElements.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -70,6 +73,12 @@ namespace
         float CaptureDelay = 0.f;
         // Overdrive: 1 holds a charge through the shot, 2 releases a held charge as a cast.
         uint8 Overdrive = 0;
+        // An element reaction on the victim (ELDCombatElement), a public ground state (ELDGroundStateKind), a flight that
+        // keeps flying through the shot, and a shot that keeps the interface (the screen edge flash).
+        uint8 ReactionElement = 0;
+        uint8 GroundKind = 0;
+        bool bFlying = false;
+        bool bShowUI = false;
     };
 
     // Floor points a body can stand on, with the camera arm lengths the player can zoom between.
@@ -93,6 +102,9 @@ namespace
         bool bVfxPrepared = false;
         bool bVfxDash = false;
         double VfxReleaseAt = -1.;
+        TWeakObjectPtr<ALDObservedGroundProxy> VfxGround;
+        FLDObservedProjectileView VfxFlight;
+        double VfxFlightAt = -1.;
         FVector VfxDashFrom = FVector::ZeroVector;
         TWeakObjectPtr<ALDObservedProjectileProxy> VfxEffect;
         bool Failed = false, bCombatVfx = false;
@@ -500,6 +512,24 @@ namespace
                 // Last: the fall leaves the victim fallen.
                 {TEXT("VFX-Kill"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, 0, false, .08f, true},
             };
+            {
+                // The follow-up shots sit before the final kill shot.
+                const auto Add = [this, &Focus](const TCHAR* Name, TFunctionRef<void(FArtShot&)> Fill)
+                {
+                    FArtShot Shot;
+                    Shot.Name = Name;
+                    Shot.Focus = Focus;
+                    Fill(Shot);
+                    Shots.Insert(Shot, Shots.Num() - 1);
+                };
+                Add(TEXT("VFX-ReactionFire"), [](FArtShot& S) { S.ReactionElement = uint8(ELDCombatElement::Fire); S.CaptureDelay = .08f; });
+                Add(TEXT("VFX-ReactionChill"), [](FArtShot& S) { S.ReactionElement = uint8(ELDCombatElement::Chill); S.CaptureDelay = .08f; });
+                Add(TEXT("VFX-GroundFire"), [](FArtShot& S) { S.GroundKind = uint8(ELDGroundStateKind::Fire); S.CaptureDelay = .9f; });
+                Add(TEXT("VFX-GroundField"), [](FArtShot& S) { S.GroundKind = uint8(ELDGroundStateKind::Field); S.CaptureDelay = .6f; });
+                Add(TEXT("VFX-GroundMiasma"), [](FArtShot& S) { S.GroundKind = uint8(ELDGroundStateKind::Miasma); S.CaptureDelay = 1.2f; });
+                Add(TEXT("VFX-ChalkFlying"), [](FArtShot& S) { S.bEffect = true; S.Effect = ELDObservedProjectileLook::Chalk; S.bFlying = true; S.CaptureDelay = .3f; });
+                Add(TEXT("VFX-EdgeFlash"), [](FArtShot& S) { S.Action = 1; S.bHit = true; S.HitFlags = LDObservation::Critical; S.bShowUI = true; });
+            }
             if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoCastVfxCapture")))
             {
                 Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle") && Shot.Name != TEXT("VFX-Cast"); });
@@ -529,6 +559,10 @@ namespace
             if (Impacts) { Impacts->ClearFor(*Victim); Impacts->ClearFor(*Attacker); }
             if (ALDObservedProjectileProxy* Old = VfxEffect.Get()) { Old->Destroy(); }
             VfxEffect.Reset();
+            if (ALDObservedGroundProxy* Old = VfxGround.Get()) { Old->Destroy(); }
+            VfxGround.Reset();
+            VfxFlightAt = -1.;
+            Check(Impacts && Impacts->WarmedSystems() >= 5, TEXT("Every effect system was warmed up at world start"));
             if (bVfxDash) { Attacker->GetOwner()->SetActorLocation(VfxDashFrom); }
             bVfxDash = false;
             Attacker->SetCastAbility(Current.CastAbility);
@@ -572,9 +606,54 @@ namespace
                 View.RadiusCm = Current.EffectRadius;
                 View.PositionCm = Victim->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
                 View.Heading = uint16(225.f / 360.f * 65536.f);
+                if (Current.bFlying) { View.PositionCm = Attacker->GetOwner()->GetActorLocation() - FVector(0, 0, 90); }
                 Effect->Apply(View, 100.);
                 Effect->Present(100.);
                 VfxEffect = Effect;
+                if (Current.bFlying) { VfxFlight = View; VfxFlightAt = FPlatformTime::Seconds(); }
+            }
+            if (Current.bShowUI)
+            {
+                // The screen edge flash is drawn by the world feedback layer: show that layer alone over the scene.
+                UWidgetLayoutLibrary::RemoveAllWidgets(World.Get());
+                auto* Controller = Cast<ALDPlayerController>(World->GetFirstPlayerController());
+                ULDWorldFeedback* Feedback = Controller ? CreateWidget<ULDWorldFeedback>(Controller) : nullptr;
+                if (!Check(Feedback != nullptr, TEXT("World feedback layer created for the edge flash"))) { return false; }
+                Feedback->AddToViewport();
+                const LDHitVfx::FScreenFlash Flash = LDHitVfx::ScreenFlashOf(LDCombatCues::DealtLethal, false);
+                Impacts->FlashScreen(Flash);
+                FLinearColor Colour;
+                Check(Impacts->GetScreenEdge() != nullptr && Impacts->ScreenFlashAlpha(Colour) > 0.f && Impacts->ScreenFringe() > 0.f,
+                    TEXT("A kill receipt starts the screen edge flash and the lens fringe with its mask loaded"));
+            }
+            if (Current.ReactionElement != 0)
+            {
+                const int32 Before = Impacts ? Impacts->LiveLayerCount() : 0;
+                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .03f);
+                Victim->Animate(FVector::ZeroVector, 0.f);
+                Check(Impacts && Impacts->LiveLayerCount() - Before == LDHitVfx::ForReaction(Current.ReactionElement, 1.f, Impacts->LayerTuning()).Layers.Num(),
+                    TEXT("A fresh element reaction flashes its layers once"));
+                const int32 After = Impacts ? Impacts->LiveLayerCount() : 0;
+                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .05f);
+                Victim->Animate(FVector::ZeroVector, 0.f);
+                Check(Impacts && Impacts->LiveLayerCount() == After, TEXT("The same reaction seen again adds nothing"));
+            }
+            if (Current.GroundKind != 0)
+            {
+                FActorSpawnParameters Spawn;
+                Spawn.ObjectFlags |= RF_Transient;
+                ALDObservedGroundProxy* Ground = World->SpawnActor<ALDObservedGroundProxy>(Spawn);
+                if (!Check(Ground != nullptr, TEXT("Capture ground state proxy spawned"))) { return false; }
+                FLDObservedGroundState State;
+                State.Id = 1;
+                State.Kind = Current.GroundKind;
+                State.Shape = ELDObservedGroundShape::Circle;
+                State.CentreCm = Victim->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                State.RadiusCm = 220.f;
+                State.RemainingMs = State.TotalMs = 6000;
+                Ground->Apply(State, 100.);
+                Check(Ground->GetParticles() != nullptr, TEXT("A ground state shows its kind's particles over its pattern"));
+                VfxGround = Ground;
             }
             if (Current.bKill && Impacts)
             {
@@ -675,6 +754,16 @@ namespace
             if (!World.IsValid()) { return Finish(TEXT("The Demo world ended before the art capture completed")); }
             if (bCombatVfx)
             {
+                if (ALDObservedProjectileProxy* Flight = VfxEffect.Get(); Flight && VfxFlightAt > 0.)
+                {
+                    // The chalk keeps flying towards the victim at 900 cm/s on its own authority timeline.
+                    const double Elapsed = FPlatformTime::Seconds() - VfxFlightAt;
+                    FLDObservedProjectileView Next = VfxFlight;
+                    Next.PositionCm = FVector(VfxFlight.PositionCm) + FRotator(0, 45.f, 0).Vector() * 900. * Elapsed;
+                    Next.Heading = uint16(45.f / 360.f * 65536.f);
+                    Flight->Apply(Next, 100. + Elapsed);
+                    Flight->Present(100. + Elapsed);
+                }
                 if (auto* Body = VfxAttacker.Get(); Body && VfxReleaseAt > 0. && FPlatformTime::Seconds() >= VfxReleaseAt)
                 {
                     // The held charge ends as the authority's overdrive cast begins (public bOverdriveCast) and releases.
@@ -748,6 +837,8 @@ namespace
             {
                 const auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
                 if (Current.bDash) { Check(Impacts && Impacts->LiveGhostCount() > 0, TEXT("A dash leaves afterimages")); }
+                if (Current.ReactionElement != 0)
+                { Check(Impacts && Impacts->LiveLayerCount() > 0 && Impacts->LiveCount() > 0, TEXT("The reaction's layers and particles are still showing at the capture")); }
                 if (Current.Overdrive == 2)
                 {
                     Check(Impacts && Impacts->LiveLayerCount() >= LDHitVfx::ForOverdriveRelease(1.f, Impacts->LayerTuning()).Layers.Num(),
@@ -756,7 +847,7 @@ namespace
             }
             PendingImage = Directory / (Current.Name + TEXT(".png"));
             Images.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(PendingImage)));
-            FScreenshotRequest::RequestScreenshot(PendingImage, false, false);
+            FScreenshotRequest::RequestScreenshot(PendingImage, Current.bShowUI, false);
             if (!bCombatVfx) { Stage = 1; }
             return true;
         }

@@ -478,6 +478,9 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.bCharging = Unit.bCharging;
     Shown.ChargeAgeMs = Unit.ChargeAgeMs;
     Shown.bOverdriveCast = Unit.bOverdriveCast;
+    Shown.RecentReaction = Unit.RecentReaction;
+    Shown.RecentReactionElement = Unit.RecentReactionElement;
+    Shown.RecentReactionAgePlusOneMs = Unit.RecentReactionAgePlusOneMs;
     Shown.HitLook = Unit.HitLook;
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
     Shown.RecentHitId = Unit.RecentHitId;
@@ -518,6 +521,11 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetCharging(Reached.bCharging,
             float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
         Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
+        if (Reached.RecentReactionAgePlusOneMs)
+        {
+            Body->SetReaction(Reached.RecentReaction, Reached.RecentReactionElement,
+                float(double(Reached.RecentReactionAgePlusOneMs - 1) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
+        }
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
             AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags, Reached.RecentHitId,
@@ -785,13 +793,45 @@ void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double 
         Outline(Ground, RimPoints);
         ShownOutline = -1;
     }
+    // A freshly laid state (not one walked into sight) appears with its burst; the burst leaves with the proxy.
+    const bool bFresh = !bShown && Ground.TotalMs >= Ground.RemainingMs && Ground.TotalMs - Ground.RemainingMs < 400;
     Shown = Ground;
     bShown = true;
+    if (bShape) { ShowParticles(); }
+    if (bFresh)
+    {
+        LDHitVfx::EBurst Kind;
+        FLinearColor Tint;
+        ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+        if (Impacts && LDHitVfx::GroundAppearBurstOf(Ground.Kind, Kind, Tint))
+        { Impacts->Kit(GetActorLocation() + FVector(0, 0, 20.f), LDHitVfx::BurstOf(Kind, Tint, Impacts->LocalEffectScale()), *this); }
+    }
     Present(SampledAtServerSec);
+}
+
+void ALDObservedGroundProxy::ShowParticles()
+{
+    ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!Impacts || !bShown) { return; }
+    ParticleScale = Impacts->LocalEffectScale();
+    // A circle fills its radius; any other footprint keeps the particles inside its narrower half-extent.
+    const float Radius = Shown.Shape == ELDObservedGroundShape::Circle ? Shown.RadiusCm * .9f
+        : FMath::Max(FMath::Min(Shown.RadiusCm, Shown.ExtentCm > 0.f ? Shown.ExtentCm : Shown.RadiusCm), 40.f);
+    const LDHitVfx::FZone Zone = LDHitVfx::GroundZoneOf(Shown.Kind, Radius, ParticleScale);
+    Particles = Impacts->ShowZone(*RootComponent, Particles, Zone, Radius, GetActorRotation().RotateVector(Zone.Velocity));
+}
+
+void ALDObservedGroundProxy::EndPlay(const EEndPlayReason::Type Reason)
+{
+    if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearForActor(*this); }
+    Super::EndPlay(Reason);
 }
 
 void ALDObservedGroundProxy::Present(double AtServerSec)
 {
+    // The reduced-effects setting changed: rebuild the particles at the new density.
+    if (const ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+        Impacts && bShown && ParticleScale >= 0.f && Impacts->LocalEffectScale() != ParticleScale) { ShowParticles(); }
     if (!bShown || RimPoints.Num() < 2) { return; }
     // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
     const double Left = FMath::Clamp((ExpiresAtServerSec - AtServerSec) / LifeSeconds, 0., 1.);

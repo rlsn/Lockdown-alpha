@@ -827,6 +827,17 @@ bool ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHit
     return false;
 }
 
+void ULDHumanoidVisualComponent::SetReaction(uint8 Reaction, uint8 Element, float AgeSeconds)
+{
+    if (Reaction == 0 || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= .4f || FallAt >= 0) { return; }
+    const double Onset = Clock - AgeSeconds;
+    if (ShownReaction == Reaction && ReactionOnset >= 0 && Onset <= ReactionOnset + LDBodyMotion::SameInstanceSeconds) { return; }
+    ShownReaction = Reaction;
+    ReactionOnset = Onset;
+    PendingReactionElement = Element;
+    bPendingReaction = true;
+}
+
 void ULDHumanoidVisualComponent::SetConfirm(float AgeSeconds, float StopSeconds, float SparkScale)
 {
     if (!FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || FallAt >= 0) { return; }
@@ -1067,6 +1078,23 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             }
         }
         PendingImpacts.Reset();
+    }
+    if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
+    {
+        if (!bGhostWarmed) { bGhostWarmed = true; Impacts->WarmGhost(*Mesh); }
+        if (bPendingReaction && CanShowImpact())
+        {
+            const LDHitFeel::FTuning Feel = LDHitFeel::Read();
+            if (Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f)
+            {
+                const FVector Chest = Space.TransformPosition(FVector(0, 0, -HalfHeight + .6f * HeightCm));
+                Impacts->Layers(this, Chest, Space.TransformPosition(Feet),
+                    LDHitVfx::ForReaction(PendingReactionElement, EffectScale, Impacts->LayerTuning()), float(Clock - ReactionOnset));
+                Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::ElementBurst(PendingReactionElement),
+                    LDHitVfx::ElementTint(PendingReactionElement), EffectScale), this);
+            }
+        }
+        bPendingReaction = false;
     }
     const bool bColumn = Life.Column > .02f;
     Parts[SpawnColumn]->SetHiddenInGame(!bColumn);

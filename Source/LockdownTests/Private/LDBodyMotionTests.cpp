@@ -3,6 +3,7 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDHitVfx.h"
+#include "Combat/LDCombatElements.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Character/LDImpactFx.h"
@@ -479,6 +480,26 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     const FBurst OverBurst=BurstOf(EBurst::Overdrive,FLinearColor::White,1.f);
     TestTrue(TEXT("The overdrive burst is the heaviest particle preset short of a kill and keeps its own colour"),
         OverBurst.Sparks>BurstOf(EBurst::Strike,FLinearColor::White,1.f).Sparks && OverBurst.SparkColour.B>OverBurst.SparkColour.G);
+    // Element reactions and public ground states use the particle kit in their own colours.
+    const FRecipe React=ForReaction(uint8(ELDCombatElement::Fire),1.f);
+    TestTrue(TEXT("A reaction flashes a cross and rings in its element's colour; reduced effects drop the echo"),
+        Has(React,EMask::Cross,EPlace::Sprite) && Has(React,EMask::Ring,EPlace::Ground) && React.Layers[0].Glow.R>React.Layers[0].Glow.B
+        && ForReaction(uint8(ELDCombatElement::Water),1.f).Layers[0].Glow.B>ForReaction(uint8(ELDCombatElement::Water),1.f).Layers[0].Glow.R
+        && ForReaction(uint8(ELDCombatElement::Fire),.45f).Layers.Num()==React.Layers.Num()-1 && ForReaction(1,NaN).Layers.IsEmpty());
+    for (uint8 ElementId=1; ElementId<LDCombatElementCount; ++ElementId)
+    {
+        TestTrue(TEXT("Every element has its own burst and tint"), ElementBurst(ElementId)!=EBurst::Strike
+            && !BurstOf(ElementBurst(ElementId),LDHitVfx::ElementTint(ElementId),1.f).IsEmpty());
+    }
+    for (uint8 GroundKind=1; GroundKind<LDGroundStateKindCount; ++GroundKind)
+    {
+        EBurst Appear; FLinearColor AppearTint;
+        const FZone Patch=GroundZoneOf(GroundKind,150.f,1.f);
+        TestTrue(TEXT("Every ground state loops particles by area, thins with reduced effects and appears with a burst"),
+            Patch.bShow && GroundZoneOf(GroundKind,300.f,1.f).Rate>3.f*Patch.Rate && GroundZoneOf(GroundKind,150.f,.45f).Rate<Patch.Rate
+            && GroundAppearBurstOf(GroundKind,Appear,AppearTint));
+    }
+    TestTrue(TEXT("No ground state, no particles"), !GroundZoneOf(0,150.f,1.f).bShow && !GroundZoneOf(1,NaN,1.f).bShow);
     // Afterimages.
     const FGhosts Ghosts=GhostsOf(FLinearColor::White,1.f), FewGhosts=GhostsOf(FLinearColor::White,.45f);
     TestTrue(TEXT("A dash leaves afterimages that fade out; reduced effects leave half as many"), Ghosts.bShow

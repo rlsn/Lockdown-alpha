@@ -71,6 +71,14 @@ public:
     static constexpr int32 MaxGhosts = 24;
     // OVERDRIVE.HoldSec from the approved content (when a charge is full, LDHitVfx::ForChargeReady); 0 if unavailable.
     float OverdriveHoldSeconds();
+    // A looping zone (LDHitVfx::FZone) on Owner: created, updated, or removed when the zone shows nothing.
+    UNiagaraComponent* ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone, float RadiusCm,
+        const FVector& Velocity);
+    // Shader and asset warm-up, so the first effect of a match does not hitch: at world start every Niagara system
+    // plays once far under the ground and one layer plane and shell are registered (their PSOs precache at registration);
+    // WarmGhost registers an afterimage copy of a body's mesh the first time that mesh is shown.
+    void WarmGhost(const USkeletalMeshComponent& Source);
+    int32 WarmedSystems() const { return WarmedCount; }
     // Applies a zone look (LDHitVfx::FZone) to a looping NS_LDZone component.
     static void ApplyZone(UNiagaraComponent& Effect, const LDHitVfx::FZone& Zone, float RadiusCm, const FVector& Velocity);
     // The catalog's saved layer tuning times the live impact controls (LDHitVfx::TuningOf).
@@ -142,6 +150,11 @@ private:
     TArray<FLiveGhost> LiveGhosts;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     bool bContentTried = false;
+    void WarmUp();
+    TArray<TWeakObjectPtr<UNiagaraComponent>> Warming;
+    TSet<TWeakObjectPtr<const UObject>> WarmedMeshes;
+    float WarmSeconds = 0;
+    int32 WarmedCount = 0;
     bool bLayerAssetsTried = false, bLayerAssetsReady = false;
     LDHitVfx::FScreenFlash Flash;
     double FlashAt = -1;

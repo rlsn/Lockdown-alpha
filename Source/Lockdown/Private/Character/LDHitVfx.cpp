@@ -1,6 +1,7 @@
 #include "Character/LDHitVfx.h"
 #include "Character/LDHitFeel.h"
 #include "Combat/LDCombatCues.h"
+#include "Combat/LDCombatElements.h"
 #include "Development/LDDemoContentIds.h"
 
 namespace LDHitVfxDetail
@@ -609,4 +610,97 @@ LDHitVfx::FRecipe LDHitVfx::ForOverdriveRelease(float EffectScale, const FLayerT
     Thin(Recipe, EffectScale);
     Tune(Recipe, Tuning);
     return Recipe;
+}
+
+FLinearColor LDHitVfx::ElementTint(uint8 Element)
+{
+    switch (static_cast<ELDCombatElement>(Element))
+    {
+    case ELDCombatElement::Fire: return FLinearColor(1.f, .45f, .12f);
+    case ELDCombatElement::Water: return FLinearColor(.3f, .65f, 1.f);
+    case ELDCombatElement::Shock: return FLinearColor(.75f, .45f, 1.f);
+    case ELDCombatElement::Chill: return FLinearColor(.45f, .95f, 1.f);
+    case ELDCombatElement::Rot: return FLinearColor(.55f, .9f, .25f);
+    case ELDCombatElement::Gust: return FLinearColor(.85f, .9f, .95f);
+    default: return FLinearColor(1.f, .85f, .35f);
+    }
+}
+
+LDHitVfx::EBurst LDHitVfx::ElementBurst(uint8 Element)
+{
+    switch (static_cast<ELDCombatElement>(Element))
+    {
+    case ELDCombatElement::Fire: return EBurst::Flame;
+    case ELDCombatElement::Water: return EBurst::Splash;
+    case ELDCombatElement::Shock: return EBurst::Zap;
+    case ELDCombatElement::Chill: return EBurst::Frost;
+    case ELDCombatElement::Rot: return EBurst::Rot;
+    case ELDCombatElement::Gust: return EBurst::Gust;
+    default: return EBurst::Strike;
+    }
+}
+
+LDHitVfx::FRecipe LDHitVfx::ForReaction(uint8 Element, float EffectScale, const FLayerTuning& Tuning)
+{
+    using namespace LDHitVfxDetail;
+    FRecipe Recipe;
+    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
+    const FLinearColor Glow = ElementTint(Element) * 3.f, Ink = ElementTint(Element) * .5f;
+    Recipe.Layers.Add(Make(EMask::Cross, EPlace::Sprite, 150.f, .24f, Glow, Ink, .5f, 1.f, .16f));
+    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 250.f, .4f, Glow, Ink, .3f, 1.f, .1f));
+    FLayer Echo = Make(EMask::Ring, EPlace::Ground, 330.f, .42f, Glow * .6f, Ink, .3f, 1.f, .1f);
+    Echo.DelaySeconds = .07f;
+    Echo.bOptional = true;
+    Recipe.Layers.Add(Echo);
+    Thin(Recipe, EffectScale);
+    Tune(Recipe, Tuning);
+    return Recipe;
+}
+
+LDHitVfx::FZone LDHitVfx::GroundZoneOf(uint8 Kind, float RadiusCm, float EffectScale)
+{
+    using namespace LDHitVfxDetail;
+    FZone Z;
+    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f) { return Z; }
+    const float Area = FMath::Square(FMath::Clamp(RadiusCm, 40.f, 900.f) / 150.f);
+    float Density = 0.f;
+    switch (static_cast<ELDGroundStateKind>(Kind))
+    {
+    case ELDGroundStateKind::Puddle:
+        Density = 22.f; Z.Lifetime = 1.f; Z.Scale = 1.5f; Z.Velocity = FVector(0, 0, 40); Z.Colour = Hot(FLinearColor(.08f, .42f, 1.f), 2.f);
+        break;
+    case ELDGroundStateKind::Ice:
+        Density = 16.f; Z.Lifetime = 1.2f; Z.Scale = 1.2f; Z.Velocity = FVector(0, 0, 14); Z.Colour = Hot(FLinearColor(.45f, .95f, 1.f), 2.4f);
+        break;
+    case ELDGroundStateKind::Fire:
+        Density = 70.f; Z.Lifetime = .9f; Z.Scale = 2.2f; Z.Velocity = FVector(0, 0, 170); Z.Colour = Hot(FLinearColor(1.f, .2f, .02f), 2.2f);
+        break;
+    case ELDGroundStateKind::Miasma:
+        Density = 32.f; Z.Lifetime = 1.6f; Z.Scale = 2.2f; Z.Velocity = FVector(0, 0, 55); Z.Colour = Hot(FLinearColor(.3f, .8f, .08f), 1.6f);
+        break;
+    case ELDGroundStateKind::Field:
+        Density = 90.f; Z.Lifetime = .25f; Z.Scale = 1.5f; Z.Velocity = FVector(0, 0, 30); Z.Colour = Hot(FLinearColor(.6f, .25f, 1.f), 2.8f);
+        break;
+    case ELDGroundStateKind::Blizzard:
+        Density = 55.f; Z.Lifetime = 1.f; Z.Scale = 1.3f; Z.Velocity = FVector(90, 0, 25); Z.Colour = Hot(FLinearColor(.8f, .92f, 1.f), 1.8f);
+        break;
+    default: return Z;
+    }
+    Z.bShow = true;
+    Z.Rate = Density * Area * FMath::Clamp(EffectScale, 0.f, 1.f);
+    return Z;
+}
+
+bool LDHitVfx::GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint)
+{
+    switch (static_cast<ELDGroundStateKind>(Kind))
+    {
+    case ELDGroundStateKind::Puddle: Out = EBurst::Splash; Tint = FLinearColor(.08f, .42f, 1.f); return true;
+    case ELDGroundStateKind::Ice: Out = EBurst::Frost; Tint = FLinearColor(.45f, .95f, 1.f); return true;
+    case ELDGroundStateKind::Fire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .04f); return true;
+    case ELDGroundStateKind::Miasma: Out = EBurst::Rot; Tint = FLinearColor(.4f, .85f, .12f); return true;
+    case ELDGroundStateKind::Field: Out = EBurst::Zap; Tint = FLinearColor(.66f, .3f, 1.f); return true;
+    case ELDGroundStateKind::Blizzard: Out = EBurst::Frost; Tint = FLinearColor(.86f, .94f, 1.f); return true;
+    default: return false;
+    }
 }
