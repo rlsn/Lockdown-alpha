@@ -988,7 +988,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionToken=Body->Action->Token;
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
-            Out.Cues=CueFactsOf(*Body);
+            Out.Cues=PresentedCueFactsOf(*Body);
             if (Out.Cues.LastHitId.IsValid())
             {
                 Out.Cues.LastHitId=LDObservation::ScopedHitId(Body->Identity,Out.Cues.LastHitId);

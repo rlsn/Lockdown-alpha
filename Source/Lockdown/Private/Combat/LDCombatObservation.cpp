@@ -76,7 +76,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         InOut.MomentumBar=uint8(Bar);
         InOut.bCharging=State->OverdriveCharge.IsSet();
         // An overdrive release shows on its Cast cue like the charge before it (spec: the charge is public).
-        InOut.bOverdriveCast=Cue.Cue==ELDObservedActionCue::Cast && CueFactsOf(*State).bOverdriveCast;
+        InOut.bOverdriveCast=Cue.Cue==ELDObservedActionCue::Cast && PresentedCueFactsOf(*State).bOverdriveCast;
         if (Cue.Cue==ELDObservedActionCue::Attack)
         {
             const bool bActingBasic=State->Action.IsSet() && State->Action->Kind==ELDCombatActionKind::Basic
