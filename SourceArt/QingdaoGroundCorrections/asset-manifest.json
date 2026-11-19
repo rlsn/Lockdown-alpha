@@ -1,0 +1,4702 @@
+[
+  {
+    "name": "SM_GroundFix_Actor_1_Body",
+    "actor": "Actor_1",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "城市地面_0_1",
+    "transform": {
+      "location": [
+        -3334.834733325441,
+        -17.290099249603827,
+        92.46661791720459
+      ],
+      "scale": [
+        41.08486102896825,
+        55.84875577236497,
+        8.150612140245508
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -50.0,
+        -50.0
+      ],
+      [
+        49.99999999999999,
+        50.0,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_1_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_11_Body",
+    "actor": "Actor_11",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园",
+    "transform": {
+      "location": [
+        -143.60893519416936,
+        -4039.2706578163443,
+        1509.5915832519536
+      ],
+      "scale": [
+        28.0,
+        24.683560928761175,
+        5.5
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.000000000000014,
+        -50.0
+      ],
+      [
+        50.0,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_11_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_12_Body",
+    "actor": "Actor_12",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场",
+    "transform": {
+      "location": [
+        346.0439699591111,
+        -1925.3571128804097,
+        1514.7886047363286
+      ],
+      "scale": [
+        22.0,
+        19.93451038742623,
+        5.5
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.000000000000014,
+        -50.0
+      ],
+      [
+        50.0,
+        50.0,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_12_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_13_Body",
+    "actor": "Actor_13",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "大下坡_主街",
+    "transform": {
+      "location": [
+        -1749.8441518416769,
+        -2230.9796227222146,
+        819.7031080034528
+      ],
+      "scale": [
+        27.019531154495652,
+        10.598224296140458,
+        7.0
+      ],
+      "quaternion": [
+        -2.0073227147242569E-16,
+        -0.257377289797985,
+        7.634577511574576E-17,
+        0.9663109906734189
+      ]
+    },
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -61.179278930593576,
+        -50.000000000000014,
+        -192.67174192310674
+      ],
+      [
+        50.283337942525066,
+        50.0000000000001,
+        50.00000000000007
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_13_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_14_Body",
+    "actor": "Actor_14",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "校园西北出口_缓坡",
+    "transform": {
+      "location": [
+        -1436.8658000636483,
+        -5922.002262155665,
+        1084.9196588217728
+      ],
+      "scale": [
+        5.0378670406627775,
+        2.5359492981391214,
+        7.0
+      ],
+      "quaternion": [
+        -1.910257299708881E-17,
+        -0.24560303450320853,
+        3.0999207028129763E-18,
+        0.969370491320432
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -108.17959910787546,
+        -49.99999999999982,
+        -57.461883304730456
+      ],
+      [
+        49.999999999999986,
+        50.000000000000185,
+        49.99999999999999
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_14_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_16_Body",
+    "actor": "Actor_16",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "校园东出口_北环街",
+    "transform": {
+      "location": [
+        1487.7793606626055,
+        -4100.0,
+        769.076501106668
+      ],
+      "scale": [
+        18.681541692269406,
+        6.0,
+        7.0
+      ],
+      "quaternion": [
+        0.0,
+        0.13505941178469374,
+        0.0,
+        0.9908375019590105
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -50.0,
+        -111.65938342208618
+      ],
+      [
+        59.66278694576378,
+        50.0,
+        50.000000000000014
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_16_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_96_Body",
+    "actor": "Actor_96",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折2",
+    "transform": {
+      "location": [
+        -10587.273063659668,
+        894.9999999999736,
+        119.08737298583301
+      ],
+      "scale": [
+        14.196284874271141,
+        9.669559876285227,
+        4.2182505301111854
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 68,
+    "bounds_cm": [
+      [
+        -50.000000000000014,
+        -50.00000000000009,
+        -50.0
+      ],
+      [
+        50.000000000000014,
+        50.00000000000009,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_96_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_97_Body",
+    "actor": "Actor_97",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折3",
+    "transform": {
+      "location": [
+        -10675.921813964844,
+        611.7323765729001,
+        390.24443153164725
+      ],
+      "scale": [
+        4.38306587181965,
+        3.1750820109386555,
+        0.7
+      ],
+      "quaternion": [
+        0.12278780396897286,
+        0.12278780396897288,
+        -0.696364240320019,
+        0.6963642403200191
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.00000000000003,
+        -49.99999999999979,
+        -548.3615209094023
+      ],
+      [
+        87.70972296177275,
+        49.99999999999979,
+        50.00000000000006
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_97_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_98_Body",
+    "actor": "Actor_98",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折4",
+    "transform": {
+      "location": [
+        -10895.811828613281,
+        1780.0,
+        229.9999999999991
+      ],
+      "scale": [
+        4.383058999999999,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.12278780396897107,
+        0.12278780396897117,
+        0.6963642403200189,
+        0.6963642403200195
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -51.960613125862835,
+        -49.99999999999987,
+        -532.658774090564
+      ],
+      [
+        56.68659636626048,
+        49.99999999999988,
+        49.99999999999995
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_98_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_99_Body",
+    "actor": "Actor_99",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折5",
+    "transform": {
+      "location": [
+        -10465.811828613281,
+        1695.0,
+        154.99999999999977
+      ],
+      "scale": [
+        14.1962795,
+        12.154668,
+        0.7
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -50.00000000000002,
+        -50.000000000000085,
+        -50.0
+      ],
+      [
+        50.000000000000014,
+        50.000000000000085,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_99_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_104_Body",
+    "actor": "Actor_104",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_沿礁步道2",
+    "transform": {
+      "location": [
+        -7041.681130135194,
+        -2118.0118647466015,
+        95.138153
+      ],
+      "scale": [
+        28.0,
+        2.773348,
+        0.7
+      ],
+      "quaternion": [
+        -1.5700924586837665E-16,
+        -5.053640174072107E-31,
+        -0.7071067811865435,
+        0.7071067811865512
+      ]
+    },
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -49.99999999999995,
+        -49.99999999999994,
+        -50.00000000000098
+      ],
+      [
+        49.99999999999995,
+        49.99999999999994,
+        50.00000000000002
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_104_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_105_Body",
+    "actor": "Actor_105",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折8",
+    "transform": {
+      "location": [
+        -10272.918760690412,
+        -0.4276261630122917,
+        225.2620391845703
+      ],
+      "scale": [
+        4.383058999999999,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        0.12278780396896856,
+        0.12278780396897027,
+        -0.6963642403200165,
+        0.6963642403200224
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -52.33032707157169,
+        -49.999999999999936,
+        -526.2984500679477
+      ],
+      [
+        69.49025542484314,
+        49.999999999999936,
+        50.00000000000016
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_105_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_107_Body",
+    "actor": "Actor_107",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折10",
+    "transform": {
+      "location": [
+        -10186.932869289465,
+        -712.2704335649613,
+        95.0
+      ],
+      "scale": [
+        10.49747961969019,
+        7.986499229247441,
+        0.7
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.00000000000003,
+        -50.00000000000013,
+        -50.0
+      ],
+      [
+        50.00000000000003,
+        50.00000000000013,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_107_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_110_Body",
+    "actor": "Actor_110",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折11",
+    "transform": {
+      "location": [
+        -7364.887122938943,
+        -3848.591775407355,
+        94.99999999999909
+      ],
+      "scale": [
+        10.4974835,
+        14.996507166882521,
+        0.7
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -50.000000000000036,
+        -50.00000000000004,
+        -50.0
+      ],
+      [
+        50.00000000000006,
+        50.00000000000004,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_110_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_117_Body",
+    "actor": "Actor_117",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折14",
+    "transform": {
+      "location": [
+        -5685.653554081194,
+        -2054.6211116325117,
+        350.5333186910742
+      ],
+      "scale": [
+        6.481159514572136,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        0.1736481776669284,
+        5.452639870327774E-16,
+        -0.9848077530122082,
+        2.908914419569353E-15
+      ]
+    },
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -52.62739720662933,
+        -49.99999999999997,
+        -1044.2802706250272
+      ],
+      [
+        53.47122552506922,
+        49.99999999999993,
+        50.000000000000774
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_117_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_118_Body",
+    "actor": "Actor_118",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折15",
+    "transform": {
+      "location": [
+        -5865.233841925333,
+        -1973.813604556983,
+        146.42630875420485
+      ],
+      "scale": [
+        14.1962795,
+        16.630606693248282,
+        4.2182504
+      ],
+      "quaternion": [
+        -1.127089807026791E-16,
+        1.9278820503002287E-17,
+        -0.9999999999999998,
+        2.5037229941327116E-15
+      ]
+    },
+    "triangles": 64,
+    "bounds_cm": [
+      [
+        -49.999999999999915,
+        -49.99999999999993,
+        -50.00000000000009
+      ],
+      [
+        49.999999999999915,
+        49.999999999999936,
+        50.00000000000001
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_118_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_134_Body",
+    "actor": "Actor_134",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折16",
+    "transform": {
+      "location": [
+        392.24499400015486,
+        -5369.554268850613,
+        1626.0944531874907
+      ],
+      "scale": [
+        4.383058999999999,
+        1.9039939425233374,
+        0.7
+      ],
+      "quaternion": [
+        0.34202014332566694,
+        7.593757672368558E-17,
+        -0.939692620785909,
+        2.4307175437685513E-15
+      ]
+    },
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -52.522678105149446,
+        -50.00000000000049,
+        -572.5800403879854
+      ],
+      [
+        57.86397613069488,
+        50.00000000000008,
+        49.9999999999998
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_134_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_108_Body",
+    "actor": "Actor_108",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折18",
+    "transform": {
+      "location": [
+        -6453.197397982057,
+        -4008.7639497125174,
+        364.79992540128967
+      ],
+      "scale": [
+        5.430798348666236,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.17364817766693033,
+        1.0632884247878858E-17,
+        0.9848077530122079,
+        6.030208312509488E-17
+      ]
+    },
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -49.99999999999993,
+        -297.5698015333406
+      ],
+      [
+        68.31734803883718,
+        50.00000000000007,
+        50.00000000000071
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_108_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_109_Body",
+    "actor": "Actor_109",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折19",
+    "transform": {
+      "location": [
+        -6964.7405792583,
+        -4008.763967,
+        176.03281164454597
+      ],
+      "scale": [
+        5.430798348666236,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.17364817766693033,
+        1.0632884247878858E-17,
+        0.9848077530122079,
+        6.030208312509488E-17
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -49.99999999999993,
+        -287.6486428151471
+      ],
+      [
+        54.14258915442037,
+        50.00000000000007,
+        50.000000000000306
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_109_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_136_Body",
+    "actor": "Actor_136",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折20",
+    "transform": {
+      "location": [
+        -6766.502221183034,
+        -1629.3890484057872,
+        173.41159798961814
+      ],
+      "scale": [
+        4.383058999999999,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.17364817766693033,
+        1.0632884247878858E-17,
+        0.9848077530122079,
+        6.030208312509488E-17
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.00000000000005,
+        -49.99999999999993,
+        -239.54336627916854
+      ],
+      [
+        58.12922419698266,
+        49.99999999999993,
+        54.241610679605415
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_136_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_137_Body",
+    "actor": "Actor_137",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折21",
+    "transform": {
+      "location": [
+        -6027.126696604793,
+        -2433.319580416661,
+        345.92310414578003
+      ],
+      "scale": [
+        7.138177717409269,
+        3.9306762267434974,
+        0.7
+      ],
+      "quaternion": [
+        -0.12278780396897153,
+        0.12278780396897215,
+        0.6963642403200174,
+        0.696364240320021
+      ]
+    },
+    "triangles": 58,
+    "bounds_cm": [
+      [
+        -59.48710205010254,
+        -50.00000000000016,
+        -769.7000255143064
+      ],
+      [
+        53.15172404354119,
+        50.00000000000012,
+        50.00000000000011
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_137_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_142_Body",
+    "actor": "Actor_142",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园10",
+    "transform": {
+      "location": [
+        1398.2297342110787,
+        -5631.1871732802465,
+        1514.7886049999995
+      ],
+      "scale": [
+        17.09645268994241,
+        28.756102977457097,
+        5.5
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 64,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.000000000000014,
+        -50.0
+      ],
+      [
+        49.99999999999999,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_142_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_147_Body",
+    "actor": "Actor_147",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场5",
+    "transform": {
+      "location": [
+        2921.1189703301134,
+        -2058.823506715552,
+        846.5637537851467
+      ],
+      "scale": [
+        22.0,
+        47.41105840455526,
+        13.592538962995935
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 84,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.0,
+        -50.0
+      ],
+      [
+        50.0,
+        50.0,
+        49.999999999999986
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_147_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_152_Body",
+    "actor": "Actor_152",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场10",
+    "transform": {
+      "location": [
+        2880.79203773081,
+        4354.223365883476,
+        190.91445027360066
+      ],
+      "scale": [
+        37.34259246127191,
+        26.615606652422546,
+        13.5925405
+      ],
+      "quaternion": [
+        -1.1102230246251674E-16,
+        -1.1102230246251466E-16,
+        -5.952628903268065E-15,
+        0.9999999999999998
+      ]
+    },
+    "triangles": 88,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -50.000000000000014,
+        -50.0000000000001
+      ],
+      [
+        50.00000000000001,
+        50.000000000000014,
+        50.00000000000001
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_152_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_153_Body",
+    "actor": "Actor_153",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场11",
+    "transform": {
+      "location": [
+        -424.7601356494059,
+        1068.420986286918,
+        225.5511217105684
+      ],
+      "scale": [
+        39.31955487226445,
+        49.09186434657731,
+        5.5
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 64,
+    "bounds_cm": [
+      [
+        -50.00000000000002,
+        -50.00000000000002,
+        -50.0
+      ],
+      [
+        50.00000000000002,
+        50.00000000000002,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_153_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_154_Body",
+    "actor": "Actor_154",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场12",
+    "transform": {
+      "location": [
+        2635.8548946187643,
+        2465.286084582388,
+        356.20638680164643
+      ],
+      "scale": [
+        18.795213735818155,
+        19.008593276102395,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 80,
+    "bounds_cm": [
+      [
+        -50.0,
+        -49.99999999999999,
+        -50.0
+      ],
+      [
+        49.99999999999999,
+        49.99999999999999,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_154_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_159_Body",
+    "actor": "Actor_159",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场17",
+    "transform": {
+      "location": [
+        -5472.809125080857,
+        3361.6177513225794,
+        -457.84247287785115
+      ],
+      "scale": [
+        22.0,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 72,
+    "bounds_cm": [
+      [
+        -50.00000000000002,
+        -50.000000000000036,
+        -50.0
+      ],
+      [
+        50.00000000000002,
+        50.000000000000036,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_159_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_160_Body",
+    "actor": "Actor_160",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场18",
+    "transform": {
+      "location": [
+        -5210.095568067925,
+        3917.9892049284044,
+        -458.41168709960937
+      ],
+      "scale": [
+        22.0,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.00000000000002,
+        -50.000000000000014,
+        -49.99999999999999
+      ],
+      [
+        50.00000000000002,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_160_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_161_Body",
+    "actor": "Actor_161",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场19",
+    "transform": {
+      "location": [
+        -2694.4949508843733,
+        4131.798124036119,
+        -459.5042959542533
+      ],
+      "scale": [
+        26.56401826761115,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 172,
+    "bounds_cm": [
+      [
+        -50.00000000000003,
+        -50.000000000000014,
+        -49.99999999999999
+      ],
+      [
+        50.00000000000003,
+        50.00000000000002,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_161_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_162_Body",
+    "actor": "Actor_162",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场20",
+    "transform": {
+      "location": [
+        -1586.3383130461198,
+        3861.3152178354294,
+        -408.37369271484374
+      ],
+      "scale": [
+        22.0,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        0.06162841671621933,
+        -0.061628416716219374,
+        -0.7044160264027579,
+        0.7044160264027595
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -50.00000000000003,
+        -58.614292250962144,
+        -80.93338011599579
+      ],
+      [
+        50.00000000000001,
+        50.000000000000014,
+        50.00000000000001
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_162_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_163_Body",
+    "actor": "Actor_163",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场21",
+    "transform": {
+      "location": [
+        -452.0250041013778,
+        5270.2298799533155,
+        -123.82777503910518
+      ],
+      "scale": [
+        22.0,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865477
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -50.00000000000004,
+        -50.000000000000014,
+        -50.0
+      ],
+      [
+        50.00000000000004,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_163_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_164_Body",
+    "actor": "Actor_164",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场22",
+    "transform": {
+      "location": [
+        303.38308535623514,
+        4699.493041977666,
+        40.35975449235207
+      ],
+      "scale": [
+        22.0,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        -1.1102230246251674E-16,
+        -1.1102230246251466E-16,
+        -5.952628903268065E-15,
+        0.9999999999999998
+      ]
+    },
+    "triangles": 64,
+    "bounds_cm": [
+      [
+        -50.00000000000002,
+        -49.99999999999999,
+        -50.000000000000085
+      ],
+      [
+        50.0,
+        50.00000000000002,
+        50.00000000000001
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_164_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_167_Body",
+    "actor": "Actor_167",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折22",
+    "transform": {
+      "location": [
+        820.6306703169322,
+        5479.04827363385,
+        766.05947548975
+      ],
+      "scale": [
+        4.383058999999999,
+        4.018064586285178,
+        0.7
+      ],
+      "quaternion": [
+        -0.17364817766692692,
+        1.7297371798021508E-16,
+        0.9848077530122085,
+        2.4195246084344273E-15
+      ]
+    },
+    "triangles": 54,
+    "bounds_cm": [
+      [
+        -52.3103616883225,
+        -49.99999999999998,
+        -1785.929702911709
+      ],
+      [
+        158.95110571741748,
+        50.00000000000017,
+        50.48384565712011
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_167_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_169_Body",
+    "actor": "Actor_169",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折24",
+    "transform": {
+      "location": [
+        -2043.9549141592183,
+        4713.973842404333,
+        380.5024980595703
+      ],
+      "scale": [
+        6.014944102313406,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.2588190451025203,
+        1.58480957571588E-17,
+        0.9659258262890683,
+        5.914589856893349E-17
+      ]
+    },
+    "triangles": 56,
+    "bounds_cm": [
+      [
+        -51.27988470382782,
+        -50.0000000000001,
+        -1978.0551408031183
+      ],
+      [
+        167.52621560279678,
+        50.0000000000001,
+        50.00000000000023
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_169_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_171_Body",
+    "actor": "Actor_171",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折25",
+    "transform": {
+      "location": [
+        -983.4972076611461,
+        5752.335809952423,
+        612.9244324026882
+      ],
+      "scale": [
+        4.383058999999999,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.17364817766692642,
+        9.585843596820521E-17,
+        0.9848077530122087,
+        1.982182111545021E-15
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -52.511712104861516,
+        -50.000000000000114,
+        -1801.2759221825897
+      ],
+      [
+        160.0369708954332,
+        50.00000000000035,
+        50.00000000000033
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_171_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_197_Body",
+    "actor": "Actor_197",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园16",
+    "transform": {
+      "location": [
+        1288.1119257526955,
+        -5814.647110448018,
+        1591.0625412716674
+      ],
+      "scale": [
+        4.462671841028501,
+        5.0309653240117465,
+        5.5
+      ],
+      "quaternion": [
+        -3.841091754110715E-17,
+        -3.360519840475954E-18,
+        -0.08715574274765767,
+        0.9961946980917452
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.000000000000036,
+        -49.999999999999964,
+        -50.0
+      ],
+      [
+        50.000000000000036,
+        49.999999999999964,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_197_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_198_Body",
+    "actor": "Actor_198",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折27",
+    "transform": {
+      "location": [
+        888.1036296864494,
+        -5706.48621128841,
+        1761.4585535482884
+      ],
+      "scale": [
+        4.383058999999999,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.17298739392508894,
+        0.015134435901338554,
+        0.9810602621904067,
+        0.08583165117743123
+      ]
+    },
+    "triangles": 62,
+    "bounds_cm": [
+      [
+        -52.31988068693991,
+        -49.99999999999996,
+        -698.5425228306107
+      ],
+      [
+        55.132845882071905,
+        49.99999999999998,
+        49.9999999999998
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_198_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_200_Body",
+    "actor": "Actor_200",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst3.BasicShapeMaterial_Inst3",
+      "/Game/Lockdown/Art/QingdaoBeachL1/Materials/M_QD_BeachSand_512.M_QD_BeachSand_512"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园17",
+    "transform": {
+      "location": [
+        -1323.6697052027473,
+        -4778.137285061482,
+        1768.809425315918
+      ],
+      "scale": [
+        4.720630133483982,
+        0.539066,
+        3.052217674641413
+      ],
+      "quaternion": [
+        -0.49999999999999967,
+        0.4999999999999961,
+        -0.4999999999999984,
+        0.5000000000000059
+      ]
+    },
+    "triangles": 60,
+    "bounds_cm": [
+      [
+        -50.00000000000066,
+        -29.276856518561168,
+        -50.00000000000186
+      ],
+      [
+        50.000000000000675,
+        50.00000000000812,
+        50.00000000000183
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_200_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_205_Body",
+    "actor": "Actor_205",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折30",
+    "transform": {
+      "location": [
+        -5565.864589009699,
+        1104.0672944396238,
+        338.07587288570403
+      ],
+      "scale": [
+        4.909626155485294,
+        2.951817831237259,
+        0.7
+      ],
+      "quaternion": [
+        0.2889197393459144,
+        3.7678371207297687E-16,
+        -0.9573533225598002,
+        2.678778475168973E-15
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -51.69417064793989,
+        -50.00000000000025,
+        -933.0769940896307
+      ],
+      [
+        56.57053214481674,
+        50.000000000000014,
+        50.00000000000014
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_205_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_206_Body",
+    "actor": "Actor_206",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折31",
+    "transform": {
+      "location": [
+        -5546.895483598797,
+        -895.366635118208,
+        158.9060769523079
+      ],
+      "scale": [
+        6.4811545,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.19929111849933945,
+        0.19929111849933978,
+        0.6784416335155745,
+        0.6784416335155761
+      ]
+    },
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -51.034426091901345,
+        -50.000000000000014,
+        -473.67406985246544
+      ],
+      [
+        54.91326684365435,
+        50.00000000000004,
+        50.00000000000014
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_206_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_207_Body",
+    "actor": "Actor_207",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折32",
+    "transform": {
+      "location": [
+        -5565.864589,
+        1953.7041352848928,
+        338.075873
+      ],
+      "scale": [
+        4.909624999999999,
+        2.8950844311803463,
+        0.7
+      ],
+      "quaternion": [
+        -0.2889197402328784,
+        1.769123175433397E-17,
+        0.9573533222921232,
+        5.862098408990667E-17
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -51.694175373640505,
+        -50.000000000000036,
+        -933.076963870693
+      ],
+      [
+        56.57053370144729,
+        50.00000000000002,
+        50.00000000000051
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_207_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_209_Body",
+    "actor": "Actor_209",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折33",
+    "transform": {
+      "location": [
+        -4816.88438421235,
+        2965.948088257855,
+        338.075873
+      ],
+      "scale": [
+        4.909624999999999,
+        3.425998286972018,
+        0.7
+      ],
+      "quaternion": [
+        -0.20429710753732344,
+        0.20429710753732364,
+        0.6769510261842306,
+        0.6769510261842313
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -52.65521513293631,
+        -50.00000000000008,
+        -1588.5769428231151
+      ],
+      [
+        206.27851267884014,
+        50.000000000000085,
+        50.000000000000426
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_209_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_213_Body",
+    "actor": "Actor_213",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "城市地面_0_3",
+    "transform": {
+      "location": [
+        -3334.834733,
+        -944.8065493117429,
+        92.466618
+      ],
+      "scale": [
+        41.084849999999996,
+        55.848760000000006,
+        8.150612
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.0,
+        -50.0
+      ],
+      [
+        50.0,
+        50.0,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_213_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_261_Body",
+    "actor": "Actor_261",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折26",
+    "transform": {
+      "location": [
+        392.2449935600586,
+        -6431.517785372071,
+        1626.094453
+      ],
+      "scale": [
+        4.383058999999999,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.3420201433256687,
+        2.0942693688384962E-17,
+        0.9396926207859082,
+        5.753957801139251E-17
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -52.522678209562834,
+        -50.00000000000007,
+        -572.5800405869306
+      ],
+      [
+        57.863976130694816,
+        50.00000000000007,
+        50.00000000000039
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_261_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_262_Body",
+    "actor": "Actor_262",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折17",
+    "transform": {
+      "location": [
+        -1247.8229686464842,
+        -5417.909604617425,
+        1616.8390973891355
+      ],
+      "scale": [
+        4.383058999999999,
+        2.155846564346353,
+        0.7
+      ],
+      "quaternion": [
+        0.2418447626479683,
+        0.24184476264796914,
+        -0.664463024388677,
+        0.6644630243886773
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -51.9466479221979,
+        -50.00000000000002,
+        -561.9853032208352
+      ],
+      [
+        57.86397613069481,
+        50.00000000000031,
+        50.00000000000075
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_262_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_280_Body",
+    "actor": "Actor_280",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场4",
+    "transform": {
+      "location": [
+        2187.072569972818,
+        -2254.5892322382892,
+        1358.2919683797363
+      ],
+      "scale": [
+        46.615414274344666,
+        11.186973927526028,
+        5.5
+      ],
+      "quaternion": [
+        -0.10971679021827312,
+        0.10971679021827206,
+        -0.6985429306379041,
+        0.6985429306379152
+      ]
+    },
+    "triangles": 248,
+    "bounds_cm": [
+      [
+        -49.999999999999964,
+        -63.23873844358278,
+        -185.9146789499823
+      ],
+      [
+        49.99999999999999,
+        65.65102762895137,
+        75.02940617074127
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_280_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_314_Body",
+    "actor": "Actor_314",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场8",
+    "transform": {
+      "location": [
+        958.4227016439631,
+        -2158.2395637810937,
+        1514.788604999999
+      ],
+      "scale": [
+        15.579440189108473,
+        43.05029800706709,
+        5.5
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.00000000000001,
+        -50.0
+      ],
+      [
+        50.0,
+        50.00000000000001,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_314_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_334_Body",
+    "actor": "Actor_334",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园36",
+    "transform": {
+      "location": [
+        1475.947309791069,
+        -664.9127407217175,
+        1518.3464725498047
+      ],
+      "scale": [
+        3.5367640000000002,
+        4.263578,
+        7.2439015
+      ],
+      "quaternion": [
+        -1.570092458683768E-16,
+        -4.067564042545842E-31,
+        -0.7071067811865441,
+        0.7071067811865506
+      ]
+    },
+    "triangles": 14,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -49.99999999999996,
+        -50.00000000000003
+      ],
+      [
+        49.99999999999996,
+        49.99999999999999,
+        50.00000000000003
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_334_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_336_Body",
+    "actor": "Actor_336",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场9",
+    "transform": {
+      "location": [
+        3494.88546013244,
+        1004.548034883908,
+        1022.2338027897572
+      ],
+      "scale": [
+        9.911654472073625,
+        16.3818,
+        5.5
+      ],
+      "quaternion": [
+        -0.17364817700120216,
+        2.3279229973829107E-16,
+        1.5364212372508097E-15,
+        0.9848077531295937
+      ]
+    },
+    "triangles": 76,
+    "bounds_cm": [
+      [
+        -50.000000000000014,
+        -51.982107545730166,
+        -191.07705385013193
+      ],
+      [
+        50.00000000000012,
+        72.7692537236311,
+        50.00000000000007
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_336_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_339_Body",
+    "actor": "Actor_339",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场27",
+    "transform": {
+      "location": [
+        5037.216203289486,
+        844.2751405515264,
+        846.5637540000005
+      ],
+      "scale": [
+        22.0,
+        24.293287816262218,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.0,
+        -50.0
+      ],
+      [
+        50.0,
+        50.0,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_339_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_343_Body",
+    "actor": "Actor_343",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场28",
+    "transform": {
+      "location": [
+        2467.6203355156513,
+        873.764440611871,
+        621.4638070597459
+      ],
+      "scale": [
+        10.5272103511677,
+        10.508919683476142,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -50.0,
+        -50.0
+      ],
+      [
+        50.00000000000003,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_343_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_344_Body",
+    "actor": "Actor_344",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场30",
+    "transform": {
+      "location": [
+        5132.388226234876,
+        2206.6620395738382,
+        1119.6852851378849
+      ],
+      "scale": [
+        9.91166,
+        6.77532745162176,
+        5.5
+      ],
+      "quaternion": [
+        -0.2588190451025207,
+        0.0,
+        0.0,
+        0.9659258262890684
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -49.999999999999964,
+        -51.457489055894314,
+        -165.28083551562102
+      ],
+      [
+        49.999999999999964,
+        85.1506237508439,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_344_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_347_Body",
+    "actor": "Actor_347",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场31",
+    "transform": {
+      "location": [
+        2547.5592199988437,
+        674.0413673542341,
+        1161.4020832604892
+      ],
+      "scale": [
+        8.516813651188826,
+        10.128662000437618,
+        3.4005811939107367
+      ],
+      "quaternion": [
+        -0.18301270189221885,
+        0.06162841671621936,
+        0.7044160264027537,
+        0.6830127018922244
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -49.999999999999986,
+        -49.99999999999998,
+        -321.25122079179823
+      ],
+      [
+        73.86308994440782,
+        59.762649737222254,
+        50.00000000000002
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_347_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_350_Body",
+    "actor": "Actor_350",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场32",
+    "transform": {
+      "location": [
+        4525.77892202373,
+        3757.272072898024,
+        356.206387
+      ],
+      "scale": [
+        11.084053898114664,
+        4.998074216927682,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -49.999999999999986,
+        -49.99999999999998,
+        -50.0
+      ],
+      [
+        50.00000000000003,
+        49.99999999999998,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_350_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_352_Body",
+    "actor": "Actor_352",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场33",
+    "transform": {
+      "location": [
+        4149.52355589521,
+        2758.013719194834,
+        782.0056000403899
+      ],
+      "scale": [
+        9.91166,
+        6.775328,
+        5.5
+      ],
+      "quaternion": [
+        -0.18301270189221908,
+        -0.18301270189221827,
+        0.6830127018922177,
+        0.6830127018922213
+      ]
+    },
+    "triangles": 76,
+    "bounds_cm": [
+      [
+        -50.00000000000003,
+        -51.509069889673796,
+        -165.1707785299647
+      ],
+      [
+        50.000000000000014,
+        103.2683356574205,
+        55.394705587401134
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_352_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_354_Body",
+    "actor": "Actor_354",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场35",
+    "transform": {
+      "location": [
+        4973.128732349339,
+        2838.070065304033,
+        509.58303834520734
+      ],
+      "scale": [
+        13.413608917198351,
+        8.3083803515236,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 20,
+    "bounds_cm": [
+      [
+        -49.99999999999997,
+        -50.000000000000014,
+        -50.0
+      ],
+      [
+        49.99999999999997,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_354_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_355_Body",
+    "actor": "Actor_355",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场36",
+    "transform": {
+      "location": [
+        1123.8257964089773,
+        2282.4408493271167,
+        390.170330380276
+      ],
+      "scale": [
+        13.846251502561692,
+        16.3818,
+        5.5
+      ],
+      "quaternion": [
+        -0.1830127018922194,
+        -0.1830127018922192,
+        0.6830127018922171,
+        0.683012701892222
+      ]
+    },
+    "triangles": 38,
+    "bounds_cm": [
+      [
+        -50.00000000000019,
+        -50.59412443249294,
+        -165.47674771085028
+      ],
+      [
+        50.00000000000005,
+        64.53790096574996,
+        50.000000000000114
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_355_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_356_Body",
+    "actor": "Actor_356",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场37",
+    "transform": {
+      "location": [
+        2209.234111681912,
+        1786.027313503262,
+        985.5378801484384
+      ],
+      "scale": [
+        4.6895642850655,
+        9.525544970676865,
+        3.0219974747798877
+      ],
+      "quaternion": [
+        -0.17364817766693036,
+        0.0,
+        0.0,
+        0.984807753012208
+      ]
+    },
+    "triangles": 40,
+    "bounds_cm": [
+      [
+        -49.999999999999986,
+        -50.0,
+        -374.0348437096702
+      ],
+      [
+        49.999999999999986,
+        78.14638032521027,
+        49.99999999999998
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_356_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_361_Body",
+    "actor": "Actor_361",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场38",
+    "transform": {
+      "location": [
+        -406.3067985045334,
+        2688.8519430532597,
+        179.12272360896986
+      ],
+      "scale": [
+        3.821329431421328,
+        16.3818,
+        5.5
+      ],
+      "quaternion": [
+        -3.0663925067836755E-16,
+        -0.17364817766693033,
+        0.9848077530122079,
+        2.48827818379379E-15
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -50.000000000000014,
+        -49.99999999999994,
+        -134.02965910470294
+      ],
+      [
+        49.99999999999995,
+        60.790425512690746,
+        50.00000000000002
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_361_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_365_Body",
+    "actor": "Actor_365",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园50",
+    "transform": {
+      "location": [
+        -5405.837294782296,
+        3567.0927707861074,
+        79.43001030138112
+      ],
+      "scale": [
+        3.320855693832198,
+        3.2314924817241115,
+        11.698702750271977
+      ],
+      "quaternion": [
+        -0.13600088426322499,
+        -0.5221322954779489,
+        0.22540600384834766,
+        0.8112174547725575
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -162.27016019193422,
+        -50.00000000000018,
+        -64.58139300006978
+      ],
+      [
+        50.000000000000064,
+        155.7975956920857,
+        49.999999999999936
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_365_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_366_Body",
+    "actor": "Actor_366",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园54",
+    "transform": {
+      "location": [
+        -5361.190096635566,
+        3728.672610576256,
+        137.13179222656248
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        3.416483858043501
+      ],
+      "quaternion": [
+        -0.04326740320520542,
+        -0.5378162368396393,
+        0.3628480146095245,
+        0.759751897335869
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39593214035877,
+        -50.000000000000085,
+        -99.92951569696959
+      ],
+      [
+        50.000000000000036,
+        106.96915042389851,
+        50.00000000000003
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_366_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_367_Body",
+    "actor": "Actor_367",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园55",
+    "transform": {
+      "location": [
+        -5375.465796503035,
+        2778.2473073764572,
+        137.131792
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        3.4164845
+      ],
+      "quaternion": [
+        -0.4398028903337801,
+        -0.3125568595352243,
+        -0.34876951111287663,
+        0.7663168113317202
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39593848644513,
+        -49.99999999999999,
+        -99.92950631522802
+      ],
+      [
+        50.00000000000026,
+        106.96915420860321,
+        50.000000000000135
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_367_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_368_Body",
+    "actor": "Actor_368",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园56",
+    "transform": {
+      "location": [
+        -7363.395258871728,
+        2564.5311444744657,
+        -136.70116836720368
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        3.4164845
+      ],
+      "quaternion": [
+        -0.43980289033378395,
+        -0.31255685953522794,
+        -0.3487695111128791,
+        0.7663168113317156
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39593848644601,
+        -50.00000000000005,
+        -99.92950631522693
+      ],
+      [
+        50.00000000000004,
+        106.9691542086027,
+        50.000000000000036
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_368_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_369_Body",
+    "actor": "Actor_369",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园57",
+    "transform": {
+      "location": [
+        -7946.101860447411,
+        4173.345660541797,
+        -746.31453063657
+      ],
+      "scale": [
+        5.522614802757283,
+        5.374002925726112,
+        19.455054642002143
+      ],
+      "quaternion": [
+        0.06298507925354181,
+        -0.14169164953435948,
+        0.07223606279105144,
+        0.9852605277164533
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -149.58808380935895,
+        -88.78742326310767,
+        -51.1294647108692
+      ],
+      [
+        50.000000000000014,
+        50.00000000000002,
+        49.99999999999999
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_369_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_370_Body",
+    "actor": "Actor_370",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园58",
+    "transform": {
+      "location": [
+        -7655.163975031886,
+        3787.7285148862047,
+        -859.9803330019531
+      ],
+      "scale": [
+        5.522608,
+        5.374006,
+        19.4550565
+      ],
+      "quaternion": [
+        -0.02967663448454757,
+        -0.15219376298943743,
+        -0.5059499026424614,
+        0.8485110794143286
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -149.58821798080533,
+        -88.7874013503604,
+        -51.12945561515047
+      ],
+      [
+        49.99999999999998,
+        50.00000000000009,
+        50.00000000000001
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_370_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_371_Body",
+    "actor": "Actor_371",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园59",
+    "transform": {
+      "location": [
+        -7480.413314582831,
+        3620.2111555501724,
+        -385.7873398359375
+      ],
+      "scale": [
+        2.654279628046802,
+        2.5828584333346276,
+        9.35050253982349
+      ],
+      "quaternion": [
+        0.018284475650917544,
+        0.1528720324419788,
+        -0.42663909716860765,
+        0.8912210165914987
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -50.000000000000085,
+        -50.00000000000012,
+        -51.1079496736867
+      ],
+      [
+        149.41922165587607,
+        86.64180838025226,
+        50.00000000000003
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_371_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_372_Body",
+    "actor": "Actor_372",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园60",
+    "transform": {
+      "location": [
+        -8212.47255506222,
+        4676.451413572959,
+        -385.7873400000004
+      ],
+      "scale": [
+        2.654288,
+        2.5828659999999997,
+        9.3505005
+      ],
+      "quaternion": [
+        0.05997113579216861,
+        0.03928932956230662,
+        -0.8673906359602798,
+        0.49243608326641036
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -50.00000000000011,
+        -49.9999999999999,
+        -52.2131407212351
+      ],
+      [
+        99.89081471605923,
+        53.39194040321189,
+        49.99999999999998
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_372_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_373_Body",
+    "actor": "Actor_373",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园61",
+    "transform": {
+      "location": [
+        -6716.924496127817,
+        4524.831798497761,
+        -385.78734
+      ],
+      "scale": [
+        2.654288,
+        2.5828659999999997,
+        9.3505005
+      ],
+      "quaternion": [
+        -0.07158119179719928,
+        -0.004039992788499281,
+        0.9974003673564312,
+        0.007233162269549106
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -49.99999999999995,
+        -50.000000000000085,
+        -52.213140891169324
+      ],
+      [
+        99.89081473228853,
+        53.391942886954865,
+        50.000000000000014
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_373_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_374_Body",
+    "actor": "Actor_374",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园62",
+    "transform": {
+      "location": [
+        -4764.4622366258145,
+        4468.935157123808,
+        137.13179200000002
+      ],
+      "scale": [
+        2.6766595955286276,
+        2.6046308751942258,
+        2.7537375965413218
+      ],
+      "quaternion": [
+        -0.4905836256514776,
+        0.2246020459192633,
+        -0.8380345815167956,
+        0.08111514897662955
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39593848644503,
+        -50.000000000000036,
+        -99.92950631522831
+      ],
+      [
+        49.99999999999997,
+        106.96915420860311,
+        50.00000000000013
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_374_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_375_Body",
+    "actor": "Actor_375",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园63",
+    "transform": {
+      "location": [
+        -4587.6274343477435,
+        4486.614852016175,
+        132.62033287597654
+      ],
+      "scale": [
+        2.4480737745871735,
+        2.3821962825212095,
+        8.624068383278642
+      ],
+      "quaternion": [
+        -0.5134646536918985,
+        0.34936943554392286,
+        -0.7770223380874764,
+        -0.10262228330070663
+      ]
+    },
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -465.63692892557543,
+        -50.00000000000004,
+        -58.40588043732283
+      ],
+      [
+        60.1161801099234,
+        332.0665868149473,
+        50.756139699142636
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_375_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_376_Body",
+    "actor": "Actor_376",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折34",
+    "transform": {
+      "location": [
+        -2602.0603742658914,
+        3212.766322090247,
+        338.075873
+      ],
+      "scale": [
+        4.909624999999999,
+        5.476268144204072,
+        0.7
+      ],
+      "quaternion": [
+        -0.20429710753732416,
+        0.2042971075373242,
+        0.6769510261842309,
+        0.6769510261842309
+      ]
+    },
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -51.75658620671774,
+        -50.000000000000064,
+        -1590.5546328075297
+      ],
+      [
+        206.4657601339013,
+        50.00000000000005,
+        49.999999999999986
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_376_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_379_Body",
+    "actor": "Actor_379",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "城市地面_0_2",
+    "transform": {
+      "location": [
+        -4046.9220085204706,
+        2909.364068108356,
+        92.466618
+      ],
+      "scale": [
+        11.868944801364831,
+        16.134070093104203,
+        8.150612
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -49.99999999999999,
+        -50.0
+      ],
+      [
+        50.00000000000001,
+        49.99999999999999,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_379_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_380_Body",
+    "actor": "Actor_380",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折35",
+    "transform": {
+      "location": [
+        -3285.2784464002325,
+        3768.7999679385393,
+        338.075873
+      ],
+      "scale": [
+        4.909624999999999,
+        2.8049534822018978,
+        0.7
+      ],
+      "quaternion": [
+        0.0,
+        0.2889197402328776,
+        0.0,
+        0.9573533222921236
+      ]
+    },
+    "triangles": 52,
+    "bounds_cm": [
+      [
+        -50.93151265317884,
+        -50.00000000000003,
+        -1590.5546328075327
+      ],
+      [
+        206.46576013390077,
+        50.00000000000003,
+        50.00000000000025
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_380_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_384_Body",
+    "actor": "Actor_384",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园66",
+    "transform": {
+      "location": [
+        -5772.057306836042,
+        24.660259123216008,
+        79.43001000000001
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        11.6987035
+      ],
+      "quaternion": [
+        0.09740398266709455,
+        -0.5306890209426409,
+        0.5471225289123518,
+        0.6399520025502553
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -162.27014882664557,
+        -50.00000000000007,
+        -64.58139223877477
+      ],
+      [
+        49.99999999999996,
+        155.79761978260052,
+        49.999999999999986
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_384_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_385_Body",
+    "actor": "Actor_385",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园67",
+    "transform": {
+      "location": [
+        -5867.135978773168,
+        162.72351682181238,
+        137.131792
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        3.4164845
+      ],
+      "quaternion": [
+        0.1880773786993595,
+        -0.5057126381751286,
+        0.649937007357684,
+        0.535222863561027
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39593848644552,
+        -50.000000000000014,
+        -99.92950631522747
+      ],
+      [
+        49.999999999999766,
+        106.96915420860266,
+        49.99999999999998
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_385_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_391_Body",
+    "actor": "Actor_391",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园73",
+    "transform": {
+      "location": [
+        -5274.385799095215,
+        4726.557280125486,
+        137.131792
+      ],
+      "scale": [
+        2.67666,
+        2.604624,
+        2.75374
+      ],
+      "quaternion": [
+        -0.5319986810241896,
+        0.08997653125672839,
+        -0.7884851002089417,
+        0.2952505274508824
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39586554379053,
+        -50.00000000000007,
+        -99.92941999328697
+      ],
+      [
+        50.00000000000005,
+        106.96932773006156,
+        50.00000000000002
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_391_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_392_Body",
+    "actor": "Actor_392",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园74",
+    "transform": {
+      "location": [
+        -2446.525193951314,
+        5096.243029248047,
+        137.131792
+      ],
+      "scale": [
+        2.67666,
+        2.604624,
+        2.75374
+      ],
+      "quaternion": [
+        -0.531998681024193,
+        0.0899765312567313,
+        -0.7884851002089419,
+        0.2952505274508744
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39586554379093,
+        -50.000000000000014,
+        -99.92941999328613
+      ],
+      [
+        49.999999999999964,
+        106.96932773006102,
+        50.000000000000135
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_392_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_393_Body",
+    "actor": "Actor_393",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折36",
+    "transform": {
+      "location": [
+        -4825.2894726975,
+        3566.963374160049,
+        338.075873
+      ],
+      "scale": [
+        4.909624999999999,
+        2.895084,
+        0.7
+      ],
+      "quaternion": [
+        -0.2889197402328784,
+        1.769123175433397E-17,
+        0.9573533222921232,
+        5.862098408990667E-17
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -51.69417459285491,
+        -49.99999999999994,
+        -1588.5769428231133
+      ],
+      [
+        206.27851267884034,
+        49.99999999999994,
+        49.999999999999986
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_393_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_394_Body",
+    "actor": "Actor_394",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折37",
+    "transform": {
+      "location": [
+        -3935.338850367871,
+        4197.627485016866,
+        338.075873
+      ],
+      "scale": [
+        4.909624999999999,
+        2.895084,
+        0.7
+      ],
+      "quaternion": [
+        -0.20429710753732344,
+        0.20429710753732364,
+        0.6769510261842306,
+        0.6769510261842313
+      ]
+    },
+    "triangles": 72,
+    "bounds_cm": [
+      [
+        -51.69417459285511,
+        -50.00000000000006,
+        -1590.5546328075332
+      ],
+      [
+        206.46576013390077,
+        50.000000000000064,
+        50.00000000000108
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_394_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_395_Body",
+    "actor": "Actor_395",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "城市地面_0_4",
+    "transform": {
+      "location": [
+        -3775.302765765788,
+        3211.3255163601243,
+        92.466618
+      ],
+      "scale": [
+        6.120992629898012,
+        16.13408,
+        8.150612
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -49.99999999999998,
+        -50.00000000000001,
+        -50.0
+      ],
+      [
+        49.99999999999998,
+        50.00000000000001,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_395_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_397_Body",
+    "actor": "Actor_397",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园75",
+    "transform": {
+      "location": [
+        -3046.03442516784,
+        4391.354687039497,
+        132.62033299999953
+      ],
+      "scale": [
+        2.4480679999999997,
+        2.382204,
+        8.624066
+      ],
+      "quaternion": [
+        -0.20457052727562008,
+        -0.5863922331752904,
+        0.10198266576125364,
+        0.7771065461866205
+      ]
+    },
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -466.4924883055377,
+        -49.999999999999815,
+        -58.405878483665056
+      ],
+      [
+        60.38035777398346,
+        332.9103593075781,
+        50.775849596810346
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_397_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_398_Body",
+    "actor": "Actor_398",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园76",
+    "transform": {
+      "location": [
+        -2946.8449459832673,
+        4204.256943723845,
+        -109.43875399999955
+      ],
+      "scale": [
+        2.296252,
+        2.052402,
+        9.184708500000001
+      ],
+      "quaternion": [
+        0.10633735686536094,
+        0.24951573188280574,
+        -0.1063373573433633,
+        0.9566225130693433
+      ]
+    },
+    "triangles": 56,
+    "bounds_cm": [
+      [
+        -71.24222362914117,
+        -157.2214973069086,
+        -95.1826111328926
+      ],
+      [
+        356.90610208637383,
+        50.757551692428144,
+        50.955399843993995
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_398_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_400_Body",
+    "actor": "Actor_400",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园77",
+    "transform": {
+      "location": [
+        1943.8979056861663,
+        -2522.4965306628656,
+        1497.8223045986329
+      ],
+      "scale": [
+        2.682624,
+        3.849747813894422,
+        7.2439015
+      ],
+      "quaternion": [
+        0.008923882666926017,
+        0.07852850961214802,
+        0.036739093485518994,
+        0.9961946980917455
+      ]
+    },
+    "triangles": 40,
+    "bounds_cm": [
+      [
+        -80.59126140254708,
+        -54.52574946017671,
+        -56.56128604007239
+      ],
+      [
+        92.07269200994585,
+        50.00000000000005,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_400_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_403_Body",
+    "actor": "Actor_403",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园78",
+    "transform": {
+      "location": [
+        1752.9792094612803,
+        -2344.73214427884,
+        1516.7934197109378
+      ],
+      "scale": [
+        1.4713054632383151,
+        2.8138803940507264,
+        5.294741229782404
+      ],
+      "quaternion": [
+        -0.06162841671621903,
+        0.06162841671621969,
+        -0.7044160264027544,
+        0.704416026402763
+      ]
+    },
+    "triangles": 52,
+    "bounds_cm": [
+      [
+        -49.99999999999999,
+        -53.44991984635244,
+        -56.466485720566126
+      ],
+      [
+        50.00000000000091,
+        82.17812949888055,
+        49.99999999999993
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_403_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_404_Body",
+    "actor": "Actor_404",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园80",
+    "transform": {
+      "location": [
+        2494.5002518273564,
+        -2632.3151978698243,
+        1470.3862697314448
+      ],
+      "scale": [
+        1.471316,
+        2.813888,
+        5.29474
+      ],
+      "quaternion": [
+        -0.06162841671621936,
+        0.06162841671621935,
+        -0.7044160264027587,
+        0.7044160264027588
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -49.99999999999991,
+        -50.0000000000001,
+        -56.07295621732474
+      ],
+      [
+        49.99999999999991,
+        82.17803504745305,
+        50.00000000000006
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_404_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_410_Body",
+    "actor": "Actor_410",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场39",
+    "transform": {
+      "location": [
+        2578.3752380129054,
+        3571.614900773665,
+        627.725368782279
+      ],
+      "scale": [
+        16.48370090913357,
+        6.775328,
+        5.5
+      ],
+      "quaternion": [
+        -0.2588190451025209,
+        -1.3404913655327539E-17,
+        -3.591835788553945E-18,
+        0.9659258262890683
+      ]
+    },
+    "triangles": 80,
+    "bounds_cm": [
+      [
+        -49.99999999999999,
+        -51.578160164344915,
+        -165.11004295030813
+      ],
+      [
+        49.99999999999999,
+        105.14250420964771,
+        54.41580250933234
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_410_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_417_Body",
+    "actor": "Actor_417",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场40",
+    "transform": {
+      "location": [
+        3704.3510637840805,
+        4670.441448525718,
+        731.8376819058885
+      ],
+      "scale": [
+        4.689564,
+        9.525544,
+        3.021997
+      ],
+      "quaternion": [
+        -0.17364817766693036,
+        0.0,
+        0.0,
+        0.984807753012208
+      ]
+    },
+    "triangles": 76,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -51.15191007946592,
+        -374.29551209045263
+      ],
+      [
+        50.00000000000001,
+        60.196279751108676,
+        50.00000000000002
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_417_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_438_Body",
+    "actor": "Actor_438",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场41",
+    "transform": {
+      "location": [
+        4426.750334542662,
+        4397.296016682617,
+        731.837682
+      ],
+      "scale": [
+        3.0608725268259245,
+        9.525544,
+        3.021997
+      ],
+      "quaternion": [
+        -0.17364817766693036,
+        0.0,
+        0.0,
+        0.984807753012208
+      ]
+    },
+    "triangles": 56,
+    "bounds_cm": [
+      [
+        -50.00000000000014,
+        -51.1519100760868,
+        -374.2955121197166
+      ],
+      [
+        50.00000000000014,
+        60.196279751108676,
+        50.00000000000007
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_438_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_449_Body",
+    "actor": "Actor_449",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场43",
+    "transform": {
+      "location": [
+        3731.3223888847656,
+        3330.057763,
+        356.206387
+      ],
+      "scale": [
+        5.210041444742322,
+        19.008592,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -49.99999999999998,
+        -49.99999999999999,
+        -50.0
+      ],
+      [
+        49.99999999999998,
+        50.00000000000002,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_449_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_461_Body",
+    "actor": "Actor_461",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone.MI_City_stone"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场13",
+    "transform": {
+      "location": [
+        1992.7395725532565,
+        4033.634722516038,
+        190.91445
+      ],
+      "scale": [
+        37.342602,
+        13.41882011067511,
+        13.5925405
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 20,
+    "bounds_cm": [
+      [
+        -50.0,
+        -50.000000000000014,
+        -50.0
+      ],
+      [
+        50.0,
+        50.000000000000014,
+        50.0
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_461_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_462_Body",
+    "actor": "Actor_462",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折23",
+    "transform": {
+      "location": [
+        74.63374862287793,
+        4906.418456582439,
+        762.071666772461
+      ],
+      "scale": [
+        4.383058999999999,
+        3.571871105795846,
+        0.7
+      ],
+      "quaternion": [
+        -0.122787803968972,
+        0.12278780396897236,
+        0.6963642403200181,
+        0.6963642403200201
+      ]
+    },
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -54.3103100750735,
+        -50.0,
+        -1783.5589183582388
+      ],
+      [
+        59.32911748423796,
+        50.0,
+        50.00000000000124
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_462_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_495_Body",
+    "actor": "Actor_495",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折28",
+    "transform": {
+      "location": [
+        1037.7584461745641,
+        6188.5316564774985,
+        607.4683514190676
+      ],
+      "scale": [
+        3.5363405753697217,
+        4.018064,
+        0.7
+      ],
+      "quaternion": [
+        -0.18301270189221833,
+        0.18301270189221908,
+        0.6830127018922182,
+        0.683012701892221
+      ]
+    },
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -53.095850626273254,
+        -50.00000000000004,
+        -1650.8994680592139
+      ],
+      [
+        145.99916998793412,
+        50.00000000000003,
+        50.00000000000099
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_495_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_504_Body",
+    "actor": "Actor_504",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园151",
+    "transform": {
+      "location": [
+        -1105.1856952111832,
+        6831.77746954672,
+        -4.7877274091598565
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        3.4164845
+      ],
+      "quaternion": [
+        -0.4905836256514774,
+        0.22460204591926386,
+        -0.8380345815167957,
+        0.08111514897662864
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -80.39593848644505,
+        -49.99999999999992,
+        -99.9295063152282
+      ],
+      [
+        50.000000000000014,
+        106.96915420860333,
+        50.00000000000002
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_504_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_505_Body",
+    "actor": "Actor_505",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园152",
+    "transform": {
+      "location": [
+        -967.1224363556729,
+        6926.856139803897,
+        -62.489509409159794
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        11.6987035
+      ],
+      "quaternion": [
+        -0.4441288220682683,
+        0.3063787887513095,
+        -0.839388450971055,
+        -0.06564035030333666
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -162.27014882664577,
+        -50.000000000000014,
+        -64.58139223877492
+      ],
+      [
+        50.00000000000017,
+        155.79761978260134,
+        49.99999999999999
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_505_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_507_Body",
+    "actor": "Actor_507",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "高台_教堂校园154",
+    "transform": {
+      "location": [
+        7.388702451264493,
+        7604.623164225503,
+        -62.489509
+      ],
+      "scale": [
+        3.320856,
+        3.231492,
+        11.6987035
+      ],
+      "quaternion": [
+        -0.5082921649793691,
+        0.1809901870518346,
+        -0.8277759558674187,
+        0.15384600774575868
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -162.270148826645,
+        -49.999999999999986,
+        -64.58139223877461
+      ],
+      [
+        50.00000000000017,
+        155.79761978259978,
+        49.99999999999997
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_507_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_509_Body",
+    "actor": "Actor_509",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "教堂门前广场26",
+    "transform": {
+      "location": [
+        -2436.9164054485054,
+        4970.313864288821,
+        -408.373693
+      ],
+      "scale": [
+        8.431393300014662,
+        26.983776,
+        13.5925405
+      ],
+      "quaternion": [
+        0.06162841671621936,
+        -0.06162841671621935,
+        -0.7044160264027587,
+        0.7044160264027588
+      ]
+    },
+    "triangles": 60,
+    "bounds_cm": [
+      [
+        -50.00000000000001,
+        -58.61429225096214,
+        -80.93338011599575
+      ],
+      [
+        50.00000000000001,
+        50.000000000000014,
+        50.00000000000001
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_509_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_510_Body",
+    "actor": "Actor_510",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折29",
+    "transform": {
+      "location": [
+        -1000.8714526520125,
+        3273.0960573765187,
+        324.51785597119147
+      ],
+      "scale": [
+        6.0149455,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        -0.18301270189221844,
+        0.1830127018922189,
+        0.6830127018922185,
+        0.6830127018922206
+      ]
+    },
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -51.34110515197092,
+        -50.00000000000003,
+        -644.7744031063949
+      ],
+      [
+        55.039262472528705,
+        50.000000000000064,
+        50.00000000000004
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_510_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Actor_511_Body",
+    "actor": "Actor_511",
+    "component": "Body",
+    "kind": "original",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "old_mesh": "/Engine/BasicShapes/Cube.Cube",
+    "label": "栈桥回路_北折38",
+    "transform": {
+      "location": [
+        -1447.6853719013673,
+        3951.699999871094,
+        324.517856
+      ],
+      "scale": [
+        6.0149455,
+        3.175084,
+        0.7
+      ],
+      "quaternion": [
+        0.1830127018922182,
+        0.18301270189221852,
+        -0.6830127018922199,
+        0.6830127018922194
+      ]
+    },
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -50.0000000000001,
+        -50.00000000000005,
+        -397.0782575270631
+      ],
+      [
+        55.03926247252873,
+        50.000000000000085,
+        50.00000000000051
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Actor_511_Body.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Ground_CommercialStreets",
+    "actor": "StaticMeshActor_549",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Meshes/SM_QD_Ground_CommercialStreets.SM_QD_Ground_CommercialStreets",
+    "label": "L1_地面_百盛商业步行街",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 772,
+    "bounds_cm": [
+      [
+        -5389.08056640625,
+        -3783.61962890625,
+        -1284.300048828125
+      ],
+      [
+        -1280.590087890625,
+        4872.72998046875,
+        555.7999877929688
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Ground_CommercialStreets.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Ground_ChurchSquare",
+    "actor": "StaticMeshActor_550",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_ChurchSetts_1024.M_QD_ChurchSetts_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Meshes/SM_QD_Ground_ChurchSquare.SM_QD_Ground_ChurchSquare",
+    "label": "L1_地面_天主教堂广场_马牙石",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 192,
+    "bounds_cm": [
+      [
+        -2000.00048828125,
+        -5000.0,
+        -49.45000076293945
+      ],
+      [
+        1999.9996337890625,
+        11.429965019226074,
+        1789.7899169921875
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Ground_ChurchSquare.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Ground_SchoolCampus",
+    "actor": "StaticMeshActor_551",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoBeachL1/Materials/M_QD_BeachSand_512.M_QD_BeachSand_512"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Meshes/SM_QD_Ground_SchoolCampus.SM_QD_Ground_SchoolCampus",
+    "label": "L1_地面_七中校园分层地面",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 496,
+    "bounds_cm": [
+      [
+        -1551.530517578125,
+        -7068.99072265625,
+        400.54998779296875
+      ],
+      [
+        2253.049560546875,
+        -2805.08984375,
+        1869.3000488281255
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Ground_SchoolCampus.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Revision_MountainNorth",
+    "actor": "StaticMeshActor_552",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Meshes/SM_QD_Revision_MountainNorth.SM_QD_Revision_MountainNorth",
+    "label": "L1_地面_北侧山地台地",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 386,
+    "bounds_cm": [
+      [
+        1446.0396728515625,
+        -5000.00048828125,
+        -561.7099609375
+      ],
+      [
+        4500.0,
+        1809.759765625,
+        1791.538520321786
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Revision_MountainNorth.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Revision_OldTownSlope",
+    "actor": "StaticMeshActor_553",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_FeichengSection_1024.M_QD_FeichengSection_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Meshes/SM_QD_Revision_OldTownSlope.SM_QD_Revision_OldTownSlope",
+    "label": "L1_地面_肥城路大下坡_马牙石_1K",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -3011.0703125,
+        -2760.88989326921,
+        -49.45000076293945
+      ],
+      [
+        -736.7701721191406,
+        -1701.0697021484375,
+        1795.3301131212243
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Revision_OldTownSlope.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Ground_SchoolConnections",
+    "actor": "StaticMeshActor_554",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Meshes/SM_QD_Ground_SchoolConnections.SM_QD_Ground_SchoolConnections",
+    "label": "L1_地面_校园连接坡道",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 40,
+    "bounds_cm": [
+      [
+        -1825.030517578125,
+        -6048.7998046875,
+        313.22998046875
+      ],
+      [
+        1821.1197509765625,
+        -3800.0,
+        1514.550048828125
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Ground_SchoolConnections.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Ground_CoastalWalks",
+    "actor": "StaticMeshActor_555",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Meshes/SM_QD_Ground_CoastalWalks.SM_QD_Ground_CoastalWalks",
+    "label": "L1_地面_滨海石材步道",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 694,
+    "bounds_cm": [
+      [
+        -11073.5498046875,
+        -4373.46923828125,
+        -91.82999420166016
+      ],
+      [
+        -5312.27984695481,
+        2404.81103515625,
+        503.030029296875
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Ground_CoastalWalks.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Ground_CentralCourt",
+    "actor": "StaticMeshActor_556",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Meshes/SM_QD_Ground_CentralCourt.SM_QD_Ground_CentralCourt",
+    "label": "L1_地面_中央开放空间",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 402,
+    "bounds_cm": [
+      [
+        -2879.35009765625,
+        -897.5601806640625,
+        -1284.300048828125
+      ],
+      [
+        2029.830078125,
+        3551.05029296875,
+        1037.869994714487
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Ground_CentralCourt.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Revision_MountainMiddle",
+    "actor": "StaticMeshActor_557",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Meshes/SM_QD_Revision_MountainMiddle.SM_QD_Revision_MountainMiddle",
+    "label": "L1_地面_中段山地台地",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 712,
+    "bounds_cm": [
+      [
+        -1606.439697265625,
+        -370.3905334472656,
+        -1284.300048828125
+      ],
+      [
+        6137.22021484375,
+        4280.48974609375,
+        1560.7898836293407
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Revision_MountainMiddle.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Revision_MountainSouth",
+    "actor": "StaticMeshActor_558",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Meshes/SM_QD_Revision_MountainSouth.SM_QD_Revision_MountainSouth",
+    "label": "L1_地面_南侧山地台地",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 788,
+    "bounds_cm": [
+      [
+        -1801.209716796875,
+        3023.43994140625,
+        -1284.300048828125
+      ],
+      [
+        5897.310546875,
+        7516.38037109375,
+        1036.7199707031268
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Revision_MountainSouth.fbx"
+  },
+  {
+    "name": "SM_GroundFix_Revision_ParksonRoad",
+    "actor": "StaticMeshActor_560",
+    "component": "StaticMeshComponent0",
+    "kind": "comparison",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_GraniteCurb_512.M_QD_GraniteCurb_512",
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_OldTownAsphalt_1024.M_QD_OldTownAsphalt_1024",
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_RoadMarking_512.M_QD_RoadMarking_512"
+    ],
+    "old_mesh": "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Meshes/SM_QD_Revision_ParksonRoad.SM_QD_Revision_ParksonRoad",
+    "label": "L1_地面_百盛街道_沥青路口与石材边带",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "triangles": 4252,
+    "bounds_cm": [
+      [
+        -5324.2802734375,
+        -3783.61962890625,
+        496.0000305175781
+      ],
+      [
+        -2879.349853515625,
+        2785.060302734375,
+        501.29998779296875
+      ]
+    ],
+    "fbx": "fbx/SM_GroundFix_Revision_ParksonRoad.fbx"
+  }
+]

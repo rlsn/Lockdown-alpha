@@ -1,0 +1,188 @@
+[
+  {
+    "asset": "SM_QD_UrbanRock_A_JointedCliff",
+    "render_triangles": 238,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      4.0,
+      3.4000000953674316,
+      6.0
+    ],
+    "bounds_m": [
+      [
+        -2.0,
+        -1.7000000476837158,
+        0.0
+      ],
+      [
+        2.0,
+        1.7000000476837158,
+        6.0
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "cliff",
+    "reference": "Urban Qingdao granite outcrops, weathered grey/beige rock, restrained moss and selected masonry retaining faces. Reference parks: Guanxiangshan, Xinhaoshan, Xiaoyushan.",
+    "envelope_policy": "Every instance is fitted entirely inside the previous oriented box. No new collision, paths, ramps or playable surfaces are created."
+  },
+  {
+    "asset": "SM_QD_UrbanRock_B_GraniteLedge",
+    "render_triangles": 198,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      6.0,
+      4.5,
+      2.0
+    ],
+    "bounds_m": [
+      [
+        -3.0,
+        -2.25,
+        0.0
+      ],
+      [
+        3.0,
+        2.25,
+        2.0
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "ledge",
+    "reference": "Urban Qingdao granite outcrops, weathered grey/beige rock, restrained moss and selected masonry retaining faces. Reference parks: Guanxiangshan, Xinhaoshan, Xiaoyushan.",
+    "envelope_policy": "Every instance is fitted entirely inside the previous oriented box. No new collision, paths, ramps or playable surfaces are created."
+  },
+  {
+    "asset": "SM_QD_UrbanRock_C_LongRidge",
+    "render_triangles": 238,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      7.0,
+      2.799999952316284,
+      3.799999952316284
+    ],
+    "bounds_m": [
+      [
+        -3.5,
+        -1.399999976158142,
+        0.0
+      ],
+      [
+        3.5,
+        1.399999976158142,
+        3.799999952316284
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "ridge",
+    "reference": "Urban Qingdao granite outcrops, weathered grey/beige rock, restrained moss and selected masonry retaining faces. Reference parks: Guanxiangshan, Xinhaoshan, Xiaoyushan.",
+    "envelope_policy": "Every instance is fitted entirely inside the previous oriented box. No new collision, paths, ramps or playable surfaces are created."
+  },
+  {
+    "asset": "SM_QD_UrbanRock_D_SplitOutcrop",
+    "render_triangles": 250,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      4.5,
+      4.0,
+      4.0
+    ],
+    "bounds_m": [
+      [
+        -2.25,
+        -2.0,
+        0.0
+      ],
+      [
+        2.25,
+        2.0,
+        4.0
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "split",
+    "reference": "Urban Qingdao granite outcrops, weathered grey/beige rock, restrained moss and selected masonry retaining faces. Reference parks: Guanxiangshan, Xinhaoshan, Xiaoyushan.",
+    "envelope_policy": "Every instance is fitted entirely inside the previous oriented box. No new collision, paths, ramps or playable surfaces are created."
+  },
+  {
+    "asset": "SM_QD_UrbanRock_E_RoundedBoulder",
+    "render_triangles": 238,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      4.199999809265137,
+      3.700000047683716,
+      2.700000047683716
+    ],
+    "bounds_m": [
+      [
+        -2.0999999046325684,
+        -1.850000023841858,
+        0.0
+      ],
+      [
+        2.0999999046325684,
+        1.850000023841858,
+        2.700000047683716
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "rounded",
+    "reference": "Urban Qingdao granite outcrops, weathered grey/beige rock, restrained moss and selected masonry retaining faces. Reference parks: Guanxiangshan, Xinhaoshan, Xiaoyushan.",
+    "envelope_policy": "Every instance is fitted entirely inside the previous oriented box. No new collision, paths, ramps or playable surfaces are created."
+  },
+  {
+    "asset": "SM_QD_UrbanRock_F_UrbanButtress",
+    "render_triangles": 278,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      6.0,
+      3.0,
+      4.5
+    ],
+    "bounds_m": [
+      [
+        -3.0,
+        -1.5,
+        0.0
+      ],
+      [
+        3.0,
+        1.5,
+        4.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "buttress",
+    "reference": "Urban Qingdao granite outcrops, weathered grey/beige rock, restrained moss and selected masonry retaining faces. Reference parks: Guanxiangshan, Xinhaoshan, Xiaoyushan.",
+    "envelope_policy": "Every instance is fitted entirely inside the previous oriented box. No new collision, paths, ramps or playable surfaces are created."
+  }
+]

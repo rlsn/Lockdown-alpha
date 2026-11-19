@@ -225,7 +225,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp)
         {
             // Tier comes from the approved monster placed on this camp anchor.
-            const FLDDemoCampPlacement* Camp=Approved.Camps.FindByPredicate([&Anchor](const FLDDemoCampPlacement& Placement){return Placement.AnchorId.Equals(Anchor.Id,ESearchCase::CaseSensitive);});
+            const FString& DefinitionId=Anchor.PrototypeId.IsEmpty()?Anchor.Id:Anchor.PrototypeId;
+            const FLDDemoCampPlacement* Camp=Approved.Camps.FindByPredicate([&DefinitionId](const FLDDemoCampPlacement& Placement){return Placement.AnchorId.Equals(DefinitionId,ESearchCase::CaseSensitive);});
             const FLDDemoMonsterDefinition* Monster=Camp?Approved.Monsters.FindByPredicate([Camp](const FLDDemoMonsterDefinition& Definition){return Definition.Id.Equals(Camp->MonsterId,ESearchCase::CaseSensitive);}):nullptr;
             if(!Monster){Error=Anchor.Id+TEXT(": camp has no approved placement or monster tier.");return false;}
             Site.Kind=Monster->Tier==ELDDemoCampTier::Ancient?FLDMinimapStatic::ESite::AncientCamp:Monster->Tier==ELDDemoCampTier::Elite?FLDMinimapStatic::ESite::EliteCamp

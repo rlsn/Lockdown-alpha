@@ -23,6 +23,9 @@ bool ALDCampMemberCharacter::PrepareMonster(const FLDDemoContentSnapshot& Conten
         Error = FString::Printf(TEXT("Camp body %s needs a positive native speed and the shared navigation radius before spawning."), *Monster.Id);
         return false;
     }
+    // ACharacter initializes walking support during FinishSpawning, before our BeginPlay.
+    // Install the approved capsule first; resizing 28 -> 40 afterwards embeds a sloped capsule in its floor.
+    if (!ConfigureDemoMovement(Content, Error)) { return false; }
     MonsterId = FName(*Monster.Id);
     MonsterSpeed = float(NativeSpeed);
     Error.Reset();

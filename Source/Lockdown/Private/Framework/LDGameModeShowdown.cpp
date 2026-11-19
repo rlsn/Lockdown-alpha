@@ -50,7 +50,7 @@ bool ALDGameMode::BeginShowdown(const FLDGameplayWritePermit& Permit, FString& E
 
 int64 ALDGameMode::NextShowdownDueMs() const
 {
-    if (!IsGameplayWriteOpen(MatchContext) || !Showdown.bStarted) { return MAX_int64; }
+    if (!IsGameplayWriteOpen(MatchContext) || !Showdown.bStarted || Timeline.IsCountdownPaused()) { return MAX_int64; }
     int64 Due = Showdown.EndsAtMs;
     for (const int64 At : {Showdown.RespawnsCloseAtMs, Showdown.ClosureAtMs, ShowdownRingTickAtMs})
     {
@@ -61,7 +61,7 @@ int64 ALDGameMode::NextShowdownDueMs() const
 
 bool ALDGameMode::AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    if (!Showdown.bStarted) { Error.Reset(); return true; }
+    if (!Showdown.bStarted || Timeline.IsCountdownPaused()) { Error.Reset(); return true; }
     if (ValidateWritePermit(Permit, ELDCommitPhase::Effects) != ELDCommitReject::None || !Combat)
     {
         Error = TEXT("Street closure needs the current Effects permit and combat authority.");
@@ -118,7 +118,7 @@ bool ALDGameMode::AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, F
 
 bool ALDGameMode::CloseShowdownIfDue(const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    if (!Showdown.bStarted) { return true; }
+    if (!Showdown.bStarted || Timeline.IsCountdownPaused()) { return true; }
     const int64 Now = Permit.GetBoundary().AtMs;
     bool bCanContinue = false;
     for (const FGuid& Id : RosterOrder)

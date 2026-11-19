@@ -10,7 +10,7 @@ class UWorld;
 // Standing support follows CharacterMovement's Pawn response; LDGroundAim is not an authoring requirement.
 namespace LDNativeGround
 {
-    // CharacterMovement prevents walking off native ledges; detached template fences must not outlive edited terrain.
+    // Detached template fences must not outlive edited terrain or block native ledge drops.
     LOCKDOWN_API int32 RetireLegacyCliffGuards(UWorld& World);
     LOCKDOWN_API bool IsSupport(const UPrimitiveComponent& Component);
     LOCKDOWN_API FCollisionQueryParams Query(const UWorld& World);

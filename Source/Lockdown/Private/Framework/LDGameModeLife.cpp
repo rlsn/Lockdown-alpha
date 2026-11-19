@@ -258,6 +258,7 @@ bool ALDGameMode::ResetCombatMatch(const FLDMatchReset& Reset, FString& Error)
     }
 #if WITH_DEV_AUTOMATION_TESTS
     DevPeaceful.Reset();
+    DevInvulnerable.Reset();
     for (const auto& Pair : Contenders)
     { if (auto* PC = Pair.Key.Get()) { PC->bDevPeaceful = false; } }
 #endif

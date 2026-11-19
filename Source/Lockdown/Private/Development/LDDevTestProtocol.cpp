@@ -33,6 +33,8 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::ApplyBreakoutPreset:
     case ELDDevTestOp::SpawnGroundState:
     case ELDDevTestOp::SetDailyPreset:
+    case ELDDevTestOp::SetInvulnerable:
+    case ELDDevTestOp::SetCountdownPaused:
         return true;
     default:
         return false;
@@ -60,6 +62,8 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("ApplyBreakoutPreset");
     case ELDDevTestOp::SpawnGroundState: return TEXT("SpawnGroundState");
     case ELDDevTestOp::SetDailyPreset: return TEXT("SetDailyPreset");
+    case ELDDevTestOp::SetInvulnerable: return TEXT("SetInvulnerable");
+    case ELDDevTestOp::SetCountdownPaused: return TEXT("SetCountdownPaused");
     default: return TEXT("Unknown");
     }
 }
@@ -67,7 +71,8 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
 bool LDDevTest::IsMatchWide(ELDDevTestOp Op)
 {
     return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture || Op == ELDDevTestOp::SkipPreparation
-        || Op == ELDDevTestOp::SetDailyPreset;
+        || Op == ELDDevTestOp::SetDailyPreset
+        || Op == ELDDevTestOp::SetCountdownPaused;
 }
 
 ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
@@ -79,7 +84,7 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     const bool bPositive = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::AllocatePoints;
     const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
     if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0
-        : Command.Op == ELDDevTestOp::SetPeaceful ? (Command.Amount < 0 || Command.Amount > 1)
+        : (Command.Op == ELDDevTestOp::SetPeaceful || Command.Op == ELDDevTestOp::SetInvulnerable || Command.Op == ELDDevTestOp::SetCountdownPaused) ? (Command.Amount < 0 || Command.Amount > 1)
         : Command.Op == ELDDevTestOp::SpawnGroundState ? (Command.Amount < 1 || Command.Amount > 6)
         : Command.Op == ELDDevTestOp::SetDailyPreset ? !LDDevTest::DecodeDailyPreset(Command.Amount, nullptr) : Command.Amount != 0))
     {
@@ -211,6 +216,8 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("质变样板");
     case ELDDevTestOp::SpawnGroundState: return TEXT("生成地面状态");
     case ELDDevTestOp::SetDailyPreset: return TEXT("下一局热点");
+    case ELDDevTestOp::SetInvulnerable: return TEXT("生命不减");
+    case ELDDevTestOp::SetCountdownPaused: return TEXT("阶段倒计时暂停");
     default: return TEXT("未知操作");
     }
 }

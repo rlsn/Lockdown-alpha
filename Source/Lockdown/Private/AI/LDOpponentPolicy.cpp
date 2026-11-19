@@ -1253,6 +1253,30 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
+    // Take the one-time final rule before optional rest errands can consume the ready-shortened build window.
+    if (Self.FinalModOfferId.IsValid() && !Self.Offer.IsSet() && !Self.FinalModOptions.IsEmpty()
+        && LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Context) == ELDGrowthReason::None)
+    {
+        FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FinalMod);
+        Key.Target = Self.FinalModOfferId;
+        const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
+        {
+            return Self.FinalModSources.ContainsByPredicate([&Id](const FLDFinalModSourceView& Source){return Source.Option==FName(*Id);});
+        });
+        if (Option && State.Failures.CanAttempt(Key, Print, Now))
+        {
+            const auto* Source=Self.FinalModSources.FindByPredicate([Option](const FLDFinalModSourceView& Candidate){return Candidate.Option==FName(**Option);});
+            if(!Source){Error=TEXT("The final choice lost its legal source.");return false;}
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::FinalMod;
+            Out.OfferId = Self.FinalModOfferId;
+            Out.Option = *Option;
+            Out.FinalTargetKind=Source->TargetKind;
+            Out.TargetId=Source->TargetId.IsNone()?FString():Source->TargetId.ToString();
+            Out.Key = Key;
+            return true;
+        }
+    }
     // Spec §13: the card offer is always resolved by a pick (installed on its default place when a slot is free).
     if (!State.bBreakoutDrawn)
     {
@@ -1421,30 +1445,6 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::AllocatePoints;
             Out.PointCounts = MoveTemp(Counts);
-            Out.Key = Key;
-            return true;
-        }
-    }
-    // Last: the independent final rule, taken once.
-    if (Self.FinalModOfferId.IsValid() && !Self.Offer.IsSet() && !Self.FinalModOptions.IsEmpty()
-        && LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Context) == ELDGrowthReason::None)
-    {
-        FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FinalMod);
-        Key.Target = Self.FinalModOfferId;
-        const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
-        {
-            return Self.FinalModSources.ContainsByPredicate([&Id](const FLDFinalModSourceView& Source){return Source.Option==FName(*Id);});
-        });
-        if (Option && State.Failures.CanAttempt(Key, Print, Now))
-        {
-            const auto* Source=Self.FinalModSources.FindByPredicate([Option](const FLDFinalModSourceView& Candidate){return Candidate.Option==FName(**Option);});
-            if(!Source){Error=TEXT("The final choice lost its legal source.");return false;}
-            Out = FLDOpponentBuildIntent();
-            Out.Kind = ELDOpponentBuildKind::FinalMod;
-            Out.OfferId = Self.FinalModOfferId;
-            Out.Option = *Option;
-            Out.FinalTargetKind=Source->TargetKind;
-            Out.TargetId=Source->TargetId.IsNone()?FString():Source->TargetId.ToString();
             Out.Key = Key;
             return true;
         }

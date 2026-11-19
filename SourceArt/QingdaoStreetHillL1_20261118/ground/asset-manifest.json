@@ -1,0 +1,253 @@
+[
+  {
+    "asset": "SM_QD_Revision_MountainNorth",
+    "render_triangles": 244,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        14.460399627685547,
+        -70.68990325927734,
+        -5.617099761962891
+      ],
+      [
+        61.37220001220703,
+        18.09760093688965,
+        17.915300369262695
+      ]
+    ],
+    "dimensions_m": [
+      46.911800384521484,
+      88.78750419616699,
+      23.532400131225586
+    ],
+    "material_order": [
+      "MountainGroundPaint",
+      "RetainingStone"
+    ],
+    "replaces_asset": "SM_QD_Ground_MountainNorth",
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_106",
+      "StaticMeshActor_150",
+      "StaticMeshActor_154",
+      "StaticMeshActor_182",
+      "StaticMeshActor_250",
+      "StaticMeshActor_296",
+      "StaticMeshActor_299",
+      "StaticMeshActor_303",
+      "StaticMeshActor_307",
+      "StaticMeshActor_42",
+      "StaticMeshActor_43",
+      "StaticMeshActor_77",
+      "StaticMeshActor_78",
+      "StaticMeshActor_79",
+      "StaticMeshActor_80"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Revision_OldTownSlope",
+    "render_triangles": 19,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -30.110700607299805,
+        -27.60890007019043,
+        5.0
+      ],
+      [
+        -7.48769998550415,
+        -17.010700225830078,
+        17.95330047607422
+      ]
+    ],
+    "dimensions_m": [
+      22.623000621795654,
+      10.598199844360352,
+      12.953300476074219
+    ],
+    "material_order": [
+      "FeichengSection"
+    ],
+    "replaces_asset": "SM_QD_Ground_OldTownSlope",
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_47"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Revision_MountainMiddle",
+    "render_triangles": 405,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -16.06439971923828,
+        -8.975600242614746,
+        -10.244500160217285
+      ],
+      [
+        61.37220001220703,
+        42.804901123046875,
+        15.60789966583252
+      ]
+    ],
+    "dimensions_m": [
+      77.43659973144531,
+      51.78050136566162,
+      25.852399826049805
+    ],
+    "material_order": [
+      "MountainGroundPaint",
+      "RetainingStone"
+    ],
+    "replaces_asset": "SM_QD_Ground_MountainMiddle",
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_107",
+      "StaticMeshActor_155",
+      "StaticMeshActor_156",
+      "StaticMeshActor_157",
+      "StaticMeshActor_164",
+      "StaticMeshActor_182",
+      "StaticMeshActor_296",
+      "StaticMeshActor_299",
+      "StaticMeshActor_303",
+      "StaticMeshActor_304",
+      "StaticMeshActor_307",
+      "StaticMeshActor_310",
+      "StaticMeshActor_312",
+      "StaticMeshActor_313",
+      "StaticMeshActor_314",
+      "StaticMeshActor_315",
+      "StaticMeshActor_316",
+      "StaticMeshActor_364",
+      "StaticMeshActor_388",
+      "StaticMeshActor_394",
+      "StaticMeshActor_399",
+      "StaticMeshActor_410",
+      "StaticMeshActor_454"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Revision_MountainSouth",
+    "render_triangles": 352,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -18.012100219726562,
+        30.234399795532227,
+        -12.843000411987305
+      ],
+      [
+        58.97309875488281,
+        75.16380310058594,
+        10.367199897766113
+      ]
+    ],
+    "dimensions_m": [
+      76.98519897460938,
+      44.92940330505371,
+      23.210200309753418
+    ],
+    "material_order": [
+      "MountainGroundPaint",
+      "RetainingStone"
+    ],
+    "replaces_asset": "SM_QD_Ground_MountainSouth",
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_155",
+      "StaticMeshActor_162",
+      "StaticMeshActor_163",
+      "StaticMeshActor_164",
+      "StaticMeshActor_165",
+      "StaticMeshActor_166",
+      "StaticMeshActor_167",
+      "StaticMeshActor_310",
+      "StaticMeshActor_355",
+      "StaticMeshActor_368",
+      "StaticMeshActor_388",
+      "StaticMeshActor_394",
+      "StaticMeshActor_399",
+      "StaticMeshActor_410",
+      "StaticMeshActor_411",
+      "StaticMeshActor_430",
+      "StaticMeshActor_439",
+      "StaticMeshActor_440"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Revision_ParksonRoad",
+    "render_triangles": 1036,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -53.242801666259766,
+        -37.83620071411133,
+        5.010000228881836
+      ],
+      [
+        -28.793500900268555,
+        27.85059928894043,
+        5.013000011444092
+      ]
+    ],
+    "dimensions_m": [
+      24.44930076599121,
+      65.68680000305176,
+      0.0029997825622558594
+    ],
+    "material_order": [
+      "GraniteCurb",
+      "OldTownAsphalt",
+      "RoadMarking"
+    ],
+    "replaces_asset": null,
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  }
+]

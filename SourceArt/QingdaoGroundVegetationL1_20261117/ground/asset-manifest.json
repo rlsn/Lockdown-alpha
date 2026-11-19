@@ -1,0 +1,686 @@
+[
+  {
+    "asset": "SM_QD_Ground_CommercialStreets",
+    "render_triangles": 496,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -53.93109893798828,
+        -50.0,
+        -3.150599956512451
+      ],
+      [
+        -12.805899620056152,
+        48.727298736572266,
+        5.6118998527526855
+      ]
+    ],
+    "dimensions_m": [
+      41.12519931793213,
+      98.72729873657227,
+      8.762499809265137
+    ],
+    "material_order": [
+      "RetainingStone",
+      "StreetGranite"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_120",
+      "StaticMeshActor_156",
+      "StaticMeshActor_166",
+      "StaticMeshActor_168",
+      "StaticMeshActor_184",
+      "StaticMeshActor_186",
+      "StaticMeshActor_187",
+      "StaticMeshActor_188",
+      "StaticMeshActor_190",
+      "StaticMeshActor_262",
+      "StaticMeshActor_335",
+      "StaticMeshActor_337",
+      "StaticMeshActor_338",
+      "StaticMeshActor_349",
+      "StaticMeshActor_350",
+      "StaticMeshActor_351",
+      "StaticMeshActor_40",
+      "StaticMeshActor_41",
+      "StaticMeshActor_454",
+      "StaticMeshActor_75",
+      "StaticMeshActor_76",
+      "StaticMeshActor_88",
+      "StaticMeshActor_89",
+      "StaticMeshActor_90",
+      "StaticMeshActor_91",
+      "StaticMeshActor_92",
+      "StaticMeshActor_93",
+      "StaticMeshActor_94",
+      "StaticMeshActor_95",
+      "StaticMeshActor_96",
+      "StaticMeshActor_97",
+      "StaticMeshActor_98"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_ChurchSquare",
+    "render_triangles": 172,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -28.793500900268555,
+        -50.0,
+        -0.4945000112056732
+      ],
+      [
+        20.29829978942871,
+        0.7617999911308289,
+        17.915300369262695
+      ]
+    ],
+    "dimensions_m": [
+      49.091800689697266,
+      50.76179999113083,
+      18.40980038046837
+    ],
+    "material_order": [
+      "ChurchSetts",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_100",
+      "StaticMeshActor_101",
+      "StaticMeshActor_102",
+      "StaticMeshActor_137",
+      "StaticMeshActor_138",
+      "StaticMeshActor_156",
+      "StaticMeshActor_250",
+      "StaticMeshActor_275",
+      "StaticMeshActor_41",
+      "StaticMeshActor_45",
+      "StaticMeshActor_46"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_SchoolCampus",
+    "render_triangles": 246,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -20.0,
+        -70.68990325927734,
+        4.005499839782715
+      ],
+      [
+        22.530500411987305,
+        -28.050899505615234,
+        18.69300079345703
+      ]
+    ],
+    "dimensions_m": [
+      42.530500411987305,
+      42.63900375366211,
+      14.687500953674316
+    ],
+    "material_order": [
+      "CourtPavers",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_133",
+      "StaticMeshActor_136",
+      "StaticMeshActor_138",
+      "StaticMeshActor_150",
+      "StaticMeshActor_179",
+      "StaticMeshActor_180",
+      "StaticMeshActor_181",
+      "StaticMeshActor_234",
+      "StaticMeshActor_235",
+      "StaticMeshActor_275",
+      "StaticMeshActor_41",
+      "StaticMeshActor_45"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_MountainNorth",
+    "render_triangles": 244,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        14.460399627685547,
+        -70.68990325927734,
+        -5.617099761962891
+      ],
+      [
+        61.37220001220703,
+        18.09760093688965,
+        17.915300369262695
+      ]
+    ],
+    "dimensions_m": [
+      46.911800384521484,
+      88.78750419616699,
+      23.532400131225586
+    ],
+    "material_order": [
+      "ParkPath",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_106",
+      "StaticMeshActor_150",
+      "StaticMeshActor_154",
+      "StaticMeshActor_182",
+      "StaticMeshActor_250",
+      "StaticMeshActor_296",
+      "StaticMeshActor_299",
+      "StaticMeshActor_303",
+      "StaticMeshActor_307",
+      "StaticMeshActor_42",
+      "StaticMeshActor_43",
+      "StaticMeshActor_77",
+      "StaticMeshActor_78",
+      "StaticMeshActor_79",
+      "StaticMeshActor_80"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_OldTownSlope",
+    "render_triangles": 19,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -30.110700607299805,
+        -27.60890007019043,
+        5.0
+      ],
+      [
+        -7.48769998550415,
+        -17.010700225830078,
+        17.95330047607422
+      ]
+    ],
+    "dimensions_m": [
+      22.623000621795654,
+      10.598199844360352,
+      12.953300476074219
+    ],
+    "material_order": [
+      "SlopeSetts"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_47"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_SchoolConnections",
+    "render_triangles": 36,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -18.25029945373535,
+        -60.487998962402344,
+        3.1322999000549316
+      ],
+      [
+        18.211200714111328,
+        -38.0,
+        14.208499908447266
+      ]
+    ],
+    "dimensions_m": [
+      36.46150016784668,
+      22.487998962402344,
+      11.076200008392334
+    ],
+    "material_order": [
+      "CourtPavers",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_48",
+      "StaticMeshActor_49"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_CoastalWalks",
+    "render_triangles": 515,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -110.7354965209961,
+        -43.73469924926758,
+        -0.9182999730110168
+      ],
+      [
+        -53.78710174560547,
+        24.048099517822266,
+        5.030300140380859
+      ]
+    ],
+    "dimensions_m": [
+      56.948394775390625,
+      67.78279876708984,
+      5.948600113391876
+    ],
+    "material_order": [
+      "CoastalGranite",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_109",
+      "StaticMeshActor_110",
+      "StaticMeshActor_111",
+      "StaticMeshActor_112",
+      "StaticMeshActor_113",
+      "StaticMeshActor_114",
+      "StaticMeshActor_115",
+      "StaticMeshActor_116",
+      "StaticMeshActor_119",
+      "StaticMeshActor_120",
+      "StaticMeshActor_121",
+      "StaticMeshActor_139",
+      "StaticMeshActor_140",
+      "StaticMeshActor_141",
+      "StaticMeshActor_142",
+      "StaticMeshActor_143",
+      "StaticMeshActor_144",
+      "StaticMeshActor_145",
+      "StaticMeshActor_146",
+      "StaticMeshActor_147",
+      "StaticMeshActor_184",
+      "StaticMeshActor_185",
+      "StaticMeshActor_186",
+      "StaticMeshActor_50",
+      "StaticMeshActor_51",
+      "StaticMeshActor_52"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_CentralCourt",
+    "render_triangles": 252,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -28.793500900268555,
+        -8.975600242614746,
+        -6.3927001953125
+      ],
+      [
+        20.29829978942871,
+        37.010501861572266,
+        10.378700256347656
+      ]
+    ],
+    "dimensions_m": [
+      49.091800689697266,
+      45.98610210418701,
+      16.771400451660156
+    ],
+    "material_order": [
+      "RetainingStone",
+      "StreetGranite"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_102",
+      "StaticMeshActor_103",
+      "StaticMeshActor_104",
+      "StaticMeshActor_156",
+      "StaticMeshActor_157",
+      "StaticMeshActor_163",
+      "StaticMeshActor_315",
+      "StaticMeshActor_320",
+      "StaticMeshActor_364",
+      "StaticMeshActor_453",
+      "StaticMeshActor_81",
+      "StaticMeshActor_83",
+      "StaticMeshActor_84",
+      "StaticMeshActor_85",
+      "StaticMeshActor_87",
+      "StaticMeshActor_99"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_MountainMiddle",
+    "render_triangles": 405,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -16.06439971923828,
+        -8.975600242614746,
+        -10.244500160217285
+      ],
+      [
+        61.37220001220703,
+        42.804901123046875,
+        15.60789966583252
+      ]
+    ],
+    "dimensions_m": [
+      77.43659973144531,
+      51.78050136566162,
+      25.852399826049805
+    ],
+    "material_order": [
+      "ParkPath",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_107",
+      "StaticMeshActor_155",
+      "StaticMeshActor_156",
+      "StaticMeshActor_157",
+      "StaticMeshActor_164",
+      "StaticMeshActor_182",
+      "StaticMeshActor_296",
+      "StaticMeshActor_299",
+      "StaticMeshActor_303",
+      "StaticMeshActor_304",
+      "StaticMeshActor_307",
+      "StaticMeshActor_310",
+      "StaticMeshActor_312",
+      "StaticMeshActor_313",
+      "StaticMeshActor_314",
+      "StaticMeshActor_315",
+      "StaticMeshActor_316",
+      "StaticMeshActor_364",
+      "StaticMeshActor_388",
+      "StaticMeshActor_394",
+      "StaticMeshActor_399",
+      "StaticMeshActor_410",
+      "StaticMeshActor_454"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_Ground_MountainSouth",
+    "render_triangles": 352,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -18.012100219726562,
+        30.234399795532227,
+        -12.843000411987305
+      ],
+      [
+        58.97309875488281,
+        75.16380310058594,
+        10.367199897766113
+      ]
+    ],
+    "dimensions_m": [
+      76.98519897460938,
+      44.92940330505371,
+      23.210200309753418
+    ],
+    "material_order": [
+      "ParkPath",
+      "RetainingStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [
+      "StaticMeshActor_155",
+      "StaticMeshActor_162",
+      "StaticMeshActor_163",
+      "StaticMeshActor_164",
+      "StaticMeshActor_165",
+      "StaticMeshActor_166",
+      "StaticMeshActor_167",
+      "StaticMeshActor_310",
+      "StaticMeshActor_355",
+      "StaticMeshActor_368",
+      "StaticMeshActor_388",
+      "StaticMeshActor_394",
+      "StaticMeshActor_399",
+      "StaticMeshActor_410",
+      "StaticMeshActor_411",
+      "StaticMeshActor_430",
+      "StaticMeshActor_439",
+      "StaticMeshActor_440"
+    ],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_GroundDetail_MountainGreen",
+    "render_triangles": 2099,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -17.882099151611328,
+        -49.869998931884766,
+        0.0007999999797903001
+      ],
+      [
+        61.2421989440918,
+        77.11100006103516,
+        33.92190170288086
+      ]
+    ],
+    "dimensions_m": [
+      79.12429809570312,
+      126.98099899291992,
+      33.92110170290107
+    ],
+    "material_order": [
+      "ForestFloor"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_GroundDetail_StreetBands",
+    "render_triangles": 2505,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -53.332801818847656,
+        -37.83620071411133,
+        4.251800060272217
+      ],
+      [
+        13.694899559020996,
+        35.49489974975586,
+        17.914899826049805
+      ]
+    ],
+    "dimensions_m": [
+      67.02770137786865,
+      73.33110046386719,
+      13.663099765777588
+    ],
+    "material_order": [
+      "BorderStone",
+      "GardenSoil"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_GroundDetail_ChurchSquare",
+    "render_triangles": 594,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -7.2546000480651855,
+        -42.8224983215332,
+        17.90690040588379
+      ],
+      [
+        17.088899612426758,
+        -0.34220001101493835,
+        17.90690040588379
+      ]
+    ],
+    "dimensions_m": [
+      24.343499660491943,
+      42.480298310518265,
+      0.0
+    ],
+    "material_order": [
+      "BorderStone"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  },
+  {
+    "asset": "SM_QD_GroundDetail_SchoolSport",
+    "render_triangles": 1136,
+    "collision_triangles": 0,
+    "bounds_m": [
+      [
+        -12.744000434875488,
+        -62.32509994506836,
+        15.156999588012695
+      ],
+      [
+        1.6777000427246094,
+        -53.58470153808594,
+        15.17300033569336
+      ]
+    ],
+    "dimensions_m": [
+      14.421700477600098,
+      8.740398406982422,
+      0.016000747680664062
+    ],
+    "material_order": [
+      "PaintWhite",
+      "SportBlue",
+      "SportCyan",
+      "SportGreen",
+      "SportRed"
+    ],
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "world_origin_cm": [
+      0,
+      24000,
+      0
+    ],
+    "source_actors": [],
+    "purpose": "Editable art-only ground region; authored support envelope retained."
+  }
+]

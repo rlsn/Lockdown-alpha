@@ -1,0 +1,22 @@
+{
+  "FeichengSection": {
+    "texture_resolution": 1024,
+    "roughness": 0.91
+  },
+  "OldTownAsphalt": {
+    "texture_resolution": 1024,
+    "roughness": 0.91
+  },
+  "RoadMarking": {
+    "texture_resolution": 512,
+    "roughness": 0.85
+  },
+  "GraniteCurb": {
+    "texture_resolution": 512,
+    "roughness": 0.91
+  },
+  "MountainGroundPaint": {
+    "texture_resolution": 1024,
+    "roughness": 0.91
+  }
+}

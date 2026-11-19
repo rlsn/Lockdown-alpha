@@ -2814,6 +2814,27 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A distant respec walks to the trainer without sending the build"),
         Decision.Reason == EReason::RestService && Decision.Body.Kind == EBody::MoveGround
         && Decision.Body.POI == TEXT("rest_service_3") && Decision.Build.Kind == EBuild::None);
+    // R3 may close as soon as the humans ready up. A trainer walk or a shopping backlog must not
+    // prevent the AI from taking its one-time final rule while the offer is still open.
+    auto Final = Frame;
+    Final.Public.Timeline.RestIndex = 3;
+    Final.Self.FinalModOfferId = FGuid(0xF1, 0, 0, 1);
+    Final.Self.FinalModOptions = {TEXT("final_forced_exit"), TEXT("final_breach")};
+    Final.Self.FinalModSources.Add({FName(TEXT("final_breach")), ELDFinalModTargetKind::None, NAME_None});
+    Decision = Decide(Final);
+    bGood &= Test.TestTrue(TEXT("The pending final choice precedes trainer travel and skips an option without a legal source"),
+        Decision.Build.Kind == EBuild::FinalMod && Decision.Body.Kind == EBody::None
+        && Decision.Build.OfferId == Final.Self.FinalModOfferId && Decision.Build.Option == TEXT("final_breach")
+        && Decision.Build.FinalTargetKind == ELDFinalModTargetKind::None && Decision.Build.TargetId.IsEmpty());
+    auto FinalInFlight = Final;
+    FinalInFlight.bBuildChangeInFlight = true;
+    bGood &= Test.TestTrue(TEXT("An outstanding build still prevents a duplicate final choice"),
+        Decide(FinalInFlight).Build.Kind == EBuild::None);
+    auto FinalLocked = Final;
+    FinalLocked.Public.Timeline.Step = ELDRestStep::Return;
+    bGood &= Test.TestTrue(TEXT("The final choice is never submitted after the rest build window closes"),
+        Decide(FinalLocked).Build.Kind != EBuild::FinalMod);
+
     auto Walking = Frame;
     Walking.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Walking.Order.Status = ELDOpponentOrderStatus::Active;

@@ -1,0 +1,33 @@
+[
+  {
+    "asset": "SM_QD_Parkson_StreetEntrance",
+    "render_triangles": 3492,
+    "collision_triangles": 0,
+    "triangle_budget": 10000,
+    "dimensions_m": [
+      10.033112049102783,
+      14.703514099121094,
+      17.734697341918945
+    ],
+    "bounds_m": [
+      [
+        -4.984556198120117,
+        -7.351757049560547,
+        0.0
+      ],
+      [
+        5.048555850982666,
+        7.351757049560547,
+        17.734697341918945
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "reference": "Historic Parkson Zhongshan Road exterior and entrance photographs, before the subsequent mall redevelopment. Pink facade, arched glazed portal, green PARKSON 百盛 sign, recessed glazed door bays and shallow canopy on the long +X street elevation. Current compressed tower envelope retained.",
+    "entrance_face": "local +X long street elevation",
+    "decorative_only": true
+  }
+]

@@ -1,0 +1,226 @@
+[
+  {
+    "asset": "SM_QD_Veg_BlackPine",
+    "render_triangles": 1020,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      4.600677013397217,
+      4.411473751068115,
+      6.213715443387628
+    ],
+    "bounds_m": [
+      [
+        -1.8354921340942383,
+        -2.2057368755340576,
+        -0.013715634122490883
+      ],
+      [
+        2.7651848793029785,
+        2.2057368755340576,
+        6.199999809265137
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "黑松",
+    "purpose": "Wind-shaped coastal and urban-hill pine. Layered horizontal crowns.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  },
+  {
+    "asset": "SM_QD_Veg_Cedar",
+    "render_triangles": 1600,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      4.089912414550781,
+      4.006845474243164,
+      6.671557401074097
+    ],
+    "bounds_m": [
+      [
+        -1.8546271324157715,
+        -2.003422737121582,
+        -0.001557324780151248
+      ],
+      [
+        2.2352852821350098,
+        2.003422737121582,
+        6.670000076293945
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "雪松",
+    "purpose": "Qingdao civic park accent tree, tiered soft conifer crown.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  },
+  {
+    "asset": "SM_QD_Veg_PlaneTree",
+    "render_triangles": 700,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      4.720581293106079,
+      4.6182684898376465,
+      6.630000114440918
+    ],
+    "bounds_m": [
+      [
+        -2.2102906703948975,
+        -2.3091342449188232,
+        0.0
+      ],
+      [
+        2.5102906227111816,
+        2.3091342449188232,
+        6.630000114440918
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "悬铃木",
+    "purpose": "Historic city street and courtyard shade tree.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  },
+  {
+    "asset": "SM_QD_Veg_Locust",
+    "render_triangles": 720,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      4.2498273849487305,
+      4.172277927398682,
+      6.535158816725016
+    ],
+    "bounds_m": [
+      [
+        -2.1153435707092285,
+        -2.105205774307251,
+        -0.005158606916666031
+      ],
+      [
+        2.134483814239502,
+        2.0670721530914307,
+        6.53000020980835
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "刺槐",
+    "purpose": "Loose deciduous foliage for developed urban hills.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  },
+  {
+    "asset": "SM_QD_Veg_Camellia",
+    "render_triangles": 660,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      1.7291001081466675,
+      1.5808587074279785,
+      1.5499999523162842
+    ],
+    "bounds_m": [
+      [
+        -0.8645500540733337,
+        -0.7904293537139893,
+        0.0
+      ],
+      [
+        0.8645500540733337,
+        0.7904293537139893,
+        1.5499999523162842
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "耐冬",
+    "purpose": "Small evergreen shrub, sparse muted blossoms.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  },
+  {
+    "asset": "SM_QD_Veg_Euonymus",
+    "render_triangles": 400,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      1.3415936827659607,
+      1.2906339168548584,
+      0.9199999757111073
+    ],
+    "bounds_m": [
+      [
+        -0.6421493887901306,
+        -0.6453169584274292,
+        -0.019999999552965164
+      ],
+      [
+        0.6994442939758301,
+        0.6453169584274292,
+        0.8999999761581421
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "大叶黄杨",
+    "purpose": "Low garden and retaining-wall shrub cluster.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  },
+  {
+    "asset": "SM_QD_Veg_MondoGrass",
+    "render_triangles": 144,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      0.7744463980197906,
+      0.6175181120634079,
+      0.42884013056755066
+    ],
+    "bounds_m": [
+      [
+        -0.3593791425228119,
+        -0.24243609607219696,
+        0.0
+      ],
+      [
+        0.41506725549697876,
+        0.37508201599121094,
+        0.42884013056755066
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "species": "麦冬草丛",
+    "purpose": "Compact low ground cover; paths stay clear.",
+    "collision_policy": "Pure decoration. No collision or navigation contribution.",
+    "shared_atlas": "Vegetation 512"
+  }
+]

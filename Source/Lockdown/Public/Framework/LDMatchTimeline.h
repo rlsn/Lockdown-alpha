@@ -60,6 +60,9 @@ struct LOCKDOWN_API FLDTimelineView
     UPROPERTY() bool bPKSkipped = false;
     // Public: standing in the sign-up disk is a visible act. Sorted contender ids; filled by GameMode, not the reducer.
     UPROPERTY() TArray<FGuid> Signups;
+    UPROPERTY() bool bCountdownPaused = false;
+    UPROPERTY() int64 CountdownPausedAtMs = 0;
+    // Sorted ids of the humans that pressed ready in this build step; filled by GameMode, not the reducer.
     UPROPERTY() TArray<FGuid> ReadyContenders;
 };
 
@@ -111,6 +114,8 @@ public:
     bool Begin(const FLDTimelineParameters& InParameters, int64 StartMs, FString& Error);
     void Reset() { *this = FLDMatchTimeline(); }
     bool IsActive() const { return Stage != ELDMatchStage::None; }
+    bool IsCountdownPaused() const { return bCountdownPaused; }
+    int64 CountdownNowMs(int64 AtMs) const { return bCountdownPaused ? FMath::Min(AtMs, CountdownPausedAtMs) : AtMs; }
 
     ELDMatchStage GetStage() const { return Stage; }
     ELDRestStep GetStep() const { return Step; }
@@ -139,10 +144,10 @@ public:
     // ready, a held entry happens at the AtMs it became ready, not at its old scheduled instant.
     bool Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out, FString& Error);
     // Whether the build step's lock is due at or before AtMs.
-    bool IsBuildLockDue(int64 AtMs) const { return Stage == ELDMatchStage::Rest && Step == ELDRestStep::Build && StepEndsAtMs <= AtMs; }
+    bool IsBuildLockDue(int64 AtMs) const { return !bCountdownPaused && Stage == ELDMatchStage::Rest && Step == ELDRestStep::Build && StepEndsAtMs <= AtMs; }
     // Whether a body entry (the PK start after PKReady or the field after Return) is due at or before AtMs.
     bool IsEntryDue(int64 AtMs) const
-    { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::PKReady || Step == ELDRestStep::Return) && StepEndsAtMs <= AtMs; }
+    { return !bCountdownPaused && Stage == ELDMatchStage::Rest && (Step == ELDRestStep::PKReady || Step == ELDRestStep::Return) && StepEndsAtMs <= AtMs; }
     // Whether a due entry is currently held for its bodies.
     bool IsEntryHeld() const { return bEntryHeld; }
     // PK ended early (a winner or a draw is decided): the PK step now ends at AtMs; the next Advance settles it.
@@ -155,6 +160,7 @@ public:
     bool DevSkipToFinalRest(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
     // Opening preparation only: preserve a real build lock and return, with entry due at the next world boundary.
     bool DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
+    bool DevSetCountdownPaused(bool bPaused, int64 AtMs, FString& Error);
 #endif
 
     FLDTimelineView MakeView(uint32 Generation, uint64 Revision) const;
@@ -178,6 +184,8 @@ private:
     uint8 LockedEntrants = 0;
     bool bPKSkipped = false;
     bool bEntryHeld = false;
+    bool bCountdownPaused = false;
+    int64 CountdownPausedAtMs = 0;
 };
 
 namespace LDMatchTimeline

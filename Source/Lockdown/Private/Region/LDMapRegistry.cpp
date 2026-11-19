@@ -1,5 +1,7 @@
 #include "Region/LDMapRegistry.h"
 #include "World/LDNativeGround.h"
+#include "World/LDSceneTags.h"
+#include "World/LDSpawnPlacement.h"
 #include "Core/LDLog.h"
 #include "Region/LDMapDefinition.h"
 #include "Art/LDStaticScene.h"
@@ -116,9 +118,17 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     FLDLegalGround Candidate;
     Candidate.World = Revision;
     Candidate.FootCm = Foot;
-    double SurfaceZ; FVector SurfaceNormal;
-    Terrain.Ground(FVector2D(Foot), SurfaceZ, SurfaceNormal);
-    Candidate.SurfaceCm = FVector(Foot.X, Foot.Y, FMath::IsFinite(SurfaceZ) ? SurfaceZ : Hit.ImpactPoint.Z);
+    // The sweep proved support at this foot. A world-height ray would instead select an overhead mesh
+    // (for example the flag at capture), giving navigation an endpoint on its roof rather than this floor.
+    FHitResult CentreHit;
+    const FVector Top = Foot + FVector(0, 0, Lift + Gap);
+    const FVector Bottom = Foot - FVector(0, 0, Gap);
+    const double SurfaceZ = Terrain.TraceScene(Top, Bottom, CentreHit)
+        && CentreHit.ImpactNormal.Z >= MinSupportNormalZ - 1e-4
+        ? CentreHit.ImpactPoint.Z
+        : Hit.ImpactPoint.Z - (Hit.ImpactNormal.X * (Foot.X - Hit.ImpactPoint.X)
+            + Hit.ImpactNormal.Y * (Foot.Y - Hit.ImpactPoint.Y)) / Hit.ImpactNormal.Z;
+    Candidate.SurfaceCm = FVector(Foot.X, Foot.Y, SurfaceZ);
     Candidate.SupportOriginCm = Hit.Location;
     Candidate.SurfaceId = SurfaceHint;
     Candidate.Floor = Support;
@@ -216,6 +226,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         Error = TEXT("Map registry is available only for the Demo world or editor asset validation.");
         return false;
     }
+    LDSceneTags::ApplyRuntimePolicy(*GetWorld());
     int32 AnchorCount = 0;
     const ULDMapDefinition* CandidateDefinition = nullptr;
     UPrimitiveComponent* Floor = nullptr;
@@ -296,7 +307,9 @@ bool ULDMapRegistry::Rebuild(FString& Error)
             const auto* Physics = Part->GetBodyInstance();
             const FBox Bounds = Physics && Physics->IsValidBodyInstance() ? Physics->GetBodyBounds() : Part->Bounds.GetBox();
             SceneRows.Add((Part->GetPathName(GetWorld()) + Part->GetClass()->GetPathName()
-                + (Mesh ? GetPathNameSafe(Mesh->GetStaticMesh()) : FString()) + SemanticTags + Shape + Bounds.ToString()
+                + (Mesh ? GetPathNameSafe(Mesh->GetStaticMesh()) : FString()) + SemanticTags
+                + FString::FromInt(LDSceneTags::NoCollision(*Part)) + FString::FromInt(LDSceneTags::NoViewBlock(*Part))
+                + Shape + Bounds.ToString()
                 + Part->GetComponentTransform().ToString() + FString::FromInt(int32(Part->GetCollisionEnabled()))
                 + FString::FromInt(int32(Part->GetCollisionObjectType()))
                 + FString::FromInt(Part->GetCollisionResponseToChannel(ECC_Pawn))
@@ -323,17 +336,25 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         Binding.Id = FName(*Anchor.Id);
         Binding.Surface = FName(*Anchor.SurfaceId);
         if (!Anchor.PositionCm.ToVector(Binding.Position, Error)) { return false; }
-        // Layout markers keep their XY; terrain edits move their runtime standing height without writing the map.
+        // Prefer the authored marker's local support: an overhead prop is not a reason to move a valid
+        // ground-level site onto its roof. If terrain editing removed that support, reproject and validate it.
         FVector NativeNormal;
-        CandidateTerrain.Ground(FVector2D(Binding.Position), Binding.Position.Z, NativeNormal);
-        if (!FMath::IsFinite(Binding.Position.Z))
-        { Error = TEXT("NotGrounded: no native ground under layout point ") + Anchor.Id; return false; }
         FLDLegalGround Legal;
         ELDWorldQueryFailure Failure;
-        if (!Ground(*GetWorld(), *CandidateGeometry, CandidateTerrain, CandidateRevision, CandidateGround->Floors,
-            CandidateGround->Query, CandidateGround->Step, Capsule, Binding.Position,
-            Capsule, Binding.Surface, Legal, Failure, Error))
-        { Error = TEXT("Layout point ") + Anchor.Id + TEXT(": ") + Error; return false; }
+        const auto LocalGround = [&](const FVector& Foot, FLDLegalGround& Out)
+        {
+            return Ground(*GetWorld(), *CandidateGeometry, CandidateTerrain, CandidateRevision, CandidateGround->Floors,
+                CandidateGround->Query, CandidateGround->Step, Capsule, Foot, Capsule, Binding.Surface, Out, Failure, Error);
+        };
+        if (!LocalGround(Binding.Position, Legal))
+        {
+            CandidateTerrain.Ground(FVector2D(Binding.Position), Binding.Position.Z, NativeNormal);
+            if (!FMath::IsFinite(Binding.Position.Z))
+            { Error = TEXT("NotGrounded: no native ground under layout point ") + Anchor.Id; return false; }
+            if (!LocalGround(Binding.Position, Legal))
+            { Error = TEXT("Layout point ") + Anchor.Id + TEXT(": ") + Error; return false; }
+        }
+        Binding.Position.Z = Legal.SurfaceCm.Z;
         Binding.Floor = Legal.Floor;
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
         {
@@ -352,7 +373,20 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         {
             FVector Position;
             if (!Member.PositionCm.ToVector(Position, Error)) { return false; }
-            CandidateTerrain.Ground(FVector2D(Position), Position.Z, NativeNormal);
+            // Like other authored points, prefer the saved local floor beneath a roof/bridge.
+            // A failed exact home can still use the ordinary local spawn offsets at runtime.
+            FLDLegalGround MemberGround;
+            if (LocalGround(Position,MemberGround)) { Position.Z=MemberGround.SurfaceCm.Z; }
+            else
+            {
+                // Terrain may have been lowered beneath the saved marker. Search down from its old
+                // level before trying a world-height ray, which could choose an unrelated roof above it.
+                FHitResult Below;
+                if (CandidateTerrain.TraceScene(Position+FVector(0,0,CandidateGround->Step),
+                    FVector(Position.X,Position.Y,NativeBounds.Min.Z-1),Below)
+                    && LocalGround(Below.ImpactPoint,MemberGround)) { Position.Z=MemberGround.SurfaceCm.Z; }
+                else { CandidateTerrain.Ground(FVector2D(Position), Position.Z, NativeNormal); }
+            }
             if (!FMath::IsFinite(Position.Z)) { Error = TEXT("NotGrounded: no ground under camp home ") + Member.Id; return false; }
             Member.PositionCm.Z.Numerator = FMath::RoundToInt64(Position.Z * 1000.);
             Member.PositionCm.Z.Denominator = 1000;
@@ -544,26 +578,56 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
     const FPathFindingResult Result = Nav->FindPathSync(Data->GetConfig(), Query);
     if (!Result.IsSuccessful() || !Result.Path.IsValid() || Result.Path->IsPartial() || Result.Path->GetPathPoints().Num() < 2)
     {
-        return Reject(ELDWorldQueryFailure::IncompletePath, TEXT("IncompletePath: no complete native route between legal endpoints."), Failure, Error);
+        const FString Detail = FString::Printf(TEXT("IncompletePath: no complete native route; start=%s end=%s result=%d partial=%d."),
+            *CurrentFrom.SurfaceCm.ToString(), *CurrentTo.SurfaceCm.ToString(), int32(Result.Result), Result.IsPartial());
+        return Reject(ELDWorldQueryFailure::IncompletePath, *Detail, Failure, Error);
     }
     FLDCompletePath Candidate;
     Candidate.World = WorldRevision;
     for (const FNavPathPoint& Point : Result.Path->GetPathPoints()) { Candidate.Points.Add(Point.Location); }
     Candidate.StartProjectionCm = Candidate.Points[0] - CurrentFrom.SurfaceCm;
     Candidate.EndProjectionCm = Candidate.Points.Last() - CurrentTo.SurfaceCm;
+    const auto ConnectEndpoint=[&](const FLDLegalGround& Ground,const FVector& NavPoint)
+    {
+        // Recast voxelizes its border. A physically clear short approach is ordinary CMC movement, not a teleport.
+        const double Distance=FVector::Dist2D(Ground.SurfaceCm,NavPoint);
+        if (Distance>Capsule.GetCapsuleRadius()
+            || FMath::Abs(NavPoint.Z-Ground.SurfaceCm.Z)>GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight) { return false; }
+        FLDLegalGround Bridge;
+        const int32 Samples=FMath::Max(1,FMath::CeilToInt(Distance/(Capsule.GetCapsuleRadius()*.25)));
+        for (int32 I=1; I<=Samples; ++I)
+        {
+            const FVector Point=FMath::Lerp(Ground.FootCm,FVector(NavPoint.X,NavPoint.Y,Ground.FootCm.Z),double(I)/Samples);
+            if (!QueryGround(Expected,Point,Capsule,Ground.SurfaceId,Bridge,Failure,Error)) { return false; }
+        }
+        FHitResult Hit;
+        return !LDNativeGround::Sweep(*GetWorld(),Hit,LDSpawnPlacement::StandingOrigin(Ground),
+            LDSpawnPlacement::StandingOrigin(Bridge),Capsule,LDNativeGround::Query(*GetWorld()));
+    };
     if (Candidate.StartProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
     {
+        if (ConnectEndpoint(CurrentFrom,Candidate.Points[0]))
+        { Candidate.Points.Insert(CurrentFrom.SurfaceCm,0); }
+        else
+        {
         const FString Detail = FString::Printf(TEXT("Unreachable: navigation adjusted the route start's XY position; start=%s navigation=%s."),
             *CurrentFrom.SurfaceCm.ToString(), *Candidate.Points[0].ToString());
         return Reject(ELDWorldQueryFailure::Unreachable, *Detail, Failure, Error);
+        }
     }
     if (Candidate.EndProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
     {
+        if (ConnectEndpoint(CurrentTo,Candidate.Points.Last()))
+        { Candidate.Points.Add(CurrentTo.SurfaceCm); }
+        else
+        {
         const FString Detail = FString::Printf(TEXT("Unreachable: navigation adjusted the destination's XY position; goal=%s navigation=%s."),
             *CurrentTo.SurfaceCm.ToString(), *Candidate.Points.Last().ToString());
         return Reject(ELDWorldQueryFailure::Unreachable, *Detail, Failure, Error);
+        }
     }
-    Candidate.LengthCm = Result.Path->GetLength();
+    Candidate.LengthCm = 0;
+    for (int32 I=1; I<Candidate.Points.Num(); ++I) { Candidate.LengthCm+=FVector::Dist(Candidate.Points[I-1],Candidate.Points[I]); }
     if (!FMath::IsFinite(Candidate.LengthCm) || Candidate.LengthCm < 0)
     {
         return Reject(ELDWorldQueryFailure::IncompletePath, TEXT("IncompletePath: native path length is invalid."), Failure, Error);

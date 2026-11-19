@@ -63,6 +63,7 @@ bool FLDMatchTimeline::Begin(const FLDTimelineParameters& InParameters, int64 St
 
 bool FLDMatchTimeline::IsSignupOpen(int64 AtMs) const
 {
+    AtMs = CountdownNowMs(AtMs);
     return Stage == ELDMatchStage::Rest && LDMatchTimeline::IsPKRest(RestIndex)
         && Step == ELDRestStep::Build && AtMs >= StepEndsAtMs - Parameters.SignupMs
         && AtMs <= StepEndsAtMs;
@@ -70,6 +71,7 @@ bool FLDMatchTimeline::IsSignupOpen(int64 AtMs) const
 
 int64 FLDMatchTimeline::FieldMsAt(int64 AtMs) const
 {
+    AtMs = CountdownNowMs(AtMs);
     if (!IsFieldRunning() || AtMs <= FieldStartedAtMs) { return FieldBaseMs; }
     const int64 Elapsed = AtMs - FieldStartedAtMs;
     if (Stage == ELDMatchStage::Field)
@@ -82,7 +84,7 @@ int64 FLDMatchTimeline::FieldMsAt(int64 AtMs) const
 
 int64 FLDMatchTimeline::FieldDueAuthorityMs(int64 AtMs, int64 FieldAtMs) const
 {
-    if (!IsFieldRunning() || FieldAtMs <= FieldMsAt(AtMs)) { return MAX_int64; }
+    if (bCountdownPaused || !IsFieldRunning() || FieldAtMs <= FieldMsAt(AtMs)) { return MAX_int64; }
     if (Stage == ELDMatchStage::Field && FieldAtMs > int64(FieldSegment + 1) * Parameters.FieldSegmentMs) { return MAX_int64; }
     const int64 Offset = FieldAtMs - FieldBaseMs;
     return FieldStartedAtMs > MAX_int64 - Offset ? MAX_int64 : FieldStartedAtMs + Offset;
@@ -90,6 +92,7 @@ int64 FLDMatchTimeline::FieldDueAuthorityMs(int64 AtMs, int64 FieldAtMs) const
 
 int64 FLDMatchTimeline::NextDueMs() const
 {
+    if (bCountdownPaused) { return MAX_int64; }
     switch (Stage)
     {
     case ELDMatchStage::Rest: return StepEndsAtMs;
@@ -177,6 +180,7 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
         Error = TEXT("The timeline is not running.");
         return false;
     }
+    if (bCountdownPaused) { Error.Reset(); return true; }
     // Every transition happens at its own scheduled instant; one call settles a chain of zero-length steps too.
     for (int32 Guard = 0; Guard < 64; ++Guard)
     {
@@ -243,6 +247,7 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
 
 bool FLDMatchTimeline::FinishPK(int64 AtMs, FString& Error)
 {
+    AtMs = CountdownNowMs(AtMs);
     if (Stage != ELDMatchStage::Rest || Step != ELDRestStep::PK || AtMs < StepStartedAtMs || AtMs > StepEndsAtMs)
     {
         Error = TEXT("Only a running PK can end early, inside its own window.");
@@ -256,6 +261,7 @@ bool FLDMatchTimeline::FinishPK(int64 AtMs, FString& Error)
 bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Error)
 {
     bChanged = false;
+    if (bCountdownPaused) { Error.Reset(); return true; }
     if (!IsRest() || Step != ELDRestStep::Build || AtMs < StepStartedAtMs || AtMs >= StepEndsAtMs)
     {
         Error = TEXT("Ready only applies inside the current rest build window.");
@@ -272,9 +278,29 @@ bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Err
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+bool FLDMatchTimeline::DevSetCountdownPaused(bool bPaused, int64 AtMs, FString& Error)
+{
+    if (!IsActive() || AtMs < 0 || (bCountdownPaused && AtMs < CountdownPausedAtMs))
+    { Error = TEXT("倒计时只能在有效且时间递增的对局中暂停"); return false; }
+    if (bPaused == bCountdownPaused) { Error.Reset(); return true; }
+    if (bPaused) { CountdownPausedAtMs = AtMs; bCountdownPaused = true; }
+    else
+    {
+        const int64 Delta = AtMs - CountdownPausedAtMs;
+        for (int64* Time : {&StepStartedAtMs, &StepEndsAtMs, &FieldStartedAtMs})
+        { if (*Time != MAX_int64 && *Time > MAX_int64 - Delta) { Error = TEXT("倒计时恢复超出时间范围"); return false; } }
+        StepStartedAtMs += Delta;
+        if (StepEndsAtMs != MAX_int64) { StepEndsAtMs += Delta; }
+        FieldStartedAtMs += Delta;
+        bCountdownPaused = false;
+        CountdownPausedAtMs = 0;
+    }
+    Error.Reset(); return true;
+}
+
 bool FLDMatchTimeline::DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
 {
-    if (!IsRest() || RestIndex != 0 || Step != ELDRestStep::Build || AtMs < StepStartedAtMs)
+    if (bCountdownPaused || !IsRest() || RestIndex != 0 || Step != ELDRestStep::Build || AtMs < StepStartedAtMs)
     {
         Error = TEXT("只能在开局准备阶段跳过准备");
         return false;
@@ -320,11 +346,14 @@ FLDTimelineView FLDMatchTimeline::MakeView(uint32 Generation, uint64 Revision) c
     View.FieldEndT = Stage == ELDMatchStage::FinalField ? -1 : int64(FieldSegment + 1) * Parameters.FieldSegmentMs;
     View.LockedEntrants = LockedEntrants;
     View.bPKSkipped = bPKSkipped;
+    View.bCountdownPaused = bCountdownPaused;
+    View.CountdownPausedAtMs = CountdownPausedAtMs;
     return View;
 }
 
 int64 LDMatchTimeline::FieldNowFromView(const FLDTimelineView& View, int64 ServerNowMs)
 {
+    if (View.bCountdownPaused) { ServerNowMs = FMath::Min(ServerNowMs, View.CountdownPausedAtMs); }
     const bool bRuns = View.Stage == ELDMatchStage::Field || View.Stage == ELDMatchStage::FinalField;
     if (!bRuns || ServerNowMs <= View.FieldStartedAtMs) { return View.FieldBaseMs; }
     const int64 T = View.FieldBaseMs + (ServerNowMs - View.FieldStartedAtMs);

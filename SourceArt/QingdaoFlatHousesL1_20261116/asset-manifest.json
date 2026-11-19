@@ -1,0 +1,92 @@
+[
+  {
+    "asset": "SM_QD_Flat_LowStreet",
+    "render_triangles": 1056,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      9.265000343322754,
+      5.7799999713897705,
+      5.954999923706055
+    ],
+    "bounds_m": [
+      [
+        -4.632500171661377,
+        -3.047499895095825,
+        0.0
+      ],
+      [
+        4.632500171661377,
+        2.7325000762939453,
+        5.954999923706055
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Low street house: warm plaster, stone base, flat capped parapet, green shutters, shallow balcony, roof chimney and rainwater pipe.",
+    "replaces_archetype": "I_HarbourWarehouse"
+  },
+  {
+    "asset": "SM_QD_Flat_CornerShop",
+    "render_triangles": 1640,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      7.565000057220459,
+      8.152499914169312,
+      8.479999542236328
+    ],
+    "bounds_m": [
+      [
+        -3.7825000286102295,
+        -4.369999885559082,
+        0.0
+      ],
+      [
+        3.7825000286102295,
+        3.7825000286102295,
+        8.479999542236328
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Square corner shop: pale stone plaster, three storeys, iron balconies, restrained striped awning, roof access and small tank.",
+    "replaces_archetype": "E_HipVilla"
+  },
+  {
+    "asset": "SM_QD_Flat_TerraceResidence",
+    "render_triangles": 1440,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      5.664999961853027,
+      9.265000343322754,
+      8.34000015258789
+    ],
+    "bounds_m": [
+      [
+        -2.8324999809265137,
+        -4.632500171661377,
+        0.0
+      ],
+      [
+        2.8324999809265137,
+        4.632500171661377,
+        8.34000015258789
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Deep three-storey residence: setback upper floor, front terrace, stone sills, grouped shutters and simple roof ventilation.",
+    "replaces_archetype": "H_DeepResidence"
+  }
+]

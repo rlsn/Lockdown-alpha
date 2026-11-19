@@ -37,6 +37,7 @@ public:
     virtual bool HasDaily(ELDDailyModifier Modifier) const = 0;
 #if WITH_DEV_AUTOMATION_TESTS
     virtual bool IsDevPeaceful(const FGuid& Contender) const = 0;
+    virtual bool IsDevInvulnerable(const FGuid& Contender) const { return false; }
 #endif
 protected:
     ~ILDLifeAuthority() = default;

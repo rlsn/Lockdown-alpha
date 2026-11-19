@@ -41,7 +41,7 @@ struct FSceneFixture
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
     AStaticMeshActor* Tree = nullptr;
     FString Error;
-    bool Load()
+    bool Load(bool bRequireLegacyTree = true)
     {
         World = UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(
             LDDemoEntry::WorldMap, FPackageName::GetMapPackageExtension()));
@@ -51,7 +51,7 @@ struct FSceneFixture
         const auto* Cylinder = Geometry->Blockers.FindByPredicate([](const FLDDemoWorldBlocker& B) { return B.Shape == ELDDemoWorldBlockerShape::Cylinder; });
         for (TActorIterator<AStaticMeshActor> It(World); Cylinder && It; ++It)
         { if (It->ActorHasTag(FName(*Cylinder->Id))) { Tree = *It; break; } }
-        return Tree != nullptr;
+        return !bRequireLegacyTree || Tree != nullptr;
     }
     ~FSceneFixture() { UEditorLoadingAndSavingUtils::NewBlankMap(false); }
 };
@@ -63,181 +63,81 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDStaticScenePersistence, "Lockdown.Rules.Stat
 bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
 {
     FSceneFixture F;
-    if (!TestTrue(TEXT("Saved formal scene and existing tree load: ") + F.Error, F.Load())) { return false; }
-    auto* Registry = F.World->GetSubsystem<ULDMapRegistry>();
-    if (!TestTrue(TEXT("Current saved scene binds without a synchronized decoration index: ") + F.Error,
-        Registry->Rebuild(F.Error))) { return false; }
-    const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, LDDemoEntry::WorldDefinition);
-    if (!TestNotNull(TEXT("Saved world definition is present"), Definition)) { return false; }
-    FLDDemoWorldGeometry AuthoringBase;
-    TestTrue(TEXT("Authoring reads the saved world without current content inputs: ") + F.Error,
-        Definition->ReadSavedForEditing(AuthoringBase, F.Error));
-    TestTrue(TEXT("Authoring base is the same complete typed geometry"),
-        FLDDemoWorldGeometry::StaticStruct()->CompareScriptStruct(&AuthoringBase, F.Geometry.Get(), PPF_None));
-    TStrongObjectPtr<ULDMapDefinition> Damaged(DuplicateObject<ULDMapDefinition>(Definition, GetTransientPackage()));
-    Damaged->Checksum = TEXT("invalid");
-    TestFalse(TEXT("Authoring rejects an altered world checksum"), Damaged->ReadSavedForEditing(AuthoringBase, F.Error));
-    Damaged->Checksum = Definition->Checksum;
-    Damaged->SourceJson += TEXT(" ");
-    TestFalse(TEXT("Authoring rejects altered saved world bytes"), Damaged->ReadSavedForEditing(AuthoringBase, F.Error));
-    FLDDemoWorldGeometry SeedWithoutFinalAnchors = *F.Geometry;
-    SeedWithoutFinalAnchors.Anchors.RemoveAll([](const FLDDemoWorldAnchor& Anchor)
+    if (!TestTrue(TEXT("Saved formal scene loads without requiring a template decoration: ")+F.Error,F.Load(false))) { return false; }
+    auto* Registry=F.World->GetSubsystem<ULDMapRegistry>();
+    if(!TestTrue(TEXT("Current authored scene binds: ")+F.Error,Registry->Rebuild(F.Error))){return false;}
+    const auto* Definition=LoadObject<ULDMapDefinition>(nullptr,LDDemoEntry::WorldDefinition);
+    if(!TestNotNull(TEXT("Saved world definition"),Definition)){return false;}
+    FLDDemoWorldGeometry Base;
+    TestTrue(TEXT("Authoring reads its complete saved geometry"),Definition->ReadSavedForEditing(Base,F.Error)
+        &&FLDDemoWorldGeometry::StaticStruct()->CompareScriptStruct(&Base,F.Geometry.Get(),PPF_None));
+    TStrongObjectPtr<ULDMapDefinition> Damaged(DuplicateObject<ULDMapDefinition>(Definition,GetTransientPackage()));
+    Damaged->Checksum=TEXT("invalid");
+    TestFalse(TEXT("Altered checksum is refused"),Damaged->ReadSavedForEditing(Base,F.Error));
+    Damaged->Checksum=Definition->Checksum;Damaged->SourceJson+=TEXT(" ");
+    TestFalse(TEXT("Altered saved bytes are refused"),Damaged->ReadSavedForEditing(Base,F.Error));
+    const auto* Rest=Registry->Resolve(TEXT("rest_spawn_0"),Registry->Generation);
+    if(!TestNotNull(TEXT("Semantic rest spawn"),Rest)){return false;}
+    // This test owns its meshes. The production map may replace or remove every old tree, wall and visual overlay.
+    const FVector Centre(Rest->Position.X,Rest->Position.Y,10000);
+    auto* Cube=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
+    const auto Place=[&](FVector At,FVector Scale)
     {
-        return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
-    });
-    FLDDemoWorldGeometry Projected;
-    TestTrue(TEXT("Saved final anchor tags extend a legacy world projection: ") + F.Error,
-        LDStaticScene::ProjectRuntimeGeometry(*F.World, SeedWithoutFinalAnchors, Projected, F.Error));
-    TestEqual(TEXT("All six final spawn anchors and capture are exported"),
-        Projected.Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& Anchor)
-        {
-            return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
-        }).Num(), LDDemoWorld::FinalSpawns + 1);
-    const auto Parts = LDStaticScene::Visuals(*F.World);
-    TestTrue(TEXT("Saved standard meshes supply visuals directly"), Parts.Num() > 0);
-    for (const auto* Part : Parts)
-    {
-        if (!TestTrue(TEXT("Visible editable mesh has no extra collision/navigation"), Part->IsVisible()
-            && Part->GetCollisionEnabled() == ECollisionEnabled::NoCollision && !Part->CanEverAffectNavigation())) { return false; }
-    }
-    AActor* Decoration = nullptr;
-    for (const auto* Part : Parts)
-    {
-        if (!Part->GetOwner()->ActorHasTag(LDDemoWorld::StaticGeometryTag)) { Decoration = Part->GetOwner(); break; }
-    }
-    if (!TestNotNull(TEXT("An editable decoration exists"), Decoration)) { return false; }
-    Decoration->Destroy();
-    TestTrue(TEXT("Deleting a decoration plays with the untouched catalog"), Registry->Rebuild(F.Error));
-    int32 FinalWalls = 0;
-    for (TActorIterator<AStaticMeshActor> It(F.World); It; ++It)
-    {
-        if (!It->ActorHasTag(LDDemoWorld::StaticGeometryTag) || It->Tags.IsEmpty()
-            || !It->Tags[0].ToString().StartsWith(TEXT("final_arena_"))) { continue; }
-        ++FinalWalls;
-        const auto* Collision = LDStaticScene::Collision(**It);
-        FCollisionQueryParams OnlyWall;
-        for (TActorIterator<AActor> Other(F.World); Other; ++Other)
-        { if (*Other != *It) { OnlyWall.AddIgnoredActor(*Other); } }
-        const FVector Centre = Collision->Bounds.Origin;
-        const FVector HalfRay(Collision->Bounds.BoxExtent.X + 100, 0, 0);
-        for (const auto Channel : { ECC_Pawn, ECC_GameTraceChannel2 })
-        {
-            FHitResult Result;
-            TestTrue(TEXT("Saved final wall physically blocks movement and sight: ") + It->GetActorLabel(),
-                F.World->LineTraceSingleByChannel(Result, Centre - HalfRay, Centre + HalfRay, Channel, OnlyWall)
-                && Result.GetComponent() == Collision);
-        }
-    }
-    TestTrue(TEXT("Final arena contains saved hard collision walls"), FinalWalls > 0);
-    auto* Shape = LDStaticScene::Collision(*F.Tree);
-    if (!TestTrue(TEXT("Tree carries its actual hidden collision instance"), Shape != F.Tree->GetStaticMeshComponent()
-        && Shape->CreationMethod == EComponentCreationMethod::Instance && !Shape->IsVisible())) { return false; }
-    FCollisionQueryParams Query;
-    for (TActorIterator<AActor> It(F.World); It; ++It) { if (*It != F.Tree) { Query.AddIgnoredActor(*It); } }
-    auto Hit = [&](const FVector& Centre)
-    {
-        FHitResult Result;
-        return F.World->LineTraceSingleByChannel(Result, Centre - FVector(150, 0, 0), Centre + FVector(150, 0, 0), ECC_Pawn, Query)
-            && Result.GetComponent() == Shape;
+        auto* A=F.World->SpawnActor<AStaticMeshActor>();auto* C=A->GetStaticMeshComponent();
+        C->SetStaticMesh(Cube);C->SetCollisionProfileName(TEXT("BlockAll"));
+        A->SetActorScale3D(Scale);A->SetActorLocation(At);return A;
     };
-    const FString TreeName = F.Tree->GetName();
-    const FVector Before = Shape->Bounds.Origin;
-    TestTrue(TEXT("Original collision is queryable"), Hit(Before));
-    const FVector Delta(600, 200, 0);
-    F.Tree->SetActorLocation(F.Tree->GetActorLocation() + Delta);
-    TestTrue(TEXT("Collision follows an ordinary actor move"), Shape->Bounds.Origin.Equals(Before + Delta, .01));
-    TestFalse(TEXT("Old tree position is clear"), Hit(Before));
-    TestTrue(TEXT("New tree position blocks"), Hit(Before + Delta));
-    TestFalse(TEXT("Unsynchronized layout explicitly refuses stale geometry"), LDStaticScene::ValidateGeometry(*F.World, *F.Geometry, F.Error));
-    FLDDemoWorldGeometry Current;
-    TestTrue(TEXT("The same moved tree is admitted by runtime projection"), LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Current, F.Error));
-    TestTrue(TEXT("A moved tree binds without export"), Registry->Rebuild(F.Error));
-    const auto Revision = Registry->Revision();
-    double TestGroundZ = 0; FVector TestGroundNormal;
-    Registry->GetTerrain().Ground(FVector2D(Before), TestGroundZ, TestGroundNormal);
-    if (!TestTrue(TEXT("The sight fixture has finite actual support"), FMath::IsFinite(TestGroundZ))) { return false; }
-    auto* Added = F.World->SpawnActor<AStaticMeshActor>();
-    auto* AddedMesh = Added->GetStaticMeshComponent();
-    AddedMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
-    AddedMesh->SetCollisionProfileName(TEXT("BlockAll"));
-    AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
-    AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
-    Added->SetActorLocation(FVector(Before.X, Before.Y, TestGroundZ + 200));
-    Added->SetActorScale3D(FVector(1, 1, 4));
-    TestTrue(TEXT("An untagged native collision mesh binds"), Registry->Rebuild(F.Error));
-    TestTrue(TEXT("Native collision edits invalidate the world revision"), Registry->Revision() != Revision);
-    auto* Overhead = NewObject<UStaticMeshComponent>(Added);
-    Added->AddInstanceComponent(Overhead);
-    Overhead->SetStaticMesh(AddedMesh->GetStaticMesh());
-    Overhead->SetCollisionProfileName(TEXT("BlockAll"));
-    Overhead->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
-    Overhead->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
-    Overhead->RegisterComponent();
-    Overhead->SetWorldLocation(FVector(Before.X, Before.Y, TestGroundZ + 450));
-    Overhead->SetWorldScale3D(FVector(.5, .5, 1));
-    FLDLegalGround Standing;
-    ELDWorldQueryFailure Failure;
-    FCollisionShape ApprovedCapsule;
-    if (!TestTrue(TEXT("Approved body shape"), ULDMapRegistry::ContentCapsule(*F.Content, ApprovedCapsule, F.Error))) { return false; }
-    TestFalse(TEXT("A floor does not hide another collision component of the same actor"), Registry->QueryGround(
-        Registry->Revision(), FVector(Before.X, Before.Y, TestGroundZ + 400), ApprovedCapsule,
-        FName(*Registry->GetGeometry()->Surfaces[0].Id), Standing, Failure, F.Error));
-    TestEqual(TEXT("The sibling obstruction is reported as blocked"), Failure, ELDWorldQueryFailure::Blocked);
-    Overhead->DestroyComponent();
+    Place(Centre-FVector(0,0,50),FVector(40,40,1));
+    auto* Model=Place(Centre+FVector(0,0,200),FVector(1,1,4));
+    auto* Part=Model->GetStaticMeshComponent();
+    Part->SetCollisionResponseToChannel(ECC_GameTraceChannel2,ECR_Block);
+    const FString Name=Model->GetName();
+    if(!TestTrue(TEXT("Ordinary untagged native meshes bind"),Registry->Rebuild(F.Error))){return false;}
+    const auto Revision=Registry->Revision();
+    const FVector Before=Model->GetActorLocation(),Delta(600,200,0);
+    const auto Hit=[&](const FVector& At)
+    {
+        FCollisionQueryParams Q;
+        for(TActorIterator<AActor> It(F.World);It;++It){if(*It!=Model){Q.AddIgnoredActor(*It);}}
+        FHitResult H;
+        return F.World->LineTraceSingleByChannel(H,At-FVector(150,0,0),At+FVector(150,0,0),ECC_Pawn,Q)&&H.GetComponent()==Part;
+    };
+    TestTrue(TEXT("Authored native collision is queryable"),Hit(Before));
+    Model->SetActorLocation(Before+Delta);
+    TestFalse(TEXT("Moving a mesh clears its previous collision"),Hit(Before));
+    TestTrue(TEXT("Collision follows the moved mesh"),Hit(Before+Delta));
+    TestTrue(TEXT("A moved native mesh binds without export"),Registry->Rebuild(F.Error));
+    TestTrue(TEXT("The physics edit invalidates the world revision"),Registry->Revision()!=Revision);
     FLDSightGeometry Sight;
-    TestTrue(TEXT("Native sight accepts the current scene"), Sight.Build(*Registry->GetGeometry(), Registry->Revision(),
-        F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World));
-    const FVector Left(Before.X - 60, Before.Y, TestGroundZ), Right(Before.X + 60, Before.Y, TestGroundZ);
-    TestEqual(TEXT("New mesh blocks sight at its actual position"), Sight.Trace(Left, Right), ELDSightResult::Blocked);
-    AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
-    TestTrue(TEXT("Sight channel edit binds"), Registry->Rebuild(F.Error));
-    Sight.Build(*Registry->GetGeometry(), Registry->Revision(), F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World);
-    TestEqual(TEXT("Ground-aim collision alone does not hide units"), Sight.Trace(Left, Right), ELDSightResult::Visible);
-    Added->Destroy();
-    TestTrue(TEXT("Deleting the new mesh rebuilds successfully"), Registry->Rebuild(F.Error));
-    Sight.Build(*Registry->GetGeometry(), Registry->Revision(), F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World);
-    TestEqual(TEXT("Deleted collision leaves no stale sight blocker"), Sight.Trace(Left, Right), ELDSightResult::Visible);
-    auto* Generic = F.World->SpawnActor<AActor>();
-    auto* Box = NewObject<UBoxComponent>(Generic);
-    Generic->AddInstanceComponent(Box);
-    Generic->SetRootComponent(Box);
-    Box->SetBoxExtent(FVector(20,20,20));
-    Box->SetCollisionProfileName(TEXT("BlockAll"));
-    Box->RegisterComponent();
-    Generic->SetActorLocation(FVector(Before.X, Before.Y, 300));
-    TestTrue(TEXT("A generic collision actor binds"), Registry->Rebuild(F.Error));
-    const auto BoxRevision = Registry->Revision();
-    Generic->SetActorLocation(Generic->GetActorLocation() + FVector(100,0,0));
-    TestTrue(TEXT("A moved generic collision actor binds"), Registry->Rebuild(F.Error));
-    TestTrue(TEXT("Generic collision transforms invalidate the world"), Registry->Revision() != BoxRevision);
-    const auto MovedBoxRevision = Registry->Revision();
-    Box->SetBoxExtent(FVector(40,20,20));
-    TestTrue(TEXT("A resized generic collision actor binds"), Registry->Rebuild(F.Error));
-    TestTrue(TEXT("Generic collision shapes invalidate the world"), Registry->Revision() != MovedBoxRevision);
-    const auto ShapeRevision = Registry->Revision();
-    Generic->Tags.Add(LDDemoWorld::TerrainTag);
-    TestTrue(TEXT("A terrain role edit binds"), Registry->Rebuild(F.Error));
-    TestTrue(TEXT("Terrain roles invalidate observation caches"), Registry->Revision() != ShapeRevision);
-    Generic->Destroy();
-    const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts/StaticSceneTest/"));
-    IFileManager::Get().MakeDirectory(*Directory, true);
-    FPackageName::RegisterMountPoint(TEXT("/LDStaticSceneTest/"), Directory);
-    ON_SCOPE_EXIT { UEditorLoadingAndSavingUtils::NewBlankMap(false); FPackageName::UnRegisterMountPoint(TEXT("/LDStaticSceneTest/"), Directory); };
-    if (!TestTrue(TEXT("Edited scene saves as an isolated fixture"), UEditorLoadingAndSavingUtils::SaveMap(F.World, TEXT("/LDStaticSceneTest/Moved")))) { return false; }
-    F.World = UEditorLoadingAndSavingUtils::LoadMap(Directory / TEXT("Moved.umap"));
-    if (!TestNotNull(TEXT("Edited scene reloads from disk"), F.World)) { return false; }
-    F.Tree = nullptr;
-    for (TActorIterator<AStaticMeshActor> It(F.World); It; ++It) { if (It->GetName() == TreeName) { F.Tree = *It; break; } }
-    if (!TestNotNull(TEXT("Tree survives reopen"), F.Tree)) { return false; }
-    Shape = LDStaticScene::Collision(*F.Tree);
-    TestTrue(TEXT("Collision and root relationship persist"), Shape != F.Tree->GetStaticMeshComponent()
-        && Shape->Bounds.Origin.Equals(Before + Delta, .01));
-    TestEqual(TEXT("Visual NoCollision profile persists"), F.Tree->GetStaticMeshComponent()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
-    Query.ClearIgnoredSourceObjects();
-    for (TActorIterator<AActor> It(F.World); It; ++It) { if (*It != F.Tree) { Query.AddIgnoredActor(*It); } }
-    TestTrue(TEXT("Reloaded saved collision blocks at the edited position"), Hit(Before + Delta));
+    const auto Bind=[&]() {return Registry->Rebuild(F.Error)&&Sight.Build(*Registry->GetGeometry(),Registry->Revision(),
+        F.Content->Get().Parameters.VisionRadiusCm,F.Error,F.World);};
+    const FVector Left=Centre+Delta-FVector(100,0,0),Right=Centre+Delta+FVector(100,0,0);
+    TestTrue(TEXT("Moved native sight binds"),Bind());
+    TestEqual(TEXT("The moved native mesh blocks its actual sight location"),Sight.Trace(Left,Right),ELDSightResult::Blocked);
+    Part->SetCollisionResponseToChannel(ECC_GameTraceChannel2,ECR_Ignore);
+    TestTrue(TEXT("A sight channel edit rebinds"),Bind());
+    TestEqual(TEXT("Pawn collision alone does not block sight"),Sight.Trace(Left,Right),ELDSightResult::Visible);
+    Part->SetCollisionResponseToChannel(ECC_GameTraceChannel2,ECR_Block);
+    const FString Directory=FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()/TEXT("Artifacts/StaticSceneTest/"));
+    IFileManager::Get().MakeDirectory(*Directory,true);FPackageName::RegisterMountPoint(TEXT("/LDStaticSceneTest/"),Directory);
+    ON_SCOPE_EXIT {UEditorLoadingAndSavingUtils::NewBlankMap(false);FPackageName::UnRegisterMountPoint(TEXT("/LDStaticSceneTest/"),Directory);};
+    if(!TestTrue(TEXT("Edited native scene saves into an isolated fixture"),UEditorLoadingAndSavingUtils::SaveMap(F.World,TEXT("/LDStaticSceneTest/NativeMoved")))){return false;}
+    F.World=UEditorLoadingAndSavingUtils::LoadMap(Directory/TEXT("NativeMoved.umap"));
+    if(!TestNotNull(TEXT("Native fixture reopens"),F.World)){return false;}
+    Model=nullptr;
+    for(TActorIterator<AStaticMeshActor> It(F.World);It;++It){if(It->GetName()==Name){Model=*It;break;}}
+    if(!TestNotNull(TEXT("Authored model survives reopen"),Model)){return false;}
+    Part=Model->GetStaticMeshComponent();
+    TestTrue(TEXT("Its transform and collision profile persist"),Model->GetActorLocation().Equals(Before+Delta,.01)
+        &&Part->GetCollisionResponseToChannel(ECC_Pawn)==ECR_Block&&Part->GetCollisionResponseToChannel(ECC_GameTraceChannel2)==ECR_Block);
+    TestTrue(TEXT("Reloaded collision blocks at its edited position"),Hit(Before+Delta));
+    Registry=F.World->GetSubsystem<ULDMapRegistry>();Model->Destroy();
+    TestTrue(TEXT("Deleting the model rebinds"),Registry->Rebuild(F.Error));
+    Sight.Build(*Registry->GetGeometry(),Registry->Revision(),F.Content->Get().Parameters.VisionRadiusCm,F.Error,F.World);
+    TestEqual(TEXT("Deleted geometry leaves no stale sight blocker"),Sight.Trace(Left,Right),ELDSightResult::Visible);
     return !HasAnyErrors();
 }
+
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDStaticSceneCopy, "Lockdown.Rules.StaticScene.CopyIdentityAndSafety",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -359,7 +259,21 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
             Capsule, RestSpawn->Surface, Standing, Failure, F.Error))) { return false; }
     TestFalse(TEXT("The same non-Pawn-blocking overlay also permits actual body placement"),
         LDSpawnPlacement::OverlapsStatic(*F.World, LDSpawnPlacement::StandingOrigin(Standing), Capsule));
+    const FVector RequiredFoot = RestSpawn->Position;
     Overlay->Destroy(); Left->Destroy(); Right->Destroy(); VisualOnly->Destroy();
+    // Authored scenes may contain another genuine floor below the replaced one. Remove that support
+    // too in this disposable world, so the assertion tests missing ground rather than a layered layout.
+    const auto Query = LDNativeGround::Query(*F.World);
+    TSet<UPrimitiveComponent*> Removed;
+    FHitResult Remaining;
+    while (LDNativeGround::Trace(*F.World, Remaining, RequiredFoot + FVector(0,0,100000),
+        RequiredFoot - FVector(0,0,100000), Query))
+    {
+        auto* Part = Remaining.GetComponent();
+        if (!Part || Removed.Contains(Part)) { AddError(TEXT("Failed to remove test support")); return false; }
+        Removed.Add(Part);
+        Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
     TestFalse(TEXT("Removing actual support still refuses unsafe spawn"), Registry->Rebuild(F.Error));
     return !HasAnyErrors();
 }

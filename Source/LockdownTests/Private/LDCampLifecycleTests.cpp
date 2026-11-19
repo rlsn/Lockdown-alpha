@@ -159,6 +159,40 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
     });
     Reject(TEXT("Nonpositive refresh delay refused"), [](FFixture& F) { F.Content.Monsters[1].RespawnMs = 0; });
     Reject(TEXT("Invalid coordinate denominator refused"), [](FFixture& F) { F.World.Anchors[1].PositionCm.X.Denominator = 0; });
+    FFixture Scene = MakeFixture();
+    Scene.World.bSceneLayout = true;
+    Scene.World.Anchors.RemoveAt(4);
+    auto Copy = Scene.World.Anchors[0];
+    Copy.PrototypeId = Copy.Id;
+    Copy.Id = TEXT("l23");
+    for (int32 Slot=0; Slot<Copy.Members.Num(); ++Slot)
+    { Copy.Members[Slot].Id = FString::Printf(TEXT("l23_%d"), Slot); }
+    Scene.World.Anchors.Add(Copy);
+    TestTrue(TEXT("Authored deletion and independent copied camp compile"),LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error));
+    TestTrue(TEXT("The copied camp is real and retains its approved creature"),Out.FindCamp(TEXT("l23"))!=INDEX_NONE
+        && Out.Camps[Out.FindCamp(TEXT("l23"))].CreatureId==Good.Content.Monsters[0].NativeId);
+    TestEqual(TEXT("Copied AI uses its approved definition independently of the instance id"),
+        Out.Camps[Out.FindCamp(TEXT("l23"))].DefinitionId,FName(TEXT("l1")));
+    auto& Mixed=Scene.World.Anchors.Last();
+    Mixed.Members[0].PrototypeId=TEXT("l1");
+    Mixed.Members[1].PrototypeId=TEXT("h1");
+    auto Third=Mixed.Members[0];Third.Id=TEXT("l23_2");Mixed.Members.Add(Third);
+    TestTrue(TEXT("Saved authored groups retain three members instead of the two-member template count"),LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error));
+    const auto& Group=Out.Camps[Out.FindCamp(TEXT("l23"))];
+    TestEqual(TEXT("Every authored member is retained"),Group.Members.Num(),3);
+    TestEqual(TEXT("Mixed member keeps its approved creature"),Group.Members[1].CreatureId,Good.Content.Monsters[1].NativeId);
+    TestEqual(TEXT("Mixed member keeps its own AI definition"),Group.Members[1].DefinitionId,FName(TEXT("h1")));
+    TestEqual(TEXT("Group refresh remains controlled by its explicit centre prototype"),Group.RespawnMs,Good.Content.Monsters[0].RespawnMs);
+    Mixed.PrototypeId=TEXT("h1");
+    TestTrue(TEXT("A high-tier authored centre preserves fixed mixed slots without adding a generated teambuild home"),
+        LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error) && Out.Camps[Out.FindCamp(TEXT("l23"))].Members.Num()==3
+        && Out.Camps[Out.FindCamp(TEXT("l23"))].bAuthoredMembers);
+    Mixed.PrototypeId=TEXT("l1");
+    Mixed.Members[1].PrototypeId=TEXT("unknown");
+    TestFalse(TEXT("An unknown member prototype is rejected"),LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error));
+    Mixed.Members[1].PrototypeId=TEXT("h1");
+    Scene.World.Anchors.Last().PrototypeId=TEXT("unknown");
+    TestFalse(TEXT("An unknown scene template is rejected"),LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error));
     return true;
 }
 

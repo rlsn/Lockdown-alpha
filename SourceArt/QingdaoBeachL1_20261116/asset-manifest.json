@@ -1,0 +1,172 @@
+[
+  {
+    "asset": "SM_QD_Reef_A_LowSlab",
+    "render_triangles": 198,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      4.5,
+      3.0,
+      2.200000047683716
+    ],
+    "bounds_m": [
+      [
+        -2.25,
+        -1.5,
+        0.0
+      ],
+      [
+        2.25,
+        1.5,
+        2.200000047683716
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Coastal ledge",
+    "material_profile": "reef",
+    "placement_policy": "Retain original geometric centre, orientation and oriented envelope; reuse four forms without moving authored reef obstacles."
+  },
+  {
+    "asset": "SM_QD_Reef_B_SplitMass",
+    "render_triangles": 238,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      3.799999952316284,
+      3.299999952316284,
+      3.9000000953674316
+    ],
+    "bounds_m": [
+      [
+        -1.899999976158142,
+        -1.649999976158142,
+        0.0
+      ],
+      [
+        1.899999976158142,
+        1.649999976158142,
+        3.9000000953674316
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Coastal split",
+    "material_profile": "reef",
+    "placement_policy": "Retain original geometric centre, orientation and oriented envelope; reuse four forms without moving authored reef obstacles."
+  },
+  {
+    "asset": "SM_QD_Reef_C_AngularFin",
+    "render_triangles": 238,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      3.0,
+      2.0,
+      4.699999809265137
+    ],
+    "bounds_m": [
+      [
+        -1.5,
+        -1.0,
+        0.0
+      ],
+      [
+        1.5,
+        1.0,
+        4.699999809265137
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Coastal ridge",
+    "material_profile": "reef",
+    "placement_policy": "Retain original geometric centre, orientation and oriented envelope; reuse four forms without moving authored reef obstacles."
+  },
+  {
+    "asset": "SM_QD_Reef_D_RoundedReef",
+    "render_triangles": 238,
+    "collision_triangles": 0,
+    "triangle_budget": 2999,
+    "dimensions_m": [
+      3.799999952316284,
+      3.5,
+      3.200000047683716
+    ],
+    "bounds_m": [
+      [
+        -1.899999976158142,
+        -1.75,
+        0.0
+      ],
+      [
+        1.899999976158142,
+        1.75,
+        3.200000047683716
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "design": "Coastal rounded",
+    "material_profile": "reef",
+    "placement_policy": "Retain original geometric centre, orientation and oriented envelope; reuse four forms without moving authored reef obstacles."
+  },
+  {
+    "asset": "SM_QD_BeachSurface_L1",
+    "render_triangles": 2308,
+    "collision_triangles": 0,
+    "triangle_budget": 8000,
+    "dimensions_m": [
+      69.94087600708008,
+      73.29022598266602,
+      5.327124208211899
+    ],
+    "bounds_m": [
+      [
+        -28.697505950927734,
+        -35.24271011352539,
+        -0.3499999940395355
+      ],
+      [
+        41.243370056152344,
+        38.047515869140625,
+        4.977124214172363
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "material_profile": "sand",
+    "uv_projection": "repeat_xy",
+    "placement_original_cm": [
+      -4500,
+      2200,
+      0
+    ],
+    "source_ground_ids": [
+      "Actor_10",
+      "Actor_159",
+      "Actor_160",
+      "Actor_161",
+      "Actor_162",
+      "Actor_509"
+    ],
+    "core_surface_area_m2": 2351.4640404861925,
+    "protected_edge_segments_skipped": 14,
+    "purpose": "Continuous sand top and curved seaward apron. Core follows original surfaces; dry/wet shading follows world height. No new gameplay collision or navigable area."
+  }
+]

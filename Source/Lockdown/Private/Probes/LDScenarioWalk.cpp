@@ -28,7 +28,8 @@ bool Keepouts(const FLDDemoWorldGeometry& Geometry, const FLDDemoContentSnapshot
             Out.Add({Centre, Radius});
             continue;
         }
-        const auto* Placement = Defs.Camps.FindByPredicate([&](const auto& Row) { return Row.AnchorId == Anchor.Id; });
+        const FString& DefinitionId=Anchor.PrototypeId.IsEmpty()?Anchor.Id:Anchor.PrototypeId;
+        const auto* Placement = Defs.Camps.FindByPredicate([&](const auto& Row) { return Row.AnchorId == DefinitionId; });
         const FLDDemoMonsterDefinition* Monster = nullptr;
         if (!Placement || !Content.FindMonster(Placement->MonsterId, Monster, Error))
         { Error = TEXT("The authored camp has no approved monster: ") + Anchor.Id; return false; }

@@ -62,6 +62,7 @@ void ALDPlayerController::BeginPlay()
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartWorldRoomProbe(*this);
     LDDemoTests::StartCoreProbe(*this);
+    LDDemoTests::StartSoloProbe(*this);
     LDDemoTests::StartVisionProbe(*this);
     LDDemoTests::StartGrowthProbe(*this);
     LDDemoTests::StartCombatProbe(*this);

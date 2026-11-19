@@ -95,6 +95,64 @@ namespace
     }
 }
 
+bool ULDMapRegistry::ValidateFieldSpawnPaths(bool bFinalField, FString& Error) const
+{
+    if (!Content) { Error=TEXT("入场检查失败：地图数据未就绪");return false; }
+    TArray<FName> Anchors;
+    if (bFinalField)
+    {
+        for (int32 Slot=0;Slot<LDDemoWorld::FinalSpawns;++Slot) { Anchors.Add(FName(*LDDemoWorld::FinalSpawnId(Slot))); }
+    }
+    else { for (const FString& Id:Content->Get().World.SpawnIds) { Anchors.Add(FName(*Id)); } }
+    return ValidateSpawnPaths(Anchors,bFinalField?FName(*LDDemoWorld::FinalCaptureId()):FName(*Content->Get().World.CaptureId),Error);
+}
+
+bool ULDMapRegistry::ValidateSpawnPaths(const TArray<FName>& Anchors,FName ReferenceId,FString& Error) const
+{
+    if (!Enabled() || !Content || !Geometry)
+    { Error = TEXT("入场检查失败：地图数据未就绪，角色保留在原处"); return false; }
+    FCollisionShape Capsule;
+    if (!ContentCapsule(*Content, Capsule, Error)) { return false; }
+    const auto* Reference = Resolve(ReferenceId, Generation);
+    FLDLegalGround ReferenceGround;
+    ELDWorldQueryFailure Failure;
+    if (!Reference || !QueryGround(WorldRevision, Reference->Position, Capsule, Reference->Surface, ReferenceGround, Failure, Error))
+    {
+        Error = FString::Printf(TEXT("入场检查失败：参考点 %s 无合法地面；%s"), *ReferenceId.ToString(), *Error);
+        return false;
+    }
+    for (FName Id : Anchors)
+    {
+        const auto* Anchor = Resolve(Id, Generation);
+        if (!Anchor) { Error = FString::Printf(TEXT("入场检查失败：出生点 %s 缺失"), *Id.ToString()); return false; }
+        bool bSupported = false;
+        for (const auto& Offset : Geometry->SpawnOffsetsCm)
+        {
+            FVector Delta;
+            if (!Offset.ToVector(Delta, Error)) { return false; }
+            FLDLegalGround Ground;
+            if (!QueryGround(WorldRevision, Anchor->Position + Delta, Capsule, Anchor->Surface, Ground, Failure, Error))
+            {
+                if (Failure == ELDWorldQueryFailure::Blocked) { continue; }
+                Error = FString::Printf(TEXT("入场检查失败：出生点 %s；%s"), *Id.ToString(), *Error);
+                return false;
+            }
+            FLDCompletePath Path;
+            if (!QueryCompletePath(WorldRevision, Ground, ReferenceGround, Capsule, Path, Failure, Error))
+            {
+                Error = FString::Printf(TEXT("入场检查失败：出生点 %s 到 %s 的导航不可用；请构建路径后重试。%s"),
+                    *Id.ToString(), *ReferenceId.ToString(), *Error);
+                return false;
+            }
+            bSupported = true;
+        }
+        if (!bSupported)
+        { Error = FString::Printf(TEXT("入场检查失败：出生点 %s 没有可站立的候选位置"), *Id.ToString()); return false; }
+    }
+    Error.Reset();
+    return true;
+}
+
 bool ULDMapRegistry::BeginSpawnMatch(const FLDMatchContext& Match, FString& Error)
 {
     const auto* Mode=LDAuthority::Find(GetWorld());

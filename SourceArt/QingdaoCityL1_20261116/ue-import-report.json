@@ -1,0 +1,182 @@
+[
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_House_RedRoof_A.SM_QD_House_RedRoof_A",
+    "triangles": 1580,
+    "dimensions_cm": [
+      712.0359497070312,
+      660.9321899414062,
+      864.9999389648438
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -356.0179748535156,
+      -304.68218994140625,
+      0.0
+    ],
+    "bounds_max": [
+      356.0179748535156,
+      356.25,
+      864.9999389648438
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_B_LaneHouse.SM_QD_B_LaneHouse",
+    "triangles": 682,
+    "dimensions_cm": [
+      532.0000610351562,
+      488.7500305175781,
+      710.0
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -266.0000305175781,
+      -222.00003051757812,
+      0.0
+    ],
+    "bounds_max": [
+      266.0000305175781,
+      266.75,
+      710.0
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_C_FlatTownhouse.SM_QD_C_FlatTownhouse",
+    "triangles": 912,
+    "dimensions_cm": [
+      563.0000610351562,
+      617.0000305175781,
+      991.0
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -281.5000305175781,
+      -291.5,
+      0.0
+    ],
+    "bounds_max": [
+      281.5000305175781,
+      325.5000305175781,
+      991.0
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_D_LongShop.SM_QD_D_LongShop",
+    "triangles": 874,
+    "dimensions_cm": [
+      1052.0,
+      538.7500762939453,
+      803.0
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -526.0,
+      -247.0000457763672,
+      0.0
+    ],
+    "bounds_max": [
+      526.0,
+      291.7500305175781,
+      803.0
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_E_HipVilla.SM_QD_E_HipVilla",
+    "triangles": 740,
+    "dimensions_cm": [
+      784.1277465820312,
+      780.9497680664062,
+      906.0000610351562
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -392.0638732910156,
+      -390.4748840332031,
+      0.0
+    ],
+    "bounds_max": [
+      392.0638732910156,
+      390.4748840332031,
+      906.0000610351562
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_F_Apartment4F.SM_QD_F_Apartment4F",
+    "triangles": 1322,
+    "dimensions_cm": [
+      743.0,
+      668.2500610351562,
+      1201.0
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -371.5,
+      -311.5000305175781,
+      0.0
+    ],
+    "bounds_max": [
+      371.5,
+      356.7500305175781,
+      1201.0
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_G_Apartment6F.SM_QD_G_Apartment6F",
+    "triangles": 1812,
+    "dimensions_cm": [
+      743.0,
+      677.0000305175781,
+      1670.9998779296875
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -371.5,
+      -321.5,
+      0.0
+    ],
+    "bounds_max": [
+      371.5,
+      355.5000305175781,
+      1670.9998779296875
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_H_DeepResidence.SM_QD_H_DeepResidence",
+    "triangles": 1064,
+    "dimensions_cm": [
+      594.2233276367188,
+      980.8879699707031,
+      1026.0
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -297.1116638183594,
+      -475.3879699707031,
+      0.0
+    ],
+    "bounds_max": [
+      297.1116638183594,
+      505.5,
+      1026.0
+    ]
+  },
+  {
+    "asset": "/Game/Lockdown/Art/QingdaoCityL1/Meshes/SM_QD_I_HarbourWarehouse.SM_QD_I_HarbourWarehouse",
+    "triangles": 344,
+    "dimensions_cm": [
+      952.0000610351562,
+      544.0000610351562,
+      696.0
+    ],
+    "material_slots": 1,
+    "bounds_min": [
+      -476.0000305175781,
+      -272.0000305175781,
+      0.0
+    ],
+    "bounds_max": [
+      476.0000305175781,
+      272.0000305175781,
+      696.0
+    ]
+  }
+]

@@ -1,4 +1,6 @@
 #include "Tests/LDNativeMotionProbe.h"
+#include "Character/LDCharacter.h"
+#include "Navigation/LDPathSteering.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -542,6 +544,102 @@ bool FLDNativeStepUpProbe::RunTest(const FString& Parameters)
         && !Move->Captured->Records.ContainsByPredicate([&](const auto& Row)
         { return Row.ToFootCm.X>Move->GetActorFeetLocation().X+.001 || Row.ToFootCm.Z>3; }));
     return SaveTrace(*this,TEXT("step_up_rollback"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeTerrainTraversal, "Lockdown.Rules.DemoMotionProbe.TerrainTraversal",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeTerrainTraversal::RunTest(const FString& Parameters)
+{
+    const auto* Defaults=GetDefault<ALDCharacter>()->GetCharacterMovement();
+    TestTrue(TEXT("Production movement prevents walking/crouching off ledges, with no jump capability"),
+        !Defaults->bCanWalkOffLedges && !Defaults->bCanWalkOffLedgesWhenCrouching && !Defaults->NavAgentProps.bCanJump);
+    TestEqual(TEXT("Production walkable slope limit is 50 degrees"),Defaults->GetWalkableFloorAngle(),50.f);
+    for (double Angle : {49.,51.})
+    {
+        FHitResult Slope;
+        Slope.bBlockingHit=true;
+        const double Radians=FMath::DegreesToRadians(Angle);
+        Slope.ImpactNormal=Slope.Normal=FVector(-FMath::Sin(Radians),0,FMath::Cos(Radians));
+        TestEqual(TEXT("Native floor contact classification uses the production slope limit"),Defaults->IsWalkable(Slope),Angle<50.);
+    }
+    auto Configure=[Defaults](ULDNativeMotionProbeMovement& Move)
+    {
+        Move.MaxStepHeight=Defaults->MaxStepHeight;
+        Move.bCanWalkOffLedges=Defaults->bCanWalkOffLedges;
+        Move.SetWalkableFloorAngle(Defaults->GetWalkableFloorAngle());
+        Move.MaxSimulationTimeStep=Defaults->MaxSimulationTimeStep;
+    };
+    for (double Height : {20., 70.})
+    {
+        FNativeWorld Fixture;
+        if (!TestNotNull(TEXT("Physics world"),Fixture.World)
+            || !TestNotNull(TEXT("Lower floor"),Fixture.Box({0,0,-20},{1000,500,20}))
+            || !TestNotNull(TEXT("Steppable collision face"),Fixture.Box({200,0,Height*.5},{200,300,Height*.5}))) { return false; }
+        auto* Move=Prepare(*this,Fixture.Body({-180,0,0}));
+        if (!Move) { return false; }
+        Configure(*Move);
+        for (int32 Tick=0; Tick<60; ++Tick)
+        {
+            Move->TraceWalking({300,0,Move->Velocity.Z},1.f/60);
+            if (!TestTrue(TEXT("Every native step has a valid motion record"),Move->CaptureError.IsEmpty())) { return false; }
+        }
+        const FVector Foot=Move->GetActorFeetLocation();
+        if (Height<Defaults->MaxStepHeight)
+        { TestTrue(TEXT("A 20 cm bump is crossed and supports the body"),Foot.X>80 && Foot.Z>Height && Move->IsMovingOnGround()); }
+        else
+        { TestTrue(TEXT("A 70 cm face cannot be climbed"),Foot.X<0 && Foot.Z<5 && Move->IsMovingOnGround()); }
+    }
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Drop world"),Fixture.World)
+        || !TestNotNull(TEXT("Landing floor"),Fixture.Box({500,0,-20},{1000,500,20}))
+        || !TestNotNull(TEXT("High platform"),Fixture.Box({-200,0,250},{200,300,250}))) { return false; }
+    auto* Body=Fixture.Body({-180,0,500});
+    auto* Move=Prepare(*this,Body);
+    if (!Move) { return false; }
+    Configure(*Move);
+    TestFalse(TEXT("The same XY on a lower floor is not already reached"),LDPathSteering::AtGoal(*Body,{-180,0,0},40));
+    for (int32 Tick=0; Tick<120; ++Tick)
+    {
+        Move->TraceWalking({300,0,Move->Velocity.Z},1.f/60);
+        if (!TestTrue(TEXT("Blocked edge preserves native motion evidence"),Move->CaptureError.IsEmpty())) { return false; }
+        TestTrue(TEXT("Production walking stays supported on the 5 m platform"),Move->IsMovingOnGround() && Move->CurrentFloor.IsWalkableFloor()
+            && Move->CurrentFloor.HitResult.ImpactPoint.Z>499);
+    }
+    AddInfo(FString::Printf(TEXT("Ledge support: feet %s, contact %s, walking %d"),*Move->GetActorFeetLocation().ToString(),
+        *Move->CurrentFloor.HitResult.ImpactPoint.ToString(),Move->IsMovingOnGround()));
+    TestTrue(TEXT("Production walking cannot cross the platform edge"),Move->GetActorFeetLocation().X<40);
+    // Falling still exists for externally induced loss of support. Opt this fixture into ledge drops
+    // to retain the native falling/substep regression without changing the production walking policy.
+    Move->bCanWalkOffLedges=true;
+    bool Fell=false, Landed=false;
+    for (int32 Tick=0; Tick<180; ++Tick)
+    {
+        Move->TraceWalking({300,0,Move->Velocity.Z},1.f/60);
+        if (!TestTrue(TEXT("Drop and landing preserve native motion evidence"),Move->CaptureError.IsEmpty())) { return false; }
+        Fell|=Move->IsFalling();
+        Landed|=Fell && Move->IsMovingOnGround() && Move->GetActorFeetLocation().Z<5;
+    }
+    TestTrue(TEXT("Walk off a 5 m edge, fall natively, then land"),Fell && Landed && Move->GetActorFeetLocation().X>200);
+    for (double Height : {36., 75., 300.})
+    {
+        FNativeWorld Edge;
+        Edge.Box({500,0,-20},{1500,500,20});
+        Edge.Box({-200,0,Height*.5},{200,300,Height*.5});
+        auto* EdgeMove=Prepare(*this,Edge.Body({-90,0,Height}));
+        if (!EdgeMove) { return false; }
+        Configure(*EdgeMove);
+        EdgeMove->bCanWalkOffLedges=true; // Explicit falling regression fixture, not production walking.
+        for (int32 Frame=0; Frame<12; ++Frame)
+        {
+            // A longer frame exercises native refunded walking time and nested landing/walking in one capture.
+            EdgeMove->TraceWalking({600,0,EdgeMove->Velocity.Z},.2f);
+            if (!TestTrue(FString::Printf(TEXT("Ledge %.0f frame %d preserves native time: "),Height,Frame)+EdgeMove->CaptureError,
+                EdgeMove->CaptureError.IsEmpty())) { return false; }
+        }
+        TestTrue(TEXT("The native body lands and continues walking after a refunded fall"),
+            EdgeMove->IsMovingOnGround() && EdgeMove->GetActorFeetLocation().X>400);
+    }
+    return !HasAnyErrors();
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeLedgeProbe, "Lockdown.Rules.DemoMotionProbe.LedgeRevert",

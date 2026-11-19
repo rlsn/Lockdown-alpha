@@ -1,0 +1,6000 @@
+[
+  {
+    "name": "SM_Ramp_Prototype_001",
+    "kind": "ramp",
+    "source_actor": "Actor_13",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_13_Body.SM_GroundFix_Actor_13_Body",
+    "transform": {
+      "location": [
+        -3095.9296246065755,
+        -2407.6166538955385,
+        451.3396294058792
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        6.802209196070037E-10,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_大下坡_主街_001",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 22412684.41111367,
+    "fbx": "fbx/SM_Ramp_Prototype_001.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -7.61483584952578E-05,
+        -353.2742272678919,
+        -607.2597307036565
+      ],
+      [
+        2355.9819088868007,
+        706.5482864093636,
+        1343.9865918111943
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_002",
+    "kind": "ramp",
+    "source_actor": "Actor_14",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_14_Body.SM_GroundFix_Actor_14_Body",
+    "transform": {
+      "location": [
+        -1825.026549199575,
+        -5964.268074117438,
+        1272.7533534986712
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        6.90741018381518E-17,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_校园西北出口_缓坡_002",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1264796.6298722278,
+    "fbx": "fbx/SM_Ramp_Prototype_002.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -4.503229207588445E-05,
+        -84.5316626190625,
+        -615.550840603297
+      ],
+      [
+        443.0090518692398,
+        169.06329621648638,
+        239.88342596669577
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_003",
+    "kind": "ramp",
+    "source_actor": "Actor_16",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_16_Body.SM_GroundFix_Actor_16_Body",
+    "transform": {
+      "location": [
+        2481.4547355673367,
+        -4000.0000228881836,
+        856.3077666344981
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.0,
+        6.123233995736766E-17
+      ]
+    },
+    "label": "独立坡道_原型_校园东出口_北环街_003",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 6638312.72207729,
+    "fbx": "fbx/SM_Ramp_Prototype_003.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -7.678301696893843E-05,
+        -200.00004577636696,
+        -674.4625668274219
+      ],
+      [
+        1800.000093321511,
+        400.0,
+        500.0000190637187
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_004",
+    "kind": "ramp",
+    "source_actor": "Actor_97",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_97_Body.SM_GroundFix_Actor_97_Body",
+    "transform": {
+      "location": [
+        -10728.839859592465,
+        378.0815293016546,
+        329.99990213830046
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067774598434,
+        0.7071067849132516
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折3_004",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1066707.9764412453,
+    "fbx": "fbx/SM_Ramp_Prototype_004.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -4.249016042866355E-05,
+        -211.67215377914457,
+        -421.82507197852004
+      ],
+      [
+        427.61690139365584,
+        105.8360794751597,
+        168.08861772373433
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_005",
+    "kind": "ramp",
+    "source_actor": "Actor_98",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_98_Body.SM_GroundFix_Actor_98_Body",
+    "transform": {
+      "location": [
+        -10842.89374983463,
+        1980.0948797634073,
+        194.417641773702
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067774508698,
+        0.7071067849222252
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折4_005",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1023143.0449941822,
+    "fbx": "fbx/SM_Ramp_Prototype_005.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -2.3185484011000163E-05,
+        -211.67229518110906,
+        -286.24280493944946
+      ],
+      [
+        406.0606023750819,
+        105.83613333333221,
+        139.05868611027628
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_006",
+    "kind": "ramp",
+    "source_actor": "Actor_98",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_98_Body.SM_GroundFix_Actor_98_Body",
+    "transform": {
+      "location": [
+        -10948.729883167964,
+        2004.369641417031,
+        185.58235108787653
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067374482102,
+        0.7071068249248822
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折4_006",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 105055.40487569492,
+    "fbx": "fbx/SM_Ramp_Prototype_006.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -2.549357949654397E-05,
+        -105.8361363363781,
+        -65.58236297574223
+      ],
+      [
+        24.274812840046913,
+        211.67226666666227,
+        4.417658924767068
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_007",
+    "kind": "ramp",
+    "source_actor": "Actor_105",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_105_Body.SM_GroundFix_Actor_105_Body",
+    "transform": {
+      "location": [
+        -10325.83683946906,
+        -264.40431079603104,
+        130.00000023685956
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067752673794,
+        0.7071067871057156
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折8_007",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1233691.471661116,
+    "fbx": "fbx/SM_Ramp_Prototype_007.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -1.7405129553040117E-05,
+        -211.67228342469198,
+        -221.82514553080992
+      ],
+      [
+        469.9423986438435,
+        105.83614544531922,
+        203.10599832586698
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_008",
+    "kind": "ramp",
+    "source_actor": "Actor_117",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_117_Body.SM_GroundFix_Actor_117_Body",
+    "transform": {
+      "location": [
+        -6002.139155340797,
+        -2107.539166187196,
+        272.5882022953947
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        3.051310174377122E-11,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折14_008",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1811691.3783223317,
+    "fbx": "fbx/SM_Ramp_Prototype_008.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -1.6543604488890706E-05,
+        -105.83615759544323,
+        -587.6521941487974
+      ],
+      [
+        625.0619533113413,
+        211.67226666666647,
+        227.4090219302343
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_009",
+    "kind": "ramp",
+    "source_actor": "Actor_134",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_134_Body.SM_GroundFix_Actor_134_Body",
+    "transform": {
+      "location": [
+        201.8665323899263,
+        -5337.821029212065,
+        1512.0372113928806
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        3.5970174865253826E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折16_009",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 807992.3004287685,
+    "fbx": "fbx/SM_Ramp_Prototype_009.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -1.7990887610517085E-05,
+        -126.93294657125745,
+        -272.24863492610234
+      ],
+      [
+        353.54060048849567,
+        63.466464750777895,
+        281.7375874425909
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_010",
+    "kind": "ramp",
+    "source_actor": "Actor_108",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_108_Body.SM_GroundFix_Actor_108_Body",
+    "transform": {
+      "location": [
+        -6733.547234863986,
+        -3955.845879008523,
+        297.4265310880266
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.0594153237766179E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折18_010",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 942129.4119066388,
+    "fbx": "fbx/SM_Ramp_Prototype_010.fbx",
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -2.550813278338703E-05,
+        -211.6722817066793,
+        -247.15508223904925
+      ],
+      [
+        523.5432129989894,
+        105.83614143599009,
+        193.13476460553198
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_011",
+    "kind": "ramp",
+    "source_actor": "Actor_109",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_109_Body.SM_GroundFix_Actor_109_Body",
+    "transform": {
+      "location": [
+        -7181.410454181128,
+        -3955.845888221349,
+        134.41764854711266
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        5.426733926530429E-16,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折19_011",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 553079.5223718386,
+    "fbx": "fbx/SM_Ramp_Prototype_011.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -5.062983314255634E-05,
+        -211.67229089063545,
+        -84.14621148027027
+      ],
+      [
+        459.8632123291916,
+        105.83613333333324,
+        167.3765192185411
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_012",
+    "kind": "ramp",
+    "source_actor": "Actor_109",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_109_Body.SM_GroundFix_Actor_109_Body",
+    "transform": {
+      "location": [
+        -7231.875347424753,
+        -4061.682021554682,
+        116.04992953101106
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        2.3515540335123963E-08,
+        0.9999999999999998
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折19_012",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 183558.3898895653,
+    "fbx": "fbx/SM_Ramp_Prototype_012.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -1.9820795006583097E-05,
+        -105.83613570675024,
+        -65.77849183910364
+      ],
+      [
+        50.46492336029596,
+        211.67226666666465,
+        13.95008549386219
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_013",
+    "kind": "ramp",
+    "source_actor": "Actor_136",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_136_Body.SM_GroundFix_Actor_136_Body",
+    "transform": {
+      "location": [
+        -6996.409321818908,
+        -1576.4709696271364,
+        130.13815596678833
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        9.994521175826265E-10,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折20_013",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 578638.1193621887,
+    "fbx": "fbx/SM_Ramp_Prototype_013.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -4.019566787328677E-05,
+        -211.67229173791605,
+        -70.00001379877249
+      ],
+      [
+        423.87282169896895,
+        105.83613333333325,
+        151.11741283817125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_014",
+    "kind": "ramp",
+    "source_actor": "Actor_137",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_137_Body.SM_GroundFix_Actor_137_Body",
+    "transform": {
+      "location": [
+        -6092.637952056178,
+        -2085.964220525595,
+        256.7423144692658
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071066517243749,
+        0.7071069106486965
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折21_014",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 2889787.738602538,
+    "fbx": "fbx/SM_Ramp_Prototype_014.fbx",
+    "triangles": 58,
+    "bounds_cm": [
+      [
+        -7.63584743086011E-05,
+        -131.02286201857567,
+        -321.2285389766164
+      ],
+      [
+        795.0818101207489,
+        262.0450817828746,
+        244.14005039043673
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_015",
+    "kind": "ramp",
+    "source_actor": "Actor_162",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_162_Body.SM_GroundFix_Actor_162_Body",
+    "transform": {
+      "location": [
+        -3033.045912429393,
+        3704.172444615909,
+        26.64409165965058
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.7164378087618602E-10,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场20_015",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "surface_area_cm2": 41127650.41412138,
+    "fbx": "fbx/SM_Ramp_Prototype_015.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -8.721320379720785E-05,
+        -942.8573116160635,
+        -1338.6039438533421
+      ],
+      [
+        2657.383297318746,
+        1257.1428571428573,
+        468.5683733252239
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_016",
+    "kind": "ramp",
+    "source_actor": "Actor_167",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_167_Body.SM_GroundFix_Actor_167_Body",
+    "transform": {
+      "location": [
+        590.7235624715722,
+        5546.016032066304,
+        719.9867842511985
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.9761809441489024E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折22_016",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 4785669.011444168,
+    "fbx": "fbx/SM_Ramp_Prototype_016.fbx",
+    "triangles": 54,
+    "bounds_cm": [
+      [
+        -4.145883776697053E-05,
+        -267.87100479714115,
+        -1359.2540385690913
+      ],
+      [
+        435.87285086461594,
+        133.93553219260585,
+        153.91666205389163
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_017",
+    "kind": "ramp",
+    "source_actor": "Actor_169",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_169_Body.SM_GroundFix_Actor_169_Body",
+    "transform": {
+      "location": [
+        -2206.108464040732,
+        4661.05578784965,
+        327.29762122869886
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        3.662402103888676E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折24_017",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 2419644.319959884,
+    "fbx": "fbx/SM_Ramp_Prototype_017.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -2.9547620897541145E-05,
+        -105.83616061253795,
+        -1130.7524496856458
+      ],
+      [
+        417.1083089862591,
+        211.6722666666664,
+        228.50164012416394
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_018",
+    "kind": "ramp",
+    "source_actor": "Actor_169",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_169_Body.SM_GroundFix_Actor_169_Body",
+    "transform": {
+      "location": [
+        -2321.909627282852,
+        4766.891921182983,
+        260.4397884583893
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        6.315551121881187E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折24_018",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 2301771.558105385,
+    "fbx": "fbx/SM_Ramp_Prototype_018.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -3.45622767857169E-05,
+        -211.6722681293624,
+        -1572.3996512591195
+      ],
+      [
+        115.80118538197789,
+        105.83616851288632,
+        61.99556548410658
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_019",
+    "kind": "ramp",
+    "source_actor": "Actor_171",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_171_Body.SM_GroundFix_Actor_171_Body",
+    "transform": {
+      "location": [
+        -1214.446398028812,
+        5805.253888731076,
+        555.7992541416629
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -3.043169371044599E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折25_019",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 4103682.9999468406,
+    "fbx": "fbx/SM_Ramp_Prototype_019.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -2.8985737499576635E-05,
+        -211.67228839140427,
+        -1359.2541022768296
+      ],
+      [
+        436.9149152937692,
+        105.83616982804269,
+        164.96914907636528
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_020",
+    "kind": "ramp",
+    "source_actor": "Actor_198",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_198_Body.SM_GroundFix_Actor_198_Body",
+    "transform": {
+      "location": [
+        866.742664610797,
+        -5756.454109954478,
+        1794.2062456295762
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.08715573783332121,
+        0.9961946985216943
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折27_020",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1058220.969916944,
+    "fbx": "fbx/SM_Ramp_Prototype_020.fbx",
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -18.9490238656005,
+        -105.83614759936374,
+        -478.1436998631084
+      ],
+      [
+        218.32532205071695,
+        211.67226685362067,
+        75.09626729687034
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_021",
+    "kind": "ramp",
+    "source_actor": "Actor_198",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_198_Body.SM_GroundFix_Actor_198_Body",
+    "transform": {
+      "location": [
+        682.6961465455958,
+        -5616.53290452955,
+        1719.3930738127494
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.08715573938525861,
+        0.9961946983859173
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折27_021",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 957782.2271926119,
+    "fbx": "fbx/SM_Ramp_Prototype_021.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -2.6040161831921573E-05,
+        -211.67228016619646,
+        -479.6044857579416
+      ],
+      [
+        205.54753662677174,
+        105.83613333333295,
+        70.395539489866
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_022",
+    "kind": "ramp",
+    "source_actor": "Actor_205",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_205_Body.SM_GroundFix_Actor_205_Body",
+    "transform": {
+      "location": [
+        -5789.724865356661,
+        1054.8703418459597,
+        231.43323504576065
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.8809767124991636E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折30_022",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1537740.8760576688,
+    "fbx": "fbx/SM_Ramp_Prototype_022.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -1.0771479481306985E-05,
+        -98.39395181225935,
+        -546.4972323840476
+      ],
+      [
+        420.9968115905629,
+        196.78785541581706,
+        268.563995601392
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_023",
+    "kind": "ramp",
+    "source_actor": "Actor_206",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_206_Body.SM_GroundFix_Actor_206_Body",
+    "transform": {
+      "location": [
+        -5546.895471486812,
+        -603.8622129716479,
+        13.08570457184915
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067796004336,
+        0.7071067827726615
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折31_023",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1341500.6559609598,
+    "fbx": "fbx/SM_Ramp_Prototype_023.fbx",
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -2.1508056358316026E-05,
+        -158.75422672346374,
+        -77.57193662076857
+      ],
+      [
+        557.1508046537817,
+        158.75420000000022,
+        350.5200121566334
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_024",
+    "kind": "ramp",
+    "source_actor": "Actor_207",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_207_Body.SM_GroundFix_Actor_207_Body",
+    "transform": {
+      "location": [
+        -5789.724817020462,
+        1905.4527391424244,
+        231.43326670577918
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.8830330772235095E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折32_024",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1509621.5610769847,
+    "fbx": "fbx/SM_Ramp_Prototype_024.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -2.6640037585166556E-05,
+        -96.50283804592081,
+        -546.4972726795157
+      ],
+      [
+        420.99670095662185,
+        193.00562874535618,
+        268.5639602958071
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_025",
+    "kind": "ramp",
+    "source_actor": "Actor_209",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_209_Body.SM_GroundFix_Actor_209_Body",
+    "transform": {
+      "location": [
+        -4759.784399693669,
+        3201.8083046361135,
+        221.78455888648034
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067795824725,
+        0.7071067827906226
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折33_025",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 3727538.034110131,
+    "fbx": "fbx/SM_Ramp_Prototype_025.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -2.2172492494868943E-05,
+        -228.39991392663518,
+        -1359.2540878673785
+      ],
+      [
+        438.66063603471656,
+        114.19999517565138,
+        281.24748103338106
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_026",
+    "kind": "ramp",
+    "source_actor": "Actor_261",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_261_Body.SM_GroundFix_Actor_261_Body",
+    "transform": {
+      "location": [
+        201.8665234109666,
+        -6484.435839926752,
+        1512.0372040404316
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        2.1570130059064045E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折26_026",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 1227836.5656274117,
+    "fbx": "fbx/SM_Ramp_Prototype_026.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -8.995443968843193E-06,
+        -105.8361590824858,
+        -272.24862776114355
+      ],
+      [
+        353.5406094839407,
+        211.67226666666548,
+        277.75141184765425
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_027",
+    "kind": "ramp",
+    "source_actor": "Actor_262",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_262_Body.SM_GroundFix_Actor_262_Body",
+    "transform": {
+      "location": [
+        -1211.892200797947,
+        -5608.288074766521,
+        1502.781848429571
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067826418105,
+        0.7071067797312846
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折17_027",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 872080.893015545,
+    "fbx": "fbx/SM_Ramp_Prototype_027.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -8.834652568614428E-06,
+        -71.86157002030973,
+        -268.19029047511526
+      ],
+      [
+        346.8393838217429,
+        143.72310428975692,
+        281.8097437806848
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_028",
+    "kind": "ramp",
+    "source_actor": "Actor_280",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_280_Body.SM_GroundFix_Actor_280_Body",
+    "transform": {
+      "location": [
+        2803.794049824727,
+        -4585.360123779205,
+        1448.5722690375567
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9999994635796514,
+        0.0010357800970579919
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场4_028",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 45258567.76485375,
+    "fbx": "fbx/SM_Ramp_Prototype_028.fbx",
+    "triangles": 232,
+    "bounds_cm": [
+      [
+        -3.044696783695785E-05,
+        -4661.531425485805,
+        -1281.6355213471033
+      ],
+      [
+        1200.2405090032871,
+        2.20550449844384,
+        431.96928699447153
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_029",
+    "kind": "ramp",
+    "source_actor": "Actor_280",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_280_Body.SM_GroundFix_Actor_280_Body",
+    "transform": {
+      "location": [
+        1750.9631859713834,
+        -2369.253707636959,
+        1787.6636732255374
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.0,
+        4.946213648308056E-15
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场4_029",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 560318.8928966301,
+    "fbx": "fbx/SM_Ramp_Prototype_029.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -2.80080407415521E-05,
+        -98.0870449650845,
+        -862.6083096579728
+      ],
+      [
+        24.000004134956665,
+        49.043617646002076,
+        2.5381366113640524
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_030",
+    "kind": "ramp",
+    "source_actor": "Actor_336",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_336_Body.SM_GroundFix_Actor_336_Body",
+    "transform": {
+      "location": [
+        3660.079739143626,
+        1868.2963835130747,
+        1000.5040026015073
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067769038063,
+        0.7071067854692887
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场9_030",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 15986652.186380224,
+    "fbx": "fbx/SM_Ramp_Prototype_030.fbx",
+    "triangles": 76,
+    "bounds_cm": [
+      [
+        -8.630147156418009E-05,
+        -660.7770590720526,
+        -1323.9247009661049
+      ],
+      [
+        1586.5348318539639,
+        330.38848240245346,
+        560.2905705609259
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_031",
+    "kind": "ramp",
+    "source_actor": "Actor_344",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_344_Body.SM_GroundFix_Actor_344_Body",
+    "transform": {
+      "location": [
+        5033.271664044859,
+        2637.5423286535924,
+        1188.4590823034791
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067810176884,
+        0.7071067813554066
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场30_031",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 6621936.583002767,
+    "fbx": "fbx/SM_Ramp_Prototype_031.fbx",
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -1.8095865984005766E-05,
+        -396.4664759002056,
+        -1021.5223818674623
+      ],
+      [
+        598.7605965630395,
+        594.699637809982,
+        338.76638808858183
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_032",
+    "kind": "ramp",
+    "source_actor": "Actor_347",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_347_Body.SM_GroundFix_Actor_347_Body",
+    "transform": {
+      "location": [
+        2019.2947783995276,
+        1101.3929736437713,
+        1090.466015281213
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.5204645120969438,
+        0.8538833009537604
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场31_032",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 6324700.376462659,
+    "fbx": "fbx/SM_Ramp_Prototype_032.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        0.0,
+        -366.7328126396368,
+        -1148.629228150698
+      ],
+      [
+        1114.9587974520546,
+        914.1558582281068,
+        456.56755726200845
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_033",
+    "kind": "ramp",
+    "source_actor": "Actor_352",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_352_Body.SM_GroundFix_Actor_352_Body",
+    "transform": {
+      "location": [
+        3718.643247546609,
+        2758.013757004818,
+        850.7793860811114
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        2.5615360729341584E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场33_033",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 13747828.84269226,
+    "fbx": "fbx/SM_Ramp_Prototype_033.fbx",
+    "triangles": 76,
+    "bounds_cm": [
+      [
+        -3.909639014157536E-05,
+        -495.5830786259844,
+        -1174.2000792161846
+      ],
+      [
+        598.7606575094113,
+        495.5830378099826,
+        338.7664129229115
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_034",
+    "kind": "ramp",
+    "source_actor": "Actor_355",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_355_Body.SM_GroundFix_Actor_355_Body",
+    "transform": {
+      "location": [
+        276.9730484231812,
+        2282.44090214638,
+        218.7823164209966
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        3.89115124980104E-10,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场36_034",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 15828647.840502266,
+    "fbx": "fbx/SM_Ramp_Prototype_034.fbx",
+    "triangles": 38,
+    "bounds_cm": [
+      [
+        -5.465810262215593E-05,
+        -692.3126818706899,
+        -542.2029743303272
+      ],
+      [
+        1431.1212610743776,
+        692.3125751280858,
+        819.0900312458049
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_035",
+    "kind": "ramp",
+    "source_actor": "Actor_356",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_356_Body.SM_GroundFix_Actor_356_Body",
+    "transform": {
+      "location": [
+        2131.0747248200887,
+        2285.260741253324,
+        964.6288995536837
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067777446718,
+        0.7071067846284234
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场37_035",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 3227883.115911688,
+    "fbx": "fbx/SM_Ramp_Prototype_035.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -3.3217910228913574E-05,
+        -156.31881152484542,
+        -1288.0495586789732
+      ],
+      [
+        207.7702171872435,
+        312.637635107289,
+        71.20453400002964
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_036",
+    "kind": "ramp",
+    "source_actor": "Actor_356",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_356_Body.SM_GroundFix_Actor_356_Body",
+    "transform": {
+      "location": [
+        2131.0747248200887,
+        2077.4905916742023,
+        1040.2510495695203
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865477,
+        0.7071067811865474
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场37_036",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 1786221.2504903716,
+    "fbx": "fbx/SM_Ramp_Prototype_036.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -5.066917167248217E-05,
+        -156.31884528071933,
+        -359.5970351605296
+      ],
+      [
+        687.338328545797,
+        312.63761900436657,
+        250.1706921674438
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_037",
+    "kind": "ramp",
+    "source_actor": "Actor_361",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_361_Body.SM_GroundFix_Actor_361_Body",
+    "transform": {
+      "location": [
+        -342.61798922473054,
+        1825.1035553048705,
+        157.39290800400988
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067826905141,
+        0.707106779682581
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场38_037",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 3919494.1582511812,
+    "fbx": "fbx/SM_Ramp_Prototype_037.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -3.969044899797237E-05,
+        -127.377666353516,
+        -516.830990784781
+      ],
+      [
+        954.9568990014152,
+        254.7552954280881,
+        343.1582378641686
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_038",
+    "kind": "ramp",
+    "source_actor": "Actor_361",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_361_Body.SM_GroundFix_Actor_361_Body",
+    "transform": {
+      "location": [
+        -342.6179746475107,
+        2780.060349437054,
+        504.96875607840246
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067811865459,
+        0.7071067811865491
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场38_038",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 2363298.151006592,
+    "fbx": "fbx/SM_Ramp_Prototype_038.fbx",
+    "triangles": 14,
+    "bounds_cm": [
+      [
+        -14.912088486548658,
+        -127.37766229125943,
+        -864.4068388591736
+      ],
+      [
+        584.4289539150816,
+        254.75529542808857,
+        212.71473881670278
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_039",
+    "kind": "ramp",
+    "source_actor": "Actor_365",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_365_Body.SM_GroundFix_Actor_365_Body",
+    "transform": {
+      "location": [
+        -4851.966439167885,
+        3799.192941023971,
+        -108.13935578667761
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.8862836173439438,
+        0.4631429041103122
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园50_039",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 2238989.7134541967,
+    "fbx": "fbx/SM_Ramp_Prototype_039.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.4445634411575419E-05,
+        -862.6288922063765,
+        -260.9577979869089
+      ],
+      [
+        808.2214569680499,
+        218.28329774060154,
+        636.0965093010444
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_040",
+    "kind": "ramp",
+    "source_actor": "Actor_366",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_366_Body.SM_GroundFix_Actor_366_Body",
+    "transform": {
+      "location": [
+        -5271.524507679063,
+        4001.8123074721875,
+        122.56278272937352
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7923950565454009,
+        0.6100082576182153
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园54_040",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 682740.3774949854,
+    "fbx": "fbx/SM_Ramp_Prototype_040.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.4573056124211779E-05,
+        -251.9217581860841,
+        -260.9578157258109
+      ],
+      [
+        368.59448375728215,
+        218.28326614421115,
+        290.0958195514955
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_041",
+    "kind": "ramp",
+    "source_actor": "Actor_367",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_367_Body.SM_GroundFix_Actor_367_Body",
+    "transform": {
+      "location": [
+        -5122.045965937218,
+        2642.5137009454725,
+        122.56276909351686
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9766351603293727,
+        0.21490408001808714
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园55_041",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 682740.4622442058,
+    "fbx": "fbx/SM_Ramp_Prototype_041.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.1610536951000379E-05,
+        -251.9217971717206,
+        -260.95780733761035
+      ],
+      [
+        368.5945178328557,
+        218.28326614421255,
+        290.0958463700822
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_042",
+    "kind": "ramp",
+    "source_actor": "Actor_368",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_368_Body.SM_GroundFix_Actor_368_Body",
+    "transform": {
+      "location": [
+        -7109.975428305913,
+        2428.797538043479,
+        -151.27019127368322
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9766351603293728,
+        0.21490408001808692
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园56_042",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 682740.4622442059,
+    "fbx": "fbx/SM_Ramp_Prototype_042.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.161054057278537E-05,
+        -251.92179717172021,
+        -260.9578073376112
+      ],
+      [
+        368.5945178328587,
+        218.2832661442104,
+        290.09584637007754
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_043",
+    "kind": "ramp",
+    "source_actor": "Actor_369",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_369_Body.SM_GroundFix_Actor_369_Body",
+    "transform": {
+      "location": [
+        -8427.967017388664,
+        3734.5606874252926,
+        72.20214639723326
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.24327173409254776,
+        0.9699581761043126
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园57_043",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 4746250.880711845,
+    "fbx": "fbx/SM_Ramp_Prototype_043.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -186.82680740810895,
+        -1851.951423934293
+      ],
+      [
+        667.7665191719303,
+        505.7154651795731,
+        214.91802951811155
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_044",
+    "kind": "ramp",
+    "source_actor": "Actor_370",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_370_Body.SM_GroundFix_Actor_370_Body",
+    "transform": {
+      "location": [
+        -8232.29457364351,
+        4090.460002024499,
+        -41.46348709793995
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.35706861295029857,
+        0.934078158210409
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园58_044",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 4746249.281309668,
+    "fbx": "fbx/SM_Ramp_Prototype_044.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -8.289287248858575E-06,
+        -186.82657902965076,
+        -1851.951566301283
+      ],
+      [
+        667.7660125116714,
+        505.71573026753225,
+        214.91786719980348
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_045",
+    "kind": "ramp",
+    "source_actor": "Actor_371",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_371_Body.SM_GroundFix_Actor_371_Body",
+    "transform": {
+      "location": [
+        -7183.186249816696,
+        3525.8503974252535,
+        8.703165605800962
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9602898229040066,
+        0.2790044014473458
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园59_045",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 1096585.1456636826,
+    "fbx": "fbx/SM_Ramp_Prototype_045.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -85.36511419933588,
+        -890.7210568870453
+      ],
+      [
+        318.541119483928,
+        244.56344074400144,
+        101.7400433802693
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_046",
+    "kind": "ramp",
+    "source_actor": "Actor_372",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_372_Body.SM_GroundFix_Actor_372_Body",
+    "transform": {
+      "location": [
+        -8199.48489739687,
+        4438.111602901399,
+        56.81429628662903
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.5211198823859151,
+        0.8534834902809134
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园60_046",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 1121651.9519973868,
+    "fbx": "fbx/SM_Ramp_Prototype_046.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -16.878213162628427,
+        -925.4373944188155
+      ],
+      [
+        278.4236478517884,
+        257.7638998652439,
+        40.234110313486724
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_047",
+    "kind": "ramp",
+    "source_actor": "Actor_373",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_373_Body.SM_GroundFix_Actor_373_Body",
+    "transform": {
+      "location": [
+        -6916.838998515719,
+        4394.414249500661,
+        56.814295440692035
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.02456133255714865,
+        0.999698324967596
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园61_047",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 1121651.9522193593,
+    "fbx": "fbx/SM_Ramp_Prototype_047.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -16.878225498355544,
+        -925.4373944188156
+      ],
+      [
+        278.42365894571805,
+        257.7638954468632,
+        40.234111976973054
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_048",
+    "kind": "ramp",
+    "source_actor": "Actor_374",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_374_Body.SM_GroundFix_Actor_374_Body",
+    "transform": {
+      "location": [
+        -4961.338374508447,
+        4346.742316555479,
+        125.38894167462728
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.30220518749209707,
+        0.9532428990833692
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园62_048",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 443549.24093801633,
+    "fbx": "fbx/SM_Ramp_Prototype_048.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -9.358266255944725E-06,
+        -203.0527357170874,
+        -210.33589503378812
+      ],
+      [
+        297.092693274433,
+        175.939576683914,
+        233.82159021935342
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_049",
+    "kind": "ramp",
+    "source_actor": "Actor_375",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_375_Body.SM_GroundFix_Actor_375_Body",
+    "transform": {
+      "location": [
+        -5017.797564896949,
+        4654.254306087424,
+        88.38378828077047
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.2256941185851867,
+        0.9741982163995455
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园63_049",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 3068818.8257877007,
+    "fbx": "fbx/SM_Ramp_Prototype_049.fbx",
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -1.3161991991504654E-05,
+        -798.3909917501214,
+        -1225.8532902755333
+      ],
+      [
+        504.49947362870194,
+        102.92514189050847,
+        301.37061384998844
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_050",
+    "kind": "ramp",
+    "source_actor": "Actor_376",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_376_Body.SM_GroundFix_Actor_376_Body",
+    "transform": {
+      "location": [
+        -2510.789217638852,
+        3448.62653059145,
+        220.12273964103096
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067808566699,
+        0.7071067815164251
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折34_050",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 5183265.486292688,
+    "fbx": "fbx/SM_Ramp_Prototype_050.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -7.489972206479132E-05,
+        -365.08458513154915,
+        -1359.2540976999487
+      ],
+      [
+        432.99668764958545,
+        182.54235503468908,
+        282.90927955749
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_051",
+    "kind": "ramp",
+    "source_actor": "Actor_380",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_380_Body.SM_GroundFix_Actor_380_Body",
+    "transform": {
+      "location": [
+        -3049.4182378990295,
+        3722.050732535126,
+        220.12273964103147
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.0,
+        1.5912188805832083E-10
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折35_051",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 2485691.5823194436,
+    "fbx": "fbx/SM_Ramp_Prototype_051.fbx",
+    "triangles": 52,
+    "bounds_cm": [
+      [
+        -7.44995776760147E-05,
+        -186.9969200795771,
+        -1359.2540976999487
+      ],
+      [
+        428.5019122945079,
+        93.49849221456124,
+        282.9092899181595
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_052",
+    "kind": "ramp",
+    "source_actor": "Actor_384",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_384_Body.SM_GroundFix_Actor_384_Body",
+    "transform": {
+      "location": [
+        -5593.834992654718,
+        598.1410900914609,
+        -108.13935107070697
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.6075130949995925,
+        0.7943096621620663
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园66_052",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 2238989.7823214247,
+    "fbx": "fbx/SM_Ramp_Prototype_052.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -9.67112053820522E-06,
+        -862.628963584416,
+        -260.9578117931427
+      ],
+      [
+        808.221468914498,
+        218.28326614421206,
+        636.0965226985306
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_053",
+    "kind": "ramp",
+    "source_actor": "Actor_385",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_385_Body.SM_GroundFix_Actor_385_Body",
+    "transform": {
+      "location": [
+        -6018.737186650418,
+        406.9821834212338,
+        122.56276909351827
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.46035318067436304,
+        0.8877358554451866
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园67_053",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 682740.4622442047,
+    "fbx": "fbx/SM_Ramp_Prototype_053.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.1610539203690478E-05,
+        -251.9217971717201,
+        -260.95780733761086
+      ],
+      [
+        368.5945178328571,
+        218.28326614421223,
+        290.0958463700802
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_054",
+    "kind": "ramp",
+    "source_actor": "Actor_391",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_391_Body.SM_GroundFix_Actor_391_Body",
+    "transform": {
+      "location": [
+        -5383.789355215333,
+        4522.297353299392,
+        125.38906412959682
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.5386252123285673,
+        0.8425454768996186
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园73_054",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 443548.70120605314,
+    "fbx": "fbx/SM_Ramp_Prototype_054.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -4.142914835741025E-06,
+        -203.0529298808908,
+        -210.33593394208526
+      ],
+      [
+        297.0924224775652,
+        175.9391122731295,
+        233.8213770933515
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_055",
+    "kind": "ramp",
+    "source_actor": "Actor_392",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_392_Body.SM_GroundFix_Actor_392_Body",
+    "transform": {
+      "location": [
+        -2555.9287500714354,
+        4891.983102421955,
+        125.38906412959892
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.5386252123285634,
+        0.8425454768996211
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园74_055",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 443548.70120605285,
+    "fbx": "fbx/SM_Ramp_Prototype_055.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -4.142916233890057E-06,
+        -203.0529298808901,
+        -210.33593394208572
+      ],
+      [
+        297.09242247756714,
+        175.93911227312793,
+        233.8213770933487
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_056",
+    "kind": "ramp",
+    "source_actor": "Actor_393",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_393_Body.SM_GroundFix_Actor_393_Body",
+    "transform": {
+      "location": [
+        -5061.149689075758,
+        3615.2147852039184,
+        221.7845588864799
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.4772373701808403E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折36_056",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 3171003.2633448513,
+    "fbx": "fbx/SM_Ramp_Prototype_056.fbx",
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -2.1706467631578356E-05,
+        -193.00562336701586,
+        -1359.2540878673785
+      ],
+      [
+        432.99670447464575,
+        96.5028441754756,
+        278.21266144164974
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_057",
+    "kind": "ramp",
+    "source_actor": "Actor_394",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_394_Body.SM_GroundFix_Actor_394_Body",
+    "transform": {
+      "location": [
+        -3873.9970981211554,
+        4433.487698817905,
+        220.66903960207196
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067800404692,
+        0.7071067823326258
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折37_057",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_paving.MI_City_paving"
+    ],
+    "surface_area_cm2": 3266347.7135591493,
+    "fbx": "fbx/SM_Ramp_Prototype_057.fbx",
+    "triangles": 72,
+    "bounds_cm": [
+      [
+        -3.717188716313932E-05,
+        -206.09596469418665,
+        -1359.8003562183073
+      ],
+      [
+        432.99670188270073,
+        83.41250297262971,
+        282.36300031778944
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_058",
+    "kind": "ramp",
+    "source_actor": "Actor_397",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_397_Body.SM_GroundFix_Actor_397_Body",
+    "transform": {
+      "location": [
+        -2589.6766036834656,
+        4461.259981659716,
+        88.383395018859
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.8821385953861751,
+        0.47098991340590945
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园75_058",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 3121201.116964958,
+    "fbx": "fbx/SM_Ramp_Prototype_058.fbx",
+    "triangles": 36,
+    "bounds_cm": [
+      [
+        -1.0145092393472571E-05,
+        -799.4379985255657,
+        -1227.5147438000936
+      ],
+      [
+        503.20678558138803,
+        102.56542888137304,
+        301.37089862783796
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_059",
+    "kind": "ramp",
+    "source_actor": "Actor_398",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_398_Body.SM_GroundFix_Actor_398_Body",
+    "transform": {
+      "location": [
+        -2666.4022588038824,
+        3971.211628274244,
+        209.3899984170065
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.764059422156411,
+        0.6451458745229728
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园76_059",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 3700278.9603356314,
+    "fbx": "fbx/SM_Ramp_Prototype_059.fbx",
+    "triangles": 56,
+    "bounds_cm": [
+      [
+        -2.9988864090619977E-05,
+        -100.58162779992931,
+        -1348.5213545825864
+      ],
+      [
+        300.03182366659547,
+        293.4701852639831,
+        145.67738083333518
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_060",
+    "kind": "ramp",
+    "source_actor": "Actor_400",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_400_Body.SM_GroundFix_Actor_400_Body",
+    "transform": {
+      "location": [
+        2146.739035391329,
+        -2708.7773092056627,
+        1830.0613710823009
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9792436538125199,
+        0.20268662133427978
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园77_060",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 1789323.0579717082,
+    "fbx": "fbx/SM_Ramp_Prototype_060.fbx",
+    "triangles": 40,
+    "bounds_cm": [
+      [
+        -1.2940834539654389E-05,
+        -341.3617201224085,
+        -715.3405619049972
+      ],
+      [
+        499.3367695151104,
+        72.2203973376361,
+        50.86241009056016
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_061",
+    "kind": "ramp",
+    "source_actor": "Actor_403",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_403_Body.SM_GroundFix_Actor_403_Body",
+    "transform": {
+      "location": [
+        1648.393753854466,
+        -2320.2103809456185,
+        1789.7886039720406
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.2549169383441434E-06,
+        0.9999999999992126
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园78_061",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 628141.7500193786,
+    "fbx": "fbx/SM_Ramp_Prototype_061.fbx",
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -0.00011252005049045191,
+        -98.08703649484556,
+        -558.1415760587931
+      ],
+      [
+        81.2785188034143,
+        49.04371263742318,
+        12.151184669075974
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_062",
+    "kind": "ramp",
+    "source_actor": "Actor_403",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_403_Body.SM_GroundFix_Actor_403_Body",
+    "transform": {
+      "location": [
+        1937.5068826789495,
+        -2316.365864570804,
+        1753.0772696237934
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.0,
+        2.0596337842826493E-15
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园78_062",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 277655.0544427892,
+    "fbx": "fbx/SM_Ramp_Prototype_062.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -7.047350850111314E-06,
+        -45.198993453880334,
+        -521.4302191207464
+      ],
+      [
+        162.5798547659596,
+        34.30570509992528,
+        28.667214914902388
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_063",
+    "kind": "ramp",
+    "source_actor": "Actor_403",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_403_Body.SM_GroundFix_Actor_403_Body",
+    "transform": {
+      "location": [
+        1937.5068685842484,
+        -2415.51257627659,
+        1753.0772721090693
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.0,
+        6.123233995736766E-17
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园78_063",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 85168.42570793872,
+    "fbx": "fbx/SM_Ramp_Prototype_063.fbx",
+    "triangles": 8,
+    "bounds_cm": [
+      [
+        -3.410453691261442E-16,
+        -2.7848467767494185,
+        -521.4302230953551
+      ],
+      [
+        77.35378928732462,
+        2.784852389333082,
+        13.639560111392939
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_064",
+    "kind": "ramp",
+    "source_actor": "Actor_404",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_404_Body.SM_GroundFix_Actor_404_Body",
+    "transform": {
+      "location": [
+        2679.0282818400824,
+        -2656.8371368157827,
+        1706.669994294016
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.0,
+        1.6155445744325867E-15
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园80_064",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 545331.8597866587,
+    "fbx": "fbx/SM_Ramp_Prototype_064.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.6420981548009485E-05,
+        -98.08774455858294,
+        -521.4301025733594
+      ],
+      [
+        277.1138788981719,
+        49.04387227929192,
+        48.86265357852608
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_065",
+    "kind": "ramp",
+    "source_actor": "Actor_410",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_410_Body.SM_GroundFix_Actor_410_Body",
+    "transform": {
+      "location": [
+        2696.11602167276,
+        4002.4952059246743,
+        696.4991566691298
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067810496597,
+        0.7071067813234353
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场39_065",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 10411678.457946949,
+    "fbx": "fbx/SM_Ramp_Prototype_065.fbx",
+    "triangles": 80,
+    "bounds_cm": [
+      [
+        -4.0119762838932776E-05,
+        -941.9258922240423,
+        -1185.2117575018501
+      ],
+      [
+        598.7794533464375,
+        706.4443875574816,
+        339.33425107303503
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_066",
+    "kind": "ramp",
+    "source_actor": "Actor_417",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_417_Body.SM_GroundFix_Actor_417_Body",
+    "transform": {
+      "location": [
+        3751.246721673348,
+        5169.674804338645,
+        710.9287022315997
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067800824364,
+        0.7071067822906586
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场40_066",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 6056200.257693349,
+    "fbx": "fbx/SM_Ramp_Prototype_066.fbx",
+    "triangles": 76,
+    "bounds_cm": [
+      [
+        -5.5824335287681726E-05,
+        -281.3738785738662,
+        -1199.6412965917111
+      ],
+      [
+        907.1083798359793,
+        187.58255999999935,
+        325.7928023559035
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_067",
+    "kind": "ramp",
+    "source_actor": "Actor_438",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_438_Body.SM_GroundFix_Actor_438_Body",
+    "transform": {
+      "location": [
+        4375.735792428896,
+        4445.859522066147,
+        874.9591133632129
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067774994663,
+        0.7071067848736288
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场41_067",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 2799293.3767940877,
+    "fbx": "fbx/SM_Ramp_Prototype_067.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -3.692758171116667E-05,
+        -102.02910066386416,
+        -1198.379822676416
+      ],
+      [
+        456.43854613574416,
+        204.058168455062,
+        160.87430196202365
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_068",
+    "kind": "ramp",
+    "source_actor": "Actor_438",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_438_Body.SM_GroundFix_Actor_438_Body",
+    "transform": {
+      "location": [
+        4477.764888332729,
+        4896.529367942788,
+        710.928703982779
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067787826693,
+        0.7071067835904259
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场41_068",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 2544066.888790217,
+    "fbx": "fbx/SM_Ramp_Prototype_068.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -6.088582060382591E-05,
+        -204.05818319555559,
+        -1199.641298248779
+      ],
+      [
+        450.669897451617,
+        102.02908422753077,
+        159.61278907835765
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_069",
+    "kind": "ramp",
+    "source_actor": "Actor_462",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_462_Body.SM_GroundFix_Actor_462_Body",
+    "transform": {
+      "location": [
+        110.35247330644397,
+        5124.325568394961,
+        720.0061862744434
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.707106780532782,
+        0.7071067818403131
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折23_069",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 1288912.9318969683,
+    "fbx": "fbx/SM_Ramp_Prototype_069.fbx",
+    "triangles": 44,
+    "bounds_cm": [
+      [
+        -2.2912668464052144E-05,
+        -214.31229436057143,
+        -1208.718731523908
+      ],
+      [
+        431.74985794467295,
+        142.8748442318338,
+        150.5352936420229
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_070",
+    "kind": "ramp",
+    "source_actor": "Actor_495",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_495_Body.SM_GroundFix_Actor_495_Body",
+    "transform": {
+      "location": [
+        970.7907281689291,
+        6359.159699106938,
+        549.3707239189355
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067791540991,
+        0.7071067832189959
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折28_070",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 2749138.1582345827,
+    "fbx": "fbx/SM_Ramp_Prototype_070.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -2.0450707123941628E-05,
+        -133.9354991758699,
+        -1188.6380502903528
+      ],
+      [
+        322.47790394429535,
+        267.87096229715763,
+        176.81703776186464
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_071",
+    "kind": "ramp",
+    "source_actor": "Actor_504",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_504_Body.SM_GroundFix_Actor_504_Body",
+    "transform": {
+      "location": [
+        -1349.4443618106036,
+        6680.176261669468,
+        -19.356750315643527
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.30220518749209596,
+        0.9532428990833696
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园151_071",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 682740.4622442053,
+    "fbx": "fbx/SM_Ramp_Prototype_071.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.1610536960641912E-05,
+        -251.92179717172024,
+        -260.9578073376103
+      ],
+      [
+        368.59451783285533,
+        218.28326614421326,
+        290.0958463700829
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_072",
+    "kind": "ramp",
+    "source_actor": "Actor_505",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_505_Body.SM_GroundFix_Actor_505_Body",
+    "transform": {
+      "location": [
+        -1540.603267323917,
+        7105.0784539852175,
+        -250.05887047987142
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.13208511934295333,
+        0.9912383776106319
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园152_072",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 2238989.782321421,
+    "fbx": "fbx/SM_Ramp_Prototype_072.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -9.671119020842082E-06,
+        -862.6289635844115,
+        -260.9578117931345
+      ],
+      [
+        808.2214689144978,
+        218.28326614421374,
+        636.0965226985385
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_073",
+    "kind": "ramp",
+    "source_actor": "Actor_507",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_507_Body.SM_GroundFix_Actor_507_Body",
+    "transform": {
+      "location": [
+        -578.3714228413057,
+        7472.227800343652,
+        -250.05887007070427
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.384135798403995,
+        0.9232766044823866
+      ]
+    },
+    "label": "独立坡道_原型_高台_教堂校园154_073",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst6.BasicShapeMaterial_Inst6"
+    ],
+    "surface_area_cm2": 2238989.782321421,
+    "fbx": "fbx/SM_Ramp_Prototype_073.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -9.671121412281124E-06,
+        -862.6289635844155,
+        -260.95781179314713
+      ],
+      [
+        808.2214689144976,
+        218.28326614421115,
+        636.0965226985259
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_074",
+    "kind": "ramp",
+    "source_actor": "Actor_509",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_509_Body.SM_GroundFix_Actor_509_Body",
+    "transform": {
+      "location": [
+        -3883.624024140565,
+        4829.790674785122,
+        26.64408796983444
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.4971831252937862E-09,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场26_074",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "surface_area_cm2": 12655789.769022902,
+    "fbx": "fbx/SM_Ramp_Prototype_074.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -6.842230513091201E-05,
+        -281.04647881944953,
+        -1338.6039383350453
+      ],
+      [
+        1109.5555977982367,
+        562.0928866676445,
+        193.47861557292825
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_075",
+    "kind": "ramp",
+    "source_actor": "Actor_509",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_509_Body.SM_GroundFix_Actor_509_Body",
+    "transform": {
+      "location": [
+        -2774.0685660405693,
+        4910.089626431573,
+        222.28865182520425
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        5.864368663975336E-17,
+        1.0
+      ]
+    },
+    "label": "独立坡道_原型_教堂门前广场26_075",
+    "materials": [
+      "/Engine/BasicShapes/BasicShapeMaterial_Inst4.BasicShapeMaterial_Inst4"
+    ],
+    "surface_area_cm2": 11719583.861818537,
+    "fbx": "fbx/SM_Ramp_Prototype_075.fbx",
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -0.00011541267990341902,
+        -361.3454593066992,
+        -1534.2485196286566
+      ],
+      [
+        1547.8278580959777,
+        481.79390285798036,
+        272.92381287451417
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_076",
+    "kind": "ramp",
+    "source_actor": "Actor_510",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_510_Body.SM_GroundFix_Actor_510_Body",
+    "transform": {
+      "location": [
+        -1053.789507206694,
+        3551.0508442691716,
+        204.45510377944797
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067789260178,
+        0.7071067834470772
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折29_076",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 1439454.8644977119,
+    "fbx": "fbx/SM_Ramp_Prototype_076.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -2.5417590246792534E-05,
+        -105.8361609645904,
+        -253.90402297053484
+      ],
+      [
+        532.9095962962933,
+        211.67226666666642,
+        300.74729029679645
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Prototype_077",
+    "kind": "ramp",
+    "source_actor": "Actor_511",
+    "source_component": "Body",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Actor_511_Body.SM_GroundFix_Actor_511_Body",
+    "transform": {
+      "location": [
+        -1394.7673173466853,
+        3673.7452129784415,
+        204.45510380825672
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.707106781186548,
+        0.7071067811865471
+      ]
+    },
+    "label": "独立坡道_原型_栈桥回路_北折38_077",
+    "materials": [
+      "/Game/Lockdown/Art/CityBlockout/MI_City_stone1.MI_City_stone1"
+    ],
+    "surface_area_cm2": 710177.4188675649,
+    "fbx": "fbx/SM_Ramp_Prototype_077.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.4740901749313167E-05,
+        -105.83615755730334,
+        -60.62179254907673
+      ],
+      [
+        520.9095870327204,
+        211.67226666666653,
+        300.7472902967961
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_549_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_百盛商业步行街",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 116270069.5714305,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_549_StaticMeshComponent0.fbx",
+    "triangles": 552,
+    "bounds_cm": [
+      [
+        -5389.08056640625,
+        -3783.619140625,
+        -315.05999755859375
+      ],
+      [
+        -1280.590087890625,
+        4018.031005859375,
+        501.70001220703125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_001",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -2321.9093424479165,
+        28661.056803385418,
+        260.44000244140625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.917962998639872E-07,
+        0.9999999999999816
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_001",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 3999424.453788278,
+    "fbx": "fbx/SM_Ramp_Art_001.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -4.078207633987222E-05,
+        -105.8365885416913,
+        -1544.7400512695312
+      ],
+      [
+        536.0201010953627,
+        211.67338269669176,
+        295.3599853515625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_002",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -2510.7894694010415,
+        27039.630452473957,
+        495.0721130371094
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.707106938808176,
+        0.707106623564884
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_002",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 2578860.5201477758,
+    "fbx": "fbx/SM_Ramp_Art_002.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -1.2669169596152342E-12,
+        -365.0799153646198,
+        -1134.3421325683594
+      ],
+      [
+        25.650146484371348,
+        182.53996911769232,
+        5.477874755859375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_003",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -4759.779296875,
+        27189.810872395832,
+        231.43011983235678
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071069027816794,
+        0.7071066595913947
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_003",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 2486957.733236651,
+    "fbx": "fbx/SM_Ramp_Art_003.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -8.420827056992285E-05,
+        -228.4003906250425,
+        -546.4901173909506
+      ],
+      [
+        426.6600720417042,
+        114.20034205067775,
+        268.5698801676432
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_004",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -3061.41943359375,
+        27740.750537109376,
+        231.4300079345703
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9999999998949024,
+        1.4498112948399725E-05
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_004",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 2192649.9905810687,
+    "fbx": "fbx/SM_Ramp_Art_004.fbx",
+    "triangles": 56,
+    "bounds_cm": [
+      [
+        -0.0032533765452789974,
+        -169.33804791920718,
+        -546.4900054931641
+      ],
+      [
+        431.4389047859025,
+        112.21171586516282,
+        268.5699920654297
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_005",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -3887.0824381510415,
+        28421.490234375,
+        231.4300079345703
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071068906752255,
+        0.7071066716978527
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_005",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 2191962.811572377,
+    "fbx": "fbx/SM_Ramp_Art_005.fbx",
+    "triangles": 31,
+    "bounds_cm": [
+      [
+        -2.988522763854001E-05,
+        -193.00667317707425,
+        -546.4900054931641
+      ],
+      [
+        416.42965761482805,
+        96.5033365885369,
+        276.52635192871094
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_006",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -5049.14990234375,
+        27518.714029947918,
+        231.4300079345703
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -4.21644607690941E-07,
+        0.9999999999999111
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_006",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 2184605.7252301113,
+    "fbx": "fbx/SM_Ramp_Art_006.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -0.00016276044598695445,
+        -96.50333658850856,
+        -546.4900054931641
+      ],
+      [
+        423.0103352863226,
+        193.0070298969986,
+        268.5699920654297
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_007",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -2693.3291829427085,
+        27436.630533854168,
+        231.4300079345703
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071068599973734,
+        0.7071067023757128
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_007",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 1776564.7697247404,
+    "fbx": "fbx/SM_Ramp_Art_007.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -4.069009917766922E-05,
+        -182.54011216151315,
+        -546.4900054931641
+      ],
+      [
+        402.23018391932027,
+        365.07991536461066,
+        267.11000061035156
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_008",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_549",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CommercialStreets.SM_GroundFix_Ground_CommercialStreets",
+    "transform": {
+      "location": [
+        -3453.46923828125,
+        27716.07080078125,
+        491.7799987792969
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.9999999998786377,
+        1.557961864172282E-05
+      ]
+    },
+    "label": "独立坡道_青岛_百盛商业步行街_008",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 791694.7050203664,
+    "fbx": "fbx/SM_Ramp_Art_008.fbx",
+    "triangles": 20,
+    "bounds_cm": [
+      [
+        0.0,
+        -192.98050821832908,
+        -806.8399963378906
+      ],
+      [
+        16.942912603313932,
+        87.51987818597175,
+        11.250030517578125
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_551_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_551",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolCampus.SM_GroundFix_Ground_SchoolCampus",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_七中校园分层地面",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoBeachL1/Materials/M_QD_BeachSand_512.M_QD_BeachSand_512"
+    ],
+    "surface_area_cm2": 80043196.49897175,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_551_StaticMeshComponent0.fbx",
+    "triangles": 380,
+    "bounds_cm": [
+      [
+        -1551.5311279296875,
+        -7068.9912109375,
+        400.54998779296875
+      ],
+      [
+        2253.049072265625,
+        -2805.089599609375,
+        1866.06005859375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_009",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_551",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolCampus.SM_GroundFix_Ground_SchoolCampus",
+    "transform": {
+      "location": [
+        204.86888122558594,
+        17515.566569010418,
+        1514.550048828125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.3320272426151466E-07,
+        0.9999999999999911
+      ]
+    },
+    "label": "独立坡道_青岛_七中校园分层地面_009",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 3694706.7312739347,
+    "fbx": "fbx/SM_Ramp_Art_009.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -2.5873309556180285E-05,
+        -105.8369913707283,
+        -1114.0000610351562
+      ],
+      [
+        350.5400589655452,
+        211.67327046912126,
+        275.2398681640625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_010",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_551",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolCampus.SM_GroundFix_Ground_SchoolCampus",
+    "transform": {
+      "location": [
+        854.7890421549479,
+        18245.656412760418,
+        1789.7910970052083
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.08714986373745039,
+        0.9961952124210113
+      ]
+    },
+    "label": "独立坡道_青岛_七中校园分层地面_010",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 3618903.7770561515,
+    "fbx": "fbx/SM_Ramp_Art_010.fbx",
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -0.0032195298473423053,
+        -105.84082229660957,
+        -1389.2411092122395
+      ],
+      [
+        231.64428344403575,
+        211.6698757948631,
+        79.50895182291674
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_011",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_551",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolCampus.SM_GroundFix_Ground_SchoolCampus",
+    "transform": {
+      "location": [
+        -1355.6343180338542,
+        18405.740397135418,
+        1514.550048828125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071063945100742,
+        0.7071071678628094
+      ]
+    },
+    "label": "独立坡道_青岛_七中校园分层地面_011",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 2727275.2280974016,
+    "fbx": "fbx/SM_Ramp_Art_011.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -8.416451402657147E-05,
+        -71.86332194023926,
+        -1114.0000610351562
+      ],
+      [
+        332.8094861479204,
+        143.7270078690876,
+        270.0399169921875
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_012",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_551",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolCampus.SM_GroundFix_Ground_SchoolCampus",
+    "transform": {
+      "location": [
+        204.86907958984375,
+        18662.183268229168,
+        1514.550048828125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.3920156296059312E-07,
+        0.9999999999999903
+      ]
+    },
+    "label": "独立坡道_青岛_七中校园分层地面_012",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 2573403.909430812,
+    "fbx": "fbx/SM_Ramp_Art_012.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -2.4105202666962806E-06,
+        -126.93326822917146,
+        -1114.0000610351562
+      ],
+      [
+        350.5400744011051,
+        63.466731706022294,
+        275.2398681640625
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_552_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_552",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainNorth.SM_GroundFix_Revision_MountainNorth",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_北侧山地台地",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 101660698.22686714,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_552_StaticMeshComponent0.fbx",
+    "triangles": 304,
+    "bounds_cm": [
+      [
+        1446.0394287109375,
+        -5000.0009765625,
+        -561.7099609375
+      ],
+      [
+        4500.0,
+        1809.7593994140625,
+        1526.18994140625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_013",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_552",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainNorth.SM_GroundFix_Revision_MountainNorth",
+    "transform": {
+      "location": [
+        2803.789306640625,
+        19466.6328125,
+        1448.5699462890625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9999999999942423,
+        3.3934321868592654E-06
+      ]
+    },
+    "label": "独立坡道_青岛_北侧山地台地_013",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 92567110.07833394,
+    "fbx": "fbx/SM_Ramp_Art_013.fbx",
+    "triangles": 66,
+    "bounds_cm": [
+      [
+        -0.00035287055285065217,
+        -4609.545102003328,
+        -2010.2799072265625
+      ],
+      [
+        1081.083340679127,
+        51.99690186057838,
+        342.968505859375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_014",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_552",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainNorth.SM_GroundFix_Revision_MountainNorth",
+    "transform": {
+      "location": [
+        1750.9593505859375,
+        19545.299641927082,
+        1787.670166015625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.999999999999997,
+        7.785493922346856E-08
+      ]
+    },
+    "label": "独立坡道_青岛_北侧山地台地_014",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 3823661.532164283,
+    "fbx": "fbx/SM_Ramp_Art_014.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -2.0345051704140365E-05,
+        -261.32047143617103,
+        -2349.380126953125
+      ],
+      [
+        24.56016031908653,
+        130.65999348958056,
+        2.1197509765625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_015",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_553",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_OldTownSlope.SM_GroundFix_Revision_OldTownSlope",
+    "transform": {
+      "location": [
+        -3011.0704752604165,
+        21592.383951822918,
+        500.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.5031416359562886E-08,
+        0.9999999999999999
+      ]
+    },
+    "label": "独立坡道_青岛_肥城路大下坡_015",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_FeichengSection_1024.M_QD_FeichengSection_1024"
+    ],
+    "surface_area_cm2": 17399536.735931102,
+    "fbx": "fbx/SM_Ramp_Art_015.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -9.200060629406922E-05,
+        -353.2736686323172,
+        -549.4500007629395
+      ],
+      [
+        2274.3001717941615,
+        706.5467122395769,
+        1295.330078125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_016",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_554",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolConnections.SM_GroundFix_Ground_SchoolConnections",
+    "transform": {
+      "location": [
+        1821.1193033854167,
+        19799.999837239582,
+        1039.72998046875
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.9999999999999883,
+        1.5258795233469586E-07
+      ]
+    },
+    "label": "独立坡道_青岛_校园连接坡道_016",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 3002397.488159122,
+    "fbx": "fbx/SM_Ramp_Art_016.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.0345027020863868E-05,
+        -399.9999486825817,
+        -726.5
+      ],
+      [
+        701.4900919596278,
+        200.00005131746485,
+        194.8599853515625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_017",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_554",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_SchoolConnections.SM_GroundFix_Ground_SchoolConnections",
+    "transform": {
+      "location": [
+        -1825.0309244791667,
+        18120.267252604168,
+        1272.75
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -4.768373235538503E-08,
+        0.9999999999999989
+      ]
+    },
+    "label": "独立坡道_青岛_校园连接坡道_017",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CourtPavers_1024.M_QD_CourtPavers_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 2725589.2378538693,
+    "fbx": "fbx/SM_Ramp_Art_017.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -6.525671163752488E-05,
+        -169.06705729167487,
+        -959.52001953125
+      ],
+      [
+        354.64654118859926,
+        84.5335624675717,
+        241.800048828125
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_555_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_滨海石材步道",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 43702746.45638472,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_555_StaticMeshComponent0.fbx",
+    "triangles": 488,
+    "bounds_cm": [
+      [
+        -11073.5498046875,
+        -4373.46875,
+        -91.82999420166016
+      ],
+      [
+        -5389.080078125,
+        2404.81201171875,
+        357.3399963378906
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_018",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5769.29052734375,
+        21892.457600911457,
+        357.3399963378906
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_018",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 1871257.656148355,
+    "fbx": "fbx/SM_Ramp_Art_018.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        0.0,
+        -105.83675130208212,
+        -449.1699905395508
+      ],
+      [
+        457.01025390625,
+        211.67350260416788,
+        143.86001586914062
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_019",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5789.72021484375,
+        25054.874348958332,
+        231.4300079345703
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -4.135454672111025E-07,
+        0.9999999999999145
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_019",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 1750657.3175799549,
+    "fbx": "fbx/SM_Ramp_Art_019.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -0.00016276046397662144,
+        -98.39333089189222,
+        -323.26000213623047
+      ],
+      [
+        477.4405110676192,
+        196.7869346001267,
+        269.77000427246094
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_020",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5789.719889322917,
+        26001.957682291668,
+        231.43023173014322
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        1.4321407190449016E-08,
+        0.9999999999999999
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_020",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 1712589.7873039066,
+    "fbx": "fbx/SM_Ramp_Art_020.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -0.00033104908268233774,
+        -193.00664616220857,
+        -323.26022593180335
+      ],
+      [
+        477.44010693079156,
+        96.50325520832742,
+        269.76978047688806
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_021",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -6720.3310546875,
+        20044.15478515625,
+        304.8199768066406
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_021",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 1144958.947389651,
+    "fbx": "fbx/SM_Ramp_Art_021.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -211.673828125,
+        -396.6499710083008
+      ],
+      [
+        510.3310546875,
+        105.836669921875,
+        185.74002075195312
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_022",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5961.614095052083,
+        21637.65087890625,
+        357.3399963378906
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865476
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_022",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 1140414.1781981909,
+    "fbx": "fbx/SM_Ramp_Art_022.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.909301127553455E-14,
+        -262.046549479167,
+        -449.1699905395508
+      ],
+      [
+        394.37988281250017,
+        131.02327473958314,
+        143.54000854492188
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_023",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -10728.843098958334,
+        24393.82187906901,
+        348.17999267578125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067472046214,
+        0.707106815168472
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_023",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 1021164.946127051,
+    "fbx": "fbx/SM_Ramp_Art_023.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.0345053441547987E-05,
+        -211.67317708333687,
+        -440.0099868774414
+      ],
+      [
+        411.8800455729134,
+        105.83662812967866,
+        149.90997314453125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_024",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5600.126627604167,
+        23396.140970865887,
+        13.089999198913574
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.70710681526937,
+        0.7071067471037233
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_024",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 860624.9472860047,
+    "fbx": "fbx/SM_Ramp_Art_024.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -1.0172524664079826E-05,
+        -105.5232747395845,
+        -104.91999340057373
+      ],
+      [
+        545.1500142415352,
+        211.04660203205268,
+        350.52001667022705
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_025",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -7193.55029296875,
+        20044.15478515625,
+        130.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_025",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 795250.9384381971,
+    "fbx": "fbx/SM_Ramp_Art_025.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -211.67333984375,
+        -221.82999420166016
+      ],
+      [
+        472.0,
+        105.836669921875,
+        171.79000854492188
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_026",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -10842.896484375,
+        25992.23193359375,
+        190.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071068491501852,
+        0.7071067132229033
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_026",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 781142.6044857325,
+    "fbx": "fbx/SM_Ramp_Art_026.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.034505174303017E-05,
+        -211.67382812499608,
+        -281.82999420166016
+      ],
+      [
+        406.2000528971282,
+        105.83699214642161,
+        147.83999633789062
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_027",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -10325.833333333334,
+        23781.671798706055,
+        183.1999969482422
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067217181753,
+        0.7071068406549147
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_027",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 780482.3050188656,
+    "fbx": "fbx/SM_Ramp_Art_027.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.543131491745446E-06,
+        -211.67317708333607,
+        -275.02999114990234
+      ],
+      [
+        411.87000783283924,
+        105.83665781900594,
+        149.9099884033203
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_028",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -6984.41015625,
+        22423.534586588543,
+        131.35000610351562
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_028",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 701034.6397318337,
+    "fbx": "fbx/SM_Ramp_Art_028.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -211.67338053385538,
+        -223.18000030517578
+      ],
+      [
+        409.35986328125,
+        105.83662923176962,
+        148.989990234375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_029",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5385.2998046875,
+        25054.874267578125,
+        500.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_029",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 358677.46417492995,
+    "fbx": "fbx/SM_Ramp_Art_029.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -98.393310546875,
+        -591.8299942016602
+      ],
+      [
+        4.56982421875,
+        196.78662109375,
+        3.030029296875
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_030",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_555",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CoastalWalks.SM_GroundFix_Ground_CoastalWalks",
+    "transform": {
+      "location": [
+        -5385.29931640625,
+        26001.957641601562,
+        500.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_滨海石材步道_030",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_CoastalGranite_1024.M_QD_CoastalGranite_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 351891.0404950765,
+    "fbx": "fbx/SM_Ramp_Art_030.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        0.0,
+        -193.006591796875,
+        -591.8299942016602
+      ],
+      [
+        4.5693359375,
+        96.5032958984375,
+        3.030029296875
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_556_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_556",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CentralCourt.SM_GroundFix_Ground_CentralCourt",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_中央开放空间",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 60077699.21822009,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_556_StaticMeshComponent0.fbx",
+    "triangles": 262,
+    "bounds_cm": [
+      [
+        -2879.35009765625,
+        -897.5603637695312,
+        -639.27001953125
+      ],
+      [
+        2029.830322265625,
+        3037.3603515625,
+        501.70001220703125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_031",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_556",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CentralCourt.SM_GroundFix_Ground_CentralCourt",
+    "transform": {
+      "location": [
+        765.0103352864584,
+        26051.670003255207,
+        500.54998779296875
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -1.1037976196871566E-07,
+        0.9999999999999939
+      ]
+    },
+    "label": "独立坡道_青岛_中央开放空间_031",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 20825518.241122384,
+    "fbx": "fbx/SM_Ramp_Art_031.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -4.101828400877778E-05,
+        -461.5400397078648,
+        -1525.0000610351562
+      ],
+      [
+        943.8499345677383,
+        923.0799967448064,
+        537.3200073242188
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_032",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_556",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CentralCourt.SM_GroundFix_Ground_CentralCourt",
+    "transform": {
+      "location": [
+        -342.6161804199219,
+        26767.919921875,
+        500.54998779296875
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067811865476,
+        0.7071067811865476
+      ]
+    },
+    "label": "独立坡道_青岛_中央开放空间_032",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 6024297.3081282135,
+    "fbx": "fbx/SM_Ramp_Art_032.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -2.8283300858690866E-14,
+        -127.37675476074234,
+        -1784.8500366210938
+      ],
+      [
+        594.3798828125002,
+        254.75332641601568,
+        219.44000244140625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_033",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_556",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CentralCourt.SM_GroundFix_Ground_CentralCourt",
+    "transform": {
+      "location": [
+        -969.123388671875,
+        27551.05029296875,
+        204.4600067138672
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071149988539557,
+        0.7070985634236363
+      ]
+    },
+    "label": "独立坡道_青岛_中央开放空间_033",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 3486967.028293112,
+    "fbx": "fbx/SM_Ramp_Art_033.fbx",
+    "triangles": 48,
+    "bounds_cm": [
+      [
+        -0.00295198053798133,
+        -190.5060058079149,
+        -843.7300262451172
+      ],
+      [
+        520.9145840829343,
+        127.01605046581199,
+        300.74842834472656
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_034",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_556",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CentralCourt.SM_GroundFix_Ground_CentralCourt",
+    "transform": {
+      "location": [
+        -1048.2628173828125,
+        27042.140218098957,
+        498.281005859375
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071061586862546,
+        0.7071074036862924
+      ]
+    },
+    "label": "独立坡道_青岛_中央开放空间_034",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 835381.9957300927,
+    "fbx": "fbx/SM_Ramp_Art_034.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -0.0003588433129013842,
+        -111.36674619396796,
+        -1137.551025390625
+      ],
+      [
+        26.68035520286328,
+        55.6833496091454,
+        2.26898193359375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_035",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_556",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Ground_CentralCourt.SM_GroundFix_Ground_CentralCourt",
+    "transform": {
+      "location": [
+        -899.24609375,
+        27042.139973958332,
+        498.2810770670573
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071059080900045,
+        0.7071076542820125
+      ]
+    },
+    "label": "独立坡道_青岛_中央开放空间_035",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_StreetGranite_1024.M_QD_StreetGranite_1024"
+    ],
+    "surface_area_cm2": 736310.8961210105,
+    "fbx": "fbx/SM_Ramp_Art_035.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -0.0003932461042477287,
+        -93.33345991163057,
+        -1137.5510965983074
+      ],
+      [
+        34.77998177919425,
+        46.66668701137548,
+        2.2689107259114394
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_557_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_中段山地台地",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 117453843.3147446,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_557_StaticMeshComponent0.fbx",
+    "triangles": 410,
+    "bounds_cm": [
+      [
+        1696.0902099609375,
+        -370.3910827636719,
+        -1024.4500732421875
+      ],
+      [
+        6137.220703125,
+        4280.4892578125,
+        1526.18994140625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_036",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        3816.6869303385415,
+        25821.90116373698,
+        1035.830078125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067445510618,
+        0.7071068178220313
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_036",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 29058457.986708365,
+    "fbx": "fbx/SM_Ramp_Art_036.fbx",
+    "triangles": 67,
+    "bounds_cm": [
+      [
+        -0.0001063597175728138,
+        -817.3870411005471,
+        -2060.2801513671875
+      ],
+      [
+        1540.136319683988,
+        173.78313965142826,
+        524.9598388671875
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_037",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        2993.980224609375,
+        25160.16943359375,
+        1251.9599609375
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.5499733459236968,
+        0.8351822069306156
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_037",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 22617743.245867774,
+    "fbx": "fbx/SM_Ramp_Art_037.fbx",
+    "triangles": 58,
+    "bounds_cm": [
+      [
+        0.0,
+        -1230.588362097288,
+        -2276.4100341796875
+      ],
+      [
+        853.6733264948593,
+        5.013533705301864,
+        292.1800537109375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_038",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        4039.170458984375,
+        26857.13115234375,
+        1035.830078125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        2.75667873692981E-06,
+        0.9999999999962004
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_038",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 15313981.03898957,
+    "fbx": "fbx/SM_Ramp_Art_038.fbx",
+    "triangles": 56,
+    "bounds_cm": [
+      [
+        -0.003571773207781826,
+        -594.7034209394376,
+        -2060.2801513671875
+      ],
+      [
+        277.6525270565784,
+        396.46796874289674,
+        153.719970703125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_039",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        2102.0908203125,
+        27701.050048828125,
+        870.5400390625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071068225378623,
+        0.7071067398352304
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_039",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 14550799.721242534,
+    "fbx": "fbx/SM_Ramp_Art_039.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -8.138020570944626E-05,
+        -347.90023658736453,
+        -1894.9901123046875
+      ],
+      [
+        297.33060709637937,
+        695.8000836036607,
+        165.2900390625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_040",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        5297.58349609375,
+        26062.779134114582,
+        1520.2578125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071068465014746,
+        0.7071067158716144
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_040",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 10276976.688687574,
+    "fbx": "fbx/SM_Ramp_Art_040.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -4.069011110247636E-05,
+        -660.7734375000188,
+        -2544.7078857421875
+      ],
+      [
+        24.600056966138478,
+        330.3867232945725,
+        5.93212890625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_041",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        2287.393595377604,
+        26089.629557291668,
+        1035.830078125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071070752224821,
+        0.7071064871504906
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_041",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 10208733.620041668,
+    "fbx": "fbx/SM_Ramp_Art_041.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -6.551648089198513E-05,
+        -312.6332194012041,
+        -2060.2801513671875
+      ],
+      [
+        702.5184891709791,
+        156.3169498158224,
+        265.2598876953125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_042",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        5297.58349609375,
+        26636.239013671875,
+        1189.2100830078125
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865476
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_042",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 8699774.638163239,
+    "fbx": "fbx/SM_Ramp_Art_042.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -7.336058843732118E-14,
+        -660.7734375000001,
+        -2213.66015625
+      ],
+      [
+        577.3000488281252,
+        330.38671875000017,
+        333.3099365234375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_043",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_557",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainMiddle.SM_GroundFix_Revision_MountainMiddle",
+    "transform": {
+      "location": [
+        -1500.6027425130208,
+        27673.75,
+        204.4600067138672
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.7071067208923398,
+        0.7071068414807501
+      ]
+    },
+    "label": "独立坡道_青岛_中段山地台地_043",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 5353364.7942805495,
+    "fbx": "fbx/SM_Ramp_Art_043.fbx",
+    "triangles": 32,
+    "bounds_cm": [
+      [
+        -1.8049156108414203E-05,
+        -211.6734212239552,
+        -1488.7600555419922
+      ],
+      [
+        552.5122431295542,
+        105.83671061197771,
+        351.33998107910156
+      ]
+    ]
+  },
+  {
+    "name": "SM_GroundRemainder_StaticMeshActor_558_StaticMeshComponent0",
+    "kind": "ground",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        0.0,
+        24000.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "L1_地面_南侧山地台地",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 187421490.16539922,
+    "fbx": "fbx/SM_GroundRemainder_StaticMeshActor_558_StaticMeshComponent0.fbx",
+    "triangles": 552,
+    "bounds_cm": [
+      [
+        -1801.209228515625,
+        3023.43994140625,
+        -1284.300048828125
+      ],
+      [
+        5897.31103515625,
+        7516.38037109375,
+        870.5400390625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_044",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        3657.454931640625,
+        28731.1396484375,
+        870.5400390625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071019625673419,
+        0.7071115997729166
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_044",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 13306064.91509921,
+    "fbx": "fbx/SM_Ramp_Art_044.fbx",
+    "triangles": 60,
+    "bounds_cm": [
+      [
+        -0.0025565959896443387,
+        -187.59030464112828,
+        -2154.840087890625
+      ],
+      [
+        468.904225475435,
+        281.3761230207419,
+        166.179931640625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_045",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        590.7209879557291,
+        29546.016438802082,
+        719.989990234375
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        2.588228362668663E-08,
+        0.9999999999999997
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_045",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 10602097.297342747,
+    "fbx": "fbx/SM_Ramp_Art_045.fbx",
+    "triangles": 46,
+    "bounds_cm": [
+      [
+        -5.455609947019649E-05,
+        -267.86655908462075,
+        -2004.2900390625
+      ],
+      [
+        437.100063899143,
+        133.93326822916666,
+        150.550048828125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_046",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        15.104222615559896,
+        29124.330078125,
+        720.010009765625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865476
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_046",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 6672083.788949897,
+    "fbx": "fbx/SM_Ramp_Art_046.fbx",
+    "triangles": 30,
+    "bounds_cm": [
+      [
+        -5.287474311289261E-14,
+        -119.0633977254231,
+        -2004.31005859375
+      ],
+      [
+        420.4301757812501,
+        238.1266733805339,
+        150.530029296875
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_047",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        970.7944742838541,
+        30348.02978515625,
+        555.7999877929688
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865476
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_047",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 6238218.097080675,
+    "fbx": "fbx/SM_Ramp_Art_047.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -5.947834636558144E-14,
+        -133.9333902994791,
+        -1840.1000366210938
+      ],
+      [
+        311.3496093750001,
+        267.8666585286459,
+        164.19000244140625
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_048",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        -1214.44140625,
+        29805.253743489582,
+        555.7999877929688
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -4.128995852428276E-08,
+        0.9999999999999991
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_048",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 5464870.045033299,
+    "fbx": "fbx/SM_Ramp_Art_048.fbx",
+    "triangles": 28,
+    "bounds_cm": [
+      [
+        -8.739976702474085E-06,
+        -211.67363086084328,
+        -1840.1000366210938
+      ],
+      [
+        417.82243999049064,
+        105.83662304541068,
+        162.3900146484375
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_049",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        4477.764322916667,
+        28458.0,
+        870.5400390625
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071067811865476,
+        0.7071067811865476
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_049",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 3671031.2823636383,
+    "fbx": "fbx/SM_Ramp_Art_049.fbx",
+    "triangles": 12,
+    "bounds_cm": [
+      [
+        -2.265447667422938E-14,
+        -204.05338541666703,
+        -2154.840087890625
+      ],
+      [
+        450.82080078125017,
+        102.02669270833316,
+        164.0899658203125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_050",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        4477.764322916667,
+        28013.4189453125,
+        1032.34375
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.7071069221900538,
+        0.7071066401830132
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_050",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 2970648.288265041,
+    "fbx": "fbx/SM_Ramp_Art_050.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        -4.069010005964019E-05,
+        -204.05338541665074,
+        -2316.643798828125
+      ],
+      [
+        24.319539388023006,
+        102.02670240741561,
+        3.486328125
+      ]
+    ]
+  },
+  {
+    "name": "SM_Ramp_Art_051",
+    "kind": "ramp",
+    "source_actor": "StaticMeshActor_558",
+    "source_component": "StaticMeshComponent0",
+    "source_mesh": "/Game/Lockdown/Art/SceneCorrections/Ground/SM_GroundFix_Revision_MountainSouth.SM_GroundFix_Revision_MountainSouth",
+    "transform": {
+      "location": [
+        -801.5289916992188,
+        29805.253580729168,
+        716.4166870117188
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "label": "独立坡道_青岛_南侧山地台地_051",
+    "materials": [
+      "/Game/Lockdown/Art/QingdaoStreetHillL1/Ground/Materials/M_QD_MountainGroundPaint_1024.M_QD_MountainGroundPaint_1024",
+      "/Game/Lockdown/Art/QingdaoGroundVegetationL1/Ground/Materials/M_QD_RetainingStone_1024.M_QD_RetainingStone_1024"
+    ],
+    "surface_area_cm2": 2659717.093175607,
+    "fbx": "fbx/SM_Ramp_Art_051.fbx",
+    "triangles": 16,
+    "bounds_cm": [
+      [
+        0.0,
+        -211.67350260416788,
+        -2000.7167358398438
+      ],
+      [
+        24.280029296875,
+        105.83675130208212,
+        3.57330322265625
+      ]
+    ]
+  }
+]

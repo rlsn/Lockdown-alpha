@@ -1,0 +1,43 @@
+[
+  {
+    "asset": "SM_QD_Dock_WhiteMarkings",
+    "render_triangles": 2950,
+    "collision_triangles": 0,
+    "triangle_budget": 6000,
+    "dimensions_m": [
+      48.14655685424805,
+      62.7769775390625,
+      0.0
+    ],
+    "bounds_m": [
+      [
+        -21.850566864013672,
+        -35.72333908081055,
+        0.012000000104308128
+      ],
+      [
+        26.295989990234375,
+        27.053638458251953,
+        0.012000000104308128
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Movable, non-colliding white dock paint: quay safety edge, stack corner bays, dashed lane marks, arrows and a clipped waiting hatch. Original containers and dock structures remain untouched.",
+    "world_placement_cm": [
+      -4000,
+      18500,
+      499.70054
+    ],
+    "ground_source_ids": [
+      "StaticMeshActor_2",
+      "StaticMeshActor_4",
+      "StaticMeshActor_7"
+    ],
+    "line_quad_count": 1475,
+    "clip_policy": "All paint vertices inside existing dock footprints; clipped away from ground container envelopes."
+  }
+]

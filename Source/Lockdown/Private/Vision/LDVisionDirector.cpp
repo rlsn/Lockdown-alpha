@@ -1,5 +1,6 @@
 #include "Vision/LDVisionDirector.h"
 #include "Core/LDLog.h"
+#include "World/LDSceneTags.h"
 #include "Components/PrimitiveComponent.h"
 #include "World/LDNativeGround.h"
 #include "PhysicsEngine/BodyInstance.h"
@@ -295,6 +296,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Terrain = MoveTemp(PreparedTerrain);
     Scene = NativeScene;
     NativeSightQueries.Reset();
+    NativeTerrainParts.Reset();
     SampleHeightCm = SampleHeight;
     if (NativeScene)
     {
@@ -302,6 +304,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         if (NativeTerrain && NativeTerrain->IsValid()) { Terrain = *NativeTerrain; }
         else if (Registry && Registry->Enabled()) { Terrain = Registry->GetTerrain(); }
         else { Error = TEXT("Native sight requires bound terrain or an enabled map registry."); return false; }
+        Terrain.ExcludeViewTransparentGeometry();
         // Terrain keeps its semantic tier, but its footprint comes only from the edited native body.
         // Ordinary obstacles use LDVision independently of Pawn/ground-aim collision.
         for (TActorIterator<AActor> It(NativeScene); It; ++It)
@@ -310,11 +313,10 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
             TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
             for (auto* Part : Parts)
             {
-                if (!LDNativeGround::IsSupport(*Part)) { continue; }
+                if (!LDNativeGround::IsSupport(*Part) || LDSceneTags::NoViewBlock(*Part)) { continue; }
                 auto& Entry = NativeTerrainParts.AddDefaulted_GetRef();
                 Entry.Component = Part;
                 Entry.Bounds = Part->GetBodyInstance()->GetBodyBounds();
-                Entry.Tier = FMath::Max(0, FMath::FloorToInt32((Entry.Bounds.Max.Z + .01) * 2 / Terrain.StepCm));
                 for (const auto& Plateau : Geometry.Plateaus)
                 { if (It->ActorHasTag(FName(*Plateau.Id))) { Entry.Tier = 2 * Plateau.Level; break; } }
                 for (const auto& Ramp : Geometry.Ramps)
@@ -339,10 +341,10 @@ void FLDSightGeometry::BuildGrid()
 {
     GridWidth = FMath::Max(1, FMath::CeilToInt32((Max.X - Min.X) / GridCellCm));
     GridHeight = FMath::Max(1, FMath::CeilToInt32((Max.Y - Min.Y) / GridCellCm));
-    CellPolygons.SetNum(GridWidth * GridHeight);
-    CellCircles.SetNum(GridWidth * GridHeight);
-    CellRegions.SetNum(GridWidth * GridHeight);
-    CellNativeTerrain.SetNum(GridWidth * GridHeight);
+    CellPolygons.Empty(); CellPolygons.SetNum(GridWidth * GridHeight);
+    CellCircles.Empty(); CellCircles.SetNum(GridWidth * GridHeight);
+    CellRegions.Empty(); CellRegions.SetNum(GridWidth * GridHeight);
+    CellNativeTerrain.Empty(); CellNativeTerrain.SetNum(GridWidth * GridHeight);
     int32 X0, Y0, X1, Y1;
     for (int32 Index = 0; !Scene.IsValid() && Index < Terrain.Regions.Num(); ++Index)
     {
@@ -380,7 +382,7 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
         && FootCm.X >= Min.X && FootCm.X <= Max.X && FootCm.Y >= Min.Y && FootCm.Y <= Max.Y;
 }
 
-bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier) const
+bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier, double SourceGroundZ) const
 {
     if (TargetTier > Observer) { return true; }
     const int32 Level = Observer / 2;
@@ -415,7 +417,17 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                     TestedParts[Index] = true;
                     const auto& Entry = NativeTerrainParts[Index];
                     auto* Part = Entry.Component.Get();
-                    if (!Part || Entry.Tier <= Observer) { continue; }
+                    if (!Part || (Entry.Tier!=INDEX_NONE && Entry.Tier <= Observer)) { continue; }
+                    if (Entry.Tier==INDEX_NONE)
+                    {
+                        // A single edited mesh may contain low ground, ramps and high ground. Its highest vertex
+                        // cannot turn its entire footprint into a cliff, including the observer's own floor.
+                        const double Height=(Observer+1)*Terrain.StepCm*.5+.01;
+                        FHitResult Hit;
+                        if (Part->LineTraceComponent(Hit,FVector(From,Height),FVector(To,Height),
+                            FCollisionQueryParams(SCENE_QUERY_STAT(DemoTerrainSight),false))) { return true; }
+                        continue;
+                    }
                     // Project current collision vertically; a short plateau still hides lower ground even below eye height.
                     const FVector Centre = Entry.Bounds.GetCenter();
                     const auto Column = FCollisionShape::MakeBox(FVector(.01, .01, Entry.Bounds.GetExtent().Z + .01));
@@ -424,8 +436,7 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                 }
             }
         }
-        double Z; FVector Normal;
-        Terrain.Ground(From, Z, Normal);
+        const double Z=SourceGroundZ;
         if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
         auto* Query = NativeSightQueries.Find(Level);
         if (!Query)
@@ -437,6 +448,8 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                 TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
                 for (const auto* Part : Parts)
                 {
+                    if (LDSceneTags::NoCollision(*Part) || LDSceneTags::NoViewBlock(*Part))
+                    { PreparedQuery.AddIgnoredComponent(Part); continue; }
                     const auto* Body = Part->GetBodyInstance();
                     if (!Part->IsQueryCollisionEnabled() || !Body || !Body->IsValidBodyInstance()) { continue; }
                     const double Base = Body->GetBodyBounds().Min.Z;
@@ -486,7 +499,16 @@ ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVecto
     if (!InBounds(SourceFootCm) || !InBounds(TargetFootCm)) { return ELDSightResult::InvalidPoint; }
     const FVector2D From(SourceFootCm.X, SourceFootCm.Y), To(TargetFootCm.X, TargetFootCm.Y);
     if (FVector2D::DistSquared(From, To) > RadiusCm * RadiusCm) { return ELDSightResult::OutOfRange; }
-    return SegmentBlocked(From, To, Terrain.Tier(From), Terrain.Tier(To)) ? ELDSightResult::Blocked : ELDSightResult::Visible;
+    double SourceZ=SourceFootCm.Z,TargetZ=TargetFootCm.Z;
+    int32 Observer=Terrain.Tier(From),Target=Terrain.Tier(To);
+    if (Scene.IsValid())
+    {
+        if (!Terrain.GroundNear(SourceFootCm,SourceZ,Observer))
+        { Observer=FMath::Max(0,FMath::FloorToInt32((SourceFootCm.Z+.01)*2/Terrain.StepCm)); }
+        if (!Terrain.GroundNear(TargetFootCm,TargetZ,Target))
+        { Target=FMath::Max(0,FMath::FloorToInt32((TargetFootCm.Z+.01)*2/Terrain.StepCm)); }
+    }
+    return SegmentBlocked(From, To, Observer, Target, SourceZ) ? ELDSightResult::Blocked : ELDSightResult::Visible;
 }
 
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
@@ -508,14 +530,20 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Side - 1);
     const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Side - 1);
     const FVector2D From(SourceFootCm);
-    const int32 ObserverTier = Terrain.Tier(From);
+    double SourceZ=SourceFootCm.Z;
+    int32 ObserverTier = Terrain.Tier(From);
+    if (Scene.IsValid() && !Terrain.GroundNear(SourceFootCm,SourceZ,ObserverTier))
+    { ObserverTier=FMath::Max(0,FMath::FloorToInt32((SourceFootCm.Z+.01)*2/Terrain.StepCm)); }
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
         for (int32 X = X0; X <= X1; ++X)
         {
             const int32 Index = Y * Side + X;
             const FVector2D Centre = CellCentre(Index);
-            if (FVector2D::DistSquared(From, Centre) <= RadiusCm * RadiusCm && !SegmentBlocked(From, Centre, ObserverTier, CoverageTiers[Index]))
+            int32 TargetTier=CoverageTiers[Index];
+            double TargetZ=0;
+            if (Scene.IsValid()) { Terrain.GroundNear(FVector(Centre,SourceZ+.1),TargetZ,TargetTier,true); }
+            if (FVector2D::DistSquared(From, Centre) <= RadiusCm * RadiusCm && !SegmentBlocked(From, Centre, ObserverTier, TargetTier, SourceZ))
             { LDObservation::SetCoverageBit(OutBits, Index); }
         }
     }
@@ -1029,18 +1057,10 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
     }
     if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), SightRadius, Error, GetWorld())) { return false; }
     int64 CampMembers = 0;
-    for (const FLDDemoCampPlacement& Camp : Loaded->Get().Camps)
-    {
-        const FLDDemoMonsterDefinition* Monster = nullptr;
-        if (!Loaded->FindMonster(Camp.MonsterId, Monster, Error) || !Monster || Monster->CountPerCamp < 0)
-        {
-            if (Error.IsEmpty()) { Error = FString::Printf(TEXT("Camp %s has no approved member definition."), *Camp.AnchorId); }
-            return false;
-        }
-        // Spec §11.2: a High, Elite or Ancient camp may add its teambuild member.
-        CampMembers += Monster->CountPerCamp + (Monster->Tier == ELDDemoCampTier::Low ? 0 : 1);
-    }
-    // Spec §11.3: the second-hand dealer is one more camp body while it stays.
+    FLDCampRoster CampRoster;
+    if (!LDCamp::BuildRoster(Loaded->Get(), *Registry->GetGeometry(), CampRoster, Error)) { return false; }
+    for (const auto& Camp : CampRoster.Camps) { CampMembers += Camp.Members.Num(); }
+    // The roaming dealer is independent of the authored camp roster.
     ++CampMembers;
     const int64 Contenders = Core->ReadLobby().Members.Num();
     // An observer sees at most every other contender, every camp member and the Boss.

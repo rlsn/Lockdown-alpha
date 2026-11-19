@@ -365,6 +365,7 @@ FString LDHUD::MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 Now
 FString LDHUD::RestReturnCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
 {
     const FLDTimelineView& Timeline=Public.Timeline;
+    if(Timeline.bCountdownPaused){NowMs=FMath::Min(NowMs,Timeline.CountdownPausedAtMs);}
     if(!bClock||Public.Generation==0||Timeline.Generation!=Public.Generation){return FString();}
     if(Public.Phase==ELDMatchPhase::Rest&&Timeline.Stage==ELDMatchStage::Rest&&Timeline.Step==ELDRestStep::Return)
     {
@@ -396,6 +397,7 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
 {
     FTimelineView View;
     const FLDTimelineView& Timeline=Public.Timeline;
+    if(Timeline.bCountdownPaused){NowMs=FMath::Min(NowMs,Timeline.CountdownPausedAtMs);}
     if(Public.Generation==0||Timeline.Generation!=Public.Generation){return View;}
     // Whole seconds rounded up, so a running step never reads 0 while it lasts.
     const auto Seconds=[](int64 Ms){return Ms>0?(Ms+999)/1000:int64(0);};
@@ -405,11 +407,13 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     {
         const FString Left=bClock?Clock(Timeline.FieldEndT-LDMatchTimeline::FieldNowFromView(Timeline,NowMs)):FString(TEXT("同步中"));
         View.Headline=LDTerms::FieldSegmentLine(int32(Timeline.FieldSegment)+1,int32(FLDTimelineParameters::TimedSegments),Left);
+        if(Timeline.bCountdownPaused){View.Headline+=TEXT(" · 计时已暂停");}
         return View;
     }
     case ELDMatchStage::FinalField:
         if(!Public.Showdown.bStarted){View.Headline=LDTerms::FinalField;return View;}
         View.Headline=FString(TEXT("终局争旗 · "))+(bClock?Clock(Public.Showdown.EndsAtMs-NowMs):FString(TEXT("时间同步中")));
+        if(Timeline.bCountdownPaused){View.Headline+=TEXT(" · 计时已暂停");}
         if(Public.Showdown.bStarted&&bClock)
         {
             if(NowMs>=Public.Showdown.EndsAtMs-10000){View.Detail=TEXT("最后十秒");}
@@ -432,6 +436,7 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
             +(bClock?Clock(Timeline.StepEndsAtMs-NowMs):FString(TEXT("时间同步中")));
         return View;
     }
+    if(Timeline.bCountdownPaused){View.Headline+=TEXT(" · 计时已暂停");}
     TArray<FString> Detail;
     if(Timeline.Step==ELDRestStep::Build)
     {
@@ -615,6 +620,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
 {
     FPKPanelView View;
     const FLDPKView& PK=Public.PK;
+    const int64 TimelineNow=Public.Timeline.bCountdownPaused?FMath::Min(In.NowMs,Public.Timeline.CountdownPausedAtMs):In.NowMs;
     const ELDRestStep Step=Public.Timeline.Step;
     if(!HasPK(Public)||Step<ELDRestStep::Draw||Step>ELDRestStep::Payout){return View;}
     View.bVisible=true;
@@ -629,8 +635,8 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
     {
         if(!In.bClock){View.Countdown=LDTerms::PKClockSync;}
         // The authority starts the fight; a local clock that reaches the end first holds 1.
-        else if(Step==ELDRestStep::PKReady){View.Countdown=LDTerms::PKStartsIn(FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-In.NowMs)));}
-        else{View.Countdown=LDTerms::PKTimeLeft(Seconds(Public.Timeline.StepEndsAtMs-In.NowMs));}
+        else if(Step==ELDRestStep::PKReady){View.Countdown=LDTerms::PKStartsIn(FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)));}
+        else{View.Countdown=LDTerms::PKTimeLeft(Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));}
     }
     if(Step==ELDRestStep::PK&&bRunning&&In.Params&&In.bClock&&PK.FightStartedAtMs>0)
     {

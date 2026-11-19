@@ -43,6 +43,30 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 45000 && P.BuildMs == 40000 && P.ReturnMs == 5000);
     FString Error;
     {
+        FLDMatchTimeline Paused;
+        TArray<FLDTimelineEvent> Events;
+        bGood &= TestTrue(TEXT("Pause fixture begins"), Paused.Begin(P, 0, Error));
+        bGood &= TestTrue(TEXT("Opening rest can freeze its own countdown"), Paused.DevSetCountdownPaused(true, 1000, Error));
+        bGood &= TestEqual(TEXT("A paused deadline is not scheduled on the advancing authority clock"), Paused.NextDueMs(), int64(MAX_int64));
+        bGood &= TestTrue(TEXT("The world can advance far beyond a paused deadline without transitioning"),
+            Paused.Advance(500000, 0, true, true, Events, Error) && Events.IsEmpty() && Paused.IsRest());
+        bGood &= TestTrue(TEXT("The published pause carries its exact clock anchor"),
+            Paused.MakeView(1, 1).bCountdownPaused && Paused.MakeView(1, 1).CountdownPausedAtMs == 1000);
+        bGood &= TestTrue(TEXT("Resume keeps the remaining time rather than catching up"),
+            Paused.DevSetCountdownPaused(false, 501000, Error) && Paused.GetStepEndsAtMs() == P.OpeningBuildMs + 500000);
+        bGood &= TestTrue(TEXT("Return after resumed rest"), Paused.Advance(P.OpeningBuildMs + 500000, 0, true, true, Events, Error));
+        const int64 FieldStart = P.OpeningBuildMs + 500000 + P.ReturnMs;
+        Events.Reset();
+        bGood &= TestTrue(TEXT("Field begins through real timeline transitions"), Paused.Advance(FieldStart, 0, true, true, Events, Error) && Paused.IsFieldRunning());
+        bGood &= TestTrue(TEXT("Field countdown pauses"), Paused.DevSetCountdownPaused(true, FieldStart + 5000, Error));
+        bGood &= TestEqual(TEXT("Authority field progress stays fixed while world time advances"), Paused.FieldMsAt(FieldStart + 900000), int64(5000));
+        bGood &= TestEqual(TEXT("Client field countdown agrees with the authority"), LDMatchTimeline::FieldNowFromView(Paused.MakeView(1, 2), FieldStart + 900000), int64(5000));
+        bGood &= TestTrue(TEXT("Resume is idempotent and keeps the elapsed field progress"),
+            Paused.DevSetCountdownPaused(false, FieldStart + 105000, Error)
+            && Paused.DevSetCountdownPaused(false, FieldStart + 105000, Error)
+            && Paused.FieldMsAt(FieldStart + 110000) == 10000);
+    }
+    {
         FLDMatchTimeline Skip;
         TArray<FLDTimelineEvent> SkipEvents;
         bGood &= TestTrue(TEXT("DEV preparation fixture begins"), Skip.Begin(P, 0, Error));

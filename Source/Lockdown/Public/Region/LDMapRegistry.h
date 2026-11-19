@@ -63,6 +63,8 @@ public:
 #endif
     bool QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,
         const FCollisionShape& Capsule, FLDCompletePath& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
+    // Static support and complete routes for every possible field/final spawn, before retiring a current life.
+    bool ValidateFieldSpawnPaths(bool bFinalField, FString& Error) const;
     bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
@@ -88,6 +90,7 @@ public:
     bool FinalizeSpawnPlacement(TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, FString& Error);
 private:
+    bool ValidateSpawnPaths(const TArray<FName>& Anchors,FName ReferenceId,FString& Error) const;
     // Combat rule tests give an isolated world the registered revision of the approved geometry.
     friend struct FLDBuildPrimitivesAccess;
     // Shared admission of a spawn request: Replay is set when the same request was already selected.

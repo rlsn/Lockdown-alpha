@@ -29,5 +29,6 @@ namespace LDDemoTests
     void StartFrontendSettingsProbe(UWorld& World);
     void StartWorldRoomProbe(ALDPlayerController& Controller);
     void StartCoreProbe(ALDPlayerController& Controller);
+    void StartSoloProbe(ALDPlayerController& Controller);
 }
 #endif

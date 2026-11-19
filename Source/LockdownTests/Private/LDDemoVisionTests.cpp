@@ -125,7 +125,7 @@ FLDObservedCatalog TestCatalog()
 template<typename TWire>
 bool Wire(TWire& Value, TWire& Out, int64* Bytes = nullptr)
 {
-    FNetBitWriter Writer(nullptr, 1 << 18);
+    FNetBitWriter Writer(nullptr, 1 << 20);
     bool bOk = true;
     Value.NetSerialize(Writer, nullptr, bOk);
     if (!bOk || Writer.IsError()) { return false; }
@@ -486,6 +486,12 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Duplicate concealment refused"), Encodes(Conceal));
     Conceal.Removed.Reset();
     TestTrue(TEXT("Empty concealment is the reliable generation reset"), Encodes(Conceal));
+    for (int32 Index=0;Index<LDObservation::MaxUnits+LDObservation::MaxProjectiles;++Index)
+    { Conceal.Removed.Add(FGuid::NewGuid()); }
+    TestTrue(TEXT("All units and projectiles can be concealed together without count truncation"),
+        Wire(Conceal,ConcealRead) && ConcealRead.Removed==Conceal.Removed);
+    Conceal.Removed.Add(FGuid::NewGuid());
+    TestFalse(TEXT("A conceal beyond the combined capacity is refused"), Encodes(Conceal));
     FLDObservedTerminationNotice Notice;
     Notice.MatchGeneration = 7;
     Notice.Revision = 44;
@@ -1871,24 +1877,30 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
         const bool bCamp = Index % 2 != 0 || Index >= 2 * MaxContenderKind;
         FLDObservedUnitView Unit = bCamp ? CampUnit(Index + 1) : ContenderUnit(Index + 1);
         Unit.Statuses = bCamp ? CampAll : ContenderAll;
+        Unit.FeetCm=FVector(999999,-999999,999999);
         for (FLDObservedStatus& Status : Unit.Statuses) { if (Status.StatusId == uint8(ELDDemoStatusId::Burn)) { Status.Stacks = 5; } }
         FString Error;
         TestTrue(TEXT("A unit with every public status of its kind is valid"), LDObservation::ValidateUnit(Unit, Error));
         Frame.Units.Add(Unit);
+    }
+    // Also exercise the largest coordinate encoding, raw coverage and the full projectile list.
+    for (int32 Index=0; Index<Frame.Footprint.CurrentBits.Num(); ++Index) { Frame.Footprint.CurrentBits[Index]=uint8(Index); }
+    for (int32 Index=0; Index<LDObservation::MaxProjectiles; ++Index)
+    {
+        auto& Flight=Frame.Projectiles.AddDefaulted_GetRef();
+        Flight.Handle=FGuid::NewGuid();Flight.PositionCm=FVector(999999,-999999,999999);
     }
     FLDWorldView Read;
     int64 Bytes = 0;
     if (!TestTrue(TEXT("A frame of fully debuffed units round-trips"), Wire(Frame, Read, &Bytes) && Read.Units.Num() == LDObservation::MaxUnits))
     { return false; }
     AddInfo(FString::Printf(TEXT("Fully debuffed observation frame: %lld bytes"), Bytes));
-    // The roster permits 103 observed units, at most eleven of them contender-kind. Keep an explicit 36 KiB full-frame
+    // The roster permits 192 observed units, at most eleven of them contender-kind. Keep an explicit 64 KiB full-frame
     // budget, also with every allowed warning/flight present; transport uses partial unreliable bunches (the engine
     // builds them up to 64 KiB).
-    for(int32 Index=0;Index<LDObservation::MaxProjectiles;++Index)
-    {FLDObservedProjectileView P;P.Handle=FGuid::NewGuid();P.PositionCm=FVector(Index*5,0,2);P.Look=ELDObservedProjectileLook::Chalk;Frame.Projectiles.Add(P);}
     TestTrue(TEXT("A full unit and warning frame round-trips"),Wire(Frame,Read,&Bytes));
     AddInfo(FString::Printf(TEXT("Fully debuffed frame with maximum flights: %lld bytes"),Bytes));
-    TestTrue(TEXT("and stays inside the explicit 36 KiB frame capacity"), Bytes < 36864);
+    TestTrue(TEXT("and stays inside the explicit 64 KiB frame capacity"), Bytes < 65536);
     TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()
         && Read.Units[1].Statuses.Num() == CampAll.Num()
         && Read.Units[0].Statuses.ContainsByPredicate([](const FLDObservedStatus& Row)

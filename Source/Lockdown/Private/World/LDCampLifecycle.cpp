@@ -16,25 +16,37 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
     FLDCampRoster Candidate;
     TSet<FName> Camps, Members;
     bool bLow = false, bHigh = false;
-    for (const FString& CampText : Content.World.CampIds)
+    TArray<FString> CampIds = Content.World.CampIds;
+    if (World.bSceneLayout)
+    {
+        CampIds.Reset();
+        for (const auto& Anchor : World.Anchors)
+        { if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp) { CampIds.Add(Anchor.Id); } }
+    }
+    for (const FString& CampText : CampIds)
     {
         const FName CampId(*CampText);
-        const auto* Placement = Content.Camps.FindByPredicate(
-            [&CampText](const FLDDemoCampPlacement& Row) { return Row.AnchorId == CampText; });
-        const auto* Monster = Placement ? Content.Monsters.FindByPredicate(
-            [Placement](const FLDDemoMonsterDefinition& Row) { return Row.Id == Placement->MonsterId; }) : nullptr;
         const auto* Anchor = World.Anchors.FindByPredicate(
             [&CampText](const FLDDemoWorldAnchor& Row) { return Row.Id == CampText; });
+        const FString& Template = World.bSceneLayout && Anchor && !Anchor->PrototypeId.IsEmpty() ? Anchor->PrototypeId : CampText;
+        const auto* Placement = Content.Camps.FindByPredicate(
+            [&Template](const FLDDemoCampPlacement& Row) { return Row.AnchorId == Template; });
+        const auto* Monster = Placement ? Content.Monsters.FindByPredicate(
+            [Placement](const FLDDemoMonsterDefinition& Row) { return Row.Id == Placement->MonsterId; }) : nullptr;
         if (CampId.IsNone() || Camps.Contains(CampId) || !Placement || !Monster || !Anchor
             || Anchor->Kind != ELDDemoWorldAnchorKind::Camp || Anchor->SurfaceId.IsEmpty()
             || Monster->NativeId == 0 || Monster->CountPerCamp <= 0 || Monster->RespawnMs <= 0
-            || Anchor->Members.Num() != Monster->CountPerCamp)
+            || Anchor->Members.IsEmpty()
+            || (Anchor->Members.Num() != Monster->CountPerCamp
+                && !(World.bSceneLayout && Anchor->Members.ContainsByPredicate([](const auto& Home) { return !Home.PrototypeId.IsEmpty(); }))))
         {
             Error = FString::Printf(TEXT("Camp %s has no unique approved placement, monster, world anchor and member homes."), *CampText);
             return false;
         }
         FLDCampSpec Spec;
         Spec.CampId = CampId;
+        Spec.DefinitionId = FName(*Template);
+        Spec.bAuthoredMembers = World.bSceneLayout && Anchor->Members.ContainsByPredicate([](const auto& Home) { return !Home.PrototypeId.IsEmpty(); });
         Spec.SurfaceId = FName(*Anchor->SurfaceId);
         Spec.MonsterId = FName(*Monster->Id);
         Spec.CreatureId = Monster->NativeId;
@@ -53,6 +65,14 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         {
             FLDCampMemberSpec Member;
             Member.MemberId = FName(*Home.Id);
+            const FString MemberTemplate=World.bSceneLayout && !Home.PrototypeId.IsEmpty() ? Home.PrototypeId : Template;
+            const auto* MemberPlacement=Content.Camps.FindByPredicate([&](const auto& Row) { return Row.AnchorId==MemberTemplate; });
+            const auto* MemberMonster=MemberPlacement ? Content.Monsters.FindByPredicate([&](const auto& Row) { return Row.Id==MemberPlacement->MonsterId; }) : nullptr;
+            if (!MemberMonster || !MemberMonster->NativeId || MemberMonster->RespawnMs<=0)
+            { Error=TEXT("Camp member has no approved monster prototype: ")+Home.Id; return false; }
+            Member.DefinitionId=FName(*MemberTemplate);
+            Member.MonsterId=FName(*MemberMonster->Id);
+            Member.CreatureId=MemberMonster->NativeId;
             if (Member.MemberId.IsNone() || Members.Contains(Member.MemberId))
             {
                 Error = FString::Printf(TEXT("Camp %s has a missing or repeated member home."), *CampText);
@@ -63,7 +83,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             Spec.Members.Add(MoveTemp(Member));
         }
         // Spec §11.2: every High, Elite and Ancient camp reserves one teambuild member at its anchor.
-        if (Spec.Tier != ELDDemoCampTier::Low)
+        if (!Spec.bAuthoredMembers && Spec.Tier != ELDDemoCampTier::Low)
         {
             // A High camp's teambuild member is of the species each spawn selects; Elite and Ancient camps bring one fixed
             // High-tier species.
@@ -78,6 +98,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             Team.MemberId = FName(*(CampText + TEXT("_teambuild")));
             Team.HomeCm = Spec.AnchorCm;
             Team.bTeambuild = true;
+            Team.DefinitionId = Spec.DefinitionId;
             if (Members.Contains(Team.MemberId))
             {
                 Error = FString::Printf(TEXT("Camp %s has a member home named like its teambuild slot."), *CampText);
@@ -96,7 +117,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         Camps.Add(CampId);
         Candidate.Camps.Add(MoveTemp(Spec));
     }
-    if (Candidate.Camps.IsEmpty() || Content.Camps.Num() != Candidate.Camps.Num() || !bLow || !bHigh)
+    if (Candidate.Camps.IsEmpty() || (!World.bSceneLayout && (Content.Camps.Num() != Candidate.Camps.Num() || !bLow || !bHigh)))
     {
         Error = TEXT("The Demo requires every placed camp in the roster, covering both tiers.");
         return false;
@@ -513,7 +534,8 @@ bool FLDCampMatchState::AppendObservedFacts(const FLDCombatBodyRef& Body, FLDObs
     }
     // The teambuild member wears its own species, not the camp's.
     const FLDCampSpec& Spec = Roster->Camps[Camp];
-    const uint8 CreatureId = Spec.Members.IsValidIndex(Slot) && Spec.Members[Slot].bTeambuild && Spec.TeambuildCreatureId != 0
+    const uint8 CreatureId = Spec.bAuthoredMembers ? Spec.Members[Slot].CreatureId
+        : Spec.Members.IsValidIndex(Slot) && Spec.Members[Slot].bTeambuild && Spec.TeambuildCreatureId != 0
         ? Spec.TeambuildCreatureId : Camps[Camp].CreatureId;
     const uint8 Returning = uint8(ELDDemoStatusId::CampReturning);
     const bool bListed = InOut.Statuses.ContainsByPredicate([Returning](const FLDObservedStatus& S) { return S.StatusId == Returning; });

@@ -60,6 +60,8 @@ enum class ELDDevTestOp : uint8
     // P6 spec §11.1, match-wide, Listen Host connection only: Amount = first + 16 * second daily modifier id (1..12 each,
     // different), or 0 for the ordinary draw. Applies from the next match start; the running match keeps its day.
     SetDailyPreset = 21,
+    SetInvulnerable = 22,
+    SetCountdownPaused = 23,
 };
 
 USTRUCT()

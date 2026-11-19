@@ -1,0 +1,573 @@
+[
+  {
+    "source_directory": "church",
+    "asset": "SM_QD_CatholicChurch_Historic",
+    "render_triangles": 14682,
+    "collision_triangles": 0,
+    "triangle_budget": 20000,
+    "dimensions_m": [
+      13.014020681381226,
+      10.185000374913216,
+      8.555000305175781
+    ],
+    "bounds_m": [
+      [
+        -9.121339797973633,
+        -0.20999999344348907,
+        0.0
+      ],
+      [
+        3.8926808834075928,
+        9.975000381469727,
+        8.555000305175781
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      2048,
+      2048
+    ],
+    "scope": "Historic Catholic church building only, retained separate chapel. Granite ashlar, stone portal archivolts, geometrical rose tracery, paired belfry louvers and red spires. Adapted to the current authored envelope.",
+    "reference": "Qingdao Saint Michael cathedral actual frontal and aerial photographs."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_EastAcademic",
+    "render_triangles": 2136,
+    "collision_triangles": 0,
+    "triangle_budget": 9000,
+    "dimensions_m": [
+      8.366999626159668,
+      5.47350001335144,
+      11.199999809265137
+    ],
+    "bounds_m": [
+      [
+        -4.183499813079834,
+        -2.7899999618530273,
+        0.0
+      ],
+      [
+        4.183499813079834,
+        2.683500051498413,
+        11.199999809265137
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "School east academic block and street perimeter, fitted to existing component envelopes. Real facade cues retained, no new bridge or walkway obstruction."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_PerimeterWing",
+    "render_triangles": 1692,
+    "collision_triangles": 0,
+    "triangle_budget": 9000,
+    "dimensions_m": [
+      8.366999626159668,
+      4.886000156402588,
+      8.392000198364258
+    ],
+    "bounds_m": [
+      [
+        -4.183499813079834,
+        -2.452500104904175,
+        0.0
+      ],
+      [
+        4.183499813079834,
+        2.433500051498413,
+        8.392000198364258
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "School east academic block and street perimeter, fitted to existing component envelopes. Real facade cues retained, no new bridge or walkway obstruction."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_CornerWing",
+    "render_triangles": 1220,
+    "collision_triangles": 0,
+    "triangle_budget": 9000,
+    "dimensions_m": [
+      7.367000102996826,
+      4.685999870300293,
+      7.789999961853027
+    ],
+    "bounds_m": [
+      [
+        -3.683500051498413,
+        -2.3524999618530273,
+        0.0
+      ],
+      [
+        3.683500051498413,
+        2.3334999084472656,
+        7.789999961853027
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "School east academic block and street perimeter, fitted to existing component envelopes. Real facade cues retained, no new bridge or walkway obstruction."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_NamePier",
+    "render_triangles": 104,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      0.8899999856948853,
+      0.4754999876022339,
+      2.190000057220459
+    ],
+    "bounds_m": [
+      [
+        -0.4449999928474426,
+        -0.25049999356269836,
+        0.0
+      ],
+      [
+        0.4449999928474426,
+        0.22499999403953552,
+        2.190000057220459
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Detached cream stone school-name pillar. Vertical red inscription 青岛第七中学; mounted within existing entrance wall, preserving the opening."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_NameBoard",
+    "render_triangles": 36,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      3.450000047683716,
+      0.32250000536441803,
+      0.8400000035762787
+    ],
+    "bounds_m": [
+      [
+        -1.725000023841858,
+        -0.23250000178813934,
+        -0.36000001430511475
+      ],
+      [
+        1.725000023841858,
+        0.09000000357627869,
+        0.47999998927116394
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Readable horizontal 山东省 / 青岛第七中学 school board, on the existing wall beside the gate, not across the route."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_OpenIronGate",
+    "render_triangles": 360,
+    "collision_triangles": 0,
+    "triangle_budget": 1500,
+    "dimensions_m": [
+      7.559999942779541,
+      0.4000000059604645,
+      2.240000009536743
+    ],
+    "bounds_m": [
+      [
+        -3.7799999713897705,
+        -0.20000000298023224,
+        0.0
+      ],
+      [
+        3.7799999713897705,
+        0.20000000298023224,
+        2.240000009536743
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Open school iron gate. The authored central 4.4m opening remains empty; side leaves sit against the existing boundary."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_FormalName3D",
+    "render_triangles": 4640,
+    "collision_triangles": 0,
+    "triangle_budget": 20000,
+    "dimensions_m": [
+      5.199999809265137,
+      0.07600003480911255,
+      0.5099999904632568
+    ],
+    "bounds_m": [
+      [
+        -2.5999999046325684,
+        0.0,
+        -0.2549999952316284
+      ],
+      [
+        2.5999999046325684,
+        0.07600003480911255,
+        0.2549999952316284
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Real three-dimensional Chinese school-name lettering; no reliance on low-resolution printed glyphs.",
+    "inscription": "山东省青岛第七中学",
+    "ue_text_geometry": true
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_RoofName3D",
+    "render_triangles": 1836,
+    "collision_triangles": 0,
+    "triangle_budget": 20000,
+    "dimensions_m": [
+      4.349999904632568,
+      0.07600003480911255,
+      0.8299999833106995
+    ],
+    "bounds_m": [
+      [
+        -2.174999952316284,
+        0.0,
+        -0.41499999165534973
+      ],
+      [
+        2.174999952316284,
+        0.07600003480911255,
+        0.41499999165534973
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Real three-dimensional Chinese school-name lettering; no reliance on low-resolution printed glyphs.",
+    "inscription": "青岛七中",
+    "ue_text_geometry": true
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_HistoricSouthMotto",
+    "render_triangles": 3138,
+    "collision_triangles": 0,
+    "triangle_budget": 10000,
+    "dimensions_m": [
+      14.149999618530273,
+      6.0,
+      4.650000095367432
+    ],
+    "bounds_m": [
+      [
+        -7.074999809265137,
+        -3.0,
+        0.0
+      ],
+      [
+        7.074999809265137,
+        3.0,
+        4.650000095367432
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Existing historic street block with reduced window height and a reserved 0.58m high motto band. Exact overall authored envelope is retained when placed."
+  },
+  {
+    "source_directory": "school",
+    "asset": "SM_QD_School_Motto_Raised3D",
+    "render_triangles": 6040,
+    "collision_triangles": 0,
+    "triangle_budget": 20000,
+    "dimensions_m": [
+      6.956379175186157,
+      0.054000042378902435,
+      0.5299999713897705
+    ],
+    "bounds_m": [
+      [
+        -3.4907314777374268,
+        0.0,
+        -0.26499998569488525
+      ],
+      [
+        3.4656476974487305,
+        0.054000042378902435,
+        0.26499998569488525
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Large raised red motto characters, spaced as three pairs. Letter height 0.53m instead of compressed printing.",
+    "inscription": "求真 尚善 致美",
+    "ue_text_geometry": true
+  },
+  {
+    "source_directory": "parkson",
+    "asset": "SM_QD_Parkson_StreetEntrance",
+    "render_triangles": 3492,
+    "collision_triangles": 0,
+    "triangle_budget": 10000,
+    "dimensions_m": [
+      10.033112049102783,
+      14.703514099121094,
+      17.734697341918945
+    ],
+    "bounds_m": [
+      [
+        -4.984556198120117,
+        -7.351757049560547,
+        0.0
+      ],
+      [
+        5.048555850982666,
+        7.351757049560547,
+        17.734697341918945
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "reference": "Historic Parkson Zhongshan Road exterior and entrance photographs, before the subsequent mall redevelopment. Pink facade, arched glazed portal, green PARKSON 百盛 sign, recessed glazed door bays and shallow canopy on the long +X street elevation. Current compressed tower envelope retained.",
+    "entrance_face": "local +X long street elevation",
+    "decorative_only": true
+  },
+  {
+    "source_directory": "pier",
+    "asset": "SM_QD_Zhanqiao_Granite_1K",
+    "render_triangles": 2868,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      56.277431793510914,
+      14.15999984741211,
+      12.3100004196167
+    ],
+    "bounds_m": [
+      [
+        -56.20743179321289,
+        -7.079999923706055,
+        -6.050000190734863
+      ],
+      [
+        0.07000000029802322,
+        7.079999923706055,
+        6.260000228881836
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "purpose": "Original main pier geometry with a uniform 0.6m by 0.4m grey granite slab rhythm; UV cells repeat at 4.8m without stretching. One shared 1024 atlas covers the entire pier.",
+    "slab_size_m": [
+      0.6,
+      0.4
+    ],
+    "paving_repeat_m": 4.8,
+    "scope": "Main straight walkway, terminal platform, pavilion, railing, supports and lamps. Return walkways excluded."
+  },
+  {
+    "source_directory": "fence",
+    "asset": "SM_QD_Church_Fence_172",
+    "render_triangles": 426,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      2.8859636783599854,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -1.4429818391799927,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        1.4429818391799927,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_172",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "source_directory": "fence",
+    "asset": "SM_QD_Church_Fence_173",
+    "render_triangles": 1416,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      9.234539985656738,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -4.617269992828369,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        4.617269992828369,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_173",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "source_directory": "fence",
+    "asset": "SM_QD_Church_Fence_174",
+    "render_triangles": 1938,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      13.083932876586914,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -6.541966438293457,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        6.541966438293457,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_174",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "source_directory": "fence",
+    "asset": "SM_QD_Church_Fence_202",
+    "render_triangles": 1416,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      9.34443187713623,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -4.672215938568115,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        4.672215938568115,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_202",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "source_directory": "dock",
+    "asset": "SM_QD_Dock_WhiteMarkings",
+    "render_triangles": 2950,
+    "collision_triangles": 0,
+    "triangle_budget": 6000,
+    "dimensions_m": [
+      48.14655685424805,
+      62.7769775390625,
+      0.0
+    ],
+    "bounds_m": [
+      [
+        -21.850566864013672,
+        -35.72333908081055,
+        0.012000000104308128
+      ],
+      [
+        26.295989990234375,
+        27.053638458251953,
+        0.012000000104308128
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Movable, non-colliding white dock paint: quay safety edge, stack corner bays, dashed lane marks, arrows and a clipped waiting hatch. Original containers and dock structures remain untouched.",
+    "world_placement_cm": [
+      -4000,
+      18500,
+      499.70054
+    ],
+    "ground_source_ids": [
+      "StaticMeshActor_2",
+      "StaticMeshActor_4",
+      "StaticMeshActor_7"
+    ],
+    "line_quad_count": 1475,
+    "clip_policy": "All paint vertices inside existing dock footprints; clipped away from ground container envelopes."
+  }
+]

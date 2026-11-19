@@ -17,6 +17,9 @@ struct FLDCampMemberSpec
     // with a spawn that carries the teambuild affix, as the spawn's selected species for High camps and as a High-tier
     // species otherwise; without it the slot stays empty and never holds back a clear.
     bool bTeambuild = false;
+    FName DefinitionId;
+    FName MonsterId;
+    uint8 CreatureId = 0;
 };
 
 // Read-only projection of the validated content and world roots, not a second tunable table.
@@ -36,6 +39,10 @@ struct FLDCampSpec
     // None and 0 for a High camp (its teambuild member is of each spawn's selected species) and for a Low camp (no slot).
     FName TeambuildMonsterId;
     uint8 TeambuildCreatureId = 0;
+    // The registered scene instance and its approved AI/stat definition are separate identities.
+    FName DefinitionId;
+    // Authored member slots retain their individual types and count across refreshes.
+    bool bAuthoredMembers = false;
 };
 
 struct LOCKDOWN_API FLDCampRoster

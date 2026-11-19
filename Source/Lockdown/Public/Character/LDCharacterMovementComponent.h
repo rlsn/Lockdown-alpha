@@ -96,8 +96,10 @@ public:
     // A skill branch's ghost window (S11 B): this body's own moves pass through other bodies for Seconds from now, the dash
     // included; static geometry still stops them.
     void SetBodyPassThroughSeconds(double Seconds);
+    virtual void StartFalling(int32 Iterations, float RemainingTime, float TimeTick, const FVector& Delta, const FVector& SubLocation) override;
     virtual void PhysWalking(float DeltaSeconds, int32 Iterations) override;
     virtual void PhysFalling(float DeltaSeconds, int32 Iterations) override;
+    virtual FVector NewFallVelocity(const FVector& InitialVelocity, const FVector& Gravity, float DeltaTime) const override;
     virtual void MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult) override;
     virtual bool StepUp(const FVector& GravityDirection, const FVector& Delta, const FHitResult& Hit, FStepDownResult* OutStepDownResult) override;
     virtual FVector GetLedgeMove(const FVector& OldLocation, const FVector& Delta, const FFindFloorResult& OldFloor) const override;

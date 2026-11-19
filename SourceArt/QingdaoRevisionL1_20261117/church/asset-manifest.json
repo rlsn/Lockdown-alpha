@@ -1,0 +1,32 @@
+[
+  {
+    "asset": "SM_QD_CatholicChurch_Historic",
+    "render_triangles": 14682,
+    "collision_triangles": 0,
+    "triangle_budget": 20000,
+    "dimensions_m": [
+      13.014020681381226,
+      10.185000374913216,
+      8.555000305175781
+    ],
+    "bounds_m": [
+      [
+        -9.121339797973633,
+        -0.20999999344348907,
+        0.0
+      ],
+      [
+        3.8926808834075928,
+        9.975000381469727,
+        8.555000305175781
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      2048,
+      2048
+    ],
+    "scope": "Historic Catholic church building only, retained separate chapel. Granite ashlar, stone portal archivolts, geometrical rose tracery, paired belfry louvers and red spires. Adapted to the current authored envelope.",
+    "reference": "Qingdao Saint Michael cathedral actual frontal and aerial photographs."
+  }
+]

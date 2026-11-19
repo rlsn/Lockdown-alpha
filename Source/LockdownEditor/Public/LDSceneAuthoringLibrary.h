@@ -16,4 +16,12 @@ public:
     // Python retains errors on failed validation rather than losing an out parameter through bool success conversion.
     UFUNCTION(BlueprintCallable, Category="Lockdown|Scene Authoring")
     static FString GroundValidationError(UWorld* World);
+    UFUNCTION(BlueprintCallable, Category="Lockdown|Scene Authoring")
+    static FString NavigationBakeError(UWorld* World);
+    // Read-only diagnostics over the current saved scene projection and native collision/navigation.
+    UFUNCTION(BlueprintCallable, Category="Lockdown|Scene Authoring")
+    static FString GameplayPlacementAudit(UWorld* World, bool bIncludePaths = true);
+    // Read-only sight/coverage diagnostics at authored locations and the current local player.
+    UFUNCTION(BlueprintCallable, Category="Lockdown|Scene Authoring")
+    static FString GameplayVisibilityAudit(UWorld* World, bool bSampleNavigation = false);
 };

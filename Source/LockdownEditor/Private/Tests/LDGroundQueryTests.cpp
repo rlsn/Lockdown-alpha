@@ -43,6 +43,45 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
     uint64 Epoch = 1;
     const auto* Geometry = Registry->GetGeometry();
     const FName Surface(*Geometry->Surfaces[0].Id);
+    // A supported foot below an overhead static mesh must keep its local floor height. The full-height
+    // terrain ray still sees the upper face, but it must not become this body's navigation endpoint.
+    const auto* Capture = Registry->Resolve(FName(*Content->Get().World.CaptureId), Registry->Generation);
+    FLDLegalGround BeforeRoof, UnderRoof;
+    ELDWorldQueryFailure RoofFailure;
+    if (!TestNotNull(TEXT("The field reference is bound"), Capture)
+        || !TestTrue(TEXT("The field reference has local capsule support"), Registry->QueryGround(Registry->Revision(),
+            Capture->Position, Capsule, Capture->Surface, BeforeRoof, RoofFailure, Error))) { return false; }
+    auto* Overhead = World->SpawnActor<AActor>();
+    auto* RoofBox = NewObject<UBoxComponent>(Overhead);
+    Overhead->SetRootComponent(RoofBox);
+    Overhead->AddInstanceComponent(RoofBox);
+    RoofBox->SetBoxExtent(FVector(40, 40, 15));
+    RoofBox->SetCollisionObjectType(ECC_WorldStatic);
+    RoofBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    RoofBox->SetCollisionResponseToAllChannels(ECR_Block);
+    RoofBox->SetCanEverAffectNavigation(false);
+    RoofBox->RegisterComponent();
+    Overhead->SetActorLocation(Capture->Position + FVector(0, 0, 425));
+    ON_SCOPE_EXIT { if (IsValid(Overhead)) { Overhead->Destroy(); } };
+    double RoofZ;
+    FVector RoofNormal;
+    Registry->GetTerrain().Ground(FVector2D(Capture->Position), RoofZ, RoofNormal);
+    TestTrue(TEXT("The reproduction has an overhead face above the reachable floor"), RoofZ > BeforeRoof.SurfaceCm.Z + 300);
+    TestTrue(TEXT("The same foot still has local support under the roof"), Registry->QueryGround(Registry->Revision(),
+        Capture->Position, Capsule, Capture->Surface, UnderRoof, RoofFailure, Error));
+    TestTrue(TEXT("Navigation uses the actual local support, never the overhead roof"),
+        UnderRoof.SurfaceCm.Equals(BeforeRoof.SurfaceCm, .001) && UnderRoof.Floor == BeforeRoof.Floor
+        && UnderRoof.SupportOriginCm.Equals(BeforeRoof.SupportOriginCm, .001));
+    const FVector AuthoredFloor = Capture->Position;
+    if (!TestTrue(TEXT("The map can rebind with an overhead mesh"), Registry->Rebuild(Error))) { return false; }
+    const auto* ReboundCapture = Registry->Resolve(FName(*Content->Get().World.CaptureId), Registry->Generation);
+    TestTrue(TEXT("Rebinding keeps the layout reference on its valid local floor"),
+        ReboundCapture && ReboundCapture->Position.Equals(AuthoredFloor, .001));
+    TestTrue(TEXT("Every field spawn still has its complete native route under an overhead mesh: ") + Error,
+        Registry->ValidateFieldSpawnPaths(false, Error));
+    Overhead->Destroy();
+    if (!TestTrue(TEXT("Removing the overhead test object restores the scene binding"), Registry->Rebuild(Error))) { return false; }
+    Geometry = Registry->GetGeometry();
     bool Passed = true;
     TSet<ELDWorldQueryFailure> Seen;
     auto Compare = [&](const FVector& Foot, FName Hint, const FCollisionShape& Shape, bool Cache)

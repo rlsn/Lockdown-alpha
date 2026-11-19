@@ -160,6 +160,11 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             AddButton(Line,TEXT("开启和平模式"),[this](){Send(ELDDevTestOp::SetPeaceful,1);},TEXT("DevTestPeaceOn"));
             AddButton(Line,TEXT("关闭和平模式"),[this](){Send(ELDDevTestOp::SetPeaceful,0);},TEXT("DevTestPeaceOff"));
         }
+        {
+            UHorizontalBox* Line = Row();
+            AddButton(Line,TEXT("开启生命不减"),[this](){Send(ELDDevTestOp::SetInvulnerable,1);},TEXT("DevTestInvulnerableOn"));
+            AddButton(Line,TEXT("关闭生命不减"),[this](){Send(ELDDevTestOp::SetInvulnerable,0);},TEXT("DevTestInvulnerableOff"));
+        }
         Body->AddChildToVerticalBox(MakeText(TEXT("T 切换镜头与传送 · WASD 移动 · Q/E 升降 · 右键转向 · Shift 加速 · Ctrl+回车 打开/关闭"),13,DevPanelDim,true));
 
         Heading(TEXT("资源与重复试验"));
@@ -274,6 +279,9 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             UHorizontalBox* DrawLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(DrawLine)->SetPadding(FMargin(0,2,0,0));
             AddButton(DrawLine,TEXT("恢复随机"),[this](){DailyPick=0;Send(ELDDevTestOp::SetDailyPreset,0);},TEXT("DevTestDailyDraw"));
         }
+        auto* ClockLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(ClockLine);
+        AddButton(ClockLine,TEXT("暂停倒计时"),[this](){Send(ELDDevTestOp::SetCountdownPaused,1);},TEXT("DevTestPauseCountdown"));
+        AddButton(ClockLine,TEXT("恢复倒计时"),[this](){Send(ELDDevTestOp::SetCountdownPaused,0);},TEXT("DevTestResumeCountdown"));
         HostSection=Host;Body->AddChildToVerticalBox(Host);Host->SetVisibility(ESlateVisibility::Collapsed);
 
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
