@@ -831,7 +831,8 @@ void ULDHumanoidVisualComponent::SetReaction(uint8 Reaction, uint8 Element, floa
 {
     if (Reaction == 0 || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= .4f || FallAt >= 0) { return; }
     const double Onset = Clock - AgeSeconds;
-    if (ShownReaction == Reaction && ReactionOnset >= 0 && Onset <= ReactionOnset + LDBodyMotion::SameInstanceSeconds) { return; }
+    // ShownReaction alone says whether one was recorded: a fresh proxy that first sees an aged reaction has a negative onset.
+    if (ShownReaction == Reaction && Onset <= ReactionOnset + LDBodyMotion::SameInstanceSeconds) { return; }
     ShownReaction = Reaction;
     ReactionOnset = Onset;
     PendingReactionElement = Element;

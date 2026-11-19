@@ -211,6 +211,7 @@ public:
     FString ReviewPending;
     double ReviewDueAt = 0, LastReviewAt = 0;
     int32 RestReviewIndex = INDEX_NONE, RestServiceReviewStage = 0, RestServiceReviewShot = 0;
+    int32 RestReviewWidth = 1280, RestReviewHeight = 720;
     double RestReviewStartAt = 0, RestReviewDueAt = 0;
     float RestReviewOriginalScale = 1, RestReviewOriginalArm = 0;
     bool bRestReviewStarted = false, bRestReviewCapturePending = false, bRestReviewLayoutDone = false, bRestReviewDone = false;
@@ -224,6 +225,11 @@ public:
     TArray<TSharedPtr<FJsonValue>> Checks;
     TArray<TSharedPtr<FJsonValue>> NotExercised;
     TSharedPtr<FJsonObject> Summary = MakeShared<FJsonObject>();
+    // -LDDemoOpponentUIOnly: the Host reports once the opening rest's interface review is done; nobody plays the match out.
+    bool bUIOnly = false;
+    // Interface checks by name, in first-seen order, each with the detail of every occasion that failed it.
+    TArray<FString> UIOrder;
+    TMap<FString, FString> UIChecks;
 
     bool Check(bool Value, const TCHAR* Name)
     {
@@ -231,10 +237,28 @@ public:
         return Value;
     }
 
-    void Record(ELDOpponentProbeCheck Result, const TCHAR* Name)
+    // An interface check never stops the run: the review goes on, and Finish fails the role with every failed check and
+    // its details, so one run reports all the interface problems it met.
+    bool CheckUI(bool Value, const TCHAR* Name, const FString& Detail = FString())
+    {
+        if (!UIChecks.Contains(Name)) { UIOrder.Add(Name); }
+        FString& Failures = UIChecks.FindOrAdd(Name);
+        if (!Value)
+        {
+            UE_LOG(LogLDTest, Warning, TEXT("LD_DEMO_OPPONENT_UI_FAILED check=\"%s\" %s"), Name, *Detail);
+            if (Failures.Len() < 2000)
+            {
+                Failures += (Failures.IsEmpty() ? TEXT("") : TEXT(" | ")) + (Detail.IsEmpty() ? FString(TEXT("failed")) : Detail);
+            }
+        }
+        return Value;
+    }
+
+    void Record(ELDOpponentProbeCheck Result, const TCHAR* Name, const FString& Detail = FString())
     {
         auto Row = MakeShared<FJsonObject>();
         Row->SetStringField(TEXT("name"), Name);
+        if (!Detail.IsEmpty()) { Row->SetStringField(TEXT("detail"), Detail); }
         Row->SetBoolField(TEXT("passed"), Result == ELDOpponentProbeCheck::Passed);
         Row->SetStringField(TEXT("status"), Result == ELDOpponentProbeCheck::Passed ? TEXT("passed")
             : Result == ELDOpponentProbeCheck::Failed ? TEXT("failed") : TEXT("not_exercised"));
@@ -290,6 +314,24 @@ public:
 
     bool Finish()
     {
+        const FString Before = Error;
+        FString UIFailed;
+        int32 UIFailures = 0;
+        for (const FString& Name : UIOrder)
+        {
+            const FString& Failures = UIChecks[Name];
+            Record(Failures.IsEmpty() ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed, *Name, Failures);
+            if (Failures.IsEmpty()) { continue; }
+            ++UIFailures;
+            UIFailed += FString::Printf(TEXT("%s%s [%s]"), UIFailed.IsEmpty() ? TEXT("") : TEXT("; "), *Name, *Failures);
+        }
+        UIOrder.Reset();
+        if (UIFailures)
+        {
+            UIFailed = FString::Printf(TEXT("%d interface check(s) failed: %s"), UIFailures, *UIFailed);
+            Error = Before.IsEmpty() ? UIFailed : Before + TEXT("; ") + UIFailed;
+        }
+        Summary->SetBoolField(TEXT("ui_only"), bUIOnly);
         auto Report = MakeShared<FJsonObject>();
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
@@ -722,8 +764,10 @@ void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
 bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const ALDGameState& Public, double Now)
 {
     const FLDTimelineView& Timeline = Public.PublicMatch.Timeline;
+    // The panel, workshop and service shots need the build step; the closing panorama only needs the rest.
+    const bool bPanorama = bRestReviewLayoutDone && RestServiceReviewStage >= 3;
     if (bRestReviewDone || !bRestChoicesShot || Public.PublicMatch.Phase != ELDMatchPhase::Rest
-        || Timeline.Stage != ELDMatchStage::Rest || Timeline.Step != ELDRestStep::Build)
+        || Timeline.Stage != ELDMatchStage::Rest || (Timeline.Step != ELDRestStep::Build && !bPanorama))
     {
         return false;
     }
@@ -762,6 +806,15 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         {TEXT("HostRestService_1920x1080_100.png"), 0, 1920, 1080, 1.f},
         {TEXT("HostRestService_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
     };
+    // A new resolution needs longer to settle than a panel or text-scale change; the whole review has to fit the build step.
+    const auto Settle = [&](int32 Width, int32 Height)
+    {
+        const bool bResized = Width != RestReviewWidth || Height != RestReviewHeight;
+        RestReviewWidth = Width;
+        RestReviewHeight = Height;
+        if (bResized) { Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Width, Height), true); }
+        RestReviewDueAt = Now + (bResized ? .65 : .3);
+    };
     const auto Configure = [&](int32 Index)
     {
         const FReviewShot& Shot = ReviewShots[Index];
@@ -771,8 +824,7 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         if (Shot.Tab != 0 && Shot.Tab != 2) { Panel->ClosePanel(); }
         else { Panel->OpenPanel(); }
         if (Shot.Tab == 2) { Panel->LeaveStage(); }
-        Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
-        RestReviewDueAt = Now + .65;
+        Settle(Shot.Width, Shot.Height);
     };
     const auto Capture = [&](const TCHAR* Name)
     {
@@ -780,15 +832,17 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         {
             LDHUD::FActionDetailView Detail;
             const int32 Pick=Panel->PinnedPreview==INDEX_NONE?0:Panel->PinnedPreview;
-            if(!Check(Panel->OfferCards.IsValidIndex(Pick)
+            const bool bDocked=Panel->OfferCards.IsValidIndex(Pick)
                 &&Panel->Hovered(FVector2D(-1000,-1000),Detail)
-                &&Detail.Name==Panel->OfferCards[Pick].Detail.Name,
-                TEXT("UI: the active offer has its own default dock detail without pointer hover"))){return;}
+                &&Detail.Name==Panel->OfferCards[Pick].Detail.Name;
+            CheckUI(bDocked,TEXT("UI: the active offer has its own default dock detail without pointer hover"),
+                FString::Printf(TEXT("%s: pick=%d of %d cards, dock shows \"%s\""),Name,Pick,Panel->OfferCards.Num(),*Detail.Name));
         }
         if(Owner.HUDUI->Workshop&&Owner.HUDUI->Workshop->IsOpen()&&!Panel->IsStageShown())
         {
             bool bAttributesFit=true;
             int32 AttributeCount=0;
+            FString Misfits;
             for(int32 Index=0;;++Index)
             {
                 const auto* Label=Owner.HUDUI->Workshop->WidgetTree->FindWidget(
@@ -805,12 +859,13 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
                     const FSlateRect L=Label->GetCachedGeometry().GetLayoutBoundingRect();
                     const FSlateRect V=Value?Value->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();
                     const FSlateRect F=Label->GetParent()->GetParent()->GetCachedGeometry().GetLayoutBoundingRect();
-                    UE_LOG(LogLDTest,Warning,TEXT("LD_WORKSHOP_ATTRIBUTE_MISFIT index=%d label=(%.1f,%.1f,%.1f,%.1f) value=(%.1f,%.1f,%.1f,%.1f) fit=(%.1f,%.1f,%.1f,%.1f) visible=%d"),
+                    Misfits+=FString::Printf(TEXT(" #%d label=(%.1f,%.1f,%.1f,%.1f) value=(%.1f,%.1f,%.1f,%.1f) column=(%.1f,%.1f,%.1f,%.1f) visible=%d"),
                         Index,L.Left,L.Top,L.Right,L.Bottom,V.Left,V.Top,V.Right,V.Bottom,F.Left,F.Top,F.Right,F.Bottom,Label->IsVisible()?1:0);
                 }
                 bAttributesFit&=bFits;
             }
-            if(!Check(AttributeCount>0&&bAttributesFit,TEXT("UI: workshop attribute labels and values fit without overlap or truncation"))){return;}
+            CheckUI(AttributeCount>0&&bAttributesFit,TEXT("UI: workshop attribute labels and values fit without overlap or truncation"),
+                FString::Printf(TEXT("%s: %d attribute row(s)%s"),Name,AttributeCount,*Misfits));
         }
         FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Name), true, false);
         Screenshots.Add(MakeShared<FJsonValueString>(Name));
@@ -819,8 +874,7 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         const FReviewShot& Shot = ServiceShots[RestServiceReviewShot];
         Owner.Controls->TextScale = Shot.Scale;
-        Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
-        RestReviewDueAt = Now + .65;
+        Settle(Shot.Width, Shot.Height);
     };
 
     if (!bRestReviewStarted)
@@ -850,7 +904,7 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             Storage->PinOpen(false);
             Stats->PinHover(INDEX_NONE);
             Panel->OpenPanel();
-            Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true);
+            Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true); RestReviewWidth = 1280; RestReviewHeight = 720;
             bRestReviewLayoutDone = true;
             RestServiceReviewStage = 0;
             RestReviewDueAt = Now + .65;
@@ -871,10 +925,12 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer)
         {
             // Beside the trainer the open workshop shows its services on the board; the 构筑 button opens the workshop.
-            if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                TEXT("UI: the workshop opens beside the trainer"))){return false;}
-            RestServiceReviewStage = 2;
-            ConfigureService();
+            UWidget* Prompt=Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
+            const bool bOpened=Owner.HUDUI->ChoicesPanel->IsTrayOpen()||CheckUI(LDSlateProbeInput::SendClick(Prompt),
+                TEXT("UI: the workshop opens beside the trainer"),LDSlateProbeInput::Describe(Prompt));
+            // Without the workshop there is nothing to shoot at the trainer: the review goes on to the panorama.
+            RestServiceReviewStage = bOpened ? 2 : 3;
+            if (bOpened) { ConfigureService(); }
             return true;
         }
         ULDMapRegistry* Registry = Owner.GetWorld() ? Owner.GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
@@ -893,10 +949,11 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer && Owner.HUDUI)
         {
-            if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                TEXT("UI: the workshop opens beside the trainer after walking"))){return false;}
-            RestServiceReviewStage = 2;
-            ConfigureService();
+            UWidget* Prompt=Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
+            const bool bOpened=Owner.HUDUI->ChoicesPanel->IsTrayOpen()||CheckUI(LDSlateProbeInput::SendClick(Prompt),
+                TEXT("UI: the workshop opens beside the trainer after walking"),LDSlateProbeInput::Describe(Prompt));
+            RestServiceReviewStage = bOpened ? 2 : 3;
+            if (bOpened) { ConfigureService(); }
             return true;
         }
         if (Now < RestReviewDueAt) { return true; }
@@ -912,7 +969,7 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             if (++RestServiceReviewShot == UE_ARRAY_COUNT(ServiceShots))
             {
                 RestServiceReviewStage = 3;
-                Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true);
+                Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true); RestReviewWidth = 1280; RestReviewHeight = 720;
                 RestReviewDueAt = Now + .65;
                 return true;
             }
@@ -1197,6 +1254,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
 bool FLDDemoOpponentProbe::Tick()
 {
     using namespace LDDemoOpponentProbeDetail;
+    // An interface-only run ends on the Host's report; the owning clients have none of their own and leave when told.
+    if (bUIOnly && !Written && Role != TEXT("Host") && FPaths::FileExists(FPaths::Combine(Output, TEXT("FinishClients"))))
+    { FPlatformMisc::RequestExitWithStatus(false, 0); return false; }
     if (Written)
     {
         if (Role != TEXT("Host") && FPaths::FileExists(FPaths::Combine(Output, TEXT("FinishClients"))))
@@ -1354,7 +1414,20 @@ bool FLDDemoOpponentProbe::Tick()
             {
                 ReviewRestScreens(*PC, *Public, FPlatformTime::Seconds());
             }
+            if (bUIOnly && bRestReviewDone)
+            {
+                Summary->SetArrayField(TEXT("screenshots"), Screenshots);
+                return Finish();
+            }
             return true;
+        }
+        if (bUIOnly && bHost && View.Generation == Lobby.Generation && View.Phase == ELDMatchPhase::Development)
+        {
+            CheckUI(false, TEXT("UI: the opening rest's interface review finishes before the rest ends"),
+                FString::Printf(TEXT("first shot taken=%d, layout shots done=%d, %d screenshot(s) requested"), bRestChoicesShot ? 1 : 0,
+                    bRestReviewLayoutDone ? 1 : 0, Screenshots.Num()));
+            Summary->SetArrayField(TEXT("screenshots"), Screenshots);
+            return Finish();
         }
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Cast<ALDCharacter>(PC->GetPawn())
             || PC->OwnerState.LifePhase != ELDLifePhase::Alive) { return true; }
@@ -1525,6 +1598,7 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         return;
     }
     Probe->Controller = &Controller;
+    Probe->bUIOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoOpponentUIOnly"));
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
 }

@@ -71,9 +71,9 @@ public:
     static constexpr int32 MaxGhosts = 24;
     // OVERDRIVE.HoldSec from the approved content (when a charge is full, LDHitVfx::ForChargeReady); 0 if unavailable.
     float OverdriveHoldSeconds();
-    // A looping zone (LDHitVfx::FZone) on Owner: created, updated, or removed when the zone shows nothing.
+    // A looping zone (LDHitVfx::FZone) on Owner, centred Offset from it: created, updated, or removed when the zone shows nothing.
     UNiagaraComponent* ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone, float RadiusCm,
-        const FVector& Velocity);
+        const FVector& Velocity, const FVector& Offset = FVector::ZeroVector);
     // Shader and asset warm-up, so the first effect of a match does not hitch: at world start every Niagara system
     // plays once far under the ground and one layer plane and shell are registered (their PSOs precache at registration);
     // WarmGhost registers an afterimage copy of a body's mesh the first time that mesh is shown.

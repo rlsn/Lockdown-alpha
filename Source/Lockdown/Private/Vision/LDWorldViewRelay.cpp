@@ -814,11 +814,20 @@ void ALDObservedGroundProxy::ShowParticles()
     ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
     if (!Impacts || !bShown) { return; }
     ParticleScale = Impacts->LocalEffectScale();
-    // A circle fills its radius; any other footprint keeps the particles inside its narrower half-extent.
-    const float Radius = Shown.Shape == ELDObservedGroundShape::Circle ? Shown.RadiusCm * .9f
-        : FMath::Max(FMath::Min(Shown.RadiusCm, Shown.ExtentCm > 0.f ? Shown.ExtentCm : Shown.RadiusCm), 40.f);
+    // A circle fills its radius and a band keeps the particles inside its narrower half-extent. A sector starts at its
+    // apex and ExtentCm is its angle: the particles fill the disc inscribed between its two edges and its arc.
+    float Radius = Shown.RadiusCm * .9f;
+    FVector Offset = FVector::ZeroVector;
+    if (Shown.Shape == ELDObservedGroundShape::Sector)
+    {
+        const float Sine = FMath::Sin(FMath::DegreesToRadians(FMath::Clamp(Shown.ExtentCm * .5f, 5.f, 90.f)));
+        Offset = FVector(Shown.RadiusCm / (1.f + Sine), 0, 0);
+        Radius = FMath::Max(Offset.X * Sine * .9f, 40.f);
+    }
+    else if (Shown.Shape != ELDObservedGroundShape::Circle)
+    { Radius = FMath::Max(FMath::Min(Shown.RadiusCm, Shown.ExtentCm > 0.f ? Shown.ExtentCm : Shown.RadiusCm), 40.f); }
     const LDHitVfx::FZone Zone = LDHitVfx::GroundZoneOf(Shown.Kind, Radius, ParticleScale);
-    Particles = Impacts->ShowZone(*RootComponent, Particles, Zone, Radius, GetActorRotation().RotateVector(Zone.Velocity));
+    Particles = Impacts->ShowZone(*RootComponent, Particles, Zone, Radius, GetActorRotation().RotateVector(Zone.Velocity), Offset);
 }
 
 void ALDObservedGroundProxy::EndPlay(const EEndPlayReason::Type Reason)

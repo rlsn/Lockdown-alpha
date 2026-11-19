@@ -8,6 +8,11 @@
 [CmdletBinding()]
 param([string]$EngineRoot, [ValidateSet('Lockdown.Rules')][string]$Suite='Lockdown.Rules', [ValidateRange(30,1800)][int]$TimeoutSeconds=900,
     [string[]]$Filter, [switch]$Full, [ValidateSet('Run','Skip','Auto')][string]$ImportTests='Auto', [string]$Base='origin/main')
+# UTF-8 for this process and every child it starts, whatever the system locale (a zh-CN console defaults to GBK).
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
 $ErrorActionPreference = 'Stop'
 $Filter = @($Filter | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 if (($Full -and $Filter.Count) -or (-not $Full -and -not $Filter.Count) -or $Filter -contains 'Lockdown.Rules') {

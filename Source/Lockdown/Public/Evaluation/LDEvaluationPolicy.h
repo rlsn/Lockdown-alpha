@@ -90,6 +90,12 @@ namespace LDEvaluationPolicy
     inline constexpr double MinAimLeverCm = 200.;
     // One kite step: the length of the ground click away from the rival.
     inline constexpr double KiteStepCm = 350.;
+    // The approach to the meeting place: a body that gained less than ApproachProgressCm in ApproachStuckMs stands behind
+    // another body (a camp member on the planned route does not step aside, and a walk does not go round bodies), so it
+    // takes one ApproachSidestepCm step to the side and walks on from there.
+    inline constexpr double ApproachProgressCm = 100.;
+    inline constexpr int64 ApproachStuckMs = 2500;
+    inline constexpr double ApproachSidestepCm = 400.;
     // The source slots an operation gate tracks (Q, W, E, Dash).
     inline constexpr int32 OperationSlots = 4;
 }
@@ -171,6 +177,10 @@ struct FLDEvaluationProfileState
     uint32 OperationLife = 0;
     // Rolls drawn so far (the roll counter).
     uint64 Rolls = 0;
+    // The approach: the foot of the last progress and when it was made (-1: not approaching yet), and the side steps taken.
+    FVector ApproachFoot = FVector::ZeroVector;
+    int64 ApproachSinceMs = -1;
+    int32 Sidesteps = 0;
 };
 
 // One profile and its evaluation state, shared by the Host probe (reads the state) and the adapter (runs the strategy).

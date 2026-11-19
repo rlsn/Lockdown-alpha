@@ -49,6 +49,14 @@ inline bool SendKey(UWidget* Focus,const FKey& Key)
     const FKeyEvent Event(Key,FModifierKeysState(),App.GetUserIndexForKeyboard(),false,0,0);
     App.ProcessKeyDownEvent(Event);App.ProcessKeyUpEvent(Event);return true;
 }
+// A widget's name, layout rectangle and visibility, for the detail of a failed layout or input check.
+inline FString Describe(const UWidget* Target)
+{
+    if(!Target){return TEXT("widget missing");}
+    const FSlateRect R=Target->GetCachedGeometry().GetLayoutBoundingRect();
+    return FString::Printf(TEXT("%s rect=(%.1f,%.1f,%.1f,%.1f) visible=%d"),*Target->GetName(),R.Left,R.Top,R.Right,R.Bottom,
+        Target->IsVisible()?1:0);
+}
 inline bool FullyVisible(const UWidget* Target,const UWidget* Viewport)
 {
     if(!Target||!Viewport||!Target->IsVisible()){return false;}

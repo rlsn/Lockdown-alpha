@@ -636,9 +636,15 @@ LDHitVfx::FLayerTuning ULDImpactFxSubsystem::LayerTuning() const
 
 float ULDImpactFxSubsystem::LocalEffectScale() const
 {
+    // The world's own controller list: a world without a game instance (a test fixture) has no engine world context.
     const UWorld* World = GetWorld();
-    const ALDPlayerController* Local = Cast<ALDPlayerController>(GEngine && World ? GEngine->GetFirstLocalPlayerController(World) : nullptr);
-    return Local && Local->Controls && Local->Controls->bReduceCombatEffects ? .45f : 1.f;
+    if (!World) { return 1.f; }
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        const ALDPlayerController* Local = Cast<ALDPlayerController>(It->Get());
+        if (Local && Local->IsLocalController()) { return Local->Controls && Local->Controls->bReduceCombatEffects ? .45f : 1.f; }
+    }
+    return 1.f;
 }
 
 UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing,
@@ -684,7 +690,7 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNia
 }
 
 UNiagaraComponent* ULDImpactFxSubsystem::ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone,
-    float RadiusCm, const FVector& Velocity)
+    float RadiusCm, const FVector& Velocity, const FVector& Offset)
 {
     if (!FApp::CanEverRender() || !ZoneSystem || !Zone.bShow)
     {
@@ -700,9 +706,9 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowZone(USceneComponent& Owner, UNiaga
         Effect->SetAutoActivate(false);
         Effect->SetAsset(ZoneSystem);
         Effect->SetupAttachment(&Owner);
-        Effect->SetRelativeLocation(FVector(0, 0, 6.f));
         Effect->RegisterComponent();
     }
+    Effect->SetRelativeLocation(Offset + FVector(0, 0, 6.f));
     ApplyZone(*Effect, Zone, RadiusCm, Velocity);
     if (!Effect->IsActive()) { Effect->Activate(true); }
     return Effect;

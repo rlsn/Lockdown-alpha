@@ -655,6 +655,45 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
         if (Frame.Order.IsLive()) { Hold(); }
         return Finish(ELDOpponentMode::DefendOrHold, ELDOpponentReason::Explore);
     }
+    const int64 Now = Frame.Public.NowMs;
+    if (State.ApproachSinceMs < 0 || FVector::Dist2D(Self.FootCm, State.ApproachFoot) >= ApproachProgressCm
+        || Self.MoveBlockedUntilMs > Now)
+    {
+        State.ApproachFoot = Self.FootCm;
+        State.ApproachSinceMs = Now;
+    }
+    if (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI.IsNone())
+    {
+        // A side step is on its way; the walk to the meeting place resumes when it ends.
+        Hold();
+        return Finish(ELDOpponentMode::Explore, ELDOpponentReason::Explore);
+    }
+    if (Now - State.ApproachSinceMs >= ApproachStuckMs && !Site->SurfaceId.IsNone())
+    {
+        // Three steps to one side, then three to the other: enough to clear a camp from either flank.
+        FVector To = (Site->FootCm - Self.FootCm).GetSafeNormal2D();
+        if (To.IsNearlyZero()) { To = FVector::ForwardVector; }
+        const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Path, Frame.Self);
+        for (int32 Try = 0; Try < 2; ++Try)
+        {
+            const bool bLeft = ((State.Sidesteps / 3 + Try) % 2) == 0;
+            FLDOpponentRetryKey Key;
+            Key.Category = ELDOpponentFailure::Path;
+            Key.POI = bLeft ? FName(TEXT("approach_l")) : FName(TEXT("approach_r"));
+            if (!Policy.Failures.CanAttempt(Key, Print, Now)) { continue; }
+            const FVector Point = Self.FootCm + To.RotateAngleAxis(bLeft ? 75. : -75., FVector::UpVector) * ApproachSidestepCm;
+            Out.Body = FLDOpponentBodyIntent();
+            Out.Body.Kind = EBody::MoveGround;
+            Out.Body.Point = FVector(Point.X, Point.Y, Self.FootCm.Z);
+            Out.Body.Surface = Site->SurfaceId;
+            Out.Body.Key = Key;
+            ++State.Sidesteps;
+            State.ApproachFoot = Self.FootCm;
+            State.ApproachSinceMs = Now;
+            if (bActionLive) { Hold(); }
+            return Finish(ELDOpponentMode::Explore, ELDOpponentReason::Explore);
+        }
+    }
     Out.Body = LDOpponentPolicy::WalkTo(Frame, Catalog, Policy, Profile.Site);
     if (bActionLive) { Hold(); }
     return Finish(ELDOpponentMode::Explore, ELDOpponentReason::Explore);

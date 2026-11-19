@@ -484,7 +484,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             LedgerCardTriggered(*Source,Taken.Card);
         }
     }
-    const int64 HPAfterP2=Body->Resources.HpP2;
+    // What this hit left, not what the body holds by now: an effect the hit set off (HP that grows on being hit) may have
+    // raised it since, and the record below states the hit's own change (hp_lost is exactly before minus after).
+    const int64 HPAfterP2=Damage.RemainingHPP2;
     // A one-time heal; the record below logs what the source actually regained.
     int64 VampHealedP2=0;
     if (Source && HealP2>0)
