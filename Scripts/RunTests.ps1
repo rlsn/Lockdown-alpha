@@ -60,7 +60,9 @@ $fixtureLine = @($export | Where-Object { $_ -match '^FIXTURES=' })
 if ($fixtureLine.Count -ne 1) { throw "The fixture export named no single fixture directory: $($export -join ' ')" }
 $fixturePath = $fixtureLine[0].Substring('FIXTURES='.Length)
 $project = Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
-$editorArgs = '"{0}" -unattended -nop4 -nosound -nullrhi -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -stdout -FullStdOutLogOutput -ExecCmds="Automation RunTests {1}" -TestExit="Automation Test Queue Empty" -ReportExportPath="{2}" -abslog="{3}" -LDDemoContentFixtures="{4}"' -f $project,$plan.filter,$reportPath,(Join-Path $output 'Automation.log'),$fixturePath
+# The project enables ModelContextProtocol, so -DisablePlugins still mounts it and the project config auto-starts its server on
+# 127.0.0.1:8000. A local MCP client reaching that port during automation logs an error that fails whichever test is running.
+$editorArgs = '"{0}" -unattended -nop4 -nosound -nullrhi -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=False -stdout -FullStdOutLogOutput -ExecCmds="Automation RunTests {1}" -TestExit="Automation Test Queue Empty" -ReportExportPath="{2}" -abslog="{3}" -LDDemoContentFixtures="{4}"' -f $project,$plan.filter,$reportPath,(Join-Path $output 'Automation.log'),$fixturePath
 $process = Start-Process -FilePath (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ArgumentList $editorArgs -WindowStyle Hidden -PassThru
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     $process.Kill()
