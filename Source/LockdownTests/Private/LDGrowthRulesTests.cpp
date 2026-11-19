@@ -2213,6 +2213,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         FLDTimelineParameters Fast;
         Fast.FieldSegmentMs = 1000000;
         Fast.OpeningBuildMs = Fast.BuildMs = Fast.ReturnMs = 1;
+        Fast.SignupMs = Fast.DrawMs = Fast.BettingMs = Fast.PKReadyMs = Fast.PKMaxMs = Fast.SettlementMs = Fast.PayoutMs = 1;
         TArray<FLDTimelineEvent> Events;
         FString TimelineError;
         if (!TestTrue(TEXT("The fixture timeline reaches field 1"), Mode->Timeline.Begin(Fast, 0, TimelineError)
