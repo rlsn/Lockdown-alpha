@@ -15,14 +15,14 @@
       "site": "capture",
       "duel_timeout_ms": 90000,
       "supply_xp": {
-        "subject": 360,
-        "opponent": 360
+        "subject": 500,
+        "opponent": 500
       }
     }
   },
   "sample_class": "diagnostic",
   "assumptions": [
-    "双方由 DEV 奖励事务在第一野外入口获得 360 XP，达到 L6；不是自然成长速率。",
+    "双方由 DEV 奖励事务在第一野外入口获得 500 XP，达到 L6；不是自然成长速率。",
     "主动按生产 AI 的偏好（ai_select）从种子决定的候选中选择，样本覆盖多种技能组合，不固定技能。",
     "bare：开局休息加 1 点再洗点，全部属性点保持未分配；不选开局基础构件，不安装任何构件，不升技能等级。",
     "production：没有构筑计划，由生产 AI 规则选开局基础构件、加点、安装构件并升技能等级。",

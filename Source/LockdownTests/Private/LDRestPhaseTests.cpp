@@ -39,8 +39,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
 {
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
-    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 25, rest build 25, return 5"),
-        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 25000 && P.BuildMs == 25000 && P.ReturnMs == 5000);
+    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 45, rest build 40, return 5"),
+        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 45000 && P.BuildMs == 40000 && P.ReturnMs == 5000);
     FString Error;
     {
         FLDMatchTimeline Skip;

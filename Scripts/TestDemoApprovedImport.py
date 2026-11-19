@@ -342,7 +342,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
             # Issue #287 spec §10 (P6): three 160 s field segments and 25 s rests.
             ("MATCH.FieldSegmentSec", "ms", "160"),
-            ("REST.OpeningBuildSec", "ms", "25"), ("REST.BuildSec", "ms", "25"),
+            ("REST.OpeningBuildSec", "ms", "45"), ("REST.BuildSec", "ms", "40"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # Issue #287 spec §10-§11 (P6): the showdown ring, respawn, objectives, hotspots, affixes and hidden things.
@@ -463,7 +463,7 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("XP.BaseToNext", 48), ("XP.IncreasePerLevel", 12),
+            ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20),
             ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
@@ -480,7 +480,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("EXPLORE.VendingDrinkHits", 5),
             ("GROWTH.KeystoneThresholdPoints", 18),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
-            ("CARDS.CapacityBase", 4), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
+            ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
             ("CARDS.RerollsPerRest", 1), ("CARDS.LockSlots", 1), ("CARDS.VocabWeight", 2),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): vouchers, the rest shop, chain ends and the AI's skip.
@@ -879,7 +879,7 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"],
-                         (0, 48, 108, 180, 264, 360, 468, 588, 720, 864, 1020, 1188, 1368, 1560, 1764, 1980))
+                         (0, 60, 140, 240, 360, 500, 660, 840, 1040, 1260, 1500, 1760, 2040, 2340, 2660, 3000))
         self.assertEqual(self.data["progression"]["xp_to_next"],
                          (48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))

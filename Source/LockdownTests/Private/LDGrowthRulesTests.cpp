@@ -447,8 +447,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
     }
     const FLDDemoContentParameters& Tuning = OutCatalog->Get().Parameters;
     const FLDDemoProgressionDefinition& Curve = OutCatalog->Get().Progression;
-    const TArray<int64> ApprovedThresholds = {0, 48, 108, 180, 264, 360, 468, 588, 720, 864,
-        1020, 1188, 1368, 1560, 1764, 1980};
+    const TArray<int64> ApprovedThresholds = {0, 60, 140, 240, 360, 500, 660, 840, 1040, 1260,
+        1500, 1760, 2040, 2340, 2660, 3000};
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
     bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2 and 4"),
@@ -512,8 +512,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     const FLDDemoProgressionDefinition& Curve = Approved.Progression;
     bool bGood = true;
 
-    const TPair<int64, int32> LevelCases[] = {{0, 1}, {47, 1}, {48, 2}, {179, 3}, {180, 4}, {863, 9},
-        {864, 10}, {1979, 15}, {1980, 16}, {MAX_int64, 16}};
+    const TPair<int64, int32> LevelCases[] = {{0, 1}, {59, 1}, {60, 2}, {239, 3}, {240, 4}, {1259, 9},
+        {1260, 10}, {2999, 15}, {3000, 16}, {MAX_int64, 16}};
     for (const TPair<int64, int32>& LevelCase : LevelCases)
     {
         uint8 Level = 0;
@@ -543,12 +543,12 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         bGood &= Test.TestEqual(FString::Printf(TEXT("Active opportunities held at level %d"), Row.Key),
             int32(LDProgression::ActiveOpportunitiesAt(Curve, uint8(Row.Key))), Row.Value);
     }
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 47, 1, 1, TEXT("47 XP at level 1 keeps only the opening opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 48, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 48, 2, 60, 3, 2, TEXT("Level 3 adds no active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 360, 6, 3, TEXT("Crossing levels 2 and 4 at once adds both"));
-    bGood &= GrowthTestPlan(Test, Curve, 864, 10, 504, 13, 3, TEXT("504 XP at level 10 reaches level 13 without another"));
-    bGood &= GrowthTestPlan(Test, Curve, 1980, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 59, 1, 1, TEXT("59 XP at level 1 keeps only the opening opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 60, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 60, 2, 80, 3, 2, TEXT("Level 3 adds no active opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 4 at once adds both"));
+    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 3, TEXT("780 XP at level 10 reaches level 13 without another"));
+    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
     bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 3, 1, Change),
         ELDGrowthReason::ArithmeticOverflow);
@@ -606,12 +606,12 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
 
     // ---- #198 points: derived from the level and XP, never stored ----
     bGood &= GrowthTestPoints(Test, Approved, 1, 0, 3, TEXT("The opening grants 3 points"));
-    bGood &= GrowthTestPoints(Test, Approved, 2, 48, 6, TEXT("Level 2 adds 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 10, 864, 30, TEXT("Level 10 holds 3 + 9 x 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 15, 1979, 45, TEXT("Level 15 one XP short of the top earns no XP grant"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 1980, 48, TEXT("Level 16 at its threshold holds 3 + 15 x 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 2219, 48, TEXT("239 XP past level 16 grants nothing yet"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 2220, 51, TEXT("Every full 240 XP past level 16 grants 3"));
+    bGood &= GrowthTestPoints(Test, Approved, 2, 60, 6, TEXT("Level 2 adds 3"));
+    bGood &= GrowthTestPoints(Test, Approved, 10, 1260, 30, TEXT("Level 10 holds 3 + 9 x 3"));
+    bGood &= GrowthTestPoints(Test, Approved, 15, 2999, 45, TEXT("Level 15 one XP short of the top earns no XP grant"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 3000, 48, TEXT("Level 16 at its threshold holds 3 + 15 x 3"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 3239, 48, TEXT("239 XP past level 16 grants nothing yet"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 3240, 51, TEXT("Every full 240 XP past level 16 grants 3"));
     bGood &= GrowthTestPoints(Test, Approved, 16, 2459, 51, TEXT("A partial second 240 XP grants nothing more"));
     bGood &= GrowthTestPoints(Test, Approved, 16, 2460, 54, TEXT("The second full 240 XP grants 3 more"));
     bGood &= GrowthTestPoints(Test, Approved, 16, 4380, 78, TEXT("Ten full 240 XP past level 16"));
