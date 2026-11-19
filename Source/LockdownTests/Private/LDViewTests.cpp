@@ -23,7 +23,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
-        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK"),
         TEXT("Showdown"),TEXT("OwnerBankedGuardMs"),TEXT("DailyModifiers"),TEXT("Objective")},TEXT("The public flagpole carries only public objective and timeline state"));
     ExpectStruct(FLDShowdownView::StaticStruct(),{TEXT("bStarted"),TEXT("StartedAtMs"),TEXT("EndsAtMs"),
         TEXT("RespawnsCloseAtMs"),TEXT("ClosureAtMs"),TEXT("SprayMs"),TEXT("GuardMs"),TEXT("CentreCm"),

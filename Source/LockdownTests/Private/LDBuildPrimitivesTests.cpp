@@ -3862,6 +3862,31 @@ bool FLDCardRuleA18Test::RunTest(const FString& Parameters)
                 && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_ice_fist")));
         });
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleMixedBasicElementsTest, "Lockdown.Rules.Combat.Cards.MixedBasicElements",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleMixedBasicElementsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    // Two fire fists beside an ice fist: fire is first in the fixed order, so the third step burns and never chills.
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    const TArray<FCard> Rows = {{TEXT("card_fire_fist"), ELDCardTargetKind::Basic}, {TEXT("card_fire_fist"), ELDCardTargetKind::Basic},
+        {TEXT("card_ice_fist"), ELDCardTargetKind::Basic}};
+    if (!InstallCards(*this, F, Holder, 6, Rows)) { return false; }
+    const FLDCombatBodyRef Target = F.AddBody();
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 150, 0);
+    FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
+    Basic.HitClass = ELDCombatHitClass::BasicPrimary;
+    Basic.DamageType = ELDDemoDamageType::Physical;
+    Basic.ComboStep = 3;
+    FString Error;
+    const bool bApplied = F.Apply(Basic, Error);
+    return TestTrue(TEXT("The mixed third-step basic lands: ") + Error, bApplied)
+        && TestTrue(TEXT("Fire goes before chill: the target carries the fire fist's fire"), F.Body(Target).ElementMark.Kind == ELDCombatElement::Fire
+            && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_fire_fist")));
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA19Test, "Lockdown.Rules.Combat.Cards.A19",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA19Test::RunTest(const FString& Parameters)

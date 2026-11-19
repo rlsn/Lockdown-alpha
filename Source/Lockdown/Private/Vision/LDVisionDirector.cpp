@@ -810,8 +810,15 @@ bool LDObservation::SelectVisibleProjectiles(const FLDSightGeometry& Sight, cons
             return false;
         }
         const ELDObservedFlightAccess Rule = Access(Fact);
-        bool bVisible = false;
-        if (Rule == ELDObservedFlightAccess::Sight && !Seen(SourceFootCm, Fact, bVisible)) { return false; }
+        bool bVisible = Rule == ELDObservedFlightAccess::Granted;
+        if (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight)
+        {
+            if (!Seen(SourceFootCm, Fact, bVisible)) { return false; }
+            for (int32 Index = 0; !bVisible && Rule == ELDObservedFlightAccess::SharedSight && Index < SharedFeetCm.Num(); ++Index)
+            {
+                if (!Seen(SharedFeetCm[Index], Fact, bVisible)) { return false; }
+            }
+        }
         if (bVisible)
         { InSight.Emplace(FVector2D::DistSquared(FVector2D(SourceFootCm.X, SourceFootCm.Y), FVector2D(Fact.PositionCm.X, Fact.PositionCm.Y)), &Fact); }
     }

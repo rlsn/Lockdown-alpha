@@ -1413,6 +1413,16 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         Sight.Trace(West,West+FVector(800,0,0))==ELDSightResult::Blocked
         && LDObservation::SelectVisibleProjectiles(Sight,West, TArray<FVector>(),TArray<FLDObservedProjectileFact>{Incoming},BySight,Visible,Error)
         && Visible.Num()==1);
+    // A spectator's granted flights need no sight line; a PK life adds what a living teammate's foot sees.
+    const auto ByGrant = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::Granted; };
+    TestTrue(TEXT("Granted flights are all selected, walls and range aside"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, TArray<FVector>(), Facts, ByGrant, Visible, Error) && Visible.Num() == Facts.Num());
+    const auto ByTeam = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::SharedSight; };
+    TestTrue(TEXT("Shared sight without a teammate is the own sight"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, TArray<FVector>(), Facts, ByTeam, Visible, Error) && Visible.Num() == 2);
+    TestTrue(TEXT("A teammate beyond the wall adds the flight it sees"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, TArray<FVector>{FVector(350, 0, 2)}, Facts, ByTeam, Visible, Error)
+        && Visible.Contains(&Facts[1]) && Visible.Contains(&Facts[0]) && Visible.Contains(&Facts[3]));
     TArray<FLDObservedProjectileFact> Many;
     for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 2, 100, 2))); }
     TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, TArray<FVector>(), Many, BySight, Visible, Error)

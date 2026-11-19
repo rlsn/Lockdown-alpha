@@ -142,14 +142,22 @@ bool FLDRestReadyEarlyTest::RunTest(const FString& Parameters)
     const int64 Ready = Line.GetStepEndsAtMs() - P.BuildMs + 4000;
     bGood &= TestTrue(TEXT("R1 opens on its build window with T frozen at segment 1's end"),
         Line.GetStep() == ELDRestStep::Build && Line.FieldMsAt(Ready) == P.FieldSegmentMs);
-    bGood &= TestTrue(TEXT("All ready ends the build step at once"),
-        Line.FinishBuildEarly(Ready, bChanged, Error) && bChanged && Line.GetStepEndsAtMs() == Ready && Line.IsBuildLockDue(Ready));
-    bGood &= TestFalse(TEXT("A repeated ready at the ended step changes nothing"), Line.FinishBuildEarly(Ready, bChanged, Error));
+    // R1 holds a PK: all ready keeps the sign-up window and ends the build step after it.
+    const int64 End = Ready + P.SignupMs;
+    bGood &= TestTrue(TEXT("All ready shortens a PK rest's build step to the sign-up window"),
+        Line.FinishBuildEarly(Ready, bChanged, Error) && bChanged && Line.GetStepEndsAtMs() == End && !Line.IsBuildLockDue(Ready)
+        && Line.IsBuildLockDue(End));
+    bGood &= TestTrue(TEXT("A repeated ready inside the sign-up window changes nothing"),
+        Line.FinishBuildEarly(Ready + 1, bChanged, Error) && !bChanged && Line.GetStepEndsAtMs() == End);
     Events.Reset();
-    bGood &= TestTrue(TEXT("The lock then runs the whole return countdown"),
-        Line.Advance(Ready, 0, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
-        && Line.GetStepEndsAtMs() == Ready + P.ReturnMs);
-    bGood &= TestFalse(TEXT("Ready cannot skip the return countdown"), Line.FinishBuildEarly(Ready + 1, bChanged, Error));
+    bGood &= TestTrue(TEXT("With nobody signed up the lock then runs the whole return countdown"),
+        Line.Advance(End, 0, true, true, Events, Error) && Line.GetStep() == ELDRestStep::Return
+        && Line.GetStepEndsAtMs() == End + P.ReturnMs);
+    bGood &= TestFalse(TEXT("Ready cannot skip the return countdown"), Line.FinishBuildEarly(End + 1, bChanged, Error));
+    // R0 holds no PK: all ready ends its build step at once.
+    FLDMatchTimeline Opening;
+    bGood &= TestTrue(TEXT("All ready ends a rest without a PK at once"), Opening.Begin(P, 1000, Error)
+        && Opening.FinishBuildEarly(3000, bChanged, Error) && bChanged && Opening.GetStepEndsAtMs() == 3000 && Opening.IsBuildLockDue(3000));
     bGood &= TestTrue(TEXT("A new match restores the full opening window"), Line.Begin(P, 20000, Error)
         && Line.GetStepEndsAtMs() == 20000 + P.OpeningBuildMs);
     return bGood;

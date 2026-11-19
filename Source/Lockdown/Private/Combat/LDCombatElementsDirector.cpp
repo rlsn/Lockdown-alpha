@@ -148,31 +148,14 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->bFire=true; }
         return true;
     }
-    // Another card's element on this hit (A16-A19, K20-K24, D12): the first in the fixed order.
-    if (bCardElement)
-    {
-        for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
-            ELDCombatElement::Rot,ELDCombatElement::Gust})
-        {
-            for (const auto& Card : Hit.CardElements)
-            {
-                if (Card.Key!=Kind) { continue; }
-                FLDElementExtras CardExtras;
-                CardExtras.GustDirection=Extras.GustDirection;
-                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error,CardExtras)) { return false; }
-                if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->Source=Card.Value; }
-                return true;
-            }
-        }
-        return true;
-    }
-    // The hit's own fire layers.
-    if (Hit.BurnStacks>0) { return ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error); }
+    // Fire is first in the fixed order, so A15 goes before the other card elements of the hit; without one, the hit's
+    // own fire layers below keep their place.
     // A15 (basic_stacks) rides the last step of the basic combo only, like the other basic element cards. Every copy's
     // layers join one application, so a reaction that application triggers never drops the other copies' layers.
     const int32 LastComboStep=Catalog() ? Catalog()->Get().Parameters.Combo.StepRatiosBp.Num() : 0;
     if (bLivingSource && Hit.HitClass==ELDCombatHitClass::BasicPrimary && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
-        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger && int32(Hit.ComboStep)==LastComboStep)
+        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger && int32(Hit.ComboStep)==LastComboStep
+        && (Hit.BurnStacks<=0 || !Hit.CardElements.IsEmpty()))
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Burn,Passives,Error)) { return false; }
@@ -195,6 +178,26 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
             return true;
         }
     }
+    // Another card's element on this hit (A16-A19, K20-K24, D12): the first in the fixed order.
+    if (bCardElement)
+    {
+        for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
+            ELDCombatElement::Rot,ELDCombatElement::Gust})
+        {
+            for (const auto& Card : Hit.CardElements)
+            {
+                if (Card.Key!=Kind) { continue; }
+                FLDElementExtras CardExtras;
+                CardExtras.GustDirection=Extras.GustDirection;
+                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error,CardExtras)) { return false; }
+                if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->Source=Card.Value; }
+                return true;
+            }
+        }
+        return true;
+    }
+    // The hit's own fire layers.
+    if (Hit.BurnStacks>0) { return ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error); }
     // The hit's native element (its release snapshot), the first in the fixed order.
     for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
         ELDCombatElement::Rot,ELDCombatElement::Gust})
