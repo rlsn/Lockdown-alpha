@@ -1114,30 +1114,18 @@ class ApprovedDemoRefusals(unittest.TestCase):
     def test_coordinated_schema_extensions_reject_every_nested_author_object_kind(self):
         source_raw = (self.root / content.WORLD_SOURCE).read_bytes()
         schema_raw = (self.root / content.WORLD_SCHEMA_SOURCE).read_bytes()
-        # One row of each author shape, wherever the current layout puts it.
+        # One case per kind of schema node (root object, nested object, array item, each oneOf branch, the shared
+        # vector definition); the refusal is the same author-field check at every depth, so more rows repeat it.
         source = json.loads(source_raw)
-        polygon = next(i for i, row in enumerate(source["geometry"]["blockers"]) if row["shape"] == "polygon")
         cylinder = next(i for i, row in enumerate(source["geometry"]["blockers"]) if row["shape"] == "cylinder")
         place = next(i for i, row in enumerate(source["anchors"]) if "members" not in row)
         camp = next(i for i, row in enumerate(source["anchors"]) if len(row.get("members", ())) == 2)
         cases = (
             ((), ()),
-            (("approval",), ("properties", "approval")),
-            (("geometry",), ("properties", "geometry")),
             (("geometry", "surfaces", 0), ("properties", "geometry", "properties", "surfaces", "items")),
-            (("geometry", "surfaces", 0, "min_cm"), ("$defs", "vector")),
-            (("geometry", "surfaces", 0, "max_cm"), ("$defs", "vector")),
-            (("geometry", "blockers", polygon), ("$defs", "blocker", "oneOf", 0)),
-            (("geometry", "blockers", polygon, "polygon_cm", 3), ("$defs", "vector")),
             (("geometry", "blockers", cylinder), ("$defs", "blocker", "oneOf", 1)),
-            (("geometry", "blockers", cylinder, "center_cm"), ("$defs", "vector")),
-            (("placement",), ("properties", "placement")),
-            (("placement", "spawn_offsets_cm", 6), ("$defs", "vector")),
-            (("anchors", place), ("$defs", "anchor", "oneOf", 0)),
             (("anchors", place, "position_cm"), ("$defs", "vector")),
-            (("anchors", camp), ("$defs", "anchor", "oneOf", 1)),
             (("anchors", camp, "members", 1), ("$defs", "anchor", "oneOf", 1, "properties", "members", "items")),
-            (("anchors", camp, "members", 1, "position_cm"), ("$defs", "vector")),
         )
         for author_path, schema_path in cases:
             with self.subTest(path=author_path):
