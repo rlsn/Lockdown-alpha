@@ -2145,8 +2145,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const FString Tip=Chip.Key+TEXT(" · ")+Chip.Name;
             UWidget* Tile=TargetActiveTiles[Index]->GetParent()?TargetActiveTiles[Index]->GetParent()->GetParent():nullptr;
             if(Tile&&!Tile->GetToolTipText().ToString().Equals(Tip,ESearchCase::CaseSensitive)){Tile->SetToolTipText(FText::FromString(Tip));}
-            HudSetText(TargetActiveNames[Index],Chip.bEmpty?FString():Chip.Name.Left(1));
-            LDUIIcons::Apply(TargetActiveIcons[Index],Chip.IconId,6.f);
+            // The first character is only the fallback of a chip without a picture; never drawn under its icon.
+            const bool bPicture=LDUIIcons::Apply(TargetActiveIcons[Index],Chip.IconId,6.f);
+            HudSetText(TargetActiveNames[Index],Chip.bEmpty||bPicture?FString():Chip.Name.Left(1));
             TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.45f:.9f));
         }
     }

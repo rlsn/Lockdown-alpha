@@ -201,10 +201,16 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     // Layers: rims, then tracks and badge tints, then fills, then text.
     auto Box=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint)
     {FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
+    // A text row centred on its unit but kept whole inside the viewport's left and right edges.
+    auto RowLeft=[&Size](float CentreX,float Width)
+    {
+        constexpr float Edge=4.f;
+        return Width+Edge*2.f>=Size.X?Edge:FMath::Clamp(CentreX-Width*.5f,Edge,Size.X-Width-Edge);
+    };
     // One centred line whose bottom edge rests on Bottom; Bottom then moves up to the line's top edge.
     auto Line=[&](const FString& Text,const FSlateFontInfo& Font,const FLinearColor& Ink,float CentreX,float& Bottom)
     {
-        const FVector2f Extent=FontMeasure->Measure(Text,Font);const FVector2f At(CentreX-Extent.X*.5f,Bottom-Extent.Y);
+        const FVector2f Extent=FontMeasure->Measure(Text,Font);const FVector2f At(RowLeft(CentreX,Extent.X),Bottom-Extent.Y);
         FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),Text,Font,ESlateDrawEffect::None,Ink);
         Bottom=At.Y;
     };
@@ -513,7 +519,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const FVector2f Extent=FontMeasure->Measure(Label.StatusParts[Index].Text,StatusFont);
                 Width+=Extent.X+(Index>0?SeparatorWidth:0.f);Height=FMath::Max(Height,Extent.Y);
             }
-            float X=CentreX-Width*.5f;const float Top=Bottom-Height;
+            float X=RowLeft(CentreX,Width);const float Top=Bottom-Height;
             auto Draw=[&](const FString& Text,const FLinearColor& Ink)
             {
                 const FVector2f Extent=FontMeasure->Measure(Text,StatusFont);

@@ -439,6 +439,14 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
         && DashTrailOf(FLinearColor::White, .45f).WidthCm < DashTrailOf(FLinearColor::White, 1.f).WidthCm);
     TestTrue(TEXT("Taking a hit tints the edge faintly; reduced effects turn it off"), HurtFlashOf(false).Seconds > 0.f
         && HurtFlashOf(false).Colour.A < ScreenFlashOf(LDObservation::Critical, false).Colour.A && HurtFlashOf(true).Seconds == 0.f);
+    {
+        const FScreenFlash CritEdge = ScreenFlashOf(LDObservation::Critical, false), KillEdge = ScreenFlashOf(LDCombatCues::DealtLethal, false);
+        TestTrue(TEXT("Screen flashes keep a gap: inside it only a stronger flash replaces the last one"),
+            ScreenFlashReplaces(FScreenFlash(), 0.f, CritEdge) && !ScreenFlashReplaces(CritEdge, .1f, CritEdge) && !ScreenFlashReplaces(CritEdge, .1f, HurtFlashOf(false))
+            && ScreenFlashReplaces(CritEdge, .1f, KillEdge) && !ScreenFlashReplaces(KillEdge, .3f, CritEdge)
+            && ScreenFlashReplaces(CritEdge, ScreenFlashGapSeconds, CritEdge) && !ScreenFlashReplaces(FScreenFlash(), 0.f, HurtFlashOf(true)));
+        TestEqual(TEXT("A critical hit's edge has no lens fringe"), CritEdge.Fringe, 0.f);
+    }
     // Overdrive (#305): a public hit flag with its own shapes, the heaviest flash short of a kill, a charge and a release.
     const FRecipe Over=ForHit(ELDObservedHitLook::None,LDObservation::Overdriven,1.f);
     const FLayer* OverStar=Over.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });

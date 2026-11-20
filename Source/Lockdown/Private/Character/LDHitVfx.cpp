@@ -260,7 +260,8 @@ LDHitVfx::FScreenFlash LDHitVfx::ScreenFlashOf(uint8 DealtFlags, bool bReduced)
     if (bReduced) { return Flash; }
     if (DealtFlags & LDCombatCues::DealtLethal) { Flash = {FLinearColor(1.f, .12f, .06f, .55f), .24f, 3.5f}; }
     else if (DealtFlags & LDCombatCues::DealtOverdrive) { Flash = {FLinearColor(1.f, .2f, .8f, .5f), .2f, 3.f}; }
-    else if (DealtFlags & LDObservation::Critical) { Flash = {FLinearColor(1.f, .62f, .12f, .45f), .12f, 2.5f}; }
+    // Critical hits come often in a crit build: a faint gold edge without a lens fringe.
+    else if (DealtFlags & LDObservation::Critical) { Flash = {FLinearColor(1.f, .62f, .12f, .25f), .12f, 0.f}; }
     else if (DealtFlags & LDObservation::ShieldBroken) { Flash = {FLinearColor(.1f, .8f, 1.f, .4f), .14f, 1.5f}; }
     return Flash;
 }
@@ -269,6 +270,13 @@ float LDHitVfx::ScreenFlashAlpha(const FScreenFlash& Flash, float AgeSeconds)
 {
     if (Flash.Seconds <= 0.f || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= Flash.Seconds) { return 0.f; }
     return Flash.Colour.A * FMath::Square(1.f - AgeSeconds / Flash.Seconds);
+}
+
+bool LDHitVfx::ScreenFlashReplaces(const FScreenFlash& Last, float LastAgeSeconds, const FScreenFlash& Next)
+{
+    if (Next.Seconds <= 0.f) { return false; }
+    if (Last.Seconds <= 0.f || !FMath::IsFinite(LastAgeSeconds) || LastAgeSeconds < 0.f || LastAgeSeconds >= ScreenFlashGapSeconds) { return true; }
+    return Next.Colour.A > Last.Colour.A;
 }
 
 LDHitVfx::FScreenFlash LDHitVfx::HurtFlashOf(bool bReduced)

@@ -541,6 +541,7 @@ void ULDImpactFxSubsystem::ReleaseLayer(int32 Index)
 void ULDImpactFxSubsystem::FlashScreen(const LDHitVfx::FScreenFlash& InFlash)
 {
     if (InFlash.Seconds <= 0.f || !GetWorld()) { return; }
+    if (FlashAt >= 0. && !LDHitVfx::ScreenFlashReplaces(Flash, float(GetWorld()->GetRealTimeSeconds() - FlashAt), InFlash)) { return; }
     // The edge mask may be needed before any visible hit has loaded the layer assets.
     LoadLayerAssets();
     Flash = InFlash;

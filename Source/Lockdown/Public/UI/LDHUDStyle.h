@@ -128,9 +128,10 @@ namespace LDHUDStyle
     inline const FLinearColor DropReplace(1.f,.72f,.25f);
 
     // Type scale. Every size the interface draws comes from here; the local text-size preference scales it.
-    constexpr int32 TypeMicro=11;
-    constexpr int32 TypeTiny=12;
-    constexpr int32 TypeCaption=13;
+    // The smallest tiers stay at 13 so dense Chinese strokes remain legible at 1080p.
+    constexpr int32 TypeMicro=13;
+    constexpr int32 TypeTiny=13;
+    constexpr int32 TypeCaption=14;
     constexpr int32 TypeSmall=14;
     constexpr int32 TypeBody=15;
     constexpr int32 TypeText=16;
