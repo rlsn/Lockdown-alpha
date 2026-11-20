@@ -98,6 +98,38 @@ bool ALDCombatDirector::DevRefillResources(const FGuid& Contender, const FLDGame
     return true;
 }
 
+bool ALDCombatDirector::DevSetMomentum(const FGuid& Contender, int64 Points, const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    if (!CombatDevPermitValid(Core(), Permit, Detail))
+    {
+        return false;
+    }
+    const FLDCombatEntityRecord* Record = FindRecord(Contender);
+    FLDBodyCombatState* Body = Record && Record->Kind == ELDVictimKind::Contender ? FindEntityBody(Contender) : nullptr;
+    if (!Body || Body->bPendingDeath || !Catalog())
+    {
+        Detail = TEXT("The contender has no living combat body to set momentum on.");
+        return false;
+    }
+    const int64 MaxP2 = Catalog()->Get().Parameters.Momentum.MaxP2;
+    if (Points < 0 || Points > MaxP2 / 100)
+    {
+        Detail = FString::Printf(TEXT("momentum %lld is outside 0..%lld"), Points, MaxP2 / 100);
+        return false;
+    }
+    const int64 Before = Body->Resources.MomentumP2;
+    if (Before != Points * 100)
+    {
+        Body->Resources.MomentumP2 = Points * 100;
+        ++Body->Resources.Revision;
+        Body->MomentumMicroP2 = 0;
+        MarkViewChanged(Contender);
+    }
+    Detail = FString::Printf(TEXT("momentum %lld->%lld P2"), Before, Body->Resources.MomentumP2);
+    return true;
+}
+
 bool ALDCombatDirector::DevResetCooldowns(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail)
 {
     Detail.Reset();

@@ -1206,6 +1206,19 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
                 if (Reason != ELDGrowthReason::None) { Detail = AttributeDetail; }
             }
             break;
+        case ELDDevTestOp::GrantVouchers:
+            Reason = !LDGrowthWire::IsBuildLifePhase(Life.Phase) ? ELDGrowthReason::LifePhaseChanged
+                : Command.Amount > MAX_int32 ? ELDGrowthReason::NumericDomain
+                : M->Development->GrantVouchers(ContenderId, int32(Command.Amount), 0, TEXT("dev_fixture"), Permit);
+            break;
+        case ELDDevTestOp::GrantSkillPoint:
+            if (!LDGrowthWire::IsBuildLifePhase(Life.Phase)) { Reason = ELDGrowthReason::LifePhaseChanged; }
+            else if (!M->Development->GrantSkillPoint(ContenderId, TEXT("dev_fixture"), Permit, Detail)) { Reason = ELDGrowthReason::DataInvalid; }
+            break;
+        case ELDDevTestOp::SetMomentum:
+            if (Life.Phase != ELDLifePhase::Alive) { Reason = ELDGrowthReason::Dead; }
+            else if (!M->Combat->DevSetMomentum(ContenderId, Command.Amount, Permit, Detail)) { Reason = ELDGrowthReason::NumericDomain; }
+            break;
         case ELDDevTestOp::SpawnGroundState:
             if (Life.Phase != ELDLifePhase::Alive) { Reason = ELDGrowthReason::LifePhaseChanged; break; }
             if (!M->Combat->DevSpawnGround(ContenderId, uint8(Command.Amount), Permit, Detail)) { Reason = ELDGrowthReason::DataInvalid; }
