@@ -1362,7 +1362,7 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     else if(bLearned&&Input.bHasSource)
     {
         // #147/#198: the same card as the growth panel, with this level's numbers and stats.
-        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,Context.Card);
+        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,Context.Card,Input.Branch);
         if(Card.bKnown)
         {
             Lines.Add(Card.SentencePlain);
@@ -1733,7 +1733,7 @@ TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
     }
     return Lines;
 }
-LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
+LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,ELDSkillBranch Branch)
 {
     FActiveCardView Card;
     Card.DefinitionId=DefinitionId;
@@ -1748,12 +1748,20 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
         Card.SentencePlain=Card.Sentence=Content?FString(TEXT("内容目录中找不到该技能")):FString(TEXT("内容数据同步中"));
         return Card;
     }
-    const FCardText Sentence=CardText(Display->DescriptionText,Ability->Values,Stats,Content->Parameters.SkillRanks,
-        Content->Parameters.SkillGrowthPerLevelBp,1);
+    // A learned path reads its own compiled values at its rank; a path the catalog lacks says so instead of showing rank 1.
+    const FLDDemoAbilityBranch* Path=Ability->FindBranch(Branch);
+    if(Branch!=ELDSkillBranch::None&&!Path)
+    {
+        Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该技能分支");
+        return Card;
+    }
+    const FLDDemoAbilityValues& Values=Path?Path->Values:Ability->Values;
+    const FCardText Sentence=CardText(Display->DescriptionText,Values,Stats,Content->Parameters.SkillRanks,
+        Content->Parameters.SkillGrowthPerLevelBp,LDSkillBranch::RankOf(Branch));
     Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
     Card.Keywords=KeywordLines(Sentence.Keywords);
-    Card.Target=TargetLine(Ability->Target);
-    Card.Cost=CostLine(Ability->Values);
+    Card.Target=TargetLine(Path?Path->Target:Ability->Target);
+    Card.Cost=CostLine(Values);
     Card.bKnown=Sentence.bComplete;
     return Card;
 }
@@ -2574,6 +2582,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     if(Input.bHasSource){Input.IconId=Slot==EActionSlot::Dash?FString(LDUIIcons::Dash):ContentIconId(Content,Entry.DefinitionId.ToString());}
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
+    Input.Branch=static_cast<ELDSkillBranch>(Entry.Branch);
     Input.MomentumCostP2=Entry.MomentumCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);

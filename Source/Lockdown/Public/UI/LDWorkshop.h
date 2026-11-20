@@ -160,6 +160,7 @@ private:
         // The confirmed final mod stamps in over LDHUDStyle::MotionFinalLock.
         double FinalAt=-1.;
         FName Active;
+        ELDSkillBranch Branch=ELDSkillBranch::None;
         FString AppliedIcon;
         // The painted art's icon (none for the body and an empty slot).
         TWeakObjectPtr<UTexture2D> Icon;

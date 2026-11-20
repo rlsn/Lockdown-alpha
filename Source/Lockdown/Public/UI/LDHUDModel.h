@@ -485,6 +485,7 @@ namespace LDHUD
         bool bHasSource=false;    // an active is bound
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
+        ELDSkillBranch Branch=ELDSkillBranch::None; // its learned path, so the description shows its current rank
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
         int64 MomentumCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
@@ -608,7 +609,9 @@ namespace LDHUD
         // False when the catalog has no such active or display row; Sentence then says so instead of inventing a face.
         bool bKnown=false;
     };
-    LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    // Branch is the learned path (None = rank 1, the face of an offer); the card reads that path's values at its rank.
+    LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,
+        ELDSkillBranch Branch=ELDSkillBranch::None);
     struct FFinalModCardView
     {
         FString Name,IconId,Glyph;

@@ -1026,7 +1026,7 @@ void ULDWorkshop::RefreshHeads()
             {return Row.Slot==uint8(Index-1);});
         const ELDSkillBranch Branch=Learned?static_cast<ELDSkillBranch>(Learned->Branch):ELDSkillBranch::None;
         const LDWorkshop::FColumnHead Shown=LDWorkshop::ColumnHead(Column,Active,Branch,Latest.HolderName,Latest.Content);
-        Head.Active=Active;Head.bEmpty=Shown.bEmpty;Head.Elements=Shown.Elements;
+        Head.Active=Active;Head.Branch=Branch;Head.bEmpty=Shown.bEmpty;Head.Elements=Shown.Elements;
         FString Key;
         if(Column==LDHUD::EStorageColumn::Body){Key=LDTerms::ColumnBody;}
         else if(Column==LDHUD::EStorageColumn::Dash){Key=Latest.DashKey.IsEmpty()?FString(TEXT("D")):Latest.DashKey;}
@@ -1290,7 +1290,7 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
     for(const FHead& Head:Heads)
     {
         if(!Head.Box||!Head.Box->IsHovered()||Head.Active.IsNone()){continue;}
-        const LDHUD::FActiveCardView Card=LDHUD::ActiveCard(Head.Active,Content,Latest.Stats);
+        const LDHUD::FActiveCardView Card=LDHUD::ActiveCard(Head.Active,Content,Latest.Stats,Head.Branch);
         const LDHUD::FActionDetailView Detail=LDHUD::ActiveChoiceDetail(Card,false,FString());
         ShowTextDock(TEXT("A|")+Head.Active.ToString()+Detail.Body,Detail.Name,Detail.Summary,Detail.Body,Card.IconId,Card.Glyph);
         return;
