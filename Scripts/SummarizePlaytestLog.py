@@ -549,6 +549,29 @@ def training_scope(events, roster):
     return dummies, rest_lives
 
 
+def field_share(events):
+    """(field ms, match ms) of a finished match: the field segments before the showdown (each LD_FIELD_ENTER final=0 to
+    the next rest, showdown entry or the result) over the whole match from its start to LD_MATCH_RESULT. None for a
+    match without a result or without a field entry."""
+    ended = next((authority_ms(event, "ended_ms") for event in events if event.tag == "LD_MATCH_RESULT"), None)
+    started = next((authority_ms(event, "started_at_ms") for event in events if event.tag == "LD_MATCH_STARTED"), None) or 0
+    marks = sorted((authority_ms(event, "at_ms"), event.tag == "LD_FIELD_ENTER" and event.get("final") == "0")
+                   for event in events if event.tag in ("LD_FIELD_ENTER", "LD_REST_ENTER")
+                   and authority_ms(event, "at_ms") is not None)
+    if ended is None or ended <= started or not any(field for _, field in marks):
+        return None
+    ends = [at for at, _ in marks[1:]] + [ended]
+    return sum(min(end, ended) - at for (at, field), end in zip(marks, ends) if field and at < ended), ended - started
+
+
+def field_share_text(shares):
+    shares = [share for share in shares if share]
+    if not shares:
+        return f"{NO_DATA} (no finished match with LD_FIELD_ENTER and LD_MATCH_RESULT)"
+    field, total = sum(share[0] for share in shares), sum(share[1] for share in shares)
+    return f"{field / total:.1%} ({field / 1000:.0f} s of {total / 1000:.0f} s)"
+
+
 class LevelTrack:
     """Each contender's level by authority time, from LD_LEVEL_UP (level 1 before the first)."""
 
@@ -781,6 +804,7 @@ def match_metrics(events, baseline):
     rows = [event for event in events if event.tag == "LD_MATCH_SUMMARY_ROW" and summary is not None
             and event.get("contender") == summary.get("winner")]
     out["winner_build"] = build_fingerprint(rows[0]) if rows else None
+    out["field_share"] = field_share(events)
     return out
 
 
@@ -868,6 +892,8 @@ def metric_lines(metrics, names, baseline_source):
     lines.append(f"- Reaction kinds: {len(kinds)}" + (f" ({', '.join(kinds)})" if kinds else ""))
     cards = sum(count for card, count in metrics["offered"].items() if not card.startswith("active_"))
     lines.append(f"- Cards offered: {cards}" if cards else f"- Cards offered: {NO_DATA} (no card offer)")
+    lines.append(f"- Field time share (field segments before the showdown / whole match): "
+                 f"{field_share_text([metrics['field_share']])}")
     return lines
 
 
@@ -932,7 +958,8 @@ def aggregate_lines(all_metrics, baseline_source):
               f"| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | "
               f"{sum(1 for count in moments if count)} of {len(host)} |",
               f"| Reaction kinds per match | ≥ 6 (after P4) | {stats_text([len(metrics['reaction_kinds']) for metrics in host])} |",
-              "| Field time share | ≥ 65% (after P6) | not computed |", "",
+              f"| Field time share (before the showdown / whole match) | ≥ 65% | "
+              f"{field_share_text([metrics['field_share'] for metrics in host])} |", "",
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
               f"Breakout baseline: {baseline_source}.", ""]
     totals = {"contender": defaultdict(float), "camp": defaultdict(float)}

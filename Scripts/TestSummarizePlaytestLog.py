@@ -285,6 +285,11 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={HOST} life=1 basic=0.00 combat=0.00 skill=0.00 reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=0 end=50.00"),
             line(16, "LogLDCombat", "Log", f"LD_PERFECT_DODGE t=2000 entity={a} life=0 effect=x source=y momentum=15.00"),
             line(16, "LogLDCombat", "Log", f"LD_REACTION t=2000 kind=Melt trigger={a} via=learned:active_zap primary={HOST} struck=0 r=1.00 fire_settles=0"),
+            # Field from 5000; a rest 12000-14000; the showdown from 17000 is not field time; the match ends at 20000.
+            line(17, "LogLDMatch", "Display", "LD_REST_ENTER generation=4 rest=1 at_ms=12000 field_t_ms=7000"),
+            line(17, "LogLDMatch", "Display", "LD_FIELD_ENTER generation=4 segment=1 at_ms=14000 field_t_ms=7000 final=0"),
+            line(17, "LogLDMatch", "Display", "LD_FIELD_ENTER generation=4 segment=2 at_ms=17000 field_t_ms=10000 final=1"),
+            line(18, "LogLDMatch", "Display", "LD_MATCH_RESULT generation=4 reason=1 winner=X ended_ms=20000"),
         ]
         (self.root / "P2.log").write_text("\n".join(rows) + "\n", encoding="utf-8")
         text = summarize(collect([str(self.root / "P2.log")]), metrics_only=True)
@@ -297,6 +302,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         # A's fight holds its three releases; B's fight its one (it died at 13000; its zone's later hit stays in that fight).
         self.assertIn("Casts per person per fight (Q/W/E releases): n=2 mean 2.0 median 2.0 min 1.0 max 3.0", metrics)
         self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 2.9 s", metrics)
+        self.assertIn("Field time share (field segments before the showdown / whole match): 50.0% (10 s of 20 s)", metrics)
         self.assertIn("Momentum income: 110 over 2 field lives (basic 18.2%, combat 18.2%, skill 40.9%, reaction 9.1%, dodge 13.6%, "
                       "other 0.0%); idle drift -5, spent 130, overdrives 1, perfect dodges 1 "
                       "(3 rest-training ledger/dodge lines left out)", metrics)
