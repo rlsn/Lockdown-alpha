@@ -578,9 +578,9 @@ class ApprovedDemoData(unittest.TestCase):
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
             # Spec §7 P2 cards.
             **{identity: frame[0] for identity, frame in CARD_FRAMES.items()},
-            "final_landlord": "旗杆房东", "final_breach": "破门而入", "final_comeback": "现场翻盘",
-            "final_open_mic": "全城开麦", "final_bowling": "人肉保龄球", "final_forced_exit": "强制退场",
-            "final_traffic": "交通管制", "final_split": "一分为二",
+            "final_hit_and_run": "打一枪换个地方", "final_clear_out": "清场", "final_kill_seconds": "人头换秒",
+            "final_usurp": "篡位", "final_carry_flag": "扛旗跑路", "final_cage": "铁笼",
+            "final_private_pole": "私人旗杆", "final_double_yellow": "双黄线",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
             "monster_promoter":"拉群的地推", "monster_courier":"催单的骑手", "monster_agent":"带你看房的中介", "monster_guard":"轮班的保安",
@@ -608,13 +608,12 @@ class ApprovedDemoData(unittest.TestCase):
                     self.assertIn("[", row["description_text"])
                 if row["id"] in CARD_FRAMES:
                     self.assertEqual(row["icon_id"], "icon_" + row["id"])
-        # A final mod's effect, cost and notes lines reuse its description's own clauses, each exactly once.
-        clauses = lambda *texts: sorted(part for text in texts for part in re.split("[。；，]", text) if part)
+        # A final mod's card face is one rule sentence with no extra effect, cost or notes line.
         for identity in content.FINAL_MOD_CONTRACTS:
             row = next(row for row in self.data["display"] if row["id"] == identity)
             with self.subTest(identity=identity):
-                self.assertEqual(clauses(row["effect_text"], row["cost_text"], row["notes_text"]),
-                                 clauses(row["description_text"]))
+                self.assertFalse({"effect_key", "cost_key", "notes_key"} & set(row))
+                self.assertEqual(row["description_text"].count("。"), 1)
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")

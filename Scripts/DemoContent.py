@@ -50,6 +50,7 @@ NATIVE_ENUMS = {
 # unused ops; #287 P2 retires the components 1-63 below the cards; P4 retires the grievous status and operation and the
 # projectile zone).
 RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]], "cards": [[0, 199]],
+                  "final_mods": [[2, 2], [5, 5], [11, 11], [15, 15], [21, 24]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29], [33, 33]],
                   "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
@@ -154,8 +155,6 @@ DISPLAY_TEXT_FORBIDDEN = re.compile(
 DISPLAY_TEXT_EDGE = frozenset((" ", "\u3000"))
 # Numbers shown to players come from typed fields, never from description prose.
 DISPLAY_DESCRIPTION_DIGIT = re.compile("[0-9\uff10-\uff19]")
-# A final mod's display row also splits its description into effect, cost and notes lines (<id>.<part>).
-FINAL_MOD_DISPLAY_PARTS = ("effect", "cost", "notes")
 
 
 class ContentError(ValueError):
@@ -904,15 +903,16 @@ STAT_CONTRACTS = {
 }
 # The opening opportunity draws this many distinct actives from the opening pool.
 OPENING_OFFER_SIZE = 3
+# The eight universal final mods and the terms each one reads (App Spec §2.2, content §4.7).
 FINAL_MOD_CONTRACTS = {
-    "final_bowling": ("ForcedMove", {"base", "ap_ratio", "distance", "distance_ratio"}),
-    "final_forced_exit": ("HardControl", {"distance", "delay", "interval", "control_ratio"}),
-    "final_traffic": ("Dash", {"radius", "duration", "slow", "slow_duration", "cooldown_cost"}),
-    "final_split": ("PlacedZone", {"offset", "radius_ratio", "damage_ratio", "duration_cost"}),
-    "final_landlord": ("Basic", {"base", "ad_ratio", "radius", "delay", "interval", "damage_ratio"}),
-    "final_breach": ("Basic", {"outside", "rearm_outside", "window", "distance", "cooldown_cost"}),
-    "final_comeback": ("Basic", {"base", "ap_ratio", "radius", "duration", "interval", "pulse_interval", "window", "slow", "slow_duration", "damage_ratio"}),
-    "final_open_mic": ("Basic", {"base", "ap_ratio", "radius", "duration", "pulse_interval", "window", "slow", "slow_duration", "move_speed_cost"}),
+    "final_hit_and_run": {"sprays", "fade"},
+    "final_clear_out": set(),
+    "final_kill_seconds": {"guard"},
+    "final_usurp": set(),
+    "final_carry_flag": set(),
+    "final_cage": {"duration"},
+    "final_private_pole": {"spray", "guard", "radius"},
+    "final_double_yellow": {"radius"},
 }
 
 
@@ -970,16 +970,16 @@ def validate_definitions(data, ids):
     finals = rows_by_id(data["final_mods"], "final_mods")
     require(set(finals) == set(FINAL_MOD_CONTRACTS), "FinalModSet", "final_mods",
             "exactly the eight implemented final mods are required")
-    for identity, (requirement, fields) in FINAL_MOD_CONTRACTS.items():
+    for identity, fields in FINAL_MOD_CONTRACTS.items():
         row = finals[identity]
-        keys(row, {"id", "native_id", "requirement", *fields}, identity)
-        require(row["requirement"] == requirement, "FinalModSource", identity, "wrong executable source requirement")
+        keys(row, {"id", "native_id", *fields}, identity)
         for field in fields:
-            require(quantity(row[field]) > 0, "FinalModDomain", identity + "." + field, "final mod terms must be positive")
-            if field.endswith("_ratio") or field in ("slow", "move_speed_cost"):
-                require(quantity(row[field]) < 1, "FinalModDomain", identity + "." + field, "a tradeoff must be less than one")
-    require(quantity(finals["final_breach"]["rearm_outside"]) >= quantity(finals["final_breach"]["outside"]),
-            "FinalModDomain", "final_breach", "rearming must not be faster than the first entry")
+            value = row[field] if field == "sprays" else quantity(row[field])
+            require(value > 0, "FinalModDomain", identity + "." + field, "final mod terms must be positive")
+    require(finals["final_hit_and_run"]["sprays"] >= 2, "FinalModDomain", "final_hit_and_run.sprays",
+            "a spray-count win needs more than one spray")
+    require(quantity(finals["final_private_pole"]["spray"]) < quantity(finals["final_private_pole"]["guard"]),
+            "FinalModDomain", "final_private_pole", "the private pole is guarded longer than it is sprayed")
 
     for row in (*data["abilities"], *data["cards"]):
         for effect in all_effects(row):
@@ -1001,15 +1001,7 @@ def validate_definitions(data, ids):
                     "DisplayReference", identity, "missing character portrait")
         else:
             require("portrait_icon_id" not in row, "DisplayReference", identity, "portrait belongs only to character")
-        for part in FINAL_MOD_DISPLAY_PARTS:
-            if identity in finals:
-                require(row.get(part + "_key") == identity + "." + part and part + "_text" in row, "DisplayReference",
-                        identity, f"a final mod needs its {part} line")
-            else:
-                require(part + "_key" not in row and part + "_text" not in row, "DisplayReference", identity,
-                        f"only a final mod has a {part} line")
-        for field in ("name_text", "description_text",
-                      *(part + "_text" for part in FINAL_MOD_DISPLAY_PARTS if identity in finals)):
+        for field in ("name_text", "description_text"):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
         if identity in abilities:
             card_template(row["description_text"], abilities[identity]["effects"], f"{identity}.description_text")
@@ -1455,12 +1447,6 @@ def _validate_build_envelope(data):
                            "COMBAT.ReactionBase")
     checked_add(reaction, checked_mul(max_ap, params["COMBAT.ReactionAPRatio"]["bp"], "COMBAT.ReactionAPRatio") // 10000,
                 "COMBAT.ReactionAPRatio")
-    for row in data["final_mods"]:
-        base = grow(row.get("base", {"p2": 0})["p2"], row["id"])
-        numerator = checked_mul(base, 10000, row["id"])
-        for field, maximum in (("ad_ratio", max_ad), ("ap_ratio", max_ap)):
-            if field in row:
-                numerator = checked_add(numerator, checked_mul(maximum, row[field]["bp"], row["id"]), row["id"])
     for row in (*data["abilities"], *data["cards"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
