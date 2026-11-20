@@ -833,14 +833,6 @@ bool ALDGrowthDirector::ReadResultBuild(const FGuid& ContenderId, FLDResultBuild
         }
     }
     View.FinalMod = Build->FinalMod.DefinitionId;
-    View.FinalTargetId = Build->FinalMod.TargetId;
-    switch (Build->FinalMod.TargetKind)
-    {
-    case ELDFinalModTargetKind::None: View.FinalTarget = ELDResultBuildTarget::Body; break;
-    case ELDFinalModTargetKind::Active: View.FinalTarget = ELDResultBuildTarget::Active; break;
-    case ELDFinalModTargetKind::Dash: View.FinalTarget = ELDResultBuildTarget::Dash; break;
-    default: Error = TEXT("The final mod has an unknown target."); return false;
-    }
     if (!LDCapture::ValidateResultBuild(View, Error)) { return false; }
     Out = MoveTemp(View);
     return true;

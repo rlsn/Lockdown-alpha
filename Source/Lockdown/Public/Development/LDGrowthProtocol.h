@@ -50,10 +50,6 @@ enum class ELDBuildCommandKind : uint8
 UENUM()
 enum class ELDShopItemKind : uint8 { None = 0, Skill = 1, Card = 2 };
 
-// The source a final mod binds: one learned active or the innate D (2 and 3 are retired).
-UENUM()
-enum class ELDFinalModTargetKind : uint8 { None = 0, Active = 1, Dash = 4 };
-
 // Spec §6.1: where an installed card sits: the primary basic, one learned Q/W/E skill (by id), the D dash or the body.
 UENUM()
 enum class ELDCardTargetKind : uint8 { None = 0, Basic = 1, Skill = 2, Dash = 3, Body = 4 };
@@ -74,13 +70,8 @@ struct LOCKDOWN_API FLDFinalModSelection
     GENERATED_BODY()
 
     UPROPERTY() FName DefinitionId;
-    UPROPERTY() ELDFinalModTargetKind TargetKind = ELDFinalModTargetKind::None;
-    UPROPERTY() FName TargetId;
 
-    bool operator==(const FLDFinalModSelection& Other) const
-    {
-        return DefinitionId == Other.DefinitionId && TargetKind == Other.TargetKind && TargetId == Other.TargetId;
-    }
+    bool operator==(const FLDFinalModSelection& Other) const { return DefinitionId == Other.DefinitionId; }
     bool operator!=(const FLDFinalModSelection& Other) const { return !(*this == Other); }
     bool IsEmpty() const { return *this == FLDFinalModSelection(); }
 };
@@ -148,9 +139,9 @@ enum class ELDGrowthReason : uint16
     NoRewardPKArena = 140, PKAwardDuplicate = 141,
     // FieldRewardDuplicate: a map event paid twice.
     FieldRewardDuplicate = 167,
-    // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
-    // entry), NoFinalMod (no open final mod of that id), FinalModUnavailable (its selected source is no longer legal).
-    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172,
+    // Phase 9 final mod (allocated 170-179; 172 is retired): FinalLocked (the build was locked by the final mod choice or the
+    // final field entry), NoFinalMod (no open final mod of that id).
+    FinalLocked = 170, NoFinalMod = 171,
     // Skill ranks (issue #287 spec §4.5): NoSkillPoint (no unspent skill point), BranchUnavailable (not the next rank of that
     // skill's branch: A/B from rank 1, A1/A2 under A, B1/B2 under B; rank 3 has none).
     NoSkillPoint = 180, BranchUnavailable = 181,
@@ -310,16 +301,6 @@ struct LOCKDOWN_API FLDCardOfferView
     UPROPERTY() TArray<FName> Options;
 };
 
-USTRUCT()
-struct FLDFinalModSourceView
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FName Option;
-    UPROPERTY() ELDFinalModTargetKind TargetKind = ELDFinalModTargetKind::None;
-    UPROPERTY() FName TargetId;
-};
-
 // Spec §3.13: one slot of the rest shop shelf: a skill or a card, its price and whether it was bought.
 USTRUCT()
 struct LOCKDOWN_API FLDShopSlotView
@@ -423,12 +404,11 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint8 HeldBlueprints = 0;
     // #198 G: every field reward received, oldest first.
     UPROPERTY() TArray<FLDFieldRewardView> FieldRewards;
-    // Immutable once-revealed candidates; legal bindings reflect the current build without redrawing them.
+    // Immutable once-revealed candidates.
     UPROPERTY() bool bFinalModPending = false;
     UPROPERTY() bool bExtraFinalModCard = false;
     UPROPERTY() FGuid FinalModOfferId;
     UPROPERTY() TArray<FName> FinalModOptions;
-    UPROPERTY() TArray<FLDFinalModSourceView> FinalModSources;
     UPROPERTY() FName FinalModChosen;
     UPROPERTY() FLDFinalModSelection FinalMod;
     UPROPERTY() bool bBuildLocked = false;
@@ -479,8 +459,6 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
     // InstallCard only: an installed card taken off in the same commit to make room; 0 = a plain install.
     UPROPERTY() uint16 ReplacingSerial = 0;
-    // FinalMod: the source kind (TargetDefinition names the active).
-    UPROPERTY() ELDFinalModTargetKind FinalTargetKind = ELDFinalModTargetKind::None;
 
     bool SameTerms(const FLDBuildCommand& Other) const;
 };
@@ -627,10 +605,9 @@ namespace LDGrowthWire
     inline ELDGrowthReason Reason(uint16 Raw) { return static_cast<ELDGrowthReason>(Raw); }
     inline uint16 Raw(ELDGrowthReason Reason) { return static_cast<uint16>(Reason); }
     LOCKDOWN_API bool IsKnownFamily(ELDGrowthFamily Family);
-    // Whitelists of client-sent enums: build command kinds, card and final mod target kinds and elements.
+    // Whitelists of client-sent enums: build command kinds, card target kinds and elements.
     LOCKDOWN_API bool IsKnownBuildKind(ELDBuildCommandKind Kind);
     LOCKDOWN_API bool IsKnownCardTarget(ELDCardTargetKind Kind);
-    LOCKDOWN_API bool IsKnownFinalTarget(ELDFinalModTargetKind Kind);
     LOCKDOWN_API bool IsKnownElement(ELDDemoElement Element);
     // An optional definition field: all-zero bytes are None (true); anything else must decode.
     LOCKDOWN_API bool DecodeOptional(const FLDDefinitionWire& Wire, FName& Out);

@@ -61,16 +61,6 @@ const TCHAR* CardTargetKey(ELDCardTargetKind Kind)
     }
 }
 
-const TCHAR* FinalTargetKey(ELDFinalModTargetKind Kind)
-{
-    switch (Kind)
-    {
-    case ELDFinalModTargetKind::Active: return TEXT("active");
-    case ELDFinalModTargetKind::Dash: return TEXT("dash");
-    default: return nullptr;
-    }
-}
-
 bool Before(const FString& A, const FString& B) { return A.Compare(B, ESearchCase::CaseSensitive) < 0; }
 
 // Card rows sort by card, target, host and element; copies are equal rows next to each other.
@@ -130,9 +120,6 @@ TSharedRef<FJsonObject> WriteStructure(const FLDBlueprintStructure& Structure, c
         const auto& Selected=Structure.FinalMod;
         const TSharedRef<FJsonObject> Final=MakeShared<FJsonObject>();
         Final->SetField(TEXT("definition"),JsonStr(Selected.DefinitionId.ToString()));
-        const TCHAR* Kind=FinalTargetKey(Selected.TargetKind);
-        Final->SetField(TEXT("target_kind"),JsonStr(Kind?Kind:TEXT("none")));
-        Final->SetField(TEXT("target_id"),JsonStr(Selected.TargetId.IsNone()?FString():Selected.TargetId.ToString()));
         Into->SetField(TEXT("final_mod"),JsonObj(Final));
     }
     return Into;
@@ -192,14 +179,9 @@ bool ReadStructure(FFields& Fields, FLDBlueprintStructure& Out)
     if(Final&&Final->Type!=EJson::Null)
     {
         FFields Row(Check,Final,Path+TEXT(".final_mod"));
-        FString Id,Kind,Target;
-        if(!Row.Identifier(TEXT("definition"),Id)||!Row.Text(TEXT("target_kind"),Kind,1,9)){return false;}
-        if(Kind==TEXT("active")){Out.FinalMod.TargetKind=ELDFinalModTargetKind::Active;}
-        else if(Kind==TEXT("dash")){Out.FinalMod.TargetKind=ELDFinalModTargetKind::Dash;}
-        else if(!Check.Require(Kind==TEXT("none"),Row.Path,TEXT("unknown final source kind"))){return false;}
-        const bool bNamed=Out.FinalMod.TargetKind==ELDFinalModTargetKind::Active;
-        if(!(bNamed?Row.Identifier(TEXT("target_id"),Target):Row.Text(TEXT("target_id"),Target,0,0))||!Row.Done()){return false;}
-        Out.FinalMod.DefinitionId=FName(*Id);Out.FinalMod.TargetId=FName(*Target);
+        FString Id;
+        if(!Row.Identifier(TEXT("definition"),Id)||!Row.Done()){return false;}
+        Out.FinalMod.DefinitionId=FName(*Id);
     }
     const TArray<FValue>* Rows = nullptr;
     if (!LDDemoContent::Array(Fields.Take(TEXT("cards")), Rows, Check, Path + TEXT(".cards"), 0, 32))

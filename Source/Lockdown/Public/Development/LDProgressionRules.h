@@ -49,15 +49,6 @@ struct FLDCardInstance
     bool IsInstalled() const { return Target.Kind != ELDCardTargetKind::None; }
 };
 
-// A final mod's source: one learned active or the innate D.
-struct FLDFinalModTarget
-{
-    ELDFinalModTargetKind Kind = ELDFinalModTargetKind::None;
-    FName Definition;
-
-    bool operator==(const FLDFinalModTarget& Other) const { return Kind == Other.Kind && Definition == Other.Definition; }
-};
-
 struct LOCKDOWN_API FLDGrowthBuild
 {
     uint8 Level = 1;
@@ -341,27 +332,16 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
         TArray<uint16>& OutReclaimed);
-    // Three or four distinct final mods with legal sources, drawn deterministically from Seed. The first is a mechanic
-    // card if available; the second is universal; remaining cards are drawn from all remaining legal options.
-    LOCKDOWN_API ELDGrowthReason DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        uint64 Seed, TArray<FName>& Out, int32 Count = 3);
+    // Three or four distinct final mods drawn uniformly without replacement from the whole universal pool, deterministic in Seed.
+    LOCKDOWN_API ELDGrowthReason DrawFinalModOptions(const FLDDemoContentDefinitions& Content, uint64 Seed, TArray<FName>& Out,
+        int32 Count = 3);
     LOCKDOWN_API uint64 FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender);
-    // The sources Option may bind now: none for a universal card (one empty target), else the innate D and the learned
-    // actives that carry its requirement.
-    LOCKDOWN_API ELDGrowthReason FinalModTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        FName Option, TArray<FLDFinalModTarget>& Out);
-    // True when Build has no final mod or its binding is one of the chosen card's legal sources now. The build stays
-    // adjustable after the final pick, so removing the bound source leaves the card dormant (not projected into combat)
-    // until ApplyFinalMod rebinds it.
-    LOCKDOWN_API bool FinalModBound(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
-    // Takes the final mod option Option with its source Target; OutProgression records the choice and closes the final
-    // offer (the card is taken once; the rest of the build stays adjustable). Refused with nothing changed: CommandGate(FinalMod)
-    // reasons, NoFinalMod without an open final mod of OfferId, InvalidOption for an option outside it, FinalModUnavailable
-    // for a source that is not legal now. A dormant chosen card (FinalModBound false) is rebound with the same OfferId and
-    // Option under InstallGate, any stage; FinalLocked otherwise once the card is taken or the offer closed.
+    // Takes the final mod option Option; OutProgression records the choice and closes the final offer (the card is taken
+    // once; the rest of the build stays adjustable). Refused with nothing changed: CommandGate(FinalMod) reasons, NoFinalMod
+    // without an open final mod of OfferId, FinalLocked once it is taken or closed, InvalidOption for an option outside it.
     LOCKDOWN_API ELDGrowthReason ApplyFinalMod(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, const FLDFinalModTarget& Target,
-        const FBuildContext& Context, FLDGrowthBuild& Out, FLDProgressionState& OutProgression);
+        const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, const FBuildContext& Context,
+        FLDGrowthBuild& Out, FLDProgressionState& OutProgression);
     // Spec §6.1: every card installed on the Forgotten skill goes back to the library (never dropped or moved); OutReclaimed
     // lists their serials ascending.
     LOCKDOWN_API void ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, TArray<uint16>& OutReclaimed);

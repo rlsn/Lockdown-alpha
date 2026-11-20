@@ -17,7 +17,8 @@ UENUM()
 enum class ELDCircleState : uint8 { NotOpen, Empty, Solo, Contested, Guarded };
 
 UENUM()
-enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded, ObjectiveTimeout, NoChampion };
+// SprayCount (final_hit_and_run) and ClearOut (final_clear_out) are a final mod's alternative win; appended.
+enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded, ObjectiveTimeout, NoChampion, SprayCount, ClearOut };
 
 // Public cause class of a contender death. Never names the fatal skill, item or build.
 UENUM()
@@ -101,6 +102,36 @@ struct FLDBossView
     UPROPERTY() int64 DownAtMs = 0;
 };
 
+// One contender's final mod, public to every connection once the final field begins (App Spec §2.1).
+USTRUCT()
+struct FLDFinalModHolderView
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Contender;
+    UPROPERTY() FName Mod;
+};
+
+// A private flagpole (final_private_pole), public like the main one: only Holder sprays it; anyone else inside freezes
+// his guard. Same state meaning as the main flagpole fields of FLDPublicMatchView.
+USTRUCT()
+struct FLDPrivatePoleView
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Holder;
+    // The holder's public identity slot (his start roster position), the tint of his graffiti on it.
+    UPROPERTY() uint8 Presentation = 0;
+    UPROPERTY() FVector CentreCm = FVector::ZeroVector;
+    UPROPERTY() float RadiusCm = 0;
+    UPROPERTY() ELDCircleState CircleState = ELDCircleState::NotOpen;
+    // Solo: the holder's spray instant; Contested with his paused progress: that progress.
+    UPROPERTY() int64 DueAtMs = 0;
+    UPROPERTY() int64 PausedProgressMs = 0;
+    UPROPERTY() bool bGraffiti = false;
+    UPROPERTY() int64 GuardDueAtMs = 0;
+    UPROPERTY() int64 GuardKeptMs = 0;
+    UPROPERTY() int64 GuardMs = 0;
+};
+
 // Whole-room spray and guard state. It names at most the spray progress holder and the graffiti owner and never
 // lists bodies in the zone, hidden positions, protection or private build data. Live time comes from DemoClock.
 USTRUCT()
@@ -144,14 +175,26 @@ struct FLDPublicMatchView
     UPROPERTY() FLDPKView PK;
     UPROPERTY() FLDShowdownView Showdown;
     UPROPERTY() int64 OwnerBankedGuardMs = 0;
+    // Final field only. The main flagpole's current spray zone: final_carry_flag moves it with its owner,
+    // final_double_yellow shrinks it while its holder owns the graffiti.
+    UPROPERTY() FVector PoleCentreCm = FVector::ZeroVector;
+    UPROPERTY() float PoleRadiusCm = 0;
+    // final_hit_and_run: the instant the owner's guardless graffiti fades; 0 otherwise.
+    UPROPERTY() int64 FadeAtMs = 0;
+    // final_cage: the fence on the spray zone boundary stands until CageUntilMs (0: none).
+    UPROPERTY() int64 CageUntilMs = 0;
+    UPROPERTY() FVector CageCentreCm = FVector::ZeroVector;
+    UPROPERTY() float CageRadiusCm = 0;
+    // Every contender's final mod, in roster order (final field only).
+    UPROPERTY() TArray<FLDFinalModHolderView> FinalMods;
+    UPROPERTY() TArray<FLDPrivatePoleView> PrivatePoles;
     // Spec §11.1/§10.3 (P6): the match's daily modifiers and the current (or last) mid-field objective.
     UPROPERTY() TArray<ELDDailyModifier> DailyModifiers;
     UPROPERTY() FLDObjectiveView Objective;
 };
 
 UENUM()
-// Where a card or the final mod sits: the body (a final mod without a source), a learned skill, the D dash or the basic.
-// 2 and 3 are retired.
+// Where a card sits: the body, a learned skill, the D dash or the basic. 2 and 3 are retired.
 enum class ELDResultBuildTarget : uint8 { Body = 0, Active = 1, Dash = 4, Basic = 5 };
 
 USTRUCT()
@@ -184,8 +227,6 @@ struct FLDResultBuild
    // Installed cards by serial; copies of one card are separate rows.
    UPROPERTY() TArray<FLDResultBuildCard> Cards;
    UPROPERTY() FName FinalMod;
-   UPROPERTY() ELDResultBuildTarget FinalTarget = ELDResultBuildTarget::Body;
-   UPROPERTY() FName FinalTargetId;
 };
 
 USTRUCT()

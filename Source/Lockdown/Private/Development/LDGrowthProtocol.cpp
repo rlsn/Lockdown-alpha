@@ -83,8 +83,7 @@ bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
         && OfferRevision == Other.OfferRevision && Option == Other.Option && bLearnIfPossible == Other.bLearnIfPossible
         && Slot == Other.Slot && Branch == Other.Branch && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts
         && bInstallIfPossible == Other.bInstallIfPossible && CardSerial == Other.CardSerial && CardTarget == Other.CardTarget
-        && TargetDefinition == Other.TargetDefinition && Element == Other.Element && ReplacingSerial == Other.ReplacingSerial
-        && FinalTargetKind == Other.FinalTargetKind;
+        && TargetDefinition == Other.TargetDefinition && Element == Other.Element && ReplacingSerial == Other.ReplacingSerial;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
@@ -130,18 +129,6 @@ bool LDGrowthWire::IsKnownCardTarget(ELDCardTargetKind Kind)
     case ELDCardTargetKind::Skill:
     case ELDCardTargetKind::Dash:
     case ELDCardTargetKind::Body:
-        return true;
-    }
-    return false;
-}
-
-bool LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind Kind)
-{
-    switch (Kind)
-    {
-    case ELDFinalModTargetKind::None:
-    case ELDFinalModTargetKind::Active:
-    case ELDFinalModTargetKind::Dash:
         return true;
     }
     return false;
@@ -235,7 +222,6 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("FieldRewardDuplicate");
     case ELDGrowthReason::FinalLocked: return TEXT("FinalLocked");
     case ELDGrowthReason::NoFinalMod: return TEXT("NoFinalMod");
-    case ELDGrowthReason::FinalModUnavailable: return TEXT("FinalModUnavailable");
     case ELDGrowthReason::NoSkillPoint: return TEXT("NoSkillPoint");
     case ELDGrowthReason::BranchUnavailable: return TEXT("BranchUnavailable");
     case ELDGrowthReason::NoCardOffer: return TEXT("NoCardOffer");
