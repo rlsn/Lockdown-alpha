@@ -499,8 +499,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.CampAnchorFootCm = Spec.AnchorCm;
             Input.MemberHome = {Input.World, Spec.Members[Slot].HomeCm, Spec.SurfaceId};
             Input.Brain = Member.Brain;
-            Input.MonsterId = Spec.bAuthoredMembers ? Spec.Members[Slot].MonsterId : Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone()
-                ? Spec.TeambuildMonsterId : State.FindCamp(Camp)->SelectedSpecies;
+            Input.MonsterId = Spec.MemberSpecies(Slot, State.FindCamp(Camp)->SelectedSpecies);
             Input.bObservationComplete = true;
             Input.MovementAllowed = Body.bMovementAllowed && !Body.bActionInProgress;
             Input.AttackAllowed = Body.bAttackAllowed;
@@ -1103,14 +1102,17 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     bBlocked = false;
     ALDGameMode* Mode = AuthorityMode();
     const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
-    const FLDDemoMonsterDefinition* Monster = nullptr;
     FCollisionShape Capsule;
-    FName Selected;
-    const auto* Group=State.FindCamp(Camp);
-    const int32 Draw=Group->PendingSpecies.IsNone()?SpeciesRandom.RandRange(0,Spec.Species.Num()-1):0;
-    if(!State.SelectSpecies(Camp,Draw,Selected,Error)){return false;}
-    if (!Mode || !Content->FindMonster(Selected.ToString(), Monster, Error)
-        || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
+    // One independent draw per tier pool; a blocked retry keeps the pending draw, so it consumes no new numbers.
+    TArray<FName> Selected;
+    TArray<int32> Draw;
+    if (State.FindCamp(Camp)->PendingSpecies.IsEmpty())
+    {
+        for (const FLDCampSpeciesPool& Pool : Spec.Pools) { Draw.Add(SpeciesRandom.RandRange(0, Pool.Species.Num() - 1)); }
+    }
+    else { Draw.SetNumZeroed(Spec.Pools.Num()); }
+    if (!State.SelectSpecies(Camp, Draw, Selected, Error)) { return false; }
+    if (!Mode || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("Camp spawn needs the core and the approved monster."); }
         return false;
@@ -1123,12 +1125,21 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Mode->HasDaily(ELDDailyModifier::Overtime), AffixRoll, AffixPick);
     const bool bTeambuildSlot = !Spec.Members.IsEmpty() && Spec.Members.Last().bTeambuild;
     const int32 SlotCount = Spec.Members.Num() - (bTeambuildSlot && Affix != ELDCampAffix::Teambuild ? 1 : 0);
-    // A High camp's teambuild member is of this spawn's selected species.
-    const FLDDemoMonsterDefinition* TeamMonster = Monster;
-    if (SlotCount == Spec.Members.Num() && bTeambuildSlot && !Spec.TeambuildMonsterId.IsNone()
-        && !Content->FindMonster(Spec.TeambuildMonsterId.ToString(), TeamMonster, Error))
+    // Each slot wears its tier pool's draw (a High camp's teambuild member too); an Elite or Ancient teambuild member
+    // wears its fixed High species.
+    TArray<FName> SlotSpecies;
+    TArray<const FLDDemoMonsterDefinition*> SlotMonsters;
+    for (int32 Slot = 0; Slot < SlotCount; ++Slot)
     {
-        return false;
+        const FLDDemoMonsterDefinition* SlotMonster = nullptr;
+        const FName Species = Spec.MemberSpecies(Slot, Selected);
+        if (Species.IsNone() || !Content->FindMonster(Species.ToString(), SlotMonster, Error) || !SlotMonster)
+        {
+            if (Error.IsEmpty()) { Error = TEXT("Camp spawn has no approved species for a member's tier pool."); }
+            return false;
+        }
+        SlotSpecies.Add(Species);
+        SlotMonsters.Add(SlotMonster);
     }
     TArray<FLDLegalGround> Grounds;
     TArray<FVector> Reserved;
@@ -1155,10 +1166,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     for (int32 Slot = 0; Slot < SlotCount; ++Slot)
     {
         ALDCampMemberCharacter* Body = nullptr;
-        const bool bTeam = Spec.Members[Slot].bTeambuild;
-        const FLDDemoMonsterDefinition* MemberMonster = bTeam ? TeamMonster : Monster;
-        if (Spec.bAuthoredMembers && !Content->FindMonster(Spec.Members[Slot].MonsterId.ToString(), MemberMonster, Error)) { return false; }
-        const bool bCreated = CreateBody(Grounds[Slot], *MemberMonster,
+        const bool bCreated = CreateBody(Grounds[Slot], *SlotMonsters[Slot],
             FString::Printf(TEXT("camp %s member %d"), *Spec.CampId.ToString(), Slot), Body, Error);
         if (Body) { Spawned.Add(Body); }
         if (!bCreated) { return false; }
@@ -1168,8 +1176,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
-        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot],
-            Spec.bAuthoredMembers ? Spec.Members[Slot].MonsterId : Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone() ? Spec.TeambuildMonsterId : Selected, Stage, Affix});
+        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], SlotSpecies[Slot], Stage, Affix});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }

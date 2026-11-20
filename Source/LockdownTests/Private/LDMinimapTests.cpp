@@ -219,6 +219,39 @@ bool FLDMinimapWholeGroundTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("An invalid view shows no ground"),LDMinimap::OnGround(LDMinimap::FView(),Frame*.5,Ground));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapRegionsTest,"Lockdown.Rules.Minimap.Regions",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDMinimapRegionsTest::RunTest(const FString& Parameters)
+{
+    // The field, the rest room and the final arena side by side on one ground, as the Demo world lays them out.
+    const FBox2D Ground(FVector2D(-5000.,-5000.),FVector2D(16000.,5000.));
+    const auto Box=[](double X0,double Y0,double X1,double Y1){return FBox2D(FVector2D(X0,Y0),FVector2D(X1,Y1));};
+    TArray<FBox2D> Anchors={Box(-4600.,-4600.,4600.,4600.),Box(6500.,-500.,8500.,700.),Box(11450.,-1342.,14550.,1342.)};
+    const FBox2D OuterWall=Box(-5000.,4700.,16000.,5000.),FieldWall=Box(5000.,-5000.,5300.,5000.),RestWall=Box(6100.,-1200.,8900.,1200.);
+    const FBox2D RestBoundary=Box(9000.,-5000.,9300.,5000.),Ring=Box(12970.,1925.,13810.,2625.),FarAway=Box(-4900.,-4900.,-4800.,-4800.);
+    TArray<FBox2D> Out;FString Error;
+    if(!TestTrue(TEXT("Three separate regions fit"),LDMinimap::FitRegions(Anchors,{OuterWall,FieldWall,RestWall,RestBoundary,Ring,FarAway},Ground,Out,Error))){AddError(Error);return false;}
+    const FBox2D& Field=Out[LDMinimap::FieldRegion];const FBox2D& Rest=Out[LDMinimap::RestRegion];const FBox2D& Final=Out[LDMinimap::FinalRegion];
+    TestTrue(TEXT("Every region is valid"),Field.bIsValid&&Rest.bIsValid&&Final.bIsValid);
+    TestFalse(TEXT("A wall along the whole ground does not merge the field and the rest room"),Field.Intersect(Rest));
+    TestFalse(TEXT("Nor the rest room and the final arena"),Rest.Intersect(Final));
+    TestFalse(TEXT("Nor the field and the final arena"),Field.Intersect(Final));
+    TestTrue(TEXT("The field keeps its own boundary wall"),Field.IsInsideOrOn(FieldWall.Min)&&Field.IsInsideOrOn(FieldWall.Max));
+    TestTrue(TEXT("The rest room keeps its walls"),Rest.IsInsideOrOn(RestWall.Min)&&Rest.IsInsideOrOn(RestWall.Max));
+    TestTrue(TEXT("The rest room takes only the reach of its far boundary"),Rest.Max.X>=RestBoundary.Max.X&&Rest.Max.Y<=Anchors[1].Max.Y+LDMinimap::RegionReachCm);
+    TestTrue(TEXT("The final arena keeps its whole ring"),Final.IsInsideOrOn(Ring.Min)&&Final.IsInsideOrOn(Ring.Max));
+    TestTrue(TEXT("Every region stays on the ground"),Ground.IsInsideOrOn(Field.Min)&&Ground.IsInsideOrOn(Field.Max)&&Ground.IsInsideOrOn(Final.Max));
+
+    TArray<FBox2D> FieldOnly={Anchors[0],FBox2D(ForceInit),FBox2D(ForceInit)};
+    TestTrue(TEXT("A world without a rest room or final arena fits only the field"),LDMinimap::FitRegions(FieldOnly,{OuterWall},Ground,Out,Error)
+        &&Out[LDMinimap::FieldRegion].bIsValid&&!Out[LDMinimap::RestRegion].bIsValid&&!Out[LDMinimap::FinalRegion].bIsValid);
+    TArray<FBox2D> NoAnchors={FBox2D(ForceInit),FBox2D(ForceInit),FBox2D(ForceInit)};
+    TestTrue(TEXT("A field without any anchor fits the whole ground"),LDMinimap::FitRegions(NoAnchors,{},Ground,Out,Error)
+        &&Out[LDMinimap::FieldRegion].Min==Ground.Min&&Out[LDMinimap::FieldRegion].Max==Ground.Max);
+    TArray<FBox2D> Close=Anchors;Close[1]=Box(4000.,-500.,8500.,700.);
+    TestFalse(TEXT("Overlapping region anchors are refused"),LDMinimap::FitRegions(Close,{},Ground,Out,Error));
+    TestTrue(TEXT("The refusal names both regions"),Error.Contains(TEXT("field"))&&Error.Contains(TEXT("rest room")));
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapStaticInvalidationTest,"Lockdown.Rules.Minimap.StaticInvalidation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDMinimapStaticInvalidationTest::RunTest(const FString& Parameters)
 {

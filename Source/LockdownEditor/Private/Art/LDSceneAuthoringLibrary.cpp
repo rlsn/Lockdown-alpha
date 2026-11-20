@@ -238,8 +238,15 @@ FString ULDSceneAuthoringLibrary::GameplayPlacementAudit(UWorld* World, bool bIn
         {
             auto Row=MakeShared<FJsonObject>();
             Row->SetStringField(TEXT("camp"),Camp.CampId.ToString());Row->SetStringField(TEXT("member"),Member.MemberId.ToString());
-            Row->SetStringField(TEXT("monster"),Member.MonsterId.ToString());Row->SetStringField(TEXT("prototype"),Member.DefinitionId.ToString());
-            Row->SetNumberField(TEXT("creature_id"),Member.CreatureId);
+            Row->SetStringField(TEXT("prototype"),Member.DefinitionId.ToString());
+            // The member's species is drawn from its tier pool on each whole-group spawn; report the pool, not one species.
+            TArray<TSharedPtr<FJsonValue>> Species;
+            if (Camp.Pools.IsValidIndex(Member.Pool))
+            {
+                Row->SetNumberField(TEXT("tier"),uint8(Camp.Pools[Member.Pool].Tier));
+                for (const FName Id : Camp.Pools[Member.Pool].Species) { Species.Add(MakeShared<FJsonValueString>(Id.ToString())); }
+            }
+            Row->SetArrayField(TEXT("species_pool"),Species);
             const auto Point=[](const FVector& P) { return TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(P.X),MakeShared<FJsonValueNumber>(P.Y),MakeShared<FJsonValueNumber>(P.Z)}; };
             Row->SetArrayField(TEXT("home_cm"),Point(Member.HomeCm));
             FLDLegalGround Ground;

@@ -8,6 +8,39 @@ int32 FLDCampRoster::FindCamp(FName CampId) const
     return Camps.IndexOfByPredicate([CampId](const FLDCampSpec& Camp) { return Camp.CampId == CampId; });
 }
 
+FName FLDCampSpec::MemberSpecies(int32 Slot, TConstArrayView<FName> Draw) const
+{
+    if (!Members.IsValidIndex(Slot)) { return NAME_None; }
+    if (Members[Slot].bTeambuild && !TeambuildMonsterId.IsNone()) { return TeambuildMonsterId; }
+    return Draw.IsValidIndex(Members[Slot].Pool) ? Draw[Members[Slot].Pool] : NAME_None;
+}
+
+namespace
+{
+// The pool of Representative's tier in Spec, added once with every approved species of that tier.
+int32 FindOrAddPool(const FLDDemoContentDefinitions& Content, const FLDDemoMonsterDefinition& Representative,
+    FLDCampSpec& Spec, FString& Error)
+{
+    const int32 Found = Spec.Pools.IndexOfByPredicate([&](const FLDCampSpeciesPool& P) { return P.Tier == Representative.Tier; });
+    if (Found != INDEX_NONE) { return Found; }
+    FLDCampSpeciesPool& Pool = Spec.Pools.AddDefaulted_GetRef();
+    Pool.Tier = Representative.Tier;
+    for (const auto& Species : Content.Monsters)
+    {
+        if (Species.Tier != Representative.Tier) { continue; }
+        if (Species.CountPerCamp != Representative.CountPerCamp || Species.RespawnMs != Representative.RespawnMs
+            || Species.RewardXP != Representative.RewardXP)
+        {
+            Error = TEXT("Species of one camp tier disagree on member count, reward or refresh.");
+            return INDEX_NONE;
+        }
+        Pool.Species.Add(FName(*Species.Id));
+        Pool.SpeciesIds.Add(Species.NativeId);
+    }
+    return Spec.Pools.Num() - 1;
+}
+}
+
 namespace LDCamp
 {
 bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeometry& World,
@@ -50,14 +83,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         Spec.SurfaceId = FName(*Anchor->SurfaceId);
         Spec.MonsterId = FName(*Monster->Id);
         Spec.CreatureId = Monster->NativeId;
-        for(const auto& Species:Content.Monsters)
-        {
-            if(Species.Tier!=Monster->Tier){continue;}
-            if(Species.CountPerCamp!=Monster->CountPerCamp || Species.RespawnMs!=Monster->RespawnMs
-                || Species.RewardXP!=Monster->RewardXP)
-            {Error=TEXT("Species of one camp tier disagree on member count, reward or refresh.");return false;}
-            Spec.Species.Add(FName(*Species.Id));Spec.SpeciesIds.Add(Species.NativeId);
-        }
+        if (FindOrAddPool(Content, *Monster, Spec, Error) != 0) { return false; }
         Spec.Tier = Monster->Tier;
         Spec.RespawnMs = Monster->RespawnMs;
         if (!Anchor->PositionCm.ToVector(Spec.AnchorCm, Error)) { return false; }
@@ -71,8 +97,9 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             if (!MemberMonster || !MemberMonster->NativeId || MemberMonster->RespawnMs<=0)
             { Error=TEXT("Camp member has no approved monster prototype: ")+Home.Id; return false; }
             Member.DefinitionId=FName(*MemberTemplate);
-            Member.MonsterId=FName(*MemberMonster->Id);
-            Member.CreatureId=MemberMonster->NativeId;
+            // The member prototype only names a tier representative; its species comes from that tier's draw.
+            Member.Pool=FindOrAddPool(Content,*MemberMonster,Spec,Error);
+            if (Member.Pool==INDEX_NONE) { return false; }
             if (Member.MemberId.IsNone() || Members.Contains(Member.MemberId))
             {
                 Error = FString::Printf(TEXT("Camp %s has a missing or repeated member home."), *CampText);
@@ -213,15 +240,24 @@ TArray<FLDCampPublicView> FLDCampMatchState::BuildPublicViews() const
     return Out;
 }
 
-bool FLDCampMatchState::SelectSpecies(int32 Camp,int32 Choice,FName& Out,FString& Error)
+bool FLDCampMatchState::SelectSpecies(int32 Camp,TConstArrayView<int32> Choices,TArray<FName>& Out,FString& Error)
 {
     auto* Group=IsActive() && Camps.IsValidIndex(Camp)?&Camps[Camp]:nullptr;
     if(!Group || Group->Members.ContainsByPredicate([](const auto& M){return M.bAlive;})
         || (Group->Generation!=0 && !Group->bRespawnPending))
     {Error=TEXT("Species can only be selected for a whole-group new life.");return false;}
-    const auto& Spec=Roster->Camps[Camp];
-    if(!Spec.Species.IsValidIndex(Choice)){Error=TEXT("Species draw is outside the camp tier pool.");return false;}
-    if(Group->PendingSpecies.IsNone()){Group->PendingSpecies=Spec.Species[Choice];}
+    if(Group->PendingSpecies.IsEmpty())
+    {
+        const auto& Pools=Roster->Camps[Camp].Pools;
+        if(Choices.Num()!=Pools.Num()){Error=TEXT("A species draw needs one choice per camp tier pool.");return false;}
+        TArray<FName> Draw;
+        for(int32 Pool=0;Pool<Pools.Num();++Pool)
+        {
+            if(!Pools[Pool].Species.IsValidIndex(Choices[Pool])){Error=TEXT("Species draw is outside the camp tier pool.");return false;}
+            Draw.Add(Pools[Pool].Species[Choices[Pool]]);
+        }
+        Group->PendingSpecies=MoveTemp(Draw);
+    }
     Out=Group->PendingSpecies;Error.Reset();return true;
 }
 
@@ -282,7 +318,7 @@ bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRe
         Error = TEXT("Camp spawn commit needs one current body per member (the teambuild slot only with its affix) at a valid authority time.");
         return false;
     }
-    if(Roster->Camps[Camp].Species.Num()>1 && Group->PendingSpecies.IsNone())
+    if(Group->PendingSpecies.IsEmpty() && Roster->Camps[Camp].Pools.ContainsByPredicate([](const auto& P){return P.Species.Num()>1;}))
     {Error=TEXT("A multi-species camp cannot spawn without a committed pending draw.");return false;}
     const bool bInitial = Group->Generation == 0 && !Group->bRespawnPending;
     const bool bAllDead = !Group->Members.ContainsByPredicate([](const FLDCampMemberState& M) { return M.bAlive; });
@@ -314,13 +350,17 @@ bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRe
         Member.AggroFloorSeconds = AtSeconds;
         Member.HostileSources.Reset();
     }
-    if(!Group->PendingSpecies.IsNone())
+    // A camp whose every pool has one species may commit without a draw: each pool's only species is the draw.
+    const auto& Pools=Roster->Camps[Camp].Pools;
+    Group->SelectedSpecies.Reset();
+    Group->CreatureIds.Reset();
+    for(int32 Pool=0;Pool<Pools.Num();++Pool)
     {
-        Group->SelectedSpecies=Group->PendingSpecies;
-        Group->CreatureId=Roster->Camps[Camp].SpeciesIds[Roster->Camps[Camp].Species.IndexOfByKey(Group->SelectedSpecies)];
-        Group->PendingSpecies=NAME_None;
+        const FName Species=Group->PendingSpecies.IsEmpty()?Pools[Pool].Species[0]:Group->PendingSpecies[Pool];
+        Group->SelectedSpecies.Add(Species);
+        Group->CreatureIds.Add(Pools[Pool].SpeciesIds[Pools[Pool].Species.IndexOfByKey(Species)]);
     }
-    else { Group->SelectedSpecies=Roster->Camps[Camp].MonsterId; Group->CreatureId=Roster->Camps[Camp].CreatureId; }
+    Group->PendingSpecies.Reset();
     ++Group->Generation;
     Group->bRespawnPending = false;
     Group->ClearedAtMs = Group->RespawnDueMs = 0;
@@ -532,11 +572,16 @@ bool FLDCampMatchState::AppendObservedFacts(const FLDCombatBodyRef& Body, FLDObs
         Error = TEXT("Observed camp facts require a current living camp member.");
         return false;
     }
-    // The teambuild member wears its own species, not the camp's.
+    // An Elite or Ancient teambuild member wears its fixed High species; every other member its tier pool's draw.
     const FLDCampSpec& Spec = Roster->Camps[Camp];
-    const uint8 CreatureId = Spec.bAuthoredMembers ? Spec.Members[Slot].CreatureId
-        : Spec.Members.IsValidIndex(Slot) && Spec.Members[Slot].bTeambuild && Spec.TeambuildCreatureId != 0
-        ? Spec.TeambuildCreatureId : Camps[Camp].CreatureId;
+    const FLDCampMemberSpec& Home = Spec.Members[Slot];
+    const uint8 CreatureId = Home.bTeambuild && Spec.TeambuildCreatureId != 0 ? Spec.TeambuildCreatureId
+        : Camps[Camp].CreatureIds.IsValidIndex(Home.Pool) ? Camps[Camp].CreatureIds[Home.Pool] : 0;
+    if (CreatureId == 0)
+    {
+        Error = TEXT("A living camp member has no committed species for its tier pool.");
+        return false;
+    }
     const uint8 Returning = uint8(ELDDemoStatusId::CampReturning);
     const bool bListed = InOut.Statuses.ContainsByPredicate([Returning](const FLDObservedStatus& S) { return S.StatusId == Returning; });
     const bool bReturning = Member->Brain.Phase == ELDCampBrainPhase::Returning;
