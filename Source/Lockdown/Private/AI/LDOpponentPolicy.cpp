@@ -231,7 +231,8 @@ struct FContext
         {
             if (POI.Kind == ELDOpponentPOIKind::Capture && !Capture) { Capture = &POI; }
         }
-        CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
+        // The final field's zone may be resized (final_double_yellow); the public radius is what counts.
+        CaptureRadiusCm = Frame.Public.PoleRadiusCm > 0 ? double(Frame.Public.PoleRadiusCm) : ToDouble(Content.Parameters.CaptureRadiusCm);
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
         AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
         ObjectiveReachCm = ToDouble(Content.Parameters.AI.ObjectiveReachCm);
@@ -885,6 +886,133 @@ bool CircleBody(const FContext& C, bool bUrgent, FLDOpponentBodyIntent& Out)
     return true;
 }
 
+const FLDOpponentUnit* SelectEngageTarget(const FContext& C);
+
+// A walk to a ground point of the final arena, clicked on the flagpole's surface; a live point walk is kept until it ends.
+FLDOpponentBodyIntent MoveToPoint(const FContext& C, const FVector& Point)
+{
+    FLDOpponentBodyIntent Body;
+    const auto& Order = C.Frame.Order;
+    if (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI.IsNone()) { return Hold(C); }
+    if (!C.CanWalk()) { return Hold(C); }
+    Body.Kind = EBody::MoveGround;
+    Body.Point = Point;
+    Body.Surface = C.Capture->SurfaceId;
+    Body.Key = FContext::PathKey(TEXT("final_point"));
+    return Body;
+}
+
+// The minimal play of the public final mods in the final field (content §4.7), read only from the public view: a weak body
+// keeps away from a usurp or clear-out holder, nobody presses into a standing fence, a carrier runs from enemies inside the
+// safe ring, a hit-and-run sprayer leaves the zone, a rival's private flagpole near its guard gets frozen, a private-pole
+// holder works his own pole, and kill-seconds or clear-out holders hunt. False leaves the ordinary flagpole play.
+bool FinalModBody(const FContext& C, FLDOpponentBodyIntent& Out)
+{
+    const FLDOpponentPublicMatch& Public = C.Frame.Public;
+    const FName Mine = Public.FinalModOf(C.Self.ContenderId);
+    const FVector& Foot = C.Self.FootCm;
+    const auto Clamp = [&Public](FVector Point)
+    {
+        const FVector Offset = Point - Public.ArenaCentreCm;
+        if (Public.SafeRadiusCm > 0 && Offset.Size2D() > Public.SafeRadiusCm)
+        { Point = Public.ArenaCentreCm + Offset.GetSafeNormal2D() * Public.SafeRadiusCm; Point.Z = Public.ArenaCentreCm.Z; }
+        return Point;
+    };
+    const auto Away = [&](const FVector& From, double Distance)
+    {
+        FVector Direction = (Foot - From).GetSafeNormal2D();
+        if (Direction.IsNearlyZero()) { Direction = (Foot - Public.ArenaCentreCm).GetSafeNormal2D(); }
+        if (Direction.IsNearlyZero()) { Direction = FVector::ForwardVector; }
+        return Clamp(Foot + Direction * Distance);
+    };
+    const FLDOpponentUnit* Nearest = nullptr;
+    for (const FLDOpponentUnit* Enemy : C.Enemies)
+    {
+        if (!Enemy->bProtected && (!Nearest || C.Distance(Enemy->FootCm) < C.Distance(Nearest->FootCm))) { Nearest = Enemy; }
+    }
+    // A weak body steps away from a visible holder whose kill would take its graffiti or finish a clear-out.
+    if (!RatioAtLeast(C.Self.HpP2, C.Self.MaxHpP2, C.AI.RetreatHPBp))
+    {
+        for (const FLDOpponentUnit* Enemy : C.Enemies)
+        {
+            const FName Mod = Public.FinalModOf(Enemy->ContenderId);
+            if ((Mod == TEXT("final_usurp") || Mod == TEXT("final_clear_out")) && C.Distance(Enemy->FootCm) <= C.AcquireRadiusCm)
+            {
+                ForgetTarget(C.State);
+                Out = MoveToPoint(C, Away(Enemy->FootCm, 600.));
+                return true;
+            }
+        }
+    }
+    // A standing fence keeps outsiders out: fight what is outside or wait for it to fall.
+    if (Public.CageUntilMs > C.Now && FVector::Dist2D(Foot, Public.CageCentreCm) > Public.CageRadiusCm)
+    {
+        if (const FLDOpponentUnit* Target = SelectEngageTarget(C)) { Out = EngageBody(C, *Target); return true; }
+        Out = Halt(C);
+        return true;
+    }
+    const bool bOwner = Public.Owner.IsValid() && Public.Owner == C.Self.ContenderId;
+    // The carrier's flagpole follows him: he keeps away from enemies, never beyond the arena's last safe ring.
+    if (bOwner && Mine == TEXT("final_carry_flag") && Public.CageUntilMs <= C.Now)
+    {
+        if (Nearest && C.Distance(Nearest->FootCm) <= C.AcquireRadiusCm)
+        {
+            ForgetTarget(C.State);
+            Out = MoveToPoint(C, Away(Nearest->FootCm, 500.));
+            return true;
+        }
+        Out = Halt(C);
+        return true;
+    }
+    // A hit-and-run graffiti has no guard: its sprayer leaves the zone at once to spray again.
+    if (bOwner && Mine == TEXT("final_hit_and_run") && Public.FadeAtMs > 0)
+    {
+        if (C.bInsideCircle)
+        {
+            ForgetTarget(C.State);
+            Out = MoveToPoint(C, Away(C.Capture->FootCm, C.CaptureRadiusCm + 200.));
+            return true;
+        }
+        Out = Halt(C);
+        return true;
+    }
+    // A rival's private flagpole is frozen by standing in it once its graffiti has a third of its guard.
+    for (const FLDPrivatePoleView& Pole : Public.PrivatePoles)
+    {
+        if (Pole.Holder == C.Self.ContenderId || !Pole.bGraffiti) { continue; }
+        const int64 Kept = Pole.GuardDueAtMs > 0 ? Pole.GuardMs - (Pole.GuardDueAtMs - C.Now) : Pole.GuardKeptMs;
+        if (Kept * 3 < Pole.GuardMs) { continue; }
+        if (FVector::Dist2D(Foot, Pole.CentreCm) > Pole.RadiusCm * .6) { Out = MoveToPoint(C, Pole.CentreCm); return true; }
+        if (const FLDOpponentUnit* Target = SelectEngageTarget(C)) { Out = EngageBody(C, *Target); return true; }
+        Out = Halt(C);
+        return true;
+    }
+    // A private-pole holder sprays and guards his own pole, fighting only who comes in.
+    if (Mine == TEXT("final_private_pole"))
+    {
+        if (const FLDPrivatePoleView* Own = Public.PrivatePoles.FindByPredicate([&C](const FLDPrivatePoleView& Pole)
+            { return Pole.Holder == C.Self.ContenderId; }))
+        {
+            if (FVector::Dist2D(Foot, Own->CentreCm) > Own->RadiusCm * .6) { Out = MoveToPoint(C, Own->CentreCm); return true; }
+            for (const FLDOpponentUnit* Enemy : C.Enemies)
+            {
+                if (!Enemy->bProtected && FVector::Dist2D(Enemy->FootCm, Own->CentreCm) <= Own->RadiusCm)
+                { Out = EngageBody(C, *Enemy); return true; }
+            }
+            ForgetTarget(C.State);
+            Out = Halt(C);
+            return true;
+        }
+    }
+    // Kills win time or the match: these holders hunt whatever enemy they see.
+    if ((Mine == TEXT("final_kill_seconds") || Mine == TEXT("final_clear_out")) && Nearest && !bOwner)
+    {
+        Out = EngageBody(C, *Nearest);
+        return true;
+    }
+    return false;
+}
+
 bool ReachedPOI(const FContext& C, FName POI)
 {
     const auto& Order = C.Frame.Order;
@@ -1259,20 +1387,13 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     {
         FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FinalMod);
         Key.Target = Self.FinalModOfferId;
-        const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
+        if (State.Failures.CanAttempt(Key, Print, Now))
         {
-            return Self.FinalModSources.ContainsByPredicate([&Id](const FLDFinalModSourceView& Source){return Source.Option==FName(*Id);});
-        });
-        if (Option && State.Failures.CanAttempt(Key, Print, Now))
-        {
-            const auto* Source=Self.FinalModSources.FindByPredicate([Option](const FLDFinalModSourceView& Candidate){return Candidate.Option==FName(**Option);});
-            if(!Source){Error=TEXT("The final choice lost its legal source.");return false;}
+            // Every final mod is universal: a uniform pick, fixed by the server-random offer identity.
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::FinalMod;
             Out.OfferId = Self.FinalModOfferId;
-            Out.Option = *Option;
-            Out.FinalTargetKind=Source->TargetKind;
-            Out.TargetId=Source->TargetId.IsNone()?FString():Source->TargetId.ToString();
+            Out.Option = Self.FinalModOptions[int32(GetTypeHash(Self.FinalModOfferId) % uint32(Self.FinalModOptions.Num()))];
             Out.Key = Key;
             return true;
         }
@@ -2552,7 +2673,8 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         FLDOpponentBodyIntent Intent;
         EndVisit(State, false);
         State.bRecovering = false;
-        if (CircleBody(C, true, Intent)) { Body(Intent); }
+        if (C.bCaptureOpen && FinalModBody(C, Intent)) { Body(Intent); }
+        else if (CircleBody(C, true, Intent)) { Body(Intent); }
         else { Body(Halt(C)); }
         return Finish(EMode::Contest, EReason::ContestCapture);
     }
