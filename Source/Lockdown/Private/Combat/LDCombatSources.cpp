@@ -484,6 +484,11 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     }
     const FLDDemoTargetDefinition* Target=&Terms.Target;
     const FLDDemoAbilityValues* Values=&Terms.Values;
+    if (Source.Kind==ELDCombatSourceKind::Learned)
+    {
+        View.Branch=static_cast<uint8>(Terms.Branch);
+        View.Rank=LDSkillBranch::RankOf(Terms.Branch);
+    }
     View.TargetMode=static_cast<uint8>(Target->Mode);
     View.MomentumCostP2=Values->MomentumCostP2;
     // A dash has no authored target range; its reach is the Dash effect distance of the active.
