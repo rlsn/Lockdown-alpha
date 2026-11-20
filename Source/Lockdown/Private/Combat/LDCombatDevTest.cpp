@@ -124,6 +124,8 @@ bool ALDCombatDirector::DevSetMomentum(const FGuid& Contender, int64 Points, con
         Body->Resources.MomentumP2 = Points * 100;
         ++Body->Resources.Revision;
         Body->MomentumMicroP2 = 0;
+        // Like any other momentum change: a charge does not outlive momentum below its threshold.
+        if (Body->OverdriveCharge.IsSet() && Body->Resources.MomentumP2 < OverdriveThresholdOf(*Body)) { EndOverdriveCharge(*Body); }
         MarkViewChanged(Contender);
     }
     Detail = FString::Printf(TEXT("momentum %lld->%lld P2"), Before, Body->Resources.MomentumP2);

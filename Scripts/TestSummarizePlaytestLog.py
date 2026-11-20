@@ -330,6 +330,19 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         # A measured baseline replaces the estimate and is named in the report.
         measured = summarize(collect([str(self.root / "P2.log")]), baseline=parse_baseline("1=300"), metrics_only=True)
         self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.82, B x0.08)", measured)
+        # A finished match nobody fought in has no LD_HIT but still has its field share, alone and beside a fought match.
+        quiet = [
+            line(1, "LogLDMatch", "Display", "LD_MATCH_STARTED generation=9 contenders=2 started_at_ms=0"),
+            line(2, "LogLDMatch", "Display", "LD_FIELD_ENTER generation=9 segment=0 at_ms=2000 field_t_ms=0 final=0"),
+            line(8, "LogLDMatch", "Display", "LD_FIELD_ENTER generation=9 segment=1 at_ms=8000 field_t_ms=6000 final=1"),
+            line(10, "LogLDMatch", "Display", "LD_MATCH_RESULT generation=9 reason=1 winner=X ended_ms=10000"),
+        ]
+        (self.root / "Quiet.log").write_text("\n".join(quiet) + "\n", encoding="utf-8")
+        alone = summarize(collect([str(self.root / "Quiet.log")]), metrics_only=True)
+        self.assertIn("- Field time share (field segments before the showdown / whole match): 60.0% (6 s of 10 s)", alone)
+        self.assertIn("Field time share (before the showdown / whole match): 60.0% (6 s of 10 s)", alone.split("## Metrics across")[1])
+        both = summarize(collect([str(self.root / "P2.log"), str(self.root / "Quiet.log")]), metrics_only=True)
+        self.assertIn("| ≥ 65% | 53.3% (16 s of 30 s) |", both.split("## Metrics across 1 matches with Host lines")[1])
 
     def test_winner_builds_lives_without_ledgers_and_reused_generations(self):
         def run(name, points, cards, with_ledger, folder=None):

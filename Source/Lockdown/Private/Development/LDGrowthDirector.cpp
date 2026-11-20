@@ -1212,8 +1212,8 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
                 : M->Development->GrantVouchers(ContenderId, int32(Command.Amount), 0, TEXT("dev_fixture"), Permit);
             break;
         case ELDDevTestOp::GrantSkillPoint:
-            if (!LDGrowthWire::IsBuildLifePhase(Life.Phase)) { Reason = ELDGrowthReason::LifePhaseChanged; }
-            else if (!M->Development->GrantSkillPoint(ContenderId, TEXT("dev_fixture"), Permit, Detail)) { Reason = ELDGrowthReason::DataInvalid; }
+            Reason = LDGrowthWire::IsBuildLifePhase(Life.Phase) ? M->Development->DevGrantSkillPoint(ContenderId, Permit, Detail)
+                : ELDGrowthReason::LifePhaseChanged;
             break;
         case ELDDevTestOp::SetMomentum:
             if (Life.Phase != ELDLifePhase::Alive) { Reason = ELDGrowthReason::Dead; }
