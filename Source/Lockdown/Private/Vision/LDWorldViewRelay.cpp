@@ -1656,10 +1656,11 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         Targets.Add(Pair.Value->GetActorLocation());
         Targets.Add(Pair.Value->GetActorLocation() + FVector(0, 0, 70));
     }
-    // The ground under the pointer: a move or a ground skill aimed behind a building sees where it lands.
+    // The surface under the pointer, exactly where it was hit: ground behind a building fades the building through the
+    // sight line, and a roof under the pointer lies on its own bounds, so its building is run through and fades too.
     FHitResult PointerGround;
     if (Own && Owning.Navigation && Owning.Navigation->GroundUnderPointer(PointerGround))
-    { Targets.Add(PointerGround.ImpactPoint + FVector(0, 0, 30)); }
+    { Targets.Add(PointerGround.ImpactPoint); }
     const FVector Camera = Owning.PlayerCameraManager ? Owning.PlayerCameraManager->GetCameraLocation() : FVector::ZeroVector;
     const FBox Reach = LDPropFade::Reach(Camera, Targets);
     auto Hides = [&](const FBox& Bounds)

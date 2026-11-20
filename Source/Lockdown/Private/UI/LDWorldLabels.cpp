@@ -364,7 +364,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     struct FPending
     {
         LDWorldLabels::FLabel Label;
-        float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,Height=0.f,Row=0.f;
+        // LeftReach/RightReach: the bar row around the unit; TextWidth: the widest text row, drawn kept inside the viewport.
+        float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,TextWidth=0.f,Height=0.f,Row=0.f;
         bool bPublicService=false;
     };
     TArray<FPending> Pending;
@@ -378,7 +379,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
             if(Culled(Entry.CentreX,Entry.Bottom)){return;}
             const FVector2f Extent=FontMeasure->Measure(Name,CampFont);
-            Entry.LeftReach=Entry.RightReach=Extent.X*.5f;Entry.Height=Extent.Y;
+            Entry.TextWidth=Extent.X;Entry.Height=Extent.Y;
             Pending.Add(MoveTemp(Entry));
         };
         for(TActorIterator<ALDTrainingRoomDisplay> It(World);It;++It)
@@ -422,12 +423,12 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(!Label.Name.IsEmpty())
             {
                 const FVector2f Name=FontMeasure->Measure(Label.Name,Label.bContender?ContenderFont:CampFont);
-                Entry.LeftReach=FMath::Max(Entry.LeftReach,Name.X*.5f);Entry.RightReach=FMath::Max(Entry.RightReach,Name.X*.5f);Lines+=Name.Y;
+                Entry.TextWidth=FMath::Max(Entry.TextWidth,Name.X);Lines+=Name.Y;
             }
             if(!Label.Status.IsEmpty())
             {
                 const FVector2f Status=FontMeasure->Measure(Label.Status,StatusFont);
-                Entry.LeftReach=FMath::Max(Entry.LeftReach,Status.X*.5f);Entry.RightReach=FMath::Max(Entry.RightReach,Status.X*.5f);Lines+=Status.Y;
+                Entry.TextWidth=FMath::Max(Entry.TextWidth,Status.X);Lines+=Status.Y;
             }
             Entry.Height=Entry.Row+(Entry.Row>0.f&&Lines>0.f?WorldRowGap:0.f)+Lines;
             Pending.Add(MoveTemp(Entry));
@@ -437,7 +438,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     for(FPending& Entry:Pending)
     {
         float Bottom=Entry.Bottom;
-        const float Left=Entry.CentreX-Entry.LeftReach,Right=Entry.CentreX+Entry.RightReach;
+        // The space the label really draws in: its bar row around the unit and its text rows where RowLeft puts them.
+        const bool bBar=Entry.LeftReach>0.f||Entry.RightReach>0.f;
+        const float TextLeft=RowLeft(Entry.CentreX,Entry.TextWidth);
+        const float Left=bBar?FMath::Min(Entry.CentreX-Entry.LeftReach,TextLeft):TextLeft;
+        const float Right=bBar?FMath::Max(Entry.CentreX+Entry.RightReach,TextLeft+Entry.TextWidth):TextLeft+Entry.TextWidth;
         for(bool bMoved=true;bMoved;)
         {
             bMoved=false;

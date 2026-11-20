@@ -139,7 +139,7 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
             return INDEX_NONE;
         }
     }
-    for (auto& Pair : Records) { Pair.Value.Pending.Reset(); }
+    ClosePending(ELDCombatReject::Cancelled);
     UE_LOG(LogLDCombat,Display,TEXT("LD_PHASE_EFFECTS_CANCELLED count=%d at_ms=%lld reason=CancelledByPhase"),Cancelled,NowMs);
     return Cancelled;
 }

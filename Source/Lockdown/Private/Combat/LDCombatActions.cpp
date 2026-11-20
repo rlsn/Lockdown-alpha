@@ -193,13 +193,9 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
     SendReceipt(*Record,Known->Receipt);
 }
 
-void ALDCombatDirector::EndMatchActions()
+// Every queued Direct request (held behind an own windup included) ends with a terminal receipt, never silently.
+void ALDCombatDirector::ClosePending(ELDCombatReject Reason)
 {
-    Channels.Reset();
-    RemoveBags([](const FLDCombatBag&) { return true; });
-    GroundEffects.Reset();
-    MonsterStrikes.Reset();
-    ContactMotion.Reset();
     for (auto& Pair : Records)
     {
         auto& Record=Pair.Value;
@@ -213,13 +209,23 @@ void ALDCombatDirector::EndMatchActions()
             Closed.DirectSequence=Request.DirectSequence;
             Closed.Entry=Request.Entry;
             Closed.Phase=ELDCombatPhase::Rejected;
-            Closed.Reject=ELDCombatReject::MatchClosed;
+            Closed.Reject=Reason;
             StoreReceipt(Record,Request,Closed);
             if (const auto* Stored=Record.Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
                 { return Entry.Request.DirectSequence==Request.DirectSequence; }))
             { SendReceipt(Record,Stored->Receipt); }
         }
     }
+}
+
+void ALDCombatDirector::EndMatchActions()
+{
+    Channels.Reset();
+    RemoveBags([](const FLDCombatBag&) { return true; });
+    GroundEffects.Reset();
+    MonsterStrikes.Reset();
+    ContactMotion.Reset();
+    ClosePending(ELDCombatReject::MatchClosed);
     for (auto& Pair : Bodies)
     {
         AbandonAction(Pair.Value,ELDCombatReject::MatchClosed);
@@ -1234,34 +1240,63 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Body.Branch.Recast.Reset();
         ApplyRecastTerms(RecastWindow.GetValue(),Terms,DeliveryAction);
     }
-    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint
-        && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap)))
+    // Every ground-point skill lands on legal ground. A point inside a wall, on a roof or off the walkable ground lands
+    // short instead: the first legal ground back along the cast toward the caster, in GroundFallbackStepCm steps. An
+    // impact or trap with no legal ground refuses; a zone without a registered map keeps its clamped point.
+    TOptional<FVector> LandedPoint;
+    const bool bNeedsGround=TargetDef.Mode==ELDDemoTargetMode::GroundPoint
+        && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap));
+    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
     {
         const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
         const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
-        if (!Registry || !Registry->Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
-        { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
-        const FVector Reach=FVector(Action.TargetPoint.X-ReleaseFoot.X,Action.TargetPoint.Y-ReleaseFoot.Y,0)
-            .GetClampedToMaxSize(LDCA::ToDouble(TargetDef.RangeCm));
-        // A point inside a wall, a roof or off the walkable ground lands short instead: the first legal ground back
-        // along the cast toward the caster, in GroundFallbackStepCm steps.
-        const int32 Steps=FMath::Max(1,FMath::CeilToInt(Reach.Size2D()/LDCA::GroundFallbackStepCm));
-        FLDLegalGround Ground;
-        bool bLanded=false;
-        for (int32 Step=0; Step<=Steps && !bLanded; ++Step)
+        const bool bRegistered=Registry && Registry->Enabled() && Geometry && !Geometry->Surfaces.IsEmpty();
+        if (bNeedsGround && !bRegistered) { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
+        if (bRegistered)
         {
-            FVector Point=ReleaseFoot+Reach*(double(Steps-Step)/Steps);
-            FVector Normal;
-            Registry->GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
-            ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
-            if (Registry->QueryGround(Registry->Revision(),Point,Actor.GetCapsuleComponent()->GetCollisionShape(),
-                FName(*Geometry->Surfaces[0].Id),Ground,Failure,Error)) { bLanded=true; break; }
-            if (Failure!=ELDWorldQueryFailure::Blocked && Failure!=ELDWorldQueryFailure::NotGrounded
-                && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
-            Error.Reset();
+            const FVector Reach=FVector(Action.TargetPoint.X-ReleaseFoot.X,Action.TargetPoint.Y-ReleaseFoot.Y,0)
+                .GetClampedToMaxSize(LDCA::ToDouble(TargetDef.RangeCm));
+            const int32 Steps=FMath::Max(1,FMath::CeilToInt(Reach.Size2D()/LDCA::GroundFallbackStepCm));
+            const FCollisionShape Capsule=Actor.GetCapsuleComponent()->GetCollisionShape();
+            FLDLegalGround CasterGround;
+            bool bCasterTried=false, bCaster=false;
+            for (int32 Step=0; Step<=Steps && !LandedPoint.IsSet(); ++Step)
+            {
+                FVector Point=ReleaseFoot+Reach*(double(Steps-Step)/Steps);
+                FVector Normal;
+                Registry->GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
+                FLDLegalGround Ground;
+                ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
+                if (!Registry->QueryGround(Registry->Revision(),Point,Capsule,FName(*Geometry->Surfaces[0].Id),Ground,Failure,Error))
+                {
+                    if (Failure!=ELDWorldQueryFailure::Blocked && Failure!=ELDWorldQueryFailure::NotGrounded
+                        && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
+                    Error.Reset();
+                    continue;
+                }
+                // A roof has standing room but no walk to it: only ground with a complete native route from the caster
+                // counts (a raised platform reached by its ramp stays legal). Without navigation data nothing is judged.
+                if (!bCasterTried)
+                {
+                    bCasterTried=true;
+                    ELDWorldQueryFailure CasterFailure=ELDWorldQueryFailure::None;
+                    FString CasterError;
+                    bCaster=Registry->QueryGround(Registry->Revision(),ReleaseFoot,Capsule,FName(*Geometry->Surfaces[0].Id),
+                        CasterGround,CasterFailure,CasterError);
+                }
+                if (bCaster)
+                {
+                    FLDCompletePath Route;
+                    ELDWorldQueryFailure RouteFailure=ELDWorldQueryFailure::None;
+                    FString RouteError;
+                    if (!Registry->QueryCompletePath(Registry->Revision(),CasterGround,Ground,Capsule,Route,RouteFailure,RouteError)
+                        && RouteFailure!=ELDWorldQueryFailure::MissingNavigation) { continue; }
+                }
+                LandedPoint=Ground.FootCm;
+            }
         }
-        if (!bLanded) { Reject=ELDCombatReject::Blocked; return true; }
-        DeliveryAction.TargetPoint=Ground.FootCm;
+        if (LandedPoint.IsSet()) { DeliveryAction.TargetPoint=*LandedPoint; }
+        else if (bNeedsGround) { Reject=ELDCombatReject::Blocked; return true; }
     }
     // Hit effects name their targets before anything is paid: a unit, a projectile, or every legal body in a self area.
     const FLDDemoEffectDefinition* DamageEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Damage);
@@ -1616,9 +1651,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         { return false; }
         if (!ArmBranchHostile(Body,Terms,Template,AreaTargets,Now,Error)) { return false; }
     }
-    // A ground zone sits at the requested point, clamped to the authored reach.
+    // A ground zone sits on the landed ground point, else at the requested point clamped to the authored reach.
     FVector ZonePoint=Action.TargetPoint;
-    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
+    if (LandedPoint.IsSet()) { ZonePoint=*LandedPoint; }
+    else if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
     {
         const FVector Offset(ZonePoint.X-ReleaseFoot.X,ZonePoint.Y-ReleaseFoot.Y,0.);
         const double Reach=LDCA::ToDouble(TargetDef.RangeCm);

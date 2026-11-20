@@ -140,7 +140,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
 构筑变更的数值失败（NumericUnderflow/NumericDomain）属于 `ELDCombatPrepareError`。隐藏、撤销、过期目标统一 TargetUnavailable；分配/算术/缺边界证据不是 Miss，不能用零伤害或默认坐标吞掉。
 
 **目标与接触**：单位新锁定、每次追击、AttackStart 与需要单位许可的 Release 都经 `ResolveObservedUnit`/`TraceSight` 重新解析，失视野取消锁定并停追击。
-目标种类 Missing/Self/Unit/Direction/Point；Point 只用于 GroundPoint 区域技能，释放时夹到射程内；夹后的点 `QueryGround` 不合法（墙内、屋顶、不可走）时沿施法方向往回每 `GroundFallbackStepCm` 25 cm 取样，落到第一个合法地面，一直到脚下都不合法才 `Blocked`。区域与方向效果在权威内部读同一 `Bodies` 求接触并逐目标做世界 LOS（`LDCombatEffects.cpp`），
+目标种类 Missing/Self/Unit/Direction/Point；Point 只用于 GroundPoint 区域技能，释放时夹到射程内；所有 GroundPoint 技能（地面冲击、陷阱与区域）都落在合法地面：夹后的点 `QueryGround` 不合法（墙内、不可走）或从施法者脚下没有完整原生路线（屋顶）时，沿施法方向往回每 `GroundFallbackStepCm` 25 cm 取样，落到第一个合法地面；冲击/陷阱一直到脚下都没有才 `Blocked`，区域在没有注册地图时保留夹后的点。没有导航数据时不判路线。区域与方向效果在权威内部读同一 `Bodies` 求接触并逐目标做世界 LOS（`LDCombatEffects.cpp`），
 可以接触隐藏身体，但不授予观察句柄，不交 UI/AI/Nav；方向效果在首次真实接触时取得目标生命。缺世界注册或非法半径明确失败，不截断为“最近若干目标”。
 
 ## 纯值接口
@@ -670,7 +670,7 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 | --- | --- | --- | --- | --- |
 | 前闸拒绝 | 不改保护和资源 | 不替换当前单 | 无 | 不写 CD/节拍 |
 | 意图后游戏拒绝 | 保护已解除 | 未准入不替换旧单 | 无 | 不扣劲、不写 CD；失保不回滚 |
-| S/新单/取消 | 不撤回已发生状态 | 取消可中断工作 | 不回收、不退款 | 保留已承诺成本；未出手普攻退回节拍 |
+| S/新单/取消 | 不撤回已发生状态（阶段清理与结束对局给每个排队请求终态回执，`ClosePending`） | 取消可中断工作 | 不回收、不退款 | 保留已承诺成本；未出手普攻退回节拍 |
 | 换槽/升级 | 一次最终投影 | 验实际来源条款 | 保持旧快照 | 旧 ReadyAt 不重算 |
 | 替换/遗忘主动 | 遗忘旧等级与持续贡献 | 旧来源未释放的失效 | 继续原期限 | 原发行记录保留，重学沿原结束 |
 | 来源死亡 | 构筑/候选保留，活体持续作用停止，清旧控制 | 取消 | 继续 | CD/节拍继续；在局死者有效击杀仍获奖 |

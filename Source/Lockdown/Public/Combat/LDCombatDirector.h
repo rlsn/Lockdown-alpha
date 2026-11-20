@@ -1226,6 +1226,7 @@ private:
     // An accepted action that ends without release (death, cancel, interruption, camp reset):
     // a Direct request also gets its terminal Rejected receipt; nothing is paid or refunded.
     void AbandonAction(FLDBodyCombatState& Body, ELDCombatReject Reason);
+    void ClosePending(ELDCombatReject Reason);
     // Close: queued intents and unreleased actions end with MatchClosed receipts; nothing is paid.
     void EndMatchActions();
 
