@@ -99,6 +99,10 @@ namespace LDHUD
     LOCKDOWN_API FCardText CardText(const FString& Template,const FLDDemoAbilityValues& Values,const FCardStats& Stats,
         const FLDDemoSkillRankParameters& Ranks,int64 GrowthPerLevelBp,uint8 Rank=1);
     // Renders a stat's card template: each [per_point.<Stat>] reads that per-point bonus of Stat, which never grows.
+    // A learned branch's view of the skill's whole description: each placeholder reads the branch's values, and one whose
+    // effect the branch removed or replaced reads the level-1 values instead (the branch steps then say what changed).
+    LOCKDOWN_API FCardText PathCardText(const FString& Template,const FLDDemoAbilityValues& PathValues,const FLDDemoAbilityValues& BaseValues,
+        const FCardStats& Stats,const FLDDemoSkillRankParameters& Ranks,int64 GrowthPerLevelBp,uint8 Rank);
     LOCKDOWN_API FCardText StatCardText(const FString& Template,const FLDDemoStatDefinition& Stat);
     // "<b>减速</>：…" for each keyword.
     LOCKDOWN_API TArray<FString> KeywordLines(const TArray<FString>& Keywords);

@@ -148,7 +148,8 @@ LDHUD::FBranchCardView LDHUD::BranchCard(const FLDDemoContentDefinitions* Conten
     FString Name;
     Out.Name=ContentText(Content,StepId,false,Name)?Name:Step->NameText;
     const FCardText Line=CardText(Step->DescriptionText,Branch->Values,Stats,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,Rank);
-    const FCardText Body=CardText(Whole->DescriptionText,Branch->Values,Stats,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,Rank);
+    const FCardText Body=PathCardText(Whole->DescriptionText,Branch->Values,Ability->Values,Stats,Content->Parameters.SkillRanks,
+        Content->Parameters.SkillGrowthPerLevelBp,Rank);
     if(!Line.bComplete){return Out;}
     Out.Line=Line.Plain;
     Out.Detail=FString::Printf(TEXT("%s\n%s\n%s"),*Line.Plain,*Body.Plain,*CostLine(Branch->Values));
@@ -1720,6 +1721,18 @@ LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoAbilityVal
     }
     return CardRender(Template,[&Grown,&Stats](const LDDemoCardText::FToken& Token,FString& Out){return !Token.bPerPoint&&CardValue(Token,Grown,Stats,Out);});
 }
+LDHUD::FCardText LDHUD::PathCardText(const FString& Template,const FLDDemoAbilityValues& PathValues,const FLDDemoAbilityValues& BaseValues,
+    const FCardStats& Stats,const FLDDemoSkillRankParameters& Ranks,int64 GrowthPerLevelBp,uint8 Rank)
+{
+    FLDDemoAbilityValues GrownPath,GrownBase;
+    if(!LDSkillGrowth::GrowValues(PathValues,Ranks,GrowthPerLevelBp,Stats.Level,Rank,GrownPath)
+        ||!LDSkillGrowth::GrowValues(BaseValues,Ranks,GrowthPerLevelBp,Stats.Level,Rank,GrownBase))
+    {
+        FCardText Text;Text.bComplete=false;Text.Plain=Text.Rich=TEXT("（卡面数据缺失）");return Text;
+    }
+    return CardRender(Template,[&GrownPath,&GrownBase,&Stats](const LDDemoCardText::FToken& Token,FString& Out)
+        {return !Token.bPerPoint&&(CardValue(Token,GrownPath,Stats,Out)||CardValue(Token,GrownBase,Stats,Out));});
+}
 LDHUD::FCardText LDHUD::StatCardText(const FString& Template,const FLDDemoStatDefinition& Stat)
 {
     return CardRender(Template,[&Stat](const LDDemoCardText::FToken& Token,FString& Out){return Token.bPerPoint&&CardPerPointValue(Token,Stat,Out);});
@@ -1756,8 +1769,31 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
         return Card;
     }
     const FLDDemoAbilityValues& Values=Path?Path->Values:Ability->Values;
-    const FCardText Sentence=CardText(Display->DescriptionText,Values,Stats,Content->Parameters.SkillRanks,
-        Content->Parameters.SkillGrowthPerLevelBp,LDSkillBranch::RankOf(Branch));
+    const uint8 Rank=LDSkillBranch::RankOf(Branch);
+    FCardText Sentence=PathCardText(Display->DescriptionText,Values,Ability->Values,Stats,Content->Parameters.SkillRanks,
+        Content->Parameters.SkillGrowthPerLevelBp,Rank);
+    // Each chosen step along the path (rank 2, then rank 3) follows as its own line, with the path's numbers.
+    TArray<ELDSkillBranch> Steps;
+    for(ELDSkillBranch Step=Branch;Step!=ELDSkillBranch::None;Step=LDSkillBranch::ParentOf(Step)){Steps.Insert(Step,0);}
+    for(const ELDSkillBranch Step:Steps)
+    {
+        const FString StepId=LDSkillBranch::DisplayId(Id,Step);
+        const FLDDemoDisplayDefinition* StepRow=Content->Display.FindByPredicate([&StepId](const FLDDemoDisplayDefinition& Row){return Row.Id==StepId;});
+        const FLDDemoAbilityBranch* StepPath=Ability->FindBranch(Step);
+        if(!StepRow||!StepPath)
+        {
+            Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该技能分支");
+            return Card;
+        }
+        FString StepName;
+        if(!ContentText(Content,StepId,false,StepName)){StepName=StepRow->NameText;}
+        const FCardText Line=PathCardText(StepRow->DescriptionText,Values,StepPath->Values,Stats,Content->Parameters.SkillRanks,
+            Content->Parameters.SkillGrowthPerLevelBp,Rank);
+        Sentence.Plain+=FString::Printf(TEXT("\n%s：%s"),*StepName,*Line.Plain);
+        Sentence.Rich+=FString::Printf(TEXT("\n<b>%s</>：%s"),*CardEscape(StepName),*Line.Rich);
+        for(const FString& Keyword:Line.Keywords){Sentence.Keywords.AddUnique(Keyword);}
+        Sentence.bComplete&=Line.bComplete;
+    }
     Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
     Card.Keywords=KeywordLines(Sentence.Keywords);
     Card.Target=TargetLine(Path?Path->Target:Ability->Target);
