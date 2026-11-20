@@ -179,6 +179,8 @@ public:
         FString& Detail);
     ELDGrowthReason DevLearnActive(const FGuid& ContenderId, FName DefinitionId, uint8 Slot, const FLDGameplayWritePermit& Permit,
         FString& Detail);
+    // One more DEV skill point (DevSkillPoints), apart from the shop's and the audit affix's capped ones.
+    ELDGrowthReason DevGrantSkillPoint(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Detail);
     ELDGrowthReason DevAllocatePoints(const FGuid& ContenderId, FName StatId, int64 Amount, const FLDGameplayWritePermit& Permit,
         FString& Detail);
     // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no

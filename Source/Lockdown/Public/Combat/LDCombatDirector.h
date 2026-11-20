@@ -1077,6 +1077,8 @@ public:
     // The contender's current Alive body to its committed HP maximum and a full momentum bar (the shield is untouched). False with Detail when
     // the permit, the contender record or a living body is missing; nothing changes then.
     bool DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
+    // The living body's momentum to Points whole points (0..MOMENTUM.Max); false with Detail outside that range or without a body.
+    bool DevSetMomentum(const FGuid& Contender, int64 Points, const FLDGameplayWritePermit& Permit, FString& Detail);
     // DEV: one ownerless ground state of Kind (ELDGroundStateKind) at the contender's living foot.
     bool DevSpawnGround(const FGuid& Contender, uint8 Kind, const FLDGameplayWritePermit& Permit, FString& Detail);
     // Every cooldown track of the contender (learned, held or forgotten, and the innate dash) ready at the permit
@@ -1085,6 +1087,9 @@ public:
     // Pure parts of the two commands. RefillPool returns whether HP or momentum changed; ResetTracks the number of tracks
     // that were cooling down at NowMs.
     static bool DevRefillPool(FLDBodyCombatState::FResources& Pool, int64 MomentumP2);
+    // SetMomentum's pool part: false (nothing changed) when Points is outside 0..MaxP2/100; otherwise momentum becomes
+    // Points whole points, and a change advances the revision once and clears the sub-P2 remainder. OutChanged says which.
+    static bool DevSetMomentumPool(FLDBodyCombatState::FResources& Pool, int64& MicroP2, int64 Points, int64 MaxP2, bool& OutChanged);
     static int32 DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
     // The DEV test layer of the installed build (FLDBuildProjectionInput::DevBonuses): bClearAll empties it, otherwise
     // Stat's term becomes Amount in its unit (0 removes it). The installed build is reprojected and installed through
@@ -1393,11 +1398,11 @@ private:
         int64 NowMs, FString& Error);
 
     // ---- #112 C2 mechanics (LDCombatMechanicsDirector.cpp).
-    // A one-time heal of Body (lifesteal, K15, charms); regeneration never passes here. A live S21 grievous cuts it first; Y14
+    // A one-time heal of Body (lifesteal, K15, charms); regeneration never passes here. Live rot cuts it first; Y14
     // turns the overflow into a shield and Y19 counts what really healed. True when HP changed; OutApplied (optional) is healed.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
         int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid(), FString* OutError=nullptr);
-    // The single shield entry: a live S21 grievous cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
+    // The single shield entry: live rot cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
     // records its amount (ShieldGrantedP2).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());

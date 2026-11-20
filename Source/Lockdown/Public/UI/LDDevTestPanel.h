@@ -73,6 +73,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> StatusText;
     UPROPERTY() TObjectPtr<UTextBlock> FeedbackLine;
     UPROPERTY() TObjectPtr<UEditableTextBox> XPBox;
+    UPROPERTY() TObjectPtr<UEditableTextBox> VoucherBox;
+    UPROPERTY() TObjectPtr<UEditableTextBox> MomentumBox;
     UPROPERTY() TArray<TObjectPtr<UEditableTextBox>> StatBoxes;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> StatLines;
     // The hit-feel tunables (LDHitFeel::Fields): local client console variables, not DEV test commands.
