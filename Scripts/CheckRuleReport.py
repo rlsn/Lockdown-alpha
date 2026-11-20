@@ -140,6 +140,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Combo.Steps",
         "Lockdown.Rules.Combat.Overdrive.Threshold",
         "Lockdown.Rules.Combat.Overdrive.Release",
+        "Lockdown.Rules.Combat.Overdrive.Cost",
         "Lockdown.Rules.Combat.Overdrive.ElementBonus",
         "Lockdown.Rules.Combat.PerfectDodge.Window",
         "Lockdown.Rules.Combat.PerfectDodge.Resolve",
