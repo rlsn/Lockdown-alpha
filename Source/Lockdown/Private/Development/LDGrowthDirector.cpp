@@ -1258,6 +1258,12 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
             Detail = M->DevDailyPreset.IsEmpty() ? FString(TEXT("下一局抽取热点"))
                 : FString::Printf(TEXT("下一局热点：%s、%s"), LDTerms::DailyName(M->DevDailyPreset[0]), LDTerms::DailyName(M->DevDailyPreset[1]));
             break;
+        case ELDDevTestOp::SetInvulnerable:
+            if (!M->DevSetInvulnerable(ContenderId, Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
+        case ELDDevTestOp::SetCountdownPaused:
+            if (!M->DevSetCountdownPaused(Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
         case ELDDevTestOp::SetPeaceful:
             if (!M->DevSetPeaceful(ContenderId, Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
             break;

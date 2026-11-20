@@ -53,6 +53,7 @@ bool FLDDevSceneToolsTest::RunTest(const FString& Parameters)
     Mode->DemoContent = Catalog;
     Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
     const FGuid Id(0xDE7, 0, 0, 1);
+    Mode->RosterOrder.Add(Id);
     FLDBodyCombatState State;
     State.Identity = FGuid::NewGuid();
     State.Victim = {ELDVictimKind::Contender, Id, 1};
@@ -66,6 +67,7 @@ bool FLDDevSceneToolsTest::RunTest(const FString& Parameters)
     Life.Actor = Body;
     Life.Body = {State.Victim, State.Identity};
     Mode->BeginLifeMotion(Life, Life.Body, *Body);
+    Mode->DevInvulnerable.Add(Id);
     Life.MotionThroughSequence = 42;
     const FGuid StreamBefore = Life.MotionStreamId;
     World->Tick(LEVELTICK_TimeOnly, .1f);
@@ -73,6 +75,23 @@ bool FLDDevSceneToolsTest::RunTest(const FString& Parameters)
     const bool Ran = Mode->BeginAuthorityStep(*Combat, Mode->MatchContext, 50) == ELDCommitReject::None
         && Mode->ExecuteAuthorityPhase(*Combat, ELDCommitPhase::Motion, [&](const auto&)
         { Life.CompletedMotionStep = Mode->AuthorityStep.StepSerial; return true; }, Error)
+        && Mode->ExecuteAuthorityPhase(*Combat, ELDCommitPhase::Effects, [&](const FLDGameplayWritePermit& Permit)
+        {
+            TestTrue(TEXT("Environmental damage cannot reduce protected test health"),
+                Combat->ApplyEnvironmentDamage(Life.Body, 100000, Permit, Error)
+                && Combat->Bodies.FindChecked(Body).Resources.HpP2 == 10000);
+            return true;
+        }, Error)
+        && Mode->ExecuteAuthorityPhase(*Combat, ELDCommitPhase::RespawnsAndWorld, [&](const FLDGameplayWritePermit& Permit)
+        {
+            bool Ready = true;
+            TestFalse(TEXT("Normal field entry also rejects an unusable map before retirement"), Mode->PrepareFieldReturn(Permit, Ready, Error));
+            TestTrue(TEXT("A failed normal entry leaves the old life and actor intact"),
+                Life.Phase == ELDLifePhase::Alive && Life.Actor.Get() == Body && !Body->IsActorBeingDestroyed()
+                && Life.Life == 1 && !Mode->bFieldReturnStarted && Mode->PreparedFieldReturn.IsEmpty());
+            Error.Reset();
+            return true;
+        }, Error)
         && Mode->ExecuteAuthorityPhase(*Combat, ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
         {
             TestTrue(TEXT("A plain static mesh roof is a destination outside map bounds and without navmesh"),
@@ -91,6 +110,16 @@ bool FLDDevSceneToolsTest::RunTest(const FString& Parameters)
             Life.Phase = ELDLifePhase::Dead;
             TestFalse(TEXT("A dead owner cannot teleport"), Mode->DevTeleport(Id, FVector(50000, 50000, 500), Permit, Error));
             Life.Phase = ELDLifePhase::Alive;
+            FLDTimelineParameters TimelineParameters;
+            TestTrue(TEXT("The entry failure fixture starts in opening preparation"),
+                FLDTimelineParameters::FromContent(Catalog->Get().Parameters, TimelineParameters, Error)
+                && Mode->Timeline.Begin(TimelineParameters, 0, Error));
+            const auto BodyBefore = Life.Body;
+            const uint64 RevisionBefore = Life.Revision;
+            TestFalse(TEXT("A skip with no usable field map is rejected before switching phases"), Mode->DevSkipPreparation(Permit, Error));
+            TestTrue(TEXT("Rejected entry preserves the current actor, live identity and preparation stage"),
+                Life.Phase == ELDLifePhase::Alive && Life.Actor.Get() == Body && !Body->IsActorBeingDestroyed()
+                && Life.Body == BodyBefore && Life.Revision == RevisionBefore && Mode->Timeline.GetStep() == ELDRestStep::Build);
             Error.Reset();
             return true;
         }, Error)

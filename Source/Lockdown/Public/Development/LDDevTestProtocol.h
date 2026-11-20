@@ -66,6 +66,8 @@ enum class ELDDevTestOp : uint8
     SetMomentum = 23,
     // Spec §12 DEV skill points: Amount == 0: one more unspent skill point for the caller. Alive or Dead.
     GrantSkillPoint = 24,
+    SetInvulnerable = 25,
+    SetCountdownPaused = 26,
 };
 
 USTRUCT()

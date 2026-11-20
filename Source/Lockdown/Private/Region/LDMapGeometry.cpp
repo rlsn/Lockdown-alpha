@@ -1,5 +1,8 @@
 #include "Region/LDMapGeometry.h"
 #include "World/LDNativeGround.h"
+#include "World/LDSceneTags.h"
+#include "Components/PrimitiveComponent.h"
+#include "EngineUtils.h"
 
 #include "LDMapGeometryJson.h"
 #include "Engine/World.h"
@@ -166,6 +169,20 @@ void FTerrain::BindScene(UWorld& World, const FBox& Bounds)
     Scene = &World;
     SceneBounds = Bounds;
     SceneQuery = LDNativeGround::Query(World);
+    SupportQuery = SceneQuery;
+}
+
+void FTerrain::ExcludeViewTransparentGeometry()
+{
+    if (auto* Native=Scene.Get())
+    {
+        for (TActorIterator<AActor> It(Native); It; ++It)
+        {
+            TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+            for (const auto* Part : Parts)
+            { if (LDSceneTags::NoViewBlock(*Part)) { SceneQuery.AddIgnoredComponent(Part); } }
+        }
+    }
 }
 
 bool FTerrain::TraceScene(const FVector& Start, const FVector& End, FHitResult& Hit) const
@@ -205,6 +222,26 @@ int32 FTerrain::Tier(const FVector2D& Point) const
         if (Region.Tier > 0 && InsideConvex(Region.Polygon, Point)) { return Region.Tier; }
     }
     return 0;
+}
+
+bool FTerrain::GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround) const
+{
+    if (!Scene.IsValid())
+    {
+        FVector Normal; Ground(FVector2D(Foot),OutZ,Normal); OutTier=Tier(FVector2D(Foot)); return true;
+    }
+    FHitResult Hit;
+    const FVector End=bFindLowerGround?FVector(Foot.X,Foot.Y,SceneBounds.Min.Z-1):Foot-FVector(0,0,StepCm+1);
+    if (!LDNativeGround::Trace(*Scene.Get(),Hit,Foot+FVector(0,0,.1),End,SupportQuery)
+        || Hit.bStartPenetrating || Hit.ImpactNormal.Z <= .5) { return false; }
+    OutZ=Hit.ImpactPoint.Z;
+    if (const AActor* Actor=Hit.GetActor())
+    {
+        for (FName Tag:Actor->Tags)
+        { if (const int32* Value=SceneTiers.Find(Tag)) { OutTier=*Value; return true; } }
+    }
+    OutTier=FMath::Max(0,FMath::FloorToInt32((OutZ+.01)*2/StepCm));
+    return true;
 }
 
 void FTerrain::Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) const

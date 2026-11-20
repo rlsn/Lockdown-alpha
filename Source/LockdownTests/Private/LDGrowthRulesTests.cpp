@@ -1660,6 +1660,14 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Skipping preparation is host-only; teleport and peaceful mode are owner-only"),
         LDDevTest::IsMatchWide(ELDDevTestOp::SkipPreparation) && !LDDevTest::IsMatchWide(ELDDevTestOp::SetPeaceful)
         && !LDDevTest::IsMatchWide(ELDDevTestOp::TeleportToCamera));
+    for (const auto Op : {ELDDevTestOp::SetInvulnerable, ELDDevTestOp::SetCountdownPaused})
+    {
+        for (int64 Enabled : {int64(0), int64(1)})
+        { GrowthTestReason(*this, TEXT("Run-map controls accept explicit on/off state"), LDDevTest::ValidateShape(Command(1, 1, 1, Op, Enabled)), ELDGrowthReason::None); }
+        GrowthTestReason(*this, TEXT("Run-map controls refuse non-boolean amounts"), LDDevTest::ValidateShape(Command(1, 1, 1, Op, 2)), ELDGrowthReason::NumericDomain);
+    }
+    TestTrue(TEXT("Countdown is host-only while health protection is owner-only"),
+        LDDevTest::IsMatchWide(ELDDevTestOp::SetCountdownPaused) && !LDDevTest::IsMatchWide(ELDDevTestOp::SetInvulnerable));
     auto CameraCommand = Command(1, 1, 1, ELDDevTestOp::TeleportToCamera, 0);
     CameraCommand.CameraPosition = FVector(100, 200, 300);
     GrowthTestReason(*this, TEXT("A bounded camera position is accepted"), LDDevTest::ValidateShape(CameraCommand), ELDGrowthReason::None);

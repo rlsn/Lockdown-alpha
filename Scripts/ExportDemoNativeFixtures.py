@@ -74,6 +74,7 @@ def expected_world_projection(compilation):
     return {
         "MapId": world["map_id"], "LayoutRevision": world["layout_revision"],
         "GeometryRevision": world["geometry_revision"],
+        "bSceneLayout": False,
         "SourceDigest": {"Bytes": list(bytes.fromhex(world["source_sha256"]))},
         "AuthorSchemaDigest": {"Bytes": list(bytes.fromhex(world["author_schema_sha256"]))},
         "ApprovalDecision": world["approval"]["decision"],
@@ -100,8 +101,8 @@ def expected_world_projection(compilation):
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "MiniFlag",
                                       "Locker", "Vending", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn",
                                       "FinalCapture", "PKSpawn", "PKThrow", "PKSignup").index(row["kind"]),
-            "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
-            "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
+            "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]), "PrototypeId": "",
+            "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"]), "PrototypeId": ""}
                         for member in row.get("members", [])],
         } for row in world["anchors"]],
     }

@@ -1,0 +1,42 @@
+[
+  {
+    "asset": "SM_QD_Parkson_Landmark_L1",
+    "render_triangles": 2532,
+    "collision_triangles": 0,
+    "triangle_budget": 16000,
+    "dimensions_m": [
+      9.969112396240234,
+      14.731513977050781,
+      17.734697341918945
+    ],
+    "bounds_m": [
+      [
+        -4.984556198120117,
+        -7.365756988525391,
+        0.0
+      ],
+      [
+        4.984556198120117,
+        7.365756988525391,
+        17.734697341918945
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "reference": "Classic Zhongshan Road Parkson facade: pale pink podium, inset blue glazing, small punched windows, green PARKSON/百盛 signs, framed blue tower and service crown. Height compressed to current authored blockout, not real-world tower proportions.",
+    "placement_original_cm": [
+      -4522.003358536395,
+      -1103.6710472802288,
+      276.0301841655537
+    ],
+    "replaces_source_actors": [
+      "Scene_000001_0",
+      "Actor_111",
+      "Actor_112"
+    ],
+    "decorative_only": true
+  }
+]

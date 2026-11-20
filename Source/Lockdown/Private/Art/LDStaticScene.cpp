@@ -120,6 +120,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     FLDDemoWorldGeometry& Out, FString& Error, bool bForPlay)
 {
     Out = Base;
+    Out.bSceneLayout = bForPlay;
     TMap<FString, const AStaticMeshActor*> Shapes;
     TMap<FString, FString> Prototypes;
     TMap<FString, const AActor*> Points;
@@ -127,8 +128,18 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     auto Fail = [&](const FString& Why) { Error = Why; return false; };
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
-        if (!Actor) { continue; }
+        if (!Actor || Actor->IsEditorOnly()) { continue; }
         if (Actor == World.GetDefaultBrush()) { continue; }
+        if (bForPlay && (!Value(*Actor,TEXT("LDSceneAnchor:")).IsEmpty()
+            || !Value(*Actor,TEXT("LDSceneMember:")).IsEmpty()
+            || (Cast<ALDLayoutPoint>(Actor) && CastChecked<ALDLayoutPoint>(Actor)->bSharedTrainingDummy)))
+        {
+            for (const AActor* Parent=Actor->GetAttachParentActor();Parent;Parent=Parent->GetAttachParentActor())
+            {
+                if (Parent->IsEditorOnly())
+                { return Fail(TEXT("Runtime layout point has an editor-only attachment ancestor that cook would strip: ")+Actor->GetPathName()+TEXT(" -> ")+Parent->GetPathName()); }
+            }
+        }
         if (const auto* Layout = Cast<ALDLayoutPoint>(Actor); Layout && Layout->bSharedTrainingDummy)
         {
             if (!bForPlay) { return Fail(TEXT("Shared training points are authored in the saved level; the source snapshot exporter does not support them.")); }
@@ -163,7 +174,34 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             Shapes.Add(Id, Shape);
         }
         const FString Anchor = Value(*Actor, TEXT("LDSceneAnchor:"));
-        const FString Member = Value(*Actor, TEXT("LDSceneMember:"));
+        FString Member = Value(*Actor, TEXT("LDSceneMember:"));
+        if (bForPlay && !Member.IsEmpty() && Actor->GetAttachParentActor())
+        {
+            const AActor* Parent = Actor->GetAttachParentActor();
+            const FString PrototypeId = Value(*Parent,TEXT("LDScenePrototypeAnchor:"));
+            const auto* Prototype = Base.Anchors.FindByPredicate([&](const auto& A) { return A.Id == PrototypeId; });
+            int32 Slot = INDEX_NONE;
+            const auto* Centre = Cast<ALDLayoutPoint>(Parent);
+            const bool bAuthored = Centre && Centre->bUseAuthoredCampMembers;
+            if (bAuthored)
+            {
+                const FString Text=Value(*Actor,TEXT("LDSceneMemberSlot:"));
+                Slot=FCString::Atoi(*Text);
+                if (Slot<0 || FString::FromInt(Slot)!=Text) { return Fail(TEXT("Authored camp member needs a nonnegative integer slot: ")+Actor->GetPathName()); }
+            }
+            else if (Prototype)
+            {
+                Slot = Prototype->Members.IndexOfByPredicate([&](const auto& M) { return M.Id == Member; });
+                if (Slot==INDEX_NONE)
+                {
+                    // The saved slot survives renumbering and copying a complete group.
+                    const FString Text=Value(*Actor,TEXT("LDSceneMemberSlot:"));
+                    if (Text.IsNumeric()) { Slot=FCString::Atoi(*Text); }
+                }
+            }
+            if (Prototype && Prototype->Kind == ELDDemoWorldAnchorKind::Camp && (bAuthored ? Slot>=0 : Prototype->Members.IsValidIndex(Slot)))
+            { Member=FString::Printf(TEXT("%s_%d"),*Value(*Parent,TEXT("LDSceneAnchor:")),Slot); }
+        }
         const auto* Start = Cast<APlayerStart>(Actor);
         FString Id = Start ? Start->PlayerStartTag.ToString() : !Anchor.IsEmpty() ? Anchor : Member;
         if (!Id.IsEmpty())
@@ -221,7 +259,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         FBox Bounds(ForceInit);
         for (const AActor* Actor : World.PersistentLevel->Actors)
         {
-            if (!Actor || Actor == World.GetDefaultBrush()) { continue; }
+            if (!Actor || Actor->IsEditorOnly() || Actor == World.GetDefaultBrush()) { continue; }
             TInlineComponentArray<UPrimitiveComponent*> Parts(Actor);
             for (const auto* Part : Parts)
             {
@@ -369,6 +407,32 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
                 Minimum.Count, Minimum.Prefix, Minimum.Min, Minimum.Prefix, Minimum.Prefix));
         }
     }
+    if (bForPlay)
+    {
+        Out.Anchors.RemoveAll([&](const auto& Anchor)
+        {
+            return (Anchor.Kind == ELDDemoWorldAnchorKind::Camp || Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop)
+                && !Points.Contains(Anchor.Id);
+        });
+        TArray<FString> InstanceIds;
+        Points.GetKeys(InstanceIds);
+        InstanceIds.Sort();
+        for (const FString& Id : InstanceIds)
+        {
+            if (Out.Anchors.ContainsByPredicate([&](const auto& A) { return A.Id == Id; })) { continue; }
+            const AActor* Instance = Points[Id];
+            const FString PrototypeId = Value(*Instance, TEXT("LDScenePrototypeAnchor:"));
+            if (PrototypeId.IsEmpty()) { continue; }
+            const auto* Prototype = Base.Anchors.FindByPredicate([&](const auto& A) { return A.Id == PrototypeId; });
+            if (!Prototype || (Prototype->Kind != ELDDemoWorldAnchorKind::Camp && Prototype->Kind != ELDDemoWorldAnchorKind::Airdrop))
+            { return Fail(TEXT("Scene instance has an unsupported anchor prototype: ") + Id); }
+            auto& Anchor = Out.Anchors.Add_GetRef(*Prototype);
+            Anchor.Id = Id;
+            Anchor.PrototypeId = PrototypeId;
+            for (int32 Slot=0; Slot<Anchor.Members.Num(); ++Slot)
+            { Anchor.Members[Slot].Id = FString::Printf(TEXT("%s_%d"), *Id, Slot); }
+        }
+    }
     for (auto& Anchor : Out.Anchors)
     {
         const AActor* Actor = Points.FindRef(Anchor.Id);
@@ -376,6 +440,42 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         FVector Position = Actor->GetActorLocation();
         if (Cast<APlayerStart>(Actor)) { Position.Z -= GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(); }
         Anchor.PositionCm = Point(Position);
+        if (bForPlay && Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
+        {
+            const auto* Centre=Cast<ALDLayoutPoint>(Actor);
+            const FString Prototype=Value(*Actor,TEXT("LDScenePrototypeAnchor:"));
+            if (!Prototype.IsEmpty())
+            {
+                if (!Base.Anchors.ContainsByPredicate([&](const auto& Row) { return Row.Id==Prototype && Row.Kind==ELDDemoWorldAnchorKind::Camp; }))
+                { return Fail(TEXT("Camp centre has an unknown approved prototype: ")+Actor->GetPathName()); }
+                Anchor.PrototypeId=Prototype;
+            }
+            if (Centre && Centre->bUseAuthoredCampMembers)
+            {
+                Anchor.Members.Reset();
+                TMap<int32,const ALDLayoutPoint*> Slots;
+                for (const AActor* Child : World.PersistentLevel->Actors)
+                {
+                    if (!Child || Child->GetAttachParentActor()!=Centre || Value(*Child,TEXT("LDSceneMember:")).IsEmpty()) { continue; }
+                    const auto* Member=Cast<ALDLayoutPoint>(Child);
+                    const FString Text=Value(*Child,TEXT("LDSceneMemberSlot:"));
+                    const int32 Slot=FCString::Atoi(*Text);
+                    if (!Member || Slot<0 || FString::FromInt(Slot)!=Text || Slots.Contains(Slot))
+                    { return Fail(TEXT("Authored camp has an invalid or repeated member slot: ")+Child->GetPathName()); }
+                    Slots.Add(Slot,Member);
+                }
+                if (Slots.IsEmpty()) { return Fail(TEXT("Authored camp has no attached members: ")+Actor->GetPathName()); }
+                for (int32 Slot=0; Slot<Slots.Num(); ++Slot)
+                {
+                    const ALDLayoutPoint* const* Home=Slots.Find(Slot);
+                    if (!Home) { return Fail(TEXT("Authored camp slots must be contiguous from zero: ")+Actor->GetPathName()); }
+                    auto& Member=Anchor.Members.AddDefaulted_GetRef();
+                    Member.Id=FString::Printf(TEXT("%s_%d"),*Anchor.Id,Slot);
+                    Member.PrototypeId=(*Home)->CampMemberPrototypeId.IsEmpty()
+                        ? Value(*Centre,TEXT("LDScenePrototypeAnchor:")) : (*Home)->CampMemberPrototypeId;
+                }
+            }
+        }
         for (auto& Member : Anchor.Members)
         {
             const AActor* Home = Points.FindRef(Member.Id);

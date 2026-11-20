@@ -1,0 +1,176 @@
+[
+  {
+    "asset": "SM_QD_School_HistoricSouth",
+    "render_triangles": 3138,
+    "collision_triangles": 0,
+    "triangle_budget": 10000,
+    "dimensions_m": [
+      14.149999618530273,
+      6.0,
+      4.650000095367432
+    ],
+    "bounds_m": [
+      [
+        -7.074999809265137,
+        -3.0,
+        0.0
+      ],
+      [
+        7.074999809265137,
+        3.0,
+        4.650000095367432
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "reference": "Historic Shenggong school street facade: axial entrance, grouped triple windows, stone base, blank end bays and parapet. Adapted to current blockout height and footprint."
+  },
+  {
+    "asset": "SM_QD_School_NorthTeaching",
+    "render_triangles": 1640,
+    "collision_triangles": 0,
+    "triangle_budget": 10000,
+    "dimensions_m": [
+      14.14000129699707,
+      4.099999904632568,
+      6.4900007247924805
+    ],
+    "bounds_m": [
+      [
+        -7.070000648498535,
+        -2.049999952316284,
+        0.0
+      ],
+      [
+        7.070000648498535,
+        2.049999952316284,
+        6.4900007247924805
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "reference": "North block red pitched roof, two classroom storeys, symmetrical entrance and gabled dormers. Dormer layout follows real 2025 aerial and the published scheme."
+  },
+  {
+    "asset": "SM_QD_School_ServiceWing",
+    "render_triangles": 240,
+    "collision_triangles": 0,
+    "triangle_budget": 4000,
+    "dimensions_m": [
+      3.9000000953674316,
+      1.9700000286102295,
+      2.309999942779541
+    ],
+    "bounds_m": [
+      [
+        -1.9500000476837158,
+        -0.9850000143051147,
+        0.0
+      ],
+      [
+        1.9500000476837158,
+        0.9850000143051147,
+        2.309999942779541
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Low service building, reused for the two existing east-side blocks without bridging their gap."
+  },
+  {
+    "asset": "SM_QD_School_CourtGraphic",
+    "render_triangles": 1670,
+    "collision_triangles": 0,
+    "triangle_budget": 5000,
+    "dimensions_m": [
+      13.199999809265137,
+      8.0,
+      0.04907403700053692
+    ],
+    "bounds_m": [
+      [
+        -6.599999904632568,
+        -4.0,
+        -0.01053701899945736
+      ],
+      [
+        6.599999904632568,
+        4.0,
+        0.03853701800107956
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Compact stylized multi-sport court graphic with red/blue/green rhythm, fitted inside existing lower playground; visual overlay, no collision."
+  },
+  {
+    "asset": "SM_QD_School_BasketballHoop",
+    "render_triangles": 252,
+    "collision_triangles": 0,
+    "triangle_budget": 1000,
+    "dimensions_m": [
+      1.4761458933353424,
+      1.25,
+      3.0199999809265137
+    ],
+    "bounds_m": [
+      [
+        -0.28999999165534973,
+        -0.625,
+        0.0
+      ],
+      [
+        1.1861459016799927,
+        0.625,
+        3.0199999809265137
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Separate movable prop; placed at edge of existing court, no new blocking collision."
+  },
+  {
+    "asset": "SM_QD_School_BoundaryWall",
+    "render_triangles": 96,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      10.0,
+      0.5600000023841858,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -5.0,
+        -0.2800000011920929,
+        0.0
+      ],
+      [
+        5.0,
+        0.2800000011920929,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Stone plinth and cream retaining wall. Fitted to each original perimeter segment without changing its extent or openings."
+  }
+]

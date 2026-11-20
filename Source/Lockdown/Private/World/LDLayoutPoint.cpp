@@ -91,6 +91,22 @@ void ALDLayoutPoint::ConfigureTrainingCopy()
         if (Tag.ToString().StartsWith(TEXT("LDSceneAnchor:training_dummy_")))
         { bSharedTrainingDummy = true; break; }
     }
+    // Copies of explicitly typed camp/drop instances keep their template but get a distinct saved identity.
+    const bool bInstanced = Tags.ContainsByPredicate([](FName Tag)
+    { return Tag.ToString().StartsWith(TEXT("LDScenePrototypeAnchor:")); });
+    if (bInstanced)
+    {
+        for (FName& Tag : Tags)
+        {
+            if (Tag.ToString().StartsWith(TEXT("LDSceneAnchor:")))
+            {
+                const FString Id = TEXT("instance_") + GetName();
+                Tag = FName(*(TEXT("LDSceneAnchor:") + Id));
+                SetActorLabel(Id + TEXT("  ") + GetActorLabel());
+                break;
+            }
+        }
+    }
 }
 
 void ALDLayoutPoint::PostDuplicate(EDuplicateMode::Type DuplicateMode)

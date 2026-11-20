@@ -1,4 +1,5 @@
 #include "World/LDNativeGround.h"
+#include "World/LDSceneTags.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "Engine/Brush.h"
@@ -39,7 +40,7 @@ int32 LDNativeGround::RetireLegacyCliffGuards(UWorld& World)
 bool LDNativeGround::IsSupport(const UPrimitiveComponent& Component)
 {
     const auto* Body = Component.GetBodyInstance();
-    return Component.GetCollisionObjectType() == ECC_WorldStatic && Component.IsQueryCollisionEnabled()
+    return !LDSceneTags::NoCollision(Component) && Component.GetCollisionObjectType() == ECC_WorldStatic && Component.IsQueryCollisionEnabled()
         && Component.GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block
         && Component.GetOwner() && !Component.GetOwner()->ActorHasTag(TEXT("LDDemoCliffGuard"))
         && Body && Body->IsValidBodyInstance();
@@ -51,7 +52,12 @@ FCollisionQueryParams LDNativeGround::Query(const UWorld& World)
     Result.AddIgnoredActor(World.GetDefaultBrush());
     // Old saved maps may still contain template fences before their editor navigation bake.
     for (TActorIterator<AActor> It(&World); It; ++It)
-    { if (It->ActorHasTag(TEXT("LDDemoCliffGuard"))) { Result.AddIgnoredActor(*It); } }
+    {
+        if (It->ActorHasTag(TEXT("LDDemoCliffGuard"))) { Result.AddIgnoredActor(*It); }
+        TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+        for (const auto* Part : Parts)
+        { if (LDSceneTags::NoCollision(*Part)) { Result.AddIgnoredComponent(Part); } }
+    }
     return Result;
 }
 

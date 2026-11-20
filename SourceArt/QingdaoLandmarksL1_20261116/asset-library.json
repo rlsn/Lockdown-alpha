@@ -1,0 +1,207 @@
+{
+  "libraries": [
+    {
+      "source_folder": "QingdaoLandmarksL1_20261116",
+      "blender_file": "QD_Church_Zhanqiao_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoLandmarksL1",
+      "models": [
+        {
+          "name": "SM_QD_CatholicChurch_L1",
+          "render_triangles": 1126
+        },
+        {
+          "name": "SM_QD_Zhanqiao_Huilange_L1",
+          "render_triangles": 2724
+        }
+      ]
+    },
+    {
+      "source_folder": "QingdaoHarborL1_20261116",
+      "blender_file": "QD_Harbor_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoHarborL1",
+      "models": [
+        {
+          "name": "SM_QD_Container_Red",
+          "render_triangles": 158
+        },
+        {
+          "name": "SM_QD_Container_Blue",
+          "render_triangles": 158
+        },
+        {
+          "name": "SM_QD_HarborShip_L1",
+          "render_triangles": 1050
+        },
+        {
+          "name": "SM_QD_HarborLighthouse_L1",
+          "render_triangles": 1008
+        }
+      ]
+    },
+    {
+      "source_folder": "QingdaoSchoolL1_20261116",
+      "blender_file": "QD_QingdaoNo7_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoSchoolL1",
+      "models": [
+        {
+          "name": "SM_QD_School_HistoricSouth",
+          "render_triangles": 3138
+        },
+        {
+          "name": "SM_QD_School_NorthTeaching",
+          "render_triangles": 1640
+        },
+        {
+          "name": "SM_QD_School_ServiceWing",
+          "render_triangles": 240
+        },
+        {
+          "name": "SM_QD_School_CourtGraphic",
+          "render_triangles": 1670
+        },
+        {
+          "name": "SM_QD_School_BasketballHoop",
+          "render_triangles": 252
+        },
+        {
+          "name": "SM_QD_School_BoundaryWall",
+          "render_triangles": 96
+        }
+      ]
+    },
+    {
+      "source_folder": "QingdaoParksonL1_20261116",
+      "blender_file": "QD_Parkson_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoParksonL1",
+      "models": [
+        {
+          "name": "SM_QD_Parkson_Landmark_L1",
+          "render_triangles": 2532
+        }
+      ]
+    },
+    {
+      "source_folder": "QingdaoFlatHousesL1_20261116",
+      "blender_file": "QD_FlatHouses_3Types_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoFlatHousesL1",
+      "models": [
+        {
+          "name": "SM_QD_Flat_LowStreet",
+          "render_triangles": 1056
+        },
+        {
+          "name": "SM_QD_Flat_CornerShop",
+          "render_triangles": 1640
+        },
+        {
+          "name": "SM_QD_Flat_TerraceResidence",
+          "render_triangles": 1440
+        }
+      ]
+    },
+    {
+      "source_folder": "QingdaoUrbanRocksL1_20261116",
+      "blender_file": "QD_UrbanRocks_6Types_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoUrbanRocksL1",
+      "models": [
+        {
+          "name": "SM_QD_UrbanRock_A_JointedCliff",
+          "render_triangles": 238
+        },
+        {
+          "name": "SM_QD_UrbanRock_B_GraniteLedge",
+          "render_triangles": 198
+        },
+        {
+          "name": "SM_QD_UrbanRock_C_LongRidge",
+          "render_triangles": 238
+        },
+        {
+          "name": "SM_QD_UrbanRock_D_SplitOutcrop",
+          "render_triangles": 250
+        },
+        {
+          "name": "SM_QD_UrbanRock_E_RoundedBoulder",
+          "render_triangles": 238
+        },
+        {
+          "name": "SM_QD_UrbanRock_F_UrbanButtress",
+          "render_triangles": 278
+        }
+      ]
+    },
+    {
+      "source_folder": "QingdaoBeachL1_20261116",
+      "blender_file": "QD_Beach_Reefs4_L1.blend",
+      "unreal_folder": "/Game/Lockdown/Art/QingdaoBeachL1",
+      "models": [
+        {
+          "name": "SM_QD_Reef_A_LowSlab",
+          "render_triangles": 198
+        },
+        {
+          "name": "SM_QD_Reef_B_SplitMass",
+          "render_triangles": 238
+        },
+        {
+          "name": "SM_QD_Reef_C_AngularFin",
+          "render_triangles": 238
+        },
+        {
+          "name": "SM_QD_Reef_D_RoundedReef",
+          "render_triangles": 238
+        },
+        {
+          "name": "SM_QD_BeachSurface_L1",
+          "render_triangles": 2308
+        }
+      ]
+    }
+  ],
+  "texture_resolution": [
+    512,
+    512
+  ],
+  "scene": {
+    "map": "/Game/Lockdown/Generated/Maps/L_Demo",
+    "comparison_folder": "L1_房屋替换对照_20261116",
+    "comparison_offset_cm": [
+      0,
+      24000,
+      0
+    ],
+    "original_region_modified": false,
+    "art_collision": "NoCollision",
+    "art_affects_navigation": false,
+    "art_runtime_visible": true
+  },
+  "beach": {
+    "reef_types": 4,
+    "reef_instances": 24,
+    "reef_original_oriented_envelopes_preserved": true,
+    "sand_material": "M_QD_BeachSand_512",
+    "sand_two_sided": true,
+    "reef_material": "M_QD_Reef_WetHeight_512",
+    "material_parameters": {
+      "WetHeight_cm": 70,
+      "WetFade_cm": 150
+    },
+    "sand_geometry_source": "QingdaoBeachL1_20261116/beach-surface-geometry.json",
+    "existing_gameplay_collision_and_navigation_preserved": true
+  },
+  "editing": {
+    "blender_textures_packed": true,
+    "fbx_unit_scale_m_to_cm": 100,
+    "fbx_importer": "Legacy FBX; materials are assigned to the authored UE materials; no auto-generated collision.",
+    "component_materials": "Use mesh asset materials; remove inherited whitebox material overrides when replacing geometry.",
+    "source_photo_textures_used": false
+  },
+  "references": [
+    "https://qd.ifeng.com/c/8K6MrGMvQE8",
+    "https://house.qingdaonews.com/news/2022-11/07/content_23377962.htm",
+    "https://finance.sina.com.cn/roll/2025-06-17/doc-infakpra2064590.shtml",
+    "https://www.dailyqd.com/guanhai/210242_1.html",
+    "https://www.qingdao.gov.cn/yfqd/qdwl/cjfw/wyqps/202009/t20200909_519804.shtml",
+    "https://www.qingdao.gov.cn/yfqd/qdwl/cjfw/wyqgy/202009/t20200903_520364.shtml"
+  ]
+}

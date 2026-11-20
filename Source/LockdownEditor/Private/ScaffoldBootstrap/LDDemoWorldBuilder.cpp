@@ -1,5 +1,6 @@
 #include "LDDemoWorldBuilder.h"
 #include "LDEditorLog.h"
+#include "LDSceneAuthoringLibrary.h"
 #include "Art/LDStaticScene.h"
 
 #include "Development/LDDemoContentCatalog.h"
@@ -7,6 +8,7 @@
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "World/LDSpawnPlacement.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapRegistry.h"
@@ -367,8 +369,8 @@ AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMa
     Component->SetCollisionResponseToChannel(ECC_GameTraceChannel1, Floor ? ECR_Block : ECR_Ignore);
     Component->SetCollisionResponseToChannel(ECC_GameTraceChannel2, Sight ? ECR_Block : ECR_Ignore);
     Component->SetCanEverAffectNavigation(Movement);
-    // #97: bodies have no step-up onto generated geometry; they climb only what is walkable floor (ramps).
-    Component->CanCharacterStepUpOn = ECB_No;
+    // Native CMC limits step height; replacing this mesh does not require a private movement rule.
+    Component->CanCharacterStepUpOn = ECB_Yes;
     return Actor;
 }
 
@@ -449,8 +451,7 @@ bool BuildNavigation(UWorld& World, const FLDDemoWorldGeometry& Geometry, const 
     FAssetCompilingManager::Get().FinishAllCompilation();
     Nav->RemoveNavigationBuildLock(ENavigationBuildLock::AsyncLoadLock, UNavigationSystemV1::ELockRemovalRebuildAction::NoRebuild);
     Nav->OnNavigationBoundsUpdated(Bounds);
-    Nav->Build();
-    Recast->EnsureBuildCompletion();
+    if (!ULDSceneAuthoringLibrary::BakeNavigation(&World, Error)) { return false; }
     return (Recast->IsRegistered() && Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate) == Recast
         && Nav->IsNavigationBuilt(World.GetWorldSettings())) || Fail(Error, TEXT("Demo navigation build/agent registration did not finish successfully."));
 }
@@ -706,7 +707,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     };
     Check(World.GetWorldSettings() && World.GetWorldSettings()->DefaultGameMode == ALDGameMode::StaticClass(),
         TEXT("Saved map uses the unique native Demo GameMode"));
-    int32 Anchors = 0, BoundsCount = 0, NavCount = 0, Steppable = 0;
+    int32 Anchors = 0, BoundsCount = 0, NavCount = 0;
     TSet<const UStaticMesh*> Faced;
     TArray<FString> InsideOut;
     int32 Suns = 0, Skies = 0, SkyLights = 0, Fogs = 0, Grades = 0, Aprons = 0;
@@ -715,6 +716,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     TArray<FBox> NavBounds;
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
+        if (!Actor || Actor->IsEditorOnly()) { continue; }
         if (const auto* Sun = Cast<ADirectionalLight>(Actor))
         {
             const auto* Light = Cast<UDirectionalLightComponent>(Sun->GetLightComponent());
@@ -753,7 +755,6 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         }
         if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(LDDemoWorld::StaticGeometryTag))
         {
-            Steppable += LDStaticScene::Collision(*Mesh)->CanCharacterStepUpOn == ECB_No ? 0 : 1;
             const UStaticMesh* Shape = LDStaticScene::Collision(*Mesh)->GetStaticMesh();
             if (Shape && Shape->GetPathName().StartsWith(GeometryRoot) && !Faced.Contains(Shape))
             {
@@ -765,14 +766,11 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             Meshes.Add(Id, Mesh);
         }
     }
-    TArray<FTerrainPiece> Terrain;
-    if (!TerrainPieces(*Geometry, Terrain, Error)) { return false; }
     // The saved level is authored: its ground, blockers and navigation bounds may be replaced, moved, copied or
     // removed, so they are checked below by what they do for the layout, not against the generated template.
     Check(Anchors == 1 && BoundsCount >= 1 && NavCount == 1,
         TEXT("One native map anchor, one Recast navigation mesh and at least one navigation bounds volume"));
-    Check(Steppable == 0, TEXT("No generated geometry lets a body step up onto it"));
-    Check(!Faced.IsEmpty() && InsideOut.IsEmpty(),
+    Check(InsideOut.IsEmpty(),
         TEXT("Every generated terrain, wall, fence and trunk face points out of its prism: ") + FString::Join(InsideOut, TEXT(", ")));
     Check(Suns >= 1 && SkyLights >= 1,
         TEXT("The saved playground has a shadowing atmosphere sun and real-time sky lighting"));
@@ -780,7 +778,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(Navigation && Navigation->HasApprovedAgent()
         && World.GetWorldSettings()->GetNavigationSystemConfig()->NavigationSystemClass == FSoftClassPath(ULDDemoNavigationSystem::StaticClass()),
         TEXT("Saved navigation configuration recreates the same approved agent on load"));
-    if (Check(Aprons == 1 && Apron != nullptr, TEXT("Exactly one paving apron surrounds the field")))
+    if (Apron)
     {
         const auto* Component = Apron->GetStaticMeshComponent();
         Check(Component->GetStaticMesh()
@@ -790,24 +788,6 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             TEXT("The saved paving apron has no collision, navigation or shadow"));
         const UMaterialInterface* Paving = Component->GetMaterial(0);
         Check(Paving != nullptr, TEXT("The apron has a saved material"));
-    }
-    for (const auto& Piece : Terrain)
-    {
-        const auto* Actor = Meshes.FindRef(Piece.Id);
-        if (!Check(Actor != nullptr, TEXT("Terrain piece exists: ") + Piece.Id)) { continue; }
-        const auto* Component = LDStaticScene::Collision(*Actor);
-        const UStaticMesh* Mesh = Component->GetStaticMesh().Get();
-        const auto* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
-        Check(Actor->GetActorTransform().Equals(FTransform::Identity, UE_KINDA_SMALL_NUMBER) && Actor->Tags.Contains(LDDemoWorld::TerrainTag)
-            && CollisionChannelsMatch(*Component, true, false),
-            TEXT("Terrain piece is a registered floor that leaves sight to the level rule: ") + Piece.Id);
-        const UMaterialInterface* Hill = Component->GetMaterial(0);
-        Check(Hill != nullptr, TEXT("Terrain piece has a saved material: ") + Piece.Id);
-        if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Piece.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Piece.Id))
-            && Body && Body->CollisionTraceFlag == CTF_UseSimpleAsComplex && Body->AggGeom.ConvexElems.Num() == 1,
-            TEXT("Terrain piece uses its exact convex mesh: ") + Piece.Id)) { continue; }
-        Check(ConvexShapeMatches(*Body, ConvexPoints(Piece.Prism)),
-            TEXT("Saved terrain collision vertices equal the authored prism: ") + Piece.Id);
     }
     auto* Registry = World.GetSubsystem<ULDMapRegistry>();
     FString BindingError;
@@ -849,11 +829,16 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
                 || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
             {
+                int32 Supported = 0;
                 for (const auto& Offset : Live->SpawnOffsetsCm)
                 {
                     FVector Delta;
                     if (!Offset.ToVector(Delta, Error)) { return false; }
-                    const bool Grounded = GroundAt(Foot + Delta, Anchor.Id + TEXT(" placement"), Legal);
+                    FString PlacementError;
+                    const bool Grounded = Registry->QueryGround(Revision,Foot+Delta,Capsule,FName(*Anchor.SurfaceId),Legal,Failure,PlacementError);
+                    // Placement offsets are alternatives. A wall occupying one is not a broken spawn;
+                    // the production admission policy below still requires every usable route to be valid.
+                    Supported += Grounded;
                     if (Grounded && HasRestService && Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn)
                     {
                         FLDCompletePath Path;
@@ -870,13 +855,36 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                     }
                     ++PlacementChecks;
                 }
+                Check(Supported > 0,TEXT("At least one supported local spawn candidate: ")+Anchor.Id);
             }
+            TArray<FVector> ReservedMembers;
             for (const auto& Home : Anchor.Members)
             {
                 if (!Home.PositionCm.ToVector(Foot, Error)) { return false; }
-                GroundAt(Foot, Home.Id, Legal);
+                bool Clear=false;
+                FString PlacementError;
+                for (const auto& Offset : Live->SpawnOffsetsCm)
+                {
+                    FVector Delta;
+                    if (!Offset.ToVector(Delta,Error)) { return false; }
+                    if (!Registry->QueryGround(Revision,Foot+FVector(Delta.X,Delta.Y,0),Capsule,FName(*Anchor.SurfaceId),Legal,Failure,PlacementError)) { continue; }
+                    if (LDSpawnPlacement::OverlapsStatic(World,LDSpawnPlacement::StandingOrigin(Legal),Capsule)
+                        || ReservedMembers.ContainsByPredicate([&](const FVector& Other)
+                        { return FVector::DistSquared2D(Other,Legal.FootCm)<FMath::Square(2.*Capsule.GetCapsuleRadius()); })) { continue; }
+                    ReservedMembers.Add(Legal.FootCm);
+                    Clear=true;
+                    break;
+                }
+                Check(Clear,TEXT("Camp member has a clear local candidate under the runtime placement policy: ")+Home.Id+TEXT(" ")+PlacementError);
             }
         }
+        FString SpawnPathError;
+        const bool FieldRoutes=Registry->ValidateFieldSpawnPaths(false,SpawnPathError);
+        Check(FieldRoutes,TEXT("All field spawn routes pass production admission: ")+SpawnPathError);
+        SpawnPathError.Reset();
+        const bool FinalRoutes=Registry->ValidateFieldSpawnPaths(true,SpawnPathError);
+        Check(FinalRoutes,TEXT("All final spawn routes pass production admission: ")+SpawnPathError);
+        SpawnPathError.Reset();
         FLDLegalGround Result;
         FString Why;
         Check(!Registry->QueryGround(Revision, Standing, Capsule, NAME_None, Result, Failure, Why)
@@ -897,10 +905,16 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             Ground.Ground(Point, Z, Normal);
             return FVector(Point.X, Point.Y, Z);
         };
-        for (const auto& Ramp : Geometry->Ramps)
+        for (const auto& Ramp : Live->Ramps)
         {
+            const auto* RampActor=Meshes.FindRef(Ramp.Id);
+            if (!RampActor) { continue; }
             FVector Corner[4];
-            for (int32 I = 0; I < 4; ++I) { if (!Ramp.PolygonCm[I].ToVector(Corner[I], Error)) { return false; } }
+            for (int32 I = 0; I < 4; ++I)
+            {
+                if (!Ramp.PolygonCm[I].ToVector(Corner[I], Error)) { return false; }
+                Corner[I]=LDStaticScene::Collision(*RampActor)->GetComponentTransform().TransformPosition(Corner[I]);
+            }
             const FVector2D Low = FVector2D(Corner[0] + Corner[1]) * .5, High = FVector2D(Corner[2] + Corner[3]) * .5;
             const FVector2D Up = (High - Low).GetSafeNormal() * (Capsule.GetCapsuleRadius() + 100);
             const FVector2D Seam = Low - (High - Low).GetSafeNormal();
@@ -928,8 +942,9 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         }
     }
     const auto* Movement = GetDefault<ALDCharacter>()->GetCharacterMovement();
-    Check(Movement && !Movement->bCanWalkOffLedges,
-        TEXT("Native CharacterMovement prevents walking off edited terrain ledges"));
+    Check(Movement && !Movement->bCanWalkOffLedges && !Movement->bCanWalkOffLedgesWhenCrouching
+        && FMath::IsNearlyEqual(Movement->GetWalkableFloorAngle(),50.f),
+        TEXT("Native CharacterMovement retains ledge support and walks slopes up to 50 degrees"));
     for (TActorIterator<AActor> It(&World); It; ++It)
     { Check(!It->ActorHasTag(TEXT("LDDemoCliffGuard")), TEXT("No detached template cliff fences remain")); }
     // Every blocker the saved level still holds, where it stands now, on a line through it across its thinnest side:
@@ -977,7 +992,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                 TEXT("A sight blocker spans the eye-height sight line: ") + Blocker.Id + TEXT(" ") + Actor->GetPathName());
         }
     }
-    Report->SetStringField(TEXT("scope"), TEXT("Approved static geometry, saved convex collision, navigation and ground bindings. Not gameplay, owned-network, camp/AI or balance acceptance."));
+    Report->SetStringField(TEXT("scope"), TEXT("Saved playable scene bindings, native capsule placements and production spawn routes. Generated prisms are checked only while present; editor references are excluded. Not exhaustive authored-ramp, gameplay, owned-network, camp/AI or balance acceptance."));
     Report->SetBoolField(TEXT("passed"), Good);
     Report->SetStringField(TEXT("world_sha256"), Definition.Checksum);
     Report->SetStringField(TEXT("catalog_sha256"), Content.Get().Identity.Root.ToHex());

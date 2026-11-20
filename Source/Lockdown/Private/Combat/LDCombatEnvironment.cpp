@@ -18,6 +18,10 @@ bool ALDCombatDirector::ApplyEnvironmentDamage(const FLDCombatBodyRef& Ref, int6
     }
     // A body already gone or locked dead takes nothing more.
     if (!Body || !Actor || Body->bPendingDeath || AmountP2==0) { Error.Reset(); return true; }
+#if WITH_DEV_AUTOMATION_TESTS
+    if (Ref.Victim.Kind==ELDVictimKind::Contender && Mode->IsDevInvulnerable(Ref.Victim.EntityId))
+    { Error.Reset(); return true; }
+#endif
     const int64 Before=Body->Resources.HpP2;
     Body->Resources.HpP2=AmountP2>=Before ? 0 : Before-AmountP2;
     ++Body->Resources.Revision;

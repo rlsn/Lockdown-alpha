@@ -330,6 +330,9 @@ public:
     void EnableRuntimeDevTest();
     bool IsRuntimeDevTestEnabled() const { return bRuntimeDevTest; }
     virtual bool IsDevPeaceful(const FGuid& Contender) const override { return DevPeaceful.Contains(Contender); }
+    virtual bool IsDevInvulnerable(const FGuid& Contender) const override { return DevInvulnerable.Contains(Contender); }
+    bool DevSetInvulnerable(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevSetCountdownPaused(bool bPaused, const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevSetPeaceful(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevTeleport(const FGuid& Contender, const FVector& CameraPosition, const FLDGameplayWritePermit& Permit, FString& Error);
@@ -344,6 +347,7 @@ private:
     bool bDevShowdownEntryPending = false;
     bool bRuntimeDevTest = false;
     TSet<FGuid> DevPeaceful;
+    TSet<FGuid> DevInvulnerable;
 #endif
     friend class FLDDemoSessionTest;
     friend class FLDGroundBossBodyTest;

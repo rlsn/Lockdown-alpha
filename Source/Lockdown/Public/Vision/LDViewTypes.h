@@ -21,7 +21,8 @@ namespace LDObservation
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 19;
+    // 20 widens the conceal count for the authored roster plus the full flight bound.
+    constexpr uint32 Schema = 20;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -37,13 +38,11 @@ namespace LDObservation
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
     constexpr int32 CoverageBytes = CoverageCells / 8;
-    // BeginMatch rejects a locked roster plus approved camp members that could exceed this. #97: derived from the
-    // approved content: five other contenders, 80 camp members (18 x 3, 10 x 2, 4 x 1, 2 x 1), one teambuild member for each
-    // of the 16 High, Elite and Ancient camps (spec §11.2), the second-hand dealer and the Boss, 103 units; the wire counts are
-    // uint8.
+    // Bounded uint8 wire counts permit authored camp instances. Admission counts the actual scene roster,
+    // every other contender and the Boss; no hidden unit is dropped to fit this capacity.
     // BeginMatch also checks every other resting contender, one owned dummy per contender and all authored shared targets.
     // Lockdown.Rules.CampDecision fails when the approved camps outgrow this bound.
-    constexpr int32 MaxUnits = 103;
+    constexpr int32 MaxUnits = 192;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
     constexpr int32 MaxStatuses = 19;
@@ -52,6 +51,7 @@ namespace LDObservation
     constexpr int32 MaxProjectiles = 128;
     // Spec §8.3/§14: every live ground state of the map at once (GROUND.MaxTotal fits it); each is one compact public record.
     constexpr int32 MaxGroundStates = 40;
+    static_assert(MaxUnits + MaxProjectiles <= MAX_uint16, "Conceal count must represent all authorized handles.");
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;

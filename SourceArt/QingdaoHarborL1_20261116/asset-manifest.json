@@ -1,0 +1,124 @@
+[
+  {
+    "asset": "SM_QD_Container_Red",
+    "render_triangles": 158,
+    "collision_triangles": 0,
+    "triangle_budget": 1000,
+    "dimensions_m": [
+      6.025000095367432,
+      2.505000114440918,
+      2.5999999046325684
+    ],
+    "bounds_m": [
+      [
+        -3.012500047683716,
+        -1.252500057220459,
+        0.0
+      ],
+      [
+        3.012500047683716,
+        1.252500057220459,
+        2.5999999046325684
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Reusable shipping container. Match each existing component transform and oriented bounds exactly. Primary colors red and blue only."
+  },
+  {
+    "asset": "SM_QD_Container_Blue",
+    "render_triangles": 158,
+    "collision_triangles": 0,
+    "triangle_budget": 1000,
+    "dimensions_m": [
+      6.025000095367432,
+      2.505000114440918,
+      2.5999999046325684
+    ],
+    "bounds_m": [
+      [
+        -3.012500047683716,
+        -1.252500057220459,
+        0.0
+      ],
+      [
+        3.012500047683716,
+        1.252500057220459,
+        2.5999999046325684
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "purpose": "Reusable shipping container. Match each existing component transform and oriented bounds exactly. Primary colors red and blue only."
+  },
+  {
+    "asset": "SM_QD_HarborShip_L1",
+    "render_triangles": 1050,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      27.972827911376953,
+      9.249659538269043,
+      6.545000076293945
+    ],
+    "bounds_m": [
+      [
+        -13.986413955688477,
+        -4.6248297691345215,
+        0.0
+      ],
+      [
+        13.986413955688477,
+        4.6248297691345215,
+        6.545000076293945
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "native_hull_dimensions_m": [
+      27.972827686,
+      9.24965942,
+      3.81507274
+    ],
+    "origin": "Hull bottom, native length X. Cargo freighter, red waterline, cargo hatches, two cranes, aft accommodation. Preserve current footprint and overall height."
+  },
+  {
+    "asset": "SM_QD_HarborLighthouse_L1",
+    "render_triangles": 1008,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      7.199999809265137,
+      7.199999809265137,
+      12.3100004196167
+    ],
+    "bounds_m": [
+      [
+        -3.5999999046325684,
+        -3.5999999046325684,
+        0.0
+      ],
+      [
+        3.5999999046325684,
+        3.5999999046325684,
+        12.3100004196167
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "height_above_dock_m": 12.31,
+    "purpose": "Lighthouse at existing dock endpoint; base and tower stay within source footprints."
+  }
+]

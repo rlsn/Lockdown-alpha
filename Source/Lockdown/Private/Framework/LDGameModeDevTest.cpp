@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Region/LDMapRegistry.h"
 #include "World/LDNativeGround.h"
 #include "Engine/World.h"
 
@@ -29,10 +30,46 @@ bool ALDGameMode::DevSetPeaceful(const FGuid& Contender, bool bEnabled, const FL
     return true;
 }
 
+bool ALDGameMode::DevSetInvulnerable(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !FindContender(Contender))
+    { Error = TEXT("生命不减需要当前参赛者与有效对局"); return false; }
+    if (bEnabled) { DevInvulnerable.Add(Contender); }
+    else { DevInvulnerable.Remove(Contender); }
+    Error = bEnabled ? TEXT("生命不减已开启") : TEXT("生命不减已关闭");
+    return true;
+}
+
+bool ALDGameMode::DevSetCountdownPaused(bool bPaused, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    { Error = TEXT("暂停倒计时需要有效对局"); return false; }
+    const int64 Now = Permit.GetBoundary().AtMs;
+    const int64 Shift = Timeline.IsCountdownPaused() && !bPaused ? Now - Timeline.CountdownNowMs(Now) : 0;
+    if (!Timeline.DevSetCountdownPaused(bPaused, Now, Error)) { return false; }
+    // Final-field deadlines are phase clocks; combat, skill cooldowns and native physics keep their authority clock.
+    if (Showdown.bStarted && Shift > 0)
+    {
+        Showdown.StartedAtMs += Shift;
+        Showdown.EndsAtMs += Shift;
+        Showdown.ClosureAtMs += Shift;
+        Showdown.RespawnsCloseAtMs += Shift;
+        ShowdownRingSettledThroughMs += Shift;
+        ShowdownRingTickAtMs += Shift;
+    }
+    PublishTimeline();
+    bPublicMatchDirty = true;
+    Error = bPaused ? TEXT("阶段倒计时已暂停，角色与战斗继续运行") : TEXT("阶段倒计时已恢复");
+    return true;
+}
+
 bool ALDGameMode::DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
     { Error = TEXT("跳过准备需要有效对局"); return false; }
+    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Registry || !Registry->ValidateFieldSpawnPaths(false, Error))
+    { if (Error.IsEmpty()) { Error = TEXT("入场检查失败：地图未就绪，角色保留在原处"); } return false; }
     TArray<FLDTimelineEvent> Events;
     if (!Timeline.DevFinishPreparation(Permit.GetBoundary().AtMs, Events, Error)) { return false; }
     RestSignups.Reset();

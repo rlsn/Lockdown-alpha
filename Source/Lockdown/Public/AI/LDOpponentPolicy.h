@@ -419,7 +419,7 @@ class LOCKDOWN_API FLDOpponentRetryLedger
 {
 public:
     // #97: path and engagement keys for every public place of the larger world.
-    static constexpr int32 Capacity = 96;
+    static constexpr int32 Capacity = LDObservation::MaxUnits;
     bool CanAttempt(const FLDOpponentRetryKey& Key, uint64 Fingerprint, int64 NowMs) const;
     bool IsSuppressed(const FLDOpponentRetryKey& Key, uint64 Fingerprint) const;
     void RecordFailure(const FLDOpponentRetryKey& Key, uint64 Fingerprint, int64 NowMs, const FLDDemoAIParameters& AI);

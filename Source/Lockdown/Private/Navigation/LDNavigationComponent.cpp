@@ -820,6 +820,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     { Input=AvoidObservedRestBodies(*Body,Points[PointIndex],Input,*Read.Frame,PC->OwnerState.ContenderId); }
     Body->AddMovementInput(Input,1.);
     Face(Input);
+    if (Body->GetCharacterMovement()->IsFalling()) { LastProgress=Now; return; }
     const double Progress=LDPathSteering::AlongPath(Points,Body->GetNavAgentLocation());
     if (Progress>=BestProgress+10) { BestProgress=Progress; LastProgress=Now; }
     if (Now-LastProgress>=OrderNoProgressSeconds)

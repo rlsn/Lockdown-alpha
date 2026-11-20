@@ -1,4 +1,5 @@
 #include "Navigation/LDDemoNavigationSystem.h"
+#include "World/LDSceneTags.h"
 #include "Core/LDLog.h"
 
 #include "Development/LDDemoContentCatalog.h"
@@ -39,5 +40,6 @@ void ULDDemoNavigationSystem::InitializeForWorld(UWorld& World, FNavigationSyste
         UE_LOG(LogLDNav, Error, TEXT("LD_DEMO_NAVIGATION_INIT_REJECTED No approved native agent configuration."));
         return;
     }
+    LDSceneTags::ApplyRuntimePolicy(World);
     Super::InitializeForWorld(World, Mode);
 }

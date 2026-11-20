@@ -1610,6 +1610,9 @@ FVector ULDNavigationComponent::AuthoritySteering(const ALDCharacter& Body)
 void ULDNavigationComponent::TrackProgress(const ALDCharacter& Body, double Now, bool bMoving)
 {
     auto& Order=ActiveOrder.GetValue();
+    // A ledge traversal can make vertical progress without planar progress. Keep the accepted route through
+    // native falling; a new grounded route can only be planned after landing.
+    if (Body.GetCharacterMovement()->IsFalling()) { Order.LastProgress=Now; return; }
     const FVector Foot=Body.GetNavAgentLocation();
     const bool bChase=LDNavOrdersDetail::IsChase(Order.Request,Order.bPinned);
     if (!bMoving || (bChase && FVector::DistSquared2D(Foot,Order.TargetFoot)<=FMath::Square(Order.RangeCm)))

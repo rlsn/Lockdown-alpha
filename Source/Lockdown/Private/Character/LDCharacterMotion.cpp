@@ -41,7 +41,7 @@ struct ULDCharacterMovementComponent::FNativeCapture
     double NativeScale=1;
     float NativeDuration=0;
     int32 SafeDepth=0, AdjustmentDepth=0, StepDepth=0, StepDirectMoves=0;
-    bool Walking=false, Falling=false;
+    bool Walking=false, Falling=false, FallingHandoff=false;
     TOptional<FBookmark> WalkBookmark;
     ERevert PendingRevert=ERevert::None;
     FString Error;
@@ -78,7 +78,22 @@ struct ULDCharacterMovementComponent::FNativeCapture
         const double Start=RemainingSeconds==NativeDuration?Batch.Step.StartServerSeconds
             : Batch.Step.EndServerSeconds-double(RemainingSeconds)*NativeScale;
         if (Cursor>Start+.0000001)
-        { Fail(TEXT("Native physics attempted to reuse already committed simulation time.")); return Cursor; }
+        {
+            // CMC refunds the unused fraction of the last walking slice when walking off an edge.
+            // Preserve its witnessed path, compressing only that slice into the native-consumed interval.
+            // Every other backwards time request remains an authority fault.
+            if (!FallingHandoff || !Walking || !WalkBookmark || Start<WalkBookmark->Time-.0000001 || Cursor<=WalkBookmark->Time)
+            { Fail(*FString::Printf(TEXT("Native physics attempted to reuse already committed simulation time. cursor=%.9f start=%.9f remaining=%.9f native=%.9f walking=%d falling=%d handoff=%d bookmark=%.9f"),Cursor,Start,RemainingSeconds,NativeDuration,Walking,Falling,FallingHandoff,WalkBookmark?WalkBookmark->Time:-1.)); return Cursor; }
+            const double Begin=WalkBookmark->Time, Scale=(FMath::Max(Start,Begin)-Begin)/(Cursor-Begin);
+            for (int32 Index=WalkBookmark->Count; Index<Batch.Records.Num(); ++Index)
+            {
+                auto& Record=Batch.Records[Index];
+                Record.StartServerSeconds=Begin+(Record.StartServerSeconds-Begin)*Scale;
+                Record.EndServerSeconds=Begin+(Record.EndServerSeconds-Begin)*Scale;
+            }
+            Cursor=FMath::Max(Start,Begin);
+            SliceEnd=Cursor;
+        }
         return FMath::Max(Cursor,Start);
     }
 };
@@ -299,12 +314,21 @@ bool ULDCharacterMovementComponent::CheckFall(const FFindFloorResult& OldFloor, 
     return Result;
 }
 
+void ULDCharacterMovementComponent::StartFalling(int32 Iterations, float RemainingTime, float TimeTick,
+    const FVector& Delta, const FVector& SubLocation)
+{
+    if (!NativeCapture) { Super::StartFalling(Iterations,RemainingTime,TimeTick,Delta,SubLocation); return; }
+    TGuardValue<bool> Handoff(NativeCapture->FallingHandoff,true);
+    Super::StartFalling(Iterations,RemainingTime,TimeTick,Delta,SubLocation);
+}
+
 void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterations)
 {
     if (!NativeCapture) { Super::PhysWalking(DeltaSeconds,Iterations); return; }
     auto& Capture=*NativeCapture;
     if (Capture.Walking) { Capture.Fail(TEXT("Unclosed nested native walking interval.")); }
     TGuardValue<bool> Walking(Capture.Walking,true);
+    TGuardValue<bool> Falling(Capture.Falling,false);
     Capture.Cursor=Capture.StartFor(DeltaSeconds);
     Capture.SliceEnd=Capture.Batch.Step.EndServerSeconds;
     Capture.WalkBookmark=Capture.Mark(UpdatedComponent->GetComponentLocation());
@@ -321,12 +345,28 @@ void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterat
     CaptureNativeSupport();
 }
 
+FVector ULDCharacterMovementComponent::NewFallVelocity(const FVector& InitialVelocity, const FVector& Gravity, float DeltaTime) const
+{
+    if (NativeCapture && NativeCapture->Falling)
+    {
+        // PhysFalling substeps internally. Hit.Time is a fraction of this gravity-integrated slice,
+        // not of all remaining frame time; a landing returns only the unconsumed native remainder.
+        auto& Capture=*NativeCapture;
+        const double End=Capture.Cursor+double(DeltaTime)*Capture.NativeScale;
+        if (End>Capture.Batch.Step.EndServerSeconds+.0000001)
+        { Capture.Fail(TEXT("Falling interval exceeds the current core step.")); }
+        Capture.SliceEnd=FMath::Min(End,Capture.Batch.Step.EndServerSeconds);
+    }
+    return Super::NewFallVelocity(InitialVelocity,Gravity,DeltaTime);
+}
+
 void ULDCharacterMovementComponent::PhysFalling(float DeltaSeconds, int32 Iterations)
 {
     if (!NativeCapture) { Super::PhysFalling(DeltaSeconds,Iterations); return; }
     auto& Capture=*NativeCapture;
     TGuardValue<bool> Falling(Capture.Falling,true);
     Capture.Cursor=Capture.StartFor(DeltaSeconds);
+    TGuardValue<bool> Walking(Capture.Walking,false);
     Capture.SliceEnd=Capture.Batch.Step.EndServerSeconds;
     Super::PhysFalling(DeltaSeconds,Iterations);
     Capture.Cursor=Capture.Batch.Step.EndServerSeconds;

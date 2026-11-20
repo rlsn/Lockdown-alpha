@@ -3,7 +3,7 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,600)][int]$T
     # The Host's rendered main view; the HUD and screenshots are reviewed at both supported sizes.
     [ValidateSet('720p','1080p')][string]$Resolution='720p',
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
-    [switch]$RenderClient1, [switch]$ReactionOnly, [switch]$IceOnly)
+    [switch]$RenderClient1, [switch]$ReactionOnly, [switch]$IceOnly, [switch]$NoScreenshots, [switch]$Peaceful)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 if (($ReactionOnly -or $IceOnly) -and $RenderClient1) { throw 'ReactionOnly and IceOnly are headless; omit RenderClient1.' }
@@ -46,6 +46,8 @@ function Start-VisionRole {
         if ($NetEmulation) { $arguments += " $NetEmulation -LDDemoVisionNetEmulated" }
         if ($ReactionOnly) { $arguments += ' -LDDemoVisionReactionOnly' }
         if ($IceOnly) { $arguments += ' -LDDemoVisionIceOnly' }
+        if ($NoScreenshots) { $arguments += ' -LDDemoVisionNoScreenshots' }
+        if ($Peaceful) { $arguments += ' -LDDemoVisionPeaceful' }
         $arguments
     }
 }
@@ -75,10 +77,10 @@ try {
         if ($reports[$role].generation -ne $reports['Host'].generation) { throw "Roles observed different match generations: $output" }
     }
     $image = Join-Path $evidence 'HostSighted.png'
-    if (-not $headless -and (-not (Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -le 0)) {
+    if (-not $headless -and -not $NoScreenshots -and (-not (Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -le 0)) {
         throw "The participating Listen Host left no rendered main-view screenshot: $output"
     }
-    if ($RenderClient1) {
+    if ($RenderClient1 -and -not $NoScreenshots) {
         $clientImage = Join-Path $evidence 'Client1Sighted.png'
         if (-not (Test-Path -LiteralPath $clientImage) -or (Get-Item -LiteralPath $clientImage).Length -le 0) {
             throw "The rendered owning client left no screenshot: $output"
@@ -102,7 +104,9 @@ try {
     } elseif ($ReactionOnly) {
         Write-Host "DEV-only owned-connection reaction scenario passed: fixture hits enter native Effects, only the setter receives the named prompt, and explicit leavers are removed from the Host view. Not player input, hidden-sight or unexpected-disconnect coverage. Evidence: $output"
     } else {
-        Write-Host "DEV-only owned-connection observation scenario passed: rendered Listen Host plus two owning clients via the normal lobby. Covers checks #1/#9/#15/#15H/#23/#28 (Listen Host presentation). HostSighted.png still needs presentation review. Not combat balance, death/termination, AI or full-match acceptance. Evidence: $output"
+        $captureScope=if($NoScreenshots){'Screenshots disabled; rendered pixels are not reviewed.'}else{'HostSighted.png still needs presentation review.'}
+        if($Peaceful){$captureScope+=' DEV peaceful mode suppresses camp/Boss aggro during this visibility-only check.'}
+        Write-Host "DEV-only owned-connection observation scenario passed: rendered Listen Host plus two owning clients via the normal lobby. Covers checks #1/#9/#15/#15H/#23/#28 (Listen Host presentation). $captureScope Not combat balance, death/termination, AI or full-match acceptance. Evidence: $output"
     }
 }
 finally {

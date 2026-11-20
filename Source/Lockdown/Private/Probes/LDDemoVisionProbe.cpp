@@ -1,5 +1,6 @@
 #include "Probes/LDDemoVisionProbe.h"
 #include "Probes/LDScenarioWalk.h"
+#include "World/LDSpawnPlacement.h"
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -254,6 +255,8 @@ public:
         return Result;
     }
     TArray<FLDSeenUnit> PreStall;
+    bool bExplicitLeaveSent=false;
+    double ExplicitLeaveSentAt=0;
     TSet<FGuid> RemoteContenders;
     TArray<TWeakObjectPtr<APawn>> SpawnedPawns;
     TArray<TSharedPtr<FJsonValue>> Checks, Images;
@@ -573,6 +576,16 @@ public:
         const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
         if (!Body || Owner.OwnerState.LifePhase != ELDLifePhase::Alive
             || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand()) { return true; }
+        const bool bPeaceful=FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionPeaceful"));
+        if(bPeaceful&&!Owner.bDevPeaceful)
+        {
+            const auto* Public=Owner.GetWorld()->GetGameState<ALDGameState>();
+            if(!Public||!Public->DemoLobby.DevTestSession)
+            {if(Role==TEXT("Host")){Owner.ServerEnableDevTest(Owner.OwnerState.Match);}return true;}
+            ELDGrowthReason Reason;
+            Owner.SubmitDevTest(ELDDevTestOp::SetPeaceful,1,Reason);
+            return true;
+        }
         FString Why;
         const auto* Geometry = Registry.GetGeometry();
         FCollisionShape Capsule;
@@ -590,9 +603,13 @@ public:
             const double CorridorRadius = double(Aggro.Numerator) / Aggro.Denominator
                 + Capsule.GetCapsuleRadius() + ArrivalCm + LDPathSteering::WaypointToleranceCm;
             LDScenarioWalk::PatrolKeepouts(Patrol, CorridorRadius, WalkKeepouts);
+            if(bPeaceful){WalkKeepouts.Reset();}
             FLDSightGeometry FixtureSight;
-            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm, Why))
+            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm, Why,Owner.GetWorld()))
             { return Fail(TEXT("#1"), Why); }
+            FLDLegalGround HubGround;ELDWorldQueryFailure HubFailure;
+            if(!Registry.QueryGround(Registry.Revision(),Capture.Position,Capsule,Capture.Surface,HubGround,HubFailure,Why))
+            {return Fail(TEXT("#1"),Why);}
             const auto Validate = [&](TArray<FVector>& Goals)
             {
                 for (FVector& Goal : Goals)
@@ -606,6 +623,9 @@ public:
                     const bool bLegal = Registry.QueryGround(Registry.Revision(), Goal, Capsule, Capture.Surface, Legal, Failure, Why);
                     MaxQuerySeconds = FMath::Max(MaxQuerySeconds, FPlatformTime::Seconds() - Began);
                     if (!bLegal) { return false; }
+                    FLDCompletePath Path;
+                    if(!Registry.QueryCompletePath(Registry.Revision(),HubGround,Legal,Capsule,Path,Failure,Why)){return false;}
+                    Goal=LDSpawnPlacement::StandingOrigin(Legal)-FVector(0,0,Capsule.GetCapsuleHalfHeight());
                 }
                 for (int32 A = 0; A < Goals.Num(); ++A)
                 { for (int32 B = 0; B < Goals.Num(); ++B)
@@ -706,7 +726,7 @@ public:
         Check(Writer.GetNumBytes()<1100,TEXT("#23"),FString::Printf(
             TEXT("The shared-anchor observation payload fits below 1100 bytes (%lld bytes)"),Writer.GetNumBytes()));
         if (!Passed) { return Finish(); }
-        if (!bReactionOnly && (Role==TEXT("Host") || FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionRendered"))))
+        if (!bReactionOnly && !FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionNoScreenshots")) && (Role==TEXT("Host") || FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionRendered"))))
         {
             PendingImage=FPaths::Combine(Output,Role+TEXT("Sighted.png"));
             ImageAt=Now;
@@ -1074,6 +1094,8 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
+        Report->SetBoolField(TEXT("peaceful_fixture"),FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionPeaceful")));
+        Report->SetBoolField(TEXT("screenshots_requested"),!FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionNoScreenshots")));
         Report->SetStringField(TEXT("scope"), IceOnly()
             ? TEXT("DEV-only owned-connection ice scenario: three normal-start participants; the Host's body owns an ice field placed through the native ground path under Client1, which walks across it over its real owning connection. Checks the authoritative acceleration scale on the server, the same scale in the owning client's prediction, the slower start and the server corrections of that walk; not balance, other ground states or full-match acceptance.")
             : ReactionOnly()

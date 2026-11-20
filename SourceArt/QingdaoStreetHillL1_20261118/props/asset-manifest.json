@@ -1,0 +1,242 @@
+[
+  {
+    "asset": "SM_QD_StreetPark_Bench",
+    "render_triangles": 168,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      1.850000023841858,
+      0.5875000059604645,
+      1.0099999904632568
+    ],
+    "bounds_m": [
+      [
+        -0.925000011920929,
+        -0.28999999165534973,
+        0.0
+      ],
+      [
+        0.925000011920929,
+        0.29750001430511475,
+        1.0099999904632568
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "公园与店面边缘休息座椅，木条坐面和深色金属支架",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_HeritageLamp",
+    "render_triangles": 252,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      0.5400000214576721,
+      0.5400000214576721,
+      3.659999944269657
+    ],
+    "bounds_m": [
+      [
+        -0.27000001072883606,
+        -0.27000001072883606,
+        -0.10000000149011612
+      ],
+      [
+        0.27000001072883606,
+        0.27000001072883606,
+        3.559999942779541
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "老城小型深绿铸铁灯，不新增灯光对象或玩法碰撞",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_StoneBollard",
+    "render_triangles": 56,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      0.2199999988079071,
+      0.2199999988079071,
+      0.7450000196695328
+    ],
+    "bounds_m": [
+      [
+        -0.10999999940395355,
+        -0.10999999940395355,
+        -0.07999999821186066
+      ],
+      [
+        0.10999999940395355,
+        0.10999999940395355,
+        0.6650000214576721
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "肥城路边缘矮石柱，地下部分埋入原有坡面",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_Planter",
+    "render_triangles": 180,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      1.1699999570846558,
+      0.5600000023841858,
+      1.059999942779541
+    ],
+    "bounds_m": [
+      [
+        -0.5849999785423279,
+        -0.2800000011920929,
+        0.0
+      ],
+      [
+        0.5849999785423279,
+        0.2800000011920929,
+        1.059999942779541
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "小型矩形花箱，只用于平坦店面边缘",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_CafeSet",
+    "render_triangles": 276,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      1.9149999618530273,
+      0.8600000143051147,
+      0.7649999856948853
+    ],
+    "bounds_m": [
+      [
+        -0.9574999809265137,
+        -0.4300000071525574,
+        0.0
+      ],
+      [
+        0.9574999809265137,
+        0.4300000071525574,
+        0.7649999856948853
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "店面沿边的两人咖啡桌椅组，避免占用街道中央",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_ShopCanopy",
+    "render_triangles": 40,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      2.5999999046325684,
+      0.9450000077486038,
+      0.7150000035762787
+    ],
+    "bounds_m": [
+      [
+        -1.2999999523162842,
+        -0.8700000047683716,
+        -0.3799999952316284
+      ],
+      [
+        1.2999999523162842,
+        0.07500000298023224,
+        0.33500000834465027
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "沿用现有建筑的咖啡店遮篷和窄招牌，不改变建筑尺寸",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_ShoulderWheel",
+    "render_triangles": 640,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      1.315999984741211,
+      0.4087255597114563,
+      1.5300000198185444
+    ],
+    "bounds_m": [
+      [
+        -0.6579999923706055,
+        -0.33436277508735657,
+        -0.05000000074505806
+      ],
+      [
+        0.6579999923706055,
+        0.07436278462409973,
+        1.4800000190734863
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "参考青岛社区公园蓝色双位肩关节训练器，仅作环境道具",
+    "comparison_only": true
+  },
+  {
+    "asset": "SM_QD_StreetPark_ParallelBars",
+    "render_triangles": 360,
+    "collision_triangles": 0,
+    "triangle_budget": 2000,
+    "dimensions_m": [
+      1.8400001525878906,
+      0.8036373257637024,
+      1.398000057786703
+    ],
+    "bounds_m": [
+      [
+        -0.9200000762939453,
+        -0.4018186628818512,
+        -0.05999999865889549
+      ],
+      [
+        0.9200000762939453,
+        0.4018186628818512,
+        1.3380000591278076
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "usage": "小型社区双杠拉伸器，放在山地公园边缘",
+    "comparison_only": true
+  }
+]

@@ -1,0 +1,69 @@
+[
+  {
+    "asset": "SM_QD_CatholicChurch_L1",
+    "render_triangles": 1126,
+    "collision_triangles": 36,
+    "material_slots": 1,
+    "dimensions_m": [
+      12.991899728775024,
+      10.113000839948654,
+      8.555000305175781
+    ],
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "uv_layers": [
+      "UV0_MaterialAtlas",
+      "UV1_Lightmap"
+    ],
+    "editable_groups": [
+      "Nave_And_Buttresses",
+      "Nave_Roof_And_Facade",
+      "Twin_Bell_Towers_And_Crosses",
+      "Portals_Rose_And_Lancet_Windows",
+      "Detached_Side_Chapel"
+    ],
+    "scope": "Building only: twin towers, nave, portal, rose window, side chapel. No square, exterior steps, terrain or vegetation.",
+    "front_direction": "local -Y",
+    "origin": "Main nave X centre, facade front Y=0, authored ground Z=0"
+  },
+  {
+    "asset": "SM_QD_Zhanqiao_Huilange_L1",
+    "render_triangles": 2724,
+    "collision_triangles": 40,
+    "material_slots": 1,
+    "dimensions_m": [
+      56.277431793510914,
+      14.15999984741211,
+      12.3100004196167
+    ],
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "uv_layers": [
+      "UV0_MaterialAtlas",
+      "UV1_Lightmap"
+    ],
+    "editable_groups": [
+      "Main_Deck_And_Terminal_Platform",
+      "Piles_Crossheads_And_Diagonal_Braces",
+      "Walkway_And_Platform_Railings",
+      "Huilange_Octagonal_Walls_And_Columns",
+      "Huilange_Double_Curved_Roofs_And_Finial",
+      "Lamps"
+    ],
+    "scope": "Single straight main walkway, terminal platform, Huilange pavilion, piles, crossheads, braces, railings and lamps; excludes all interconnecting upper/return walkways.",
+    "origin": "Shore end centre at deck-top elevation Z=0; pier extends local -X",
+    "main_deck_length_m": 42.12743092203314,
+    "main_deck_width_m": 3.7987436972454587,
+    "platform_center_x_m": -49.12743092203314,
+    "pavilion_center_x_m": -51.39433466553352,
+    "placement_original_cm": [
+      -5223.068736409967,
+      1500.0,
+      500
+    ]
+  }
+]

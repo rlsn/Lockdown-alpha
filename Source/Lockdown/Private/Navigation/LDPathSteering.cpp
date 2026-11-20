@@ -64,6 +64,7 @@ namespace LDPathSteering
         const auto* Movement=Body.GetCharacterMovement();
         return Movement->IsMovingOnGround() && Movement->CurrentFloor.IsWalkableFloor()
             && !Movement->HasRootMotionSources()
+            && FMath::Abs(Body.GetNavAgentLocation().Z-Goal.Z)<=Movement->MaxStepHeight+UCharacterMovementComponent::MAX_FLOOR_DIST
             && FVector::DistSquared2D(Body.GetNavAgentLocation(),Goal)<=FMath::Square(AcceptanceCm);
     }
 
@@ -122,7 +123,8 @@ namespace LDPathSteering
     {
         const auto* Movement=Body.GetCharacterMovement();
         const auto* World=Body.GetWorld();
-        if (!World || !Movement->IsMovingOnGround() || Movement->HasRootMotionSources()) { return false; }
+        if (!World || !Movement->IsMovingOnGround() || Movement->HasRootMotionSources()
+            || FMath::Abs(Body.GetNavAgentLocation().Z-Goal.Z)>Movement->MaxStepHeight+UCharacterMovementComponent::MAX_FLOOR_DIST) { return false; }
         TArray<FBodyDisc> Others;
         for (TActorIterator<ACharacter> It(World); It; ++It)
         {

@@ -1,0 +1,37 @@
+[
+  {
+    "asset": "SM_QD_Zhanqiao_Granite_1K",
+    "render_triangles": 2868,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      56.277431793510914,
+      14.15999984741211,
+      12.3100004196167
+    ],
+    "bounds_m": [
+      [
+        -56.20743179321289,
+        -7.079999923706055,
+        -6.050000190734863
+      ],
+      [
+        0.07000000029802322,
+        7.079999923706055,
+        6.260000228881836
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      1024,
+      1024
+    ],
+    "purpose": "Original main pier geometry with a uniform 0.6m by 0.4m grey granite slab rhythm; UV cells repeat at 4.8m without stretching. One shared 1024 atlas covers the entire pier.",
+    "slab_size_m": [
+      0.6,
+      0.4
+    ],
+    "paving_repeat_m": 4.8,
+    "scope": "Main straight walkway, terminal platform, pavilion, railing, supports and lamps. Return walkways excluded."
+  }
+]

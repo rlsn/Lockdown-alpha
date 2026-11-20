@@ -167,8 +167,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (IsIsolated(Hit.SourceEntity,*Body)) { return true; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
     // Protection is the target life's state at this hit, not at the time the effect was accepted.
-    const bool bProtected=Hit.Target.Victim.Kind==ELDVictimKind::Contender
+    bool bProtected=Hit.Target.Victim.Kind==ELDVictimKind::Contender
         && Mode->IsContenderProtected(Hit.Target.Victim.EntityId);
+#if WITH_DEV_AUTOMATION_TESTS
+    bProtected |= Hit.Target.Victim.Kind==ELDVictimKind::Contender && Mode->IsDevInvulnerable(Hit.Target.Victim.EntityId);
+#endif
     // The exact releasing life, when it still stands: geometry, heals and momentum grants read it; a dead or replaced
     // source still deals its released damage.
     ALDCharacter* SourceActor=nullptr;

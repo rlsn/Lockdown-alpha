@@ -605,7 +605,7 @@ bool FLDObservedConceal::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuc
     FString Error;
     if (Ar.IsSaving() && !LDObservation::ValidateConceal(*this, Error)) { return RejectObservationArchive(Ar, bSuccess); }
     Ar << MatchGeneration << Generation << Revision;
-    uint8 Count = uint8(FMath::Min(Removed.Num(), 255));
+    uint16 Count = uint16(Removed.Num());
     Ar << Count;
     if (Ar.IsError() || Count > LDObservation::MaxUnits + LDObservation::MaxProjectiles) { return RejectObservationArchive(Ar, bSuccess); }
     if (Ar.IsLoading()) { Removed.SetNum(Count); }

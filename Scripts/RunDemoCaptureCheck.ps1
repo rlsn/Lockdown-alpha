@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,1800)][int]$TimeoutSeconds=1800,
-    [switch]$AllHuman, [switch]$RenderHost)
+    [switch]$AllHuman, [switch]$RenderHost, [switch]$NoScreenshots)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -29,7 +29,7 @@ if ($AllHuman) {
     $requiredChecks.Host += 'A04'
     $requiredChecks.Client5 = $requiredChecks.Client5 + 'C14'
 }
-if ($RenderHost) { $requiredChecks.Host += 'C15' }
+if ($RenderHost -and -not $NoScreenshots) { $requiredChecks.Host += 'C15' }
 # The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the
 # Host's has one inner space). They are built from code points so this script stays ASCII.
 function Get-CaptureName {
@@ -47,7 +47,7 @@ function Start-CaptureRole {
         $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
         # UI commands need initialized rendered widgets on every owner; only the Host saves frames.
         $render = if ($RenderHost) {
-            '-RenderOffScreen -ResX=1280 -ResY=720' + $(if ($Role -eq 'Host') { ' -LDCaptureRenderHost' } else { '' })
+            '-RenderOffScreen -ResX=1280 -ResY=720' + $(if ($Role -eq 'Host' -and -not $NoScreenshots) { ' -LDCaptureRenderHost' } else { '' })
         } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCaptureProbe -LDDemoCaptureRole={3} -LDDemoCaptureTimeout={4} -LDDemoCaptureOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($AllHuman) { $arguments += ' -LDCaptureAllHuman' }
@@ -93,7 +93,7 @@ try {
         }
         $r
     }
-    if ($RenderHost) {
+    if ($RenderHost -and -not $NoScreenshots) {
         foreach ($image in @('HostFinalOffer.png','HostFinalLocked.png','HostFinalFlag.png','HostResults.png','HostReturnedLobby.png')) {
             $path = Join-Path $evidence $image
             if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -eq 0) {

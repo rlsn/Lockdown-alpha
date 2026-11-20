@@ -15,6 +15,11 @@ public:
     // Additional shared targets use saved actor names, independently of the six roster-owned slots.
     UPROPERTY(EditAnywhere, Category="Training", meta=(ToolTip="Additional attackable shared training target. Duplicating a training point enables this automatically."))
     bool bSharedTrainingDummy = false;
+    // Opt in to the actual saved child roster rather than the template's default count.
+    UPROPERTY(EditAnywhere, Category="Camp", meta=(ToolTip="Camp centre: use every attached member slot, preserving authored quantities and per-member approved types. The centre's prototype still supplies the whole-group refresh delay."))
+    bool bUseAuthoredCampMembers = false;
+    UPROPERTY(EditAnywhere, Category="Camp", meta=(ToolTip="Camp member: approved camp prototype providing this member's monster stats, rewards and AI. Empty inherits the parent centre's prototype. Layout Preview CharacterId is visual only."))
+    FString CampMemberPrototypeId;
     FString SharedTrainingId() const { return TEXT("training_shared_") + GetName(); }
 #if WITH_EDITOR
     virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;

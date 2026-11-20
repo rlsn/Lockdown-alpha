@@ -287,7 +287,7 @@ bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString&
 #endif
     bool bBodiesReady = true;
     TArray<FLDTimelineEvent> Events;
-    if (IsRestPhase(MatchContext) && Timeline.GetStep() == ELDRestStep::Build && AuthorityNowMs < Timeline.GetStepEndsAtMs())
+    if (!Timeline.IsCountdownPaused() && IsRestPhase(MatchContext) && Timeline.GetStep() == ELDRestStep::Build && AuthorityNowMs < Timeline.GetStepEndsAtMs())
     {
         int32 Humans = 0;
         bool bAllReady = true;
@@ -857,6 +857,10 @@ bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool&
     Order.Sort();
     if (!bFieldReturnStarted)
     {
+        // A static scene error must be reported while the current bodies still exist.
+        auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+        if (!Registry || !Registry->ValidateFieldSpawnPaths(Timeline.GetRestIndex() == FLDTimelineParameters::TimedSegments, Error))
+        { if (Error.IsEmpty()) { Error = TEXT("入场检查失败：地图未就绪，角色保留在原处"); } return false; }
         TArray<FGuid> DummySlots;
         TrainingDummies.GetKeys(DummySlots);
         for (const FGuid& Slot : DummySlots) { RetireTrainingDummy(Slot); }

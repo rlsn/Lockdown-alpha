@@ -106,10 +106,14 @@ namespace LDDemoWorld
         bool Build(const FLDDemoWorldGeometry& Geometry, FString& Error);
         // Saved scene collision supplies runtime heights; pure data/import tests keep the authored terrain model.
         void BindScene(UWorld& World, const FBox& Bounds);
+        // A sight-owned copy can ignore view-transparent models without changing physical support.
+        void ExcludeViewTransparentGeometry();
         bool TraceScene(const FVector& Start, const FVector& End, FHitResult& Hit) const;
         bool SweepScene(const FVector& Start, const FVector& End, const FCollisionShape& Shape, FHitResult& Hit) const;
         bool IsValid() const { return StepCm > 0; }
         int32 Tier(const FVector2D& Point) const;
+        // Resolve a known body's local support, including beneath roofs; never project down from the world's top.
+        bool GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround = false) const;
         // Supporting height and upward unit normal at Point.
         void Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) const;
         double StepCm = 0;
@@ -129,6 +133,7 @@ namespace LDDemoWorld
         TWeakObjectPtr<UWorld> Scene;
         FBox SceneBounds = FBox(ForceInit);
         FCollisionQueryParams SceneQuery;
+        FCollisionQueryParams SupportQuery;
         TMap<FName, int32> SceneTiers;
     };
     LOCKDOWN_API bool InsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point);
@@ -167,6 +172,8 @@ struct FLDDemoWorldMemberHome
 
     UPROPERTY() FString Id;
     UPROPERTY() FLDDemoWorldPoint PositionCm;
+    // Saved scene roster only; source/import templates retain their strict default member counts.
+    UPROPERTY() FString PrototypeId;
 };
 
 UENUM()
@@ -188,6 +195,8 @@ struct FLDDemoWorldAnchor
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
+    // Saved scene instances may reuse an approved placement's monster definition with an independent identity.
+    UPROPERTY() FString PrototypeId;
     UPROPERTY() ELDDemoWorldAnchorKind Kind = ELDDemoWorldAnchorKind::Spawn;
     UPROPERTY() FString SurfaceId;
     UPROPERTY() FLDDemoWorldPoint PositionCm;
@@ -198,6 +207,9 @@ USTRUCT()
 struct LOCKDOWN_API FLDDemoWorldGeometry
 {
     GENERATED_BODY()
+
+    // Only the saved-world projection opts into editable instance counts; imported source contracts stay strict.
+    UPROPERTY() bool bSceneLayout = false;
 
     UPROPERTY() FString MapId;
     UPROPERTY() int32 LayoutRevision = 0;

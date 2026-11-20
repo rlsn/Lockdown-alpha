@@ -1,0 +1,77 @@
+{
+  "ChurchSetts": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 3.2
+  },
+  "SlopeSetts": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 3.2
+  },
+  "StreetGranite": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "CoastalGranite": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "CourtPavers": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "RetainingStone": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "BorderStone": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "ParkPath": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "ForestFloor": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "GardenSoil": {
+    "texture_resolution": 1024,
+    "roughness": 0.9,
+    "repeat_m": 4.8
+  },
+  "SportBlue": {
+    "texture_resolution": 1024,
+    "roughness": 0.91,
+    "repeat_m": 4.8
+  },
+  "SportRed": {
+    "texture_resolution": 1024,
+    "roughness": 0.91,
+    "repeat_m": 4.8
+  },
+  "SportCyan": {
+    "texture_resolution": 1024,
+    "roughness": 0.91,
+    "repeat_m": 4.8
+  },
+  "SportGreen": {
+    "texture_resolution": 1024,
+    "roughness": 0.91,
+    "repeat_m": 4.8
+  },
+  "PaintWhite": {
+    "texture_resolution": 1024,
+    "roughness": 0.91,
+    "repeat_m": 4.8
+  }
+}

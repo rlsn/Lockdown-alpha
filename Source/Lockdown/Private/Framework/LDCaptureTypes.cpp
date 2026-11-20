@@ -76,9 +76,10 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     const bool bDrop = Drop.Phase != ELDAirdropPhase::None;
     // #198: world schedules (airdrop, Boss, leader notice) are field-progress times T, not authority ms.
     const FLDTimelineView& Line = View.Timeline;
-    const bool bFieldRuns = Line.Stage == ELDMatchStage::Field || Line.Stage == ELDMatchStage::FinalField;
-    const int64 FieldNow = bFieldRuns && View.ServerNowMs > Line.FieldStartedAtMs
-        ? Line.FieldBaseMs + (View.ServerNowMs - Line.FieldStartedAtMs) : Line.FieldBaseMs;
+    const int64 FieldNow = LDMatchTimeline::FieldNowFromView(Line, View.ServerNowMs);
+    if (Line.bCountdownPaused ? (Line.Stage == ELDMatchStage::None || Line.CountdownPausedAtMs < Line.StepStartedAtMs
+        || Line.CountdownPausedAtMs > View.ServerNowMs) : Line.CountdownPausedAtMs != 0)
+    { return FailCaptureView(Error, TEXT("Invalid paused timeline clock.")); }
     if (uint8(Line.Stage) > uint8(ELDMatchStage::FinalField) || uint8(Line.Step) > uint8(ELDRestStep::Return)
         || (Line.Stage == ELDMatchStage::Rest) != (Line.Step != ELDRestStep::None) || Line.FieldBaseMs < 0
         || (Line.Stage != ELDMatchStage::None && Line.Generation != View.Generation))

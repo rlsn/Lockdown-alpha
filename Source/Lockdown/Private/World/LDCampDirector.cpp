@@ -499,7 +499,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.CampAnchorFootCm = Spec.AnchorCm;
             Input.MemberHome = {Input.World, Spec.Members[Slot].HomeCm, Spec.SurfaceId};
             Input.Brain = Member.Brain;
-            Input.MonsterId = Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone()
+            Input.MonsterId = Spec.bAuthoredMembers ? Spec.Members[Slot].MonsterId : Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone()
                 ? Spec.TeambuildMonsterId : State.FindCamp(Camp)->SelectedSpecies;
             Input.bObservationComplete = true;
             Input.MovementAllowed = Body.bMovementAllowed && !Body.bActionInProgress;
@@ -508,7 +508,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.bStrandedInPlace = Stranded.Contains(Entity);
             FLDCampDecision Decision;
             bool bBeganReturn = false;
-            if (!LDCampDecision::Evaluate(*Content, Spec.CampId, Input, Member.HostileSources, Candidates, Decision, Error)
+            if (!LDCampDecision::Evaluate(*Content, Spec.Members[Slot].DefinitionId, Input, Member.HostileSources, Candidates, Decision, Error)
                 || !State.ApplyDecision(Ref, Decision, bBeganReturn, Error))
             {
                 return false;
@@ -1049,6 +1049,7 @@ bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const F
         return false;
     }
     const double Separation = 2. * Capsule.GetCapsuleRadius();
+    TArray<FString> PlacementRefusals;
     for (const FLDDemoWorldPoint& OffsetPoint : Geometry->SpawnOffsetsCm)
     {
         FVector Offset;
@@ -1059,6 +1060,7 @@ bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const F
         FString GroundError;
         if (!Registry->QueryGround(Registry->Revision(), Foot, Capsule, SurfaceId, Ground, Failure, GroundError))
         {
+            PlacementRefusals.Add(FString::Printf(TEXT("foot={%s} ground=%s"),*Foot.ToString(),*GroundError));
             if (IsCampWorldFault(Failure))
             {
                 Error = GroundError;
@@ -1068,14 +1070,17 @@ bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const F
         }
         // Bodies ignore pawn collision, so local placement keeps every current registered body apart explicitly.
         const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
-        bool bClear = !LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule)
-            && !Reserved.ContainsByPredicate([&](const FVector& Other)
+        const bool StaticBlocked=LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule);
+        const bool ReservedBlocked=Reserved.ContainsByPredicate([&](const FVector& Other)
             { return FVector::DistSquared2D(Other, Foot) < Separation * Separation; });
+        bool bClear = !StaticBlocked && !ReservedBlocked;
+        FString OccupantName;
         for (TActorIterator<ALDCharacter> It(GetWorld()); bClear && It; ++It)
         {
             FLDCombatBodyRef Occupant;
             bClear = It->IsActorBeingDestroyed() || !Mode->ReadBodyRef(**It, Occupant)
                 || FVector::DistSquared2D(It->GetCharacterMovement()->GetActorFeetLocation(), Foot) >= Separation * Separation;
+            if (!bClear) { OccupantName=It->GetName()+TEXT(" ")+It->GetCharacterMovement()->GetActorFeetLocation().ToString(); }
         }
         if (bClear)
         {
@@ -1083,8 +1088,12 @@ bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const F
             Error.Reset();
             return true;
         }
+        PlacementRefusals.Add(FString::Printf(TEXT("foot={%s} origin={%s} static=%d reserved=%d occupant=%s"),
+            *Foot.ToString(),*Origin.ToString(),StaticBlocked,ReservedBlocked,*OccupantName));
     }
     bBlocked = true;
+    UE_LOG(LogLDWorld,Display,TEXT("LD_CAMP_PLACEMENT_DIAGNOSTIC %s home={%s} capsule=%g/%g %s"),
+        *Label,*HomeCm.ToString(),Capsule.GetCapsuleRadius(),Capsule.GetCapsuleHalfHeight(),*FString::Join(PlacementRefusals,TEXT(" | ")));
     Error = FString::Printf(TEXT("SpawnBlocked: %s has no clear local placement."), *Label);
     return true;
 }
@@ -1147,7 +1156,9 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     {
         ALDCampMemberCharacter* Body = nullptr;
         const bool bTeam = Spec.Members[Slot].bTeambuild;
-        const bool bCreated = CreateBody(Grounds[Slot], bTeam ? *TeamMonster : *Monster,
+        const FLDDemoMonsterDefinition* MemberMonster = bTeam ? TeamMonster : Monster;
+        if (Spec.bAuthoredMembers && !Content->FindMonster(Spec.Members[Slot].MonsterId.ToString(), MemberMonster, Error)) { return false; }
+        const bool bCreated = CreateBody(Grounds[Slot], *MemberMonster,
             FString::Printf(TEXT("camp %s member %d"), *Spec.CampId.ToString(), Slot), Body, Error);
         if (Body) { Spawned.Add(Body); }
         if (!bCreated) { return false; }
@@ -1158,7 +1169,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
         Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot],
-            Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone() ? Spec.TeambuildMonsterId : Selected, Stage, Affix});
+            Spec.bAuthoredMembers ? Spec.Members[Slot].MonsterId : Spec.Members[Slot].bTeambuild && !Spec.TeambuildMonsterId.IsNone() ? Spec.TeambuildMonsterId : Selected, Stage, Affix});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }
@@ -1217,9 +1228,11 @@ bool ALDCampDirector::CreateBody(const FLDLegalGround& Ground, const FLDDemoMons
     if (!Movement->CurrentFloor.IsWalkableFloor() || Movement->CurrentFloor.HitResult.GetComponent() != Ground.Floor.Get()
         || !Body->GetActorLocation().Equals(Origin, .000001))
     {
-        Error = FString::Printf(TEXT("Prepared body does not occupy its registered placement: %s walkable=%d floor=%s expected=%s location=%s origin=%s."),
+        Error = FString::Printf(TEXT("Prepared body does not occupy its registered placement: %s walkable=%d floor=%s expected=%s location=%s origin=%s deltaXY=%.9f deltaZ=%.9f floorDist=%.9f penetrating=%d."),
             *Label, Movement->CurrentFloor.IsWalkableFloor(), *GetNameSafe(Movement->CurrentFloor.HitResult.GetComponent()),
-            *GetNameSafe(Ground.Floor.Get()), *Body->GetActorLocation().ToString(), *Origin.ToString());
+            *GetPathNameSafe(Ground.Floor.Get()), *Body->GetActorLocation().ToString(), *Origin.ToString(),
+            FVector::Dist2D(Body->GetActorLocation(),Origin),Body->GetActorLocation().Z-Origin.Z,
+            Movement->CurrentFloor.GetDistanceToFloor(),Movement->CurrentFloor.HitResult.bStartPenetrating);
         return false;
     }
     Error.Reset();

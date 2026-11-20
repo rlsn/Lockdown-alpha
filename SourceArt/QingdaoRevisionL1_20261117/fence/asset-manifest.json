@@ -1,0 +1,122 @@
+[
+  {
+    "asset": "SM_QD_Church_Fence_172",
+    "render_triangles": 426,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      2.8859636783599854,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -1.4429818391799927,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        1.4429818391799927,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_172",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "asset": "SM_QD_Church_Fence_173",
+    "render_triangles": 1416,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      9.234539985656738,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -4.617269992828369,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        4.617269992828369,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_173",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "asset": "SM_QD_Church_Fence_174",
+    "render_triangles": 1938,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      13.083932876586914,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -6.541966438293457,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        6.541966438293457,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_174",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  },
+  {
+    "asset": "SM_QD_Church_Fence_202",
+    "render_triangles": 1416,
+    "collision_triangles": 0,
+    "triangle_budget": 3000,
+    "dimensions_m": [
+      9.34443187713623,
+      0.5390660166740417,
+      5.5
+    ],
+    "bounds_m": [
+      [
+        -4.672215938568115,
+        -0.2695330083370209,
+        0.0
+      ],
+      [
+        4.672215938568115,
+        0.2695330083370209,
+        5.5
+      ]
+    ],
+    "material_slots": 1,
+    "texture_resolution": [
+      512,
+      512
+    ],
+    "source_actor": "StaticMeshActor_202",
+    "purpose": "Grey stone retaining base, capped piers and dark iron fence fitted inside the existing church boundary footprint and height. Existing openings retained."
+  }
+]
