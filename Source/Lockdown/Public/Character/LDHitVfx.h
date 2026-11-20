@@ -91,6 +91,10 @@ namespace LDHitVfx
     LOCKDOWN_API float ScreenFlashAlpha(const FScreenFlash& Flash, float AgeSeconds);
     // The own body taking a hit: a short, faint red edge that never replaces a stronger flash still playing.
     LOCKDOWN_API FScreenFlash HurtFlashOf(bool bReduced);
+    // A busy fight never strobes the whole screen: within ScreenFlashGapSeconds of the last flash's start only a stronger
+    // flash (a kill over a critical hit) replaces it; anything else is skipped.
+    constexpr float ScreenFlashGapSeconds = .6f;
+    LOCKDOWN_API bool ScreenFlashReplaces(const FScreenFlash& Last, float LastAgeSeconds, const FScreenFlash& Next);
 
     // Particle kit (Niagara NS_LDBurst, its user parameters): one burst of velocity-stretched sparks with a settable
     // gravity and drag (rising embers, falling droplets, hanging motes, fast arcs), soft smoke, a core flash and mesh

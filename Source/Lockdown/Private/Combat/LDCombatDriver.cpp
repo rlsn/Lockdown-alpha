@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatPreInput.h"
 #include "PK/LDPKDirector.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
@@ -310,8 +311,18 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
         TArray<FLDCombatActionRequest> Pending=MoveTemp(Record->Pending);
         Record->Pending.Reset();
         Pending.Sort([](const auto& A,const auto& B) { return A.DirectSequence<B.DirectSequence; });
-        for (const auto& Request : Pending)
+        for (int32 Index=0; Index<Pending.Num(); ++Index)
         {
+            const FLDCombatActionRequest& Request=Pending[Index];
+            // Pre-input across the network delay: a press meeting the own ability windup waits, with every later one of
+            // this caller (their order holds), until that windup releases; it stays Queued meanwhile.
+            const FLDBodyCombatState* Body=FindEntityBody(Entity);
+            const bool bOwnWindup=Body && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
+            if (LDCombatPreInput::ServerHolds(Request.Entry,bOwnWindup,bOwnWindup?Body->Action->ReleaseAtMs:0,Mode->GetAuthorityNowMs()))
+            {
+                for (int32 Held=Index; Held<Pending.Num(); ++Held) { Record->Pending.Add(Pending[Held]); }
+                break;
+            }
             FLDCombatActionReceipt Receipt;
             if (!ProcessDirect(*Record,Request,Permit,Receipt,Error)) { return false; }
             Record=FindRecord(Entity);

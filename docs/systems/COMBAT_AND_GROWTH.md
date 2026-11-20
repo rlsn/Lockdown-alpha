@@ -102,7 +102,7 @@ Rejected 也可能 `ProtectionRemoved=true`。所有角色主动（含自身守�
 在喷漆区内失败的进攻仍可能因失保改变喷漆资格。
 
 **准入与释放**：普攻、Q/W/E 与 D 冲刺经同一 `SubmitAction`（真人 RPC、AI、营地成员各自的服务器 Caller）。冷却、劲与定身对位移的禁止由
-`LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。一个身体同时只有一个未释放动作：普攻前摇中被接受的技能放弃该普攻（`AbandonAction`，节拍不退回），
+`LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。一个身体同时只有一个未释放动作：普攻前摇中被接受的技能放弃该普攻（`AbandonAction`；参赛者普攻在出手时刻前结束时，`FinishAction` 把 `NextAttackAtMs` 退回到这次起手时刻），
 能力前摇中再提交技能返回 `Busy`。
 
 - **普攻**：Navigation 在 Actions 许可内以订单键调 `StartNavAttack`。合法 AttackStart 固定本次前摇与最早 `NextAttackAt`；取消、移动、改攻速不提前该期限，攻速只影响下一次。
@@ -140,7 +140,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
 构筑变更的数值失败（NumericUnderflow/NumericDomain）属于 `ELDCombatPrepareError`。隐藏、撤销、过期目标统一 TargetUnavailable；分配/算术/缺边界证据不是 Miss，不能用零伤害或默认坐标吞掉。
 
 **目标与接触**：单位新锁定、每次追击、AttackStart 与需要单位许可的 Release 都经 `ResolveObservedUnit`/`TraceSight` 重新解析，失视野取消锁定并停追击。
-目标种类 Missing/Self/Unit/Direction/Point；Point 只用于 GroundPoint 区域技能，释放时夹到射程内。区域与方向效果在权威内部读同一 `Bodies` 求接触并逐目标做世界 LOS（`LDCombatEffects.cpp`），
+目标种类 Missing/Self/Unit/Direction/Point；Point 只用于 GroundPoint 区域技能，释放时夹到射程内；所有 GroundPoint 技能（地面冲击、陷阱与区域）都落在合法地面：夹后的点 `QueryGround` 不合法（墙内、不可走）或从施法者脚下没有完整原生路线（屋顶）时，沿施法方向往回每 `LDGroundLanding::StepCm` 25 cm 取样（`LDGroundLanding::Resolve`），落到第一个合法地面；冲击/陷阱一直到脚下都没有才 `Blocked`，区域在没有注册地图或没有落点时保留夹后的点。施法者脚下没有合法地面（空中）时不落点；没有导航数据时不判路线；世界缺失或过期是错误。`CastPoint` 订单按点地目标规划接近（墙内、屋顶等不可达点投影到最近可达的导航点），所以射程外的这类点也会走近后施放并回退落点。`DemoGround.SkillLanding` 在保存的 Demo 世界上覆盖开阔地落点、射程夹取、方块顶与墙内回退和空中施法者不落点。区域与方向效果在权威内部读同一 `Bodies` 求接触并逐目标做世界 LOS（`LDCombatEffects.cpp`），
 可以接触隐藏身体，但不授予观察句柄，不交 UI/AI/Nav；方向效果在首次真实接触时取得目标生命。缺世界注册或非法半径明确失败，不截断为“最近若干目标”。
 
 ## 纯值接口
@@ -356,7 +356,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
 - **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺）；缴械禁普攻；沉默禁 Q/W/E；眩晕禁移动、位移、普攻与
   技能。缴械/眩晕实例与定身同形（`FLDCombatRoot`：效果、来源、半开到期），存于身体的 `Disarms`/`Stuns`，
   同一效果不续期，换命即消失，营地回位与离局清除。命中时眩晕放弃任何未出手的动作、缴械放弃未出手的普攻（回执 `ControlBlocked`，
-  不付费也不退节拍）；受控期间的 Direct 请求（真人、AI、营地同一入口）在准入时被拒，`ReadCombatBody` 的
+  不付费；被放弃的未出手普攻退回节拍）；受控期间的 Direct 请求（真人、AI、营地同一入口）在准入时被拒，`ReadCombatBody` 的
   `bAttackAllowed`/`bMovementAllowed` 同步关闭，导航攻击指令因此原地等待而不重复提交；出手时再判一次。
   本人视图给出 Disarm/Stun/Empowered 状态及其 `ControlBlocks`，`bRooted` 表示“移动被禁”（定身或眩晕）；
   观察者看到公开的缴械、眩晕。
@@ -670,7 +670,7 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 | --- | --- | --- | --- | --- |
 | 前闸拒绝 | 不改保护和资源 | 不替换当前单 | 无 | 不写 CD/节拍 |
 | 意图后游戏拒绝 | 保护已解除 | 未准入不替换旧单 | 无 | 不扣劲、不写 CD；失保不回滚 |
-| S/新单/取消 | 不撤回已发生状态 | 取消可中断工作 | 不回收、不退款 | 保留已承诺节拍与成本 |
+| S/新单/取消 | 不撤回已发生状态（阶段清理与结束对局给每个排队请求终态回执，`ClosePending`） | 取消可中断工作 | 不回收、不退款 | 保留已承诺成本；未出手普攻退回节拍 |
 | 换槽/升级 | 一次最终投影 | 验实际来源条款 | 保持旧快照 | 旧 ReadyAt 不重算 |
 | 替换/遗忘主动 | 遗忘旧等级与持续贡献 | 旧来源未释放的失效 | 继续原期限 | 原发行记录保留，重学沿原结束 |
 | 来源死亡 | 构筑/候选保留，活体持续作用停止，清旧控制 | 取消 | 继续 | CD/节拍继续；在局死者有效击杀仍获奖 |

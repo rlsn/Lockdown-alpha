@@ -1678,6 +1678,12 @@ bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A body clear of the pole on the camera's side is not"), LDPropFade::Occludes(Pole, Camera, FVector(-15 - LDPropFade::PierceRadiusCm - 5, 0, 90)));
     TestFalse(TEXT("A target above the prop is not run through by it"), LDPropFade::Occludes(Pole, Camera, FVector(-40, 0, 700)));
     TestFalse(TEXT("An unset prop never occludes"), LDPropFade::Occludes(FBox(ForceInit), Camera, FVector(300, 0, 90)));
+    TestTrue(TEXT("A pole keeps most of itself at full fade; a building or tall tree keeps little"),
+        LDPropFade::StrengthFor(Pole) == LDPropFade::FadedStrength
+        && LDPropFade::StrengthFor(FBox(FVector(-800, -800, 0), FVector(800, 800, 1600))) == LDPropFade::TallFadedStrength
+        && LDPropFade::TallFadedStrength > LDPropFade::FadedStrength);
+    TestTrue(TEXT("The pointer's hit on a building's roof runs through that building"),
+        LDPropFade::Occludes(FBox(FVector(-800, -800, 0), FVector(800, 800, 1600)), FVector(0, -900, 2900), FVector(100, 50, 1600)));
     // The reach only skips props that cannot occlude: every occluding case above lies in it, a far prop does not.
     const TArray<FVector> Bodies{FVector(300, 0, 90), FVector(5, 0, 90), FVector(-15 - LDPropFade::PierceRadiusCm + 1, 0, 160)};
     const FBox Reach = LDPropFade::Reach(Camera, Bodies);

@@ -181,6 +181,12 @@ namespace LDPropFade
     // retaining 70% of the prop at full fade so nearby obstacles remain readable.
     inline const FName StrengthParameter = TEXT("LDFadeStrength");
     constexpr float FadedStrength = .3f;
+    // A building or tall tree (bounds at least TallPropCm high and BroadPropCm across both ways; a pole is not) hides
+    // whole bodies: it keeps only 30% at full fade.
+    constexpr double TallPropCm = 600.;
+    constexpr double BroadPropCm = 200.;
+    constexpr float TallFadedStrength = .7f;
+    LOCKDOWN_API float StrengthFor(const FBox& Bounds);
     // Room around the prop's bounds, and the stretch just before the target that the line test skips (a prop right behind
     // the body is not in front of it; one running through the body is caught by PierceRadiusCm).
     constexpr double BoundsSlackCm = 15.;

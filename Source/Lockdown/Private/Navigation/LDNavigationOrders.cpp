@@ -1151,18 +1151,23 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         Order.Destination=Request.GroundCm;
         Order.RangeCm=ReachCm;
         Order.Acceptance=float(ReachCm);
-        // Already in reach: cast where the body stands (AdvanceCastPoint, this same pass). Otherwise walk toward the point;
-        // a point off the walkable ground is planned to its nearest navmesh point.
+        // Already in reach: cast where the body stands (AdvanceCastPoint, this same pass). Otherwise walk toward the point
+        // as a clicked ground goal: a point in a wall, on a roof or otherwise unreachable is approached through its nearest
+        // reachable navmesh point, and Combat lands the skill on the legal ground back along the cast.
         if (FVector::DistSquared2D(ALDCombatDirector::FootOf(Body),Request.GroundCm)>FMath::Square(ReachCm))
         {
             FVector Projected;
-            if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Body,Order.Points,Projected,WorldFailure,Detail))
+            if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Ground,Order.Points,Projected,WorldFailure,Detail))
             {
                 Failure=LDNavOrdersDetail::FromWorld(WorldFailure);
                 UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
                 return false;
             }
             Order.Goal=Projected;
+            // The owner's prediction stops within Acceptance of the projected Goal; the server stops within reach of the
+            // requested point. Shrinking the circle by the projection's offset keeps the client from stopping short of
+            // the server (both agree along the approach; at worst the client stops a little later).
+            Order.Acceptance=float(FMath::Max(ReachCm-FVector::Dist2D(Projected,Request.GroundCm),LDPathSteering::WaypointToleranceCm));
         }
         else { Order.Goal=Request.GroundCm; }
     }

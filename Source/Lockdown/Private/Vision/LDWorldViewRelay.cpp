@@ -13,6 +13,7 @@
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
@@ -411,6 +412,12 @@ bool LDPropFade::FSweep::Next(TConstArrayView<int32> Counts, int32& OutLevel, in
     OutLevel = Level;
     OutIndex = Index++;
     return true;
+}
+
+float LDPropFade::StrengthFor(const FBox& Bounds)
+{
+    const FVector Size = Bounds.IsValid ? Bounds.GetSize() : FVector::ZeroVector;
+    return Size.Z >= TallPropCm && FMath::Min(Size.X, Size.Y) >= BroadPropCm ? TallFadedStrength : FadedStrength;
 }
 
 float LDPropFade::Step(float Current, bool bOccluding, float DeltaSeconds)
@@ -1649,6 +1656,11 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         Targets.Add(Pair.Value->GetActorLocation());
         Targets.Add(Pair.Value->GetActorLocation() + FVector(0, 0, 70));
     }
+    // The surface under the pointer, exactly where it was hit: ground behind a building fades the building through the
+    // sight line, and a roof under the pointer lies on its own bounds, so its building is run through and fades too.
+    FHitResult PointerGround;
+    if (Own && Owning.Navigation && Owning.Navigation->GroundUnderPointer(PointerGround))
+    { Targets.Add(PointerGround.ImpactPoint); }
     const FVector Camera = Owning.PlayerCameraManager ? Owning.PlayerCameraManager->GetCameraLocation() : FVector::ZeroVector;
     const FBox Reach = LDPropFade::Reach(Camera, Targets);
     auto Hides = [&](const FBox& Bounds)
@@ -1663,10 +1675,18 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
     {
         UMeshComponent* Mesh = Cast<UMeshComponent>(&Primitive);
         if (!Prop.Materials.IsEmpty() || !Mesh) { return; }
+        // The strength is one material value: an instanced prop is tall only when every instance is on its own (the
+        // spread of several poles is no building); a whole component judges its own bounds.
+        float Strength = LDPropFade::StrengthFor(Primitive.Bounds.GetBox());
+        if (Prop.bPerInstance)
+        {
+            Strength = LDPropFade::TallFadedStrength;
+            for (const FBox& Instance : Prop.InstanceBounds) { Strength = FMath::Min(Strength, LDPropFade::StrengthFor(Instance)); }
+        }
         for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
         {
             UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
+            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, Strength); }
             Prop.Materials.Add(Dynamic);
         }
     };

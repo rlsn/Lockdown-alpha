@@ -11,6 +11,8 @@ namespace LDModelPicking
 {
     // Approved control feel: a pointer this many screen pixels outside a unit's pick volume still selects it.
     constexpr double PickTolerancePx = 12.;
+    // Quick cast of a unit skill: with no unit under the pointer, the nearest one this many pixels around it.
+    constexpr double QuickCastSnapPx = 64.;
     // Narrow phase in the displayed mesh's space; empty space inside its bounds is never a hit.
     LOCKDOWN_API bool Trace(TConstArrayView<FVector3f> Vertices, TConstArrayView<uint32> Indices,
         const FVector& Start, const FVector& End, double& OutFraction);

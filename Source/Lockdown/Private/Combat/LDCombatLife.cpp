@@ -326,5 +326,5 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
             MarkViewChanged(Body.Victim.EntityId);
         }
     }
-    if (auto* Record=FindRecord(Entity)) { Record->Pending.Reset(); }
+    if (auto* Record=FindRecord(Entity)) { ClosePending(*Record,ELDCombatReject::Cancelled); }
 }

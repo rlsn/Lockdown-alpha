@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDGroundLanding.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Navigation/LDOrderRules.h"
@@ -158,6 +159,15 @@ void ALDCombatDirector::FinishAction(FLDBodyCombatState& Body, ELDCombatReject R
 {
     if (!Body.Action.IsSet()) { return; }
     UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_ACTION_END token=%llu released=%d reason=%u"),Body.Action->Token,bReleased,uint8(Reason));
+    // A contender's basic windup cut before its release moment (a dash, a skill, S, control, a lost target) swung
+    // nothing, so it gives back the cadence it committed at its start. A swing refused at its release spent it.
+    const auto* Mode=Core();
+    if (!bReleased && Body.Action->Kind==ELDCombatActionKind::Basic && !Body.Action->bMonsterSpecial && Mode
+        && Mode->GetAuthorityNowMs()<Body.Action->ReleaseAtMs)
+    {
+        if (auto* Record=FindRecord(Body.Victim.EntityId); Record && Record->Kind==ELDVictimKind::Contender)
+        { Record->NextAttackAtMs=FMath::Min(Record->NextAttackAtMs,Body.Action->StartedAtMs); }
+    }
     Body.Action.Reset();
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
@@ -182,16 +192,15 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
     SendReceipt(*Record,Known->Receipt);
 }
 
-void ALDCombatDirector::EndMatchActions()
+// Every queued Direct request (held behind an own windup included) ends with a terminal receipt, never silently.
+void ALDCombatDirector::ClosePending(ELDCombatReject Reason)
 {
-    Channels.Reset();
-    RemoveBags([](const FLDCombatBag&) { return true; });
-    GroundEffects.Reset();
-    MonsterStrikes.Reset();
-    ContactMotion.Reset();
-    for (auto& Pair : Records)
+    for (auto& Pair : Records) { ClosePending(Pair.Value,Reason); }
+}
+
+void ALDCombatDirector::ClosePending(FLDCombatEntityRecord& Record, ELDCombatReject Reason)
+{
     {
-        auto& Record=Pair.Value;
         const TArray<FLDCombatActionRequest> Pending=MoveTemp(Record.Pending);
         Record.Pending.Reset();
         for (const auto& Request : Pending)
@@ -202,13 +211,23 @@ void ALDCombatDirector::EndMatchActions()
             Closed.DirectSequence=Request.DirectSequence;
             Closed.Entry=Request.Entry;
             Closed.Phase=ELDCombatPhase::Rejected;
-            Closed.Reject=ELDCombatReject::MatchClosed;
+            Closed.Reject=Reason;
             StoreReceipt(Record,Request,Closed);
             if (const auto* Stored=Record.Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
                 { return Entry.Request.DirectSequence==Request.DirectSequence; }))
             { SendReceipt(Record,Stored->Receipt); }
         }
     }
+}
+
+void ALDCombatDirector::EndMatchActions()
+{
+    Channels.Reset();
+    RemoveBags([](const FLDCombatBag&) { return true; });
+    GroundEffects.Reset();
+    MonsterStrikes.Reset();
+    ContactMotion.Reset();
+    ClosePending(ELDCombatReject::MatchClosed);
     for (auto& Pair : Bodies)
     {
         AbandonAction(Pair.Value,ELDCombatReject::MatchClosed);
@@ -483,7 +502,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     // #198: an accepted basic windup is a combat action of the build safe window.
     MarkBuildUnsafe(Caller.EntityId,Now);
     LDCA::FaceToward(*Actor,TargetFoot);
-    // The committed cadence survives cancellation, orders, death and respawn; time keeps running.
+    // The cadence is committed now; a windup cut before its release gives it back (FinishAction).
     Record->NextAttackAtMs=NextAttack;
     MarkViewChanged(Caller.EntityId);
     Receipt.CombatToken=Action.Token;
@@ -822,7 +841,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Action.StartedAtMs=Now;
     if (Body->OverdriveCharge.IsSet() && Body->OverdriveCharge->Entry==Request.Entry) { EndOverdriveCharge(*Body); }
     CancelChannel(*Body);
-    // A new ability interrupts an unreleased basic windup; its committed cadence is not refunded.
+    // A new ability interrupts an unreleased basic windup; FinishAction gives its committed cadence back.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
     Body->Action=Action;
     if (TargetDef->Mode==ELDDemoTargetMode::Unit || TargetDef->Mode==ELDDemoTargetMode::GroundPoint) { LDCA::FaceToward(*Actor,Action.TargetPoint); }
@@ -1223,28 +1242,22 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Body.Branch.Recast.Reset();
         ApplyRecastTerms(RecastWindow.GetValue(),Terms,DeliveryAction);
     }
-    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint
-        && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap)))
+    // Every ground-point skill lands on legal ground (LDGroundLanding): a wall, a roof or ground off the walk lands short,
+    // back along the cast. An impact or trap with nowhere to land refuses; a zone without a registered map, or with no
+    // landing, keeps its clamped point.
+    TOptional<FVector> LandedPoint;
+    const bool bNeedsGround=TargetDef.Mode==ELDDemoTargetMode::GroundPoint
+        && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap));
+    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
     {
         const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
         const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
-        if (!Registry || !Registry->Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
-        { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
-        FVector Point=ReleaseFoot+FVector(Action.TargetPoint.X-ReleaseFoot.X,Action.TargetPoint.Y-ReleaseFoot.Y,0)
-            .GetClampedToMaxSize(LDCA::ToDouble(TargetDef.RangeCm));
-        FVector Normal;
-        Registry->GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
-        FLDLegalGround Ground;
-        ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
-        if (!Registry->QueryGround(Registry->Revision(),Point,Actor.GetCapsuleComponent()->GetCollisionShape(),
-            FName(*Geometry->Surfaces[0].Id),Ground,Failure,Error))
-        {
-            if (Failure==ELDWorldQueryFailure::Blocked || Failure==ELDWorldQueryFailure::NotGrounded
-                || Failure==ELDWorldQueryFailure::InvalidPosition)
-            { Reject=ELDCombatReject::Blocked; Error.Reset(); return true; }
-            return false;
-        }
-        DeliveryAction.TargetPoint=Ground.FootCm;
+        const bool bRegistered=Registry && Registry->Enabled() && Geometry && !Geometry->Surfaces.IsEmpty();
+        if (bNeedsGround && !bRegistered) { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
+        if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,LDCA::ToDouble(TargetDef.RangeCm),
+            Actor.GetCapsuleComponent()->GetCollisionShape(),LandedPoint,Error)) { return false; }
+        if (LandedPoint.IsSet()) { DeliveryAction.TargetPoint=*LandedPoint; }
+        else if (bNeedsGround) { Reject=ELDCombatReject::Blocked; return true; }
     }
     // Hit effects name their targets before anything is paid: a unit, a projectile, or every legal body in a self area.
     const FLDDemoEffectDefinition* DamageEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Damage);
@@ -1599,9 +1612,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         { return false; }
         if (!ArmBranchHostile(Body,Terms,Template,AreaTargets,Now,Error)) { return false; }
     }
-    // A ground zone sits at the requested point, clamped to the authored reach.
+    // A ground zone sits on the landed ground point, else at the requested point clamped to the authored reach.
     FVector ZonePoint=Action.TargetPoint;
-    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
+    if (LandedPoint.IsSet()) { ZonePoint=*LandedPoint; }
+    else if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
     {
         const FVector Offset(ZonePoint.X-ReleaseFoot.X,ZonePoint.Y-ReleaseFoot.Y,0.);
         const double Reach=LDCA::ToDouble(TargetDef.RangeCm);

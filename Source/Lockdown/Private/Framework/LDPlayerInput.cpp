@@ -343,6 +343,11 @@ void ALDPlayerController::RecordAppliedCameraZoom()
 
 bool ALDPlayerController::ObservedUnderPointer(FGuid& OutHandle,uint32& OutEpoch) const
 {
+    return ObservedNearPointer(LDModelPicking::PickTolerancePx,OutHandle,OutEpoch);
+}
+
+bool ALDPlayerController::ObservedNearPointer(double TolerancePx,FGuid& OutHandle,uint32& OutEpoch) const
+{
     OutHandle.Invalidate();
     OutEpoch=0;
     const auto* Relay=LocalView();
@@ -356,8 +361,8 @@ bool ALDPlayerController::ObservedUnderPointer(FGuid& OutHandle,uint32& OutEpoch
     GetViewportSize(Width,Height);
     const float Fov=PlayerCameraManager ? PlayerCameraManager->GetFOVAngle() : 0.f;
     if (Width<=0 || !(Fov>0.f && Fov<180.f)) { return false; }
-    // Horizontal FOV over the viewport width: the angle LDModelPicking::PickTolerancePx pixels subtend at screen centre.
-    const double Tolerance=FMath::Atan(2.*FMath::Tan(FMath::DegreesToRadians(Fov)*.5)*LDModelPicking::PickTolerancePx/Width);
+    // Horizontal FOV over the viewport width: the angle TolerancePx pixels subtend at screen centre.
+    const double Tolerance=FMath::Atan(2.*FMath::Tan(FMath::DegreesToRadians(Fov)*.5)*TolerancePx/Width);
     return DeprojectScreenPositionToWorld(float(Pointer.X),float(Pointer.Y),RayStart,RayDirection)
         && Relay->PickPresentedUnit(RayStart,RayDirection,Tolerance,OutHandle,OutEpoch);
 }
