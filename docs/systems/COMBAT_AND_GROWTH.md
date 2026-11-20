@@ -433,7 +433,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   K06 释放后排程 N 次自动重放（`ScheduleAutoRecasts`，60% 效果、不耗劲，`RunAutoRecasts` 在动作阶段执行）；K08/K09 冷却与劲耗
   倍率在 `CompileCardActive` 编进 `FLDCombatActiveTerms`（同名相加）；K12 改用生命支付（`HPCostBpPerMomentum`，生命不足拒绝）；
   K03 本技能命中过的参赛者在助攻窗口内死亡且主人得到击杀或助攻时刷新本技能冷却；K05 造成控制后武装下一个技能乘区
-  （`ControlAmp*`）；K07/K10 改造范围与射程（`host_hit_types` 限定宿主；K10 远距命中乘区）；K11 控制时长与冷却（`host_control`）；宿主限制按该技能已选分支编译后的命中类型与效果判断（`CardTargetReason`），升级分支后不再合法的牌回到牌库；
+  （`ControlAmp*`）；K07/K10 改造范围与射程（`host_hit_types` 限定宿主；K10 远距命中乘区）；K11 控制时长与冷却（`host_control`）；宿主限制按该技能已选分支编译后的命中类型与效果判断（`CardTargetReason`；分支改了目标形态时，命中类型由编译器按新形态推出，自身形态带 `self_area` 为范围），升级分支后不再合法的牌回到牌库；
   K14 命中时消耗护盾转为同类型伤害；K18 按最近施放的其他技能数加乘区（`RecentCasts`）；
   K13 附加攻击力物理伤害（骑乘命中）；K15 技能吸血；K16 就绪后闲置计时；K17 命中参赛者累计成长；K25 触发反应时本技能冷却减少。
 - **元素勋章**（`ELDCardForm::Medal`，`skill_element`）：在技能的元素槽里，宿主的命中带该元素（烫按 `stacks` 层）；在本体的元素槽里，

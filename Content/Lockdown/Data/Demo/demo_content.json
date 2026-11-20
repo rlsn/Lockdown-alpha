@@ -129,7 +129,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "targeted",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -387,7 +387,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "targeted",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -458,7 +458,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "targeted",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"

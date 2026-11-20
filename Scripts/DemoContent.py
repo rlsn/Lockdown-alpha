@@ -1111,6 +1111,11 @@ def _apply_patch(variant, patch, path):
         raise ContentError("UnknownPatch", path, f"unregistered patch {kind}")
 
 
+# The delivery a branch's new target form carries when a rank step changes the form (the level-1 hit type is authored).
+BRANCH_FORM_HIT_TYPES = {"Unit": "targeted", "DirectionProjectile": "projectile", "DirectionDash": "dash",
+                         "GroundPoint": "area", "DirectionCone": "area", "DirectionLine": "area"}
+
+
 def resolve_branches(ability):
     """The six branch variants of an author-form ability: each applies its rank steps' patches over the level-1 definition."""
     out = []
@@ -1120,6 +1125,11 @@ def resolve_branches(ability):
         for step in steps:
             for index, patch in enumerate(ability["ranks"][step]["patches"]):
                 apply_patch(variant, patch, f"{ability['id']}.ranks.{step}.patches[{index}]")
+        mode = variant["target"]["mode"]
+        if mode != ability["target"]["mode"]:
+            # A self-centred form hits an area when it names one, else only the caster.
+            variant["hit_type"] = (("area" if any(effect["op"] == "self_area" for effect in variant["effects"]) else "self")
+                                   if mode == "Self" else BRANCH_FORM_HIT_TYPES[mode])
         out.append({"path": name, **variant})
     return out
 

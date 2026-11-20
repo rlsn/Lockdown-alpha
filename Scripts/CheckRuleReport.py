@@ -145,6 +145,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.PerfectDodge.Window",
         "Lockdown.Rules.Combat.PerfectDodge.Resolve",
         "Lockdown.Rules.Growth.SkillRank.Branch",
+        "Lockdown.Rules.Growth.SkillRank.CardHosts",
         "Lockdown.Rules.Growth.SkillRank.Refund",
         "Lockdown.Rules.Combat.SkillRank.Patches",
         "Lockdown.Rules.Combat.SkillRank.Riders",
