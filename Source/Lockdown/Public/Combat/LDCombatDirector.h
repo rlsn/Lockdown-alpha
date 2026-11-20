@@ -1395,11 +1395,11 @@ private:
         int64 NowMs, FString& Error);
 
     // ---- #112 C2 mechanics (LDCombatMechanicsDirector.cpp).
-    // A one-time heal of Body (lifesteal, K15, charms); regeneration never passes here. A live S21 grievous cuts it first; Y14
+    // A one-time heal of Body (lifesteal, K15, charms); regeneration never passes here. Live rot cuts it first; Y14
     // turns the overflow into a shield and Y19 counts what really healed. True when HP changed; OutApplied (optional) is healed.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
         int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid(), FString* OutError=nullptr);
-    // The single shield entry: a live S21 grievous cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
+    // The single shield entry: live rot cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
     // records its amount (ShieldGrantedP2).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
