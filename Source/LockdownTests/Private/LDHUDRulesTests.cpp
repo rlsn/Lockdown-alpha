@@ -821,14 +821,16 @@ bool FLDHUDStatWheelTest::RunTest(const FString& Parameters)
     Workshop->StatBar=Bar;
     ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
     Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
-    const FGeometry Geometry=FGeometry::MakeRoot(FVector2D(1920,1080),FSlateLayoutTransform(1.f));
+    // Laid out far off any desktop, so the real cursor is never over a cell and only the wheel events and the pin aim.
+    const FVector2D Origin(-1000000.,-1000000.);
+    const FGeometry Geometry=FGeometry::MakeRoot(FVector2D(1920,1080),FSlateLayoutTransform(1.f,Origin));
     const auto Frame=[&]()
     {
         Bar->Present(&View,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true);
         Workshop->Present(Input);
         Slate->SlatePrepass(1.f);
         FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
-        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1920,1080),Draw,0,FWidgetStyle(),true);
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(Origin.X,Origin.Y,Origin.X+1920,Origin.Y+1080),Draw,0,FWidgetStyle(),true);
         for(UUserWidget* Widget:{static_cast<UUserWidget*>(Workshop),static_cast<UUserWidget*>(Bar)})
         {Widget->TakeWidget()->Tick(Widget->GetCachedGeometry(),0.,1.f/60.f);}
     };
