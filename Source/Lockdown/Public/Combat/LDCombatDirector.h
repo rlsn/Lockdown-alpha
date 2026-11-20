@@ -1087,6 +1087,9 @@ public:
     // Pure parts of the two commands. RefillPool returns whether HP or momentum changed; ResetTracks the number of tracks
     // that were cooling down at NowMs.
     static bool DevRefillPool(FLDBodyCombatState::FResources& Pool, int64 MomentumP2);
+    // SetMomentum's pool part: false (nothing changed) when Points is outside 0..MaxP2/100; otherwise momentum becomes
+    // Points whole points, and a change advances the revision once and clears the sub-P2 remainder. OutChanged says which.
+    static bool DevSetMomentumPool(FLDBodyCombatState::FResources& Pool, int64& MicroP2, int64 Points, int64 MaxP2, bool& OutChanged);
     static int32 DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
     // The DEV test layer of the installed build (FLDBuildProjectionInput::DevBonuses): bClearAll empties it, otherwise
     // Stat's term becomes Amount in its unit (0 removes it). The installed build is reprojected and installed through

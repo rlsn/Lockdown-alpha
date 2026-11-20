@@ -1736,6 +1736,18 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         LDDevTest::ValidateShape(Named(1, 1, ELDDevTestOp::AllocatePoints, TEXT("stat_strength"), 0)), ELDGrowthReason::NumericDomain);
     GrowthTestReason(*this, TEXT("An allocation names a stat"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::AllocatePoints, 2)), ELDGrowthReason::InvalidRequest);
+    GrowthTestReason(*this, TEXT("A voucher grant needs a positive amount"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantVouchers, 0)), ELDGrowthReason::NumericDomain);
+    GrowthTestReason(*this, TEXT("A positive voucher grant is a valid shape"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantVouchers, 5)), ELDGrowthReason::None);
+    GrowthTestReason(*this, TEXT("A skill point grant names no amount"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantSkillPoint, 1)), ELDGrowthReason::NumericDomain);
+    GrowthTestReason(*this, TEXT("Momentum 0 is a valid shape"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::SetMomentum, 0)), ELDGrowthReason::None);
+    GrowthTestReason(*this, TEXT("Negative momentum is refused"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::SetMomentum, -1)), ELDGrowthReason::NumericDomain);
+    TestTrue(TEXT("The voucher, skill point and momentum ops are owner-only"), !LDDevTest::IsMatchWide(ELDDevTestOp::GrantVouchers)
+        && !LDDevTest::IsMatchWide(ELDDevTestOp::GrantSkillPoint) && !LDDevTest::IsMatchWide(ELDDevTestOp::SetMomentum));
     GrowthTestReason(*this, TEXT("Only the build ops name a definition"),
         LDDevTest::ValidateShape(Named(1, 1, ELDDevTestOp::ResetCooldowns, TEXT("active_seethe"))), ELDGrowthReason::InvalidRequest);
 
@@ -1750,6 +1762,25 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A refill sets HP to its maximum and momentum to the given bar, keeps the shield and advances the revision once"),
         Pool.HpP2 == 100 && Pool.MomentumP2 == 60 && Pool.ShieldP2 == 7 && Pool.Revision == 4);
     TestFalse(TEXT("A full pool refills without a change or a revision"), ALDCombatDirector::DevRefillPool(Pool, 60) || Pool.Revision != 4);
+    {
+        FLDBodyCombatState::FResources Bar;
+        Bar.MomentumP2 = 4000;
+        Bar.Revision = 7;
+        int64 Micro = 33;
+        bool bChanged = true;
+        TestTrue(TEXT("Momentum past the maximum is refused and nothing changes"),
+            !ALDCombatDirector::DevSetMomentumPool(Bar, Micro, 101, 10000, bChanged) && !bChanged
+            && Bar.MomentumP2 == 4000 && Bar.Revision == 7 && Micro == 33);
+        TestTrue(TEXT("Negative momentum is refused and nothing changes"),
+            !ALDCombatDirector::DevSetMomentumPool(Bar, Micro, -1, 10000, bChanged) && !bChanged && Bar.MomentumP2 == 4000);
+        TestTrue(TEXT("Momentum to the maximum advances the revision once and clears the remainder"),
+            ALDCombatDirector::DevSetMomentumPool(Bar, Micro, 100, 10000, bChanged) && bChanged
+            && Bar.MomentumP2 == 10000 && Bar.Revision == 8 && Micro == 0);
+        TestTrue(TEXT("Momentum to 0 is accepted"),
+            ALDCombatDirector::DevSetMomentumPool(Bar, Micro, 0, 10000, bChanged) && bChanged && Bar.MomentumP2 == 0 && Bar.Revision == 9);
+        TestTrue(TEXT("The same momentum again changes nothing"),
+            ALDCombatDirector::DevSetMomentumPool(Bar, Micro, 0, 10000, bChanged) && !bChanged && Bar.Revision == 9);
+    }
     TArray<FLDCombatTrack> Tracks;
     FLDCombatTrack& Cooling = Tracks.AddDefaulted_GetRef();
     Cooling.IssuedCooldownId = FGuid(0xD7, 0, 0, 1);
@@ -2177,14 +2208,39 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Named(Gen, 21, ELDDevTestOp::AllocatePoints, TEXT("stat_brains"), 3), ELDGrowthReason::None))
     { return false; }
 
+    // ---- Vouchers, skill points and momentum ----
+    const int32 VouchersBefore = Development->FindProgression(Tester)->Vouchers;
+    if (!Commit(TEXT("Request 22: seven vouchers while dead"), Command(Gen, 1, 22, ELDDevTestOp::GrantVouchers, 7), ELDGrowthReason::None))
+    { return false; }
+    TestEqual(TEXT("The vouchers are paid"), Development->FindProgression(Tester)->Vouchers, VouchersBefore + 7);
+    if (!Commit(TEXT("Request 23: more vouchers than an int32 holds"),
+        Command(Gen, 1, 23, ELDDevTestOp::GrantVouchers, int64(MAX_int32) + 1), ELDGrowthReason::NumericDomain))
+    { return false; }
+    TestEqual(TEXT("An overflowing grant pays nothing"), Development->FindProgression(Tester)->Vouchers, VouchersBefore + 7);
+    const auto Points = [&]() { return LDProgression::SkillPoints(Catalog->Get(), GrowthBuild()); };
+    const int32 PointsBefore = Points();
+    const int32 AffixBefore = GrowthBuild().AffixSkillPoints;
+    const FLDDevTestCommand FirstPoint = Command(Gen, 1, 24, ELDDevTestOp::GrantSkillPoint, 0);
+    if (!Commit(TEXT("Request 24: a DEV skill point"), FirstPoint, ELDGrowthReason::None)) { return false; }
+    if (!Commit(TEXT("Request 25: a second DEV skill point"), Command(Gen, 1, 25, ELDDevTestOp::GrantSkillPoint, 0),
+        ELDGrowthReason::None))
+    { return false; }
+    TestTrue(TEXT("Both DEV points are DEV points; the audit affix's capped count is untouched"),
+        Points() == PointsBefore + 2 && GrowthBuild().DevSkillPoints >= 2 && GrowthBuild().AffixSkillPoints == AffixBefore);
+    Status(TEXT("A replay of request 32"), Growth->AdmitDevTest(Tester, FirstPoint), ELDAdmissionStatus::Final, ELDGrowthReason::None);
+    if (!RunTransactions()) { return false; }
+    TestEqual(TEXT("The replay grants no third point"), Points(), PointsBefore + 2);
+    if (!Commit(TEXT("Request 26: set momentum while dead"), Command(Gen, 1, 26, ELDDevTestOp::SetMomentum, 50), ELDGrowthReason::Dead))
+    { return false; }
+
     // ---- Match-wide ops: Listen Host connection only ----
     TestTrue(TEXT("Camp refresh and early capture are the match-wide ops"), LDDevTest::IsMatchWide(ELDDevTestOp::RefreshCamps)
         && LDDevTest::IsMatchWide(ELDDevTestOp::OpenCapture) && !LDDevTest::IsMatchWide(ELDDevTestOp::GrantExperience));
     GrowthTestReason(*this, TEXT("A camp refresh names nothing"),
         LDDevTest::ValidateShape(Command(Gen, 1, 1, ELDDevTestOp::RefreshCamps, 1)), ELDGrowthReason::NumericDomain);
-    Status(TEXT("A camp refresh from an owning client"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 22, ELDDevTestOp::RefreshCamps, 0)),
+    Status(TEXT("A camp refresh from an owning client"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 27, ELDDevTestOp::RefreshCamps, 0)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotAuthority);
-    Status(TEXT("An early capture from an owning client"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 22, ELDDevTestOp::OpenCapture, 0)),
+    Status(TEXT("An early capture from an owning client"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 27, ELDDevTestOp::OpenCapture, 0)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotAuthority);
     const auto HostCommit = [&](const TCHAR* What, const FLDDevTestCommand& Sent, ELDGrowthReason Expected) -> const FLDDevTestReceipt*
     {
@@ -2198,12 +2254,12 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         }
         return nullptr;
     };
-    const FLDDevTestReceipt* NoCamps = HostCommit(TEXT("Request 22: the Host's camp refresh without a camp director"),
-        Command(Gen, 1, 22, ELDDevTestOp::RefreshCamps, 0), ELDGrowthReason::DataNotReady);
+    const FLDDevTestReceipt* NoCamps = HostCommit(TEXT("Request 27: the Host's camp refresh without a camp director"),
+        Command(Gen, 1, 27, ELDDevTestOp::RefreshCamps, 0), ELDGrowthReason::DataNotReady);
     TestTrue(TEXT("The refusal names the missing camps"), NoCamps && NoCamps->Detail.Contains(TEXT("camp director")));
     if (!TestTrue(TEXT("The capture reducer begins far in the future"), Mode->CaptureReducer.Begin(1000000, 500, 500, Error))) { return false; }
     Mode->MatchPhase = ELDMatchPhase::CaptureOpen;
-    if (!HostCommit(TEXT("Request 23: an early capture outside development"), Command(Gen, 1, 23, ELDDevTestOp::OpenCapture, 0),
+    if (!HostCommit(TEXT("Request 28: an early capture outside development"), Command(Gen, 1, 28, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::StaleContext)) { return false; }
     TestEqual(TEXT("A refused early capture keeps the scheduled opening"), Mode->CaptureReducer.GetOpenAtMs(), int64(1000000));
     Mode->MatchPhase = ELDMatchPhase::Development;
@@ -2224,7 +2280,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
             return false;
         }
     }
-    if (!HostCommit(TEXT("Request 24: the Host's early capture during development"), Command(Gen, 1, 24, ELDDevTestOp::OpenCapture, 0),
+    if (!HostCommit(TEXT("Request 29: the Host's early capture during development"), Command(Gen, 1, 29, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::None)) { return false; }
     TestTrue(TEXT("The transaction queues final entry without mutating the world or opening the old circle"),
         Mode->bDevShowdownEntryPending && Mode->CaptureReducer.GetOpenAtMs() == 1000000 && !Mode->CaptureReducer.IsOpen()
@@ -2348,7 +2404,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
 
     // A closed match opens no new request, while a replay still answers.
     Mode->MatchPhase = ELDMatchPhase::Results;
-    Status(TEXT("A new request after the match closed"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 25, ELDDevTestOp::GrantExperience, 5)),
+    Status(TEXT("A new request after the match closed"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 30, ELDDevTestOp::GrantExperience, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::MatchClosed);
     Status(TEXT("A replay after the match closed"), Growth->AdmitDevTest(Tester, FirstGrant), ELDAdmissionStatus::Final,
         ELDGrowthReason::None);
