@@ -1584,7 +1584,7 @@ bool FLDDemoVisionAdaptiveTimingTest::RunTest(const FString& Parameters)
     const P::FTiming Clean = P::Timing(0, Interval);
     TestTrue(TEXT("A clean link keeps the floor delay and timeout"), FMath::IsNearlyEqual(Clean.DelaySeconds, P::MinDelaySeconds)
         && FMath::IsNearlyEqual(Clean.StaleAfterSeconds, FLDObservedFrameReceiver::StaleAfterSeconds));
-    const P::FTiming Small = P::Timing(.04, Interval);
+    const P::FTiming Small = P::Timing(P::MinDelaySeconds - Interval - P::DelayMarginSeconds - .001, Interval);
     TestTrue(TEXT("Lateness inside the floor margin changes nothing"), FMath::IsNearlyEqual(Small.DelaySeconds, P::MinDelaySeconds)
         && FMath::IsNearlyEqual(Small.StaleAfterSeconds, FLDObservedFrameReceiver::StaleAfterSeconds));
     const P::FTiming Jittery = P::Timing(.431, Interval);
