@@ -194,16 +194,17 @@ Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。
 | `FORMULA.AttackSpeed` | $0.75\times(1+0.02k+\Sigma ASBonus)$ → AS | 最后夹取到 [0.30,2.30] 次/秒；本目录的极端攻速构筑会被夹到 2.30 |
 | `FORMULA.MoveSpeed` | $UNIT.MoveSpeedCmPerSec\times(1+\Sigma MoveSpeedBonusRatio)$ | 最后夹取[173,675]cm/s；不把Root动作禁止当减速属性 |
 | `FORMULA.AttackRange` | 基础 `UNIT.BasicAttackRangeCm` + 永久 `AttackRangeCmFlat` → `STAT.AttackRangeCm` | 无乘区；目标/导航接近/预览/AttackMove全用派生值 |
-| `FORMULA.AttackIntervalMs` | $\lceil1000/AS\rceil$ → 相邻合法 AttackStart 的最短间隔 | AS=.75 得 1334ms；发出新 order、S 取消、构筑变化、死亡均不清已提交攻击端点 |
-| `FORMULA.AttackWindupMs` | $\lceil1000\times UNIT.BasicAttackWindupSec\times STAT.BaseAttackSpeed/AS\rceil$ | 基础 300ms；必须小于本次攻击间隔。前摇可以取消/因失去权限失败，但不退款已提交节拍 |
+| `FORMULA.AttackIntervalMs` | $\lceil1000/AS\rceil$ → 相邻合法 AttackStart 的最短间隔 | AS=.75 得 1334ms；已出手的攻击保留端点；前摇在出手时刻之前被打断时退回该次提交的端点 |
+| `FORMULA.AttackWindupMs` | $\lceil1000\times UNIT.BasicAttackWindupSec\times STAT.BaseAttackSpeed/AS\rceil$ | 基础 300ms；必须小于本次攻击间隔。出手前被取消（冲刺、技能、S、控制、失去目标、死亡）退还已提交节拍；到出手时刻才被拒的挥空不退 |
 | `FORMULA.CooldownMs` | $\lceil1000\times BaseCDSec\times100/(100+H)\rceil$ → 本次释放持续时间 | H 非负；6s、H=30 得 4616ms。10s 释放得到 ReadyAt=14.616s，随后升级不改这个端点 |
 | `FORMULA.Regen` | rate × 同一权威时间的实际 elapsed + 亚P2积分余数 → 可提交的0.01点及新余数 | 见 `POLICY.RegenIntegration`；活体才恢复，满资源丢弃溢出。1.6/s 分1000次1ms仍回复1.60 |
 | `FORMULA.ResourceMaxChange` | 以P2整数计算 $\lfloor oldCurrent\times finalNewMax/oldMax\rfloor$ | 用户要求保持比例，最终一次向下量化；40/100→150为60→30为12→150为60→100回40；零上限/活HP下溢见§10.3 |
 | `FORMULA.XPToNext` | $60+20(L-1)$，仅 $L=1..15$ | 正整数；达到十六级不再升级，之后按 `GROWTH.MaxLevelPointsXP` 给点（§4.1）。累计阈值为 0/60/140/240/360/500/660/840/1040/1260/1500/1760/2040/2340/2660/3000 |
 
 普攻节拍从通过初始合法性检查的 AttackStart 提交；技能则在成功 release 才提交
-劲/冷却。前摇内复查目标/来源，导航不负责扣费或退节拍。基础普攻命中前失效是一次已开始的
-挥空，不是把非法最初输入当作成功攻击。最初动作输入被拒绝时不提交攻击节拍、费用或攻击效果，
+劲/冷却。前摇内复查目标/来源，导航不负责扣费或退节拍。前摇在出手时刻之前被打断没有挥出，
+Combat 退回这次提交的节拍；到出手时刻因目标失效被拒是一次已开始的挥空，节拍照常消耗，
+不是把非法最初输入当作成功攻击。最初动作输入被拒绝时不提交攻击节拍、费用或攻击效果，
 但已认证进攻意图的解除保护仍按§10.2生效；不能把“失败无费用”写成“任何状态都不变化”。
 前摇中的构筑/来源变更取消该暂存攻击，不能把两个修订的属性拼起来。
 

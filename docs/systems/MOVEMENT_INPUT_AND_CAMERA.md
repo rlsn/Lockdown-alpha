@@ -65,6 +65,11 @@
 - **预输入**（`LDCombatPreInput`）：自己 Q/W/E 前摇时再按 Q/W/E/D，只保留最新一次，前摇结束（到 `ActionReleaseAtMs` 或视图不再显示前摇）
   作为普通 Direct 请求发出（新序号、当前来源修订）。S、新生命/新局、输入被抑制或保留超过 1 s 丢弃（超时提示“前一个技能未结束，预输入已取消”）；
   `SourceRevision` 变化取消（提示“技能已变化，预输入已取消”）。普攻不需要预输入。
+  网络延迟内已发出的请求（客户端尚未看到自己的前摇）由服务器保留：`ALDCombatDirector` 处理 `Pending` 时，
+  `LDCombatPreInput::ServerHolds` 为真（Q/W/E/D 且自身技能前摇在 `HoldSeconds` 内出手）就把它和其后的同主请求按序留在队列里，
+  保持 `Queued`，前摇出手后的下一步再处理；S 的 `CancelledThrough` 照常撤掉它们。
+- **快速施法**的单位技能：`ObservedNearPointer(LDModelPicking::QuickCastSnapPx)` 取指针下或周围 64 px 内最近的呈现单位直接确认；
+  没有时撤销准备并提示“指针附近没有目标”，不留待确认态。地面/方向技能仍是指针下有地面才直接施放。
 - 每个 Direct 请求携带 Generation/Life、单调 `DirectSequence`、入口、目标与 owner view 的 `ExpectedSourceRevision`。
   owner view 的生命变化、或准备中的入口换了技能（`DefinitionId`/目标模式）时撤销准备（`OnRep_CombatView`）；其他构筑变化（升级、加点、装牌）与 HP/劲变化不撤销，确认时按当前 `SourceRevision` 发送。按钮可用性与冷却只读 Combat owner view。
   能力确认越距由服务器拒绝，**不自动走近**；只有普攻、攻击移动与 `CastUnit/CastPoint` 订单负责接近。
@@ -119,7 +124,7 @@
   只阻挡本人预测；Host 世界代理不加碰撞；迷雾中的身体只在服务器阻挡。点地目标已被一群身体占住时，碰到这群身体即算到达，不推挤到 `PathBlocked`
   （`LDPathSteering::BlockedAtHeldGoal`）。
 - **位移**：D 冲刺与技能冲刺只在 Combat 成功释放后、击退只在 `CommitControl` 成功后经 `StartDemoDash` 写入原生 root-motion source，沿地面积分、遇阻停在最远合法位置；
-  起步方向立即被静态几何挡住时 `CanStartDash` 拒绝。击退递增 `KnockbackSerial`，导航以 `KnockedBack` 放弃当前订单。定身只停自愿转向，不停重力与已提交 root motion；
+  起步方向被正对的静态几何挡住（法线与冲刺方向相差不足 `DashHeadOnDegrees` 25°）时 `CanStartDash` 拒绝；斜碰的墙由原生移动沿墙滑行。击退递增 `KnockbackSerial`，导航以 `KnockedBack` 放弃当前订单。定身只停自愿转向，不停重力与已提交 root motion；
   Root 期间冲刺由 Combat 拒绝且不付费。骨骼动画没有根运动。
 
 ### 原生运动记录

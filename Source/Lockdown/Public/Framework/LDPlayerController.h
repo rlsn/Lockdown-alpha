@@ -171,6 +171,8 @@ public:
     FString HeldInputLabel() const;
     void Inspect(FGuid Handle,uint32 ObservationEpoch);
     bool ObservedUnderPointer(FGuid& OutHandle,uint32& OutEpoch) const;
+    // The nearest presented unit within TolerancePx screen pixels of the pointer (a model under it first).
+    bool ObservedNearPointer(double TolerancePx,FGuid& OutHandle,uint32& OutEpoch) const;
     bool ReadInspected(FLDObservedUnitView& Out) const;
     bool IsFrontend() const;
     bool ReadDemoAuthorityTimeMs(int64& OutNowMs) const;

@@ -5,6 +5,11 @@ bool LDCombatPreInput::IsDirectEntry(ELDCombatEntry Entry)
     return Entry == ELDCombatEntry::Q || Entry == ELDCombatEntry::W || Entry == ELDCombatEntry::E || Entry == ELDCombatEntry::Dash;
 }
 
+bool LDCombatPreInput::ServerHolds(ELDCombatEntry Entry, bool bOwnAbilityWindup, int64 ReleaseAtMs, int64 NowMs)
+{
+    return IsDirectEntry(Entry) && bOwnAbilityWindup && ReleaseAtMs - NowMs <= int64(HoldSeconds * 1000.);
+}
+
 bool LDCombatPreInput::FiresOnPress(ELDCombatEntry Entry)
 {
     return Entry == ELDCombatEntry::Dash;

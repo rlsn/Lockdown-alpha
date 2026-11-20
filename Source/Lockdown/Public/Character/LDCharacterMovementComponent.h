@@ -88,7 +88,9 @@ public:
     TOptional<FKnockbackBlock> TakeKnockbackBlock()
     { TOptional<FKnockbackBlock> Out=MoveTemp(KnockbackBlock); KnockbackBlock.Reset(); return Out; }
     void StopKnockbackWatch() { bWatchKnockbackBlock=false; KnockbackBlock.Reset(); }
-    // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked.
+    // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked by a
+    // surface facing the dash within DashHeadOnDegrees of head-on (a wall met at an angle is slid along).
+    static constexpr double DashHeadOnDegrees = 25.;
     bool CanStartDash(const FVector& Direction, double ProbeCm) const;
     // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
     bool IsDashing() const;

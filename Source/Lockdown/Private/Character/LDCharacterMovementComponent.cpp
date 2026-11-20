@@ -345,8 +345,10 @@ bool ULDCharacterMovementComponent::CanStartDash(const FVector& Direction, doubl
     FHitResult Hit;
     if (!GetWorld()->SweepSingleByChannel(Hit,Start,Start+Heading*ProbeCm,UpdatedComponent->GetComponentQuat(),
         UpdatedPrimitive->GetCollisionObjectType(),UpdatedPrimitive->GetCollisionShape(),Query,Response)) { return true; }
-    // Walkable support and grazing contacts let the native movement slide; only a surface facing the dash blocks it.
-    return IsWalkable(Hit) || FVector::DotProduct(FVector(Hit.Normal.X,Hit.Normal.Y,0).GetSafeNormal(),Heading)>-.1;
+    // Walkable support and any wall met at an angle let the native movement slide along it; only a surface facing the
+    // dash nearly head-on (within DashHeadOnDegrees) blocks it.
+    return IsWalkable(Hit) || FVector::DotProduct(FVector(Hit.Normal.X,Hit.Normal.Y,0).GetSafeNormal(),Heading)
+        >-FMath::Cos(FMath::DegreesToRadians(DashHeadOnDegrees));
 }
 
 FNetworkPredictionData_Client* ULDCharacterMovementComponent::GetPredictionData_Client() const

@@ -70,6 +70,9 @@ struct FLDBuildPrimitivesAccess
     static void KeywordStatuses(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out)
     { Driver.AppendKeywordStatuses(Body, NowMs, Out); }
     static void MarkBuildUnsafe(ALDCombatDirector& Driver, const FGuid& Entity, int64 NowMs) { Driver.MarkBuildUnsafe(Entity, NowMs); }
+    static void AbandonAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason) { Driver.AbandonAction(Body, Reason); }
+    static void FinishAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason, bool bReleased)
+    { Driver.FinishAction(Body, Reason, bReleased); }
     static bool ReleaseMechanics(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDDemoAbilityValues& Values, const FVector& Origin, const FVector& Point, FString& Error)
     {
@@ -880,6 +883,49 @@ bool FLDBuildSafeWindowTest::RunTest(const FString& Parameters)
     // The window is the contender's, not the body's: it outlives a removed body.
     FAccess::Bodies(*F.Driver).Remove(&F.Actor(Victim));
     TestEqual(TEXT("A death keeps the window"), F.Driver->ReadBuildSafeAtMs(Victim.Victim.EntityId), Before + WindowMs);
+    return true;
+}
+
+// A contender's basic windup committed its cadence at its start; cut before its release (a dash, a skill, S, control) it
+// swung nothing and gives the cadence back. A swing refused at its release moment keeps it spent.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBasicWindupCancelRefundTest, "Lockdown.Rules.DemoBuildPrimitives.BasicWindupCancelRefund",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDBasicWindupCancelRefundTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Attacker = F.AddBody(), Target = F.AddBody();
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Attacker.Victim.EntityId);
+    const auto Windup = [&](int64 StartMs)
+    {
+        F.Now(StartMs);
+        FLDCombatAction Action;
+        Action.Kind = ELDCombatActionKind::Basic;
+        Action.Key.Origin = ELDCombatRequestOrigin::Nav;
+        Action.Key.Entity = Attacker.Victim.EntityId;
+        Action.TargetBody = Target;
+        Action.StartedAtMs = StartMs;
+        Action.ReleaseAtMs = StartMs + 300;
+        F.Body(Attacker).Action = Action;
+        Record.NextAttackAtMs = StartMs + 1000;
+    };
+    Windup(2000);
+    F.Now(2080);
+    FAccess::AbandonAction(*F.Driver, F.Body(Attacker), ELDCombatReject::Cancelled);
+    TestFalse(TEXT("The cancelled windup ends"), F.Body(Attacker).Action.IsSet());
+    TestEqual(TEXT("A windup cut before its release gives the cadence back"), Record.NextAttackAtMs, int64(2000));
+
+    Windup(5000);
+    F.Now(5300);
+    FAccess::FinishAction(*F.Driver, F.Body(Attacker), ELDCombatReject::Blocked, false);
+    TestEqual(TEXT("A swing refused at its release keeps the cadence spent"), Record.NextAttackAtMs, int64(6000));
+
+    Windup(8000);
+    F.Now(8300);
+    FAccess::FinishAction(*F.Driver, F.Body(Attacker), ELDCombatReject::None, true);
+    TestEqual(TEXT("A released swing keeps the cadence spent"), Record.NextAttackAtMs, int64(9000));
     return true;
 }
 

@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDModelPicking.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatPreInput.h"
 #include "Development/LDDemoContentDefinitions.h"
@@ -51,16 +52,28 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
             else { ConfirmArmedCombat(); }
             return;
         }
-        // Quick cast (local setting): fires at the pointer at once when it already names the aim; a unit skill without
-        // a visible unit under the pointer stays armed for the ordinary left-click confirmation.
+        // Quick cast (local setting): fires at the pointer at once when it already names the aim. A unit skill takes the
+        // nearest visible unit around the pointer; with none there it is dropped with a notice instead of staying armed
+        // for a confirmation the next move click would silently cancel.
         if (Controls && Controls->GetQuickCast())
         {
-            FGuid Handle;
-            uint32 Epoch=0;
+            if (Mode==ELDDemoTargetMode::Unit)
+            {
+                FLDCombatTarget Aim;
+                if (ObservedNearPointer(LDModelPicking::QuickCastSnapPx,Aim.Observed,Aim.ObservationEpoch))
+                {
+                    Aim.Kind=ELDCombatTargetKind::Unit;
+                    ConfirmArmedEntry(Aim);
+                }
+                else
+                {
+                    CancelArmedCombat();
+                    PostIntentNotice(TEXT("指针附近没有目标"));
+                }
+                return;
+            }
             FHitResult GroundHit;
-            const bool bAimReady=Mode==ELDDemoTargetMode::Unit ? ObservedUnderPointer(Handle,Epoch)
-                : Navigation->GroundUnderPointer(GroundHit);
-            if (bAimReady) { ConfirmArmedCombat(); }
+            if (Navigation->GroundUnderPointer(GroundHit)) { ConfirmArmedCombat(); }
         }
         return;
     }

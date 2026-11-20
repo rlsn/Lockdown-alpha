@@ -58,6 +58,11 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
     View.ActionEntry = ELDCombatEntry::W;
     View.bHasBody = false;
     TestFalse(TEXT("No body holds nothing"), IsWindingUp(View, 1000));
+    TestTrue(TEXT("The server holds a press that met the own ability windup, through its release moment"),
+        ServerHolds(ELDCombatEntry::W, true, 1200, 1000) && ServerHolds(ELDCombatEntry::Dash, true, 1200, 1200));
+    TestFalse(TEXT("The server holds nothing without an own ability windup, for a basic, or past the hold"),
+        ServerHolds(ELDCombatEntry::W, false, 0, 1000) || ServerHolds(ELDCombatEntry::Basic, true, 1200, 1000)
+        || ServerHolds(ELDCombatEntry::E, true, 3000, 1000));
     TestTrue(TEXT("Q, W, E and the innate D dash are Direct entries"),
         IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W)
         && IsDirectEntry(ELDCombatEntry::E) && IsDirectEntry(ELDCombatEntry::Dash)

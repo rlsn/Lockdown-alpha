@@ -6,9 +6,13 @@
 // sent as an ordinary Direct request once that windup ends, instead of reaching the server as a Busy refusal. One
 // press is held at a time (the newest replaces it); S, a new life or match, suppressed input or HoldSeconds drop it.
 // A basic attack needs no buffer: an attack order already waits on the server until the body is free.
+// A press that left before the owner saw its own windup (the network delay) is held by the server instead: a Q/W/E/D
+// request that would meet the own ability windup waits in its queue, in order, until that windup releases.
 namespace LDCombatPreInput
 {
     constexpr double HoldSeconds = 1.0;
+    // The server keeps a queued Q/W/E/D request while the caller's own ability windup releases within HoldSeconds.
+    LOCKDOWN_API bool ServerHolds(ELDCombatEntry Entry, bool bOwnAbilityWindup, int64 ReleaseAtMs, int64 NowMs);
     LOCKDOWN_API bool IsDirectEntry(ELDCombatEntry Entry);
     // The innate D dash fires toward the pointer on the press itself (2026-11-04 decision): it never waits armed for a
     // left-click confirmation, whatever the quick-cast setting. Other aimed entries arm (or quick-cast) as before.

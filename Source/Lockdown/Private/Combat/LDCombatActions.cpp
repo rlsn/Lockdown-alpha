@@ -21,6 +21,8 @@ namespace LDCA
     constexpr int32 MaxPendingDirect=8;
     // A dash with no legal first segment is refused before any cost is paid.
     constexpr double DashProbeCm=20.;
+    // A ground skill aimed into a wall or roof lands on the first legal ground back toward its caster, sampled this often.
+    constexpr double GroundFallbackStepCm=25.;
     // CONTENT_AND_BALANCE monster Attack row: single-target melee Physical at 1.0 AD. The monster
     // catalog row carries the AttackP2 value only, so the approved ratio is fixed here.
     constexpr int64 MonsterBasicADRatioBp=10000;
@@ -158,6 +160,15 @@ void ALDCombatDirector::FinishAction(FLDBodyCombatState& Body, ELDCombatReject R
 {
     if (!Body.Action.IsSet()) { return; }
     UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_ACTION_END token=%llu released=%d reason=%u"),Body.Action->Token,bReleased,uint8(Reason));
+    // A contender's basic windup cut before its release moment (a dash, a skill, S, control, a lost target) swung
+    // nothing, so it gives back the cadence it committed at its start. A swing refused at its release spent it.
+    const auto* Mode=Core();
+    if (!bReleased && Body.Action->Kind==ELDCombatActionKind::Basic && !Body.Action->bMonsterSpecial && Mode
+        && Mode->GetAuthorityNowMs()<Body.Action->ReleaseAtMs)
+    {
+        if (auto* Record=FindRecord(Body.Victim.EntityId); Record && Record->Kind==ELDVictimKind::Contender)
+        { Record->NextAttackAtMs=FMath::Min(Record->NextAttackAtMs,Body.Action->StartedAtMs); }
+    }
     Body.Action.Reset();
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
@@ -483,7 +494,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     // #198: an accepted basic windup is a combat action of the build safe window.
     MarkBuildUnsafe(Caller.EntityId,Now);
     LDCA::FaceToward(*Actor,TargetFoot);
-    // The committed cadence survives cancellation, orders, death and respawn; time keeps running.
+    // The cadence is committed now; a windup cut before its release gives it back (FinishAction).
     Record->NextAttackAtMs=NextAttack;
     MarkViewChanged(Caller.EntityId);
     Receipt.CombatToken=Action.Token;
@@ -822,7 +833,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Action.StartedAtMs=Now;
     if (Body->OverdriveCharge.IsSet() && Body->OverdriveCharge->Entry==Request.Entry) { EndOverdriveCharge(*Body); }
     CancelChannel(*Body);
-    // A new ability interrupts an unreleased basic windup; its committed cadence is not refunded.
+    // A new ability interrupts an unreleased basic windup; FinishAction gives its committed cadence back.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
     Body->Action=Action;
     if (TargetDef->Mode==ELDDemoTargetMode::Unit || TargetDef->Mode==ELDDemoTargetMode::GroundPoint) { LDCA::FaceToward(*Actor,Action.TargetPoint); }
@@ -1230,20 +1241,26 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
         if (!Registry || !Registry->Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
         { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
-        FVector Point=ReleaseFoot+FVector(Action.TargetPoint.X-ReleaseFoot.X,Action.TargetPoint.Y-ReleaseFoot.Y,0)
+        const FVector Reach=FVector(Action.TargetPoint.X-ReleaseFoot.X,Action.TargetPoint.Y-ReleaseFoot.Y,0)
             .GetClampedToMaxSize(LDCA::ToDouble(TargetDef.RangeCm));
-        FVector Normal;
-        Registry->GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
+        // A point inside a wall, a roof or off the walkable ground lands short instead: the first legal ground back
+        // along the cast toward the caster, in GroundFallbackStepCm steps.
+        const int32 Steps=FMath::Max(1,FMath::CeilToInt(Reach.Size2D()/LDCA::GroundFallbackStepCm));
         FLDLegalGround Ground;
-        ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
-        if (!Registry->QueryGround(Registry->Revision(),Point,Actor.GetCapsuleComponent()->GetCollisionShape(),
-            FName(*Geometry->Surfaces[0].Id),Ground,Failure,Error))
+        bool bLanded=false;
+        for (int32 Step=0; Step<=Steps && !bLanded; ++Step)
         {
-            if (Failure==ELDWorldQueryFailure::Blocked || Failure==ELDWorldQueryFailure::NotGrounded
-                || Failure==ELDWorldQueryFailure::InvalidPosition)
-            { Reject=ELDCombatReject::Blocked; Error.Reset(); return true; }
-            return false;
+            FVector Point=ReleaseFoot+Reach*(double(Steps-Step)/Steps);
+            FVector Normal;
+            Registry->GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
+            ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
+            if (Registry->QueryGround(Registry->Revision(),Point,Actor.GetCapsuleComponent()->GetCollisionShape(),
+                FName(*Geometry->Surfaces[0].Id),Ground,Failure,Error)) { bLanded=true; break; }
+            if (Failure!=ELDWorldQueryFailure::Blocked && Failure!=ELDWorldQueryFailure::NotGrounded
+                && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
+            Error.Reset();
         }
+        if (!bLanded) { Reject=ELDCombatReject::Blocked; return true; }
         DeliveryAction.TargetPoint=Ground.FootCm;
     }
     // Hit effects name their targets before anything is paid: a unit, a projectile, or every legal body in a self area.

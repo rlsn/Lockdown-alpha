@@ -362,7 +362,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
             AddSection(Tree,Content,TEXT("施法"));
             // Quick cast (off by default): a skill key casts at the pointed unit or toward the pointer at once; Combat falls back
             // to arming when no unit is pointed.
-            AddRow(Tree,Content,TEXT("快速施法"),TEXT("按技能键立即对指针下的单位或指针方向施放；未指向单位时照常瞄准。"),
+            AddRow(Tree,Content,TEXT("快速施法"),TEXT("按技能键立即对指针附近的单位或指针方向施放。"),
                 Switch(Tree,TEXT("ToggleQuickCast"),[this](){ChangePreference([](auto& S){S.bQuickCast=!S.bQuickCast;});}));
             // Auto attack after cast (on by default): a completed Q/W cast order continues with an ordinary attack order.
             AddRow(Tree,Content,TEXT("施法后自动攻击"),TEXT("技能施放完成后继续攻击：对单位技能攻击其目标；对地面/方向技能恢复攻击施法前的可见目标。"),

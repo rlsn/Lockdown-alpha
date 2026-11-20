@@ -118,6 +118,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoBuildPrimitives.SharedBreachAndBurn",
         "Lockdown.Rules.DemoBuildPrimitives.RootOnSlowed",
         "Lockdown.Rules.DemoBuildPrimitives.BuildSafeWindow",
+        "Lockdown.Rules.DemoBuildPrimitives.BasicWindupCancelRefund",
         "Lockdown.Rules.DemoBuildPrimitives.ZonePulses",
         "Lockdown.Rules.DemoBuildPrimitives.EmpowerCharges",
         "Lockdown.Rules.DemoBuildPrimitives.FullDebuffObservation",
