@@ -1,5 +1,6 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDBuildBlueprint.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Development/LDBuildBlueprintStore.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDDemoEntry.h"
@@ -59,7 +60,7 @@ bool BlueprintSample(FAutomationTestBase& Test, const FGuid& Match, const FDateT
     const FGuid Contender=FGuid::NewGuid();
     Ledger.Observe(Contender,BlueprintBuild(1,0,{},{}),0);
     auto Final=BlueprintBuild(2,3,{{TEXT("might"),1}},{{TEXT("bolt"),ELDCombatEntry::Q}});
-    Final.FinalMod={TEXT("final_traffic"),ELDFinalModTargetKind::Dash,NAME_None};
+    Final.FinalMod.DefinitionId=TEXT("final_cage");
     const int32 Second=Ledger.Observe(Contender,Final,5000);
     Ledger.Add(Contender,Second,ELDBlueprintFact::DamageDealt,1234);
     Ledger.Add(Contender,Second,ELDBlueprintFact::AbilityCasts,2);
@@ -107,7 +108,7 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A composed record serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error));
     const FString Text=BlueprintUtf8(Bytes);
     TestTrue(TEXT("The file names its schema and version"),Text.Contains(TEXT("\"schema\": \"lockdown.build-blueprint\""))
-        &&Text.Contains(TEXT("\"schema_version\": 4"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
+        &&Text.Contains(TEXT("\"schema_version\": 5"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
     const int32 Debt=Text.Find(FString(TEXT("\""))+LDBuildBlueprint::FactKey(ELDBlueprintFact::DamageReduced)+TEXT("\""),
         ESearchCase::CaseSensitive,ESearchDir::FromEnd);
     const FString DebtObject=Debt==INDEX_NONE?FString():Text.Mid(Debt,160);
@@ -124,9 +125,8 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Recorded time keeps its millisecond"),Parsed.RecordedAtUtc.ToIso8601(),At.ToIso8601());
     TestTrue(TEXT("Final build and revision are the last version"),Parsed.FinalBuild==Record.FinalBuild&&Parsed.FinalRevision==3
         &&Parsed.FinalBuild.Actives.Num()==1&&Parsed.FinalBuild.Actives[0].Slot==TEXT("Q")&&Parsed.FinalBuild.Actives[0].Ability==TEXT("bolt"));
-    TestTrue(TEXT("The independent final rule and its binding survive the read-only record"),
-        Parsed.FinalBuild.FinalMod.DefinitionId==TEXT("final_traffic")&&Parsed.FinalBuild.FinalMod.TargetKind==ELDFinalModTargetKind::Dash
-        &&Parsed.FinalBuild.FinalMod.TargetId.IsNone()&&Parsed.Versions[0].Structure.FinalMod.IsEmpty());
+    TestTrue(TEXT("The independent final rule survives the read-only record"),
+        Parsed.FinalBuild.FinalMod.DefinitionId==TEXT("final_cage")&&Parsed.Versions[0].Structure.FinalMod.IsEmpty());
     TestTrue(TEXT("Both versions with their time segments"),Parsed.Versions.Num()==2&&Parsed.Versions[0].FromMs==0
         &&Parsed.Versions[0].ToMs==5000&&Parsed.Versions[1].FromMs==5000&&Parsed.Versions[1].ToMs==90000);
     if(Parsed.Versions.Num()==2)
@@ -187,9 +187,25 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Text that is no JSON is refused"),BlueprintParseText(TEXT("lockdown build"))==ELDBlueprintParseError::NotJson);
     TestTrue(TEXT("Another schema is refused"),BlueprintParseText(Text.Replace(TEXT("lockdown.build-blueprint"),TEXT("lockdown.other-record")))==ELDBlueprintParseError::WrongSchema);
     TestTrue(TEXT("An unknown schema version is refused, not guessed"),
-        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")))==ELDBlueprintParseError::UnknownVersion);
-    TestTrue(TEXT("A dash FIN cannot smuggle a named active into its binding"),
-        BlueprintParseText(Text.Replace(TEXT("\"target_id\": \"\""),TEXT("\"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 5"),TEXT("\"schema_version\": 6")))==ELDBlueprintParseError::UnknownVersion);
+    TestTrue(TEXT("The previous format (version 4) is refused as an unsupported version"),
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 5"),TEXT("\"schema_version\": 4")))==ELDBlueprintParseError::UnknownVersion);
+    TestTrue(TEXT("A final mod cannot carry the retired source binding"),
+        BlueprintParseText(Text.Replace(TEXT("\"definition\": \"final_cage\""),TEXT("\"definition\": \"final_cage\", \"target_id\": \"bolt\"")))
+        ==ELDBlueprintParseError::BadField);
+    // Every match end reason round-trips under its own key; an unknown one is refused.
+    for (uint8 Reason = 1; Reason <= uint8(ELDMatchEndReason::ClearOut); ++Reason)
+    {
+        const TCHAR* Key = LDBuildBlueprint::EndReasonKey(Reason);
+        TestTrue(FString::Printf(TEXT("End reason %u is recorded and read back"), Reason), Key
+            && BlueprintParseText(Text.Replace(TEXT("\"end_reason\": \"guard_succeeded\""),
+                *FString::Printf(TEXT("\"end_reason\": \"%s\""), Key)))==ELDBlueprintParseError::None);
+    }
+    TestTrue(TEXT("The final mods' wins have their own keys"), FString(LDBuildBlueprint::EndReasonKey(uint8(ELDMatchEndReason::SprayCount)))
+        == TEXT("spray_count") && FString(LDBuildBlueprint::EndReasonKey(uint8(ELDMatchEndReason::ClearOut))) == TEXT("clear_out")
+        && !LDBuildBlueprint::EndReasonKey(0));
+    TestTrue(TEXT("An unknown end reason is refused"), BlueprintParseText(Text.Replace(TEXT("\"end_reason\": \"guard_succeeded\""),
+        TEXT("\"end_reason\": \"magic\"")))==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
     TestTrue(TEXT("A slot outside Q/W/E is refused"),BlueprintParseText(Text.Replace(TEXT("\"slot\": \"Q\""),TEXT("\"slot\": \"X\"")))==ELDBlueprintParseError::BadField);
     FString ZeroFilled=Text;
@@ -211,7 +227,7 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another catalog root is an explicit notice"),Notices.ContainsByPredicate([](const FString& Line){return Line.Contains(TEXT("目录不一致"));}));
     TestTrue(TEXT("A removed active is an explicit stale-install notice"),Notices.ContainsByPredicate([](const FString& Line){return Line.Contains(TEXT("bolt"));}));
     FLDDemoAbilityDefinition& Bolt=Local.Abilities.AddDefaulted_GetRef();Bolt.Id=TEXT("bolt");
-    FLDDemoFinalModDefinition& Final=Local.FinalMods.AddDefaulted_GetRef();Final.Id=TEXT("final_traffic");
+    FLDDemoFinalModDefinition& Final=Local.FinalMods.AddDefaulted_GetRef();Final.Id=TEXT("final_cage");
     FLDBlueprintRecord Same=Record;Same.CatalogRoot=Local.Identity.Root.ToHex();
     Notices.Reset();
     LDBuildBlueprint::Notices(Same,&Local,TEXT("0.10.0"),Notices);
@@ -250,7 +266,7 @@ bool FLDBuildBlueprintPruneTest::RunTest(const FString& Parameters)
         if(!BlueprintSample(*this,FGuid::NewGuid(),Base-FTimespan::FromDays(29),Future)){return false;}
         LDBuildBlueprint::Serialize(Future,Bytes,Error);
         const FString Unknown=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(Future.MatchId));
-        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")),*Unknown,
+        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 5"),TEXT("\"schema_version\": 6")),*Unknown,
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
         Foreign.Add(Unknown);
         const FString Broken=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(FGuid::NewGuid().ToString(EGuidFormats::Digits)));

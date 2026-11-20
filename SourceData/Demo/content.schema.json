@@ -412,21 +412,12 @@
     "final_mods": {
       "type": "array", "minItems": 8, "maxItems": 8,
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["id", "requirement"],
+        "type": "object", "additionalProperties": false, "required": ["id"],
         "properties": {
-          "id": {"$ref": "#/$defs/id"},
-          "requirement": {"enum": ["Basic", "ForcedMove", "HardControl", "Dash", "PlacedZone"]},
-          "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/probability"}, "ap_ratio": {"$ref": "#/$defs/probability"},
-          "radius": {"$ref": "#/$defs/cm"}, "distance": {"$ref": "#/$defs/cm"}, "offset": {"$ref": "#/$defs/cm"},
-          "delay": {"$ref": "#/$defs/positive_sec"}, "duration": {"$ref": "#/$defs/positive_sec"},
-          "interval": {"$ref": "#/$defs/positive_sec"}, "window": {"$ref": "#/$defs/positive_sec"},
-          "pulse_interval": {"$ref": "#/$defs/positive_sec"},
-          "outside": {"$ref": "#/$defs/positive_sec"}, "rearm_outside": {"$ref": "#/$defs/positive_sec"},
-          "cooldown_cost": {"$ref": "#/$defs/positive_sec"}, "duration_cost": {"$ref": "#/$defs/positive_sec"},
-          "damage_ratio": {"$ref": "#/$defs/probability"}, "control_ratio": {"$ref": "#/$defs/probability"},
-          "distance_ratio": {"$ref": "#/$defs/probability"}, "radius_ratio": {"$ref": "#/$defs/probability"},
-          "slow": {"$ref": "#/$defs/probability"}, "slow_duration": {"$ref": "#/$defs/positive_sec"},
-          "move_speed_cost": {"$ref": "#/$defs/probability"}
+          "id": {"$ref": "#/$defs/id"}, "sprays": {"$ref": "#/$defs/positive_count"},
+          "fade": {"$ref": "#/$defs/positive_sec"}, "guard": {"$ref": "#/$defs/positive_sec"},
+          "spray": {"$ref": "#/$defs/positive_sec"}, "duration": {"$ref": "#/$defs/positive_sec"},
+          "radius": {"$ref": "#/$defs/cm"}
         }
       }
     },
@@ -485,12 +476,6 @@
           "name_text": {"type": "string", "minLength": 1, "maxLength": 32},
           "description_key": {"type": "string", "minLength": 1, "maxLength": 128},
           "description_text": {"type": "string", "minLength": 1, "maxLength": 320},
-          "effect_key": {"type": "string", "minLength": 1, "maxLength": 128},
-          "effect_text": {"type": "string", "minLength": 1, "maxLength": 320},
-          "cost_key": {"type": "string", "minLength": 1, "maxLength": 128},
-          "cost_text": {"type": "string", "minLength": 1, "maxLength": 320},
-          "notes_key": {"type": "string", "minLength": 1, "maxLength": 128},
-          "notes_text": {"type": "string", "minLength": 1, "maxLength": 320},
           "icon_id": {"$ref": "#/$defs/id"}, "portrait_icon_id": {"$ref": "#/$defs/id"}
         }
       }

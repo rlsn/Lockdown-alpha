@@ -129,23 +129,8 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
     const float TileSize = bExpanded ? 56.f
         : FMath::Clamp(FMath::Min((ColumnWidth - 4.f) / 2.f, (Height - Header - 4.f) / Rows - 1.f), 4.f, Header * .72f);
 
-    int32 FinalColumn = INDEX_NONE;
-    if (!Build.FinalMod.IsNone())
-    {
-        if (Build.FinalTarget == ELDResultBuildTarget::Body) { FinalColumn = int32(LDHUD::EStorageColumn::Body); }
-        else if (Build.FinalTarget == ELDResultBuildTarget::Dash) { FinalColumn = int32(LDHUD::EStorageColumn::Dash); }
-        else
-        {
-            for (int32 Index = 0; Index < Board.Columns.Num(); ++Index)
-            {
-                if (Build.FinalTarget == ELDResultBuildTarget::Active && Board.Columns[Index].Active == Build.FinalTargetId)
-                { FinalColumn = Index; break; }
-            }
-        }
-    }
-
-    const bool bDormantFinal = !Build.FinalMod.IsNone() && FinalColumn == INDEX_NONE;
-    if (bDormantFinal) { FinalColumn = int32(LDHUD::EStorageColumn::Body); }
+    // A final mod binds no source: it sits on the body column.
+    const int32 FinalColumn = Build.FinalMod.IsNone() ? INDEX_NONE : int32(LDHUD::EStorageColumn::Body);
     auto* Columns = Tree->ConstructWidget<UHorizontalBox>();
     Bounds->SetContent(Columns);
     // 普攻, Q, W, E, D, 本体 left to right, like the workshop board.
@@ -173,11 +158,6 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         if (FinalColumn == Index)
         {
             UWidget* Final = BoardIcon(Tree, Content, Build.FinalMod, bExpanded ? 56.f : Header * .65f, false);
-            if (bDormantFinal)
-            {
-                Final->SetRenderOpacity(.45f);
-                Final->SetToolTipText(FText::FromString(LDHUD::ContentName(Content, Build.FinalMod.ToString()) + TEXT(" · 来源已拆下")));
-            }
             Head->AddChildToHorizontalBox(Final)->SetPadding(FMargin(2, 0, 0, 0));
         }
         auto* Grid = Tree->ConstructWidget<UWrapBox>();

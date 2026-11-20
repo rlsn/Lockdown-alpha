@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 规则 | [App Spec](../APP_SPEC.md) §2、§6.1、§8；数值只在[内容与数值 §3.4](../demo/CONTENT_AND_BALANCE.md#34-空间与对局节奏参数)；跨域见[共享契约](../demo/SHARED_CONTRACTS.md) SC-01–04 |
-| 文件 | `Framework\LDGameInstance`、`LDGameEngine`、`LDGameMode.*`（`LDGameModeSession/Match/Lifecycle/Life/Rest/Capture/Pacing/Showdown/Trace.cpp`）、`LDMatchLifecycleTypes.*`、`LDMatchTimeline.*`、`LDCaptureReducer.*`、`LDCaptureTypes.*`、`LDMatchProviders.cpp`、`LDPlayerSession.cpp`、`LDPlayerRest.cpp`；`World\LDCaptureCircle`、`LDCaptureMarker`、`LDSpawnPlacement.cpp`、`LDFieldPacing.*`；`Framework\LDPacingTypes.*`、`LDShowdownRing.*`、`LDPlayerPacing.cpp` |
+| 文件 | `Framework\LDGameInstance`、`LDGameEngine`、`LDGameMode.*`（`LDGameModeSession/Match/Lifecycle/Life/Rest/Capture/Pacing/Showdown/Trace.cpp`）、`LDMatchLifecycleTypes.*`、`LDMatchTimeline.*`、`LDCaptureReducer.*`、`LDCaptureTypes.*`、`LDMatchProviders.cpp`、`LDPlayerSession.cpp`、`LDPlayerRest.cpp`；`World\LDCaptureCircle`、`LDCaptureMarker`、`LDCaptureFence`、`LDSpawnPlacement.cpp`、`LDFieldPacing.*`；`Framework\LDPacingTypes.*`、`LDShowdownRing.*`、`LDPlayerPacing.cpp` |
 | 入口函数 | `InitGame` / `PreLogin` / `PostLogin`、`ServerDemoSessionCommand` → `ProcessSessionCommand`、`StartDemoMatch`、`RetireMatch`；`BeginAuthorityStep` / `ValidateWritePermit` / `GetAuthorityNowMs`；`EndContenderLife`、`EndProtectionForAggressiveIntent`；`PublishCaptureMotion/Eligibility/Interrupt`、`ExecuteCapturePhase` / `ExecuteClosePhase` / `ExecuteCapturePublish`、`TryCloseMatch`、`FailAuthorityBoundary`；`AdvanceTimeline` / `LockTimelineBuild` |
 | 不变量 | 同一 Listen 世界内单一会话/对局流程；GameMode 是比赛身份、时钟、批次、生命边界、写闸、喷漆与守护归约和唯一结果的唯一提供者；一条单调权威时钟，野外进度 T 只在野外推进；写许可只由核心在当前调用栈构造；唯一结果只提交一次；必需工作失败进入 `Faulted`，不默认判胜；没有 Host 迁移或中途加入 |
 | 检查 | `Lockdown.Rules.DemoCapture.*`、`DemoCore.*`、`DemoRest.*`、`DemoShowdown.*`、`DemoSessionReceipts`、`ViewPrivacySchema`、`DemoOwnerViewTeardown`；场景 `RunDemoEntryCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1`、`RunDemoCoreCheck.ps1`（见[扩展与检查](#扩展与检查)） |
@@ -310,7 +310,25 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 `CaptureCompletesInsideStep`，由 `FLDCaptureReducer::CompletionInsideMs` 在归约器副本上预演已入队事实；
 若恢复后的守护获胜时刻早于本步边界，本步跳过 Session～Transactions，只做欠奖重试，`CloseThroughCompletion`
 在该时刻锁定结果（其后的进出丢弃），边界时刻的行动、效果与交易都不发生；步内喷上的涂鸦由 `CloseBoundary` 在其真实时刻归约。
-结束原因为 `ELDMatchEndReason::GuardSucceeded`（“守护成功”）或 `HostEnded`。
+结束原因为 `ELDMatchEndReason::GuardSucceeded`（“守护成功”）、`SprayCount`、`ClearOut` 或 `HostEnded`。
+
+终局改装（App Spec §2.2）也在这条归约链上判定，没有第二套结算。`BeginShowdown` 在锁定构筑后经
+`ALDDevelopmentDirector::ReadFinalMod` 读取每人所选，写入公开的 `FLDPublicMatchView::FinalMods`，并以
+`FLDCaptureReducer::SetFinalRules`（开放前一次）把持卡表与 `final_mods` 参数交给主旗杆归约器。归约器只多三类状态：
+打一枪换个地方的褪色时刻 `FadeAt`（褪色是 `NextDueMs` 的停靠点；褪色中的涂鸦没有守护）与须先离区的 `MustLeave`；
+`Died` 事实携带 `Killer`，在死亡归约后、`Evaluate` 前由 `ApplyKill` 处理人头换秒（历史守护 +，当前主人则前移
+`GuardDue` 或增加 `GuardKept`，满时长即获胜）与篡位（先结算原主人的守护，再改主并继承运行或保留的进度）；
+每个同刻事实组结束后 `CheckClearOut` 判定清场。替代胜利与击杀补满的守护都记为候选，`FLDCaptureProposal::Kind`
+写明 Guard/Sprays/ClearOut；一次归约只继续处理与最早候选同刻的事实，`FLDCaptureReducer::Settle` 按“最早时刻，再按
+守护 > 喷漆次数 > 清场”裁决，同一条件不同人并列时 `Winner` 为空（`NoChampion`）。
+私人旗杆各有一个 `BeginPrivate` 建立的独立归约器（从主归约器的已提交名册起步，`OnlySprayer` 只许持有者喷），圆心取
+持有者入场口锚点 `final_spawn_<roster slot>`，任何资格、打断与离局事实经 `EnqueueCaptureFact` 同时进入主旗杆与每根私人旗杆，
+运动穿越逐圈提取。`ExecuteCapturePhase` 汇总全部归约器的候选同样用 `Settle` 裁决；`CaptureCompletesInsideStep`
+取最早的步内完成者。无结果时 `UpdateCaptureGeometry` 经纯函数 `LDCaptureCircle::FinalZone` 更新主喷漆区：
+扛旗跑路把圆心移到存活主人的脚点（铁笼站立时不动），双黄线换半径；圆心离开锚点后 `FLDCaptureCircle::bAnyGround`
+接受任意原生落地面。几何变化递增 `CaptureCircleSerial`，下一步 `PublishCaptureMotion` 先按批次起点补一条存在事实，
+再从新圆提取穿越。铁笼由同一函数在持有者新涂鸦出现时写入公开的 `CageUntilMs/CageCentreCm/CageRadiusCm`；
+`ALDGameState::SyncCaptureFence` 在每台机器（含权威端）按公开视图生成 `ALDCaptureFence`，只阻挡 Pawn 通道。
 驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
 `ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
 `ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共旗杆状态）。

@@ -15,16 +15,71 @@
 
 int64 ALDGameMode::NextCaptureDueMs() const
 {
-    return IsGameplayWriteOpen(MatchContext) ? CaptureReducer.NextDueMs() : MAX_int64;
+    if (!IsGameplayWriteOpen(MatchContext)) { return MAX_int64; }
+    int64 Due = CaptureReducer.NextDueMs();
+    for (const FLDPrivatePole& Pole : PrivatePoles) { Due = FMath::Min(Due, Pole.Reducer.NextDueMs()); }
+    return Due;
 }
 
 bool ALDGameMode::CaptureCompletesInsideStep()
 {
     // Only between Motion and every later phase: afterwards the boundary instant already has side effects.
-    bCaptureCompletesInsideStep = bAuthorityStepOpen && !bSettlementStep && !ActiveWritePermit && bAuthorityPhaseExecuted
-        && LastAuthorityPhase == ELDCommitPhase::Motion && IsGameplayWriteOpen(MatchContext) && CaptureReducer.IsActive()
-        && CaptureReducer.CompletionInsideMs(AuthorityBoundary.AtMs) < AuthorityBoundary.AtMs;
+    bCaptureCompletesInsideStep = false;
+    if (!bAuthorityStepOpen || bSettlementStep || ActiveWritePermit || !bAuthorityPhaseExecuted
+        || LastAuthorityPhase != ELDCommitPhase::Motion || !IsGameplayWriteOpen(MatchContext) || !CaptureReducer.IsActive())
+    { return false; }
+    const int64 AtMs = AuthorityBoundary.AtMs;
+    int64 Earliest = CaptureReducer.CompletionInsideMs(AtMs);
+    for (const FLDPrivatePole& Pole : PrivatePoles) { Earliest = FMath::Min(Earliest, Pole.Reducer.CompletionInsideMs(AtMs)); }
+    bCaptureCompletesInsideStep = Earliest < AtMs;
     return bCaptureCompletesInsideStep;
+}
+
+bool ALDGameMode::EnqueueCaptureFact(const FLDCaptureEvent& Fact, const FVector* InitialFootCm,
+    const FLDNativeSupportSample* InitialSupport, FString& Error)
+{
+    const bool bInitial = InitialFootCm && InitialSupport;
+    FLDCaptureEvent Main = Fact;
+    if (bInitial) { Main.bInside = CaptureCircle.Contains(*InitialFootCm, *InitialSupport); }
+    if (!CaptureReducer.Enqueue(Main, Error)) { return false; }
+    for (FLDPrivatePole& Pole : PrivatePoles)
+    {
+        FLDCaptureEvent Private = Fact;
+        Private.bInside = bInitial && Pole.Circle.Contains(*InitialFootCm, *InitialSupport);
+        if (!Pole.Reducer.Enqueue(Private, Error)) { return false; }
+        const FGuid& Id = Fact.Body.Victim.EntityId;
+        if (Fact.Kind == ELDCaptureEventKind::Joined || Fact.Kind == ELDCaptureEventKind::Respawned) { Pole.Inside.Add(Id, Private.bInside); }
+        else if (Fact.Kind == ELDCaptureEventKind::Died || Fact.Kind == ELDCaptureEventKind::Left) { Pole.Inside.Add(Id, false); }
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::RejudgeCapturePresence(const FGuid& Contender, const FLDCombatBodyRef& Body, const FVector& FootCm,
+    const FLDNativeSupportSample& Support, const FLDCaptureEventTime& Time, ELDCommitPhase Phase, FString& Error)
+{
+    FLDCaptureEvent Fact;
+    Fact.Kind = ELDCaptureEventKind::Presence;
+    Fact.Body = Body;
+    Fact.Phase = Phase;
+    Fact.Time = Time;
+    if (FLDCaptureTrack* Track = CaptureTracks.Find(Contender))
+    {
+        Fact.bInside = CaptureCircle.Contains(FootCm, Support);
+        if (Track->bInside != Fact.bInside && !CaptureReducer.Enqueue(Fact, Error)) { return false; }
+        Track->bInside = Fact.bInside;
+        Track->CircleSerial = CaptureCircleSerial;
+    }
+    for (FLDPrivatePole& Pole : PrivatePoles)
+    {
+        bool* Inside = Pole.Inside.Find(Contender);
+        if (!Inside) { continue; }
+        Fact.bInside = Pole.Circle.Contains(FootCm, Support);
+        if (*Inside != Fact.bInside && !Pole.Reducer.Enqueue(Fact, Error)) { return false; }
+        *Inside = Fact.bInside;
+    }
+    Error.Reset();
+    return true;
 }
 
 bool ALDGameMode::InitializeCaptureMatch(FString& Error)
@@ -49,6 +104,14 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
         return false;
     }
     CaptureTracks.Reset();
+    PrivatePoles.Reset();
+    ShowdownMods.Reset();
+    CageSprays.Reset();
+    CageUntilMs = 0;
+    CageDurationMs = 0;
+    DoubleYellowRadiusCm = 0;
+    CaptureBaseRadiusCm = CaptureCircle.RadiusCm;
+    CaptureAnchorCm = CaptureCircle.CenterCm;
     Showdown = {};
     ShowdownRespawns.Reset();
     ShowdownBurn.Reset();
@@ -84,45 +147,63 @@ ELDCommitReject ALDGameMode::PublishCaptureMotion(const FLDGameplayWritePermit& 
     if (!Track || Track->Body != Batch.Body || !CaptureReducer.IsCommittedAliveBody(Batch.Body))
     { return ELDCommitReject::UnknownBody; }
     if (!(Batch.Step == AuthorityStep) || Track->LastStep == Batch.Step.StepSerial) { return ELDCommitReject::StaleStep; }
-    bool Inside = Track->bInside;
-    TArray<FLDCaptureCrossing> Crossings;
+    // Buckets stay inside (last closed boundary, this boundary]; the step end is exact.
+    const int64 AtMs = Permit.GetBoundary().AtMs;
+    const int64 FirstOpenMs = FMath::Max<int64>(CaptureReducer.GetClosedThroughMs() + 1, 0);
     FString Error;
-    if (!LDCaptureCircle::Extract(CaptureCircle, Batch, Inside, Crossings, Error))
+    // One zone's crossings of this batch, enqueued in order. A zone that moved or resized at the last boundary first
+    // takes the body's presence at the step start (a discontinuity of the zone, not of the body).
+    const auto Publish = [&](const FLDCaptureCircle& Circle, FLDCaptureReducer& Reducer, bool& InOutInside, bool bZoneMoved)
+    {
+        if (bZoneMoved)
+        {
+            const bool bStart = Circle.Contains(Batch.StartFootCm, Batch.InitialSupport);
+            if (bStart != InOutInside)
+            {
+                FLDCaptureEvent Fact;
+                Fact.Kind = ELDCaptureEventKind::Presence;
+                Fact.Body = Batch.Body;
+                Fact.Phase = ELDCommitPhase::Motion;
+                Fact.bInside = bStart;
+                Fact.Time.Seconds = Batch.Step.StartServerSeconds;
+                Fact.Time.BucketMs = FMath::Min(FirstOpenMs, AtMs);
+                if (!Reducer.Enqueue(Fact, Error)) { return false; }
+                InOutInside = bStart;
+            }
+        }
+        TArray<FLDCaptureCrossing> Crossings;
+        if (!LDCaptureCircle::Extract(Circle, Batch, InOutInside, Crossings, Error)) { return false; }
+        for (const FLDCaptureCrossing& Crossing : Crossings)
+        {
+            FLDCaptureEvent Fact;
+            Fact.Kind = ELDCaptureEventKind::Presence;
+            Fact.Body = Batch.Body;
+            Fact.Phase = ELDCommitPhase::Motion;
+            Fact.bInside = Crossing.bInside;
+            Fact.Time.Seconds = Crossing.Seconds;
+            int64 Bucket = AtMs;
+            if (Crossing.Seconds < Batch.Step.EndServerSeconds
+                && !LDMatchLifecycle::AuthoritySecondsToEventMs(Crossing.Seconds, Bucket, Error)) { return false; }
+            Fact.Time.BucketMs = FMath::Clamp(Bucket, FirstOpenMs, AtMs);
+            if (!Reducer.Enqueue(Fact, Error)) { return false; }
+        }
+        return true;
+    };
+    bool Inside = Track->bInside;
+    bool bPublished = Publish(CaptureCircle, CaptureReducer, Inside, Track->CircleSerial != CaptureCircleSerial);
+    for (int32 Index = 0; bPublished && Index < PrivatePoles.Num(); ++Index)
+    {
+        FLDPrivatePole& Pole = PrivatePoles[Index];
+        bool* PoleInside = Pole.Inside.Find(Batch.Body.Victim.EntityId);
+        bPublished = !PoleInside || Publish(Pole.Circle, Pole.Reducer, *PoleInside, false);
+    }
+    if (!bPublished)
     {
         UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
         return ELDCommitReject::GeometryUnavailable;
     }
-    // Buckets stay inside (last closed boundary, this boundary]; the step end is exact.
-    const int64 AtMs = Permit.GetBoundary().AtMs;
-    const int64 FirstOpenMs = FMath::Max<int64>(CaptureReducer.GetClosedThroughMs() + 1, 0);
-    for (const FLDCaptureCrossing& Crossing : Crossings)
-    {
-        FLDCaptureEvent Fact;
-        Fact.Kind = ELDCaptureEventKind::Presence;
-        Fact.Body = Batch.Body;
-        Fact.Phase = ELDCommitPhase::Motion;
-        Fact.bInside = Crossing.bInside;
-        Fact.Time.Seconds = Crossing.Seconds;
-        int64 Bucket = AtMs;
-        if (Crossing.Seconds < Batch.Step.EndServerSeconds
-            && !LDMatchLifecycle::AuthoritySecondsToEventMs(Crossing.Seconds, Bucket, Error))
-        {
-            UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
-            return ELDCommitReject::GeometryUnavailable;
-        }
-        Fact.Time.BucketMs = FMath::Clamp(Bucket, FirstOpenMs, AtMs);
-        if (!CaptureReducer.Enqueue(Fact, Error))
-        {
-            UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
-            return ELDCommitReject::GeometryUnavailable;
-        }
-        if (Combat && !Combat->NotifyFinalPresence(Fact, Error))
-        {
-            UE_LOG(LogLDMatch, Error, TEXT("LD_FINAL_PRESENCE_REJECTED %s"), *Error);
-            return ELDCommitReject::GeometryUnavailable;
-        }
-    }
     Track->bInside = Inside;
+    Track->CircleSerial = CaptureCircleSerial;
     Track->LastStep = Batch.Step.StepSerial;
     return ELDCommitReject::None;
 }
@@ -176,7 +257,8 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     Fact.Time = Event.Time;
     Fact.Phase = Phase;
     Fact.ProtectedUntilMs = Event.ProtectedUntilMs;
-    if (Kind == ELDCaptureEventKind::Joined || Kind == ELDCaptureEventKind::Respawned)
+    const bool bInitial = Kind == ELDCaptureEventKind::Joined || Kind == ELDCaptureEventKind::Respawned;
+    if (bInitial)
     {
         if (Event.InitialFootCm.ContainsNaN()) { return ELDCommitReject::GeometryUnavailable; }
         Fact.bInside = CaptureCircle.Contains(Event.InitialFootCm, Event.InitialSupport);
@@ -207,22 +289,18 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
             Assisters.Add(Record);
         }
         if (NextKillSerial == MAX_uint64) { return ELDCommitReject::CounterExhausted; }
+        Fact.Killer = Event.CreditContender;
     }
     FString Error;
-    if (!CaptureReducer.Enqueue(Fact, Error))
+    if (!EnqueueCaptureFact(Fact, bInitial ? &Event.InitialFootCm : nullptr, bInitial ? &Event.InitialSupport : nullptr, Error))
     {
         UE_LOG(LogLDMatch, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
         return ELDCommitReject::InvalidRequest;
     }
-    if (Combat && !Combat->NotifyFinalPresence(Fact, Error))
-    {
-        UE_LOG(LogLDMatch, Error, TEXT("LD_FINAL_PRESENCE_REJECTED %s"), *Error);
-        return ELDCommitReject::InvalidRequest;
-    }
-    if (Kind == ELDCaptureEventKind::Joined || Kind == ELDCaptureEventKind::Respawned)
+    if (bInitial)
     {
         FLDCaptureTrack& Track = CaptureTracks.FindOrAdd(Id);
-        Track = {Event.Body, Fact.bInside, AuthorityStep.StepSerial, 0};
+        Track = {Event.Body, Fact.bInside, AuthorityStep.StepSerial, 0, CaptureCircleSerial};
     }
     else if (bKill)
     {
@@ -266,7 +344,7 @@ ELDCommitReject ALDGameMode::PublishCaptureInterrupt(const FLDGameplayWritePermi
     Fact.Phase = Phase;
     FString Error;
     // The control lands at this boundary instant: before any spray or guard completion due at the same instant.
-    if (!FLDCaptureEventTime::FromMs(Permit.GetBoundary().AtMs, Fact.Time, Error) || !CaptureReducer.Enqueue(Fact, Error))
+    if (!FLDCaptureEventTime::FromMs(Permit.GetBoundary().AtMs, Fact.Time, Error) || !EnqueueCaptureFact(Fact, nullptr, nullptr, Error))
     {
         UE_LOG(LogLDMatch, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
         return ELDCommitReject::InvalidRequest;
@@ -295,7 +373,7 @@ void ALDGameMode::QueueLeaveFact(const FGuid& ContenderId)
         return;
     }
     Fact.Time.BucketMs = FMath::Max(Fact.Time.BucketMs, CaptureReducer.GetClosedThroughMs() + 1);
-    if (!CaptureReducer.Enqueue(Fact, Error))
+    if (!EnqueueCaptureFact(Fact, nullptr, nullptr, Error))
     {
         FaultAuthority(TEXT("A leave could not reach the capture reducer: ") + Error);
         return;
@@ -344,20 +422,91 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
     }
     const uint64 EpochBefore = CaptureReducer.GetEpoch();
     const bool WasOpen = CaptureReducer.IsOpen();
-    TOptional<FLDCaptureProposal> Proposal;
-    const bool Closed = bCaptureCompletesInsideStep
-        ? CaptureReducer.CloseThroughCompletion(Permit.GetBoundary().AtMs, Proposal, Error)
-        : CaptureReducer.CloseBoundary(Permit.GetBoundary().AtMs, Proposal, Error);
-    if (!Closed) { return false; }
+    const int64 AtMs = Permit.GetBoundary().AtMs;
+    TArray<FLDCaptureProposal> Candidates;
+    // In a step cut at an inside completion, every flagpole that completes inside it closes through its own completion
+    // (the earliest wins in Settle, a tie at that instant ties); the others reduce their facts normally.
+    const auto Close = [&](FLDCaptureReducer& Reducer)
+    {
+        const bool bInside = bCaptureCompletesInsideStep && Reducer.CompletionInsideMs(AtMs) < AtMs;
+        TOptional<FLDCaptureProposal> Proposal;
+        if (!(bInside ? Reducer.CloseThroughCompletion(AtMs, Proposal, Error) : Reducer.CloseBoundary(AtMs, Proposal, Error)))
+        { return false; }
+        if (Proposal) { Candidates.Add(Proposal.GetValue()); }
+        return true;
+    };
+    if (!Close(CaptureReducer)) { return false; }
+    bool bPrivateChanged = false;
+    for (int32 Index = 0; Index < PrivatePoles.Num(); ++Index)
+    {
+        const uint64 Before = PrivatePoles[Index].Reducer.GetEpoch();
+        if (!Close(PrivatePoles[Index].Reducer)) { return false; }
+        bPrivateChanged |= Before != PrivatePoles[Index].Reducer.GetEpoch();
+    }
+    // Wins reached at once across the flagpoles settle together: the earliest instant, then guard > sprays > clear-out.
+    const TOptional<FLDCaptureProposal> Proposal = FLDCaptureReducer::Settle(Candidates);
     if (CaptureReducer.IsOpen() && MatchPhase == ELDMatchPhase::Development)
     {
         MatchPhase = ELDMatchPhase::CaptureOpen;
         bLobbyDirty = true;
         UE_LOG(LogLDMatch, Display, TEXT("LD_CAPTURE_OPEN generation=%u at_ms=%lld"), MatchContext.Generation, Permit.GetBoundary().AtMs);
     }
-    bPublicMatchDirty |= WasOpen != CaptureReducer.IsOpen() || EpochBefore != CaptureReducer.GetEpoch();
+    bPublicMatchDirty |= WasOpen != CaptureReducer.IsOpen() || EpochBefore != CaptureReducer.GetEpoch() || bPrivateChanged;
     PendingCapture = Proposal;
+    PendingCaptureAtMs = AtMs;
+    if (Proposal)
+    {
+        UE_LOG(LogLDMatch, Display, TEXT("LD_CAPTURE_DECIDED generation=%u kind=%u winner=%s at_ms=%lld"), MatchContext.Generation,
+            uint8(Proposal->Kind), *LDLog::Id(Proposal->Winner), Proposal->DueAtMs);
+    }
+    else { UpdateCaptureGeometry(AtMs); }
     return true;
+}
+
+void ALDGameMode::UpdateCaptureGeometry(int64 AtMs)
+{
+    if (!Showdown.bStarted || !CaptureReducer.IsOpen()) { return; }
+    // final_cage: a holder's new graffiti raises the fence on the zone as it stands now.
+    for (auto& Pair : CageSprays)
+    {
+        const uint32 Sprays = CaptureReducer.GetCompletedSprays(Pair.Key);
+        if (Sprays == Pair.Value) { continue; }
+        Pair.Value = Sprays;
+        if (CaptureReducer.GetGraffitiOwner() != Pair.Key) { continue; }
+        CageUntilMs = AtMs + CageDurationMs;
+        CageCentreCm = CaptureCircle.CenterCm;
+        CageRadiusCm = CaptureCircle.RadiusCm;
+        bPublicMatchDirty = true;
+        UE_LOG(LogLDMatch, Display, TEXT("LD_FINAL_CAGE_UP holder=%s until_ms=%lld"), *LDLog::Id(Pair.Key), CageUntilMs);
+    }
+    if (CageUntilMs != 0 && AtMs >= CageUntilMs)
+    {
+        CageUntilMs = 0;
+        CageCentreCm = FVector2D::ZeroVector;
+        CageRadiusCm = 0;
+        bPublicMatchDirty = true;
+        UE_LOG(LogLDMatch, Display, TEXT("LD_FINAL_CAGE_DOWN at_ms=%lld"), AtMs);
+    }
+    const FGuid Holder = CaptureReducer.GetGraffitiOwner();
+    FLDFinalZoneInput Zone;
+    Zone.CurrentCm = CaptureCircle.CenterCm;
+    Zone.BaseRadiusCm = CaptureBaseRadiusCm;
+    Zone.DoubleYellowRadiusCm = DoubleYellowRadiusCm;
+    Zone.OwnerMod = Holder.IsValid() ? uint8(CaptureReducer.ModOf(Holder)) : 0;
+    Zone.bCageStanding = CageUntilMs != 0;
+    FLDCombatBodyRef Body;
+    FVector Foot = FVector::ZeroVector;
+    if (Holder.IsValid() && ReadLivingBody(Holder, Body, Foot)) { Zone.OwnerFootCm = FVector2D(Foot.X, Foot.Y); }
+    FVector2D Centre;
+    double Radius = 0;
+    LDCaptureCircle::FinalZone(Zone, Centre, Radius);
+    if (!Centre.Equals(CaptureCircle.CenterCm, .01)) { CapturePoleCm = Centre.Equals(CaptureAnchorCm, .01) ? Showdown.CentreCm : Foot; }
+    if (Centre.Equals(CaptureCircle.CenterCm, .01) && Radius == CaptureCircle.RadiusCm) { return; }
+    CaptureCircle.CenterCm = Centre;
+    CaptureCircle.RadiusCm = Radius;
+    CaptureCircle.bAnyGround = !Centre.Equals(CaptureAnchorCm, .01);
+    ++CaptureCircleSerial;
+    bPublicMatchDirty = true;
 }
 
 bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -369,14 +518,12 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
     }
     if (!PendingCapture) { return CloseShowdownIfDue(Permit, Error); }
     const FLDCaptureProposal Proposal = PendingCapture.GetValue();
-    // A guard win planned inside this step happened before its boundary; any other one is due exactly at it.
+    // A win planned inside this step happened before its boundary; any other one was reached by this boundary.
     const int64 AtMs = Permit.GetBoundary().AtMs;
-    if (Proposal.Epoch != CaptureReducer.GetEpoch() || !CaptureReducer.IsGuardRunning()
-        || CaptureReducer.GetGraffitiOwner() != Proposal.Winner || CaptureReducer.GetGuardDueAtMs() != Proposal.DueAtMs
-        || (bCaptureCompletesInsideStep ? Proposal.DueAtMs >= AtMs : Proposal.DueAtMs != AtMs))
+    if (PendingCaptureAtMs != AtMs || (bCaptureCompletesInsideStep ? Proposal.DueAtMs >= AtMs : Proposal.DueAtMs > AtMs))
     {
         PendingCapture.Reset();
-        Error = TEXT("The guard proposal no longer matches the closed graffiti guard.");
+        Error = TEXT("The decided capture win no longer matches this boundary.");
         return false;
     }
     if (HasPendingRewardRetries())
@@ -394,7 +541,10 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
         return true;
     }
     PendingCapture.Reset();
-    return TryCloseMatch(ELDMatchEndReason::GuardSucceeded, Proposal.Winner, Proposal.DueAtMs, Error);
+    const ELDMatchEndReason Reason = !Proposal.Winner.IsValid() ? ELDMatchEndReason::NoChampion
+        : Proposal.Kind == ELDCaptureWin::Sprays ? ELDMatchEndReason::SprayCount
+        : Proposal.Kind == ELDCaptureWin::ClearOut ? ELDMatchEndReason::ClearOut : ELDMatchEndReason::GuardSucceeded;
+    return TryCloseMatch(Reason, Proposal.Winner, Proposal.DueAtMs, Error);
 }
 
 bool ALDGameMode::HasPendingRewardRetries() const
@@ -615,6 +765,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.PausedProgressMs = CaptureReducer.GetPausedProgressMs();
     }
     View.GraffitiOwner = CaptureReducer.GetGraffitiOwner();
+    View.GraffitiCause = CaptureReducer.GetGraffitiCause();
     if (View.GraffitiOwner.IsValid())
     {
         // The owner's public identity slot: his start roster position, the same key his body tint uses.
@@ -624,7 +775,37 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.GuardDueAtMs = CaptureReducer.GetGuardDueAtMs();
     View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
     View.OwnerBankedGuardMs = CaptureReducer.GetBankedGuardMs(View.GraffitiOwner);
+    View.FadeAtMs = CaptureReducer.GetFadeAtMs();
     View.Showdown = Showdown;
+    if (Showdown.bStarted)
+    {
+        View.PoleCentreCm = CapturePoleCm;
+        View.PoleRadiusCm = float(CaptureCircle.RadiusCm);
+        if (CageUntilMs != 0)
+        {
+            View.CageUntilMs = CageUntilMs;
+            View.CageCentreCm = FVector(CageCentreCm.X, CageCentreCm.Y, Showdown.CentreCm.Z);
+            View.CageRadiusCm = float(CageRadiusCm);
+        }
+        View.FinalMods = ShowdownMods;
+        for (const FLDPrivatePole& Pole : PrivatePoles)
+        {
+            const FLDCaptureReducer& R = Pole.Reducer;
+            FLDPrivatePoleView& Row = View.PrivatePoles.AddDefaulted_GetRef();
+            Row.Holder = Pole.Holder;
+            const int32 Slot = RosterOrder.IndexOfByKey(Pole.Holder);
+            Row.Presentation = Slot >= 0 && Slot < MAX_uint8 ? uint8(Slot) : MAX_uint8;
+            Row.CentreCm = FVector(Pole.Circle.CenterCm.X, Pole.Circle.CenterCm.Y, Showdown.CentreCm.Z);
+            Row.RadiusCm = float(Pole.Circle.RadiusCm);
+            Row.CircleState = R.GetState();
+            Row.DueAtMs = R.GetDueAtMs();
+            Row.PausedProgressMs = R.GetPausedProgressMs();
+            Row.bGraffiti = R.GetGraffitiOwner().IsValid();
+            Row.GuardDueAtMs = R.GetGuardDueAtMs();
+            Row.GuardKeptMs = R.GetGuardKeptMs();
+            Row.GuardMs = R.GetGuardMs();
+        }
+    }
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     if (!Showdown.bStarted)
     {

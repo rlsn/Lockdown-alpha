@@ -64,14 +64,42 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     { return FailCaptureView(Error, TEXT("Spray holder and progress do not match the zone state.")); }
     const bool Owned = View.GraffitiOwner.IsValid();
     // The guard runs only while its owner is alone in the zone (Guarded); an empty zone pauses it and a sole sprayer
-    // or a contest, which always holds a challenger, freezes it. Either way it publishes only its kept progress.
+    // or a contest, which always holds a challenger, freezes it. Either way it publishes only its kept progress. A
+    // kill (final_kill_seconds) can add kept progress beyond the elapsed time, never beyond the guard; a fading graffiti
+    // (final_hit_and_run) has no guard at all.
     const bool GuardFrozen = View.CircleState != ELDCircleState::Guarded;
+    const int64 KeptMax = Final.bStarted ? Final.GuardMs : View.ServerNowMs - View.OpenAtMs;
     if ((View.CircleState == ELDCircleState::Guarded && !Owned) || (Owned && View.Occupier == View.GraffitiOwner)
         || View.GraffitiPresentation >= CapturePresentationSlots || (!Owned && View.GraffitiPresentation != 0)
-        || (!Owned ? (View.GuardDueAtMs != 0 || View.GuardKeptMs != 0)
-            : GuardFrozen ? (View.GuardDueAtMs != 0 || View.GuardKeptMs < 0 || View.GuardKeptMs > View.ServerNowMs - View.OpenAtMs)
+        || View.FadeAtMs < 0 || (View.FadeAtMs != 0 && (!Owned || View.FadeAtMs <= View.OpenAtMs))
+        || uint8(View.GraffitiCause) > uint8(ELDGraffitiCause::Usurped) || (View.GraffitiCause == ELDGraffitiCause::None) == Owned
+        || (!Owned || View.FadeAtMs != 0 ? (View.GuardDueAtMs != 0 || View.GuardKeptMs != 0)
+            : GuardFrozen ? (View.GuardDueAtMs != 0 || View.GuardKeptMs < 0 || View.GuardKeptMs > KeptMax)
                           : (View.GuardDueAtMs <= View.OpenAtMs || View.GuardKeptMs != 0)))
     { return FailCaptureView(Error, TEXT("Graffiti owner and guard progress do not match the zone state.")); }
+    // The final field's spray zones and public cards.
+    if (Final.bStarted ? (View.PoleCentreCm.ContainsNaN() || !FMath::IsFinite(View.PoleRadiusCm) || View.PoleRadiusCm <= 0)
+        : (!View.PoleCentreCm.IsZero() || View.PoleRadiusCm != 0 || View.CageUntilMs != 0 || !View.FinalMods.IsEmpty()
+            || !View.PrivatePoles.IsEmpty()))
+    { return FailCaptureView(Error, TEXT("Only the final field publishes its flagpole zone and final mods.")); }
+    if (View.CageUntilMs < 0 || (View.CageUntilMs == 0 ? (!View.CageCentreCm.IsZero() || View.CageRadiusCm != 0)
+        : (View.CageCentreCm.ContainsNaN() || !FMath::IsFinite(View.CageRadiusCm) || View.CageRadiusCm <= 0)))
+    { return FailCaptureView(Error, TEXT("Invalid final cage.")); }
+    if (View.FinalMods.Num() > CaptureResultRowsMax
+        || View.FinalMods.ContainsByPredicate([](const FLDFinalModHolderView& Row) { return !Row.Contender.IsValid() || Row.Mod.IsNone(); })
+        || View.PrivatePoles.Num() > CaptureResultRowsMax)
+    { return FailCaptureView(Error, TEXT("Invalid public final mods.")); }
+    for (const FLDPrivatePoleView& Pole : View.PrivatePoles)
+    {
+        if (!Pole.Holder.IsValid() || Pole.Presentation >= CapturePresentationSlots || Pole.CentreCm.ContainsNaN() || !FMath::IsFinite(Pole.RadiusCm) || Pole.RadiusCm <= 0
+            || uint8(Pole.CircleState) > uint8(ELDCircleState::Guarded) || Pole.GuardMs <= 0
+            || Pole.GuardKeptMs < 0 || Pole.GuardKeptMs > Pole.GuardMs || Pole.PausedProgressMs < 0
+            || (Pole.CircleState == ELDCircleState::Guarded && !Pole.bGraffiti)
+            || (Pole.CircleState == ELDCircleState::Solo ? Pole.DueAtMs <= View.OpenAtMs : Pole.DueAtMs != 0)
+            || (Pole.bGraffiti && Pole.CircleState == ELDCircleState::Guarded ? Pole.GuardDueAtMs <= View.OpenAtMs
+                : Pole.GuardDueAtMs != 0))
+        { return FailCaptureView(Error, TEXT("Invalid private flagpole.")); }
+    }
     const FLDAirdropView& Drop = View.Airdrop;
     const bool bDrop = Drop.Phase != ELDAirdropPhase::None;
     // #198: world schedules (airdrop, Boss, leader notice) are field-progress times T, not authority ms.
@@ -159,7 +187,7 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
     if (!Build.bAvailable)
     {
         if (!Build.CatalogRoot.IsEmpty() || !Build.Actives.IsEmpty() || !Build.Cards.IsEmpty()
-            || !Build.FinalMod.IsNone() || Build.FinalTarget != ELDResultBuildTarget::Body || !Build.FinalTargetId.IsNone())
+            || !Build.FinalMod.IsNone())
         { return FailCaptureView(Error, TEXT("An unavailable result build must not carry partial data.")); }
         Error.Reset();
         return true;
@@ -188,18 +216,7 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
         if (!ValidId(Card.DefinitionId) || !bTarget || uint8(Card.Element) > uint8(ELDDemoElement::Rot))
         { return FailCaptureView(Error, TEXT("Invalid result build card.")); }
     }
-    // A dormant final mod keeps naming the skill it was bound to after that skill is forgotten or replaced.
-    const auto ValidFinal = [&ValidId](ELDResultBuildTarget Kind, FName Id)
-    {
-        return Kind == ELDResultBuildTarget::Active ? ValidId(Id)
-            : (Kind == ELDResultBuildTarget::Body || Kind == ELDResultBuildTarget::Dash) && Id.IsNone();
-    };
-    if (Build.FinalMod.IsNone())
-    {
-        if (Build.FinalTarget != ELDResultBuildTarget::Body || !Build.FinalTargetId.IsNone())
-        { return FailCaptureView(Error, TEXT("An absent final mod cannot name a target.")); }
-    }
-    else if (!ValidId(Build.FinalMod) || !ValidFinal(Build.FinalTarget, Build.FinalTargetId))
+    if (!Build.FinalMod.IsNone() && !ValidId(Build.FinalMod))
     { return FailCaptureView(Error, TEXT("Invalid result final mod.")); }
     Error.Reset();
     return true;
@@ -208,8 +225,9 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
 bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
 {
     if (!View.Generation || !View.ResultId.IsValid() || !View.ResultSerial
-        || View.Reason == ELDMatchEndReason::None || uint8(View.Reason) > uint8(ELDMatchEndReason::NoChampion)
-        || (View.Reason == ELDMatchEndReason::GuardSucceeded && !View.Winner.IsValid())
+        || View.Reason == ELDMatchEndReason::None || uint8(View.Reason) > uint8(ELDMatchEndReason::ClearOut)
+        || ((View.Reason == ELDMatchEndReason::GuardSucceeded || View.Reason == ELDMatchEndReason::SprayCount
+            || View.Reason == ELDMatchEndReason::ClearOut) && !View.Winner.IsValid())
         || ((View.Reason == ELDMatchEndReason::HostEnded || View.Reason == ELDMatchEndReason::NoChampion) && View.Winner.IsValid()))
     { return FailCaptureView(Error, TEXT("Invalid result identity, reason or winner.")); }
     if (View.StartedAtMs < 0 || View.EndedAtMs < View.StartedAtMs || View.DurationMs != View.EndedAtMs - View.StartedAtMs)

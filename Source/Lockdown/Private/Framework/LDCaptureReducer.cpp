@@ -44,12 +44,103 @@ void FLDCaptureReducer::Reset()
     *this = FLDCaptureReducer();
 }
 
+bool FLDCaptureReducer::SetFinalRules(const FLDCaptureFinalRules& InRules, FString& Error)
+{
+    if (!bActive || bOpen)
+    {
+        Error = TEXT("Final mods are fixed before the flagpole opens.");
+        return false;
+    }
+    for (const auto& Pair : InRules.Mods)
+    {
+        if (!Pair.Key.IsValid()
+            || (Pair.Value == ELDDemoFinalModId::FinalHitAndRun && (InRules.HitAndRunSprays < 2 || InRules.HitAndRunFadeMs <= 0))
+            || (Pair.Value == ELDDemoFinalModId::FinalKillSeconds && InRules.KillGuardMs <= 0))
+        {
+            Error = TEXT("A final mod holder needs a contender and the approved terms of its card.");
+            return false;
+        }
+    }
+    Rules = InRules;
+    Error.Reset();
+    return true;
+}
+
+bool FLDCaptureReducer::BeginPrivate(const FLDCaptureReducer& Main, const FGuid& Holder, int64 SprayMs, int64 GuardMs, FString& Error)
+{
+    if (!Main.bActive || Main.bOpen || !Holder.IsValid() || !Main.Committed.Contains(Holder))
+    {
+        Error = TEXT("A private flagpole starts from the active, unopened main roster of its holder.");
+        return false;
+    }
+    if (!Begin(Main.OpenAt, SprayMs, GuardMs, Error)) { return false; }
+    for (const auto& Pair : Main.Committed)
+    {
+        FMember Member = Pair.Value;
+        Member.bInside = false;
+        Committed.Add(Pair.Key, Member);
+        Reduced.Add(Pair.Key, Member);
+    }
+    ClosedThrough = Main.ClosedThrough;
+    LastReducedSeconds = Main.LastReducedSeconds;
+    OnlySprayer = Holder;
+    Error.Reset();
+    return true;
+}
+
+ELDDemoFinalModId FLDCaptureReducer::ModOf(const FGuid& ContenderId) const
+{
+    const ELDDemoFinalModId* Mod = Rules.Mods.Find(ContenderId);
+    return Mod ? *Mod : ELDDemoFinalModId(0);
+}
+
+ELDLifePhase FLDCaptureReducer::GetReducedPhase(const FGuid& ContenderId) const
+{
+    const FMember* Member = Reduced.Find(ContenderId);
+    return Member ? Member->Phase : ELDLifePhase::Unspawned;
+}
+
+bool FLDCaptureReducer::CanSpray(const FGuid& Id) const
+{
+    return (!OnlySprayer.IsValid() || Id == OnlySprayer) && !MustLeave.Contains(Id);
+}
+
+void FLDCaptureReducer::Win(ELDCaptureWin Kind, const FGuid& Winner, int64 AtMs)
+{
+    FLDCaptureProposal& Row = Wins.AddDefaulted_GetRef();
+    Row.Winner = Winner;
+    Row.Kind = Kind;
+    Row.DueAtMs = AtMs;
+}
+
+TOptional<FLDCaptureProposal> FLDCaptureReducer::Settle(const TArray<FLDCaptureProposal>& Candidates)
+{
+    TOptional<FLDCaptureProposal> Best;
+    bool bTied = false;
+    for (const FLDCaptureProposal& Row : Candidates)
+    {
+        const bool bBetter = !Best || Row.DueAtMs < Best->DueAtMs
+            || (Row.DueAtMs == Best->DueAtMs && uint8(Row.Kind) < uint8(Best->Kind));
+        if (bBetter)
+        {
+            Best = Row;
+            bTied = false;
+        }
+        else if (Row.DueAtMs == Best->DueAtMs && Row.Kind == Best->Kind && Row.Winner != Best->Winner) { bTied = true; }
+    }
+    // Two different contenders reaching the same condition at the same instant: nobody wins.
+    if (Best && bTied) { Best->Winner.Invalidate(); }
+    return Best;
+}
+
 int64 FLDCaptureReducer::NextDueMs() const
 {
     if (!bActive) { return MAX_int64; }
     if (!bOpen) { return OpenAt; }
-    if (State == ELDCircleState::Solo) { return DueAt; }
-    return IsGuardRunning() ? GuardDue : MAX_int64;
+    int64 Due = State == ELDCircleState::Solo ? DueAt : MAX_int64;
+    if (IsGuardRunning()) { Due = FMath::Min(Due, GuardDue); }
+    if (FadeAt > 0) { Due = FMath::Min(Due, FadeAt); }
+    return Due;
 }
 
 int64 FLDCaptureReducer::CompletionInsideMs(int64 AtMs) const
@@ -234,6 +325,12 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         return false;
     }
     if (!AccountGuard(Now, Error)) { return false; }
+    // A hit-and-run sprayer may spray again only after leaving the zone (or the life).
+    for (auto It = MustLeave.CreateIterator(); It; ++It)
+    {
+        const FMember* Member = Reduced.Find(*It);
+        if (!Member || Member->Phase != ELDLifePhase::Alive || !Member->bInside) { It.RemoveCurrent(); }
+    }
     const FGuid NextOwner = Owner;
     FGuid Only;
     int32 Count = 0;
@@ -246,7 +343,8 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         bHolderEffective |= Pair.Key == Occupier;
     }
     const ELDCircleState Next = Count == 0 ? ELDCircleState::Empty
-        : Count == 1 ? (Only == NextOwner ? ELDCircleState::Guarded : ELDCircleState::Solo) : ELDCircleState::Contested;
+        : Count == 1 ? (Only == NextOwner ? ELDCircleState::Guarded : CanSpray(Only) ? ELDCircleState::Solo : ELDCircleState::Contested)
+        : ELDCircleState::Contested;
     // Exit, death, departure, protection or an interruption ends the holder's progress; nobody inherits it.
     const bool bInterrupt = Interrupted.IsValid() && Interrupted == Occupier;
     FGuid NextHolder = bHolderEffective && !bInterrupt ? Occupier : FGuid();
@@ -289,7 +387,7 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
     }
     int64 NextGuardDue = 0;
     int64 NextGuardKept = 0;
-    if (NextOwner.IsValid())
+    if (NextOwner.IsValid() && FadeAt == 0)
     {
         const bool bWasRunning = IsGuardRunning();
         const bool bRuns = GuardRunsIn(Next);
@@ -348,6 +446,7 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     }
     // The sole sprayer paints over any graffiti and his own guard starts from zero at the spray instant.
     const int64 At = DueAt;
+    const FGuid Sprayer = Occupier;
     if (!AccountGuard(At, Error)) { return false; }
     uint32& Sprays = CompletedSprays.FindOrAdd(Occupier);
     if (Sprays == MAX_uint32)
@@ -369,6 +468,16 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     GuardDue = NextGuardDue;
     GuardKept = 0;
     GuardAccountedThroughMs = At;
+    FadeAt = 0;
+    Cause = ELDGraffitiCause::Sprayed;
+    if (ModOf(Sprayer) == ELDDemoFinalModId::FinalHitAndRun)
+    {
+        // A hit-and-run graffiti has no guard; it fades and its sprayer must leave the zone before spraying again.
+        if (int64(Sprays) >= Rules.HitAndRunSprays) { Win(ELDCaptureWin::Sprays, Sprayer, At); }
+        GuardDue = 0;
+        if (!LDMatchLifecycle::AddDurationMs(At, Rules.HitAndRunFadeMs, FadeAt, Error)) { return false; }
+        MustLeave.Add(Sprayer);
+    }
     // He was the only effective contender inside; as the owner he no longer sprays.
     State = ELDCircleState::Guarded;
     Occupier.Invalidate();
@@ -378,11 +487,34 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     return true;
 }
 
+bool FLDCaptureReducer::Fade(FString& Error)
+{
+    if (Epoch == MAX_uint64)
+    {
+        Error = TEXT("Spray epoch exhausted.");
+        return false;
+    }
+    FLDCaptureEventTime At;
+    if (!FLDCaptureEventTime::FromMs(FadeAt, At, Error)) { return false; }
+    ++Epoch;
+    Owner.Invalidate();
+    FadeAt = 0;
+    GuardDue = 0;
+    GuardKept = 0;
+    return Evaluate(At, FGuid(), Error);
+}
+
 bool FLDCaptureReducer::Advance(int64 Limit, bool bInclusive, bool bCompleteInside, bool& bCompleted, FString& Error)
 {
-    while (bOpen && State == ELDCircleState::Solo && (DueAt < Limit || (bInclusive && DueAt == Limit)))
+    const auto Due = [Limit, bInclusive](int64 At) { return At < Limit || (bInclusive && At == Limit); };
+    for (;;)
     {
-        if (!CompleteSpray(Error)) { return false; }
+        const int64 SprayDue = bOpen && State == ELDCircleState::Solo ? DueAt : MAX_int64;
+        const int64 Faded = bOpen && FadeAt > 0 ? FadeAt : MAX_int64;
+        const int64 Next = FMath::Min(SprayDue, Faded);
+        // Nothing after a win of this boundary happens.
+        if (Next == MAX_int64 || !Due(Next) || (!Wins.IsEmpty() && Next > Wins[0].DueAtMs)) { break; }
+        if (!(SprayDue <= Faded ? CompleteSpray(Error) : Fade(Error))) { return false; }
     }
     if (bOpen && IsGuardRunning() && GuardDue < Limit)
     {
@@ -416,6 +548,7 @@ bool FLDCaptureReducer::CloseThroughCompletion(int64 AtMs, TOptional<FLDCaptureP
 bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCaptureProposal>& Proposal, FString& Error)
 {
     Proposal.Reset();
+    Wins.Reset();
     if (!bActive || AtMs <= ClosedThrough)
     {
         Error = TEXT("Spray boundary is inactive, repeated or regressing.");
@@ -448,10 +581,12 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
     for (int32 Index = 0; Index < Batch.Num(); ++Index)
     {
         const FLDCaptureEvent& Event = Batch[Index];
+        // A win decided this boundary at its instant: only facts of that same instant still count.
+        if (!Wins.IsEmpty() && Event.Time.BucketMs > Wins[0].DueAtMs) { break; }
         // A spray or guard due before this fact happened at its due instant; facts at that very instant (deaths,
         // departures, controls, exits) are reduced first, so nothing later can rewrite it.
         if (!Advance(Event.Time.BucketMs, false, bCompleteInside, bCompleted, Error)) { return false; }
-        if (bCompleted) { break; }
+        if (bCompleted || (!Wins.IsEmpty() && Event.Time.BucketMs > Wins[0].DueAtMs)) { break; }
         if (Event.Time.Seconds < LastReducedSeconds)
         {
             Error = TEXT("Spray fact regresses before an instant that was already reduced.");
@@ -466,11 +601,20 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
             const FMember* Target = Event.Kind == ELDCaptureEventKind::Interrupted ? Reduced.Find(Event.Body.Victim.EntityId) : nullptr;
             // A retired life's late interruption touches nobody's progress.
             if (Target && Target->Body == Event.Body && Target->Phase == ELDLifePhase::Alive) { Interrupted = Event.Body.Victim.EntityId; }
+            if (Event.Kind == ELDCaptureEventKind::Died && !ApplyKill(Event, Error)) { return false; }
         }
         if (!Evaluate(Event.Time, Interrupted, Error)) { return false; }
+        // Once every fact of this instant is in: a clear-out is judged, and a win whose contender died at this same
+        // instant (whatever the order of the deaths) is withdrawn.
+        if (bOpen && (Index + 1 == Batch.Num() || Batch[Index + 1].Time.Seconds != Event.Time.Seconds))
+        {
+            CheckClearOut(Event.Time.BucketMs);
+            Wins.RemoveAll([this](const FLDCaptureProposal& Row) { return GetReducedPhase(Row.Winner) != ELDLifePhase::Alive; });
+        }
     }
-    if (!bCompleted && !Advance(AtMs, true, bCompleteInside, bCompleted, Error)) { return false; }
-    const int64 ReducedThrough = bCompleted ? GuardDue : AtMs;
+    const int64 Through = Wins.IsEmpty() ? AtMs : FMath::Min(AtMs, Wins[0].DueAtMs);
+    if (!bCompleted && !Advance(Through, true, bCompleteInside, bCompleted, Error)) { return false; }
+    const int64 ReducedThrough = bCompleted ? GuardDue : Through;
     if (!AccountGuard(ReducedThrough, Error)) { return false; }
     for (const auto& Pair : Reduced)
     {
@@ -481,10 +625,99 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
         }
     }
     ClosedThrough = AtMs;
-    if (bCompleted || (IsGuardRunning() && GuardDue == AtMs))
+    if (bCompleted || (IsGuardRunning() && GuardDue == ReducedThrough))
     {
-        Proposal = FLDCaptureProposal{Epoch, Owner, GuardDue - Guard, GuardDue};
+        Wins.Add(FLDCaptureProposal{Epoch, Owner, ELDCaptureWin::Guard, GuardDue - Guard, GuardDue});
     }
+    for (FLDCaptureProposal& Row : Wins) { Row.Epoch = Epoch; }
+    Proposal = Settle(Wins);
+    Wins.Reset();
     Error.Reset();
     return true;
+}
+
+bool FLDCaptureReducer::ApplyKill(const FLDCaptureEvent& Event, FString& Error)
+{
+    const FGuid& Victim = Event.Body.Victim.EntityId;
+    const FGuid& Killer = Event.Killer;
+    const FMember* Holder = Killer.IsValid() ? Reduced.Find(Killer) : nullptr;
+    if (!bOpen || !Holder || Killer == Victim || Holder->Phase == ELDLifePhase::Left) { return true; }
+    const int64 Now = Event.Time.BucketMs;
+    switch (ModOf(Killer))
+    {
+    case ELDDemoFinalModId::FinalKillSeconds:
+    {
+        if (!AccountGuard(Now, Error)) { return false; }
+        int64& Banked = BankedGuard.FindOrAdd(Killer);
+        if (Banked > MAX_int64 - Rules.KillGuardMs)
+        {
+            Error = TEXT("Historical guard contribution overflowed.");
+            return false;
+        }
+        Banked += Rules.KillGuardMs;
+        if (Owner != Killer || FadeAt != 0) { return true; }
+        if (Epoch == MAX_uint64)
+        {
+            Error = TEXT("Spray epoch exhausted.");
+            return false;
+        }
+        ++Epoch;
+        if (IsGuardRunning())
+        {
+            // The kill moves the running guard's due instant earlier; reaching it now wins at this instant.
+            GuardDue = FMath::Max(Now, GuardDue - Rules.KillGuardMs);
+            if (GuardDue == Now) { Win(ELDCaptureWin::Guard, Killer, Now); }
+            return true;
+        }
+        GuardKept = FMath::Min(Guard, GuardKept + Rules.KillGuardMs);
+        if (GuardKept == Guard && Holder->Phase == ELDLifePhase::Alive) { Win(ELDCaptureWin::Guard, Killer, Now); }
+        return true;
+    }
+    case ELDDemoFinalModId::FinalUsurp:
+    {
+        if (Owner != Victim || Holder->Phase != ELDLifePhase::Alive) { return true; }
+        if (!AccountGuard(Now, Error)) { return false; }
+        if (Epoch == MAX_uint64)
+        {
+            Error = TEXT("Spray epoch exhausted.");
+            return false;
+        }
+        ++Epoch;
+        Owner = Killer;
+        Cause = ELDGraffitiCause::Usurped;
+        if (FadeAt != 0)
+        {
+            // A fading graffiti had no guard: the usurper's starts from zero.
+            FadeAt = 0;
+            GuardKept = 0;
+            if (GuardRunsIn(State) && !LDMatchLifecycle::AddDurationMs(Now, Guard, GuardDue, Error)) { return false; }
+        }
+#if WITH_DEV_AUTOMATION_TESTS
+        DevCounts.GraffitiSinceMs = Now;
+#endif
+        return true;
+    }
+    default:
+        return true;
+    }
+}
+
+void FLDCaptureReducer::CheckClearOut(int64 AtMs)
+{
+    for (const auto& Pair : Rules.Mods)
+    {
+        const FMember* Holder = Pair.Value == ELDDemoFinalModId::FinalClearOut ? Reduced.Find(Pair.Key) : nullptr;
+        if (!Holder || Holder->Phase != ELDLifePhase::Alive) { continue; }
+        int32 Others = 0;
+        bool bAllDown = true;
+        for (const auto& Other : Reduced)
+        {
+            if (Other.Key == Pair.Key || Other.Value.Phase == ELDLifePhase::Left) { continue; }
+            ++Others;
+            bAllDown &= Other.Value.Phase == ELDLifePhase::Dead;
+        }
+        if (Others > 0 && bAllDown && !Wins.ContainsByPredicate([&Pair](const FLDCaptureProposal& Row)
+            { return Row.Kind == ELDCaptureWin::ClearOut && Row.Winner == Pair.Key; }))
+        { Win(ELDCaptureWin::ClearOut, Pair.Key, AtMs); }
+    }
 }

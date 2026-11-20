@@ -1002,8 +1002,7 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     int32 Entries = 0;
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
-    TestEqual(TEXT("Every display row contributes a name and a description, and a final mod's its effect, cost and notes"), Entries,
-        Definitions.Display.Num() * 2 + Definitions.FinalMods.Num() * 3);
+    TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
     // One row per definition (character, actives, stats, components, final mods, monsters) and per native status: statuses 1..6, 9, 10
     // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
     // (silence, burn), attack_slowed (#198 retires cowering and contact_guard), the wet, electrified (shock) and braced states,
@@ -1024,15 +1023,8 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     }
     for (const FLDDemoFinalModDefinition& Mod : Definitions.FinalMods)
     {
-        const FLDDemoDisplayDefinition* Row = Definitions.Display.FindByPredicate([&Mod](const FLDDemoDisplayDefinition& D) { return D.Id == Mod.Id; });
-        if (!TestNotNull(TEXT("Final mod has a display row: ") + Mod.Id, Row)) { continue; }
-        for (const TPair<const FString*, const FString*>& Part : {TPair<const FString*, const FString*>(&Row->EffectKey, &Row->EffectText),
-            TPair<const FString*, const FString*>(&Row->CostKey, &Row->CostText), TPair<const FString*, const FString*>(&Row->NotesKey, &Row->NotesText)})
-        {
-            FString Text;
-            TestTrue(TEXT("Final mod effect, cost and notes resolve from their keys: ") + *Part.Key,
-                !Part.Value->IsEmpty() && Table->GetSourceString(FTextKey(*Part.Key), Text) && Text.Equals(*Part.Value, ESearchCase::CaseSensitive));
-        }
+        TestNotNull(TEXT("Final mod has a display row: ") + Mod.Id,
+            Definitions.Display.FindByPredicate([&Mod](const FLDDemoDisplayDefinition& D) { return D.Id == Mod.Id; }));
     }
     // The statuses system text names directly read the same in the table as in the glossary (#111).
     for (const TPair<const TCHAR*, const TCHAR*>& Expected : {
@@ -1053,18 +1045,6 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     FLDDemoContentDefinitions Duplicate = Definitions;
     Duplicate.Display[1].NameKey = Duplicate.Display[0].NameKey;
     TestFalse(TEXT("A duplicate key is refused instead of overwriting"), LDDemoContentText::Build(Duplicate, Refused, Error));
-    const auto IsFinalMod = [&Definitions](const FLDDemoDisplayDefinition& Row)
-    { return Definitions.FinalMods.ContainsByPredicate([&Row](const FLDDemoFinalModDefinition& Mod) { return Mod.Id == Row.Id; }); };
-    FLDDemoContentDefinitions NoCost = Definitions;
-    if (FLDDemoDisplayDefinition* Final = NoCost.Display.FindByPredicate(IsFinalMod)) { Final->CostText.Reset(); }
-    TestFalse(TEXT("A final mod row without its cost line is refused"), LDDemoContentText::Build(NoCost, Refused, Error));
-    FLDDemoContentDefinitions Stray = Definitions;
-    if (FLDDemoDisplayDefinition* Other = Stray.Display.FindByPredicate([&IsFinalMod](const FLDDemoDisplayDefinition& Row) { return !IsFinalMod(Row); }))
-    {
-        Other->EffectKey = Other->Id + TEXT(".effect");
-        Other->EffectText = TEXT("stray effect line");
-    }
-    TestFalse(TEXT("An effect line outside a final mod is refused"), LDDemoContentText::Build(Stray, Refused, Error));
     FLDDemoContentDefinitions Empty = Definitions;
     Empty.Display.Reset();
     TestFalse(TEXT("A catalog without display rows is refused"), LDDemoContentText::Build(Empty, Refused, Error));

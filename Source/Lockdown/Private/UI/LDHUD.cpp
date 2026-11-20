@@ -1453,7 +1453,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     if(Storage){Storage->ApplyTextScale(TextScale);}
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
-    const FString OwnerName=LDHUD::RosterName(Lobby,Public.GraffitiOwner);
+    // The final field names the graffiti owner with his public final mod.
+    const FString OwnerName=LDTerms::HolderWithMod(LDHUD::RosterName(Lobby,Public.GraffitiOwner),
+        Public.Showdown.bStarted?LDHUD::PublicFinalMod(Public,Public.GraffitiOwner,Content):FString());
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
         Public.Showdown.bStarted?Public.Showdown.SprayMs:Content?Content->Parameters.CaptureSprayMs:0,
         Public.Showdown.bStarted?Public.Showdown.GuardMs:Content?Content->Parameters.CaptureGuardMs:0);
@@ -2676,7 +2678,9 @@ void ULDHUD::RefreshScoreboard(const ALDGameState& Public,const FLDOwnerState& O
             continue;
         }
         const LDHUD::FScoreLine& Line=Lines[RowIdx];
-        HudSetText(Cells[0],Line.Name);HudSetText(Cells[1],FString::Printf(TEXT("%llu"),Line.Kills));
+        // Every final mod is public in the final field: it follows its holder's name.
+        HudSetText(Cells[0],Public.PublicMatch.Showdown.bStarted
+            ?LDTerms::HolderWithMod(Line.Name,LDHUD::PublicFinalMod(Public.PublicMatch,Line.ContenderId,DisplayDefinitions())):Line.Name);HudSetText(Cells[1],FString::Printf(TEXT("%llu"),Line.Kills));
         HudSetText(Cells[2],FString::Printf(TEXT("%llu"),Line.Deaths));HudSetText(Cells[3],FString::Printf(TEXT("%llu"),Line.Assists));
         for(int32 Col=0;Col<4;++Col){Cells[Col]->SetColorAndOpacity(Line.bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);}
     }

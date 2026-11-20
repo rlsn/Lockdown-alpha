@@ -157,7 +157,6 @@ struct FLDOpponentSelf
     // Phase 9: the untaken final mod three-choice (an invalid id when none is open) and whether the build is locked.
     FGuid FinalModOfferId;
     TArray<FString> FinalModOptions;
-    TArray<FLDFinalModSourceView> FinalModSources;
     // #153: this adapter's own server-random opening timing (drawn once per match, never a hidden fact): the authority
     // ms from which it makes its countdown build decisions.
     int64 OpeningPickAtMs = 0;
@@ -202,6 +201,23 @@ struct FLDOpponentPublicMatch
     FLDPKView PK;
     // P6 spec §10.3: the public mid-field objective (Serial 0: none yet this segment).
     FLDObjectiveView Objective;
+    // The final field's public final mods (App Spec §2.1), exactly as every participant's HUD reads them: each holder's card,
+    // the main zone's current radius, a fading graffiti, the standing fence, the private flagpoles and the arena's safe ring.
+    TArray<FLDFinalModHolderView> FinalMods;
+    float PoleRadiusCm = 0;
+    int64 FadeAtMs = 0;
+    int64 CageUntilMs = 0;
+    FVector CageCentreCm = FVector::ZeroVector;
+    float CageRadiusCm = 0;
+    TArray<FLDPrivatePoleView> PrivatePoles;
+    FVector ArenaCentreCm = FVector::ZeroVector;
+    float SafeRadiusCm = 0;
+    FName FinalModOf(const FGuid& Contender) const
+    {
+        const FLDFinalModHolderView* Row = FinalMods.FindByPredicate([&Contender](const FLDFinalModHolderView& Each)
+        { return Each.Contender == Contender; });
+        return Row ? Row->Mod : NAME_None;
+    }
     // The public room roster's contender ids (FLDLobbyView members), as every participant's HUD reads them; the adapter reads
     // it in a rest, where visible contender units outside it are shared training dummies (LDHUD::ObservedContenderName).
     TArray<FGuid> Roster;
@@ -370,8 +386,6 @@ struct FLDOpponentBuildIntent
     ELDCardTargetKind CardTarget = ELDCardTargetKind::None;
     FString TargetId;
     ELDDemoElement Element = ELDDemoElement::None;
-    // FinalMod: the source kind (TargetId names the active).
-    ELDFinalModTargetKind FinalTargetKind = ELDFinalModTargetKind::None;
     FLDOpponentRetryKey Key;
 };
 

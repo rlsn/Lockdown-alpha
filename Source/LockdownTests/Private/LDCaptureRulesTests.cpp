@@ -863,7 +863,21 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Final.Showdown.RespawnsCloseAtMs=260000;Final.Showdown.ClosureAtMs=230000;
     Final.Showdown.SprayMs=3500;Final.Showdown.GuardMs=20000;
     Final.Showdown.CentreCm=FVector(13000,0,0);Final.Showdown.InitialRadiusCm=1800;Final.Showdown.FinalRadiusCm=600;
+    Final.PoleCentreCm=Final.Showdown.CentreCm;Final.PoleRadiusCm=300.f;
     TestTrue(TEXT("A coherent public final arena and its clocks are accepted"),LDCapture::ValidatePublicMatchView(Final,Error));
+    {
+        FLDPublicMatchView Bad=Final;
+        Bad.PoleRadiusCm=0.f;
+        TestFalse(TEXT("The final field publishes its flagpole zone"),LDCapture::ValidatePublicMatchView(Bad,Error));
+        Bad=Final;
+        Bad.CageUntilMs=120000;
+        TestFalse(TEXT("A cage names its circle"),LDCapture::ValidatePublicMatchView(Bad,Error));
+        Bad.CageCentreCm=Final.PoleCentreCm;Bad.CageRadiusCm=300.f;
+        TestTrue(TEXT("A standing cage is public"),LDCapture::ValidatePublicMatchView(Bad,Error));
+        FLDPublicMatchView Field=Open;
+        Field.PoleRadiusCm=300.f;
+        TestFalse(TEXT("Only the final field publishes the flagpole zone"),LDCapture::ValidatePublicMatchView(Field,Error));
+    }
     Final.Showdown.RespawnsCloseAtMs=Final.Showdown.EndsAtMs;
     TestFalse(TEXT("Respawn admission must close before the terminal clock"),LDCapture::ValidatePublicMatchView(Final,Error));
     FLDPublicMatchView Paused = Open;
@@ -893,6 +907,7 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Owned.PublicRevision = Open.PublicRevision + 2;
     Owned.GraffitiOwner = FGuid::NewGuid();
     Owned.GraffitiPresentation = 2;
+    Owned.GraffitiCause = ELDGraffitiCause::Sprayed;
     Owned.GuardKeptMs = 4000;
     FLDPublicMatchView OwnedLatest = Latest;
     TestEqual(TEXT("A sole sprayer under a graffiti shows the paused guard"),

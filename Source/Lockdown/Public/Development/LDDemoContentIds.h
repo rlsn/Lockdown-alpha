@@ -21,8 +21,8 @@ enum class ELDDemoStatId : uint8
 };
 enum class ELDDemoFinalModId : uint8
 {
-    FinalBowling=2, FinalForcedExit=5, FinalTraffic=11, FinalSplit=15,
-    FinalLandlord=21, FinalBreach=22, FinalComeback=23, FinalOpenMic=24
+    FinalHitAndRun=25, FinalClearOut=26, FinalKillSeconds=27, FinalUsurp=28,
+    FinalCarryFlag=29, FinalCage=30, FinalPrivatePole=31, FinalDoubleYellow=32
 };
 // Issue #287 spec §7 build cards: A01-A19 take 200-218, K01-K25 219-243, D01-D12 244-255 and Y01-Y29 256-284 (P2, P4 and the
 // #292 P5 cards); the element medals 285-289. The #198 components 0-199 and the single-element cards 214-218, 237-242 and 255

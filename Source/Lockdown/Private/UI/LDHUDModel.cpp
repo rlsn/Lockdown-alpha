@@ -167,32 +167,14 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     const FStringTableConstPtr Table=FStringTableRegistry::Get().FindStringTable(FName(*Display->Namespace));
     FString Text;
     if(Key.IsEmpty()||!Table.IsValid()||!Table->GetSourceString(FTextKey(Key),Text)||Text.IsEmpty()){HudReportMissingText(ContentId);return false;}
-    // A description that lists several variants (one clause per host kind) reads as one clause per line. A final mod keeps
-    // its text whole: FinalModParts lays its effect, cost and notes out as three labelled rows.
+    // A description that lists several variants (one clause per host kind) reads as one clause per line. A final mod's one
+    // rule sentence stays whole.
     if(bDescription&&!ContentId.StartsWith(TEXT("final_")))
     {
         int32 Clauses=0;for(const TCHAR C:Text){Clauses+=C==TEXT('；');}
         if(Clauses>=2){Text.ReplaceInline(TEXT("；"),TEXT("；\n"));}
     }
     Out=Text;
-    return true;
-}
-bool LDHUD::FinalModParts(const FLDDemoContentDefinitions* Content,FName FinalMod,FString& OutEffect,FString& OutCost,FString& OutNotes)
-{
-    OutEffect.Reset();OutCost.Reset();OutNotes.Reset();
-    if(!Content||FinalMod.IsNone()){return false;}
-    const FString Id=FinalMod.ToString();
-    const FLDDemoDisplayDefinition* Display=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
-    if(!Display||Display->Namespace.IsEmpty()||Display->EffectKey.IsEmpty()){return false;}
-    const FStringTableConstPtr Table=FStringTableRegistry::Get().FindStringTable(FName(*Display->Namespace));
-    if(!Table.IsValid()){HudReportMissingText(Id);return false;}
-    FString* Outs[3]={&OutEffect,&OutCost,&OutNotes};
-    const FString* Keys[3]={&Display->EffectKey,&Display->CostKey,&Display->NotesKey};
-    for(int32 Part=0;Part<3;++Part)
-    {
-        if(Keys[Part]->IsEmpty()||!Table->GetSourceString(FTextKey(**Keys[Part]),*Outs[Part])||Outs[Part]->IsEmpty())
-        {OutEffect.Reset();OutCost.Reset();OutNotes.Reset();HudReportMissingText(Id);return false;}
-    }
     return true;
 }
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
@@ -739,7 +721,9 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         if(Public.GraffitiOwner.IsValid())
         {
             View.Owner=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
-            if(Public.CircleState!=ELDCircleState::Guarded)
+            // final_hit_and_run: a guardless graffiti only counts down to its fade.
+            if(Public.FadeAtMs>0){GuardState=!bClock?FString(TEXT("褪色同步中")):FString(LDTerms::GraffitiFades)+TEXT(" ")+TenthsUp(Public.FadeAtMs-NowMs);}
+            else if(Public.CircleState!=ELDCircleState::Guarded)
             {
                 GuardState=Public.CircleState==ELDCircleState::Empty?LDTerms::GuardAway:LDTerms::GuardPaused;
                 if(GuardMs>0)
@@ -905,11 +889,26 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 if(Named.IsValid()&&Named!=Leader&&Named!=RunnerUp)
                 {Add(LeaderLine(Named,In.Self,Name(Named)),In.Self.IsValid()&&Named==In.Self);}
             }
-            if(Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner!=GraffitiOwner)
+            const bool bOwnGraffiti=In.Self.IsValid()&&Public.GraffitiOwner==In.Self;
+            const FString OwnerName=bOwnGraffiti?FString(TEXT("你")):Name(Public.GraffitiOwner);
+            const FString Owner=OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName;
+            const bool bNewOwner=Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner!=GraffitiOwner;
+            // final_usurp: the authority says how the new owner got it.
+            const FString OwnerMod=PublicFinalMod(Public,Public.GraffitiOwner,In.Content);
+            const bool bUsurp=bNewOwner&&Public.GraffitiCause==ELDGraffitiCause::Usurped;
+            if(bUsurp){Add(LDTerms::Usurped(Owner),bOwnGraffiti);}
+            else if(bNewOwner){Add(LDTerms::GraffitiSprayed(LDTerms::HolderWithMod(Owner,OwnerMod)),bOwnGraffiti);}
+            if(FadeAtMs>0&&Public.FadeAtMs==0&&!Public.GraffitiOwner.IsValid()){Add(LDTerms::GraffitiFaded,false);}
+            if(Public.CageUntilMs!=0&&Public.CageUntilMs!=CageUntilMs){Add(LDTerms::CageUp(Owner),bOwnGraffiti);}
+            else if(Public.CageUntilMs==0&&CageUntilMs!=0){Add(LDTerms::CageDown,false);}
+            const bool bAwayNow=Public.Showdown.bStarted&&!Public.PoleCentreCm.Equals(Public.Showdown.CentreCm,1.);
+            if(bAwayNow&&!bPoleAway&&Public.GraffitiOwner.IsValid()){Add(LDTerms::PoleCarried(Owner),bOwnGraffiti);}
+            for(const FLDPrivatePoleView& Pole:Public.PrivatePoles)
             {
-                const bool bOwn=In.Self.IsValid()&&Public.GraffitiOwner==In.Self;
-                const FString Owner=bOwn?FString(TEXT("你")):Name(Public.GraffitiOwner);
-                Add(LDTerms::GraffitiSprayed(Owner.IsEmpty()?FString(TEXT("未列名参赛者")):Owner),bOwn);
+                if(!Pole.bGraffiti||PrivateSprayed.Contains(Pole.Holder)){continue;}
+                const bool bOwn=In.Self.IsValid()&&Pole.Holder==In.Self;
+                const FString Holder=bOwn?FString(TEXT("你")):Name(Pole.Holder);
+                Add(LDTerms::PrivatePoleSprayed(Holder.IsEmpty()?FString(TEXT("未列名参赛者")):Holder),bOwn);
             }
         }
         bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
@@ -920,6 +919,10 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
             else if(Marker.Kind==ELDFieldMarkerKind::Elite){MarkerPhases[1]=Marker.Phase;}
         }
         Leader=Public.Leader.Leader;RunnerUp=Public.Leader.RunnerUp;GraffitiOwner=Public.GraffitiOwner;GuardKeptMs=Public.GuardKeptMs;GuardDueAtMs=Public.GuardDueAtMs;
+        FadeAtMs=Public.FadeAtMs;CageUntilMs=Public.CageUntilMs;
+        bPoleAway=Public.Showdown.bStarted&&!Public.PoleCentreCm.Equals(Public.Showdown.CentreCm,1.);
+        PrivateSprayed.Reset();
+        for(const FLDPrivatePoleView& Pole:Public.PrivatePoles){if(Pole.bGraffiti){PrivateSprayed.Add(Pole.Holder);}}
     }
     for(FEventLine& Line:Shown)
     {
@@ -1013,6 +1016,10 @@ FString LDHUD::ResultHeadline(const FLDResultView& Result,const FString& WinnerN
     case ELDMatchEndReason::ObjectiveTimeout:
         return Result.Winner.IsValid()?FString(TEXT("终局时间到 · 目标贡献获胜 · "))+WinnerName:TEXT("终局时间到 · 无合格的唯一胜者");
     case ELDMatchEndReason::NoChampion: return TEXT("终局结束 · 没有存活的合格冠军");
+    case ELDMatchEndReason::SprayCount:
+        return LDTerms::SprayCountWin(WinnerName.IsEmpty()?FString(TEXT("未列名参赛者")):WinnerName);
+    case ELDMatchEndReason::ClearOut:
+        return LDTerms::ClearOutWin(WinnerName.IsEmpty()?FString(TEXT("未列名参赛者")):WinnerName);
     default: return TEXT("对局结束 · 原因未知");
     }
 }
@@ -1028,10 +1035,16 @@ TArray<LDHUD::FScoreLine> LDHUD::Scoreboard(const FLDKillFeedView& Feed,uint32 G
         if(Member&&Member->Kind==ELDContenderKind::OpponentAI){Line.Name+=TEXT("（AI）");}
         Line.bSelf=Self.IsValid()&&Row.ContenderId==Self;
         if(Line.bSelf){Line.Name+=TEXT("（你）");}
-        Line.Kills=Row.Kills;Line.Deaths=Row.Deaths;Line.Assists=Row.Assists;
+        Line.Kills=Row.Kills;Line.Deaths=Row.Deaths;Line.Assists=Row.Assists;Line.ContenderId=Row.ContenderId;
     }
     Lines.StableSort([](const FScoreLine& A,const FScoreLine& B){return A.Kills!=B.Kills?A.Kills>B.Kills:A.Deaths<B.Deaths;});
     return Lines;
+}
+FString LDHUD::PublicFinalMod(const FLDPublicMatchView& Public,const FGuid& Contender,const FLDDemoContentDefinitions* Content)
+{
+    const FLDFinalModHolderView* Row=Contender.IsValid()?Public.FinalMods.FindByPredicate([&Contender](const FLDFinalModHolderView& Each)
+        {return Each.Contender==Contender;}):nullptr;
+    return Row?ContentName(Content,Row->Mod.ToString()):FString();
 }
 LDHUD::FResultRowView LDHUD::ResultRow(const FLDResultRow& Row,const FGuid& Winner,const FGuid& Self)
 {
@@ -1087,7 +1100,7 @@ FString HudDamageSourceIcon(const FLDDemoContentDefinitions* Content,const FLDCo
     if(Source.DefinitionId.IsNone()){return FString();}
     switch(Source.Kind)
     {
-    case ELDCombatSourceKind::Basic: case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Card: case ELDCombatSourceKind::FinalMod:
+    case ELDCombatSourceKind::Basic: case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Card:
         return LDHUD::ContentIconId(Content,Source.DefinitionId.ToString());
     default: return FString();
     }
@@ -1141,7 +1154,7 @@ FString LDHUD::DamageSourceName(const FLDDemoContentDefinitions* Content,const F
     {
     case ELDCombatSourceKind::Basic: return Source.DefinitionId.IsNone()?FString(LDTerms::BasicAttack):ContentName(Content,Source.DefinitionId.ToString())+TEXT("技能");
     case ELDCombatSourceKind::Innate: return LDTerms::Dash;
-    case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Card: case ELDCombatSourceKind::FinalMod:
+    case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Card:
         return Source.DefinitionId.IsNone()?FString(TEXT("其他来源")):ContentName(Content,Source.DefinitionId.ToString());
     default: return TEXT("其他来源");
     }
@@ -1753,48 +1766,30 @@ LDHUD::FFinalModCardView LDHUD::FinalModCard(FName DefinitionId,const FLDDemoCon
     const auto* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;}):nullptr;
     if(!Card||!Display){View.Detail.Body=TEXT("终局改装数据未就绪。");return View;}
     View.IconId=Display->IconId;View.Detail.Summary=TEXT("终局改装 · 一局一次");
-    const auto Decimal=[](int64 Value,int64 Divisor){return HudDecimal(double(Value)/double(Divisor));};
-    const auto Sec=[&Decimal](int64 Value){return Decimal(Value,1000)+TEXT("s");};
-    const auto Percent=[&Decimal](int64 Value){return Decimal(Value,100)+TEXT("%");};
+    const auto Sec=[](int64 Value){return HudDecimal(double(Value)/1000.)+TEXT(" 秒");};
     const auto Cm=[](const FLDDemoRational& Value){return HudDecimal(double(Value.Numerator)/double(Value.Denominator))+TEXT(" 厘米");};
-    int64 Base=0;
-    if(!LDSkillGrowth::GrowP2(Card->BaseP2,LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,Stats.Level),Base))
-    {
-        View.Detail.Body=TEXT("终局改装成长数值无效。");
-        HudReportMissingText(Id+TEXT(".growth"));return View;
-    }
-    FString Damage=Decimal(Base,100);
-    if(Card->ADRatioBp>0){Damage+=TEXT(" + ")+Decimal(Card->ADRatioBp,10000)+TEXT(" AD");}
-    if(Card->APRatioBp>0){Damage+=TEXT(" + ")+Decimal(Card->APRatioBp,10000)+TEXT(" AP");}
+    (void)Stats;
+    // The hover's numbers line: every approved term of the card (content §4.7); the card face keeps only the rule sentence.
     FString Numbers;
     switch(Card->GetNativeId())
     {
-    case ELDDemoFinalModId::FinalLandlord:
-        Numbers=FString::Printf(TEXT("每 %s 首次普攻触发；延迟 %s，半径 %s。\n魔法伤害 %s；持旗普攻主击伤害为 %s。"),
-            *Sec(Card->IntervalMs),*Sec(Card->DelayMs),*Cm(Card->RadiusCm),*Damage,*Percent(Card->DamageScaleBp));break;
-    case ELDDemoFinalModId::FinalBreach:
-        Numbers=FString::Printf(TEXT("首次圈外准备 %s，再次 %s；入圈窗口 %s，外推 %s。\n代价：D 基础冷却增加 %s。"),
-            *Sec(Card->OutsideMs),*Sec(Card->RearmOutsideMs),*Sec(Card->WindowMs),*Cm(Card->DistanceCm),*Sec(Card->CooldownCostMs));break;
-    case ELDDemoFinalModId::FinalComeback:
-        Numbers=FString::Printf(TEXT("入圈窗口 %s；半径 %s，持续 %s，每 %s 一跳。\n每跳魔法伤害 %s，减速 %s 持续 %s；间隔 %s。\n代价：触发那次直接伤害为 %s。"),
-            *Sec(Card->WindowMs),*Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Sec(Card->PulseIntervalMs),
-            *Damage,*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Sec(Card->IntervalMs),*Percent(Card->DamageScaleBp));break;
-    case ELDDemoFinalModId::FinalOpenMic:
-        Numbers=FString::Printf(TEXT("%s 内两次独立命中；半径 %s，持续 %s，每 %s 一跳。\n每跳魔法伤害 %s，减速 %s 持续 %s。\n代价：声浪期间本人移速降低 %s。"),
-            *Sec(Card->WindowMs),*Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Sec(Card->PulseIntervalMs),
-            *Damage,*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Percent(Card->MoveSpeedCostBp));break;
-    case ELDDemoFinalModId::FinalBowling:
-        Numbers=FString::Printf(TEXT("首次撞人：魔法伤害 %s，沿碰撞方向再推 %s。\n代价：绑定来源原推移距离为 %s。"),
-            *Damage,*Cm(Card->DistanceCm),*Percent(Card->DistanceScaleBp));break;
-    case ELDDemoFinalModId::FinalForcedExit:
-        Numbers=FString::Printf(TEXT("实际硬控结束 %s 后，仍在圈内则外推 %s；每目标间隔 %s。\n代价：绑定来源原硬控时长为 %s，再参与控制递减。"),
-            *Sec(Card->DelayMs),*Cm(Card->DistanceCm),*Sec(Card->IntervalMs),*Percent(Card->ControlScaleBp));break;
-    case ELDDemoFinalModId::FinalTraffic:
-        Numbers=FString::Printf(TEXT("真实冲刺路径宽 %s，持续 %s；减速 %s 持续 %s。\n代价：绑定来源基础冷却增加 %s。"),
-            *Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Sec(Card->CooldownCostMs));break;
-    case ELDDemoFinalModId::FinalSplit:
-        Numbers=FString::Printf(TEXT("中心两侧各 %s；子区半径为 %s，单跳固定基础项为 %s。\n代价：持续时间减少 %s；AD/AP 系数不变。"),
-            *Cm(Card->OffsetCm),*Percent(Card->RadiusScaleBp),*Percent(Card->DamageScaleBp),*Sec(Card->DurationCostMs));break;
+    case ELDDemoFinalModId::FinalHitAndRun:
+        Numbers=FString::Printf(TEXT("累计喷上 %d 次即获胜；你的涂鸦 %s 后褪色。"),Card->Sprays,*Sec(Card->FadeMs));break;
+    case ELDDemoFinalModId::FinalKillSeconds:
+        Numbers=FString::Printf(TEXT("每次击杀 +%s 守护。"),*Sec(Card->GuardMs));break;
+    case ELDDemoFinalModId::FinalCage:
+        Numbers=FString::Printf(TEXT("围栏持续 %s。"),*Sec(Card->DurationMs));break;
+    case ELDDemoFinalModId::FinalPrivatePole:
+        Numbers=FString::Printf(TEXT("喷漆 %s，守护 %s，喷漆区半径 %s；不保证在封街终圈内。"),
+            *Sec(Card->SprayMs),*Sec(Card->GuardMs),*Cm(Card->RadiusCm));break;
+    case ELDDemoFinalModId::FinalDoubleYellow:
+        Numbers=FString::Printf(TEXT("喷漆区半径缩为 %s。"),*Cm(Card->RadiusCm));break;
+    case ELDDemoFinalModId::FinalClearOut:
+        Numbers=TEXT("复活保护中的人算活人。");break;
+    case ELDDemoFinalModId::FinalUsurp:
+        Numbers=TEXT("只对主旗杆生效；你不在喷漆区时守护照常暂停。");break;
+    case ELDDemoFinalModId::FinalCarryFlag:
+        Numbers=TEXT("封街圈圆心不跟随；围栏期间旗杆不动。");break;
     default:
         View.Detail.Body=TEXT("终局改装没有可用的表现定义。");HudReportMissingText(Id+TEXT(".final"));return View;
     }
@@ -2157,26 +2152,12 @@ LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
     return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
 }
-bool LDHUD::FinalSourceColumn(const FLDProgressionView& Progression,ELDFinalModTargetKind Kind,FName TargetId,EStorageColumn& OutColumn)
-{
-    if(!Progression.bValid){return false;}
-    switch(Kind)
-    {
-    case ELDFinalModTargetKind::None: OutColumn=EStorageColumn::Body;return true;
-    case ELDFinalModTargetKind::Dash: OutColumn=EStorageColumn::Dash;return true;
-    case ELDFinalModTargetKind::Active:
-        for(const FLDActiveSlotView& Active:Progression.Actives)
-        {if(Active.DefinitionId==TargetId&&Active.Slot<3){OutColumn=SlotColumn(Active.Slot);return true;}}
-        return false;
-    default: return false;
-    }
-}
 bool LDHUD::FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn)
 {
-    const FLDFinalModSelection& Final=Progression.FinalMod;
-    if(!Progression.bValid||Final.IsEmpty()||!Progression.FinalModSources.ContainsByPredicate([&Final](const FLDFinalModSourceView& Source)
-        {return Source.Option==Final.DefinitionId&&Source.TargetKind==Final.TargetKind&&Source.TargetId==Final.TargetId;})){return false;}
-    return FinalSourceColumn(Progression,Final.TargetKind,Final.TargetId,OutColumn);
+    // A final mod binds no source: a taken one sits on the body column.
+    if(!Progression.bValid||Progression.FinalMod.IsEmpty()){return false;}
+    OutColumn=EStorageColumn::Body;
+    return true;
 }
 LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
     const TSet<FName>* Seen)
@@ -2539,7 +2520,6 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
     case ELDGrowthReason::FinalLocked: return TEXT("终局改装已选定");
     case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
-    case ELDGrowthReason::FinalModUnavailable: return TEXT("这项终局改装当前没有合法来源");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
     }
 }

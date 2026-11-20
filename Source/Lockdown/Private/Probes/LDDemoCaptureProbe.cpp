@@ -50,8 +50,6 @@ public:
     bool bPassed = true, bWritten = false, bStartSent = false, bReturnSent = false;
     bool bOpeningSeen = false, bFinalRestSeen = false, bFinalSeen = false, bMarkerSeen = false;
     bool bFinalModOffered = false, bFinalModSent = false;
-    bool bFinalDashSent = false, bExpectsRoad = false, bRoadSeen = false;
-    int32 FinalSourceIndex = INDEX_NONE;
     bool bDisconnected = false, bRejoinSent = false, bRejoined = false, bParkedSeen = false;
     FGuid ReconnectContender;
     FLDCombatBodyRef ReconnectBody;
@@ -59,7 +57,7 @@ public:
     uint64 ReconnectBuildRevision = 0;
     uint64 ReconnectBuildNext = 0;
     double ReconnectHp = 0;
-    bool bRenderHost = false, bSourcePickerSeen = false;
+    bool bRenderHost = false;
     FString PreparingShot, PendingShot, ShotError;
     double ShotReadyAt = 0;
     TSet<FString> SavedShots;
@@ -381,41 +379,7 @@ public:
             if (!bPassed) { return Finish(); }
             if (!bFinalModSent && bInput && Panel && !Growth->bHasActiveOffer)
             {
-                if (FinalSourceIndex != INDEX_NONE)
-                {
-                    bSourcePickerSeen = true;
-                    if (HoldForShot(TEXT("HostFinalSource.png"), Panel)) { return true; }
-                    if (!bPassed) { return Finish(); }
-                    bFinalModSent = Panel->ChooseFinalModSource(FinalSourceIndex);
-                }
-                else
-                {
-                    const int32 TrafficIndex = Growth->FinalModOptions.IndexOfByKey(FName(TEXT("final_traffic")));
-                    for (int32 Order = 0; Order < Growth->FinalModOptions.Num(); ++Order)
-                    {
-                        int32 Index = Order;
-                        if (TrafficIndex != INDEX_NONE)
-                        {
-                            if (Order == 0) { Index = TrafficIndex; }
-                            else if (Order <= TrafficIndex) { Index = Order - 1; }
-                        }
-                        const FName Option = Growth->FinalModOptions[Index];
-                        const auto Sources=Growth->FinalModSources.FilterByPredicate(
-                            [Option](const FLDFinalModSourceView& Source){return Source.Option==Option;});
-                        if (Sources.Num()>0)
-                        {
-                            const bool bChosen = Panel->ChooseFinalMod(Index);
-                            if (bChosen && Sources.Num()>1)
-                            {
-                                const int32 DashIndex = Sources.IndexOfByPredicate(
-                                    [](const FLDFinalModSourceView& Source) { return Source.TargetKind == ELDFinalModTargetKind::Dash; });
-                                FinalSourceIndex = DashIndex == INDEX_NONE ? 0 : DashIndex;
-                            }
-                            else { bFinalModSent = bChosen; }
-                            break;
-                        }
-                    }
-                }
+                bFinalModSent = Panel->ChooseFinalMod(0);
                 NextInputAt = Local + 1.;
             }
         }
@@ -437,7 +401,7 @@ public:
                 && !Growth->FinalMod.IsEmpty() && Growth->FinalMod.DefinitionId==Growth->FinalModChosen
                 && !Growth->Actives.ContainsByPredicate(
                     [Growth](const FLDActiveSlotView& Active) { return Active.DefinitionId==Growth->FinalModChosen; }),
-                TEXT("C04F"), TEXT("The owner chose an independent final rule with a source and locked the ordinary build"));
+                TEXT("C04F"), TEXT("The owner chose an independent final rule and locked the ordinary build"));
             TSharedPtr<const FLDDemoContentSnapshot> Content;
             FLDShowdownParameters Settings;
             const bool bConfigured=LDDemoEntry::LoadRuntimeContent(Content,Error)
@@ -454,10 +418,10 @@ public:
             FinalXP = Growth->CumulativeXP;
             FinalBuildRevision = Growth->BuildRevision;
             FinalEndsAtMs = View.Showdown.EndsAtMs;
-            bExpectsRoad = Growth->FinalMod.DefinitionId == FName(TEXT("final_traffic"))
-                && Growth->FinalMod.TargetKind == ELDFinalModTargetKind::Dash;
             Summary->SetStringField(TEXT("final_mod"), Growth->FinalMod.DefinitionId.ToString());
-            Summary->SetBoolField(TEXT("final_traffic_dash"), bExpectsRoad);
+            Check(View.FinalMods.ContainsByPredicate([Growth,PC](const FLDFinalModHolderView& Row)
+                { return Row.Contender == PC->OwnerState.ContenderId && Row.Mod == Growth->FinalMod.DefinitionId; }),
+                TEXT("C04P"), TEXT("Every connection sees the owner's final mod in the public final-field view"));
             Check(PC->OwnerState.BodyRef.IsValid(), TEXT("C07"), TEXT("The owner stands as a live authoritative body inside the separate final arena"));
             if (Mode)
             {
@@ -491,14 +455,9 @@ public:
         {
             const auto* Relay = PC->LocalView();
             const FLDObservedFrameRead Read = Relay ? Relay->ReadObservedFrame() : FLDObservedFrameRead();
-            if (Read.Frame && Read.Status == ELDObservedViewStatus::Current)
-            {
-                bRoadSeen |= Read.Frame->Projectiles.ContainsByPredicate([](const FLDObservedProjectileView& Effect)
-                { return Effect.Look == ELDObservedProjectileLook::Road && Effect.bOwn && Effect.LengthCm > 0; });
-            }
             const auto* Marker = Public->GetCaptureMarker();
             bMarkerSeen |= Marker && Marker->GetGeneration() == Generation
-                && Marker->GetCenter().Equals(View.Showdown.CentreCm, 1.) && Marker->IsPresentationOnly();
+                && Marker->GetCenter().Equals(View.PoleCentreCm, 1.) && Marker->IsPresentationOnly();
             const auto* CaptureBody = Cast<ALDCharacter>(PC->GetPawn());
             if (bMarkerSeen && CaptureBody
                 && FVector::DistSquared2D(CaptureBody->GetNavAgentLocation(), View.Showdown.CentreCm)
@@ -514,25 +473,6 @@ public:
                         && FVector::DistSquared2D(Unit.FeetCm, View.Showdown.CentreCm) <= FMath::Square(CoreRadiusCm); }) : nullptr;
                 const auto* Registry = World->GetSubsystem<ULDMapRegistry>();
                 const auto* Anchor = Registry ? Registry->Resolve(TEXT("final_capture"), Registry->Generation) : nullptr;
-                const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
-                int64 NowMs = 0;
-                const auto* Dash = PC->CombatView.Generation == Generation && PC->CombatView.Life == PC->OwnerState.Life
-                    ? PC->CombatView.Entries.FindByPredicate([](const FLDCombatEntryView& Entry)
-                        { return Entry.Entry == ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); }) : nullptr;
-                if (!bFinalDashSent && Anchor && Body && Dash && PC->ReadDemoAuthorityTimeMs(NowMs)
-                    && Dash->ReadyAtMs <= NowMs && PC->OwnerState.LifePhase == ELDLifePhase::Alive)
-                {
-                    FLDCombatTarget Aim;
-                    Aim.Kind = ELDCombatTargetKind::Direction;
-                    Aim.Direction = (Anchor->Position - Body->GetActorLocation()).GetSafeNormal2D();
-                    if (!Aim.Direction.IsNearlyZero())
-                    {
-                        PC->ActivateCombatEntry(ELDCombatEntry::Dash, &Aim, &Anchor->Position);
-                        bFinalDashSent = true;
-                        NextInputAt = Local + 2.;
-                        return true;
-                    }
-                }
                 if (Target) { PC->Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch); }
                 else if (Anchor) { PC->Navigation->NavigateGround(Anchor->Position, Anchor->Surface); }
                 NextInputAt = Local + 2.;
@@ -544,26 +484,27 @@ public:
         Check(bFinalSeen && Growth && Growth->CumulativeXP == FinalXP && Growth->BuildRevision == FinalBuildRevision,
             TEXT("C06"), TEXT("Final combat grants no ordinary XP; the build changes only by its owner's commands (none sent here)"));
         Check(bMarkerSeen, TEXT("C08"), TEXT("The client draws the registered final flag boundary as presentation only"));
-        Check(!bExpectsRoad || (bFinalDashSent && bRoadSeen), TEXT("C16"),
-            TEXT("A selected D-bound traffic FIN creates a real travelled road on the owning connection's authorized frame"));
-        Summary->SetBoolField(TEXT("final_road_seen"), bRoadSeen);
         Check(Result.Reason == ELDMatchEndReason::GuardSucceeded || Result.Reason == ELDMatchEndReason::ObjectiveTimeout
-            || Result.Reason == ELDMatchEndReason::NoChampion,
+            || Result.Reason == ELDMatchEndReason::NoChampion || Result.Reason == ELDMatchEndReason::SprayCount
+            || Result.Reason == ELDMatchEndReason::ClearOut,
             TEXT("C09"), TEXT("The six-player FFA terminates through its objective or bounded no-champion rule, never Host end"));
         Check(Result.Rows.Num() == 6 && Result.EndedAtMs <= FinalEndsAtMs
             && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row) { return Row.FinalLevel < 1 || Row.BankedGuardMs < 0; }),
             TEXT("C10"), TEXT("The server freezes six result rows and objective contributions no later than its deadline"));
-        Check(!Result.Winner.IsValid() || Result.Rows.ContainsByPredicate([&Result](const FLDResultRow& Row)
-            { return Row.ContenderId == Result.Winner && !Row.bLeft && (Row.BankedGuardMs > 0 || Row.CompletedSprays > 0); }),
+        // A private flagpole's winner has no main-flagpole contribution: his own pole must show his graffiti.
+        const bool bPrivateWinner = Result.Reason == ELDMatchEndReason::GuardSucceeded && View.PrivatePoles.ContainsByPredicate(
+            [&Result](const FLDPrivatePoleView& Pole) { return Pole.Holder == Result.Winner && Pole.bGraffiti; });
+        Check(!Result.Winner.IsValid() || Result.Rows.ContainsByPredicate([&Result, bPrivateWinner](const FLDResultRow& Row)
+            { return Row.ContenderId == Result.Winner && !Row.bLeft
+                && (Row.BankedGuardMs > 0 || Row.CompletedSprays > 0 || bPrivateWinner || Result.Reason == ELDMatchEndReason::ClearOut); }),
             TEXT("C11"), TEXT("A winner has legal objective contribution; kills alone cannot crown a survivor"));
         if (Mode)
         { Check(!Mode->IsGameplayWriteOpen(Mode->GetMatchContext()), TEXT("A02"), TEXT("The unique published result closes the authority write gate")); }
         if (bRenderHost)
         {
             Check(SavedShots.Contains(TEXT("HostFinalOffer.png")) && SavedShots.Contains(TEXT("HostFinalLocked.png"))
-                && SavedShots.Contains(TEXT("HostFinalFlag.png")) && SavedShots.Contains(TEXT("HostResults.png"))
-                && (!bSourcePickerSeen || SavedShots.Contains(TEXT("HostFinalSource.png"))),
-                TEXT("C15"), TEXT("The owning Host rendered and saved its three FIN cards, source picker when needed, locked card, final flag and results"));
+                && SavedShots.Contains(TEXT("HostFinalFlag.png")) && SavedShots.Contains(TEXT("HostResults.png")),
+                TEXT("C15"), TEXT("The owning Host rendered and saved its FIN cards, locked card, final flag and results"));
         }
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));

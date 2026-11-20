@@ -24,8 +24,9 @@ namespace LDGroundRing
     LOCKDOWN_API bool IsPresentationOnly(const UPrimitiveComponent* Component);
 }
 
-// Local presentation of the single spray zone: a flat painted ring on the registered ground at the approved radius
-// around the flagpole anchor, and the graffiti board on the flagpole painted in its owner's public identity tint.
+// Local presentation of a spray zone: a flat painted ring on the ground at the zone's current radius around its flagpole,
+// and the graffiti board on the flagpole painted in its owner's public identity tint. A flagpole away from a placed pole
+// mesh (carried by final_carry_flag, or a private final_private_pole) also shows a portable pole.
 // Each machine builds it from its own world data and only mirrors the accepted public spray state; it is never
 // replicated and has no collision, navigation, sight or height effect.
 UCLASS(NotPlaceable, Transient)
@@ -36,6 +37,10 @@ public:
     ALDCaptureMarker();
     // Lays the ring for one match generation; false with a reason when the cooked mesh or material is missing.
     bool Build(const FVector& CenterCm, double RadiusCm, uint32 InGeneration, FString& Error);
+    // Moves the zone with its flagpole and re-lays the ring when the radius changed.
+    void Place(const FVector& CenterCm, double RadiusCm);
+    void ShowPole(bool bShown);
+    bool IsPoleShown() const;
     void ShowState(ELDCircleState State);
     // The flagpole graffiti: shown in the owner's identity tint (his roster slot) while one stands, hidden when bare.
     void ShowGraffiti(bool bOwned, uint8 PresentationSlot);
@@ -53,6 +58,7 @@ private:
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Ring;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> Paint;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Graffiti;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Pole;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> GraffitiPaint;
     uint8 GraffitiSlot = 0;
     FVector Center = FVector::ZeroVector;

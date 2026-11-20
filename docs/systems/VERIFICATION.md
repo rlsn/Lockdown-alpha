@@ -82,20 +82,18 @@ Core 场景收尾由两个拥有客户端经正式离开房间入口退出，再
 
 ### 喷漆守护 / 终局 / 新局
 
-`Lockdown.Rules.DemoCapture` 与 `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` 覆盖守护、打断、贡献及复活配置；`DemoFinalMod` 覆盖独立候选/绑定/锁定、真实命中触发、延迟与重复命中、硬控结束推送、撞击包、双区域代价和交通带逐段时效。`RunDemoCaptureCheck.ps1` 默认用 Listen Host、两个拥有客户端和三个生产 AI 经正常大厅开局；`-AllHuman` 用 Host 与五个拥有客户端，不添加 AI，并在选卡后通过真实前端按钮断线恢复同一角色、身体、资源、Build 请求水位及锁定的 FIN。
+`Lockdown.Rules.DemoCapture` 与 `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` 覆盖守护、打断、贡献及复活配置；`DemoFinalMod` 覆盖全池均匀抽取与锁定（`ChoiceAndLock`），以及八张卡在真实归约器上的胜负与旗杆规则：`HitAndRun`、`ClearOut`、`KillSeconds`、`Usurp`、`PrivatePole`、`SameInstantSettlement`（同刻裁决）与 `ZoneGeometry`（扛旗、铁笼定杆、双黄线与移动圆的落地面）；铁笼的碰撞阻挡没有原生规则测试。`RunDemoCaptureCheck.ps1` 默认用 Listen Host、两个拥有客户端和三个生产 AI 经正常大厅开局；`-AllHuman` 用 Host 与五个拥有客户端，不添加 AI，并在选卡后通过真实前端按钮断线恢复同一角色、身体、资源、Build 请求水位及锁定的 FIN。
 终局发出普通 D 意图；
-候选包含交通管制时优先选择并绑定 D，`C16` 要求该绑定在拥有者获准读取的画面产生实际已走交通带，报告明确记录是否选到该卡及是否观察到交通带，不把未选卡当作效果证明。`-RenderHost` 用实际 RHI 保存三选一卡面、所需来源选择、已锁定卡，并在拥有身体进入核心圈后保存旗杆主视图。
+终局选择点第一张候选；`C04P` 要求本人所选出现在公开的终局持卡表里。`-RenderHost` 用实际 RHI 保存候选卡面、已锁定卡，并在拥有身体进入喷漆区后保存旗杆主视图。
 两种名额模式检查三段野外、六人的独立 FIN 选择与锁定、六入口、目标结束、成长冻结、返回 Lobby 与第二局。
 各角色必须恰好报告对应稳定检查 id。
 它不证明全部卡的图形品质或所有复活/截止细节；
 通过只认当次 Artifacts
 
 `RunDemoCaptureCheck.ps1 -RenderHost` 为所有拥有者启用 720p 离屏 RHI，使远端也能经实际构建的界面处理主动与终局候选；只有 Host 保存截图。
-截图等待入场布局与动效稳定，结算另等待表格逐行及操作区入场完成，覆盖终局候选、所需来源选择、选定后规则板、旗杆、结算和返回后的房间。
+截图等待入场布局与动效稳定，结算另等待表格逐行及操作区入场完成，覆盖终局候选、选定后规则板、旗杆、结算和返回后的房间。
 等待只作用于 DEV 探针的取图与后续操作，不暂停服务器时钟，也不延迟产品中的输入或提交。
 
-交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。
-终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。
 
 ### Demo 纯值战斗 / 时间许可
 
@@ -110,7 +108,7 @@ Core 场景收尾由两个拥有客户端经正式离开房间入口退出，再
 
 ### 营地 / 拥有连接
 
-`Lockdown.Rules.DemoCamp` 覆盖名册、每生命死亡记账与清营计时、整组反击来源、回营重置键和观察事实；`DemoCamp.Species` 覆盖固定档位抽种、失败重试固定抽签和隐藏种类不泄露，`DemoCamp.SkillGeometry` 覆盖固定预警几何与整次预算，`DemoCamp.SkillDelivery` 经真实 Combat 检查预警、躲避、死亡后追加段归因和原生冲刺接触去重；`RunDemoCampCheck.ps1` 在全部提供者接入、普通 Start 门禁打开后，以实际 Listen Host 加两个拥有客户端经正常大厅开局，覆盖批准名册的全部营地落点、不先手、整组反击、最后一击每生命一次收益、清空后按内容计时整组刷新、拴绳回营的公开提示与不发奖重置。
+`Lockdown.Rules.DemoCamp` 覆盖名册、每生命死亡记账与清营计时、整组反击来源、回营重置键和观察事实；`DemoCamp.Species` 覆盖固定档位抽种、作者混档营地逐档独立抽种、失败重试固定抽签和隐藏种类不泄露，`DemoCamp.SkillGeometry` 覆盖固定预警几何与整次预算，`DemoCamp.SkillDelivery` 经真实 Combat 检查预警、躲避、死亡后追加段归因和原生冲刺接触去重；`RunDemoCampCheck.ps1` 在全部提供者接入、普通 Start 门禁打开后，以实际 Listen Host 加两个拥有客户端经正常大厅开局，覆盖批准名册的全部营地落点、不先手、整组反击、最后一击每生命一次收益、清空后按内容计时整组刷新、拴绳回营的公开提示与不发奖重置。
 当前布局的夹具选择 `l09`/`h05`：接近点为盆地内开阔、可达的近战位置，目标搜索范围内没有同档位的其他营地；
 逃离点距 `h05` 约 14.7m，超过 High 拴绳距离，并避开老板巡逻与旗杆。
 #C5 按批准内容核对小野营全部成员的奖励；

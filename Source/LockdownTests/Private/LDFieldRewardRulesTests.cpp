@@ -115,7 +115,7 @@ bool FieldTestRunCardOffer(FAutomationTestBase& Test)
     bGood &= FieldTestReason(Test, TEXT("A grant without a result is refused"), LDProgression::ApplyFieldGrant(Content, Empty,
         TEXT("airdrop"), 3, 0, Build, Progression), ELDGrowthReason::DataInvalid);
     const TPair<ELDGrowthReason, uint16> Numbers[] = {{ELDGrowthReason::FieldRewardDuplicate, 167}, {ELDGrowthReason::FinalLocked, 170},
-        {ELDGrowthReason::NoFinalMod, 171}, {ELDGrowthReason::FinalModUnavailable, 172}, {ELDGrowthReason::NoCardOffer, 190}};
+        {ELDGrowthReason::NoFinalMod, 171}, {ELDGrowthReason::NoCardOffer, 190}};
     for (const TPair<ELDGrowthReason, uint16>& Row : Numbers)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s travels as %u"), LDGrowthWire::ReasonName(Row.Key), uint32(Row.Value)),

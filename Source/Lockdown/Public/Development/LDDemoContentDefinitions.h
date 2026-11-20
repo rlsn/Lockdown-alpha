@@ -1066,9 +1066,8 @@ struct FLDDemoCardDefinition
     ELDDemoCardId GetNativeId() const { return static_cast<ELDDemoCardId>(NativeId); }
 };
 
-UENUM()
-enum class ELDDemoFinalModRequirement : uint8 { Basic, ForcedMove, HardControl, Dash, PlacedZone };
-
+// One universal final mod: a public rule rewrite of the showdown win or its flagpole (content §4.7). Each card reads only
+// its own terms; the others stay zero.
 USTRUCT()
 struct FLDDemoFinalModDefinition
 {
@@ -1076,32 +1075,20 @@ struct FLDDemoFinalModDefinition
 
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() ELDDemoFinalModRequirement Requirement = ELDDemoFinalModRequirement::Basic;
-    UPROPERTY() int64 BaseP2 = 0;
-    UPROPERTY() int64 ADRatioBp = 0;
-    UPROPERTY() int64 APRatioBp = 0;
-    UPROPERTY() FLDDemoRational RadiusCm;
-    UPROPERTY() FLDDemoRational DistanceCm;
-    UPROPERTY() FLDDemoRational OffsetCm;
-    UPROPERTY() int64 DelayMs = 0;
+    // final_hit_and_run: completed sprays that win.
+    UPROPERTY() int32 Sprays = 0;
+    // final_hit_and_run: how long its graffiti stands before it fades.
+    UPROPERTY() int64 FadeMs = 0;
+    // final_kill_seconds: guard per kill; final_private_pole: the private guard to win.
+    UPROPERTY() int64 GuardMs = 0;
+    // final_private_pole: its spray duration.
+    UPROPERTY() int64 SprayMs = 0;
+    // final_cage: how long the fence stands.
     UPROPERTY() int64 DurationMs = 0;
-    UPROPERTY() int64 IntervalMs = 0;
-    UPROPERTY() int64 WindowMs = 0;
-    UPROPERTY() int64 PulseIntervalMs = 0;
-    UPROPERTY() int64 OutsideMs = 0;
-    UPROPERTY() int64 RearmOutsideMs = 0;
-    UPROPERTY() int64 CooldownCostMs = 0;
-    UPROPERTY() int64 DurationCostMs = 0;
-    UPROPERTY() int64 DamageScaleBp = 0;
-    UPROPERTY() int64 ControlScaleBp = 0;
-    UPROPERTY() int64 DistanceScaleBp = 0;
-    UPROPERTY() int64 RadiusScaleBp = 0;
-    UPROPERTY() int64 MoveSpeedCostBp = 0;
-    UPROPERTY() int64 SlowBp = 0;
-    UPROPERTY() int64 SlowMs = 0;
+    // final_private_pole: its spray zone; final_double_yellow: the main zone while the holder owns it.
+    UPROPERTY() FLDDemoRational RadiusCm;
 
     ELDDemoFinalModId GetNativeId() const { return static_cast<ELDDemoFinalModId>(NativeId); }
-    bool IsUniversal() const { return Requirement == ELDDemoFinalModRequirement::Basic; }
 };
 
 USTRUCT()
@@ -1233,13 +1220,6 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString DescriptionKey;
     // Active and stat descriptions are card templates (LDDemoCardText).
     UPROPERTY() FString DescriptionText;
-    // Only a final mod's row has effect, cost and notes lines (keys <id>.effect/.cost/.notes); empty elsewhere.
-    UPROPERTY() FString EffectKey;
-    UPROPERTY() FString EffectText;
-    UPROPERTY() FString CostKey;
-    UPROPERTY() FString CostText;
-    UPROPERTY() FString NotesKey;
-    UPROPERTY() FString NotesText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };

@@ -268,7 +268,6 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoSta
     {
         Out.FinalModOfferId = Progression.FinalModOfferId;
         for (const FName& Option : Progression.FinalModOptions) { Out.FinalModOptions.Add(CanonicalId(Option)); }
-        Out.FinalModSources=Progression.FinalModSources;
     }
     // Owned cards; the installed ones also feed the own attribute projection.
     TArray<FLDInstalledCardValue> Installed;

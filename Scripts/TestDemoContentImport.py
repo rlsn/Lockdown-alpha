@@ -820,19 +820,13 @@ class DemoContentImport(unittest.TestCase):
         texts = {row["id"]: row["description_text"] for row in json.loads(demo.compile_content(self.root).outputs[demo.CONTENT_OUTPUT])["display"]}
         self.assertIn("[per_point.HPRegenFlat]", texts["stat_physique"])
 
-    def test_only_final_mod_display_rows_split_effect_cost_and_notes(self):
+    def test_display_rows_refuse_effect_cost_and_notes_lines(self):
         def display(data, identity):
             return next(row for row in data["display"] if row["id"] == identity)
 
         for mutation, pattern in (
-            (lambda data: display(data, "final_split").pop("cost_text"), "DisplayReference"),
-            (lambda data: display(data, "final_split").pop("notes_key"), "DisplayReference"),
-            (lambda data: display(data, "final_split").update(effect_key="final_split.description"), "DisplayReference"),
-            (lambda data: display(data, "final_split").update(notes_text="生成2块"), "DisplayText"),
-            (lambda data: display(data, "final_split").update(cost_text=""), "StringLength"),
-            (lambda data: display(data, "active_snark_bolt").update(effect_key="active_snark_bolt.effect",
-                                                                    effect_text="效果"), "DisplayReference"),
-            (lambda data: display(data, "stat_brains").update(notes_key="stat_brains.notes"), "DisplayReference"),
+            (lambda data: display(data, "final_cage").update(effect_key="final_cage.effect", effect_text="效果"), "UnknownField"),
+            (lambda data: display(data, "active_snark_bolt").update(notes_key="active_snark_bolt.notes"), "UnknownField"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(pattern=pattern, mutation=mutation):

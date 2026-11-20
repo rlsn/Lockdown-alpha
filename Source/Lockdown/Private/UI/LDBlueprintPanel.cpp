@@ -84,12 +84,7 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
     TArray<FString> Rows;
     for(const FLDBlueprintCard& Card:Structure.Cards){Rows.Add(BlueprintName(Definitions,Card.Card)+TEXT(" → ")+BlueprintPlace(Card,Definitions));}
     const FString Cards=Rows.IsEmpty()?FString(TEXT("无")):FString::Join(Rows,TEXT(" · "));
-    FString Final=Structure.FinalMod.IsEmpty()?TEXT("无"):BlueprintName(Definitions,Structure.FinalMod.DefinitionId.ToString());
-    if(!Structure.FinalMod.IsEmpty()&&Structure.FinalMod.TargetKind!=ELDFinalModTargetKind::None)
-    {
-        Final+=TEXT(" → ")+(Structure.FinalMod.TargetKind==ELDFinalModTargetKind::Dash
-            ?FString(TEXT("冲刺")):BlueprintName(Definitions,Structure.FinalMod.TargetId.ToString()));
-    }
+    const FString Final=Structure.FinalMod.IsEmpty()?TEXT("无"):BlueprintName(Definitions,Structure.FinalMod.DefinitionId.ToString());
     return FString::Printf(TEXT("  主动：%s\n  %s：%s\n  牌：%s\n  终局改装：%s"),*FString::Join(Slots,TEXT(" · ")),LDTerms::StatPoints,
         Stats.IsEmpty()?TEXT("无"):*FString::Join(Stats,TEXT(" · ")),*Cards,*Final);
 }
@@ -112,7 +107,11 @@ FString BlueprintFacts(const FLDBlueprintVersion& Version)
 }
 FString BlueprintOutcome(const FLDBlueprintRecord& Record)
 {
-    const FString Ending=Record.EndReason==TEXT("host_ended")?FString(TEXT("房主结束了本局")):FString(TEXT("涂鸦守护结束"));
+    const FString Ending=Record.EndReason==TEXT("host_ended")?FString(TEXT("房主结束了本局"))
+        :Record.EndReason==TEXT("objective_timeout")?FString(TEXT("终局时间到"))
+        :Record.EndReason==TEXT("no_champion")?FString(TEXT("没有合格冠军"))
+        :Record.EndReason==TEXT("spray_count")?FString(TEXT("喷够次数获胜"))
+        :Record.EndReason==TEXT("clear_out")?FString(TEXT("清场获胜")):FString(TEXT("涂鸦守护结束"));
     if(Record.Outcome==TEXT("won")){return Ending+TEXT(" · 你是")+LDTerms::Winner;}
     if(Record.Outcome==TEXT("lost")){return Ending+TEXT(" · 别人守住了涂鸦");}
     return Ending+TEXT(" · ")+LDTerms::NoCapture;

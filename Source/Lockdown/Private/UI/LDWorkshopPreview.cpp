@@ -261,7 +261,6 @@ bool Compiled(const FLDDemoContentSnapshot& Content,const FState& State,const FL
         const FLDDemoDashDefinition& Definition=Content.Get().Character.Dash;
         Out.Target=Definition.Target;Out.Values=Definition.Values;Out.WindupMs=Definition.WindupMs;
         if(!LDCombatSourceRules::InnateDashTerms(Content,Dash,Error)){return false;}
-        if(!LDCombatSourceRules::FinalCooldownCost(&Content,State.Input.FinalMod,Combat.bPreviewFinalField,Source,Dash.CooldownMs,Error)){return false;}
     }
     else
     {
@@ -275,7 +274,6 @@ bool Compiled(const FLDDemoContentSnapshot& Content,const FState& State,const FL
         const FLDDemoAbilityValues* Values=Content.FindValues(*Ability,State.Input.Level,Branch);
         if(!Values){Error=TEXT("the active has no values at this level and branch");return false;}
         Out.Target=Variant?Variant->Target:Ability->Target;Out.Values=*Values;Out.WindupMs=Variant?Variant->WindupMs:Ability->WindupMs;
-        if(!LDCombatSourceRules::FinalCooldownCost(&Content,State.Input.FinalMod,Combat.bPreviewFinalField,Source,Out.Values.CooldownMs,Error)){return false;}
     }
     if(!LDCombatSourceRules::CompileCardActive(State.Build,Source,&Content,Out,Error)){return false;}
     if(bInnate){LDCombatSourceRules::ScaleInnateDash(Dash,Out);}
@@ -411,7 +409,6 @@ LDWorkshopPreview::FResult LDWorkshopPreview::Compare(const FInput& Input)
     {Result.Status=EStatus::Unavailable;return Result;}
     if(!Partial(*Input.Content,Current,Installed,Result.bPartial,Result.Error))
     {Result.Status=EStatus::Unavailable;return Result;}
-    Result.bPartial|=Before.Input.FinalMod!=After.Input.FinalMod;
     for(const FLDLearnedActiveValue& Active:Before.Input.Actives)
     {
         FLDCombatSourceRef Source;Source.Kind=ELDCombatSourceKind::Learned;Source.DefinitionId=Active.AbilityId;

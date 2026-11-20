@@ -83,19 +83,11 @@ public:
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
-    // Independent final cards; several legal sources open a source picker before the choice commits. On the stage a card and
-    // a source only select (SelectFinalMod, SelectFinalSource) and the hold of GrowthFinalLock commits (LockFinalMod).
+    // Universal final cards: a tray click commits at once (ChooseFinalMod); on the stage a click only selects
+    // (SelectFinalMod) and the hold of GrowthFinalLock commits (LockFinalMod).
     bool ChooseFinalMod(int32 Index);
-    bool ChooseFinalModSource(int32 Index);
     bool SelectFinalMod(int32 Index);
     bool ReopenFinalStage(int32 Index);
-    // A taken final card whose source was removed (dormant) binds again: one legal source at once, otherwise its sources show.
-    bool RebindFinalMod();
-    bool FinalDormant() const;
-    bool SelectFinalSource(int32 Index);
-    // The final page's 绑定来源 row is the board's five columns (本体 Q W E D): a column with one legal source selects it, one
-    // with several lists them in the description dock for a second click.
-    bool SelectFinalColumn(int32 Column);
     bool LockFinalMod();
     bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
@@ -205,7 +197,7 @@ private:
         uint8 Slot=0;
         double StartedAt=-1.;
     };
-    enum class ETrayGroup : uint8 { Blueprint,CardOffer,Offer,FinalMod,FinalSource };
+    enum class ETrayGroup : uint8 { Blueprint,CardOffer,Offer,FinalMod };
     struct FTrayUnit
     {
         ETrayGroup Group=ETrayGroup::Blueprint;
@@ -247,7 +239,6 @@ private:
     UPROPERTY() TObjectPtr<UWrapBox> OfferRow;
     UPROPERTY() TObjectPtr<UWidget> FinalModGroup;
     UPROPERTY() TObjectPtr<UWrapBox> FinalModRow;
-    UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
     // The card offer row: a cell per card (the card over its lock) and the reroll/skip column.
     UPROPERTY() TObjectPtr<UWrapBox> CardRow;
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardCells;
@@ -259,11 +250,6 @@ private:
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
     TArray<FTrayCard> FinalCards;
-    TArray<FTrayCard> FinalSourceCards;
-    // The final page's column cells (本体 Q W E D) and the board column of each shown source (INDEX_NONE: not on the board).
-    TArray<FTrayCard> FinalColumnCards;
-    TArray<int32> ShownSourceColumns;
-    int32 FinalColumnPick=INDEX_NONE;
     FTrayCard SkipCard;
     TArray<FTrayCard> CardCards;
     TArray<FTrayCard> BlueprintCards;
@@ -275,18 +261,12 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> StageTitle;
     UPROPERTY() TObjectPtr<UTextBlock> StageSub;
     UPROPERTY() TObjectPtr<UHorizontalBox> StageCards;
-    UPROPERTY() TObjectPtr<UWidget> StageSourceLine;
-    UPROPERTY() TObjectPtr<UHorizontalBox> StageSources;
     UPROPERTY() TObjectPtr<ULDCommandButton> StageBack;
     UPROPERTY() TObjectPtr<UWidget> FinalDesc;
     // The selected card's effect, cost and notes lines (each a label chip and its text), the whole description when the
     // catalog has no split for it, its numbers, and the sources of a picked column holding several.
-    UPROPERTY() TArray<TObjectPtr<UWidget>> FinalPartRows;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> FinalPartTexts;
     UPROPERTY() TObjectPtr<UTextBlock> FinalDescText;
     UPROPERTY() TObjectPtr<UTextBlock> FinalNumbersText;
-    UPROPERTY() TObjectPtr<UWidget> FinalSourceChoiceLine;
-    UPROPERTY() TObjectPtr<UWrapBox> FinalSourceChoices;
     UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
     UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
     // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, and the dock box for
@@ -331,7 +311,6 @@ private:
     FOfferMotion OfferMotion;
     FGuid ConfirmedOffer;
     uint32 ConfirmedMatch=0,ConfirmedLife=0;
-    int32 FinalSourcePick=INDEX_NONE;
     int32 TrainerBlueprint=0;
     bool bQuick=false;
     bool bQuickCompact=false;
@@ -350,7 +329,6 @@ private:
     FName PendingFinalOption;
     FLDFinalModSelection SubmittedFinal;
     bool bFinalFeedbackAllowed=false;
-    TArray<FLDFinalModSourceView> ShownFinalSources;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;
     // The card offer the row shows (id, revision and cards).
@@ -383,7 +361,7 @@ private:
     FBlueprintRow& BlueprintRowAt(int32 Index);
     void RefreshOffer();
     void RefreshFinalMod();
-    bool SubmitFinalMod(FName Option,const FLDFinalModSourceView& Source);
+    bool SubmitFinalMod(FName Option);
     void RefreshCardOffer(bool bTiles);
     // The guards every card offer command carries (the shown offer's id and revision), or false with the toast.
     bool CardOfferCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out);

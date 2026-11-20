@@ -180,7 +180,8 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Saved authored groups retain three members instead of the two-member template count"),LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error));
     const auto& Group=Out.Camps[Out.FindCamp(TEXT("l23"))];
     TestEqual(TEXT("Every authored member is retained"),Group.Members.Num(),3);
-    TestEqual(TEXT("Mixed member keeps its approved creature"),Group.Members[1].CreatureId,Good.Content.Monsters[1].NativeId);
+    TestTrue(TEXT("Mixed member keeps its approved tier"),Group.Pools.Num()==2 && Group.Members[1].Pool==1
+        && Group.Pools[1].Tier==ELDDemoCampTier::High && Group.Members[0].Pool==0 && Group.Members[2].Pool==0);
     TestEqual(TEXT("Mixed member keeps its own AI definition"),Group.Members[1].DefinitionId,FName(TEXT("h1")));
     TestEqual(TEXT("Group refresh remains controlled by its explicit centre prototype"),Group.RespawnMs,Good.Content.Monsters[0].RespawnMs);
     Mixed.PrototypeId=TEXT("h1");
@@ -533,32 +534,72 @@ bool FLDCampSpeciesTest::RunTest(const FString& Parameters)
     auto Fixture=MakeFixture();
     for(int32 I=0;I<2;++I)
     {auto M=Fixture.Content.Monsters[0];M.Id=FString::Printf(TEXT("monster_variant_%d"),I);M.NativeId=uint8(5+I);Fixture.Content.Monsters.Add(M);}
+    {auto M=Fixture.Content.Monsters[1];M.Id=TEXT("monster_variant_high");M.NativeId=uint8(7);Fixture.Content.Monsters.Add(M);}
     FLDCampRoster Roster;FString Error;
     if(!TestTrue(TEXT("A common tier pool projects into each fixed camp"),LDCamp::BuildRoster(Fixture.Content,Fixture.World,Roster,Error))){AddError(Error);return false;}
+    TestTrue(TEXT("A default camp has only its own tier pool"),Roster.Camps[0].Pools.Num()==1 && Roster.Camps[0].Pools[0].Species.Num()==3
+        && Roster.Camps[1].Pools.Num()==1 && Roster.Camps[1].Pools[0].Species.Num()==2);
     FLDMatchContext Match;Match.Generation=31;Match.LedgerMatch=FGuid(31,32,33,34);
     FLDCampMatchState State;
     if(!TestTrue(TEXT("Begin private match"),State.Begin(Match,MakeShared<const FLDCampRoster>(MoveTemp(Roster)),Error))){return false;}
     const auto Public=State.BuildPublicViews();
-    FName Choice;
-    TestFalse(TEXT("Outside-tier draw is rejected"),State.SelectSpecies(0,3,Choice,Error));
-    TestTrue(TEXT("Third species can be selected"),State.SelectSpecies(0,2,Choice,Error));
-    const FName Selected=Choice;
-    TestTrue(TEXT("A blocked placement retry can reuse its selection"),State.SelectSpecies(0,0,Choice,Error));
-    TestEqual(TEXT("A retry never rerolls"),Choice,Selected);
+    TArray<FName> Choice;
+    TestFalse(TEXT("Outside-tier draw is rejected"),State.SelectSpecies(0,{3},Choice,Error));
+    TestFalse(TEXT("A draw needs one choice per pool"),State.SelectSpecies(0,{0,0},Choice,Error));
+    TestTrue(TEXT("Third species can be selected"),State.SelectSpecies(0,{2},Choice,Error));
+    const TArray<FName> Selected=Choice;
+    TestTrue(TEXT("A blocked placement retry can reuse its selection"),State.SelectSpecies(0,{0},Choice,Error));
+    TestTrue(TEXT("A retry never rerolls"),Choice==Selected);
     auto Bodies=Spawned(State,0);
     TestTrue(TEXT("Commit the selected whole group"),State.CommitSpawn(0,Bodies,1.,Error));
-    TestEqual(TEXT("Selected creature id belongs to the third species"),State.FindCamp(0)->CreatureId,uint8(6));
+    TestEqual(TEXT("Selected creature id belongs to the third species"),State.FindCamp(0)->CreatureIds[0],uint8(6));
     TestEqual(TEXT("The public tier representative does not reveal the random species"),State.BuildPublicViews()[0].MonsterId,Public[0].MonsterId);
-    TestFalse(TEXT("A living or partly cleared camp cannot reroll"),State.SelectSpecies(0,1,Choice,Error));
+    TestFalse(TEXT("A living or partly cleared camp cannot reroll"),State.SelectSpecies(0,{1},Choice,Error));
     TestEqual(TEXT("Only the first member dies"),State.RecordDeath({Match.LedgerMatch,Bodies[0].Victim},2000,Error),ELDCampDeathResult::MemberDead);
-    TestFalse(TEXT("A surviving member still pins the species"),State.SelectSpecies(0,1,Choice,Error));
+    TestFalse(TEXT("A surviving member still pins the species"),State.SelectSpecies(0,{1},Choice,Error));
     TestEqual(TEXT("The last member clears the camp"),State.RecordDeath({Match.LedgerMatch,Bodies[1].Victim},2100,Error),ELDCampDeathResult::CampCleared);
-    TestTrue(TEXT("A new generation can choose another species"),State.SelectSpecies(0,1,Choice,Error));
+    TestTrue(TEXT("A new generation can choose another species"),State.SelectSpecies(0,{1},Choice,Error));
     auto Fresh=Spawned(State,0,9);
     TestTrue(TEXT("New bodies commit under the next selected species"),State.CommitSpawn(0,Fresh,43.,Error));
-    TestEqual(TEXT("New generation uses the second species"),State.FindCamp(0)->CreatureId,uint8(5));
+    TestEqual(TEXT("New generation uses the second species"),State.FindCamp(0)->CreatureIds[0],uint8(5));
     TestEqual(TEXT("A delayed death cannot clear a new generation"),State.RecordDeath({Match.LedgerMatch,Bodies[0].Victim},44000,Error),ELDCampDeathResult::Duplicate);
-    State.End();TestFalse(TEXT("Old match cannot select after end"),State.SelectSpecies(0,0,Choice,Error));
+    State.End();TestFalse(TEXT("Old match cannot select after end"),State.SelectSpecies(0,{0},Choice,Error));
+
+    // A saved authored group draws one species per tier its members name; same-tier members always match.
+    Fixture.World.bSceneLayout=true;
+    auto Mixed=Fixture.World.Anchors[0];
+    Mixed.PrototypeId=Mixed.Id;Mixed.Id=TEXT("l23");
+    Mixed.Members.SetNum(3);
+    const TCHAR* Prototypes[]={TEXT("l1"),TEXT("h1"),TEXT("l1")};
+    for(int32 Slot=0;Slot<3;++Slot)
+    {
+        Mixed.Members[Slot].Id=FString::Printf(TEXT("l23_%d"),Slot);
+        Mixed.Members[Slot].PositionCm=Point(2473+75*Slot,-803);
+        Mixed.Members[Slot].PrototypeId=Prototypes[Slot];
+    }
+    Fixture.World.Anchors.Add(Mixed);
+    FLDCampRoster Authored;
+    if(!TestTrue(TEXT("An authored mixed-tier camp compiles"),LDCamp::BuildRoster(Fixture.Content,Fixture.World,Authored,Error))){AddError(Error);return false;}
+    const int32 Camp=Authored.FindCamp(TEXT("l23"));
+    if(!TestTrue(TEXT("The mixed camp has a Low and a High pool"),Camp!=INDEX_NONE && Authored.Camps[Camp].Pools.Num()==2
+        && Authored.Camps[Camp].Pools[0].Tier==ELDDemoCampTier::Low && Authored.Camps[Camp].Pools[1].Tier==ELDDemoCampTier::High)){return false;}
+    const FLDCampSpec Spec=Authored.Camps[Camp];
+    FLDCampMatchState Scene;
+    if(!TestTrue(TEXT("Begin authored match"),Scene.Begin(Match,MakeShared<const FLDCampRoster>(MoveTemp(Authored)),Error))){return false;}
+    TestTrue(TEXT("Each tier pool draws independently"),Scene.SelectSpecies(Camp,{2,1},Choice,Error)
+        && Choice==TArray<FName>({TEXT("monster_variant_1"),TEXT("monster_variant_high")}));
+    TestTrue(TEXT("Same-tier members share their pool's draw and the other tier wears its own"),
+        Spec.MemberSpecies(0,Choice)==TEXT("monster_variant_1") && Spec.MemberSpecies(1,Choice)==TEXT("monster_variant_high")
+        && Spec.MemberSpecies(2,Choice)==TEXT("monster_variant_1"));
+    auto Group=Spawned(Scene,Camp);
+    if(!TestTrue(TEXT("Commit the authored group"),Scene.CommitSpawn(Camp,Group,1.,Error))){AddError(Error);return false;}
+    const uint8 Expected[]={6,7,6};
+    for(int32 Slot=0;Slot<3;++Slot)
+    {
+        FLDObservedPublicFacts Facts;
+        TestTrue(FString::Printf(TEXT("Authored slot %d is observed as its tier's drawn species"),Slot),
+            Scene.AppendObservedFacts(Group[Slot],Facts,Error) && Facts.CreatureId==Expected[Slot]);
+    }
     return true;
 }
 

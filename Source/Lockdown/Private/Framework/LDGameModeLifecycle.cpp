@@ -151,6 +151,10 @@ void ALDGameMode::RetireMatchDomains()
     ALDGrowthDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
+    PrivatePoles.Reset();
+    ShowdownMods.Reset();
+    CageSprays.Reset();
+    CageUntilMs=0;
     Showdown={};
     ShowdownRespawns.Reset();
     ShowdownBurn.Reset();
@@ -225,7 +229,7 @@ ELDCommitReject ALDGameMode::BeginSettlementStep(ALDCombatDirector& Driver, cons
     if (Match != MatchContext) { return ELDCommitReject::StaleMatch; }
     if (!IsGameplayWriteOpen(Match)) { return ELDCommitReject::MatchClosed; }
     if (ActiveWritePermit || bAuthorityStepOpen) { return ELDCommitReject::Reentrant; }
-    if (!PendingCapture.IsSet() || PendingCapture->DueAtMs != AuthorityNowMs || !HasPendingRewardRetries())
+    if (!PendingCapture.IsSet() || PendingCaptureAtMs != AuthorityNowMs || !HasPendingRewardRetries())
     { return ELDCommitReject::WrongPhase; }
     if (AuthorityStep.StepSerial == MAX_uint64) { return ELDCommitReject::CounterExhausted; }
     // No time passes: the boundary only gives the owed reward its fresh permit before the same-instant Close.

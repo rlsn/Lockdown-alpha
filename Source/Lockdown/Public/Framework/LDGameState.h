@@ -6,6 +6,7 @@
 #include "Framework/LDCaptureTypes.h"
 #include "World/LDAirdropMarker.h"
 #include "World/LDCaptureMarker.h"
+#include "World/LDCaptureFence.h"
 #include "World/LDDormMarker.h"
 #include "LDGameState.generated.h"
 
@@ -36,6 +37,8 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     // Local presentation only: the visible flagpole boundary of the current match, never replicated.
     const ALDCaptureMarker* GetCaptureMarker() const { return CaptureMarker.Get(); }
+    TArray<const ALDCaptureMarker*> GetPrivateMarkers() const;
+    const ALDCaptureFence* GetCaptureFence() const { return CaptureFence.Get(); }
     // Local presentation only: the dorm boundaries of the current match (D21, #79), never replicated.
     TArray<const ALDDormMarker*> GetDormMarkers() const;
     // Local presentation only: the current public airdrop (D26, #79), never replicated.
@@ -47,6 +50,11 @@ private:
     void SyncCaptureMarker();
     TWeakObjectPtr<ALDCaptureMarker> CaptureMarker;
     uint32 CaptureMarkerFailedGeneration = 0;
+    // The private flagpoles (final_private_pole), one marker per public pole in its order.
+    TArray<TWeakObjectPtr<ALDCaptureMarker>> PrivateMarkers;
+    // final_cage: the fence while the public view names one. Built on every machine, the authority included.
+    void SyncCaptureFence();
+    TWeakObjectPtr<ALDCaptureFence> CaptureFence;
     // The same for every dorm ring.
     void SyncDormMarkers();
     void ClearDormMarkers();

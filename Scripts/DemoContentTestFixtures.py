@@ -320,24 +320,14 @@ def content_fixture():
             "collision_radius": q("cm", 20), "aggro_radius": q("cm", 150), "attacker_memory": q("s", 2), "appear_at": q("s", 20),
             "leave_at": q("s", 200), "reward_xp": 30}
     finals = [
-        {"id": "final_bowling", "requirement": "ForcedMove", "base": q("points", 45), "ap_ratio": q("ratio", 0.35),
-         "distance": q("cm", 140), "distance_ratio": q("ratio", 0.8)},
-        {"id": "final_forced_exit", "requirement": "HardControl", "distance": q("cm", 180), "delay": q("s", 0.25),
-         "interval": q("s", 8), "control_ratio": q("ratio", 0.7)},
-        {"id": "final_traffic", "requirement": "Dash", "radius": q("cm", 45), "duration": q("s", 2.5),
-         "slow": q("ratio", 0.35), "slow_duration": q("s", 1), "cooldown_cost": q("s", 4)},
-        {"id": "final_split", "requirement": "PlacedZone", "offset": q("cm", 140), "radius_ratio": q("ratio", 0.55),
-         "damage_ratio": q("ratio", 0.6), "duration_cost": q("s", 1)},
-        {"id": "final_landlord", "requirement": "Basic", "base": q("points", 50), "ad_ratio": q("ratio", 0.4),
-         "radius": q("cm", 220), "delay": q("s", 0.7), "interval": q("s", 6), "damage_ratio": q("ratio", 0.8)},
-        {"id": "final_breach", "requirement": "Basic", "outside": q("s", 3), "rearm_outside": q("s", 8),
-         "window": q("s", 3), "distance": q("cm", 160), "cooldown_cost": q("s", 3)},
-        {"id": "final_comeback", "requirement": "Basic", "base": q("points", 30), "ap_ratio": q("ratio", 0.25),
-         "radius": q("cm", 220), "duration": q("s", 2), "interval": q("s", 10), "window": q("s", 4),
-         "pulse_interval": q("s", 1), "slow": q("ratio", 0.3), "slow_duration": q("s", 1), "damage_ratio": q("ratio", 0.8)},
-        {"id": "final_open_mic", "requirement": "Basic", "base": q("points", 25), "ap_ratio": q("ratio", 0.15),
-         "radius": q("cm", 220), "duration": q("s", 2.5), "window": q("s", 3), "slow": q("ratio", 0.2),
-         "pulse_interval": q("s", 1), "slow_duration": q("s", 1), "move_speed_cost": q("ratio", 0.1)},
+        {"id": "final_hit_and_run", "sprays": 4, "fade": q("s", 4)},
+        {"id": "final_clear_out"},
+        {"id": "final_kill_seconds", "guard": q("s", 4)},
+        {"id": "final_usurp"},
+        {"id": "final_carry_flag"},
+        {"id": "final_cage", "duration": q("s", 5)},
+        {"id": "final_private_pole", "spray": q("s", 3.5), "guard": q("s", 30), "radius": q("cm", 200)},
+        {"id": "final_double_yellow", "radius": q("cm", 180)},
     ]
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
@@ -348,11 +338,6 @@ def content_fixture():
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
                 "icon_id": "icon_" + identity} for identity in identities]
     display[0]["portrait_icon_id"] = "portrait_character_demo"
-    for row in display:
-        if row["id"] in {final["id"] for final in finals}:
-            for part in demo.FINAL_MOD_DISPLAY_PARTS:
-                row[part + "_key"] = row["id"] + "." + part
-                row[part + "_text"] = "TEST ONLY 合成" + part
     # Card templates: an active reads [op.field] of its effects, a stat [per_point.<Stat>] of one point.
     next(row for row in display if row["id"] == "active_snark_bolt")["description_text"] += " [damage.amount] [slow.ratio] [slow.duration]"
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"

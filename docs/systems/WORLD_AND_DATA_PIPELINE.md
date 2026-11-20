@@ -88,6 +88,7 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker 和�
 终局场地使用独立锚点：`FinalSpawn` 固定为 `final_spawn_0..5`，`FinalCapture` 固定为
 `final_capture`。保存地图的 `LDSceneAnchor:<id>` 点由 `SyncDemoMap.ps1` 投影进世界输入；
 原生目录校验六个出生点同层、等距并按60°顺序分布，Bootstrap 再验证出生偏移的胶囊地面与到旗点的完整导航路径。
+持有私人旗杆（终局改装）的参赛者，其旗杆圆心取自己名册槽位对应的 `final_spawn_<slot>` 绑定位置与地面。
 它们不进入普通野外 POI/小地图；显式出生选择通过 `LDDemoWorld::FinalSpawnId` 和
 `LDDemoWorld::FinalCaptureId` 解析，不替代野外的 `capture` 锚点。
 
@@ -100,7 +101,9 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker 和�
 外卖柜与小迷你旗点不进入 AI 静态公开地点或静态小地图（外卖柜只在出现期间显示，小迷你旗只在开放或预告时显示）。
 
 `camps.placements.monster_id`是固定档位代表，运行按该定义的tier聚合三种候选，不是本次生成结果。
-同档必须具有相同成员数量、奖励与刷新时间。`FLDCampGroupState`保存本次选种与准备中的选种，
+同档必须具有相同成员数量、奖励与刷新时间。`FLDCampSpec::Pools`每档一个种类池：`Pools[0]`是营地自身档位，
+作者成员名单里其他档位的成员模板各追加该档一池，成员按 `Pool` 取种（`FLDCampSpec::MemberSpecies`；精英与远古的团建位仍穿固定高档种）。
+`FLDCampGroupState`按池保存本次选种与准备中的选种，每次整组生成每池独立抽一次，同档成员同种；
 SpawnBlocked重试保留抽签；整组生命提交后才切换当前种类。公开POI保留档位代表，动态CreatureId只经合法观察发布。
 移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`pk_signup_*`、`pk_spawn_*`、`pk_throw`）新增语义点，
 保留现存点和人工布景；现存必需点缺失、重复身份或成员落点重叠会拒绝，不能用此入口重建被删除的点。
