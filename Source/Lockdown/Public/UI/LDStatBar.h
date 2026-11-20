@@ -57,6 +57,8 @@ public:
     int32 StatCount() const {return Cells.Num();}
     // Probes: the "+" of the stat at Index, and a hover kept without a pointer (INDEX_NONE releases it).
     ULDCommandButton* PlusButton(int32 Index) const;
+    // Probes and tests: the stat icon cell at Index (its box), or null.
+    const UWidget* CellBox(int32 Index) const {return Cells.IsValidIndex(Index)?Cells[Index].Box:nullptr;}
     void PinHover(int32 Index){PinnedHover=Index;}
     TFunction<uint64(const FLDBuildCommand&,ELDGrowthReason&)> SubmitBuild;
     TFunction<uint64()> PeekRequestId;

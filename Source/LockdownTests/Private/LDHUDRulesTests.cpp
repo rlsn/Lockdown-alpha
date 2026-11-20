@@ -16,6 +16,7 @@
 #include "UI/LDResultBuild.h"
 #include "UI/LDWorkshopModel.h"
 #include "UI/LDWorkshop.h"
+#include "UI/LDStatBar.h"
 #include "UI/LDWorkshopPreview.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
@@ -791,6 +792,81 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
         FString(LDUIIcons::Dash));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDStatWheelTest,"Lockdown.Rules.HUDStatWheel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDStatWheelTest::RunTest(const FString& Parameters)
+{
+    // The wheel over a stat: up adds a point, down takes one back (rest only). It targets the row or cell under the wheel event
+    // itself, on the workshop's character rows and on the band's cells, and a collapsed workshop panel takes nothing.
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
+    const FLDDemoContentDefinitions& Content=Catalog->Get();
+    const FLDAttributeProjectionResult Base=LDAttributeProjection::Project(FLDAttributeBuildValues(1,{}),*Catalog);
+    if(!TestTrue(TEXT("The bare level-1 build projects"),Base.IsSuccess())){return false;}
+    LDHUD::FCardStats L1;L1.ADP2=Base.Value->Final.ADP2;L1.APP2=Base.Value->Final.APP2;L1.MaxHPP2=Base.Value->Final.MaxHPP2;L1.ArmorP2=Base.Value->Final.ArmorP2;
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
+    if(!TestNotNull(TEXT("The wheel fixture has a world"),World)){return false;}
+    ON_SCOPE_EXIT{World->DestroyWorld(false);};
+    ULDWorkshop* Workshop=NewObject<ULDWorkshop>(World);Workshop->Initialize();
+    ULDStatBar* Bar=NewObject<ULDStatBar>(World);Bar->Initialize();
+    UWidgetTree* Tree=NewObject<UWidgetTree>();
+    auto* Root=Tree->ConstructWidget<UOverlay>();Tree->RootWidget=Root;
+    for(UWidget* Child:{static_cast<UWidget*>(Bar),static_cast<UWidget*>(Workshop)})
+    {auto* Slot=Root->AddChildToOverlay(Child);Slot->SetHorizontalAlignment(HAlign_Fill);Slot->SetVerticalAlignment(VAlign_Fill);}
+    const TSharedRef<SWidget> Slate=Root->TakeWidget();
+    FLDProgressionView View;View.bValid=true;View.Generation=1;View.Life=1;View.Level=4;View.BuildRevision=3;View.UnspentPoints=3;
+    for(const FLDDemoStatDefinition* Stat:Content.StatsInDesignOrder()){View.StatPoints.Add({FName(*Stat->Id),2});}
+    TArray<FLDBuildCommand> Sent;
+    Bar->SubmitBuild=[&Sent](const FLDBuildCommand& Command,ELDGrowthReason& Reason){Sent.Add(Command);Reason=ELDGrowthReason::InvalidRequest;return uint64(0);};
+    Bar->PeekRequestId=[](){return uint64(1);};
+    Workshop->StatBar=Bar;
+    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
+    Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
+    const FGeometry Geometry=FGeometry::MakeRoot(FVector2D(1920,1080),FSlateLayoutTransform(1.f));
+    const auto Frame=[&]()
+    {
+        Bar->Present(&View,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true);
+        Workshop->Present(Input);
+        Slate->SlatePrepass(1.f);
+        FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1920,1080),Draw,0,FWidgetStyle(),true);
+        for(UUserWidget* Widget:{static_cast<UUserWidget*>(Workshop),static_cast<UUserWidget*>(Bar)})
+        {Widget->TakeWidget()->Tick(Widget->GetCachedGeometry(),0.,1.f/60.f);}
+    };
+    const auto CentreOf=[](const UWidget* Widget){const FGeometry& G=Widget->GetCachedGeometry();return G.GetAbsolutePosition()+G.GetAbsoluteSize()*.5f;};
+    const auto Wheel=[&](UUserWidget* Target,FVector2D At,float Delta)
+    {
+        const FPointerEvent Event(0,0,At,At,TSet<FKey>(),EKeys::MouseWheelAxis,Delta,FModifierKeysState());
+        Target->TakeWidget()->OnMouseWheel(Geometry,Event);
+    };
+    const auto Only=[](const FLDBuildCommand& Command,ELDBuildCommandKind Kind,int32 Index)
+    {
+        if(Command.Kind!=Kind){return false;}
+        for(int32 Stat=0;Stat<Command.PointCounts.Num();++Stat){if(Command.PointCounts[Stat]!=(Stat==Index?1:0)){return false;}}
+        return Command.PointCounts.IsValidIndex(Index);
+    };
+    for(int32 Tick=0;Tick<10;++Tick){Frame();}
+    if(!TestTrue(TEXT("The workshop shows its stat rows and the band its cells"),Workshop->StatPlus(1)&&Bar->CellBox(0)&&View.StatPoints.Num()>=3)){return false;}
+    // Workshop rows: up over row 1 allocates stat 1, down over row 2 refunds stat 2; no hover tick in between.
+    const FVector2D Row1=CentreOf(Workshop->StatPlus(1)),Row2=CentreOf(Workshop->StatPlus(2));
+    Wheel(Workshop,Row1,1.f);
+    TestTrue(TEXT("Wheel up over a workshop row allocates that stat"),Sent.Num()==1&&Only(Sent.Last(),ELDBuildCommandKind::AllocatePoints,1));
+    Wheel(Workshop,Row2,-1.f);
+    TestTrue(TEXT("Wheel down over a workshop row refunds that stat"),Sent.Num()==2&&Only(Sent.Last(),ELDBuildCommandKind::Respec,2));
+    // A collapsed character panel (the field workshop) keeps its rows' old geometry but takes no wheel.
+    Input.Mode=ULDWorkshop::EMode::Field;
+    for(int32 Tick=0;Tick<5;++Tick){Frame();}
+    Wheel(Workshop,Row1,1.f);Wheel(Workshop,Row2,-1.f);
+    TestEqual(TEXT("A collapsed workshop panel sends nothing"),Sent.Num(),2);
+    // The band: the cell under the wheel event, not the last tick's hover.
+    Input.Mode=ULDWorkshop::EMode::Closed;
+    for(int32 Tick=0;Tick<5;++Tick){Frame();}
+    Bar->PinHover(2);
+    Wheel(Bar,CentreOf(Bar->CellBox(0)),1.f);
+    TestTrue(TEXT("Wheel up over a band cell allocates that cell's stat, not the pinned hover"),
+        Sent.Num()==3&&Only(Sent.Last(),ELDBuildCommandKind::AllocatePoints,0));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCardFacesTest,"Lockdown.Rules.HUDCardFaces",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
 {
