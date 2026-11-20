@@ -926,6 +926,20 @@ bool FLDBasicWindupCancelRefundTest::RunTest(const FString& Parameters)
     F.Now(8300);
     FAccess::FinishAction(*F.Driver, F.Body(Attacker), ELDCombatReject::None, true);
     TestEqual(TEXT("A released swing keeps the cadence spent"), Record.NextAttackAtMs, int64(9000));
+
+    // A Direct request still queued (held behind an own windup) ends with a terminal receipt when the body's effects are
+    // cancelled (a training reset), never silently.
+    FLDCombatActionRequest Held;
+    Held.Generation = 1;
+    Held.Life = 1;
+    Held.DirectSequence = 7;
+    Held.Entry = ELDCombatEntry::W;
+    Record.Pending.Add(Held);
+    FAccess::CancelEntityEffects(*F.Driver, Attacker.Victim.EntityId);
+    const FLDCombatDirectEntry* Closed = Record.Recent.FindByPredicate([](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence == 7; });
+    TestTrue(TEXT("A cancelled queued request leaves the queue with a Cancelled receipt"), Record.Pending.IsEmpty() && Closed
+        && Closed->Receipt.Phase == ELDCombatPhase::Rejected && Closed->Receipt.Reject == ELDCombatReject::Cancelled);
     return true;
 }
 

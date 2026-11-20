@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDGroundLanding.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Navigation/LDOrderRules.h"
@@ -21,8 +22,6 @@ namespace LDCA
     constexpr int32 MaxPendingDirect=8;
     // A dash with no legal first segment is refused before any cost is paid.
     constexpr double DashProbeCm=20.;
-    // A ground skill aimed into a wall or roof lands on the first legal ground back toward its caster, sampled this often.
-    constexpr double GroundFallbackStepCm=25.;
     // CONTENT_AND_BALANCE monster Attack row: single-target melee Physical at 1.0 AD. The monster
     // catalog row carries the AttackP2 value only, so the approved ratio is fixed here.
     constexpr int64 MonsterBasicADRatioBp=10000;
@@ -196,9 +195,12 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
 // Every queued Direct request (held behind an own windup included) ends with a terminal receipt, never silently.
 void ALDCombatDirector::ClosePending(ELDCombatReject Reason)
 {
-    for (auto& Pair : Records)
+    for (auto& Pair : Records) { ClosePending(Pair.Value,Reason); }
+}
+
+void ALDCombatDirector::ClosePending(FLDCombatEntityRecord& Record, ELDCombatReject Reason)
+{
     {
-        auto& Record=Pair.Value;
         const TArray<FLDCombatActionRequest> Pending=MoveTemp(Record.Pending);
         Record.Pending.Reset();
         for (const auto& Request : Pending)
@@ -1240,9 +1242,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Body.Branch.Recast.Reset();
         ApplyRecastTerms(RecastWindow.GetValue(),Terms,DeliveryAction);
     }
-    // Every ground-point skill lands on legal ground. A point inside a wall, on a roof or off the walkable ground lands
-    // short instead: the first legal ground back along the cast toward the caster, in GroundFallbackStepCm steps. An
-    // impact or trap with no legal ground refuses; a zone without a registered map keeps its clamped point.
+    // Every ground-point skill lands on legal ground (LDGroundLanding): a wall, a roof or ground off the walk lands short,
+    // back along the cast. An impact or trap with nowhere to land refuses; a zone without a registered map, or with no
+    // landing, keeps its clamped point.
     TOptional<FVector> LandedPoint;
     const bool bNeedsGround=TargetDef.Mode==ELDDemoTargetMode::GroundPoint
         && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap));
@@ -1252,54 +1254,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
         const bool bRegistered=Registry && Registry->Enabled() && Geometry && !Geometry->Surfaces.IsEmpty();
         if (bNeedsGround && !bRegistered) { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
-        if (bRegistered)
-        {
-            const FVector Reach=FVector(Action.TargetPoint.X-ReleaseFoot.X,Action.TargetPoint.Y-ReleaseFoot.Y,0)
-                .GetClampedToMaxSize(LDCA::ToDouble(TargetDef.RangeCm));
-            const int32 Steps=FMath::Max(1,FMath::CeilToInt(Reach.Size2D()/LDCA::GroundFallbackStepCm));
-            const FCollisionShape Capsule=Actor.GetCapsuleComponent()->GetCollisionShape();
-            FLDLegalGround CasterGround;
-            bool bCasterTried=false, bCaster=false;
-            for (int32 Step=0; Step<=Steps && !LandedPoint.IsSet(); ++Step)
-            {
-                FVector Point=ReleaseFoot+Reach*(double(Steps-Step)/Steps);
-                FVector Normal;
-                Registry->GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
-                FLDLegalGround Ground;
-                ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
-                if (!Registry->QueryGround(Registry->Revision(),Point,Capsule,FName(*Geometry->Surfaces[0].Id),Ground,Failure,Error))
-                {
-                    if (Failure!=ELDWorldQueryFailure::Blocked && Failure!=ELDWorldQueryFailure::NotGrounded
-                        && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
-                    Error.Reset();
-                    continue;
-                }
-                // A roof has standing room but no walk to it: only ground with a complete native route from the caster's
-                // own legal ground counts (a raised platform reached by its ramp stays legal). A caster without legal
-                // ground (in the air) cannot vouch for any point, so nothing lands; a missing world is an error. Only a
-                // world without navigation data (a rule fixture) leaves the route unjudged.
-                if (!bCasterTried)
-                {
-                    bCasterTried=true;
-                    ELDWorldQueryFailure CasterFailure=ELDWorldQueryFailure::None;
-                    bCaster=Registry->QueryGround(Registry->Revision(),ReleaseFoot,Capsule,FName(*Geometry->Surfaces[0].Id),
-                        CasterGround,CasterFailure,Error);
-                    if (!bCaster && (CasterFailure==ELDWorldQueryFailure::MissingWorld || CasterFailure==ELDWorldQueryFailure::StaleWorld))
-                    { return false; }
-                    Error.Reset();
-                }
-                if (!bCaster) { break; }
-                FLDCompletePath Route;
-                ELDWorldQueryFailure RouteFailure=ELDWorldQueryFailure::None;
-                if (!Registry->QueryCompletePath(Registry->Revision(),CasterGround,Ground,Capsule,Route,RouteFailure,Error))
-                {
-                    if (RouteFailure==ELDWorldQueryFailure::MissingWorld || RouteFailure==ELDWorldQueryFailure::StaleWorld) { return false; }
-                    if (RouteFailure!=ELDWorldQueryFailure::MissingNavigation) { Error.Reset(); continue; }
-                    Error.Reset();
-                }
-                LandedPoint=Ground.FootCm;
-            }
-        }
+        if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,LDCA::ToDouble(TargetDef.RangeCm),
+            Actor.GetCapsuleComponent()->GetCollisionShape(),LandedPoint,Error)) { return false; }
         if (LandedPoint.IsSet()) { DeliveryAction.TargetPoint=*LandedPoint; }
         else if (bNeedsGround) { Reject=ELDCombatReject::Blocked; return true; }
     }

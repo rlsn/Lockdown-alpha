@@ -1675,10 +1675,18 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
     {
         UMeshComponent* Mesh = Cast<UMeshComponent>(&Primitive);
         if (!Prop.Materials.IsEmpty() || !Mesh) { return; }
+        // The strength is one material value: an instanced prop is tall only when every instance is on its own (the
+        // spread of several poles is no building); a whole component judges its own bounds.
+        float Strength = LDPropFade::StrengthFor(Primitive.Bounds.GetBox());
+        if (Prop.bPerInstance)
+        {
+            Strength = LDPropFade::TallFadedStrength;
+            for (const FBox& Instance : Prop.InstanceBounds) { Strength = FMath::Min(Strength, LDPropFade::StrengthFor(Instance)); }
+        }
         for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
         {
             UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::StrengthFor(Primitive.Bounds.GetBox())); }
+            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, Strength); }
             Prop.Materials.Add(Dynamic);
         }
     };

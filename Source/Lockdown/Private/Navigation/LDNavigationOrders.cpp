@@ -1164,6 +1164,10 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
                 return false;
             }
             Order.Goal=Projected;
+            // The owner's prediction stops within Acceptance of the projected Goal; the server stops within reach of the
+            // requested point. Shrinking the circle by the projection's offset keeps the client from stopping short of
+            // the server (both agree along the approach; at worst the client stops a little later).
+            Order.Acceptance=float(FMath::Max(ReachCm-FVector::Dist2D(Projected,Request.GroundCm),LDPathSteering::WaypointToleranceCm));
         }
         else { Order.Goal=Request.GroundCm; }
     }
