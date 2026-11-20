@@ -860,7 +860,8 @@ bool FLDHUDStatWheelTest::RunTest(const FString& Parameters)
     // The band: the cell under the wheel event, not the last tick's hover.
     Input.Mode=ULDWorkshop::EMode::Closed;
     for(int32 Tick=0;Tick<5;++Tick){Frame();}
-    Bar->PinHover(2);
+    Bar->PinHover(2);Frame();
+    TestEqual(TEXT("The pinned cell is the band's current hover"),Bar->HoverIndex(),2);
     Wheel(Bar,CentreOf(Bar->CellBox(0)),1.f);
     TestTrue(TEXT("Wheel up over a band cell allocates that cell's stat, not the pinned hover"),
         Sent.Num()==3&&Only(Sent.Last(),ELDBuildCommandKind::AllocatePoints,0));
