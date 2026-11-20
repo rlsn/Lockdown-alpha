@@ -13,6 +13,7 @@
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
@@ -411,6 +412,12 @@ bool LDPropFade::FSweep::Next(TConstArrayView<int32> Counts, int32& OutLevel, in
     OutLevel = Level;
     OutIndex = Index++;
     return true;
+}
+
+float LDPropFade::StrengthFor(const FBox& Bounds)
+{
+    const FVector Size = Bounds.IsValid ? Bounds.GetSize() : FVector::ZeroVector;
+    return Size.Z >= TallPropCm && FMath::Min(Size.X, Size.Y) >= BroadPropCm ? TallFadedStrength : FadedStrength;
 }
 
 float LDPropFade::Step(float Current, bool bOccluding, float DeltaSeconds)
@@ -1649,6 +1656,10 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         Targets.Add(Pair.Value->GetActorLocation());
         Targets.Add(Pair.Value->GetActorLocation() + FVector(0, 0, 70));
     }
+    // The ground under the pointer: a move or a ground skill aimed behind a building sees where it lands.
+    FHitResult PointerGround;
+    if (Own && Owning.Navigation && Owning.Navigation->GroundUnderPointer(PointerGround))
+    { Targets.Add(PointerGround.ImpactPoint + FVector(0, 0, 30)); }
     const FVector Camera = Owning.PlayerCameraManager ? Owning.PlayerCameraManager->GetCameraLocation() : FVector::ZeroVector;
     const FBox Reach = LDPropFade::Reach(Camera, Targets);
     auto Hides = [&](const FBox& Bounds)
@@ -1666,7 +1677,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
         {
             UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
+            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::StrengthFor(Primitive.Bounds.GetBox())); }
             Prop.Materials.Add(Dynamic);
         }
     };
