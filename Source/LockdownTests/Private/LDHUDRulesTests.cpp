@@ -748,19 +748,19 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     // the chosen step follows as its own line.
     FLDDemoAbilityDefinition Trip;Trip.Id=TEXT("hud_rules_fixture_trip");Trip.Target=Bolt.Target;
     FLDDemoEffectDefinition Hold;Hold.Opcode=uint8(ELDDemoEffectOp::Root);Hold.DurationMs=1000;
-    FLDDemoEffectDefinition Stun;Stun.Opcode=uint8(ELDDemoEffectOp::Stun);Stun.DurationMs=800;
+    FLDDemoEffectDefinition Stun;Stun.Opcode=uint8(ELDDemoEffectOp::Stun);Stun.DurationMs=800;Stun.ExtraDurationMs=500;
     Trip.Values=Cost;Trip.Values.Effects.Add(Hold);
     FLDDemoAbilityBranch TripA;TripA.Path=ELDSkillBranch::A;TripA.Target=Bolt.Target;TripA.Values=Cost;TripA.Values.Effects.Add(Stun);
     Trip.Branches.Add(TripA);Content.Abilities.Add(Trip);
     FLDDemoDisplayDefinition TripDisplay;TripDisplay.Id=Trip.Id;TripDisplay.NameText=TEXT("测试绊");
     TripDisplay.DescriptionText=TEXT("造成 [damage.amount] 伤害，定身 [root.duration] 秒。");
     FLDDemoDisplayDefinition TripStep;TripStep.Id=TEXT("hud_rules_fixture_trip_2a");TripStep.NameText=TEXT("改眩晕");
-    TripStep.DescriptionText=TEXT("改为眩晕 [stun.duration] 秒。");
+    TripStep.DescriptionText=TEXT("改为眩晕 [stun.duration] 秒，撞墙再晕 [stun.extra_duration] 秒。");
     Content.Display.Add(TripDisplay);Content.Display.Add(TripStep);
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_trip"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
     const LDHUD::FActiveCardView Ranked=LDHUD::ActiveCard(TEXT("hud_rules_fixture_trip"),&Content,Stats,ELDSkillBranch::A);
     TestTrue(TEXT("A branch that replaces an effect still reads whole, at its rank, with its step line"),Ranked.bKnown
-        &&Ranked.SentencePlain==TEXT("造成 150 伤害，定身 1 秒。\n改眩晕：改为眩晕 0.8 秒。")&&Ranked.Cost==LDHUD::CostLine(TripA.Values));
+        &&Ranked.SentencePlain==TEXT("造成 150 伤害，定身 1 秒。\n改眩晕：改为眩晕 0.8 秒，撞墙再晕 0.5 秒。")&&Ranked.Cost==LDHUD::CostLine(TripA.Values));
     TestEqualSensitive(TEXT("The level-1 face of the same skill is unchanged"),
         LDHUD::ActiveCard(TEXT("hud_rules_fixture_trip"),&Content,Stats).SentencePlain,FString(TEXT("造成 100 伤害，定身 1 秒。")));
     // #198 stat rows: name, per-point text and the allocated points; a stat without its display row says so.

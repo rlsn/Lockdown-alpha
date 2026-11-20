@@ -1634,6 +1634,7 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     case EField::Refund: Out=HudDecimal(double(Effect->AmountMs)/1000.);return true;
     case EField::Limit: Out=HudDecimal(double(Effect->LimitP2)/100.);return true;
     case EField::Duration: Out=HudDecimal(double(Effect->DurationMs)/1000.);return true;
+    case EField::ExtraDuration: Out=HudDecimal(double(Effect->ExtraDurationMs)/1000.);return true;
     case EField::Ratio: Out=HudDecimal(double(Effect->RatioBp)/100.);return true;
     case EField::Count: Out=FString::FromInt(Effect->Count);return true;
     case EField::Radius: Out=HudRational(Effect->RadiusCm);return true;
