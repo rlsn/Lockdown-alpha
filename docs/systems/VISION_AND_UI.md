@@ -476,7 +476,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
   先发 `ClientBlueprintOffer`（总字节或明确的失败原因），客户端按顺序用 `ServerBlueprintChunk` 拉取 16 KiB 分块，服务器只回应当前结果
   的下一个偏移，重放、跳块或旧结果都被拒绝；Listen Host 本人直接交付字节。传输中断或校验失败的部分记录不保存、不显示为蓝图。
   AI 不生成记录；房主断线或故障结束的对局没有锁定结果，因此也没有蓝图。
-- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=2`，扩展名 `.ldbuild.json`。
+- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=5`（其他版本明确拒绝为不支持的版本），扩展名 `.ldbuild.json`。
   顶层为 `origin`（`auto`/`export`）、`complete`、`product_version`、`recorded_at_utc`（本机收到时的 UTC，保留按它排序）、
   `rules`（协议版本、目录根摘要与 schema/handler/projection 修订）、`match`（公开 ResultId、模式、结束原因、胜负、毫秒时刻）、
   `player`（最终等级与 K/D/A）、`final_build`（最后版本的结构与修订）和 `versions`（每个版本的修订、时间段、等级、`dev_layer`、

@@ -1097,8 +1097,6 @@ namespace LDHUD
         FGuid GraffitiOwner;
         // The final mods' public field as last observed: the fading graffiti, the fence, whether the flagpole was away from
         // its anchor and which private flagpoles carried graffiti.
-        // A new owner already holding this much guard took it over (final_usurp) rather than spraying.
-        static constexpr int64 UsurpProgressMs=300;
         int64 FadeAtMs=0;
         int64 CageUntilMs=0;
         bool bPoleAway=false;

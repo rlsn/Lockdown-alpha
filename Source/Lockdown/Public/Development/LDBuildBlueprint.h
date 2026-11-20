@@ -12,7 +12,8 @@ struct FLDDemoContentDefinitions;
 namespace LDBuildBlueprint
 {
     inline constexpr TCHAR Schema[] = TEXT("lockdown.build-blueprint");
-    inline constexpr int32 SchemaVersion = 4;
+    // 5: final_mod carries only its definition (a final mod binds no source).
+    inline constexpr int32 SchemaVersion = 5;
     inline constexpr TCHAR Extension[] = TEXT(".ldbuild.json");
     inline constexpr TCHAR OriginAuto[] = TEXT("auto");
     // #305: the stored text of a skill branch path ("" for rank 1) and back; false for an unknown text.

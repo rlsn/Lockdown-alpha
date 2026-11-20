@@ -771,6 +771,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.PausedProgressMs = CaptureReducer.GetPausedProgressMs();
     }
     View.GraffitiOwner = CaptureReducer.GetGraffitiOwner();
+    View.GraffitiCause = CaptureReducer.GetGraffitiCause();
     if (View.GraffitiOwner.IsValid())
     {
         // The owner's public identity slot: his start roster position, the same key his body tint uses.

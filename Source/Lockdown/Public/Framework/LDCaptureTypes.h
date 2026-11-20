@@ -16,6 +16,10 @@
 UENUM()
 enum class ELDCircleState : uint8 { NotOpen, Empty, Solo, Contested, Guarded };
 
+// How the current graffiti came to its owner: a completed spray, or final_usurp taking it over with its guard.
+UENUM()
+enum class ELDGraffitiCause : uint8 { None, Sprayed, Usurped };
+
 UENUM()
 // SprayCount (final_hit_and_run) and ClearOut (final_clear_out) are a final mod's alternative win; appended.
 enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded, ObjectiveTimeout, NoChampion, SprayCount, ClearOut };
@@ -159,6 +163,8 @@ struct FLDPublicMatchView
     // public identity slot (his start roster position, the body tint key), zero without an owner.
     UPROPERTY() FGuid GraffitiOwner;
     UPROPERTY() uint8 GraffitiPresentation = 0;
+    // Why the owner holds it (None exactly without an owner); announcements read this fact, never the guard progress.
+    UPROPERTY() ELDGraffitiCause GraffitiCause = ELDGraffitiCause::None;
     // With an owner: the real instant the running guard wins (Guarded), or the guard progress kept while it is paused
     // (Empty: the owner is away) or frozen by a challenger in the zone (Solo or Contested). Both zero without an owner.
     UPROPERTY() int64 GuardDueAtMs = 0;

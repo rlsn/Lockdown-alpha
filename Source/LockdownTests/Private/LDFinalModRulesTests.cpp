@@ -222,11 +222,13 @@ bool FLDFinalModUsurpTest::RunTest(const FString& Parameters)
     Probe.ExpectNoWin(1350, TEXT("A sprays"));
     Probe.Add(FinalDied(BodyB, 1400, U), TEXT("U kills a non-owner"));
     Probe.ExpectNoWin(1400, TEXT("Killing someone else takes nothing"));
-    TestEqual(TEXT("The graffiti stays A's"), Probe.Reducer.GetGraffitiOwner(), A);
+    TestTrue(TEXT("The graffiti stays A's, sprayed"), Probe.Reducer.GetGraffitiOwner() == A
+        && Probe.Reducer.GetGraffitiCause() == ELDGraffitiCause::Sprayed);
     Probe.Add(FinalDied(BodyA, 1600, U), TEXT("U kills the owner"));
     Probe.ExpectNoWin(1600, TEXT("The owner's death hands the graffiti over"));
     TestTrue(TEXT("The usurper owns it with the inherited progress, paused while he is outside"),
-        Probe.Reducer.GetGraffitiOwner() == U && Probe.Reducer.GetState() == ELDCircleState::Empty
+        Probe.Reducer.GetGraffitiOwner() == U && Probe.Reducer.GetGraffitiCause() == ELDGraffitiCause::Usurped
+        && Probe.Reducer.GetState() == ELDCircleState::Empty
         && Probe.Reducer.GetGuardKeptMs() == 250 && Probe.Reducer.GetBankedGuardMs(A) == 250);
     Probe.Add(FinalPresence(BodyU, 1700, true), TEXT("U enters alone"));
     Probe.ExpectNoWin(1700, TEXT("U guards"));

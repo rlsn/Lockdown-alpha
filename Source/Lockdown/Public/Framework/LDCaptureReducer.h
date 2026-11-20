@@ -120,6 +120,7 @@ public:
     // Contested with a holder only: spray progress frozen at the contest, in (0, spray].
     int64 GetPausedProgressMs() const { return State == ELDCircleState::Contested ? Paused : 0; }
     const FGuid& GetGraffitiOwner() const { return Owner; }
+    ELDGraffitiCause GetGraffitiCause() const { return Owner.IsValid() ? Cause : ELDGraffitiCause::None; }
     // The guard needs its owner alone in the zone: Empty pauses it, Solo and Contested freeze it. A fading graffiti
     // (final_hit_and_run) has no guard at all.
     static bool GuardRunsIn(ELDCircleState Circle) { return Circle == ELDCircleState::Guarded; }
@@ -206,6 +207,7 @@ private:
     FLDCaptureFinalRules Rules;
     FGuid OnlySprayer;
     int64 FadeAt = 0;
+    ELDGraffitiCause Cause = ELDGraffitiCause::None;
     // final_hit_and_run holders who sprayed and have not left the zone since.
     TSet<FGuid> MustLeave;
     // Alternative and kill-filled wins reached in the boundary being reduced; the earliest instant wins, then priority.

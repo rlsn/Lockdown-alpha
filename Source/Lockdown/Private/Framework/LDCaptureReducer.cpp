@@ -469,6 +469,7 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     GuardKept = 0;
     GuardAccountedThroughMs = At;
     FadeAt = 0;
+    Cause = ELDGraffitiCause::Sprayed;
     if (ModOf(Sprayer) == ELDDemoFinalModId::FinalHitAndRun)
     {
         // A hit-and-run graffiti has no guard; it fades and its sprayer must leave the zone before spraying again.
@@ -679,6 +680,7 @@ bool FLDCaptureReducer::ApplyKill(const FLDCaptureEvent& Event, FString& Error)
         }
         ++Epoch;
         Owner = Killer;
+        Cause = ELDGraffitiCause::Usurped;
         if (FadeAt != 0)
         {
             // A fading graffiti had no guard: the usurper's starts from zero.

@@ -72,6 +72,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     if ((View.CircleState == ELDCircleState::Guarded && !Owned) || (Owned && View.Occupier == View.GraffitiOwner)
         || View.GraffitiPresentation >= CapturePresentationSlots || (!Owned && View.GraffitiPresentation != 0)
         || View.FadeAtMs < 0 || (View.FadeAtMs != 0 && (!Owned || View.FadeAtMs <= View.OpenAtMs))
+        || uint8(View.GraffitiCause) > uint8(ELDGraffitiCause::Usurped) || (View.GraffitiCause == ELDGraffitiCause::None) == Owned
         || (!Owned || View.FadeAtMs != 0 ? (View.GuardDueAtMs != 0 || View.GuardKeptMs != 0)
             : GuardFrozen ? (View.GuardDueAtMs != 0 || View.GuardKeptMs < 0 || View.GuardKeptMs > KeptMax)
                           : (View.GuardDueAtMs <= View.OpenAtMs || View.GuardKeptMs != 0)))

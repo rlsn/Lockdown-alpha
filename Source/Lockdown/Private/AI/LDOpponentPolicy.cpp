@@ -894,11 +894,13 @@ FLDOpponentBodyIntent MoveToPoint(const FContext& C, const FVector& Point)
     FLDOpponentBodyIntent Body;
     const auto& Order = C.Frame.Order;
     if (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI.IsNone()) { return Hold(C); }
-    if (!C.CanWalk()) { return Hold(C); }
+    // Refused point walks wait out their own retry budget instead of being resent every decision.
+    const FLDOpponentRetryKey Key = FContext::PathKey(TEXT("final_point"));
+    if (!C.CanWalk() || !C.CanAttempt(Key)) { return Hold(C); }
     Body.Kind = EBody::MoveGround;
     Body.Point = Point;
     Body.Surface = C.Capture->SurfaceId;
-    Body.Key = FContext::PathKey(TEXT("final_point"));
+    Body.Key = Key;
     return Body;
 }
 
@@ -944,10 +946,22 @@ bool FinalModBody(const FContext& C, FLDOpponentBodyIntent& Out)
             }
         }
     }
-    // A standing fence keeps outsiders out: fight what is outside or wait for it to fall.
+    // A standing fence keeps outsiders out: chase only enemies outside it, hit one inside only from where it stands
+    // (in attack range, no walk), otherwise stop and wait for the fence to fall.
     if (Public.CageUntilMs > C.Now && FVector::Dist2D(Foot, Public.CageCentreCm) > Public.CageRadiusCm)
     {
-        if (const FLDOpponentUnit* Target = SelectEngageTarget(C)) { Out = EngageBody(C, *Target); return true; }
+        const FLDOpponentUnit* Outside = nullptr;
+        const FLDOpponentUnit* InReach = nullptr;
+        for (const FLDOpponentUnit* Enemy : C.Enemies)
+        {
+            if (Enemy->bProtected || HandleSuppressed(C, *Enemy)) { continue; }
+            const bool bCaged = FVector::Dist2D(Enemy->FootCm, Public.CageCentreCm) <= Public.CageRadiusCm;
+            if (!bCaged && (!Outside || C.Distance(Enemy->FootCm) < C.Distance(Outside->FootCm))) { Outside = Enemy; }
+            if (bCaged && C.Distance(Enemy->FootCm) <= C.AttackRangeCm) { InReach = Enemy; }
+        }
+        if (Outside) { Out = EngageBody(C, *Outside); return true; }
+        if (InReach) { Out = AttackBody(C, *InReach); return true; }
+        ForgetTarget(C.State);
         Out = Halt(C);
         return true;
     }

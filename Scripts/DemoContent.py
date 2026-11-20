@@ -976,8 +976,8 @@ def validate_definitions(data, ids):
         for field in fields:
             value = row[field] if field == "sprays" else quantity(row[field])
             require(value > 0, "FinalModDomain", identity + "." + field, "final mod terms must be positive")
-    require(finals["final_hit_and_run"]["sprays"] >= 2, "FinalModDomain", "final_hit_and_run.sprays",
-            "a spray-count win needs more than one spray")
+    require(2 <= finals["final_hit_and_run"]["sprays"] <= 1000, "FinalModDomain", "final_hit_and_run.sprays",
+            "a spray-count win needs 2 to 1000 sprays")
     require(quantity(finals["final_private_pole"]["spray"]) < quantity(finals["final_private_pole"]["guard"]),
             "FinalModDomain", "final_private_pole", "the private pole is guarded longer than it is sprayed")
 

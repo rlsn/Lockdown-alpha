@@ -893,13 +893,9 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
             const FString OwnerName=bOwnGraffiti?FString(TEXT("你")):Name(Public.GraffitiOwner);
             const FString Owner=OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName;
             const bool bNewOwner=Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner!=GraffitiOwner;
-            // final_usurp: the graffiti changed hands without a new spray (the sprays of a repaint are public as a new graffiti).
+            // final_usurp: the authority says how the new owner got it.
             const FString OwnerMod=PublicFinalMod(Public,Public.GraffitiOwner,In.Content);
-            const int64 Inherited=Public.GuardKeptMs>0?Public.GuardKeptMs
-                :Public.GuardDueAtMs>0&&In.bClock?Public.Showdown.GuardMs-(Public.GuardDueAtMs-In.NowMs):0;
-            const bool bUsurp=bNewOwner&&GraffitiOwner.IsValid()&&Inherited>UsurpProgressMs
-                &&Public.FinalMods.ContainsByPredicate([&Public](const FLDFinalModHolderView& Row)
-                {return Row.Contender==Public.GraffitiOwner&&Row.Mod==FName(TEXT("final_usurp"));});
+            const bool bUsurp=bNewOwner&&Public.GraffitiCause==ELDGraffitiCause::Usurped;
             if(bUsurp){Add(LDTerms::Usurped(Owner),bOwnGraffiti);}
             else if(bNewOwner){Add(LDTerms::GraffitiSprayed(LDTerms::HolderWithMod(Owner,OwnerMod)),bOwnGraffiti);}
             if(FadeAtMs>0&&Public.FadeAtMs==0&&!Public.GraffitiOwner.IsValid()){Add(LDTerms::GraffitiFaded,false);}

@@ -107,7 +107,7 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A composed record serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error));
     const FString Text=BlueprintUtf8(Bytes);
     TestTrue(TEXT("The file names its schema and version"),Text.Contains(TEXT("\"schema\": \"lockdown.build-blueprint\""))
-        &&Text.Contains(TEXT("\"schema_version\": 4"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
+        &&Text.Contains(TEXT("\"schema_version\": 5"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
     const int32 Debt=Text.Find(FString(TEXT("\""))+LDBuildBlueprint::FactKey(ELDBlueprintFact::DamageReduced)+TEXT("\""),
         ESearchCase::CaseSensitive,ESearchDir::FromEnd);
     const FString DebtObject=Debt==INDEX_NONE?FString():Text.Mid(Debt,160);
@@ -186,9 +186,12 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Text that is no JSON is refused"),BlueprintParseText(TEXT("lockdown build"))==ELDBlueprintParseError::NotJson);
     TestTrue(TEXT("Another schema is refused"),BlueprintParseText(Text.Replace(TEXT("lockdown.build-blueprint"),TEXT("lockdown.other-record")))==ELDBlueprintParseError::WrongSchema);
     TestTrue(TEXT("An unknown schema version is refused, not guessed"),
-        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")))==ELDBlueprintParseError::UnknownVersion);
-    TestTrue(TEXT("A dash FIN cannot smuggle a named active into its binding"),
-        BlueprintParseText(Text.Replace(TEXT("\"target_id\": \"\""),TEXT("\"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 5"),TEXT("\"schema_version\": 6")))==ELDBlueprintParseError::UnknownVersion);
+    TestTrue(TEXT("The previous format (version 4) is refused as an unsupported version"),
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 5"),TEXT("\"schema_version\": 4")))==ELDBlueprintParseError::UnknownVersion);
+    TestTrue(TEXT("A final mod cannot carry the retired source binding"),
+        BlueprintParseText(Text.Replace(TEXT("\"definition\": \"final_cage\""),TEXT("\"definition\": \"final_cage\", \"target_id\": \"bolt\"")))
+        ==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
     TestTrue(TEXT("A slot outside Q/W/E is refused"),BlueprintParseText(Text.Replace(TEXT("\"slot\": \"Q\""),TEXT("\"slot\": \"X\"")))==ELDBlueprintParseError::BadField);
     FString ZeroFilled=Text;
@@ -249,7 +252,7 @@ bool FLDBuildBlueprintPruneTest::RunTest(const FString& Parameters)
         if(!BlueprintSample(*this,FGuid::NewGuid(),Base-FTimespan::FromDays(29),Future)){return false;}
         LDBuildBlueprint::Serialize(Future,Bytes,Error);
         const FString Unknown=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(Future.MatchId));
-        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")),*Unknown,
+        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 5"),TEXT("\"schema_version\": 6")),*Unknown,
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
         Foreign.Add(Unknown);
         const FString Broken=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(FGuid::NewGuid().ToString(EGuidFormats::Digits)));
