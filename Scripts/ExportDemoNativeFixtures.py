@@ -600,6 +600,7 @@ def parameter_projection(parameters):
         "AuditTelegraphCutBp": scalar(a("AuditTelegraphCut")), "AuditSkillPointsMax": a("AuditSkillPointsMax"),
     }
     x = lambda key: parameters["EXPLORE." + key]
+    result["Medal"] = {field: scalar(parameters[key]) for key, field in (("MEDAL.LevelChance", "LevelChanceBp"), ("MEDAL.CampLowChance", "CampLowChanceBp"), ("MEDAL.CampHighChance", "CampHighChanceBp"), ("MEDAL.CampEliteChance", "CampEliteChanceBp"), ("MEDAL.CampAncientChance", "CampAncientChanceBp"), ("MEDAL.BossChance", "BossChanceBp"), ("MEDAL.EventChance", "EventChanceBp"))}
     result["Explore"] = {
         "LockerCount": x("LockerCount"), "LockerRadiusCm": rational(x("LockerRadiusCm")),
         "LockerChannelMs": scalar(x("LockerChannelSec")),

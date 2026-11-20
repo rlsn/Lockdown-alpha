@@ -641,6 +641,7 @@ bool PacingParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
     FLDDemoDailyParameters& D = P.Daily;
     FLDDemoAffixParameters& A = P.Affix;
     FLDDemoExploreParameters& X = P.Explore;
+    FLDDemoMedalParameters& M = P.Medal;
     struct FFixedField { const TCHAR* Key; const TCHAR* Unit; const TCHAR* Storage; int64* Out; int64 Min; int64 Max; };
     const FFixedField Fixed[] =
     {
@@ -668,6 +669,13 @@ bool PacingParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("DAILY.ExamRespawnBonusSec"), TEXT("ms"), TEXT("ms"), &D.ExamRespawnBonusMs, 1, MAX_int32},
         {TEXT("DAILY.GymDashCooldownCut"), TEXT("ratio"), TEXT("bp"), &D.GymDashCooldownCutBp, 1, 9999},
         {TEXT("AFFIX.Chance"), TEXT("ratio"), TEXT("bp"), &A.ChanceBp, 0, 10000},
+        {TEXT("MEDAL.LevelChance"), TEXT("ratio"), TEXT("bp"), &M.LevelChanceBp, 0, 10000},
+        {TEXT("MEDAL.CampLowChance"), TEXT("ratio"), TEXT("bp"), &M.CampLowChanceBp, 0, 10000},
+        {TEXT("MEDAL.CampHighChance"), TEXT("ratio"), TEXT("bp"), &M.CampHighChanceBp, 0, 10000},
+        {TEXT("MEDAL.CampEliteChance"), TEXT("ratio"), TEXT("bp"), &M.CampEliteChanceBp, 0, 10000},
+        {TEXT("MEDAL.CampAncientChance"), TEXT("ratio"), TEXT("bp"), &M.CampAncientChanceBp, 0, 10000},
+        {TEXT("MEDAL.BossChance"), TEXT("ratio"), TEXT("bp"), &M.BossChanceBp, 0, 10000},
+        {TEXT("MEDAL.EventChance"), TEXT("ratio"), TEXT("bp"), &M.EventChanceBp, 0, 10000},
         {TEXT("AFFIX.OvertimeAttackSpeed"), TEXT("ratio"), TEXT("bp"), &A.OvertimeAttackSpeedBp, 1, 10000},
         {TEXT("AFFIX.TeambuildXPScale"), TEXT("ratio"), TEXT("bp"), &A.TeambuildXPScaleBp, 10000, 100000},
         {TEXT("AFFIX.BonusHP"), TEXT("ratio"), TEXT("bp"), &A.BonusHPBp, 1, 10000},

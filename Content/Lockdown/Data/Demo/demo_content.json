@@ -22273,6 +22273,34 @@
       "ms": 160000,
       "unit": "ms"
     },
+    "MEDAL.BossChance": {
+      "bp": 10000,
+      "unit": "ratio"
+    },
+    "MEDAL.CampAncientChance": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "MEDAL.CampEliteChance": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "MEDAL.CampHighChance": {
+      "bp": 600,
+      "unit": "ratio"
+    },
+    "MEDAL.CampLowChance": {
+      "bp": 300,
+      "unit": "ratio"
+    },
+    "MEDAL.EventChance": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "MEDAL.LevelChance": {
+      "bp": 1500,
+      "unit": "ratio"
+    },
     "MOMENTUM.BasicPerRefInterval": {
       "p2": 1000,
       "unit": "momentum"

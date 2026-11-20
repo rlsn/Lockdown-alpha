@@ -2173,6 +2173,7 @@ LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,con
         if(Index>=1&&Index<=3){Column.Active=ActiveInSlot(Progression,uint8(Index-1));}
         Column.Title=Column.Column==EStorageColumn::Body?FString(LDTerms::ColumnBody):Column.Column==EStorageColumn::Dash?FString(LDTerms::Dash)
             :Column.Active.IsNone()?FString(LDTerms::ColumnEmptySlot):FString();
+        Column.bMedalSlot=Progression.bValid&&(Column.Column==EStorageColumn::Body||(Index>=1&&Index<=3&&!Column.Active.IsNone()));
     }
     if(!Progression.bValid){return View;}
     View.Capacity=Progression.CardCapacity;
@@ -2193,6 +2194,13 @@ LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,con
         EStorageColumn Column=EStorageColumn::Body;
         if(!CardColumn(Progression,Owned.Target.Kind,Owned.Target.Active,Column)){continue;}
         const FString Note=Owned.Target.Element==ELDDemoElement::None?FString():ElementName(Owned.Target.Element);
+        // An element medal sits in its host's element slot, not among the column's cards.
+        if(Content&&LDProgression::IsMedal(*Content,Owned.DefinitionId))
+        {
+            FStorageColumnView& Host=View.Columns[int32(Column)];
+            Host.bHasMedal=true;Host.Medal.Card=Key;Host.Medal.Keys={Key};Host.Medal.Copies=1;
+            continue;
+        }
         TArray<FEquippedView>& Entries=View.Columns[int32(Column)].Entries;
         FEquippedView* Group=Entries.FindByPredicate([&Owned,&Note](const FEquippedView& Row)
             {return CardDefinition(Row.Card)==Owned.DefinitionId&&Row.Note==Note;});

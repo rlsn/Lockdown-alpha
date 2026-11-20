@@ -1141,6 +1141,41 @@ bool ALDDevelopmentDirector::GrantSkillPoint(const FGuid& ContenderId, const TCH
     return true;
 }
 
+bool ALDDevelopmentDirector::RollMedal(const FGuid& ContenderId, int64 ChanceBp, uint64 Key, const TCHAR* Cause,
+    const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Growth || !Content.IsValid() || Permit.GetBoundary().Match != Match
+        || GameMode->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None)
+    {
+        Error = TEXT("A medal drop needs a world permit and the growth domain.");
+        return false;
+    }
+    FRecord* Record = Records.Find(ContenderId);
+    FName Medal;
+    if (!Record || !LDProgression::RollMedal(Content->Get(), LDProgression::MedalSeed(MatchSecret, ContenderId, Key), ChanceBp, Medal))
+    {
+        return true;
+    }
+    FLDGrowthBuild NewBuild = Record->Build;
+    uint16 Serial = 0;
+    ELDGrowthReason Reason = LDProgression::ReceiveCard(Content->Get(), NewBuild, Medal, 0, Serial);
+    if (Reason == ELDGrowthReason::None)
+    {
+        FLDProgressionState NewProgression = Record->Progression;
+        Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), false, Permit);
+    }
+    if (Reason != ELDGrowthReason::None)
+    {
+        Error = FString::Printf(TEXT("The %s medal to %s was refused: %s."), Cause, *LDLog::Id(ContenderId), LDGrowthWire::ReasonName(Reason));
+        return false;
+    }
+    GameMode->Growth->MarkDirty(ContenderId);
+    UE_LOG(LogLDGrowth, Display, TEXT("LD_MEDAL contender=%s cause=%s medal=%s serial=%u"), *LDLog::Id(ContenderId), Cause,
+        *Medal.ToString(), uint32(Serial));
+    return true;
+}
+
 bool ALDDevelopmentDirector::OpenFinalMods(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     ALDGameMode* GameMode = Mode();
@@ -1425,6 +1460,21 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         if (QueueReason != ELDGrowthReason::None)
         {
             return DevelopmentPrepareFailure(QueueReason, TEXT("The level-up card offers do not fit the queue."));
+        }
+        // A level that queues no card offer may drop an element medal (MEDAL.LevelChance), in this same commit.
+        for (const int32 Level : LDProgression::MedalLevels(Content->Get().Parameters.Cards, Change.LevelBefore, Change.LevelAfter))
+        {
+            FName Medal;
+            if (!LDProgression::RollMedal(Content->Get(), LDProgression::MedalSeed(MatchSecret, ContenderId, 0x4c56000000ull + uint64(Level)),
+                Content->Get().Parameters.Medal.LevelChanceBp, Medal)) { continue; }
+            uint16 Serial = 0;
+            if (const ELDGrowthReason MedalReason = LDProgression::ReceiveCard(Content->Get(), NewBuild, Medal, 0, Serial);
+                MedalReason != ELDGrowthReason::None)
+            {
+                return DevelopmentPrepareFailure(MedalReason, TEXT("The level-up medal does not fit the build."));
+            }
+            UE_LOG(LogLDGrowth, Display, TEXT("LD_MEDAL contender=%s cause=level_%d medal=%s serial=%u"), *LDLog::Id(ContenderId), Level,
+                *Medal.ToString(), uint32(Serial));
         }
     }
     // The points follow from the new level and XP; their derivation must hold before anything installs.

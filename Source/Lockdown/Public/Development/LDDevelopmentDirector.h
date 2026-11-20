@@ -145,6 +145,11 @@ public:
     bool StockRestShops(const FLDGameplayWritePermit& Permit, FString& Error);
     // Spec §11.2 audit affix: one more skill point (either world permit); false with Error when refused.
     bool GrantSkillPoint(const FGuid& ContenderId, const TCHAR* Cause, const FLDGameplayWritePermit& Permit, FString& Error);
+    // An element medal chance (either world permit): ChanceBp (MEDAL.*Chance) seeded by the match secret, the contender and
+    // Key; on a hit one uniformly drawn medal joins the library. Not a contender of this match, or a miss, gives nothing and
+    // succeeds; false with Error only when the commit is refused.
+    bool RollMedal(const FGuid& ContenderId, int64 ChanceBp, uint64 Key, const TCHAR* Cause, const FLDGameplayWritePermit& Permit,
+        FString& Error);
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
     const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
 

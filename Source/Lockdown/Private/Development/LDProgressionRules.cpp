@@ -1160,6 +1160,8 @@ ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Co
     TArray<TPair<FName, int64>> Pool;
     for (const FLDDemoCardDefinition& Card : Content.Cards)
     {
+        // Element medals drop on their own (MEDAL.*), never in a card offer.
+        if (Card.Form == ELDCardForm::Medal) { continue; }
         Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Parameters.VocabWeight) : 1);
     }
     uint64 State = Seed;
@@ -1455,6 +1457,53 @@ uint64 LDProgression::ShopSeed(const FGuid& MatchSecret, const FGuid& Contender,
     return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
 }
 
+uint64 LDProgression::MedalSeed(const FGuid& MatchSecret, const FGuid& Contender, uint64 Key)
+{
+    // A tag of its own keeps the medal chances apart from the offers and shelves.
+    uint32 Words[11] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
+        Contender.A, Contender.B, Contender.C, Contender.D, uint32(Key), uint32(Key >> 32), 0x4d45444cu};
+    return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
+}
+
+bool LDProgression::RollMedal(const FLDDemoContentDefinitions& Content, uint64 Seed, int64 ChanceBp, FName& OutMedal)
+{
+    OutMedal = NAME_None;
+    if (ChanceBp <= 0) { return false; }
+    uint64 State = Seed;
+    if (int64(ProgressionSplitMix64(State) % 10000) >= ChanceBp) { return false; }
+    TArray<FName> Medals;
+    for (const FLDDemoCardDefinition& Card : Content.Cards)
+    {
+        if (Card.Form == ELDCardForm::Medal) { Medals.Add(FName(*Card.Id)); }
+    }
+    if (Medals.IsEmpty()) { return false; }
+    OutMedal = Medals[int32(ProgressionSplitMix64(State) % uint64(Medals.Num()))];
+    return true;
+}
+
+int64 LDProgression::CampMedalChanceBp(const FLDDemoMedalParameters& Medal, ELDDemoCampTier Tier)
+{
+    switch (Tier)
+    {
+    case ELDDemoCampTier::Low: return Medal.CampLowChanceBp;
+    case ELDDemoCampTier::High: return Medal.CampHighChanceBp;
+    case ELDDemoCampTier::Elite: return Medal.CampEliteChanceBp;
+    case ELDDemoCampTier::Ancient: return Medal.CampAncientChanceBp;
+    default: return 0;
+    }
+}
+
+TArray<int32> LDProgression::MedalLevels(const FLDDemoCardParameters& Cards, int32 Before, int32 After)
+{
+    TArray<int32> Out;
+    const int32 Every = FMath::Max(1, Cards.OfferEveryLevels);
+    for (int32 Level = Before + 1; Level <= After; ++Level)
+    {
+        if (Level % Every != 0) { Out.Add(Level); }
+    }
+    return Out;
+}
+
 ELDGrowthReason LDProgression::DrawShop(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint64 Seed,
     TArray<FLDShopSlot>& Out)
 {
@@ -1480,6 +1529,8 @@ ELDGrowthReason LDProgression::DrawShop(const FLDDemoContentDefinitions& Content
     TArray<TPair<FName, int64>> Pool;
     for (const FLDDemoCardDefinition& Card : Content.Cards)
     {
+        // Element medals are never on a shelf.
+        if (Card.Form == ELDCardForm::Medal) { continue; }
         Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Shop.VocabWeight) : 1);
     }
     for (int32 Index = 0; Index < Shop.CardSlots && !Pool.IsEmpty(); ++Index)

@@ -774,6 +774,10 @@ namespace LDHUD
         // A slot column: its learned active; None for an empty slot (which takes nothing), the basic, the body and the dash.
         FName Active;
         TArray<FEquippedView> Entries;
+        // The element slot (a learned skill's or the body's): whether the column has one, and the medal in it.
+        bool bMedalSlot=false;
+        bool bHasMedal=false;
+        FEquippedView Medal;
     };
     struct FStoredView
     {

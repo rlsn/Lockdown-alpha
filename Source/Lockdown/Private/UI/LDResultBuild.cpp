@@ -119,7 +119,9 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         Row.Target.Active = Card.TargetId;
         Row.Target.Element = Card.Element;
     }
-    const LDHUD::FStorageView Board = LDHUD::CardStorage(Progression, Content);
+    LDHUD::FStorageView Board = LDHUD::CardStorage(Progression, Content);
+    // The result board lists a column's element medal first, with its cards.
+    for (LDHUD::FStorageColumnView& Column : Board.Columns) { if (Column.bHasMedal) { Column.Entries.Insert(Column.Medal, 0); } }
     int32 Most = 0;
     for (const LDHUD::FStorageColumnView& Column : Board.Columns) { Most = FMath::Max(Most, Column.Entries.Num()); }
     const float ColumnWidth = Width / float(LDHUD::StorageColumnCount);

@@ -128,6 +128,11 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 调 `ALDDevelopmentDirector::StockRestShops` 为每名参赛者按比赛私密种子进货（`LDProgression::StockShop`：技能位均匀抽自 `EligibleBlueprints`，
 牌位前 `SHOP.VocabCardSlots` 个按词汇加权，其余均匀），刷新次数归零，记 `LD_SHOP_STOCK`。
 
+**元素勋章掉落**（`ALDDevelopmentDirector::RollMedal`，每次命中记 `LD_MEDAL cause=…`）：种子为比赛私密种子、参赛者与事件键
+（`LDProgression::MedalSeed`），按 `MEDAL.*Chance` 判定，命中则从五种勋章等概率抽一枚进牌库。不给牌三选一的升级在经验复合事务里同次判定
+（`LDProgression::MedalLevels`）；野怪最后一击在死亡奖励之后按营地档位判定；Boss、空投、外卖柜、小迷你旗、擂台与二手贩子在各自奖励之后判定。
+牌三选一与商店货架的抽取都排除勋章。
+
 **点数账**：`LDProgression::UnspentPoints` = 已得点数 + `AwardedPoints`（PK 奖励与跳过补偿）− 已分配 − `ShopSpentPoints`。
 商店与跳过不改变原有请求/生命/构筑修订和回执去重；重放已完成请求不重新收费。
 

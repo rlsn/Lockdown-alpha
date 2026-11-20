@@ -84,7 +84,7 @@ def content_fixture():
         ("DAILY.DeliveryExpireSec", "s", 10), ("DAILY.PatrolBossAppearSec", "s", 100),
         ("DAILY.ExamMonsterXPScale", "ratio", 1.2), ("DAILY.ExamRespawnBonusSec", "s", 2),
         ("DAILY.GymDashCooldownCut", "ratio", 0.2),
-        ("AFFIX.Chance", "ratio", 0.25), ("AFFIX.OvertimeAttackSpeed", "ratio", 0.2),
+        ("AFFIX.Chance", "ratio", 0.25), ("MEDAL.LevelChance", "ratio", 0.15), ("MEDAL.CampLowChance", "ratio", 0.03), ("MEDAL.CampHighChance", "ratio", 0.06), ("MEDAL.CampEliteChance", "ratio", 0.12), ("MEDAL.CampAncientChance", "ratio", 0.25), ("MEDAL.BossChance", "ratio", 1), ("MEDAL.EventChance", "ratio", 0.5), ("AFFIX.OvertimeAttackSpeed", "ratio", 0.2),
         ("AFFIX.TeambuildXPScale", "ratio", 1.25), ("AFFIX.BonusHP", "ratio", 0.3), ("AFFIX.LayoffAttack", "ratio", 0.2),
         ("AFFIX.AuditTelegraphCut", "ratio", 0.25),
         ("EXPLORE.LockerRadiusCm", "cm", 120), ("EXPLORE.LockerChannelSec", "s", 2.5),

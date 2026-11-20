@@ -163,6 +163,8 @@ inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
 // 牌库（HUD 右侧的牌堆）与展开后的安装列：Q/W/E、冲刺(D) 与本体（含普攻）各一列；元素勋章装在技能或本体的元素槽里。
 inline constexpr TCHAR Storage[]=TEXT("牌库");
+// 技能列与本体列的元素槽：空槽写“元素槽”，装上的勋章占这一格。
+inline constexpr TCHAR MedalSlot[]=TEXT("元素槽");
 inline constexpr TCHAR StorageEmpty[]=TEXT("牌库为空");
 inline constexpr TCHAR StorageNoMatches[]=TEXT("没有符合的牌");
 inline constexpr TCHAR StorageNoRoom[]=TEXT("牌库空间不足，暂时无法显示");
