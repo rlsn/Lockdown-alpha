@@ -187,8 +187,9 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another schema is refused"),BlueprintParseText(Text.Replace(TEXT("lockdown.build-blueprint"),TEXT("lockdown.other-record")))==ELDBlueprintParseError::WrongSchema);
     TestTrue(TEXT("An unknown schema version is refused, not guessed"),
         BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 4"),TEXT("\"schema_version\": 5")))==ELDBlueprintParseError::UnknownVersion);
-    TestTrue(TEXT("A dash FIN cannot smuggle a named active into its binding"),
-        BlueprintParseText(Text.Replace(TEXT("\"target_id\": \"\""),TEXT("\"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
+    TestTrue(TEXT("A final mod cannot carry a source binding"),
+        BlueprintParseText(Text.Replace(TEXT("\"definition\": \"final_cage\""),
+            TEXT("\"definition\": \"final_cage\", \"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
     TestTrue(TEXT("A slot outside Q/W/E is refused"),BlueprintParseText(Text.Replace(TEXT("\"slot\": \"Q\""),TEXT("\"slot\": \"X\"")))==ELDBlueprintParseError::BadField);
     FString ZeroFilled=Text;

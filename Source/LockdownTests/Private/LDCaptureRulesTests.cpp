@@ -863,6 +863,7 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Final.Showdown.RespawnsCloseAtMs=260000;Final.Showdown.ClosureAtMs=230000;
     Final.Showdown.SprayMs=3500;Final.Showdown.GuardMs=20000;
     Final.Showdown.CentreCm=FVector(13000,0,0);Final.Showdown.InitialRadiusCm=1800;Final.Showdown.FinalRadiusCm=600;
+    Final.PoleCentreCm=Final.Showdown.CentreCm;Final.PoleRadiusCm=Final.Showdown.InitialRadiusCm;
     TestTrue(TEXT("A coherent public final arena and its clocks are accepted"),LDCapture::ValidatePublicMatchView(Final,Error));
     Final.Showdown.RespawnsCloseAtMs=Final.Showdown.EndsAtMs;
     TestFalse(TEXT("Respawn admission must close before the terminal clock"),LDCapture::ValidatePublicMatchView(Final,Error));
