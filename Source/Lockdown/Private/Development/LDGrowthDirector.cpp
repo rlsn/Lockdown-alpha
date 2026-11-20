@@ -374,8 +374,9 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(Outcome, Reason);
     }
-    // The last hit on a camp monster may drop an element medal by the camp's tier (MEDAL.Camp*Chance).
-    if (!bContenderVictim)
+    // The last hit on a camp monster may drop an element medal by the camp's tier (MEDAL.Camp*Chance). The peddler keeps a
+    // camp definition but is an event: its own reward rolls MEDAL.EventChance once.
+    if (!bContenderVictim && !Basis.bPeddlerAtDeath)
     {
         const FLDDemoMonsterDefinition* Monster = Content->Get().Monsters.FindByPredicate(
             [&Basis](const FLDDemoMonsterDefinition& Row) { return FName(*Row.Id) == Basis.RewardDefinitionId; });

@@ -1473,7 +1473,8 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
             {
                 return DevelopmentPrepareFailure(MedalReason, TEXT("The level-up medal does not fit the build."));
             }
-            UE_LOG(LogLDGrowth, Display, TEXT("LD_MEDAL contender=%s cause=level_%d medal=%s serial=%u"), *LDLog::Id(ContenderId), Level,
+            // Prepared, not yet installed: the commit may still drop this plan and retry it.
+            UE_LOG(LogLDGrowth, Display, TEXT("LD_MEDAL_PREPARE contender=%s cause=level_%d medal=%s serial=%u"), *LDLog::Id(ContenderId), Level,
                 *Medal.ToString(), uint32(Serial));
         }
     }
