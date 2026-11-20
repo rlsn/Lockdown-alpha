@@ -82,8 +82,10 @@ private:
 namespace LDObservedPresentation
 {
     // The clock trails the authority sample time by one publication interval, a margin and the measured arrival
-    // lateness of recent frames (Timing), never less than MinDelaySeconds and never more than MaxDelaySeconds.
-    constexpr double MinDelaySeconds = .13;
+    // lateness of recent frames (Timing), never less than MinDelaySeconds and never more than MaxDelaySeconds. The floor
+    // leaves 10 ms over one 20 Hz interval and the margin, so a clean link (and the Listen Host's own relay) shows other
+    // bodies as fresh as interpolation allows; any measured lateness raises the delay above it.
+    constexpr double MinDelaySeconds = .09;
     constexpr double MaxDelaySeconds = .6;
     // Samples a proxy keeps: a clock MaxDelaySeconds behind the newest sample still has its bracketing samples at the
     // 20 Hz publish rate, with interpolation headroom (static_assert in LDWorldViewRelay.cpp); a stalled clock still

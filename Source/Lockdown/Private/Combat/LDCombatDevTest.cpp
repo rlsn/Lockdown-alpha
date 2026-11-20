@@ -98,6 +98,56 @@ bool ALDCombatDirector::DevRefillResources(const FGuid& Contender, const FLDGame
     return true;
 }
 
+bool ALDCombatDirector::DevSetMomentumPool(FLDBodyCombatState::FResources& Pool, int64& MicroP2, int64 Points, int64 MaxP2,
+    bool& OutChanged)
+{
+    OutChanged = false;
+    if (Points < 0 || Points > MaxP2 / 100)
+    {
+        return false;
+    }
+    if (Pool.MomentumP2 != Points * 100)
+    {
+        Pool.MomentumP2 = Points * 100;
+        ++Pool.Revision;
+        MicroP2 = 0;
+        OutChanged = true;
+    }
+    return true;
+}
+
+bool ALDCombatDirector::DevSetMomentum(const FGuid& Contender, int64 Points, const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    if (!CombatDevPermitValid(Core(), Permit, Detail))
+    {
+        return false;
+    }
+    const FLDCombatEntityRecord* Record = FindRecord(Contender);
+    FLDBodyCombatState* Body = Record && Record->Kind == ELDVictimKind::Contender ? FindEntityBody(Contender) : nullptr;
+    if (!Body || Body->bPendingDeath || !Catalog())
+    {
+        Detail = TEXT("The contender has no living combat body to set momentum on.");
+        return false;
+    }
+    const int64 MaxP2 = Catalog()->Get().Parameters.Momentum.MaxP2;
+    const int64 Before = Body->Resources.MomentumP2;
+    bool bChanged = false;
+    if (!DevSetMomentumPool(Body->Resources, Body->MomentumMicroP2, Points, MaxP2, bChanged))
+    {
+        Detail = FString::Printf(TEXT("momentum %lld is outside 0..%lld"), Points, MaxP2 / 100);
+        return false;
+    }
+    if (bChanged)
+    {
+        // Like any other momentum change: a charge does not outlive momentum below its threshold.
+        if (Body->OverdriveCharge.IsSet() && Body->Resources.MomentumP2 < OverdriveThresholdOf(*Body)) { EndOverdriveCharge(*Body); }
+        MarkViewChanged(Contender);
+    }
+    Detail = FString::Printf(TEXT("momentum %lld->%lld P2"), Before, Body->Resources.MomentumP2);
+    return true;
+}
+
 bool ALDCombatDirector::DevResetCooldowns(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail)
 {
     Detail.Reset();

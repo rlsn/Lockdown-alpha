@@ -1947,6 +1947,31 @@ ELDGrowthReason ALDDevelopmentDirector::DevLearnActive(const FGuid& ContenderId,
     return Reason;
 }
 
+ELDGrowthReason ALDDevelopmentDirector::DevGrantSkillPoint(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit,
+    FString& Detail)
+{
+    Detail.Reset();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!Record || !Content.IsValid())
+    {
+        Detail = TEXT("The contender has no growth record in this match.");
+        return ELDGrowthReason::NotContender;
+    }
+    FLDGrowthBuild NewBuild = Record->Build;
+    if (NewBuild.DevSkillPoints == MAX_int32)
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    ++NewBuild.DevSkillPoints;
+    FLDProgressionState NewProgression = Record->Progression;
+    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), false, Permit);
+    if (Reason == ELDGrowthReason::None)
+    {
+        Detail = FString::Printf(TEXT("%d unspent skill points"), LDProgression::SkillPoints(Content->Get(), Record->Build));
+    }
+    return Reason;
+}
+
 ELDGrowthReason ALDDevelopmentDirector::DevAllocatePoints(const FGuid& ContenderId, FName StatId, int64 Amount,
     const FLDGameplayWritePermit& Permit, FString& Detail)
 {

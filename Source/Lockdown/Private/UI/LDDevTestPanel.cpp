@@ -179,6 +179,23 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             AddButton(Line,TEXT("重置冷却"),[this](){Send(ELDDevTestOp::ResetCooldowns);},TEXT("DevTestCooldowns"));
             AddButton(Line,TEXT("重置到开局"),[this](){Send(ELDDevTestOp::ResetToMatchStart);},TEXT("DevTestReset"));
         }
+        {
+            UHorizontalBox* Line=Row();
+            const auto Vouchers=MakeBox(TEXT("饭票"),TEXT("DevTestVoucherAmount"));VoucherBox=Vouchers.Key;Line->AddChildToHorizontalBox(Vouchers.Value)->SetVerticalAlignment(VAlign_Center);
+            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantVouchers),[this](){SendAmount(ELDDevTestOp::GrantVouchers,VoucherBox->GetText().ToString());},TEXT("DevTestVouchers"));
+            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantSkillPoint),[this](){Send(ELDDevTestOp::GrantSkillPoint);},TEXT("DevTestSkillPoint"));
+        }
+        {
+            UHorizontalBox* Line=Row();
+            const auto Momentum=MakeBox(LDTerms::Momentum,TEXT("DevTestMomentumAmount"));MomentumBox=Momentum.Key;Line->AddChildToHorizontalBox(Momentum.Value)->SetVerticalAlignment(VAlign_Center);
+            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::SetMomentum),[this]()
+            {
+                // Zero is a valid momentum, so this box takes any whole number from 0, not only a positive one.
+                int64 Points=0;
+                if(LDDevTest::ParseScaled(MomentumBox->GetText().ToString(),0,Points)){Send(ELDDevTestOp::SetMomentum,Points);}
+                else{ShowFeedback(FString::Printf(TEXT("%s：请输入不小于 0 的整数"),LDDevTest::OpLabel(ELDDevTestOp::SetMomentum)));}
+            },TEXT("DevTestMomentum"));
+        }
 
         // Spec §7.6: one click puts the own contender into a P2 breakout sample (reset, max level, its skills, points and cards).
         Heading(TEXT("质变样板（重置后一键配好满级构筑）"));

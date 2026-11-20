@@ -37,15 +37,9 @@ namespace LDOpponentRequests
         const FLDMoveIdentity& Identity, FLDSpatialOrderRequest& Out, FString& Error);
     LOCKDOWN_API bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 Life,
         uint64 DirectSequence, uint64 ExpectedSourceRevision, FLDCombatActionRequest& Out, FString& Error);
-    // #198: an active choice of the still-current offer (always asking to learn it now), a learn of a still-pending blueprint
-    // into a still-empty slot, an allocation that fits the own stats and unspent points, an opening base pick of a still-open
-    // option (always asking to enable it now) or the install of a still-owned component that is not installed (a first
-    // install, or a rest move of a once-installed one; growth judges the gate), with a binding only to a learned active and
-    // (#198 F) a target only on a learned active or another installed component (C12's repeated base installed too). #198 G:
-    // a component choice of a still-pending choice and a gap fill of a still-unfilled target. The rest services: an
-    // uninstall of a still-installed component, an NPC purchase, a respec, a replacement of the active in a still-occupied
-    // slot by a still-pending blueprint, or a dismantle of exactly GROWTH.DismantleInputCount distinct still-owned common
-    // components (Catalog judges the pool and the count). Built from the own latest view.
+    // The build command of one intent (ELDOpponentBuildKind): an active choice of the still-current offer, a learn of a
+    // still-pending blueprint, an allocation that fits the own unspent points, a skill rank-up, a card pick, skip, install
+    // or uninstall, a rest shop purchase, a respec, an active replacement or a final mod. Built from the own latest view.
     LOCKDOWN_API bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression,
         const FLDDemoContentSnapshot& Catalog, uint64 RequestId, FLDBuildCommand& Out, FString& Error);
 

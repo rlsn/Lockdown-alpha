@@ -74,7 +74,7 @@ struct LOCKDOWN_API FLDGrowthBuild
     uint16 NextCardSerial = 1;
     // Independent of the ordinary workshop capacity, actives and pending blueprints.
     FLDFinalModSelection FinalMod;
-    // DEV breakout presets only (LDBreakoutPresets): extra skill points for ranks beyond the level's; 0 in play.
+    // DEV only (breakout presets and the DEV test grant): extra skill points beyond the level's; 0 in play.
     int32 DevSkillPoints = 0;
     // Spec §3.13: skill points bought in the rest shop (at most SHOP.SkillPointMaxPerMatch per match).
     int32 BoughtSkillPoints = 0;

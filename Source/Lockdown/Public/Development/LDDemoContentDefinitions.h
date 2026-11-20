@@ -934,7 +934,7 @@ struct FLDDemoEffectDefinition
     // #198 session A: wet/electrify/zone_wet no fields (terms from the COMBAT element parameters); chain_bounce Count
     // (extra targets) RadiusCm RatioBp (kept share per bounce) IntervalMs; brace DurationMs RatioBp (damage cut) LimitP2
     // (record cap) RadiusCm BaseP2 (answer base) SecondaryRatioBp (record share); zone_haste RatioBp (owner move speed
-    // inside); grievous RatioBp (cut of new heals and shields) DurationMs.
+    // inside).
     // #198 B component forms (a component's effects; actives never carry them): burn/breach BasicCount only (stacks per
     // primary basic hit); thorns IntervalMs 0 = no per-attacker repeat window; nth_basic_bonus Count (every Count-th landed
     // primary basic) + DistanceCm + DurationMs (a knockback of the primary target away from the holder, no damage);

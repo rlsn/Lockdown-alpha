@@ -33,6 +33,9 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::ApplyBreakoutPreset:
     case ELDDevTestOp::SpawnGroundState:
     case ELDDevTestOp::SetDailyPreset:
+    case ELDDevTestOp::GrantVouchers:
+    case ELDDevTestOp::SetMomentum:
+    case ELDDevTestOp::GrantSkillPoint:
     case ELDDevTestOp::SetInvulnerable:
     case ELDDevTestOp::SetCountdownPaused:
         return true;
@@ -62,6 +65,9 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("ApplyBreakoutPreset");
     case ELDDevTestOp::SpawnGroundState: return TEXT("SpawnGroundState");
     case ELDDevTestOp::SetDailyPreset: return TEXT("SetDailyPreset");
+    case ELDDevTestOp::GrantVouchers: return TEXT("GrantVouchers");
+    case ELDDevTestOp::SetMomentum: return TEXT("SetMomentum");
+    case ELDDevTestOp::GrantSkillPoint: return TEXT("GrantSkillPoint");
     case ELDDevTestOp::SetInvulnerable: return TEXT("SetInvulnerable");
     case ELDDevTestOp::SetCountdownPaused: return TEXT("SetCountdownPaused");
     default: return TEXT("Unknown");
@@ -81,9 +87,12 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     {
         return ELDGrowthReason::InvalidRequest;
     }
-    const bool bPositive = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::AllocatePoints;
+    const bool bPositive = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::AllocatePoints
+        || Command.Op == ELDDevTestOp::GrantVouchers;
     const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
-    if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0
+    // SetAttribute and SetMomentum take any amount from 0; the commit checks momentum against MOMENTUM.Max.
+    const bool bFromZero = bSetAttribute || Command.Op == ELDDevTestOp::SetMomentum;
+    if (bPositive ? Command.Amount <= 0 : (bFromZero ? Command.Amount < 0
         : (Command.Op == ELDDevTestOp::SetPeaceful || Command.Op == ELDDevTestOp::SetInvulnerable || Command.Op == ELDDevTestOp::SetCountdownPaused) ? (Command.Amount < 0 || Command.Amount > 1)
         : Command.Op == ELDDevTestOp::SpawnGroundState ? (Command.Amount < 1 || Command.Amount > 6)
         : Command.Op == ELDDevTestOp::SetDailyPreset ? !LDDevTest::DecodeDailyPreset(Command.Amount, nullptr) : Command.Amount != 0))
@@ -216,6 +225,9 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::ApplyBreakoutPreset: return TEXT("质变样板");
     case ELDDevTestOp::SpawnGroundState: return TEXT("生成地面状态");
     case ELDDevTestOp::SetDailyPreset: return TEXT("下一局热点");
+    case ELDDevTestOp::GrantVouchers: return TEXT("加饭票");
+    case ELDDevTestOp::SetMomentum: { static const FString Label=FString(TEXT("设置"))+LDTerms::Momentum; return *Label; }
+    case ELDDevTestOp::GrantSkillPoint: return TEXT("加 1 个技能点");
     case ELDDevTestOp::SetInvulnerable: return TEXT("生命不减");
     case ELDDevTestOp::SetCountdownPaused: return TEXT("阶段倒计时暂停");
     default: return TEXT("未知操作");
