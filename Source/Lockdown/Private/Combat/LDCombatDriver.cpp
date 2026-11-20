@@ -77,7 +77,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
     Consider(NextMechanicsDueMs(NowMs));
     Consider(NextCardsDueMs(NowMs));
-    Consider(NextFinalModDueMs(NowMs));
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
     {
@@ -355,7 +354,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
         || !AdvanceProjectiles(Error))
     { return false; }
     // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.
-    if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceCards(Now,Error) || !AdvanceFinalMods(Now,Error)) { return false; }
+    if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceCards(Now,Error)) { return false; }
     // Every hit of this boundary, then the C01 windows it closed.
     if (!ApplyPendingHits(Now,Error)) { return false; }
     // Spec §6.5: chains idle past CHAIN.EndSec end here.

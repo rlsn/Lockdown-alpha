@@ -239,7 +239,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if(!Content->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
         Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp*(10000-Monster->Skill.PassiveBp)/10000;
     }
-    if (!RewriteFinalHit(Hit,bProtected,NowMs,Error)) { return false; }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
     const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
         && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.HitClass==ELDCombatHitClass::BasicPrimary
@@ -561,7 +560,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     // Cards on this committed hit (both sides; LDCombatCards.cpp).
     if (!bProtected && !OnCardHit(Hit,*Body,Source,Damage,NowMs,Error)) { return false; }
-    if (!OnFinalHit(Hit,*Body,Source,bEffective,bControlled,NowMs,Error)) { return false; }
     // Y07: hostile positive damage the holder survived may grant its shield.
     if (Damage.DamageP2>0 && Body->Resources.HpP2>0 && Hit.SourceEntity!=Body->Victim.EntityId && !OnDamaged(*Body,NowMs,Error))
     { return false; }

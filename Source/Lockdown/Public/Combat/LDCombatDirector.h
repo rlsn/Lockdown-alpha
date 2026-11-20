@@ -202,7 +202,7 @@ struct FLDCombatActiveTerms
     int64 DashMomentumCostP2=0;
 };
 
-// Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun, final bowling).
+// Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun).
 struct FLDCombatKnockbackImpact
 {
     FGuid EffectId;
@@ -210,10 +210,6 @@ struct FLDCombatKnockbackImpact
     FGuid CreditOwner;
     FLDPassiveEffectRef Impact;
     bool bCardImpact=false;
-    bool bFinalBowling=false;
-    FName FinalCardId;
-    int64 FinalBaseP2=0, FinalAPRatioBp=0;
-    double FinalDistanceCm=0;
     FVector Direction=FVector::ZeroVector;
     FLDCombatSourceRef PushSource;
     int64 HolderADP2=0, HolderAPP2=0;
@@ -243,64 +239,6 @@ struct FLDCombatSetupMark
     int64 ExpiresAtMs=0;
 };
 
-
-struct FLDFinalModHitMark
-{
-    FGuid HitId;
-    int64 AtMs=0;
-    bool bConsumed=false;
-};
-
-struct FLDFinalModLifeState
-{
-    bool bPresenceInitialized=false;
-    bool bInside=false;
-    bool bBreachUsed=false;
-    double OutsideSinceSeconds=0;
-    int64 ArmedUntilMs=0;
-    int64 VoiceUntilMs=0;
-    TArray<FLDFinalModHitMark> Hits;
-};
-
-struct FLDFinalModTargetCooldown
-{
-    FGuid Target;
-    int64 ReadyAtMs=0;
-};
-
-struct FLDFinalControlExit
-{
-    FLDCombatBodyRef SourceBody;
-    FLDCombatBodyRef Target;
-    FGuid EffectId;
-    FLDCombatSourceRef Source;
-    ELDControlKind Kind=ELDControlKind::Root;
-    int64 ExpectedEndMs=0;
-    int64 DueAtMs=0;
-};
-
-struct FLDFinalTrafficSegment
-{
-    FGuid Key;
-    LDDashContactRules::FGroundBand Ground;
-};
-
-struct FLDFinalTrafficTrail
-{
-    FGuid EffectId;
-    FGuid ObservedKey;
-    FLDCombatBodyRef SourceBody;
-    FLDCombatSourceRef Source;
-    int64 EndMs=0;
-    TArray<FLDFinalTrafficSegment> Segments;
-    TArray<FLDCombatBodyRef> Inside;
-};
-
-struct FLDFinalMotionFrame
-{
-    TSharedPtr<const FLDNativeMotionBatch> Batch;
-    TOptional<FLDCombatVoluntaryDash> Dash;
-};
 
 // One accepted, not yet released action of one body life. Dies with the life.
 struct FLDCombatAction
@@ -369,7 +307,6 @@ struct FLDBodyCombatState
         uint64 Revision=0;
     } Resources;
     FLDBasicTiming BasicTiming;
-    FLDFinalModLifeState FinalMod;
     // Effective attributes: BuildProjection plus the temporary terms below (LDAttributeProjection::ApplyTemporary).
     FLDAttributeProjection AttributeProjection;
     // The installed build (or monster) projection without temporary terms.
@@ -560,8 +497,6 @@ struct FLDCombatEntityRecord
     // Grow cards (spec §7.4): the match counts their growth reads, kept across lives (Y19 healing, Y20 kills and assists,
     // Y21 controls taken) and K17's contender hits per installed copy (by serial).
     FLDCardGrowth CardGrowth;
-    int64 FinalModReadyAtMs=0;
-    TArray<FLDFinalModTargetCooldown> FinalModTargetCooldowns;
 };
 
 // One committed hit waiting for the Effects phase.
@@ -569,7 +504,6 @@ struct FLDCombatHit
 {
     FGuid HitId;
     FGuid EffectId;
-    bool bFinalModDerived=false;
     uint64 Token=0;
     FLDCombatBodyRef Target;
     FLDCombatBodyRef SourceBody;
@@ -907,8 +841,6 @@ struct FLDCombatZone
     bool bSlow=false;
     int64 SlowBp=0, SlowIntervalMs=0, SlowDurationMs=0, NextSlowAtMs=0;
     bool bDamage=false;
-    bool bFinalModDerived=false;
-    bool bFinalSplit=false;
     int64 PulseSlowBp=0, PulseSlowMs=0;
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
@@ -971,7 +903,6 @@ public:
     bool AdvanceAuthority(const FLDMatchContext& Match,int64 ThroughMs,FString& Error);
     // Only the core's validated native-motion commit calls this; resolution remains in Effects.
     void CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch);
-    bool NotifyFinalPresence(const struct FLDCaptureEvent& Event, FString& Error);
     bool IsAggressiveEntry(const FLDCombatBodyRef& Body, ELDCombatEntry Entry) const;
 
     // ---- Commands shared by human RPCs, the opponent AI and registered camp members.
@@ -1653,7 +1584,7 @@ private:
     // K02/K04/K17 and K01 on one hit of a host skill (A03 counts a third basic step as one hit of every skill).
     bool OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, const FLDCombatSourceRef& Host, int64 NowMs,
         FString& Error);
-    // Y08 (any knockback of its holder), a branch wall stun or the final bowling: arms the knockback watch of a push.
+    // Y08 (any knockback of its holder), or a branch wall stun: arms the knockback watch of a push.
     bool WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit,
         const FVector& Direction, int64 NowMs, FString& Error);
     // Y08: one watched push's first block: a static blocker stuns and hurts the pushed body; another legal enemy body takes the
@@ -1662,29 +1593,7 @@ private:
         const ALDCharacter* BlockerActor, int64 NowMs, FString& Error);
     // Y08 watches and D05/K06 schedules due by NowMs (Effects).
     bool AdvanceCards(int64 NowMs, FString& Error);
-    bool FinalModOf(const FGuid& Entity, const FLDDemoFinalModDefinition*& Out, FString& Error) const;
-    bool FinalModTargetsSource(const FGuid& Entity, const FLDCombatSourceRef& Source) const;
-    bool RewriteFinalHit(FLDCombatHit& Hit, bool bProtected, int64 NowMs, FString& Error);
-    bool OnFinalHit(const FLDCombatHit& Hit, FLDBodyCombatState& Target, FLDBodyCombatState* Source,
-        bool bEffective, bool bControlled, int64 NowMs, FString& Error);
-    bool FinalControlDuration(const FLDControlApplication& App, int64& DurationMs, FString& Error) const;
-    bool WatchFinalControlExit(const FLDBodyCombatState& Target, const FLDControlApplication& App,
-        int64 ExpiresAtMs, FString& Error);
-    bool FinalCooldownCost(const FLDCombatEntityRecord& Record, const FLDCombatSourceRef& Source,
-        int64& InOutCooldownMs, FString& Error) const;
     bool EmitZonePulse(const FLDCombatZone& Zone, FString& Error);
-    bool SpawnFinalZone(FLDBodyCombatState& Holder, const FLDDemoFinalModDefinition& Card,
-        const FVector& Centre, bool bTether, int64 NowMs, FString& Error);
-    bool MakeFinalPush(const FLDCombatBodyRef& Holder, const FLDCombatBodyRef& Target,
-        FName CardId, const FVector& Anchor, double DistanceCm, FLDCombatHit& Out, FString& Error) const;
-    bool SplitFinalZone(FLDCombatZone& Zone, const FVector& ReleaseDirection, int64 NowMs, bool& bHandled, FString& Error);
-    bool ResolveFinalBowlingImpact(const FLDCombatKnockbackImpact& Impact, const ALDCharacter* Blocker,
-        const FVector& Direction, int64 NowMs, FString& Error);
-    bool AdvanceFinalMods(int64 NowMs, FString& Error);
-    int64 NextFinalModDueMs(int64 NowMs) const;
-    TArray<FLDFinalControlExit> FinalControlExits;
-    TArray<FLDFinalTrafficTrail> FinalTraffic;
-    TArray<FLDFinalMotionFrame> FinalMotion;
     int64 NextCardsDueMs(int64 NowMs) const;
 
     // ---- Sources (LDCombatSources.cpp).

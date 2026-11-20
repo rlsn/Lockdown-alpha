@@ -1839,11 +1839,7 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
     // Y08 answers every knockback its holder causes.
     TArray<FLDPassiveEffectRef> Impacts;
     if (!CollectPassiveEffects(Holder->AttributeProjection,ELDDemoEffectOp::KnockbackImpact,Impacts,Error)) { return false; }
-    const FLDDemoFinalModDefinition* Card=nullptr;
-    if (!FinalModOf(Hit.SourceEntity,Card,Error)) { return false; }
-    const bool bBowling=Card && Card->GetNativeId()==ELDDemoFinalModId::FinalBowling && !Hit.bFinalModDerived
-        && FinalModTargetsSource(Hit.SourceEntity,Hit.KnockbackSource);
-    if (Impacts.IsEmpty() && !bBowling && Hit.KnockbackWallStunMs<=0) { return true; }
+    if (Impacts.IsEmpty() && Hit.KnockbackWallStunMs<=0) { return true; }
     FLDCombatKnockbackImpact& Impact=Body.PendingImpact.Emplace();
     Impact.WallStunMs=Hit.KnockbackWallStunMs;
     Impact.EffectId=Hit.EffectId;
@@ -1851,22 +1847,8 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
     Impact.CreditOwner=Hit.CreditOwner;
     Impact.bCardImpact=!Impacts.IsEmpty();
     if (Impact.bCardImpact) { Impact.Impact=Impacts[0]; }
-    Impact.bFinalBowling=bBowling;
     Impact.Direction=Direction;
     Impact.PushSource=Hit.KnockbackSource;
-    if (bBowling)
-    {
-        const auto* Content=Catalog();
-        const auto* Record=FindRecord(Hit.SourceEntity);
-        if (!Content || !Record) { Error=TEXT("Bowling impact lost its checked source build."); return false; }
-        const auto& P=Content->Get().Parameters;
-        const int64 Growth=LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,Record->Build.Level);
-        if (!LDSkillGrowth::GrowP2(Card->BaseP2,Growth,Impact.FinalBaseP2))
-        { Error=TEXT("Bowling fixed damage growth overflow."); return false; }
-        Impact.FinalCardId=FName(*Card->Id);
-        Impact.FinalAPRatioBp=Card->APRatioBp;
-        Impact.FinalDistanceCm=LDCombatCardsDetail::Cm(Card->DistanceCm);
-    }
     Impact.HolderADP2=Holder->AttributeProjection.Final.ADP2;
     Impact.HolderAPP2=Holder->AttributeProjection.Final.APP2;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.KnockbackMs,Impact.EndMs,Error)) { return false; }
@@ -1975,7 +1957,6 @@ bool ALDCombatDirector::AdvanceCards(int64 NowMs, FString& Error)
                     UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_WALL_STUN t=%lld target=%s stun_ms=%lld"),NowMs,
                         *LDLog::Id(Body.Victim.EntityId),Impact.WallStunMs);
                 }
-                if (Block->bBody && !ResolveFinalBowlingImpact(Impact,Blocker,Block->Direction,NowMs,Error)) { return false; }
             }
         }
     }

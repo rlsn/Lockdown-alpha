@@ -91,9 +91,6 @@ namespace LDCombatSourceRules
         const FLDDemoContentSnapshot* Content, int64& Out, FString& Error);
     LOCKDOWN_API bool CompileCardActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
         const FLDDemoContentSnapshot* Content, FLDCombatActiveTerms& Terms, FString& Error);
-    LOCKDOWN_API bool FinalTargetsSource(const FLDFinalModSelection& Selection, const FLDCombatSourceRef& Source);
-    LOCKDOWN_API bool FinalCooldownCost(const FLDDemoContentSnapshot* Content, const FLDFinalModSelection& Selection,
-        bool bFinalField, const FLDCombatSourceRef& Source, int64& InOutCooldownMs, FString& Error);
     LOCKDOWN_API void ScaleInnateDash(FLDInnateDashTerms& Dash, const FLDCombatActiveTerms& Terms);
     LOCKDOWN_API bool CastRangeCm(const FLDDemoContentSnapshot& Content, const FLDAttributeProjection& Projection,
         const FLDDemoTargetDefinition& Target, double& OutCm);
