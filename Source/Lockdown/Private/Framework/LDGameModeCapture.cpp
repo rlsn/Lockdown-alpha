@@ -632,8 +632,9 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.Leader = LeaderNotice.View();
         View.Boss = Camps ? Camps->BossView() : FLDBossView();
         FieldMarkers.View(View.Markers);
-        // P6: the current (or last) mid-field objective.
+        // P6: the current (or last) mid-field objective and the delivery lockers out now.
         View.Objective = Objective.View;
+        Lockers.View(GetFieldNowMs(), View.Lockers);
     }
     View.DailyModifiers = DailyModifiers;
     return View;

@@ -657,7 +657,6 @@ FLinearColor ALDObservedGroundProxy::KindColor(uint8 Kind)
     case ELDGroundStateKind::Fire: return FLinearColor(1.f,.3f,.04f);
     case ELDGroundStateKind::Miasma: return FLinearColor(.4f,.85f,.12f);
     case ELDGroundStateKind::Field: return FLinearColor(.66f,.3f,1.f);
-    case ELDGroundStateKind::Blizzard: return FLinearColor(.86f,.94f,1.f);
     default: return FLinearColor::White;
     }
 }
@@ -744,17 +743,6 @@ void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArra
         Seg(FVector(-S * .35, S * .35, 0), FVector(0, -S * .3, 0));
         Seg(FVector(0, -S * .3, 0), FVector(S * .35, S * .35, 0));
         Seg(FVector(S * .35, S * .35, 0), FVector(S, -S * .2, 0));
-        break;
-    case ELDGroundStateKind::Blizzard:
-        // A snowflake: three spokes with a pair of twigs each.
-        for (int32 Spoke = 0; Spoke < 3; ++Spoke)
-        {
-            const FVector Dir(FMath::Cos(PI * Spoke / 3), FMath::Sin(PI * Spoke / 3), 0);
-            const FVector Side(-Dir.Y, Dir.X, 0);
-            Seg(-Dir * S, Dir * S);
-            Seg(Dir * S * .6, Dir * S * .85 + Side * S * .2);
-            Seg(-Dir * S * .6, -Dir * S * .85 - Side * S * .2);
-        }
         break;
     default: break;
     }

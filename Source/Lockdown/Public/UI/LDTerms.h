@@ -56,18 +56,18 @@ inline FString AirdropExpired(){return FString(Airdrop)+TEXT("没人领，消失
 inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！经验和一份构筑奖励到手");}
 inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
 inline constexpr TCHAR Boss[]=TEXT("画饼老板");
-// #198 击败画饼老板的最后一击得一份构筑奖励（原“吃到大饼”加成已移除）
+// 击败画饼老板的最后一击得一份构筑奖励
 inline constexpr TCHAR BossReward[]=TEXT("拿到一份构筑奖励");
 inline FString BossAppeared(const FString& Name){return Name+TEXT(" 出现了 · 小地图金色巡逻点");}
 inline FString BossLeft(const FString& Name){return Name+TEXT(" 没人打倒，离场了");}
 inline FString BossDownSelf(const FString& Name){return FString(TEXT("你击败了"))+Name+TEXT("，")+BossReward+TEXT("！");}
 inline FString BossDownBy(const FString& Killer,const FString& Name){return Killer+TEXT(" 击败了")+Name;}
 inline FString BossDown(const FString& Name){return Name+TEXT(" 倒下了");}
-// #198 营地标记：每个野外段各标一个大野怪营地和一个精英营地，首个清掉的人领奖
+// 营地标记：每个野外段各标一个高档营地和一个精英营地，首个清掉的人领奖
 inline constexpr TCHAR CampMarkHigh[]=TEXT("高档营地标记：首个清掉的人得一份主动图纸");
-inline constexpr TCHAR CampMarkElite[]=TEXT("精英营地标记：首个清掉的人得普通材料二选一");
+inline constexpr TCHAR CampMarkElite[]=TEXT("精英营地标记：首个清掉的人得一组牌三选一");
 inline FString CampMarkTaken(bool bHigh){return FString(bHigh?TEXT("高档营地标记"):TEXT("精英营地标记"))+TEXT("被人领走了");}
-inline FString CampMarkOwnClaim(bool bHigh){return bHigh?FString(TEXT("你领到了高档营地标记：一份主动图纸")):FString(TEXT("你领到了精英营地标记：普通材料二选一"));}
+inline FString CampMarkOwnClaim(bool bHigh){return bHigh?FString(TEXT("你领到了高档营地标记：一份主动图纸")):FString(TEXT("你领到了精英营地标记：一组牌三选一"));}
 inline FString CampMarkExpired(){return FString(TEXT("本段营地标记没人领，失效了"));}
 inline constexpr TCHAR Leader[]=TEXT("上热搜");
 inline FString LeaderNamed(const FString& Name){return FString(Leader)+TEXT("：")+Name;}
@@ -99,8 +99,8 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
 inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
-// 构筑牌（APP_SPEC §4）：形式（普攻、技能、冲刺、本体）× 类型（触发、改造、转化、成长、元素）；三选一拿到的牌进牌库，
-// 拖到对应的列上安装。
+// 构筑牌（APP_SPEC §4）：形式（技能、冲刺、本体）× 类型（触发、改造、转化、成长、元素），另有元素勋章；三选一拿到的牌进
+// 牌库，拖到对应的列上安装。
 inline constexpr TCHAR Card[]=TEXT("牌");
 inline constexpr TCHAR TakeToStorage[]=TEXT("放进牌库");
 inline constexpr TCHAR PickElement[]=TEXT("选哪种元素：");
@@ -136,7 +136,6 @@ inline constexpr TCHAR ElementWater[]=TEXT("湿");
 inline constexpr TCHAR ElementElectric[]=TEXT("麻");
 inline constexpr TCHAR ElementChill[]=TEXT("冻");
 inline constexpr TCHAR ElementRot[]=TEXT("馊");
-inline constexpr TCHAR ElementGust[]=TEXT("吹");
 inline FString CardTaken(const FString& Name){return FString::Printf(TEXT("已拿到牌：%s"),*Name);}
 inline FString CardInstalled(const FString& Name){return FString::Printf(TEXT("已装上：%s"),*Name);}
 inline FString CardStored(const FString& Name,const FString& Why)
@@ -157,12 +156,12 @@ inline FString LearnInto(const FString& Key){return FString(TEXT("学到 "))+Key
 inline FString LearnedInto(const FString& Name,const FString& Key){return FString::Printf(TEXT("已学到 %s：%s"),*Key,*Name);}
 inline FString StoredAsBlueprint(const FString& Name,const FString& Why)
 {return Why.IsEmpty()?FString::Printf(TEXT("已存为%s：%s"),Blueprint,*Name):FString::Printf(TEXT("已存为%s：%s（%s）"),Blueprint,*Name,*Why);}
-// 不能学习、加点或使用休息服务的原因（学习、加点与装牌随时可用，休息服务仍要活着、在配装窗口和 NPC 旁边）。
+// 不能学习、加点或使用休息服务的原因（学习、加点与装牌随时可用，休息服务仍要活着、在配装窗口）。
 inline constexpr TCHAR DeadNoLearn[]=TEXT("阵亡中");
 inline constexpr TCHAR SlotsFull[]=TEXT("Q/W/E 已满");
 inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
-// 牌库（HUD 右侧的牌堆）与展开后的安装列：普攻、Q/W/E、冲刺(D) 与本体各一列。
+// 牌库（HUD 右侧的牌堆）与展开后的安装列：Q/W/E、冲刺(D) 与本体（含普攻）各一列；元素勋章装在技能或本体的元素槽里。
 inline constexpr TCHAR Storage[]=TEXT("牌库");
 inline constexpr TCHAR StorageEmpty[]=TEXT("牌库为空");
 inline constexpr TCHAR StorageNoMatches[]=TEXT("没有符合的牌");
@@ -170,7 +169,6 @@ inline constexpr TCHAR StorageNoRoom[]=TEXT("牌库空间不足，暂时无法�
 inline constexpr TCHAR StoragePreviousPage[]=TEXT("上一页");
 inline constexpr TCHAR StorageNextPage[]=TEXT("下一页");
 inline constexpr TCHAR PendingNoRoom[]=TEXT("待处理区空间不足，暂时无法完整显示");
-inline constexpr TCHAR ColumnBasic[]=TEXT("普攻");
 inline constexpr TCHAR ColumnBody[]=TEXT("本体");
 inline constexpr TCHAR ColumnEmptySlot[]=TEXT("空技能槽");
 inline constexpr TCHAR DropHere[]=TEXT("放这里");
@@ -180,7 +178,7 @@ inline FString CannotGoThere(const FString& Name,const FString& Where){return FS
 // 牌的悬停弹层：库里的牌现在能装到哪些列，没有就直说。
 inline FString CanGoOn(const FString& Columns){return FString::Printf(TEXT("可装：%s"),*Columns);}
 inline constexpr TCHAR NoPlaceNow[]=TEXT("现在没有可装的位置");
-// 每张装上的牌占一格容量；等级决定格数。
+// 每张装上的牌占一格容量（元素勋章不占）；等级决定格数。
 inline constexpr TCHAR WorkshopFullReason[]=TEXT("工坊已满");
 inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，拖到一张已装的牌上替换它"),Capacity,Capacity);}
 inline FString WorkshopFullNoPlace(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，现在没有可替换的位置"),Capacity,Capacity);}
@@ -206,62 +204,52 @@ inline constexpr TCHAR WorkshopNotes[]=TEXT("注意");
 inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑暂不可调整");
 inline constexpr TCHAR WorkshopClose[]=TEXT("Esc");
 inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("需要已学：%s"),*Names);}
-// 十五种元素反应（APP_SPEC §4.4），按 ELDCombatReaction 编号 1..15。
+// 十种元素反应（APP_SPEC §4.4），按 ELDCombatReaction 编号（6、9、12 已退役，留空）。
 inline constexpr TCHAR ReactionFog[]=TEXT("起雾");
 inline constexpr TCHAR ReactionConduct[]=TEXT("导电");
 inline constexpr TCHAR ReactionOverload[]=TEXT("过载");
 inline constexpr TCHAR ReactionMelt[]=TEXT("融化");
 inline constexpr TCHAR ReactionMethane[]=TEXT("沼气爆");
-inline constexpr TCHAR ReactionFirestorm[]=TEXT("火旋");
 inline constexpr TCHAR ReactionFreeze[]=TEXT("冻住");
 inline constexpr TCHAR ReactionFerment[]=TEXT("发酵");
-inline constexpr TCHAR ReactionSplash[]=TEXT("泼洒");
 inline constexpr TCHAR ReactionShatter[]=TEXT("碎冰");
 inline constexpr TCHAR ReactionCorrode[]=TEXT("腐蚀");
-inline constexpr TCHAR ReactionThunderstorm[]=TEXT("雷暴");
 inline constexpr TCHAR ReactionFrostbite[]=TEXT("冻疮");
-inline constexpr TCHAR ReactionBlizzard[]=TEXT("风雪");
-inline constexpr TCHAR ReactionSmoke[]=TEXT("熏");
 inline constexpr TCHAR ReactionFogRule[]=TEXT("烫 + 湿：对目标造成伤害并立即结算剩余灼烧，原地起雾，雾里的无元素敌人被弄湿。");
 inline constexpr TCHAR ReactionConductRule[]=TEXT("湿 + 麻：目标受较高伤害并减速，附近其他湿的敌人也挨一下。");
 inline constexpr TCHAR ReactionOverloadRule[]=TEXT("烫 + 麻：目标受较高伤害并破防，附近其他敌人也挨一下。");
 inline constexpr TCHAR ReactionMeltRule[]=TEXT("烫 + 冻：目标受双倍伤害，脚下留水洼。");
 inline constexpr TCHAR ReactionMethaneRule[]=TEXT("烫 + 馊：目标受较高伤害并重新烧起来，附近其他敌人也挨一下。");
-inline constexpr TCHAR ReactionFirestormRule[]=TEXT("烫 + 吹：目标身上的灼烧层数翻倍，脚下留火场。");
-inline constexpr TCHAR ReactionFreezeRule[]=TEXT("湿 + 冻：目标被冻住，短时间定身。");
-inline constexpr TCHAR ReactionFermentRule[]=TEXT("湿 + 馊：目标挂上更久、更狠的馊。");
-inline constexpr TCHAR ReactionSplashRule[]=TEXT("湿 + 吹：把目标推开，脚下留水洼。");
-inline constexpr TCHAR ReactionShatterRule[]=TEXT("麻 + 冻：目标下一次受到的技能伤害大幅提高。");
-inline constexpr TCHAR ReactionCorrodeRule[]=TEXT("麻 + 馊：目标被叠上更多、更久的破防。");
-inline constexpr TCHAR ReactionThunderstormRule[]=TEXT("麻 + 吹：目标受伤害并被击退，重新挂上麻，落点留电场。");
-inline constexpr TCHAR ReactionFrostbiteRule[]=TEXT("冻 + 馊：目标攻速大幅降低。");
-inline constexpr TCHAR ReactionBlizzardRule[]=TEXT("冻 + 吹：目标受伤害，脚下留风雪区。");
-inline constexpr TCHAR ReactionSmokeRule[]=TEXT("馊 + 吹：目标被熏得短时间缴械，脚下留毒雾。");
+inline constexpr TCHAR ReactionFreezeRule[]=TEXT("湿 + 冻：目标受伤害并被冻住，短时间定身。");
+inline constexpr TCHAR ReactionFermentRule[]=TEXT("湿 + 馊：目标受伤害，挂上更久、更狠的馊。");
+inline constexpr TCHAR ReactionShatterRule[]=TEXT("麻 + 冻：目标受伤害，下一次受到的技能伤害大幅提高。");
+inline constexpr TCHAR ReactionCorrodeRule[]=TEXT("麻 + 馊：目标受伤害，被叠满更久的破防。");
+inline constexpr TCHAR ReactionFrostbiteRule[]=TEXT("冻 + 馊：目标受伤害，攻速大幅降低。");
+// Indexed by the reaction number; retired numbers stay empty.
 inline constexpr const TCHAR* ReactionNames[]={TEXT(""),ReactionFog,ReactionConduct,ReactionOverload,ReactionMelt,ReactionMethane,
-    ReactionFirestorm,ReactionFreeze,ReactionFerment,ReactionSplash,ReactionShatter,ReactionCorrode,ReactionThunderstorm,
-    ReactionFrostbite,ReactionBlizzard,ReactionSmoke};
+    TEXT(""),ReactionFreeze,ReactionFerment,TEXT(""),ReactionShatter,ReactionCorrode,TEXT(""),ReactionFrostbite};
 inline constexpr const TCHAR* ReactionRules[]={TEXT(""),ReactionFogRule,ReactionConductRule,ReactionOverloadRule,ReactionMeltRule,
-    ReactionMethaneRule,ReactionFirestormRule,ReactionFreezeRule,ReactionFermentRule,ReactionSplashRule,ReactionShatterRule,
-    ReactionCorrodeRule,ReactionThunderstormRule,ReactionFrostbiteRule,ReactionBlizzardRule,ReactionSmokeRule};
+    ReactionMethaneRule,TEXT(""),ReactionFreezeRule,ReactionFermentRule,TEXT(""),ReactionShatterRule,ReactionCorrodeRule,TEXT(""),
+    ReactionFrostbiteRule};
 // The reaction term of an ELDCombatReaction number (empty for none or unknown).
 inline FString ReactionTerm(uint8 Reaction){return Reaction<UE_ARRAY_COUNT(ReactionNames)?FString(ReactionNames[Reaction]):FString();}
 inline FString ReactionExplanation(const FString& Name)
 {
-    for(int32 Index=1;Index<UE_ARRAY_COUNT(ReactionNames);++Index){if(Name==ReactionNames[Index]){return ReactionRules[Index];}}
+    for(int32 Index=1;Index<UE_ARRAY_COUNT(ReactionNames);++Index){if(!Name.IsEmpty()&&Name==ReactionNames[Index]){return ReactionRules[Index];}}
     return FString();
 }
-// 地面状态（APP_SPEC §4.4），按 ELDGroundStateKind 编号 1..6。
-inline constexpr const TCHAR* GroundNames[]={TEXT(""),TEXT("水洼"),TEXT("冰面"),TEXT("火场"),TEXT("毒雾"),TEXT("电场"),TEXT("风雪区")};
+// 地面状态（APP_SPEC §4.4），按 ELDGroundStateKind 编号 1..5。
+inline constexpr const TCHAR* GroundNames[]={TEXT(""),TEXT("水洼"),TEXT("冰面"),TEXT("火场"),TEXT("毒雾"),TEXT("电场")};
 // 构筑时刻：主动三选一页与终局改装页。
 inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
 inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
 inline constexpr TCHAR OfferLinks[]=TEXT("可接");
 inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
 inline FString OfferLinksUnavailable(const FString& Reason){return FString::Printf(TEXT("可接预览不可用：%s"),*Reason);}
-inline FString OfferSkipVouchers(int64 Vouchers){return FString::Printf(TEXT("+%lld 饭票"),Vouchers);}
-// Spec §3.13 vouchers and the rest shop.
-inline FString VouchersGained(int32 Vouchers){return FString::Printf(TEXT("+%d 饭票"),Vouchers);}
-inline FString CardSold(const FString& Name,int32 Vouchers){return FString::Printf(TEXT("卖掉 %s，+%d 饭票"),*Name,Vouchers);}
+// 跳过主动候选或牌三选一补的属性点。
+inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 属性点"),Points);}
+// Spec §3.13 休息商店：价格是属性点。
+inline FString PointsGained(int64 Points){return FString::Printf(TEXT("+%lld 属性点"),Points);}
 inline const TCHAR* const ShopRefreshed=TEXT("货架已刷新");
 inline const TCHAR* const ShopTitle=TEXT("商店");
 inline const TCHAR* const ChainCodex=TEXT("连锁图鉴");
@@ -269,16 +257,12 @@ inline FString ChainCodexCount(int32 Count){return FString::Printf(TEXT("已发�
 inline FString ChainLongest(int32 Steps){return FString::Printf(TEXT("最长 %d 步"),Steps);}
 // #305: the float over the own body when a counted chain of its ends.
 inline FString ChainEndFloat(int32 Steps){return FString::Printf(TEXT("连锁 ×%d！"),Steps);}
-inline FString ShopToggle(int32 Vouchers){return FString::Printf(TEXT("商店 · 票 %d"),Vouchers);}
-inline FString ShopRefresh(int32 Price){return FString::Printf(TEXT("刷新 %d票"),Price);}
-inline FString ShopSkillPoint(int32 Price,int32 Bought,int32 Max){return FString::Printf(TEXT("技能点 %d票  %d/%d"),Price,Bought,Max);}
-inline FString ShopPrice(int32 Price){return FString::Printf(TEXT("%d票"),Price);}
+inline FString ShopToggle(int64 Points){return FString::Printf(TEXT("商店 · 点 %lld"),Points);}
+inline FString ShopRefresh(int32 Price){return Price>0?FString::Printf(TEXT("刷新 %d点"),Price):FString(TEXT("刷新 免费"));}
+inline FString ShopSkillPoint(int32 Price,int32 Bought,int32 Max){return FString::Printf(TEXT("技能点 %d点  %d/%d"),Price,Bought,Max);}
+inline FString ShopPrice(int32 Price){return FString::Printf(TEXT("%d点"),Price);}
 inline const TCHAR* const ShopSoldMark=TEXT("已售");
-inline FString ShopSell(int32 Price){return FString::Printf(TEXT("出售 +%d票"),Price);}
-inline FString PickTicketUse(int32 Count){return FString::Printf(TEXT("点名券 ×%d"),Count);}
-inline const TCHAR* const PickTicketBack=TEXT("返回货架");
-inline const TCHAR* const VoucherGlyph=TEXT("票");
-inline const TCHAR* const PickTicketGlyph=TEXT("点名券");
+inline const TCHAR* const PointGlyph=TEXT("点");
 inline const TCHAR* const ResultHighlights=TEXT("本局最离谱");
 inline const TCHAR* const BestHit=TEXT("最高一下");
 inline const TCHAR* const SkillPointBought=TEXT("买到 1 个技能点");
@@ -302,10 +286,10 @@ inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联�
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
 // 牌的形式与类型（APP_SPEC §4）。
 inline const TCHAR* CardFormName(uint8 Form)
-{return Form==0?TEXT("普攻"):Form==1?TEXT("技能"):Form==2?TEXT("冲刺"):Form==3?TEXT("本体"):TEXT("");}
+{return Form==1?TEXT("技能"):Form==2?TEXT("冲刺"):Form==3?TEXT("本体"):Form==4?TEXT("勋章"):TEXT("");}
 inline const TCHAR* CardTypeName(uint8 Type)
 {return Type==0?TEXT("触发"):Type==1?TEXT("改造"):Type==2?TEXT("转化"):Type==3?TEXT("成长"):Type==4?TEXT("元素"):TEXT("");}
-// 牌三选一（APP_SPEC §4）：开局 R0 一组，之后每升一级一组，野外奖励也给一组；可重抽、锁一张带到下一组、跳过。
+// 牌三选一（APP_SPEC §4）：开局 R0 一组，之后每升一级一组，野外奖励也给一组；可重抽、跳过。
 inline constexpr TCHAR CardStageTitle[]=TEXT("选一张牌");
 inline FString CardOfferOf(int32 Ordinal,int32 Queued){return Queued>1?FString::Printf(TEXT("还有 %d 组"),Queued-1):FString();}
 inline FString CardReroll(int32 Left){return FString::Printf(TEXT("重抽 %d"),Left);}
@@ -503,14 +487,8 @@ inline constexpr TCHAR MiniFlag[]=TEXT("喷漆小旗");
 inline constexpr TCHAR Arena[]=TEXT("擂台");
 inline constexpr TCHAR Locker[]=TEXT("快递柜");
 inline constexpr TCHAR Peddler[]=TEXT("二手贩子");
-inline constexpr TCHAR Vending[]=TEXT("售货机");
 inline constexpr TCHAR SpawnChoice[]=TEXT("选出生点");
 inline FString SpawnCandidate(int32 Index){return FString::Printf(TEXT("出生点 %d"),Index+1);}
-inline constexpr TCHAR VendingAttackSpeed[]=TEXT("攻速");
-inline constexpr TCHAR VendingMomentum[]=TEXT("劲");
-inline constexpr TCHAR VendingMoveSpeed[]=TEXT("移速");
-inline constexpr TCHAR VendingDrink[]=TEXT("饮料");
-inline FString VendingPrice(int32 Vouchers){return FString::Printf(TEXT("%d 票"),Vouchers);}
 
 inline constexpr TCHAR CaptureAfterLastRest[]=TEXT("旗杆在最后一次休息（R3）后开放");
 inline constexpr TCHAR Development[]=TEXT("猥琐发育中，别浪");
@@ -578,27 +556,20 @@ inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("吸血"),TEXT("按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35%")},
     {TEXT("冻"),TEXT("攻速和移速降低；遇烫融化，遇湿冻住")},
     {TEXT("馊"),TEXT("受到的治疗和护盾减少，并持续受到少量伤害")},
-    {TEXT("吹"),TEXT("把人推开一小段；他身上有元素时触发反应")},
     {TEXT("水洼"),TEXT("站在上面的敌人会湿；遇麻变电场，遇冻变冰面，遇烫起雾")},
     {TEXT("冰面"),TEXT("站在上面的敌人起步和停下都变慢，被击退和冲刺更远；遇烫化成水洼")},
-    {TEXT("火场"),TEXT("站在上面的敌人每秒多一层灼烧；被吹会移动，遇湿熄灭起雾")},
-    {TEXT("毒雾"),TEXT("站在里面的敌人会馊；遇烫整团爆炸，被吹会移动")},
-    {TEXT("电场"),TEXT("站在上面的敌人持续挨电并挂麻；被吹时向周围放电后消失")},
-    {TEXT("风雪区"),TEXT("站在里面的敌人减速并被冻；遇烫消失")},
+    {TEXT("火场"),TEXT("站在上面的敌人每秒多一层灼烧；遇湿熄灭起雾")},
+    {TEXT("毒雾"),TEXT("站在里面的敌人会馊；遇烫整团爆炸")},
+    {TEXT("电场"),TEXT("站在上面的敌人持续挨电并挂麻")},
     {ReactionFog,ReactionFogRule},
     {ReactionConduct,ReactionConductRule},
     {ReactionOverload,ReactionOverloadRule},
     {ReactionMelt,ReactionMeltRule},
     {ReactionMethane,ReactionMethaneRule},
-    {ReactionFirestorm,ReactionFirestormRule},
     {ReactionFreeze,ReactionFreezeRule},
     {ReactionFerment,ReactionFermentRule},
-    {ReactionSplash,ReactionSplashRule},
     {ReactionShatter,ReactionShatterRule},
     {ReactionCorrode,ReactionCorrodeRule},
-    {ReactionThunderstorm,ReactionThunderstormRule},
     {ReactionFrostbite,ReactionFrostbiteRule},
-    {ReactionBlizzard,ReactionBlizzardRule},
-    {ReactionSmoke,ReactionSmokeRule},
 };
 }

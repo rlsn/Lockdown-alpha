@@ -314,7 +314,7 @@ bool LDCombatSourceRules::IsOffensive(const FLDDemoAbilityValues& Values)
         case ELDDemoEffectOp::ChannelCone: case ELDDemoEffectOp::GroundImpact: case ELDDemoEffectOp::ContactTrap:
         case ELDDemoEffectOp::DashContact:
         case ELDDemoEffectOp::Wet: case ELDDemoEffectOp::Electrify: case ELDDemoEffectOp::ChainBounce:
-        case ELDDemoEffectOp::ZoneWet: case ELDDemoEffectOp::Rot: case ELDDemoEffectOp::Chill: case ELDDemoEffectOp::Gust:
+        case ELDDemoEffectOp::ZoneWet: case ELDDemoEffectOp::Rot: case ELDDemoEffectOp::Chill:
         case ELDDemoEffectOp::GroundState: case ELDDemoEffectOp::Fan: case ELDDemoEffectOp::Bag:
             return true;
         default:

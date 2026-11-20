@@ -111,9 +111,14 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Channel.FinalSlowMs=Cone->SecondaryDurationMs;
         // S22 A2: the last waves (not only the final one) slow.
         Channel.SlowWaves=FMath::Max(Cone->BasicCount,1);
-        // Spec §5: S22's gust rides on the last wave only; N1 B1 roots on its last wave.
-        Channel.bFinalGust=(Payload.NativeElements & LDCombatElements::Bit(ELDCombatElement::Gust))!=0;
-        Channel.Payload.NativeElements&=~LDCombatElements::Bit(ELDCombatElement::Gust);
+        // Spec §5: a cone's own push lands on its last wave only (S22, N1); N1 B1 roots on its last wave.
+        if (Channel.Payload.KnockbackCm>0)
+        {
+            Channel.FinalKnockbackCm=Channel.Payload.KnockbackCm;
+            Channel.FinalKnockbackMs=Channel.Payload.KnockbackMs;
+            Channel.Payload.KnockbackCm=0;
+            Channel.Payload.KnockbackMs=0;
+        }
         Channel.FinalRootMs=Cone->ExtraDurationMs;
         // N1 A: the cone leaves its ice over the whole sector, owned by the caster at the release snapshot.
         if (const auto* Ice=Op(Values, ELDDemoEffectOp::GroundState))
@@ -165,8 +170,12 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Fan.LengthCm=Cm(Blow->RadiusCm);
         Fan.HalfWidthCm=Cm(Blow->ExtraDistanceCm)*.5;
         Fan.SweepDegrees=Cm(Blow->AngleDegrees);
-        // An overdriven fan keeps the overdrive push (OVERDRIVE.GustPushCm, already on the payload); otherwise the fan's own.
-        Fan.Payload.GustPushCm=Payload.bGustGround && Payload.GustPushCm>0 ? Payload.GustPushCm : Cm(Blow->DistanceCm);
+        // Each blow shoves for COMBAT.PushSec over the fan's own distance.
+        FLDElementTerms PushTerms;
+        if (!ElementTerms(PushTerms,Error)) { return false; }
+        Fan.Payload.KnockbackCm=Cm(Blow->DistanceCm);
+        Fan.Payload.KnockbackMs=PushTerms.PushMs;
+        Fan.Payload.KnockbackSource=Payload.Source;
         Fan.Payload.KnockbackWallStunMs=Blow->ExtraDurationMs;
         Fan.bCarryElement=Blow->bCarryElement;
         Fan.MomentumP2=Blow->BaseP2;
@@ -304,7 +313,9 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
             TArray<TPair<FLDCombatBodyRef,FVector>> Inside;
             if (!CollectLineTargets(Fan.OriginCm,Heading,Fan.LengthCm,Fan.HalfWidthCm,*FanOwner,Inside,Error)) { return false; }
             FLDCombatHit Blow=Fan.Payload;
-            Blow.GustDirection=Heading;
+            // The blow pushes along its heading.
+            Blow.bKnockbackFromAnchor=true;
+            Blow.KnockbackAnchorCm=Fan.OriginCm-Heading.GetSafeNormal2D()*100.;
             // A2: the owner's last element rides on the wind.
             if (Fan.bCarryElement && FanOwner->LastAppliedElement!=ELDCombatElement::None)
             {
@@ -320,27 +331,6 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
             }
             // B1: a blow that reached an enemy refills momentum.
             if (!Inside.IsEmpty() && Fan.MomentumP2>0) { GrantMomentum(*FanOwner,Fan.MomentumP2,ELDMomentumBook::Skill); }
-            // The wind moves fire and miasma (and discharges fields) whose centre stands in the blow.
-            FLDElementApplier Wind;
-            Wind.SourceEntity=Fan.Payload.SourceEntity;
-            Wind.SourceBody=Fan.Payload.SourceBody;
-            Wind.CreditOwner=Fan.Payload.CreditOwner;
-            Wind.Source=Fan.Payload.Source;
-            Wind.Level=FMath::Max(Fan.Payload.ElementLevel,1);
-            Wind.SourceAPP2=Fan.Payload.ElementAPP2;
-            TArray<FVector> Centres;
-            const FVector Along=Heading.GetSafeNormal2D();
-            for (const FLDGroundState& Ground : GroundStates)
-            {
-                const FVector Offset(Ground.CentreCm.X-Fan.OriginCm.X,Ground.CentreCm.Y-Fan.OriginCm.Y,0);
-                const double Forward=FVector::DotProduct(Offset,Along);
-                const double Side=FMath::Abs(Offset.X*Along.Y-Offset.Y*Along.X);
-                if (Forward>=0 && Forward<=Fan.LengthCm && Side<=Fan.HalfWidthCm) { Centres.Add(Ground.CentreCm); }
-            }
-            for (const FVector& Centre : Centres)
-            {
-                if (!ConvertGroundAt(Centre,ELDCombatElement::Gust,Wind,Along,NowMs,Error)) { return false; }
-            }
         }
         if (Fans.IsValidIndex(Index) && Fans[Index].EndMs<=NowMs) { Fans.RemoveAt(Index); }
     }
@@ -392,21 +382,14 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 Hit.HitId=FGuid::NewGuid();
                 Hit.Target=Ref;
                 if (Channel.Remaining <= Channel.SlowWaves) { Hit.SlowBp=Channel.FinalSlowBp; Hit.SlowDurationMs=Channel.FinalSlowMs; }
-                if (Channel.Remaining == 1)
+                if (Channel.Remaining == 1 && Channel.FinalRootMs > 0)
                 {
-                    if (Channel.bFinalGust)
-                    {
-                        Hit.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Gust);
-                        Hit.GustDirection=Channel.Direction;
-                    }
-                    if (Channel.FinalRootMs > 0) { Hit.RootDurationMs=FMath::Max(Hit.RootDurationMs, Channel.FinalRootMs); }
+                    Hit.RootDurationMs=FMath::Max(Hit.RootDurationMs, Channel.FinalRootMs);
                 }
                 if (Channel.Remaining == 1 && Channel.FinalKnockbackCm > 0)
                 {
                     Hit.KnockbackCm=Channel.FinalKnockbackCm;
                     Hit.KnockbackMs=Channel.FinalKnockbackMs;
-                    // One displacement: the branch knockback; the final gust still reacts.
-                    Hit.bGustInKnockback=true;
                     Hit.bKnockbackFromAnchor=true;
                     Hit.KnockbackAnchorCm=Origin;
                     Hit.KnockbackSource=Channel.Payload.Source;

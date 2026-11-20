@@ -121,20 +121,14 @@ public:
     FLDOnTrainingReset OnTrainingReset;
     UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation, uint32 Life, uint8 RestIndex, int64 StartedAtMs);
     UFUNCTION(Client,Reliable) void ClientTrainingReset(ELDTrainingResetResult Result);
-    // ---- P6 (Framework/LDPlayerPacing.cpp): the death screen's spawn choice (spec §10.4) and the vending machine
-    // (spec §11.3). Results arrive as OnSpawnChoice / OnVending (a Listen Host inside the call). ----
+    // ---- P6 (Framework/LDPlayerPacing.cpp): the death screen's spawn choice (spec §10.4). Results arrive as
+    // OnSpawnChoice (a Listen Host inside the call). ----
     // Chooses candidate Index (0-based) of the own dead field life for its next life.
     void SubmitSpawnChoice(uint8 Index);
     DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnSpawnChoice, ELDSpawnChoiceResult);
     FLDOnSpawnChoice OnSpawnChoice;
     UFUNCTION(Server,Reliable) void ServerChooseSpawn(uint32 Generation, uint32 Life, uint8 Index);
     UFUNCTION(Client,Reliable) void ClientChooseSpawn(ELDSpawnChoiceResult Result);
-    // Buys Item (with Element for the drink, ELDCombatElement 1..5) at the vending machine the own living body stands at.
-    void SubmitVending(ELDVendingItem Item, uint8 Element);
-    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnVending, ELDVendingResult);
-    FLDOnVending OnVending;
-    UFUNCTION(Server,Reliable) void ServerVending(uint32 Generation, uint32 Life, ELDVendingItem Item, uint8 Element);
-    UFUNCTION(Client,Reliable) void ClientVending(ELDVendingResult Result);
     // ---- #198 PK spectators (PK/LDPlayerPK.cpp): an eligible spectator bets on one side of the current PK (Side
     // 1..SideCount, changeable until the betting step ends) and throws at a ground point of the arena while the PK runs.
     // Results arrive as OnPKBet / OnPKThrow (a Listen Host inside the call); the authority decides in ALDPKDirector.

@@ -67,8 +67,8 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         // D26: a Boss patrol point is the Boss's route, not a place a body goes; the visible Boss is a unit.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
-        // P6 spec §11.3: lockers are hidden until seen and vending machines are no AI errand.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Locker || Anchor.Kind == ELDDemoWorldAnchorKind::Vending) { continue; }
+        // P6 spec §11.3: a locker is a place only while it is out (the public match view).
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Locker) { continue; }
         // Rest-only places are supplied separately and never considered by field decisions.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
             || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
@@ -309,7 +309,6 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoSta
     Out.UnspentPoints = Progression.UnspentPoints;
     Out.OffersConsumed = Progression.ActiveOpportunitiesConsumed;
     Out.QueuedOpportunities = Progression.QueuedActiveOpportunities;
-    Out.Vouchers = Progression.Vouchers;
     Out.Shop = Progression.Shop;
     Error.Reset();
     return true;

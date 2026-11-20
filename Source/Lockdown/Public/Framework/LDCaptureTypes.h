@@ -144,15 +144,17 @@ struct FLDPublicMatchView
     UPROPERTY() FLDPKView PK;
     UPROPERTY() FLDShowdownView Showdown;
     UPROPERTY() int64 OwnerBankedGuardMs = 0;
-    // Spec §11.1/§10.3 (P6): the match's daily modifiers and the current (or last) mid-field objective.
+    // Spec §11.1/§10.3/§11.3 (P6): the match's daily modifiers, the current (or last) mid-field objective and the delivery
+    // lockers out now.
     UPROPERTY() TArray<ELDDailyModifier> DailyModifiers;
     UPROPERTY() FLDObjectiveView Objective;
+    UPROPERTY() TArray<FLDLockerView> Lockers;
 };
 
 UENUM()
 // Where a card or the final mod sits: the body (a final mod without a source), a learned skill, the D dash or the basic.
 // 2 and 3 are retired.
-enum class ELDResultBuildTarget : uint8 { Body = 0, Active = 1, Dash = 4, Basic = 5 };
+enum class ELDResultBuildTarget : uint8 { Body = 0, Active = 1, Dash = 4 };
 
 USTRUCT()
 struct FLDResultBuildActive

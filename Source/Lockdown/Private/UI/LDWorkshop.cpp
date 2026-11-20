@@ -87,11 +87,10 @@ FLinearColor WorkshopElementColor(ELDDemoElement Element)
     {
     case ELDDemoElement::Fire: return LDUIPaint::Hex(0xFF7A3D);
     case ELDDemoElement::Water: return LDUIPaint::Hex(0x4DB5FF);
-    // Spec §8.1 colours: shock violet, chill cyan, rot green, gust grey.
+    // Spec §8.1 colours: shock violet, chill cyan, rot green.
     case ELDDemoElement::Electric: return LDUIPaint::Hex(0xB46BFF);
     case ELDDemoElement::Chill: return LDUIPaint::Hex(0x5CF2FF);
     case ELDDemoElement::Rot: return LDUIPaint::Hex(0x7AD93A);
-    case ELDDemoElement::Gust: return LDUIPaint::Hex(0xB8C4CC);
     default: return LDHUDStyle::TextSecondary;
     }
 }
@@ -845,10 +844,9 @@ void ULDWorkshop::RefreshPhase()
         return;
     }
     PhaseStep->SetColorAndOpacity(LDHUDStyle::UIText);
-    // Beside an NPC its name joins the rest line: its services stand on the board.
     const FString Rest=Latest.bRest?FString::Printf(TEXT("休息 R%u"),uint32(Latest.RestIndex)):FString();
-    WorkshopText(PhaseRest,Latest.NpcName.IsEmpty()?Rest:Rest+TEXT("  ·  ")+Latest.NpcName);
-    PhaseRest->SetColorAndOpacity(Latest.NpcName.IsEmpty()?LDHUDStyle::TextSecondary:LDHUDStyle::UIAction);
+    WorkshopText(PhaseRest,Rest);
+    PhaseRest->SetColorAndOpacity(LDHUDStyle::TextSecondary);
     WorkshopText(PhaseStep,Latest.bRest?LDHUD::RestStepText(Latest.Step):FString());
     const int64 Remaining=Latest.bClock&&Latest.StepEndsAtMs>0?FMath::Max<int64>(0,Latest.StepEndsAtMs-Latest.NowMs):-1;
     WorkshopText(PhaseClock,Remaining>=0?LDHUD::Clock(Remaining):FString());
@@ -1031,7 +1029,6 @@ void ULDWorkshop::RefreshHeads()
         Head.Active=Active;Head.bEmpty=Shown.bEmpty;Head.Elements=Shown.Elements;
         FString Key;
         if(Column==LDHUD::EStorageColumn::Body){Key=LDTerms::ColumnBody;}
-        else if(Column==LDHUD::EStorageColumn::Basic){Key=LDTerms::ColumnBasic;}
         else if(Column==LDHUD::EStorageColumn::Dash){Key=Latest.DashKey.IsEmpty()?FString(TEXT("D")):Latest.DashKey;}
         else{Key=Latest.Keys.Of(uint8(Index-int32(LDHUD::EStorageColumn::SlotQ)));}
         WorkshopText(Head.Key,Key);
@@ -1047,7 +1044,7 @@ void ULDWorkshop::RefreshHeads()
             WorkshopShown(Head.Glyph,!Head.Icon.IsValid(),ESlateVisibility::HitTestInvisible);
             WorkshopShown(Head.Picture,false);
         }
-        Head.Glyph->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Column==LDHUD::EStorageColumn::Body||Column==LDHUD::EStorageColumn::Basic?40:28));
+        Head.Glyph->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Column==LDHUD::EStorageColumn::Body?40:28));
         WorkshopText(Head.Momentum,Shown.Momentum);WorkshopShown(Head.Momentum,!Shown.Momentum.IsEmpty(),ESlateVisibility::HitTestInvisible);
         WorkshopText(Head.Cooldown,Shown.Cooldown);WorkshopShown(Head.Cooldown,!Shown.Cooldown.IsEmpty(),ESlateVisibility::HitTestInvisible);
         {

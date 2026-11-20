@@ -809,15 +809,13 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
         *State.GetRoster()->Camps[Camp].CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
         Result == ELDCampDeathResult::CampCleared, State.FindCamp(Camp)->RespawnDueMs);
-    // #198 outer §5: the first clear of a marked camp takes its segment's marker. Spec §3.13/§11.3: every clear pays the last
-    // hit its tier's vouchers, and the first Ancient clear of each contender a pick ticket.
+    // #198 outer §5: the first clear of a marked camp takes its segment's marker; its affix pays its clear reward.
     if (Result == ELDCampDeathResult::CampCleared)
     {
         const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
         const ELDCampAffix Affix = CampAffixes.FindRef(Spec.CampId);
         CampAffixes.Remove(Spec.CampId);
-        return AuthorityMode()->PayCampClear(Spec.Tier, Fact.CreditOwner, Permit, Error)
-            && PayAffixClear(Affix, Spec.Tier, Spec.CampId, Fact.CreditOwner, Permit, Error)
+        return PayAffixClear(Affix, Spec.Tier, Spec.CampId, Fact.CreditOwner, Permit, Error)
             && AuthorityMode()->ConsumeCampClear(Spec.CampId, Fact.CreditOwner, FieldMs, Permit, Error);
     }
     Error.Reset();
@@ -989,13 +987,6 @@ bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWrite
         return false;
     }
     if (!Mode->Development->GrantExtraFinalModCard(Killer, Permit, Error)) { return false; }
-    // Spec §3.13: the Boss's last hit also pays its vouchers.
-    if (const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Killer, Content->Get().Parameters.Vouchers.Boss, 0,
-            TEXT("boss"), Permit); Reason != ELDGrowthReason::None)
-    {
-        Error = FString::Printf(TEXT("The Boss vouchers to %s were refused: %s."), *Killer.ToString(), LDGrowthWire::ReasonName(Reason));
-        return false;
-    }
     return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error);
 }
 
@@ -1421,12 +1412,6 @@ bool ALDCampDirector::RewardPeddlerKill(const FGuid& Killer, const FLDGameplayWr
         Error.Reset();
         return true;
     }
-    if (!Mode->Development) { Error = TEXT("The dealer's reward needs the growth domain."); return false; }
-    if (const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Killer, 0, 1, TEXT("peddler"), Permit); Reason != ELDGrowthReason::None)
-    {
-        Error = FString::Printf(TEXT("The dealer's pick ticket to %s was refused: %s."), *Killer.ToString(), LDGrowthWire::ReasonName(Reason));
-        return false;
-    }
     return Mode->PayFieldReward(Killer, TEXT("peddler"), 1, 0, ELDFieldRewardKind::PeddlerOffer, Permit, Error);
 }
 
@@ -1447,15 +1432,8 @@ bool ALDCampDirector::PayAffixClear(ELDCampAffix Affix, ELDDemoCampTier Tier, FN
     switch (Affix)
     {
     case ELDCampAffix::Overtime:
-    {
-        // Double the tier's clear vouchers: the extra share on top of the ordinary clear pay.
-        const int32 Base = LDProgression::CampClearVouchers(P, Tier);
-        const int32 Extra = int32(int64(Base) * P.Affix.OvertimeVoucherScaleBp / 10000) - Base;
-        if (Extra <= 0) { return true; }
-        const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Clearer, Extra, 0, TEXT("ca_overtime"), Permit);
-        if (Reason != ELDGrowthReason::None) { Error = LDGrowthWire::ReasonName(Reason); return false; }
+        // Its attack speed is the whole affix; the clear pays nothing extra.
         return true;
-    }
     case ELDCampAffix::Teambuild:
         // Its +50% XP is paid on every member kill (LDGrowthDirector).
         return true;
@@ -1464,11 +1442,8 @@ bool ALDCampDirector::PayAffixClear(ELDCampAffix Affix, ELDDemoCampTier Tier, FN
     case ELDCampAffix::Bonus:
         return Mode->PayFieldReward(Clearer, Event, Serial, 0, ELDFieldRewardKind::BonusOffer, Permit, Error);
     case ELDCampAffix::Layoff:
-    {
-        const ELDGrowthReason Reason = Mode->Development->GrantVouchers(Clearer, P.Affix.LayoffVouchers, 0, TEXT("ca_layoff"), Permit);
-        if (Reason != ELDGrowthReason::None) { Error = LDGrowthWire::ReasonName(Reason); return false; }
+        // Its stacking attack is the whole affix; the clear pays nothing extra.
         return true;
-    }
     case ELDCampAffix::Audit:
     {
         int32& Paid = AuditPointsPaid.FindOrAdd(Clearer);

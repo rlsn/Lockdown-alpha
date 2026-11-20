@@ -92,32 +92,6 @@ bool ALDGameMode::ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 
         Kind == ELDFieldMarkerKind::High ? ELDFieldRewardKind::Blueprint : ELDFieldRewardKind::CardOffer, Permit, Error);
 }
 
-bool ALDGameMode::PayCampClear(ELDDemoCampTier Tier, const FGuid& ClearOwner, const FLDGameplayWritePermit& Permit, FString& Error)
-{
-    if (ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None || !Development || !DemoContent)
-    {
-        Error = TEXT("A camp clear pays its vouchers only with the current DeathsAndRewards permit and the growth domain.");
-        return false;
-    }
-    FLDContenderLifeRead Life;
-    FString LifeError;
-    if (!ClearOwner.IsValid() || !IsMemberPresent(ClearOwner) || !ReadContenderLife(MatchContext, ClearOwner, Life, LifeError))
-    {
-        return true;
-    }
-    const int32 Vouchers = LDProgression::CampClearVouchers(DemoContent->Get().Parameters, Tier);
-    const int32 Tickets = Tier == ELDDemoCampTier::Ancient && Development->TakeAncientTicket(ClearOwner) ? 1 : 0;
-    if (Vouchers <= 0 && Tickets == 0) { return true; }
-    const ELDGrowthReason Reason = Development->GrantVouchers(ClearOwner, Vouchers, Tickets,
-        Tickets > 0 ? TEXT("ancient_clear") : TEXT("camp_clear"), Permit);
-    if (Reason != ELDGrowthReason::None)
-    {
-        Error = FString::Printf(TEXT("The camp clear vouchers to %s were refused: %s."), *LDLog::Id(ClearOwner), LDGrowthWire::ReasonName(Reason));
-        return false;
-    }
-    return true;
-}
-
 bool ALDGameMode::PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
     const FLDGameplayWritePermit& Permit, FString& Error)
 {

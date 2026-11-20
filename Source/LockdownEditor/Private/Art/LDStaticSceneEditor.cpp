@@ -142,7 +142,6 @@ bool LDStaticSceneEditor::Export(const FString& Filename, FString& Error)
         case ELDDemoWorldAnchorKind::BossWaypoint: Kind = TEXT("BossWaypoint"); break;
         case ELDDemoWorldAnchorKind::MiniFlag: Kind = TEXT("MiniFlag"); break;
         case ELDDemoWorldAnchorKind::Locker: Kind = TEXT("Locker"); break;
-        case ELDDemoWorldAnchorKind::Vending: Kind = TEXT("Vending"); break;
         case ELDDemoWorldAnchorKind::PKSpawn: Kind = TEXT("PKSpawn"); break;
         case ELDDemoWorldAnchorKind::PKThrow: Kind = TEXT("PKThrow"); break;
         case ELDDemoWorldAnchorKind::PKSignup: Kind = TEXT("PKSignup"); break;

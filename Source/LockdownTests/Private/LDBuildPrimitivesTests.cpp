@@ -121,7 +121,7 @@ struct FLDBuildPrimitivesAccess
     static bool SpawnGround(ALDCombatDirector& Driver, ELDGroundStateKind Kind, const FLDElementApplier& Owner, const FVector& Centre,
         int64 NowMs, FString& Error) { return Driver.SpawnGround(Kind, Owner, Centre, NowMs, Error); }
     static bool ConvertGround(ALDCombatDirector& Driver, const FVector& Foot, ELDCombatElement Incoming, const FLDElementApplier& Applier,
-        const FVector& Direction, int64 NowMs, FString& Error) { return Driver.ConvertGroundAt(Foot, Incoming, Applier, Direction, NowMs, Error); }
+        int64 NowMs, FString& Error) { return Driver.ConvertGroundAt(Foot, Incoming, Applier, NowMs, Error); }
     static bool AdvanceGround(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceGround(NowMs, Error); }
     static void SetDaily(ALDGameMode& Mode, const TArray<ELDDailyModifier>& Daily) { Mode.DailyModifiers = Daily; }
     static int64 NextGroundDueMs(const ALDCombatDirector& Driver, int64 NowMs) { return Driver.NextGroundDueMs(NowMs); }
@@ -2630,16 +2630,12 @@ bool FLDOverdriveElementTest::RunTest(const FString& Parameters)
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_sock_shot"), Plain, Over)) { return false; }
     TestEqual(TEXT("Rot (S21) lasts twice the approved rot"), FindEffect(Over.Values, ELDDemoEffectOp::Rot)->DurationMs,
         F.Catalog->Get().Parameters.Elements.RotMs * 2);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_open_mic"), Plain, Over)) { return false; }
-    const FLDDemoEffectDefinition* Gust = FindEffect(Over.Values, ELDDemoEffectOp::Gust);
-    TestTrue(TEXT("Gust (S22) pushes 300 cm and leaves the ground state of the element its target held"), Gust
-        && Gust->DistanceCm.Numerator == 300 * Gust->DistanceCm.Denominator && Gust->DurationMs == O.GustPushMs && Over.bOverdriveGustGround);
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_cola_shake"), Plain, Over)) { return false; }
     const FLDDemoEffectDefinition* Root = FindEffect(Over.Values, ELDDemoEffectOp::Root);
     TestTrue(TEXT("Chill (N1) roots for 0.6 s"), Root && Root->DurationMs == O.ChillRootMs && !FindEffect(Plain.Values, ELDDemoEffectOp::Root));
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestFalse(TEXT("A skill without an element gains only the scale"), Over.bOverdriveGustGround
-        || FindEffect(Over.Values, ELDDemoEffectOp::Burn) || FindEffect(Over.Values, ELDDemoEffectOp::Slow));
+    TestFalse(TEXT("A skill without an element gains only the scale"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Burn) || FindEffect(Over.Values, ELDDemoEffectOp::Slow));
     return true;
 }
 
@@ -2783,92 +2779,70 @@ bool RunCardRule(FAutomationTestBase& Test, const FCardRule& Rule,
 }
 }
 
-// The basic cards.
+// The basic attack's cards (installed on the body).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA01Test, "Lockdown.Rules.Combat.Cards.A01",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA01Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_third_breath"), ELDDemoEffectOp::ComboMomentum, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_third_breath"), ELDDemoEffectOp::ComboMomentum, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA02Test, "Lockdown.Rules.Combat.Cards.A02",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA02Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_punch_think"), ELDDemoEffectOp::BasicCooldownCut, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_punch_think"), ELDDemoEffectOp::BasicCooldownCut, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA03Test, "Lockdown.Rules.Combat.Cards.A03",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA03Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_solid_punch"), ELDDemoEffectOp::ComboSkillHit, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_solid_punch"), ELDDemoEffectOp::ComboSkillHit, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA04Test, "Lockdown.Rules.Combat.Cards.A04",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA04Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_third_shove"), ELDDemoEffectOp::ComboKnockback, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_third_shove"), ELDDemoEffectOp::ComboKnockback, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA06Test, "Lockdown.Rules.Combat.Cards.A06",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA06Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_both_hands"), ELDDemoEffectOp::ComboDouble, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_both_hands"), ELDDemoEffectOp::ComboDouble, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA09Test, "Lockdown.Rules.Combat.Cards.A09",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA09Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_quick_hands"), ELDDemoEffectOp::OvercapExtraHit, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_quick_hands"), ELDDemoEffectOp::OvercapExtraHit, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA11Test, "Lockdown.Rules.Combat.Cards.A11",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA11Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_scholar_punch"), ELDDemoEffectOp::BasicApRider, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_scholar_punch"), ELDDemoEffectOp::BasicApRider, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA12Test, "Lockdown.Rules.Combat.Cards.A12",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA12Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_heated_up"), ELDDemoEffectOp::FocusAttackSpeed, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_heated_up"), ELDDemoEffectOp::FocusAttackSpeed, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA14Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_breach_fist"), ELDDemoEffectOp::Breach, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_breach_fist"), ELDDemoEffectOp::Breach, ELDCardTargetKind::Body});
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA15Test, "Lockdown.Rules.Combat.Cards.A15",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleA15Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_fire_fist"), ELDDemoEffectOp::Burn, ELDCardTargetKind::Basic});
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA16Test, "Lockdown.Rules.Combat.Cards.A16",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleA16Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_water_fist"), ELDDemoEffectOp::BasicElement, ELDCardTargetKind::Basic});
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA17Test, "Lockdown.Rules.Combat.Cards.A17",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleA17Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_shock_fist"), ELDDemoEffectOp::BasicElement, ELDCardTargetKind::Basic});
-}
-
 // The skill cards (on the host skill).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK01Test, "Lockdown.Rules.Combat.Cards.K01",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -2978,27 +2952,6 @@ bool FLDCardRuleK17Test::RunTest(const FString& Parameters)
     using namespace LDBuildPrimitivesTests;
     return RunCardRule(*this, {TEXT("card_practice"), ELDDemoEffectOp::SkillGrowth, ELDCardTargetKind::Skill});
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK19Test, "Lockdown.Rules.Combat.Cards.K19",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleK19Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_add_fire"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill});
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK20Test, "Lockdown.Rules.Combat.Cards.K20",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleK20Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_add_water"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill});
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK21Test, "Lockdown.Rules.Combat.Cards.K21",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleK21Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_add_shock"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill});
-}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK25Test, "Lockdown.Rules.Combat.Cards.K25",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleK25Test::RunTest(const FString& Parameters)
@@ -3043,14 +2996,6 @@ bool FLDCardRuleD06Test::RunTest(const FString& Parameters)
     using namespace LDBuildPrimitivesTests;
     return RunCardRule(*this, {TEXT("card_pass_through"), ELDDemoEffectOp::DashPhase, ELDCardTargetKind::Dash});
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD12Test, "Lockdown.Rules.Combat.Cards.D12",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleD12Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_shock_dash"), ELDDemoEffectOp::DashContactElement, ELDCardTargetKind::Dash});
-}
-
 // The body cards.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY01Test, "Lockdown.Rules.Combat.Cards.Y01",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -3379,8 +3324,8 @@ const FLDCombatHit* PendingOn(FFixture& F, const FLDCombatBodyRef& Target, TFunc
 }
 }
 
-// Spec §8.2: the 6 x 6 table (either order, gust never held, the same element or none never reacts) and every one of the
-// fifteen reactions committed on a real target: its kind and consumed element, the primary hit's multiple of R (R = 30 at
+// Spec §8.2: the 5 x 5 table (either order, the same element or none never reacts) and every one of the ten reactions
+// committed on a real target: its kind and consumed element, the primary hit's multiple of R (R = 30 at
 // level 1 without AP), its control or status, the splash around it, the ground state it leaves and the trigger's momentum.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDElementsMatrixTest, "Lockdown.Rules.Combat.Elements.Matrix",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -3394,18 +3339,15 @@ bool FLDElementsMatrixTest::RunTest(const FString& Parameters)
     struct FCase { E Held; E Incoming; R Kind; };
     const FCase Cases[] = {
         {E::Fire, E::Water, R::Fog}, {E::Fire, E::Shock, R::Overload}, {E::Fire, E::Chill, R::Melt}, {E::Fire, E::Rot, R::Methane},
-        {E::Fire, E::Gust, R::Firestorm}, {E::Water, E::Shock, R::Conduct}, {E::Water, E::Chill, R::Freeze},
-        {E::Water, E::Rot, R::Ferment}, {E::Water, E::Gust, R::Splash}, {E::Shock, E::Chill, R::Shatter},
-        {E::Shock, E::Rot, R::Corrode}, {E::Shock, E::Gust, R::Thunderstorm}, {E::Chill, E::Rot, R::Frostbite},
-        {E::Chill, E::Gust, R::Blizzard}, {E::Rot, E::Gust, R::Smoke}};
+        {E::Water, E::Shock, R::Conduct}, {E::Water, E::Chill, R::Freeze}, {E::Water, E::Rot, R::Ferment},
+        {E::Shock, E::Chill, R::Shatter}, {E::Shock, E::Rot, R::Corrode}, {E::Chill, E::Rot, R::Frostbite}};
     for (const FCase& Case : Cases)
     {
         TestTrue(FString::Printf(TEXT("%s either way"), LDCombatElements::ReactionName(Case.Kind)),
             LDCombatElements::ReactionOf(Case.Held, Case.Incoming) == Case.Kind
-            && (Case.Incoming == E::Gust || LDCombatElements::ReactionOf(Case.Incoming, Case.Held) == Case.Kind));
+            && LDCombatElements::ReactionOf(Case.Incoming, Case.Held) == Case.Kind);
     }
-    TestTrue(TEXT("Gust is never held, and the same element or none never reacts"),
-        LDCombatElements::ReactionOf(E::Gust, E::Fire) == R::None && LDCombatElements::ReactionOf(E::Rot, E::Rot) == R::None
+    TestTrue(TEXT("The same element or none never reacts"), LDCombatElements::ReactionOf(E::Rot, E::Rot) == R::None
         && LDCombatElements::ReactionOf(E::None, E::Chill) == R::None);
     for (const FCase& Case : Cases)
     {
@@ -3442,23 +3384,18 @@ bool FLDElementsMatrixTest::RunTest(const FString& Parameters)
             && LDCombatElements::GroundContains(*GroundOf(F, G::Puddle), F.Foot(T))); break;
         case R::Methane: TestTrue(Name + TEXT(": 1.5 R, two new burn layers, R on the bystander"), Main->BaseP2 == 4500
             && Body.Burn.Layers.Num() == 2 && Splash && Splash->BaseP2 == 3000); break;
-        case R::Firestorm: TestTrue(Name + TEXT(": the burn doubles and a fire ground is left"), Main->BaseP2 == 0
-            && Body.Burn.Layers.Num() == 2 && GroundOf(F, G::Fire)); break;
         case R::Conduct: TestTrue(Name + TEXT(": 1.5 R and a slow; the wet bystander pays R with its wet"), Main->BaseP2 == 4500
             && Main->SlowBp == 3000 && Main->SlowDurationMs == 1500 && Splash && Splash->BaseP2 == 3000
             && F.Body(O).ElementMark.Kind == E::None); break;
-        case R::Freeze: TestTrue(Name + TEXT(": a 1 s root, no damage"), Main->RootDurationMs == 1000 && Main->BaseP2 == 0); break;
-        case R::Ferment: TestTrue(Name + TEXT(": an 8 s rot cutting 50%"), Body.ElementMark.Kind == E::Rot
-            && Body.ElementMark.HealCutBp == 5000 && Body.ElementMark.ExpiresAtMs == Now + 8000); break;
-        case R::Splash: TestTrue(Name + TEXT(": pushed 150 cm and a puddle"), Main->KnockbackCm == 150 && GroundOf(F, G::Puddle)); break;
-        case R::Shatter: TestTrue(Name + TEXT(": the next skill hit takes +50% within 4 s"), Body.ShatterBp == 5000
-            && Body.ShatterUntilMs == Now + 4000); break;
-        case R::Corrode: TestTrue(Name + TEXT(": three breach for 6 s"), Main->BreachStacks == 3 && Main->BreachMs == 6000); break;
-        case R::Thunderstorm: TestTrue(Name + TEXT(": R, knocked back 150 cm, shocked again, a field where it lands"),
-            Main->BaseP2 == 3000 && Main->KnockbackCm == 150 && Body.ElementMark.Kind == E::Shock && GroundOf(F, G::Field)); break;
-        case R::Frostbite: TestTrue(Name + TEXT(": attack speed -30% for 3 s"), Main->AttackSlowBp == 3000 && Main->AttackSlowMs == 3000); break;
-        case R::Blizzard: TestTrue(Name + TEXT(": half R and a blizzard area"), Main->BaseP2 == 1500 && GroundOf(F, G::Blizzard)); break;
-        case R::Smoke: TestTrue(Name + TEXT(": a 0.6 s disarm and a miasma"), Main->DisarmDurationMs == 600 && GroundOf(F, G::Miasma)); break;
+        case R::Freeze: TestTrue(Name + TEXT(": R and a 1.2 s root"), Main->RootDurationMs == 1200 && Main->BaseP2 == 3000); break;
+        case R::Ferment: TestTrue(Name + TEXT(": R and an 8 s rot cutting 60%"), Main->BaseP2 == 3000 && Body.ElementMark.Kind == E::Rot
+            && Body.ElementMark.HealCutBp == 6000 && Body.ElementMark.ExpiresAtMs == Now + 8000); break;
+        case R::Shatter: TestTrue(Name + TEXT(": R and the next skill hit takes +50% within 4 s"), Main->BaseP2 == 3000
+            && Body.ShatterBp == 5000 && Body.ShatterUntilMs == Now + 4000); break;
+        case R::Corrode: TestTrue(Name + TEXT(": R and five breach for 6 s"), Main->BaseP2 == 3000 && Main->BreachStacks == 5
+            && Main->BreachMs == 6000); break;
+        case R::Frostbite: TestTrue(Name + TEXT(": R and attack speed -40% for 4 s"), Main->BaseP2 == 3000 && Main->AttackSlowBp == 4000
+            && Main->AttackSlowMs == 4000); break;
         default: break;
         }
         if (Case.Kind != R::Overload && Case.Kind != R::Methane && Case.Kind != R::Conduct)
@@ -3572,7 +3509,6 @@ bool FLDGroundStateTransitionsTest::RunTest(const FString& Parameters)
     F.Place(B, -500, 500);
     F.Place(Enemy, 0, 0);
     const FVector At = F.Foot(Enemy);
-    const FVector East(1, 0, 0);
     FString Error;
     TArray<FLDGroundState>& Live = FAccess::GroundStates(*F.Driver);
     const auto Reset = [&]()
@@ -3583,29 +3519,26 @@ bool FLDGroundStateTransitionsTest::RunTest(const FString& Parameters)
         F.Body(Enemy).ElementMark = FLDCombatElementMark();
         F.Body(Enemy).Burn = FLDCombatBurn();
     };
-    struct FConversion { G From; E Element; G Into; bool bGone; bool bFog; bool bMoved; int64 Burst; };
+    struct FConversion { G From; E Element; G Into; bool bGone; bool bFog; int64 Burst; };
     const FConversion Conversions[] = {
-        {G::Puddle, E::Shock, G::Field, false, false, false, 0}, {G::Puddle, E::Chill, G::Ice, false, false, false, 0},
-        {G::Puddle, E::Fire, G::None, true, true, false, 0}, {G::Ice, E::Fire, G::Puddle, false, false, false, 0},
-        {G::Fire, E::Gust, G::Fire, false, false, true, 0}, {G::Fire, E::Water, G::None, true, true, false, 0},
-        {G::Miasma, E::Fire, G::None, true, false, false, 4500}, {G::Miasma, E::Gust, G::Miasma, false, false, true, 0},
-        {G::Field, E::Gust, G::None, true, false, false, 3000}, {G::Blizzard, E::Fire, G::None, true, false, false, 0},
-        {G::Puddle, E::Water, G::Puddle, false, false, false, 0}, {G::Ice, E::Gust, G::Ice, false, false, false, 0}};
+        {G::Puddle, E::Shock, G::Field, false, false, 0}, {G::Puddle, E::Chill, G::Ice, false, false, 0},
+        {G::Puddle, E::Fire, G::None, true, true, 0}, {G::Ice, E::Fire, G::Puddle, false, false, 0},
+        {G::Fire, E::Water, G::None, true, true, 0}, {G::Miasma, E::Fire, G::None, true, false, 4500},
+        {G::Puddle, E::Water, G::Puddle, false, false, 0}, {G::Field, E::Rot, G::Field, false, false, 0}};
     for (const FConversion& Row : Conversions)
     {
         Reset();
         const FString Name = FString::Printf(TEXT("%s + %s"), LDCombatElements::GroundName(Row.From), LDCombatElements::ElementName(Row.Element));
         if (!TestTrue(Name + TEXT(": A's state spawns: ") + Error, FAccess::SpawnGround(*F.Driver, Row.From, ApplierOf(F, A), At, 1000, Error))
             || !TestTrue(Name + TEXT(": B's element lands inside: ") + Error,
-                FAccess::ConvertGround(*F.Driver, At, Row.Element, ApplierOf(F, B), East, 1000, Error))) { return false; }
+                FAccess::ConvertGround(*F.Driver, At, Row.Element, ApplierOf(F, B), 1000, Error))) { return false; }
         if (Row.bGone) { TestEqual(Name + TEXT(": it is gone"), Live.Num(), 0); }
         else if (TestEqual(Name + TEXT(": it stays"), Live.Num(), 1))
         {
             const bool bConverted = Row.Into != Row.From;
             TestTrue(Name + TEXT(": its kind and owner"), Live[0].Kind == Row.Into
                 && Live[0].Owner.SourceEntity == (bConverted ? B : A).Victim.EntityId);
-            TestTrue(Name + TEXT(": where it is"), Row.bMoved ? FMath::IsNearlyEqual(Live[0].CentreCm.X, At.X + 300., 0.01)
-                : Live[0].CentreCm.Equals(At, 0.01));
+            TestTrue(Name + TEXT(": where it is"), Live[0].CentreCm.Equals(At, 0.01));
         }
         TestEqual(Name + TEXT(": a fog rises"), FAccess::Fogs(*F.Driver).Num(), Row.bFog ? 1 : 0);
         const FLDCombatHit* Burst = PendingOn(F, Enemy, [](const FLDCombatHit& Hit) { return true; });
@@ -3620,7 +3553,7 @@ bool FLDGroundStateTransitionsTest::RunTest(const FString& Parameters)
     // Standing effects at the first tick, on enemies of the owner only.
     struct FTick { G Kind; int64 TickMs; E Element; int64 Damage; };
     const FTick Ticks[] = {{G::Puddle, 500, E::Water, 0}, {G::Fire, 1000, E::Fire, 0}, {G::Miasma, 500, E::Rot, 0},
-        {G::Field, 500, E::Shock, 900}, {G::Blizzard, 1000, E::Chill, 0}};
+        {G::Field, 500, E::Shock, 900}};
     for (const FTick& Tick : Ticks)
     {
         Reset();
@@ -3635,7 +3568,6 @@ bool FLDGroundStateTransitionsTest::RunTest(const FString& Parameters)
             && F.Body(A).Burn.Layers.IsEmpty());
         if (Tick.Damage > 0)
         { TestNotNull(Name + TEXT(": its damage"), PendingOn(F, Enemy, [&Tick](const FLDCombatHit& Hit) { return Hit.BaseP2 == Tick.Damage; })); }
-        if (Tick.Kind == G::Blizzard) { TestTrue(Name + TEXT(": slows 35%"), F.Body(Enemy).Slows.ContainsByPredicate([](const FLDCombatSlow& Slow) { return Slow.RatioBp == 3500; })); }
         F.Now(1000);
     }
     // Ice: an enemy on it accelerates and brakes at half; its owner on its own ice does not.
@@ -3837,82 +3769,6 @@ bool FLDOneVsOneBounceTest::RunTest(const FString& Parameters)
 }
 
 // Spec §7 P4 cards (Lockdown.Rules.Combat.Cards.<code>), installed as one and two copies like the P2 cards.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA18Test, "Lockdown.Rules.Combat.Cards.A18",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleA18Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_ice_fist"), ELDDemoEffectOp::BasicElement, ELDCardTargetKind::Basic},
-        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
-        {
-            const FLDCombatBodyRef Target = F.AddBody();
-            F.Place(Holder, 0, 0);
-            F.Place(Target, 150, 0);
-            FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
-            Basic.HitClass = ELDCombatHitClass::BasicPrimary;
-            Basic.DamageType = ELDDemoDamageType::Physical;
-            FString Error;
-            // The card rides the last combo step only: the first step leaves the target unmarked.
-            Basic.ComboStep = 1;
-            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
-            Basic.HitId = FGuid::NewGuid();
-            Basic.ComboStep = 3;
-            const bool bApplied = F.Apply(Basic, Error);
-            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A third-step basic chills its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill
-                && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("card_ice_fist")));
-        });
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleMixedBasicElementsTest, "Lockdown.Rules.Combat.Cards.MixedBasicElements",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleMixedBasicElementsTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    // Two fire fists beside an ice fist: fire is first in the fixed order, so the third step burns and never chills.
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Holder = F.AddBody();
-    const TArray<FCard> Rows = {{TEXT("card_fire_fist"), ELDCardTargetKind::Basic}, {TEXT("card_fire_fist"), ELDCardTargetKind::Basic},
-        {TEXT("card_ice_fist"), ELDCardTargetKind::Basic}};
-    if (!InstallCards(*this, F, Holder, 6, Rows)) { return false; }
-    const FLDCombatBodyRef Target = F.AddBody();
-    F.Place(Holder, 0, 0);
-    F.Place(Target, 150, 0);
-    FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
-    Basic.HitClass = ELDCombatHitClass::BasicPrimary;
-    Basic.DamageType = ELDDemoDamageType::Physical;
-    Basic.ComboStep = 3;
-    FString Error;
-    const bool bApplied = F.Apply(Basic, Error);
-    return TestTrue(TEXT("The mixed third-step basic lands: ") + Error, bApplied)
-        && TestTrue(TEXT("Fire goes before chill: the target burns with the fire fists' layers and is not chilled"),
-            F.Body(Target).Burn.Layers.Num() >= 2 && F.Body(Target).Burn.Layers[0].Source.DefinitionId == FName(TEXT("card_fire_fist"))
-            && F.Body(Target).ElementMark.Kind != ELDCombatElement::Chill);
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA19Test, "Lockdown.Rules.Combat.Cards.A19",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleA19Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_rot_fist"), ELDDemoEffectOp::BasicElement, ELDCardTargetKind::Basic},
-        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
-        {
-            const FLDCombatBodyRef Target = F.AddBody();
-            F.Place(Holder, 0, 0);
-            F.Place(Target, 150, 0);
-            FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
-            Basic.HitClass = ELDCombatHitClass::BasicPrimary;
-            Basic.DamageType = ELDDemoDamageType::Physical;
-            FString Error;
-            // The card rides the last combo step only: the first step leaves the target unmarked.
-            Basic.ComboStep = 1;
-            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
-            Basic.HitId = FGuid::NewGuid();
-            Basic.ComboStep = 3;
-            const bool bApplied = F.Apply(Basic, Error);
-            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied) && TestTrue(TEXT("A third-step basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
-        });
-}
-
 namespace LDBuildPrimitivesTests
 {
 // A native direct hit of the card host skill from Holder on a fresh target 300 cm east of it.
@@ -3929,46 +3785,53 @@ bool HostHit(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Hol
     return Test.TestTrue(TEXT("The host skill hits: ") + Error, F.Apply(Hit, Error));
 }
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK22Test, "Lockdown.Rules.Combat.Cards.K22",
+
+// The element medals: in a skill's element slot the host's hits carry the element; in the body's, the third basic step does.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleMedalSkillTest, "Lockdown.Rules.Combat.Cards.MedalSkill",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleK22Test::RunTest(const FString& Parameters)
+bool FLDCardRuleMedalSkillTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_add_chill"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill},
+    bool bGood = RunCardRule(*this, {TEXT("medal_chill"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill},
         [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
         {
             FLDCombatBodyRef Target;
             return HostHit(*this, F, Holder, Target) && TestTrue(TEXT("The host's hit chills"), F.Body(Target).ElementMark.Kind == ELDCombatElement::Chill);
         });
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK23Test, "Lockdown.Rules.Combat.Cards.K23",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleK23Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_add_rot"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill},
+    bGood &= RunCardRule(*this, {TEXT("medal_fire"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill},
         [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
         {
             FLDCombatBodyRef Target;
-            return HostHit(*this, F, Holder, Target) && TestTrue(TEXT("The host's hit rots"), F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot);
+            return HostHit(*this, F, Holder, Target) && TestTrue(TEXT("The host's hit burns"), F.Body(Target).Burn.Layers.Num() >= 2);
         });
+    return bGood;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK24Test, "Lockdown.Rules.Combat.Cards.K24",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleMedalBodyTest, "Lockdown.Rules.Combat.Cards.MedalBody",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleK24Test::RunTest(const FString& Parameters)
+bool FLDCardRuleMedalBodyTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_add_gust"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Skill},
+    return RunCardRule(*this, {TEXT("medal_rot"), ELDDemoEffectOp::SkillElement, ELDCardTargetKind::Body},
         [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
         {
-            FLDCombatBodyRef Target;
-            if (!HostHit(*this, F, Holder, Target)) { return false; }
-            const FLDCombatHit* Push = PendingOn(F, Target, [](const FLDCombatHit& Hit) { return Hit.KnockbackCm > 0; });
-            return TestTrue(TEXT("The host's hit blows its target 100 cm away from the holder"), Push && Push->KnockbackCm == 100
-                && Push->KnockbackAnchorCm.X < F.Foot(Target).X && F.Body(Target).ElementMark.Kind == ELDCombatElement::None);
+            const FLDCombatBodyRef Target = F.AddBody();
+            F.Place(Holder, 0, 0);
+            F.Place(Target, 150, 0);
+            FLDCombatHit Basic = FFixture::Hit(Holder, Target, 1000);
+            Basic.HitClass = ELDCombatHitClass::BasicPrimary;
+            Basic.DamageType = ELDDemoDamageType::Physical;
+            FString Error;
+            // The medal rides the last combo step only: the first step leaves the target unmarked.
+            Basic.ComboStep = 1;
+            const bool bEarly = F.Apply(Basic, Error) && F.Body(Target).ElementMark.Kind == ELDCombatElement::None;
+            Basic.HitId = FGuid::NewGuid();
+            Basic.ComboStep = 3;
+            const bool bApplied = F.Apply(Basic, Error);
+            return TestTrue(TEXT("A first-step basic applies no element"), bEarly) && TestTrue(TEXT("A primary basic lands: ") + Error, bApplied)
+                && TestTrue(TEXT("A third-step basic rots its target"), bApplied && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot
+                && F.Body(Target).ElementMark.Applier.Source.DefinitionId == FName(TEXT("medal_rot")));
         });
 }
-
 namespace LDBuildPrimitivesTests
 {
 // Holder's D dash from 400 cm west of its foot completes now.
@@ -4073,28 +3936,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA07Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleA07Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_wide_swing"), ELDDemoEffectOp::ComboSweep, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_wide_swing"), ELDDemoEffectOp::ComboSweep, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA08Test, "Lockdown.Rules.Combat.Cards.A08",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA08Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_fist_skill"), ELDDemoEffectOp::ComboCast, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_fist_skill"), ELDDemoEffectOp::ComboCast, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA10Test, "Lockdown.Rules.Combat.Cards.A10",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA10Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_slow_craft"), ELDDemoEffectOp::SpeedFactor, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_slow_craft"), ELDDemoEffectOp::SpeedFactor, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA13Test, "Lockdown.Rules.Combat.Cards.A13",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA13Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_muscle_memory"), ELDDemoEffectOp::HitGrowth, ELDCardTargetKind::Basic});
+    return RunCardRule(*this, {TEXT("card_muscle_memory"), ELDDemoEffectOp::HitGrowth, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK03Test, "Lockdown.Rules.Combat.Cards.K03",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -4192,7 +4055,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA05Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleA05Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_long_arm"), ELDDemoEffectOp::BasicProjectile, ELDCardTargetKind::Basic},
+    return RunCardRule(*this, {TEXT("card_long_arm"), ELDDemoEffectOp::BasicProjectile, ELDCardTargetKind::Body},
         [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
         {
             // Each copy adds its 330 cm to the basic range (the flight itself starts at the landing).

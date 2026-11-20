@@ -154,7 +154,7 @@ bool GrowthProbeSameBuild(const FLDBuildReceipt& A, const FLDBuildReceipt& B)
     return GrowthProbeSameHeader(A.Header, B.Header) && A.Kind == B.Kind && A.OfferId == B.OfferId
         && A.OpportunityOrdinal == B.OpportunityOrdinal && A.DefinitionId == B.DefinitionId && A.ChoiceResult == B.ChoiceResult
         && A.LearnedSlot == B.LearnedSlot && A.StoredReason == B.StoredReason && A.PointsSpent == B.PointsSpent
-        && A.VouchersDelta == B.VouchersDelta && A.VouchersAfter == B.VouchersAfter
+        && A.PointsDelta == B.PointsDelta
         && A.UnspentPointsAfter == B.UnspentPointsAfter && A.bHasNextOffer == B.bHasNextOffer && A.NextOfferId == B.NextOfferId;
 }
 

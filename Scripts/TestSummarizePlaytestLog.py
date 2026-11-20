@@ -371,8 +371,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             target.write_text("\n".join(rows) + "\n", encoding="utf-8")
             return str(target)
 
-        first = run("RunA", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap,card_spiky_hide#2", True)
-        second = run("RunB", "0,0,3,0,0", "+card_add_fire#1@Skill:active_zap", False)
+        first = run("RunA", "3,0,0,0,0", "+medal_fire#1@Skill:active_zap,card_spiky_hide#2", True)
+        second = run("RunB", "0,0,3,0,0", "+medal_fire#1@Skill:active_zap", False)
         text = summarize(collect([first, second]), metrics_only=True)
         # Both Host processes started at generation 1: two matches, not one merged match.
         self.assertIn("## Match 1 (RunA)", text)
@@ -382,13 +382,13 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("| 2 in 2 decided matches |", across)
         # RunA closed B's ledger and left A alive; RunB closed none.
         self.assertIn("incomplete: 3 field lives have no ledger (alive at the match end)", across)
-        same = summarize(collect([first, run("RunC", "3,0,0,0,0", "+card_add_fire#7@Skill:active_zap", True)]), metrics_only=True)
+        same = summarize(collect([first, run("RunC", "3,0,0,0,0", "+medal_fire#7@Skill:active_zap", True)]), metrics_only=True)
         self.assertIn("| 1 in 2 decided matches |", same)
         # The same card on another place is another build, and so is a second copy.
-        moved = summarize(collect([first, run("RunD", "3,0,0,0,0", "+card_add_fire#1@Skill:active_snark_bolt", True)]),
+        moved = summarize(collect([first, run("RunD", "3,0,0,0,0", "+medal_fire#1@Skill:active_snark_bolt", True)]),
                           metrics_only=True)
         self.assertIn("| 2 in 2 decided matches |", moved)
-        doubled = summarize(collect([first, run("RunE", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap,+card_add_fire#3@Skill:active_zap",
+        doubled = summarize(collect([first, run("RunE", "3,0,0,0,0", "+medal_fire#1@Skill:active_zap,+medal_fire#3@Skill:active_zap",
                                                 True)]), metrics_only=True)
         self.assertIn("| 2 in 2 decided matches |", doubled)
         # Y25 with another element is another build.
@@ -396,8 +396,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
                                      run("RunG", "3,0,0,0,0", "+card_live_wire#1@Body:Water", True)]), metrics_only=True)
         self.assertIn("| 2 in 2 decided matches |", rewired)
         # Two runs' logs of the same file name in different folders are two inputs, never one match.
-        apart = summarize(collect([run("Telemetry", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap", True, folder="run1"),
-                                   run("Telemetry", "3,0,0,0,0", "+card_add_fire#1@Skill:active_zap", True, folder="run2")]),
+        apart = summarize(collect([run("Telemetry", "3,0,0,0,0", "+medal_fire#1@Skill:active_zap", True, folder="run1"),
+                                   run("Telemetry", "3,0,0,0,0", "+medal_fire#1@Skill:active_zap", True, folder="run2")]),
                           metrics_only=True)
         self.assertIn("## Match 1 (Telemetry)", apart)
         self.assertIn("## Match 1 (Telemetry (run2))", apart)

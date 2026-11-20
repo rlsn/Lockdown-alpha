@@ -3435,6 +3435,19 @@
               "opcode": 234
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "duration": {
                 "ms": 3000,
                 "unit": "ms"
@@ -3466,6 +3479,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -3512,6 +3526,19 @@
             {
               "op": "chill",
               "opcode": 234
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "chill",
@@ -3535,7 +3562,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -3583,6 +3611,19 @@
               "opcode": 234
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "duration": {
                 "ms": 3000,
                 "unit": "ms"
@@ -3618,6 +3659,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -3666,6 +3708,19 @@
               "opcode": 234
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "duration": {
                 "ms": 6000,
                 "unit": "ms"
@@ -3697,6 +3752,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -3747,6 +3803,19 @@
             {
               "op": "chill",
               "opcode": 234
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "chill",
@@ -3770,7 +3839,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -3818,6 +3888,19 @@
               "opcode": 234
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "momentum": {
                 "p2": 400,
                 "unit": "momentum"
@@ -3847,7 +3930,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -3894,6 +3978,19 @@
         {
           "op": "chill",
           "opcode": 234
+        },
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 100,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "knockback",
+          "opcode": 40
         }
       ],
       "element": "chill",
@@ -3919,7 +4016,8 @@
         }
       },
       "vocab": [
-        "element"
+        "element",
+        "knockback"
       ],
       "windup": {
         "ms": 150,
@@ -4467,13 +4565,9 @@
                 "numerator": 300,
                 "unit": "cm"
               }
-            },
-            {
-              "op": "gust",
-              "opcode": 235
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3500,
@@ -4489,8 +4583,6 @@
             }
           },
           "vocab": [
-            "element",
-            "knockback",
             "ground"
           ],
           "windup": {
@@ -4535,13 +4627,9 @@
                 "numerator": 200,
                 "unit": "cm"
               }
-            },
-            {
-              "op": "gust",
-              "opcode": 235
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3500,
@@ -4557,8 +4645,6 @@
             }
           },
           "vocab": [
-            "element",
-            "knockback",
             "ground"
           ],
           "windup": {
@@ -4602,13 +4688,9 @@
                 "numerator": 300,
                 "unit": "cm"
               }
-            },
-            {
-              "op": "gust",
-              "opcode": 235
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3500,
@@ -4624,8 +4706,6 @@
             }
           },
           "vocab": [
-            "element",
-            "knockback",
             "ground"
           ],
           "windup": {
@@ -4666,13 +4746,9 @@
                 "numerator": 300,
                 "unit": "cm"
               }
-            },
-            {
-              "op": "gust",
-              "opcode": 235
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3500,
@@ -4688,8 +4764,6 @@
             }
           },
           "vocab": [
-            "element",
-            "knockback",
             "ground"
           ],
           "windup": {
@@ -4738,13 +4812,9 @@
                 "numerator": 200,
                 "unit": "cm"
               }
-            },
-            {
-              "op": "gust",
-              "opcode": 235
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3500,
@@ -4760,8 +4830,6 @@
             }
           },
           "vocab": [
-            "element",
-            "knockback",
             "ground"
           ],
           "windup": {
@@ -4806,13 +4874,9 @@
                 "numerator": 200,
                 "unit": "cm"
               }
-            },
-            {
-              "op": "gust",
-              "opcode": 235
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3500,
@@ -4828,8 +4892,6 @@
             }
           },
           "vocab": [
-            "element",
-            "knockback",
             "ground"
           ],
           "windup": {
@@ -4870,13 +4932,9 @@
             "numerator": 200,
             "unit": "cm"
           }
-        },
-        {
-          "op": "gust",
-          "opcode": 235
         }
       ],
-      "element": "gust",
+      "element": "none",
       "hit_type": "area",
       "id": "active_desk_fan",
       "momentum_cost": {
@@ -4894,8 +4952,6 @@
         }
       },
       "vocab": [
-        "element",
-        "knockback",
         "ground"
       ],
       "windup": {
@@ -7934,11 +7990,20 @@
               "opcode": 1
             },
             {
-              "op": "gust",
-              "opcode": 235
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
@@ -7959,7 +8024,6 @@
             }
           },
           "vocab": [
-            "element",
             "knockback"
           ],
           "windup": {
@@ -8012,11 +8076,20 @@
               "opcode": 1
             },
             {
-              "op": "gust",
-              "opcode": 235
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
@@ -8037,7 +8110,6 @@
             }
           },
           "vocab": [
-            "element",
             "knockback"
           ],
           "windup": {
@@ -8090,8 +8162,17 @@
               "opcode": 1
             },
             {
-              "op": "gust",
-              "opcode": 235
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             },
             {
               "momentum": {
@@ -8102,7 +8183,7 @@
               "opcode": 172
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
@@ -8123,7 +8204,6 @@
             }
           },
           "vocab": [
-            "element",
             "knockback"
           ],
           "windup": {
@@ -8177,11 +8257,20 @@
               "opcode": 1
             },
             {
-              "op": "gust",
-              "opcode": 235
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
@@ -8202,7 +8291,6 @@
             }
           },
           "vocab": [
-            "element",
             "knockback"
           ],
           "windup": {
@@ -8255,8 +8343,17 @@
               "opcode": 1
             },
             {
-              "op": "gust",
-              "opcode": 235
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             },
             {
               "cost_ratio": {
@@ -8276,7 +8373,7 @@
               "opcode": 162
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
@@ -8297,7 +8394,6 @@
             }
           },
           "vocab": [
-            "element",
             "knockback"
           ],
           "windup": {
@@ -8350,8 +8446,17 @@
               "opcode": 1
             },
             {
-              "op": "gust",
-              "opcode": 235
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             },
             {
               "duration": {
@@ -8362,7 +8467,7 @@
               "opcode": 69
             }
           ],
-          "element": "gust",
+          "element": "none",
           "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
@@ -8383,7 +8488,6 @@
             }
           },
           "vocab": [
-            "element",
             "knockback",
             "control"
           ],
@@ -8438,11 +8542,20 @@
           "opcode": 1
         },
         {
-          "op": "gust",
-          "opcode": 235
+          "distance": {
+            "denominator": 1,
+            "numerator": 100,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "knockback",
+          "opcode": 40
         }
       ],
-      "element": "gust",
+      "element": "none",
       "hit_type": "area",
       "id": "active_open_mic",
       "momentum_cost": {
@@ -8465,7 +8578,6 @@
         }
       },
       "vocab": [
-        "element",
         "knockback"
       ],
       "windup": {
@@ -11364,6 +11476,19 @@
             {
               "op": "rot",
               "opcode": 233
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "rot",
@@ -11392,7 +11517,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -11443,6 +11569,19 @@
               "opcode": 233
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "count": 3,
               "damage_ratio": {
                 "bp": 10000,
@@ -11486,7 +11625,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -11539,6 +11679,19 @@
                 "bp": 5000,
                 "unit": "ratio"
               }
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "rot",
@@ -11567,7 +11720,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -11618,6 +11772,19 @@
               "opcode": 233
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "duration": {
                 "ms": 3000,
                 "unit": "ms"
@@ -11654,6 +11821,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -11705,6 +11873,19 @@
               "opcode": 233
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "count": 3,
               "damage_ratio": {
                 "bp": 10000,
@@ -11748,7 +11929,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -11799,6 +11981,19 @@
               "opcode": 233
             },
             {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            },
+            {
               "count": 3,
               "damage_ratio": {
                 "bp": 10000,
@@ -11843,7 +12038,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "knockback"
           ],
           "windup": {
             "ms": 150,
@@ -11893,6 +12089,19 @@
         {
           "op": "rot",
           "opcode": 233
+        },
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 100,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "knockback",
+          "opcode": 40
         }
       ],
       "element": "rot",
@@ -11923,7 +12132,8 @@
         }
       },
       "vocab": [
-        "element"
+        "element",
+        "knockback"
       ],
       "windup": {
         "ms": 150,
@@ -11971,6 +12181,19 @@
                 "bp": 15000,
                 "unit": "ratio"
               }
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "rot",
@@ -12000,6 +12223,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -12042,6 +12266,19 @@
               "kind": "miasma",
               "op": "ground_state",
               "opcode": 236
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             },
             {
               "ap_ratio": {
@@ -12093,6 +12330,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -12143,6 +12381,19 @@
                 "bp": 15000,
                 "unit": "ratio"
               }
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "rot",
@@ -12172,6 +12423,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -12222,6 +12474,19 @@
                 "bp": 15000,
                 "unit": "ratio"
               }
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             }
           ],
           "element": "rot",
@@ -12251,6 +12516,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -12293,6 +12559,19 @@
               "kind": "miasma",
               "op": "ground_state",
               "opcode": 236
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             },
             {
               "ap_ratio": {
@@ -12348,6 +12627,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -12390,6 +12670,19 @@
               "kind": "miasma",
               "op": "ground_state",
               "opcode": 236
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 100,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 120,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
             },
             {
               "ap_ratio": {
@@ -12445,6 +12738,7 @@
           },
           "vocab": [
             "element",
+            "knockback",
             "ground"
           ],
           "windup": {
@@ -12488,6 +12782,19 @@
           "kind": "miasma",
           "op": "ground_state",
           "opcode": 236
+        },
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 100,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "knockback",
+          "opcode": 40
         }
       ],
       "element": "rot",
@@ -12519,6 +12826,7 @@
       },
       "vocab": [
         "element",
+        "knockback",
         "ground"
       ],
       "windup": {
@@ -16533,7 +16841,7 @@
           "opcode": 196
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_third_breath",
       "native_id": 200,
       "type": "trigger",
@@ -16553,7 +16861,7 @@
           "opcode": 197
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_punch_think",
       "native_id": 201,
       "type": "trigger",
@@ -16569,7 +16877,7 @@
           "opcode": 198
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_solid_punch",
       "native_id": 202,
       "type": "trigger",
@@ -16594,7 +16902,7 @@
           "opcode": 199
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_third_shove",
       "native_id": 203,
       "type": "trigger",
@@ -16625,7 +16933,7 @@
           }
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_long_arm",
       "native_id": 204,
       "type": "modify",
@@ -16644,7 +16952,7 @@
           "opcode": 200
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_both_hands",
       "native_id": 205,
       "type": "modify",
@@ -16669,7 +16977,7 @@
           }
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_wide_swing",
       "native_id": 206,
       "type": "modify",
@@ -16688,7 +16996,7 @@
           "opcode": 245
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_fist_skill",
       "native_id": 207,
       "type": "modify",
@@ -16718,7 +17026,7 @@
           }
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_quick_hands",
       "native_id": 208,
       "type": "convert",
@@ -16749,7 +17057,7 @@
           "trigger": "AttackSpeedBelow"
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_slow_craft",
       "native_id": 209,
       "type": "convert",
@@ -16769,7 +17077,7 @@
           "opcode": 202
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_scholar_punch",
       "native_id": 210,
       "type": "convert",
@@ -16792,7 +17100,7 @@
           }
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_heated_up",
       "native_id": 211,
       "type": "grow",
@@ -16816,7 +17124,7 @@
           "trigger": "BasicHit"
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_muscle_memory",
       "native_id": 212,
       "type": "grow",
@@ -16832,98 +17140,13 @@
           "opcode": 70
         }
       ],
-      "form": "basic",
+      "form": "body",
       "id": "card_breach_fist",
       "native_id": 213,
       "type": "grow",
       "vocab": [
         "basic_hit",
         "armor"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "basic_stacks": 1,
-          "op": "burn",
-          "opcode": 71
-        }
-      ],
-      "form": "basic",
-      "id": "card_fire_fist",
-      "native_id": 214,
-      "type": "element",
-      "vocab": [
-        "element",
-        "basic_hit"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "water",
-          "op": "basic_element",
-          "opcode": 101
-        }
-      ],
-      "form": "basic",
-      "id": "card_water_fist",
-      "native_id": 215,
-      "type": "element",
-      "vocab": [
-        "element",
-        "basic_hit"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "electric",
-          "op": "basic_element",
-          "opcode": 101
-        }
-      ],
-      "form": "basic",
-      "id": "card_shock_fist",
-      "native_id": 216,
-      "type": "element",
-      "vocab": [
-        "element",
-        "basic_hit"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "chill",
-          "op": "basic_element",
-          "opcode": 101
-        }
-      ],
-      "form": "basic",
-      "id": "card_ice_fist",
-      "native_id": 217,
-      "type": "element",
-      "vocab": [
-        "element",
-        "basic_hit"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "rot",
-          "op": "basic_element",
-          "opcode": 101
-        }
-      ],
-      "form": "basic",
-      "id": "card_rot_fist",
-      "native_id": 218,
-      "type": "element",
-      "vocab": [
-        "element",
-        "basic_hit"
       ]
     },
     {
@@ -17344,109 +17567,6 @@
     {
       "effects": [
         {
-          "element": "fire",
-          "op": "skill_element",
-          "opcode": 210,
-          "stacks": 2
-        }
-      ],
-      "form": "skill",
-      "id": "card_add_fire",
-      "native_id": 237,
-      "type": "element",
-      "vocab": [
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "water",
-          "op": "skill_element",
-          "opcode": 210,
-          "stacks": 1
-        }
-      ],
-      "form": "skill",
-      "id": "card_add_water",
-      "native_id": 238,
-      "type": "element",
-      "vocab": [
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "electric",
-          "op": "skill_element",
-          "opcode": 210,
-          "stacks": 1
-        }
-      ],
-      "form": "skill",
-      "id": "card_add_shock",
-      "native_id": 239,
-      "type": "element",
-      "vocab": [
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "chill",
-          "op": "skill_element",
-          "opcode": 210,
-          "stacks": 1
-        }
-      ],
-      "form": "skill",
-      "id": "card_add_chill",
-      "native_id": 240,
-      "type": "element",
-      "vocab": [
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "rot",
-          "op": "skill_element",
-          "opcode": 210,
-          "stacks": 1
-        }
-      ],
-      "form": "skill",
-      "id": "card_add_rot",
-      "native_id": 241,
-      "type": "element",
-      "vocab": [
-        "element"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "gust",
-          "op": "skill_element",
-          "opcode": 210,
-          "stacks": 1
-        }
-      ],
-      "form": "skill",
-      "id": "card_add_gust",
-      "native_id": 242,
-      "type": "element",
-      "vocab": [
-        "element",
-        "knockback"
-      ]
-    },
-    {
-      "effects": [
-        {
           "cooldown": {
             "ms": 3000,
             "unit": "ms"
@@ -17715,23 +17835,6 @@
       "type": "element",
       "vocab": [
         "ground"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "element": "electric",
-          "op": "dash_contact_element",
-          "opcode": 214
-        }
-      ],
-      "form": "dash",
-      "id": "card_shock_dash",
-      "native_id": 255,
-      "type": "element",
-      "vocab": [
-        "element",
-        "dash_contact"
       ]
     },
     {
@@ -18389,6 +18492,91 @@
         "element",
         "shield"
       ]
+    },
+    {
+      "effects": [
+        {
+          "element": "fire",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 2
+        }
+      ],
+      "form": "medal",
+      "id": "medal_fire",
+      "native_id": 285,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "water",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "medal",
+      "id": "medal_water",
+      "native_id": 286,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "electric",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "medal",
+      "id": "medal_electric",
+      "native_id": 287,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "chill",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "medal",
+      "id": "medal_chill",
+      "native_id": 288,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "element": "rot",
+          "op": "skill_element",
+          "opcode": 210,
+          "stacks": 1
+        }
+      ],
+      "form": "medal",
+      "id": "medal_rot",
+      "native_id": 289,
+      "type": "element",
+      "vocab": [
+        "element"
+      ]
     }
   ],
   "character": {
@@ -18800,7 +18988,7 @@
     },
     {
       "description_key": "active_cola_shake.description",
-      "description_text": "朝前喷一口冰可乐，扇形内敌人受 [damage.amount] 魔法伤害并挂上冻。",
+      "description_text": "朝前喷一口冰可乐，扇形内敌人受 [damage.amount] 魔法伤害、挂上冻，并被喷开 [knockback.distance] 厘米。",
       "icon_id": "icon_active_cola_shake",
       "id": "active_cola_shake",
       "name_key": "active_cola_shake.name",
@@ -18926,7 +19114,7 @@
     },
     {
       "description_key": "active_desk_fan.description",
-      "description_text": "放下一台电风扇朝施放方向吹 [fan.duration] 秒，每 [fan.interval] 秒把前方的敌人推开 [fan.distance] 厘米并吹一下；风会推动火场和毒雾。",
+      "description_text": "放下一台电风扇朝施放方向吹 [fan.duration] 秒，每 [fan.interval] 秒把前方的敌人推开 [fan.distance] 厘米。",
       "icon_id": "icon_active_desk_fan",
       "id": "active_desk_fan",
       "name_key": "active_desk_fan.name",
@@ -19304,7 +19492,7 @@
     },
     {
       "description_key": "active_open_mic.description",
-      "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒，并把人吹开。可移动，换招中断。",
+      "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒，并把人推开 [knockback.distance] 厘米。可移动，换招中断。",
       "icon_id": "icon_active_open_mic",
       "id": "active_open_mic",
       "name_key": "active_open_mic.name",
@@ -19682,7 +19870,7 @@
     },
     {
       "description_key": "active_sock_shot.description",
-      "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，并挂上馊。",
+      "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，挂上馊，并被顶开 [knockback.distance] 厘米。",
       "icon_id": "icon_active_sock_shot",
       "id": "active_sock_shot",
       "name_key": "active_sock_shot.name",
@@ -19745,7 +19933,7 @@
     },
     {
       "description_key": "active_stale_takeout.description",
-      "description_text": "甩出一份过期外卖，首个敌人受 [damage.amount] 魔法伤害并挂上馊；落点留下毒雾。",
+      "description_text": "甩出一份过期外卖，首个敌人受 [damage.amount] 魔法伤害、挂上馊，并被砸开 [knockback.distance] 厘米；落点留下毒雾。",
       "icon_id": "icon_active_stale_takeout",
       "id": "active_stale_takeout",
       "name_key": "active_stale_takeout.name",
@@ -20113,60 +20301,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_add_chill.description",
-      "description_text": "这个技能命中让目标冻。",
-      "icon_id": "icon_card_add_chill",
-      "id": "card_add_chill",
-      "name_key": "card_add_chill.name",
-      "name_text": "掺点冰",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_add_fire.description",
-      "description_text": "这个技能命中施加 [skill_element.count] 层灼烧。",
-      "icon_id": "icon_card_add_fire",
-      "id": "card_add_fire",
-      "name_key": "card_add_fire.name",
-      "name_text": "掺点火",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_add_gust.description",
-      "description_text": "这个技能命中附带一阵风，把目标吹开。",
-      "icon_id": "icon_card_add_gust",
-      "id": "card_add_gust",
-      "name_key": "card_add_gust.name",
-      "name_text": "掺点风",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_add_rot.description",
-      "description_text": "这个技能命中让目标馊。",
-      "icon_id": "icon_card_add_rot",
-      "id": "card_add_rot",
-      "name_key": "card_add_rot.name",
-      "name_text": "掺点馊",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_add_shock.description",
-      "description_text": "这个技能命中让目标感电。",
-      "icon_id": "icon_card_add_shock",
-      "id": "card_add_shock",
-      "name_key": "card_add_shock.name",
-      "name_text": "掺点电",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_add_water.description",
-      "description_text": "这个技能命中让目标潮湿。",
-      "icon_id": "icon_card_add_water",
-      "id": "card_add_water",
-      "name_key": "card_add_water.name",
-      "name_text": "掺点水",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_again_now.description",
       "description_text": "这个技能冷却变为 [cooldown_cost.secondary_ratio]%，劲耗变为 [cooldown_cost.cost_ratio]%。",
       "icon_id": "icon_card_again_now",
@@ -20347,15 +20481,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_fire_fist.description",
-      "description_text": "第三段普攻命中施加 [burn.basic_count] 层灼烧。",
-      "icon_id": "icon_card_fire_fist",
-      "id": "card_fire_fist",
-      "name_key": "card_fire_fist.name",
-      "name_text": "拳头冒火",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_fist_skill.description",
       "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。",
       "icon_id": "icon_card_fist_skill",
@@ -20443,15 +20568,6 @@
       "id": "card_hurt_heal",
       "name_key": "card_hurt_heal.name",
       "name_text": "打疼了我回血",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_ice_fist.description",
-      "description_text": "第三段普攻命中让目标冻。",
-      "icon_id": "icon_card_ice_fist",
-      "id": "card_ice_fist",
-      "name_key": "card_ice_fist.name",
-      "name_text": "拳头冰镇",
       "namespace": "DemoContent"
     },
     {
@@ -20662,15 +20778,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_rot_fist.description",
-      "description_text": "第三段普攻命中让目标馊。",
-      "icon_id": "icon_card_rot_fist",
-      "id": "card_rot_fist",
-      "name_key": "card_rot_fist.name",
-      "name_text": "拳头带馊",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_run_hit.description",
       "description_text": "移速每比基础高 [speed_factor.secondary_ratio]%，伤害 +[speed_factor.ratio]%。",
       "icon_id": "icon_card_run_hit",
@@ -20704,24 +20811,6 @@
       "id": "card_shell_burst",
       "name_key": "card_shell_burst.name",
       "name_text": "壳碎了也崩你",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_shock_dash.description",
-      "description_text": "冲刺撞到的敌人感电。",
-      "icon_id": "icon_card_shock_dash",
-      "id": "card_shock_dash",
-      "name_key": "card_shock_dash.name",
-      "name_text": "冲刺挂麻",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_shock_fist.description",
-      "description_text": "第三段普攻命中让目标感电。",
-      "icon_id": "icon_card_shock_fist",
-      "id": "card_shock_fist",
-      "name_key": "card_shock_fist.name",
-      "name_text": "拳头漏电",
       "namespace": "DemoContent"
     },
     {
@@ -20848,15 +20937,6 @@
       "id": "card_turf_growth",
       "name_key": "card_turf_growth.name",
       "name_text": "地头蛇",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_water_fist.description",
-      "description_text": "第三段普攻命中让目标潮湿。",
-      "icon_id": "icon_card_water_fist",
-      "id": "card_water_fist",
-      "name_key": "card_water_fist.name",
-      "name_text": "拳头甩脏水",
       "namespace": "DemoContent"
     },
     {
@@ -21062,6 +21142,51 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "medal_chill.description",
+      "description_text": "装进技能或本体的元素槽，不占工坊格子：技能命中或本体第三段普攻命中时让目标冻。",
+      "icon_id": "icon_medal_chill",
+      "id": "medal_chill",
+      "name_key": "medal_chill.name",
+      "name_text": "冻勋章",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "medal_electric.description",
+      "description_text": "装进技能或本体的元素槽，不占工坊格子：技能命中或本体第三段普攻命中时让目标麻。",
+      "icon_id": "icon_medal_electric",
+      "id": "medal_electric",
+      "name_key": "medal_electric.name",
+      "name_text": "麻勋章",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "medal_fire.description",
+      "description_text": "装进技能或本体的元素槽，不占工坊格子：技能命中或本体第三段普攻命中时施加 [skill_element.count] 层灼烧。",
+      "icon_id": "icon_medal_fire",
+      "id": "medal_fire",
+      "name_key": "medal_fire.name",
+      "name_text": "烫勋章",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "medal_rot.description",
+      "description_text": "装进技能或本体的元素槽，不占工坊格子：技能命中或本体第三段普攻命中时让目标馊。",
+      "icon_id": "icon_medal_rot",
+      "id": "medal_rot",
+      "name_key": "medal_rot.name",
+      "name_text": "馊勋章",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "medal_water.description",
+      "description_text": "装进技能或本体的元素槽，不占工坊格子：技能命中或本体第三段普攻命中时让目标湿。",
+      "icon_id": "icon_medal_water",
+      "id": "medal_water",
+      "name_key": "medal_water.name",
+      "name_text": "湿勋章",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "monster_advisor.description",
       "description_text": "守在外圈高台的最强野怪，血厚手重：不会主动出手，被打后反击；追得太远就回位。",
       "icon_id": "icon_monster_advisor",
@@ -21108,7 +21233,7 @@
     },
     {
       "description_key": "monster_dean.description",
-      "description_text": "第二段野外开始一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。",
+      "description_text": "野外中途出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人拿到一份构筑奖励。",
       "icon_id": "icon_monster_dean",
       "id": "monster_dean",
       "name_key": "monster_dean.name",
@@ -21605,13 +21730,8 @@
       "bp": 3000,
       "unit": "ratio"
     },
-    "AFFIX.LayoffVouchers": 8,
     "AFFIX.OvertimeAttackSpeed": {
       "bp": 3000,
-      "unit": "ratio"
-    },
-    "AFFIX.OvertimeVoucherScale": {
-      "bp": 20000,
       "unit": "ratio"
     },
     "AFFIX.TeambuildXPScale": {
@@ -21805,7 +21925,7 @@
     "CARDS.OfferEveryLevels": 2,
     "CARDS.OfferSize": 3,
     "CARDS.RerollsPerRest": 1,
-    "CARDS.SkipVouchers": 3,
+    "CARDS.SkipPoints": 1,
     "CARDS.VocabWeight": 2,
     "CHAIN.EndSec": {
       "ms": 3000,
@@ -21814,10 +21934,6 @@
     "CHAIN.MaxDepth": 16,
     "CHAIN.MaxEffectsPerStep": 256,
     "CHAIN.MinKeySteps": 3,
-    "COMBAT.BlizzardRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachPerStack": {
       "p2": 300,
@@ -21877,16 +21993,15 @@
       "ms": 6000,
       "unit": "ms"
     },
-    "COMBAT.CorrodeBreachStacks": 3,
+    "COMBAT.CorrodeBreachStacks": 5,
     "COMBAT.FermentHealCut": {
-      "bp": 5000,
+      "bp": 6000,
       "unit": "ratio"
     },
     "COMBAT.FermentRotSec": {
       "ms": 8000,
       "unit": "ms"
     },
-    "COMBAT.FirestormBurnScale": 2,
     "COMBAT.FogIntervalSec": {
       "ms": 1000,
       "unit": "ms"
@@ -21901,24 +22016,15 @@
       "unit": "ms"
     },
     "COMBAT.FreezeRootSec": {
-      "ms": 1000,
+      "ms": 1200,
       "unit": "ms"
     },
     "COMBAT.FrostbiteAttackSlow": {
-      "bp": 3000,
+      "bp": 4000,
       "unit": "ratio"
     },
     "COMBAT.FrostbiteSec": {
-      "ms": 3000,
-      "unit": "ms"
-    },
-    "COMBAT.GustPushCm": {
-      "denominator": 1,
-      "numerator": 100,
-      "unit": "cm"
-    },
-    "COMBAT.GustPushSec": {
-      "ms": 120,
+      "ms": 4000,
       "unit": "ms"
     },
     "COMBAT.KeystoneAgilityADRatio": {
@@ -21993,6 +22099,10 @@
       "bp": 15000,
       "unit": "ratio"
     },
+    "COMBAT.PushSec": {
+      "ms": 120,
+      "unit": "ms"
+    },
     "COMBAT.ReactionAPRatio": {
       "bp": 2500,
       "unit": "ratio"
@@ -22049,20 +22159,6 @@
     "COMBAT.ShockSplashRadiusCm": {
       "denominator": 1,
       "numerator": 350,
-      "unit": "cm"
-    },
-    "COMBAT.SmokeDisarmSec": {
-      "ms": 600,
-      "unit": "ms"
-    },
-    "COMBAT.SplashPushCm": {
-      "denominator": 1,
-      "numerator": 150,
-      "unit": "cm"
-    },
-    "COMBAT.ThunderstormKnockbackCm": {
-      "denominator": 1,
-      "numerator": 150,
       "unit": "cm"
     },
     "COMBAT.WetSec": {
@@ -22226,20 +22322,28 @@
       "numerator": 400,
       "unit": "cm"
     },
-    "EXPLORE.LockerCardChance": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
     "EXPLORE.LockerCardOffer": 3,
     "EXPLORE.LockerChannelSec": {
       "ms": 3000,
       "unit": "ms"
     },
     "EXPLORE.LockerCount": 4,
+    "EXPLORE.LockerEarliestSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
+    "EXPLORE.LockerLatestSec": {
+      "ms": 420000,
+      "unit": "ms"
+    },
     "EXPLORE.LockerRadiusCm": {
       "denominator": 1,
       "numerator": 150,
       "unit": "cm"
+    },
+    "EXPLORE.LockerStaySec": {
+      "ms": 45000,
+      "unit": "ms"
     },
     "EXPLORE.PeddlerCardOffer": 5,
     "EXPLORE.PeddlerEarliestSec": {
@@ -22267,48 +22371,6 @@
     "EXPLORE.PeddlerStaySec": {
       "ms": 60000,
       "unit": "ms"
-    },
-    "EXPLORE.VendingAttackSpeed": {
-      "bp": 2000,
-      "unit": "ratio"
-    },
-    "EXPLORE.VendingBuffPrice": 2,
-    "EXPLORE.VendingBuffSec": {
-      "ms": 30000,
-      "unit": "ms"
-    },
-    "EXPLORE.VendingDrinkHits": 5,
-    "EXPLORE.VendingDrinkPrice": 3,
-    "EXPLORE.VendingMomentumPerSec": {
-      "denominator": 1,
-      "numerator": 2,
-      "unit": "momentum/s"
-    },
-    "EXPLORE.VendingMoveSpeed": {
-      "bp": 1500,
-      "unit": "ratio"
-    },
-    "GROUND.BlizzardRadiusCm": {
-      "denominator": 1,
-      "numerator": 250,
-      "unit": "cm"
-    },
-    "GROUND.BlizzardSec": {
-      "ms": 3000,
-      "unit": "ms"
-    },
-    "GROUND.BlizzardSlow": {
-      "bp": 3500,
-      "unit": "ratio"
-    },
-    "GROUND.BlizzardTickSec": {
-      "ms": 1000,
-      "unit": "ms"
-    },
-    "GROUND.FieldDischargeRadiusCm": {
-      "denominator": 1,
-      "numerator": 350,
-      "unit": "cm"
     },
     "GROUND.FieldRadiusCm": {
       "denominator": 1,
@@ -22340,11 +22402,6 @@
     "GROUND.FireTickSec": {
       "ms": 1000,
       "unit": "ms"
-    },
-    "GROUND.GustMoveCm": {
-      "denominator": 1,
-      "numerator": 300,
-      "unit": "cm"
     },
     "GROUND.IceAccelScale": {
       "bp": 5000,
@@ -22391,6 +22448,7 @@
       "ms": 500,
       "unit": "ms"
     },
+    "GROWTH.ActiveSkipPoints": 1,
     "GROWTH.BuildSafeWindowSec": {
       "ms": 4000,
       "unit": "ms"
@@ -22519,15 +22577,6 @@
       "unit": "ms"
     },
     "OVERDRIVE.FireBurnStacks": 3,
-    "OVERDRIVE.GustPushCm": {
-      "denominator": 1,
-      "numerator": 300,
-      "unit": "cm"
-    },
-    "OVERDRIVE.GustPushSec": {
-      "ms": 250,
-      "unit": "ms"
-    },
     "OVERDRIVE.HoldSec": {
       "ms": 300,
       "unit": "ms"
@@ -22677,14 +22726,13 @@
     },
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
-    "SHOP.CardPrice": 6,
+    "SHOP.CardPrice": 2,
     "SHOP.CardSlots": 4,
-    "SHOP.RefreshPrice": 2,
+    "SHOP.RefreshPrice": 0,
     "SHOP.RefreshStep": 1,
-    "SHOP.SellPrice": 3,
     "SHOP.SkillPointMaxPerMatch": 3,
-    "SHOP.SkillPointPrice": 25,
-    "SHOP.SkillPrice": 10,
+    "SHOP.SkillPointPrice": 3,
+    "SHOP.SkillPrice": 2,
     "SHOP.SkillSlots": 2,
     "SHOP.VocabCardSlots": 2,
     "SHOP.VocabWeight": 3,
@@ -22989,20 +23037,6 @@
       "numerator": 1050,
       "unit": "cm"
     },
-    "VOUCHER.ActiveSkip": 8,
-    "VOUCHER.Airdrop": 6,
-    "VOUCHER.Arena": 20,
-    "VOUCHER.Assist": 4,
-    "VOUCHER.Boss": 20,
-    "VOUCHER.BountyAssist": 5,
-    "VOUCHER.BountyKill": 15,
-    "VOUCHER.CampAncient": 12,
-    "VOUCHER.CampElite": 8,
-    "VOUCHER.CampHigh": 4,
-    "VOUCHER.CampLow": 2,
-    "VOUCHER.Kill": 10,
-    "VOUCHER.Locker": 8,
-    "VOUCHER.MiniFlag": 15,
     "XP.BaseToNext": 60,
     "XP.IncreasePerLevel": 20
   },
@@ -23034,7 +23068,7 @@
   "progression": {
     "active_offer_levels": [
       2,
-      4
+      6
     ],
     "active_slots": 3,
     "max_level": 16,

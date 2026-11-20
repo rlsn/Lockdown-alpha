@@ -77,7 +77,7 @@ public:
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     bool bRoomLeaveRequested=false;
     bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
-    bool bReadyWindowObserved=false, bServicePanelOpened=false;
+    bool bReadyWindowObserved=false;
     int64 ReadyBuildEndMs=0;
     double RestObservationStartedAt=0;
     int32 SharedTrainingStage=0;
@@ -89,7 +89,7 @@ public:
     int32 RestServiceStage=0;
     FGuid SharedTargetEntity,AuthoredTargetEntity;
     FLDCombatBodyRef OriginalBody;
-    FLDMoveIdentity OldOrder, AcceptedOrder, RestServiceOrder;
+    FLDMoveIdentity OldOrder, AcceptedOrder;
     FVector StartPosition=FVector::ZeroVector;
     FVector ArrivalGoal=FVector::ZeroVector;
     TMap<FGuid,FVector> StoppedBodies;
@@ -851,59 +851,33 @@ public:
                 if(bRestPresentationSeen&&!bAuthoredTrainingDone){return ReviewAuthoredTraining(*PC);}
                 if (Role==TEXT("Client1") && bRestPresentationSeen)
                 {
-                    if (RestServiceStage==0 && PC->CanWorldCommand() && Movement->IsMovingOnGround()
-                        && Movement->CurrentFloor.IsWalkableFloor())
+                    if (RestServiceStage==0)
                     {
-                        // Spec §10.2: the trainer is the shared room's one rest service (the shop lives in the workshop).
-                        const auto* Service=Registry->Resolve(TEXT("rest_service_3"),Registry->Generation);
-                        if (!Check(Service!=nullptr,TEXT("The trainer's rest service is registered"))) { return Finish(); }
-                        Nav->NavigateGround(Service->Position,Service->Surface);
-                        RestServiceOrder=Nav->LocalIdentity();
-                        RestServiceStage=1;
-                    }
-                    else if (RestServiceStage==1 && PC->OwnerState.NearbyRestService==ELDRestService::Trainer)
-                    {
+                        // The rest rebuilds (respec, replace, forget) sit in the open workshop in the rest build window,
+                        // wherever the owner stands.
                         ULDChoicesPanel* Panel=PC->HUDUI?PC->HUDUI->ChoicesPanel.Get():nullptr;
                         if (!Panel || !PC->RootUI)
                         {
                             Check(false,TEXT("The remote owner has the shared choices panel and root UI"));
                             return Finish();
                         }
-                        if (!bServicePanelOpened)
+                        if (!Panel->IsPanelOpen())
                         {
-                            // The open workshop shows the nearby NPC's services on the board (the next HUD refresh lays them out).
-                            Panel->SetServiceContext(PC->OwnerState.NearbyRestService);
-                            if (!Panel->IsPanelOpen())
+                            if (!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
                             {
-                                if (!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
-                                {
-                                    Check(false,TEXT("The remote owner opens the workshop beside the trainer"));
-                                    return Finish();
-                                }
-                                return true;
+                                Check(false,TEXT("The remote owner opens the workshop in the rest"));
+                                return Finish();
                             }
-                            if (!Panel->IsServiceShown()) { return true; }
-                            bServicePanelOpened=true;
                             return true;
                         }
-                        Check(bServicePanelOpened && PC->OwnerState.NearbyRestService==ELDRestService::Trainer,
-                            TEXT("The non-host owner walks to the trainer and the workshop shows its services"));
-                        if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
-                        RestServiceStage=2;
-                    }
-                    if (RestServiceStage==1
-                        && ((Nav->LatestReceipt().Identity==RestServiceOrder
-                            && (Nav->LatestReceipt().Status==ELDOrderStatus::Rejected
-                                || Nav->LatestReceipt().Status==ELDOrderStatus::Cancelled))
-                            || Nav->LocalIdentity()!=RestServiceOrder))
-                    {
-                        Error=FString::Printf(TEXT("Rest service walk did not continue: %u"),uint32(Nav->LatestReceipt().Failure));
-                        Check(false,TEXT("The remote owner can navigate to each rest service"));
-                        return Finish();
+                        if (!Panel->IsServiceShown()) { return true; }
+                        Check(true,TEXT("The non-host owner's open workshop shows the rest rebuilds without walking anywhere"));
+                        if (!Mark(TEXT("RestRebuildsShown.json"))) { return Finish(); }
+                        RestServiceStage=1;
                     }
                 }
                 if (!bRestReadySent && bRestPresentationSeen && PC->OwnerState.bCanRestReady
-                    && FPaths::FileExists(FPaths::Combine(Output,TEXT("RestServicesVisited.json"))))
+                    && FPaths::FileExists(FPaths::Combine(Output,TEXT("RestRebuildsShown.json"))))
                 {
                     bRestReadySent=true;
                     PC->SubmitRestReady(true);

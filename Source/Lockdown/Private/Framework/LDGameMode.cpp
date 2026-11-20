@@ -318,8 +318,7 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
         State->Match=MatchContext.Generation;
         State->bRestReady=IsRestReady(State->ContenderId);
         State->bCanRestReady=CanRestReady(State->ContenderId);
-        State->NearbyRestService=NearbyRestService(State->ContenderId);
-        // P6: the death screen's spawn choice, the vending reach, the drink charges and the lockers this contender has seen.
+        // P6: the death screen's spawn choice.
         State->Pacing=FLDOwnerPacingView();
         if (const FLDSpawnChoice* Choice=SpawnChoices.Find(State->ContenderId); Choice && State->LifePhase==ELDLifePhase::Dead)
         {
@@ -334,11 +333,6 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
             State->Pacing.SpawnChosen=int8(Choice->Chosen);
             State->Pacing.SpawnChoiceEndsAtMs=Choice->DeadlineMs;
         }
-        State->Pacing.NearbyVending=NearbyVending(State->ContenderId);
-        if (const FLDProgressionState* Progression=Development?Development->FindProgression(State->ContenderId):nullptr)
-        { State->Pacing.Vouchers=Progression->Vouchers; }
-        if (Combat) { Combat->ReadDrink(State->ContenderId,State->Pacing.DrinkElement,State->Pacing.DrinkHits); }
-        ReadSeenLockers(State->ContenderId,State->Pacing.SeenLockers);
         // Growth: the owner's level, XP and offer in the same publication.
         State->Growth=Growth?Growth->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;

@@ -1297,7 +1297,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     }
     TestEqual(TEXT("Twenty-six single-level actives (S01-S22, N1-N4)"), Definitions.Abilities.Num(), 26);
     TestEqual(TEXT("Twenty actives form the opening pool (S01-S13, S17, S18, S20-S22, N1, N3)"), OpeningPool, 20);
-    TestTrue(TEXT("Levels 2 and 4 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{2, 4});
+    TestTrue(TEXT("Levels 2 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{2, 6});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
         P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 240 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
@@ -1393,9 +1393,9 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("FindCard resolves %s to its own row: %s"), *Row.Id, *Error),
             Snapshot->FindCard(Row.Id, Found, Error) && Found == &Row);
     }
-    TestTrue(TEXT("Nineteen basic, twenty-five skill, twelve dash and twenty-nine body cards"),
-        Forms[int32(ELDCardForm::Basic)] == 19 && Forms[int32(ELDCardForm::Skill)] == 25
-        && Forms[int32(ELDCardForm::Dash)] == 12 && Forms[int32(ELDCardForm::Body)] == 29);
+    TestTrue(TEXT("Nineteen skill, eleven dash and forty-three body cards and five element medals"),
+        Forms[int32(ELDCardForm::Skill)] == 19 && Forms[int32(ELDCardForm::Dash)] == 11
+        && Forms[int32(ELDCardForm::Body)] == 43 && Forms[int32(ELDCardForm::Medal)] == 5);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
     TestTrue(TEXT("Capacity 6 plus one per three levels, three-card offers, three free rerolls plus one per rest"),

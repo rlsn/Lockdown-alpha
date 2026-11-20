@@ -355,14 +355,13 @@ struct FLDOwnerState
     UPROPERTY() bool bReady = false;
     UPROPERTY() bool bRestReady = false;
     UPROPERTY() bool bCanRestReady = false;
-    UPROPERTY() ELDRestService NearbyRestService = ELDRestService::None;
     UPROPERTY() bool bLobbyHost = false;
     UPROPERTY() double Barrier=0;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;
     // Growth: own level, XP and offer as one consistent owner projection.
     UPROPERTY() FLDGrowthOwnerView Growth;
-    // P6: spawn choice, vending reach, drink charges and seen lockers.
+    // P6: the death screen's spawn choice.
     UPROPERTY() FLDOwnerPacingView Pacing;
 };
 

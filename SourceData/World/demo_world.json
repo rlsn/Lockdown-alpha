@@ -5282,18 +5282,6 @@
       "id": "mini_flag_3", "kind": "MiniFlag", "surface_id": "demo_ground", "position_cm": {"x": 2000, "y": -1000, "z": 0}
     },
     {
-      "id": "vending_0", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": 4100, "y": 700, "z": 100}
-    },
-    {
-      "id": "vending_1", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": 100, "y": -2600, "z": 0}
-    },
-    {
-      "id": "vending_2", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": -3400, "y": 700, "z": 50}
-    },
-    {
-      "id": "vending_3", "kind": "Vending", "surface_id": "demo_ground", "position_cm": {"x": -200, "y": -1300, "z": 0}
-    },
-    {
       "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7590, "y": 100, "z": 0}
     },
     {

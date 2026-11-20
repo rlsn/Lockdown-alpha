@@ -69,7 +69,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::ZoneWet:
     case ELDDemoEffectOp::Rot:
     case ELDDemoEffectOp::Chill:
-    case ELDDemoEffectOp::Gust:
     case ELDDemoEffectOp::GroundState:
     case ELDDemoEffectOp::Fan:
     case ELDDemoEffectOp::Bag:
@@ -567,7 +566,7 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             if (!Source || !ResolveSource(*Source, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
             const ELDCombatElement Held = static_cast<ELDCombatElement>(Need.Target->HeldElement);
             if (LDCombatElements::ReactionOf(Held, static_cast<ELDCombatElement>(Shape.Element)) != ELDCombatReaction::None) { return 2; }
-            return Held == ELDCombatElement::None && Shape.Element != uint8(ELDCombatElement::Gust) ? 1 : 0;
+            return Held == ELDCombatElement::None ? 1 : 0;
         };
         Ordered.StableSort([&Score](ELDOpponentSourceSlot A, ELDOpponentSourceSlot B) { return Score(A) > Score(B); });
     }
@@ -2074,8 +2073,8 @@ bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
     OutSlot = 0;
     const FLDShopView& Shop = Self.Shop;
     if (!Shop.bStocked) { return false; }
-    // Spec §13: the skill point when it is affordable and not bought out, otherwise the best affordable card.
-    if (Shop.SkillPointsBought < Shop.SkillPointsMax && Shop.SkillPointPrice > 0 && Self.Vouchers >= Shop.SkillPointPrice)
+    // Spec §13: the skill point when the unspent stat points pay it and it is not bought out, otherwise the best affordable card.
+    if (Shop.SkillPointsBought < Shop.SkillPointsMax && Shop.SkillPointPrice > 0 && Self.UnspentPoints >= Shop.SkillPointPrice)
     {
         OutSlot = FLDBuildCommand::ShopSkillPointSlot;
         return true;
@@ -2088,7 +2087,7 @@ bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
     for (int32 Index = 0; Index < Shop.Slots.Num(); ++Index)
     {
         const FLDShopSlotView& Slot = Shop.Slots[Index];
-        if (Slot.Kind != ELDShopItemKind::Card || Slot.bSold || Slot.Price <= 0 || Self.Vouchers < Slot.Price) { continue; }
+        if (Slot.Kind != ELDShopItemKind::Card || Slot.bSold || Slot.Price <= 0 || Self.UnspentPoints < Slot.Price) { continue; }
         const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate(
             [&Slot](const FLDDemoCardDefinition& Row) { return FName(*Row.Id) == Slot.DefinitionId; });
         if (!Card) { continue; }
@@ -2252,15 +2251,6 @@ const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame)
     return Out;
 }
 
-ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind)
-{
-    switch (Kind)
-    {
-    case ELDOpponentBuildKind::Respec: return LDProgression::RestServiceFor(ELDBuildCommandKind::Respec);
-    case ELDOpponentBuildKind::ReplaceActive: return LDProgression::RestServiceFor(ELDBuildCommandKind::ReplaceActive);
-    default: return ELDRestService::None;
-    }
-}
 
 bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8& OutSlot, ELDSkillBranch& OutBranch)
 {
@@ -2343,18 +2333,6 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         ForgetBody(State);
         return Finish(EMode::Stopped, EReason::Stopped);
     }
-    // #305 spec §11.3: passing a vending machine in the field, a body with vouchers to spare beyond one skill point buys
-    // the attack-speed buff, at most once per buff duration.
-    if (bRunning && Self.Phase == ELDLifePhase::Alive && !Self.NearbyVending.IsNone())
-    {
-        const auto& Parameters = Catalog.Get().Parameters;
-        if (Self.Vouchers >= Parameters.Explore.VendingBuffPrice + Parameters.Shop.SkillPointPrice
-            && (State.VendingAskedAtMs == 0 || Frame.Public.NowMs - State.VendingAskedAtMs >= Parameters.Explore.VendingBuffMs))
-        {
-            Out.Vending = 1; // ELDVendingItem::AttackSpeed
-            State.VendingAskedAtMs = Frame.Public.NowMs;
-        }
-    }
     if (bRest)
     {
         const FLDTimelineView& Timeline = Frame.Public.Timeline;
@@ -2429,34 +2407,6 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const bool bBuildsNow = bBuildWindow && Frame.Public.NowMs >= Self.OpeningPickAtMs;
         if (bBuildsNow && DecideBuild(Frame, Catalog, State, true, Out.Build))
         {
-            const ELDRestService Required = RestServiceForBuild(Out.Build.Kind);
-            if (Required != ELDRestService::None && PKReason == EReason::PKSignUp)
-            {
-                Out.Build = FLDOpponentBuildIntent();
-                return Finish(EMode::PK, PKReason);
-            }
-            if (Required != ELDRestService::None && Self.NearbyRestService != Required)
-            {
-                Out.Build = FLDOpponentBuildIntent();
-                const FLDOpponentPOI* Service = Frame.RestServicePOIs.FindByPredicate([Required](const FLDOpponentPOI& Place)
-                {
-                    return Place.Kind == ELDOpponentPOIKind::RestService && Place.RestService == Required;
-                });
-                if (!Service || Service->Id.IsNone() || Service->SurfaceId.IsNone())
-                {
-                    return Finish(EMode::Stopped, EReason::ProviderUnavailable);
-                }
-                if (Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action))
-                {
-                    Out.Body.Kind = EBody::Keep;
-                    return Finish(EMode::Choose, EReason::RestService);
-                }
-                FContext C(Frame, Catalog, State);
-                const FLDOpponentRetryKey Path = FContext::PathKey(Service->Id);
-                if (!C.CanAttempt(Path)) { return Finish(EMode::Stopped, EReason::TargetSuppressed); }
-                Out.Body = MoveTo(C, *Service);
-                return Finish(EMode::Choose, EReason::RestService);
-            }
             return Finish(EMode::Choose, EReason::ChooseOffer);
         }
         // Once nothing is left to build and nothing is in flight, a living body tries its build on its training target with
@@ -2810,17 +2760,6 @@ FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDem
     return MoveTo(C, *Place);
 }
 
-FLDOpponentBodyIntent WalkToRestService(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
-    FLDOpponentPolicyState& State, ELDRestService Service)
-{
-    using namespace Detail;
-    const FLDOpponentPOI* Place = Frame.RestServicePOIs.FindByPredicate([Service](const FLDOpponentPOI& POI)
-        { return POI.Kind == ELDOpponentPOIKind::RestService && POI.RestService == Service; });
-    if (Service == ELDRestService::None || !Place || Place->Id.IsNone() || Place->SurfaceId.IsNone()) { return {}; }
-    FContext C(Frame, Catalog, State);
-    if (!C.Initialize()) { return {}; }
-    return MoveTo(C, *Place);
-}
 #endif
 }
 

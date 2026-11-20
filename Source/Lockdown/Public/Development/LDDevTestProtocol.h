@@ -60,8 +60,7 @@ enum class ELDDevTestOp : uint8
     // P6 spec §11.1, match-wide, Listen Host connection only: Amount = first + 16 * second daily modifier id (1..12 each,
     // different), or 0 for the ordinary draw. Applies from the next match start; the running match keeps its day.
     SetDailyPreset = 21,
-    // Spec §12 DEV vouchers: Amount > 0 vouchers to the caller, like a reward without a cause. Alive or Dead.
-    GrantVouchers = 22,
+    // 22 (the DEV vouchers) is retired.
     // Spec §12 DEV momentum: Amount = whole momentum points, 0..MOMENTUM.Max, on the current Alive body.
     SetMomentum = 23,
     // Spec §12 DEV skill points: Amount == 0: one more unspent skill point for the caller. Alive or Dead.

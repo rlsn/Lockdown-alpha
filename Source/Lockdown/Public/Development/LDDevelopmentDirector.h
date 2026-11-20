@@ -141,18 +141,8 @@ public:
     bool GrantRestRerolls(const FLDGameplayWritePermit& Permit, FString& Error);
     // Spec §3.13: every mid-match rest start restocks every contender's rest shop (and resets its refresh price).
     bool StockRestShops(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Spec §3.13/§11.3: Vouchers vouchers and PickTickets pick tickets to ContenderId for Cause (camp_clear, boss, kill, assist,
-    // airdrop, ancient), outside any build command (either world permit). None when paid; AuthorityFault means the boundary
-    // must fault; other reasons pay nothing.
-    ELDGrowthReason GrantVouchers(const FGuid& ContenderId, int32 Vouchers, int32 PickTickets, const TCHAR* Cause,
-        const FLDGameplayWritePermit& Permit);
     // Spec §11.2 audit affix: one more skill point (either world permit); false with Error when refused.
     bool GrantSkillPoint(const FGuid& ContenderId, const TCHAR* Cause, const FLDGameplayWritePermit& Permit, FString& Error);
-    // Spec §11.3 vending: Vouchers vouchers paid by ContenderId for Cause (Transactions permit). NotEnoughVouchers when short.
-    ELDGrowthReason SpendVouchers(const FGuid& ContenderId, int32 Vouchers, const TCHAR* Cause, const FLDGameplayWritePermit& Permit);
-    // Spec §11.3: the first Ancient clear of the match pays this contender a pick ticket once; true when it is still due (and
-    // marks it taken).
-    bool TakeAncientTicket(const FGuid& ContenderId);
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
     const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
 

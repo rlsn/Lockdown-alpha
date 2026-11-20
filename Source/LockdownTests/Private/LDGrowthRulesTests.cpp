@@ -202,7 +202,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     // Client-sent enums are whitelisted, never mapped to a neighbour.
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::ShopBuy, ELDBuildCommandKind::ShopRefresh,
-        ELDBuildCommandKind::ShopSell, ELDBuildCommandKind::UsePickTicket, ELDBuildCommandKind::Respec,
+        ELDBuildCommandKind::Respec,
         ELDBuildCommandKind::ReplaceActive, ELDBuildCommandKind::ForgetActive, ELDBuildCommandKind::SkipActiveOffer,
         ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill, ELDBuildCommandKind::PickCard, ELDBuildCommandKind::SkipCards,
         ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard})
@@ -222,10 +222,9 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Dash) && LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Active)
         && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(2))
         && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(3)));
-    bGood &= Test.TestTrue(TEXT("Elements 0..6 are known, 7 is refused"),
+    bGood &= Test.TestTrue(TEXT("Elements 0..5 are known, 6 is refused"),
         LDGrowthWire::IsKnownElement(ELDDemoElement::Electric) && LDGrowthWire::IsKnownElement(ELDDemoElement::None)
-        && LDGrowthWire::IsKnownElement(ELDDemoElement::Chill) && LDGrowthWire::IsKnownElement(ELDDemoElement::Gust)
-        && !LDGrowthWire::IsKnownElement(static_cast<ELDDemoElement>(7)));
+        && LDGrowthWire::IsKnownElement(ELDDemoElement::Rot) && !LDGrowthWire::IsKnownElement(static_cast<ELDDemoElement>(6)));
     FName Optional(TEXT("stale"));
     bGood &= Test.TestTrue(TEXT("An all-zero optional definition decodes to None"),
         LDGrowthWire::DecodeOptional(FLDDefinitionWire(), Optional) && Optional.IsNone());
@@ -451,8 +450,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         1500, 1760, 2040, 2340, 2660, 3000};
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2 and 4"),
-        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 4}));
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2 and 6"),
+        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 6}));
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20);
     bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),
@@ -536,8 +535,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             LDProgression::LevelForXP(BrokenCurve, 0, Level), ELDGrowthReason::DataInvalid);
     }
 
-    // The opening opportunity is ordinal 1; reaching level 2 and level 4 each add exactly one more.
-    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 3}, {5, 3}, {10, 3}, {16, 3}};
+    // The opening opportunity is ordinal 1; reaching level 2 and level 6 each add exactly one more.
+    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 3}, {10, 3}, {16, 3}};
     for (const TPair<int32, int32>& Row : OpportunityCases)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Active opportunities held at level %d"), Row.Key),
@@ -546,7 +545,7 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 59, 1, 1, TEXT("59 XP at level 1 keeps only the opening opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 60, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 60, 2, 80, 3, 2, TEXT("Level 3 adds no active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 4 at once adds both"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 6 at once adds both"));
     bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 3, TEXT("780 XP at level 10 reaches level 13 without another"));
     bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
@@ -900,13 +899,13 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Cards"), TEXT("CardCapacity"),
          TEXT("QueuedCardOffers"), TEXT("bHasCardOffer"), TEXT("CardOffer"), TEXT("CardRerolls"), TEXT("CatalogDigest"),
-         TEXT("Vouchers"), TEXT("Shop"), TEXT("PickTickets"), TEXT("AffixSkillPoints"), TEXT("SeenCards"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
+         TEXT("Shop"), TEXT("AffixSkillPoints"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
          TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
          TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
-        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipVouchers")});
+        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDShopView::StaticStruct(), {TEXT("bStocked"), TEXT("Revision"), TEXT("Slots"),
-        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax"), TEXT("SellPrice")});
+        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax")});
     bGood &= GrowthTestExactFields(Test, FLDShopSlotView::StaticStruct(), {TEXT("Kind"), TEXT("DefinitionId"), TEXT("Price"), TEXT("bSold")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot"), TEXT("Branch")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
@@ -1100,7 +1099,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         && Three.Value->Progression().QueuedActiveOpportunities() == 2
         && Three.Value->Progression().Offer.IsSet() && Three.Value->Progression().Offer->OfferId == FirstOffers[Human]);
     const FLDPrepareGrowthResult Six = Development->PrepareExperience(Human, 500);
-    bGood &= Test.TestTrue(TEXT("By level 6 opportunity 3 (level 4) is queued"), Six.IsSuccess() && Six.Value->Build().Level == 6
+    bGood &= Test.TestTrue(TEXT("By level 6 opportunity 3 (level 6) is queued"), Six.IsSuccess() && Six.Value->Build().Level == 6
         && Six.Value->Progression().ActiveEarned == 3 && Six.Value->Progression().QueuedActiveOpportunities() == 3);
     // The card-offer levels 2, 4 and 6 each receive their named card instead of a level-up offer.
     const TArray<FName> FixedCards = {FName(TEXT("card_third_breath")), FName(TEXT("card_third_breath")),
@@ -1318,7 +1317,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
             LDProgression::CommandGate(EKind::AllocatePoints, *Row.Context), Row.Allocate);
     }
     // The rest shop and the respec keep the rest build window (#222: "NPC 服务仍受原有阶段、位置与费用约束").
-    for (const EKind Kind : {EKind::ShopBuy, EKind::ShopRefresh, EKind::ShopSell, EKind::Respec})
+    for (const EKind Kind : {EKind::ShopBuy, EKind::ShopRefresh, EKind::Respec})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
             ELDGrowthReason::NotRestWindow);
@@ -1744,18 +1743,13 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         LDDevTest::ValidateShape(Named(1, 1, ELDDevTestOp::AllocatePoints, TEXT("stat_strength"), 0)), ELDGrowthReason::NumericDomain);
     GrowthTestReason(*this, TEXT("An allocation names a stat"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::AllocatePoints, 2)), ELDGrowthReason::InvalidRequest);
-    GrowthTestReason(*this, TEXT("A voucher grant needs a positive amount"),
-        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantVouchers, 0)), ELDGrowthReason::NumericDomain);
-    GrowthTestReason(*this, TEXT("A positive voucher grant is a valid shape"),
-        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantVouchers, 5)), ELDGrowthReason::None);
     GrowthTestReason(*this, TEXT("A skill point grant names no amount"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantSkillPoint, 1)), ELDGrowthReason::NumericDomain);
     GrowthTestReason(*this, TEXT("Momentum 0 is a valid shape"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::SetMomentum, 0)), ELDGrowthReason::None);
     GrowthTestReason(*this, TEXT("Negative momentum is refused"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::SetMomentum, -1)), ELDGrowthReason::NumericDomain);
-    TestTrue(TEXT("The voucher, skill point and momentum ops are owner-only"), !LDDevTest::IsMatchWide(ELDDevTestOp::GrantVouchers)
-        && !LDDevTest::IsMatchWide(ELDDevTestOp::GrantSkillPoint) && !LDDevTest::IsMatchWide(ELDDevTestOp::SetMomentum));
+    TestTrue(TEXT("The skill point and momentum ops are owner-only"), !LDDevTest::IsMatchWide(ELDDevTestOp::GrantSkillPoint) && !LDDevTest::IsMatchWide(ELDDevTestOp::SetMomentum));
     GrowthTestReason(*this, TEXT("Only the build ops name a definition"),
         LDDevTest::ValidateShape(Named(1, 1, ELDDevTestOp::ResetCooldowns, TEXT("active_seethe"))), ELDGrowthReason::InvalidRequest);
 
@@ -2216,15 +2210,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Named(Gen, 21, ELDDevTestOp::AllocatePoints, TEXT("stat_brains"), 3), ELDGrowthReason::None))
     { return false; }
 
-    // ---- Vouchers, skill points and momentum ----
-    const int32 VouchersBefore = Development->FindProgression(Tester)->Vouchers;
-    if (!Commit(TEXT("Request 22: seven vouchers while dead"), Command(Gen, 1, 22, ELDDevTestOp::GrantVouchers, 7), ELDGrowthReason::None))
-    { return false; }
-    TestEqual(TEXT("The vouchers are paid"), Development->FindProgression(Tester)->Vouchers, VouchersBefore + 7);
-    if (!Commit(TEXT("Request 23: more vouchers than an int32 holds"),
-        Command(Gen, 1, 23, ELDDevTestOp::GrantVouchers, int64(MAX_int32) + 1), ELDGrowthReason::NumericDomain))
-    { return false; }
-    TestEqual(TEXT("An overflowing grant pays nothing"), Development->FindProgression(Tester)->Vouchers, VouchersBefore + 7);
+    // ---- Skill points and momentum ----
     const auto Points = [&]() { return LDProgression::SkillPoints(Catalog->Get(), GrowthBuild()); };
     const int32 PointsBefore = Points();
     const int32 AffixBefore = GrowthBuild().AffixSkillPoints;
@@ -2903,9 +2889,9 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const auto FightOf = [&](const FGuid& Id) -> FLDCombatEntityRecord& { return Driver->Records.FindChecked(Id); };
 
     const FLDProgressionView SkipOpening = Development->ReadProgression(Skipper);
-    const int32 SkipVouchers = Content.Parameters.Vouchers.ActiveSkip;
-    if (!TestTrue(TEXT("The opening offer advertises its vouchers for declining"),
-        SkipOpening.bHasActiveOffer && SkipOpening.ActiveOffer.SkipVouchers == SkipVouchers && SkipVouchers > 0)) { return false; }
+    const int64 SkipPoints = Content.Parameters.ActiveSkipPoints;
+    if (!TestTrue(TEXT("The opening offer advertises its stat points for declining"),
+        SkipOpening.bHasActiveOffer && SkipOpening.ActiveOffer.SkipPoints == SkipPoints && SkipPoints > 0)) { return false; }
     FLDBuildCommand SkipStale = Skip(Skipper);
     ++SkipStale.OfferRevision;
     Rejected(Commit(Skipper, SkipStale, 100, TEXT("Skipping against a stale offer revision")),
@@ -2913,10 +2899,10 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDBuildCommand SkipOpeningCommand = Skip(Skipper);
     const FLDBuildReceipt SkipOpeningReceipt = Commit(Skipper, SkipOpeningCommand, 101, TEXT("Skipping the opening offer"));
     const FLDProgressionView AfterSkipOpening = Development->ReadProgression(Skipper);
-    TestTrue(TEXT("Skipping consumes the offer once, pays vouchers (no points) and still opens the opening card offer"),
-        SkipOpeningReceipt.Header.Outcome == ELDReceiptOutcome::Applied && SkipOpeningReceipt.VouchersDelta == SkipVouchers
-        && SkipOpeningReceipt.VouchersAfter == SkipVouchers && AfterSkipOpening.Vouchers == SkipVouchers
-        && SkipOpeningReceipt.OpportunityOrdinal == 1 && SkipOpeningReceipt.UnspentPointsAfter == 3
+    TestTrue(TEXT("Skipping consumes the offer once, pays its stat points and still opens the opening card offer"),
+        SkipOpeningReceipt.Header.Outcome == ELDReceiptOutcome::Applied && SkipOpeningReceipt.PointsDelta == SkipPoints
+        && AfterSkipOpening.UnspentPoints == 3 + SkipPoints
+        && SkipOpeningReceipt.OpportunityOrdinal == 1 && SkipOpeningReceipt.UnspentPointsAfter == 3 + SkipPoints
         && BuildOf(Skipper).Actives.IsEmpty() && ProgressionOf(Skipper).ActiveConsumed == 1
         && ProgressionOf(Skipper).Records.Num() == 1 && ProgressionOf(Skipper).Records[0].Chosen.IsNone()
         && AfterSkipOpening.bHasCardOffer && AfterSkipOpening.CardOffer.Source == ELDCardOfferSource::Opening
@@ -2925,14 +2911,14 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDSubmitResult SkipReplay = Development->QueueBuild(Skipper, SkipOpeningCommand);
     TestTrue(TEXT("Replaying a skip returns the original award without awarding again"),
         SkipReplay.Status == ELDAdmissionStatus::Final && SkipReplay.bHasBuildReceipt
-        && SkipReplay.BuildReceipt.VouchersDelta == SkipVouchers && BuildOf(Skipper).Revision == RevisionAfterSkip
-        && ProgressionOf(Skipper).Vouchers == SkipVouchers && Unspent(Skipper) == 3);
+        && SkipReplay.BuildReceipt.PointsDelta == SkipPoints && BuildOf(Skipper).Revision == RevisionAfterSkip
+        && Unspent(Skipper) == 3 + SkipPoints);
     FLDBuildCommand SkipConsumed = Skip(Skipper);
     SkipConsumed.OfferId = SkipOpening.ActiveOffer.OfferId;
     SkipConsumed.OfferRevision = SkipOpening.ActiveOffer.OfferRevision;
     Rejected(Commit(Skipper, SkipConsumed, 102, TEXT("Skipping an already consumed offer")),
         ELDGrowthReason::OfferAlreadyCommitted, TEXT("Skipping an already consumed offer"));
-    TestEqual(TEXT("An already consumed offer awards no vouchers"), ProgressionOf(Skipper).Vouchers, SkipVouchers);
+    TestEqual(TEXT("An already consumed offer awards no points"), Unspent(Skipper), 3 + SkipPoints);
 
     // ---- Admission: the shape of each kind, the match and the membership ----
     const FLDProgressionView Opening = Development->ReadProgression(Tester);
@@ -3165,12 +3151,12 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const FLDBuildReceipt FirstQueuedSkip = Commit(Skipper, Skip(Skipper), StepAtMs + 1, TEXT("Skipping the first queued offer"));
     const FLDProgressionView NextSkip = Development->ReadProgression(Skipper);
     TestTrue(TEXT("Skipping one queued offer generates the next distinct group"),
-        FirstQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && FirstQueuedSkip.VouchersDelta == SkipVouchers
+        FirstQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && FirstQueuedSkip.PointsDelta == SkipPoints
         && NextSkip.QueuedActiveOpportunities == 1 && NextSkip.bHasActiveOffer && NextSkip.ActiveOffer.OpportunityOrdinal == 3
         && NextSkip.ActiveOffer.OfferId != QueuedSkips.ActiveOffer.OfferId);
     const FLDBuildReceipt LastQueuedSkip = Commit(Skipper, Skip(Skipper), StepAtMs + 1, TEXT("Skipping the next queued offer"));
     TestTrue(TEXT("The next group is consumed independently"),
-        LastQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && LastQueuedSkip.VouchersDelta == SkipVouchers
+        LastQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && LastQueuedSkip.PointsDelta == SkipPoints
         && Development->ReadProgression(Skipper).QueuedActiveOpportunities == 0 && ProgressionOf(Skipper).ActiveConsumed == 3);
     if (!Reward(Tester, 1, 140)) { return false; }
     const FLDProgressionView Three = Development->ReadProgression(Tester);
@@ -3465,12 +3451,14 @@ bool FLDGrowthCardsOfferTest::RunTest(const FString& Parameters)
         && !Out.Cards[0].IsInstalled() && !After.CardOffer.IsSet() && After.CardQueue.Num() == 1 && Outcome.Serial == 1);
     LDProgression::RefreshCardOffer(Content, Out, After, Secret, Contender, bDrawn);
     bGood &= TestTrue(TEXT("The next queued offer is drawn"), bDrawn && After.CardOffer.IsSet() && After.CardOffer->Ordinal == 2);
-    // Skipping before P5 gives nothing.
+    // Skipping resolves the offer and awards CARDS.SkipPoints stat points.
     FLDProgressionState Skipped;
-    bGood &= GrowthTestReason(*this, TEXT("Skipping the offer"), LDProgression::ApplySkipCards(Content, After, After.CardOffer->OfferId,
-        Live(), Skipped), ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("A skip only resolves the offer"), !Skipped.CardOffer.IsSet() && Skipped.CardQueue.IsEmpty()
-        && Skipped.CardRerollsGranted == After.CardRerollsGranted);
+    FLDGrowthBuild SkippedBuild;
+    bGood &= GrowthTestReason(*this, TEXT("Skipping the offer"), LDProgression::ApplySkipCards(Content, Out, After, After.CardOffer->OfferId,
+        Live(), SkippedBuild, Skipped), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("A skip resolves the offer and awards its stat points"), !Skipped.CardOffer.IsSet() && Skipped.CardQueue.IsEmpty()
+        && Skipped.CardRerollsGranted == After.CardRerollsGranted
+        && SkippedBuild.AwardedPoints == Out.AwardedPoints + Content.Parameters.Cards.SkipPoints);
     bGood &= GrowthTestReason(*this, TEXT("Taking a card outside the offer"), LDProgression::ApplyPickCard(Content, Out, After,
         After.CardOffer->OfferId, FName(TEXT("card_missing")), false, FLDCardTarget(), Live(), Out, Skipped, Outcome),
         ELDGrowthReason::NotInOffer);
@@ -3544,22 +3532,38 @@ bool FLDGrowthCardsDuplicatesTest::RunTest(const FString& Parameters)
         ELDGrowthReason::None);
     bGood &= GrowthTestReason(*this, TEXT("The third copy on the same skill"), LDProgression::ApplyInstallCard(Content, Two, C, Elbow, Live(), Three),
         ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("Three copies take three slots on one place; no column cap"), LDProgression::InstalledCards(Three) == 3
+    bGood &= TestTrue(TEXT("Three copies take three slots on one place; no column cap"), LDProgression::InstalledCards(Content, Three) == 3
         && LDProgression::ValidateBuild(Content, Three) == ELDGrowthReason::None);
     FLDGrowthBuild Again;
     bGood &= GrowthTestReason(*this, TEXT("An installed copy is not installed again"),
         LDProgression::ApplyInstallCard(Content, Three, A, Elbow, Live(), Again), ELDGrowthReason::AlreadyInstalled);
-    // Different forms side by side: no form excludes another.
+    // Different forms side by side: no form excludes another; the basic attack's cards sit on the body.
     uint16 Basic = 0, Body = 0;
     LDProgression::ReceiveCard(Content, Three, TEXT("card_third_breath"), 5, Basic);
     LDProgression::ReceiveCard(Content, Three, TEXT("card_spiky_hide"), 6, Body);
-    FLDCardTarget OnBasic, OnBody;
-    OnBasic.Kind = ELDCardTargetKind::Basic;
+    FLDCardTarget OnBody, OnDash;
     OnBody.Kind = ELDCardTargetKind::Body;
+    OnDash.Kind = ELDCardTargetKind::Dash;
     FLDGrowthBuild Mixed, Wrong;
-    bGood &= GrowthTestReason(*this, TEXT("A basic card beside the skill copies"), LDProgression::ApplyInstallCard(Content, Three, Basic, OnBasic,
-        Live(), Mixed), ELDGrowthReason::None);
-    bGood &= GrowthTestReason(*this, TEXT("A body card on the basic is refused"), LDProgression::ApplyInstallCard(Content, Mixed, Body, OnBasic,
+    bGood &= GrowthTestReason(*this, TEXT("A basic attack's card on the body beside the skill copies"), LDProgression::ApplyInstallCard(Content,
+        Three, Basic, OnBody, Live(), Mixed), ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("A body card on the dash is refused"), LDProgression::ApplyInstallCard(Content, Mixed, Body, OnDash,
+        Live(), Wrong), ELDGrowthReason::InvalidTarget);
+    // An element medal: no capacity, a skill's or the body's element slot, and a second medal swaps the first out.
+    uint16 Fire = 0, Rot = 0;
+    LDProgression::ReceiveCard(Content, Mixed, TEXT("medal_fire"), 7, Fire);
+    LDProgression::ReceiveCard(Content, Mixed, TEXT("medal_rot"), 8, Rot);
+    const int32 Before = LDProgression::InstalledCards(Content, Mixed);
+    FLDGrowthBuild WithFire, Swapped;
+    bGood &= GrowthTestReason(*this, TEXT("A medal goes into the body's element slot"), LDProgression::ApplyInstallCard(Content, Mixed, Fire, OnBody,
+        Live(), WithFire), ELDGrowthReason::None);
+    bGood &= TestEqual(TEXT("A medal takes no workshop capacity"), LDProgression::InstalledCards(Content, WithFire), Before);
+    TArray<uint16> Out;
+    bGood &= GrowthTestReason(*this, TEXT("A second medal into the same slot"), LDProgression::ApplyInstallCard(Content, WithFire, Rot, OnBody,
+        Live(), Swapped, 0, &Out), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The second medal swaps the first back to the library"), Out == TArray<uint16>({Fire})
+        && !Swapped.FindCard(Fire)->IsInstalled() && Swapped.FindCard(Rot)->IsInstalled());
+    bGood &= GrowthTestReason(*this, TEXT("A medal on the dash is refused"), LDProgression::ApplyInstallCard(Content, WithFire, Rot, OnDash,
         Live(), Wrong), ELDGrowthReason::InvalidTarget);
     return bGood;
 }
@@ -3594,12 +3598,12 @@ bool FLDGrowthCardsCapacityTest::RunTest(const FString& Parameters)
     }
     bGood &= GrowthTestReason(*this, TEXT("The seventh at level 1 is refused"),
         LDProgression::ApplyInstallCard(Content, Build, 7, OnBody, Live(), Out), ELDGrowthReason::WorkshopFull);
-    bGood &= TestEqual(TEXT("A refused install changes nothing"), LDProgression::InstalledCards(Out), 6);
+    bGood &= TestEqual(TEXT("A refused install changes nothing"), LDProgression::InstalledCards(Content, Out), 6);
     TArray<uint16> Swapped;
     bGood &= GrowthTestReason(*this, TEXT("A full workshop swaps one card for another"),
         LDProgression::ApplyInstallCard(Content, Build, 7, OnBody, Live(), Out, 1, &Swapped), ELDGrowthReason::None);
     bGood &= TestTrue(TEXT("The replaced card goes back to the library"), Swapped == TArray<uint16>({1}) && !Out.FindCard(1)->IsInstalled()
-        && Out.FindCard(7)->IsInstalled() && LDProgression::InstalledCards(Out) == 6);
+        && Out.FindCard(7)->IsInstalled() && LDProgression::InstalledCards(Content, Out) == 6);
     FLDGrowthBuild Freed;
     bGood &= GrowthTestReason(*this, TEXT("An uninstall frees a slot"), LDProgression::ApplyUninstallCard(Content, Build, 6, Live(), Freed),
         ELDGrowthReason::None) && GrowthTestReason(*this, TEXT("The freed slot takes the next card"),
@@ -3640,8 +3644,8 @@ bool FLDDevBreakoutPresetsTest::RunTest(const FString& Parameters)
         }
         bGood &= TestTrue(FString::Printf(TEXT("%s: a valid build at the top level with every card installed"), Preset.Id),
             LDProgression::ValidateBuild(Content, Build) == ELDGrowthReason::None && Build.Level == Content.Progression.MaxLevel
-            && LDProgression::InstalledCards(Build) == Preset.Cards.Num() && Build.Actives.Num() == Preset.Skills.Num()
-            && LDProgression::InstalledCards(Build) <= LDProgression::CardCapacity(Content.Parameters, Build.Level));
+            && LDProgression::InstalledCards(Content, Build) == Preset.Cards.Num() && Build.Actives.Num() == Preset.Skills.Num()
+            && LDProgression::InstalledCards(Content, Build) <= LDProgression::CardCapacity(Content.Parameters, Build.Level));
         const FLDAttributeProjectionResult Projected = LDCombatSourceRules::ProjectBuildInput(
             LDProgression::CombatProjectionInput(&Content, Build), *Catalog);
         bGood &= TestTrue(FString::Printf(TEXT("%s: Combat projects it"), Preset.Id), Projected.IsSuccess()

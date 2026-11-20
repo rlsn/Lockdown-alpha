@@ -163,11 +163,6 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
         {
             FEvent& XPEvent=Out.AddDefaulted_GetRef();XPEvent.Kind=EKind::Experience;XPEvent.Amount=Progression->CumulativeXP-XP;
         }
-        // Spec §12: every voucher gain flies in beside the own body (spending is silent).
-        if(Progression->Vouchers>Vouchers)
-        {
-            FEvent& VoucherEvent=Out.AddDefaulted_GetRef();VoucherEvent.Kind=EKind::Vouchers;VoucherEvent.Amount=Progression->Vouchers-Vouchers;
-        }
         // Several levels at once are one level-up naming the level reached and every point and opportunity earned with it.
         if(Progression->Level>Level)
         {
@@ -181,7 +176,7 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
     if(bProgress)
     {
         Level=Progression->Level;OffersEarned=Progression->ActiveOpportunitiesEarned;
-        PointsEarned=WorldFeedbackPointsEarned(*Progression);XP=Progression->CumulativeXP;Vouchers=Progression->Vouchers;
+        PointsEarned=WorldFeedbackPointsEarned(*Progression);XP=Progression->CumulativeXP;
     }
 }
 
@@ -291,7 +286,6 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::ShieldGain: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Shield);
     case EKind::ShieldAbsorbed: return FString::Printf(TEXT("-%lld %s"),Event.Amount,LDTerms::Shield);
     case EKind::Experience: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Experience);
-    case EKind::Vouchers: return LDTerms::VouchersGained(int32(Event.Amount));
     case EKind::LevelUp: return LDTerms::LevelUp(Event.Level);
     case EKind::Kill: return LDTerms::KillFloat(Event.Name.IsEmpty()?FString(LDTerms::UnknownVictim):Event.Name);
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
@@ -390,7 +384,6 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::ShieldGain: return {LDHUDStyle::ShieldGain,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::ShieldAbsorbed: return {LDHUDStyle::Shield,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::Experience: return {LDHUDStyle::ExperienceGain,LDHUDStyle::TypeBody};
-    case LDWorldFeedback::EKind::Vouchers: return {FLinearColor(1.f,.82f,.3f),LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::UnitReaction: return {FLinearColor(1.f,.85f,.35f),LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::PerfectDodge: return {FLinearColor(.45f,.95f,1.f),LDHUDStyle::TypeTitle};
@@ -406,7 +399,7 @@ FLinearColor WorldFeedbackReactionInk(uint8 Element)
         FLinearColor(.45f,.95f,1.f),FLinearColor(.55f,.9f,.25f),FLinearColor(.85f,.9f,.95f)};
     return Element<UE_ARRAY_COUNT(Inks)?Inks[Element]:FLinearColor::White;
 }
-bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience||Kind==LDWorldFeedback::EKind::Vouchers;}
+bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience;}
 bool WorldFeedbackSameAnchor(const LDWorldFeedback::FEvent& First,const LDWorldFeedback::FEvent& Second)
 {return First.bOwn==Second.bOwn&&(First.bOwn||(First.Handle==Second.Handle&&First.Epoch==Second.Epoch));}
 float WorldFeedbackEaseOut(float Progress)

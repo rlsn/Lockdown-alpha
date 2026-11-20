@@ -9,7 +9,8 @@ struct FLDDemoContentDefinitions;
 class FLDDemoContentSnapshot;
 
 // Overhead labels of currently visible units (APP_SPEC 8). A contender reads its public roster name and a camp member
-// its approved display name. Under the name sits a compact health bar (a contender's level badge, in its identity tint,
+// its approved display name, tinted by its tier (white, blue, violet, gold; the Boss red) with a bar frame of the same
+// colour. Under the name sits a compact health bar (a contender's level badge, in its identity tint,
 // left of it) and above the name the unit's public statuses as text, so no state relies on colour alone: the shield is named
 // there as well as marked on the bar.
 namespace LDWorldLabels
@@ -29,6 +30,7 @@ namespace LDWorldLabels
         bool bPeaceful=false;  // a contender the viewer cannot attack now: its bar is not the hostile red
         uint8 Presentation=0;  // contender identity tint key; 0 for camp members
         uint8 CreatureId=0;    // camp member definition; 0 for contenders
+        int8 CampTier=-1;      // camp member tier (ELDDemoCampTier); -1 for contenders, the dealer and unknown definitions
         uint8 Level=0;         // contender level; 0 for camp members, which have none
         bool bHealth=false;    // false without a known maximum or with a malformed current: no bar, never an empty one
         float HealthFraction=0.f;  // current over maximum, clamped to 0..1

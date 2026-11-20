@@ -82,9 +82,8 @@ public:
         bool bFinalStage=false;
         // Spec §3.13: the open shop shelf takes the board's place (the library stays to sell from).
         bool bShop=false;
-        FString NpcName;
         bool bServices=false;
-        // The trainer's respec takes the foot of the character column.
+        // The respec takes the foot of the character column.
         bool bCharacterServices=false;
     };
     void Present(const FInput& Input);

@@ -241,21 +241,27 @@ bool FLDLockerState::Begin(const FLDDemoContentParameters& Parameters, TConstArr
     *this = FLDLockerState();
     RadiusCm = LDFieldPacingDetail::Cm(Parameters.Explore.LockerRadiusCm);
     ChannelMs = Parameters.Explore.LockerChannelMs;
-    const int32 Count = Parameters.Explore.LockerCount;
-    if (RadiusCm <= 0 || ChannelMs <= 0 || Count < 1 || Count > Points.Num())
+    const auto& X = Parameters.Explore;
+    const int32 Count = X.LockerCount;
+    if (RadiusCm <= 0 || ChannelMs <= 0 || Count < 1 || Count > Points.Num() || X.LockerEarliestMs < 0
+        || X.LockerEarliestMs > X.LockerLatestMs || X.LockerStayMs <= ChannelMs)
     {
         Error = FString::Printf(TEXT("Delivery lockers need %d stocked of the %d locker_* points and approved timings."), Count, Points.Num());
         return false;
     }
+    const uint64 Span = uint64(X.LockerLatestMs - X.LockerEarliestMs) + 1;
     TArray<FName> Ids;
     for (const LDFieldPacing::FPoint& Point : Points) { Ids.Add(Point.Id); }
     TArray<FName> Stocked;
     LDFieldPacing::DrawCandidates(Seed, 0x10CCE7, Ids, Count, Stocked);
     Stocked.Sort(FNameLexicalLess());
-    for (const FName& Id : Stocked)
+    for (int32 Index = 0; Index < Stocked.Num(); ++Index)
     {
+        const FName& Id = Stocked[Index];
         FLocker& Locker = Lockers.AddDefaulted_GetRef();
         Locker.Point = *Points.FindByPredicate([&Id](const LDFieldPacing::FPoint& P) { return P.Id == Id; });
+        Locker.AppearT = X.LockerEarliestMs + int64(LDAirdrop::Mix(Seed ^ (0x10CCA0ull + uint64(Index))) % Span);
+        Locker.LeaveT = Locker.AppearT + X.LockerStayMs;
     }
     Error.Reset();
     return true;
@@ -268,7 +274,13 @@ void FLDLockerState::Step(int64 NowT, TConstArrayView<LDFieldPacing::FPresence> 
     for (int32 Index = 0; Index < Lockers.Num(); ++Index)
     {
         FLocker& Locker = Lockers[Index];
-        if (Locker.bOpened) { continue; }
+        const bool bOut = Locker.IsOut(NowT);
+        if (bOut != Locker.bShown) { Locker.bShown = bOut; bChanged = true; }
+        if (!bOut)
+        {
+            if (Locker.Opener.IsValid()) { Locker.Opener.Invalidate(); bChanged = true; }
+            continue;
+        }
         const auto InsideOf = [&](const LDFieldPacing::FPresence& P)
         { return !P.bProtected && LDFieldPacingDetail::Inside(Locker.Point.PositionCm, RadiusCm, P.FootCm); };
         if (Locker.Opener.IsValid())
@@ -308,14 +320,31 @@ void FLDLockerState::Step(int64 NowT, TConstArrayView<LDFieldPacing::FPresence> 
     }
 }
 
-int64 FLDLockerState::NextDueT() const
+int64 FLDLockerState::NextDueT(int64 NowT) const
 {
     int64 Due = MAX_int64;
     for (const FLocker& Locker : Lockers)
     {
-        if (!Locker.bOpened && Locker.Opener.IsValid()) { Due = FMath::Min(Due, Locker.ChannelSinceT + ChannelMs); }
+        if (Locker.bOpened) { continue; }
+        if (Locker.AppearT > NowT) { Due = FMath::Min(Due, Locker.AppearT); }
+        else if (Locker.LeaveT > NowT) { Due = FMath::Min(Due, Locker.LeaveT); }
+        if (Locker.Opener.IsValid()) { Due = FMath::Min(Due, Locker.ChannelSinceT + ChannelMs); }
     }
     return Due;
+}
+
+void FLDLockerState::View(int64 NowT, TArray<FLDLockerView>& Out) const
+{
+    Out.Reset();
+    for (const FLocker& Locker : Lockers)
+    {
+        if (!Locker.IsOut(NowT)) { continue; }
+        FLDLockerView& Row = Out.AddDefaulted_GetRef();
+        Row.AnchorId = Locker.Point.Id;
+        Row.PositionCm = Locker.Point.PositionCm;
+        Row.ClosesAtT = Locker.LeaveT;
+        Row.bChanneling = Locker.Opener.IsValid();
+    }
 }
 
 bool FLDPeddlerPlan::Plan(const FLDDemoContentParameters& Parameters, TConstArrayView<FName> Camps, uint64 Seed, FString& Error)

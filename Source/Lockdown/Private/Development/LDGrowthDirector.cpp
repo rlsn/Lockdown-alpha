@@ -374,31 +374,6 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(Outcome, Reason);
     }
-    // Spec §3.13: a contender kill pays the killer and each assister their vouchers with the same reward; spec §10.4 adds
-    // the bounty when the victim was trending.
-    if (bContenderVictim)
-    {
-        const FLDDemoVoucherParameters& Vouchers = Content->Get().Parameters.Vouchers;
-        const bool bBounty = M->IsBountyDeath(Death.Key);
-        ELDGrowthReason VoucherReason = M->Development->GrantVouchers(Recipient, Vouchers.Kill + (bBounty ? Vouchers.BountyKill : 0), 0,
-            bBounty ? TEXT("bounty_kill") : TEXT("kill"), Permit);
-        for (int32 Index = 0; Index < Death.Assisters.Num() && VoucherReason == ELDGrowthReason::None; ++Index)
-        {
-            VoucherReason = M->Development->GrantVouchers(Death.Assisters[Index], Vouchers.Assist + (bBounty ? Vouchers.BountyAssist : 0), 0,
-                bBounty ? TEXT("bounty_assist") : TEXT("assist"), Permit);
-        }
-        if (VoucherReason != ELDGrowthReason::None)
-        {
-            UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_REWARD_FAULT victim=%s: kill vouchers refused (%s)"),
-                *LDLog::Id(Death.Key.Victim.EntityId), LDGrowthWire::ReasonName(VoucherReason));
-            return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::AuthorityFault);
-        }
-        // The vouchers advanced the killer's progression: the receipt names the revision it ends on.
-        if (const FLDProgressionState* Killed = M->Development->FindProgression(Recipient); Killed && Receipt.Revisions.bHasProgression)
-        {
-            Receipt.Revisions.ProgressionRevision = Killed->Revision;
-        }
-    }
     Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
     RecordReward(Receipt);
     return Receipt;
@@ -825,7 +800,6 @@ bool ALDGrowthDirector::ReadResultBuild(const FGuid& ContenderId, FLDResultBuild
         Row.Element = Card.Target.Element;
         switch (Card.Target.Kind)
         {
-        case ELDCardTargetKind::Basic: Row.Target = ELDResultBuildTarget::Basic; break;
         case ELDCardTargetKind::Skill: Row.Target = ELDResultBuildTarget::Active; break;
         case ELDCardTargetKind::Dash: Row.Target = ELDResultBuildTarget::Dash; break;
         case ELDCardTargetKind::Body: Row.Target = ELDResultBuildTarget::Body; break;
@@ -1205,11 +1179,6 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
                 }
                 if (Reason != ELDGrowthReason::None) { Detail = AttributeDetail; }
             }
-            break;
-        case ELDDevTestOp::GrantVouchers:
-            Reason = !LDGrowthWire::IsBuildLifePhase(Life.Phase) ? ELDGrowthReason::LifePhaseChanged
-                : Command.Amount > MAX_int32 ? ELDGrowthReason::NumericDomain
-                : M->Development->GrantVouchers(ContenderId, int32(Command.Amount), 0, TEXT("dev_fixture"), Permit);
             break;
         case ELDDevTestOp::GrantSkillPoint:
             Reason = LDGrowthWire::IsBuildLifePhase(Life.Phase) ? M->Development->DevGrantSkillPoint(ContenderId, Permit, Detail)

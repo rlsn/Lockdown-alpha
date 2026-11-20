@@ -19,11 +19,10 @@ class ALDGameState;
 namespace LDWorldFeedback
 {
     // DealtConfirm: the own receipt of a hit the own body landed (LDHitFeel), shown as a short word in front of it.
-    // Vouchers: the own voucher gain (spec §12 飞入), a reward beside the own body.
     // PerfectDodge / ChainEnd (#305): a perfect dodge of the own body and the end of one of its counted chains (Amount = its
     // steps), each a word over the own body.
     enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast, DealtConfirm,
-        UnitReaction, Vouchers, PerfectDodge, ChainEnd };
+        UnitReaction, PerfectDodge, ChainEnd };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
@@ -130,7 +129,6 @@ namespace LDWorldFeedback
         // Earned stat points: the unspent plus the allocated ones, so an allocation in the same sample never hides a grant.
         int64 PointsEarned=0;
         int64 XP=0;
-        int32 Vouchers=0;
         bool bKills=false;
         uint64 KillSerial=0;
         bool bFrame=false;

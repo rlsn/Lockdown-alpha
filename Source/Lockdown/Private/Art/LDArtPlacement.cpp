@@ -61,11 +61,10 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // D21: a dorm is only a judgment disk at the wall base; collision-free low furniture there neither blocks a body
         // nor hides one, and the dorm's own ring marks it.
         // D26: a Boss waypoint is a patrol target only; props keep the path open through the navmesh like anywhere else.
-        // P6: a mini flag, locker or vending point is a judgment disk its own marker draws; collision-free props there
+        // P6: a mini flag or locker point is a judgment disk its own marker draws; collision-free props there
         // neither block nor hide a body, like at a dorm.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint
             || Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag || Anchor.Kind == ELDDemoWorldAnchorKind::Locker
-            || Anchor.Kind == ELDDemoWorldAnchorKind::Vending
             // A PK spawn, the throw anchor or the sign-up disk is a placement or judgment target only.
             || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
             || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup) { continue; }

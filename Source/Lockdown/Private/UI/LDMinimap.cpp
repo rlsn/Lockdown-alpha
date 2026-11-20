@@ -1,6 +1,7 @@
 #include "UI/LDMinimap.h"
 #include "World/LDFieldPacing.h"
 #include "UI/LDMinimapRaster.h"
+#include "UI/LDHUDStyle.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -36,7 +37,7 @@ struct FLDMinimapStatic
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight. #97: Level1/Level2 plateaus and the
     // ramps between levels lie under every other area.
     enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone, Level1, Level2, Ramp };
-    enum class ESite : uint8 { Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp, AncientCamp, Vending };
+    enum class ESite : uint8 { Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp, AncientCamp };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
@@ -244,8 +245,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
         // D26 (#79): a public Boss patrol point, a small gold ring.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::BossWaypoint){Site.Kind=FLDMinimapStatic::ESite::BossWaypoint;}
-        // P6 spec §11.3: vending machines are public; lockers show only once seen (owner view) and mini flags only while live.
-        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Vending){Site.Kind=FLDMinimapStatic::ESite::Vending;}
+        // P6 spec §11.3: lockers show only while out and mini flags only while live (public match view).
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Locker||Anchor.Kind==ELDDemoWorldAnchorKind::MiniFlag){continue;}
         // #198: PK and rest-space anchors are not field sites.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
@@ -563,17 +563,15 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 switch(Site.Kind)
                 {
                 case FLDMinimapStatic::ESite::Capture:Box(5,At+FVector2f(-.75f,-9.f),FVector2f(1.5f,9.5f),FLinearColor(.94f,.94f,.90f));Box(6,At+FVector2f(.75f,-9.f),FVector2f(6.f,4.f),FLinearColor(.92f,.20f,.16f));break;
-                case FLDMinimapStatic::ESite::LowCamp:Diamond(5,At,6.5f,Ink);Diamond(6,At,4.5f,FLinearColor(.96f,.66f,.30f));break;
-                case FLDMinimapStatic::ESite::HighCamp:Diamond(5,At,12.f,FLinearColor(1.f,.93f,.76f));Diamond(6,At,9.f,FLinearColor(.80f,.22f,.17f));Diamond(7,At,3.5f,Ink);break;
-                // #97 Elite camp: the largest diamond, violet with a pale core, so it reads apart from the red High camp.
-                case FLDMinimapStatic::ESite::AncientCamp:Diamond(5,At,17.f,Ink);Diamond(6,At,14.f,FLinearColor(1.f,.65f,.08f));Diamond(7,At,8.f,Ink);Diamond(8,At,4.f,FLinearColor(1.f,.65f,.08f));break;
-                case FLDMinimapStatic::ESite::EliteCamp:Diamond(5,At,14.f,Ink);Diamond(6,At,11.f,FLinearColor(.55f,.20f,.85f));Diamond(7,At,4.5f,FLinearColor(1.f,.93f,.76f));break;
+                // Camps grow with their tier and wear its colour (white, blue, violet, gold), the same as their world labels.
+                case FLDMinimapStatic::ESite::LowCamp:Diamond(5,At,6.5f,Ink);Diamond(6,At,4.5f,LDHUDStyle::CampTierInk(uint8(ELDDemoCampTier::Low)));break;
+                case FLDMinimapStatic::ESite::HighCamp:Diamond(5,At,11.f,Ink);Diamond(6,At,8.5f,LDHUDStyle::CampTierInk(uint8(ELDDemoCampTier::High)));Diamond(7,At,3.f,Ink);break;
+                case FLDMinimapStatic::ESite::EliteCamp:Diamond(5,At,14.f,Ink);Diamond(6,At,11.f,LDHUDStyle::CampTierInk(uint8(ELDDemoCampTier::Elite)));Diamond(7,At,4.5f,FLinearColor(1.f,.93f,.76f));break;
+                case FLDMinimapStatic::ESite::AncientCamp:Diamond(5,At,17.f,Ink);Diamond(6,At,14.f,LDHUDStyle::CampTierInk(uint8(ELDDemoCampTier::Ancient)));Diamond(7,At,8.f,Ink);Diamond(8,At,4.f,LDHUDStyle::CampTierInk(uint8(ELDDemoCampTier::Ancient)));break;
                 // Dorm: a small bed, a white pillow on a blue frame.
                 case FLDMinimapStatic::ESite::Dorm:Box(5,At-FVector2f(6.f,4.f),FVector2f(12.f,8.f),Ink);Box(6,At-FVector2f(5.f,3.f),FVector2f(10.f,6.f),FLinearColor(.25f,.62f,1.f));Box(7,At-FVector2f(5.f,3.f),FVector2f(3.f,6.f),FLinearColor(.95f,.96f,.98f));break;
                 // Boss patrol point: a gold dot on an ink disc.
                 case FLDMinimapStatic::ESite::BossWaypoint:Disc(5,At,8.f,Ink);Disc(6,At,5.f,FLinearColor(.95f,.72f,.12f));break;
-                // Vending machine: a tall teal box with a pale slot.
-                case FLDMinimapStatic::ESite::Vending:Box(5,At-FVector2f(4.f,6.f),FVector2f(8.f,12.f),Ink);Box(6,At-FVector2f(3.f,5.f),FVector2f(6.f,10.f),FLinearColor(.18f,.78f,.74f));Box(7,At-FVector2f(2.f,-1.f),FVector2f(4.f,2.f),FLinearColor(.95f,.96f,.98f));break;
                 }
             }
         }
@@ -620,12 +618,13 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                         Box(6,At+FVector2f(-.75f,-8.f),FVector2f(1.5f,8.5f),FLinearColor(.94f,.94f,.90f));Box(7,At+FVector2f(.75f,-8.f),FVector2f(5.f,3.5f),Gold);
                     }
                 }
-                // P6 spec §11.3: the delivery lockers this contender has seen, a brown box (dimmed once opened).
-                for(const FLDLockerView& Locker:Own.Pacing.SeenLockers)
+                // P6 spec §11.3: the delivery lockers out now (public), a brown box with a pale lid while someone holds it.
+                for(const FLDLockerView& Locker:Public->PublicMatch.Lockers)
                 {
                     const FVector2f At=Spot(Locker.PositionCm);
-                    Box(5,At-FVector2f(5.f,5.f),FVector2f(10.f,10.f),Ink);
-                    Box(6,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Locker.bOpened?FLinearColor(.35f,.30f,.26f):FLinearColor(.78f,.52f,.26f));
+                    Box(5,At-FVector2f(6.f,6.f),FVector2f(12.f,12.f),Ink);
+                    Box(6,At-FVector2f(5.f,5.f),FVector2f(10.f,10.f),FLinearColor(.86f,.56f,.24f));
+                    if(Locker.bChanneling){Box(7,At-FVector2f(5.f,5.f),FVector2f(10.f,3.f),FLinearColor(.98f,.92f,.78f));}
                 }
                 // P6 spec §10.4: the own dead life's spawn candidates, the chosen one larger.
                 if(Own.LifePhase==ELDLifePhase::Dead&&Own.Pacing.SpawnLife==Own.Life)

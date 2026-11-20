@@ -53,7 +53,6 @@ const TCHAR* CardTargetKey(ELDCardTargetKind Kind)
 {
     switch (Kind)
     {
-    case ELDCardTargetKind::Basic: return TEXT("basic");
     case ELDCardTargetKind::Skill: return TEXT("skill");
     case ELDCardTargetKind::Dash: return TEXT("dash");
     case ELDCardTargetKind::Body: return TEXT("body");

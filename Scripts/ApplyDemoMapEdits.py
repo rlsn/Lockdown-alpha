@@ -158,7 +158,7 @@ def build_candidate(original, exported):
     def optional_kind(identity):
         return next((kind for kind, prefix in DemoWorld.OPTIONAL_KINDS.items() if identity.startswith(prefix)), None)
 
-    # Spec §11.4: mini flag, locker and vending points may be added, copied and deleted; the generator checks their counts.
+    # Spec §11.4: mini flag and locker points may be added, copied and deleted; the generator checks their counts.
     optional_new = {identity for identity in exported_ids - source_anchors if optional_kind(identity)}
     optional_gone = {identity for identity in source_anchors - exported_ids if optional_kind(identity)}
     new_ids = exported_ids - source_anchors - optional_new

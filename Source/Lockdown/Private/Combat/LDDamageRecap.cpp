@@ -18,9 +18,9 @@ bool LineLess(const FLDDamageLine& A, const FLDDamageLine& B)
 }
 
 // ELDCombatElement and ELDCombatReaction (Combat/LDCombatElements.h) both end at their third value.
-// A consumed element is one a target can hold (fire..rot; gust is never held); the reactions are ELDCombatReaction 1..15.
+// A consumed element is one a target can hold (fire..rot); the reactions are ELDCombatReaction 1..13 (6, 9 and 12 retired).
 constexpr uint8 LastElement=uint8(ELDCombatElement::Rot);
-constexpr uint8 LastReaction=uint8(ELDCombatReaction::Smoke);
+constexpr uint8 LastReaction=uint8(ELDCombatReaction::Frostbite);
 
 bool AttackerLess(const FLDDamageLine& A, const FLDDamageLine& B)
 {

@@ -38,14 +38,13 @@ const TCHAR* OptionalPrefix(ELDDemoWorldAnchorKind Kind)
     {
     case ELDDemoWorldAnchorKind::MiniFlag: return MiniFlagPrefix();
     case ELDDemoWorldAnchorKind::Locker: return LockerPrefix();
-    case ELDDemoWorldAnchorKind::Vending: return VendingPrefix();
     default: return nullptr;
     }
 }
 
 bool OptionalKindOf(const FString& Id, ELDDemoWorldAnchorKind& Out)
 {
-    for (const ELDDemoWorldAnchorKind Kind : {ELDDemoWorldAnchorKind::MiniFlag, ELDDemoWorldAnchorKind::Locker, ELDDemoWorldAnchorKind::Vending})
+    for (const ELDDemoWorldAnchorKind Kind : {ELDDemoWorldAnchorKind::MiniFlag, ELDDemoWorldAnchorKind::Locker})
     {
         if (Id.StartsWith(OptionalPrefix(Kind), ESearchCase::CaseSensitive) && Id.Len() > FCString::Strlen(OptionalPrefix(Kind)))
         {
@@ -844,7 +843,6 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("PKSignup"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSignup; }
         else if (Kind.Equals(TEXT("MiniFlag"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::MiniFlag; }
         else if (Kind.Equals(TEXT("Locker"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Locker; }
-        else if (Kind.Equals(TEXT("Vending"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Vending; }
         else if (Kind.Equals(TEXT("RestSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestSpawn; }
         else if (Kind.Equals(TEXT("RestService"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestService; }
         else if (Kind.Equals(TEXT("TrainingDummy"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::TrainingDummy; }
@@ -923,7 +921,6 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
                     ? N.Value(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
-                    || Anchor.Kind == ELDDemoWorldAnchorKind::Vending
                     ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm))
                 : Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? N.Add(Radius, N.Value(Content.Parameters.Objective.FlagRadiusCm))
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Locker ? N.Add(Radius, N.Value(Content.Parameters.Explore.LockerRadiusCm)) : Radius;
@@ -933,7 +930,6 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
                     ? Approx(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? Body + Approx(Content.Parameters.DormRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
-                    || Anchor.Kind == ELDDemoWorldAnchorKind::Vending
                     ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? Body + Approx(Content.Parameters.Objective.FlagRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Locker ? Body + Approx(Content.Parameters.Explore.LockerRadiusCm) : Body;
@@ -1185,7 +1181,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             }
         }
     }
-    // D21 dorms, D26 airdrop points and the P6 mini flags, lockers and vending machines are the anchors content does not
+    // D21 dorms, D26 airdrop points and the P6 mini flags and lockers are the anchors content does not
     // name; each event disk stays apart from the circle, every camp clearing and every other event disk, so no two zone
     // rules overlap (spec §11.4).
     auto ZoneRadius = [&](ELDDemoWorldAnchorKind Kind) -> TOptional<FExact>
@@ -1196,13 +1192,12 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         case ELDDemoWorldAnchorKind::Camp: return N.Value(Out.CampClearanceCm);
         case ELDDemoWorldAnchorKind::Dorm: return N.Value(Content.Parameters.DormRadiusCm);
         case ELDDemoWorldAnchorKind::Airdrop: return N.Value(Content.Parameters.AirdropPickupRadiusCm);
-        case ELDDemoWorldAnchorKind::Vending: return N.Value(Content.Parameters.AirdropPickupRadiusCm);
         case ELDDemoWorldAnchorKind::MiniFlag: return N.Value(Content.Parameters.Objective.FlagRadiusCm);
         case ELDDemoWorldAnchorKind::Locker: return N.Value(Content.Parameters.Explore.LockerRadiusCm);
         default: return {};
         }
     };
-    int32 Dorms = 0, Airdrops = 0, Waypoints = 0, MiniFlags = 0, Lockers = 0, Vending = 0;
+    int32 Dorms = 0, Airdrops = 0, Waypoints = 0, MiniFlags = 0, Lockers = 0;
     for (const auto& Zone : Out.Anchors)
     {
         Waypoints += Zone.Kind == ELDDemoWorldAnchorKind::BossWaypoint ? 1 : 0;
@@ -1210,7 +1205,6 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         Airdrops += Zone.Kind == ELDDemoWorldAnchorKind::Airdrop ? 1 : 0;
         MiniFlags += Zone.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 1 : 0;
         Lockers += Zone.Kind == ELDDemoWorldAnchorKind::Locker ? 1 : 0;
-        Vending += Zone.Kind == ELDDemoWorldAnchorKind::Vending ? 1 : 0;
         if (Zone.Kind == ELDDemoWorldAnchorKind::Capture || Zone.Kind == ELDDemoWorldAnchorKind::Camp || !ZoneRadius(Zone.Kind).IsSet())
         {
             continue;
@@ -1242,10 +1236,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         || !Check.Require(Lockers >= LDDemoWorld::MinLockers && Lockers <= LDDemoWorld::MaxLockers
             && Lockers >= Content.Parameters.Explore.LockerCount, Root.Path,
             FString::Printf(TEXT("the level holds %d locker_* points; delivery lockers need %d to %d and at least EXPLORE.LockerCount"),
-                Lockers, LDDemoWorld::MinLockers, LDDemoWorld::MaxLockers))
-        || !Check.Require(Vending >= LDDemoWorld::MinVending && Vending <= LDDemoWorld::MaxVending, Root.Path,
-            FString::Printf(TEXT("the level holds %d vending_* points; vending machines need %d to %d"), Vending,
-                LDDemoWorld::MinVending, LDDemoWorld::MaxVending)))
+                Lockers, LDDemoWorld::MinLockers, LDDemoWorld::MaxLockers)))
     {
         return false;
     }

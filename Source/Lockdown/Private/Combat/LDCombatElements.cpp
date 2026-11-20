@@ -36,8 +36,7 @@ FLDElementTerms FLDElementTerms::From(const FLDDemoContentParameters& Parameters
     Terms.RotPerSecP2=E.RotPerSecP2;
     Terms.RotAPRatioPerSecBp=E.RotAPRatioPerSecBp;
     Terms.RotTickMs=E.RotTickMs;
-    Terms.GustPushCm=Cm(E.GustPushCm);
-    Terms.GustPushMs=E.GustPushMs;
+    Terms.PushMs=E.PushMs;
     Terms.ReactionBaseP2=Parameters.ReactionBaseP2;
     Terms.ReactionPerLevelP2=Parameters.ReactionPerLevelP2;
     Terms.ReactionAPRatioBp=Parameters.ReactionAPRatioBp;
@@ -56,20 +55,15 @@ FLDElementTerms FLDElementTerms::From(const FLDDemoContentParameters& Parameters
     Terms.MethaneRatioBp=E.MethaneRatioBp;
     Terms.MethaneBurnStacks=Small(E.MethaneBurnStacks);
     Terms.MethaneRadiusCm=Cm(E.MethaneRadiusCm);
-    Terms.FirestormBurnScale=Small(E.FirestormBurnScale);
     Terms.FreezeRootMs=E.FreezeRootMs;
     Terms.FermentRotMs=E.FermentRotMs;
     Terms.FermentHealCutBp=E.FermentHealCutBp;
-    Terms.SplashPushCm=Cm(E.SplashPushCm);
     Terms.ShatterSkillDamageBp=E.ShatterSkillDamageBp;
     Terms.ShatterMs=E.ShatterMs;
     Terms.CorrodeBreachStacks=Small(E.CorrodeBreachStacks);
     Terms.CorrodeBreachMs=E.CorrodeBreachMs;
-    Terms.ThunderstormKnockbackCm=Cm(E.ThunderstormKnockbackCm);
     Terms.FrostbiteAttackSlowBp=E.FrostbiteAttackSlowBp;
     Terms.FrostbiteMs=E.FrostbiteMs;
-    Terms.BlizzardRatioBp=E.BlizzardRatioBp;
-    Terms.SmokeDisarmMs=E.SmokeDisarmMs;
     return Terms;
 }
 
@@ -78,14 +72,13 @@ bool FLDElementTerms::IsUsable() const
     const auto Ratio=[](int64 Bp) { return Bp>0 && Bp<10000; };
     return WetMs>0 && Ratio(WetSlowBp) && ShockMs>0 && ShockEveryNth>0 && ShockRatioBp>0 && ShockSplashRadiusCm>0
         && ChillMs>0 && Ratio(ChillAttackSlowBp) && Ratio(ChillMoveSlowBp) && RotMs>0 && Ratio(RotHealCutBp)
-        && RotPerSecP2>=0 && RotAPRatioPerSecBp>=0 && RotTickMs>0 && GustPushCm>0 && GustPushMs>0
+        && RotPerSecP2>=0 && RotAPRatioPerSecBp>=0 && RotTickMs>0 && PushMs>0
         && ReactionBaseP2>=0 && ReactionPerLevelP2>=0 && ReactionAPRatioBp>=0 && FogRadiusCm>0 && FogMs>0
         && FogIntervalMs>0 && FogIntervalMs<=FogMs && ConductRatioBp>0 && ConductRadiusCm>0 && Ratio(ConductSlowBp)
         && ConductSlowMs>0 && OverloadRatioBp>0 && OverloadRadiusCm>0 && OverloadBreachStacks>0 && MeltRatioBp>0
-        && MethaneRatioBp>0 && MethaneBurnStacks>0 && MethaneRadiusCm>0 && FirestormBurnScale>1 && FreezeRootMs>0
-        && FermentRotMs>0 && Ratio(FermentHealCutBp) && SplashPushCm>0 && ShatterSkillDamageBp>0 && ShatterMs>0
-        && CorrodeBreachStacks>0 && CorrodeBreachMs>0 && ThunderstormKnockbackCm>0 && Ratio(FrostbiteAttackSlowBp)
-        && FrostbiteMs>0 && BlizzardRatioBp>0 && SmokeDisarmMs>0;
+        && MethaneRatioBp>0 && MethaneBurnStacks>0 && MethaneRadiusCm>0 && FreezeRootMs>0
+        && FermentRotMs>0 && Ratio(FermentHealCutBp) && ShatterSkillDamageBp>0 && ShatterMs>0
+        && CorrodeBreachStacks>0 && CorrodeBreachMs>0 && Ratio(FrostbiteAttackSlowBp) && FrostbiteMs>0;
 }
 
 FLDGroundTerms FLDGroundTerms::From(const FLDDemoContentParameters& Parameters)
@@ -101,14 +94,10 @@ FLDGroundTerms FLDGroundTerms::From(const FLDDemoContentParameters& Parameters)
     Kind(ELDGroundStateKind::Fire,G.FireRadiusCm,G.FireMs,G.FireTickMs);
     Kind(ELDGroundStateKind::Miasma,G.MiasmaRadiusCm,G.MiasmaMs,G.MiasmaTickMs);
     Kind(ELDGroundStateKind::Field,G.FieldRadiusCm,G.FieldMs,G.FieldTickMs);
-    Kind(ELDGroundStateKind::Blizzard,G.BlizzardRadiusCm,G.BlizzardMs,G.BlizzardTickMs);
     Terms.IceAccelScaleBp=G.IceAccelScaleBp;
     Terms.IceDisplacementScaleBp=G.IceDisplacementScaleBp;
     Terms.FireBurnStacks=Small(G.FireBurnStacks);
     Terms.FieldRatioBp=G.FieldRatioBp;
-    Terms.FieldDischargeRadiusCm=Cm(G.FieldDischargeRadiusCm);
-    Terms.BlizzardSlowBp=G.BlizzardSlowBp;
-    Terms.GustMoveCm=Cm(G.GustMoveCm);
     Terms.MaxPerOwner=Small(G.MaxPerOwner);
     Terms.MaxTotal=Small(G.MaxTotal);
     return Terms;
@@ -122,7 +111,7 @@ bool FLDGroundTerms::IsUsable() const
         if (Kind.RadiusCm<=0 || Kind.LifeMs<=0 || Kind.TickMs<=0 || Kind.TickMs>Kind.LifeMs) { return false; }
     }
     return IceAccelScaleBp>0 && IceAccelScaleBp<10000 && IceDisplacementScaleBp>10000 && FireBurnStacks>0 && FieldRatioBp>0
-        && FieldDischargeRadiusCm>0 && BlizzardSlowBp>0 && BlizzardSlowBp<10000 && GustMoveCm>0 && MaxPerOwner>0
+        && MaxPerOwner>0
         && MaxTotal>=MaxPerOwner;
 }
 
@@ -132,18 +121,17 @@ namespace LDCombatElements
     {
         using E=ELDCombatElement;
         using R=ELDCombatReaction;
-        if (Held==E::None || Incoming==E::None || Held==Incoming || Held==E::Gust) { return R::None; }
+        if (Held==E::None || Incoming==E::None || Held==Incoming) { return R::None; }
         const uint8 A=FMath::Min(uint8(Held),uint8(Incoming)), B=FMath::Max(uint8(Held),uint8(Incoming));
-        // Rows by the lower element (fire 1, water 2, shock 3, chill 4, rot 5), columns by the higher (.. gust 6).
+        // Rows by the lower element (fire 1, water 2, shock 3, chill 4), columns by the higher (.. rot 5).
         static const R Table[LDCombatElementCount][LDCombatElementCount]=
         {
-            {R::None,R::None,R::None,R::None,R::None,R::None,R::None},
-            {R::None,R::None,R::Fog,R::Overload,R::Melt,R::Methane,R::Firestorm},
-            {R::None,R::None,R::None,R::Conduct,R::Freeze,R::Ferment,R::Splash},
-            {R::None,R::None,R::None,R::None,R::Shatter,R::Corrode,R::Thunderstorm},
-            {R::None,R::None,R::None,R::None,R::None,R::Frostbite,R::Blizzard},
-            {R::None,R::None,R::None,R::None,R::None,R::None,R::Smoke},
-            {R::None,R::None,R::None,R::None,R::None,R::None,R::None},
+            {R::None,R::None,R::None,R::None,R::None,R::None},
+            {R::None,R::None,R::Fog,R::Overload,R::Melt,R::Methane},
+            {R::None,R::None,R::None,R::Conduct,R::Freeze,R::Ferment},
+            {R::None,R::None,R::None,R::None,R::Shatter,R::Corrode},
+            {R::None,R::None,R::None,R::None,R::None,R::Frostbite},
+            {R::None,R::None,R::None,R::None,R::None,R::None},
         };
         return A<LDCombatElementCount && B<LDCombatElementCount ? Table[A][B] : R::None;
     }
@@ -168,9 +156,13 @@ namespace LDCombatElements
             Rule.SplashRadiusCm=Terms.MethaneRadiusCm;
             Rule.SplashRatioBp=10000;
             break;
-        case ELDCombatReaction::Firestorm:
-            Rule.bKeepsHeldFire=true;
-            Rule.Ground=ELDGroundStateKind::Fire;
+        // The control and status reactions also deal R once (their effect rides on that hit).
+        case ELDCombatReaction::Freeze:
+        case ELDCombatReaction::Ferment:
+        case ELDCombatReaction::Shatter:
+        case ELDCombatReaction::Corrode:
+        case ELDCombatReaction::Frostbite:
+            Rule.PrimaryRatioBp=10000;
             break;
         case ELDCombatReaction::Conduct:
             Rule.PrimaryRatioBp=Terms.ConductRatioBp;
@@ -178,17 +170,6 @@ namespace LDCombatElements
             Rule.SplashRatioBp=10000;
             Rule.bSplashWetOnly=true;
             break;
-        case ELDCombatReaction::Splash: Rule.Ground=ELDGroundStateKind::Puddle; break;
-        case ELDCombatReaction::Thunderstorm:
-            Rule.PrimaryRatioBp=10000;
-            Rule.bReappliesShock=true;
-            Rule.Ground=ELDGroundStateKind::Field;
-            break;
-        case ELDCombatReaction::Blizzard:
-            Rule.PrimaryRatioBp=Terms.BlizzardRatioBp;
-            Rule.Ground=ELDGroundStateKind::Blizzard;
-            break;
-        case ELDCombatReaction::Smoke: Rule.Ground=ELDGroundStateKind::Miasma; break;
         default: break;
         }
         return Rule;
@@ -262,18 +243,10 @@ namespace LDCombatElements
             if (Incoming==E::Fire) { Out.Becomes=G::Puddle; }
             break;
         case G::Fire:
-            if (Incoming==E::Gust) { Out.bMove=true; }
-            else if (Incoming==E::Water) { Out.bFog=true; Out.bVanishes=true; }
+            if (Incoming==E::Water) { Out.bFog=true; Out.bVanishes=true; }
             break;
         case G::Miasma:
             if (Incoming==E::Fire) { Out.bBurst=true; Out.bVanishes=true; }
-            else if (Incoming==E::Gust) { Out.bMove=true; }
-            break;
-        case G::Field:
-            if (Incoming==E::Gust) { Out.bBurst=true; Out.bVanishes=true; }
-            break;
-        case G::Blizzard:
-            if (Incoming==E::Fire) { Out.bVanishes=true; }
             break;
         default: break;
         }
@@ -288,7 +261,6 @@ namespace LDCombatElements
         case ELDGroundStateKind::Fire: return ELDCombatElement::Fire;
         case ELDGroundStateKind::Miasma: return ELDCombatElement::Rot;
         case ELDGroundStateKind::Field: return ELDCombatElement::Shock;
-        case ELDGroundStateKind::Blizzard: return ELDCombatElement::Chill;
         default: return ELDCombatElement::None;
         }
     }
@@ -380,16 +352,11 @@ namespace LDCombatElements
         case ELDCombatReaction::Overload: return TEXT("overload");
         case ELDCombatReaction::Melt: return TEXT("melt");
         case ELDCombatReaction::Methane: return TEXT("methane");
-        case ELDCombatReaction::Firestorm: return TEXT("firestorm");
         case ELDCombatReaction::Freeze: return TEXT("freeze");
         case ELDCombatReaction::Ferment: return TEXT("ferment");
-        case ELDCombatReaction::Splash: return TEXT("splash");
         case ELDCombatReaction::Shatter: return TEXT("shatter");
         case ELDCombatReaction::Corrode: return TEXT("corrode");
-        case ELDCombatReaction::Thunderstorm: return TEXT("thunderstorm");
         case ELDCombatReaction::Frostbite: return TEXT("frostbite");
-        case ELDCombatReaction::Blizzard: return TEXT("blizzard");
-        case ELDCombatReaction::Smoke: return TEXT("smoke");
         default: return TEXT("none");
         }
     }
@@ -403,7 +370,6 @@ namespace LDCombatElements
         case ELDCombatElement::Shock: return TEXT("shock");
         case ELDCombatElement::Chill: return TEXT("chill");
         case ELDCombatElement::Rot: return TEXT("rot");
-        case ELDCombatElement::Gust: return TEXT("gust");
         default: return TEXT("none");
         }
     }
@@ -417,7 +383,6 @@ namespace LDCombatElements
         case ELDDemoElement::Electric: return ELDCombatElement::Shock;
         case ELDDemoElement::Chill: return ELDCombatElement::Chill;
         case ELDDemoElement::Rot: return ELDCombatElement::Rot;
-        case ELDDemoElement::Gust: return ELDCombatElement::Gust;
         default: return ELDCombatElement::None;
         }
     }
@@ -431,7 +396,6 @@ namespace LDCombatElements
         case ELDGroundStateKind::Fire: return TEXT("fire");
         case ELDGroundStateKind::Miasma: return TEXT("miasma");
         case ELDGroundStateKind::Field: return TEXT("field");
-        case ELDGroundStateKind::Blizzard: return TEXT("blizzard");
         default: return TEXT("none");
         }
     }

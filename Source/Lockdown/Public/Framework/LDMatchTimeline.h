@@ -18,17 +18,6 @@ UENUM()
 enum class ELDRestStep : uint8 { None = 0, Build = 1, Draw = 2, Betting = 3, PKReady = 4, PK = 5, Settlement = 6, Payout = 7, Return = 8 };
 
 UENUM()
-// 1 (the skill merchant) and 2 (the component artisan) are retired; their rest-room anchors rest_service_1 and
-// rest_service_2 host no service.
-enum class ELDRestService : uint8 { None = 0, Trainer = 3 };
-
-// The service the shared rest room's anchor rest_service_<Index> hosts (None for a retired one).
-inline ELDRestService RestServiceAtAnchor(int32 Index)
-{
-    return Index == 3 ? ELDRestService::Trainer : ELDRestService::None;
-}
-
-UENUM()
 enum class ELDRestReadyResult : uint8 { None = 0, Accepted = 1, NotContender = 2, StaleMatch = 3, StaleWindow = 4, NotOpen = 5 };
 
 // Public, replicated read model of the timeline. Times are authority ms; T values are field ms.
@@ -123,7 +112,7 @@ public:
     uint8 GetFieldSegment() const { return FieldSegment; }
     bool IsRest() const { return Stage == ELDMatchStage::Rest; }
     bool IsFieldRunning() const { return Stage == ELDMatchStage::Field || Stage == ELDMatchStage::FinalField; }
-    // The rest steps in which build commands, the NPC, respec and training are open.
+    // The rest steps in which the rest rebuilds (respec, replace, forget), the shop and training are open.
     bool IsRestBuildOpen() const { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::Build || Step == ELDRestStep::Payout); }
     // Sign-up is open in the last SignupMs of the build step, up to and including its deadline instant: operations
     // committed at the deadline settle before the lock.

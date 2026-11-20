@@ -80,7 +80,7 @@
 
 | 决策 | 状态 | 本报告采用的建议语义 |
 | --- | --- | --- |
-| CB-P01 普攻形态与成长 | **用户已确认** | 初始近战单体；普攻可成长（距离、元素、强化、反应范围等），不要求群攻；当前运行目录除贴脸补一拳、左右开抽的强化普攻外，有普攻牌（第三段、攻速与普攻元素 A15–A17，§4.4）；不引入追踪普攻弹体 |
+| CB-P01 普攻形态与成长 | **用户已确认** | 初始近战单体；普攻可成长（距离、元素、强化、反应范围等），不要求群攻；当前运行目录除贴脸补一拳、左右开抽的强化普攻外，有装在本体上的普攻向牌（第三段与攻速）与本体元素槽里的勋章（§4.4）；不引入追踪普攻弹体 |
 | CB-P05 来源缺席期间的冷却 | **用户已确认**“失去来源期间继续计时，重新持有时沿用原结束时间” | 遗忘不改原截止时刻；重学重新关联原有债务，不冻结、不重置 |
 | CB-P06 死亡时处理成长 | **已确认** | 死亡中可加点、选择并学到空槽、装牌，只改保留构筑，不治疗/复活死体 |
 | CB-P07 最大资源变更 | **用户已确认保持原生命百分比** | 所有普通升级/加点/学习只对最终Max同比换算一次；P2量化与下溢拒绝是本报告技术方案 |
@@ -171,7 +171,6 @@
 | `OVERDRIVE.WaterSlow` / `WaterSlowSec` | 45% / 1.5s | 湿：减速提高到此 |
 | `OVERDRIVE.ShockReactionRatio` | 0.5 | 麻：立即额外电一次，伤害为反应伤害 R 的这一倍 |
 | `OVERDRIVE.RotDurationScale` | 2 | 馊：削减持续时间乘此 |
-| `OVERDRIVE.GustPushCm` / `GustPushSec` | 300cm / 0.25s | 吹：末波推开（P4 前不在落点生成地面状态） |
 | `AI.DodgeChance` | 0.5 | 对手 AI 看到将落在自己身上的敌方预警、D 就绪时闪出的概率 |
 | `AI.EnemyGroundPathCost` | 3 | 对手 AI 规划步行路线时，路线落在可见敌方地面状态里的长度乘此 |
 
@@ -247,7 +246,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `PK.RewardMultiplier`；`PK.ParticipationPoints` / `PK.WinnerPointsMax` / `PK.BettingPoolMaxPoints` | 比例；点 | 1.5；1 / 3 / 2 | PK 三个属性点奖池的基数与倍率 |
 | `THROW.CooldownSec` / `THROW.TelegraphSec` / `THROW.RadiusCm` / `THROW.RangeCm` | s；cm | 10 / 0.8 / 120 / 4000 | 观众投掷：冷却、落点预警、命中半径、射程 |
 | `THROW.SlowRatio` / `THROW.SlowSec` / `THROW.ExposeSec` | 比例；s | 0.2 / 1 / 2 | 投掷命中：减速与暴露位置 |
-| `REST.ReturnSec` | s/Sec | 5 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；NPC 服务与商店关闭） |
+| `REST.ReturnSec` | s/Sec | 5 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；洗点、遗忘、替换与商店关闭） |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
 | `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 返回野外是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
 | `LIFE.RespawnBaseSec` / `RespawnPerLevelSec` | s/Sec | 6 / 0.5 | 野外复活等待 = 6 + 0.5 × 死亡时等级（秒）；考试周另加 `DAILY.ExamRespawnBonusSec` |
@@ -255,10 +254,9 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `LIFE.SpawnChoiceSec` | s/Sec | 4 | 死者在这段时间内选一个候选，不选用第一个 |
 | `OBJECTIVE.StartSec` / `AnnounceLeadSec` | s/Sec | 100 / 10 | 每段定时野外第 100 s 开放野外目标，提前 10 s 预告；须在本段内开始并结束 |
 | `OBJECTIVE.FlagWindowSec` / `FlagRadiusCm` / `FlagSpraySec` | s, cm, s | 30 / 200 / 3 | 野外 1、3 的小迷你旗：开放 30 s，半径 200 cm，独自累计喷漆 3 s 获胜（规则同旗杆喷漆） |
-| `OBJECTIVE.FlagCardOffer` / `VOUCHER.MiniFlag` | Count | 3 / 15 | 小迷你旗胜者的牌选组大小与饭票 |
+| `OBJECTIVE.FlagCardOffer` | Count | 3 | 小迷你旗胜者的牌选组大小 |
 | `OBJECTIVE.ArenaSec` / `ArenaRadiusCm` | s, cm | 40 / 900 | 野外 2 的擂台：以旗杆为中心，开放 40 s，只计双方都在圈内的参赛者伤害 |
-| `OBJECTIVE.ArenaCardOffer` / `VOUCHER.Arena` | Count | 5 / 20 | 擂台胜者的牌选组大小与饭票；擂台胜者另在 R3 多一个终局改装候选 |
-| `VOUCHER.BountyKill` / `BountyAssist` | Count | 15 / 5 | 上热搜者被击杀时击杀者与每名助攻者另得的饭票 |
+| `OBJECTIVE.ArenaCardOffer` | Count | 5 | 擂台胜者的牌选组大小；擂台胜者另在 R3 多一个终局改装候选 |
 | `LIFE.ProtectionSec` | s/Sec | 3 | 短暂移动/读局时间；不能计入“必需回防延迟”，合法主动可以提前解除 |
 
 野外复活的候选在全部出生点中等概率不放回抽取，不按安全度筛选；
@@ -289,20 +287,19 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 
 | 词条 | 参数 | 规则 |
 | --- | --- | --- |
-| 加班 | `AFFIX.OvertimeAttackSpeed` 0.3、`OvertimeVoucherScale` 2 | 成员攻速 +30%；清营饭票 ×2 |
+| 加班 | `AFFIX.OvertimeAttackSpeed` 0.3 | 成员攻速 +30% |
 | 团建 | `AFFIX.TeambuildXPScale` 1.5 | 营地多刷一名成员（高档营地为本营种类，精英与远古营地为一只高档种），站在营地锚点；成员经验 ×1.5 |
 | 冰箱 | `AFFIX.FridgeCardOffer` 3 | 攻击挂冻、脚下常驻冰面；清营得一组三选一 |
 | 奖金 | `AFFIX.BonusHP` 0.4、`BonusCardOffer` 5 | 成员生命 +40%；清营得一组五选一 |
-| 裁员 | `AFFIX.LayoffAttack` 0.3、`LayoffVouchers` 8 | 同营每倒下一个，其余攻击 +30%（可叠）；清营另得 8 饭票 |
+| 裁员 | `AFFIX.LayoffAttack` 0.3 | 同营每倒下一个，其余攻击 +30%（可叠） |
 | 审计 | `AFFIX.AuditTelegraphCut` 0.3、`AuditSkillPointsMax` 1 | 技能预警缩短 30%；清营得一个技能点，每局每人最多 1 个 |
 
 隐藏物：
 
 | 对象 | 参数 | 规则 |
 | --- | --- | --- |
-| 外卖柜 | `EXPLORE.LockerCount` 4、`LockerRadiusCm` 150、`LockerChannelSec` 3、`LockerCardChance` 0.5、`LockerCardOffer` 3、`VOUCHER.Locker` 8 | 每局从 `locker_*` 中抽 4 个装货；柜旁 150 cm 内连续 3 s 打开（受伤或硬控打断），得 8 饭票，50% 再得一组三选一；看见后留在本人小地图 |
-| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 280、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一张点名券与一组五选一 |
-| 售货机 | `EXPLORE.VendingBuffPrice` 2、`VendingBuffSec` 30、`VendingAttackSpeed` 0.2、`VendingMomentumPerSec` 2、`VendingMoveSpeed` 0.15、`VendingDrinkPrice` 3、`VendingDrinkHits` 5 | `vending_*` 公开；2 饭票买 30 s 攻速 +20%、每秒 +2 劲或移速 +15%；3 饭票买一瓶元素饮料（火、水、麻、冻、馊之一），之后 5 次普攻附带该元素 |
+| 外卖柜 | `EXPLORE.LockerCount` 4、`LockerEarliestSec` 30、`LockerLatestSec` 420、`LockerStaySec` 45、`LockerRadiusCm` 150、`LockerChannelSec` 3、`LockerCardOffer` 3 | 每局从 `locker_*` 中抽 4 个，各在 T ∈ [30, 420] s 的随机时刻出现，45 s 后没人打开就消失，出现期间公开在小地图上；柜旁 150 cm 内连续 3 s 打开（受伤或硬控打断），必得一组三选一 |
+| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 280、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一组五选一 |
 
 AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）：生命不低于 60% 且离目标点不超过 2500 cm 时前往开放或预告中的野外目标。
 
@@ -371,7 +368,7 @@ AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）
 | `GROWTH.MaxLevelPointsXP` | 240 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
 | `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不再发牌三选一 |
 | `GROWTH.BuildSafeWindowSec` | 4 s | 交战窗口（§4.3）：只供 HUD 在交战中收起野外文字摘要；不限制任何成长命令 |
-| `progression.active_offer_levels` | [2, 4] | 额外主动机会的等级 |
+| `progression.active_offer_levels` | [2, 6] | 额外主动机会的等级 |
 
 基础点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
 ⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）及池空奖励；
@@ -408,7 +405,7 @@ $$
 
 伤害类型 P = 物理（按护甲），M = 魔法（按魔抗）；H = 施法者生命上限。表中是 G = 1、技能 1 级的基础值，即 `content.json` 的效果值，
 固定项随拥有者等级乘 G（§4.1）。冷却是基础冷却，受技能急速影响。技能不暴击。
-六种元素、十五种反应与地面状态见 §4.4。
+五种元素、十种反应与地面状态见 §4.4。
 
 | 编号 | ID / 名称 | 状态 | 开局池 | 目标、射程、前摇 | 劲 / 冷却 | 效果 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -432,11 +429,11 @@ $$
 | S18 | `active_calculus_drop` 板砖糊脸 | 运行中 | 是 | 地面点 650cm；0.25s | 35 / 5.6s | 释放 0.55s 后在固定点落下：80cm 内 M 110 + 1.0 法强，80–200cm 为中心伤害的 60%；落点有可见预警 |
 | S19 | `active_flyer_trap` 踩一脚试试 | 运行中 | 否 | 地面点 550cm；0.15s | 30 / 6.3s | 放一张陷阱，保留 6s；敌人进入 100cm 后 0.45s 在陷阱处爆炸，半径 180cm：M 100 + 0.75 法强，减速 30%，1.5s；到期未触发不爆炸 |
 | S20 | `active_dirty_puddle` 满地泼脏水 | 运行中 | 是 | 地面点 600cm，半径 220cm；0.25s | 30 / 6.3s | 湿：固定区域 4s，释放后 0、1、2、3s 各一跳；每跳 M 22 + 0.2 法强并施加潮湿；自己与本场队友在区内移速 +15% |
-| S21 | `active_sock_shot` 馊水糊脸 | 运行中 | 是 | 方向弹道 750cm，弹道半径 55cm，1500cm/s；0.15s | 30 / 5.6s | 馊：首个命中的敌人受 M 80 + 0.75 法强；攻速降低 20%，3s；馊 |
-| S22 | `active_open_mic` 扯嗓子喷你 | 运行中 | 是 | 方向扇形 450cm / 70°；0.2s | 30 / 4.9s | 吹：释放后 0、0.3、0.6s 三波，方向锁定，每波 M 35 + 0.3 法强；只有最后一波减速 30%，1.2s，并附带吹（沿施放方向） |
-| N1 | `active_cola_shake` 冰可乐摇一摇 | 运行中 | 是 | 方向扇形 400cm / 60°；0.15s | 25 / 4.2s | 冻：M 55 + 0.5 法强；冻 |
-| N2 | `active_desk_fan` 电风扇 | 运行中 | 否 | 地面点 500cm 放置，朝向 = 施放方向；0.2s | 35 / 7s | 吹：风扇 4s，每 0.5s 向前方 600 × 200cm 矩形吹一次：推开 60cm 并附带吹；风推动范围内的火场与毒雾（电场被吹会放电） |
-| N3 | `active_stale_takeout` 过期外卖 | 运行中 | 是 | 方向弹道 700cm，弹道半径 60cm，1400cm/s；0.2s | 30 / 5.6s | 馊：首个命中的敌人受 M 75 + 0.7 法强；馊；落点（命中点或终点）留毒雾 4s |
+| S21 | `active_sock_shot` 馊水糊脸 | 运行中 | 是 | 方向弹道 750cm，弹道半径 55cm，1500cm/s；0.15s | 30 / 5.6s | 馊：首个命中的敌人受 M 80 + 0.75 法强；攻速降低 20%，3s；馊；命中推开 100cm（0.12s） |
+| S22 | `active_open_mic` 扯嗓子喷你 | 运行中 | 是 | 方向扇形 450cm / 70°；0.2s | 30 / 4.9s | 无元素：释放后 0、0.3、0.6s 三波，方向锁定，每波 M 35 + 0.3 法强；只有最后一波减速 30%，1.2s，并推开 100cm（0.12s，沿施放方向） |
+| N1 | `active_cola_shake` 冰可乐摇一摇 | 运行中 | 是 | 方向扇形 400cm / 60°；0.15s | 25 / 4.2s | 冻：M 55 + 0.5 法强；冻；命中推开 100cm（0.12s） |
+| N2 | `active_desk_fan` 电风扇 | 运行中 | 否 | 地面点 500cm 放置，朝向 = 施放方向；0.2s | 35 / 7s | 无元素：风扇 4s，每 0.5s 向前方 600 × 200cm 矩形吹一次：推开 60cm（`COMBAT.PushSec` 0.12s） |
+| N3 | `active_stale_takeout` 过期外卖 | 运行中 | 是 | 方向弹道 700cm，弹道半径 60cm，1400cm/s；0.2s | 30 / 5.6s | 馊：首个命中的敌人受 M 75 + 0.7 法强；馊；落点（命中点或终点）留毒雾 4s；命中推开 100cm（0.12s） |
 | N4 | `active_school_bag` 占座书包 | 运行中 | 否 | 地面点 450cm；0.2s | 30 / 7.7s | 放下一个书包（障碍物，不是身体）：生命 150 + 20 × (L−1)，身体半径 40cm，挡住所有身体的移动和敌人的弹道，不挡视线；敌人的弹道、地面爆炸、扇形与释放范围按原始伤害打它；4s 后或被打掉时在半径 200cm 内爆炸，敌人受 M 80 + 0.6 法强；同一技能只留 1 个（Y12 每份 +1） |
 
 - **开局池**：20 个主动带 `opening: true`（S01–S13、S17、S18、S20–S22、N1、N3）；S14、S15、S16、S19、N2、N4 只在 2、4 级机会出现。
@@ -502,7 +499,7 @@ $$
 | 规则 | 内容与参数 |
 | --- | --- |
 | 开局（1 号机会） | 成长 `BeginMatch` 时给出；从 `opening: true` 的主动中等概率、不放回抽 3 个 |
-| 2、4 级 | `progression.active_offer_levels=[2,4]`：每达到其中一级加一次机会，从全部主动中等概率、不放回抽 3 个；该级的点数照发 |
+| 2、6 级 | `progression.active_offer_levels=[2,6]`：每达到其中一级加一次机会，从全部主动中等概率、不放回抽 3 个；该级的点数照发 |
 | 排除与不足 | 已学主动与待学图纸不进入候选；只有 1–2 个合格时只给这些；没有合格时机会排队、不生成候选，构筑变化后重新判定；排队不阻挡加点 |
 | 队列与随机 | 同时只有一组候选，其余机会排队；随机由本局私有种子、参赛者与机会序号决定，同一序号重试不换种子；没有权重、没有重抽 |
 | 选择 | 选中项成为待学图纸；有空槽时同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），Q/W/E 已满时存为图纸，回执写明原因（没有空槽）；对局进行中随时可选（交战中、死亡等待、休息每个步骤） |
@@ -529,11 +526,11 @@ $$
 | `CARDS.OfferEveryLevels` | 2 | 升到能被它整除的等级时给一次牌三选一（2、4、…、16 级，共 8 组）；属性点仍每级给 |
 | `CARDS.VocabWeight` | 2 | 与已装牌或已学技能共享词汇的牌的抽取权重；其他牌为 1 |
 | `CARDS.FreeRerolls`、`CARDS.RerollsPerRest` | 3、1 | 开局重抽次数；R1–R3 每次休息再给的次数 |
-| `CARDS.SkipVouchers` | 3 | 跳过一组牌三选一得到的饭票 |
+| `CARDS.SkipPoints` | 1 | 跳过一组牌三选一得到的属性点 |
 | `DAMAGE.FactorTechCap` | ×1000 | 一次伤害乘区之积的技术上限（只防溢出，`LD_DAMAGE_FACTOR_CAPPED`） |
 | `CHAIN.MaxDepth`、`CHAIN.MaxEffectsPerStep` | 16、256 | 连锁最深步数；一个权威步最多产生的后续效果，其余顺延（`LD_CHAIN_GUARD`） |
 | `CHAIN.EndSec`、`CHAIN.MinKeySteps` | 3 s、3 | 连锁多久没有新的一步就结束；结束时至少有几种不同步骤才算一把连锁键（App Spec §4.4） |
-| `AI.CardSkipChance` | 30% | 一组牌里没有一张和构筑共享词汇时 AI 跳过换饭票的概率 |
+| `AI.CardSkipChance` | 30% | 一组牌里没有一张和构筑共享词汇时 AI 跳过换属性点的概率 |
 | `AI.CardVocabScore`、`AI.BreakoutChance`、`AI.BreakoutCardScore` | 2、25%、5 | AI 选牌时每个共享词汇加分；开局抽质变目标的概率；目标样板里的牌额外加分（[对手 AI](../systems/OPPONENT_AI.md)） |
 
 **词汇**：`basic_hit`、`combo3`、`skill_hit`、`skill_cast`、`overdrive`、`reaction`、`element`、`dash`、`dash_contact`、`perfect_dodge`、
@@ -544,7 +541,7 @@ $$
 **同名叠加**：同一张牌的多份是独立的牌，各占一格。比例类按同一来源相加（乘区内加，乘区间乘）；次数类逐份增加
 （A06 每多一份多一下，K06 每多一份多一次重放，D05 每多一份多一段）；Y07 护盾量相加；Y03 每条命一次与份数无关。
 
-**目录**（编号、名称、类型、效果与词汇；形式由编号首字母决定：A 普攻、K 技能、D 冲刺、Y 本体）：
+**目录**（编号、名称、类型、效果与词汇；形式由编号首字母决定：K 技能、D 冲刺、Y 本体；A 开头的普攻向牌也是本体牌，装在本体上）：
 
 | 编号 | 定义 | 名称 | 类型 | 效果 | 词汇 |
 | --- | --- | --- | --- | --- | --- |
@@ -562,11 +559,6 @@ $$
 | A12 | `card_heated_up` | 越打越上头 | 成长 | 连续打同一个人，每下攻速 +4%，无上限；换目标或 3 s 没打清零 | attack_speed, basic_hit |
 | A13 | `card_muscle_memory` | 熟能生巧 | 成长 | 普攻每命中参赛者 10 次，本局攻击力 +1 | basic_hit |
 | A14 | `card_breach_fist` | 越揍越不经打 | 成长 | 普攻命中挂 1 层破防（每层双抗 −3，上限 5，4 s） | basic_hit, armor |
-| A15 | `card_fire_fist` | 拳头冒火 | 元素 | 第 3 段普攻命中挂 1 层灼烧 | element, basic_hit |
-| A16 | `card_water_fist` | 拳头甩脏水 | 元素 | 第 3 段普攻命中挂湿 | element, basic_hit |
-| A17 | `card_shock_fist` | 拳头漏电 | 元素 | 第 3 段普攻命中挂麻 | element, basic_hit |
-| A18 | `card_ice_fist` | 拳头冰镇 | 元素 | 第 3 段普攻命中挂冻 | element, basic_hit |
-| A19 | `card_rot_fist` | 拳头带馊 | 元素 | 第 3 段普攻命中挂馊 | element, basic_hit |
 | K01 | `card_next_up` | 打完换下一招 | 触发 | 这个技能命中 → 其他已学技能冷却各 −1 s | skill_hit, skill_cast |
 | K02 | `card_pay_back` | 一招回本 | 触发 | 这个技能每次命中回 6 劲 | skill_hit, momentum |
 | K03 | `card_quick_takedown` | 收人头不用等 | 触发 | 这个技能命中过的参赛者在助攻窗口内死亡、你得到击杀或助攻 → 本技能冷却刷新 | kill |
@@ -585,12 +577,6 @@ $$
 | K16 | `card_held_shot` | 憋着一发狠的 | 成长 | 这个技能就绪后每闲置 1 s，下一次伤害 +15%（乘区），无上限，释放后清零；只算交战中的闲置，开打前最多带入 5 s | idle |
 | K17 | `card_practice` | 越用越顺手 | 成长 | 这个技能每命中参赛者一次，本局伤害 +2%（乘区），无上限 | skill_hit |
 | K18 | `card_combo_chain` | 一招接一招 | 成长 | 放这个技能时，过去 4 s 内你每放过一个其他技能，这次伤害 +20%（乘区） | skill_cast |
-| K19 | `card_add_fire` | 掺点火 | 元素 | 这个技能命中挂 2 层灼烧 | element |
-| K20 | `card_add_water` | 掺点水 | 元素 | 这个技能命中挂湿 | element |
-| K21 | `card_add_shock` | 掺点电 | 元素 | 这个技能命中挂麻 | element |
-| K22 | `card_add_chill` | 掺点冰 | 元素 | 这个技能命中挂冻 | element |
-| K23 | `card_add_rot` | 掺点馊 | 元素 | 这个技能命中挂馊 | element |
-| K24 | `card_add_gust` | 掺点风 | 元素 | 这个技能命中附带吹（从你身边推开） | element, knockback |
 | K25 | `card_blast_reload` | 炸了接着放 | 元素 | 这个技能触发反应 → 本技能冷却 −3 s | reaction |
 | D01 | `card_bump_reset` | 撞着就刷新 | 触发 | 冲刺接触敌人 → 冲刺冷却刷新（每次冲刺最多一次） | dash_contact |
 | D02 | `card_bump_again` | 撞着了再撞 | 触发 | 冲刺接触敌人 → 所有技能冷却 −1.5 s | dash_contact, skill_cast |
@@ -603,12 +589,11 @@ $$
 | D09 | `card_slippery` | 越躲越快 | 成长 | 每次完美闪避，本局移速 +1.5%，无上限 | perfect_dodge, move_speed |
 | D10 | `card_ice_trail` | 一路结冰 | 元素 | 冲刺路径留冰面（宽 160 cm，5 s；每份一条） | ground |
 | D11 | `card_move_turf` | 挪地盘 | 元素 | 冲刺结束 → 把你最近放下的地面状态、区域或陷阱挪到脚下（每个只挪一次；跟随你的区域不算） | ground |
-| D12 | `card_shock_dash` | 冲刺挂麻 | 元素 | 冲刺接触的敌人挂麻 | element, dash_contact |
 | Y01 | `card_spiky_hide` | 打我也硌手 | 触发 | 受到敌方直接伤害（含被护盾吸收）→ 向出手者反弹 25%（魔法伤害，不暴击）；反弹可以吸血；持续伤害与反弹不触发 | damaged |
 | Y02 | `card_takedown` | 人头刷新 | 触发 | 击杀或助攻参赛者 → 刷新全部技能冷却，劲回满 | kill, momentum |
 | Y03 | `card_hang_on` | 死扛 | 触发 | 生命低于 15% → 2 s 内受到的每次伤害降为 1（每条命一次） | low_hp |
 | Y04 | `card_reaction_refund` | 反应回本 | 触发 | 触发反应 → 回 15 劲 | reaction, momentum |
-| Y05 | `card_wave_after` | 一波接一波 | 触发 | 触发反应 → 给目标挂一个随机的、与刚被消耗的不同的元素（不含吹） | reaction, element |
+| Y05 | `card_wave_after` | 一波接一波 | 触发 | 触发反应 → 给目标挂一个随机的、与刚被消耗的不同的元素 | reaction, element |
 | Y06 | `card_shell_burst` | 壳碎了也崩你 | 触发 | 护盾被打破 → 300 cm 内的敌人受 60 + 3% 生命上限魔法伤害 | shield_break |
 | Y07 | `card_hard_skin` | 挨揍起硬皮 | 触发 | 受到敌方正伤害后获得护盾 45 + 4%H，3 s；获得后 8 s 才能再获得 | damaged, shield |
 | Y08 | `card_ball_kick` | 拿你当球踢 | 触发 | 你造成的击退撞上固定障碍 → 眩晕 0.8 s；撞上另一敌人 → 两人各受 P 60 + 0.5AD | knockback, wall_impact |
@@ -634,11 +619,22 @@ $$
 | Y28 | `card_endless_burn` | 烧不完 | 元素 | 你施加的灼烧上限 5 → 10 层 | element |
 | Y29 | `card_burn_guard` | 烧着还挺扛揍 | 元素 | 你造成的灼烧伤害的 30% 变成护盾，3 s，与现有护盾取强 | element, shield |
 
+**元素勋章**（`form: medal`）：装进已学技能或本体的元素槽，不占工坊格子、没有数量上限；一个槽一枚，再装一枚把原来的换回牌库。
+技能槽里的勋章让该技能的命中带上元素；本体槽里的勋章只在第 3 段普攻生效。来源与牌相同（三选一、商店等）。
+
+| ID | 名称 | 效果 |
+| --- | --- | --- |
+| `medal_fire` | 烫勋章 | 命中挂 2 层灼烧 |
+| `medal_water` | 湿勋章 | 命中挂湿 |
+| `medal_electric` | 麻勋章 | 命中挂麻 |
+| `medal_chill` | 冻勋章 | 命中挂冻 |
+| `medal_rot` | 馊勋章 | 命中挂馊 |
+
 **元素、反应与地面状态**（运行中，规格 §3.10、§8）：
 
 主动原生元素：烫（烫你屁股、脚底开锅）、湿（滋你一脸、满地泼脏水）、麻（电你个哆嗦、带电撞你）、冻（冰可乐摇一摇）、
-馊（馊水糊脸、过期外卖）、吹（扯嗓子喷你的末波、电风扇）。每个目标同时只挂一种元素（灼烧层视为挂烫）；同元素刷新时长；
-不同元素到达时按下表反应并消耗旧元素（火旋保留灼烧、雷暴重新挂麻）。吹不挂在目标上，只把人推开，并与已挂的元素反应。
+馊（馊水糊脸、过期外卖）；元素勋章让技能或第 3 段普攻带上元素（见上方构筑牌目录）。每个目标同时只挂一种元素（灼烧层视为挂烫）；同元素刷新时长；
+不同元素到达时按下表反应并消耗旧元素。馊水糊脸、过期外卖、冰可乐摇一摇与扯嗓子喷你的末波命中推开 100cm（滋你一脸本身带击退），近战技能不推。
 
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
@@ -648,9 +644,9 @@ $$
 | `COMBAT.ShockSec`、`COMBAT.ShockEveryNthHit`、`COMBAT.ShockRatio`、`COMBAT.ShockSplashRadiusCm` | 4 s、3、0.5、350 cm | 麻：持有者每第 3 次受到直接伤害，额外受 0.5R；施加者的其他敌人在 350cm 内时也受 0.5R。这份伤害不是直接伤害，不推进计数，不触发反弹与命中类牌 |
 | `COMBAT.ChillSec`、`COMBAT.ChillAttackSlow`、`COMBAT.ChillMoveSlow` | 4 s、0.15、0.10 | 冻：攻速 −15%、移速 −10% |
 | `COMBAT.RotSec`、`COMBAT.RotHealCut`、`COMBAT.RotPerSec`、`COMBAT.RotAPRatioPerSec`、`COMBAT.RotTickSec` | 4 s、0.25、3、0.03、0.5 s | 馊：受到的治疗与护盾 −25%；每 0.5 s 受 (3 + 0.03 × 施加者法强) × 0.5 魔法伤害，算施加者 |
-| `COMBAT.GustPushCm`、`COMBAT.GustPushSec` | 100 cm、0.12 s | 吹：推开 100cm（风扇按自己的距离） |
+| `COMBAT.PushSec` | 0.12 s | 电风扇每次吹与台风推动的时长 |
 | `COMBAT.BurnSec`、`COMBAT.BurnTickSec`、`COMBAT.BurnMaxStacks` | 3 s、0.5 s、5 | 烫：每层独立计时（§4.1） |
-| `OVERDRIVE.ChillRootSec` | 0.6 s | 冻的爆劲：定身 0.6s（计硬控递减）；吹的爆劲推开 300cm 并在落点留下目标所挂元素对应的地面状态 |
+| `OVERDRIVE.ChillRootSec` | 0.6 s | 冻的爆劲：定身 0.6s（计硬控递减） |
 
 | 组合 | 反应 | 主目标 | 附带 | 参数 |
 | --- | --- | --- | --- | --- |
@@ -658,57 +654,44 @@ $$
 | 烫 + 麻 | 过载 | 1.5R，2 层破防 | 200cm 内其他敌人 R | `COMBAT.OverloadRatio`、`COMBAT.OverloadBreachStacks`、`COMBAT.OverloadRadiusCm` = 1.5、2、200 cm |
 | 烫 + 冻 | 融化 | 2R | 脚下水洼 | `COMBAT.MeltRatio` = 2 |
 | 烫 + 馊 | 沼气爆 | 1.5R，再挂 2 层灼烧 | 250cm 内其他敌人 R | `COMBAT.MethaneRatio`、`COMBAT.MethaneBurnStacks`、`COMBAT.MethaneRadiusCm` = 1.5、2、250 cm |
-| 烫 + 吹 | 火旋 | 灼烧层数翻倍（不超上限），保留灼烧 | 脚下火场 | `COMBAT.FirestormBurnScale` = 2 |
 | 湿 + 麻 | 导电 | 1.5R，减速 30% 1.5s | 450cm 内其他湿的敌人 R（各自的湿被消耗） | `COMBAT.ConductRatio`、`COMBAT.ConductSlow`、`COMBAT.ConductSlowSec`、`COMBAT.ConductRadiusCm` = 1.5、0.3、1.5 s、450 cm |
-| 湿 + 冻 | 冻住 | 定身 1.0s（控制） | — | `COMBAT.FreezeRootSec` = 1 s |
-| 湿 + 馊 | 发酵 | 挂馊，持续 8s，削减 50% | — | `COMBAT.FermentRotSec`、`COMBAT.FermentHealCut` = 8 s、0.5 |
-| 湿 + 吹 | 泼洒 | 推开 150cm | 脚下水洼 | `COMBAT.SplashPushCm` = 150 cm |
-| 麻 + 冻 | 碎冰 | 4s 内下一次受到的技能伤害 +50%（乘区，用掉即止） | — | `COMBAT.ShatterSkillDamage`、`COMBAT.ShatterSec` = 0.5、4 s |
-| 麻 + 馊 | 腐蚀 | 3 层破防，6s | — | `COMBAT.CorrodeBreachStacks`、`COMBAT.CorrodeBreachSec` = 3、6 s |
-| 麻 + 吹 | 雷暴 | R，击退 150cm，重新挂麻 | 落点电场 | `COMBAT.ThunderstormKnockbackCm` = 150 cm |
-| 冻 + 馊 | 冻疮 | 攻速 −30%，3s | — | `COMBAT.FrostbiteAttackSlow`、`COMBAT.FrostbiteSec` = 0.3、3 s |
-| 冻 + 吹 | 风雪 | 0.5R | 脚下风雪区 | `COMBAT.BlizzardRatio` = 0.5 |
-| 馊 + 吹 | 熏 | 缴械 0.6s（控制） | 脚下毒雾 | `COMBAT.SmokeDisarmSec` = 0.6 s |
+| 湿 + 冻 | 冻住 | R，定身 1.2s（控制） | — | `COMBAT.FreezeRootSec` = 1.2 s |
+| 湿 + 馊 | 发酵 | R，挂馊，持续 8s，削减 60% | — | `COMBAT.FermentRotSec`、`COMBAT.FermentHealCut` = 8 s、0.6 |
+| 麻 + 冻 | 碎冰 | R；4s 内下一次受到的技能伤害 +50%（乘区，用掉即止） | — | `COMBAT.ShatterSkillDamage`、`COMBAT.ShatterSec` = 0.5、4 s |
+| 麻 + 馊 | 腐蚀 | R，5 层破防，6s | — | `COMBAT.CorrodeBreachStacks`、`COMBAT.CorrodeBreachSec` = 5、6 s |
+| 冻 + 馊 | 冻疮 | R，攻速 −40%，4s | — | `COMBAT.FrostbiteAttackSlow`、`COMBAT.FrostbiteSec` = 0.4、4 s |
 
-- 反应伤害与控制归触发者；触发者获得 `MOMENTUM.Reaction`；控制类反应计入硬控递减。泼洒与雷暴的击退时长用 `COMBAT.GustPushSec`。
+- 反应伤害与控制归触发者；触发者获得 `MOMENTUM.Reaction`；控制类反应计入硬控递减。
 - 日志 `LD_REACTION` 写 `kind`、`held`、`incoming`、`r`、`struck` 与 `ground`；麻的额外伤害写 `LD_SHOCK`。
 
 **地面状态**：只伤主人的敌人（主人站在上面没有任何效果，Y23 的增益只算自己的）；多名参赛者的地面状态各自存在，不融合；
 不改寻路、不挡视线、不产生碰撞。元素类命中（技能、牌、反应附带）的目标脚点在某地面状态内时，该状态按“再加元素”转换；
-转换后的状态归新元素的施加者，被吹动的状态保留主人。
+转换后的状态归新元素的施加者，被台风推动的状态保留主人。
 
 | 状态 | 半径 / 时长 | 站在上面（每次结算） | 再加元素 | 参数 |
 | --- | --- | --- | --- | --- |
 | 水洼 | 180 cm / 6 s | 每 0.5 s 挂湿 | 麻 → 电场；冻 → 冰面；烫 → 起雾并消失 | `GROUND.Puddle*` |
 | 冰面 | 180 cm / 5 s（D10 为宽 160 cm 的路径） | 起步与停下的加速度 ×0.5（惯性），被击退与冲刺的距离 ×1.5 | 烫 → 水洼 | `GROUND.Ice*`、`GROUND.IceAccelScale` = 0.5、`GROUND.IceDisplacementScale` = 1.5 |
-| 火场 | 180 cm / 4 s | 每 1 s 挂 1 层灼烧 | 吹 → 沿风向移动 300 cm；湿 → 熄灭并起雾 | `GROUND.Fire*`、`GROUND.FireBurnStacks` = 1 |
-| 毒雾 | 200 cm / 4 s | 每 0.5 s 挂馊 | 烫 → 区内每人 1.5R（沼气爆）后消失；吹 → 沿风向移动 300 cm | `GROUND.Miasma*` |
-| 电场 | 180 cm / 4 s | 每 0.5 s 受 0.3R 并挂麻 | 吹 → 向 350 cm 内每个敌人放电 R 后消失 | `GROUND.Field*`、`GROUND.FieldRatio` = 0.3、`GROUND.FieldDischargeRadiusCm` = 350 cm |
-| 风雪区 | 250 cm / 3 s | 每 1 s 减速 35% 1 s 并挂冻 | 烫 → 消失 | `GROUND.Blizzard*`、`GROUND.BlizzardSlow` = 0.35 |
+| 火场 | 180 cm / 4 s | 每 1 s 挂 1 层灼烧 | 湿 → 熄灭并起雾 | `GROUND.Fire*`、`GROUND.FireBurnStacks` = 1 |
+| 毒雾 | 200 cm / 4 s | 每 0.5 s 挂馊 | 烫 → 区内每人 1.5R（沼气爆）后消失 | `GROUND.Miasma*` |
+| 电场 | 180 cm / 4 s | 每 0.5 s 受 0.3R 并挂麻 | — | `GROUND.Field*`、`GROUND.FieldRatio` = 0.3 |
 
-- `GROUND.GustMoveCm` = 300 cm。性能保护：`GROUND.MaxPerOwner` = 6、`GROUND.MaxTotal` = 40，超出时最早的消失（不是玩法上限）。
+- 性能保护：`GROUND.MaxPerOwner` = 6、`GROUND.MaxTotal` = 40，超出时最早的消失（不是玩法上限）。
 - 地面状态是公开信息：在视野内时发布类型、形状、圆心、半径、剩余时间与主人座位色（[视野与界面](../systems/VISION_AND_UI.md)）。
 
-#### 4.4.1 饭票、休息商店与连锁
+#### 4.4.1 休息商店与连锁
 
-规则见 [App Spec §4.5](../APP_SPEC.md#45-饭票休息商店与点名券)。数值来自[实施规格](https://github.com/rlsn/Lockdown-alpha/issues/287) §3.12–§3.13
+规则见 [App Spec §4.5](../APP_SPEC.md#45-休息商店)。数值来自[实施规格](https://github.com/rlsn/Lockdown-alpha/issues/287) §3.12–§3.13
 （用户已批准，首轮试玩输入，不是平衡验收）。
 
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
-| `VOUCHER.CampLow`、`VOUCHER.CampHigh`、`VOUCHER.CampElite`、`VOUCHER.CampAncient` | 2、4、8、12 | 清空一个营地时给最后一击者的饭票（按档） |
-| `VOUCHER.Boss` | 20 | Boss 击杀者 |
-| `VOUCHER.Kill`、`VOUCHER.Assist` | 10、4 | 击杀参赛者；每名助攻者 |
-| `VOUCHER.Airdrop` | 6 | 领取空投 |
-| `VOUCHER.ActiveSkip` | 8 | 跳过一组主动候选（取代原来的属性点补偿） |
+| `GROWTH.ActiveSkipPoints` | 1 | 跳过一组主动候选得到的属性点 |
 | `SHOP.CardSlots`、`SHOP.VocabCardSlots`、`SHOP.VocabWeight` | 4、2、3 | 牌位数；其中按词汇加权的位数与共享词汇的权重（其余位均匀） |
 | `SHOP.SkillSlots` | 2 | 技能位数（既未学也非图纸的主动，均匀） |
-| `SHOP.CardPrice`、`SHOP.SkillPrice` | 6、10 | 牌与技能的价格 |
-| `SHOP.RefreshPrice`、`SHOP.RefreshStep` | 2、1 | 第一次刷新的价格；本次休息里每刷一次的涨价，下次休息重置 |
-| `SHOP.SkillPointPrice`、`SHOP.SkillPointMaxPerMatch` | 25、3 | 技能点价格；每局最多买几个 |
-| `SHOP.SellPrice` | 3 | 卖掉牌库里一张牌得到的饭票 |
-
-远古营地第一次被某玩家清空时另给他一张点名券（每人一次）。
+| `SHOP.CardPrice`、`SHOP.SkillPrice` | 2、2 | 牌与技能的价格（属性点） |
+| `SHOP.RefreshPrice`、`SHOP.RefreshStep` | 0、1 | 第一次刷新的价格（免费，打折日也免费）；本次休息里每刷一次的涨价，下次休息重置 |
+| `SHOP.SkillPointPrice`、`SHOP.SkillPointMaxPerMatch` | 3、3 | 技能点价格（属性点）；每局最多买几个 |
 
 ### 4.5 关键词、状态与共用战斗规则
 
@@ -730,7 +713,6 @@ $$
 | 麻（感电） | 每第三次受到直接伤害额外挨一下电，附近的人也挨（§4.4） | 否 | 否 | 否 |
 | 冻 | 攻速和移速降低（§4.4） | 否 | 否 | 否 |
 | 馊 | 受到的治疗和护盾减少，并持续受到少量伤害（§4.4） | 否 | 否 | 否 |
-| 吹 | 推开一小段；目标有元素时触发反应（§4.4） | 否 | 否 | 否 |
 | 护盾 | 先于生命承受伤害，到期消失；身上只有一份，新的不弱于剩余量才替换 | — | 否 | — |
 | 吸血 | 按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35% | — | — | — |
 
@@ -813,13 +795,13 @@ $$
 随机流只由对局身份和刷新序号决定。上热搜没有额外奖励，击杀上热搜者只得正常击杀奖励。
 上热搜者死亡结束本次上热搜。是首轮试玩值，未经平衡验证。
 
-**画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=173` 秒
+**画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=295` 秒
 出现在 `boss_patrol_1`（原巡逻入口），整局仅一只，以 `move_speed=225` cm/s 沿 `boss_patrol_1..4` 循环巡逻；地图把四个巡逻点放在旗杆盆地内、
 围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
 `BossWaypoint` 锚点。生命 `hp=4500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
 `attack=210` 物理伤害（前摇 `attack_windup=0.5` 秒，与中野相同），攻击距离 `attack_range=250` cm，
 碰撞半径与参赛者相同（40 cm）。目标：`attacker_memory=5` 秒内打过它的参赛者（取最近者），否则 `aggro_radius=400` cm
-内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活；既有数值不因新时刻自动增加。T=`leave_at=390` 秒（第三段定时野外结束）
+内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活；既有数值不因新时刻自动增加。T=`leave_at=480` 秒（第三段定时野外结束）
 仍未被击杀则退场：没有死亡、击杀、经验或奖励，永远不进入最终野外；到那时仍未能出现也不再出现。最后一击的参赛者得
 `reward_xp=300` 流量（走 `DeathReward` 结算），此时仍存活的再得一次构筑奖励（上文“野外构筑奖励”，业务键 `boss`/1）。原 90 秒 AD/AP +25%、移速 +10%
 的“吃到大饼”增益已移除，避免新旧奖励叠发。内容校验要求碰撞半径等于参赛者、攻击距离覆盖两者半径、
@@ -827,11 +809,11 @@ $$
 数值、前摇、巡逻点、出现/退场时刻、构筑奖励与移除增益均已批准。为试玩值，未经平衡验证。
 
 **标记营地（技术标识 camp marker）**：前三个野外段（段 s=1..3）各在 T = (s−1)×`MATCH.FieldSegmentSec` +
-`CAMPMARK.RevealSec=11` 秒（T=11/141/271）同时公开标记一处中野营地（h01–h08、h10、h12）和一处大野营地（e01–e04），
+`CAMPMARK.RevealSec=11` 秒（T=11/171/331）同时公开标记一处中野营地（h01–h08、h10、h12）和一处大野营地（e01–e04），
 绑定营地本身的生命与清场。远古不在构筑标记候选池中。中野营地在本档营地中均匀抽取，不连续选上一段的同一处；大野营地优先在与该中野营地
 相对的公开地图象限（以旗杆 `capture` 为中心，X、Y 符号都翻转）中、排除上一段大野营地均匀抽取，该象限没有合法候选时在全部大野营地中
 排除上一段那处均匀抽取。抽取用只在服务器的随机种子（由外卖种子派生），公开后固定，不重开面板重抽。本段第一次完成该营地清理（使营地
-清空的那次死亡）的击杀归属参赛者领取：中野营地一份主动图纸（业务键 `camp_marker_high`/段号），大野营地一次普通材料已知二选一
+清空的那次死亡）的击杀归属参赛者领取：中野营地一份主动图纸（业务键 `camp_marker_high`/段号），大野营地一组牌三选一
 （`camp_marker_elite`/段号）；正常怪物经验照旧，不额外加经验；没有合格的参赛者归属时标记继续开放。标记时营地已清空则等它正常刷新，
 不强刷；领奖后本段不再发；段结束（进入休息）未完成则机会消失。每类每段最多 1 份，共 3+3 份；最终野外不再生成构筑奖励目标，
 全房地图构筑机会上限 6 空投 + 1 Boss + 6 营地标记 = 13 份。公开视图列出当前（或上一段）标记的段号、类别、营地、位置、状态
@@ -891,7 +873,7 @@ Root（定身）在施加瞬间清零被定身者的喷漆进度；若他仍独�
 ### 6.1 经验与击杀
 
 `XP.Start=0`、`XP.MaxLevel=16` 是 Spec 固定值
-（`content.json` 的 `progression.xp_start / max_level`，另有 `active_slots=3`、`active_offer_levels=[2,4]`）。
+（`content.json` 的 `progression.xp_start / max_level`，另有 `active_slots=3`、`active_offer_levels=[2,6]`）。
 XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的第二账。
 
 | 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |

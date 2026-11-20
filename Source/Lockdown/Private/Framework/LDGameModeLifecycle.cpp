@@ -383,12 +383,6 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     if (Combat) { Combat->CaptureSkillMotion(Batch); }
     Life.NativeMotion.Add(MoveTemp(Batch));
     Life.CompletedMotionStep = Step.StepSerial;
-    if (ALDPlayerController* Controller = FindContenderController(Body.Victim.EntityId);
-        Controller && (Controller->OwnerState.NearbyRestService != NearbyRestService(Body.Victim.EntityId)
-            || Controller->OwnerState.Pacing.NearbyVending != NearbyVending(Body.Victim.EntityId)))
-    {
-        SyncOwner(Controller);
-    }
     return ELDCommitReject::None;
 }
 

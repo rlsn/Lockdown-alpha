@@ -70,7 +70,7 @@
 DEV-only 三拥有身体、地面/Stop/重放与原生 CMC 执行夹具，调用同一核心提交路径且不改变普通 Start 门禁；
 开局身体按名册位落在公共休息室锚点并像普通开局一样进入 R0，地面与原生审计在 R0 返回后的第一条野外生命上进行。
 分别检查攻击移动待受理时保留已接受身份、远端普通地面单立即预测新身份。
-可选 `-EarlyRestReady` 在三端观察其他真人与共享假人、远端走近和离开两类服务 NPC 后提交准备，检查最后 10 秒并提前进入野外；
+可选 `-EarlyRestReady` 在三端观察其他真人与共享假人、打开工坊后提交准备，检查最后 10 秒并提前进入野外；
 训练目标按权威夹具记录的实体身份在各自获准观察帧中查找，不按距离或外观猜测。
 该模式的 Client1 使用离屏真实渲染以取得工坊服务布局，其他端及默认模式使用 NullRHI；
 开局点数不足购买时，远端通过跳过开局候选取得点数再购买。`-ReplayFieldReturn` 用真实放置路径重放一次捕获的坡缝返场脚点，要求原脚点能够精确准备并撤回该夹具请求；`-FinalEntryOnly` 只检查六个终局入口经权威出生路径准备成功，不模拟完整休息时间线；
@@ -148,7 +148,7 @@ Editor/Game 构建、Bootstrap Validate、相关原生规则
 
 `Lockdown.Rules.DemoPK.FormatDraw/Ring/Outcome/Awards`（`LDPKRulesTests.cpp`）覆盖 PK 的纯规则：赛制与分队抽签、缩圈半径与圈外时长切分、胜负与平局判定、三个奖池的分配；PK 的时间线步骤、入场、押注、投掷、观战视野与界面没有规则测试，也没有拥有连接场景。
 `Lockdown.Rules.DemoRest.Timeline` 覆盖纯时间线：批准时长、锁定保持、野外进度 T 在休息中冻结而在野外推进、开局到旗杆开放 600 s、最终野外与客户端 T 推导；`Lockdown.Rules.DemoRest.ReadyEarly` 覆盖全员准备立即结束配装；`Lockdown.Rules.DemoRest.PhasePolicy` 覆盖隔离组、冻结身体、阶段边界清理与补满；`Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务（见[成长事务](GROWTH_TRANSACTIONS.md)）；`Lockdown.Rules.DemoRest.EntryHold` 覆盖入场未就绪时返回→野外停在边界、就绪后按实际时刻进入，`Lockdown.Rules.DemoRest.SpawnIdentity` 覆盖撤回的出生请求以新序号重试、不触发 `RequestConflict`，`Lockdown.Rules.DemoShowdown.Ring`/`RingOutsideTime` 覆盖封街圈的缩圈、两档圈伤与按真实圈外时长切分，`Lockdown.Rules.DemoVision.EffectAccess` 覆盖隔离组与冻结身体的飞行物可见权限。
-`Lockdown.Rules.DemoRest.Objective.Flag`/`Objective.Arena`/`Respawn.Choice`/`Bounty`/`DailyModifiers`/`CampAffixes`/`Explore.Locker`/`Explore.Peddler`/`Explore.Vending` 覆盖野外目标、死亡选点、悬赏、今日热点、营地词条与隐藏物的纯规则，`Lockdown.Rules.DemoOpponentPolicy.Objective` 覆盖 AI 去野外目标，`Lockdown.Rules.HUDPacingView` 覆盖死亡选点与售货机面板模型。
+`Lockdown.Rules.DemoRest.Objective.Flag`/`Objective.Arena`/`Respawn.Choice`/`Bounty`/`DailyModifiers`/`CampAffixes`/`Explore.Locker`/`Explore.Peddler` 覆盖野外目标、死亡选点、悬赏、今日热点、营地词条与隐藏物的纯规则，`Lockdown.Rules.DemoOpponentPolicy.Objective` 覆盖 AI 去野外目标，`Lockdown.Rules.HUDPacingView` 覆盖死亡选点模型。
 拥有连接场景探针按新规则检查 AI 在 R0 选择开局主动；
 另检查假人槽位并尝试触发 `Lives` 扩容，实际未扩容时记为未覆盖，以夹具制造返场部分阻挡，见[对手 AI](OPPONENT_AI.md) §8.2
 

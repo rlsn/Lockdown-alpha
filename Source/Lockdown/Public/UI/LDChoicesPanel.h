@@ -46,10 +46,8 @@ public:
         const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
-    // Local view context only; the owning authority still admits every service command. Near an NPC in a rest's build window
-    // the open workshop shows its services on the objects they act on.
-    void SetServiceContext(ELDRestService Service);
-    ELDRestService GetServiceContext() const {return ServiceContext;}
+    // In a rest's build window the open workshop shows the rest rebuilds (respec, replace, forget) on the objects they act on;
+    // the owning authority still admits every command.
     bool IsServiceShown() const;
     // Where the workshop puts the build moments and the services (absolute rectangles from its last layout).
     struct FWorkshopPlaces
@@ -124,18 +122,12 @@ public:
     bool ConfirmRestAction();
     void CancelRestAction();
     // Spec §3.13 rest shop: the 商店 toggle (a stocked shop in a rest) opens the shelf over the board. Buying a slot, the skill
-    // point and a refresh send at once; a library card let go over the sell zone is sold (SellAt, false off the zone). Each
-    // refuses locally with the reason it toasts.
+    // point and a refresh send at once, paid in unspent stat points. Each refuses locally with the reason it toasts.
     bool ToggleShop();
     bool IsShopShown() const;
     bool BuyShopSlot(int32 Index);
     bool BuyShopSkillPoint();
     bool RefreshShopShelf();
-    bool SellAt(FName Component,FVector2D Absolute);
-    bool SellCard(FName Component);
-    // Spec §11.3: the ticket picker lists every active neither learned nor kept and every card seen this match.
-    bool ToggleTicketPicker();
-    bool UsePickTicket(int32 Index);
     // The confirm line is a child confirmation for Back routing; it captures no input, so play goes on meanwhile.
     virtual bool HasChildConfirmation() const override {return RestConfirm.Kind!=ELDBuildCommandKind::None;}
     virtual bool CloseChildConfirmation() override;
@@ -276,7 +268,6 @@ private:
     TArray<FTrayCard> CardCards;
     TArray<FTrayCard> BlueprintCards;
     TArray<FBlueprintRow> BlueprintRows;
-    ELDRestService ServiceContext=ELDRestService::None;
     // The centre stage: its title, the chance line, the cards moved in from their tray rows, the final sources, the final
     // description (effect, cost, notes) with the lock, and the way back to the board.
     UPROPERTY() TObjectPtr<UCanvasPanel> Layer;
@@ -316,22 +307,15 @@ private:
     FRestConfirm RestConfirm;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopToggleButton;
     UPROPERTY() TObjectPtr<UWidget> ShopPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> ShopVouchers;
+    UPROPERTY() TObjectPtr<UTextBlock> ShopPoints;
     UPROPERTY() TObjectPtr<UTextBlock> ShopBlockedText;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopRefreshButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopPointButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ShopTicketButton;
     UPROPERTY() TObjectPtr<UHorizontalBox> ShopSlotRow;
     UPROPERTY() TArray<TObjectPtr<UWidget>> ShopCells;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ShopPrices;
     TArray<FTrayCard> ShopCards;
-    UPROPERTY() TObjectPtr<UBorder> ShopSellZone;
-    UPROPERTY() TObjectPtr<UTextBlock> ShopSellText;
-    UPROPERTY() TObjectPtr<UWrapBox> TicketPicks;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> TicketButtons;
-    TArray<FName> TicketOptions;
     bool bShopOpen=false;
-    bool bTicketPicker=false;
     bool IsShopOffered() const;
     void RefreshShopPanel();
     bool ShopCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out);

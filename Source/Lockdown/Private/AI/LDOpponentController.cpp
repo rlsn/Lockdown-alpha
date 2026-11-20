@@ -160,23 +160,6 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The opponent's roster slot has no registered PK sign-up position.");
         return false;
     }
-    TArray<FLDOpponentPOI> Services;
-    for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
-    {
-        if (RestServiceAtAnchor(Index) == ELDRestService::None) { continue; }
-        const FLDMapBinding* Anchor = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation);
-        if (!Anchor || Anchor->Surface.IsNone())
-        {
-            Error = TEXT("The opponent cannot resolve a registered rest service and its ground.");
-            return false;
-        }
-        FLDOpponentPOI& Place = Services.AddDefaulted_GetRef();
-        Place.Id = Anchor->Id;
-        Place.Kind = ELDOpponentPOIKind::RestService;
-        Place.RestService = RestServiceAtAnchor(Index);
-        Place.SurfaceId = Anchor->Surface;
-        Place.FootCm = Anchor->Position;
-    }
     int32 OpeningSeed = 0;
     if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningSeed, Error)) { return false; }
     Binding = InBinding;
@@ -187,7 +170,6 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     SignupPOI.Kind = ELDOpponentPOIKind::PKSignup;
     SignupPOI.SurfaceId = SignupAnchor->Surface;
     SignupPOI.FootCm = SignupAnchor->Position;
-    RestServicePOIs = MoveTemp(Services);
 #if WITH_DEV_AUTOMATION_TESTS
     Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());
     if (Evaluation)
@@ -363,12 +345,6 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
-    // #305: a vending purchase goes through the same queue a player's machine button uses; a refusal is only reported.
-    if (Decision.Vending != 0)
-    {
-        const ELDVendingResult Bought = Mode->QueueVending(Binding.GetContender(), Frame.Self.Life, ELDVendingItem(Decision.Vending), 0);
-        if (Bought != ELDVendingResult::Queued) { Problem = FString::Printf(TEXT("vending refused result=%u"), uint32(Bought)); }
-    }
     DispatchPK(*Mode, Frame, Decision.PK, NowMs, Problem);
     Report(Frame, Decision, Problem);
 }
@@ -428,7 +404,6 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (Public.Phase == ELDMatchPhase::Rest)
     {
         Frame.SignupPOI = SignupPOI;
-        Frame.RestServicePOIs = RestServicePOIs;
     }
     Frame.Public.Phase = Public.Phase;
     Frame.Public.NowMs = NowMs;
@@ -465,15 +440,12 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Me.ContenderId = Own.ContenderId;
     Me.Phase = Own.LifePhase;
     Me.Life = Own.Life;
-    Me.NearbyRestService = Own.NearbyRestService;
-    // #305 spec §11.3: the own pacing view's vending machine within reach and the lockers it has seen and not opened; a
-    // seen locker joins the places as its own registered anchor (never one it has not seen).
-    Me.NearbyVending = Own.Pacing.NearbyVending;
+    // #305 spec §11.3: a delivery locker that is out now (public) joins the places as its own registered anchor.
     if (const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr)
     {
-        for (const FLDLockerView& Locker : Own.Pacing.SeenLockers)
+        for (const FLDLockerView& Locker : Public.Lockers)
         {
-            const FLDMapBinding* Anchor = Locker.bOpened ? nullptr : Registry->Resolve(Locker.AnchorId, Registry->Generation);
+            const FLDMapBinding* Anchor = Registry->Resolve(Locker.AnchorId, Registry->Generation);
             if (!Anchor || Anchor->Surface.IsNone()) { continue; }
             FLDOpponentPOI& Place = Frame.POIs.AddDefaulted_GetRef();
             Place.Id = Anchor->Id;
@@ -941,12 +913,10 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     FLDMoveIdentity Identity;
     FLDSpatialOrderRequest Request;
     FString Error;
-    // Rest walks are admitted only to the own sign-up disk or the registered service anchors.
+    // A rest walk is admitted only to the own sign-up disk.
     const bool bSignupWalk = Frame.SignupPOI.IsSet() && Intent.Kind == ELDOpponentBodyKind::MoveGround && Intent.POI == SignupPOI.Id;
-    const bool bServiceWalk = Intent.Kind == ELDOpponentBodyKind::MoveGround
-        && Frame.RestServicePOIs.ContainsByPredicate([&Intent](const FLDOpponentPOI& Place) { return Place.Id == Intent.POI; });
     const TArray<FLDOpponentPOI> SignupPlaces = bSignupWalk ? TArray<FLDOpponentPOI>{SignupPOI} : TArray<FLDOpponentPOI>();
-    const TArray<FLDOpponentPOI>& Places = bSignupWalk ? SignupPlaces : bServiceWalk ? Frame.RestServicePOIs : Frame.POIs;
+    const TArray<FLDOpponentPOI>& Places = bSignupWalk ? SignupPlaces : Frame.POIs;
     if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, false, Identity)
         || !LDOpponentRequests::BuildOrder(Intent, Places, Identity, Request, Error))
     {
@@ -958,7 +928,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     // Spec §13: a field walk goes around a visible enemy ground state when that is cheaper by AI.EnemyGroundPathCost.
     // Rest walks stay on their registered anchors. A newer submission replaces a still-queued candidate in Navigation.
     FVector Waypoint;
-    const bool bDetour = !bSignupWalk && !bServiceWalk && RouteAroundGrounds(Frame, Self.FootCm, Request, Waypoint);
+    const bool bDetour = !bSignupWalk && RouteAroundGrounds(Frame, Self.FootCm, Request, Waypoint);
     const FVector FinalCm = Request.GroundCm;
     if (bDetour) { Request.GroundCm = Waypoint; }
     SubmitWalk(Reads, Intent, Request, bDetour, FinalCm, Self, NowMs, Problem);

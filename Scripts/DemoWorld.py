@@ -30,9 +30,9 @@ PARAMETER_REFS = (
 # AIRDROP.PickupRadiusCm, no new number): PKSignup pk_signup_0..5 is the sign-up disk of the private rest space of roster
 # slot 0..5, PK_SIGNUP_DISTANCE_CM from that slot's rest anchor on its level.
 # Spec §10.3/§11.3/§11.4 (P6): MiniFlag (mini_flag_*) is a candidate spot for a field-segment spray flag, Locker (locker_*)
-# a candidate delivery locker, Vending (vending_*) a vending machine. They are optional, copyable layout points: the saved
+# a candidate delivery locker. They are optional, copyable layout points: the saved
 # level holds as many as the author wants, each id carries its kind prefix, and fewer than the minimum is an error.
-OPTIONAL_KINDS = {"MiniFlag": "mini_flag_", "Locker": "locker_", "Vending": "vending_"}
+OPTIONAL_KINDS = {"MiniFlag": "mini_flag_", "Locker": "locker_"}
 ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", *OPTIONAL_KINDS, "RestSpawn", "RestService",
                 "TrainingDummy", "FinalSpawn", "FinalCapture", "PKSpawn", "PKThrow", "PKSignup")
 # #97: anchor counts follow the authored world within these bounds. At least one spawn per match seat; one capture;
@@ -42,7 +42,7 @@ MAX_ANCHORS = 128
 MAX_BLOCKERS = 2048
 ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
                  "PKSpawn": (6, 6), "PKThrow": (1, 1), "PKSignup": (6, 6),
-                 "Airdrop": (1, 16), "BossWaypoint": (4, 4), "MiniFlag": (3, 16), "Locker": (6, 32), "Vending": (2, 16),
+                 "Airdrop": (1, 16), "BossWaypoint": (4, 4), "MiniFlag": (3, 16), "Locker": (6, 32),
                  "RestSpawn": (6, 6), "RestService": (3, 3), "TrainingDummy": (6, 6),
                  "FinalSpawn": (6, 6), "FinalCapture": (1, 1)}
 # #198 approved PK geometry: spawns 1000..1400 cm from the ring centre, enemy spawns at least 1000 cm apart, six at
@@ -882,14 +882,14 @@ def validate_bindings(world, data):
             walk = tuple(bounded(a + (b - a) * step / steps) for a, b in zip(rest, position))
             require(geometry.legal(walk, radius), "InvalidGeometry", identity,
                     f"the walk from {rest_id} to its PK sign-up position crosses illegal ground")
-    # Spec §11.4: mini flags, lockers and vending machines are event disks too (flag spray disk, locker pickup disk and the
-    # vending interaction disk), so they never overlap the circle, a camp clearing, a dorm or an airdrop pickup disk.
+    # Spec §11.4: mini flags and lockers are event disks too (flag spray disk and locker pickup disk), so they never overlap
+    # the circle, a camp clearing, a dorm or an airdrop pickup disk.
     for kind, prefix in OPTIONAL_KINDS.items():
         for identity, row in anchors.items():
             require((row["kind"] == kind) == identity.startswith(prefix), "WorldAnchors", identity,
                     f"{kind} anchors and only they use the {prefix}* ids")
     zone_radius = {"Dorm": p("DORM.RadiusCm"), "Airdrop": p("AIRDROP.PickupRadiusCm"), "MiniFlag": p("OBJECTIVE.FlagRadiusCm"),
-                   "Locker": p("EXPLORE.LockerRadiusCm"), "Vending": p("AIRDROP.PickupRadiusCm")}
+                   "Locker": p("EXPLORE.LockerRadiusCm")}
     zones = [(identity, row["kind"].lower(), point(row["position_cm"], identity), zone_radius[row["kind"]])
              for identity, row in anchors.items() if row["kind"] in zone_radius]
     for identity, label, centre, zone in zones:

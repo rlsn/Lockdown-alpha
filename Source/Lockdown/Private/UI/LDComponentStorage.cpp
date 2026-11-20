@@ -411,10 +411,9 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         Column.bDense=Workshop.bActive&&Shown.Entries.Num()>5;
         StorageShown(Column.List,!Column.bDense);
         StorageShown(Column.DenseList,Column.bDense);
-        // Only 普攻 and 本体 show their titles; the others keep theirs (the active's name or 冲刺) for the notices that name a place.
+        // Only 本体 shows its title; the others keep theirs (the active's name or 冲刺) for the notices that name a place.
         StorageText(Column.Title,Shown.Title);Column.Active=Shown.Active;
-        StorageShown(Column.Title,Index==int32(LDHUD::EStorageColumn::Body)||Index==int32(LDHUD::EStorageColumn::Basic),
-            ESlateVisibility::HitTestInvisible);
+        StorageShown(Column.Title,Index==int32(LDHUD::EStorageColumn::Body),ESlateVisibility::HitTestInvisible);
         // Workshop: more than five rows in a column shrink its icons, so the board never scrolls.
         const float Base=FMath::Max((Shown.Entries.Num()>5?46.f:56.f)*Workshop.TileScale,Workshop.bActive?Workshop.MinIcon:0.f);
         for(const LDHUD::FEquippedView& Entry:Shown.Entries)
@@ -691,7 +690,6 @@ bool ULDComponentStorage::DropHeld(FVector2D At)
     LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
     if(StorageAt(At)){if(bFromColumn){bPendingAt=false;return DropInStorage(Component);}return true;}
     if(ColumnAt(At,Column,Host)){Chooser.At=At;PendingAt=At;bPendingAt=true;return DropOn(Component,Column,Host);}
-    if(DropOutside){DropOutside(Component,At);}
     return true;
 }
 bool ULDComponentStorage::BeginPress(FVector2D At)
@@ -735,7 +733,6 @@ void ULDComponentStorage::UpdateDrag(FVector2D Pointer,bool bHeld)
     LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
     if(StorageAt(Pointer)){if(bFromColumn){bPendingAt=false;DropInStorage(Component);}}
     else if(ColumnAt(Pointer,Column,Host)){Chooser.At=Pointer;PendingAt=Pointer;bPendingAt=true;DropOn(Component,Column,Host);}
-    else if(DropOutside){DropOutside(Component,Pointer);}
 }
 void ULDComponentStorage::EndDrag()
 {
