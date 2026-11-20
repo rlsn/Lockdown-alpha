@@ -1310,8 +1310,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // the next one (K16's wait restarts after it).
     TArray<FLDDamageFactor> ReleaseFactorsNow;
     if (!ReleaseFactors(Body,*Record,Source,Track,Now,ReleaseFactorsNow,Error)) { return false; }
-    // Every fallible step is done: pay once and register the effects (an overdrive pays the whole bar).
-    const int64 PaidP2=bOverdrive ? Body.Resources.MomentumP2 : Gate.MomentumCostP2;
+    // Every fallible step is done: pay once and register the effects (an overdrive pays the holder's own threshold, never
+    // less than the skill's cost, so the rest of the bar stays for the next cast).
+    const int64 PaidP2=bOverdrive ? FMath::Max(BodyOverdrive.ThresholdP2,Gate.MomentumCostP2) : Gate.MomentumCostP2;
     GrantMomentum(Body,-PaidP2,ELDMomentumBook::Spent);
     if (bHealthCost)
     {
