@@ -1274,23 +1274,28 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                     Error.Reset();
                     continue;
                 }
-                // A roof has standing room but no walk to it: only ground with a complete native route from the caster
-                // counts (a raised platform reached by its ramp stays legal). Without navigation data nothing is judged.
+                // A roof has standing room but no walk to it: only ground with a complete native route from the caster's
+                // own legal ground counts (a raised platform reached by its ramp stays legal). A caster without legal
+                // ground (in the air) cannot vouch for any point, so nothing lands; a missing world is an error. Only a
+                // world without navigation data (a rule fixture) leaves the route unjudged.
                 if (!bCasterTried)
                 {
                     bCasterTried=true;
                     ELDWorldQueryFailure CasterFailure=ELDWorldQueryFailure::None;
-                    FString CasterError;
                     bCaster=Registry->QueryGround(Registry->Revision(),ReleaseFoot,Capsule,FName(*Geometry->Surfaces[0].Id),
-                        CasterGround,CasterFailure,CasterError);
+                        CasterGround,CasterFailure,Error);
+                    if (!bCaster && (CasterFailure==ELDWorldQueryFailure::MissingWorld || CasterFailure==ELDWorldQueryFailure::StaleWorld))
+                    { return false; }
+                    Error.Reset();
                 }
-                if (bCaster)
+                if (!bCaster) { break; }
+                FLDCompletePath Route;
+                ELDWorldQueryFailure RouteFailure=ELDWorldQueryFailure::None;
+                if (!Registry->QueryCompletePath(Registry->Revision(),CasterGround,Ground,Capsule,Route,RouteFailure,Error))
                 {
-                    FLDCompletePath Route;
-                    ELDWorldQueryFailure RouteFailure=ELDWorldQueryFailure::None;
-                    FString RouteError;
-                    if (!Registry->QueryCompletePath(Registry->Revision(),CasterGround,Ground,Capsule,Route,RouteFailure,RouteError)
-                        && RouteFailure!=ELDWorldQueryFailure::MissingNavigation) { continue; }
+                    if (RouteFailure==ELDWorldQueryFailure::MissingWorld || RouteFailure==ELDWorldQueryFailure::StaleWorld) { return false; }
+                    if (RouteFailure!=ELDWorldQueryFailure::MissingNavigation) { Error.Reset(); continue; }
+                    Error.Reset();
                 }
                 LandedPoint=Ground.FootCm;
             }
