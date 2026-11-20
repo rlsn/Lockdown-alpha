@@ -41,17 +41,49 @@ struct FSceneFixture
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
     AStaticMeshActor* Tree = nullptr;
     FString Error;
-    bool Load(bool bRequireLegacyTree = true)
+    bool Load()
     {
         World = UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(
             LDDemoEntry::WorldMap, FPackageName::GetMapPackageExtension()));
         Catalog = LoadObject<ULDArtCatalog>(nullptr, ULDArtCatalog::AssetPath);
         if (!World || !Catalog || !LDArt::LoadDemoWorld(Content, Geometry, Error)) { return false; }
         FAssetCompilingManager::Get().FinishAllCompilation();
+        return true;
+    }
+    // The production map may replace or remove every saved tree. Tests that exercise a registered blocker
+    // place their own: a licensed visual over a hidden collision instance bound to an approved cylinder identity.
+    bool AddTree(const FVector& At)
+    {
         const auto* Cylinder = Geometry->Blockers.FindByPredicate([](const FLDDemoWorldBlocker& B) { return B.Shape == ELDDemoWorldBlockerShape::Cylinder; });
-        for (TActorIterator<AStaticMeshActor> It(World); Cylinder && It; ++It)
-        { if (It->ActorHasTag(FName(*Cylinder->Id))) { Tree = *It; break; } }
-        return !bRequireLegacyTree || Tree != nullptr;
+        auto* Shape = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+        if (!Cylinder || !Shape || Catalog->Props.IsEmpty() || !Catalog->Props[0].Mesh)
+        { Error = TEXT("Approved world has a cylinder blocker and the catalog has a licensed prop."); return false; }
+        const double Radius = double(Cylinder->RadiusCm.Numerator) / Cylinder->RadiusCm.Denominator;
+        const double Height = double(Cylinder->HeightCm.Numerator) / Cylinder->HeightCm.Denominator;
+        Tree = World->SpawnActor<AStaticMeshActor>(At, FRotator::ZeroRotator);
+        Tree->Tags = { FName(*Cylinder->Id), LDDemoWorld::StaticGeometryTag, LDStaticScene::VisualTag,
+            FName(*(TEXT("LDSceneZone:") + LDArt::ZoneId(ELDArtZone::Blocker))) };
+        auto* Visual = Tree->GetStaticMeshComponent();
+        Visual->SetMobility(EComponentMobility::Static);
+        Visual->SetStaticMesh(Catalog->Props[0].Mesh);
+        Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Visual->SetCollisionResponseToAllChannels(ECR_Ignore);
+        Visual->SetCanEverAffectNavigation(false);
+        if (Catalog->Props[0].bFadeable) { Visual->ComponentTags.Add(ULDArtCatalog::FadeableTag); }
+        auto* Body = NewObject<UStaticMeshComponent>(Tree, TEXT("TreeCollision"));
+        Body->CreationMethod = EComponentCreationMethod::Instance;
+        Body->SetupAttachment(Visual);
+        Body->SetMobility(EComponentMobility::Static);
+        Body->SetStaticMesh(Shape);
+        Body->SetRelativeLocation(FVector(0, 0, Height * .5));
+        Body->SetRelativeScale3D(FVector(Radius / 50., Radius / 50., Height / 100.));
+        Body->SetCollisionProfileName(TEXT("BlockAll"));
+        Body->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+        Body->SetVisibility(false);
+        Body->ComponentTags.Add(LDStaticScene::CollisionTag);
+        Tree->AddInstanceComponent(Body);
+        Body->RegisterComponent();
+        return true;
     }
     ~FSceneFixture() { UEditorLoadingAndSavingUtils::NewBlankMap(false); }
 };
@@ -63,7 +95,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDStaticScenePersistence, "Lockdown.Rules.Stat
 bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
 {
     FSceneFixture F;
-    if (!TestTrue(TEXT("Saved formal scene loads without requiring a template decoration: ")+F.Error,F.Load(false))) { return false; }
+    if (!TestTrue(TEXT("Saved formal scene loads without requiring a template decoration: ")+F.Error,F.Load())) { return false; }
     auto* Registry=F.World->GetSubsystem<ULDMapRegistry>();
     if(!TestTrue(TEXT("Current authored scene binds: ")+F.Error,Registry->Rebuild(F.Error))){return false;}
     const auto* Definition=LoadObject<ULDMapDefinition>(nullptr,LDDemoEntry::WorldDefinition);
@@ -145,7 +177,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDStaticSceneCopy, "Lockdown.Rules.StaticScene
 bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
 {
     FSceneFixture F;
-    if (!TestTrue(TEXT("Saved formal tree loads: ") + F.Error, F.Load())) { return false; }
+    if (!TestTrue(TEXT("Saved formal scene loads: ") + F.Error, F.Load())) { return false; }
+    FVector TreeAt;
+    const auto* Cylinder = F.Geometry->Blockers.FindByPredicate([](const FLDDemoWorldBlocker& B) { return B.Shape == ELDDemoWorldBlockerShape::Cylinder; });
+    if (!TestNotNull(TEXT("Approved world has a cylinder blocker identity"), Cylinder)
+        || !TestTrue(TEXT("Cylinder centre parses: ") + F.Error, Cylinder->CenterCm.ToVector(TreeAt, F.Error))
+        || !TestTrue(TEXT("Test-owned registered tree is placed: ") + F.Error, F.AddTree(FVector(TreeAt.X, TreeAt.Y, 10000)))) { return false; }
     FLDDemoWorldGeometry Baseline;
     if (!TestTrue(TEXT("Current editable scene projects"), LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Baseline, F.Error))) { return false; }
     auto* System = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
@@ -172,7 +209,8 @@ bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
     auto* Registry = F.World->GetSubsystem<ULDMapRegistry>();
     Copy->Destroy();
     if (!TestTrue(TEXT("Native scene binds after deleting the copied collision"), Registry->Rebuild(F.Error))) { return false; }
-    for (const auto& Ramp : F.Geometry->Ramps)
+    // Only ramps the scene still binds by identity keep the approved half-level tier; replaced ramps are ordinary native terrain.
+    for (const auto& Ramp : Registry->GetGeometry()->Ramps)
     {
         FVector Centre = FVector::ZeroVector;
         for (const auto& Corner : Ramp.PolygonCm)

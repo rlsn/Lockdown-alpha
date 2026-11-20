@@ -176,14 +176,36 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
     for (double Y : {Min.Y, Min.Y + Radius - 1., Min.Y + Radius + 1., Max.Y - Radius - 1., Max.Y})
     { SampleXY(FVector2D((Min.X + Max.X) * .5, Y)); }
 
-    FLDLegalGround Seam;
+    // A seam is a small height break between two support pieces under one capsule. The test owns it: the production
+    // map may replace or remove every saved ramp, so no captured coordinate or authored ramp identity is assumed.
+    const FVector SiteFoot = Registry->Sites()[0].Position;
+    FLDLegalGround Flat, Seam;
     ELDWorldQueryFailure SeamFailure;
-    const FVector SeamFoot(1312, -1600, 4);
-    if (!TestTrue(TEXT("Captured ramp-seam foot has registered physical support"),
+    if (!TestTrue(TEXT("The first site has flat native support: ") + Error, Registry->QueryGround(Registry->Revision(),
+        SiteFoot, Capsule, Surface, Flat, SeamFailure, Error))) { return false; }
+    // The raised piece starts half a radius from the centre, where the capsule's lower hemisphere sits Rim above its
+    // bottom. One centimetre taller than Rim lifts the capsule; a foot two centimetres up clears it and still finds the
+    // lower piece within the native floor gap.
+    const double Rim = Radius * (1. - FMath::Sqrt(.75));
+    auto* Ledge = World->SpawnActor<AActor>();
+    auto* LedgeBox = NewObject<UBoxComponent>(Ledge);
+    Ledge->SetRootComponent(LedgeBox);
+    Ledge->AddInstanceComponent(LedgeBox);
+    LedgeBox->SetBoxExtent(FVector(50, 100, (Rim + 1.) * .5));
+    LedgeBox->SetCollisionObjectType(ECC_WorldStatic);
+    LedgeBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    LedgeBox->SetCollisionResponseToAllChannels(ECR_Block);
+    LedgeBox->SetCanEverAffectNavigation(false);
+    LedgeBox->RegisterComponent();
+    Ledge->SetActorLocation(FVector(SiteFoot.X + Radius * .5 + 50, SiteFoot.Y, Flat.SurfaceCm.Z + (Rim + 1.) * .5));
+    ON_SCOPE_EXIT { if (IsValid(Ledge)) { Ledge->Destroy(); } };
+    if (!TestTrue(TEXT("The scene binds the raised piece as ordinary native ground: ") + Error, Registry->Rebuild(Error))) { return false; }
+    const FVector SeamFoot(SiteFoot.X, SiteFoot.Y, Flat.SurfaceCm.Z + 2.);
+    if (!TestTrue(TEXT("Seam foot has registered physical support: ") + Error,
         Registry->QueryGround(Registry->Revision(), SeamFoot, Capsule, Surface, Seam, SeamFailure, Error))) { return false; }
-    const FVector SeamOrigin = LDSpawnPlacement::StandingOrigin(Seam);
-    Passed &= TestTrue(TEXT("Seam support lifts the capsule above the authored centre height"),
+    Passed &= TestTrue(TEXT("Seam support lifts the capsule above the centre height"),
         Seam.SupportOriginCm.Z > Seam.SurfaceCm.Z + Capsule.GetCapsuleHalfHeight());
+    const FVector SeamOrigin = LDSpawnPlacement::StandingOrigin(Seam);
     Passed &= TestTrue(TEXT("Seam support keeps the requested XY"), FVector::DistSquared2D(SeamOrigin, SeamFoot) < UE_KINDA_SMALL_NUMBER);
     Passed &= TestFalse(TEXT("Standing seam capsule is initially clear"),
         LDSpawnPlacement::OverlapsStatic(*World, SeamOrigin, Capsule));
@@ -202,6 +224,9 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
     Passed &= TestTrue(TEXT("Standing capsule detects a static obstruction at its actual origin"),
         LDSpawnPlacement::OverlapsStatic(*World, SeamOrigin, Capsule));
     Obstacle->Destroy();
+    Ledge->Destroy();
+    if (!TestTrue(TEXT("Removing the raised piece restores the scene binding: ") + Error, Registry->Rebuild(Error))) { return false; }
+    Geometry = Registry->GetGeometry();
 
     const FVector Foot = Registry->Sites()[0].Position;
     Compare(Foot, NAME_None, Capsule, true);
