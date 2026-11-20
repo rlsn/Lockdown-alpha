@@ -491,9 +491,12 @@ public:
         Check(Result.Rows.Num() == 6 && Result.EndedAtMs <= FinalEndsAtMs
             && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row) { return Row.FinalLevel < 1 || Row.BankedGuardMs < 0; }),
             TEXT("C10"), TEXT("The server freezes six result rows and objective contributions no later than its deadline"));
-        Check(!Result.Winner.IsValid() || Result.Rows.ContainsByPredicate([&Result](const FLDResultRow& Row)
+        // A private flagpole's winner has no main-flagpole contribution: his own pole must show his graffiti.
+        const bool bPrivateWinner = Result.Reason == ELDMatchEndReason::GuardSucceeded && View.PrivatePoles.ContainsByPredicate(
+            [&Result](const FLDPrivatePoleView& Pole) { return Pole.Holder == Result.Winner && Pole.bGraffiti; });
+        Check(!Result.Winner.IsValid() || Result.Rows.ContainsByPredicate([&Result, bPrivateWinner](const FLDResultRow& Row)
             { return Row.ContenderId == Result.Winner && !Row.bLeft
-                && (Row.BankedGuardMs > 0 || Row.CompletedSprays > 0 || Result.Reason == ELDMatchEndReason::ClearOut); }),
+                && (Row.BankedGuardMs > 0 || Row.CompletedSprays > 0 || bPrivateWinner || Result.Reason == ELDMatchEndReason::ClearOut); }),
             TEXT("C11"), TEXT("A winner has legal objective contribution; kills alone cannot crown a survivor"));
         if (Mode)
         { Check(!Mode->IsGameplayWriteOpen(Mode->GetMatchContext()), TEXT("A02"), TEXT("The unique published result closes the authority write gate")); }

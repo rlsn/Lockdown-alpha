@@ -107,7 +107,11 @@ FString BlueprintFacts(const FLDBlueprintVersion& Version)
 }
 FString BlueprintOutcome(const FLDBlueprintRecord& Record)
 {
-    const FString Ending=Record.EndReason==TEXT("host_ended")?FString(TEXT("房主结束了本局")):FString(TEXT("涂鸦守护结束"));
+    const FString Ending=Record.EndReason==TEXT("host_ended")?FString(TEXT("房主结束了本局"))
+        :Record.EndReason==TEXT("objective_timeout")?FString(TEXT("终局时间到"))
+        :Record.EndReason==TEXT("no_champion")?FString(TEXT("没有合格冠军"))
+        :Record.EndReason==TEXT("spray_count")?FString(TEXT("喷够次数获胜"))
+        :Record.EndReason==TEXT("clear_out")?FString(TEXT("清场获胜")):FString(TEXT("涂鸦守护结束"));
     if(Record.Outcome==TEXT("won")){return Ending+TEXT(" · 你是")+LDTerms::Winner;}
     if(Record.Outcome==TEXT("lost")){return Ending+TEXT(" · 别人守住了涂鸦");}
     return Ending+TEXT(" · ")+LDTerms::NoCapture;

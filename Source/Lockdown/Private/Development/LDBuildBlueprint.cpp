@@ -285,6 +285,24 @@ const TCHAR* LDBuildBlueprint::FactKey(ELDBlueprintFact Fact)
     }
 }
 
+namespace
+{
+    // Indexed by the ELDMatchEndReason wire value; None (0) has no key.
+    const TCHAR* const BlueprintEndReasons[] = {nullptr, TEXT("guard_succeeded"), TEXT("host_ended"), TEXT("objective_timeout"),
+        TEXT("no_champion"), TEXT("spray_count"), TEXT("clear_out")};
+}
+
+const TCHAR* LDBuildBlueprint::EndReasonKey(uint8 Reason)
+{
+    return Reason < UE_ARRAY_COUNT(BlueprintEndReasons) ? BlueprintEndReasons[Reason] : nullptr;
+}
+
+bool LDBuildBlueprint::IsEndReasonKey(const FString& Key)
+{
+    for (const TCHAR* Known : BlueprintEndReasons) { if (Known && Key.Equals(Known, ESearchCase::CaseSensitive)) { return true; } }
+    return false;
+}
+
 bool LDBuildBlueprint::IsFactCollected(ELDBlueprintFact Fact)
 {
     return int32(Fact) >= 0 && int32(Fact) < int32(ELDBlueprintFact::Count);
@@ -625,7 +643,7 @@ ELDBlueprintParseError LDBuildBlueprint::Parse(const TArray<uint8>& Bytes, int64
             || !Match.Text(TEXT("mode"), Record.Mode, 1, 16)
             || !Check.Require(Record.Mode == ModeDemo, Match.Path + TEXT(".mode"), TEXT("unknown mode"))
             || !Match.Text(TEXT("end_reason"), Record.EndReason, 1, 32)
-            || !Check.Require(OneOf(Record.EndReason, {TEXT("guard_succeeded"), TEXT("host_ended")}), Match.Path + TEXT(".end_reason"),
+            || !Check.Require(LDBuildBlueprint::IsEndReasonKey(Record.EndReason), Match.Path + TEXT(".end_reason"),
                 TEXT("unknown end reason"))
             || !Match.Text(TEXT("outcome"), Record.Outcome, 1, 16)
             || !Check.Require(OneOf(Record.Outcome, {TEXT("won"), TEXT("lost"), TEXT("no_winner")}), Match.Path + TEXT(".outcome"),

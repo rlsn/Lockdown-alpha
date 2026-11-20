@@ -57,7 +57,7 @@ void ALDGameMode::PublishBuildBlueprints()
             Header.HandlerRevision = Identity.HandlerRevision;
             Header.ProjectionRevision = Identity.ProjectionRevision;
             Header.MatchId = ResultView.ResultId;
-            Header.EndReason = ResultView.Reason == ELDMatchEndReason::GuardSucceeded ? TEXT("guard_succeeded") : TEXT("host_ended");
+            if (const TCHAR* Ending = LDBuildBlueprint::EndReasonKey(uint8(ResultView.Reason))) { Header.EndReason = Ending; }
             Header.Outcome = !ResultView.Winner.IsValid() ? TEXT("no_winner") : ResultView.Winner == Id ? TEXT("won") : TEXT("lost");
             Header.RecordedAtUtc = FDateTime::UtcNow();
             Header.StartedAtMs = ResultView.StartedAtMs;

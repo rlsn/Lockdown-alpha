@@ -983,8 +983,19 @@ bool FinalModBody(const FContext& C, FLDOpponentBodyIntent& Out)
     {
         if (C.bInsideCircle)
         {
+            // The first exit around the pole that is still outside the zone once kept inside the safe ring.
             ForgetTarget(C.State);
-            Out = MoveToPoint(C, Away(C.Capture->FootCm, C.CaptureRadiusCm + 200.));
+            const FVector Pole = C.Capture->FootCm;
+            const double Reach = C.CaptureRadiusCm + 200.;
+            FVector Away0 = (Foot - Pole).GetSafeNormal2D();
+            if (Away0.IsNearlyZero()) { Away0 = (Public.ArenaCentreCm - Pole).GetSafeNormal2D(); }
+            if (Away0.IsNearlyZero()) { Away0 = FVector::ForwardVector; }
+            for (int32 Turn = 0; Turn < 8; ++Turn)
+            {
+                const FVector Exit = Clamp(Pole + Away0.RotateAngleAxis(45. * Turn, FVector::UpVector) * Reach);
+                if (FVector::Dist2D(Exit, Pole) > C.CaptureRadiusCm + 50.) { Out = MoveToPoint(C, Exit); return true; }
+            }
+            Out = Halt(C);
             return true;
         }
         Out = Halt(C);
@@ -997,7 +1008,13 @@ bool FinalModBody(const FContext& C, FLDOpponentBodyIntent& Out)
         const int64 Kept = Pole.GuardDueAtMs > 0 ? Pole.GuardMs - (Pole.GuardDueAtMs - C.Now) : Pole.GuardKeptMs;
         if (Kept * 3 < Pole.GuardMs) { continue; }
         if (FVector::Dist2D(Foot, Pole.CentreCm) > Pole.RadiusCm * .6) { Out = MoveToPoint(C, Pole.CentreCm); return true; }
-        if (const FLDOpponentUnit* Target = SelectEngageTarget(C)) { Out = EngageBody(C, *Target); return true; }
+        // Staying in freezes it: hit only what is in attack range without walking, never chase out of the zone.
+        for (const FLDOpponentUnit* Enemy : C.Enemies)
+        {
+            if (!Enemy->bProtected && !HandleSuppressed(C, *Enemy) && C.Distance(Enemy->FootCm) <= C.AttackRangeCm)
+            { Out = AttackBody(C, *Enemy); return true; }
+        }
+        ForgetTarget(C.State);
         Out = Halt(C);
         return true;
     }

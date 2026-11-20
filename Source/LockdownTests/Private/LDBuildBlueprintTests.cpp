@@ -1,5 +1,6 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDBuildBlueprint.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Development/LDBuildBlueprintStore.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDDemoEntry.h"
@@ -192,6 +193,19 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A final mod cannot carry the retired source binding"),
         BlueprintParseText(Text.Replace(TEXT("\"definition\": \"final_cage\""),TEXT("\"definition\": \"final_cage\", \"target_id\": \"bolt\"")))
         ==ELDBlueprintParseError::BadField);
+    // Every match end reason round-trips under its own key; an unknown one is refused.
+    for (uint8 Reason = 1; Reason <= uint8(ELDMatchEndReason::ClearOut); ++Reason)
+    {
+        const TCHAR* Key = LDBuildBlueprint::EndReasonKey(Reason);
+        TestTrue(FString::Printf(TEXT("End reason %u is recorded and read back"), Reason), Key
+            && BlueprintParseText(Text.Replace(TEXT("\"end_reason\": \"guard_succeeded\""),
+                *FString::Printf(TEXT("\"end_reason\": \"%s\""), Key)))==ELDBlueprintParseError::None);
+    }
+    TestTrue(TEXT("The final mods' wins have their own keys"), FString(LDBuildBlueprint::EndReasonKey(uint8(ELDMatchEndReason::SprayCount)))
+        == TEXT("spray_count") && FString(LDBuildBlueprint::EndReasonKey(uint8(ELDMatchEndReason::ClearOut))) == TEXT("clear_out")
+        && !LDBuildBlueprint::EndReasonKey(0));
+    TestTrue(TEXT("An unknown end reason is refused"), BlueprintParseText(Text.Replace(TEXT("\"end_reason\": \"guard_succeeded\""),
+        TEXT("\"end_reason\": \"magic\"")))==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
     TestTrue(TEXT("A slot outside Q/W/E is refused"),BlueprintParseText(Text.Replace(TEXT("\"slot\": \"Q\""),TEXT("\"slot\": \"X\"")))==ELDBlueprintParseError::BadField);
     FString ZeroFilled=Text;
