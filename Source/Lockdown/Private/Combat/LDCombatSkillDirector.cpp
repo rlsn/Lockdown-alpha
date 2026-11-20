@@ -115,6 +115,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         {
             Channel.FinalKnockbackCm=Channel.Payload.KnockbackCm;
             Channel.FinalKnockbackMs=Channel.Payload.KnockbackMs;
+            Channel.bFinalKnockbackAlongCast=true;
             Channel.Payload.KnockbackCm=0;
             Channel.Payload.KnockbackMs=0;
         }
@@ -141,6 +142,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             // A branch's final wave (S22) pushes everything it hits away from the caster instead of slowing it.
             Channel.FinalKnockbackCm=Cm(Terms.FinalKnockbackTerms->DistanceCm);
             Channel.FinalKnockbackMs=Terms.FinalKnockbackTerms->DurationMs;
+            Channel.bFinalKnockbackAlongCast=false;
             Channel.FinalSlowBp=0;
             Channel.FinalSlowMs=0;
         }
@@ -391,7 +393,9 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                     Hit.KnockbackCm=Channel.FinalKnockbackCm;
                     Hit.KnockbackMs=Channel.FinalKnockbackMs;
                     Hit.bKnockbackFromAnchor=true;
-                    Hit.KnockbackAnchorCm=Origin;
+                    // The skill's own push goes along the cast direction: the anchor sits behind each target's foot.
+                    Hit.KnockbackAnchorCm=Channel.bFinalKnockbackAlongCast
+                        ? FootOf(*Target)-Channel.Direction.GetSafeNormal2D()*100. : Origin;
                     Hit.KnockbackSource=Channel.Payload.Source;
                     bFinalPushed=true;
                 }

@@ -672,9 +672,11 @@ struct FLDCombatChannel
     int64 NextPulseMs=0, IntervalMs=0;
     int32 Remaining=0;
     int64 FinalSlowBp=0, FinalSlowMs=0;
-    // The final wave knocks every struck enemy away from the channel origin: the skill's own knockback (S22, N1) or M18's.
+    // The final wave knocks every struck enemy: the skill's own knockback (S22, N1) along the cast direction
+    // (bFinalKnockbackAlongCast), M18's away from the channel origin.
     double FinalKnockbackCm=0;
     int64 FinalKnockbackMs=0;
+    bool bFinalKnockbackAlongCast=false;
     // S22 A2: how many of the last waves carry the slow (1 = the final wave only).
     int32 SlowWaves=1;
     // Spec §5: N1 B1 roots on the last wave.
