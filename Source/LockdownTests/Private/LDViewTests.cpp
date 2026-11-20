@@ -51,7 +51,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays"),TEXT("Build")},
         TEXT("Result rows carry settled totals and frozen rule identities, never live resources, cooldowns, attributes or position"));
     ExpectStruct(FLDResultBuild::StaticStruct(),{TEXT("bAvailable"),TEXT("CatalogRoot"),TEXT("Actives"),TEXT("Cards"),
-        TEXT("FinalMod"),TEXT("FinalTarget"),TEXT("FinalTargetId")},
+        TEXT("FinalMod")},
         TEXT("Frozen build summaries contain only catalog and installed rule identities"));
     ExpectStruct(FLDResultBuildActive::StaticStruct(),{TEXT("DefinitionId"),TEXT("Slot")},
         TEXT("Frozen active summaries contain only their identity and slot"));

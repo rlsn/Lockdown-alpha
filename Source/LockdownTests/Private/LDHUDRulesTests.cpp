@@ -114,7 +114,6 @@ bool HudRegisterApprovedNames(FAutomationTestBase& Test,const FLDDemoContentDefi
 #endif
         };
         Put(Row.NameKey,*Name);Put(Row.DescriptionKey,Row.DescriptionText);
-        Put(Row.EffectKey,Row.EffectText);Put(Row.CostKey,Row.CostText);Put(Row.NotesKey,Row.NotesText);
     }
     FStringTableRegistry::Get().RegisterStringTable(OutTable,Table);
     return true;
@@ -885,7 +884,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         {Summary.Cards.Add({FName(*Row.Id),ELDResultBuildTarget::Body,NAME_None,ELDDemoElement::None});}
     }
     if(!TestEqual(TEXT("The summary fixture has seven approved body cards"),Summary.Cards.Num(),7)){return false;}
-    if(!Content.FinalMods.IsEmpty()){Summary.FinalMod=FName(*Content.FinalMods[0].Id);Summary.FinalTarget=ELDResultBuildTarget::Body;}
+    if(!Content.FinalMods.IsEmpty()){Summary.FinalMod=FName(*Content.FinalMods[0].Id);}
     for(const FVector2D Size:{FVector2D(520,90),FVector2D(218,66),FVector2D(760,184)})
     {
         UWidgetTree* Tree=NewObject<UWidgetTree>();
@@ -1017,19 +1016,16 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             {
                 Frame();
                 if(Tick<30){continue;}
-                const float Scale=Choices->FinalPartTexts[0]->GetCachedGeometry().Scale;
+                const float Scale=Choices->FinalDescText->GetCachedGeometry().Scale;
                 Smallest=FMath::Min(Smallest,Scale);Largest=FMath::Max(Largest,Scale);
             }
-            int32 ReadableParts=0;
-            for(const UTextBlock* Part:Choices->FinalPartTexts)
-            {
-                if(Part->GetText().IsEmpty()||!Part->IsVisible()){continue;}
-                const FGeometry& G=Part->GetCachedGeometry();
-                const FVector2D Size=G.GetAbsoluteSize();
-                ReadableParts+=Size.X>30.f&&Part->GetFont().Size*G.Scale>=10.f&&G.GetAbsolutePosition().Y+Size.Y<=720.f;
-            }
+            const UTextBlock* Rule=Choices->FinalDescText;
+            const FGeometry& G=Rule->GetCachedGeometry();
+            const FVector2D Size=G.GetAbsoluteSize();
+            const bool bReadable=!Rule->GetText().IsEmpty()&&Rule->IsVisible()&&Size.X>30.f&&Rule->GetFont().Size*G.Scale>=10.f
+                &&G.GetAbsolutePosition().Y+Size.Y<=720.f;
             const FString At=View.FinalModOptions[Pick].ToString();
-            TestEqual(At+TEXT(": reopening retains three readable explanation parts inside the screen"),ReadableParts,3);
+            TestTrue(At+TEXT(": reopening retains its readable one-sentence rule inside the screen"),bReadable);
             TestTrue(At+TEXT(": final explanation is stable over 60 frames"),Largest-Smallest<.001f);
         }
     }
@@ -1773,14 +1769,14 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Header.Revisions.bHasBuild=false;
     TestFalse(TEXT("A final-mod receipt without a build revision cannot start feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,7,TEXT("final_test")));
     FLDProgressionView FinalView;FinalView.bValid=true;FinalView.BuildRevision=8;
-    FLDFinalModSelection Final;Final.DefinitionId=TEXT("final_test");Final.TargetKind=ELDFinalModTargetKind::Active;Final.TargetId=TEXT("active_test");
+    FLDFinalModSelection Final;Final.DefinitionId=TEXT("final_test");
     FinalView.FinalMod=Final;
     TestFalse(TEXT("A final stamp waits for the confirmed revision"),LDHUD::FinalStampReady(FinalView,9,Final,true));
     FinalView.BuildRevision=9;
     TestFalse(TEXT("A final stamp waits for the board"),LDHUD::FinalStampReady(FinalView,9,Final,false));
     TestTrue(TEXT("The confirmed selection stamps when its board and revision are ready"),LDHUD::FinalStampReady(FinalView,9,Final,true));
-    FinalView.FinalMod.TargetId=TEXT("active_other");
-    TestFalse(TEXT("A later binding cannot replay the previous stamp"),LDHUD::FinalStampReady(FinalView,9,Final,true));
+    FinalView.FinalMod.DefinitionId=TEXT("final_other");
+    TestFalse(TEXT("Another card cannot replay the previous stamp"),LDHUD::FinalStampReady(FinalView,9,Final,true));
     TestFalse(TEXT("A view alone cannot start a stamp"),LDHUD::FinalStampReady(FinalView,0,Final,true));
     Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.VouchersDelta=8;
     TestEqualSensitive(TEXT("A skipped offer names the vouchers paid"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::VouchersGained(8));

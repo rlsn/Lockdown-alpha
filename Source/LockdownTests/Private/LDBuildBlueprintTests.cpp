@@ -59,7 +59,7 @@ bool BlueprintSample(FAutomationTestBase& Test, const FGuid& Match, const FDateT
     const FGuid Contender=FGuid::NewGuid();
     Ledger.Observe(Contender,BlueprintBuild(1,0,{},{}),0);
     auto Final=BlueprintBuild(2,3,{{TEXT("might"),1}},{{TEXT("bolt"),ELDCombatEntry::Q}});
-    Final.FinalMod={TEXT("final_traffic"),ELDFinalModTargetKind::Dash,NAME_None};
+    Final.FinalMod.DefinitionId=TEXT("final_cage");
     const int32 Second=Ledger.Observe(Contender,Final,5000);
     Ledger.Add(Contender,Second,ELDBlueprintFact::DamageDealt,1234);
     Ledger.Add(Contender,Second,ELDBlueprintFact::AbilityCasts,2);
@@ -124,9 +124,8 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Recorded time keeps its millisecond"),Parsed.RecordedAtUtc.ToIso8601(),At.ToIso8601());
     TestTrue(TEXT("Final build and revision are the last version"),Parsed.FinalBuild==Record.FinalBuild&&Parsed.FinalRevision==3
         &&Parsed.FinalBuild.Actives.Num()==1&&Parsed.FinalBuild.Actives[0].Slot==TEXT("Q")&&Parsed.FinalBuild.Actives[0].Ability==TEXT("bolt"));
-    TestTrue(TEXT("The independent final rule and its binding survive the read-only record"),
-        Parsed.FinalBuild.FinalMod.DefinitionId==TEXT("final_traffic")&&Parsed.FinalBuild.FinalMod.TargetKind==ELDFinalModTargetKind::Dash
-        &&Parsed.FinalBuild.FinalMod.TargetId.IsNone()&&Parsed.Versions[0].Structure.FinalMod.IsEmpty());
+    TestTrue(TEXT("The independent final rule survives the read-only record"),
+        Parsed.FinalBuild.FinalMod.DefinitionId==TEXT("final_cage")&&Parsed.Versions[0].Structure.FinalMod.IsEmpty());
     TestTrue(TEXT("Both versions with their time segments"),Parsed.Versions.Num()==2&&Parsed.Versions[0].FromMs==0
         &&Parsed.Versions[0].ToMs==5000&&Parsed.Versions[1].FromMs==5000&&Parsed.Versions[1].ToMs==90000);
     if(Parsed.Versions.Num()==2)
@@ -211,7 +210,7 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another catalog root is an explicit notice"),Notices.ContainsByPredicate([](const FString& Line){return Line.Contains(TEXT("目录不一致"));}));
     TestTrue(TEXT("A removed active is an explicit stale-install notice"),Notices.ContainsByPredicate([](const FString& Line){return Line.Contains(TEXT("bolt"));}));
     FLDDemoAbilityDefinition& Bolt=Local.Abilities.AddDefaulted_GetRef();Bolt.Id=TEXT("bolt");
-    FLDDemoFinalModDefinition& Final=Local.FinalMods.AddDefaulted_GetRef();Final.Id=TEXT("final_traffic");
+    FLDDemoFinalModDefinition& Final=Local.FinalMods.AddDefaulted_GetRef();Final.Id=TEXT("final_cage");
     FLDBlueprintRecord Same=Record;Same.CatalogRoot=Local.Identity.Root.ToHex();
     Notices.Reset();
     LDBuildBlueprint::Notices(Same,&Local,TEXT("0.10.0"),Notices);

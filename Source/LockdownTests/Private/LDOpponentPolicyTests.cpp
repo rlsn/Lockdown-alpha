@@ -2819,13 +2819,21 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
     auto Final = Frame;
     Final.Public.Timeline.RestIndex = 3;
     Final.Self.FinalModOfferId = FGuid(0xF1, 0, 0, 1);
-    Final.Self.FinalModOptions = {TEXT("final_forced_exit"), TEXT("final_breach")};
-    Final.Self.FinalModSources.Add({FName(TEXT("final_breach")), ELDFinalModTargetKind::None, NAME_None});
+    Final.Self.FinalModOptions = {TEXT("final_cage"), TEXT("final_usurp"), TEXT("final_clear_out")};
     Decision = Decide(Final);
-    bGood &= Test.TestTrue(TEXT("The pending final choice precedes trainer travel and skips an option without a legal source"),
+    bGood &= Test.TestTrue(TEXT("The pending final choice precedes trainer travel and takes one of its options"),
         Decision.Build.Kind == EBuild::FinalMod && Decision.Body.Kind == EBody::None
-        && Decision.Build.OfferId == Final.Self.FinalModOfferId && Decision.Build.Option == TEXT("final_breach")
-        && Decision.Build.FinalTargetKind == ELDFinalModTargetKind::None && Decision.Build.TargetId.IsEmpty());
+        && Decision.Build.OfferId == Final.Self.FinalModOfferId && Final.Self.FinalModOptions.Contains(Decision.Build.Option)
+        && Decision.Build.TargetId.IsEmpty());
+    // The pick is uniform over the offer: different server-random offers land on every option.
+    TSet<FString> Picked;
+    for (uint32 Offer = 1; Offer <= 64; ++Offer)
+    {
+        auto Draw = Final;
+        Draw.Self.FinalModOfferId = FGuid(0xF1, Offer, 0, 1);
+        Picked.Add(Decide(Draw).Build.Option);
+    }
+    bGood &= Test.TestEqual(TEXT("Random offers reach every final option"), Picked.Num(), Final.Self.FinalModOptions.Num());
     auto FinalInFlight = Final;
     FinalInFlight.bBuildChangeInFlight = true;
     bGood &= Test.TestTrue(TEXT("An outstanding build still prevents a duplicate final choice"),

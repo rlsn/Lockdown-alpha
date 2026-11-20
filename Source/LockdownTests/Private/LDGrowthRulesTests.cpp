@@ -197,8 +197,6 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         [](FLDBuildCommand& Mutated) { Mutated.Element = ELDDemoElement::Fire; });
     bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("ReplacingSerial"), Build,
         [](FLDBuildCommand& Mutated) { Mutated.ReplacingSerial = 2; });
-    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("FinalTargetKind"), Build,
-        [](FLDBuildCommand& Mutated) { Mutated.FinalTargetKind = ELDFinalModTargetKind::Dash; });
     // Client-sent enums are whitelisted, never mapped to a neighbour.
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::ShopBuy, ELDBuildCommandKind::ShopRefresh,
@@ -218,10 +216,6 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Card targets 0..4 are known, 5 is refused"),
         LDGrowthWire::IsKnownCardTarget(ELDCardTargetKind::Body) && LDGrowthWire::IsKnownCardTarget(ELDCardTargetKind::None)
         && !LDGrowthWire::IsKnownCardTarget(static_cast<ELDCardTargetKind>(5)));
-    bGood &= Test.TestTrue(TEXT("Final targets None, Active and Dash are known; the retired 2 and 3 are refused"),
-        LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Dash) && LDGrowthWire::IsKnownFinalTarget(ELDFinalModTargetKind::Active)
-        && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(2))
-        && !LDGrowthWire::IsKnownFinalTarget(static_cast<ELDFinalModTargetKind>(3)));
     bGood &= Test.TestTrue(TEXT("Elements 0..6 are known, 7 is refused"),
         LDGrowthWire::IsKnownElement(ELDDemoElement::Electric) && LDGrowthWire::IsKnownElement(ELDDemoElement::None)
         && LDGrowthWire::IsKnownElement(ELDDemoElement::Chill) && LDGrowthWire::IsKnownElement(ELDDemoElement::Gust)
@@ -901,7 +895,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Cards"), TEXT("CardCapacity"),
          TEXT("QueuedCardOffers"), TEXT("bHasCardOffer"), TEXT("CardOffer"), TEXT("CardRerolls"), TEXT("CatalogDigest"),
          TEXT("Vouchers"), TEXT("Shop"), TEXT("PickTickets"), TEXT("AffixSkillPoints"), TEXT("SeenCards"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
-         TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
+         TEXT("bFinalModPending"), TEXT("bExtraFinalModCard"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModChosen"), TEXT("FinalMod"),
          TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipVouchers")});
@@ -917,17 +911,14 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
         {TEXT("OfferId"), TEXT("Ordinal"), TEXT("OfferRevision"), TEXT("Source"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDFieldRewardView::StaticStruct(),
         {TEXT("Event"), TEXT("Serial"), TEXT("XP"), TEXT("Result"), TEXT("Definition")});
-    bGood &= GrowthTestExactFields(Test, FLDFinalModSourceView::StaticStruct(),
-        {TEXT("Option"), TEXT("TargetKind"), TEXT("TargetId")});
-    bGood &= GrowthTestExactFields(Test, FLDFinalModSelection::StaticStruct(),
-        {TEXT("DefinitionId"), TEXT("TargetKind"), TEXT("TargetId")});
+    bGood &= GrowthTestExactFields(Test, FLDFinalModSelection::StaticStruct(), {TEXT("DefinitionId")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
         FLDCardInstanceView::StaticStruct(), FLDCardTargetView::StaticStruct(), FLDCardOfferView::StaticStruct(),
-        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct(),
+        FLDFieldRewardView::StaticStruct(), FLDFinalModSelection::StaticStruct(),
         FLDShopView::StaticStruct(), FLDShopSlotView::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
