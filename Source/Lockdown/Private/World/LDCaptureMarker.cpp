@@ -17,6 +17,8 @@ namespace
     // The graffiti board on the flagpole: a thin upright panel above head height at the anchor.
     const FVector LDGraffitiBoardCm(8., 120., 90.);
     constexpr double LDGraffitiBoardLiftCm = 210.;
+    // The portable pole under the board.
+    const FVector LDPortablePoleCm(10., 10., 260.);
 }
 
 UInstancedStaticMeshComponent* LDGroundRing::Create(AActor& Owner, FName Name)
@@ -92,6 +94,43 @@ ALDCaptureMarker::ALDCaptureMarker()
     Graffiti->SetRelativeRotation(FRotator(0., LDCamera::Yaw, 0.));
     Graffiti->SetRelativeScale3D(LDGraffitiBoardCm / 100.);
     Graffiti->SetVisibility(false);
+    Pole = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Pole"));
+    Pole->SetupAttachment(Ring);
+    Pole->SetMobility(EComponentMobility::Movable);
+    Pole->SetStaticMesh(Ring->GetStaticMesh());
+    Pole->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Pole->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Pole->SetGenerateOverlapEvents(false);
+    Pole->SetCanEverAffectNavigation(false);
+    Pole->SetCastShadow(false);
+    Pole->SetRelativeLocation(FVector(0., 0., LDPortablePoleCm.Z * .5));
+    Pole->SetRelativeScale3D(LDPortablePoleCm / 100.);
+    Pole->SetVisibility(false);
+}
+
+void ALDCaptureMarker::Place(const FVector& CenterCm, double RadiusCm)
+{
+    if (CenterCm.ContainsNaN() || !FMath::IsFinite(RadiusCm) || RadiusCm <= LDCaptureMarkerWidthCm) { return; }
+    if (!FMath::IsNearlyEqual(RadiusCm, Radius, .5))
+    {
+        Radius = RadiusCm;
+        LDGroundRing::Lay(Ring, RadiusCm);
+    }
+    if (!CenterCm.Equals(Center, .5))
+    {
+        Center = CenterCm;
+        SetActorLocation(CenterCm);
+    }
+}
+
+void ALDCaptureMarker::ShowPole(bool bShown)
+{
+    if (Pole) { Pole->SetVisibility(bShown); }
+}
+
+bool ALDCaptureMarker::IsPoleShown() const
+{
+    return Pole && Pole->IsVisible();
 }
 
 bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 InGeneration, FString& Error)
@@ -107,6 +146,7 @@ bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 In
     Paint = NewPaint;
     GraffitiPaint = UMaterialInstanceDynamic::Create(Paint->Parent, this);
     if (Graffiti) { Graffiti->SetMaterial(0, GraffitiPaint); }
+    if (Pole) { Pole->SetMaterial(0, Paint); }
     Center = CenterCm;
     Radius = RadiusCm;
     Generation = InGeneration;
@@ -155,5 +195,5 @@ int32 ALDCaptureMarker::GetSegmentCount() const
 
 bool ALDCaptureMarker::IsPresentationOnly() const
 {
-    return LDGroundRing::IsPresentationOnly(Ring) && LDGroundRing::IsPresentationOnly(Graffiti);
+    return LDGroundRing::IsPresentationOnly(Ring) && LDGroundRing::IsPresentationOnly(Graffiti) && LDGroundRing::IsPresentationOnly(Pole);
 }

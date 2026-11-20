@@ -84,12 +84,7 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
     TArray<FString> Rows;
     for(const FLDBlueprintCard& Card:Structure.Cards){Rows.Add(BlueprintName(Definitions,Card.Card)+TEXT(" → ")+BlueprintPlace(Card,Definitions));}
     const FString Cards=Rows.IsEmpty()?FString(TEXT("无")):FString::Join(Rows,TEXT(" · "));
-    FString Final=Structure.FinalMod.IsEmpty()?TEXT("无"):BlueprintName(Definitions,Structure.FinalMod.DefinitionId.ToString());
-    if(!Structure.FinalMod.IsEmpty()&&Structure.FinalMod.TargetKind!=ELDFinalModTargetKind::None)
-    {
-        Final+=TEXT(" → ")+(Structure.FinalMod.TargetKind==ELDFinalModTargetKind::Dash
-            ?FString(TEXT("冲刺")):BlueprintName(Definitions,Structure.FinalMod.TargetId.ToString()));
-    }
+    const FString Final=Structure.FinalMod.IsEmpty()?TEXT("无"):BlueprintName(Definitions,Structure.FinalMod.DefinitionId.ToString());
     return FString::Printf(TEXT("  主动：%s\n  %s：%s\n  牌：%s\n  终局改装：%s"),*FString::Join(Slots,TEXT(" · ")),LDTerms::StatPoints,
         Stats.IsEmpty()?TEXT("无"):*FString::Join(Stats,TEXT(" · ")),*Cards,*Final);
 }
