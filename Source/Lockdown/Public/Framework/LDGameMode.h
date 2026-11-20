@@ -210,8 +210,10 @@ public:
     bool ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 FieldMs, const FLDGameplayWritePermit& Permit, FString& Error);
     // DeathsAndRewards or Transactions: pays one map event reward (#198 G) through the growth composite. A retryable
     // refusal stays owed and is retried at each later Transactions boundary; any other refusal is an authority fault.
+    // MedalChanceBp > 0 adds an element medal chance (seeded by MedalKey) that rolls only once the reward commits, so a
+    // deferred reward keeps its medal owed with it.
     bool PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
-        const FLDGameplayWritePermit& Permit, FString& Error);
+        const FLDGameplayWritePermit& Permit, FString& Error, int64 MedalChanceBp = 0, uint64 MedalKey = 0);
     // Transactions: retries every owed map event reward once.
     bool RetryFieldRewards(const FLDGameplayWritePermit& Permit, FString& Error);
     // RespawnsAndWorld: retires a living camp body (the Boss leaving the field) without a death: no kill credit, reward
@@ -556,6 +558,8 @@ private:
         uint64 Serial = 0;
         int64 XP = 0;
         ELDFieldRewardKind Kind = ELDFieldRewardKind::None;
+        int64 MedalChanceBp = 0;
+        uint64 MedalKey = 0;
     };
     TArray<FLDOwedFieldReward> OwedFieldRewards;
     bool CommitOwedFieldReward(const FLDOwedFieldReward& Reward, const FLDGameplayWritePermit& Permit, FString& Error);

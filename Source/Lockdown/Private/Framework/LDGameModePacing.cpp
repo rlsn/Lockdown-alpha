@@ -199,9 +199,8 @@ bool ALDGameMode::PayPacingReward(const FGuid& Recipient, FName Event, uint64 Se
         return false;
     }
     // Every event reward may also drop an element medal (MEDAL.EventChance).
-    return PayFieldReward(Recipient, Event, Serial, 0, Offer, Permit, Error)
-        && Development->RollMedal(Recipient, DemoContent->Get().Parameters.Medal.EventChanceBp,
-            HashCombine(GetTypeHash(Event), GetTypeHash(Serial)), *Event.ToString(), Permit, Error);
+    return PayFieldReward(Recipient, Event, Serial, 0, Offer, Permit, Error, DemoContent->Get().Parameters.Medal.EventChanceBp,
+        HashCombine(GetTypeHash(Event), GetTypeHash(Serial)));
 }
 
 bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString& Error)

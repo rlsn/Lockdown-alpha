@@ -986,8 +986,8 @@ bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWrite
         return false;
     }
     if (!Mode->Development->GrantExtraFinalModCard(Killer, Permit, Error)) { return false; }
-    return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error)
-        && Mode->Development->RollMedal(Killer, Content->Get().Parameters.Medal.BossChanceBp, 0x424f5353ull, TEXT("boss"), Permit, Error);
+    return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error,
+        Content->Get().Parameters.Medal.BossChanceBp, 0x424f5353ull);
 }
 
 bool ALDCampDirector::LeaveBossIfDue(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -1420,9 +1420,8 @@ bool ALDCampDirector::RewardPeddlerKill(const FGuid& Killer, const FLDGameplayWr
         Error.Reset();
         return true;
     }
-    return Mode->PayFieldReward(Killer, TEXT("peddler"), 1, 0, ELDFieldRewardKind::PeddlerOffer, Permit, Error)
-        && (!Mode->Development || Mode->Development->RollMedal(Killer, Content->Get().Parameters.Medal.EventChanceBp, 0x50454444ull,
-            TEXT("peddler"), Permit, Error));
+    return Mode->PayFieldReward(Killer, TEXT("peddler"), 1, 0, ELDFieldRewardKind::PeddlerOffer, Permit, Error,
+        Content->Get().Parameters.Medal.EventChanceBp, 0x50454444ull);
 }
 
 bool ALDCampDirector::PayAffixClear(ELDCampAffix Affix, ELDDemoCampTier Tier, FName CampId, const FGuid& Clearer,

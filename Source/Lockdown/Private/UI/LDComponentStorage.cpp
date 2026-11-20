@@ -587,8 +587,10 @@ void ULDComponentStorage::BuildMedalSlot(FColumn& Column,float Size)
     // An empty element slot: a round outline the size of a tile, named 元素槽 beside it on the board.
     auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Size);Box->SetHeightOverride(Size);Built.Add(Box);
     auto* Ring=WidgetTree->ConstructWidget<UBorder>();Built.Add(Ring);
-    Ring->SetBrush(StorageRound(Size*.5f,LDHUDStyle::DropLegal.CopyWithNewOpacity(.55f),1.5f));
-    Ring->SetBrushColor(FLinearColor::Transparent);Ring->SetHorizontalAlignment(HAlign_Center);Ring->SetVerticalAlignment(VAlign_Center);
+    // A clear fill with its own outline opacity: the rim stays visible while the face shows through.
+    FSlateRoundedBoxBrush RingBrush(FLinearColor::Transparent,Size*.5f,LDHUDStyle::DropLegal.CopyWithNewOpacity(.55f),1.5f);
+    RingBrush.OutlineSettings.bUseBrushTransparency=false;
+    Ring->SetBrush(RingBrush);Ring->SetHorizontalAlignment(HAlign_Center);Ring->SetVerticalAlignment(VAlign_Center);
     UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT("+"),LDHUDStyle::TypeBody);Glyph->SetAutoWrapText(false);Built.Add(Glyph);
     Glyph->SetColorAndOpacity(LDHUDStyle::TextSecondary);Ring->SetContent(Glyph);
     Box->SetContent(Ring);Box->SetVisibility(ESlateVisibility::HitTestInvisible);
