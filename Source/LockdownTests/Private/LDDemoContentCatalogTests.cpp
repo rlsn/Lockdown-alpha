@@ -1352,14 +1352,14 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    if (!TestEqual(TEXT("Eighty-five P2, P4 and P5 cards"), Definitions.Cards.Num(), 85)) { return false; }
+    if (!TestEqual(TEXT("Seventy-three cards and five element medals"), Definitions.Cards.Num(), 78)) { return false; }
     int32 Forms[int32(ELDCardForm::Count)] = {};
     int32 Types[int32(ELDCardType::Count)] = {};
     uint16 Previous = 199;
     for (const FLDDemoCardDefinition& Row : Definitions.Cards)
     {
-        TestTrue(FString::Printf(TEXT("%s has an ascending native id in 200-284"), *Row.Id),
-            Row.NativeId > Previous && Row.NativeId <= 284);
+        TestTrue(FString::Printf(TEXT("%s has an ascending native id in 200-289"), *Row.Id),
+            Row.NativeId > Previous && Row.NativeId <= 289);
         Previous = Row.NativeId;
         ++Forms[int32(Row.Form)];
         ++Types[int32(Row.Type)];
