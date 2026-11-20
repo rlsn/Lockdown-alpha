@@ -366,6 +366,8 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint64 CombatInstalledRevision = 0;
     // Earned (opening, levels and the max-level XP grants) minus allocated minus permanently spent.
     UPROPERTY() int64 UnspentPoints = 0;
+    // Spec §3.13: stat points the rest shop took (never returned), so earned = unspent + allocated + these.
+    UPROPERTY() int64 ShopSpentPoints = 0;
     // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
     UPROPERTY() TArray<FLDStatPointsView> StatPoints;
     // Learned Q/W/E actives, by slot.

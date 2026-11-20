@@ -888,7 +888,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= GrowthTestExactFields(Test, FLDProgressionView::StaticStruct(),
         {TEXT("bValid"), TEXT("Generation"), TEXT("Life"), TEXT("LifePhase"), TEXT("Level"), TEXT("MaxLevel"),
          TEXT("CumulativeXP"), TEXT("LevelThresholdXP"), TEXT("bHasNextThreshold"), TEXT("NextThresholdXP"),
-         TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("CombatInstalledRevision"), TEXT("UnspentPoints"),
+         TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("CombatInstalledRevision"), TEXT("UnspentPoints"), TEXT("ShopSpentPoints"),
          TEXT("StatPoints"), TEXT("Actives"), TEXT("SkillPoints"),
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Cards"), TEXT("CardCapacity"),

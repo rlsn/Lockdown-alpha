@@ -41,7 +41,8 @@ double WorldFeedbackRegenToleranceP2(double Seconds){return 100.+2500.*FMath::Ma
 // #198: stat points earned so far are the unspent ones plus every point already allocated.
 int64 WorldFeedbackPointsEarned(const FLDProgressionView& Progression)
 {
-    int64 Earned=FMath::Max<int64>(0,Progression.UnspentPoints);
+    // Shop spending leaves the unspent points but not the earned ones.
+    int64 Earned=FMath::Max<int64>(0,Progression.UnspentPoints)+FMath::Max<int64>(0,Progression.ShopSpentPoints);
     for(const FLDStatPointsView& Stat:Progression.StatPoints){Earned+=FMath::Max(0,Stat.Points);}
     return Earned;
 }
