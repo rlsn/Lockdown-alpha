@@ -1360,8 +1360,11 @@ void ULDWorkshop::AnimateOpening()
 }
 FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
 {
-    // The row under the wheel event itself (the band below is hidden while the workshop is open).
-    if(StatBar.IsValid()&&Event.GetWheelDelta()!=0.f)
+    // The row under the wheel event itself (the band below is hidden while the workshop is open). Only while the full
+    // workshop shows its character panel: a collapsed panel keeps its rows' old geometry.
+    const bool bRowsShown=Mode==EMode::Full&&CharacterPanel&&CharacterPanel->IsVisible()
+        &&!(Choices.IsValid()&&Choices->IsStageShown());
+    if(bRowsShown&&StatBar.IsValid()&&Event.GetWheelDelta()!=0.f)
     {
         for(int32 Index=0;Index<StatRows.Num();++Index)
         {
