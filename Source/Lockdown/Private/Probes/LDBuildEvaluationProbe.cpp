@@ -270,11 +270,10 @@ bool ParseStep(const FJsonObject& Object, const FString& Where, FLDEvaluationBui
     }
     if (Out.Kind == EKind::InstallCard)
     {
-        // target: basic, dash, body, or the id of a learned skill.
+        // target: dash, body, or the id of a learned skill.
         FString Target;
         if (!ReadString(Object, TEXT("target"), Where, Target, Error)) { return false; }
-        if (Target == TEXT("basic")) { Out.TargetKind = ELDCardTargetKind::Basic; }
-        else if (Target == TEXT("dash")) { Out.TargetKind = ELDCardTargetKind::Dash; }
+        if (Target == TEXT("dash")) { Out.TargetKind = ELDCardTargetKind::Dash; }
         else if (Target == TEXT("body")) { Out.TargetKind = ELDCardTargetKind::Body; }
         else if (!ReadDefinition(Object, TEXT("target"), Where, Out.TargetId, Error)) { return false; }
         else { Out.TargetKind = ELDCardTargetKind::Skill; }

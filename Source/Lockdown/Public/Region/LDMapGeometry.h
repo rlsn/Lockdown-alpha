@@ -53,7 +53,7 @@ enum class ELDDemoWorldAnchorKind : uint8;
 
 namespace LDDemoWorld
 {
-    // The kind prefix of an optional point id (MiniFlag, Locker, Vending), or nullptr for a required kind.
+    // The kind prefix of an optional point id (MiniFlag, Locker), or nullptr for a required kind.
     LOCKDOWN_API const TCHAR* OptionalPrefix(ELDDemoWorldAnchorKind Kind);
     // The optional kind whose prefix Id carries; false when none does.
     LOCKDOWN_API bool OptionalKindOf(const FString& Id, ELDDemoWorldAnchorKind& Out);
@@ -78,10 +78,9 @@ namespace LDDemoWorld
     inline FString PKSignupId(int32 Slot) { return FString::Printf(TEXT("pk_signup_%d"), Slot); }
     // Spec §11.4 (P6) optional layout points: as many as the level holds, at least the minimum. Every id carries its kind
     // prefix; a copied point takes a fresh id (LDStaticScene).
-    constexpr int32 MinMiniFlags = 3, MaxMiniFlags = 16, MinLockers = 6, MaxLockers = 32, MinVending = 2, MaxVending = 16;
+    constexpr int32 MinMiniFlags = 3, MaxMiniFlags = 16, MinLockers = 6, MaxLockers = 32;
     inline const TCHAR* MiniFlagPrefix() { return TEXT("mini_flag_"); }
     inline const TCHAR* LockerPrefix() { return TEXT("locker_"); }
-    inline const TCHAR* VendingPrefix() { return TEXT("vending_"); }
     // The shared rest room seats the six roster slots.
     constexpr int32 RosterSlots = 6;
     constexpr int32 FinalSpawns = 6;
@@ -184,10 +183,10 @@ UENUM()
 // off-arena spectator throw origin pk_throw. Points only, read through the content World references. PKSignup is the
 // PK sign-up disk of one roster slot's private rest space (pk_signup_0..5), read by its canonical id.
 // Spec §11.4 (P6): MiniFlag is a candidate spot of a segment's spray mini flag (an OBJECTIVE.FlagRadiusCm disk), Locker a
-// delivery locker (an EXPLORE.LockerRadiusCm pickup disk), Vending a vending machine (an AIRDROP.PickupRadiusCm
-// interaction disk). They are optional, copyable points named mini_flag_*, locker_* and vending_*.
+// delivery locker (an EXPLORE.LockerRadiusCm pickup disk). They are optional, copyable points named mini_flag_* and
+// locker_*.
 // FinalSpawn and FinalCapture identify the isolated endgame field's entry ring and capture point.
-enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, MiniFlag, Locker, Vending, RestSpawn, RestService, TrainingDummy, FinalSpawn, FinalCapture, PKSpawn, PKThrow, PKSignup };
+enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, MiniFlag, Locker, RestSpawn, RestService, TrainingDummy, FinalSpawn, FinalCapture, PKSpawn, PKThrow, PKSignup };
 
 USTRUCT()
 struct FLDDemoWorldAnchor

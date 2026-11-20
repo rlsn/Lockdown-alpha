@@ -52,12 +52,6 @@ namespace LDCombatElementsDirectorDetail
         FLDElementExtras Extras;
         Extras.RotCutBp=Hit.RotCutBp;
         Extras.RotMs=Hit.RotMs;
-        Extras.GustPushCm=Hit.GustPushCm;
-        Extras.GustPushMs=Hit.GustPushMs;
-        Extras.GustDirection=Hit.GustDirection;
-        Extras.bGustGround=Hit.bGustGround;
-        Extras.bNoPush=Hit.bGustInKnockback;
-        Extras.WallStunMs=Hit.KnockbackWallStunMs;
         return Extras;
     }
 
@@ -124,7 +118,7 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     const FLDElementExtras Extras=ExtrasOf(Hit);
     const bool bLivingSource=Source && !Source->bPendingDeath;
     // A hit carries one element: a card's element on it replaces the hit's own, and of several cards the first in the
-    // fixed order (fire, water, shock, chill, rot, gust) applies. So one release never reacts with itself. Ticks, settles,
+    // fixed order (fire, water, shock, chill, rot) applies. So one release never reacts with itself. Ticks, settles,
     // reflections, added damage and shield answers carry none of the source's triggers.
     const bool bCardFire=bLivingSource && Hit.CardBurnStacks>0;
     const bool bCardElement=bCardFire || (bLivingSource && !Hit.CardElements.IsEmpty());
@@ -182,14 +176,12 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     if (bCardElement)
     {
         for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
-            ELDCombatElement::Rot,ELDCombatElement::Gust})
+            ELDCombatElement::Rot})
         {
             for (const auto& Card : Hit.CardElements)
             {
                 if (Card.Key!=Kind) { continue; }
-                FLDElementExtras CardExtras;
-                CardExtras.GustDirection=Extras.GustDirection;
-                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error,CardExtras)) { return false; }
+                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error)) { return false; }
                 if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->Source=Card.Value; }
                 return true;
             }
@@ -200,7 +192,7 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     if (Hit.BurnStacks>0) { return ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error); }
     // The hit's native element (its release snapshot), the first in the fixed order.
     for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
-        ELDCombatElement::Rot,ELDCombatElement::Gust})
+        ELDCombatElement::Rot})
     {
         if ((Hit.NativeElements & LDCombatElements::Bit(Kind))!=0)
         { return ApplyElement(Target,Kind,ApplierOf(Hit),0,Hit.HitId,NowMs,Error,Extras); }
@@ -241,13 +233,6 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     ALDCharacter* TargetActor=ActorOf(Target);
     if (!TargetActor) { Error=TEXT("An element target has no registered actor."); return false; }
     const FVector Foot=FootOf(*TargetActor);
-    // The gust direction: the hit's own (a fan), else away from the applier's living foot.
-    FVector GustDirection=Extras.GustDirection.GetSafeNormal2D();
-    if (Kind==ELDCombatElement::Gust && GustDirection.IsNearlyZero())
-    {
-        ALDCharacter* ApplierActor=nullptr;
-        if (FindBody(Applier.SourceBody,&ApplierActor) && ApplierActor) { GustDirection=(Foot-FootOf(*ApplierActor)).GetSafeNormal2D(); }
-    }
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
     // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole (no mark,
     // no credit, no momentum); the same element still refreshes and a free body still takes a new one.
@@ -270,7 +255,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     ++Target.StateRevision;
     MarkViewChanged(Target.Victim.EntityId);
     // N2 A2 reads the last element its owner applied to someone else.
-    if (Kind!=ELDCombatElement::Gust && Applier.SourceEntity!=Target.Victim.EntityId)
+    if (Applier.SourceEntity!=Target.Victim.EntityId)
     {
         if (FLDBodyCombatState* ApplierBody=FindBody(Applier.SourceBody)) { ApplierBody->LastAppliedElement=Kind; }
     }
@@ -300,11 +285,6 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         {
             if (!LDCombatKeywords::ApplyBurn(Target.Burn,Layer,FireStacks,NowMs,Keywords))
             { Error=TEXT("A fire layer could not be applied with the approved burn terms."); return false; }
-        }
-        else if (Kind==ELDCombatElement::Gust)
-        {
-            // Gust is never held: it only pushes (and a gust overdrive leaves the ground of nothing held: none).
-            if (!PushGust(Target,Applier,Extras,Held,GustDirection,NowMs,Error)) { return false; }
         }
         else
         {
@@ -357,10 +337,9 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
                 Mark.AttackSlowEffectId=Slow.EffectId;
             }
         }
-        return ConvertGroundAt(Foot,Kind,Applier,GustDirection,NowMs,Error);
+        return ConvertGroundAt(Foot,Kind,Applier,NowMs,Error);
     }
-    // A reaction: the held element is consumed (firestorm keeps its fire, thunderstorm shocks again); the trigger is the new
-    // element's applier. Observers float its name over the target.
+    // A reaction: the held element is consumed; the trigger is the new element's applier. Observers float its name over the target.
     const FLDReactionRule Rule=LDCombatElements::RuleOf(Reaction,Terms);
     Target.Cues.LastReaction=uint8(Reaction);
     Target.Cues.LastReactionAtMs=NowMs;
@@ -370,9 +349,9 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     const int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms);
     const FGuid ReactionId=FGuid::NewGuid();
     // Fog settles the fire at once: the held layers' remaining ticks, or the new layers' full budget, each attributed to its
-    // own applier and source as fire damage. Any other reaction consuming fire ends it unsettled (firestorm keeps it).
+    // own applier and source as fire damage. Any other reaction consuming fire ends it unsettled.
     TArray<FLDBurnTickShare> FireShares;
-    if (Held==ELDCombatElement::Fire && !Rule.bKeepsHeldFire)
+    if (Held==ELDCombatElement::Fire)
     {
         if (Reaction==ELDCombatReaction::Fog) { LDCombatKeywords::BurnRemainingShares(Target.Burn,Keywords,FireShares); }
         for (const FLDBurnTickShare& Share : FireShares) { HeldSetters.AddUnique(Share.CreditOwner); }
@@ -398,15 +377,6 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         Settle.bBurnTick=true;
         PendingHits.Add(MoveTemp(Settle));
     }
-    // The push of a reaction (splash, thunderstorm) replaces the gust's own; every other gust still pushes.
-    const double ReactionPushCm=Reaction==ELDCombatReaction::Splash ? Terms.SplashPushCm
-        : Reaction==ELDCombatReaction::Thunderstorm ? Terms.ThunderstormKnockbackCm : 0;
-    FVector PushDirection=GustDirection;
-    if (PushDirection.IsNearlyZero())
-    {
-        ALDCharacter* ApplierActor=nullptr;
-        if (FindBody(Applier.SourceBody,&ApplierActor) && ApplierActor) { PushDirection=(Foot-FootOf(*ApplierActor)).GetSafeNormal2D(); }
-    }
     // The primary target's reaction hit: its damage (a multiple of R) with the reaction's controls and statuses.
     FLDCombatHit Main=SettleHit(Applier,Primary,ReactionId,LDCombatElements::ScaledP2(R,Rule.PrimaryRatioBp));
     Main.ReactionKind=Reaction;
@@ -418,16 +388,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     case ELDCombatReaction::Freeze: Main.RootDurationMs=Terms.FreezeRootMs; break;
     case ELDCombatReaction::Corrode: Main.BreachStacks=Terms.CorrodeBreachStacks; Main.BreachMs=Terms.CorrodeBreachMs; break;
     case ELDCombatReaction::Frostbite: Main.AttackSlowBp=Terms.FrostbiteAttackSlowBp; Main.AttackSlowMs=Terms.FrostbiteMs; break;
-    case ELDCombatReaction::Smoke: Main.DisarmDurationMs=Terms.SmokeDisarmMs; break;
     default: break;
-    }
-    if (ReactionPushCm>0 && !PushDirection.IsNearlyZero())
-    {
-        Main.KnockbackCm=ReactionPushCm;
-        Main.KnockbackMs=Terms.GustPushMs;
-        Main.bKnockbackFromAnchor=true;
-        Main.KnockbackAnchorCm=Foot-PushDirection*100.;
-        Main.KnockbackSource=Applier.Source;
     }
     // The chain names a setter only when one applier alone held the consumed element (several burn appliers stay unnamed);
     // every applier is a prompt candidate, told only once this hit commits (ApplyHit).
@@ -461,8 +422,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
             ++Struck;
         }
     }
-    // What the reaction leaves on the primary: fog, a shatter, a stronger rot, new fire, its shock again, a firestorm's doubled
-    // fire. Each is the trigger's own application (the held element is gone, so none of them reacts again).
+    // What the reaction leaves on the primary: fog, a shatter, a stronger rot or new fire. Each is the trigger's own application (the held element is gone, so none of them reacts again).
     TOptional<FLDCombatFog> NewFog;
     switch (Reaction)
     {
@@ -497,31 +457,12 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     case ELDCombatReaction::Methane:
         if (!ApplyElement(Target,ELDCombatElement::Fire,Applier,Terms.MethaneBurnStacks,HitId,NowMs,Error)) { return false; }
         break;
-    case ELDCombatReaction::Thunderstorm:
-        if (!ApplyElement(Target,ELDCombatElement::Shock,Applier,0,HitId,NowMs,Error)) { return false; }
-        break;
-    case ELDCombatReaction::Firestorm:
-    {
-        // The fire layers double (the cap holds); the new ones are the trigger's.
-        const int32 Live=Target.Burn.Layers.Num();
-        const int32 Added=Live*FMath::Max(Terms.FirestormBurnScale-1,0);
-        if (Added>0 && !LDCombatKeywords::ApplyBurn(Target.Burn,Layer,FMath::Min(Added,Keywords.BurnMaxStacks),NowMs,Keywords))
-        { Error=TEXT("A firestorm could not add its layers with the approved burn terms."); return false; }
-        break;
-    }
     default: break;
     }
-    // A gust still pushes unless the reaction pushes in its place.
-    if (Kind==ELDCombatElement::Gust && ReactionPushCm<=0 && !PushGust(Target,Applier,Extras,Held,GustDirection,NowMs,Error)) { return false; }
     // The incoming element also lands on the ground under the primary (before the reaction leaves its own state there).
-    if (!ConvertGroundAt(Foot,Kind,Applier,GustDirection,NowMs,Error)) { return false; }
-    // The ground state the reaction leaves at the primary's foot (thunderstorm: where its knockback lands).
-    if (Rule.Ground!=ELDGroundStateKind::None)
-    {
-        const FVector Landing=Reaction==ELDCombatReaction::Thunderstorm && !PushDirection.IsNearlyZero()
-            ? Foot+PushDirection*Terms.ThunderstormKnockbackCm : Foot;
-        if (!SpawnGround(Rule.Ground,Applier,Landing,NowMs,Error)) { return false; }
-    }
+    if (!ConvertGroundAt(Foot,Kind,Applier,NowMs,Error)) { return false; }
+    // The ground state the reaction leaves at the primary's foot.
+    if (Rule.Ground!=ELDGroundStateKind::None && !SpawnGround(Rule.Ground,Applier,Foot,NowMs,Error)) { return false; }
     FLDCombatReactionFact Fact;
     Fact.Kind=Reaction;
     Fact.Consumed=Held;
@@ -544,29 +485,6 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     // Spec §11.1/§18.1: a new fog's 0 s wet lands before the batch that made it continues (a later element of the same hit
     // already finds its centre body wet), and later bodies of this boundary read the bodies it wetted.
     return !NewFog.IsSet() || PulseFog(NewFog.GetValue(),NowMs,Error);
-}
-
-bool ALDCombatDirector::PushGust(FLDBodyCombatState& Target, const FLDElementApplier& Applier, const FLDElementExtras& Extras,
-    ELDCombatElement HeldBefore, const FVector& Direction, int64 NowMs, FString& Error)
-{
-    using namespace LDCombatElementsDirectorDetail;
-    FLDElementTerms Terms;
-    if (!ElementTerms(Terms,Error)) { return false; }
-    ALDCharacter* Actor=ActorOf(Target);
-    if (!Actor || Direction.IsNearlyZero() || Extras.bNoPush) { return true; }
-    const double PushCm=Extras.GustPushCm>0 ? Extras.GustPushCm : Terms.GustPushCm;
-    const FVector Foot=FootOf(*Actor);
-    FLDCombatHit Push=SettleHit(Applier,{Target.Victim,Target.Identity},FGuid::NewGuid(),0);
-    Push.KnockbackCm=PushCm;
-    Push.KnockbackMs=Extras.GustPushMs>0 ? Extras.GustPushMs : Terms.GustPushMs;
-    Push.bKnockbackFromAnchor=true;
-    Push.KnockbackAnchorCm=Foot-Direction*100.;
-    Push.KnockbackSource=Applier.Source;
-    Push.KnockbackWallStunMs=Extras.WallStunMs;
-    PendingHits.Add(MoveTemp(Push));
-    // A gust overdrive leaves the ground state of the element the target held where the push lands (spec §3.5).
-    const ELDGroundStateKind Ground=Extras.bGustGround ? LDCombatElements::GroundForElement(HeldBefore) : ELDGroundStateKind::None;
-    return Ground==ELDGroundStateKind::None || SpawnGround(Ground,Applier,Foot+Direction*PushCm,NowMs,Error);
 }
 
 bool ALDCombatDirector::StrikeShock(const FLDBodyCombatState& Holder, const FLDElementApplier& Applier, const FVector& Foot,

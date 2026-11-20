@@ -716,7 +716,6 @@ bool ALDCombatDirector::ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Eleme
     case ELDDemoElement::Electric:
     case ELDDemoElement::Chill:
     case ELDDemoElement::Rot:
-    case ELDDemoElement::Gust:
     {
         const ELDCombatElement Kind=LDCombatCardsDetail::CombatElement(Element);
         if (!Hit.CardElements.ContainsByPredicate([Kind](const auto& Row) { return Row.Key==Kind; })) { Hit.CardElements.Emplace(Kind,Card); }
@@ -1188,7 +1187,7 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
             }
         }
     }
-    // Y05: the primary target takes a random element other than the one just consumed (each copy one more; gust excluded).
+    // Y05: the primary target takes a random element other than the one just consumed (each copy one more).
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
     for (const FLDPassiveEffectRef& Wave : Waves)

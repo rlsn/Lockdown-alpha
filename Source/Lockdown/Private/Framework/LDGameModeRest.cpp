@@ -15,7 +15,6 @@
 #include "Engine/World.h"
 #include "Region/LDMapGeometry.h"
 #include "Misc/ScopeExit.h"
-#include "World/LDRestServiceNPC.h"
 #include "World/LDTrainingRoomDisplay.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Evaluation/LDEvaluationSeeds.h"
@@ -157,32 +156,6 @@ ELDRestReadyResult ALDGameMode::SubmitRestReady(ALDPlayerController& Controller,
         UE_LOG(LogLDMatch, Display, TEXT("LD_REST_READY contender=%s rest=%u"), *LDLog::Id(Id), RestIndex);
     }
     return ELDRestReadyResult::Accepted;
-}
-
-ELDRestService ALDGameMode::NearbyRestService(const FGuid& Contender) const
-{
-    const FLDLifeRecord* Life = Lives.Find(Contender);
-    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    if (!DemoContent || !Registry || !Life || Life->Phase != ELDLifePhase::Alive || !RestLives.Contains(Contender)
-        || !IsRestPhase(MatchContext) || !Timeline.IsRestBuildOpen()) { return ELDRestService::None; }
-    const auto& Radius = DemoContent->Get().Parameters.AirdropPickupRadiusCm;
-    const double Range = double(Radius.Numerator) / double(Radius.Denominator);
-    for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
-    {
-        if (RestServiceAtAnchor(Index) == ELDRestService::None) { continue; }
-        const auto* Anchor = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation);
-        if (Anchor && FVector::DistSquared2D(Life->MotionLastFoot, Anchor->Position) <= Range * Range)
-        {
-            return RestServiceAtAnchor(Index);
-        }
-    }
-    return ELDRestService::None;
-}
-
-bool ALDGameMode::CanUseRestService(const FGuid& Contender, ELDBuildCommandKind Kind) const
-{
-    const ELDRestService Required = LDProgression::RestServiceFor(Kind);
-    return Required == ELDRestService::None || NearbyRestService(Contender) == Required;
 }
 
 void ALDGameMode::PublishTimeline()
@@ -510,22 +483,7 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
     // #198 outer §5: the segment's unclaimed camp markers expire with it.
     if (!EndFieldMarkersForRest(Permit, Error)) { return false; }
     if (!Camps->FreezeForRest(Permit, Error)) { return false; }
-    ClearRestServiceNPCs();
-    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
-    {
-        if (RestServiceAtAnchor(Index) == ELDRestService::None) { continue; }
-        const auto* Anchor = Registry ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation) : nullptr;
-        if (!Anchor)
-        {
-            Error = TEXT("The shared rest room is missing a service NPC anchor.");
-            return false;
-        }
-        auto* NPC = GetWorld()->SpawnActor<ALDRestServiceNPC>(Anchor->Position + FVector(0, 0, 80), FRotator::ZeroRotator);
-        if (!NPC) { Error = TEXT("The shared rest service NPC could not spawn."); return false; }
-        NPC->SetService(RestServiceAtAnchor(Index));
-        RestServiceNPCs.Add(NPC);
-    }
+    ClearRestRoomDisplay();
     ALDTrainingRoomDisplay* Display = GetWorld()->SpawnActor<ALDTrainingRoomDisplay>();
     if (!Display)
     {
@@ -536,10 +494,8 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
     return SpawnSharedTrainingDummies(Permit, Error);
 }
 
-void ALDGameMode::ClearRestServiceNPCs()
+void ALDGameMode::ClearRestRoomDisplay()
 {
-    for (const auto& NPC : RestServiceNPCs) { if (NPC.IsValid()) { NPC->Destroy(); } }
-    RestServiceNPCs.Reset();
     if (TrainingRoomDisplay.IsValid()) { TrainingRoomDisplay->Destroy(); }
     TrainingRoomDisplay.Reset();
 }
@@ -557,7 +513,7 @@ bool ALDGameMode::ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& E
         Error = TEXT("Combat could not end the rest's effects at the field boundary.");
         return false;
     }
-    ClearRestServiceNPCs();
+    ClearRestRoomDisplay();
     return Camps->ThawAfterRest(Permit, Error);
 }
 

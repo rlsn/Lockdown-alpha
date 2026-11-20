@@ -28,7 +28,6 @@ ELDCardTargetKind GrowthTarget(ELDResultBuildTarget Kind)
 {
     switch (Kind)
     {
-    case ELDResultBuildTarget::Basic: return ELDCardTargetKind::Basic;
     case ELDResultBuildTarget::Active: return ELDCardTargetKind::Skill;
     case ELDResultBuildTarget::Dash: return ELDCardTargetKind::Dash;
     default: return ELDCardTargetKind::Body;
@@ -150,7 +149,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         Stack->AddChildToVerticalBox(Head);
         auto* Label = BoardText(Tree, LDHUD::ColumnLabel(ColumnId), FMath::Max(8, FMath::RoundToInt(Header * .37f * TextScale)));
         Head->AddChildToHorizontalBox(Label)->SetVerticalAlignment(VAlign_Center);
-        if (ColumnId != LDHUD::EStorageColumn::Body && ColumnId != LDHUD::EStorageColumn::Basic)
+        if (ColumnId != LDHUD::EStorageColumn::Body)
         {
             UWidget* Icon = BoardIcon(Tree, Content, Column.Active, Header, false,
                 ColumnId == LDHUD::EStorageColumn::Dash ? FString(LDUIIcons::Dash) : FString());

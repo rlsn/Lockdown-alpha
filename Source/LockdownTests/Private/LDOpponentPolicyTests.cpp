@@ -2500,8 +2500,7 @@ bool RunObjective(FAutomationTestBase& Test)
     return bGood;
 }
 
-// #305 spec §11.3: a healthy body chases a visible second-hand dealer, opens a seen locker (holding on it to channel), and
-// buys a vending buff in passing when it has vouchers to spare beyond a skill point, once per buff duration.
+// #305 spec §11.3: a healthy body chases a visible second-hand dealer and opens a public locker (holding on it to channel).
 bool RunExplore(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -2518,7 +2517,7 @@ bool RunExplore(FAutomationTestBase& Test)
     Frame.POIs.Add(POI(TEXT("locker_3"), ELDOpponentPOIKind::Locker, 1500, -500));
     FLDOpponentPolicyState Walker;
     const auto Walk = LDOpponentPolicy::Decide(Frame, C, Walker);
-    bGood &= Expect(Test, TEXT("A seen locker in reach draws a healthy body"), Walk, EMode::Objective, EBody::MoveGround, TEXT("locker_3"))
+    bGood &= Expect(Test, TEXT("A public locker in reach draws a healthy body"), Walk, EMode::Objective, EBody::MoveGround, TEXT("locker_3"))
         && Test.TestTrue(TEXT("Opening a locker is its own reason"), Walk.Reason == ELDOpponentReason::OpenLocker);
     Frame.Self.FootCm = FVector(1510, -500, 0);
     FLDOpponentPolicyState Stander;
@@ -2539,21 +2538,6 @@ bool RunExplore(FAutomationTestBase& Test)
     const auto Chase = LDOpponentPolicy::Decide(Frame, C, Hunter);
     bGood &= Test.TestTrue(TEXT("The visible dealer is chased ahead of a locker"), Chase.Reason == ELDOpponentReason::ChaseDealer
         && Chase.Body.Handle == Dealer.Handle);
-
-    Frame = Base;
-    Frame.Self.NearbyVending = TEXT("vending_0");
-    const auto& P = C.Get().Parameters;
-    Frame.Self.Vouchers = P.Explore.VendingBuffPrice + P.Shop.SkillPointPrice;
-    FLDOpponentPolicyState Buyer;
-    bGood &= Test.TestEqual(TEXT("With vouchers to spare beyond a skill point it buys the attack-speed buff"),
-        int32(LDOpponentPolicy::Decide(Frame, C, Buyer).Vending), 1);
-    Frame.Public.NowMs += 1000;
-    bGood &= Test.TestEqual(TEXT("Not again within the buff's duration"), int32(LDOpponentPolicy::Decide(Frame, C, Buyer).Vending), 0);
-    Frame.Public.NowMs += P.Explore.VendingBuffMs;
-    bGood &= Test.TestEqual(TEXT("Once the buff has run out it buys again"), int32(LDOpponentPolicy::Decide(Frame, C, Buyer).Vending), 1);
-    Frame.Self.Vouchers -= 1;
-    FLDOpponentPolicyState Saver;
-    bGood &= Test.TestEqual(TEXT("It keeps a skill point's vouchers"), int32(LDOpponentPolicy::Decide(Frame, C, Saver).Vending), 0);
     return bGood;
 }
 }
@@ -2742,7 +2726,7 @@ bool RunShopBuy(FAutomationTestBase& Test)
     Shop.Slots = {{ELDShopItemKind::Skill, TEXT("active_not_mad"), Terms.SkillPrice, false},
         {ELDShopItemKind::Card, TEXT("card_spiky_hide"), Terms.CardPrice, false},
         {ELDShopItemKind::Card, TEXT("card_third_breath"), Terms.CardPrice, false}};
-    Mid.Self.Vouchers = Terms.SkillPointPrice;
+    Mid.Self.UnspentPoints = Terms.SkillPointPrice;
     uint8 Slot = 0;
     bool bGood = Test.TestTrue(TEXT("With the skill point's price the AI buys the skill point"),
         LDOpponentPolicy::SelectShopBuy(Mid.Self, C, NAME_None, Slot) && Slot == FLDBuildCommand::ShopSkillPointSlot);
@@ -2752,14 +2736,14 @@ bool RunShopBuy(FAutomationTestBase& Test)
         Decision.Build.Kind == ELDOpponentBuildKind::ShopBuy && Decision.Build.Slot == FLDBuildCommand::ShopSkillPointSlot
         && Decision.Build.OfferRevision == 3);
     auto Saving = Mid;
-    Saving.Self.Vouchers = Terms.SkillPointPrice - 1;
+    Saving.Self.UnspentPoints = Terms.SkillPointPrice - 1;
     bGood &= Test.TestTrue(TEXT("Short of the skill point the AI buys an affordable card instead"),
         LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot) && Slot >= 1 && Slot <= 2);
-    Saving.Self.Vouchers = Terms.CardPrice - 1;
+    Saving.Self.UnspentPoints = Terms.CardPrice - 1;
     bGood &= Test.TestFalse(TEXT("Short of every price the AI buys nothing"), LDOpponentPolicy::SelectShopBuy(Saving.Self, C, NAME_None, Slot));
     auto Cards = Mid;
     Cards.Self.Shop.SkillPointsBought = Terms.SkillPointMaxPerMatch;
-    Cards.Self.Vouchers = Terms.CardPrice;
+    Cards.Self.UnspentPoints = Terms.CardPrice;
     bGood &= Test.TestTrue(TEXT("Once the skill points are bought out the AI buys a card, never the skill"),
         LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot) && Slot >= 1 && Slot <= 2);
     // card_third_breath shares combo3/momentum with nothing here; card_spiky_hide shares nothing either: the jitter decides,
@@ -2777,51 +2761,33 @@ bool RunShopBuy(FAutomationTestBase& Test)
     return bGood;
 }
 
-bool RunRestServiceTravel(FAutomationTestBase& Test)
+bool RunRestRebuilds(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
     const FLDDemoContentSnapshot& C = *Catalog;
     using EBuild = ELDOpponentBuildKind;
     using EBody = ELDOpponentBodyKind;
-    using EReason = ELDOpponentReason;
     FLDOpponentDecisionFrame Frame;
     if (!RestFrame(Test, C, Frame)) { return false; }
-    // An elbow (AD) build with points in brains wants a respec at the trainer.
+    // An elbow (AD) build with points in brains wants a respec; the workshop sends it wherever the body stands.
     Frame.Self.Actives = {{TEXT("active_elbow"), 0}};
     Frame.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {{TEXT("stat_brains"), 2}});
-    {
-        FLDOpponentPOI& Place = Frame.RestServicePOIs.AddDefaulted_GetRef();
-        Place.Id = TEXT("rest_service_3");
-        Place.Kind = ELDOpponentPOIKind::RestService;
-        Place.RestService = ELDRestService::Trainer;
-        Place.SurfaceId = TEXT("demo_ground");
-        Place.FootCm = FVector(3000, 0, 0);
-    }
     const auto Decide = [&C](const FLDOpponentDecisionFrame& Input)
     {
         FLDOpponentPolicyState State;
         return LDOpponentPolicy::Decide(Input, C, State);
     };
-    bool bGood = Test.TestTrue(TEXT("Each AI rest intent uses the authority's service mapping"),
-        LDOpponentPolicy::RestServiceForBuild(EBuild::ShopBuy) == ELDRestService::None
-        && LDOpponentPolicy::RestServiceForBuild(EBuild::InstallCard) == ELDRestService::None
-        && LDOpponentPolicy::RestServiceForBuild(EBuild::Respec) == ELDRestService::Trainer
-        && LDOpponentPolicy::RestServiceForBuild(EBuild::ReplaceActive) == ELDRestService::Trainer
-        && LDOpponentPolicy::RestServiceForBuild(EBuild::AllocatePoints) == ELDRestService::None
-        && LDProgression::RestServiceFor(ELDBuildCommandKind::ForgetActive) == ELDRestService::Trainer);
     FLDOpponentDecision Decision = Decide(Frame);
-    bGood &= Test.TestTrue(TEXT("A distant respec walks to the trainer without sending the build"),
-        Decision.Reason == EReason::RestService && Decision.Body.Kind == EBody::MoveGround
-        && Decision.Body.POI == TEXT("rest_service_3") && Decision.Build.Kind == EBuild::None);
-    // R3 may close as soon as the humans ready up. A trainer walk or a shopping backlog must not
-    // prevent the AI from taking its one-time final rule while the offer is still open.
+    bool bGood = Test.TestTrue(TEXT("In the rest build window the respec is sent at once, without a walk"),
+        Decision.Build.Kind == EBuild::Respec && Decision.Body.Kind != EBody::MoveGround);
+    // R3 may close as soon as the humans ready up: the one-time final rule goes before any other rebuild.
     auto Final = Frame;
     Final.Public.Timeline.RestIndex = 3;
     Final.Self.FinalModOfferId = FGuid(0xF1, 0, 0, 1);
     Final.Self.FinalModOptions = {TEXT("final_cage"), TEXT("final_usurp"), TEXT("final_clear_out")};
     Decision = Decide(Final);
-    bGood &= Test.TestTrue(TEXT("The pending final choice precedes trainer travel and takes one of its options"),
+    bGood &= Test.TestTrue(TEXT("The pending final choice precedes a respec and takes one of its options"),
         Decision.Build.Kind == EBuild::FinalMod && Decision.Body.Kind == EBody::None
         && Decision.Build.OfferId == Final.Self.FinalModOfferId && Final.Self.FinalModOptions.Contains(Decision.Build.Option)
         && Decision.Build.TargetId.IsEmpty());
@@ -2842,37 +2808,6 @@ bool RunRestServiceTravel(FAutomationTestBase& Test)
     FinalLocked.Public.Timeline.Step = ELDRestStep::Return;
     bGood &= Test.TestTrue(TEXT("The final choice is never submitted after the rest build window closes"),
         Decide(FinalLocked).Build.Kind != EBuild::FinalMod);
-
-    auto Walking = Frame;
-    Walking.Order.Kind = ELDOpponentOrderKind::MoveGround;
-    Walking.Order.Status = ELDOpponentOrderStatus::Active;
-    Walking.Order.POI = TEXT("rest_service_3");
-    Decision = Decide(Walking);
-    bGood &= Test.TestTrue(TEXT("An existing trainer walk is kept"),
-        Decision.Body.Kind == EBody::Keep && Decision.Build.Kind == EBuild::None);
-    auto Acting = Frame;
-    Acting.Self.bChanneling = true;
-    bGood &= Test.TestTrue(TEXT("A channel finishes before walking"), Decide(Acting).Body.Kind == EBody::Keep);
-    auto Nearby = Frame;
-    Nearby.Self.NearbyRestService = ELDRestService::Trainer;
-    Decision = Decide(Nearby);
-    bGood &= Test.TestTrue(TEXT("Beside the trainer the respec is sent"),
-        Decision.Build.Kind == EBuild::Respec && Decision.Body.Kind == EBody::None);
-    auto Missing = Frame;
-    Missing.RestServicePOIs.Reset();
-    bGood &= Test.TestTrue(TEXT("A missing service anchor is an explicit provider stop"),
-        Decide(Missing).Reason == EReason::ProviderUnavailable && Decide(Missing).Build.Kind == EBuild::None);
-
-    FLDOpponentPolicyState Retry;
-    Retry.Generation = Frame.Generation;
-    Retry.Life = Frame.Self.Life;
-    const FLDOpponentDecision First = LDOpponentPolicy::Decide(Frame, C, Retry);
-    LDOpponentPolicy::RecordOutcome(Retry, First.Body.Key, ELDOpponentOutcome::Failed, Frame.Self,
-        Frame.Public.NowMs, C.Get().Parameters.AI);
-    Decision = LDOpponentPolicy::Decide(Frame, C, Retry);
-    bGood &= Test.TestTrue(TEXT("A refused service path backs off rather than sending another order"),
-        Decision.Reason == EReason::TargetSuppressed && Decision.Body.Kind == EBody::None);
-
     return bGood;
 }
 // In the rest build window, once nothing is left to build, the body tries its build on its private target (a
@@ -2971,12 +2906,12 @@ bool FLDDemoOpponentShopBuyTest::RunTest(const FString& Parameters)
     return LDOpponentComponentTests::RunShopBuy(*this);
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestServiceTravelTest, "Lockdown.Rules.DemoOpponentPolicy.RestServiceTravel",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestRebuildsTest, "Lockdown.Rules.DemoOpponentPolicy.RestRebuilds",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDDemoOpponentRestServiceTravelTest::RunTest(const FString& Parameters)
+bool FLDDemoOpponentRestRebuildsTest::RunTest(const FString& Parameters)
 {
-    return LDOpponentComponentTests::RunRestServiceTravel(*this);
+    return LDOpponentComponentTests::RunRestRebuilds(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentTrainingTest, "Lockdown.Rules.DemoOpponentPolicy.Training",

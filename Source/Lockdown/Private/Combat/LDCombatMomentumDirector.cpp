@@ -229,16 +229,6 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
             Root->DurationMs=FMath::Max(Root->DurationMs,O.ChillRootMs);
         }
         break;
-    case ELDDemoSkillElement::Gust:
-        // The gust pushes OVERDRIVE.GustPushCm over OVERDRIVE.GustPushSec and leaves the ground state of the element its target
-        // held where the push lands.
-        if (FLDDemoEffectDefinition* Gust=Find(ELDDemoEffectOp::Gust))
-        {
-            Gust->DistanceCm=O.GustPushCm;
-            Gust->DurationMs=O.GustPushMs;
-            Terms.bOverdriveGustGround=true;
-        }
-        break;
     default:
         break;
     }

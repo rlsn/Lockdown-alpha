@@ -319,7 +319,7 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOptionalAnchorMinimums, "Lockdown.Rules.StaticScene.OptionalAnchorMinimums",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-// #293 acceptance: the mini flag, locker and vending points are whatever the saved level holds, but a level whose
+// #293 acceptance: the mini flag and locker points are whatever the saved level holds, but a level whose
 // definition declares a kind (the Demo world) fails clearly once it holds fewer than that kind's minimum.
 bool FLDOptionalAnchorMinimums::RunTest(const FString& Parameters)
 {
@@ -349,13 +349,12 @@ bool FLDOptionalAnchorMinimums::RunTest(const FString& Parameters)
     };
     Declare(LDDemoWorld::MiniFlagPrefix(), ELDDemoWorldAnchorKind::MiniFlag, LDDemoWorld::MinMiniFlags, 0);
     Declare(LDDemoWorld::LockerPrefix(), ELDDemoWorldAnchorKind::Locker, LDDemoWorld::MinLockers, 1000);
-    Declare(LDDemoWorld::VendingPrefix(), ELDDemoWorldAnchorKind::Vending, LDDemoWorld::MinVending, 2000);
     FString Error;
     if (!TestTrue(TEXT("A level holding every declared minimum projects: ") + Error,
         LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error))) { return false; }
     TestEqual(TEXT("Every saved point becomes an anchor"), Projected.Anchors.Num(),
-        LDDemoWorld::MinMiniFlags + LDDemoWorld::MinLockers + LDDemoWorld::MinVending);
-    for (const TCHAR* Prefix : {LDDemoWorld::MiniFlagPrefix(), LDDemoWorld::LockerPrefix(), LDDemoWorld::VendingPrefix()})
+        LDDemoWorld::MinMiniFlags + LDDemoWorld::MinLockers);
+    for (const TCHAR* Prefix : {LDDemoWorld::MiniFlagPrefix(), LDDemoWorld::LockerPrefix()})
     {
         TArray<ALDLayoutPoint*>& Points = Placed.FindChecked(Prefix);
         ALDLayoutPoint* Last = Points.Pop();
@@ -369,10 +368,9 @@ bool FLDOptionalAnchorMinimums::RunTest(const FString& Parameters)
             LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
         // Restore the kind before checking the next one.
         const ELDDemoWorldAnchorKind Kind = Base.Anchors.FindByPredicate([Prefix](const FLDDemoWorldAnchor& A) { return A.Id.StartsWith(Prefix); })->Kind;
-        const int32 Minimum = Kind == ELDDemoWorldAnchorKind::MiniFlag ? LDDemoWorld::MinMiniFlags
-            : Kind == ELDDemoWorldAnchorKind::Locker ? LDDemoWorld::MinLockers : LDDemoWorld::MinVending;
+        const int32 Minimum = Kind == ELDDemoWorldAnchorKind::MiniFlag ? LDDemoWorld::MinMiniFlags : LDDemoWorld::MinLockers;
         Base.Anchors.RemoveAll([Prefix](const FLDDemoWorldAnchor& A) { return A.Id.StartsWith(Prefix); });
-        Declare(Prefix, Kind, Minimum, Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : Kind == ELDDemoWorldAnchorKind::Locker ? 1000 : 2000);
+        Declare(Prefix, Kind, Minimum, Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : 1000);
     }
     TestTrue(TEXT("Restored, the level projects again: ") + Error, LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
     return !HasAnyErrors();

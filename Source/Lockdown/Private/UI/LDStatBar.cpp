@@ -315,6 +315,32 @@ bool ULDStatBar::Allocate(int32 Index)
     Refresh();
     return true;
 }
+bool ULDStatBar::Refund(int32 Index)
+{
+    const auto Refuse=[this](const FString& Why){if(Notify){Notify(FString(TEXT("退点："))+Why);}return false;};
+    if(!Usable()){return Refuse(TEXT("属性数据同步中。"));}
+    if(!Cells.IsValidIndex(Index)){return false;}
+    if(!Gate.bCanRespec){return Refuse(Gate.RespecBlocked);}
+    if(PendingRequest||AwaitRevision!=0||StatSum(Queued)+StatSum(InFlight)>0||(PeekRequestId&&PeekRequestId()==0))
+    {return Refuse(TEXT("上一个请求仍在处理中。"));}
+    if(LDHUD::StatPointsOf(Latest,Cells[Index].StatId)<=0){return Refuse(LDHUD::GrowthReasonText(ELDGrowthReason::NothingToRespec));}
+    const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
+    FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::Respec;
+    for(int32 Stat=0;Stat<Cells.Num();++Stat)
+    {
+        if(!StatOrder.IsValidIndex(Stat)||Latest.StatPoints[Stat].StatId!=FName(*StatOrder[Stat]->Id))
+        {return Refuse(TEXT("没有提交：属性数据与内容目录不一致。"));}
+        Command.PointCounts.Add(Stat==Index?1:0);
+    }
+    return Send(Command);
+}
+FReply ULDStatBar::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    // The wheel over a stat icon: up adds a point, down takes one back (rest only); elsewhere the bar lets it pass.
+    if(bAttributes||!Cells.IsValidIndex(HoveredIndex)||Event.GetWheelDelta()==0.f){return Super::NativeOnMouseWheel(Geometry,Event);}
+    if(Event.GetWheelDelta()>0.f){Allocate(HoveredIndex);}else{Refund(HoveredIndex);}
+    return FReply::Handled();
+}
 void ULDStatBar::Flush()
 {
     // One AllocatePoints at a time, after the previous one shows in the view and while no other build request holds the

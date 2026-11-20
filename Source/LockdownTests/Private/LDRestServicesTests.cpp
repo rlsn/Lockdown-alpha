@@ -95,8 +95,6 @@ const TCHAR* RestTestKindName(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::AllocatePoints: return TEXT("AllocatePoints");
     case ELDBuildCommandKind::ShopBuy: return TEXT("ShopBuy");
     case ELDBuildCommandKind::ShopRefresh: return TEXT("ShopRefresh");
-    case ELDBuildCommandKind::ShopSell: return TEXT("ShopSell");
-    case ELDBuildCommandKind::UsePickTicket: return TEXT("UsePickTicket");
     case ELDBuildCommandKind::Respec: return TEXT("Respec");
     case ELDBuildCommandKind::ReplaceActive: return TEXT("ReplaceActive");
     case ELDBuildCommandKind::ForgetActive: return TEXT("ForgetActive");
@@ -108,15 +106,15 @@ bool RestTestRunGates(FAutomationTestBase& Test)
 {
     using EKind = ELDBuildCommandKind;
     using EReason = ELDGrowthReason;
-    // Spec §3.13/§11.3: the shop keeps the rest window like the trainer (without its NPC); a pick ticket is open like the build.
+    // Spec §3.13: the shop keeps the rest window like the rest rebuilds.
     const EKind Kinds[] = {EKind::ActiveChoice, EKind::LearnBlueprint, EKind::AllocatePoints, EKind::ShopBuy, EKind::Respec,
-        EKind::ReplaceActive, EKind::ForgetActive, EKind::ShopRefresh, EKind::ShopSell, EKind::UsePickTicket};
+        EKind::ReplaceActive, EKind::ForgetActive, EKind::ShopRefresh};
     struct FRow
     {
         const TCHAR* What;
         LDProgression::FBuildContext Context;
         bool bRest;
-        EReason Expected[10];
+        EReason Expected[8];
     };
     const EReason NotRest = EReason::NotRestWindow;
     const EReason NoReplace = EReason::ReplacementNotAllowed;
@@ -124,23 +122,20 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     const EReason Closed = EReason::PhaseClosed;
     const FRow Matrix[] = {
         {TEXT("field, alive (in combat or not)"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), false,
-            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest, NotRest, EReason::None}},
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest}},
         {TEXT("field, dead"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead), false,
-            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest, NotRest, EReason::None}},
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest}},
         {TEXT("rest window, alive"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive), true,
-            {EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None,
-             EReason::None, EReason::None}},
+            {EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None}},
         {TEXT("rest window, dead"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead), true,
-            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead,
-             EReason::Dead, EReason::None}},
+            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead}},
         {TEXT("rest return step"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), false,
-            {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked, Locked, Locked, EReason::None}},
+            {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked, Locked}},
         {TEXT("closed"), RestTestContext(ERestTestStage::Closed, ELDLifePhase::Alive), false,
-            {Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
+            {Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
         {TEXT("unspawned in the rest window"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Unspawned), true,
             {EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged,
-             EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged,
-             EReason::LifePhaseChanged, EReason::LifePhaseChanged}}};
+             EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged}}};
     bool bGood = true;
     constexpr int32 KindCount = UE_ARRAY_COUNT(Kinds);
     for (const FRow& Row : Matrix)
@@ -158,14 +153,14 @@ bool RestTestRunGates(FAutomationTestBase& Test)
         LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive)), EReason::None);
     bGood &= RestTestReason(Test, TEXT("LearnGate in the return step (#222)"),
         LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), EReason::None);
-    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(20), uint8(29), uint8(40), uint8(255)})
+    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(20), uint8(29), uint8(38), uint8(40), uint8(255)})
     {
         bGood &= RestTestReason(Test, FString::Printf(TEXT("Command kind %u is refused, not mapped to a neighbour"), uint32(Unknown)),
             LDProgression::CommandGate(static_cast<EKind>(Unknown), Rest), EReason::InvalidRequest);
     }
 
     const TPair<EKind, uint8> KindNumbers[] = {{EKind::Respec, 21}, {EKind::ReplaceActive, 22}, {EKind::ForgetActive, 23},
-        {EKind::ShopBuy, 36}, {EKind::ShopRefresh, 37}, {EKind::ShopSell, 38}, {EKind::UsePickTicket, 39}};
+        {EKind::ShopBuy, 36}, {EKind::ShopRefresh, 37}};
     for (const TPair<EKind, uint8>& Row : KindNumbers)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("%s travels as %u"), RestTestKindName(Row.Key), uint32(Row.Value)),
@@ -173,9 +168,8 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     }
     const TPair<EReason, uint16> ReasonNumbers[] = {{EReason::ReplacementNotAllowed, 48}, {EReason::BuildLocked, 70},
         {EReason::OfferOutstanding, 72}, {EReason::NothingToRespec, 73}, {EReason::SlotEmpty, 74},
-        {EReason::NotRestWindow, 75}, {EReason::RestServiceUnavailable, 76}, {EReason::NotEnoughVouchers, 200},
-        {EReason::ShopSoldOut, 201}, {EReason::ShopStale, 202}, {EReason::SkillPointLimit, 203}, {EReason::NoShop, 204},
-        {EReason::NoPickTicket, 205}, {EReason::NotSeen, 206}, {EReason::CardInstalled, 207}};
+        {EReason::NotRestWindow, 75},
+        {EReason::ShopSoldOut, 201}, {EReason::ShopStale, 202}, {EReason::SkillPointLimit, 203}, {EReason::NoShop, 204}};
     for (const TPair<EReason, uint16>& Row : ReasonNumbers)
     {
         const FString Name = LDGrowthWire::ReasonName(Row.Key);
@@ -210,24 +204,39 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     const int64 Before = RestTestUnspent(Content, Built, XP);
     bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated is unspent"), Before, int64(9 - 4));
     bGood &= RestTestReason(Test, TEXT("A respec in the rest window"),
-        LDProgression::ApplyRespec(Content, Built, XP, Rest, Out, Refunded), ELDGrowthReason::None);
+        LDProgression::ApplyRespec(Content, Built, XP, {}, Rest, Out, Refunded), ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("Every allocated point returns"),
         Refunded == 4 && Out.StatPoints == TArray<int32>({0, 0, 0, 0, 0})
         && RestTestUnspent(Content, Out, XP) == 9 && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
     const FLDGrowthBuild Respecced = Out;
     bGood &= RestTestReason(Test, TEXT("A respec with nothing allocated"),
-        LDProgression::ApplyRespec(Content, Respecced, XP, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
+        LDProgression::ApplyRespec(Content, Respecced, XP, {}, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
     bGood &= Test.TestTrue(TEXT("A refused respec refunds nothing"), Refunded == 0);
     bGood &= RestTestReason(Test, TEXT("A respec on the field"),
-        LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out, Refunded),
+        LDProgression::ApplyRespec(Content, Built, XP, {}, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out, Refunded),
         ELDGrowthReason::NotRestWindow);
     bGood &= Test.TestTrue(TEXT("A respec refused on the field changes nothing"), Refunded == 0 && Out.StatPoints == Built.StatPoints);
     bGood &= RestTestReason(Test, TEXT("A respec while builds are locked"),
-        LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), Out,
+        LDProgression::ApplyRespec(Content, Built, XP, {}, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), Out,
             Refunded), ELDGrowthReason::BuildLocked);
     bGood &= RestTestReason(Test, TEXT("A respec of a build that allocated more than it earned"),
-        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {5, 0, 0, 0, 0}), 0, Rest, Out, Refunded),
+        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {5, 0, 0, 0, 0}), 0, {}, Rest, Out, Refunded),
         ELDGrowthReason::AuthorityFault);
+    // The workshop's single-point refund: named counts per stat, at most what each holds, in the rest window only.
+    bGood &= RestTestReason(Test, TEXT("One point of the third stat back"),
+        LDProgression::ApplyRespec(Content, Built, XP, {0, 0, 1, 0, 0}, Rest, Out, Refunded), ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("Only that point returns"), Refunded == 1 && Out.StatPoints == TArray<int32>({1, 0, 1, 0, 1})
+        && RestTestUnspent(Content, Out, XP) == 6);
+    bGood &= RestTestReason(Test, TEXT("More than a stat holds"),
+        LDProgression::ApplyRespec(Content, Built, XP, {0, 1, 0, 0, 0}, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
+    bGood &= Test.TestTrue(TEXT("A refused single refund changes nothing"), Out.StatPoints == Built.StatPoints && Refunded == 0);
+    bGood &= RestTestReason(Test, TEXT("A count list of the wrong length"),
+        LDProgression::ApplyRespec(Content, Built, XP, {1}, Rest, Out, Refunded), ELDGrowthReason::InvalidRequest);
+    bGood &= RestTestReason(Test, TEXT("An all-zero count list"),
+        LDProgression::ApplyRespec(Content, Built, XP, {0, 0, 0, 0, 0}, Rest, Out, Refunded), ELDGrowthReason::InvalidRequest);
+    bGood &= RestTestReason(Test, TEXT("A single refund on the field (points only go in there)"),
+        LDProgression::ApplyRespec(Content, Built, XP, {0, 0, 1, 0, 0}, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out,
+            Refunded), ELDGrowthReason::NotRestWindow);
     return bGood;
 }
 
@@ -352,7 +361,7 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
     FLDGrowthBuild Built = RestTestBuild(Content, 8, {{Elbow, 0}, {BailOut, 1}, {Zap, 2}}, {Seethe});
     Built.Cards = {RestTestCard(1, Encore, EKind::Skill, Elbow), RestTestCard(2, Encore, EKind::Skill, Elbow),
         RestTestCard(3, Big, EKind::Skill, Zap), RestTestCard(4, Practice, EKind::Skill, BailOut), RestTestCard(5, Spiky, EKind::Body),
-        RestTestCard(6, Breath, EKind::Basic), RestTestCard(7, Practice)};
+        RestTestCard(6, Breath, EKind::Body), RestTestCard(7, Practice)};
     Built.NextCardSerial = 8;
     LDProgression::NormalizeBuild(Built);
     if (!RestTestReason(Test, TEXT("The reclaim fixture build"), LDProgression::ValidateBuild(Content, Built), ELDGrowthReason::None))

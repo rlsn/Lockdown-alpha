@@ -209,7 +209,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             ELDDemoWorldAnchorKind OptionalKind;
             if (Points.Contains(Id) && LDDemoWorld::OptionalKindOf(Id, OptionalKind))
             {
-                // Spec §11.4: a copied mini flag, locker or vending point is a new point of the same kind. Its identity
+                // Spec §11.4: a copied mini flag or locker point is a new point of the same kind. Its identity
                 // derives from the saved object name, which a copy never shares.
                 Id = LDStaticScene::OptionalCopyId(Id, Actor->GetName());
             }
@@ -370,7 +370,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         if (IA == INDEX_NONE && IB == INDEX_NONE) { return A.Id < B.Id; }
         return (IA == INDEX_NONE ? MAX_int32 : IA) < (IB == INDEX_NONE ? MAX_int32 : IB);
     });
-    // Spec §11.4: the mini flag, locker and vending points are whatever the saved level holds (moved, copied or deleted by
+    // Spec §11.4: the mini flag and locker points are whatever the saved level holds (moved, copied or deleted by
     // the author), sorted by id; fewer than a kind's minimum is an authoring error, not a cue to restore old points.
     Out.Anchors.RemoveAll([](const FLDDemoWorldAnchor& Anchor) { return LDDemoWorld::OptionalPrefix(Anchor.Kind) != nullptr; });
     TArray<FString> OptionalIds;
@@ -380,14 +380,14 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         if (LDDemoWorld::OptionalKindOf(Pair.Key, Kind)) { OptionalIds.Add(Pair.Key); }
     }
     OptionalIds.Sort();
-    int32 OptionalCounts[3] = {};
+    int32 OptionalCounts[2] = {};
     for (const FString& Id : OptionalIds)
     {
         auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
         Anchor.Id = Id;
         LDDemoWorld::OptionalKindOf(Id, Anchor.Kind);
         Anchor.SurfaceId = Base.Surfaces[0].Id;
-        ++OptionalCounts[Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : Anchor.Kind == ELDDemoWorldAnchorKind::Locker ? 1 : 2];
+        ++OptionalCounts[Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : 1];
     }
     // The definition keeps its anchors in ordinal id order; the projection matches it.
     Out.Anchors.Sort([](const FLDDemoWorldAnchor& A, const FLDDemoWorldAnchor& B) { return A.Id.Compare(B.Id, ESearchCase::CaseSensitive) < 0; });
@@ -397,8 +397,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     { return Base.Anchors.ContainsByPredicate([Kind](const FLDDemoWorldAnchor& A) { return A.Kind == Kind; }); };
     const struct { const TCHAR* Prefix; int32 Count; int32 Min; bool bDeclared; } Minimums[] = {
         {LDDemoWorld::MiniFlagPrefix(), OptionalCounts[0], LDDemoWorld::MinMiniFlags, Declared(ELDDemoWorldAnchorKind::MiniFlag)},
-        {LDDemoWorld::LockerPrefix(), OptionalCounts[1], LDDemoWorld::MinLockers, Declared(ELDDemoWorldAnchorKind::Locker)},
-        {LDDemoWorld::VendingPrefix(), OptionalCounts[2], LDDemoWorld::MinVending, Declared(ELDDemoWorldAnchorKind::Vending)}};
+        {LDDemoWorld::LockerPrefix(), OptionalCounts[1], LDDemoWorld::MinLockers, Declared(ELDDemoWorldAnchorKind::Locker)}};
     for (const auto& Minimum : Minimums)
     {
         if (Minimum.bDeclared && Minimum.Count < Minimum.Min)

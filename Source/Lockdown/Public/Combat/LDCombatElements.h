@@ -7,25 +7,25 @@ struct FLDCombatHit;
 enum class ELDDemoElement : uint8;
 struct FLDCombatCastLedger;
 
-// Issue #287 spec §8 six elements (docs/systems/COMBAT_AND_GROWTH.md "元素、反应与地面状态", CONTENT_AND_BALANCE §4.4). Each
-// target life holds at most one element: fire is its burn layers (LDCombatKeywords); water, shock, chill and rot are one mark;
-// gust is never held (a push that reacts with the held element). A hit's elements apply as one batch in the order fire, water,
-// shock, chill, rot, gust; a different element already held reacts with the new one through the 6 x 6 table (ReactionOf).
-// Pure rules over primitive values; ALDCombatDirector applies them to its body records (LDCombatElementsDirector.cpp).
-// Shock keeps the number of the former electric element.
-enum class ELDCombatElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5, Gust = 6 };
-constexpr int32 LDCombatElementCount = 7;
-// Spec §8.2: Fog/Conduct/Overload keep 1..3; the twelve P4 reactions follow as 4..15.
+// Spec §8 five elements (docs/systems/COMBAT_AND_GROWTH.md "元素、反应与地面状态", CONTENT_AND_BALANCE §4.4). Each target
+// life holds at most one element: fire is its burn layers (LDCombatKeywords); water, shock, chill and rot are one mark. A hit's
+// elements apply as one batch in the order fire, water, shock, chill, rot; a different element already held reacts with the
+// new one through the 5 x 5 table (ReactionOf). Pure rules over primitive values; ALDCombatDirector applies them to its body
+// records (LDCombatElementsDirector.cpp). Shock keeps the number of the former electric element.
+enum class ELDCombatElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5 };
+constexpr int32 LDCombatElementCount = 6;
+// Spec §8.2: the ten reactions of the five elements. Numbers 6, 9 and 12 are retired and never reused.
 enum class ELDCombatReaction : uint8
 {
-    None = 0, Fog = 1, Conduct = 2, Overload = 3, Melt = 4, Methane = 5, Firestorm = 6, Freeze = 7, Ferment = 8, Splash = 9,
-    Shatter = 10, Corrode = 11, Thunderstorm = 12, Frostbite = 13, Blizzard = 14, Smoke = 15
+    None = 0, Fog = 1, Conduct = 2, Overload = 3, Melt = 4, Methane = 5, Freeze = 7, Ferment = 8, Shatter = 10, Corrode = 11,
+    Frostbite = 13
 };
-constexpr int32 LDCombatReactionCount = 16;
+// One past the highest reaction number.
+constexpr int32 LDCombatReactionCount = 14;
 
-// Spec §8.3 ground states (5 + the blizzard area); 0 is none. The interface draws each with its own pattern.
-enum class ELDGroundStateKind : uint8 { None = 0, Puddle = 1, Ice = 2, Fire = 3, Miasma = 4, Field = 5, Blizzard = 6 };
-constexpr int32 LDGroundStateKindCount = 7;
+// Spec §8.3 ground states; 0 is none. The interface draws each with its own pattern.
+enum class ELDGroundStateKind : uint8 { None = 0, Puddle = 1, Ice = 2, Fire = 3, Miasma = 4, Field = 5 };
+constexpr int32 LDGroundStateKindCount = 6;
 
 // AI spec §8 event categories of one committed hit. BasicPrimary: an own basic primary hit (empowerments merged in).
 // SkillDirect: an active's own damage (its native hits, zone pulses, the S16 answer). SkillHit: other skill hits that are
@@ -50,8 +50,8 @@ struct LOCKDOWN_API FLDElementTerms
     int64 RotPerSecP2 = 0;
     int64 RotAPRatioPerSecBp = 0;
     int64 RotTickMs = 0;
-    double GustPushCm = 0;
-    int64 GustPushMs = 0;
+    // The short shove of a fan blow or a typhoon (COMBAT.PushSec).
+    int64 PushMs = 0;
     int64 ReactionBaseP2 = 0;
     int64 ReactionPerLevelP2 = 0;
     int64 ReactionAPRatioBp = 0;
@@ -72,20 +72,15 @@ struct LOCKDOWN_API FLDElementTerms
     int64 MethaneRatioBp = 0;
     int32 MethaneBurnStacks = 0;
     double MethaneRadiusCm = 0;
-    int32 FirestormBurnScale = 0;
     int64 FreezeRootMs = 0;
     int64 FermentRotMs = 0;
     int64 FermentHealCutBp = 0;
-    double SplashPushCm = 0;
     int64 ShatterSkillDamageBp = 0;
     int64 ShatterMs = 0;
     int32 CorrodeBreachStacks = 0;
     int64 CorrodeBreachMs = 0;
-    double ThunderstormKnockbackCm = 0;
     int64 FrostbiteAttackSlowBp = 0;
     int64 FrostbiteMs = 0;
-    int64 BlizzardRatioBp = 0;
-    int64 SmokeDisarmMs = 0;
 
     static FLDElementTerms From(const FLDDemoContentParameters& Parameters);
     // Every term the rules divide or step by is positive.
@@ -108,9 +103,6 @@ struct LOCKDOWN_API FLDGroundTerms
     int64 IceDisplacementScaleBp = 0;
     int32 FireBurnStacks = 0;
     int64 FieldRatioBp = 0;
-    double FieldDischargeRadiusCm = 0;
-    int64 BlizzardSlowBp = 0;
-    double GustMoveCm = 0;
     int32 MaxPerOwner = 0;
     int32 MaxTotal = 0;
 
@@ -221,18 +213,10 @@ struct FLDCombatBrace
     TSharedPtr<struct FLDCombatCastLedger> CastLedger;
 };
 
-// How one element application lands beyond the approved terms: a rot's own cut and duration, a gust's own push, direction
-// and wall stun, and a gust overdrive's ground state.
+// How one element application lands beyond the approved terms: a rot's own cut and duration.
 struct FLDElementExtras
 {
     int64 RotCutBp = 0, RotMs = 0;
-    double GustPushCm = 0;
-    int64 GustPushMs = 0;
-    FVector GustDirection = FVector::ZeroVector;
-    bool bGustGround = false;
-    // The carrying hit's knockback is the displacement; the gust adds no push of its own.
-    bool bNoPush = false;
-    int64 WallStunMs = 0;
 };
 
 // What a reaction does on its primary target (spec §8.2): damage as a multiple of R (0: none), controls and statuses, the
@@ -245,15 +229,12 @@ struct FLDReactionRule
     int64 SplashRatioBp = 0;
     bool bSplashWetOnly = false;
     ELDGroundStateKind Ground = ELDGroundStateKind::None;
-    // The held fire stays (firestorm doubles it); the held shock is applied again (thunderstorm).
-    bool bKeepsHeldFire = false;
-    bool bReappliesShock = false;
 };
 
 namespace LDCombatElements
 {
-    // The reaction of a held element meeting an incoming one (spec §8.2 6 x 6 table); None when either is None, both are the
-    // same, or gust is held (never).
+    // The reaction of a held element meeting an incoming one (spec §8.2 5 x 5 table); None when either is None or both are
+    // the same.
     LOCKDOWN_API ELDCombatReaction ReactionOf(ELDCombatElement Held, ELDCombatElement Incoming);
     // The table terms of one reaction (ratios, splash, ground).
     LOCKDOWN_API FLDReactionRule RuleOf(ELDCombatReaction Reaction, const FLDElementTerms& Terms);
@@ -272,21 +253,17 @@ namespace LDCombatElements
     // A new heal or shield of AmountP2 under a live rot mark: floor(Amount x (1 - HealCut)).
     LOCKDOWN_API int64 AfterRotP2(int64 AmountP2, const FLDCombatElementMark& Mark, int64 AtMs);
     // Spec §8.3 "再加元素": what a ground state of Kind becomes when Incoming lands inside it. Same kind = None (no change);
-    // bVanishes = it ends (after its burst, if any); bFog = a fog rises at its centre; bMove = it moves GustMoveCm along the
-    // gust; bBurst = methane (miasma + fire: everyone inside takes MethaneRatio x R) or the field discharge (field + gust: R
-    // to every enemy within FieldDischargeRadius).
+    // bVanishes = it ends (after its burst, if any); bFog = a fog rises at its centre; bBurst = methane (miasma + fire:
+    // everyone inside takes MethaneRatio x R).
     struct FGroundConversion
     {
         ELDGroundStateKind Becomes = ELDGroundStateKind::None;
-        bool bVanishes = false, bFog = false, bMove = false, bBurst = false;
-        bool Any() const { return Becomes != ELDGroundStateKind::None || bVanishes || bFog || bMove || bBurst; }
+        bool bVanishes = false, bFog = false, bBurst = false;
+        bool Any() const { return Becomes != ELDGroundStateKind::None || bVanishes || bFog || bBurst; }
     };
     LOCKDOWN_API FGroundConversion GroundConversion(ELDGroundStateKind Kind, ELDCombatElement Incoming);
     // The element a ground state lays on an enemy standing in it at each tick (None for ice).
     LOCKDOWN_API ELDCombatElement GroundElement(ELDGroundStateKind Kind);
-    // The ground state a gust overdrive leaves for a target holding Element (spec §3.5): fire -> fire ground, water -> puddle,
-    // shock -> field, chill -> ice, rot -> miasma; none otherwise.
-    LOCKDOWN_API ELDGroundStateKind GroundForElement(ELDCombatElement Element);
     // Whether Foot is inside the ground state (circle, band or sector, planar).
     LOCKDOWN_API bool GroundContains(const FLDGroundState& Ground, const FVector& Foot);
     // Spec §8.3 caps: Owner's live states beyond MaxPerOwner - 1 and all beyond MaxTotal - 1 go first, oldest first, so one

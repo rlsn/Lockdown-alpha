@@ -18,7 +18,9 @@ struct FLDDemoContentDefinitions;
 // points on the corner. Hovering a stat raises a "+" right above its icon while points are unspent; a click on it commits one
 // point at once (no staging, no confirm). Clicks that come while an allocation is on its way, or while another build request
 // holds the owner's single in-flight slot, are queued locally and sent together as the next AllocatePoints once the own view
-// carries the previous one; nothing is predicted: the corner shows the view's points plus the waiting ones as "+n". The
+// carries the previous one; nothing is predicted: the corner shows the view's points plus the waiting ones as "+n". The mouse
+// wheel over a stat adds one point (up, like its "+") or, in a rest build window only, takes one back (down: a one-point
+// Respec); on the field points only go in. The
 // server decides every point; a refusal drops the waiting points and says why. The hovered stat's popup (the HUD's slot
 // popup, Hovered) lists each attribute the stat raises with its current value and the gain of one point.
 // The HUD's 属性 entry turns the block into the attribute view and back (ToggleView): one icon and the final value per
@@ -38,6 +40,9 @@ public:
     bool Allocate(int32 Index);
     // Whether Allocate(Index) would queue a point now; no notice (the held "+" asks before each repeat).
     bool CanAllocate(int32 Index) const;
+    // One point of the stat at Index back to the unspent ones (a one-point Respec), sent at once. Refused with a toast outside a
+    // rest build window, with nothing in that stat, or while another allocation is on its way.
+    bool Refund(int32 Index);
     // Stat icons <-> attribute view; each match starts on the stat icons.
     void ToggleView();
     void SetDetailsHeld(bool bHeld);
@@ -60,6 +65,7 @@ public:
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
+    virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
 private:
     struct FCell
     {

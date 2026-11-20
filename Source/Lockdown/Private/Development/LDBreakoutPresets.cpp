@@ -16,11 +16,11 @@ TArray<FLDBreakoutPreset> MakeBreakoutPresets()
         {{TEXT("card_next_up"), ET::Skill, 0}, {TEXT("card_next_up"), ET::Skill, 1}, {TEXT("card_next_up"), ET::Skill, 2},
             {TEXT("card_encore"), ET::Skill, 2}, {TEXT("card_quick_brain"), ET::Body}},
         nullptr, 0, 10000});
-    // 攻速拉满: S17 2A/3A1; A12, A09, A17, A03, K01.
+    // 攻速拉满: S17 2A/3A1; A12, A09, A03 (on the body), K01.
     Out.Add({TEXT("breakout_attack_speed"), TEXT("攻速拉满"),
         {{TEXT("active_triple_combo"), EB::A1}},
-        {{TEXT("card_heated_up"), ET::Basic}, {TEXT("card_quick_hands"), ET::Basic}, {TEXT("card_shock_fist"), ET::Basic},
-            {TEXT("card_solid_punch"), ET::Basic}, {TEXT("card_next_up"), ET::Skill, 0}}});
+        {{TEXT("card_heated_up"), ET::Body}, {TEXT("card_quick_hands"), ET::Body}, {TEXT("card_solid_punch"), ET::Body},
+            {TEXT("card_next_up"), ET::Skill, 0}}});
     // 吸血永生: S07 2B/3B2, S08, S13; K12 x2, Y10, Y14, Y19, Y17.
     Out.Add({TEXT("breakout_lifesteal"), TEXT("吸血永生"),
         {{TEXT("active_seethe"), EB::B2}, {TEXT("active_quick_meeting")}, {TEXT("active_charged_ram")}},
@@ -43,10 +43,10 @@ TArray<FLDBreakoutPreset> MakeBreakoutPresets()
         {{TEXT("active_seethe")}, {TEXT("active_hose_down")}, {TEXT("active_zap")}},
         {{TEXT("card_wave_after"), ET::Body}, {TEXT("card_reaction_refund"), ET::Body}, {TEXT("card_louder_blast"), ET::Body},
             {TEXT("card_blast_reload"), ET::Skill, 0}}});
-    // 冲刺鬼影: S11 2B/3B1; D01, D06, D12, D03.
+    // 冲刺鬼影: S11 2B/3B1; D01, D06, D03.
     Out.Add({TEXT("breakout_dash_ghost"), TEXT("冲刺鬼影"),
         {{TEXT("active_bail_out"), EB::B1}},
-        {{TEXT("card_bump_reset"), ET::Dash}, {TEXT("card_pass_through"), ET::Dash}, {TEXT("card_shock_dash"), ET::Dash},
+        {{TEXT("card_bump_reset"), ET::Dash}, {TEXT("card_pass_through"), ET::Dash},
             {TEXT("card_dash_punch"), ET::Dash}}});
     // 人头滚雪球: S03, S04; Y02, Y20 (K03 comes with P5).
     Out.Add({TEXT("breakout_snowball"), TEXT("人头滚雪球"),

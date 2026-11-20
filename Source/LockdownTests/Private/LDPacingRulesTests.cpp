@@ -11,7 +11,7 @@
 #include "LDTestApprovedFixture.h"
 
 // Issue #287 spec §10-§11 (P6): the pure pacing rules on the approved content: mid-field objectives, the death screen's
-// spawn choice, the 上热搜 bounty, daily modifiers, camp affixes, lockers, the second-hand dealer and the vending machine.
+// spawn choice, the 上热搜 bounty, daily modifiers, camp affixes, lockers and the second-hand dealer.
 // Named (not anonymous) so unity builds cannot collide with another test file's helpers.
 namespace LDPacingRulesTesting
 {
@@ -180,8 +180,7 @@ bool FLDPacingBountyTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDPacingRulesTesting::Approved(*this, Catalog)) { return false; }
     const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("Approved bounty: 15 vouchers to the killer, 5 to each assister; the rumor day names two"),
-        P.Vouchers.BountyKill == 15 && P.Vouchers.BountyAssist == 5 && P.Daily.RumorLeaders == 2);
+    bool bGood = TestTrue(TEXT("Approved: the rumor day names two"), P.Daily.RumorLeaders == 2);
     using FCandidate = LDLeaderNotice::FCandidate;
     const auto Candidate = [](uint32 Id, uint8 Level, uint64 Kills)
     {
@@ -300,32 +299,59 @@ bool FLDPacingLockerTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!Approved(*this, Catalog)) { return false; }
     const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("Approved: four stocked lockers, 150 cm, a 3 s channel, 8 vouchers"),
-        P.Explore.LockerCount == 4 && P.Explore.LockerChannelMs == 3000 && P.Vouchers.Locker == 8
-        && P.Explore.LockerRadiusCm.Numerator == 150 * P.Explore.LockerRadiusCm.Denominator);
+    bool bGood = TestTrue(TEXT("Approved: four lockers, 150 cm, a 3 s channel, a three-card offer, out 45 s within 30..420 s"),
+        P.Explore.LockerCount == 4 && P.Explore.LockerChannelMs == 3000 && P.Explore.LockerCardOffer == 3
+        && P.Explore.LockerRadiusCm.Numerator == 150 * P.Explore.LockerRadiusCm.Denominator
+        && P.Explore.LockerEarliestMs == 30000 && P.Explore.LockerLatestMs == 420000 && P.Explore.LockerStayMs == 45000);
     FLDLockerState State;
     FString Error;
     const TArray<LDFieldPacing::FPoint> All = Points(TEXT("locker"), 10);
     if (!TestTrue(TEXT("Lockers stock"), State.Begin(P, All, 21, Error))) { AddError(Error); return false; }
     bGood &= TestEqual(TEXT("Four of the ten points are stocked"), State.Lockers.Num(), 4);
+    for (const FLDLockerState::FLocker& Locker : State.Lockers)
+    {
+        bGood &= TestTrue(TEXT("Each comes out inside the window and stays its time"), Locker.AppearT >= P.Explore.LockerEarliestMs
+            && Locker.AppearT <= P.Explore.LockerLatestMs && Locker.LeaveT == Locker.AppearT + P.Explore.LockerStayMs);
+    }
     FLDLockerState Few;
     bGood &= TestFalse(TEXT("Fewer points than stocked lockers is refused"), Few.Begin(P, Points(TEXT("locker"), 3), 21, Error));
-    const FVector Spot = State.Lockers[0].Point.PositionCm;
+    const FLDLockerState::FLocker& First = State.Lockers[0];
+    const int64 Out = First.AppearT;
+    const FVector Spot = First.Point.PositionCm;
     TArray<TPair<int32, FGuid>> Opened;
     bool bChanged = false;
-    State.Step(1000, {At(2, Spot), At(1, Spot)}, Opened, bChanged);
-    bGood &= TestTrue(TEXT("The smallest id inside starts the channel"), bChanged && State.Lockers[0].Opener == At(1, Spot).Contender
-        && State.NextDueT() == 4000);
-    State.Step(2000, {At(1, Spot, false, true), At(2, Spot)}, Opened, bChanged);
+    TArray<FLDLockerView> View;
+    State.Step(Out - 1, {At(1, Spot)}, Opened, bChanged);
+    State.View(Out - 1, View);
+    bGood &= TestTrue(TEXT("Before it comes out nobody channels it and it is not public"), !State.Lockers[0].Opener.IsValid()
+        && !View.ContainsByPredicate([&](const FLDLockerView& Row) { return Row.AnchorId == First.Point.Id; }));
+    bGood &= TestTrue(TEXT("Its coming out is a due instant"), State.NextDueT(Out - 1) <= Out);
+    State.Step(Out, {At(2, Spot), At(1, Spot)}, Opened, bChanged);
+    State.View(Out, View);
+    bGood &= TestTrue(TEXT("Out, it is public and the smallest id inside starts the channel"), bChanged
+        && State.Lockers[0].Opener == At(1, Spot).Contender
+        && View.ContainsByPredicate([&](const FLDLockerView& Row) { return Row.AnchorId == First.Point.Id && Row.bChanneling; })
+        && State.NextDueT(Out) == Out + 3000);
+    State.Step(Out + 1000, {At(1, Spot, false, true), At(2, Spot)}, Opened, bChanged);
     bGood &= TestTrue(TEXT("Damage interrupts it and the next one inside starts over"), State.Lockers[0].Opener == At(2, Spot).Contender
-        && State.Lockers[0].ChannelSinceT == 2000);
-    State.Step(4999, {At(2, Spot)}, Opened, bChanged);
+        && State.Lockers[0].ChannelSinceT == Out + 1000);
+    State.Step(Out + 3999, {At(2, Spot)}, Opened, bChanged);
     bGood &= TestTrue(TEXT("Not yet open before 3 s"), Opened.IsEmpty() && !State.Lockers[0].bOpened);
-    State.Step(5000, {At(2, Spot)}, Opened, bChanged);
+    State.Step(Out + 4000, {At(2, Spot)}, Opened, bChanged);
     bGood &= TestTrue(TEXT("3 s of channel open it for its opener"), Opened.Num() == 1 && Opened[0].Key == 0
         && Opened[0].Value == At(2, Spot).Contender && State.Lockers[0].bOpened);
-    State.Step(9000, {At(1, Spot)}, Opened, bChanged);
+    State.Step(Out + 8000, {At(1, Spot)}, Opened, bChanged);
     bGood &= TestTrue(TEXT("An opened locker never opens again"), Opened.IsEmpty() && !State.Lockers[0].Opener.IsValid());
+
+    FLDLockerState Late;
+    Late.Begin(P, All, 21, Error);
+    const int64 Leave = Late.Lockers[0].LeaveT;
+    Late.Step(Leave - 1000, {At(1, Late.Lockers[0].Point.PositionCm)}, Opened, bChanged);
+    Late.Step(Leave, {At(1, Late.Lockers[0].Point.PositionCm)}, Opened, bChanged);
+    Late.View(Leave, View);
+    bGood &= TestTrue(TEXT("A locker nobody finished leaves at its time and drops the channel"), bChanged && Opened.IsEmpty()
+        && !Late.Lockers[0].Opener.IsValid() && !Late.Lockers[0].bOpened
+        && !View.ContainsByPredicate([&](const FLDLockerView& Row) { return Row.AnchorId == Late.Lockers[0].Point.Id; }));
     return bGood;
 }
 
@@ -361,23 +387,6 @@ bool FLDPacingPeddlerTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("The plan is fixed by the seed"), A.AppearT == B.AppearT && A.CampAnchor == B.CampAnchor);
     FLDPeddlerPlan None;
     bGood &= TestFalse(TEXT("Without camps there is no dealer"), None.Plan(P, {}, 8, Error));
-    return bGood;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPacingVendingTest, "Lockdown.Rules.DemoRest.Explore.Vending",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDPacingVendingTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDPacingRulesTesting::Approved(*this, Catalog)) { return false; }
-    const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    const auto& X = P.Explore;
-    bool bGood = TestTrue(TEXT("Approved buffs: 2 vouchers for 30 s of +20 % attack speed, 2 momentum/s or +15 % move speed"),
-        X.VendingBuffPrice == 2 && X.VendingBuffMs == 30000 && X.VendingAttackSpeedBp == 2000 && X.VendingMoveSpeedBp == 1500
-        && X.VendingMomentumPerSec.Numerator == 2 * X.VendingMomentumPerSec.Denominator);
-    bGood &= TestTrue(TEXT("Approved drink: 3 vouchers for five element hits"), X.VendingDrinkPrice == 3 && X.VendingDrinkHits == 5);
-    bGood &= TestTrue(TEXT("Every item has its own id"), ELDVendingItem::AttackSpeed != ELDVendingItem::Drink
-        && uint8(ELDVendingItem::Drink) == 4);
     return bGood;
 }
 

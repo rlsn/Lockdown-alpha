@@ -254,7 +254,7 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     Timeline.Reset();
     RestSignups.Reset();
     RestReady.Reset();
-    ClearRestServiceNPCs();
+    ClearRestRoomDisplay();
     LockedEntrants.Reset();
     RestReturns.Reset();
     RestLives.Reset();

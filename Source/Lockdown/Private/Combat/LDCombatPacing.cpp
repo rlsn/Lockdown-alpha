@@ -9,80 +9,13 @@
 #include "World/LDAirdrop.h"
 #include "Engine/World.h"
 
-// P6 combat hooks (spec §11.1/§11.3): the vending machine's buffs and element drink, the rain's puddles, the typhoon's
-// push, and the damage-taken read the locker channel uses.
+// P6 combat hooks (spec §11.1/§11.3): the rain's puddles, the typhoon's push, and the damage-taken read the locker channel
+// uses.
 
 bool ALDCombatDirector::TookDamageSince(const FLDCombatBodyRef& Ref, int64 SinceMs) const
 {
     const FLDBodyCombatState* Body=FindBody(Ref);
     return Body && Body->Cues.LastHitId.IsValid() && Body->Cues.LastHitAtMs>SinceMs;
-}
-
-bool ALDCombatDirector::ReadDrink(const FGuid& Contender, uint8& OutElement, uint8& OutHits) const
-{
-    OutElement=0;
-    OutHits=0;
-    for (const auto& Pair : Bodies)
-    {
-        if (Pair.Value.Victim.Kind==ELDVictimKind::Contender && Pair.Value.Victim.EntityId==Contender && !Pair.Value.bPendingDeath)
-        {
-            OutElement=Pair.Value.DrinkElement;
-            OutHits=uint8(FMath::Clamp(Pair.Value.DrinkHits,0,255));
-            return true;
-        }
-    }
-    return false;
-}
-
-bool ALDCombatDirector::ApplyVending(const FLDCombatBodyRef& Ref, ELDVendingItem Item, uint8 Element, const FLDGameplayWritePermit& Permit,
-    bool& bOutApplied, FString& Error)
-{
-    bOutApplied=false;
-    ILDLifeAuthority* Mode=Authority();
-    const FLDDemoContentSnapshot* Content=Catalog();
-    if (!Mode || !Content || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Transactions)!=ELDCommitReject::None)
-    {
-        Error=TEXT("A vending purchase needs the current Transactions permit and approved content.");
-        return false;
-    }
-    ALDCharacter* Actor=nullptr;
-    FLDBodyCombatState* Body=FindBody(Ref,&Actor);
-    if (!Body || !Actor || Body->bPendingDeath) { Error.Reset(); return true; }
-    const FLDDemoExploreParameters& X=Content->Get().Parameters.Explore;
-    const int64 NowMs=Permit.GetBoundary().AtMs;
-    FLDBodyCombatState Staged=*Body;
-    if (Item==ELDVendingItem::Drink)
-    {
-        if (Element<1 || Element>5) { Error=TEXT("The element drink names fire, water, electric, chill or rot."); return false; }
-        // A new drink replaces the charges left of an older one.
-        Staged.DrinkElement=Element;
-        Staged.DrinkHits=X.VendingDrinkHits;
-    }
-    else
-    {
-        FLDCombatTimedBonus Bonus;
-        Bonus.EffectId=FGuid::NewGuid();
-        Bonus.SourceDefinition=FName(*FString::Printf(TEXT("vending_%u"),uint32(Item)));
-        FLDDemoStatBonus& Stat=Bonus.Stats.AddDefaulted_GetRef();
-        switch (Item)
-        {
-        case ELDVendingItem::AttackSpeed: Stat.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio; Stat.Amount=X.VendingAttackSpeedBp; break;
-        case ELDVendingItem::MoveSpeed: Stat.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio; Stat.Amount=X.VendingMoveSpeedBp; break;
-        case ELDVendingItem::Momentum: Stat.Stat=ELDDemoBonusStat::MomentumRegenFlat; Stat.Cm=X.VendingMomentumPerSec; break;
-        default: Error=TEXT("Unknown vending item."); return false;
-        }
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,X.VendingBuffMs,Bonus.ExpiresAtMs,Error)) { return false; }
-        // Buying the same buff again refreshes it rather than stacking it.
-        Staged.TimedBonuses.RemoveAll([&Bonus](const FLDCombatTimedBonus& Row) { return Row.SourceDefinition==Bonus.SourceDefinition; });
-        LDTactical::ApplyTimedBonus(Staged.TimedBonuses,Bonus);
-        if (!RefreshTemporary(Staged,Actor,NowMs,Error)) { return false; }
-    }
-    Staged.StateRevision=Body->StateRevision+1;
-    *Body=MoveTemp(Staged);
-    MarkViewChanged(Ref.Victim.EntityId);
-    bOutApplied=true;
-    Error.Reset();
-    return true;
 }
 
 bool ALDCombatDirector::SpawnDailyRain(uint64 Seed, int32 Count, const FLDGameplayWritePermit& Permit, FString& Error)
@@ -104,7 +37,7 @@ bool ALDCombatDirector::SpawnDailyRain(uint64 Seed, int32 Count, const FLDGamepl
         switch (Anchor.Kind)
         {
         case ELDDemoWorldAnchorKind::Spawn: case ELDDemoWorldAnchorKind::Camp: case ELDDemoWorldAnchorKind::Airdrop:
-        case ELDDemoWorldAnchorKind::MiniFlag: case ELDDemoWorldAnchorKind::Locker: case ELDDemoWorldAnchorKind::Vending:
+        case ELDDemoWorldAnchorKind::MiniFlag: case ELDDemoWorldAnchorKind::Locker:
         case ELDDemoWorldAnchorKind::BossWaypoint: case ELDDemoWorldAnchorKind::Capture:
         {
             const FLDMapBinding* Binding=Registry->Resolve(FName(*Anchor.Id),Registry->Generation);
@@ -160,12 +93,12 @@ bool ALDCombatDirector::ApplyTyphoon(const FVector2D& Direction, double PushCm, 
         Hit.HitId=FGuid::NewGuid();
         Hit.EffectId=Hit.HitId;
         Hit.Target={Body.Victim,Body.Identity};
-        // A zero-damage settle like an element gust: it still needs a hit class and damage type to pass evaluation.
+        // A zero-damage settle: it still needs a hit class and damage type to pass evaluation.
         Hit.HitClass=ELDCombatHitClass::Ability;
         Hit.DamageType=ELDDemoDamageType::Magical;
         Hit.bStatusSettle=true;
         Hit.KnockbackCm=PushCm;
-        Hit.KnockbackMs=Terms.GustPushMs;
+        Hit.KnockbackMs=Terms.PushMs;
         Hit.bKnockbackFromAnchor=true;
         Hit.KnockbackAnchorCm=FootOf(*Actor)-Push*100.;
         PendingHits.Add(MoveTemp(Hit));

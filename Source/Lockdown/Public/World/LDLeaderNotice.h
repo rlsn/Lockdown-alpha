@@ -11,8 +11,7 @@ class FLDDemoContentSnapshot;
 // leader who is dead at the refresh is not shown. The public view shows a LEADER.CircleRadiusCm circle whose centre is
 // the leader's foot moved by a uniform random offset of at most LEADER.CircleMaxOffsetCm (never more than the radius,
 // so the leader is always inside). The shown leader's death ends the notice until the next refresh names someone. Spec
-// §10.4 (P6): a trending contender carries a bounty (VOUCHER.BountyKill to its killer, VOUCHER.BountyAssist to each
-// assister). Spec §11.1 rumor day: every refresh names the top two (the runner-up with its own circle).
+// §10.4 (P6): a trending contender's death is recorded as a bounty death (its reward is not set yet). Spec §11.1 rumor day: every refresh names the top two (the runner-up with its own circle).
 namespace LDLeaderNotice
 {
     struct FCandidate

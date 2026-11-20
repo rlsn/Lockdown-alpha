@@ -621,7 +621,6 @@ FLinearColor LDHitVfx::ElementTint(uint8 Element)
     case ELDCombatElement::Shock: return FLinearColor(.75f, .45f, 1.f);
     case ELDCombatElement::Chill: return FLinearColor(.45f, .95f, 1.f);
     case ELDCombatElement::Rot: return FLinearColor(.55f, .9f, .25f);
-    case ELDCombatElement::Gust: return FLinearColor(.85f, .9f, .95f);
     default: return FLinearColor(1.f, .85f, .35f);
     }
 }
@@ -635,7 +634,6 @@ LDHitVfx::EBurst LDHitVfx::ElementBurst(uint8 Element)
     case ELDCombatElement::Shock: return EBurst::Zap;
     case ELDCombatElement::Chill: return EBurst::Frost;
     case ELDCombatElement::Rot: return EBurst::Rot;
-    case ELDCombatElement::Gust: return EBurst::Gust;
     default: return EBurst::Strike;
     }
 }
@@ -681,9 +679,6 @@ LDHitVfx::FZone LDHitVfx::GroundZoneOf(uint8 Kind, float RadiusCm, float EffectS
     case ELDGroundStateKind::Field:
         Density = 90.f; Z.Lifetime = .25f; Z.Scale = 1.5f; Z.Velocity = FVector(0, 0, 30); Z.Colour = Hot(FLinearColor(.6f, .25f, 1.f), 2.8f);
         break;
-    case ELDGroundStateKind::Blizzard:
-        Density = 55.f; Z.Lifetime = 1.f; Z.Scale = 1.3f; Z.Velocity = FVector(90, 0, 25); Z.Colour = Hot(FLinearColor(.8f, .92f, 1.f), 1.8f);
-        break;
     default: return Z;
     }
     Z.bShow = true;
@@ -700,7 +695,6 @@ bool LDHitVfx::GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint)
     case ELDGroundStateKind::Fire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .04f); return true;
     case ELDGroundStateKind::Miasma: Out = EBurst::Rot; Tint = FLinearColor(.4f, .85f, .12f); return true;
     case ELDGroundStateKind::Field: Out = EBurst::Zap; Tint = FLinearColor(.66f, .3f, 1.f); return true;
-    case ELDGroundStateKind::Blizzard: Out = EBurst::Frost; Tint = FLinearColor(.86f, .94f, 1.f); return true;
     default: return false;
     }
 }

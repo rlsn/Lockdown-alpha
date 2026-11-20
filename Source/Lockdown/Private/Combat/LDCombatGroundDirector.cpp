@@ -7,8 +7,8 @@
 #include "Framework/LDGameMode.h"
 #include "Vision/LDViewTypes.h"
 
-// Spec §8.3 ground states (docs/systems/COMBAT_AND_GROWTH.md "地面状态"): puddle, ice, fire, miasma, field and the blizzard
-// area. They harm only their owner's enemies, never block, hide or collide, convert when an element lands inside, and are
+// Spec §8.3 ground states (docs/systems/COMBAT_AND_GROWTH.md "地面状态"): puddle, ice, fire, miasma and field.
+// They harm only their owner's enemies, never block, hide or collide, convert when an element lands inside, and are
 // public (LDWorldViewRelay sends every live one with its owner's seat). Ice is an authoritative movement parameter: its
 // enemies accelerate and brake at GROUND.IceAccelScale and their knockbacks and dashes go GROUND.IceDisplacementScale as far.
 namespace LDCombatGroundDetail
@@ -113,14 +113,14 @@ bool ALDCombatDirector::SpawnGround(ELDGroundStateKind Kind, const FLDElementApp
 }
 
 bool ALDCombatDirector::ConvertGroundAt(const FVector& Foot, ELDCombatElement Incoming, const FLDElementApplier& Applier,
-    const FVector& GustDirection, int64 NowMs, FString& Error)
+    int64 NowMs, FString& Error)
 {
     using namespace LDCombatGroundDetail;
     if (Incoming==ELDCombatElement::None || GroundStates.IsEmpty()) { return true; }
     FLDGroundTerms Terms;
     FLDElementTerms Elements;
     if (!GroundTerms(Terms,Error) || !ElementTerms(Elements,Error)) { return false; }
-    // Snapshot the states that contain the landing point: a conversion may add fog, bursts and moved states.
+    // Snapshot the states that contain the landing point: a conversion may add fog and bursts.
     TArray<uint32> Hits;
     for (const FLDGroundState& Ground : GroundStates)
     {
@@ -134,7 +134,7 @@ bool ALDCombatDirector::ConvertGroundAt(const FVector& Foot, ELDCombatElement In
         const FLDGroundState Before=GroundStates[Index];
         const LDCombatElements::FGroundConversion Conversion=LDCombatElements::GroundConversion(Before.Kind,Incoming);
         if (!Conversion.Any()) { continue; }
-        // A converted state belongs to whoever landed the element; a moved one keeps its owner.
+        // A converted state belongs to whoever landed the element.
         if (Conversion.Becomes!=ELDGroundStateKind::None)
         {
             const FLDGroundKindTerms& Into=Terms.Of(Conversion.Becomes);
@@ -147,12 +147,6 @@ bool ALDCombatDirector::ConvertGroundAt(const FVector& Foot, ELDCombatElement In
             ++Ground.Version;
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Into.LifeMs,Ground.ExpiresAtMs,Error)
                 || !LDMatchLifecycle::AddDurationMs(NowMs,Into.TickMs,Ground.NextTickMs,Error)) { return false; }
-        }
-        if (Conversion.bMove && !GustDirection.IsNearlyZero())
-        {
-            FLDGroundState& Ground=GroundStates[Index];
-            Ground.CentreCm+=GustDirection.GetSafeNormal2D()*Terms.GustMoveCm;
-            ++Ground.Version;
         }
         if (Conversion.bFog && Elements.bFogArea)
         {
@@ -168,28 +162,25 @@ bool ALDCombatDirector::ConvertGroundAt(const FVector& Foot, ELDCombatElement In
         }
         if (Conversion.bBurst)
         {
-            // Miasma + fire: everyone inside takes MethaneRatio x R (one methane blast). Field + gust: R to every enemy within
-            // FieldDischargeRadius. Both credit the element's applier and hit its enemies.
-            const bool bMethane=Before.Kind==ELDGroundStateKind::Miasma;
-            const double Radius=bMethane ? Reach(Before) : Terms.FieldDischargeRadiusCm;
+            // Miasma + fire: everyone inside takes MethaneRatio x R (one methane blast), credited to the element's applier.
             const int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Elements);
-            const int64 Amount=bMethane ? LDCombatElements::ScaledP2(R,Elements.MethaneRatioBp) : R;
+            const int64 Amount=LDCombatElements::ScaledP2(R,Elements.MethaneRatioBp);
             TArray<FLDCombatBodyRef> Inside;
-            if (!CollectAreaTargets(Before.CentreCm,Radius,FindBody(Applier.SourceBody),Applier.SourceEntity,Inside,Error))
+            if (!CollectAreaTargets(Before.CentreCm,Reach(Before),FindBody(Applier.SourceBody),Applier.SourceEntity,Inside,Error))
             { Error=TEXT("Ground burst: ")+Error; return false; }
             for (const FLDCombatBodyRef& Ref : Inside)
             {
                 ALDCharacter* Actor=nullptr;
-                if (!FindBody(Ref,&Actor) || !Actor || (bMethane && !LDCombatElements::GroundContains(Before,FootOf(*Actor)))) { continue; }
+                if (!FindBody(Ref,&Actor) || !Actor || !LDCombatElements::GroundContains(Before,FootOf(*Actor))) { continue; }
                 FLDCombatHit Burst=GroundHit(Applier,Ref,Amount);
                 Burst.bPeriodic=false;
-                Burst.ReactionKind=bMethane ? ELDCombatReaction::Methane : ELDCombatReaction::Thunderstorm;
+                Burst.ReactionKind=ELDCombatReaction::Methane;
                 PendingHits.Add(MoveTemp(Burst));
             }
         }
-        UE_LOG(LogLDCombat,Log,TEXT("LD_GROUND_CONVERT t=%lld id=%u from=%s element=%s into=%s by=%s moved=%d fog=%d burst=%d vanish=%d"),
+        UE_LOG(LogLDCombat,Log,TEXT("LD_GROUND_CONVERT t=%lld id=%u from=%s element=%s into=%s by=%s fog=%d burst=%d vanish=%d"),
             NowMs,Before.Id,LDCombatElements::GroundName(Before.Kind),LDCombatElements::ElementName(Incoming),
-            LDCombatElements::GroundName(Conversion.Becomes),*LDLog::Id(Applier.SourceEntity),Conversion.bMove,Conversion.bFog,
+            LDCombatElements::GroundName(Conversion.Becomes),*LDLog::Id(Applier.SourceEntity),Conversion.bFog,
             Conversion.bBurst,Conversion.bVanishes);
         if (Conversion.bVanishes)
         {
@@ -273,20 +264,6 @@ bool ALDCombatDirector::AdvanceGround(int64 NowMs, FString& Error)
             case ELDGroundStateKind::Field:
                 PendingHits.Add(GroundHit(Ground.Owner,Ref,LDCombatElements::ScaledP2(R,Terms.FieldRatioBp)));
                 break;
-            case ELDGroundStateKind::Blizzard:
-            {
-                FLDControlApplication App;
-                App.Kind=ELDControlKind::Slow;
-                App.EffectId=FGuid::NewGuid();
-                App.SourceEntity=Ground.Owner.SourceEntity;
-                App.SourceBody=Ground.Owner.SourceBody;
-                App.CreditOwner=Ground.Owner.CreditOwner;
-                App.DurationMs=Terms.Of(Ground.Kind).TickMs;
-                App.RatioBp=Terms.BlizzardSlowBp;
-                bool bApplied=false;
-                if (!CommitControl(*Body,App,NowMs,bApplied,Error)) { return false; }
-                break;
-            }
             case ELDGroundStateKind::Miasma:
                 // N3 A1: its enemies attack slower while inside.
                 if (Ground.AttackSlowBp>0)

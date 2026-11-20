@@ -21,7 +21,6 @@ ELDDemoElement WorkshopEffectElement(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Electrify: return ELDDemoElement::Electric;
     case ELDDemoEffectOp::Chill: return ELDDemoElement::Chill;
     case ELDDemoEffectOp::Rot: return ELDDemoElement::Rot;
-    case ELDDemoEffectOp::Gust: return ELDDemoElement::Gust;
     case ELDDemoEffectOp::BasicElement: case ELDDemoEffectOp::SkillElement: case ELDDemoEffectOp::DashContactElement:
         return Effect.Element;
     default: return ELDDemoElement::None;
@@ -216,11 +215,6 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     const FLDDemoContentDefinitions* Content)
 {
     FColumnHead Head;
-    if(Column==LDHUD::EStorageColumn::Basic)
-    {
-        Head.Name=LDTerms::ColumnBasic;Head.Glyph=TEXT("拳");
-        return Head;
-    }
     if(Column==LDHUD::EStorageColumn::Body)
     {
         Head.Name=LDTerms::ColumnBody;Head.Glyph=HolderName.IsEmpty()?FString(TEXT("?")):HolderName.Left(1);
@@ -270,18 +264,17 @@ TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progr
 }
 FString LDWorkshop::ReactionName(ELDDemoElement First,ELDDemoElement Second)
 {
-    // The workshop names unordered pairs; gust is never held, so it always plays the incoming side of the combat rule.
-    if(First==ELDDemoElement::Gust){Swap(First,Second);}
+    // The workshop names unordered pairs.
     return LDTerms::ReactionTerm(uint8(LDCombatElements::ReactionOf(LDCombatElements::FromDemo(First),LDCombatElements::FromDemo(Second))));
 }
 TArray<LDWorkshop::FReactionRow> LDWorkshop::Reactions(const TArray<ELDDemoElement>& BuildApplies)
 {
-    // The 15 pairs in table order: the ones the build sets off first (lit), then the ones one more element would open, then
+    // The 10 pairs in table order: the ones the build sets off first (lit), then the ones one more element would open, then
     // the rest; the board shows as many rows as it has room for.
     TArray<FReactionRow> Lit,Near,Rest;
-    for(uint8 A=1;A<=6;++A)
+    for(uint8 A=1;A<=5;++A)
     {
-        for(uint8 B=A+1;B<=6;++B)
+        for(uint8 B=A+1;B<=5;++B)
         {
             const ELDDemoElement First=static_cast<ELDDemoElement>(A),Second=static_cast<ELDDemoElement>(B);
             FReactionRow Row;

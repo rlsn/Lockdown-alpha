@@ -289,21 +289,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         if (Hit.HitClass==ELDCombatHitClass::BasicPrimary)
         {
-            // A16-A19 ride the last step of the basic combo only; a bought drink still rides every basic it covers.
+            // A body medal rides the last step of the basic combo only.
             TArray<FLDPassiveEffectRef> Elements;
             if (int32(Hit.ComboStep)==Content->Get().Parameters.Combo.StepRatiosBp.Num()
-                && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::BasicElement,Elements,Error)) { return false; }
+                && !CardsOn(Source->AttributeProjection,ELDDemoEffectOp::SkillElement,{ELDCombatSourceKind::Basic,NAME_None},Elements,Error))
+            { return false; }
             for (const FLDPassiveEffectRef& Ref : Elements)
             {
-                if (!ApplyCardElement(Hit,Ref.Effect.Element,0,Ref.Source,Error)) { return false; }
+                if (!ApplyCardElement(Hit,Ref.Effect.Element,Ref.Effect.Count,Ref.Source,Error)) { return false; }
                 ElementTriggers.Add({Ref.Key,Ref.Source,Ref.Effect.Element==ELDDemoElement::Fire});
-            }
-            // Spec §11.3 vending drink: the next basics carry the bought element.
-            if (Source->DrinkHits>0 && Source->DrinkElement>=1 && Source->DrinkElement<=5)
-            {
-                if (!ApplyCardElement(Hit,ELDDemoElement(Source->DrinkElement),0,FLDCombatSourceRef(),Error)) { return false; }
-                if (--Source->DrinkHits==0) { Source->DrinkElement=0; }
-                MarkViewChanged(Source->Victim.EntityId);
             }
         }
         else if (bEffective && IsNativeDirectHit(Hit))

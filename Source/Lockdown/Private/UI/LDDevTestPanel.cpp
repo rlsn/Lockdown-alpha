@@ -181,8 +181,6 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         }
         {
             UHorizontalBox* Line=Row();
-            const auto Vouchers=MakeBox(TEXT("饭票"),TEXT("DevTestVoucherAmount"));VoucherBox=Vouchers.Key;Line->AddChildToHorizontalBox(Vouchers.Value)->SetVerticalAlignment(VAlign_Center);
-            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantVouchers),[this](){SendAmount(ELDDevTestOp::GrantVouchers,VoucherBox->GetText().ToString());},TEXT("DevTestVouchers"));
             AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantSkillPoint),[this](){Send(ELDDevTestOp::GrantSkillPoint);},TEXT("DevTestSkillPoint"));
         }
         {

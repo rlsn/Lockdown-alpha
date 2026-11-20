@@ -22,8 +22,9 @@ struct FLDLearnedActive
     ELDSkillBranch Branch = ELDSkillBranch::None;
 };
 
-// Spec §6.1: where an installed card sits (Kind None = in the library): the primary basic, one learned skill (by id), the D
-// dash or the body; Element is the chosen element of a card that offers element choices (Y25).
+// Spec §6.1: where an installed card sits (Kind None = in the library): one learned skill (by id), the D dash or the body
+// (which carries the basic attack); a medal sits in the element slot of a skill or the body. Element is the chosen element of
+// a card that offers element choices (Y25).
 struct FLDCardTarget
 {
     ELDCardTargetKind Kind = ELDCardTargetKind::None;
@@ -58,8 +59,11 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FLDLearnedActive> Actives;
     // Chosen actives waiting to be learned (待学图纸), sorted by id; never a learned id.
     TArray<FName> PendingBlueprints;
-    // #198 session D: points paid by PK settlements (participation, winner share, betting pool). Unspent until allocated.
+    // #198 session D: points paid by PK settlements (participation, winner share, betting pool) and for skipping an active
+    // or card offer. Unspent until allocated.
     int64 AwardedPoints = 0;
+    // Spec §3.13: stat points paid in the rest shop. They leave the unspent points for good; a respec never returns them.
+    int64 ShopSpentPoints = 0;
     // Owned cards sorted by serial; NextCardSerial is the serial of the next card received (never reused in a match).
     TArray<FLDCardInstance> Cards;
     uint16 NextCardSerial = 1;
@@ -103,7 +107,7 @@ struct FLDActiveOpportunityRecord
 };
 
 // Spec §6.4: the current card offer. Options are fixed until the offer is taken, skipped or rerolled (a reroll keeps the
-// locked card); Rerolls counts this ordinal's rerolls (its seed index).
+// whole offer); Rerolls counts this ordinal's rerolls (its seed index).
 struct FLDCardOfferState
 {
     FGuid OfferId;
@@ -177,13 +181,8 @@ struct FLDProgressionState
     // The final mod offer and the build lock it ends in.
     FLDFinalModState FinalMod;
     bool bExtraFinalModCard = false;
-    // Spec §3.13 vouchers (match-only, 0 at the start) and the rest shop; §11.3 pick tickets, whether the first Ancient clear's
-    // ticket was taken (once per match) and every card an offer or a shelf showed (sorted by id; what a ticket may name).
-    int32 Vouchers = 0;
+    // Spec §3.13 the rest shop.
     FLDShopState Shop;
-    int32 PickTickets = 0;
-    bool bAncientTicketTaken = false;
-    TArray<FName> SeenCards;
 
     uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
@@ -249,7 +248,8 @@ namespace LDProgression
     // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
     // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
     LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
-    // Earned (with the PK awards) minus allocated; AuthorityFault when they exceed what was earned.
+    // Earned (with the awarded points) minus allocated and minus what the shop took; AuthorityFault when they exceed what was
+    // earned.
     LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
         int64& Out);
     // The level-1 build of a match start: no actives, blueprints, cards or allocated points.
@@ -277,13 +277,11 @@ namespace LDProgression
     // RestLocked), alive or dead. PhaseClosed or LifePhaseChanged otherwise.
     LOCKDOWN_API ELDGrowthReason LearnGate(const FBuildContext& Context);
     // The legality matrix of one command kind (GROWTH_TRANSACTIONS). #222: the own build commands (ActiveChoice,
-    // LearnBlueprint, AllocatePoints, RankUpSkill, the card commands and UsePickTicket) are open in Live, Rest and RestLocked,
-    // alive or dead. The rest shop and the trainer keep the rest window: the shop commands and Respec are NotRestWindow on the
+    // LearnBlueprint, AllocatePoints, RankUpSkill and the card commands) are open in Live, Rest and RestLocked,
+    // alive or dead. The rest shop and the rest rebuilds keep the rest window: the shop commands and Respec are NotRestWindow on the
     // field and ReplaceActive/ForgetActive ReplacementNotAllowed, all BuildLocked in RestLocked and Dead for a dead contender.
     // Closed: PhaseClosed.
     LOCKDOWN_API ELDGrowthReason CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context);
-    // The shared-room NPC required by a command, or None when no NPC proximity is needed.
-    LOCKDOWN_API ELDRestService RestServiceFor(ELDBuildCommandKind Kind);
     // The slot a learn takes: Preferred when it is an empty slot 0..2, otherwise the lowest empty one; false when full.
     LOCKDOWN_API bool PickLearnSlot(const FLDGrowthBuild& Build, uint8 Preferred, uint8& OutSlot);
 
@@ -293,10 +291,9 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyActiveChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Option, bool bLearnIfPossible, uint8 PreferredSlot, const FBuildContext& Context, FLDGrowthBuild& Out,
         FChoiceOutcome& Outcome);
-    // SkipActiveOffer: VOUCHER.ActiveSkip vouchers (OutVouchers) replace the chosen active.
+    // SkipActiveOffer: GROWTH.ActiveSkipPoints awarded stat points (OutPoints) replace the chosen active.
     LOCKDOWN_API ELDGrowthReason ApplySkipActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, const FBuildContext& Context, FLDProgressionState& OutProgression,
-        int32& OutVouchers);
+        const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
     // A pending blueprint learned into an empty slot: NoBlueprint, SlotOccupied (a full slot is replaced only by
     // ApplyReplaceActive in a rest window) or a LearnGate reason when refused.
     LOCKDOWN_API ELDGrowthReason ApplyLearnBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
@@ -306,12 +303,14 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyAllocation(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         int64 XP, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);
 
-    // ---- Trainer services (#198 §4.4/§5); none changes Revision ----
+    // ---- Rest rebuilds (#198 §4.4/§5), open in the workshop in a rest window; none changes Revision ----
 
-    // Every allocated stat point back to the unspent ones. NotRestWindow outside a rest window, NothingToRespec when nothing
-    // is allocated.
+    // Allocated stat points back to the unspent ones: every one with empty PointCounts, else PointCounts[i] of stat i (design
+    // order, each at most what it holds, at least one in all; the workshop's single-point refund). NotRestWindow outside a
+    // rest window (on the field points only go in), NothingToRespec when nothing (or less than asked) is allocated,
+    // InvalidRequest for a malformed count list.
     LOCKDOWN_API ELDGrowthReason ApplyRespec(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
-        const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
+        const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
     // A pending blueprint learned into the occupied Slot 0..2, the active there forgotten (neither refunded nor kept as a
     // blueprint) and its skill cards back in the library in the same step (ReclaimAttachments; OutReclaimed, by serial).
     // Nothing moves to the new active on its own. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer
@@ -353,7 +352,13 @@ namespace LDProgression
 
     // Workshop capacity at Level: CARDS.CapacityBase + floor((Level - 1) / CARDS.LevelsPerSlot); 0 for a broken table.
     LOCKDOWN_API int32 CardCapacity(const FLDDemoContentParameters& Parameters, uint8 Level);
-    LOCKDOWN_API int32 InstalledCards(const FLDGrowthBuild& Build);
+    // Installed cards that take workshop capacity (element medals do not).
+    LOCKDOWN_API int32 InstalledCards(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // Whether the card definition Id is an element medal.
+    LOCKDOWN_API bool IsMedal(const FLDDemoContentDefinitions& Content, FName Id);
+    // The medal in Host's element slot (a learned skill or the body), other than the card Except; nullptr when the slot is empty.
+    LOCKDOWN_API const FLDCardInstance* MedalOn(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        const FLDCardTarget& Host, uint16 Except);
     // The ELDCardVocab bits of the build: its installed cards and learned skills.
     LOCKDOWN_API uint32 BuildVocab(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
     // Whether Target is a legal install of the card Id on Build: its form's target kind, a learned skill for a skill card (of a
@@ -377,7 +382,7 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason QueueCardOffers(FLDProgressionState& Progression, ELDCardOfferSource Source, int32 Count,
         uint16& OutFirst, uint16& OutLast);
     // Draws the head offer when none is current, one is queued and the opening opportunity is resolved (bOutDrawn); the revision is
-    // the next card offer revision. The carried lock joins it and is consumed.
+    // the next card offer revision.
     LOCKDOWN_API ELDGrowthReason RefreshCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, bool& bOutDrawn);
     LOCKDOWN_API int32 CardRerollsLeft(const FLDProgressionState& Progression);
@@ -393,20 +398,22 @@ namespace LDProgression
         ELDGrowthReason StoredReason = ELDGrowthReason::None;
     };
     // PickCard: Option of the current offer OfferId goes to the library (installed on Target in the same commit when asked,
-    // legal and a slot is free); the offer resolves (a lock on another card carries over). NoCardOffer, NotInOffer.
+    // legal and a slot is free); the offer resolves. NoCardOffer, NotInOffer.
     LOCKDOWN_API ELDGrowthReason ApplyPickCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, bool bInstallIfPossible, const FLDCardTarget& Target,
         const FBuildContext& Context, FLDGrowthBuild& Out, FLDProgressionState& OutProgression, FCardPickOutcome& Outcome);
-    // SkipCards: the current offer resolves without a card (its lock carries over) and pays CARDS.SkipVouchers. NoCardOffer.
-    LOCKDOWN_API ELDGrowthReason ApplySkipCards(const FLDDemoContentDefinitions& Content, const FLDProgressionState& Progression,
-        const FGuid& OfferId, const FBuildContext& Context, FLDProgressionState& OutProgression);
-    // RerollCards: one reroll spent and the offer redrawn (the locked card stays; new OfferId and revision). NoCardOffer,
+    // SkipCards: the current offer resolves without a card and awards CARDS.SkipPoints stat points. NoCardOffer.
+    LOCKDOWN_API ELDGrowthReason ApplySkipCards(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        const FLDProgressionState& Progression, const FGuid& OfferId, const FBuildContext& Context, FLDGrowthBuild& OutBuild,
+        FLDProgressionState& OutProgression);
+    // RerollCards: one reroll spent and the whole offer redrawn (new OfferId and revision). NoCardOffer,
     // NoReroll.
     LOCKDOWN_API ELDGrowthReason ApplyRerollCards(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLDProgressionState& Progression, const FGuid& OfferId, const FGuid& MatchSecret, const FGuid& Contender,
         const FBuildContext& Context, FLDProgressionState& OutProgression);
     // InstallCard: the owned card Serial onto Target. NotOwned, AlreadyInstalled, InvalidTarget, WorkshopFull. A non-zero
-    // Replacing (another installed card) goes back to the library in the same commit and frees its slot (OutUninstalled).
+    // Replacing (another installed card) goes back to the library in the same commit and frees its slot (OutUninstalled). A
+    // medal takes no capacity and swaps out the medal already in that element slot.
     LOCKDOWN_API ELDGrowthReason ApplyInstallCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         uint16 Serial, const FLDCardTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out, uint16 Replacing = 0,
         TArray<uint16>* OutUninstalled = nullptr);
@@ -414,32 +421,28 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyUninstallCard(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         uint16 Serial, const FBuildContext& Context, FLDGrowthBuild& Out);
 
-    // ---- Vouchers, the rest shop and pick tickets (spec §3.13, §11.3) ----
+    // ---- The rest shop (spec §3.13): prices in stat points ----
 
-    // Amount (>= 0) more vouchers; ArithmeticOverflow past int32.
-    LOCKDOWN_API ELDGrowthReason GrantVouchers(FLDProgressionState& Progression, int32 Amount);
-    // Records Cards as seen this match (a pick ticket may name them).
-    LOCKDOWN_API void MarkSeenCards(FLDProgressionState& Progression, const TArray<FName>& Cards);
     // A fresh shelf for Build: SHOP.SkillSlots distinct actives neither learned nor pending (uniform; fewer when fewer are
     // eligible), then SHOP.CardSlots distinct cards, the first SHOP.VocabCardSlots weighted SHOP.VocabWeight for a card sharing
     // the build's vocabulary, the rest uniform; deterministic in Seed.
     LOCKDOWN_API ELDGrowthReason DrawShop(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint64 Seed,
         TArray<FLDShopSlot>& Out);
     LOCKDOWN_API uint64 ShopSeed(const FGuid& MatchSecret, const FGuid& Contender, uint32 Stock);
-    // Draws the next stock into Progression.Shop (its cards seen); bRestStart resets the rest's refresh count (every
+    // Draws the next stock into Progression.Shop; bRestStart resets the rest's refresh count (every
     // mid-match rest start).
     LOCKDOWN_API ELDGrowthReason StockShop(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, bool bRestStart);
-    // SHOP.RefreshPrice + SHOP.RefreshStep per refresh already made this rest.
+    // SHOP.RefreshPrice + SHOP.RefreshStep per refresh already made this rest (0 when free, also on a sale day).
     LOCKDOWN_API int32 ShopRefreshPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
     // The price of a shelf item of Kind (and the skill point, ShopSkillPointPrice) in Shop (sale day halves it, rounded up).
     LOCKDOWN_API int32 ShopPrice(const FLDDemoContentParameters& Parameters, ELDShopItemKind Kind, const FLDShopState& Shop);
     LOCKDOWN_API int32 ShopSkillPointPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
 
-    // What a shop purchase or a pick ticket gave.
+    // What a shop purchase gave.
     struct FShopOutcome
     {
-        int32 VouchersPaid = 0;
+        int32 PointsPaid = 0;
         ELDShopItemKind Kind = ELDShopItemKind::None;
         FName Definition;
         uint16 CardSerial = 0;
@@ -448,25 +451,14 @@ namespace LDProgression
     // ShopBuy: Slot of the current stock (Revision) or the skill point (FLDBuildCommand::ShopSkillPointSlot). A skill learns
     // into the lowest empty Q/W/E slot or becomes a pending blueprint, a card goes to the library, a skill point adds one
     // bought skill point. CommandGate(ShopBuy) reasons; NoShop before the first stock, ShopStale, ShopSoldOut, SkillPointLimit,
-    // InvalidOption (an active learned or pending since the stock), NotEnoughVouchers.
+    // InvalidOption (an active learned or pending since the stock), NotEnoughPoints (the unspent stat points pay).
     LOCKDOWN_API ELDGrowthReason ApplyShopBuy(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, uint64 Revision, const FBuildContext& Context, FLDGrowthBuild& Out,
         FLDProgressionState& OutProgression, FShopOutcome& Outcome);
-    // ShopRefresh: pays ShopRefreshPrice and draws a new stock. NoShop, ShopStale, NotEnoughVouchers.
+    // ShopRefresh: pays ShopRefreshPrice stat points and draws a new stock. NoShop, ShopStale, NotEnoughPoints.
     LOCKDOWN_API ELDGrowthReason ApplyShopRefresh(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLDProgressionState& Progression, uint64 Revision, const FGuid& MatchSecret, const FGuid& Contender,
-        const FBuildContext& Context, FLDProgressionState& OutProgression, int32& OutPaid);
-    // ShopSell: the library card Serial leaves the build for SHOP.SellPrice vouchers. NotOwned, CardInstalled.
-    LOCKDOWN_API ELDGrowthReason ApplyShopSell(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, uint16 Serial, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FLDProgressionState& OutProgression, int32& OutPaid);
-    // UsePickTicket: one ticket for Definition: an active neither learned nor pending (learned into the lowest empty slot or
-    // kept as a blueprint) or a card this match showed (to the library). NoPickTicket, InvalidOption, NotSeen.
-    LOCKDOWN_API ELDGrowthReason ApplyUsePickTicket(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, FName Definition, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FLDProgressionState& OutProgression, FShopOutcome& Outcome);
-    // The vouchers a camp tier's clear pays (VOUCHER.Camp*).
-    LOCKDOWN_API int32 CampClearVouchers(const FLDDemoContentParameters& Parameters, ELDDemoCampTier Tier);
+        const FBuildContext& Context, FLDGrowthBuild& OutBuild, FLDProgressionState& OutProgression, int32& OutPaid);
 
     // ---- Field rewards (spec §6.4, outer parameters §5) ----
 

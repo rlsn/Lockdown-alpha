@@ -73,14 +73,6 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
             *Claimer.ToString(), uint32(Outcome), LDGrowthWire::ReasonName(Reason));
         return false;
     }
-    // Spec §3.13: the claim also pays its vouchers.
-    if (const ELDGrowthReason VoucherReason = Development ? Development->GrantVouchers(Claimer, Parameters.Vouchers.Airdrop, 0,
-            TEXT("airdrop"), Permit) : ELDGrowthReason::AuthorityFault; VoucherReason != ELDGrowthReason::None)
-    {
-        Error = FString::Printf(TEXT("The airdrop %llu vouchers to %s were refused: %s."), Airdrop.Serial, *Claimer.ToString(),
-            LDGrowthWire::ReasonName(VoucherReason));
-        return false;
-    }
     bool bApplied = false;
     FLDAirdropRewardFact Effects;
     if (!Combat->ApplyAirdropReward(Claimer, Permit, bApplied, Effects, Error)) { return false; }

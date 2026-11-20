@@ -28,6 +28,20 @@ namespace LDHUDStyle
     // A contender who cannot be attacked right now (anyone in a rest outside the PK, a PK teammate): never the hostile red.
     inline const FLinearColor PeacefulHealth(.16f,.42f,.78f);
     inline const FLinearColor CampHealth(.85f,.32f,.03f);
+    // A camp member's tier (ELDDemoCampTier as uint8): Low white, High blue, Elite violet, Ancient gold, the Boss red. The world
+    // label's name and bar frame and the minimap's camp diamond share it.
+    inline FLinearColor CampTierInk(uint8 Tier)
+    {
+        switch(Tier)
+        {
+        case 0: return FLinearColor(.94f,.95f,.96f);
+        case 1: return FLinearColor(.26f,.58f,1.f);
+        case 2: return FLinearColor(1.f,.30f,.22f);
+        case 3: return FLinearColor(.70f,.38f,1.f);
+        case 4: return FLinearColor(1.f,.76f,.16f);
+        default: return FLinearColor(1.f,.8f,.42f);
+        }
+    }
     // Momentum: a hot orange bar; a full bar glows overdrive gold (the bar, slot rings, target bars and charge halos).
     inline const FLinearColor Momentum(.95f,.30f,.02f);
     inline const FLinearColor Overdrive(1.f,.80f,.10f);

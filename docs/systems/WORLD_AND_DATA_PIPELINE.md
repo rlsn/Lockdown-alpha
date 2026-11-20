@@ -41,11 +41,11 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 `PKSignup` 的 `pk_signup_0..5` 在休息室里，六个点的平均位置是公共报名圈的圆心，各点也是 AI 按名单槽位站的位置；
 `PKSpawn` 的 `pk_spawn_0..5`（`world.pk_spawn_ids`）围着旗杆，是 PK 的出生点；`PKThrow` 的 `pk_throw`（`world.pk_throw_id`）是观众投掷的射程原点。
 这三类都不加入野外随机出生池。
-`RestService` 的 `rest_service_3` 为训练师（`rest_service_1`、`rest_service_2` 不承载服务），三个定位点，位于 y=-500 cm、x=7100/7500/7900 cm；
-服务交互仍复用 `AIRDROP.PickupRadiusCm` 的150 cm范围。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
+`RestService` 的三个定位点 `rest_service_1..3` 位于 y=-500 cm、x=7100/7500/7900 cm，只作休息室布局与出生可达的参照，
+不承载服务（休息服务都在构筑台里）。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
 y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
 训练锚点不进入野外 POI 或小地图地点。
-Python/native importer 都识别新增锚点，服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
+Python/native importer 都识别新增锚点，假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
 的完整室内原生路径；野外出生以野外旗杆为路径参考，终局出生以终局旗杆为参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
 改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
 `BootstrapAssets.ps1 -Mode Regenerate`；必须重生成原生地图与定义，不能只刷新旧定义或复制旧地图作为新几何。
@@ -78,7 +78,7 @@ Python/native importer 都识别新增锚点，服务范围、假人偏移与出
 
 世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 5，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
-Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker、Vending 和休息室锚点、营地成员 home 与七个局部落地偏移；
+Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker 和休息室锚点、营地成员 home 与七个局部落地偏移；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
 **不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
@@ -93,19 +93,19 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker、Ven
 `LDDemoWorld::FinalCaptureId` 解析，不替代野外的 `capture` 锚点。
 
 野外目标与隐藏物使用三类可选锚点，id 前缀决定类别：`MiniFlag` 为 `mini_flag_*`（至少 3 个，最多 16 个），
-`Locker` 为 `locker_*`（至少 6 个，最多 32 个），`Vending` 为 `vending_*`（至少 2 个，最多 16 个）。
+`Locker` 为 `locker_*`（至少 6 个，最多 32 个）。
 关卡作者可以移动、复制或删除这些点：复制的点以 `<原 id>_copy_<演员名的 8 位十六进制校验值>` 得到新 id（`LDStaticScene::OptionalCopyId`，投影与 RefreshLayoutPoints 共用），删除只要不低于最少数量即可；
 `DemoWorld.py` 与 `LDMapGeometry.cpp` 同样检查前缀与类别一致、数量范围、单胶囊合法站位，以及各自作用圆
-（小迷你旗 `OBJECTIVE.FlagRadiusCm`、外卖柜 `EXPLORE.LockerRadiusCm`、售货机 `AIRDROP.PickupRadiusCm`）落在合法地面且不进入营地清空圈。
+（小迷你旗 `OBJECTIVE.FlagRadiusCm`、外卖柜 `EXPLORE.LockerRadiusCm`）落在合法地面且不进入营地清空圈。
 内容另检查 `EXPLORE.LockerCount` 不超过外卖柜点数、`LIFE.SpawnChoiceCount` 不超过出生点数。
-外卖柜与小迷你旗点不进入 AI 公开地点或静态小地图（外卖柜只在本人看见后显示，小迷你旗只在开放或预告时显示）；售货机公开显示在小地图上。
+外卖柜与小迷你旗点不进入 AI 静态公开地点或静态小地图（外卖柜只在出现期间显示，小迷你旗只在开放或预告时显示）。
 
 `camps.placements.monster_id`是固定档位代表，运行按该定义的tier聚合三种候选，不是本次生成结果。
 同档必须具有相同成员数量、奖励与刷新时间。`FLDCampSpec::Pools`每档一个种类池：`Pools[0]`是营地自身档位，
 作者成员名单里其他档位的成员模板各追加该档一池，成员按 `Pool` 取种（`FLDCampSpec::MemberSpecies`；精英与远古的团建位仍穿固定高档种）。
 `FLDCampGroupState`按池保存本次选种与准备中的选种，每次整组生成每池独立抽一次，同档成员同种；
 SpawnBlocked重试保留抽签；整组生命提交后才切换当前种类。公开POI保留档位代表，动态CreatureId只经合法观察发布。
-移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`vending_*`、`pk_signup_*`、`pk_spawn_*`、`pk_throw`）新增语义点，
+移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`pk_signup_*`、`pk_spawn_*`、`pk_throw`）新增语义点，
 保留现存点和人工布景；现存必需点缺失、重复身份或成员落点重叠会拒绝，不能用此入口重建被删除的点。
 该定向同步不刷新碰撞、导航或美术，也不代表完整Bootstrap通过；新增成员的实际胶囊落地及接线由拥有连接营地场景验证。
 普通布景不参与成员数量或档位判定；全场景源快照导出对未注册静态碰撞的限制仍存在。

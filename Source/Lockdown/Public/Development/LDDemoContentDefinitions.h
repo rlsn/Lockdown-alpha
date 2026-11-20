@@ -109,42 +109,18 @@ struct FLDDemoCardParameters
     UPROPERTY() int32 FreeRerolls = 0;
     UPROPERTY() int32 RerollsPerRest = 0;
     UPROPERTY() int32 VocabWeight = 0;
-    // Spec §3.13: vouchers for skipping one card offer.
-    UPROPERTY() int32 SkipVouchers = 0;
+    // Stat points for skipping one card offer (CARDS.SkipPoints).
+    UPROPERTY() int32 SkipPoints = 0;
     // A level-up queues a card offer only at levels this divides (1: every level).
     UPROPERTY() int32 OfferEveryLevels = 0;
     // #305: the idle time Y22 and K16 may carry into a fight (CARDS.IdleCarrySec); they count nothing else outside one.
     UPROPERTY() int64 IdleCarryMs = 0;
 };
 
-// Spec §3.13 vouchers (饭票): what each source pays (the last hit that clears a camp of each tier, the Boss's last hit, a
-// contender kill and each assist, the airdrop claim and skipping an active offer).
-USTRUCT()
-struct FLDDemoVoucherParameters
-{
-    GENERATED_BODY()
-
-    UPROPERTY() int32 CampLow = 0;
-    UPROPERTY() int32 CampHigh = 0;
-    UPROPERTY() int32 CampElite = 0;
-    UPROPERTY() int32 CampAncient = 0;
-    UPROPERTY() int32 Boss = 0;
-    UPROPERTY() int32 Kill = 0;
-    UPROPERTY() int32 Assist = 0;
-    UPROPERTY() int32 Airdrop = 0;
-    UPROPERTY() int32 ActiveSkip = 0;
-    // Spec §3.13/§10.3/§10.4/§11.3 (P6): the mini flag and arena winners, the extra pay for killing or assisting on the
-    // trending contender, and a locker's voucher prize.
-    UPROPERTY() int32 MiniFlag = 0;
-    UPROPERTY() int32 Arena = 0;
-    UPROPERTY() int32 BountyKill = 0;
-    UPROPERTY() int32 BountyAssist = 0;
-    UPROPERTY() int32 Locker = 0;
-};
-
 // Spec §3.13 rest shop: SkillSlots skills and CardSlots cards per stock (VocabCardSlots of the cards drawn with VocabWeight for a
-// candidate sharing the build's vocabulary, the rest uniformly), the prices, the refresh price rising RefreshStep per refresh
-// of one rest, a skill point (at most SkillPointMaxPerMatch per match) and the voucher paid for a sold library card.
+// candidate sharing the build's vocabulary, the rest uniformly), the prices in stat points, the refresh price (RefreshPrice may
+// be 0: the rest's first refresh is free) rising RefreshStep per refresh of one rest and a skill point (at most
+// SkillPointMaxPerMatch per match).
 USTRUCT()
 struct FLDDemoShopParameters
 {
@@ -160,7 +136,6 @@ struct FLDDemoShopParameters
     UPROPERTY() int32 RefreshStep = 0;
     UPROPERTY() int32 SkillPointPrice = 0;
     UPROPERTY() int32 SkillPointMaxPerMatch = 0;
-    UPROPERTY() int32 SellPrice = 0;
 };
 
 // Spec §10.3 (P6) mid-field objectives: StartMs of segment-local field time after each timed segment starts, announced
@@ -220,18 +195,16 @@ struct FLDDemoAffixParameters
 
     UPROPERTY() int64 ChanceBp = 0;
     UPROPERTY() int64 OvertimeAttackSpeedBp = 0;
-    UPROPERTY() int64 OvertimeVoucherScaleBp = 0;
     UPROPERTY() int64 TeambuildXPScaleBp = 0;
     UPROPERTY() int32 FridgeCardOffer = 0;
     UPROPERTY() int64 BonusHPBp = 0;
     UPROPERTY() int32 BonusCardOffer = 0;
     UPROPERTY() int64 LayoffAttackBp = 0;
-    UPROPERTY() int32 LayoffVouchers = 0;
     UPROPERTY() int64 AuditTelegraphCutBp = 0;
     UPROPERTY() int32 AuditSkillPointsMax = 0;
 };
 
-// Spec §11.3 (P6) hidden things: delivery lockers, the second-hand dealer and the vending machines.
+// Spec §11.3 (P6) delivery lockers and the second-hand dealer.
 USTRUCT()
 struct FLDDemoExploreParameters
 {
@@ -240,8 +213,10 @@ struct FLDDemoExploreParameters
     UPROPERTY() int32 LockerCount = 0;
     UPROPERTY() FLDDemoRational LockerRadiusCm;
     UPROPERTY() int64 LockerChannelMs = 0;
-    UPROPERTY() int64 LockerCardChanceBp = 0;
     UPROPERTY() int32 LockerCardOffer = 0;
+    UPROPERTY() int64 LockerEarliestMs = 0;
+    UPROPERTY() int64 LockerLatestMs = 0;
+    UPROPERTY() int64 LockerStayMs = 0;
     UPROPERTY() int64 PeddlerEarliestMs = 0;
     UPROPERTY() int64 PeddlerLatestMs = 0;
     UPROPERTY() FLDDemoRational PeddlerOffsetCm;
@@ -249,13 +224,6 @@ struct FLDDemoExploreParameters
     UPROPERTY() FLDDemoRational PeddlerMoveSpeedCmPerSec;
     UPROPERTY() int64 PeddlerStayMs = 0;
     UPROPERTY() int32 PeddlerCardOffer = 0;
-    UPROPERTY() int32 VendingBuffPrice = 0;
-    UPROPERTY() int64 VendingBuffMs = 0;
-    UPROPERTY() int64 VendingAttackSpeedBp = 0;
-    UPROPERTY() FLDDemoRational VendingMomentumPerSec;
-    UPROPERTY() int64 VendingMoveSpeedBp = 0;
-    UPROPERTY() int32 VendingDrinkPrice = 0;
-    UPROPERTY() int32 VendingDrinkHits = 0;
 };
 
 // Momentum (劲), the one skill resource of a contender (CONTENT_AND_BALANCE §3.3, LDMomentum). Camp members hold none.
@@ -307,16 +275,14 @@ struct FLDDemoOverdriveParameters
     UPROPERTY() int64 WaterSlowMs = 0;
     UPROPERTY() int64 ShockReactionBp = 0;
     UPROPERTY() int64 RotDurationBp = 0;
-    UPROPERTY() FLDDemoRational GustPushCm;
-    UPROPERTY() int64 GustPushMs = 0;
     // Chill: the overdrive roots its targets (hard control, diminishing returns).
     UPROPERTY() int64 ChillRootMs = 0;
 };
 
 // Issue #287 spec §3.10 and §8.1-§8.2 element and reaction terms beyond the #198 water/fire ones (COMBAT.*): shock (every
 // ShockEveryNthHit-th direct hit on the holder strikes ShockRatio x R on it and on the applier's other enemies within
-// ShockSplashRadiusCm), chill (attack and move slow), rot (heal and shield cut, damage every RotTickMs), gust (push) and the
-// reactions' ratios of R, stacks, durations and distances.
+// ShockSplashRadiusCm), chill (attack and move slow), rot (heal and shield cut, damage every RotTickMs), the short shove of a
+// fan blow or a typhoon (PushMs) and the reactions' ratios of R, stacks, durations and distances.
 USTRUCT()
 struct FLDDemoElementParameters
 {
@@ -334,33 +300,26 @@ struct FLDDemoElementParameters
     UPROPERTY() int64 RotPerSecP2 = 0;
     UPROPERTY() int64 RotAPRatioPerSecBp = 0;
     UPROPERTY() int64 RotTickMs = 0;
-    UPROPERTY() FLDDemoRational GustPushCm;
-    UPROPERTY() int64 GustPushMs = 0;
+    UPROPERTY() int64 PushMs = 0;
     UPROPERTY() int64 ConductRatioBp = 0;
     UPROPERTY() int64 OverloadRatioBp = 0;
     UPROPERTY() int64 MeltRatioBp = 0;
     UPROPERTY() int64 MethaneRatioBp = 0;
     UPROPERTY() int64 MethaneBurnStacks = 0;
     UPROPERTY() FLDDemoRational MethaneRadiusCm;
-    UPROPERTY() int64 FirestormBurnScale = 0;
     UPROPERTY() int64 FreezeRootMs = 0;
     UPROPERTY() int64 FermentRotMs = 0;
     UPROPERTY() int64 FermentHealCutBp = 0;
-    UPROPERTY() FLDDemoRational SplashPushCm;
     UPROPERTY() int64 ShatterSkillDamageBp = 0;
     UPROPERTY() int64 ShatterMs = 0;
     UPROPERTY() int64 CorrodeBreachStacks = 0;
     UPROPERTY() int64 CorrodeBreachMs = 0;
-    UPROPERTY() FLDDemoRational ThunderstormKnockbackCm;
     UPROPERTY() int64 FrostbiteAttackSlowBp = 0;
     UPROPERTY() int64 FrostbiteMs = 0;
-    UPROPERTY() int64 BlizzardRatioBp = 0;
-    UPROPERTY() int64 SmokeDisarmMs = 0;
 };
 
 // Spec §8.3 ground states (GROUND.*): radius, life and tick of each kind, ice's inertia and displacement scales, the fire
-// ground's layers, the field's damage ratio and gust discharge reach, the blizzard slow, how far a gust moves fire and miasma,
-// and the performance caps per owner and per map.
+// ground's layers, the field's damage ratio and the performance caps per owner and per map.
 USTRUCT()
 struct FLDDemoGroundParameters
 {
@@ -384,12 +343,6 @@ struct FLDDemoGroundParameters
     UPROPERTY() int64 FieldMs = 0;
     UPROPERTY() int64 FieldTickMs = 0;
     UPROPERTY() int64 FieldRatioBp = 0;
-    UPROPERTY() FLDDemoRational FieldDischargeRadiusCm;
-    UPROPERTY() FLDDemoRational BlizzardRadiusCm;
-    UPROPERTY() int64 BlizzardMs = 0;
-    UPROPERTY() int64 BlizzardTickMs = 0;
-    UPROPERTY() int64 BlizzardSlowBp = 0;
-    UPROPERTY() FLDDemoRational GustMoveCm;
     UPROPERTY() int64 MaxPerOwner = 0;
     UPROPERTY() int64 MaxTotal = 0;
 };
@@ -617,9 +570,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 MaxLevelPoints = 0;
     UPROPERTY() int64 KeystoneThresholdPoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
+    // Stat points for skipping one active offer (GROWTH.ActiveSkipPoints).
+    UPROPERTY() int64 ActiveSkipPoints = 0;
     UPROPERTY() FLDDemoAIParameters AI;
     UPROPERTY() FLDDemoCardParameters Cards;
-    UPROPERTY() FLDDemoVoucherParameters Vouchers;
     UPROPERTY() FLDDemoShopParameters Shop;
     UPROPERTY() FLDDemoObjectiveParameters Objective;
     UPROPERTY() FLDDemoDailyParameters Daily;
@@ -722,14 +676,14 @@ UENUM()
 // PerfectDodge: D09's growth; AttackSpeedBelow / MoveSpeedAbove: which speed a speed_factor card reads (A10, Y18).
 enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete, PerfectDodge, AttackSpeedBelow, MoveSpeedAbove };
 
-// The element a card effect, branch or Y25 choice names (content "fire|water|electric|chill|rot|gust"; electric is the shock
-// element). Fire is burn stacks; the others are LDCombatElements marks, gust a push.
+// The element a card effect, branch or Y25 choice names (content "fire|water|electric|chill|rot"; electric is the shock
+// element). Fire is burn stacks; the others are LDCombatElements marks.
 UENUM()
-enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3, Chill = 4, Rot = 5, Gust = 6 };
+enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3, Chill = 4, Rot = 5 };
 
 // The element an active carries (its own or a branch's): it picks the overdrive bonus (CONTENT_AND_BALANCE §3.5).
 UENUM()
-enum class ELDDemoSkillElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5, Gust = 6 };
+enum class ELDDemoSkillElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5 };
 
 // How an active reaches its targets (targeted / projectile / area / dash / self).
 UENUM()
@@ -747,9 +701,11 @@ enum class ELDDemoDamageScope : uint8 { All = 0, Skill = 1, Basic = 2 };
 UENUM()
 enum class ELDDemoRecastControl : uint8 { Same = 0, Root = 1, Disarm = 2 };
 
-// Spec §6.1 card forms: where a card installs (the primary basic, one learned Q/W/E skill, the D dash or the body).
+// Spec §6.1 card forms: where a card installs (one learned Q/W/E skill, the D dash or the body, which also carries the basic
+// attack). A medal is an element medal: it sits in the element slot of a learned skill or of the body, outside the workshop's
+// capacity, one per slot. 0 (the former basic form) is retired.
 UENUM()
-enum class ELDCardForm : uint8 { Basic = 0, Skill = 1, Dash = 2, Body = 3, Count UMETA(Hidden) };
+enum class ELDCardForm : uint8 { Skill = 1, Dash = 2, Body = 3, Medal = 4, Count UMETA(Hidden) };
 
 // Spec §6.2 card types; the interface draws each as its own shape.
 UENUM()
@@ -970,7 +926,7 @@ struct FLDDemoEffectDefinition
     // bonus of the next different active release) + DurationMs (token window after the host's hard control);
     // zone_detonate RatioBp (share of the zone's remaining damage pulses paid at once).
     // Issue #287 P4 (docs/systems/COMBAT_AND_GROWTH.md): rot RatioBp (heal and shield cut) + DurationMs, 0 = COMBAT.Rot*;
-    // chill no fields; gust DistanceCm (push, 0 = COMBAT.GustPushCm); ground_state GroundKind + DurationMs (0 = GROUND.*Sec)
+    // chill no fields; ground_state GroundKind + DurationMs (0 = GROUND.*Sec)
     // + RatioBp (radius multiplier, 0 = GROUND.*RadiusCm) + SecondaryRatioBp (the owner's damage factor on enemies standing
     // on it) + MultiplierBp (attack slow of enemies inside); fan DurationMs + IntervalMs (blows) + RadiusCm (rectangle
     // length) + ExtraDistanceCm (rectangle width) + DistanceCm (push) + AngleDegrees (sweep per second either way) +

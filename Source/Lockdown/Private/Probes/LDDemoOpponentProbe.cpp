@@ -921,43 +921,14 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     if (RestServiceReviewStage == 0)
     {
         if(Now<RestReviewDueAt){return true;}
-        const FLDProgressionView* Growth=Owner.ReadOwnProgression();
-        if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer)
-        {
-            // Beside the trainer the open workshop shows its services on the board; the 构筑 button opens the workshop.
-            UWidget* Prompt=Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
-            const bool bOpened=Owner.HUDUI->ChoicesPanel->IsTrayOpen()||CheckUI(LDSlateProbeInput::SendClick(Prompt),
-                TEXT("UI: the workshop opens beside the trainer"),LDSlateProbeInput::Describe(Prompt));
-            // Without the workshop there is nothing to shoot at the trainer: the review goes on to the panorama.
-            RestServiceReviewStage = bOpened ? 2 : 3;
-            if (bOpened) { ConfigureService(); }
-            return true;
-        }
-        ULDMapRegistry* Registry = Owner.GetWorld() ? Owner.GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-        const FLDMapBinding* Service = Registry
-            ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(3)), Registry->Generation) : nullptr;
-        if (Owner.Navigation && Owner.CanWorldCommand() && Service)
-        {
-            Owner.Navigation->NavigateGround(Service->Position, Service->Surface);
-            RestServiceReviewStage = 1;
-            RestReviewDueAt = Now + 15.;
-            return true;
-        }
-        RestServiceReviewStage = 3;
-    }
-    if (RestServiceReviewStage == 1)
-    {
-        if (Owner.OwnerState.NearbyRestService == ELDRestService::Trainer && Owner.HUDUI)
-        {
-            UWidget* Prompt=Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
-            const bool bOpened=Owner.HUDUI->ChoicesPanel->IsTrayOpen()||CheckUI(LDSlateProbeInput::SendClick(Prompt),
-                TEXT("UI: the workshop opens beside the trainer after walking"),LDSlateProbeInput::Describe(Prompt));
-            RestServiceReviewStage = bOpened ? 2 : 3;
-            if (bOpened) { ConfigureService(); }
-            return true;
-        }
-        if (Now < RestReviewDueAt) { return true; }
-        RestServiceReviewStage = 3;
+        // In the rest build window the open workshop shows the rest rebuilds on the board; the 构筑 button opens it.
+        UWidget* Prompt=Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
+        const bool bOpened=Owner.HUDUI->ChoicesPanel->IsTrayOpen()||CheckUI(LDSlateProbeInput::SendClick(Prompt),
+            TEXT("UI: the workshop opens in the rest"),LDSlateProbeInput::Describe(Prompt));
+        // Without the workshop there is nothing to shoot: the review goes on to the panorama.
+        RestServiceReviewStage = bOpened ? 2 : 3;
+        if (bOpened) { ConfigureService(); }
+        return true;
     }
     if (RestServiceReviewStage == 2)
     {

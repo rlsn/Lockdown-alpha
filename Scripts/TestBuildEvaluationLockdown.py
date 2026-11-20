@@ -264,7 +264,7 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
         self.assertEqual(lockdown.level_for(self.content["progression"], 240), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 239, 240)], [1, 1, 2, 2, 3])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 499, 500)], [1, 1, 2, 2, 3])
 
 
 class PlanTest(AdapterCase):
@@ -630,6 +630,15 @@ class PlanTest(AdapterCase):
             with self.subTest(stance=invalid), self.assertRaises(ValueError):
                 plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": invalid}, sample="diagnostic")
                 lockdown.native_input("run-1", plan, self.caps, case)
+
+
+class MedalSlotTest(unittest.TestCase):
+    def test_a_second_medal_swaps_the_first_out_of_its_element_slot(self):
+        install = lambda card: {"step": "install", "at": "field", "card": card, "target": "body"}
+        cards = lockdown.planned_cards([install("medal_fire"), install("medal_water")])
+        self.assertEqual(cards, {("medal_water", "Body", "", "None"): 1})
+        cards = lockdown.planned_cards([install("medal_fire"), install("medal_water"), install("medal_fire")])
+        self.assertEqual(cards, {("medal_fire", "Body", "", "None"): 1})
 
 
 class EvidenceTest(AdapterCase):

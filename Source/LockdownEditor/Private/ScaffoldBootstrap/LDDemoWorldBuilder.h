@@ -11,7 +11,7 @@ namespace LDDemoWorldBuilder
 {
 // Scoped layout-point synchronization: adds the approved new camp member homes and the definition's layout points the
 // saved level lacks (at their definition position), and removes saved anchor points the definition no longer declares
-// (optional mini flag, locker and vending points the author added are kept). Preserves every other object; never
+// (optional mini flag and locker points the author added are kept). Preserves every other object; never
 // regenerates collision or navigation.
 bool RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeometry& Previous,ULDMapDefinition& Definition,const FLDDemoContentSnapshot& Content,FString& Error);
 bool Refresh(UWorld& World, ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content, FString& Error);

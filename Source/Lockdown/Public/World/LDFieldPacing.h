@@ -40,18 +40,19 @@ struct LOCKDOWN_API FLDObjectiveView
     UPROPERTY() FGuid Winner;
 };
 
-// Owner view of one delivery locker the contender has seen (spec §11.3: it stays on the minimap once seen).
+// Public view of one delivery locker that is out now (inside FLDPublicMatchView): where it stands, the field progress T at
+// which it leaves unopened, and whether someone is holding it (who is never named).
 USTRUCT()
 struct LOCKDOWN_API FLDLockerView
 {
     GENERATED_BODY()
     UPROPERTY() FName AnchorId;
     UPROPERTY() FVector PositionCm = FVector::ZeroVector;
-    UPROPERTY() bool bOpened = false;
+    UPROPERTY() int64 ClosesAtT = 0;
+    UPROPERTY() bool bChanneling = false;
 };
 
-// Owner-only P6 projection: the death screen's spawn candidates and choice (spec §10.4), the vending machine within reach
-// and the drink charges left (spec §11.3), and the lockers the contender has seen.
+// Owner-only P6 projection: the death screen's spawn candidates and choice (spec §10.4).
 USTRUCT()
 struct LOCKDOWN_API FLDOwnerPacingView
 {
@@ -61,11 +62,6 @@ struct LOCKDOWN_API FLDOwnerPacingView
     UPROPERTY() TArray<FVector> SpawnCandidateCm;
     UPROPERTY() int8 SpawnChosen = INDEX_NONE;
     UPROPERTY() int64 SpawnChoiceEndsAtMs = 0;
-    UPROPERTY() FName NearbyVending;
-    UPROPERTY() int32 Vouchers = 0;
-    UPROPERTY() uint8 DrinkElement = 0;
-    UPROPERTY() uint8 DrinkHits = 0;
-    UPROPERTY() TArray<FLDLockerView> SeenLockers;
 };
 
 namespace LDFieldPacing
@@ -145,32 +141,41 @@ namespace LDFieldPacing
     LOCKDOWN_API int32 NearestCandidate(TConstArrayView<FVector> Candidates, TConstArrayView<FVector> Goals);
 }
 
-// Spec §11.3 delivery lockers: LockerCount of the locker_* points are stocked per match (server-only draw). A stocked locker
-// is opened by standing within EXPLORE.LockerRadiusCm for EXPLORE.LockerChannelSec; damage or a hard control interrupts.
-// Each opens once per match.
+// Spec §11.3 delivery lockers: like the airdrop, a public random drop, but held rather than touched. EXPLORE.LockerCount of
+// the locker_* points are drawn per match (server-only), each coming out at its own uniform field T in
+// [EXPLORE.LockerEarliestSec, EXPLORE.LockerLatestSec] and leaving unopened EXPLORE.LockerStaySec later. While it is out it
+// is public; standing within EXPLORE.LockerRadiusCm for EXPLORE.LockerChannelSec opens it; damage or a hard control
+// interrupts. Each opens once per match.
 struct LOCKDOWN_API FLDLockerState
 {
     struct FLocker
     {
         LDFieldPacing::FPoint Point;
+        int64 AppearT = 0;
+        int64 LeaveT = 0;
         bool bOpened = false;
-        // Contenders that have seen it (it then stays on their minimap).
-        TSet<FGuid> SeenBy;
+        // Whether the last Step saw it out (its public presence changes when this flips).
+        bool bShown = false;
         // The contender channelling it and the field T the channel started (invalid: none).
         FGuid Opener;
         int64 ChannelSinceT = 0;
+
+        bool IsOut(int64 NowT) const { return !bOpened && NowT >= AppearT && NowT < LeaveT; }
     };
     TArray<FLocker> Lockers;
     double RadiusCm = 0;
     int64 ChannelMs = 0;
 
     bool Begin(const FLDDemoContentParameters& Parameters, TConstArrayView<LDFieldPacing::FPoint> Points, uint64 Seed, FString& Error);
-    // One boundary of channels: an unopened locker without a channel starts one for the inside contender with the smallest
-    // id; the channel breaks when its opener leaves the disk, takes damage or is hard-controlled, and opens the locker once
-    // it ran ChannelMs. Opened lists the lockers opened at NowT and their openers; bChanged when any channel changed.
+    // One boundary of channels: a locker that is out and has no channel starts one for the inside contender with the smallest
+    // id; the channel breaks when its opener leaves the disk, takes damage or is hard-controlled, or the locker leaves, and
+    // opens the locker once it ran ChannelMs. Opened lists the lockers opened at NowT and their openers; bChanged when any
+    // channel or presence changed.
     void Step(int64 NowT, TConstArrayView<LDFieldPacing::FPresence> Living, TArray<TPair<int32, FGuid>>& Opened, bool& bChanged);
-    // Earliest field T a running channel completes (MAX_int64 when none).
-    int64 NextDueT() const;
+    // Earliest field T after NowT at which a locker comes out or leaves, or a running channel completes (MAX_int64 when none).
+    int64 NextDueT(int64 NowT) const;
+    // The lockers out at NowT.
+    void View(int64 NowT, TArray<FLDLockerView>& Out) const;
 };
 
 // Spec §11.3 second-hand dealer: one per match at a uniform field T in [EXPLORE.PeddlerEarliestSec, PeddlerLatestSec], beside a

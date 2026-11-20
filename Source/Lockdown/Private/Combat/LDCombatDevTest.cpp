@@ -55,7 +55,7 @@ bool ALDCombatDirector::DevSpawnGround(const FGuid& Contender, uint8 Kind, const
     ALDCharacter* Actor = nullptr;
     FLDBodyCombatState* Body = FindEntityBody(Contender, &Actor);
     const ILDLifeAuthority* Mode = Authority();
-    if (!Body || Body->bPendingDeath || !Actor || !Mode || Kind < 1 || Kind > 6)
+    if (!Body || Body->bPendingDeath || !Actor || !Mode || Kind < 1 || Kind >= LDGroundStateKindCount)
     {
         Detail = TEXT("A DEV ground state needs a living body and a ground-state kind 1..6.");
         return false;

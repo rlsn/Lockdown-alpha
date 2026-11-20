@@ -249,12 +249,15 @@ private:
             {
                 return Refuse(EError::DuplicateSource, Field, TEXT("Installed cards need distinct ascending serials"));
             }
-            const ELDCardTargetKind Expected = Definition->Form == ELDCardForm::Basic ? ELDCardTargetKind::Basic
-                : Definition->Form == ELDCardForm::Skill ? ELDCardTargetKind::Skill
+            const bool bMedal = Definition->Form == ELDCardForm::Medal;
+            const ELDCardTargetKind Expected = Definition->Form == ELDCardForm::Skill ? ELDCardTargetKind::Skill
                 : Definition->Form == ELDCardForm::Dash ? ELDCardTargetKind::Dash : ELDCardTargetKind::Body;
             const bool bElement = Definition->ChooseElements.IsEmpty() ? Installed.Element == ELDDemoElement::None
                 : Definition->ChooseElements.Contains(Installed.Element);
-            if (Installed.TargetKind != Expected || (Expected == ELDCardTargetKind::Skill) == Installed.Active.IsNone() || !bElement)
+            // A medal sits in the element slot of a skill or the body.
+            const bool bPlace = bMedal ? Installed.TargetKind == ELDCardTargetKind::Skill || Installed.TargetKind == ELDCardTargetKind::Body
+                : Installed.TargetKind == Expected;
+            if (!bPlace || (Installed.TargetKind == ELDCardTargetKind::Skill) == Installed.Active.IsNone() || !bElement)
             {
                 return Refuse(EError::InputDomain, Field, Definition->Id + TEXT(" sits outside its form's target"));
             }

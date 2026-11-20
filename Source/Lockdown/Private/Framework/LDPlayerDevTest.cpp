@@ -431,13 +431,12 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestBreakout(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestGround(
     TEXT("ld.Dev.Ground"),
-    TEXT("DEV test session: one ownerless ground state at your foot: ld.Dev.Ground <1 puddle | 2 ice | 3 fire | 4 miasma | 5 field | "
-        "6 blizzard>."),
+    TEXT("DEV test session: one ownerless ground state at your foot: ld.Dev.Ground <1 puddle | 2 ice | 3 fire | 4 miasma | 5 field>."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {
             int64 Kind = 0;
-            if (Args.Num() != 1 || !LDDevTest::ParseAmount(Args[0], Kind) || Kind < 1 || Kind > 6)
+            if (Args.Num() != 1 || !LDDevTest::ParseAmount(Args[0], Kind) || Kind < 1 || Kind > 5)
             {
                 Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Ground <1..6>"));
                 return;

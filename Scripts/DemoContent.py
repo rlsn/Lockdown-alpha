@@ -49,10 +49,10 @@ NATIVE_ENUMS = {
 # Inclusive native numbers that are never reused (#198 retires the passives, cower, attribute cards, their statuses and
 # unused ops; #287 P2 retires the components 1-63 below the cards; P4 retires the grievous status and operation and the
 # projectile zone).
-RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]], "cards": [[0, 199]],
+RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]], "cards": [[0, 199], [214, 218], [237, 242], [255, 255]],
                   "final_mods": [[2, 2], [5, 5], [11, 11], [15, 15], [21, 24]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29], [33, 33]],
-                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195]]}
+                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195], [235, 235]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 # The operations only a skill branch adds to an active (issue #287 spec §5.1); rank 1 never carries them.
@@ -76,8 +76,8 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "dash",
                        "contact_trap", "dash_contact",
                        # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
                        "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste",
-                       # Issue #287 P4: chill, rot and gust, the ground states a skill leaves and N2's fan.
-                       "chill", "rot", "gust", "ground_state", "fan", "bag",
+                       # Issue #287 P4: chill and rot, the ground states a skill leaves and N2's fan.
+                       "chill", "rot", "ground_state", "fan", "bag",
                        "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
                        "empower_reach", "pull",
                        # Skill branch operations (issue #287 spec §5.1).
@@ -101,38 +101,38 @@ CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_ele
 CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic", "shield_burst_break"}
 EFFECT_OPS = EFFECT_OPS | CARD_ONLY_OPS
 # The operations a card of each form may carry: skill cards change or answer their host skill, dash cards the D dash,
-# basic cards the primary basic and body cards the holder.
+# body cards the holder and its basic attack; an element medal names the element of a skill's or the body's element slot.
 FORM_OPS = {
-    "basic": frozenset(("burn", "breach", "basic_element", "combo_momentum", "basic_cooldown_cut", "combo_skill_hit",
-                        "combo_knockback", "combo_double", "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed",
-                        "basic_projectile", "combo_sweep", "combo_cast", "speed_factor", "hit_growth")),
     "skill": frozenset(("hit_haste_other", "skill_hit_momentum", "setup_mark", "auto_recast", "cooldown_cost",
                         "skill_damage_factor", "hp_cost", "skill_ad_rider", "skill_lifesteal", "idle_ready_amp",
-                        "skill_growth", "skill_element", "reaction_haste", "takedown_reset", "control_amp", "reshape",
+                        "skill_growth", "reaction_haste", "takedown_reset", "control_amp", "reshape",
                         "shield_spend", "recent_cast_amp")),
     "dash": frozenset(("dash_contact_reset", "hit_haste_other", "empower_basic", "dash_split", "dash_phase",
-                       "dash_contact_element", "dash_ice", "ground_relocate", "dodge_free_cast", "dash_ram", "cooldown_cost",
-                       "hit_growth")),
+                       "dash_ice", "ground_relocate", "dodge_free_cast", "dash_ram", "cooldown_cost", "hit_growth")),
     "body": frozenset(("thorns", "takedown_reset", "last_stand", "reaction_momentum", "reaction_element", "triggered_shield",
                        "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
                        "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
                        "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap",
-                       "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally")),
+                       "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally",
+                       "breach", "combo_momentum", "basic_cooldown_cut", "combo_skill_hit", "combo_knockback", "combo_double",
+                       "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed", "basic_projectile", "combo_sweep",
+                       "combo_cast", "hit_growth")),
+    "medal": frozenset(("skill_element",)),
 }
-CARD_FORMS = ("basic", "skill", "dash", "body")
+CARD_FORMS = ("skill", "dash", "body", "medal")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 # Spec §6.3 vocabulary keys in bit order (ELDCardVocab).
 CARD_VOCAB = ("basic_hit", "combo3", "skill_hit", "skill_cast", "overdrive", "reaction", "element", "dash", "dash_contact",
               "perfect_dodge", "knockback", "wall_impact", "shield", "shield_break", "controlled", "control", "damaged",
               "low_hp", "kill", "idle", "ground", "heal", "momentum", "attack_speed", "move_speed", "crit", "armor", "max_hp")
-# Content element names (electric is the shock element); Y25's aura may name any but gust.
-ELEMENTS = ("fire", "water", "electric", "chill", "rot", "gust")
+# Content element names (electric is the shock element); Y25's aura may name any.
+ELEMENTS = ("fire", "water", "electric", "chill", "rot")
 AURA_ELEMENTS = ("fire", "water", "electric", "chill", "rot")
-GROUND_KINDS = ("puddle", "ice", "fire", "miasma", "field", "blizzard")
+GROUND_KINDS = ("puddle", "ice", "fire", "miasma", "field")
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Elements an active attaches to the bodies it hits (#198 CONTENT_AND_BALANCE §4.4).
-ELEMENT_OPS = frozenset(("wet", "electrify", "chill", "rot", "gust"))
+ELEMENT_OPS = frozenset(("wet", "electrify", "chill", "rot"))
 # Effects a self area delivers to the bodies it names.
 AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn", *ELEMENT_OPS))
 # The payloads that give a zone a reason to exist; zone_haste only buffs its owner while inside one.
@@ -646,7 +646,7 @@ def _validate_action(target, effects, path):
                                   "ground_impact", "contact_trap", "damage", "root", "slow", "burn", "knockback", *ELEMENT_OPS,
                                   "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan",
                                   "bag", "ground_state")),
-        "DirectionCone": frozenset(("channel_cone", "damage", "momentum_gain", "final_knockback", "silence", *ELEMENT_OPS,
+        "DirectionCone": frozenset(("channel_cone", "damage", "knockback", "momentum_gain", "final_knockback", "silence", *ELEMENT_OPS,
                                     "ground_state")),
     }[mode]
     ops = _effect_set(effects, path)
@@ -783,7 +783,7 @@ def _validate_cards(data):
             require(len(set(row["choose_element"])) == len(row["choose_element"]), "InvalidReference", identity,
                     "element choices are distinct")
             require(set(row["choose_element"]) <= set(AURA_ELEMENTS), "InvalidReference", identity,
-                    "an aura holds an element a target can hold (gust is never held)")
+                    "an aura holds an element a target can hold")
         for effect in row["effects"]:
             if effect["op"] == "overheal_shield":
                 # Y14 shields overflowing heals (cap_ratio), Y29 the burn it deals (burn_ratio): exactly one, positive.
@@ -814,13 +814,12 @@ def _validate_cards(data):
                 require(("threshold" in effect and "step" in effect and "step_ratio" not in effect) if below
                         else ("step_ratio" in effect and "threshold" not in effect and "step" not in effect), "ObjectShape",
                         identity, "an attack-speed factor names its threshold and step; a move-speed factor its step ratio")
-                require(row["form"] == ("basic" if below else "body"), "CardForm", identity,
-                        "the attack-speed factor rides the basic; the move-speed factor the body")
+                require(row["form"] == "body", "CardForm", identity, "a speed factor is a body card")
             if effect["op"] == "hit_growth":
                 _positive_stats(effect["stats"], identity)
                 basic = effect["trigger"] == "BasicHit"
-                require(row["form"] == ("basic" if basic else "dash"), "CardForm", identity,
-                        "basic hits grow a basic card; perfect dodges a dash card")
+                require(row["form"] == ("body" if basic else "dash"), "CardForm", identity,
+                        "basic hits grow a body card; perfect dodges a dash card")
                 require(set(effect["stats"]) <= ({"ADFlat", "APFlat"} if basic else {"MoveSpeedBonusRatio"}), "UnknownField",
                         identity, "basic hits grow attack or power; perfect dodges grow move speed")
             if effect["op"] == "reshape":
@@ -842,10 +841,8 @@ def ability_vocab(ability):
     """Spec §6.3: a skill's vocabulary follows from its element, delivery, control, displacement and shield."""
     ops = {effect["op"] for effect in ability["effects"]}
     vocab = set()
-    if ability["element"] != "none" or ops & {"wet", "electrify", "chill", "rot", "gust", "burn", "zone_burn", "zone_wet"}:
+    if ability["element"] != "none" or ops & {"wet", "electrify", "chill", "rot", "burn", "zone_burn", "zone_wet"}:
         vocab.add("element")
-    if "gust" in ops:
-        vocab.add("knockback")
     if ops & {"ground_state", "fan"}:
         vocab.add("ground")
     if ability["target"]["mode"] == "DirectionDash":
@@ -879,17 +876,17 @@ ACTIVE_CONTRACTS = {
     "active_triple_combo": ("Self", {"empower_basic"}),
     "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}),
     "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage", "slow"}),
-    "active_open_mic": ("DirectionCone", {"channel_cone", "damage", "gust"}),
+    "active_open_mic": ("DirectionCone", {"channel_cone", "damage", "knockback"}),
     "active_hose_down": ("DirectionLine", {"damage", "knockback", "wet"}),
     "active_zap": ("Unit", {"damage", "electrify", "chain_bounce"}),
     "active_charged_ram": ("DirectionDash", {"dash", "shield", "dash_contact", "damage", "electrify"}),
     "active_brace": ("Self", {"brace"}),
     "active_dirty_puddle": ("GroundPoint", {"zone", "zone_damage", "zone_wet", "zone_haste"}),
-    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "rot"}),
+    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "rot", "knockback"}),
     # Issue #287 P4 skills N1-N3 (spec §5).
-    "active_cola_shake": ("DirectionCone", {"channel_cone", "damage", "chill"}),
-    "active_desk_fan": ("GroundPoint", {"fan", "gust"}),
-    "active_stale_takeout": ("DirectionProjectile", {"damage", "rot", "ground_state"}),
+    "active_cola_shake": ("DirectionCone", {"channel_cone", "damage", "chill", "knockback"}),
+    "active_desk_fan": ("GroundPoint", {"fan"}),
+    "active_stale_takeout": ("DirectionProjectile", {"damage", "rot", "ground_state", "knockback"}),
     "active_school_bag": ("GroundPoint", {"bag", "damage"}),
 }
 TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
@@ -1204,19 +1201,17 @@ def validate_numbers(data):
             "a camp marker must be revealed inside its field segment")
     # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
     for key in ("COMBAT.FogRadiusCm", "COMBAT.ConductRadiusCm", "COMBAT.OverloadRadiusCm", "COMBAT.ShockSplashRadiusCm",
-                "COMBAT.MethaneRadiusCm", "COMBAT.GustPushCm", "COMBAT.SplashPushCm", "COMBAT.ThunderstormKnockbackCm",
-                "GROUND.PuddleRadiusCm", "GROUND.IceRadiusCm", "GROUND.FireRadiusCm", "GROUND.MiasmaRadiusCm",
-                "GROUND.FieldRadiusCm", "GROUND.FieldDischargeRadiusCm", "GROUND.BlizzardRadiusCm", "GROUND.GustMoveCm"):
+                "COMBAT.MethaneRadiusCm", "GROUND.PuddleRadiusCm", "GROUND.IceRadiusCm", "GROUND.FireRadiusCm",
+                "GROUND.MiasmaRadiusCm", "GROUND.FieldRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "element and ground-state distances must be positive")
     for key in ("COMBAT.WetSlow", "COMBAT.ConductSlow", "COMBAT.ChillAttackSlow", "COMBAT.ChillMoveSlow", "COMBAT.RotHealCut",
-                "COMBAT.FermentHealCut", "COMBAT.FrostbiteAttackSlow", "GROUND.BlizzardSlow", "GROUND.IceAccelScale"):
+                "COMBAT.FermentHealCut", "COMBAT.FrostbiteAttackSlow", "GROUND.IceAccelScale"):
         require(0 < p(key) < 1, "NumericDomain", key, "a slow or cut must be strictly between zero and one")
     require(p("GROUND.IceDisplacementScale") > 1, "NumericDomain", "GROUND.IceDisplacementScale", "ice only lengthens a move")
     for tick, life in (("COMBAT.RotTickSec", "COMBAT.RotSec"), ("GROUND.PuddleTickSec", "GROUND.PuddleSec"),
                        ("GROUND.FireTickSec", "GROUND.FireSec"), ("GROUND.MiasmaTickSec", "GROUND.MiasmaSec"),
-                       ("GROUND.FieldTickSec", "GROUND.FieldSec"), ("GROUND.BlizzardTickSec", "GROUND.BlizzardSec")):
+                       ("GROUND.FieldTickSec", "GROUND.FieldSec")):
         require(p(tick) <= p(life), "InvalidTiming", tick, "a ticking element or ground state ticks inside its life")
-    require(params["COMBAT.FirestormBurnScale"] >= 2, "NumericDomain", "COMBAT.FirestormBurnScale", "a firestorm adds layers")
     require(params["GROUND.MaxPerOwner"] <= params["GROUND.MaxTotal"] <= 40, "NumericDomain", "GROUND.MaxTotal",
             "the ground-state caps fit the observation bound of 40")
     require(p("COMBAT.FogIntervalSec") <= p("COMBAT.FogSec"), "InvalidTiming", "COMBAT.FogIntervalSec",
@@ -1275,8 +1270,6 @@ def validate_numbers(data):
     require(params["SHOP.CardSlots"] + params["SHOP.SkillSlots"] <= 8, "ShopShelf", "SHOP.CardSlots",
             "the shelf stays within the owner view")
     require(params["SHOP.CardSlots"] <= len(data["cards"]), "ShopShelf", "SHOP.CardSlots", "a shelf shows distinct cards")
-    require(params["SHOP.SellPrice"] < params["SHOP.CardPrice"], "InvalidPolicy", "SHOP.SellPrice",
-            "selling a card never pays more than buying one")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and all(sum(m["tier"] == tier for m in monsters.values()) == 3 for tier in CAMP_TIERS),
@@ -1385,15 +1378,17 @@ def _validate_pacing(data, timed_field):
             "InvalidTiming", "DAILY.DeliveryLandSec", "delivery-day drops follow the airdrop spacing and leave before T=480")
     require(p("DAILY.PatrolBossAppearSec") < quantity(data["boss"]["leave_at"]), "InvalidTiming", "DAILY.PatrolBossAppearSec",
             "the early Boss still appears before it leaves")
-    require(p("AFFIX.OvertimeVoucherScale") >= 1 and p("AFFIX.TeambuildXPScale") >= 1, "NumericDomain", "AFFIX",
-            "an affix reward never shrinks the base reward")
+    require(p("AFFIX.TeambuildXPScale") >= 1, "NumericDomain", "AFFIX", "an affix reward never shrinks the base reward")
     require(0 < p("EXPLORE.PeddlerEarliestSec") <= p("EXPLORE.PeddlerLatestSec")
             and p("EXPLORE.PeddlerLatestSec") + p("EXPLORE.PeddlerStaySec") <= timed_field,
             "InvalidTiming", "EXPLORE.Peddler", "the dealer appears and leaves inside the timed field")
     require(p("STAT.MoveSpeed.Min") <= p("EXPLORE.PeddlerMoveSpeed") <= p("STAT.MoveSpeed.Max"), "NumericDomain",
             "EXPLORE.PeddlerMoveSpeed", "the dealer moves inside the move speed clamp")
-    require(p("EXPLORE.LockerChannelSec") < p("MATCH.FieldSegmentSec"), "InvalidTiming", "EXPLORE.LockerChannelSec",
-            "a locker can be opened inside a segment")
+    require(p("EXPLORE.LockerChannelSec") < p("EXPLORE.LockerStaySec"), "InvalidTiming", "EXPLORE.LockerChannelSec",
+            "a locker can be opened while it is out")
+    require(0 < p("EXPLORE.LockerEarliestSec") <= p("EXPLORE.LockerLatestSec")
+            and p("EXPLORE.LockerLatestSec") + p("EXPLORE.LockerStaySec") <= timed_field,
+            "InvalidTiming", "EXPLORE.Locker", "every locker comes out and leaves inside the timed field")
 
 
 def _validate_momentum(data):

@@ -449,7 +449,7 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPacingViewTest,"Lockdown.Rules.HUDPacingView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPacingViewTest::RunTest(const FString& Parameters)
 {
-    // P6: the death screen's spawn choice and the vending panel come from the own owner projection only; every hotspot and
+    // P6: the death screen's spawn choice comes from the own owner projection only; every hotspot and
     // affix has a glyph, a name and a hover line.
     FLDOwnerState Own;Own.Life=5;Own.LifePhase=ELDLifePhase::Dead;
     Own.Pacing.SpawnLife=5;Own.Pacing.SpawnCandidates={TEXT("spawn_0"),TEXT("spawn_3")};
@@ -469,20 +469,7 @@ bool FLDHUDPacingViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Every refused choice says why in one line"),!LDHUD::SpawnChoiceText(ELDSpawnChoiceResult::NoChoice).IsEmpty()
         &&LDHUD::SpawnChoiceText(ELDSpawnChoiceResult::OutOfRange)!=LDHUD::SpawnChoiceText(ELDSpawnChoiceResult::NoChoice));
 
-    FLDDemoContentParameters Params;Params.Explore.VendingBuffPrice=2;Params.Explore.VendingDrinkPrice=3;
-    Own.Pacing.Vouchers=2;
-    TestFalse(TEXT("Away from a machine there is no vending panel"),LDHUD::Vending(Own,Params).bVisible);
-    Own.Pacing.NearbyVending=TEXT("vending_0");
-    LDHUD::FVendingView Vend=LDHUD::Vending(Own,Params);
-    TestTrue(TEXT("Beside a machine the panel prices both kinds from the content"),Vend.bVisible&&Vend.BuffPrice==2&&Vend.DrinkPrice==3);
-    TestTrue(TEXT("Two vouchers afford a buff but not a drink"),Vend.bCanBuff&&!Vend.bCanDrink);
-    Own.LifePhase=ELDLifePhase::Dead;
-    TestFalse(TEXT("A dead body cannot buy"),LDHUD::Vending(Own,Params).bVisible);
-    TestTrue(TEXT("A queued purchase, a delivered one and a refusal all read differently"),
-        LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::NotEnoughVouchers)
-        &&LDHUD::VendingText(ELDVendingResult::Queued)!=LDHUD::VendingText(ELDVendingResult::Delivered)
-        &&LDHUD::VendingText(ELDVendingResult::Closed)!=LDHUD::VendingText(ELDVendingResult::Delivered));
-
+    const FLDDemoContentParameters Params;
     TSet<FString> Glyphs;
     for(int32 Id=1;Id<=LDPacing::DailyModifiers;++Id)
     {
@@ -692,11 +679,11 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("An unknown op is refused"),LDDemoCardText::Parse(TEXT("[teleport.amount]"),Tokens,Error));
     TestFalse(TEXT("A stray bracket is refused"),LDDemoCardText::Parse(TEXT("造成 ] 伤害"),Tokens,Error));
     FLDBlueprintRecord BlueprintRecord;
-    BlueprintRecord.FinalBuild.Cards.Add({TEXT("card_shock_dash"),TEXT("dash"),FString(),FString()});
+    BlueprintRecord.FinalBuild.Cards.Add({TEXT("card_dash_punch"),TEXT("dash"),FString(),FString()});
     BlueprintRecord.FinalBuild.Cards.Add({TEXT("card_live_wire"),TEXT("body"),FString(),TEXT("fire")});
     const FString BlueprintHistory=ULDBlueprintPanel::Describe(BlueprintRecord,nullptr);
     TestTrue(TEXT("Blueprint card places read as columns and elements, never raw target keys"),
-        BlueprintHistory.Contains(TEXT("card_shock_dash → 冲刺（D）"))
+        BlueprintHistory.Contains(TEXT("card_dash_punch → 冲刺（D）"))
         &&BlueprintHistory.Contains(FString(TEXT("card_live_wire → "))+LDTerms::ColumnBody+TEXT(" · ")+LDHUD::ElementName(ELDDemoElement::Fire))
         &&!BlueprintHistory.Contains(TEXT("body ·")));
     TestTrue(TEXT("Keyword lines explain each keyword in bold"),LDHUD::KeywordLines({TEXT("定身")}).Num()==1
@@ -942,7 +929,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     FLDProgressionView View;View.bValid=true;View.Generation=1;View.Life=1;View.Level=1;View.BuildRevision=1;
     View.bHasActiveOffer=true;View.ActiveOffer.OfferId=FGuid(1,2,3,4);View.ActiveOffer.OfferRevision=1;
     for(int32 Index=0;Index<FMath::Min(3,Content.Abilities.Num());++Index){View.ActiveOffer.Options.Add(FName(*Content.Abilities[Index].Id));}
-    View.ActiveOffer.SkipVouchers=1;
+    View.ActiveOffer.SkipPoints=1;
     ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
     Input.bStage=true;Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
     const FVector2D LayoutSize(1920,1080);
@@ -1778,21 +1765,15 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     FinalView.FinalMod.DefinitionId=TEXT("final_other");
     TestFalse(TEXT("Another card cannot replay the previous stamp"),LDHUD::FinalStampReady(FinalView,9,Final,true));
     TestFalse(TEXT("A view alone cannot start a stamp"),LDHUD::FinalStampReady(FinalView,0,Final,true));
-    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.VouchersDelta=8;
-    TestEqualSensitive(TEXT("A skipped offer names the vouchers paid"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::VouchersGained(8));
-    Receipt.VouchersDelta=0;
+    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsDelta=1;
+    TestEqualSensitive(TEXT("A skipped offer names the stat points paid"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::PointsGained(1));
+    Receipt.PointsDelta=0;
     TestEqualSensitive(TEXT("A skip receipt without its award claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::NotEnoughPoints);
     TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("没有生效：未分配点数不够")));
     {
         // #198 rest services: each applied receipt names what it did; a missing field never reads as a success.
         FLDBuildReceipt Rest;Rest.Header.Outcome=ELDReceiptOutcome::Applied;
-        Rest.Kind=ELDBuildCommandKind::ShopSell;Rest.VouchersDelta=3;Rest.CardId=TEXT("hud_rules_fixture_card");
-        TestEqualSensitive(TEXT("A sale names the card and the vouchers"),LDHUD::BuildReceiptText(Rest,nullptr),
-            LDTerms::CardSold(TEXT("hud_rules_fixture_card"),3));
-        Rest.VouchersDelta=0;
-        TestEqualSensitive(TEXT("A sale receipt without its payment claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
-        Rest.CardId=NAME_None;
         Rest.Kind=ELDBuildCommandKind::Respec;Rest.PointsRefunded=5;Rest.UnspentPointsAfter=7;
         TestEqualSensitive(TEXT("A respec names the refund and the unspent points"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("已洗点：返还 5 点，现有 7 点未分配")));
         Rest.Kind=ELDBuildCommandKind::ReplaceActive;Rest.ChoiceResult=ELDBuildChoiceResult::Learned;Rest.LearnedSlot=1;
@@ -1803,13 +1784,12 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         TestEqualSensitive(TEXT("A replacement without the forgotten active claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
         Rest.Kind=ELDBuildCommandKind::ForgetActive;Rest.ForgottenId=TEXT("hud_rules_fixture_old");
         TestEqualSensitive(TEXT("A forget names the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr),LDTerms::Forgotten(TEXT("hud_rules_fixture_old")));
-        Rest.Header.Outcome=ELDReceiptOutcome::Rejected;Rest.Header.Reason=uint16(ELDGrowthReason::NotEnoughVouchers);
+        Rest.Header.Outcome=ELDReceiptOutcome::Rejected;Rest.Header.Reason=uint16(ELDGrowthReason::ShopSoldOut);
         TestEqualSensitive(TEXT("A refused rest service names its reason"),LDHUD::BuildReceiptText(Rest,nullptr),
-            FString(TEXT("没有生效："))+LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughVouchers));
+            FString(TEXT("没有生效："))+LDHUD::GrowthReasonText(ELDGrowthReason::ShopSoldOut));
         const ELDGrowthReason RestReasons[]={ELDGrowthReason::ReplacementNotAllowed,ELDGrowthReason::BuildLocked,
             ELDGrowthReason::OfferOutstanding,ELDGrowthReason::NothingToRespec,ELDGrowthReason::SlotEmpty,ELDGrowthReason::NotRestWindow,
-            ELDGrowthReason::NotEnoughVouchers,ELDGrowthReason::ShopSoldOut,ELDGrowthReason::ShopStale,ELDGrowthReason::SkillPointLimit,
-            ELDGrowthReason::NoShop,ELDGrowthReason::NoPickTicket,ELDGrowthReason::NotSeen,ELDGrowthReason::CardInstalled};
+            ELDGrowthReason::ShopSoldOut,ELDGrowthReason::ShopStale,ELDGrowthReason::SkillPointLimit,ELDGrowthReason::NoShop};
         TSet<FString> Seen;
         for(const ELDGrowthReason Reason:RestReasons)
         {

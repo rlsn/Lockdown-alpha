@@ -19,7 +19,8 @@ namespace LDWorkshop
     LOCKDOWN_API FCardFacts CardFacts(FName Card,const FLDDemoContentDefinitions* Content);
     // The library's groups, one per card form (普攻, 技能, 冲刺, 本体): each stored definition once (its first copy's key, the
     // storage view's order). A selected type filter (ELDCardType) excludes the other types.
-    constexpr int32 LibraryGroupCount=4;
+    // One group per card form (ELDCardForm; 0 is retired and stays empty).
+    constexpr int32 LibraryGroupCount=5;
     struct FLibraryGroups
     {
         TArray<FName> Items[LibraryGroupCount];

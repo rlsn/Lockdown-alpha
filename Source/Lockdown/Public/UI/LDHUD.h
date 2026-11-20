@@ -270,16 +270,6 @@ private:
     bool bSpawnChoiceInFlight=false;
     void SubmitSpawnChoice(int32 Index);
     void HandleSpawnChoice(ELDSpawnChoiceResult Result);
-    // P6 spec §11.3: the vending machine within reach: three timed buffs and the elemental drink (one button per element),
-    // each with its voucher price; an owner intent the server queues for the next boundary (ALDPlayerController::SubmitVending).
-    UPROPERTY() TObjectPtr<UBorder> VendingPanel;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> VendingBuffButtons;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> VendingDrinkButtons;
-    UPROPERTY() TObjectPtr<UTextBlock> VendingAnswerText;
-    bool bVendingInFlight=false;
-    FString VendingAnswer;
-    void SubmitVending(ELDVendingItem Item,uint8 Element);
-    void HandleVending(ELDVendingResult Result);
     // P6 spec §11.1: one glyph badge per daily modifier beside the match timer; the name and numbers are its tooltip.
     UPROPERTY() TArray<TObjectPtr<UBorder>> DailyBadges;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> DailyBadgeGlyphs;
@@ -348,7 +338,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     // Spec §12: the own vouchers (票) and pick tickets beside the portrait, under the name.
-    UPROPERTY() TObjectPtr<UTextBlock> VoucherText;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     // The own statuses (LDHUD::SelfIcons) are painted by ULDWorldLabels above the own overhead bars, as LoL-style icons
     // (OwnStatusMarks). The HUD builds the marks with the band's gate, keeps their textures alive and their remaining-time

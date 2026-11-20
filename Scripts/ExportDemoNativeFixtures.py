@@ -99,7 +99,7 @@ def expected_world_projection(compilation):
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "MiniFlag",
-                                      "Locker", "Vending", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn",
+                                      "Locker", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn",
                                       "FinalCapture", "PKSpawn", "PKThrow", "PKSignup").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]), "PrototypeId": "",
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"]), "PrototypeId": ""}
@@ -141,7 +141,7 @@ def target(value=None):
 TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete", "PerfectDodge", "AttackSpeedBelow", "MoveSpeedAbove")
 # ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
 ELEMENTS = ("none", "fire", "water", "electric", "chill", "rot", "gust")
-CARD_FORMS = ("basic", "skill", "dash", "body")
+CARD_FORMS = ("", "skill", "dash", "body", "medal")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 
 
@@ -507,7 +507,7 @@ def parameter_projection(parameters):
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("LIFE.SpawnChoiceCount", "SpawnChoiceCount"),
-        ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"),
+        ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"), ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"),
         ("CHAIN.MaxDepth", "ChainMaxDepth"), ("CHAIN.MaxEffectsPerStep", "ChainMaxEffectsPerStep"),
         ("CHAIN.MinKeySteps", "ChainMinKeySteps"),
     ):
@@ -527,28 +527,22 @@ def parameter_projection(parameters):
         ("COMBAT.RotPerSec", "points", "Elements.RotPerSecP2"),
         ("COMBAT.RotAPRatioPerSec", "ratio", "Elements.RotAPRatioPerSecBp"),
         ("COMBAT.RotTickSec", "s", "Elements.RotTickMs"),
-        ("COMBAT.GustPushCm", "cm", "Elements.GustPushCm"),
-        ("COMBAT.GustPushSec", "s", "Elements.GustPushMs"),
+        ("COMBAT.PushSec", "s", "Elements.PushMs"),
         ("COMBAT.ConductRatio", "ratio", "Elements.ConductRatioBp"),
         ("COMBAT.OverloadRatio", "ratio", "Elements.OverloadRatioBp"),
         ("COMBAT.MeltRatio", "ratio", "Elements.MeltRatioBp"),
         ("COMBAT.MethaneRatio", "ratio", "Elements.MethaneRatioBp"),
         ("COMBAT.MethaneBurnStacks", "int", "Elements.MethaneBurnStacks"),
         ("COMBAT.MethaneRadiusCm", "cm", "Elements.MethaneRadiusCm"),
-        ("COMBAT.FirestormBurnScale", "int", "Elements.FirestormBurnScale"),
         ("COMBAT.FreezeRootSec", "s", "Elements.FreezeRootMs"),
         ("COMBAT.FermentRotSec", "s", "Elements.FermentRotMs"),
         ("COMBAT.FermentHealCut", "ratio", "Elements.FermentHealCutBp"),
-        ("COMBAT.SplashPushCm", "cm", "Elements.SplashPushCm"),
         ("COMBAT.ShatterSkillDamage", "ratio", "Elements.ShatterSkillDamageBp"),
         ("COMBAT.ShatterSec", "s", "Elements.ShatterMs"),
         ("COMBAT.CorrodeBreachStacks", "int", "Elements.CorrodeBreachStacks"),
         ("COMBAT.CorrodeBreachSec", "s", "Elements.CorrodeBreachMs"),
-        ("COMBAT.ThunderstormKnockbackCm", "cm", "Elements.ThunderstormKnockbackCm"),
         ("COMBAT.FrostbiteAttackSlow", "ratio", "Elements.FrostbiteAttackSlowBp"),
         ("COMBAT.FrostbiteSec", "s", "Elements.FrostbiteMs"),
-        ("COMBAT.BlizzardRatio", "ratio", "Elements.BlizzardRatioBp"),
-        ("COMBAT.SmokeDisarmSec", "s", "Elements.SmokeDisarmMs"),
         ("GROUND.PuddleRadiusCm", "cm", "Ground.PuddleRadiusCm"),
         ("GROUND.PuddleSec", "s", "Ground.PuddleMs"),
         ("GROUND.PuddleTickSec", "s", "Ground.PuddleTickMs"),
@@ -567,12 +561,6 @@ def parameter_projection(parameters):
         ("GROUND.FieldSec", "s", "Ground.FieldMs"),
         ("GROUND.FieldTickSec", "s", "Ground.FieldTickMs"),
         ("GROUND.FieldRatio", "ratio", "Ground.FieldRatioBp"),
-        ("GROUND.FieldDischargeRadiusCm", "cm", "Ground.FieldDischargeRadiusCm"),
-        ("GROUND.BlizzardRadiusCm", "cm", "Ground.BlizzardRadiusCm"),
-        ("GROUND.BlizzardSec", "s", "Ground.BlizzardMs"),
-        ("GROUND.BlizzardTickSec", "s", "Ground.BlizzardTickMs"),
-        ("GROUND.BlizzardSlow", "ratio", "Ground.BlizzardSlowBp"),
-        ("GROUND.GustMoveCm", "cm", "Ground.GustMoveCm"),
         ("GROUND.MaxPerOwner", "int", "Ground.MaxPerOwner"),
         ("GROUND.MaxTotal", "int", "Ground.MaxTotal"),
     ):
@@ -582,11 +570,8 @@ def parameter_projection(parameters):
     result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
     result["ChainEndMs"] = scalar(parameters["CHAIN.EndSec"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
-        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "VocabWeight", "SkipVouchers", "OfferEveryLevels")}
+        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "VocabWeight", "SkipPoints", "OfferEveryLevels")}
     result["Cards"]["IdleCarryMs"] = scalar(parameters["CARDS.IdleCarrySec"])
-    result["Vouchers"] = {dest: parameters["VOUCHER." + dest] for dest in (
-        "CampLow", "CampHigh", "CampElite", "CampAncient", "Boss", "Kill", "Assist", "Airdrop", "ActiveSkip",
-        "MiniFlag", "Arena", "BountyKill", "BountyAssist", "Locker")}
     o = lambda key: parameters["OBJECTIVE." + key]
     result["Objective"] = {
         "StartMs": scalar(o("StartSec")), "AnnounceLeadMs": scalar(o("AnnounceLeadSec")), "FlagWindowMs": scalar(o("FlagWindowSec")),
@@ -609,27 +594,25 @@ def parameter_projection(parameters):
     a = lambda key: parameters["AFFIX." + key]
     result["Affix"] = {
         "ChanceBp": scalar(a("Chance")), "OvertimeAttackSpeedBp": scalar(a("OvertimeAttackSpeed")),
-        "OvertimeVoucherScaleBp": scalar(a("OvertimeVoucherScale")), "TeambuildXPScaleBp": scalar(a("TeambuildXPScale")),
+        "TeambuildXPScaleBp": scalar(a("TeambuildXPScale")),
         "FridgeCardOffer": a("FridgeCardOffer"), "BonusHPBp": scalar(a("BonusHP")), "BonusCardOffer": a("BonusCardOffer"),
-        "LayoffAttackBp": scalar(a("LayoffAttack")), "LayoffVouchers": a("LayoffVouchers"),
+        "LayoffAttackBp": scalar(a("LayoffAttack")),
         "AuditTelegraphCutBp": scalar(a("AuditTelegraphCut")), "AuditSkillPointsMax": a("AuditSkillPointsMax"),
     }
     x = lambda key: parameters["EXPLORE." + key]
     result["Explore"] = {
         "LockerCount": x("LockerCount"), "LockerRadiusCm": rational(x("LockerRadiusCm")),
-        "LockerChannelMs": scalar(x("LockerChannelSec")), "LockerCardChanceBp": scalar(x("LockerCardChance")),
+        "LockerChannelMs": scalar(x("LockerChannelSec")),
         "LockerCardOffer": x("LockerCardOffer"), "PeddlerEarliestMs": scalar(x("PeddlerEarliestSec")),
         "PeddlerLatestMs": scalar(x("PeddlerLatestSec")), "PeddlerOffsetCm": rational(x("PeddlerOffsetCm")),
         "PeddlerHPP2": scalar(x("PeddlerHP")), "PeddlerMoveSpeedCmPerSec": rational(x("PeddlerMoveSpeed")),
         "PeddlerStayMs": scalar(x("PeddlerStaySec")), "PeddlerCardOffer": x("PeddlerCardOffer"),
-        "VendingBuffPrice": x("VendingBuffPrice"), "VendingBuffMs": scalar(x("VendingBuffSec")),
-        "VendingAttackSpeedBp": scalar(x("VendingAttackSpeed")), "VendingMomentumPerSec": rational(x("VendingMomentumPerSec")),
-        "VendingMoveSpeedBp": scalar(x("VendingMoveSpeed")), "VendingDrinkPrice": x("VendingDrinkPrice"),
-        "VendingDrinkHits": x("VendingDrinkHits"),
+        "LockerEarliestMs": scalar(x("LockerEarliestSec")), "LockerLatestMs": scalar(x("LockerLatestSec")),
+        "LockerStayMs": scalar(x("LockerStaySec")),
     }
     result["Shop"] = {dest: parameters["SHOP." + dest] for dest in (
         "CardSlots", "VocabCardSlots", "VocabWeight", "SkillSlots", "CardPrice", "SkillPrice", "RefreshPrice", "RefreshStep",
-        "SkillPointPrice", "SkillPointMaxPerMatch", "SellPrice")}
+        "SkillPointPrice", "SkillPointMaxPerMatch")}
     result["AI"] = {}
     for source, dest in (
         ("RetreatHPRatio", "RetreatHPBp"), ("ResumeFarmHPRatio", "ResumeFarmHPBp"),
@@ -669,7 +652,6 @@ def parameter_projection(parameters):
         "WaterSlowBp": scalar(parameters["OVERDRIVE.WaterSlow"]), "WaterSlowMs": scalar(parameters["OVERDRIVE.WaterSlowSec"]),
         "ShockReactionBp": scalar(parameters["OVERDRIVE.ShockReactionRatio"]),
         "RotDurationBp": scalar(parameters["OVERDRIVE.RotDurationScale"]),
-        "GustPushCm": rational(parameters["OVERDRIVE.GustPushCm"]), "GustPushMs": scalar(parameters["OVERDRIVE.GustPushSec"]),
         "ChillRootMs": scalar(parameters["OVERDRIVE.ChillRootSec"]),
     }
     result["SkillRanks"] = {
@@ -1160,13 +1142,13 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     # Spec §6: cards, their vocabulary, forms and Y25's element choices.
     piece = lambda d, identity: next(row for row in d["cards"] if row["id"] == identity)
     bad_content("card_unsorted", lambda d: d["cards"].reverse(), "ascending native ID")
-    bad_content("card_unknown_vocab", lambda d: piece(d, "card_fire_fist")["vocab"].append("teleport"), "vocabulary key")
-    bad_content("card_unknown_form", lambda d: piece(d, "card_fire_fist").update({"form": "wing"}), "unknown card form")
-    bad_content("card_op_outside_form", lambda d: piece(d, "card_fire_fist")["effects"].append(
+    bad_content("card_unknown_vocab", lambda d: piece(d, "card_breach_fist")["vocab"].append("teleport"), "vocabulary key")
+    bad_content("card_unknown_form", lambda d: piece(d, "card_breach_fist").update({"form": "wing"}), "unknown card form")
+    bad_content("card_op_outside_form", lambda d: piece(d, "card_breach_fist")["effects"].append(
         {"op": "auto_recast", "opcode": ids_data["effect_ops"]["auto_recast"], "delay": {"unit": "ms", "ms": 500},
          "damage_ratio": {"unit": "ratio", "bp": 5000}}), "outside the card's form")
     bad_content("card_aura_without_elements", lambda d: piece(d, "card_live_wire").pop("choose_element"), "element aura")
-    bad_content("card_active_burn", lambda d: piece(d, "card_fire_fist")["effects"][0].update({"stacks": 1}), "primary basic hit")
+    bad_content("card_active_burn", lambda d: piece(d, "card_breach_fist")["effects"][0].update({"stacks": 1}), "primary basic hit")
     bad_content("small_opening_pool", lambda d: [row.update({"opening": False}) for row in d["abilities"][:2]], "opening pool")
     bad_content("zero_points_per_level", lambda d: d["parameters"].update({"GROWTH.PointsPerLevel": 0}), "integer outside")
     bad_content("zero_build_safe_window", lambda d: d["parameters"]["GROWTH.BuildSafeWindowSec"].update({"ms": 0}), "integer outside")
@@ -1219,7 +1201,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
                 "card placeholder")
     bad_content("per_point_on_active", lambda d: display(d, "active_snark_bolt").update({"description_text": "[per_point.APFlat]"}),
                 "card placeholder")
-    bad_content("card_absent_effect", lambda d: display(d, "card_fire_fist").update({"description_text": "[root.duration]"}),
+    bad_content("card_absent_effect", lambda d: display(d, "card_breach_fist").update({"description_text": "[root.duration]"}),
                 "card placeholder")
     bad_content("unapproved_metadata", lambda d: d["identity"]["approval"].update({"status": "candidate"}), "approval metadata")
     bad_content("bad_policy", lambda d: d["policies"].update({"MissingSourceCooldown": "Disallowed"}), "unsupported constant")

@@ -1066,7 +1066,7 @@ FString HudDamageEntry(const FString& Name,int64 DamageP2)
 {
     return FString::Printf(TEXT("%s %lld"),*Name,HudWholePoints(DamageP2,true));
 }
-// ELDCombatElement (fire, water, shock, chill, rot; gust leaves none) as the status it leaves; ELDCombatReaction as its term.
+// ELDCombatElement (fire, water, shock, chill, rot) as the status it leaves; ELDCombatReaction as its term.
 const TCHAR* HudElementStatusId(uint8 Element)
 {
     switch(Element)
@@ -1255,8 +1255,9 @@ FString LDHUD::ChainStepName(const FLDDemoContentDefinitions* Content,FName Step
     if(Id==TEXT("basic")){return LDTerms::BasicAttack;}
     if(Id.StartsWith(TEXT("reaction_")))
     {
-        for(uint8 Index=1;Index<=uint8(ELDCombatReaction::Smoke);++Index)
+        for(uint8 Index=1;Index<LDCombatReactionCount;++Index)
         {
+            if(LDTerms::ReactionTerm(Index).IsEmpty()){continue;}
             if(LDChain::ReactionStep(LDCombatElements::ReactionName(ELDCombatReaction(Index)))==Step){return LDTerms::ReactionTerm(Index);}
         }
         return Id;
@@ -1933,11 +1934,10 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     switch(Receipt.Kind)
     {
     case ELDBuildCommandKind::SkipActiveOffer:
-        return Receipt.VouchersDelta>0?LDTerms::VouchersGained(Receipt.VouchersDelta):Missing;
+        return Receipt.PointsDelta>0?LDTerms::PointsGained(Receipt.PointsDelta):Missing;
     case ELDBuildCommandKind::ShopBuy:
-    case ELDBuildCommandKind::UsePickTicket:
     {
-        if(Receipt.DefinitionId.IsNone()){return Receipt.Kind==ELDBuildCommandKind::ShopBuy?LDTerms::SkillPointBought:Missing;}
+        if(Receipt.DefinitionId.IsNone()){return LDTerms::SkillPointBought;}
         const FString Name=ContentName(Content,Receipt.DefinitionId.ToString());
         if(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned){return LDTerms::LearnedInto(Name,Keys.Of(Receipt.LearnedSlot));}
         if(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint){return LDTerms::StoredAsBlueprint(Name,BuildBlockedText(ELDGrowthReason::NoEmptySlot));}
@@ -1945,8 +1945,6 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     }
     case ELDBuildCommandKind::ShopRefresh:
         return LDTerms::ShopRefreshed;
-    case ELDBuildCommandKind::ShopSell:
-        return Receipt.VouchersDelta>0&&!Receipt.CardId.IsNone()?LDTerms::CardSold(ContentName(Content,Receipt.CardId.ToString()),Receipt.VouchersDelta):Missing;
     case ELDBuildCommandKind::FinalMod:
         return !Receipt.DefinitionId.IsNone()
             ?FString::Printf(TEXT("终局改装：%s 已生效。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
@@ -1984,7 +1982,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     case ELDBuildCommandKind::UninstallCard:
         if(Receipt.CardId.IsNone()||Receipt.bCardInstalled){return Missing;}
         return LDTerms::CardRemoved(ContentName(Content,Receipt.CardId.ToString()));
-    case ELDBuildCommandKind::SkipCards: return Receipt.VouchersDelta>0?LDTerms::VouchersGained(Receipt.VouchersDelta):FString(LDTerms::CardsSkipped);
+    case ELDBuildCommandKind::SkipCards: return Receipt.PointsDelta>0?LDTerms::PointsGained(Receipt.PointsDelta):FString(LDTerms::CardsSkipped);
     case ELDBuildCommandKind::RerollCards: return LDTerms::CardsRerolled(Receipt.CardRerollsAfter);
     default: return Missing;
     }
@@ -1998,7 +1996,6 @@ FString LDHUD::ElementName(ELDDemoElement Element)
     case ELDDemoElement::Electric: return LDTerms::ElementElectric;
     case ELDDemoElement::Chill: return LDTerms::ElementChill;
     case ELDDemoElement::Rot: return LDTerms::ElementRot;
-    case ELDDemoElement::Gust: return LDTerms::ElementGust;
     default: return FString::Printf(TEXT("未知元素 #%d"),int32(Element));
     }
 }
@@ -2103,9 +2100,11 @@ LDHUD::FCardFaceView LDHUD::CardFace(FName DefinitionId,const FLDDemoContentDefi
 }
 namespace
 {
-    int32 HudInstalledCards(const FLDProgressionView& Progression)
+    // Installed cards that take workshop capacity (an element medal does not).
+    int32 HudInstalledCards(const FLDProgressionView& Progression,const FLDDemoContentDefinitions& Content)
     {
-        return Progression.Cards.FilterByPredicate([](const FLDCardInstanceView& Card){return Card.IsInstalled();}).Num();
+        return Progression.Cards.FilterByPredicate([&Content](const FLDCardInstanceView& Card)
+            {return Card.IsInstalled()&&!LDProgression::IsMedal(Content,Card.DefinitionId);}).Num();
     }
     // A card's place as growth names it (LDProgression::FLDCardTarget) from its view.
     FLDCardTarget HudTarget(ELDCardTargetKind Kind,FName Active,ELDDemoElement Element)
@@ -2116,7 +2115,7 @@ namespace
 }
 LDHUD::EStorageColumn LDHUD::BoardColumn(int32 Position)
 {
-    static const EStorageColumn Order[StorageColumnCount]={EStorageColumn::Basic,EStorageColumn::SlotQ,EStorageColumn::SlotW,
+    static const EStorageColumn Order[StorageColumnCount]={EStorageColumn::SlotQ,EStorageColumn::SlotW,
         EStorageColumn::SlotE,EStorageColumn::Dash,EStorageColumn::Body};
     return Order[FMath::Clamp(Position,0,StorageColumnCount-1)];
 }
@@ -2129,7 +2128,6 @@ FString LDHUD::ColumnLabel(EStorageColumn Column)
 {
     switch(Column)
     {
-    case EStorageColumn::Basic: return LDTerms::ColumnBasic;
     case EStorageColumn::SlotQ: return TEXT("Q");
     case EStorageColumn::SlotW: return TEXT("W");
     case EStorageColumn::SlotE: return TEXT("E");
@@ -2141,7 +2139,6 @@ bool LDHUD::CardColumn(const FLDProgressionView& Progression,ELDCardTargetKind K
 {
     switch(Kind)
     {
-    case ELDCardTargetKind::Basic: OutColumn=EStorageColumn::Basic;return true;
     case ELDCardTargetKind::Dash: OutColumn=EStorageColumn::Dash;return true;
     case ELDCardTargetKind::Body: OutColumn=EStorageColumn::Body;return true;
     case ELDCardTargetKind::Skill:
@@ -2175,7 +2172,6 @@ LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,con
         // its active's, which the storage looks up only when a notice names it.
         if(Index>=1&&Index<=3){Column.Active=ActiveInSlot(Progression,uint8(Index-1));}
         Column.Title=Column.Column==EStorageColumn::Body?FString(LDTerms::ColumnBody):Column.Column==EStorageColumn::Dash?FString(LDTerms::Dash)
-            :Column.Column==EStorageColumn::Basic?FString(LDTerms::ColumnBasic)
             :Column.Active.IsNone()?FString(LDTerms::ColumnEmptySlot):FString();
     }
     if(!Progression.bValid){return View;}
@@ -2193,7 +2189,7 @@ LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,con
             if(!Seen||!Seen->Contains(Key)){Group->bFresh=true;}
             continue;
         }
-        ++View.Installed;
+        if(!Content||!LDProgression::IsMedal(*Content,Owned.DefinitionId)){++View.Installed;}
         EStorageColumn Column=EStorageColumn::Body;
         if(!CardColumn(Progression,Owned.Target.Kind,Owned.Target.Active,Column)){continue;}
         const FString Note=Owned.Target.Element==ELDDemoElement::None?FString():ElementName(Owned.Target.Element);
@@ -2212,8 +2208,9 @@ TArray<LDHUD::FCardDrop> LDHUD::CardDrops(FName Key,const FLDProgressionView& Pr
     TArray<FCardDrop> Out;
     const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,Key);
     const FLDCardInstanceView* Owned=FindCard(Progression,Key);
-    // The server refuses a new install past the capacity (WorkshopFull); a move frees its own slot first.
-    if(!Definition||!Owned||!Progression.bValid||(!Owned->IsInstalled()&&WorkshopFull(Progression,Content))){return Out;}
+    // The server refuses a new install past the capacity (WorkshopFull); a move frees its own slot first; a medal takes none.
+    const bool bMedal=Definition&&Definition->Form==ELDCardForm::Medal;
+    if(!Definition||!Owned||!Progression.bValid||(!bMedal&&!Owned->IsInstalled()&&WorkshopFull(Progression,Content))){return Out;}
     const FLDGrowthBuild Build=LDProgression::BuildFromView(*Content,Progression);
     const ELDDemoElement Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
     const auto Try=[&](ELDCardTargetKind Kind,FName Active)
@@ -2228,15 +2225,17 @@ TArray<LDHUD::FCardDrop> LDHUD::CardDrops(FName Key,const FLDProgressionView& Pr
     };
     switch(Definition->Form)
     {
-    case ELDCardForm::Basic: Try(ELDCardTargetKind::Basic,NAME_None);break;
     case ELDCardForm::Dash: Try(ELDCardTargetKind::Dash,NAME_None);break;
     case ELDCardForm::Body: Try(ELDCardTargetKind::Body,NAME_None);break;
     case ELDCardForm::Skill:
+    case ELDCardForm::Medal:
+        // A medal goes into the element slot of a learned skill or of the body (it swaps out the one there).
         for(uint8 Slot=0;Slot<3;++Slot)
         {
             const FName Held=ActiveInSlot(Progression,Slot);
             if(!Held.IsNone()){Try(ELDCardTargetKind::Skill,Held);}
         }
+        if(bMedal){Try(ELDCardTargetKind::Body,NAME_None);}
         break;
     default: break;
     }
@@ -2254,7 +2253,8 @@ TArray<LDHUD::FCardDrop> LDHUD::ReplaceDrops(FName Key,const FLDProgressionView&
 {
     TArray<FCardDrop> Out;
     const FLDCardInstanceView* Self=FindCard(Progression,Key);
-    if(!Self||Self->IsInstalled()||!CardDefinitionOf(Content,Key)||!WorkshopFull(Progression,Content)){return Out;}
+    if(!Self||Self->IsInstalled()||!CardDefinitionOf(Content,Key)||!WorkshopFull(Progression,Content)
+        ||CardDefinitionOf(Content,Key)->Form==ELDCardForm::Medal){return Out;}
     // The same card with one slot free: every place it takes stands on the tile of each installed card in that column.
     FLDProgressionView Freed=Progression;
     for(const FLDCardInstanceView& Replaced:Progression.Cards)
@@ -2324,7 +2324,7 @@ FString LDHUD::DropColumnsText(const TArray<FCardDrop>& Drops)
 bool LDHUD::WorkshopFull(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     if(!Content||!Progression.bValid){return false;}
-    return HudInstalledCards(Progression)>=Progression.CardCapacity;
+    return HudInstalledCards(Progression,*Content)>=Progression.CardCapacity;
 }
 FString LDHUD::StoredPlaceText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
@@ -2361,7 +2361,7 @@ bool LDHUD::FOfferMotionTicket::Matches(const FLDBuildReceipt& Receipt,uint32 Cu
         &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
         &&Receipt.Kind==Kind&&Receipt.OfferId==Offer;
     if(!bIdentity){return false;}
-    if(Kind==ELDBuildCommandKind::SkipActiveOffer){return Option.IsNone()&&Receipt.VouchersDelta>0;}
+    if(Kind==ELDBuildCommandKind::SkipActiveOffer){return Option.IsNone()&&Receipt.PointsDelta>0;}
     return Kind==ELDBuildCommandKind::ActiveChoice&&!Option.IsNone()&&Receipt.DefinitionId==Option
         &&(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint
             ||(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned&&Receipt.LearnedSlot<3));
@@ -2489,12 +2489,11 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
     case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("休息时才能替换或遗忘技能");
-    case ELDGrowthReason::BuildLocked: return TEXT("PK 与返回倒计时期间不能逛商店或找训练师");
+    case ELDGrowthReason::BuildLocked: return TEXT("PK 与返回倒计时期间不能逛商店、洗点或换技能");
     case ELDGrowthReason::OfferOutstanding: return TEXT("还有没选的技能，先选完");
     case ELDGrowthReason::NothingToRespec: return TEXT("还没加过点，不用洗");
     case ELDGrowthReason::SlotEmpty: return TEXT("这个技能槽是空的");
     case ELDGrowthReason::NotRestWindow: return TEXT("休息时才能逛商店或洗点");
-    case ELDGrowthReason::RestServiceUnavailable: return TEXT("请靠近对应的服务NPC");
     case ELDGrowthReason::NotOwned: return TEXT("你没有这张牌");
     case ELDGrowthReason::AlreadyInstalled: return TEXT("这张牌已经装上了");
     case ELDGrowthReason::NotInstalled: return TEXT("这张牌还没有装上");
@@ -2503,14 +2502,10 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoCardOffer: return TEXT("这组牌已经失效");
     case ELDGrowthReason::NoReroll: return TEXT("没有重抽次数了");
     case ELDGrowthReason::NotInOffer: return TEXT("这张牌不在这组里");
-    case ELDGrowthReason::NotEnoughVouchers: return TEXT("饭票不够");
     case ELDGrowthReason::ShopSoldOut: return TEXT("这一格已经卖掉了");
     case ELDGrowthReason::ShopStale: return TEXT("货架已经换过了");
     case ELDGrowthReason::SkillPointLimit: return TEXT("本局的技能点已经买满了");
     case ELDGrowthReason::NoShop: return TEXT("商店还没开张");
-    case ELDGrowthReason::NoPickTicket: return TEXT("没有点名券");
-    case ELDGrowthReason::NotSeen: return TEXT("本局还没见过这张牌");
-    case ELDGrowthReason::CardInstalled: return TEXT("先把这张牌卸下来再卖");
     case ELDGrowthReason::NoSkillPoint: return LDTerms::NoSkillPointReason;
     case ELDGrowthReason::BranchUnavailable: return LDTerms::BranchUnavailableReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
@@ -2806,11 +2801,11 @@ FString LDHUD::AffixDescription(ELDCampAffix Affix,const FLDDemoContentParameter
     const auto Pct=[](int64 Bp){return FString::Printf(TEXT("%g%%"),double(Bp)/100.);};
     switch(Affix)
     {
-    case ELDCampAffix::Overtime: return FString::Printf(TEXT("攻速 +%s · 饭票 ×%g"),*Pct(A.OvertimeAttackSpeedBp),double(A.OvertimeVoucherScaleBp)/10000.);
+    case ELDCampAffix::Overtime: return FString::Printf(TEXT("攻速 +%s"),*Pct(A.OvertimeAttackSpeedBp));
     case ELDCampAffix::Teambuild: return FString::Printf(TEXT("经验 +%s"),*Pct(A.TeambuildXPScaleBp-10000));
     case ELDCampAffix::Fridge: return FString::Printf(TEXT("攻击挂冻，脚下常驻冰面 · 清营得一组牌%d选一"),A.FridgeCardOffer);
     case ELDCampAffix::Bonus: return FString::Printf(TEXT("生命 +%s · 清营得一组牌%d选一"),*Pct(A.BonusHPBp),A.BonusCardOffer);
-    case ELDCampAffix::Layoff: return FString::Printf(TEXT("同营倒下一个，其余攻击 +%s（可叠）· 饭票 +%d"),*Pct(A.LayoffAttackBp),A.LayoffVouchers);
+    case ELDCampAffix::Layoff: return FString::Printf(TEXT("同营倒下一个，其余攻击 +%s（可叠）"),*Pct(A.LayoffAttackBp));
     case ELDCampAffix::Audit: return FString::Printf(TEXT("技能预警缩短 %s · 清营得一个技能点（每局最多 %d 个）"),*Pct(A.AuditTelegraphCutBp),A.AuditSkillPointsMax);
     default: return FString();
     }
@@ -2829,20 +2824,6 @@ LDHUD::FSpawnChoiceView LDHUD::SpawnChoice(const FLDOwnerState& Own,bool bClock,
     return View;
 }
 
-LDHUD::FVendingView LDHUD::Vending(const FLDOwnerState& Own,const FLDDemoContentParameters& Parameters)
-{
-    FVendingView View;
-    View.DrinkHits=Own.Pacing.DrinkHits;
-    View.DrinkElement=Own.Pacing.DrinkElement;
-    if(Own.LifePhase!=ELDLifePhase::Alive||Own.Pacing.NearbyVending.IsNone()){return View;}
-    View.bVisible=true;
-    View.BuffPrice=Parameters.Explore.VendingBuffPrice;
-    View.DrinkPrice=Parameters.Explore.VendingDrinkPrice;
-    View.bCanBuff=Own.Pacing.Vouchers>=View.BuffPrice;
-    View.bCanDrink=Own.Pacing.Vouchers>=View.DrinkPrice;
-    return View;
-}
-
 FString LDHUD::SpawnChoiceText(ELDSpawnChoiceResult Result)
 {
     switch(Result)
@@ -2852,21 +2833,5 @@ FString LDHUD::SpawnChoiceText(ELDSpawnChoiceResult Result)
     case ELDSpawnChoiceResult::OutOfRange: return TEXT("没有这个出生点");
     case ELDSpawnChoiceResult::StaleMatch: case ELDSpawnChoiceResult::StaleLife: return TEXT("这次复活已经过去");
     default: return TEXT("不能选择出生点");
-    }
-}
-
-FString LDHUD::VendingText(ELDVendingResult Result)
-{
-    switch(Result)
-    {
-    case ELDVendingResult::Queued: return TEXT("已投币，出货中");
-    case ELDVendingResult::Delivered: return TEXT("已购买");
-    case ELDVendingResult::Closed: return TEXT("现在不能买，没扣饭票");
-    case ELDVendingResult::NotEnoughVouchers: return TEXT("饭票不够");
-    case ELDVendingResult::NotAtMachine: return TEXT("离售货机太远");
-    case ELDVendingResult::NotAlive: return TEXT("倒下时不能购买");
-    case ELDVendingResult::Busy: return TEXT("上一笔还没出货");
-    case ELDVendingResult::BadItem: return TEXT("没有这件商品");
-    default: return TEXT("不能购买");
     }
 }

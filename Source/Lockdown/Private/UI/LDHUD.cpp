@@ -517,39 +517,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 SpawnChoicePanel=Panel(ChoiceLine,true);SpawnChoicePanel->SetVisibility(ESlateVisibility::Collapsed);
                 auto* ChoiceSlot=TopCentre->AddChildToVerticalBox(SpawnChoicePanel);ChoiceSlot->SetHorizontalAlignment(HAlign_Center);ChoiceSlot->SetPadding(FMargin(0,6,0,0));
             }
-            {
-                // P6 spec §11.3: the vending machine within reach: three buffs, then the drink as one button per element.
-                auto* VendBox=WidgetTree->ConstructWidget<UVerticalBox>();
-                auto* BuffLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-                auto* VendTitle=OneLine(LDTerms::Vending,LDHUDStyle::TypeLabel,0);HudFace(VendTitle,true,0);
-                BuffLine->AddChildToHorizontalBox(VendTitle)->SetVerticalAlignment(VAlign_Center);
-                const ELDVendingItem Buffs[]={ELDVendingItem::AttackSpeed,ELDVendingItem::Momentum,ELDVendingItem::MoveSpeed};
-                const TCHAR* BuffNames[]={LDTerms::VendingAttackSpeed,LDTerms::VendingMomentum,LDTerms::VendingMoveSpeed};
-                for(int32 Index=0;Index<3;++Index)
-                {
-                    const ELDVendingItem Item=Buffs[Index];
-                    ULDCommandButton* Buy=LDWidgets::Button(WidgetTree,BuffNames[Index],[this,Item](){SubmitVending(Item,0);},true,
-                        FName(*FString::Printf(TEXT("HUDVending%d"),int32(Item))));
-                    BuffLine->AddChildToHorizontalBox(Buy)->SetPadding(FMargin(8,0,0,0));
-                    VendingBuffButtons.Add(Buy);
-                }
-                VendBox->AddChildToVerticalBox(BuffLine)->SetHorizontalAlignment(HAlign_Center);
-                auto* DrinkLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-                auto* DrinkTitle=OneLine(LDTerms::VendingDrink,LDHUDStyle::TypeSmall,0);
-                DrinkLine->AddChildToHorizontalBox(DrinkTitle)->SetVerticalAlignment(VAlign_Center);
-                for(uint8 Element=1;Element<=5;++Element)
-                {
-                    ULDCommandButton* Drink=LDWidgets::Button(WidgetTree,LDHUD::ElementName(ELDDemoElement(Element)),[this,Element](){SubmitVending(ELDVendingItem::Drink,Element);},true,
-                        FName(*FString::Printf(TEXT("HUDVendingDrink%d"),int32(Element))));
-                    DrinkLine->AddChildToHorizontalBox(Drink)->SetPadding(FMargin(6,0,0,0));
-                    VendingDrinkButtons.Add(Drink);
-                }
-                VendBox->AddChildToVerticalBox(DrinkLine)->SetPadding(FMargin(0,6,0,0));
-                VendingAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);VendingAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);VendingAnswerText->SetVisibility(ESlateVisibility::Collapsed);
-                VendBox->AddChildToVerticalBox(VendingAnswerText)->SetHorizontalAlignment(HAlign_Center);
-                VendingPanel=Panel(VendBox,true);VendingPanel->SetVisibility(ESlateVisibility::Collapsed);
-                auto* VendSlot=TopCentre->AddChildToVerticalBox(VendingPanel);VendSlot->SetHorizontalAlignment(HAlign_Center);VendSlot->SetPadding(FMargin(0,6,0,0));
-            }
             Place(TopCentre,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,22));
             // Above the workshop (its rest actions stay usable in the full view), below the tray and the storage.
             TopCentreSlot=Cast<UCanvasPanelSlot>(TopCentre->Slot);if(TopCentreSlot){TopCentreSlot->SetZOrder(9);}
@@ -768,8 +735,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
         // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (VISION_AND_UI readability).
         SelfName=OneLine(TEXT(""),LDHUDStyle::TypeLabel,0);HudFace(SelfName,true,0);SelfName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SelfName->SetVisibility(ESlateVisibility::Visible);NameBox->AddChildToVerticalBox(SelfName);
-        VoucherText=OneLine(TEXT(""),LDHUDStyle::TypeCaption,0);HudFace(VoucherText,true,0);VoucherText->SetColorAndOpacity(LDHUDStyle::TextAccent);
-        VoucherText->SetVisibility(ESlateVisibility::HitTestInvisible);NameBox->AddChildToVerticalBox(VoucherText);
         auto* NameSlot=SelfHead->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         // The 属性 entry turns the stat icons below into the attribute view and back (alive or dead, never a panel). The DEV
         // test entry shows only in a DEV test room (#78).
@@ -1071,8 +1036,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
             Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
-            // Spec §3.13: a library card let go over the open shop's sell zone is sold there.
-            Storage->DropOutside=[this](FName Component,FVector2D At){return ChoicesPanel&&ChoicesPanel->SellAt(Component,At);};
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
         if(ChoicesPanel)
@@ -1120,7 +1083,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PC->OnPKBet.AddUObject(this,&ULDHUD::HandlePKBet);
         PC->OnPKThrow.AddUObject(this,&ULDHUD::HandlePKThrow);
         PC->OnSpawnChoice.AddUObject(this,&ULDHUD::HandleSpawnChoice);
-        PC->OnVending.AddUObject(this,&ULDHUD::HandleVending);
         if(DevTestPanel)
         {
             // The controller's single DEV test entry; the authority admits and commits every command.
@@ -1154,7 +1116,6 @@ TArray<FSlateRect> ULDHUD::WorldLabelReservedAreas(const FGeometry& PaintGeometr
     Add(RestActionsPanel);
     Add(PKPanelBorder);
     Add(SpawnChoicePanel);
-    Add(VendingPanel);
     Add(DeathBanner);
     Add(EventFeedPanel);
     Add(ToastPanel);
@@ -1473,7 +1434,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Storage){Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
-            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(SpawnChoicePanel.Get()),static_cast<UWidget*>(VendingPanel.Get()),
+            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(SpawnChoicePanel.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         // The result enters row by row until AnimateResult settles it, and the showdown ring shrinks: both move with time.
         bReadModelLive=(bResults&&!Overlay&&ResultShownAt>=0.)||ShowdownRing.IsValid();
@@ -1498,7 +1459,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
         Public.Showdown.bStarted?Public.Showdown.SprayMs:Content?Content->Parameters.CaptureSprayMs:0,
         Public.Showdown.bStarted?Public.Showdown.GuardMs:Content?Content->Parameters.CaptureGuardMs:0);
-    // The NPC service window replaces the rest's top lines; the 构筑 tray in the corner does not.
+    // The rest services panel replaces the rest's top lines; the 构筑 tray in the corner does not.
     const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen()&&!ChoicesPanel->IsTrayOpen();
     const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
     const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
@@ -1555,7 +1516,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     }
     RefreshPK(*PC,Public,Lobby,bClock,NowMs);
     {
-        // P6: the death screen's spawn choice and the vending machine within reach (own owner projection only).
+        // P6: the death screen's spawn choice (own owner projection only).
         const LDHUD::FSpawnChoiceView Choice=bOwnMatch?LDHUD::SpawnChoice(O,bClock,NowMs):LDHUD::FSpawnChoiceView();
         if(!Choice.bVisible){bSpawnChoiceInFlight=false;}
         HudSetShown(SpawnChoicePanel,Choice.bVisible,ESlateVisibility::Visible);
@@ -1570,28 +1531,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             if(Button->GetIsEnabled()==bSpawnChoiceInFlight){Button->SetIsEnabled(!bSpawnChoiceInFlight);}
         }
         HudSetText(SpawnChoiceCountdown,Choice.Countdown);
-        const LDHUD::FVendingView Vend=bOwnMatch&&Content?LDHUD::Vending(O,Content->Parameters):LDHUD::FVendingView();
-        if(!Vend.bVisible){bVendingInFlight=false;VendingAnswer.Reset();}
-        HudSetShown(VendingPanel,Vend.bVisible,ESlateVisibility::Visible);
-        if(Vend.bVisible)
-        {
-            const FString BuffTip=LDTerms::VendingPrice(Vend.BuffPrice);
-            const FString DrinkTip=LDTerms::VendingPrice(Vend.DrinkPrice);
-            for(ULDCommandButton* Buy:VendingBuffButtons)
-            {
-                const bool bEnabled=Vend.bCanBuff&&!bVendingInFlight;
-                if(Buy->GetIsEnabled()!=bEnabled){Buy->SetIsEnabled(bEnabled);}
-                if(!Buy->GetToolTipText().ToString().Equals(BuffTip)){Buy->SetToolTipText(FText::FromString(BuffTip));}
-            }
-            for(ULDCommandButton* Drink:VendingDrinkButtons)
-            {
-                const bool bEnabled=Vend.bCanDrink&&!bVendingInFlight;
-                if(Drink->GetIsEnabled()!=bEnabled){Drink->SetIsEnabled(bEnabled);}
-                if(!Drink->GetToolTipText().ToString().Equals(DrinkTip)){Drink->SetToolTipText(FText::FromString(DrinkTip));}
-            }
-            HudSetText(VendingAnswerText,VendingAnswer);
-            HudSetShown(VendingAnswerText,!VendingAnswer.IsEmpty(),ESlateVisibility::HitTestInvisible);
-        }
         // The day's modifiers beside the match timer.
         const bool bDaily=bOwnMatch&&Public.Phase!=ELDMatchPhase::Lobby;
         const TArray<ELDDailyModifier> Daily=bDaily?Public.DailyModifiers:TArray<ELDDailyModifier>();
@@ -1730,12 +1669,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const int64 Unspent=Progression&&Progression->bValid&&Progression->Generation==O.Match?FMath::Max<int64>(0,Progression->UnspentPoints):0;
         HudSetText(PointsBadgeText,FString::Printf(TEXT("%lld"),Unspent));
         HudSetShown(PointsBadge,Unspent>0,ESlateVisibility::Visible);
-        // Spec §12: the vouchers beside the portrait (the world feedback flies each gain in); pick tickets only when held.
-        const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==O.Match;
-        const FString Vouchers=bGrowth?(Progression->PickTickets>0?FString::Printf(TEXT("%s %d · %s %d"),LDTerms::VoucherGlyph,Progression->Vouchers,
-            LDTerms::PickTicketGlyph,Progression->PickTickets):FString::Printf(TEXT("%s %d"),LDTerms::VoucherGlyph,Progression->Vouchers)):FString();
-        HudSetText(VoucherText,Vouchers);
-        HudSetShown(VoucherText,bGrowth,ESlateVisibility::HitTestInvisible);
     }
     // Spec §6.5: every chain end of the own view reaches the local codex once; a key it had not seen shows one line.
     if(OwnCombat&&!OwnCombat->Chains.IsEmpty())
@@ -1778,7 +1711,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
         if(Storage){Storage->SetEngaged(bEngaged);}
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
-        ChoicesPanel->SetServiceContext(O.NearbyRestService);
         if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
     }
     if(StatBar)
@@ -1796,12 +1728,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         Anchors.Corner=RectOf(PromptFrame);
         Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
         Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=RectOf(BodySlot);
-        {
-            // 普攻 has no band slot of its own: its column stands one slot left of 本体.
-            const FSlateRect Body=Anchors.Columns[int32(LDHUD::EStorageColumn::Body)];
-            const float Step=Body.Right-Body.Left+8.f;
-            if(Body.Right>Body.Left){Anchors.Columns[int32(LDHUD::EStorageColumn::Basic)]=FSlateRect(Body.Left-Step,Body.Top,Body.Right-Step,Body.Bottom);}
-        }
         for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
         {
             const int32 ServerSlot=HudServerSlot(PC->SkillAtKey[Index]);
@@ -1831,12 +1757,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             In.bStage=ChoicesPanel&&ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel&&ChoicesPanel->IsFinalStage();
             In.bServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
             In.bShop=ChoicesPanel&&ChoicesPanel->IsShopShown();
-            if(ChoicesPanel&&In.bServices)
-            {
-                const ELDRestService Service=ChoicesPanel->GetServiceContext();
-                In.NpcName=TEXT("训练师");
-                In.bCharacterServices=Service==ELDRestService::Trainer;
-            }
+            In.bCharacterServices=In.bServices;
             Workshop->Present(In);
             Storage->SetWorkshop(Workshop->StorageLayout());
         }
@@ -2383,22 +2304,6 @@ void ULDHUD::HandleSpawnChoice(ELDSpawnChoiceResult Result)
     bSpawnChoiceInFlight=false;
     UE_LOG(LogLDUI,Log,TEXT("LD_HUD_SPAWN_CHOICE_RESULT %d"),int32(Result));
     if(Result!=ELDSpawnChoiceResult::Chosen){ShowToast(LDHUD::SpawnChoiceText(Result));}
-}
-void ULDHUD::SubmitVending(ELDVendingItem Item,uint8 Element)
-{
-    MarkReadModelDirty();
-    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
-    if(!PC||bVendingInFlight||PC->OwnerState.Pacing.NearbyVending.IsNone()){return;}
-    bVendingInFlight=true;
-    PC->SubmitVending(Item,Element);
-}
-void ULDHUD::HandleVending(ELDVendingResult Result)
-{
-    MarkReadModelDirty();
-    bVendingInFlight=false;
-    UE_LOG(LogLDUI,Log,TEXT("LD_HUD_VENDING_RESULT %d"),int32(Result));
-    VendingAnswer=LDHUD::VendingText(Result);
-    ShowToast(VendingAnswer);
 }
 bool ULDHUD::KeepRing(TWeakObjectPtr<ALDShowdownRingMarker>& Weak,bool bShow,const FLDPublicMatchView& Public,uint32 Key,const FVector& Centre,const FLinearColor& Tint)
 {

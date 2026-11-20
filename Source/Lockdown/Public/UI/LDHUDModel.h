@@ -302,7 +302,7 @@ namespace LDHUD
     LOCKDOWN_API FPKPanelView PKPanel(const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,const FPKPanelInput& Input);
     // The ring clock: ms since PK.FightStartedAtMs at NowMs (0 before the fight or without a clock).
     LOCKDOWN_API int64 PKRingElapsedMs(const FLDPKView& PK,bool bClock,int64 NowMs);
-    // ---- P6 (spec §10-§12): daily modifiers, camp affixes, the death screen's spawn choice and the vending machine ----
+    // ---- P6 (spec §10-§12): daily modifiers, camp affixes and the death screen's spawn choice ----
     // The hover text of a daily modifier or a camp affix, its numbers from the approved content.
     LOCKDOWN_API FString DailyDescription(ELDDailyModifier Modifier,const FLDDemoContentParameters& Parameters);
     LOCKDOWN_API FString AffixDescription(ELDCampAffix Affix,const FLDDemoContentParameters& Parameters);
@@ -316,22 +316,8 @@ namespace LDHUD
         FString Countdown;
     };
     LOCKDOWN_API FSpawnChoiceView SpawnChoice(const FLDOwnerState& Own,bool bClock,int64 NowMs);
-    // The vending machine within reach of the own living body: its prices and what the own vouchers afford.
-    struct FVendingView
-    {
-        bool bVisible=false;
-        int32 BuffPrice=0;
-        int32 DrinkPrice=0;
-        bool bCanBuff=false;
-        bool bCanDrink=false;
-        // The drink charges left and their element (ELDDemoElement), 0 without.
-        uint8 DrinkHits=0;
-        uint8 DrinkElement=0;
-    };
-    LOCKDOWN_API FVendingView Vending(const FLDOwnerState& Own,const FLDDemoContentParameters& Parameters);
-    // One-line answers to a refused spawn choice or a vending purchase.
+    // One-line answer to a refused spawn choice.
     LOCKDOWN_API FString SpawnChoiceText(ELDSpawnChoiceResult Result);
-    LOCKDOWN_API FString VendingText(ELDVendingResult Result);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
     // The match timer over the minimap: whole seconds elapsed since the match start (StartedAtMs, the opening rest R0),
@@ -754,15 +740,16 @@ namespace LDHUD
     LOCKDOWN_API FActionDetailView ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome);
     LOCKDOWN_API FActionDetailView CardChoiceDetail(const FCardFaceView& Card,const FString& Outcome);
 
-    // The card storage (APP_SPEC §7): the owned cards not installed, and the equipped columns 普攻, Q, W and E by server slot,
-    // 冲刺(D) and 本体; each installed card sits in the column of its target. Copies of one card in one place show as one
-    // face with a ×n badge. Local presentation over the own progression view only; the server decides every command.
-    enum class EStorageColumn : uint8 { Body=0, SlotQ=1, SlotW=2, SlotE=3, Dash=4, Basic=5 };
-    constexpr int32 StorageColumnCount=6;
-    // The board's left-to-right order: 普攻, Q, W, E, 冲刺, 本体.
+    // The card storage (APP_SPEC §7): the owned cards not installed, and the equipped columns Q, W and E by server slot,
+    // 冲刺(D) and 本体 (which carries the basic attack); each installed card sits in the column of its target, an element medal
+    // in the column of the skill or body whose element slot holds it. Copies of one card in one place show as one face with a
+    // ×n badge. Local presentation over the own progression view only; the server decides every command.
+    enum class EStorageColumn : uint8 { Body=0, SlotQ=1, SlotW=2, SlotE=3, Dash=4 };
+    constexpr int32 StorageColumnCount=5;
+    // The board's left-to-right order: Q, W, E, 冲刺, 本体.
     LOCKDOWN_API EStorageColumn BoardColumn(int32 Position);
     LOCKDOWN_API int32 BoardPosition(EStorageColumn Column);
-    // The column's short label: 普攻, Q, W, E, D, 本体.
+    // The column's short label: Q, W, E, D, 本体.
     LOCKDOWN_API FString ColumnLabel(EStorageColumn Column);
     // The column of a learned active's server slot 0..2.
     LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);

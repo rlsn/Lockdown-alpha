@@ -246,7 +246,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertFalse({"max_choices", "max_skill_rank", "opening_offer", "reroll_levels"} & set(data["progression"]))
         self.assertFalse({"attributes", "opening_cards"} & set(data))
         for key, expected in (("GROWTH.OpeningPoints", 2), ("GROWTH.PointsPerLevel", 4), ("GROWTH.MaxLevelPointsXP", 250),
-                              ("GROWTH.MaxLevelPoints", 1), ("VOUCHER.ActiveSkip", 6),
+                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.ActiveSkipPoints", 2),
                               ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
             self.assertEqual(self.baseline.catalog.parameter(key), expected)
         self.assertFalse([key for key in data["parameters"] if key.startswith("CHOICE.")])
@@ -715,7 +715,8 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["DAILY.SalePriceScale"].update(value=1), "NumericDomain"),
             (lambda data: data["parameters"]["DAILY.PatrolBossAppearSec"].update(value=200), "InvalidTiming"),
             (lambda data: data["parameters"]["EXPLORE.PeddlerLatestSec"].update(value=250), "InvalidTiming"),
-            (lambda data: data["parameters"].pop("EXPLORE.VendingDrinkHits"), "MissingField"),
+            (lambda data: data["parameters"].pop("EXPLORE.LockerStaySec"), "MissingField"),
+            (lambda data: data["parameters"]["EXPLORE.LockerLatestSec"].update(value=460), "InvalidTiming"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -836,10 +837,12 @@ class DemoContentImport(unittest.TestCase):
         # element choices.
         data = self.baseline.catalog.data
         self.assertEqual([row["id"] for row in data["cards"]],
-                         ["card_fire_fist", "card_encore", "card_shock_dash", "card_live_wire"])
-        fire = self.baseline.catalog.definition("card_fire_fist")
-        self.assertEqual((fire["form"], fire["type"], fire["vocab"]), ("basic", "element", ("element", "basic_hit")))
-        self.assertEqual(fire["effects"], ({"op": "burn", "opcode": 71, "basic_stacks": 2},))
+                         ["card_breach_fist", "card_encore", "card_live_wire", "medal_electric"])
+        breach = self.baseline.catalog.definition("card_breach_fist")
+        self.assertEqual((breach["form"], breach["type"], breach["vocab"]), ("body", "grow", ("basic_hit", "armor")))
+        self.assertEqual(breach["effects"], ({"op": "breach", "opcode": 70, "basic_stacks": 2},))
+        medal = self.baseline.catalog.definition("medal_electric")
+        self.assertEqual((medal["form"], medal["type"]), ("medal", "element"))
         wire = self.baseline.catalog.definition("card_live_wire")
         self.assertEqual(wire["choose_element"], ("fire", "water"))
         self.assertNotIn("choose_element", self.baseline.catalog.definition("card_encore"))
@@ -856,25 +859,26 @@ class DemoContentImport(unittest.TestCase):
         for mutation, code in (
             (lambda data: data["cards"].reverse(), "CardOrder"),
             (lambda data: data["cards"].append(deepcopy(data["cards"][0])), "DuplicateId"),
-            (lambda data: piece(data, "card_fire_fist").update(form="wing"), "UnknownEnum"),
-            (lambda data: piece(data, "card_fire_fist").update(type="rare"), "UnknownEnum"),
-            (lambda data: piece(data, "card_fire_fist")["vocab"].append("teleport"), "UnknownEnum"),
-            (lambda data: piece(data, "card_fire_fist")["vocab"].append("element"), "InvalidReference"),
-            (lambda data: piece(data, "card_fire_fist").update(vocab=["element", "basic_hit", "combo3", "dash", "kill"]),
+            (lambda data: piece(data, "card_breach_fist").update(form="wing"), "UnknownEnum"),
+            (lambda data: piece(data, "card_breach_fist").update(type="rare"), "UnknownEnum"),
+            (lambda data: piece(data, "card_breach_fist")["vocab"].append("teleport"), "UnknownEnum"),
+            (lambda data: piece(data, "card_breach_fist")["vocab"].append("armor"), "InvalidReference"),
+            (lambda data: piece(data, "card_breach_fist").update(vocab=["armor", "basic_hit", "combo3", "dash", "kill"]),
              "ArrayLength"),
-            # A card's operations belong to its form.
-            (lambda data: piece(data, "card_fire_fist")["effects"].append(
+            # A card's operations belong to its form; a medal carries only its element.
+            (lambda data: piece(data, "medal_electric").update(form="skill"), "CardForm"),
+            (lambda data: piece(data, "card_breach_fist")["effects"].append(
                 {"op": "auto_recast", "delay": {"unit": "s", "value": 0.5}, "damage_ratio": {"unit": "ratio", "value": 0.5}}),
              "CardForm"),
-            (lambda data: piece(data, "card_fire_fist")["effects"][0].update(stacks=1), "ObjectShape"),
+            (lambda data: piece(data, "card_breach_fist")["effects"][0].update(stacks=1), "ObjectShape"),
             # Y25 alone names its element choices, distinct.
             (lambda data: piece(data, "card_live_wire").pop("choose_element"), "CardElementChoice"),
-            (lambda data: piece(data, "card_fire_fist").update(choose_element=["fire", "water"]), "CardElementChoice"),
+            (lambda data: piece(data, "card_breach_fist").update(choose_element=["fire", "water"]), "CardElementChoice"),
             (lambda data: piece(data, "card_live_wire")["choose_element"].append("fire"), "InvalidReference"),
             # A card operation never sits on an active.
             (lambda data: bolt(data)["effects"].append({"op": "auto_recast", "delay": {"unit": "s", "value": 0.5},
                                                         "damage_ratio": {"unit": "ratio", "value": 0.5}}), "CardOnlyEffect"),
-            (lambda data: next(row for row in data["display"] if row["id"] == "card_fire_fist").update(
+            (lambda data: next(row for row in data["display"] if row["id"] == "card_breach_fist").update(
                 description_text="点火 [root.duration]"), "CardTemplate"),
             (lambda data: data["display"].remove(next(row for row in data["display"] if row["id"] == "card_encore")),
              "DisplayReference"),

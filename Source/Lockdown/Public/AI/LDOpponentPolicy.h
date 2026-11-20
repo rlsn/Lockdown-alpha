@@ -42,7 +42,7 @@ enum class ELDOpponentReason : uint8
     // #305 spec §11.3: a seen, still stocked delivery locker within reach, and the visible second-hand dealer.
     OpenLocker, ChaseDealer,
     // #198 §16.3: a visible shared training dummy engaged in the rest build window once nothing is left to build.
-    Train, RestService
+    Train
 };
 
 enum class ELDOpponentSourceSlot : uint8 { Q, W, E, Dash };
@@ -132,8 +132,6 @@ struct FLDOpponentSelf
     // Authority ms until which authorized control blocks voluntary movement; at or before now when free.
     int64 MoveBlockedUntilMs = 0;
     bool bChanneling = false;
-    // The same nearby-service owner projection a human receives; never another contender's position.
-    ELDRestService NearbyRestService = ELDRestService::None;
     uint64 BuildRevision = 0;
     uint8 Level = 1;
     TArray<FLDOpponentActive> Actives;
@@ -148,11 +146,8 @@ struct FLDOpponentSelf
     uint8 OffersConsumed = 0;
     // Active opportunities earned and not chosen yet, the current offer's included.
     uint8 QueuedOpportunities = 0;
-    // Spec §3.13: the own vouchers and rest shop.
-    int32 Vouchers = 0;
+    // Spec §3.13: the own rest shop (paid from UnspentPoints).
     FLDShopView Shop;
-    // #305: the vending machine within reach (own pacing view; None = none).
-    FName NearbyVending;
     // Owned cards by serial, the level's card capacity and the current card offer.
     TArray<FLDOpponentCard> Cards;
     int32 CardCapacity = 0;
@@ -260,8 +255,8 @@ struct FLDOpponentGround
 };
 
 // Sign-up and service places are carried only by rest frames, not the field POI list.
-// Locker (#305): a delivery locker this contender has seen and not opened (its own pacing view); never a static place.
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, RestService, Locker, PKSignup };
+// Locker (#305): a delivery locker that is out now (the public match view); never a static place.
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, Locker, PKSignup };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -273,7 +268,6 @@ struct FLDOpponentPOI
     // Camps only.
     FString MonsterId;
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;
-    ELDRestService RestService = ELDRestService::None;
 };
 
 enum class ELDOpponentOrderKind : uint8 { None, MoveGround, AttackUnit, Action };
@@ -312,7 +306,6 @@ struct FLDOpponentDecisionFrame
     // #198 站圈报名 (user decision A on issue #198): in a rest, the own PK sign-up disk (its roster slot's public anchor);
     // unset outside a rest. Never part of POIs, so no field decision ever walks there.
     TOptional<FLDOpponentPOI> SignupPOI;
-    TArray<FLDOpponentPOI> RestServicePOIs;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
@@ -417,8 +410,6 @@ struct FLDOpponentDecision
     ELDOpponentReason Reason = ELDOpponentReason::None;
     FLDOpponentBodyIntent Body;
     FLDOpponentBuildIntent Build;
-    // #305 spec §11.3: a vending purchase at the machine within reach (ELDVendingItem; 0 = none).
-    uint8 Vending = 0;
     FLDOpponentPKIntent PK;
 };
 
@@ -482,8 +473,6 @@ struct FLDOpponentPolicyState
     bool bHasRefusedWalk = false;
     FName VisitPOI;
     int64 VisitEngagedAtMs = 0;
-    // #305: when the last vending purchase was asked for (0 = never this match).
-    int64 VendingAskedAtMs = 0;
     FName ExplorePOI;
     FGuid TargetHandle;
     uint32 TargetEpoch = 0;
@@ -622,7 +611,6 @@ namespace LDOpponentPolicy
     // The owner's visible training target by the HUD's roster rule: lowest handle first; nullptr
     // outside a rest, without one, or when the own id is not on the roster (an unread roster names nothing).
     LOCKDOWN_API const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame);
-    LOCKDOWN_API ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind);
     LOCKDOWN_API uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame,
         const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);
@@ -664,9 +652,5 @@ namespace LDOpponentPolicy
     // place is unknown or the context cannot initialize.
     LOCKDOWN_API FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FName POI);
-    // #198: the production walk to the rest service NPC a build command needs (the same route Decide takes before a service
-    // command). None when no such service is published or the context cannot initialize.
-    LOCKDOWN_API FLDOpponentBodyIntent WalkToRestService(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
-        FLDOpponentPolicyState& State, ELDRestService Service);
 #endif
 }

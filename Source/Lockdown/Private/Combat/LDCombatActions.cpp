@@ -1262,10 +1262,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* ElectrifyEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Electrify);
     const FLDDemoEffectDefinition* RotEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Rot);
     const FLDDemoEffectDefinition* ChillEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Chill);
-    const FLDDemoEffectDefinition* GustEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Gust);
     const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChainBounce);
     const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect
-        || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || RotEffect || ChillEffect || GustEffect
+        || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || RotEffect || ChillEffect
         || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
     if (ChainEffect && TargetDef.Mode!=ELDDemoTargetMode::Unit)
     { Error=TEXT("A chain needs a unit target to start from."); return false; }
@@ -1525,7 +1524,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Electrify:
         case ELDDemoEffectOp::Rot:
         case ELDDemoEffectOp::Chill:
-        case ELDDemoEffectOp::Gust:
         case ELDDemoEffectOp::GroundState:
         case ELDDemoEffectOp::ChainBounce:
             // Carried by the hit payload (and the S10 chain, a projectile's landing or a cone's area) below.
@@ -1640,7 +1638,6 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     const FLDDemoEffectDefinition* BreachEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Breach);
     const FLDDemoEffectDefinition* BurnEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Burn);
     const FLDDemoEffectDefinition* RotEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Rot);
-    const FLDDemoEffectDefinition* GustEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Gust);
     const auto& Final=Body.AttributeProjection.Final;
     FLDCombatHit Template;
     Template.EffectId=EffectId;
@@ -1671,20 +1668,16 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
     Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
     Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
-    // Elements of every hit of this release, with the caster's snapshot now: a rot's own cut and duration, a gust's own push
-    // (an overdrive's 300 cm and the ground state it leaves).
+    // Elements of every hit of this release, with the caster's snapshot now (a rot's own cut and duration).
     for (const TPair<ELDDemoEffectOp,ELDCombatElement>& Row : {TPair<ELDDemoEffectOp,ELDCombatElement>(ELDDemoEffectOp::Wet,ELDCombatElement::Water),
         {ELDDemoEffectOp::Electrify,ELDCombatElement::Shock}, {ELDDemoEffectOp::Chill,ELDCombatElement::Chill},
-        {ELDDemoEffectOp::Rot,ELDCombatElement::Rot}, {ELDDemoEffectOp::Gust,ELDCombatElement::Gust}})
+        {ELDDemoEffectOp::Rot,ELDCombatElement::Rot}})
     {
         if (LDCA::FindEffect(Values,Row.Key)) { Template.NativeElements|=LDCombatElements::Bit(Row.Value); }
     }
     if (!StampElementSnapshot(Body,Template,Error)) { return false; }
     Template.RotCutBp=RotEffect ? RotEffect->RatioBp : 0;
     Template.RotMs=RotEffect ? RotEffect->DurationMs : 0;
-    Template.GustPushCm=GustEffect ? LDCA::ToDouble(GustEffect->DistanceCm) : 0;
-    Template.GustPushMs=GustEffect ? GustEffect->DurationMs : 0;
-    Template.bGustGround=Terms.bOverdriveGustGround;
     // Abilities trigger no on-hit effects.
     if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
     FillMechanicsTemplate(Values,ReleaseFoot,Template);

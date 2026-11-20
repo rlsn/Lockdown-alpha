@@ -128,8 +128,6 @@ public:
     // Whether a contender currently has a shared-room rest life, not a field or PK life.
     virtual bool IsInRestSpace(const FGuid& Contender) const override;
     static FGuid RestIsolationGroup() { return FGuid(0x198, 0x52455354, 0x4c4f554e, 0x47450001); }
-    ELDRestService NearbyRestService(const FGuid& Contender) const;
-    bool CanUseRestService(const FGuid& Contender, ELDBuildCommandKind Kind) const;
     bool IsRestReady(const FGuid& Contender) const { return RestReady.Contains(Contender); }
     bool CanRestReady(const FGuid& Contender) const;
     ELDRestReadyResult SubmitRestReady(ALDPlayerController& Controller, uint32 Generation, uint8 RestIndex, int64 StartedAtMs, bool bReady);
@@ -210,10 +208,6 @@ public:
     // DeathsAndRewards (camp owner, after the death that cleared CampId at field progress FieldMs): the first clear of a
     // revealed marker's camp gives its credit owner the marker reward once. Without an eligible contender owner it stays open.
     bool ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 FieldMs, const FLDGameplayWritePermit& Permit, FString& Error);
-    // DeathsAndRewards (camp owner, after the death that cleared a camp of Tier): spec §3.13 pays the clear's credit owner the
-    // tier's vouchers and §11.3 a pick ticket on its first Ancient clear of the match. A clear without a contender owner pays
-    // nothing. False only on a fault.
-    bool PayCampClear(ELDDemoCampTier Tier, const FGuid& ClearOwner, const FLDGameplayWritePermit& Permit, FString& Error);
     // DeathsAndRewards or Transactions: pays one map event reward (#198 G) through the growth composite. A retryable
     // refusal stays owed and is retried at each later Transactions boundary; any other refusal is an authority fault.
     bool PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
@@ -239,8 +233,8 @@ public:
     // RespawnsAndWorld, only while a timed field segment runs: objective phases, the dealer's arrival and departure, the
     // rain and the typhoon. False only on an authority fault.
     bool AdvanceFieldPacing(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Transactions: mini flag spray and win, the arena's close, locker channels, sightings and openings, and queued vending
-    // purchases, each paid through the growth composite. False only on an authority fault.
+    // Transactions: mini flag spray and win, the arena's close, locker channels and openings, each paid through the growth
+    // composite. False only on an authority fault.
     bool ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString& Error);
     // Combat (Effects): one committed contender-on-contender hit; the open arena counts it when both stand inside.
     void NoteContenderDamage(const FGuid& Attacker, const FGuid& Victim, int64 DamageP2);
@@ -251,16 +245,8 @@ public:
     ELDSpawnChoiceResult SubmitSpawnChoice(ALDPlayerController& Controller, uint32 Generation, uint32 Life, uint8 Index);
     // Spec §13 (AI): the AI's choice, the candidate nearer the nearest public goal.
     ELDSpawnChoiceResult ChooseSpawnForAI(const FGuid& Contender);
-    ELDVendingResult SubmitVending(ALDPlayerController& Controller, uint32 Generation, uint32 Life, ELDVendingItem Item, uint8 Element);
-    // Sends a queued purchase's settlement outcome to the buyer's owning connection (AI have none).
-    void TellVending(const FGuid& Buyer, ELDVendingResult Result);
-    ELDVendingResult QueueVending(const FGuid& Contender, uint32 Life, ELDVendingItem Item, uint8 Element);
-    // The vending machine within reach of the contender's living body (NAME_None when none).
-    FName NearbyVending(const FGuid& Contender) const;
     // Spec §10.4: whether a committed death was a trending contender's (its killer and assisters take the bounty).
     bool IsBountyDeath(const FLDDeathKey& Key) const { return BountyDeaths.Contains(Key); }
-    // Lockers the contender has seen (owner view: position and whether it was opened).
-    void ReadSeenLockers(const FGuid& Contender, TArray<FLDLockerView>& Out) const;
     // A world owner (the camp director's Boss) changed what the public match view shows.
     void MarkPublicMatchDirty() { bPublicMatchDirty = true; }
     // Right after Motion: whether this step's motion completes a guard strictly before the step's end (a guard a
@@ -580,13 +566,6 @@ private:
     FLDLockerState Lockers;
     FLDPeddlerPlan Peddler;
     TMap<FGuid, FLDSpawnChoice> SpawnChoices;
-    struct FLDPendingVending
-    {
-        uint32 Life = 0;
-        ELDVendingItem Item = ELDVendingItem::None;
-        uint8 Element = 0;
-    };
-    TMap<FGuid, FLDPendingVending> PendingVending;
     // Contenders a hard control landed on since the last Transactions boundary.
     TSet<FGuid> PacingControlled;
     // The authority ms of the last Transactions pacing pass (damage since then interrupts a locker).
@@ -600,7 +579,7 @@ private:
     // Spec §10.4: draws the candidate spawns of a field death (RespawnsAndWorld/DeathsAndRewards, from the life commit).
     void OpenSpawnChoice(const FGuid& Contender, uint32 Life, int64 AtMs);
     void BuildPacingPresence(TArray<LDFieldPacing::FPresence>& Out) const;
-    bool PayPacingReward(const FGuid& Recipient, FName Event, uint64 Serial, int32 Vouchers, int32 Tickets, ELDFieldRewardKind Offer,
+    bool PayPacingReward(const FGuid& Recipient, FName Event, uint64 Serial, ELDFieldRewardKind Offer,
         const FLDGameplayWritePermit& Permit, FString& Error);
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
@@ -643,9 +622,8 @@ private:
     // the entrants locked from them.
     TSet<FGuid> RestSignups;
     TSet<FGuid> RestReady;
-    TArray<TWeakObjectPtr<class ALDRestServiceNPC>> RestServiceNPCs;
     TWeakObjectPtr<class ALDTrainingRoomDisplay> TrainingRoomDisplay;
-    void ClearRestServiceNPCs();
+    void ClearRestRoomDisplay();
     // RespawnsAndWorld and the lock: RestSignups from the committed feet (empty outside the window). False on a fault.
     bool RefreshRestSignups(FString& Error);
     TArray<FGuid> LockedEntrants;

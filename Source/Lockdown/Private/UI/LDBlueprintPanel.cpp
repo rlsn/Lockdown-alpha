@@ -55,10 +55,10 @@ FString BlueprintName(const FLDDemoContentDefinitions* Definitions,const FString
     // ContentText leaves the stable id when the local catalog has no display row, so a stale id stays visible.
     return Definitions?LDHUD::ContentName(Definitions,Id):Id;
 }
-// Where a recorded card sat: 普攻, a skill's name, 冲刺 or 本体, with Y25's element.
+// Where a recorded card sat: a skill's name, 冲刺 or 本体, with Y25's element.
 FString BlueprintPlace(const FLDBlueprintCard& Card,const FLDDemoContentDefinitions* Definitions)
 {
-    FString Where=Card.Target==TEXT("basic")?FString(LDTerms::ColumnBasic):Card.Target==TEXT("dash")?FString(TEXT("冲刺（D）"))
+    FString Where=Card.Target==TEXT("dash")?FString(TEXT("冲刺（D）"))
         :Card.Target==TEXT("skill")?BlueprintName(Definitions,Card.Host):FString(LDTerms::ColumnBody);
     if(!Card.Element.IsEmpty())
     {

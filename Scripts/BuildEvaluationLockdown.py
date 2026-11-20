@@ -11,7 +11,8 @@ progression.active_offer_levels reached). Without a build list the production AI
 does every other build command. Workshop (review §4, spec §19): a side's build list owns every build command except the
 active choices: the native evaluation policy sends exactly its steps, in order, through the players' build commands when
 growth's gate admits them, and the production rule never builds for that side. Supported steps: exact points per stat, a card
-install on a named place (the primary basic, a learned skill, the innate D or the body; Y25 with its element), an uninstall, a
+install on a named place (a learned skill, the innate D or the body, which carries the basic attack; Y25 with its element; an
+element medal on the body or a learned skill), an uninstall, a
 respec, a blueprint learn and an active replacement. Cards are mechanics. A planned side skips every card offer (spec §6.4);
 its cards are the level cards of its plan, one per level its supply crosses, received on the field with the supply. A step
 the seeded Case cannot carry out ends Invalid (PlanNotReached), never forced. Every step's commit is verified against the
@@ -58,8 +59,8 @@ WINDOWS = ("opening_rest", "field")
 # Y25's element choices and their authority log names (LDLog::EnumName of ELDDemoElement).
 ELEMENTS = {"fire": "Fire", "water": "Water", "electric": "Electric"}
 # A card's place by its form (ELDCardTargetKind log names); a skill card names its learned skill instead.
-CARD_PLACES = {"basic": "Basic", "dash": "Dash", "body": "Body"}
-FORM_PLACE = {"basic": "basic", "dash": "dash", "body": "body", "skill": None}
+CARD_PLACES = {"dash": "Dash", "body": "Body"}
+FORM_PLACE = {"dash": "dash", "body": "body", "skill": None, "medal": None}
 # Planned build steps: their capability decision, the authority kind (ELDBuildCommandKind) and their fields. Card steps are
 # logged as LD_CARD, the others as LD_BUILD.
 STEPS = {
@@ -182,9 +183,10 @@ def describe(project_root):
             "allocate_points": {"description": "build step allocate_points: exact points per stat id in one command; a planned "
                                                "build spends every point its supply earns, or none when the side sets "
                                                "keep_points_unspent"},
-            "install_card": {"description": "build step install: a stored copy of a level card onto its place (the basic, a "
-                                            "learned skill, the innate D or the body; Y25 with its element), within the "
-                                            "workshop capacity of the supply's level"},
+            "install_card": {"description": "build step install: a stored copy of a level card onto its place (a learned "
+                                            "skill, the innate D or the body; Y25 with its element; a medal on the body "
+                                            "or a learned skill, outside the workshop capacity), within the workshop "
+                                            "capacity of the supply's level"},
             "uninstall_card": {"description": "build step uninstall: an installed copy back to the library (any window)"},
             "respec_points": {"description": "build step respec, rest window only: every allocated point back"},
             "learn_blueprint": {"description": "build step learn: a pending blueprint into a named empty slot (duel_site "
@@ -385,7 +387,7 @@ def _build_step(step, where):
     if "target" in step:
         target = step["target"]
         if not isinstance(target, str) or (target not in CARD_PLACES and not DEFINITION.fullmatch(target)):
-            raise ValueError(f"{where}.target: basic, dash, body or a learned skill's id")
+            raise ValueError(f"{where}.target: dash, body or a learned skill's id")
         out["target"] = target
     if "element" in step:
         if step["element"] not in ELEMENTS:
@@ -424,6 +426,8 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_cards, keep_unspen
     for card in level_cards:
         received[card] = received.get(card, 0) + 1
     installed = {}
+    # A medal's element slot per host: a second medal there sends the first back to the library.
+    medal_slots = {}
     allocated = 0
     field = False
     mechanics, decisions, problems = set(), set(), []
@@ -457,12 +461,18 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_cards, keep_unspen
         if kind == "install":
             if at == "opening_rest":
                 problem("no card is owned in the opening rest: the level cards arrive with the field supply")
-            elif installed.get(card, 0) >= received.get(card, 0):
+            medal = row.get("form") == "medal"
+            if medal and target and medal_slots.get(target):
+                installed[medal_slots[target]] -= 1
+                medal_slots[target] = None
+            if at != "opening_rest" and installed.get(card, 0) >= received.get(card, 0):
                 problem(f"no stored copy of {card}: the level cards give {received.get(card, 0)}")
-            if sum(installed.values()) >= capacity:
+            if not medal and sum(n for name, n in installed.items() if rows.get(name, {}).get("form") != "medal") >= capacity:
                 problem(f"the workshop of level {level} holds {capacity} cards")
             place = FORM_PLACE.get(row.get("form"))
-            if place and target != place:
+            if medal and target == "body":
+                pass
+            elif place and target != place:
                 problem(f"a {row.get('form')} card goes on the {place}")
             elif not place and (target in CARD_PLACES or rows.get(target, {}).get("kind") != "active"):
                 problem(f"a skill card names a learned skill, not {target}")
@@ -474,11 +484,16 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_cards, keep_unspen
             elif "element" in step and step["element"] not in choices_of:
                 problem(f"{card} chooses one of {choices_of}")
             installed[card] = installed.get(card, 0) + 1
+            if medal and target:
+                medal_slots[target] = card
         elif kind == "uninstall":
             if not installed.get(card):
                 problem(f"no copy of {card} is installed by an earlier step")
             else:
                 installed[card] -= 1
+                host = next((host for host, held in medal_slots.items() if held == card), None)
+                if host:
+                    medal_slots[host] = None
         elif kind == "allocate_points":
             wrong = [stat for stat in step["points"] if rows[stat]["kind"] != "stat"]
             if wrong:
@@ -819,6 +834,8 @@ def expected_build(step, caps):
 def planned_cards(steps):
     """The installed copies a plan ends with, as (card, target kind, target id, element) with their count."""
     out = {}
+    # An element medal (id prefix medal_) takes its host's single element slot and returns the medal held there.
+    medal_slots = {}
     for step in steps:
         if step["step"] not in CARD_STEPS:
             continue
@@ -826,11 +843,18 @@ def planned_cards(steps):
             target = step["target"]
             key = (step["card"], CARD_PLACES.get(target, "Skill"), "" if target in CARD_PLACES else target,
                    ELEMENTS.get(step.get("element"), "None"))
+            if step["card"].startswith("medal_"):
+                if medal_slots.get(target):
+                    out[medal_slots[target]] -= 1
+                medal_slots[target] = key
             out[key] = out.get(key, 0) + 1
         else:
             for key in sorted(out):
                 if key[0] == step["card"] and out[key] > 0:
                     out[key] -= 1
+                    host = next((host for host, held in medal_slots.items() if held == key), None)
+                    if host:
+                        medal_slots[host] = None
                     break
     return {key: count for key, count in out.items() if count}
 

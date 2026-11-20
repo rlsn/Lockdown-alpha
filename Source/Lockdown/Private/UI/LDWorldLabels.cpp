@@ -14,7 +14,6 @@
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
-#include "World/LDRestServiceNPC.h"
 #include "World/LDTrainingRoomDisplay.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -99,6 +98,9 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
             Label.Name=FString::Printf(TEXT("%s%s · %s"),LDTerms::AffixGlyph(Affix),LDTerms::AffixName(Affix),*Label.Name);
         }
         Label.CreatureId=Unit.CreatureId;
+        const FLDDemoMonsterDefinition* Monster=Content&&!Unit.bPeddler?Content->Monsters.FindByPredicate([&Unit](const FLDDemoMonsterDefinition& M)
+            {return M.NativeId==Unit.CreatureId;}):nullptr;
+        if(Monster){Label.CampTier=int8(Monster->Tier);}
     }
     // As on the target card (LDHUD::ResourceP2), health without a known maximum or with a malformed current is unknown:
     // no bar rather than an empty one.
@@ -373,12 +375,6 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Entry.LeftReach=Entry.RightReach=Extent.X*.5f;Entry.Height=Extent.Y;
             Pending.Add(MoveTemp(Entry));
         };
-        for(TActorIterator<ALDRestServiceNPC> It(World);It;++It)
-        {
-            const ELDRestService Service=It->GetService();
-            const FString Name=Service==ELDRestService::Trainer?TEXT("训练师 · 属性与技能"):TEXT("");
-            if(!Name.IsEmpty()){PublicLabel(It->GetActorLocation()+FVector(0,0,120),Name);}
-        }
         for(TActorIterator<ALDTrainingRoomDisplay> It(World);It;++It)
         {PublicLabel(It->GetActorLocation()+FVector(7500,950,40),TEXT("训练区 · 共享假人"));}
     }
@@ -481,6 +477,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const float Pulse=.55f+.45f*FMath::Abs(FMath::Sin(float(FPlatformTime::Seconds())*9.f));
                 Box(0,FVector2f(BarLeft-3.f,BarTop-3.f),FVector2f(BarWidth+8.f,BarRimHeight+6.f),LDHUDStyle::Overdrive.CopyWithNewOpacity(Pulse));
             }
+            // A camp member's bar sits in a frame of its tier colour (the name carries the same colour).
+            if(Label.CampTier>=0){Box(1,FVector2f(BarLeft-1.f,BarTop-1.f),FVector2f(BarWidth+4.f,BarRimHeight+2.f),LDHUDStyle::CampTierInk(uint8(Label.CampTier)));}
             Box(1,FVector2f(BarLeft,BarTop),FVector2f(BarWidth+2.f,BarRimHeight),LDHUDStyle::Rim);
             float TrackTop=BarTop+1.f;
             // The shield is a line across the top of the bar; the status line below names it too.
@@ -500,7 +498,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             }
             Bottom-=Entry.Row+WorldRowGap;
         }
-        if(!Label.Name.IsEmpty()){Line(Label.Name,Label.bContender?ContenderFont:CampFont,Label.bContender?WorldLabelContenderInk:WorldLabelCampInk,CentreX,Bottom);}
+        if(!Label.Name.IsEmpty())
+        {
+            const FLinearColor Ink=Label.bContender?WorldLabelContenderInk:Label.CampTier>=0?LDHUDStyle::CampTierInk(uint8(Label.CampTier)):WorldLabelCampInk;
+            Line(Label.Name,Label.bContender?ContenderFont:CampFont,Ink,CentreX,Bottom);
+        }
         if(!Label.StatusParts.IsEmpty())
         {
             // Each status in the colour of its body marker (Combat's root, shield and protection tints); the text names it.

@@ -421,8 +421,8 @@ bool FLDBuildBlueprintCardsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Changing only Y25's element (points and actives unchanged) starts a new version"),Rebound==First+1);
     Ledger.Add(Contender,Rebound,ELDBlueprintFact::DamageDealt,40);
     const int32 Moved=Ledger.Observe(Contender,Build(3,{Installed(TEXT("card_live_wire"),1,EKind::Body,nullptr,ELDDemoElement::Water),
-        Installed(TEXT("card_encore"),2,EKind::Skill,TEXT("zap")),Installed(TEXT("card_third_breath"),3,EKind::Basic),
-        Installed(TEXT("card_third_breath"),4,EKind::Basic),Installed(TEXT("card_double_dash"),5,EKind::Dash)}),6000);
+        Installed(TEXT("card_encore"),2,EKind::Skill,TEXT("zap")),Installed(TEXT("card_third_breath"),3,EKind::Body),
+        Installed(TEXT("card_third_breath"),4,EKind::Body),Installed(TEXT("card_double_dash"),5,EKind::Dash)}),6000);
     TestTrue(TEXT("Moving a skill card to another skill and adding installs starts a new version"),Moved==Rebound+1);
     const int32 Uninstalled=Ledger.Observe(Contender,Build(4,{}),8000);
     TestTrue(TEXT("Uninstalling everything starts a new version"),Uninstalled==Moved+1);
@@ -436,7 +436,7 @@ bool FLDBuildBlueprintCardsTest::RunTest(const FString& Parameters)
         &&Rich.Cards[0]==FLDBlueprintCard({TEXT("card_double_dash"),TEXT("dash"),FString(),FString()})
         &&Rich.Cards[1]==FLDBlueprintCard({TEXT("card_encore"),TEXT("skill"),TEXT("zap"),FString()})
         &&Rich.Cards[2]==FLDBlueprintCard({TEXT("card_live_wire"),TEXT("body"),FString(),TEXT("water")})
-        &&Rich.Cards[3]==FLDBlueprintCard({TEXT("card_third_breath"),TEXT("basic"),FString(),FString()})
+        &&Rich.Cards[3]==FLDBlueprintCard({TEXT("card_third_breath"),TEXT("body"),FString(),FString()})
         &&Rich.Cards[4]==Rich.Cards[3]);
     TestTrue(TEXT("A build without installs states an empty list"),Versions[3].Structure.Cards.IsEmpty());
 
