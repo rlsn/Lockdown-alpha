@@ -18,19 +18,28 @@ struct FLDCampMemberSpec
     // species otherwise; without it the slot stays empty and never holds back a clear.
     bool bTeambuild = false;
     FName DefinitionId;
-    FName MonsterId;
-    uint8 CreatureId = 0;
+    // Index into FLDCampSpec::Pools: the tier pool this member's species is drawn from on each whole-group spawn.
+    int32 Pool = 0;
+};
+
+// The species of one camp tier present in a camp; every whole-group spawn draws one of them for all its members.
+struct FLDCampSpeciesPool
+{
+    ELDDemoCampTier Tier = ELDDemoCampTier::Low;
+    TArray<FName> Species;
+    TArray<uint8> SpeciesIds;
 };
 
 // Read-only projection of the validated content and world roots, not a second tunable table.
-struct FLDCampSpec
+struct LOCKDOWN_API FLDCampSpec
 {
     FName CampId;
     FName SurfaceId;
+    // The fixed tier representative of the camp's own prototype; public records show it, never the drawn species.
     FName MonsterId;
     uint8 CreatureId = 0;
-    TArray<FName> Species;
-    TArray<uint8> SpeciesIds;
+    // Pools[0] is the camp's own tier; an authored member of another tier adds that tier's pool once.
+    TArray<FLDCampSpeciesPool> Pools;
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;
     FVector AnchorCm = FVector::ZeroVector;
     int64 RespawnMs = 0;
@@ -41,8 +50,12 @@ struct FLDCampSpec
     uint8 TeambuildCreatureId = 0;
     // The registered scene instance and its approved AI/stat definition are separate identities.
     FName DefinitionId;
-    // Authored member slots retain their individual types and count across refreshes.
+    // Authored member slots retain their individual tiers and count across refreshes; species are still drawn per tier.
     bool bAuthoredMembers = false;
+
+    // The species a slot wears for one draw (one species per pool): the fixed teambuild species when the camp has one,
+    // otherwise the draw of the slot's tier pool. None when the draw does not cover the slot's pool.
+    FName MemberSpecies(int32 Slot, TConstArrayView<FName> Draw) const;
 };
 
 struct LOCKDOWN_API FLDCampRoster
@@ -79,9 +92,11 @@ struct FLDCampMemberState
 
 struct FLDCampGroupState
 {
-    FName PendingSpecies;
-    FName SelectedSpecies;
-    uint8 CreatureId = 0;
+    // One species per FLDCampSpec::Pools entry. Pending is the draw prepared for the next whole-group spawn (empty
+    // until drawn, kept across blocked retries); Selected and CreatureIds are the committed lives' draw.
+    TArray<FName> PendingSpecies;
+    TArray<FName> SelectedSpecies;
+    TArray<uint8> CreatureIds;
     uint32 Generation = 0;
     bool bRespawnPending = false;
     int64 ClearedAtMs = 0;
@@ -134,7 +149,9 @@ public:
     TArray<FLDCampPublicView> BuildPublicViews() const;
 
     bool CanSpawnInitial(int32 Camp, FString& Error) const;
-    bool SelectSpecies(int32 Camp, int32 Choice, FName& Out, FString& Error);
+    // Choices holds one index per pool of the camp. The first call for a whole-group new life fixes the draw; a retry
+    // after a blocked placement returns the same draw whatever it passes.
+    bool SelectSpecies(int32 Camp, TConstArrayView<int32> Choices, TArray<FName>& Out, FString& Error);
     bool IsRespawnDue(int32 Camp, int64 NowMs) const;
     // Earliest pending whole-group refresh deadline in authority ms, for the driver's exact step boundaries;
     // MAX_int64 when no camp is waiting. A deadline that already passed stays reported until its refresh commits.

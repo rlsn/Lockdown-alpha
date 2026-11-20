@@ -101,7 +101,7 @@ bool FLDCampPhysicalPlacement::RunTest(const FString& Parameters)
         Input.Self={{ELDVictimKind::CampMember,FGuid(1,1,1,1),1},FGuid(2,2,2,2)};
         Input.NowSeconds=1; Input.FootCm=Camp.AnchorCm; Input.CampAnchorFootCm=Camp.AnchorCm;
         Input.Grounded=true; Input.SurfaceId=Camp.SurfaceId; Input.MemberHome={Input.World,Camp.Members[0].HomeCm,Camp.SurfaceId};
-        Input.MonsterId=Camp.Members[0].MonsterId;
+        Input.MonsterId=Camp.Pools[Camp.Members[0].Pool].Species[0];
         Input.bObservationComplete=true;
         FLDCampDecision Decision;
         TestTrue(TEXT("Every saved instance has an active approved AI definition: ")+Camp.CampId.ToString(),

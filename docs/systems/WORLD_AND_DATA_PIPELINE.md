@@ -100,7 +100,9 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker、Ven
 外卖柜与小迷你旗点不进入 AI 公开地点或静态小地图（外卖柜只在本人看见后显示，小迷你旗只在开放或预告时显示）；售货机公开显示在小地图上。
 
 `camps.placements.monster_id`是固定档位代表，运行按该定义的tier聚合三种候选，不是本次生成结果。
-同档必须具有相同成员数量、奖励与刷新时间。`FLDCampGroupState`保存本次选种与准备中的选种，
+同档必须具有相同成员数量、奖励与刷新时间。`FLDCampSpec::Pools`每档一个种类池：`Pools[0]`是营地自身档位，
+作者成员名单里其他档位的成员模板各追加该档一池，成员按 `Pool` 取种（`FLDCampSpec::MemberSpecies`；精英与远古的团建位仍穿固定高档种）。
+`FLDCampGroupState`按池保存本次选种与准备中的选种，每次整组生成每池独立抽一次，同档成员同种；
 SpawnBlocked重试保留抽签；整组生命提交后才切换当前种类。公开POI保留档位代表，动态CreatureId只经合法观察发布。
 移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`vending_*`、`pk_signup_*`、`pk_spawn_*`、`pk_throw`）新增语义点，
 保留现存点和人工布景；现存必需点缺失、重复身份或成员落点重叠会拒绝，不能用此入口重建被删除的点。

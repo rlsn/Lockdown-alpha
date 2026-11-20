@@ -44,6 +44,18 @@ namespace LDMinimap
     // A gesture's ground point: X and Y clamped inside the registered ground (half-open at the far edges), Z = 0. The
     // map grants no height and no target; a move is still validated against the ground surface below.
     LOCKDOWN_API FVector ClampToGround(const FVector& World,const FBox2D& Ground);
+    // The regions the map shows one at a time, as indices into FitRegions' anchors and output.
+    enum ERegion : int32 { FieldRegion, RestRegion, FinalRegion, RegionCount };
+    // The walls around a region's anchors lie within this reach of them (the final arena's ring reaches about 1300 cm past
+    // its spawns).
+    constexpr double RegionReachCm=1500.;
+    // Each region with anchors is its anchor box grown by the drawn areas (footprints) lying nearest those anchors and
+    // within RegionReachCm of them, by each area's part inside that reach and the region's cell, kept to the ground. The
+    // cell is the ground on the region's side of the midline of the widest gap between its anchors and each other
+    // region's, so a wall running along the whole ground widens no region into another. A region without anchors is
+    // invalid, except the field, which then fits the ground. False with Error when two regions' anchor boxes overlap.
+    LOCKDOWN_API bool FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2D> Footprints,const FBox2D& Ground,
+        TArray<FBox2D>& Out,FString& Error);
 }
 
 UCLASS()

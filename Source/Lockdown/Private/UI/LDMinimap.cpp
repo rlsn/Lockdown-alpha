@@ -48,12 +48,13 @@ struct FLDMinimapStatic
     bool bContentTried=false,bGroundLogged=false,bResolved=false,bValid=false;
     FLDWorldRevision World;
     // Areas are clipped to the registered ground. The map shows one region at a time, the one the owner is in: the field
-    // (Field) or the #198 rest room (Rest, invalid when the world has none). Each is the box of its anchors plus every drawn
-    // area reaching within MinimapRegionReachCm of them, kept to the ground.
+    // (Field), the #198 rest room (Rest) or the final arena (Final); Rest and Final are invalid when the world has none.
+    // Each is the box of its anchors grown by the drawn areas nearest them (see MinimapResolveStatic), kept to the ground.
     TArray<FArea> Areas;
     TArray<FSite> Sites;
     FBox2D Field=FBox2D(ForceInit);
     FBox2D Rest=FBox2D(ForceInit);
+    FBox2D Final=FBox2D(ForceInit);
     // Transparent terrain raster above the separate opaque ground/coverage plane.
     FBox2D ResolvedGround=FBox2D(ForceInit);
     LDMinimapRaster::FStaticKey RasterKey;
@@ -111,6 +112,55 @@ FVector LDMinimap::ClampToGround(const FVector& World,const FBox2D& Ground)
     const FVector2D Span=Ground.GetSize();
     return FVector(FMath::Clamp(World.X,Ground.Min.X,Ground.Min.X+.999999*Span.X),FMath::Clamp(World.Y,Ground.Min.Y,Ground.Min.Y+.999999*Span.Y),0.);
 }
+bool LDMinimap::FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2D> Footprints,const FBox2D& Ground,
+    TArray<FBox2D>& Out,FString& Error)
+{
+    Out.Init(FBox2D(ForceInit),RegionCount);
+    if(Anchors.Num()!=RegionCount||!Ground.bIsValid){Error=TEXT("Minimap regions need one anchor box per region and a ground.");return false;}
+    // The part of A inside B; invalid when they share no area.
+    const auto Overlap=[](const FBox2D& A,const FBox2D& B)
+    {
+        const FVector2D Min(FMath::Max(A.Min.X,B.Min.X),FMath::Max(A.Min.Y,B.Min.Y)),Max(FMath::Min(A.Max.X,B.Max.X),FMath::Min(A.Max.Y,B.Max.Y));
+        return A.bIsValid&&B.bIsValid&&Max.X>Min.X&&Max.Y>Min.Y?FBox2D(Min,Max):FBox2D(ForceInit);
+    };
+    static const TCHAR* const Names[RegionCount]={TEXT("field"),TEXT("rest room"),TEXT("final arena")};
+    FBox2D Cells[RegionCount],Boxes[RegionCount];
+    for(int32 I=0;I<RegionCount;++I)
+    {
+        Cells[I]=Ground;Boxes[I]=Anchors[I];
+        if(!Anchors[I].bIsValid){continue;}
+        for(int32 J=0;J<RegionCount;++J)
+        {
+            if(J==I||!Anchors[J].bIsValid){continue;}
+            const FBox2D& Own=Anchors[I];const FBox2D& Other=Anchors[J];
+            const double GapX=FMath::Max(Other.Min.X-Own.Max.X,Own.Min.X-Other.Max.X),GapY=FMath::Max(Other.Min.Y-Own.Max.Y,Own.Min.Y-Other.Max.Y);
+            if(GapX<=0.&&GapY<=0.)
+            {Error=FString::Printf(TEXT("The %s and the %s overlap on the minimap; their anchors are too close to tell apart."),Names[I],Names[J]);return false;}
+            const int32 Axis=GapX>=GapY?0:1;
+            if(Other.Min[Axis]>Own.Max[Axis]){Cells[I].Max[Axis]=FMath::Min(Cells[I].Max[Axis],(Own.Max[Axis]+Other.Min[Axis])*.5);}
+            else{Cells[I].Min[Axis]=FMath::Max(Cells[I].Min[Axis],(Other.Max[Axis]+Own.Min[Axis])*.5);}
+        }
+    }
+    for(const FBox2D& Footprint:Footprints)
+    {
+        if(!Footprint.bIsValid){continue;}
+        int32 Nearest=INDEX_NONE;double NearestGap=0.;
+        for(int32 I=0;I<RegionCount;++I)
+        {
+            if(!Anchors[I].bIsValid){continue;}
+            const FBox2D& Own=Anchors[I];
+            const double Gap=FMath::Max3(0.,FMath::Max(Own.Min.X-Footprint.Max.X,Footprint.Min.X-Own.Max.X),FMath::Max(Own.Min.Y-Footprint.Max.Y,Footprint.Min.Y-Own.Max.Y));
+            if(Gap<=RegionReachCm&&(Nearest==INDEX_NONE||Gap<NearestGap)){Nearest=I;NearestGap=Gap;}
+        }
+        if(Nearest==INDEX_NONE){continue;}
+        const FBox2D Part=Overlap(Overlap(Footprint,Anchors[Nearest].ExpandBy(RegionReachCm)),Cells[Nearest]);
+        if(Part.bIsValid){Boxes[Nearest]+=Part;}
+    }
+    for(int32 I=0;I<RegionCount;++I){Out[I]=Anchors[I].bIsValid?Overlap(Boxes[I],Cells[I]):FBox2D(ForceInit);}
+    if(!Out[FieldRegion].bIsValid){Out[FieldRegion]=Ground;}
+    Error.Reset();
+    return true;
+}
 
 namespace
 {
@@ -164,17 +214,17 @@ double MinimapArea(const TArray<FVector2D>& Polygon)
 {double Twice=0;for(int32 I=0;I<Polygon.Num();++I){const FVector2D& From=Polygon[I];const FVector2D& To=Polygon[(I+1)%Polygon.Num()];Twice+=From.X*To.Y-To.X*From.Y;}return FMath::Abs(Twice)*.5;}
 // One registered world revision, in world cm. Any unresolved item fails the whole layer, because a partial map could pass
 // for the approved one. Spawn anchors are never drawn; they only keep the playable area inside the fit.
-// The walls around a region's anchors lie within this reach of them; the two regions lie farther apart than it.
-constexpr double MinimapRegionReachCm=1000.;
-// The rest room's anchors: everything else belongs to the field.
-bool MinimapRestAnchor(ELDDemoWorldAnchorKind Kind)
+// The rest room's and the final arena's anchors: everything else belongs to the field.
+LDMinimap::ERegion MinimapRegionOf(ELDDemoWorldAnchorKind Kind)
 {
-    return Kind==ELDDemoWorldAnchorKind::RestSpawn||Kind==ELDDemoWorldAnchorKind::RestService||Kind==ELDDemoWorldAnchorKind::TrainingDummy
-        ||Kind==ELDDemoWorldAnchorKind::PKSignup;
+    if(Kind==ELDDemoWorldAnchorKind::RestSpawn||Kind==ELDDemoWorldAnchorKind::RestService||Kind==ELDDemoWorldAnchorKind::TrainingDummy
+        ||Kind==ELDDemoWorldAnchorKind::PKSignup){return LDMinimap::RestRegion;}
+    if(Kind==ELDDemoWorldAnchorKind::FinalSpawn||Kind==ELDDemoWorldAnchorKind::FinalCapture){return LDMinimap::FinalRegion;}
+    return LDMinimap::FieldRegion;
 }
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
-    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);
+    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);Cache.Final=FBox2D(ForceInit);
     if(!Approved.World.MapId.Equals(Geometry.MapId,ESearchCase::CaseSensitive))
     {Error=FString::Printf(TEXT("Approved content names map %s but the registered world is %s."),*Approved.World.MapId,*Geometry.MapId);return false;}
     auto ToCm=[&Error](const FString& Id,const FLDDemoWorldPoint& Point,FVector2D& Result)
@@ -185,7 +235,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
-    FBox2D FieldAnchors(ForceInit),RestAnchors(ForceInit);
+    TArray<FBox2D> Anchors;Anchors.Init(FBox2D(ForceInit),LDMinimap::RegionCount);
     auto Terrain=[&](const FString& Id,const TArray<FLDDemoWorldPoint>& Polygon,FLDMinimapStatic::EArea Style)
     {
         FLDMinimapStatic::FArea Area;Area.Style=Style;
@@ -213,7 +263,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     for(const FLDDemoWorldAnchor& Anchor:Geometry.Anchors)
     {
         FLDMinimapStatic::FSite Site;if(!ToCm(Anchor.Id,Anchor.PositionCm,Site.Cm)){return false;}
-        (MinimapRestAnchor(Anchor.Kind)?RestAnchors:FieldAnchors)+=Site.Cm;
+        Anchors[MinimapRegionOf(Anchor.Kind)]+=Site.Cm;
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn){continue;}
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Capture)
         {
@@ -255,22 +305,10 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
-    // Each region grows by the drawn areas near its anchors (its walls, trees and zones) and never reaches beyond the ground,
-    // where nothing is drawn; a field without any anchor fits the whole ground.
-    const auto Region=[&](const FBox2D& Anchors)
-    {
-        if(!Anchors.bIsValid){return FBox2D(ForceInit);}
-        const FBox2D Reach=Anchors.ExpandBy(MinimapRegionReachCm);
-        FBox2D Box=Anchors;
-        for(const FLDMinimapStatic::FArea& Area:Cache.Areas){const FBox2D Footprint(Area.Cm);if(Footprint.bIsValid&&Footprint.Intersect(Reach)){Box+=Footprint;}}
-        Box=FBox2D(FVector2D(FMath::Max(Box.Min.X,Ground.Min.X),FMath::Max(Box.Min.Y,Ground.Min.Y)),FVector2D(FMath::Min(Box.Max.X,Ground.Max.X),FMath::Min(Box.Max.Y,Ground.Max.Y)));
-        const FVector2D Span=Box.GetSize();
-        return Span.X>0.&&Span.Y>0.?Box:FBox2D(ForceInit);
-    };
-    Cache.Field=Region(FieldAnchors);Cache.Rest=Region(RestAnchors);
-    if(!Cache.Field.bIsValid){Cache.Field=Ground;}
-    if(Cache.Rest.bIsValid&&Cache.Rest.Intersect(Cache.Field))
-    {Error=TEXT("The rest room and the field overlap on the minimap; their anchors are too close to tell apart.");return false;}
+    TArray<FBox2D> Footprints,Regions;
+    for(const FLDMinimapStatic::FArea& Area:Cache.Areas){Footprints.Add(FBox2D(Area.Cm));}
+    if(!LDMinimap::FitRegions(Anchors,Footprints,Ground,Regions,Error)){return false;}
+    Cache.Field=Regions[LDMinimap::FieldRegion];Cache.Rest=Regions[LDMinimap::RestRegion];Cache.Final=Regions[LDMinimap::FinalRegion];
     return true;
 }
 class SLDMinimapRaster : public SLeafWidget
@@ -343,7 +381,7 @@ void MinimapResolveRevision(FLDMinimapStatic& Cache,const UWorld* World,const FB
     Cache.bValid=Cache.Content&&MinimapResolveStatic(Cache,*Geometry,Cache.Content->Get(),Ground,Error);
     if(!Cache.bValid)
     {
-        Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);
+        Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);Cache.Final=FBox2D(ForceInit);
         const FString Reason=Cache.Content?Error:TEXT("Approved Demo content unavailable: ")+Cache.ContentError;
         UE_LOG(LogLDUI,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE %s %s"),*Cache.World.MapId.ToString(),*Reason);
     }
@@ -420,13 +458,13 @@ void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC
     }
     Cache.CoverageKey={Read.LocalSerial,PC.OwnerState.Match,PC.OwnerState.Life};
 }
-// The region the map shows: the rest room while the owner's living body stands in it (without a body, while the camera
-// looks at it), else the field; the whole ground until the layer resolves. It is the map's own ground: the view fits it,
+// The region the map shows: the rest room or the final arena while the owner's living body stands in it (without a body,
+// while the camera looks at it), else the field; the whole ground until the layer resolves. It is the map's own ground: the view fits it,
 // paint clips to it and gestures clamp into it.
 FBox2D MinimapRegion(const ALDPlayerController& PC,const FLDMinimapStatic& Cache,const UWorld* World,const FBox2D& Ground)
 {
     if(!MinimapStaticCurrent(Cache,World)){return Ground;}
-    if(!Cache.Rest.bIsValid){return Cache.Field;}
+    if(!Cache.Rest.bIsValid&&!Cache.Final.bIsValid){return Cache.Field;}
     FVector2D Where=FVector2D::ZeroVector;bool bWhere=false;
     if(const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr){Where=FVector2D(Body->GetActorLocation());bWhere=true;}
     else
@@ -435,7 +473,8 @@ FBox2D MinimapRegion(const ALDPlayerController& PC,const FLDMinimapStatic& Cache
         if(W>0&&H>0&&PC.DeprojectScreenPositionToWorld(W*.5f,H*.5f,Origin,Direction)&&Direction.Z<-.001)
         {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Where=FVector2D(Hit);bWhere=true;}
     }
-    return bWhere&&Cache.Rest.IsInsideOrOn(Where)?Cache.Rest:Cache.Field;
+    if(bWhere&&Cache.Rest.bIsValid&&Cache.Rest.IsInsideOrOn(Where)){return Cache.Rest;}
+    return bWhere&&Cache.Final.bIsValid&&Cache.Final.IsInsideOrOn(Where)?Cache.Final:Cache.Field;
 }
 // The owner's live view: the applied orientation over the shown region. Painting and gestures both use it, so a pointer
 // lands where the map shows.
