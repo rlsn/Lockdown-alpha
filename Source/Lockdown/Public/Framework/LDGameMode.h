@@ -520,9 +520,46 @@ private:
         bool bInside = false;
         uint64 RegisteredStep = 0;
         uint64 LastStep = 0;
+        // The main spray zone geometry this presence was judged against (CaptureCircleSerial).
+        uint64 CircleSerial = 0;
     };
     FLDCaptureReducer CaptureReducer;
     FLDCaptureCircle CaptureCircle;
+    // A private flagpole (final_private_pole) beside its holder's arena entrance: its own reducer and per-contender presence.
+    struct FLDPrivatePole
+    {
+        FGuid Holder;
+        FLDCaptureReducer Reducer;
+        FLDCaptureCircle Circle;
+        TMap<FGuid, bool> Inside;
+    };
+    TArray<FLDPrivatePole> PrivatePoles;
+    // The final field's main flagpole: its arena anchor, approved radius and the final mods that move or shrink it.
+    FVector2D CaptureAnchorCm = FVector2D::ZeroVector;
+    // The main flagpole's current foot point (the anchor, or where its carrier stands or fell).
+    FVector CapturePoleCm = FVector::ZeroVector;
+    double CaptureBaseRadiusCm = 0;
+    double DoubleYellowRadiusCm = 0;
+    uint64 CaptureCircleSerial = 0;
+    // final_cage: the fence's approved duration and the standing fence (CageUntilMs 0: none).
+    int64 CageDurationMs = 0;
+    int64 CageUntilMs = 0;
+    FVector2D CageCentreCm = FVector2D::ZeroVector;
+    double CageRadiusCm = 0;
+    TMap<FGuid, uint32> CageSprays;
+    TArray<FLDFinalModHolderView> ShowdownMods;
+    // Which reducer completes inside this step: INDEX_NONE for the main flagpole, else a private pole index.
+    int32 CaptureInsideSource = INDEX_NONE;
+    // Every eligibility, interruption and leave fact reaches the main flagpole and every private one; Joined and
+    // Respawned carry their initial presence in each zone.
+    bool EnqueueCaptureFact(const FLDCaptureEvent& Fact, const FVector* InitialFootCm,
+        const FLDNativeSupportSample* InitialSupport, FString& Error);
+    // A discontinuous foot (DEV teleport) judged against every zone at one instant.
+    bool RejudgeCapturePresence(const FGuid& Contender, const FLDCombatBodyRef& Body, const FVector& FootCm,
+        const FLDNativeSupportSample& Support, const FLDCaptureEventTime& Time, ELDCommitPhase Phase, FString& Error);
+    // After Capture: moves the main zone with a final_carry_flag owner, sizes it for a final_double_yellow owner and
+    // raises a final_cage fence on its holder's new graffiti.
+    void UpdateCaptureGeometry(int64 AtMs);
     FLDDormZones DormZones;
     FLDAirdropState Airdrop;
     // #198 outer §5 camp markers of this match; inactive outside a running match.
@@ -569,6 +606,8 @@ private:
         const FLDGameplayWritePermit& Permit, FString& Error);
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
+    // The boundary whose Capture decided PendingCapture (its win may lie earlier in the step).
+    int64 PendingCaptureAtMs = 0;
     TSet<FLDDeathKey> CountedDeaths;
     TArray<FLDKillNotice> KillNotices;
     uint64 NextKillSerial = 0;
@@ -596,6 +635,8 @@ private:
     int64 ShowdownRingTickAtMs = 0;
     bool bShowdownClosePending = false;
     bool BeginShowdown(const FLDGameplayWritePermit& Permit, FString& Error);
+    // The locked final mods: public holders, the main flagpole's rules and each private flagpole.
+    bool BeginFinalMods(const class ULDMapRegistry& Registry, FString& Error);
     bool CloseShowdownIfDue(const FLDGameplayWritePermit& Permit, FString& Error);
     // ---- #198 rest phases (Framework/LDGameModeRest.cpp) ----
     FLDMatchTimeline Timeline;

@@ -3,6 +3,7 @@
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Components/PrimitiveComponent.h"
+#include "Development/LDDemoContentIds.h"
 
 namespace
 {
@@ -22,12 +23,20 @@ bool FLDCaptureCircle::IsValid() const
 
 bool FLDCaptureCircle::Supports(const FLDNativeSupportSample& Support) const
 {
-    return Support.Grounded && Support.Floor.IsValid() && Support.Floor == Ground;
+    return Support.Grounded && Support.Floor.IsValid() && (bAnyGround || Support.Floor == Ground);
 }
 
 bool FLDCaptureCircle::Contains(const FVector& FootCm, const FLDNativeSupportSample& Support) const
 {
     return Supports(Support) && CaptureDistanceSquaredXY(FootCm, CenterCm) <= RadiusCm * RadiusCm;
+}
+
+void LDCaptureCircle::FinalZone(const FLDFinalZoneInput& In, FVector2D& OutCentreCm, double& OutRadiusCm)
+{
+    const ELDDemoFinalModId Mod = static_cast<ELDDemoFinalModId>(In.OwnerMod);
+    OutCentreCm = Mod == ELDDemoFinalModId::FinalCarryFlag && In.OwnerFootCm.IsSet() && !In.bCageStanding
+        ? In.OwnerFootCm.GetValue() : In.CurrentCm;
+    OutRadiusCm = Mod == ELDDemoFinalModId::FinalDoubleYellow ? In.DoubleYellowRadiusCm : In.BaseRadiusCm;
 }
 
 bool LDCaptureCircle::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content,
