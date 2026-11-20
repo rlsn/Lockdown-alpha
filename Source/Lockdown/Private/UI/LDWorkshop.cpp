@@ -49,7 +49,7 @@ constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
 constexpr float WorkshopCharacterWidth=352.f;
 // The character column shows every element reaction (6 x 5 / 2 pairs) as chips in rows of three.
-constexpr int32 WorkshopReactionChips=15;
+constexpr int32 WorkshopReactionChips=10;
 constexpr int32 WorkshopReactionColumns=3;
 constexpr float WorkshopRightWidth=456.f;
 constexpr float WorkshopPendingWidth=360.f;
@@ -204,7 +204,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             {FSlateFontInfo Font=ReactionTitle->GetFont();Font.LetterSpacing=200;ReactionTitle->SetFont(Font);}
             ReactionBlock=WidgetTree->ConstructWidget<UVerticalBox>();Column->AddChildToVerticalBox(ReactionBlock);
             ReactionBlock->AddChildToVerticalBox(ReactionTitle)->SetPadding(FMargin(0,26,0,10));
-            // .rx: all fifteen element pairs as chips in a five-by-three grid (lit first, then near, then the rest): two
+            // .rx: all ten element pairs as chips in a three-column grid (lit first, then near, then the rest): two
             // element discs (painted under their characters), a small plus and the reaction's name. No scrolling: the
             // column scales down when it does not fit.
             auto* ReactionGrid=WidgetTree->ConstructWidget<UUniformGridPanel>();
@@ -1357,6 +1357,24 @@ void ULDWorkshop::AnimateOpening()
         LDTween::SetTranslation(Over,FVector2D(0.f,(1.f-Joined)*Rise));
         LDTween::SetOpacity(Over,Joined);
     }
+}
+FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    // The row under the wheel event itself (the band below is hidden while the workshop is open). Only while the full
+    // workshop shows its character panel: a collapsed panel keeps its rows' old geometry.
+    const bool bRowsShown=Mode==EMode::Full&&CharacterPanel&&CharacterPanel->IsVisible()
+        &&!(Choices.IsValid()&&Choices->IsStageShown());
+    if(bRowsShown&&StatBar.IsValid()&&Event.GetWheelDelta()!=0.f)
+    {
+        for(int32 Index=0;Index<StatRows.Num();++Index)
+        {
+            const UWidget* Row=StatRows[Index].Row;
+            if(!Row||!Row->IsVisible()||!Row->GetCachedGeometry().IsUnderLocation(Event.GetScreenSpacePosition())){continue;}
+            if(Event.GetWheelDelta()>0.f){StatBar->Allocate(Index);}else{StatBar->Refund(Index);}
+            return FReply::Handled();
+        }
+    }
+    return Super::NativeOnMouseWheel(Geometry,Event);
 }
 FReply ULDWorkshop::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
 {

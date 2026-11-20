@@ -182,7 +182,7 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
                 // .grp: a mark (painted), the form's name spaced out, the count, and a hairline to the edge (painted).
                 auto* SwatchBox=WidgetTree->ConstructWidget<USizeBox>();SwatchBox->SetWidthOverride(12.f);SwatchBox->SetHeightOverride(12.f);
                 Head->AddChildToHorizontalBox(SwatchBox)->SetVerticalAlignment(VAlign_Center);LibrarySwatches.Add(SwatchBox);
-                UTextBlock* Name=Line(LDTerms::CardFormName(Kind),13,LDHUDStyle::TextSecondary);
+                UTextBlock* Name=Line(LDTerms::CardFormName(LDWorkshop::LibraryGroupForm(Kind)),13,LDHUDStyle::TextSecondary);
                 {FSlateFontInfo Font=Name->GetFont();Font.LetterSpacing=160;Name->SetFont(Font);}
                 Head->AddChildToHorizontalBox(Name)->SetPadding(FMargin(10,0,0,0));
                 UTextBlock* Count=Line(TEXT(""),13,LDHUDStyle::TextSecondary);Count->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Number,13));
@@ -370,14 +370,15 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         const bool bFresh=Stored&&Stored->bFresh;
         const int32 Copies=Stored?Stored->Copies:1;
         const LDWorkshop::FCardFacts Facts=LDWorkshop::CardFacts(Id,LatestContent);
-        if(Workshop.bActive){BuildWorkshopCard(Id,bFresh,LibraryIcon,int32(Facts.Form),Copies);}else{BuildCard(Id,bFresh,Copies);}
+        if(Workshop.bActive){BuildWorkshopCard(Id,bFresh,LibraryIcon,LDWorkshop::LibraryGroupOf(Facts.Form),Copies);}else{BuildCard(Id,bFresh,Copies);}
         FCard& Card=Cards.Last();
         Card.Kind=uint8(Facts.Type);Card.bFresh=bFresh;
         Card.Icon=LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,LDHUD::CardDefinition(Id).ToString()));
         // A card with no place now dims and loses its colour; the dock says what it needs.
         Card.bPlaceless=LDHUD::CardDrops(Id,Latest,LatestContent).IsEmpty()&&LDHUD::ReplaceDrops(Id,Latest,LatestContent).IsEmpty();
         StyleFace(Card.Face,Id,Card.Kind,Workshop.bActive?LibraryIcon:StorageTile,Card.bPlaceless);
-        if(int32(Facts.Form)<LDWorkshop::LibraryGroupCount){++ShownCounts[int32(Facts.Form)];}
+        const int32 Group=LDWorkshop::LibraryGroupOf(Facts.Form);
+        if(Group>=0&&Group<LDWorkshop::LibraryGroupCount){++ShownCounts[Group];}
     };
     if(Workshop.bActive)
     {

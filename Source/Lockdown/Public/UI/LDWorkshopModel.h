@@ -17,10 +17,12 @@ namespace LDWorkshop
         ELDCardType Type=ELDCardType::Trigger;
     };
     LOCKDOWN_API FCardFacts CardFacts(FName Card,const FLDDemoContentDefinitions* Content);
-    // The library's groups, one per card form (普攻, 技能, 冲刺, 本体): each stored definition once (its first copy's key, the
-    // storage view's order). A selected type filter (ELDCardType) excludes the other types.
-    // One group per card form (ELDCardForm; 0 is retired and stays empty).
-    constexpr int32 LibraryGroupCount=5;
+    // The library's groups, one per card form (技能, 冲刺, 本体, 勋章): each stored definition once (its first copy's key, the
+    // storage view's order). A selected type filter (ELDCardType) excludes the other types. Group = ELDCardForm − 1 (form 0
+    // is retired), so the four groups fit the FIntVector4 page counts.
+    constexpr int32 LibraryGroupCount=4;
+    inline int32 LibraryGroupOf(ELDCardForm Form){return int32(Form)-1;}
+    inline uint8 LibraryGroupForm(int32 Group){return uint8(Group+1);}
     struct FLibraryGroups
     {
         TArray<FName> Items[LibraryGroupCount];

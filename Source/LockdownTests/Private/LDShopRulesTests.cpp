@@ -150,10 +150,11 @@ bool FLDGrowthShopBuyTest::RunTest(const FString& Parameters)
         && OutProgression.Shop.Slots[CardSlot].bSold && OutProgression.Shop.Revision == Rich.Shop.Revision + 1 && Outcome.PointsPaid == Terms.CardPrice);
     {
         // Spec §3.13: a respec never returns what the shop took.
-        FLDGrowthBuild Respecced;
+        FLDGrowthBuild Allocated = Out, Respecced;
+        Allocated.StatPoints[0] = 5;
         int64 Refunded = 0;
-        bGood &= Reason(*this, TEXT("A respec after a purchase"), LDProgression::ApplyRespec(Content, Out, Rich.CumulativeXP, {}, Rest, Respecced,
-            Refunded), ELDGrowthReason::None);
+        bGood &= Reason(*this, TEXT("A respec after a purchase"), LDProgression::ApplyRespec(Content, Allocated, Rich.CumulativeXP, {}, Rest,
+            Respecced, Refunded), ELDGrowthReason::None);
         bGood &= TestTrue(TEXT("It returns the allocated points only"), Respecced.ShopSpentPoints == Terms.CardPrice
             && Unspent(Content, Respecced, OutProgression) == 18 - Terms.CardPrice);
     }

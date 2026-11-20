@@ -25,7 +25,9 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GraffitiCause"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
         TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK"),
         TEXT("Showdown"),TEXT("OwnerBankedGuardMs"),TEXT("PoleCentreCm"),TEXT("PoleRadiusCm"),TEXT("FadeAtMs"),
-        TEXT("CageUntilMs"),TEXT("CageCentreCm"),TEXT("CageRadiusCm"),TEXT("FinalMods"),TEXT("PrivatePoles"),TEXT("DailyModifiers"),TEXT("Objective")},TEXT("The public flagpole carries only public objective and timeline state"));
+        TEXT("CageUntilMs"),TEXT("CageCentreCm"),TEXT("CageRadiusCm"),TEXT("FinalMods"),TEXT("PrivatePoles"),TEXT("DailyModifiers"),TEXT("Objective"),TEXT("Lockers")},TEXT("The public flagpole carries only public objective and timeline state"));
+    ExpectStruct(FLDLockerView::StaticStruct(),{TEXT("AnchorId"),TEXT("PositionCm"),TEXT("ClosesAtT"),TEXT("bChanneling")},
+        TEXT("A public locker carries its place, closing time and whether it is held, never who holds it"));
     ExpectStruct(FLDShowdownView::StaticStruct(),{TEXT("bStarted"),TEXT("StartedAtMs"),TEXT("EndsAtMs"),
         TEXT("RespawnsCloseAtMs"),TEXT("ClosureAtMs"),TEXT("SprayMs"),TEXT("GuardMs"),TEXT("CentreCm"),
         TEXT("InitialRadiusCm"),TEXT("FinalRadiusCm")},TEXT("The public showdown exposes clocks and arena geometry, never hidden contenders or builds"));
