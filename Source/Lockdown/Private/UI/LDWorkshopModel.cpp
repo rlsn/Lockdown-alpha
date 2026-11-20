@@ -59,9 +59,9 @@ LDWorkshop::FLibraryGroups LDWorkshop::CollectLibrary(const LDHUD::FStorageView&
     for(const LDHUD::FStoredView& Stored:Storage.Stored)
     {
         const FCardFacts Facts=CardFacts(Stored.Card,Content);
-        const int32 Form=int32(Facts.Form);
-        if(!Facts.bKnown||Form<0||Form>=LibraryGroupCount||(TypeFilter!=INDEX_NONE&&int32(Facts.Type)!=TypeFilter)){continue;}
-        Groups.Items[Form].Add(Stored.Card);
+        const int32 Group=LibraryGroupOf(Facts.Form);
+        if(!Facts.bKnown||Group<0||Group>=LibraryGroupCount||(TypeFilter!=INDEX_NONE&&int32(Facts.Type)!=TypeFilter)){continue;}
+        Groups.Items[Group].Add(Stored.Card);
     }
     return Groups;
 }

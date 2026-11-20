@@ -49,7 +49,7 @@ constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
 constexpr float WorkshopCharacterWidth=352.f;
 // The character column shows every element reaction (6 x 5 / 2 pairs) as chips in rows of three.
-constexpr int32 WorkshopReactionChips=15;
+constexpr int32 WorkshopReactionChips=10;
 constexpr int32 WorkshopReactionColumns=3;
 constexpr float WorkshopRightWidth=456.f;
 constexpr float WorkshopPendingWidth=360.f;
@@ -204,7 +204,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             {FSlateFontInfo Font=ReactionTitle->GetFont();Font.LetterSpacing=200;ReactionTitle->SetFont(Font);}
             ReactionBlock=WidgetTree->ConstructWidget<UVerticalBox>();Column->AddChildToVerticalBox(ReactionBlock);
             ReactionBlock->AddChildToVerticalBox(ReactionTitle)->SetPadding(FMargin(0,26,0,10));
-            // .rx: all fifteen element pairs as chips in a five-by-three grid (lit first, then near, then the rest): two
+            // .rx: all ten element pairs as chips in a three-column grid (lit first, then near, then the rest): two
             // element discs (painted under their characters), a small plus and the reaction's name. No scrolling: the
             // column scales down when it does not fit.
             auto* ReactionGrid=WidgetTree->ConstructWidget<UUniformGridPanel>();
