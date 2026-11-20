@@ -123,22 +123,14 @@ bool ALDGameMode::DevTeleport(const FGuid& Contender, const FVector& CameraPosit
     Life->MotionGrounded = Movement->CurrentFloor.IsWalkableFloor();
     Life->MotionFloor = Movement->CurrentFloor.HitResult.GetComponent();
     // Teleport is a discontinuity: update presence at this boundary, never sweep through intermediate circles.
-    if (auto* Track = CaptureTracks.Find(Contender); Track && CaptureReducer.IsActive())
+    if (CaptureTracks.Contains(Contender) && CaptureReducer.IsActive())
     {
-        const bool Inside = CaptureCircle.Contains(Life->MotionLastFoot, {Life->MotionGrounded, Life->MotionFloor});
-        if (Track->bInside != Inside)
-        {
-            FLDCaptureEvent Fact;
-            Fact.Kind = ELDCaptureEventKind::Presence;
-            Fact.Body = Life->Body;
-            Fact.Phase = ELDCommitPhase::Transactions;
-            Fact.bInside = Inside;
-            Fact.Time.Seconds = AuthorityStep.EndServerSeconds;
-            Fact.Time.BucketMs = Permit.GetBoundary().AtMs;
-            if (!CaptureReducer.Enqueue(Fact, Error) || (Combat && !Combat->NotifyFinalPresence(Fact, Error)))
-            { FaultAuthority(Error); return false; }
-            Track->bInside = Inside;
-        }
+        FLDCaptureEventTime At;
+        At.Seconds = AuthorityStep.EndServerSeconds;
+        At.BucketMs = Permit.GetBoundary().AtMs;
+        if (!RejudgeCapturePresence(Contender, Life->Body, Life->MotionLastFoot, {Life->MotionGrounded, Life->MotionFloor}, At,
+            ELDCommitPhase::Transactions, Error))
+        { FaultAuthority(Error); return false; }
     }
     Body->ForceNetUpdate();
     SyncOwner(FindContenderController(Contender));

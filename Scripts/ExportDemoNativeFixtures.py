@@ -746,20 +746,11 @@ def expected_projection(compilation):
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
         "Cards": [card(row) for row in data["cards"]],
         "FinalMods": [{
-            "Id": row["id"], "NativeId": row["native_id"],
-            "Requirement": ("Basic", "ForcedMove", "HardControl", "Dash", "PlacedZone").index(row["requirement"]),
+            "Id": row["id"], "NativeId": row["native_id"], "Sprays": row.get("sprays", 0),
             **{dest: scalar(row[source]) if source in row else 0 for source, dest in (
-                ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
-                ("delay", "DelayMs"), ("duration", "DurationMs"), ("interval", "IntervalMs"),
-                ("pulse_interval", "PulseIntervalMs"), ("window", "WindowMs"), ("outside", "OutsideMs"),
-                ("rearm_outside", "RearmOutsideMs"), ("cooldown_cost", "CooldownCostMs"),
-                ("duration_cost", "DurationCostMs"), ("damage_ratio", "DamageScaleBp"),
-                ("control_ratio", "ControlScaleBp"), ("distance_ratio", "DistanceScaleBp"),
-                ("radius_ratio", "RadiusScaleBp"), ("move_speed_cost", "MoveSpeedCostBp"),
-                ("slow", "SlowBp"), ("slow_duration", "SlowMs"),
+                ("fade", "FadeMs"), ("guard", "GuardMs"), ("spray", "SprayMs"), ("duration", "DurationMs"),
             )},
-            **{dest: rational(row[source]) if source in row else {"Numerator": 0, "Denominator": 1}
-               for source, dest in (("radius", "RadiusCm"), ("distance", "DistanceCm"), ("offset", "OffsetCm"))},
+            "RadiusCm": rational(row["radius"]) if "radius" in row else {"Numerator": 0, "Denominator": 1},
         } for row in data["final_mods"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
         "Progression": {dest: data["progression"][source] for source, dest in (
@@ -773,8 +764,6 @@ def expected_projection(compilation):
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
             "DescriptionKey": row["description_key"], "DescriptionText": row["description_text"],
-            **{part.capitalize() + suffix: row.get(part + "_" + suffix.lower(), "")
-               for part in demo.FINAL_MOD_DISPLAY_PARTS for suffix in ("Key", "Text")},
             "IconId": row["icon_id"], "PortraitIconId": row.get("portrait_icon_id", ""),
         } for row in data["display"]],
     }
@@ -1222,11 +1211,8 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     display = lambda d, identity: next(row for row in d["display"] if row["id"] == identity)
     bad_content("advanced_display_line", lambda d: display(d, "active_snark_bolt").update(
         {"advanced_key": "active_snark_bolt.advanced", "advanced_text": "\u8bf4\u660e"}), "unknown field")
-    bad_content("final_display_missing_cost", lambda d: display(d, "final_split").pop("cost_text"), "missing")
-    bad_content("final_display_wrong_key", lambda d: display(d, "final_split").update({"notes_key": "final_split.note"}),
-                "display reference")
-    bad_content("effect_line_off_final", lambda d: display(d, "active_snark_bolt").update(
-        {"effect_key": "active_snark_bolt.effect", "effect_text": "\u8bf4\u660e"}), "unknown field")
+    bad_content("effect_line_on_final", lambda d: display(d, "final_cage").update(
+        {"effect_key": "final_cage.effect", "effect_text": "说明"}), "unknown field")
     bad_content("absent_card_effect", lambda d: display(d, "active_snark_bolt").update({"description_text": "[stun.duration]"}),
                 "card placeholder")
     bad_content("stat_card_absent_bonus", lambda d: display(d, "stat_brains").update({"description_text": "[per_point.ADFlat]"}),

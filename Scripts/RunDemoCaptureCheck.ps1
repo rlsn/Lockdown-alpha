@@ -18,8 +18,8 @@ $wire = $harness.Wire
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
-    Host = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13','C16','A01','A02','A03')
-    Client1 = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13','C16')
+    Host = @('C01','C02','C03','C04','C04F','C04P','C05','C06','C07','C08','C09','C10','C11','C12','C13','A01','A02','A03')
+    Client1 = @('C01','C02','C03','C04','C04F','C04P','C05','C06','C07','C08','C09','C10','C11','C12','C13')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
 $clientCount = if ($AllHuman) { 5 } else { 2 }
@@ -116,8 +116,6 @@ try {
             $_.Line -match 'LogNet: Error: UEngine::BroadcastNetworkFailure: FailureType = ConnectionLost,') })
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
     $roster = if ($AllHuman) { 'six real owners, no AI' } else { 'three real owners plus three production AI' }
-    $trafficOwners = @($reports | Where-Object { $_.summary.final_traffic_dash -eq $true -and $_.summary.final_road_seen -eq $true })
-    Write-Host ("Owning FIN effect evidence: {0} owners observed their real D-bound traffic road." -f $trafficOwners.Count)
     Write-Host ("Normal-start six-contender showdown passed: {0}, three growth fields and final rest, six independent FIN choices and locks, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {1}. Six-owner mode also verifies frontend reconnect after selection. Not graphical quality or exhaustive respawn choreography. Evidence: {2}" -f
         $roster,$reports[0].summary.second_generation,$output)
 }

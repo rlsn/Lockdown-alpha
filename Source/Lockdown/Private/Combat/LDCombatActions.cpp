@@ -189,9 +189,6 @@ void ALDCombatDirector::EndMatchActions()
     GroundEffects.Reset();
     MonsterStrikes.Reset();
     ContactMotion.Reset();
-    FinalMotion.Reset();
-    FinalTraffic.Reset();
-    FinalControlExits.Reset();
     for (auto& Pair : Records)
     {
         auto& Record=Pair.Value;
@@ -1168,11 +1165,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     FLDInnateDashTerms Innate;
     if (bInnate && !InnateDashFor(Innate,Error)) { return false; }
     // K08 and D05 on D: its issued cooldown and segment distance follow the cards (Terms).
-    if (bInnate)
-    {
-        if (!FinalCooldownCost(*Record,Source,Innate.CooldownMs,Error)) { return false; }
-        LDCombatSourceRules::ScaleInnateDash(Innate,Terms);
-    }
+    if (bInnate) { LDCombatSourceRules::ScaleInnateDash(Innate,Terms); }
     // A stun or taunt that landed during the windup ends it (normally already abandoned at the hit).
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
@@ -1914,4 +1907,13 @@ bool ALDCombatDirector::ReadMoveSpeed(const ALDCharacter& Actor, float& OutCmPer
     { return false; }
     OutCmPerSec=float(Speed);
     return true;
+}
+
+bool ALDCombatDirector::ReadDirectRequestCursor(const FGuid& Entity,uint64& Through,FString& Error) const
+{
+    const FLDCombatEntityRecord* Record=Records.Find(Entity);
+    if(!Record){Error=TEXT("Reconnect direct cursor has no current combat record.");return false;}
+    Through=FMath::Max(Record->DirectHighWater,Record->CancelledThrough);
+    if(Through==MAX_uint64){Error=TEXT("Reconnect direct cursor exhausted its sequence.");return false;}
+    Error.Reset();return true;
 }

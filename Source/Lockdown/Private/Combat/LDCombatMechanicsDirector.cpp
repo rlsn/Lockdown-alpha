@@ -181,11 +181,6 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     if (!LDCombatMechanics::KnockbackDirection(From,FootOf(Target),Yaw,Direction))
     { Error=TEXT("A knockback has no finite direction."); return false; }
     FLDCombatHit Hit=InHit;
-    const FLDDemoFinalModDefinition* FinalCard=nullptr;
-    if (!FinalModOf(Hit.SourceEntity,FinalCard,Error)) { return false; }
-    if (FinalCard && FinalCard->GetNativeId()==ELDDemoFinalModId::FinalBowling && !Hit.bFinalModDerived
-        && FinalModTargetsSource(Hit.SourceEntity,Hit.KnockbackSource))
-    { Hit.KnockbackCm*=double(FinalCard->DistanceScaleBp)/10000.; }
     if (Hit.bKnockbackPull)
     {
         // M20: toward the origin, stopping KnockbackStopCm short of it; the time shrinks with a clamped distance.
@@ -364,11 +359,7 @@ void ALDCombatDirector::UpdateZoneHaste(const FLDCombatZone& Zone, int64 NowMs)
         { return Row.EffectId==Zone.EffectId; });
         if (!bOwner && !bMate && !bHeld) { continue; }
         const bool bInside=(bOwner || bMate) && Actor && !Body.bPendingDeath && !Body.bSuspended && NowMs<Zone.EndMs
-            && (Zone.bFinalSplit ? Zones.ContainsByPredicate([&Zone,Actor,NowMs](const FLDCombatZone& Child)
-                {
-                    return Child.EffectId==Zone.EffectId && NowMs<Child.EndMs
-                        && FVector::DistSquared2D(Child.CentreCm,FootOf(*Actor))<=Child.RadiusCm*Child.RadiusCm;
-                }) : FVector::DistSquared2D(Zone.CentreCm,FootOf(*Actor))<=Zone.RadiusCm*Zone.RadiusCm);
+            && FVector::DistSquared2D(Zone.CentreCm,FootOf(*Actor))<=Zone.RadiusCm*Zone.RadiusCm;
         if (bInside && !bHeld)
         {
             FLDCombatTimedBonus Bonus;
@@ -499,9 +490,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
             Zone.DamageType=Damage->DamageType;
         }
         Zone.CreatedSerial=++NextAreaSerial;
-        bool bSplit=false;
-        if (!SplitFinalZone(Zone,ReleaseDirection,Now,bSplit,Error)) { return false; }
-        if (!bSplit) { Zones.Add(MoveTemp(Zone)); }
+        Zones.Add(MoveTemp(Zone));
     }
     return true;
 }
@@ -518,4 +507,40 @@ uint64 ALDCombatDirector::ReadKnockbackSerial(const FLDCombatBodyRef& Ref) const
 {
     const FLDBodyCombatState* Body=FindBody(Ref);
     return Body ? Body->KnockbackSerial : 0;
+}
+
+bool ALDCombatDirector::EmitZonePulse(const FLDCombatZone& Zone, FString& Error)
+{
+    const FLDBodyCombatState* Holder=FindBody(Zone.SourceBody);
+    TArray<FLDCombatBodyRef> Targets;
+    if (!CollectAreaTargets(Zone.CentreCm,Zone.RadiusCm,Holder,Zone.SourceEntity,Targets,Error)) { return false; }
+    for (const FLDCombatBodyRef& Target : Targets)
+    {
+        FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
+        Hit.HitId=FGuid::NewGuid();
+        Hit.EffectId=Zone.EffectId;
+        Hit.Target=Target;
+        Hit.SourceBody=Zone.SourceBody;
+        Hit.SourceEntity=Zone.SourceEntity;
+        Hit.CreditOwner=Zone.CreditOwner;
+        Hit.Source=Zone.Source;
+        Hit.HitClass=ELDCombatHitClass::Ability;
+        Hit.BaseP2=Zone.BaseP2;
+        Hit.ADRatioBp=Zone.ADRatioBp;
+        Hit.APRatioBp=Zone.APRatioBp;
+        Hit.SourceADP2=Zone.SourceADP2;
+        Hit.SourceAPP2=Zone.SourceAPP2;
+        Hit.DamageType=Zone.DamageType;
+        Hit.bPeriodic=true;
+        Hit.bDirectAbilityDamage=Zone.bDamage;
+        Hit.PackageScaleBp=Zone.PackageScaleBp;
+        if (Zone.bWet) { Hit.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Water); }
+        Hit.BurnStacks=Zone.PulseBurnStacks;
+        Hit.ElementLevel=Zone.ElementLevel;
+        Hit.ElementAPP2=Zone.ElementAPP2;
+        Hit.SlowBp=Zone.PulseSlowBp;
+        Hit.SlowDurationMs=Zone.PulseSlowMs;
+        Hit.CastLedger=Zone.CastLedger;
+    }
+    return true;
 }

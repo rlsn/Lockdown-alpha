@@ -23,14 +23,14 @@ struct FNativeId
 const FNativeId NativeIds[] =
 {
     DEMO_ID("character", "character_demo", ELDDemoCharacterId, CharacterDemo),
-    DEMO_ID("final_mods", "final_bowling", ELDDemoFinalModId, FinalBowling),
-    DEMO_ID("final_mods", "final_forced_exit", ELDDemoFinalModId, FinalForcedExit),
-    DEMO_ID("final_mods", "final_traffic", ELDDemoFinalModId, FinalTraffic),
-    DEMO_ID("final_mods", "final_split", ELDDemoFinalModId, FinalSplit),
-    DEMO_ID("final_mods", "final_landlord", ELDDemoFinalModId, FinalLandlord),
-    DEMO_ID("final_mods", "final_breach", ELDDemoFinalModId, FinalBreach),
-    DEMO_ID("final_mods", "final_comeback", ELDDemoFinalModId, FinalComeback),
-    DEMO_ID("final_mods", "final_open_mic", ELDDemoFinalModId, FinalOpenMic),
+    DEMO_ID("final_mods", "final_hit_and_run", ELDDemoFinalModId, FinalHitAndRun),
+    DEMO_ID("final_mods", "final_clear_out", ELDDemoFinalModId, FinalClearOut),
+    DEMO_ID("final_mods", "final_kill_seconds", ELDDemoFinalModId, FinalKillSeconds),
+    DEMO_ID("final_mods", "final_usurp", ELDDemoFinalModId, FinalUsurp),
+    DEMO_ID("final_mods", "final_carry_flag", ELDDemoFinalModId, FinalCarryFlag),
+    DEMO_ID("final_mods", "final_cage", ELDDemoFinalModId, FinalCage),
+    DEMO_ID("final_mods", "final_private_pole", ELDDemoFinalModId, FinalPrivatePole),
+    DEMO_ID("final_mods", "final_double_yellow", ELDDemoFinalModId, FinalDoubleYellow),
     DEMO_ID("abilities", "active_pants_down", ELDDemoAbilityId, ActivePantsDown),
     DEMO_ID("abilities", "active_crotch_grab", ELDDemoAbilityId, ActiveCrotchGrab),
     DEMO_ID("abilities", "active_snark_bolt", ELDDemoAbilityId, ActiveSnarkBolt),
@@ -359,16 +359,17 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     }
     // Inclusive retired identity ranges per section; they must stay exactly these and are never reused (#198 retires the
     // passives 104-113/120-125, cower 119, the attribute cards 15-26, statuses 28-29, effect op 36 and every operation without a consumer;
-    // #287 P2 retires the workshop components 1-63 below the build cards).
+    // #287 P2 retires the workshop components 1-63 below the build cards; the source-bound final mods 2-24 are retired).
     struct FRetiredRange { int64 First; int64 Last; };
     static const FRetiredRange RetiredAbilities[] = {{0, 91}, {104, 113}, {119, 125}};
     static const FRetiredRange RetiredStats[] = {{0, 26}};
     static const FRetiredRange RetiredStatuses[] = {{7, 8}, {11, 11}, {15, 19}, {21, 24}, {28, 29}, {33, 33}};
     static const FRetiredRange RetiredCards[] = {{0, 199}};
+    static const FRetiredRange RetiredFinalMods[] = {{2, 2}, {5, 5}, {11, 11}, {15, 15}, {21, 24}};
     static const FRetiredRange RetiredEffectOps[] = {{5, 6}, {9, 11}, {15, 17}, {19, 19}, {23, 23}, {25, 30}, {32, 36}, {38, 39}, {41, 49}, {51, 51}, {53, 53}, {55, 68}, {72, 76}, {83, 89}, {96, 96}, {100, 100}, {102, 102}, {104, 104}, {120, 129}, {131, 137}, {139, 145}, {147, 151}, {154, 154}, {159, 159}, {161, 161}, {165, 169}, {195, 195}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
     for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
-        {TEXT("stats"), RetiredStats}, {TEXT("cards"), RetiredCards}, {TEXT("statuses"), RetiredStatuses},
+        {TEXT("stats"), RetiredStats}, {TEXT("cards"), RetiredCards}, {TEXT("final_mods"), RetiredFinalMods}, {TEXT("statuses"), RetiredStatuses},
         {TEXT("effect_ops"), RetiredEffectOps}})
     {
         const TArray<FValue>* Ranges;
@@ -2795,60 +2796,34 @@ bool FinalMod(const FValue& Value, FLDDemoFinalModDefinition& Out, FCheck& Check
     FFields F(Check, Value, Path);
     if (!NativeIdentity(F, TEXT("final_mods"), Out.Id, Out.NativeId)) { return false; }
     const auto Time = [&F](const TCHAR* Key, int64& Amount) { return F.Fixed(Key, TEXT("ms"), TEXT("ms"), Amount, 1); };
-    const auto Ratio = [&F](const TCHAR* Key, int64& Amount) { return F.Fixed(Key, TEXT("ratio"), TEXT("bp"), Amount, 1, 9999); };
-    const auto Cm = [&F](const TCHAR* Key, FLDDemoRational& Amount) { return F.Fraction(Key, TEXT("cm"), Amount, true); };
-    const auto Base = [&F, &Out]() { return F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1); };
     bool Valid = false;
     switch (Out.GetNativeId())
     {
-    case ELDDemoFinalModId::FinalBowling:
-        Out.Requirement = ELDDemoFinalModRequirement::ForcedMove;
-        Valid = F.Literal(TEXT("requirement"), TEXT("ForcedMove")) && Base() && Ratio(TEXT("ap_ratio"), Out.APRatioBp)
-            && Cm(TEXT("distance"), Out.DistanceCm) && Ratio(TEXT("distance_ratio"), Out.DistanceScaleBp);
+    case ELDDemoFinalModId::FinalHitAndRun:
+    {
+        int64 Sprays = 0;
+        Valid = F.Int(TEXT("sprays"), Sprays, 2, 1000) && Time(TEXT("fade"), Out.FadeMs);
+        Out.Sprays = int32(Sprays);
         break;
-    case ELDDemoFinalModId::FinalForcedExit:
-        Out.Requirement = ELDDemoFinalModRequirement::HardControl;
-        Valid = F.Literal(TEXT("requirement"), TEXT("HardControl")) && Cm(TEXT("distance"), Out.DistanceCm)
-            && Time(TEXT("delay"), Out.DelayMs) && Time(TEXT("interval"), Out.IntervalMs)
-            && Ratio(TEXT("control_ratio"), Out.ControlScaleBp);
+    }
+    case ELDDemoFinalModId::FinalKillSeconds:
+        Valid = Time(TEXT("guard"), Out.GuardMs);
         break;
-    case ELDDemoFinalModId::FinalTraffic:
-        Out.Requirement = ELDDemoFinalModRequirement::Dash;
-        Valid = F.Literal(TEXT("requirement"), TEXT("Dash")) && Cm(TEXT("radius"), Out.RadiusCm)
-            && Time(TEXT("duration"), Out.DurationMs) && Ratio(TEXT("slow"), Out.SlowBp)
-            && Time(TEXT("slow_duration"), Out.SlowMs) && Time(TEXT("cooldown_cost"), Out.CooldownCostMs);
+    case ELDDemoFinalModId::FinalCage:
+        Valid = Time(TEXT("duration"), Out.DurationMs);
         break;
-    case ELDDemoFinalModId::FinalSplit:
-        Out.Requirement = ELDDemoFinalModRequirement::PlacedZone;
-        Valid = F.Literal(TEXT("requirement"), TEXT("PlacedZone")) && Cm(TEXT("offset"), Out.OffsetCm)
-            && Ratio(TEXT("radius_ratio"), Out.RadiusScaleBp) && Ratio(TEXT("damage_ratio"), Out.DamageScaleBp)
-            && Time(TEXT("duration_cost"), Out.DurationCostMs);
+    case ELDDemoFinalModId::FinalPrivatePole:
+        Valid = Time(TEXT("spray"), Out.SprayMs) && Time(TEXT("guard"), Out.GuardMs)
+            && F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            && Check.Require(Out.SprayMs < Out.GuardMs, Path, TEXT("the private pole is guarded longer than it is sprayed"));
         break;
-    case ELDDemoFinalModId::FinalLandlord:
-        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Base() && Ratio(TEXT("ad_ratio"), Out.ADRatioBp)
-            && Cm(TEXT("radius"), Out.RadiusCm) && Time(TEXT("delay"), Out.DelayMs)
-            && Time(TEXT("interval"), Out.IntervalMs) && Ratio(TEXT("damage_ratio"), Out.DamageScaleBp);
+    case ELDDemoFinalModId::FinalDoubleYellow:
+        Valid = F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true);
         break;
-    case ELDDemoFinalModId::FinalBreach:
-        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Time(TEXT("outside"), Out.OutsideMs)
-            && Time(TEXT("rearm_outside"), Out.RearmOutsideMs) && Time(TEXT("window"), Out.WindowMs)
-            && Cm(TEXT("distance"), Out.DistanceCm) && Time(TEXT("cooldown_cost"), Out.CooldownCostMs)
-            && Check.Require(Out.RearmOutsideMs >= Out.OutsideMs, Path, TEXT("rearm outside must not be shorter than the first entry"));
-        break;
-    case ELDDemoFinalModId::FinalComeback:
-        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Base() && Ratio(TEXT("ap_ratio"), Out.APRatioBp)
-            && Cm(TEXT("radius"), Out.RadiusCm) && Time(TEXT("duration"), Out.DurationMs)
-            && Time(TEXT("interval"), Out.IntervalMs) && Time(TEXT("window"), Out.WindowMs)
-            && Time(TEXT("pulse_interval"), Out.PulseIntervalMs)
-            && Ratio(TEXT("slow"), Out.SlowBp) && Time(TEXT("slow_duration"), Out.SlowMs)
-            && Ratio(TEXT("damage_ratio"), Out.DamageScaleBp);
-        break;
-    case ELDDemoFinalModId::FinalOpenMic:
-        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Base() && Ratio(TEXT("ap_ratio"), Out.APRatioBp)
-            && Cm(TEXT("radius"), Out.RadiusCm) && Time(TEXT("duration"), Out.DurationMs) && Time(TEXT("window"), Out.WindowMs)
-            && Time(TEXT("pulse_interval"), Out.PulseIntervalMs)
-            && Ratio(TEXT("slow"), Out.SlowBp) && Time(TEXT("slow_duration"), Out.SlowMs)
-            && Ratio(TEXT("move_speed_cost"), Out.MoveSpeedCostBp);
+    case ELDDemoFinalModId::FinalClearOut:
+    case ELDDemoFinalModId::FinalUsurp:
+    case ELDDemoFinalModId::FinalCarryFlag:
+        Valid = true;
         break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented final mod"));
@@ -3052,25 +3027,6 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
                 || !C.Require(D.PortraitIconId == TEXT("portrait_") + D.Id, Path, TEXT("wrong portrait reference"))))
         {
             return false;
-        }
-        // A final mod's row splits its description into effect, cost and notes lines; on any other row they are unknown fields.
-        if (Out.FinalMods.ContainsByPredicate([&D](const FLDDemoFinalModDefinition& Mod) { return Mod.Id == D.Id; }))
-        {
-            struct FPart { const TCHAR* Name; FString* Key; FString* Text; };
-            const FPart Parts[] = {{TEXT("effect"), &D.EffectKey, &D.EffectText}, {TEXT("cost"), &D.CostKey, &D.CostText},
-                {TEXT("notes"), &D.NotesKey, &D.NotesText}};
-            for (const FPart& Part : Parts)
-            {
-                const FString Name(Part.Name);
-                if (!Fields.Text(*(Name + TEXT("_key")), *Part.Key, 1, 128)
-                    || !Fields.Text(*(Name + TEXT("_text")), *Part.Text, 1, 320)
-                    || !ValidateDisplayText(*Part.Text, false, C, Path + TEXT(".") + Name + TEXT("_text"))
-                    || !C.Require(Part.Key->Equals(D.Id + TEXT(".") + Name, ESearchCase::CaseSensitive), Path,
-                        TEXT("unknown or noncanonical display reference")))
-                {
-                    return false;
-                }
-            }
         }
         return Fields.Done();
     };

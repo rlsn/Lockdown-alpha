@@ -802,56 +802,14 @@
     }
   ],
   "final_mods": [
-    {
-      "id": "final_bowling", "requirement": "ForcedMove",
-      "base": {"unit": "points", "value": 45}, "ap_ratio": {"unit": "ratio", "value": 0.35},
-      "distance": {"unit": "cm", "value": 140}, "distance_ratio": {"unit": "ratio", "value": 0.80}
-    },
-    {
-      "id": "final_forced_exit", "requirement": "HardControl",
-      "distance": {"unit": "cm", "value": 180}, "delay": {"unit": "s", "value": 0.25},
-      "interval": {"unit": "s", "value": 8}, "control_ratio": {"unit": "ratio", "value": 0.70}
-    },
-    {
-      "id": "final_traffic", "requirement": "Dash",
-      "radius": {"unit": "cm", "value": 45}, "duration": {"unit": "s", "value": 2.5},
-      "slow": {"unit": "ratio", "value": 0.35}, "slow_duration": {"unit": "s", "value": 1},
-      "cooldown_cost": {"unit": "s", "value": 4}
-    },
-    {
-      "id": "final_split", "requirement": "PlacedZone",
-      "offset": {"unit": "cm", "value": 140}, "radius_ratio": {"unit": "ratio", "value": 0.55},
-      "damage_ratio": {"unit": "ratio", "value": 0.60}, "duration_cost": {"unit": "s", "value": 1}
-    },
-    {
-      "id": "final_landlord", "requirement": "Basic",
-      "base": {"unit": "points", "value": 50}, "ad_ratio": {"unit": "ratio", "value": 0.40},
-      "radius": {"unit": "cm", "value": 220}, "delay": {"unit": "s", "value": 0.7},
-      "interval": {"unit": "s", "value": 6}, "damage_ratio": {"unit": "ratio", "value": 0.80}
-    },
-    {
-      "id": "final_breach", "requirement": "Basic",
-      "outside": {"unit": "s", "value": 3}, "rearm_outside": {"unit": "s", "value": 8},
-      "window": {"unit": "s", "value": 3}, "distance": {"unit": "cm", "value": 160},
-      "cooldown_cost": {"unit": "s", "value": 3}
-    },
-    {
-      "id": "final_comeback", "requirement": "Basic",
-      "base": {"unit": "points", "value": 30}, "ap_ratio": {"unit": "ratio", "value": 0.25},
-      "radius": {"unit": "cm", "value": 220}, "duration": {"unit": "s", "value": 2},
-      "interval": {"unit": "s", "value": 10}, "window": {"unit": "s", "value": 4},
-      "pulse_interval": {"unit": "s", "value": 1},
-      "slow": {"unit": "ratio", "value": 0.30}, "slow_duration": {"unit": "s", "value": 1},
-      "damage_ratio": {"unit": "ratio", "value": 0.80}
-    },
-    {
-      "id": "final_open_mic", "requirement": "Basic",
-      "base": {"unit": "points", "value": 25}, "ap_ratio": {"unit": "ratio", "value": 0.15},
-      "radius": {"unit": "cm", "value": 220}, "duration": {"unit": "s", "value": 2.5},
-      "window": {"unit": "s", "value": 3}, "slow": {"unit": "ratio", "value": 0.20},
-      "pulse_interval": {"unit": "s", "value": 1},
-      "slow_duration": {"unit": "s", "value": 1}, "move_speed_cost": {"unit": "ratio", "value": 0.10}
-    }
+    {"id": "final_hit_and_run", "sprays": 4, "fade": {"unit": "s", "value": 4}},
+    {"id": "final_clear_out"},
+    {"id": "final_kill_seconds", "guard": {"unit": "s", "value": 4}},
+    {"id": "final_usurp"},
+    {"id": "final_carry_flag"},
+    {"id": "final_cage", "duration": {"unit": "s", "value": 5}},
+    {"id": "final_private_pole", "spray": {"unit": "s", "value": 3.5}, "guard": {"unit": "s", "value": 30}, "radius": {"unit": "cm", "value": 200}},
+    {"id": "final_double_yellow", "radius": {"unit": "cm", "value": 180}}
   ],
   "stats": [
     {"id": "stat_physique", "per_point": {"MaxHPFlat": {"unit": "hp", "value": 40}, "HPRegenFlat": {"unit": "hp/s", "value": 0.08}}},
@@ -1360,14 +1318,14 @@
     {"id": "card_louder_blast", "namespace": "DemoContent", "name_key": "card_louder_blast.name", "name_text": "炸得更响", "description_key": "card_louder_blast.description", "description_text": "你触发的反应伤害 +[reaction_factor.ratio]%。", "icon_id": "icon_card_louder_blast"},
     {"id": "card_endless_burn", "namespace": "DemoContent", "name_key": "card_endless_burn.name", "name_text": "烧不完", "description_key": "card_endless_burn.description", "description_text": "你施加的灼烧最多叠到 [burn_cap.count] 层。", "icon_id": "icon_card_endless_burn"},
     {"id": "card_burn_guard", "namespace": "DemoContent", "name_key": "card_burn_guard.name", "name_text": "烧着还挺扛揍", "description_key": "card_burn_guard.description", "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒，与现有护盾取强。", "icon_id": "icon_card_burn_guard"},
-    {"id": "final_bowling", "namespace": "DemoContent", "name_key": "final_bowling.name", "name_text": "人肉保龄球", "description_key": "final_bowling.description", "description_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。原来源位移距离降低；二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "effect_key": "final_bowling.effect", "effect_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。", "cost_key": "final_bowling.cost", "cost_text": "原来源位移距离降低。", "notes_key": "final_bowling.notes", "notes_text": "二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。", "icon_id": "icon_final_bowling"},
-    {"id": "final_forced_exit", "namespace": "DemoContent", "name_key": "final_forced_exit.name", "name_text": "强制退场", "description_key": "final_forced_exit.description", "description_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。原硬控时间降低，仍吃递减；提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "effect_key": "final_forced_exit.effect", "effect_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。", "cost_key": "final_forced_exit.cost", "cost_text": "原硬控时间降低，仍吃递减。", "notes_key": "final_forced_exit.notes", "notes_text": "提前离圈或位移免疫可反制。受控者仍争夺旗杆。", "icon_id": "icon_final_forced_exit"},
-    {"id": "final_traffic", "namespace": "DemoContent", "name_key": "final_traffic.name", "name_text": "交通管制", "description_key": "final_traffic.description", "description_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。该冲刺基础冷却增加；新带替换旧带，不伤害、不挡路。", "effect_key": "final_traffic.effect", "effect_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。", "cost_key": "final_traffic.cost", "cost_text": "该冲刺基础冷却增加。", "notes_key": "final_traffic.notes", "notes_text": "新带替换旧带，不伤害、不挡路。", "icon_id": "icon_final_traffic"},
-    {"id": "final_split", "namespace": "DemoContent", "name_key": "final_split.name", "name_text": "一分为二", "description_key": "final_split.description", "description_text": "绑定放置区域的中心两侧生成两个更小的子区域，降低每跳基础伤害并缩短持续时间；元素和跳时保留。下一次施法同时替换旧两块；重叠可命中两次，中心覆盖较弱。", "effect_key": "final_split.effect", "effect_text": "绑定放置区域的中心两侧生成两个更小的子区域。", "cost_key": "final_split.cost", "cost_text": "降低每跳基础伤害并缩短持续时间。", "notes_key": "final_split.notes", "notes_text": "元素和跳时保留。下一次施法同时替换旧两块；重叠可命中两次，中心覆盖较弱。", "icon_id": "icon_final_split"},
-    {"id": "final_landlord", "namespace": "DemoContent", "name_key": "final_landlord.name", "name_text": "旗杆房东", "description_key": "final_landlord.description", "description_text": "持有涂鸦期间，在核心成功普攻可在旗杆中心生成延迟魔法冲击。持旗期间普攻主击伤害降低；可躲冲击或先夺旗。冲击不复制普攻、施法、回响或控制。", "effect_key": "final_landlord.effect", "effect_text": "持有涂鸦期间，在核心成功普攻可在旗杆中心生成延迟魔法冲击。", "cost_key": "final_landlord.cost", "cost_text": "持旗期间普攻主击伤害降低。", "notes_key": "final_landlord.notes", "notes_text": "可躲冲击或先夺旗。冲击不复制普攻、施法、回响或控制。", "icon_id": "icon_final_landlord"},
-    {"id": "final_breach", "namespace": "DemoContent", "name_key": "final_breach.name", "name_text": "破门而入", "description_key": "final_breach.description", "description_text": "离开核心连续一段时间后再入圈，下次成功普攻将目标沿远离旗杆方向推移；触发后须在圈外重新准备。本人冲刺基础冷却增加；躲攻击或预判入圈方向可反制。", "effect_key": "final_breach.effect", "effect_text": "离开核心连续一段时间后再入圈，下次成功普攻将目标沿远离旗杆方向推移。", "cost_key": "final_breach.cost", "cost_text": "本人冲刺基础冷却增加。", "notes_key": "final_breach.notes", "notes_text": "触发后须在圈外重新准备。躲攻击或预判入圈方向可反制。", "icon_id": "icon_final_breach"},
-    {"id": "final_comeback", "namespace": "DemoContent", "name_key": "final_comeback.name", "name_text": "现场翻盘", "description_key": "final_comeback.description", "description_text": "入圈时涂鸦属于其他存活玩家，短时间内首次普攻或主动直接伤害命中会生成公开警戒区，按跳造成魔法伤害和减速。触发那次直伤降低；可闪避命中或离区，不改所有权。", "effect_key": "final_comeback.effect", "effect_text": "入圈时涂鸦属于其他存活玩家，短时间内首次普攻或主动直接伤害命中会生成公开警戒区，按跳造成魔法伤害和减速。", "cost_key": "final_comeback.cost", "cost_text": "触发那次直伤降低。", "notes_key": "final_comeback.notes", "notes_text": "可闪避命中或离区，不改所有权。", "icon_id": "icon_final_comeback"},
-    {"id": "final_open_mic", "namespace": "DemoContent", "name_key": "final_open_mic.name", "name_text": "全城开麦", "description_key": "final_open_mic.description", "description_text": "短时间内两次真实独立命中后，身边生成移动声浪，按跳造成魔法伤害和减速。声浪期间本人移速降低；新声浪替换旧声浪，不补跳。可拉开距离或诱导在圈外触发。", "effect_key": "final_open_mic.effect", "effect_text": "短时间内两次真实独立命中后，身边生成移动声浪，按跳造成魔法伤害和减速。", "cost_key": "final_open_mic.cost", "cost_text": "声浪期间本人移速降低。", "notes_key": "final_open_mic.notes", "notes_text": "新声浪替换旧声浪，不补跳。可拉开距离或诱导在圈外触发。", "icon_id": "icon_final_open_mic"},
+    {"id": "final_hit_and_run", "namespace": "DemoContent", "name_key": "final_hit_and_run.name", "name_text": "打一枪换个地方", "description_key": "final_hit_and_run.description", "description_text": "累计成功喷漆满规定次数即获胜；你的涂鸦不计守护、喷上后很快褪色，离开喷漆区后才能再喷。", "icon_id": "icon_final_hit_and_run"},
+    {"id": "final_clear_out", "namespace": "DemoContent", "name_key": "final_clear_out.name", "name_text": "清场", "description_key": "final_clear_out.description", "description_text": "旗杆解锁后，其他参赛者全部同时倒下而你还活着的那一刻立即获胜。", "icon_id": "icon_final_clear_out"},
+    {"id": "final_kill_seconds", "namespace": "DemoContent", "name_key": "final_kill_seconds.name", "name_text": "人头换秒", "description_key": "final_kill_seconds.description", "description_text": "每击杀一名参赛者获得一段守护时间，你是涂鸦主人时同时计入当前守护。", "icon_id": "icon_final_kill_seconds"},
+    {"id": "final_usurp", "namespace": "DemoContent", "name_key": "final_usurp.name", "name_text": "篡位", "description_key": "final_usurp.description", "description_text": "击杀主旗杆的涂鸦主人时，涂鸦立即归你并继承他当前的守护进度。", "icon_id": "icon_final_usurp"},
+    {"id": "final_carry_flag", "namespace": "DemoContent", "name_key": "final_carry_flag.name", "name_text": "扛旗跑路", "description_key": "final_carry_flag.description", "description_text": "你是涂鸦主人期间，旗杆与喷漆区跟着你走；你倒下或被覆盖时旗杆留在原地。", "icon_id": "icon_final_carry_flag"},
+    {"id": "final_cage", "namespace": "DemoContent", "name_key": "final_cage.name", "name_text": "铁笼", "description_key": "final_cage.description", "description_text": "你喷上涂鸦的瞬间，喷漆区边界升起围栏：圈内出不去、圈外进不来，远程与范围技能照常穿过。", "icon_id": "icon_final_cage"},
+    {"id": "final_private_pole", "namespace": "DemoContent", "name_key": "final_private_pole.name", "name_text": "私人旗杆", "description_key": "final_private_pole.description", "description_text": "终局入场口旁立起一根只有你能喷的小旗杆，守满即胜；别人进它的喷漆区会冻结守护。", "icon_id": "icon_final_private_pole"},
+    {"id": "final_double_yellow", "namespace": "DemoContent", "name_key": "final_double_yellow.name", "name_text": "双黄线", "description_key": "final_double_yellow.description", "description_text": "你是主旗杆涂鸦主人期间，喷漆区缩小。", "icon_id": "icon_final_double_yellow"},
     {"id": "character_demo", "namespace": "DemoContent", "name_key": "character_demo.name", "name_text": "脆皮大学生", "description_key": "character_demo.description", "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、抽牌。", "icon_id": "icon_character_demo", "portrait_icon_id": "portrait_character_demo"},
     {"id": "active_elbow", "namespace": "DemoContent", "name_key": "active_elbow.name", "name_text": "滚远点", "description_key": "active_elbow.description", "description_text": "把目标踹飞 [knockback.distance] 厘米，造成 [damage.amount] 物理伤害。", "icon_id": "icon_active_elbow"},
     {"id": "active_pants_down", "namespace": "DemoContent", "name_key": "active_pants_down.name", "name_text": "扒裤子", "description_key": "active_pants_down.description", "description_text": "定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。", "icon_id": "icon_active_pants_down"},

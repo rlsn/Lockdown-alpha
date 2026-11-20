@@ -137,6 +137,8 @@ public:
     // false (with Error) only for a lost permit or domain.
     bool OpenFinalMods(const FLDGameplayWritePermit& Permit, FString& Error);
     bool LockFinalMods(const FLDGameplayWritePermit& Permit, FString& Error);
+    // The contender's taken final mod (NAME_None without one); false for a contender without a growth record.
+    bool ReadFinalMod(const FGuid& ContenderId, FName& Out) const;
     // Spec §6.4: every mid-match rest adds CARDS.RerollsPerRest card rerolls to every contender (either world permit).
     bool GrantRestRerolls(const FLDGameplayWritePermit& Permit, FString& Error);
     // Spec §3.13: every mid-match rest start restocks every contender's rest shop (and resets its refresh price).

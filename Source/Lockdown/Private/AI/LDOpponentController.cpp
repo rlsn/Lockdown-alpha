@@ -419,11 +419,21 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (Public.Showdown.bStarted)
     {
         Frame.POIs.RemoveAll([](const FLDOpponentPOI& Place) { return Place.Kind != ELDOpponentPOIKind::Capture; });
+        // The flagpole stands where the public view says (final_carry_flag moves it with its owner).
         for (auto& Place : Frame.POIs)
         {
             Place.Id = TEXT("final_capture");
-            Place.FootCm = Public.Showdown.CentreCm;
+            Place.FootCm = Public.PoleCentreCm;
         }
+        Frame.Public.FinalMods = Public.FinalMods;
+        Frame.Public.PoleRadiusCm = Public.PoleRadiusCm;
+        Frame.Public.FadeAtMs = Public.FadeAtMs;
+        Frame.Public.CageUntilMs = Public.CageUntilMs;
+        Frame.Public.CageCentreCm = Public.CageCentreCm;
+        Frame.Public.CageRadiusCm = Public.CageRadiusCm;
+        Frame.Public.PrivatePoles = Public.PrivatePoles;
+        Frame.Public.ArenaCentreCm = Public.Showdown.CentreCm;
+        Frame.Public.SafeRadiusCm = float(Public.Showdown.FinalRadiusCm);
     }
     if (Public.Phase == ELDMatchPhase::Rest)
     {

@@ -88,6 +88,7 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker、Ven
 终局场地使用独立锚点：`FinalSpawn` 固定为 `final_spawn_0..5`，`FinalCapture` 固定为
 `final_capture`。保存地图的 `LDSceneAnchor:<id>` 点由 `SyncDemoMap.ps1` 投影进世界输入；
 原生目录校验六个出生点同层、等距并按60°顺序分布，Bootstrap 再验证出生偏移的胶囊地面与到旗点的完整导航路径。
+持有私人旗杆（终局改装）的参赛者，其旗杆圆心取自己名册槽位对应的 `final_spawn_<slot>` 绑定位置与地面。
 它们不进入普通野外 POI/小地图；显式出生选择通过 `LDDemoWorld::FinalSpawnId` 和
 `LDDemoWorld::FinalCaptureId` 解析，不替代野外的 `capture` 锚点。
 

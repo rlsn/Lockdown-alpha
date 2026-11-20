@@ -122,8 +122,6 @@ namespace LDHUD
     // definition, its display entry, the table or the key is missing: Out then holds the stable content id,
     // so the content error stays visible instead of a guessed name.
     LOCKDOWN_API bool ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out);
-    // A final mod's effect, cost and notes lines from its display row; false (all empty) when the catalog has no split for it.
-    LOCKDOWN_API bool FinalModParts(const FLDDemoContentDefinitions* Content,FName FinalMod,FString& OutEffect,FString& OutCost,FString& OutNotes);
     LOCKDOWN_API FString ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     // The display row's IconId of a content entry (#85); empty without a display row.
     LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
@@ -474,6 +472,7 @@ namespace LDHUD
     LOCKDOWN_API FString ReactionAssistText(const FLDDemoContentDefinitions* Content,const FLDReactionAssistView& View,const FString& TriggerName);
     struct FScoreLine
     {
+        FGuid ContenderId;
         FString Name;
         uint64 Kills=0;
         uint64 Deaths=0;
@@ -483,6 +482,8 @@ namespace LDHUD
     // The hold-Tab scoreboard of that match: most kills first, then fewest deaths, then roster order. Names come from the
     // room roster; a contender no longer in it is shown as having left. Empty for another match's feed.
     LOCKDOWN_API TArray<FScoreLine> Scoreboard(const FLDKillFeedView& Feed,uint32 Generation,const FLDLobbyView& Lobby,const FGuid& Self);
+    // The contender's public final mod name in the final field (empty without one).
+    LOCKDOWN_API FString PublicFinalMod(const FLDPublicMatchView& Public,const FGuid& Contender,const FLDDemoContentDefinitions* Content);
 
     // The band's four slots: the Q/W/E actives and the D dash.
     enum class EActionSlot : uint8 { Q, W, E, Dash };
@@ -767,11 +768,8 @@ namespace LDHUD
     LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);
     // The column of a card form (a skill card: the learned skill's slot column).
     LOCKDOWN_API bool CardColumn(const FLDProgressionView& Progression,ELDCardTargetKind Kind,FName Active,EStorageColumn& OutColumn);
-    // The column containing the final mod's currently legal source.
+    // The column a taken final mod shows on: the body column (it binds no source).
     LOCKDOWN_API bool FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn);
-    // The board column a final-mod source sits in: 本体 for none, the slot of a learned active or D; false when the source is
-    // not on the board.
-    LOCKDOWN_API bool FinalSourceColumn(const FLDProgressionView& Progression,ELDFinalModTargetKind Kind,FName TargetId,EStorageColumn& OutColumn);
     struct FEquippedView
     {
         // The first copy's key; Keys lists every copy in the place (serial order), Copies their count.
@@ -1097,6 +1095,12 @@ namespace LDHUD
         FGuid Leader;
         FGuid RunnerUp;
         FGuid GraffitiOwner;
+        // The final mods' public field as last observed: the fading graffiti, the fence, whether the flagpole was away from
+        // its anchor and which private flagpoles carried graffiti.
+        int64 FadeAtMs=0;
+        int64 CageUntilMs=0;
+        bool bPoleAway=false;
+        TArray<FGuid> PrivateSprayed;
         // The guard as last observed: frozen progress, or a running guard (GuardDueAtMs set).
         int64 GuardKeptMs=0;
         int64 GuardDueAtMs=0;

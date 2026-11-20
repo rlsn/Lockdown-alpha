@@ -30,8 +30,7 @@ bool DevelopmentDecodeCardTarget(const FLDBuildCommand& Command, FLDCardTarget& 
 bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
 {
     if (Command.Generation == 0 || Command.Life == 0 || Command.RequestId == 0 || Command.ExpectedBuildRevision == 0
-        || !LDGrowthWire::IsBuildLifePhase(Command.ExpectedLifePhase) || !LDGrowthWire::IsKnownBuildKind(Command.Kind)
-        || !LDGrowthWire::IsKnownFinalTarget(Command.FinalTargetKind))
+        || !LDGrowthWire::IsBuildLifePhase(Command.ExpectedLifePhase) || !LDGrowthWire::IsKnownBuildKind(Command.Kind))
     {
         return false;
     }
@@ -41,10 +40,9 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     const bool bNoOffer = !Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option == FLDDefinitionWire();
     // The active and point kinds carry no card field; the card kinds no active or point field.
     const bool bNoCard = !Command.bInstallIfPossible && Command.CardSerial == 0 && Command.ReplacingSerial == 0 && bTarget
-        && Target.IsEmpty() && Command.FinalTargetKind == ELDFinalModTargetKind::None;
+        && Target.IsEmpty();
     const bool bNoActive = Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
-        && Command.Slot == FLDBuildCommand::AnySlot && Command.Branch == ELDSkillBranch::None
-        && Command.FinalTargetKind == ELDFinalModTargetKind::None;
+        && Command.Slot == FLDBuildCommand::AnySlot && Command.Branch == ELDSkillBranch::None;
     const bool bOfferNamed = Command.OfferId.IsValid() && Command.OfferRevision != 0;
     switch (Command.Kind)
     {
@@ -55,12 +53,12 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     case ELDBuildCommandKind::SkipActiveOffer:
         return bOfferNamed && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
     case ELDBuildCommandKind::FinalMod:
-        // The source rides on FinalTargetKind and TargetDefinition; no card field.
+        // Only the offer and the chosen card: a final mod binds no source.
         return Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option.Decode(Decoded)
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
             && Command.Slot == FLDBuildCommand::AnySlot && Command.Branch == ELDSkillBranch::None && !Command.bInstallIfPossible
             && Command.CardSerial == 0 && Command.ReplacingSerial == 0 && Command.CardTarget == ELDCardTargetKind::None
-            && Command.Element == ELDDemoElement::None && LDGrowthWire::DecodeOptional(Command.TargetDefinition, Decoded);
+            && Command.Element == ELDDemoElement::None && Command.TargetDefinition == FLDDefinitionWire();
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
@@ -514,27 +512,6 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.FinalModOptions = Progression.FinalMod.Options;
     View.FinalModChosen = Build.FinalMod.DefinitionId;
     View.FinalMod = Build.FinalMod;
-    // The open offer lists each card's legal sources; once a card is taken it lists that card's, so a dormant card
-    // (its source removed) shows where it can be rebound.
-    TArray<FName> SourceOptions;
-    if (View.bFinalModPending) { SourceOptions = View.FinalModOptions; }
-    else if (!Build.FinalMod.IsEmpty()) { SourceOptions.Add(Build.FinalMod.DefinitionId); }
-    {
-        for (FName Option : SourceOptions)
-        {
-            TArray<FLDFinalModTarget> Targets;
-            const ELDGrowthReason Reason = LDProgression::FinalModTargets(Definitions, Build, Option, Targets);
-            if (Reason != ELDGrowthReason::None)
-            {
-                UE_LOG(LogLDGrowth, Error, TEXT("LD_FINAL_MOD_VIEW_INVALID contender=%s reason=%s"),
-                    *LDLog::Id(ContenderId), LDGrowthWire::ReasonName(Reason));
-                View.bValid = false;
-                return View;
-            }
-            for (const FLDFinalModTarget& Target : Targets)
-            { View.FinalModSources.Add({Option, Target.Kind, Target.Definition}); }
-        }
-    }
     View.bBuildLocked = Progression.FinalMod.bLocked;
     return View;
 }
@@ -908,11 +885,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::FinalMod:
     {
         Command.Option.Decode(Definition);
-        FLDFinalModTarget Target;
-        Target.Kind = Command.FinalTargetKind;
-        if (!LDGrowthWire::DecodeOptional(Command.TargetDefinition, Target.Definition)) { return Reject(ELDGrowthReason::InvalidRequest); }
         const ELDGrowthReason FinalReason = LDProgression::ApplyFinalMod(Definitions, Build, Progression, Command.OfferId,
-            Definition, Target, Context, NewBuild, NewProgression);
+            Definition, Context, NewBuild, NewProgression);
         if (FinalReason != ELDGrowthReason::None)
         {
             return Reject(FinalReason);
@@ -1220,7 +1194,7 @@ bool ALDDevelopmentDirector::OpenFinalMods(const FLDGameplayWritePermit& Permit,
         if (Progression.Revision == MAX_uint64) { Error = TEXT("final mod offer revision overflow"); return false; }
         TArray<FName> Options;
         const int32 Count = Progression.bExtraFinalModCard ? 4 : 3;
-        const ELDGrowthReason Reason = LDProgression::DrawFinalModOptions(Content->Get(), Pair.Value.Build,
+        const ELDGrowthReason Reason = LDProgression::DrawFinalModOptions(Content->Get(),
             LDProgression::FinalModSeed(MatchSecret, Pair.Key), Options, Count);
         if (Reason != ELDGrowthReason::None || Options.Num() != Count)
         {
@@ -2118,3 +2092,10 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareReset(const FGuid& Cont
 }
 
 #endif
+
+bool ALDDevelopmentDirector::ReadFinalMod(const FGuid& ContenderId, FName& Out) const
+{
+    const FRecord* Record = Records.Find(ContenderId);
+    Out = Record ? Record->Build.FinalMod.DefinitionId : NAME_None;
+    return Record != nullptr;
+}

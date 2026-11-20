@@ -22,9 +22,10 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     };
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
-        TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
+        TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GraffitiCause"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
         TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK"),
-        TEXT("Showdown"),TEXT("OwnerBankedGuardMs"),TEXT("DailyModifiers"),TEXT("Objective")},TEXT("The public flagpole carries only public objective and timeline state"));
+        TEXT("Showdown"),TEXT("OwnerBankedGuardMs"),TEXT("PoleCentreCm"),TEXT("PoleRadiusCm"),TEXT("FadeAtMs"),
+        TEXT("CageUntilMs"),TEXT("CageCentreCm"),TEXT("CageRadiusCm"),TEXT("FinalMods"),TEXT("PrivatePoles"),TEXT("DailyModifiers"),TEXT("Objective")},TEXT("The public flagpole carries only public objective and timeline state"));
     ExpectStruct(FLDShowdownView::StaticStruct(),{TEXT("bStarted"),TEXT("StartedAtMs"),TEXT("EndsAtMs"),
         TEXT("RespawnsCloseAtMs"),TEXT("ClosureAtMs"),TEXT("SprayMs"),TEXT("GuardMs"),TEXT("CentreCm"),
         TEXT("InitialRadiusCm"),TEXT("FinalRadiusCm")},TEXT("The public showdown exposes clocks and arena geometry, never hidden contenders or builds"));
@@ -51,7 +52,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays"),TEXT("Build")},
         TEXT("Result rows carry settled totals and frozen rule identities, never live resources, cooldowns, attributes or position"));
     ExpectStruct(FLDResultBuild::StaticStruct(),{TEXT("bAvailable"),TEXT("CatalogRoot"),TEXT("Actives"),TEXT("Cards"),
-        TEXT("FinalMod"),TEXT("FinalTarget"),TEXT("FinalTargetId")},
+        TEXT("FinalMod")},
         TEXT("Frozen build summaries contain only catalog and installed rule identities"));
     ExpectStruct(FLDResultBuildActive::StaticStruct(),{TEXT("DefinitionId"),TEXT("Slot")},
         TEXT("Frozen active summaries contain only their identity and slot"));

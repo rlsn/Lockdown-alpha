@@ -12,7 +12,11 @@ struct FLDDemoContentDefinitions;
 namespace LDBuildBlueprint
 {
     inline constexpr TCHAR Schema[] = TEXT("lockdown.build-blueprint");
-    inline constexpr int32 SchemaVersion = 4;
+    // 5: final_mod carries only its definition (a final mod binds no source).
+    inline constexpr int32 SchemaVersion = 5;
+    // The recorded end reason of an ELDMatchEndReason value (its wire number); nullptr for None or an unknown value.
+    LOCKDOWN_API const TCHAR* EndReasonKey(uint8 Reason);
+    LOCKDOWN_API bool IsEndReasonKey(const FString& Key);
     inline constexpr TCHAR Extension[] = TEXT(".ldbuild.json");
     inline constexpr TCHAR OriginAuto[] = TEXT("auto");
     // #305: the stored text of a skill branch path ("" for rank 1) and back; false for an unknown text.
@@ -151,7 +155,8 @@ struct FLDBlueprintRecord
     // The public result id of the match (32 hex digits); never an account, address or ledger secret.
     FString MatchId;
     FString Mode;
-    // "guard_succeeded" or "host_ended"; Outcome "won", "lost" or "no_winner".
+    // One of LDBuildBlueprint::EndReasonKey ("guard_succeeded", "host_ended", "objective_timeout", "no_champion", "spray_count",
+    // "clear_out"); Outcome "won", "lost" or "no_winner".
     FString EndReason;
     FString Outcome;
     // The owning machine's UTC time when it received the record; retention orders automatic records by it.

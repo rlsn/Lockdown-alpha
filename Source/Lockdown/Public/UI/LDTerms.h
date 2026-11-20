@@ -288,15 +288,9 @@ inline constexpr TCHAR OfferWaiting[]=TEXT("现在没有合格的技能候选，
 inline FString ReactsWith(const FString& Key,const FString& Name,const FString& Pair,const FString& Reaction){return FString::Printf(TEXT("与 %s %s：%s %s"),*Key,*Name,*Pair,*Reaction);}
 inline constexpr TCHAR FinalStageTitle[]=TEXT("终局改装");
 inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");
-inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
-inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
-inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
-inline constexpr TCHAR FinalPickSource[]=TEXT("此列有多个来源");
-inline const TCHAR* FinalPartLabel(int32 Part){return Part==0?TEXT("效果"):Part==1?TEXT("代价"):TEXT("须知");}
 inline constexpr TCHAR FinalLock[]=TEXT("按住选定改装");
 inline constexpr TCHAR FinalTakenNote[]=TEXT("改装只选一次；技能和牌仍可随时调整。");
-inline constexpr TCHAR FinalDormant[]=TEXT("未生效 · 来源已拆下");
-inline constexpr TCHAR FinalRebind[]=TEXT("重新绑定");
+inline constexpr TCHAR FinalTaken[]=TEXT("已选定");
 inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
@@ -525,6 +519,15 @@ inline constexpr TCHAR NoProgressKept[]=TEXT("谁也没存下进度");
 inline FString GraffitiOf(const FString& Owner){return FString(TEXT("旗杆上是 "))+Owner+TEXT(" 的涂鸦");}
 inline FString GraffitiSprayed(const FString& Owner){return Owner+TEXT(" 在旗杆上喷上了涂鸦");}
 inline constexpr TCHAR GuardLeft[]=TEXT("再守");
+// Final mods in the showdown (content §4.7).
+inline constexpr TCHAR GraffitiFades[]=TEXT("涂鸦褪色还剩");
+inline constexpr TCHAR GraffitiFaded[]=TEXT("涂鸦褪色了，旗杆空出来了");
+inline FString HolderWithMod(const FString& Holder,const FString& Mod){return Mod.IsEmpty()?Holder:Holder+TEXT("（")+Mod+TEXT("）");}
+inline FString PoleCarried(const FString& Owner){return Owner+TEXT(" 扛着旗杆跑了");}
+inline FString CageUp(const FString& Owner){return Owner+TEXT(" 喷上涂鸦，铁笼升起：圈内出不去、圈外进不来");}
+inline constexpr TCHAR CageDown[]=TEXT("铁笼落下了");
+inline FString Usurped(const FString& Owner){return Owner+TEXT(" 篡位，旗杆上的涂鸦归他了");}
+inline FString PrivatePoleSprayed(const FString& Holder){return Holder+TEXT(" 喷上了私人旗杆，进去冻结他的守护");}
 inline constexpr TCHAR GuardPaused[]=TEXT("有人进圈，守护冻结");
 inline constexpr TCHAR GuardAway[]=TEXT("守擂者不在圈内，守护暂停");
 inline constexpr TCHAR GuardReset[]=TEXT("守擂者离圈，守护清零");
@@ -541,6 +544,8 @@ inline FString KilledBy(const FString& By){return FString(TEXT("被 "))+By+TEXT(
 inline FString KillFloat(const FString& Victim){return FString(TEXT("淫了 "))+Victim+TEXT("！");}
 inline FString Crowned(const FString& WinnerName){return WinnerName+TEXT(" 的涂鸦守住了，恭喜成为今晚的")+Winner+TEXT("！");}
 inline constexpr TCHAR NoWinner[]=TEXT("没人守住涂鸦 · 全员摆烂");
+inline FString SprayCountWin(const FString& WinnerName){return WinnerName+TEXT(" 喷够了次数，恭喜成为今晚的")+Winner+TEXT("！");}
+inline FString ClearOutWin(const FString& WinnerName){return WinnerName+TEXT(" 清场了，恭喜成为今晚的")+Winner+TEXT("！");}
 inline constexpr TCHAR NoCapture[]=TEXT("没人守住涂鸦");
 inline constexpr TCHAR Scoreboard[]=TEXT("排行榜");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");

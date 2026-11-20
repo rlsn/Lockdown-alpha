@@ -25,7 +25,7 @@ void ALDGameState::OnRep_DemoClock()
 {
     FString Error;
     const auto Result=LDMatchLifecycle::AcceptClockView(DemoClock,LatestDemoClock,Error);
-    if (Result==ELDClockProjectionResult::Accepted) { return; }
+    if (Result==ELDClockProjectionResult::Accepted) { SyncCaptureFence(); return; }
     DemoClock=LatestDemoClock;
     if (Result==ELDClockProjectionResult::Malformed)
     { UE_LOG(LogLDMatch,Warning,TEXT("LD_CLOCK_PROJECTION_REJECTED %s"),*Error); }
@@ -42,8 +42,45 @@ void ALDGameState::OnRep_PublicMatch()
         { UE_LOG(LogLDMatch,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
     }
     SyncCaptureMarker();
+    SyncCaptureFence();
     SyncDormMarkers();
     SyncAirdropMarker();
+}
+
+TArray<const ALDCaptureMarker*> ALDGameState::GetPrivateMarkers() const
+{
+    TArray<const ALDCaptureMarker*> Out;
+    for (const TWeakObjectPtr<ALDCaptureMarker>& Marker : PrivateMarkers) { if (Marker.IsValid()) { Out.Add(Marker.Get()); } }
+    return Out;
+}
+
+void ALDGameState::SyncCaptureFence()
+{
+    UWorld* World=GetWorld();
+    ALDCaptureFence* Fence=CaptureFence.Get();
+    // The fence ends at its public instant by the synchronized authority clock, even before the cleared view arrives.
+    const bool bExpired=DemoClock.IsValid()&&DemoClock.Generation==PublicMatch.Generation&&DemoClock.NowMs>=PublicMatch.CageUntilMs;
+    const bool bStands=PublicMatch.CageUntilMs!=0&&!bExpired&&World&&!World->bIsTearingDown;
+    if (Fence&&(!bStands||Fence->GetUntilMs()!=PublicMatch.CageUntilMs))
+    {
+        Fence->Destroy();
+        Fence=nullptr;
+        CaptureFence.Reset();
+    }
+    if (!bStands||Fence) { return; }
+    FActorSpawnParameters Spawn;
+    Spawn.ObjectFlags|=RF_Transient;
+    Spawn.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    Fence=World->SpawnActor<ALDCaptureFence>(Spawn);
+    FString Error;
+    if (!Fence||!Fence->Build(PublicMatch.CageCentreCm,PublicMatch.CageRadiusCm,PublicMatch.CageUntilMs,Error))
+    {
+        if (Fence) { Fence->Destroy(); }
+        UE_LOG(LogLDMatch,Error,TEXT("LD_CAPTURE_FENCE_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,
+            Error.IsEmpty()?TEXT("The cage fence actor could not be spawned."):*Error);
+        return;
+    }
+    CaptureFence=Fence;
 }
 
 bool ALDGameState::ShowsWorldEvents() const
@@ -168,14 +205,44 @@ void ALDGameState::SyncCaptureMarker()
         &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
     ALDCaptureMarker* Marker=CaptureMarker.Get();
     // A new match generation, a return to the Lobby or a stopped room never keeps the previous ring.
-    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation
-        ||(PublicMatch.Showdown.bStarted&&!Marker->GetCenter().Equals(PublicMatch.Showdown.CentreCm,1.))))
+    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation))
     {
         Marker->Destroy();
         Marker=nullptr;
         CaptureMarker.Reset();
     }
+    const int32 PrivateCount=bShow&&PublicMatch.Showdown.bStarted?PublicMatch.PrivatePoles.Num():0;
+    for (int32 Index=PrivateMarkers.Num()-1;Index>=0;--Index)
+    {
+        ALDCaptureMarker* Private=PrivateMarkers[Index].Get();
+        if (Index<PrivateCount&&Private&&Private->GetGeneration()==PublicMatch.Generation) { continue; }
+        if (Private) { Private->Destroy(); }
+        PrivateMarkers.RemoveAt(Index);
+    }
     if (!bShow) { return; }
+    // Private flagpoles: built in the public order, each in its holder's tint.
+    for (int32 Index=0;Index<PrivateCount;++Index)
+    {
+        const FLDPrivatePoleView& Pole=PublicMatch.PrivatePoles[Index];
+        if (!PrivateMarkers.IsValidIndex(Index))
+        {
+            FActorSpawnParameters Spawn;
+            Spawn.ObjectFlags|=RF_Transient;
+            ALDCaptureMarker* Private=World->SpawnActor<ALDCaptureMarker>(Spawn);
+            FString Error;
+            if (!Private||!Private->Build(Pole.CentreCm,Pole.RadiusCm,PublicMatch.Generation,Error))
+            {
+                if (Private) { Private->Destroy(); }
+                UE_LOG(LogLDMatch,Error,TEXT("LD_PRIVATE_POLE_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+                break;
+            }
+            Private->ShowPole(true);
+            PrivateMarkers.Add(Private);
+        }
+        ALDCaptureMarker* Private=PrivateMarkers[Index].Get();
+        Private->ShowState(Pole.CircleState);
+        Private->ShowGraffiti(Pole.bGraffiti,Pole.Presentation);
+    }
     if (!Marker)
     {
         if (CaptureMarkerFailedGeneration==PublicMatch.Generation) { return; }
@@ -196,7 +263,9 @@ void ALDGameState::SyncCaptureMarker()
         Spawn.ObjectFlags|=RF_Transient;
         Marker=Capture?World->SpawnActor<ALDCaptureMarker>(Spawn):nullptr;
         if (Capture&&!Marker) { Error=TEXT("The flagpole boundary actor could not be spawned."); }
-        if (!Marker||!Marker->Build(Capture->Position,RadiusCm,PublicMatch.Generation,Error))
+        const bool bFinal=PublicMatch.Showdown.bStarted;
+        if (!Marker||!Marker->Build(bFinal?PublicMatch.PoleCentreCm:Capture->Position,bFinal?double(PublicMatch.PoleRadiusCm):RadiusCm,
+            PublicMatch.Generation,Error))
         {
             if (Marker) { Marker->Destroy(); }
             CaptureMarkerFailedGeneration=PublicMatch.Generation;
@@ -204,6 +273,12 @@ void ALDGameState::SyncCaptureMarker()
             return;
         }
         CaptureMarker=Marker;
+    }
+    // The final field moves the zone with a carried flagpole and resizes it under final_double_yellow.
+    if (PublicMatch.Showdown.bStarted)
+    {
+        Marker->Place(PublicMatch.PoleCentreCm,PublicMatch.PoleRadiusCm);
+        Marker->ShowPole(!PublicMatch.PoleCentreCm.Equals(PublicMatch.Showdown.CentreCm,1.));
     }
     Marker->ShowState(PublicMatch.CircleState);
     Marker->ShowGraffiti(PublicMatch.GraffitiOwner.IsValid(),PublicMatch.GraffitiPresentation);
