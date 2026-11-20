@@ -25,7 +25,7 @@ void ALDGameState::OnRep_DemoClock()
 {
     FString Error;
     const auto Result=LDMatchLifecycle::AcceptClockView(DemoClock,LatestDemoClock,Error);
-    if (Result==ELDClockProjectionResult::Accepted) { return; }
+    if (Result==ELDClockProjectionResult::Accepted) { SyncCaptureFence(); return; }
     DemoClock=LatestDemoClock;
     if (Result==ELDClockProjectionResult::Malformed)
     { UE_LOG(LogLDMatch,Warning,TEXT("LD_CLOCK_PROJECTION_REJECTED %s"),*Error); }
@@ -58,7 +58,9 @@ void ALDGameState::SyncCaptureFence()
 {
     UWorld* World=GetWorld();
     ALDCaptureFence* Fence=CaptureFence.Get();
-    const bool bStands=PublicMatch.CageUntilMs!=0&&World&&!World->bIsTearingDown;
+    // The fence ends at its public instant by the synchronized authority clock, even before the cleared view arrives.
+    const bool bExpired=DemoClock.IsValid()&&DemoClock.Generation==PublicMatch.Generation&&DemoClock.NowMs>=PublicMatch.CageUntilMs;
+    const bool bStands=PublicMatch.CageUntilMs!=0&&!bExpired&&World&&!World->bIsTearingDown;
     if (Fence&&(!bStands||Fence->GetUntilMs()!=PublicMatch.CageUntilMs))
     {
         Fence->Destroy();

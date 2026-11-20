@@ -24,22 +24,13 @@ int64 ALDGameMode::NextCaptureDueMs() const
 bool ALDGameMode::CaptureCompletesInsideStep()
 {
     // Only between Motion and every later phase: afterwards the boundary instant already has side effects.
-    CaptureInsideSource = INDEX_NONE;
     bCaptureCompletesInsideStep = false;
     if (!bAuthorityStepOpen || bSettlementStep || ActiveWritePermit || !bAuthorityPhaseExecuted
         || LastAuthorityPhase != ELDCommitPhase::Motion || !IsGameplayWriteOpen(MatchContext) || !CaptureReducer.IsActive())
     { return false; }
     const int64 AtMs = AuthorityBoundary.AtMs;
     int64 Earliest = CaptureReducer.CompletionInsideMs(AtMs);
-    for (int32 Index = 0; Index < PrivatePoles.Num(); ++Index)
-    {
-        const int64 Due = PrivatePoles[Index].Reducer.CompletionInsideMs(AtMs);
-        if (Due < Earliest)
-        {
-            Earliest = Due;
-            CaptureInsideSource = Index;
-        }
-    }
+    for (const FLDPrivatePole& Pole : PrivatePoles) { Earliest = FMath::Min(Earliest, Pole.Reducer.CompletionInsideMs(AtMs)); }
     bCaptureCompletesInsideStep = Earliest < AtMs;
     return bCaptureCompletesInsideStep;
 }
@@ -433,20 +424,23 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
     const bool WasOpen = CaptureReducer.IsOpen();
     const int64 AtMs = Permit.GetBoundary().AtMs;
     TArray<FLDCaptureProposal> Candidates;
-    const auto Close = [&](FLDCaptureReducer& Reducer, bool bInside)
+    // In a step cut at an inside completion, every flagpole that completes inside it closes through its own completion
+    // (the earliest wins in Settle, a tie at that instant ties); the others reduce their facts normally.
+    const auto Close = [&](FLDCaptureReducer& Reducer)
     {
+        const bool bInside = bCaptureCompletesInsideStep && Reducer.CompletionInsideMs(AtMs) < AtMs;
         TOptional<FLDCaptureProposal> Proposal;
         if (!(bInside ? Reducer.CloseThroughCompletion(AtMs, Proposal, Error) : Reducer.CloseBoundary(AtMs, Proposal, Error)))
         { return false; }
         if (Proposal) { Candidates.Add(Proposal.GetValue()); }
         return true;
     };
-    if (!Close(CaptureReducer, bCaptureCompletesInsideStep && CaptureInsideSource == INDEX_NONE)) { return false; }
+    if (!Close(CaptureReducer)) { return false; }
     bool bPrivateChanged = false;
     for (int32 Index = 0; Index < PrivatePoles.Num(); ++Index)
     {
         const uint64 Before = PrivatePoles[Index].Reducer.GetEpoch();
-        if (!Close(PrivatePoles[Index].Reducer, bCaptureCompletesInsideStep && CaptureInsideSource == Index)) { return false; }
+        if (!Close(PrivatePoles[Index].Reducer)) { return false; }
         bPrivateChanged |= Before != PrivatePoles[Index].Reducer.GetEpoch();
     }
     // Wins reached at once across the flagpoles settle together: the earliest instant, then guard > sprays > clear-out.

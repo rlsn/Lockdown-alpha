@@ -548,8 +548,6 @@ private:
     double CageRadiusCm = 0;
     TMap<FGuid, uint32> CageSprays;
     TArray<FLDFinalModHolderView> ShowdownMods;
-    // Which reducer completes inside this step: INDEX_NONE for the main flagpole, else a private pole index.
-    int32 CaptureInsideSource = INDEX_NONE;
     // Every eligibility, interruption and leave fact reaches the main flagpole and every private one; Joined and
     // Respawned carry their initial presence in each zone.
     bool EnqueueCaptureFact(const FLDCaptureEvent& Fact, const FVector* InitialFootCm,

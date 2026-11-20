@@ -203,6 +203,25 @@ bool FLDFinalModKillSecondsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("The paused guard keeps its progress with the kill"), Probe.Reducer.GetGuardKeptMs(), int64(1800 - (2150 - 1000)));
     Probe.Add(FinalDied(BodyC, 1900, K), TEXT("K kills C away from the zone"));
     Probe.ExpectWin(1900, ELDCaptureWin::Guard, K, 1900, TEXT("A kill that fills the guard wins at the kill instant"));
+    // A killer who dies at the very instant of his filling kill wins nothing, in either order of the two deaths.
+    for (const bool bKillerFirst : {false, true})
+    {
+        FFinalProbe Trade{*this};
+        const FLDCombatBodyRef Holder = FinalBody(K, 1), Victim = FinalBody(B, 1), Other = FinalBody(C, 1);
+        TestTrue(TEXT("A trade reducer starts"), Trade.Reducer.Begin(1000, 350, 1000, Trade.Error)
+            && Trade.Reducer.SetFinalRules(FinalRules(K, ELDDemoFinalModId::FinalKillSeconds), Trade.Error));
+        Trade.Add(FinalJoined(Holder, true), TEXT("K joins inside"));
+        Trade.Add(FinalJoined(Victim, false), TEXT("B joins outside"));
+        Trade.Add(FinalJoined(Other, false), TEXT("C joins outside"));
+        Trade.ExpectNoWin(1000, TEXT("Opening"));
+        Trade.ExpectNoWin(1350, TEXT("K's graffiti lands; its guard is due at 2350"));
+        Trade.ExpectNoWin(2000, TEXT("K guards to 650"));
+        if (bKillerFirst) { Trade.Add(FinalDied(Holder, 2100, B), TEXT("B kills K")); }
+        Trade.Add(FinalDied(Victim, 2100, K), TEXT("K's kill fills his guard"));
+        if (!bKillerFirst) { Trade.Add(FinalDied(Holder, 2100, B), TEXT("B kills K at the same instant")); }
+        Trade.ExpectNoWin(2100, bKillerFirst ? TEXT("A killer dead first at the instant wins nothing")
+            : TEXT("A killer dead later at the same instant wins nothing"));
+    }
     return true;
 }
 
@@ -316,6 +335,44 @@ bool FLDFinalModSettlementTest::RunTest(const FString& Parameters)
     Probe.ExpectNoWin(1350, TEXT("A sprays; its guard is due at 2350"));
     Probe.Add(FinalDied(BodyV, 2350, K), TEXT("K's kill lands at A's guard instant"));
     Probe.ExpectWin(2350, ELDCaptureWin::Guard, A, 2350, TEXT("The owner's guard is due at the boundary; K holds no graffiti"));
+
+    // Two flagpoles whose guards both resume inside one step and complete at the same instant inside it: each closes
+    // through its own completion and the shared instant ties (no winner) instead of faulting.
+    const FGuid P = FGuid::NewGuid(), O = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyP = FinalBody(P, 1), BodyO = FinalBody(O, 1), BodyM = FinalBody(A, 1);
+    FFinalProbe Main{*this};
+    TestTrue(TEXT("The main flagpole starts"), Main.Reducer.Begin(MAX_int64, 300, 1000, Main.Error));
+    Main.Add(FinalJoined(BodyM, false), TEXT("M joins"));
+    Main.Add(FinalJoined(BodyP, false), TEXT("P joins"));
+    Main.Add(FinalJoined(BodyO, false), TEXT("O joins"));
+    TestTrue(TEXT("Opening scheduled"), Main.Reducer.ScheduleOpen(1000, Main.Error));
+    FFinalProbe Private{*this};
+    TestTrue(TEXT("P's private pole starts"), Private.Reducer.BeginPrivate(Main.Reducer, P, 300, 1000, Private.Error));
+    Main.Add(FinalPresence(BodyM, 1000, true), TEXT("M enters the main zone"));
+    Private.Add(FinalPresence(BodyP, 1000, true), TEXT("P enters his pole"));
+    Main.ExpectNoWin(1000, TEXT("M sprays"));
+    Private.ExpectNoWin(1000, TEXT("P sprays"));
+    Main.ExpectNoWin(1300, TEXT("M's graffiti"));
+    Private.ExpectNoWin(1300, TEXT("P's graffiti"));
+    Main.Add(FinalPresence(BodyO, 1400, true), TEXT("O freezes M"));
+    Private.Add(FinalPresence(BodyO, 1400, true), TEXT("O is also in P's pole"));
+    Main.ExpectNoWin(1400, TEXT("Frozen"));
+    Private.ExpectNoWin(1400, TEXT("Frozen"));
+    Main.Add(FinalPresence(BodyO, 2000, false), TEXT("O leaves both"));
+    Private.Add(FinalPresence(BodyO, 2000, false), TEXT("O leaves both"));
+    const int64 Inside = 2000 + 1000 - 100;
+    TestTrue(TEXT("Both guards complete at the same instant inside the step"),
+        Main.Reducer.CompletionInsideMs(3000) == Inside && Private.Reducer.CompletionInsideMs(3000) == Inside);
+    TArray<FLDCaptureProposal> Candidates;
+    for (FFinalProbe* Pole : {&Main, &Private})
+    {
+        TOptional<FLDCaptureProposal> Proposal;
+        TestTrue(TEXT("Each closes through its own completion"), Pole->Reducer.CloseThroughCompletion(3000, Proposal, Pole->Error));
+        if (Proposal) { Candidates.Add(Proposal.GetValue()); }
+    }
+    const TOptional<FLDCaptureProposal> Shared = FLDCaptureReducer::Settle(Candidates);
+    TestTrue(TEXT("Simultaneous full guards on two flagpoles tie"), Candidates.Num() == 2 && Shared.IsSet()
+        && Shared->DueAtMs == Inside && !Shared->Winner.IsValid());
     return true;
 }
 

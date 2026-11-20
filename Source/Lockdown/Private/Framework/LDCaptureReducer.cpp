@@ -604,9 +604,13 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
             if (Event.Kind == ELDCaptureEventKind::Died && !ApplyKill(Event, Error)) { return false; }
         }
         if (!Evaluate(Event.Time, Interrupted, Error)) { return false; }
-        // A clear-out is judged once every fact of this instant is in.
+        // Once every fact of this instant is in: a clear-out is judged, and a win whose contender died at this same
+        // instant (whatever the order of the deaths) is withdrawn.
         if (bOpen && (Index + 1 == Batch.Num() || Batch[Index + 1].Time.Seconds != Event.Time.Seconds))
-        { CheckClearOut(Event.Time.BucketMs); }
+        {
+            CheckClearOut(Event.Time.BucketMs);
+            Wins.RemoveAll([this](const FLDCaptureProposal& Row) { return GetReducedPhase(Row.Winner) != ELDLifePhase::Alive; });
+        }
     }
     const int64 Through = Wins.IsEmpty() ? AtMs : FMath::Min(AtMs, Wins[0].DueAtMs);
     if (!bCompleted && !Advance(Through, true, bCompleteInside, bCompleted, Error)) { return false; }
