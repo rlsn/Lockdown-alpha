@@ -336,9 +336,19 @@ bool ULDStatBar::Refund(int32 Index)
 }
 FReply ULDStatBar::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
 {
-    // The wheel over a stat icon: up adds a point, down takes one back (rest only); elsewhere the bar lets it pass.
-    if(bAttributes||!Cells.IsValidIndex(HoveredIndex)||Event.GetWheelDelta()==0.f){return Super::NativeOnMouseWheel(Geometry,Event);}
-    if(Event.GetWheelDelta()>0.f){Allocate(HoveredIndex);}else{Refund(HoveredIndex);}
+    // The wheel over a stat icon: up adds a point, down takes one back (rest only); elsewhere the bar lets it pass. The cell
+    // is the one under the wheel event itself, never the last tick's hover (which may be stale or pinned).
+    int32 Under=INDEX_NONE;
+    if(bShownNow&&!bAttributes)
+    {
+        for(int32 Index=0;Index<Cells.Num();++Index)
+        {
+            if(Cells[Index].Box&&Cells[Index].Box->IsVisible()&&Cells[Index].Box->GetCachedGeometry().IsUnderLocation(Event.GetScreenSpacePosition()))
+            {Under=Index;break;}
+        }
+    }
+    if(Under==INDEX_NONE||Event.GetWheelDelta()==0.f){return Super::NativeOnMouseWheel(Geometry,Event);}
+    if(Event.GetWheelDelta()>0.f){Allocate(Under);}else{Refund(Under);}
     return FReply::Handled();
 }
 void ULDStatBar::Flush()
