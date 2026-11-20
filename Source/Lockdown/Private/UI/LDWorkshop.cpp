@@ -1358,6 +1358,21 @@ void ULDWorkshop::AnimateOpening()
         LDTween::SetOpacity(Over,Joined);
     }
 }
+FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    // The row under the wheel event itself (the band below is hidden while the workshop is open).
+    if(StatBar.IsValid()&&Event.GetWheelDelta()!=0.f)
+    {
+        for(int32 Index=0;Index<StatRows.Num();++Index)
+        {
+            const UWidget* Row=StatRows[Index].Row;
+            if(!Row||!Row->IsVisible()||!Row->GetCachedGeometry().IsUnderLocation(Event.GetScreenSpacePosition())){continue;}
+            if(Event.GetWheelDelta()>0.f){StatBar->Allocate(Index);}else{StatBar->Refund(Index);}
+            return FReply::Handled();
+        }
+    }
+    return Super::NativeOnMouseWheel(Geometry,Event);
+}
 FReply ULDWorkshop::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
 {
     if(Event.GetEffectingButton()==EKeys::RightMouseButton&&IsOpen()&&Choices.IsValid())

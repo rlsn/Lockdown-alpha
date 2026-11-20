@@ -120,6 +120,8 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     // The trainer's forget: a right click on a skill head (ULDChoicesPanel::ForgetAtColumn).
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    // The wheel over a stat row of the character column: up adds a point, down takes one back (rest only), like the band.
+    virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
     friend class FLDHUDCardFacesTest;
