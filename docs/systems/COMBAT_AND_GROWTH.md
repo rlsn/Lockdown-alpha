@@ -201,7 +201,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
   A01/K02/Y04/Y16 等牌、脑力关键石与分支的 `momentum_gain`/`momentum_steal`/`zone_momentum`。野怪没有劲（`CAMP.MomentumPolicy=NotApplicable`）。
 - **连击**：`AttackStart` 成功后按 `NextComboStep` 推进并把 `ComboRatioBp` 乘进普攻原始量（暴击前），第 3 段的命中表现用暴击档；
   前摇被取消的普攻不推进；死亡、新生命与休息清零。公开观察把本次普攻段数放进 `ActionComboStep`。
-- **爆劲**：客户端劲不少于本人门槛（`OVERDRIVE.Threshold`，Y11 更低；本人视图 `OverdriveThresholdP2`）时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；受理为爆劲的施法在提示事实里记 `bOverdriveCast`（公开为观察字段，表现层据此播放释放冲击）；
+- **爆劲**：客户端劲不少于本人门槛（`OVERDRIVE.Threshold`，Y11 更低；本人视图 `OverdriveThresholdP2`）时按住技能键 `OVERDRIVE.HoldSec` 后经 `SubmitCharge` 报告蓄力开始（公开 `bCharging`），松开时请求带 `bOverdrive`；受理的爆劲扣 max(本人门槛, 技能劲消耗)，余劲保留；受理为爆劲的施法在提示事实里记 `bOverdriveCast`（公开为观察字段，表现层据此播放释放冲击）；
   服务器只在蓄力至少一半时长、释放瞬间 `OverdriveReady` 才由 `ApplyOverdrive` 把伤害、护盾、治疗的基础量与系数乘 `OVERDRIVE.Scale` 并按技能元素加料
   （烫加灼烧层；湿换减速；麻在命中后排一次 `OVERDRIVE.ShockReactionRatio` 倍反应伤害；冻定身 `OVERDRIVE.ChillRootSec`；馊乘馊的时长），然后劲清零。
   不满足时按普通施放结算，不拒绝。眩晕、沉默、击退、劲跌破门槛或死亡经 `EndOverdriveCharge` 取消蓄力，不扣劲；本人视图的 `ChargingEntry` 发布当前蓄力的技能。
@@ -433,7 +433,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   K06 释放后排程 N 次自动重放（`ScheduleAutoRecasts`，60% 效果、不耗劲，`RunAutoRecasts` 在动作阶段执行）；K08/K09 冷却与劲耗
   倍率在 `CompileCardActive` 编进 `FLDCombatActiveTerms`（同名相加）；K12 改用生命支付（`HPCostBpPerMomentum`，生命不足拒绝）；
   K03 本技能命中过的参赛者在助攻窗口内死亡且主人得到击杀或助攻时刷新本技能冷却；K05 造成控制后武装下一个技能乘区
-  （`ControlAmp*`）；K07/K10 改造范围与射程（`host_hit_types` 限定宿主；K10 远距命中乘区）；K11 控制时长与冷却（`host_control`）；
+  （`ControlAmp*`）；K07/K10 改造范围与射程（`host_hit_types` 限定宿主；K10 远距命中乘区）；K11 控制时长与冷却（`host_control`）；宿主限制按该技能已选分支编译后的命中类型与效果判断（`CardTargetReason`），升级分支后不再合法的牌回到牌库；
   K14 命中时消耗护盾转为同类型伤害；K18 按最近施放的其他技能数加乘区（`RecentCasts`）；
   K13 附加攻击力物理伤害（骑乘命中）；K15 技能吸血；K16 就绪后闲置计时；K17 命中参赛者累计成长；K25 触发反应时本技能冷却减少。
 - **元素勋章**（`ELDCardForm::Medal`，`skill_element`）：在技能的元素槽里，宿主的命中带该元素（烫按 `stacks` 层）；在本体的元素槽里，
