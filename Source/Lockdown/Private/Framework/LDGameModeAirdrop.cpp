@@ -82,6 +82,9 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
             *Claimer.ToString());
         return false;
     }
+    // The claim may also drop an element medal (MEDAL.EventChance).
+    if (!Development || !Development->RollMedal(Claimer, Parameters.Medal.EventChanceBp, 0x41495200ull + Airdrop.Serial, TEXT("airdrop"),
+        Permit, Error)) { if (Error.IsEmpty()) { Error = TEXT("An airdrop medal drop needs the development domain."); } return false; }
     bPublicMatchDirty = true;
     UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld build=%u definition=%s hp=%s->%s momentum=%s->%s move_speed_until_ms=%lld field_t_ms=%lld"),
         Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, uint32(Receipt.FieldResult),

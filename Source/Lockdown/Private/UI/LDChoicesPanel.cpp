@@ -531,7 +531,12 @@ TArray<FName> ULDChoicesPanel::ConfirmWarnings() const
         // The cards on the forgotten skill go back to the library (APP_SPEC §4); they light orange first.
         const LDHUD::FStorageView Shown=LDHUD::CardStorage(Latest,LatestContent);
         const int32 Column=int32(LDHUD::SlotColumn(RestConfirm.Slot));
-        if(Shown.Columns.IsValidIndex(Column)){for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){Out.Append(Entry.Keys);}}
+        if(Shown.Columns.IsValidIndex(Column))
+        {
+            for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){Out.Append(Entry.Keys);}
+            // The medal in its element slot goes back too.
+            if(Shown.Columns[Column].bHasMedal){Out.Append(Shown.Columns[Column].Medal.Keys);}
+        }
     }
     return Out;
 }

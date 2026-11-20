@@ -362,7 +362,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("DAILY.BlackoutVisionCut", "ratio", "0.3"), ("DAILY.BlackoutShockScale", "ratio", "2"), ("DAILY.TyphoonIntervalSec", "ms", "30"),
             ("DAILY.TyphoonPushCm", "cm", "150"), ("DAILY.HeatBurnTickScale", "ratio", "1.3"), ("DAILY.SalePriceScale", "ratio", "0.5"),
             ("DAILY.DeliveryExpireSec", "ms", "15"), ("DAILY.PatrolBossAppearSec", "ms", "120"), ("DAILY.ExamMonsterXPScale", "ratio", "1.3"),
-            ("DAILY.ExamRespawnBonusSec", "ms", "3"), ("DAILY.GymDashCooldownCut", "ratio", "0.3"), ("AFFIX.Chance", "ratio", "0.3"),
+            ("DAILY.ExamRespawnBonusSec", "ms", "3"), ("DAILY.GymDashCooldownCut", "ratio", "0.3"), ("AFFIX.Chance", "ratio", "0.3"), ("MEDAL.LevelChance", "ratio", "0.15"), ("MEDAL.CampLowChance", "ratio", "0.03"), ("MEDAL.CampHighChance", "ratio", "0.06"), ("MEDAL.CampEliteChance", "ratio", "0.12"), ("MEDAL.CampAncientChance", "ratio", "0.25"), ("MEDAL.BossChance", "ratio", "1"), ("MEDAL.EventChance", "ratio", "0.5"),
             ("AFFIX.OvertimeAttackSpeed", "ratio", "0.3"), ("AFFIX.TeambuildXPScale", "ratio", "1.5"),
             ("AFFIX.BonusHP", "ratio", "0.4"), ("AFFIX.LayoffAttack", "ratio", "0.3"), ("AFFIX.AuditTelegraphCut", "ratio", "0.3"),
             ("EXPLORE.LockerRadiusCm", "cm", "150"), ("EXPLORE.LockerChannelSec", "ms", "3"),

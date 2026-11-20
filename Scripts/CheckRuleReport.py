@@ -509,6 +509,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Growth.Shop.Buy",
         "Lockdown.Rules.Growth.Shop.Refresh",
         "Lockdown.Rules.Growth.Shop.SkipPoints",
+        "Lockdown.Rules.Growth.Medals.Drops",
         "Lockdown.Rules.Combat.Chain.Key",
         "Lockdown.Rules.UI.ResultHighlights",
         "Lockdown.Rules.Combat.Cards.Y21",

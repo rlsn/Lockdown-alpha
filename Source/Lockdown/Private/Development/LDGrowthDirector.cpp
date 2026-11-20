@@ -374,6 +374,19 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(Outcome, Reason);
     }
+    // The last hit on a camp monster may drop an element medal by the camp's tier (MEDAL.Camp*Chance). The peddler keeps a
+    // camp definition but is an event: its own reward rolls MEDAL.EventChance once.
+    if (!bContenderVictim && !Basis.bPeddlerAtDeath)
+    {
+        const FLDDemoMonsterDefinition* Monster = Content->Get().Monsters.FindByPredicate(
+            [&Basis](const FLDDemoMonsterDefinition& Row) { return FName(*Row.Id) == Basis.RewardDefinitionId; });
+        FString MedalError;
+        if (Monster && !M->Development->RollMedal(Recipient, LDProgression::CampMedalChanceBp(Content->Get().Parameters.Medal, Monster->Tier),
+            HashCombine(GetTypeHash(Death.Key.Victim.EntityId), Death.Key.Victim.Life), TEXT("camp_kill"), Permit, MedalError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_MEDAL_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *MedalError);
+        }
+    }
     Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
     RecordReward(Receipt);
     return Receipt;

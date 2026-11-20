@@ -429,6 +429,18 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason DrawShop(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint64 Seed,
         TArray<FLDShopSlot>& Out);
     LOCKDOWN_API uint64 ShopSeed(const FGuid& MatchSecret, const FGuid& Contender, uint32 Stock);
+
+    // ---- Element medals: their own drops, never a card offer or the shop ----
+
+    // The seed of one medal chance: the match secret, the contender and the event's own key (a level, a death, a reward).
+    LOCKDOWN_API uint64 MedalSeed(const FGuid& MatchSecret, const FGuid& Contender, uint64 Key);
+    // Whether a ChanceBp (0..10000) chance hits for Seed, and if so which medal (uniform over the catalog's medals).
+    LOCKDOWN_API bool RollMedal(const FLDDemoContentDefinitions& Content, uint64 Seed, int64 ChanceBp, FName& OutMedal);
+    // MEDAL.Camp*Chance for a camp tier (0 for the Boss tier: the Boss uses MEDAL.BossChance).
+    LOCKDOWN_API int64 CampMedalChanceBp(const FLDDemoMedalParameters& Medal, ELDDemoCampTier Tier);
+    // The levels in (Before, After] that queue no card offer (CARDS.OfferEveryLevels does not divide them): each rolls
+    // MEDAL.LevelChance.
+    LOCKDOWN_API TArray<int32> MedalLevels(const FLDDemoCardParameters& Cards, int32 Before, int32 After);
     // Draws the next stock into Progression.Shop; bRestStart resets the rest's refresh count (every
     // mid-match rest start).
     LOCKDOWN_API ELDGrowthReason StockShop(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,

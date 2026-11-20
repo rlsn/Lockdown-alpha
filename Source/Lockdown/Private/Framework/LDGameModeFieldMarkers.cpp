@@ -93,7 +93,7 @@ bool ALDGameMode::ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 
 }
 
 bool ALDGameMode::PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
-    const FLDGameplayWritePermit& Permit, FString& Error)
+    const FLDGameplayWritePermit& Permit, FString& Error, int64 MedalChanceBp, uint64 MedalKey)
 {
     if ((ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None
             && ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
@@ -102,7 +102,7 @@ bool ALDGameMode::PayFieldReward(const FGuid& Recipient, FName Event, uint64 Ser
         Error = TEXT("A map event reward needs the current DeathsAndRewards or Transactions permit, the growth domain and its identity.");
         return false;
     }
-    return CommitOwedFieldReward({Recipient, Event, Serial, XP, Kind}, Permit, Error);
+    return CommitOwedFieldReward({Recipient, Event, Serial, XP, Kind, MedalChanceBp, MedalKey}, Permit, Error);
 }
 
 bool ALDGameMode::CommitOwedFieldReward(const FLDOwedFieldReward& Reward, const FLDGameplayWritePermit& Permit, FString& Error)
@@ -128,7 +128,9 @@ bool ALDGameMode::CommitOwedFieldReward(const FLDOwedFieldReward& Reward, const 
     UE_LOG(LogLDWorld, Display, TEXT("LD_FIELD_REWARD event=%s serial=%llu contender=%s xp=%lld build=%u definition=%s field_t_ms=%lld"),
         *Reward.Event.ToString(), Reward.Serial, *LDLog::Id(Reward.Recipient), Receipt.XPDelta, uint32(Receipt.FieldResult),
         *Receipt.FieldDefinition.ToString(), GetFieldNowMs());
-    return true;
+    // The reward's medal chance rolls with the committed reward, never ahead of a deferred one.
+    return Reward.MedalChanceBp <= 0 || !Development
+        || Development->RollMedal(Reward.Recipient, Reward.MedalChanceBp, Reward.MedalKey, *Reward.Event.ToString(), Permit, Error);
 }
 
 bool ALDGameMode::RetryFieldRewards(const FLDGameplayWritePermit& Permit, FString& Error)

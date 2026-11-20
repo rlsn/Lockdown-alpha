@@ -290,6 +290,48 @@ bool FLDGrowthShopSkipPointsTest::RunTest(const FString& Parameters)
     return bGood;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthMedalDropsTest, "Lockdown.Rules.Growth.Medals.Drops",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthMedalDropsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDShopRulesTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDGrowthBuild Of = Build(Content);
+    // Element medals never enter a card offer or a shelf.
+    bool bOfferMedal = false, bShelfMedal = false;
+    for (uint32 Seed = 1; Seed <= 300; ++Seed)
+    {
+        TArray<FName> Offer;
+        LDProgression::DrawCardOffer(Content, Of, 3, LDProgression::ShopSeed(Secret, Contender, Seed), Offer);
+        for (const FName& Card : Offer) { bOfferMedal |= LDProgression::IsMedal(Content, Card); }
+        TArray<FLDShopSlot> Shelf;
+        LDProgression::DrawShop(Content, Of, LDProgression::ShopSeed(Secret, Contender, Seed), Shelf);
+        for (const FLDShopSlot& Slot : Shelf) { bShelfMedal |= LDProgression::IsMedal(Content, Slot.Definition); }
+    }
+    bool bGood = TestFalse(TEXT("No card offer holds a medal"), bOfferMedal);
+    bGood &= TestFalse(TEXT("No shelf holds a medal"), bShelfMedal);
+    // A chance of 0 never drops; 10000 always drops a medal; the same seed draws the same medal.
+    FName Medal, Again;
+    bGood &= TestFalse(TEXT("A zero chance drops nothing"), LDProgression::RollMedal(Content, 7, 0, Medal));
+    bGood &= TestTrue(TEXT("A certain chance drops a medal"), LDProgression::RollMedal(Content, 7, 10000, Medal)
+        && LDProgression::IsMedal(Content, Medal) && LDProgression::RollMedal(Content, 7, 10000, Again) && Again == Medal);
+    // Approved rates: 15% on a level without a card offer, the camp tiers 3/6/12/25%, the Boss always, events 50%.
+    const FLDDemoMedalParameters& M = Content.Parameters.Medal;
+    bGood &= TestEqual(TEXT("Medal chances"), FString::Printf(TEXT("%lld/%lld/%lld/%lld/%lld/%lld/%lld"), M.LevelChanceBp, M.CampLowChanceBp,
+        M.CampHighChanceBp, M.CampEliteChanceBp, M.CampAncientChanceBp, M.BossChanceBp, M.EventChanceBp),
+        FString(TEXT("1500/300/600/1200/2500/10000/5000")));
+    bGood &= TestEqual(TEXT("Camp tiers map to their chance"), LDProgression::CampMedalChanceBp(M, ELDDemoCampTier::Ancient), M.CampAncientChanceBp);
+    // With a card offer every two levels, levels 3 and 5 of 1 -> 6 roll for a medal.
+    bGood &= TestTrue(TEXT("Odd levels roll for a medal"), LDProgression::MedalLevels(Content.Parameters.Cards, 1, 6) == TArray<int32>({3, 5}));
+    // Over many seeds, roughly the chance hits.
+    int32 Hits = 0;
+    for (uint32 Seed = 1; Seed <= 2000; ++Seed) { Hits += LDProgression::RollMedal(Content, LDProgression::MedalSeed(Secret, Contender, Seed), 1500, Medal) ? 1 : 0; }
+    bGood &= TestTrue(FString::Printf(TEXT("About 15%% of 2000 rolls hit (%d)"), Hits), Hits > 220 && Hits < 380);
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatChainKeyTest, "Lockdown.Rules.Combat.Chain.Key",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCombatChainKeyTest::RunTest(const FString& Parameters)

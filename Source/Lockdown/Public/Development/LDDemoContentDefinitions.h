@@ -204,6 +204,23 @@ struct FLDDemoAffixParameters
     UPROPERTY() int32 AuditSkillPointsMax = 0;
 };
 
+// Element medals drop on their own, never from a card offer or the shop: a level-up that queues no card offer, the last hit
+// on a camp monster by its tier, the Boss's last hit, and each event reward (airdrop, locker, mini flag, arena, peddler).
+// Each is a chance in basis points (MEDAL.*Chance) to receive one uniformly drawn medal.
+USTRUCT()
+struct FLDDemoMedalParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 LevelChanceBp = 0;
+    UPROPERTY() int64 CampLowChanceBp = 0;
+    UPROPERTY() int64 CampHighChanceBp = 0;
+    UPROPERTY() int64 CampEliteChanceBp = 0;
+    UPROPERTY() int64 CampAncientChanceBp = 0;
+    UPROPERTY() int64 BossChanceBp = 0;
+    UPROPERTY() int64 EventChanceBp = 0;
+};
+
 // Spec §11.3 (P6) delivery lockers and the second-hand dealer.
 USTRUCT()
 struct FLDDemoExploreParameters
@@ -579,6 +596,7 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoDailyParameters Daily;
     UPROPERTY() FLDDemoAffixParameters Affix;
     UPROPERTY() FLDDemoExploreParameters Explore;
+    UPROPERTY() FLDDemoMedalParameters Medal;
     UPROPERTY() FLDDemoElementParameters Elements;
     UPROPERTY() FLDDemoGroundParameters Ground;
     // Spec §3.7: the product of a hit's damage factors stops at DamageFactorTechCapBp (DAMAGE.FactorTechCap, a technical

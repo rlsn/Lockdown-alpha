@@ -339,6 +339,8 @@ private:
     void Rebuild(const LDHUD::FStorageView& Model);
     void BuildCard(FName Component,bool bFresh,int32 Copies);
     void BuildTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId);
+    // An empty element slot on the workshop board (a learned skill's or the body's column with no medal).
+    void BuildMedalSlot(FColumn& Column,float Size);
     void BuildWorkshopCard(FName Component,bool bFresh,float Size,int32 Group,int32 Copies);
     void AddCopiesBadge(UOverlay* Face,int32 Copies);
     // What each installed card did this match so far (damage, else its trigger count), by card definition; the workshop

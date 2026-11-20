@@ -417,7 +417,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         StorageShown(Column.Title,Index==int32(LDHUD::EStorageColumn::Body),ESlateVisibility::HitTestInvisible);
         // Workshop: more than five rows in a column shrink its icons, so the board never scrolls.
         const float Base=FMath::Max((Shown.Entries.Num()>5?46.f:56.f)*Workshop.TileScale,Workshop.bActive?Workshop.MinIcon:0.f);
-        for(const LDHUD::FEquippedView& Entry:Shown.Entries)
+        const auto AddEntry=[&](const LDHUD::FEquippedView& Entry)
         {
             const float TileSize=Workshop.bActive?Base:StorageTile;
             if(Workshop.bActive){BuildWorkshopTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index),TileSize);}
@@ -427,7 +427,11 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
             Tile.Kind=uint8(Facts.Type);Tile.Copies=Entry.Copies;
             Tile.Icon=LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,LDHUD::CardDefinition(Entry.Card).ToString()));
             StyleFace(Tile.Face,Entry.Card,Tile.Kind,TileSize,false);
-        }
+        };
+        // The element slot heads the column: its medal, or (on the workshop board) an empty round slot.
+        if(Shown.bHasMedal){AddEntry(Shown.Medal);}
+        else if(Shown.bMedalSlot&&Workshop.bActive){BuildMedalSlot(Column,Base);}
+        for(const LDHUD::FEquippedView& Entry:Shown.Entries){AddEntry(Entry);}
         // The empty place at the end of a column is the size of its icons.
         const float Empty=Workshop.bActive?Base:StorageTile;
         Column.PlaceholderBox->SetWidthOverride(Empty);Column.PlaceholderBox->SetHeightOverride(Workshop.bActive?Empty:StorageTile*.7f);
@@ -577,6 +581,31 @@ void ULDComponentStorage::SetDetailsHeld(bool bHeld)
     if(bDetailsHeld==bHeld){return;}
     bDetailsHeld=bHeld;
     if(!bHeld&&!bPinned&&!Drag.bActive&&!Press.bArmed&&!Chooser.bOpen){bExpanded=false;}
+}
+void ULDComponentStorage::BuildMedalSlot(FColumn& Column,float Size)
+{
+    // An empty element slot: a round outline the size of a tile, named 元素槽 beside it on the board.
+    auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Size);Box->SetHeightOverride(Size);Built.Add(Box);
+    auto* Ring=WidgetTree->ConstructWidget<UBorder>();Built.Add(Ring);
+    // A clear fill with its own outline opacity: the rim stays visible while the face shows through.
+    FSlateRoundedBoxBrush RingBrush(FLinearColor::Transparent,Size*.5f,LDHUDStyle::DropLegal.CopyWithNewOpacity(.55f),1.5f);
+    RingBrush.OutlineSettings.bUseBrushTransparency=false;
+    Ring->SetBrush(RingBrush);Ring->SetHorizontalAlignment(HAlign_Center);Ring->SetVerticalAlignment(VAlign_Center);
+    UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT("+"),LDHUDStyle::TypeBody);Glyph->SetAutoWrapText(false);Built.Add(Glyph);
+    Glyph->SetColorAndOpacity(LDHUDStyle::TextSecondary);Ring->SetContent(Glyph);
+    Box->SetContent(Ring);Box->SetVisibility(ESlateVisibility::HitTestInvisible);
+    if(Column.bDense){Column.DenseList->AddChildToWrapBox(Box);return;}
+    auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Row);
+    Row->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);
+    if(Workshop.bNames)
+    {
+        UTextBlock* Name=LDWidgets::Text(WidgetTree,LDTerms::MedalSlot,14);Name->SetAutoWrapText(false);Built.Add(Name);
+        Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        auto* NameSlot=Row->AddChildToHorizontalBox(Name);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetPadding(FMargin(10,0,0,0));
+    }
+    auto* RowSlot=Column.List->AddChildToVerticalBox(Row);
+    RowSlot->SetPadding(FMargin(0,Column.List->GetChildrenCount()>1?14.f*Workshop.TileScale:0.f,0,0));
+    RowSlot->SetHorizontalAlignment(HAlign_Fill);
 }
 void ULDComponentStorage::BuildTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId)
 {
