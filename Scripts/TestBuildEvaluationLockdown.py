@@ -632,6 +632,15 @@ class PlanTest(AdapterCase):
                 lockdown.native_input("run-1", plan, self.caps, case)
 
 
+class MedalSlotTest(unittest.TestCase):
+    def test_a_second_medal_swaps_the_first_out_of_its_element_slot(self):
+        install = lambda card: {"step": "install", "at": "field", "card": card, "target": "body"}
+        cards = lockdown.planned_cards([install("medal_fire"), install("medal_water")])
+        self.assertEqual(cards, {("medal_water", "Body", "", "None"): 1})
+        cards = lockdown.planned_cards([install("medal_fire"), install("medal_water"), install("medal_fire")])
+        self.assertEqual(cards, {("medal_fire", "Body", "", "None"): 1})
+
+
 class EvidenceTest(AdapterCase):
     def test_operation_knobs_are_facts_and_must_reach_the_native_profile(self):
         stance = {"kind": "kite", "standoff_cm": 450, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500}

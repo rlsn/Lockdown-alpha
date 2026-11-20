@@ -426,6 +426,8 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_cards, keep_unspen
     for card in level_cards:
         received[card] = received.get(card, 0) + 1
     installed = {}
+    # A medal's element slot per host: a second medal there sends the first back to the library.
+    medal_slots = {}
     allocated = 0
     field = False
     mechanics, decisions, problems = set(), set(), []
@@ -459,9 +461,12 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_cards, keep_unspen
         if kind == "install":
             if at == "opening_rest":
                 problem("no card is owned in the opening rest: the level cards arrive with the field supply")
-            elif installed.get(card, 0) >= received.get(card, 0):
-                problem(f"no stored copy of {card}: the level cards give {received.get(card, 0)}")
             medal = row.get("form") == "medal"
+            if medal and target and medal_slots.get(target):
+                installed[medal_slots[target]] -= 1
+                medal_slots[target] = None
+            if at != "opening_rest" and installed.get(card, 0) >= received.get(card, 0):
+                problem(f"no stored copy of {card}: the level cards give {received.get(card, 0)}")
             if not medal and sum(n for name, n in installed.items() if rows.get(name, {}).get("form") != "medal") >= capacity:
                 problem(f"the workshop of level {level} holds {capacity} cards")
             place = FORM_PLACE.get(row.get("form"))
@@ -479,11 +484,16 @@ def _build_needs(role, steps, choices, caps, supply_xp, level_cards, keep_unspen
             elif "element" in step and step["element"] not in choices_of:
                 problem(f"{card} chooses one of {choices_of}")
             installed[card] = installed.get(card, 0) + 1
+            if medal and target:
+                medal_slots[target] = card
         elif kind == "uninstall":
             if not installed.get(card):
                 problem(f"no copy of {card} is installed by an earlier step")
             else:
                 installed[card] -= 1
+                host = next((host for host, held in medal_slots.items() if held == card), None)
+                if host:
+                    medal_slots[host] = None
         elif kind == "allocate_points":
             wrong = [stat for stat in step["points"] if rows[stat]["kind"] != "stat"]
             if wrong:
@@ -824,6 +834,8 @@ def expected_build(step, caps):
 def planned_cards(steps):
     """The installed copies a plan ends with, as (card, target kind, target id, element) with their count."""
     out = {}
+    # An element medal (id prefix medal_) takes its host's single element slot and returns the medal held there.
+    medal_slots = {}
     for step in steps:
         if step["step"] not in CARD_STEPS:
             continue
@@ -831,11 +843,18 @@ def planned_cards(steps):
             target = step["target"]
             key = (step["card"], CARD_PLACES.get(target, "Skill"), "" if target in CARD_PLACES else target,
                    ELEMENTS.get(step.get("element"), "None"))
+            if step["card"].startswith("medal_"):
+                if medal_slots.get(target):
+                    out[medal_slots[target]] -= 1
+                medal_slots[target] = key
             out[key] = out.get(key, 0) + 1
         else:
             for key in sorted(out):
                 if key[0] == step["card"] and out[key] > 0:
                     out[key] -= 1
+                    host = next((host for host, held in medal_slots.items() if held == key), None)
+                    if host:
+                        medal_slots[host] = None
                     break
     return {key: count for key, count in out.items() if count}
 

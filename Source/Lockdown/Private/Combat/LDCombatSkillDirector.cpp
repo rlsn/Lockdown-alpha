@@ -312,9 +312,9 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
             TArray<TPair<FLDCombatBodyRef,FVector>> Inside;
             if (!CollectLineTargets(Fan.OriginCm,Heading,Fan.LengthCm,Fan.HalfWidthCm,*FanOwner,Inside,Error)) { return false; }
             FLDCombatHit Blow=Fan.Payload;
-            // The blow pushes along its heading.
+            // The blow pushes every target along its heading: each hit's anchor sits behind that target's foot.
             Blow.bKnockbackFromAnchor=true;
-            Blow.KnockbackAnchorCm=Fan.OriginCm-Heading.GetSafeNormal2D()*100.;
+            const FVector Behind=Heading.GetSafeNormal2D()*100.;
             // A2: the owner's last element rides on the wind.
             if (Fan.bCarryElement && FanOwner->LastAppliedElement!=ELDCombatElement::None)
             {
@@ -326,6 +326,7 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
                 FLDCombatHit Hit=Blow;
                 Hit.HitId=FGuid::NewGuid();
                 Hit.Target=Row.Key;
+                Hit.KnockbackAnchorCm=Row.Value-Behind;
                 PendingHits.Add(MoveTemp(Hit));
             }
             // B1: a blow that reached an enemy refills momentum.
