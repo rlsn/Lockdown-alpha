@@ -2868,8 +2868,11 @@ bool FLDCardRuleY05Test::RunTest(const FString& Parameters)
     bool bSawSecondaryReaction = false;
     {
         FFixture F;
-        if (!F.Init(*this)) { return false; }
+        if (!F.Init(*this, true)) { return false; }
         const FLDCombatBodyRef Holder = F.AddBody();
+        F.Place(Holder, 0., 0.);
+        const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 500000);
+        F.Place(Target, 600., 0.);
         if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_wave_after"), ELDCardTargetKind::Body}})) { return false; }
         const FLDCombatSourceRef Src = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
         for (int32 Trial = 0; Trial < 32 && !bSawSecondaryReaction; ++Trial)
@@ -2877,10 +2880,13 @@ bool FLDCardRuleY05Test::RunTest(const FString& Parameters)
             const int64 AtMs = 2000 + Trial * 1000;
             FAccess::SetNow(*F.Mode, AtMs);
             FAccess::Reactions(*F.Driver).Reset();
-            const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 500000);
+            FLDCombatBodyState& TargetState = F.Body(Target);
+            TargetState.ElementMark = FLDCombatElementMark();
+            TargetState.ReactionLockedUntilMs = 0;
+            TargetState.WaveAfterExemptChainId.Invalidate();
             FString Error;
-            if (!FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Rot, Holder, Src, AtMs, Error)
-                || !FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Water, Holder, Src, AtMs, Error)
+            if (!FAccess::ApplyReactionElement(*F.Driver, TargetState, ELDCombatElement::Rot, Holder, Src, AtMs, Error)
+                || !FAccess::ApplyReactionElement(*F.Driver, TargetState, ELDCombatElement::Water, Holder, Src, AtMs, Error)
                 || !FAccess::AdvanceElements(*F.Driver, AtMs, Error))
             {
                 AddError(Error);
