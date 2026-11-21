@@ -1360,7 +1360,10 @@ bool FLDShowdownAntiStalemateTest::RunTest(const FString& Parameters)
     Probe.Add(KillB, TEXT("A kills B in Showdown"));
     Probe.Close(13000, false, TEXT("Showdown kill advances guard by +4.0s"));
     Probe.ExpectGuard(A, ELDCircleState::Guarded, 21500, 0, TEXT("Guard advances to 11.5s, due at 21500ms"));
-    TestEqual(TEXT("Effective guard progress reflects live 11.5s progress"), Probe.Reducer.GetEffectiveGuardMs(A, 13000), int64(11500));
+    TestEqual(TEXT("Effective guard progress reflects live 11.5s progress for the current owner"),
+        Probe.Reducer.GetEffectiveGuardMs(A, 13000), int64(11500));
+    TestEqual(TEXT("Non-owner has 0 effective guard progress even if they had historical banked guard"),
+        Probe.Reducer.GetEffectiveGuardMs(B, 13000), int64(0));
 
     // 2. Percentage-based Showdown timeout tiebreaker across main (20s) and private (28s) poles -> kills -> damage.
     TArray<FLDShowdownTimeoutCandidate> Candidates = {

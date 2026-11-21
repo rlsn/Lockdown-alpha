@@ -3960,6 +3960,20 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
     const auto GuardedSmall = LDTactical::EvaluateDamage(GuardInput, *F.Catalog);
     TestTrue(TEXT("Hits below 30 do not trigger Thick Skin's guard cut"),
         GuardedSmall.IsSuccess() && GuardedSmall.Value->KeystoneGuardCutP2 == 0 && GuardedSmall.Value->DamageP2 == 2500);
+
+    // 4. card_muscle_memory (A13) grows AttackSpeedBonusRatio in CardGrowth without InputDomain rejection.
+    FLDBuildProjectionInput MuscleBuild;
+    MuscleBuild.MatchGeneration = 1;
+    MuscleBuild.CatalogRoot = F.Catalog->Root();
+    MuscleBuild.Level = 6;
+    MuscleBuild.Cards.Add({1, FName(TEXT("card_muscle_memory")), ELDCardTargetKind::Body});
+    MuscleBuild.CardGrowth.Add({ELDDemoBonusStat::AttackSpeedBonusRatio, 400});
+    const auto BaseMuscle = LDTactical::ProjectBuild(
+        FLDBuildProjectionInput{1, F.Catalog->Root(), 6, {}, {}, {MuscleBuild.Cards[0]}}, *F.Catalog);
+    const auto GrownMuscle = LDTactical::ProjectBuild(MuscleBuild, *F.Catalog);
+    TestTrue(TEXT("card_muscle_memory CardGrowth AttackSpeedBonusRatio projects cleanly and increases attack speed"),
+        BaseMuscle.IsSuccess() && GrownMuscle.IsSuccess()
+        && GrownMuscle.Value->Final.AttackSpeedP4 > BaseMuscle.Value->Final.AttackSpeedP4);
     return true;
 }
 

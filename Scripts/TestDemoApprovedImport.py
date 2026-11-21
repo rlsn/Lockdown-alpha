@@ -97,12 +97,12 @@ def physical(base, ad, ap=0):
 
 # Every active's effects in authored order and author units; "base" grows with the owner's level at runtime.
 ACTIVE_EFFECTS = {
-    "active_elbow": [physical(55, ".75", ".35"), ("knockback", {"distance": 300, "duration": r(".25")})],
-    "active_pants_down": [physical(40, ".55", ".35"), ("root", {"duration": r("1.2")})],
-    "active_crotch_grab": [physical(60, ".7", ".35"), ("stun", {"duration": r(".8")})],
+    "active_elbow": [physical(65, ".85"), ("knockback", {"distance": 300, "duration": r(".25")})],
+    "active_pants_down": [physical(50, ".65", ".4"), ("root", {"duration": r("1.2")})],
+    "active_crotch_grab": [physical(75, ".9"), ("stun", {"duration": r(".8")})],
     "active_account_banned": [magical(55, ".6"), ("silence", {"duration": r("1.2")})],
-    "active_unplug": [physical(45, ".6", ".3"), ("disarm", {"duration": r("1.4")})],
-    "active_snark_bolt": [adaptive(90, ".75"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
+    "active_unplug": [physical(55, ".7", ".45"), ("disarm", {"duration": r("1.4")})],
+    "active_snark_bolt": [adaptive(90, ".9"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_seethe": [("self_area", {"radius": 300}), magical(60, ".6", ".02"), ("burn", {"stacks": 2})],
     "active_quick_meeting": [
         ("zone", {"count": 3, "delay": 0, "duration": 3, "interval": 1, "radius": 240}),
@@ -114,26 +114,26 @@ ACTIVE_EFFECTS = {
                    ("chain_bounce", {"count": 2, "interval": r(".15"), "radius": 350, "ratio": r(".7")})],
     "active_bail_out": [
         ("dash", {"distance": 350, "duration": r(".2")}),
-        ("empower_basic", {"ad_ratio": r(".55"), "ap_ratio": r(".35"), "base": 45, "damage_type": "Physical", "duration": 3})],
+        ("empower_basic", {"ad_ratio": r(".75"), "ap_ratio": r(".45"), "base": 55, "damage_type": "Physical", "duration": 3})],
     "active_apology_slide": [
-        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(65, ".65", ".35"),
+        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(75, ".8", ".5"),
         ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_charged_ram": [
         ("dash", {"distance": 450, "duration": r(".3")}),
-        ("shield", {"ad_ratio": r(".35"), "ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
-        ("dash_contact", {"targets": "Every"}), magical(65, ".45", 0, ".5"), ("electrify", {})],
+        ("shield", {"ad_ratio": r(".4"), "ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
+        ("dash_contact", {"targets": "Every"}), magical(55, ".45", 0, ".55"), ("electrify", {})],
     "active_not_mad": [
-        ("shield", {"ad_ratio": r(".4"), "ap_ratio": r(".6"), "base": 80, "duration": 3, "max_hp_ratio": r(".05")}), ("dispel_slow", {}), ("dispel_root", {})],
+        ("shield", {"ad_ratio": r(".65"), "ap_ratio": r(".6"), "base": 95, "duration": 3, "max_hp_ratio": r(".08")}), ("dispel_slow", {}), ("dispel_root", {})],
     "active_stare_down": [
         ("taunt", {"duration": 1, "radius": 300}),
         ("timed_stat_bonus", {"duration": 3, "stats": {"ArmorFlat": 14, "MagicResistFlat": 14}})],
     "active_brace": [
         ("brace", {"base": 50, "duration": 3, "limit": 120, "radius": 300, "ratio": r(".2"), "record_ratio": r(".6")})],
     "active_triple_combo": [
-        ("empower_basic", {"ad_ratio": r(".2"), "ap_ratio": r(".12"), "base": 18, "charges": 3, "damage_type": "Physical", "duration": 5,
-                           "stats": {"AttackSpeedBonusRatio": r(".25")}})],
+        ("empower_basic", {"ad_ratio": r(".28"), "ap_ratio": r(".18"), "base": 24, "charges": 3, "damage_type": "Physical", "duration": 5,
+                           "stats": {"AttackSpeedBonusRatio": r(".35")}})],
     "active_calculus_drop": [
-        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), adaptive(110, ".85")],
+        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), adaptive(110, "1")],
     "active_flyer_trap": [
         ("contact_trap", {"delay": r(".45"), "duration": 6, "radius": 180, "trigger_radius": 100}), magical(100, ".75"),
         ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
@@ -143,13 +143,13 @@ ACTIVE_EFFECTS = {
         ("zone_wet", {}), ("zone_haste", {"ratio": r(".15")})],
     "active_sock_shot": [magical(80, ".75"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("rot", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_open_mic": [
-        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(35, ".25", 0, ".35"), ("knockback", {"distance": 100, "duration": r(".12")})],
+        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(38, ".32", 0, ".35"), ("knockback", {"distance": 100, "duration": r(".12")})],
     # Issue #287 P4 skills N1-N3.
     "active_cola_shake": [("channel_cone", {"count": 1, "interval": r(".25")}), magical(55, ".5"), ("chill", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_desk_fan": [("fan", {"distance": 60, "duration": 4, "interval": r(".5"), "length": 600, "width": 200})],
     "active_stale_takeout": [magical(75, ".7"), ("rot", {}), ("ground_state", {"kind": "miasma"}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_school_bag": [("bag", {"count": 1, "duration": 4, "hp_base": 150, "hp_per_level": 20, "radius": 200, "size": 40}),
-                          magical(80, ".5", 0, ".7")],
+                          magical(85, ".65", 0, ".7")],
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {

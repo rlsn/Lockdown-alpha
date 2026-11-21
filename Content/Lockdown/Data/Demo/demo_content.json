@@ -572,15 +572,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -646,15 +646,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -740,15 +740,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -827,15 +827,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -905,15 +905,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -1003,15 +1003,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -1099,15 +1099,15 @@
         },
         {
           "ad_ratio": {
-            "bp": 6500,
+            "bp": 8000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 5000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 6500,
+            "p2": 7500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -1175,15 +1175,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 3850,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2450,
+                "bp": 3150,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3150,
+                "p2": 3850,
                 "unit": "points"
               },
               "charges": 3,
@@ -1253,15 +1253,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -1313,15 +1313,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 3850,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2450,
+                "bp": 3150,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3150,
+                "p2": 3850,
                 "unit": "points"
               },
               "charges": 3,
@@ -1391,15 +1391,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 3850,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2450,
+                "bp": 3150,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3150,
+                "p2": 3850,
                 "unit": "points"
               },
               "charges": 3,
@@ -1486,15 +1486,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -1577,15 +1577,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 8250,
+                "bp": 11250,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5250,
+                "bp": 6750,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6750,
+                "p2": 8250,
                 "unit": "points"
               },
               "crit": true,
@@ -1639,15 +1639,15 @@
         },
         {
           "ad_ratio": {
-            "bp": 5500,
+            "bp": 7500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 4500,
             "unit": "ratio"
           },
           "base": {
-            "p2": 4500,
+            "p2": 5500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -2160,7 +2160,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 8500,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2254,7 +2254,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 11900,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2332,7 +2332,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 8500,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2430,7 +2430,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 8500,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2529,7 +2529,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 11900,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2607,7 +2607,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 11900,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2695,7 +2695,7 @@
             "unit": "ratio"
           },
           "adaptive_ratio": {
-            "bp": 8500,
+            "bp": 10000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -2764,7 +2764,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5600,
+                "bp": 6400,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2793,7 +2793,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2801,7 +2801,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -2859,7 +2859,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2888,7 +2888,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 7150,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2896,7 +2896,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 8450,
+                "p2": 7150,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -2954,7 +2954,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5600,
+                "bp": 6400,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2983,7 +2983,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2991,7 +2991,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3066,7 +3066,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5600,
+                "bp": 6400,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3095,7 +3095,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3103,7 +3103,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3170,7 +3170,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3199,7 +3199,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 7150,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3207,7 +3207,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 8450,
+                "p2": 7150,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3273,7 +3273,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3302,7 +3302,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 6500,
+                "bp": 7150,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3310,7 +3310,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 8450,
+                "p2": 7150,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3386,7 +3386,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 3500,
+            "bp": 4000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -3415,7 +3415,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 5000,
+            "bp": 5500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -3423,7 +3423,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 6500,
+            "p2": 5500,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -4111,15 +4111,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7000,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -4171,15 +4171,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7000,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -4244,15 +4244,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7000,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -4326,15 +4326,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7000,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -4399,15 +4399,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7000,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -4473,15 +4473,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7000,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -4561,15 +4561,15 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 7000,
+            "bp": 9000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 0,
             "unit": "ratio"
           },
           "base": {
-            "p2": 6000,
+            "p2": 7500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -5732,15 +5732,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7500,
+                "bp": 8500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5500,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -5815,15 +5815,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7500,
+                "bp": 8500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5500,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -5880,15 +5880,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7500,
+                "bp": 8500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5500,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -5975,15 +5975,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7500,
+                "bp": 8500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5500,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -6063,15 +6063,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7500,
+                "bp": 8500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5500,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -6132,15 +6132,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 7500,
+                "bp": 8500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5500,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -6211,15 +6211,15 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 7500,
+            "bp": 8500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 0,
             "unit": "ratio"
           },
           "base": {
-            "p2": 5500,
+            "p2": 6500,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -7532,7 +7532,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9750,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -7540,7 +7540,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 12000,
+                "p2": 14250,
                 "unit": "hp"
               },
               "duration": {
@@ -7548,7 +7548,7 @@
                 "unit": "ms"
               },
               "max_hp_ratio": {
-                "bp": 750,
+                "bp": 1200,
                 "unit": "ratio"
               },
               "op": "shield",
@@ -7589,7 +7589,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2400,
+                "bp": 3900,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -7597,7 +7597,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4800,
+                "p2": 5700,
                 "unit": "hp"
               },
               "duration": {
@@ -7605,7 +7605,7 @@
                 "unit": "ms"
               },
               "max_hp_ratio": {
-                "bp": 300,
+                "bp": 480,
                 "unit": "ratio"
               },
               "op": "shield",
@@ -7691,7 +7691,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9750,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -7699,7 +7699,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 12000,
+                "p2": 14250,
                 "unit": "hp"
               },
               "duration": {
@@ -7707,7 +7707,7 @@
                 "unit": "ms"
               },
               "max_hp_ratio": {
-                "bp": 750,
+                "bp": 1200,
                 "unit": "ratio"
               },
               "op": "shield",
@@ -7756,7 +7756,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9750,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -7764,7 +7764,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 12000,
+                "p2": 14250,
                 "unit": "hp"
               },
               "duration": {
@@ -7772,7 +7772,7 @@
                 "unit": "ms"
               },
               "max_hp_ratio": {
-                "bp": 750,
+                "bp": 1200,
                 "unit": "ratio"
               },
               "op": "shield",
@@ -7821,7 +7821,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2400,
+                "bp": 3900,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -7829,7 +7829,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4800,
+                "p2": 5700,
                 "unit": "hp"
               },
               "duration": {
@@ -7837,7 +7837,7 @@
                 "unit": "ms"
               },
               "max_hp_ratio": {
-                "bp": 300,
+                "bp": 480,
                 "unit": "ratio"
               },
               "op": "shield",
@@ -7931,7 +7931,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2400,
+                "bp": 3900,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -7939,7 +7939,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4800,
+                "p2": 5700,
                 "unit": "hp"
               },
               "duration": {
@@ -7947,7 +7947,7 @@
                 "unit": "ms"
               },
               "max_hp_ratio": {
-                "bp": 300,
+                "bp": 480,
                 "unit": "ratio"
               },
               "op": "shield",
@@ -8042,7 +8042,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 4000,
+            "bp": 6500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -8050,7 +8050,7 @@
             "unit": "ratio"
           },
           "base": {
-            "p2": 8000,
+            "p2": 9500,
             "unit": "hp"
           },
           "duration": {
@@ -8058,7 +8058,7 @@
             "unit": "ms"
           },
           "max_hp_ratio": {
-            "bp": 500,
+            "bp": 800,
             "unit": "ratio"
           },
           "op": "shield",
@@ -8124,11 +8124,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 1875,
+                "bp": 2400,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 2625,
+                "p2": 2850,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -8211,11 +8211,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5500,
+                "bp": 7040,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 7700,
+                "p2": 8360,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -8298,11 +8298,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 1875,
+                "bp": 2400,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 2625,
+                "p2": 2850,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -8394,11 +8394,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 1875,
+                "bp": 2400,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 2625,
+                "p2": 2850,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -8481,11 +8481,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5500,
+                "bp": 7040,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 7700,
+                "p2": 8360,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -8585,11 +8585,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5500,
+                "bp": 7040,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 7700,
+                "p2": 8360,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -8682,11 +8682,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 2500,
+            "bp": 3200,
             "unit": "ratio"
           },
           "base": {
-            "p2": 3500,
+            "p2": 3800,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -8752,15 +8752,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 5000,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -8812,15 +8812,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 5000,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -8889,15 +8889,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 5000,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -8963,15 +8963,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 5000,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -9037,15 +9037,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 5000,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -9122,15 +9122,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 5500,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 5000,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -9200,15 +9200,15 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 5500,
+            "bp": 6500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 4000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 4000,
+            "p2": 5000,
             "unit": "points"
           },
           "damage_type": "Physical",
@@ -9980,11 +9980,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 8000,
+                "p2": 8500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -10063,11 +10063,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 10000,
+                "bp": 13000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 16000,
+                "p2": 17000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -10147,11 +10147,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 8000,
+                "p2": 8500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -10226,11 +10226,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 8000,
+                "p2": 8500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -10314,11 +10314,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 10000,
+                "bp": 13000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 16000,
+                "p2": 17000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -10411,11 +10411,11 @@
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 10000,
+                "bp": 13000,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 16000,
+                "p2": 17000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -10500,11 +10500,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 5000,
+            "bp": 6500,
             "unit": "ratio"
           },
           "base": {
-            "p2": 8000,
+            "p2": 8500,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -11052,7 +11052,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 7500,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11130,7 +11130,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 7500,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11216,7 +11216,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 7500,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11326,7 +11326,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 7500,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11409,7 +11409,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 7500,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11496,7 +11496,7 @@
                 "unit": "ratio"
               },
               "adaptive_ratio": {
-                "bp": 7500,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11596,7 +11596,7 @@
             "unit": "ratio"
           },
           "adaptive_ratio": {
-            "bp": 7500,
+            "bp": 9000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -13608,15 +13608,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 1500,
+                "bp": 2100,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 900,
+                "bp": 1350,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 1350,
+                "p2": 1800,
                 "unit": "points"
               },
               "charges": 5,
@@ -13629,7 +13629,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 2500,
+                  "bp": 3500,
                   "unit": "ratio"
                 }
               }
@@ -13661,15 +13661,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 3600,
+                "bp": 5040,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2160,
+                "bp": 3240,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3240,
+                "p2": 4320,
                 "unit": "points"
               },
               "charges": 2,
@@ -13682,7 +13682,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 2500,
+                  "bp": 3500,
                   "unit": "ratio"
                 }
               }
@@ -13714,15 +13714,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 1500,
+                "bp": 2100,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 900,
+                "bp": 1350,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 1350,
+                "p2": 1800,
                 "unit": "points"
               },
               "charges": 5,
@@ -13739,7 +13739,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 2500,
+                  "bp": 3500,
                   "unit": "ratio"
                 }
               }
@@ -13771,15 +13771,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 1500,
+                "bp": 2100,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 900,
+                "bp": 1350,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 1350,
+                "p2": 1800,
                 "unit": "points"
               },
               "breach": 1,
@@ -13793,7 +13793,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 2500,
+                  "bp": 3500,
                   "unit": "ratio"
                 }
               }
@@ -13825,15 +13825,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 3600,
+                "bp": 5040,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2160,
+                "bp": 3240,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3240,
+                "p2": 4320,
                 "unit": "points"
               },
               "charges": 2,
@@ -13850,7 +13850,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 2500,
+                  "bp": 3500,
                   "unit": "ratio"
                 }
               }
@@ -13882,15 +13882,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 3600,
+                "bp": 5040,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2160,
+                "bp": 3240,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3240,
+                "p2": 4320,
                 "unit": "points"
               },
               "charges": 2,
@@ -13904,7 +13904,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 2500,
+                  "bp": 3500,
                   "unit": "ratio"
                 }
               }
@@ -13937,15 +13937,15 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 2000,
+            "bp": 2800,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 1200,
+            "bp": 1800,
             "unit": "ratio"
           },
           "base": {
-            "p2": 1800,
+            "p2": 2400,
             "unit": "points"
           },
           "charges": 3,
@@ -13958,7 +13958,7 @@
           "opcode": 22,
           "stats": {
             "AttackSpeedBonusRatio": {
-              "bp": 2500,
+              "bp": 3500,
               "unit": "ratio"
             }
           }
@@ -13994,15 +13994,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -14054,15 +14054,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -14126,15 +14126,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -14207,15 +14207,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -14281,15 +14281,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -14353,15 +14353,15 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4500,
+                "p2": 5500,
                 "unit": "points"
               },
               "damage_type": "Physical",
@@ -14430,15 +14430,15 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 6000,
+            "bp": 7000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3000,
+            "bp": 4500,
             "unit": "ratio"
           },
           "base": {
-            "p2": 4500,
+            "p2": 5500,
             "unit": "points"
           },
           "damage_type": "Physical",

@@ -1215,11 +1215,10 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
     const FGuid ChainKey=CurrentChain.IsValid() ? CurrentChain : Fact.TriggerEffectId;
-    const bool bGrantExempt=ChainKey.IsValid() && !WaveAfterExemptedChains.Contains(ChainKey);
-    if (bGrantExempt)
+    TGuardValue<FGuid> ChainScope(CurrentChain,ChainKey);
+    if (ChainKey.IsValid() && !WaveAfterExemptedChains.Contains(ChainKey))
     {
-        if (WaveAfterExemptedChains.Num()>512) { WaveAfterExemptedChains.Reset(); }
-        WaveAfterExemptedChains.Add(ChainKey);
+        Primary->WaveAfterExemptChainId=ChainKey;
     }
     for (const FLDPassiveEffectRef& Wave : Waves)
     {
@@ -1237,7 +1236,6 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         if (!ApplyElement(*Primary,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
         LedgerCardTriggered(*Trigger,Wave.Key);
     }
-    if (bGrantExempt) { Primary->bWaveAfterReactionExempt=true; }
     return true;
 }
 

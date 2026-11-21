@@ -411,7 +411,7 @@
       "id": "active_elbow", "opening": true, "cooldown_family": "cd_elbow", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 220}}, "windup": {"unit": "s", "value": 0.15},
       "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 4.2},
-      "effects": [{"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0.75}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.25}}],
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 65}, "ad_ratio": {"unit": "ratio", "value": 0.85}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.25}}],
       "ranks": {
         "2A": {"name": "给我过来", "text": "改为把目标拉到身前 [pull.radius] 厘米。", "patches": [{"op": "add", "effect": {"op": "pull", "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.25}, "min_distance": {"unit": "cm", "value": 120}}}]},
         "3A1": {"name": "拉完就揍", "text": "拉完 [next_basic_amp.duration] 秒内下一次普攻伤害 +[next_basic_amp.ratio]%。", "patches": [{"op": "add", "effect": {"op": "next_basic_amp", "ratio": {"unit": "ratio", "value": 1}, "duration": {"unit": "s", "value": 2}}}]},
@@ -425,7 +425,7 @@
       "id": "active_pants_down", "opening": true, "cooldown_family": "cd_pants_down", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 400}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
-      "effects": [{"op": "damage", "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0.55}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "root", "duration": {"unit": "s", "value": 1.2}}],
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 50}, "ad_ratio": {"unit": "ratio", "value": 0.65}, "ap_ratio": {"unit": "ratio", "value": 0.4}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "root", "duration": {"unit": "s", "value": 1.2}}],
       "ranks": {
         "2A": {"name": "裤腰带", "text": "射程变远。", "patches": [{"op": "target", "range": {"unit": "cm", "value": 650}}]},
         "3A1": {"name": "光着挨揍", "text": "定身期间你对他的伤害 +[vulnerable.ratio]%。", "patches": [{"op": "add", "effect": {"op": "vulnerable", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.2}, "scope": "all", "own": true}}]},
@@ -439,7 +439,7 @@
       "id": "active_crotch_grab", "opening": true, "cooldown_family": "cd_crotch_grab", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 200}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 7},
-      "effects": [{"op": "damage", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0.7}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "stun", "duration": {"unit": "s", "value": 0.8}}],
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0.9}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "stun", "duration": {"unit": "s", "value": 0.8}}],
       "ranks": {
         "2A": {"name": "憋大招", "text": "眩晕改为 [stun.duration] 秒，冷却变长。", "patches": [{"op": "set", "effect": "stun", "field": "duration", "value": {"unit": "s", "value": 1.2}}, {"op": "cooldown", "add": {"unit": "s", "value": 3}}]},
         "3A1": {"name": "掏完再补", "text": "眩晕结束时补 [follow_up.amount] 物理伤害。", "patches": [{"op": "add", "effect": {"op": "follow_up", "delay": {"unit": "s", "value": 1.2}, "count": 1, "interval": {"unit": "s", "value": 1.2}, "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "damage_type": "Physical"}}]},
@@ -467,7 +467,7 @@
       "id": "active_unplug", "opening": true, "cooldown_family": "cd_unplug", "element": "none", "hit_type": "targeted",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 300}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 5.6},
-      "effects": [{"op": "damage", "base": {"unit": "points", "value": 45}, "ad_ratio": {"unit": "ratio", "value": 0.6}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.4}}],
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0.7}, "ap_ratio": {"unit": "ratio", "value": 0.45}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.4}}],
       "ranks": {
         "2A": {"name": "拧断", "text": "缴械改为 [disarm.duration] 秒，冷却变长。", "patches": [{"op": "set", "effect": "disarm", "field": "duration", "value": {"unit": "s", "value": 2.0}}, {"op": "cooldown", "add": {"unit": "s", "value": 2}}]},
         "3A1": {"name": "手软了", "text": "缴械结束后 [follow_up.duration] 秒内他攻速降低 [follow_up.ratio]%。", "patches": [{"op": "add", "effect": {"op": "follow_up", "delay": {"unit": "s", "value": 2.0}, "count": 1, "interval": {"unit": "s", "value": 2.0}, "attack_slow": {"unit": "ratio", "value": 0.4}, "attack_slow_duration": {"unit": "s", "value": 3}}}]},
@@ -481,7 +481,7 @@
       "id": "active_snark_bolt", "opening": true, "cooldown_family": "cd_snark_bolt", "element": "none", "hit_type": "projectile",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 850}, "projectile_radius": {"unit": "cm", "value": 55}, "projectile_speed": {"unit": "cm/s", "value": 1600}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 4.2},
-      "effects": [{"op": "damage", "base": {"unit": "points", "value": 90}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0}, "adaptive_ratio": {"unit": "ratio", "value": 0.75}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}],
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 90}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0}, "adaptive_ratio": {"unit": "ratio", "value": 0.9}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}],
       "ranks": {
         "2A": {"name": "大号鞋", "text": "弹道变大。", "patches": [{"op": "target", "projectile_radius": {"unit": "cm", "value": 110}}]},
         "3A1": {"name": "鞋带", "text": "命中后把人拉近 [pull.distance] 厘米。", "patches": [{"op": "add", "effect": {"op": "knockback", "distance": {"unit": "cm", "value": 200}, "duration": {"unit": "s", "value": 0.2}}}, {"op": "add", "effect": {"op": "pull", "distance": {"unit": "cm", "value": 200}, "duration": {"unit": "s", "value": 0.2}, "min_distance": {"unit": "cm", "value": 120}}}]},
@@ -523,7 +523,7 @@
       "id": "active_bail_out", "opening": true, "cooldown_family": "cd_bail_out", "element": "none", "hit_type": "dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
       "momentum_cost": {"unit": "momentum", "value": 20}, "cooldown": {"unit": "s", "value": 4.9},
-      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.2}}, {"op": "empower_basic", "base": {"unit": "points", "value": 45}, "ad_ratio": {"unit": "ratio", "value": 0.55}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}],
+      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.2}}, {"op": "empower_basic", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0.75}, "ap_ratio": {"unit": "ratio", "value": 0.45}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}],
       "ranks": {
         "2A": {"name": "隔空连打", "text": "强化存 [empower_basic.count] 次，每次伤害降低；有强化时普攻射程 +[empower_reach.distance] 厘米。", "patches": [{"op": "set", "effect": "empower_basic", "field": "charges", "value": 3}, {"op": "scale", "effect": "empower_basic", "fields": ["base", "ad_ratio", "ap_ratio"], "ratio": 0.7}, {"op": "add", "effect": {"op": "empower_reach", "range": {"unit": "cm", "value": 250}, "damage_ratio": {"unit": "ratio", "value": 1}}}]},
         "3A1": {"name": "打出劲", "text": "每次强化普攻回 [empower_basic.limit] 劲。", "patches": [{"op": "set", "effect": "empower_basic", "field": "momentum", "value": {"unit": "momentum", "value": 5}}]},
@@ -537,7 +537,7 @@
       "id": "active_apology_slide", "opening": true, "cooldown_family": "cd_apology_slide", "element": "none", "hit_type": "dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0.15},
       "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 5.6},
-      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.3}}, {"op": "dash_contact", "targets": "First"}, {"op": "damage", "base": {"unit": "points", "value": 65}, "ad_ratio": {"unit": "ratio", "value": 0.65}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}],
+      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.3}}, {"op": "dash_contact", "targets": "First"}, {"op": "damage", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.5}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}],
       "ranks": {
         "2A": {"name": "铲倒", "text": "减速改为定身 [root.duration] 秒。", "patches": [{"op": "remove", "effect": "slow"}, {"op": "add", "effect": {"op": "root", "duration": {"unit": "s", "value": 0.6}}}]},
         "3A1": {"name": "倒地挨揍", "text": "定身期间他受到的伤害 +[vulnerable.ratio]%。", "patches": [{"op": "add", "effect": {"op": "vulnerable", "ratio": {"unit": "ratio", "value": 0.2}, "duration": {"unit": "s", "value": 0.6}, "scope": "all"}}]},
@@ -551,7 +551,7 @@
       "id": "active_not_mad", "opening": false, "cooldown_family": "cd_not_mad", "element": "none", "hit_type": "self",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "momentum_cost": {"unit": "momentum", "value": 25}, "cooldown": {"unit": "s", "value": 7},
-      "effects": [{"op": "shield", "base": {"unit": "hp", "value": 80}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "duration": {"unit": "s", "value": 3}, "max_hp_ratio": {"unit": "ratio", "value": 0.05}}, {"op": "dispel_slow"}, {"op": "dispel_root"}],
+      "effects": [{"op": "shield", "base": {"unit": "hp", "value": 95}, "ap_ratio": {"unit": "ratio", "value": 0.6}, "ad_ratio": {"unit": "ratio", "value": 0.65}, "duration": {"unit": "s", "value": 3}, "max_hp_ratio": {"unit": "ratio", "value": 0.08}}, {"op": "dispel_slow"}, {"op": "dispel_root"}],
       "ranks": {
         "2A": {"name": "铁锅", "text": "护盾变为 [shield.amount]，持续 [shield.duration] 秒。", "patches": [{"op": "scale", "effect": "shield", "fields": ["base", "ap_ratio", "ad_ratio", "max_hp_ratio"], "ratio": 1.5}, {"op": "set", "effect": "shield", "field": "duration", "value": {"unit": "s", "value": 4}}]},
         "3A1": {"name": "锅反弹", "text": "护盾存在时反弹 [shield_reflect.ratio]% 直接伤害。", "patches": [{"op": "add", "effect": {"op": "shield_reflect", "ratio": {"unit": "ratio", "value": 0.2}}}]},
@@ -579,7 +579,7 @@
       "id": "active_triple_combo", "opening": true, "cooldown_family": "cd_triple_combo", "element": "none", "hit_type": "self",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "momentum_cost": {"unit": "momentum", "value": 20}, "cooldown": {"unit": "s", "value": 6.3},
-      "effects": [{"op": "empower_basic", "base": {"unit": "points", "value": 18}, "ad_ratio": {"unit": "ratio", "value": 0.2}, "ap_ratio": {"unit": "ratio", "value": 0.12}, "damage_type": "Physical", "duration": {"unit": "s", "value": 5}, "charges": 3, "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.25}}}],
+      "effects": [{"op": "empower_basic", "base": {"unit": "points", "value": 24}, "ad_ratio": {"unit": "ratio", "value": 0.28}, "ap_ratio": {"unit": "ratio", "value": 0.18}, "damage_type": "Physical", "duration": {"unit": "s", "value": 5}, "charges": 3, "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.35}}}],
       "ranks": {
         "2A": {"name": "多抽两下", "text": "强化 [empower_basic.count] 次，每次伤害降低。", "patches": [{"op": "set", "effect": "empower_basic", "field": "charges", "value": 5}, {"op": "scale", "effect": "empower_basic", "fields": ["base", "ad_ratio", "ap_ratio"], "ratio": 0.75}]},
         "3A1": {"name": "抽出劲", "text": "每次强化回 [empower_basic.limit] 劲。", "patches": [{"op": "set", "effect": "empower_basic", "field": "momentum", "value": {"unit": "momentum", "value": 4}}]},
@@ -593,7 +593,7 @@
       "id": "active_calculus_drop", "opening": true, "cooldown_family": "cd_calculus_drop", "element": "none", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 650}}, "windup": {"unit": "s", "value": 0.25},
       "momentum_cost": {"unit": "momentum", "value": 35}, "cooldown": {"unit": "s", "value": 5.6},
-      "effects": [{"op": "ground_impact", "radius": {"unit": "cm", "value": 200}, "inner_radius": {"unit": "cm", "value": 80}, "outer_ratio": {"unit": "ratio", "value": 0.6}, "delay": {"unit": "s", "value": 0.55}}, {"op": "damage", "base": {"unit": "points", "value": 110}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0}, "adaptive_ratio": {"unit": "ratio", "value": 0.85}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
+      "effects": [{"op": "ground_impact", "radius": {"unit": "cm", "value": 200}, "inner_radius": {"unit": "cm", "value": 80}, "outer_ratio": {"unit": "ratio", "value": 0.6}, "delay": {"unit": "s", "value": 0.55}}, {"op": "damage", "base": {"unit": "points", "value": 110}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0}, "adaptive_ratio": {"unit": "ratio", "value": 1}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
       "ranks": {
         "2A": {"name": "连环砖", "text": "落下后 [echo_impact.delay] 秒同点再落一次，[echo_impact.multiplier]% 伤害。", "patches": [{"op": "add", "effect": {"op": "echo_impact", "delay": {"unit": "s", "value": 0.8}, "damage_ratio": {"unit": "ratio", "value": 0.5}, "cooldown_ratio": {"unit": "ratio", "value": 1}}}]},
         "3A1": {"name": "第二砖更狠", "text": "第二砖中心伤害更高。", "patches": [{"op": "set", "effect": "echo_impact", "field": "center_ratio", "value": {"unit": "ratio", "value": 2}}]},
@@ -621,7 +621,7 @@
       "id": "active_open_mic", "opening": true, "cooldown_family": "cd_open_mic", "element": "none", "hit_type": "area",
       "target": {"mode": "DirectionCone", "range": {"unit": "cm", "value": 450}, "angle": {"unit": "degrees", "value": 70}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 4.9},
-      "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.3}, "count": 3, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.2}}, {"op": "damage", "base": {"unit": "points", "value": 35}, "ad_ratio": {"unit": "ratio", "value": 0.35}, "ap_ratio": {"unit": "ratio", "value": 0.25}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 100}, "duration": {"unit": "s", "value": 0.12}}],
+      "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.3}, "count": 3, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.2}}, {"op": "damage", "base": {"unit": "points", "value": 38}, "ad_ratio": {"unit": "ratio", "value": 0.35}, "ap_ratio": {"unit": "ratio", "value": 0.32}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 100}, "duration": {"unit": "s", "value": 0.12}}],
       "ranks": {
         "2A": {"name": "喷五波", "text": "改为 [channel_cone.count] 波，每波伤害降低。", "patches": [{"op": "set", "effect": "channel_cone", "field": "count", "value": 5}, {"op": "scale", "effect": "damage", "fields": ["base", "ad_ratio", "ap_ratio", "max_hp_ratio"], "ratio": 0.75}]},
         "3A1": {"name": "喷出劲", "text": "每波命中回 [momentum_gain.amount] 劲。", "patches": [{"op": "add", "effect": {"op": "momentum_gain", "momentum": {"unit": "momentum", "value": 3}}}]},
@@ -663,7 +663,7 @@
       "id": "active_charged_ram", "opening": true, "cooldown_family": "cd_charged_ram", "element": "shock", "hit_type": "dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0.1},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 6.3},
-      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 450}, "duration": {"unit": "s", "value": 0.3}}, {"op": "shield", "base": {"unit": "hp", "value": 60}, "ap_ratio": {"unit": "ratio", "value": 0}, "ad_ratio": {"unit": "ratio", "value": 0.35}, "duration": {"unit": "s", "value": 2}, "max_hp_ratio": {"unit": "ratio", "value": 0.04}}, {"op": "dash_contact", "targets": "Every"}, {"op": "damage", "base": {"unit": "points", "value": 65}, "ad_ratio": {"unit": "ratio", "value": 0.5}, "ap_ratio": {"unit": "ratio", "value": 0.45}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "electrify"}],
+      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 450}, "duration": {"unit": "s", "value": 0.3}}, {"op": "shield", "base": {"unit": "hp", "value": 60}, "ap_ratio": {"unit": "ratio", "value": 0}, "ad_ratio": {"unit": "ratio", "value": 0.4}, "duration": {"unit": "s", "value": 2}, "max_hp_ratio": {"unit": "ratio", "value": 0.04}}, {"op": "dash_contact", "targets": "Every"}, {"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0.55}, "ap_ratio": {"unit": "ratio", "value": 0.45}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "electrify"}],
       "ranks": {
         "2A": {"name": "满电", "text": "护盾变为 [shield.amount]。", "patches": [{"op": "scale", "effect": "shield", "fields": ["base", "ap_ratio", "ad_ratio", "max_hp_ratio"], "ratio": 1.6}]},
         "3A1": {"name": "电壳炸开", "text": "护盾被打破时对身边 [shield_burst_break.radius] 厘米造成 [shield_burst_break.amount] 魔法伤害。", "patches": [{"op": "add", "effect": {"op": "shield_burst_break", "base": {"unit": "points", "value": 60}, "ap_ratio": {"unit": "ratio", "value": 0.5}, "radius": {"unit": "cm", "value": 300}}}]},
@@ -762,7 +762,7 @@
       "id": "active_school_bag", "opening": false, "cooldown_family": "cd_school_bag", "element": "none", "hit_type": "area",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 450}}, "windup": {"unit": "s", "value": 0.2},
       "momentum_cost": {"unit": "momentum", "value": 30}, "cooldown": {"unit": "s", "value": 7.7},
-      "effects": [{"op": "bag", "duration": {"unit": "s", "value": 4}, "count": 1, "hp_base": {"unit": "hp", "value": 150}, "hp_per_level": {"unit": "hp", "value": 20}, "radius": {"unit": "cm", "value": 200}, "size": {"unit": "cm", "value": 40}}, {"op": "damage", "base": {"unit": "points", "value": 80}, "ad_ratio": {"unit": "ratio", "value": 0.7}, "ap_ratio": {"unit": "ratio", "value": 0.5}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
+      "effects": [{"op": "bag", "duration": {"unit": "s", "value": 4}, "count": 1, "hp_base": {"unit": "hp", "value": 150}, "hp_per_level": {"unit": "hp", "value": 20}, "radius": {"unit": "cm", "value": 200}, "size": {"unit": "cm", "value": 40}}, {"op": "damage", "base": {"unit": "points", "value": 85}, "ad_ratio": {"unit": "ratio", "value": 0.7}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}],
       "ranks": {
         "2A": {"name": "两个书包", "text": "同时可以放 [bag.count] 个书包。", "patches": [{"op": "set", "effect": "bag", "field": "count", "value": 2}]},
         "3A1": {"name": "书包连墙", "text": "两个书包之间连起一道墙，跟书包一起消失。", "patches": [{"op": "set", "effect": "bag", "field": "wall_width", "value": {"unit": "cm", "value": 60}}]},

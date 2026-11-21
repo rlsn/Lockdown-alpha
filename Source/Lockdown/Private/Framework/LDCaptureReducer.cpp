@@ -227,16 +227,10 @@ bool FLDCaptureReducer::AccountGuard(int64 ThroughMs, FString& Error)
 
 int64 FLDCaptureReducer::GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const
 {
-    if (!ContenderId.IsValid() || Guard <= 0) { return 0; }
-    int64 Best = FMath::Clamp<int64>(BankedGuard.FindRef(ContenderId), 0, Guard);
-    if (Owner == ContenderId && FadeAt == 0)
-    {
-        const int64 Current = IsGuardRunning()
-            ? FMath::Clamp<int64>(AtMs - (GuardDue - Guard), 0, Guard)
-            : FMath::Clamp<int64>(GuardKept, 0, Guard);
-        Best = FMath::Max(Best, Current);
-    }
-    return Best;
+    if (!ContenderId.IsValid() || Guard <= 0 || Owner != ContenderId || FadeAt != 0) { return 0; }
+    return IsGuardRunning()
+        ? FMath::Clamp<int64>(AtMs - (GuardDue - Guard), 0, Guard)
+        : FMath::Clamp<int64>(GuardKept, 0, Guard);
 }
 
 FGuid FLDCaptureReducer::ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTimeoutCandidate>& Candidates)

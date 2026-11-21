@@ -234,13 +234,17 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     if (!TargetActor) { Error=TEXT("An element target has no registered actor."); return false; }
     const FVector Foot=FootOf(*TargetActor);
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
-    if (Held==ELDCombatElement::None) { Target.bWaveAfterReactionExempt=false; }
+    if (NowMs>=Target.ReactionLockedUntilMs) { Target.WaveAfterExemptChainId.Invalidate(); }
     // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole unless
-    // card_wave_after granted one secondary-reaction exemption on this body.
+    // card_wave_after granted one secondary-reaction exemption for the same rule chain on this body.
     if (NowMs<Target.ReactionLockedUntilMs && LDCombatElements::ReactionOf(Held,Kind)!=ELDCombatReaction::None)
     {
-        if (!Target.bWaveAfterReactionExempt) { return true; }
-        Target.bWaveAfterReactionExempt=false;
+        const bool bWaveExempt=Target.WaveAfterExemptChainId.IsValid() && CurrentChain.IsValid()
+            && Target.WaveAfterExemptChainId==CurrentChain && !WaveAfterExemptedChains.Contains(CurrentChain);
+        if (!bWaveExempt) { return true; }
+        Target.WaveAfterExemptChainId.Invalidate();
+        if (WaveAfterExemptedChains.Num()>512) { WaveAfterExemptedChains.Reset(); }
+        WaveAfterExemptedChains.Add(CurrentChain);
     }
     bElementApplied=true;
     // Who applied the held element, the setters of a reaction's rule chain: the mark's latest applier; for fire, the applier
@@ -357,7 +361,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         return ConvertGroundAt(Foot,Kind,Applier,NowMs,Error);
     }
     // A reaction: the held element is consumed; the trigger is the new element's applier. Observers float its name over the target.
-    Target.bWaveAfterReactionExempt=false;
+    Target.WaveAfterExemptChainId.Invalidate();
     const FLDReactionRule Rule=LDCombatElements::RuleOf(Reaction,Terms);
     Target.Cues.LastReaction=uint8(Reaction);
     Target.Cues.LastReactionAtMs=NowMs;

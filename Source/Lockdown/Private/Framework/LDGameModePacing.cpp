@@ -267,7 +267,7 @@ bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString
 
 void ALDGameMode::NoteContenderDamage(const FGuid& Attacker, const FGuid& Victim, int64 DamageP2)
 {
-    if (Showdown.bStarted && !Timeline.IsCountdownPaused() && Attacker.IsValid() && Victim.IsValid()
+    if (Showdown.bStarted && Attacker.IsValid() && Victim.IsValid()
         && Attacker != Victim && DamageP2 > 0)
     {
         int64& Dealt = ShowdownDamageP2.FindOrAdd(Attacker);

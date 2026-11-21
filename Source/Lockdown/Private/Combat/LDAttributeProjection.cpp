@@ -280,10 +280,11 @@ private:
         {
             const FLDDemoStatBonus& Bonus = Build.CardGrowth[Index];
             const FString Field = FString::Printf(TEXT("CardGrowth[%d]"), Index);
-            // D09 grows the move speed ratio; every other growth is flat.
+            // D09 grows the move speed ratio and A13 grows the attack speed ratio; every other growth is flat.
             const bool bKnown = Bonus.Stat == ELDDemoBonusStat::MaxHPFlat || Bonus.Stat == ELDDemoBonusStat::ADFlat
                 || Bonus.Stat == ELDDemoBonusStat::APFlat || Bonus.Stat == ELDDemoBonusStat::ArmorFlat
-                || Bonus.Stat == ELDDemoBonusStat::MagicResistFlat || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio;
+                || Bonus.Stat == ELDDemoBonusStat::MagicResistFlat || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio
+                || Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio;
             if (!bKnown || Bonus.Amount < 0 || Build.CardGrowth.FilterByPredicate(
                 [&Bonus](const FLDDemoStatBonus& Other) { return Other.Stat == Bonus.Stat; }).Num() != 1)
             {

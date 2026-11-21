@@ -322,6 +322,22 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     }
     Receipt.Phase=ELDCombatPhase::Queued;
     Receipt.Reject=ELDCombatReject::None;
+    if (!bQueuedStep && ShouldBufferPreInput(Caller.EntityId,Request.Entry))
+    {
+        StoreReceipt(*Record,Request,Receipt);
+        FPendingCombatIntent Buffered;
+        Buffered.Entry=Request.Entry;
+        Buffered.CastMode=ELDCombatPreInputMode::Direct;
+        Buffered.AimDirection=Request.Target.Direction;
+        Buffered.GroundPointCm=Request.Target.Point;
+        Buffered.bOverdrive=Request.bOverdrive;
+        Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+        Buffered.Action=Request;
+        BufferPreInputIntent(Caller.EntityId,MoveTemp(Buffered));
+        const auto* Stored=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+            { return Entry.Request.DirectSequence==Request.DirectSequence; });
+        return Stored ? Stored->Receipt : Receipt;
+    }
     Record->Pending.Add(Request);
     StoreReceipt(*Record,Request,Receipt);
     return Record->Recent.Last().Receipt;
@@ -792,15 +808,15 @@ bool ALDCombatDirector::FlushPreInputQueues(const FLDGameplayWritePermit& Permit
             else if (PC && PC->Navigation)
             {
                 if (!PC->Navigation->ActivateBufferedCast(Head.SpatialOrder,Head.Action,Permit,Error)) { return false; }
-                // Extend any second buffered step's expiry while the first popped step begins winding up or approaching.
-                Record=FindRecord(Entity);
-                Body=FindEntityBody(Entity);
-                if (Record && !Record->PreInputQueue.IsEmpty())
-                {
-                    const int64 Anchor=Body && Body->Action.IsSet() ? Body->Action->ReleaseAtMs : Now;
-                    Record->PreInputQueue[0].ExpiresAtMs=FMath::Max(Record->PreInputQueue[0].ExpiresAtMs,
-                        Anchor+LDCombatPreInput::HoldWindowMs);
-                }
+            }
+            // Extend any second buffered step's expiry while the first popped step begins winding up or approaching.
+            Record=FindRecord(Entity);
+            Body=FindEntityBody(Entity);
+            if (Record && !Record->PreInputQueue.IsEmpty())
+            {
+                const int64 Anchor=Body && Body->Action.IsSet() ? Body->Action->ReleaseAtMs : Now;
+                Record->PreInputQueue[0].ExpiresAtMs=FMath::Max(Record->PreInputQueue[0].ExpiresAtMs,
+                    Anchor+LDCombatPreInput::HoldWindowMs);
             }
         }
     }

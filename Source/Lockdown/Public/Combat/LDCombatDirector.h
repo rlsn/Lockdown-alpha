@@ -390,7 +390,7 @@ struct FLDBodyCombatState
     int64 KeystonePhysiqueReadyAtMs=0;
     int64 KeystoneThickSkinReadyAtMs=0;
     TMap<FGuid,int64> KeystoneStrengthTargetReadyAtMs;
-    bool bWaveAfterReactionExempt=false;
+    FGuid WaveAfterExemptChainId;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
     // and burn of this life and the damage-triggered shield's rest (B09: it starts only on a granted shield).
     TArray<FLDCombatRoot> Silences;

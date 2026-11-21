@@ -429,7 +429,12 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     {
         return false;
     }
-    if (Died.KillCause == ELDKillCause::Contender) { Died.Assisters = Fact.Assisters; }
+    const bool bTrendingDeath = !bRestLife && LeaderNotice.IsTrending(Id);
+    if (Died.KillCause == ELDKillCause::Contender)
+    {
+        Died.Assisters = Fact.Assisters;
+        if (bTrendingDeath) { Died.CreatureName = TEXT("leader_bounty"); }
+    }
     else if(Fact.SourceBodyAtRelease.Victim.Kind==ELDVictimKind::CampMember)
     {
         const auto* Source=Combat->FindRecord(Fact.SourceBodyAtRelease.Victim.EntityId);
@@ -456,8 +461,8 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
     // Spec §10.4: a field death chooses its next spot among the drawn candidates on the death screen.
     if (!bRestLife && !bFinal && RespawnAt > 0) { OpenSpawnChoice(Id, Life->Life, Fact.OccurredAtMs); }
-    // Spec §10.4: a trending contender's death pays its killer and assisters the bounty.
-    if (!bRestLife && LeaderNotice.IsTrending(Id)) { BountyDeaths.Add(Fact.Key); }
+    // Spec §10.4: a trending contender's death pays its killer and assisters the bounty (latched before LeaderDied clears LeaderNotice).
+    if (bTrendingDeath) { BountyDeaths.Add(Fact.Key); }
     PKLives.Remove(Fact.Key.Victim.EntityId);
     Life->Body = {};
     if (auto* Body = Life->Actor.Get())

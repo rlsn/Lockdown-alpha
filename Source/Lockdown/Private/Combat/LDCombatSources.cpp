@@ -1150,7 +1150,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Empowers.Reset();
     Body->Shields.Reset();
     Body->KeystoneStrengthTargetReadyAtMs.Reset();
-    Body->bWaveAfterReactionExempt=false;
+    Body->WaveAfterExemptChainId.Invalidate();
     // #147 keyword records end with the reset too (the camp's burn clears on its return).
     Body->Silences.Reset();
     Body->SharedBreach=FLDCombatSharedBreach();

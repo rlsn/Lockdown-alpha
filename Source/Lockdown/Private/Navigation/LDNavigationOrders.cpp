@@ -1762,6 +1762,16 @@ bool ULDNavigationComponent::ActivateBufferedCast(const FLDSpatialOrderRequest& 
         ReplyBufferedCastCancelled(Request,CastReq,ELDOrderFailure::Dead,ELDCombatReject::Dead);
         return true;
     }
+    TOptional<FLDAggressiveIntent> Owed;
+    if (PendingOrder)
+    {
+        const FPendingOrder Older=MoveTemp(PendingOrder.GetValue());
+        PendingOrder.Reset();
+        Reply(Older.Request,ELDOrderStatus::Cancelled,ELDOrderFailure::Superseded,true);
+        Owed=Older.OwedAggression.IsSet() ? Older.OwedAggression
+            : Older.Request.IsAggressive() && !Older.bStop ? TOptional<FLDAggressiveIntent>(LDNavOrdersDetail::IntentOf(Older.Request))
+            : TOptional<FLDAggressiveIntent>();
+    }
     FPendingOrder Next;
     Next.Request=Request;
     Next.Cast=CastReq;
@@ -1769,6 +1779,7 @@ bool ULDNavigationComponent::ActivateBufferedCast(const FLDSpatialOrderRequest& 
     Next.Body=Current;
     Next.NotBeforeMs=Mode->GetAuthorityNowMs();
     Next.QueueCut=QueueStepSerial+1;
+    Next.OwedAggression=MoveTemp(Owed);
     PendingOrder=MoveTemp(Next);
     if (!ActivatePending(*Mode,Permit,Error)) { return false; }
     if (!ActiveOrder || ActiveOrder->Request.Identity!=Request.Identity) { return true; }

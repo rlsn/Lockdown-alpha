@@ -841,7 +841,8 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName,Assisters);
                 Add(Line.Text,Line.bSelf);
                 if(Notice->Cause==ELDKillCause::Contender&&Notice->Killer.IsValid()
-                    &&(Public.Leader.Leader==Notice->Victim||Public.Leader.RunnerUp==Notice->Victim))
+                    &&(Notice->CreatureName==TEXT("leader_bounty")||Public.Leader.Leader==Notice->Victim||Public.Leader.RunnerUp==Notice->Victim
+                        ||Leader==Notice->Victim||RunnerUp==Notice->Victim))
                 {
                     const FString KillerLabel=Name(Notice->Killer).IsEmpty()?FString(TEXT("参赛者")):Name(Notice->Killer);
                     const FString VictimLabel=Name(Notice->Victim).IsEmpty()?FString(TEXT("热搜榜首")):Name(Notice->Victim);
@@ -968,7 +969,7 @@ FString LDHUD::LeaderLine(const FGuid& Trending,const FGuid& Self,const FString&
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;
-    if(!Notice.CreatureName.IsEmpty()){return LDTerms::KilledByLine(Victim,Notice.CreatureName);}
+    if(Notice.Cause!=ELDKillCause::Contender&&!Notice.CreatureName.IsEmpty()){return LDTerms::KilledByLine(Victim,Notice.CreatureName);}
     switch(Notice.Cause)
     {
     case ELDKillCause::Contender:
@@ -1006,7 +1007,7 @@ FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FG
     for(const FLDKillNotice& Notice:Feed.Notices)
     {if(Notice.Victim==Self&&Notice.OccurredAtMs>=NotBeforeMs&&(!Latest||Notice.Serial>Latest->Serial)){Latest=&Notice;}}
     if(!Latest){return FString();}
-    if(!Latest->CreatureName.IsEmpty()){return LDTerms::KilledBy(Latest->CreatureName);}
+    if(Latest->Cause!=ELDKillCause::Contender&&!Latest->CreatureName.IsEmpty()){return LDTerms::KilledBy(Latest->CreatureName);}
     switch(Latest->Cause)
     {
     case ELDKillCause::Contender:

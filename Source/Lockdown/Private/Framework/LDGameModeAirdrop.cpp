@@ -40,7 +40,18 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
 
 void ALDGameMode::SpawnCampRecoveryOrb(const FVector& FootCm, int64 FieldMs)
 {
-    CampRecoveryOrbs.Add({FootCm, FieldMs + 12000, ++NextCampOrbSerial});
+    CampRecoveryOrbs.Add({FGuid::NewGuid(), FootCm, FieldMs + 12000, ++NextCampOrbSerial});
+}
+
+void ALDGameMode::ReadActiveCampRecoveryOrbs(TArray<TPair<FGuid, FVector>>& Out) const
+{
+    Out.Reset();
+    if (!IsFieldRunning() || CampRecoveryOrbs.IsEmpty()) { return; }
+    const int64 NowMs = GetFieldNowMs();
+    for (const FLDCampRecoveryOrb& Orb : CampRecoveryOrbs)
+    {
+        if (Orb.ObservedKey.IsValid() && NowMs < Orb.ExpiresFieldMs) { Out.Emplace(Orb.ObservedKey, Orb.FootCm); }
+    }
 }
 
 bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)

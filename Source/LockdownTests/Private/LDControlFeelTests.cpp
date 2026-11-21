@@ -91,6 +91,16 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A third buffered key evicts the oldest and retains the latest 2 steps in FIFO order"),
         Evicted.IsSet() && Evicted->Entry == ELDCombatEntry::W && Queue.Num() == 2
         && Queue[0].Entry == ELDCombatEntry::E && Queue[1].Entry == ELDCombatEntry::Dash);
+    // Out-of-order RPC arrival with DirectSequence preserves true press order (N before N+1).
+    Queue.Reset();
+    FPendingCombatIntent Later{ELDCombatEntry::W, ELDCombatPreInputMode::GroundPoint};
+    Later.Action.DirectSequence = 11;
+    FPendingCombatIntent Earlier{ELDCombatEntry::Q, ELDCombatPreInputMode::Direct};
+    Earlier.Action.DirectSequence = 10;
+    EnqueueFIFO(Queue, MoveTemp(Later), Evicted);
+    EnqueueFIFO(Queue, MoveTemp(Earlier), Evicted);
+    TestTrue(TEXT("DirectSequence ordering keeps press 10 ahead of press 11 across Direct and GroundPoint paths"),
+        Queue.Num() == 2 && Queue[0].Action.DirectSequence == 10 && Queue[1].Action.DirectSequence == 11);
     TestTrue(TEXT("Hard CC outlasting the remaining windup by > 450ms clears the buffer"),
         !ShouldClearForHardControl(1650, 1200) && ShouldClearForHardControl(1651, 1200));
 

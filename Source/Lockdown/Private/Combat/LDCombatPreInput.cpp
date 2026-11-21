@@ -25,12 +25,21 @@ void LDCombatPreInput::EnqueueFIFO(TArray<FPendingCombatIntent>& Queue, FPending
     TOptional<FPendingCombatIntent>& OutEvicted)
 {
     OutEvicted.Reset();
-    if (Queue.Num() >= MaxBufferedSteps)
+    int32 InsertIndex = Queue.Num();
+    if (Intent.Action.DirectSequence != 0)
+    {
+        while (InsertIndex > 0 && Queue[InsertIndex - 1].Action.DirectSequence != 0
+            && Queue[InsertIndex - 1].Action.DirectSequence > Intent.Action.DirectSequence)
+        {
+            --InsertIndex;
+        }
+    }
+    Queue.Insert(MoveTemp(Intent), InsertIndex);
+    if (Queue.Num() > MaxBufferedSteps)
     {
         OutEvicted = MoveTemp(Queue[0]);
         Queue.RemoveAt(0);
     }
-    Queue.Add(MoveTemp(Intent));
 }
 
 bool LDCombatPreInput::ShouldClearForHardControl(int64 ControlExpiresAtMs, int64 WindupReleaseAtMs)

@@ -605,12 +605,14 @@ private:
     int64 MatchStartedAtMs = 0;
     struct FLDCampRecoveryOrb
     {
+        FGuid ObservedKey;
         FVector FootCm = FVector::ZeroVector;
         int64 ExpiresFieldMs = 0;
         uint64 Serial = 0;
     };
     TArray<FLDCampRecoveryOrb> CampRecoveryOrbs;
     uint64 NextCampOrbSerial = 0;
+    void ReadActiveCampRecoveryOrbs(TArray<TPair<FGuid, FVector>>& Out) const;
     FLDShowdownView Showdown;
     FLDShowdownRing ShowdownRing;
     FLDShowdownParameters ShowdownRules;

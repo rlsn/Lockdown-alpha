@@ -1292,10 +1292,10 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16, ELDSkillBranch::None);
     if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
     TestTrue(TEXT("Level 1 uses the authored G=1 values"),
-        First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 7500 && First->Effects[0].APRatioBp == 3500
+        First->Effects[0].BaseP2 == 6500 && First->Effects[0].ADRatioBp == 8500 && First->Effects[0].APRatioBp == 0
         && First->MomentumCostP2 == 2500 && First->CooldownMs == 4200);
     TestTrue(TEXT("Level 16 grows the base by G(16)=1.6 and keeps ratios, cost and cooldown"),
-        Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 7500 && Top->Effects[0].APRatioBp == 3500
+        Top->Effects[0].BaseP2 == 10400 && Top->Effects[0].ADRatioBp == 8500 && Top->Effects[0].APRatioBp == 0
         && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 4200);
     const FLDDemoAbilityDefinition Detached = *Elbow;
     TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),

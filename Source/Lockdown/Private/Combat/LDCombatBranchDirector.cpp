@@ -181,15 +181,26 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         Row.ShieldMaxHPBp=Pulse->MaxHPRatioBp;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Pulse->IntervalMs,Row.NextMs,Error)) { return false; }
     }
-    // S14 B2: a self area that reached anybody raises the release's shield.
+    // S14 B2: a self area that reached anybody raises the release's shield layer in Body.Shields.
     if (const FLDDemoEffectDefinition* Bonus=Find(Terms.Values,ELDDemoEffectOp::ShieldHitBonus);
-        Bonus && !AreaTargets.IsEmpty() && Body.Resources.ShieldP2>0)
+        Bonus && !AreaTargets.IsEmpty())
     {
-        const int64 Added=Share(Body.Resources.ShieldP2,Bonus->RatioBp);
-        Body.Resources.ShieldP2+=Added;
-        Body.ShieldGrantedP2+=Added;
-        ++Body.Resources.Revision;
-        MarkViewChanged(Body.Victim.EntityId);
+        if (FLDActiveShield* Layer=Body.Shields.FindByPredicate([&Template,NowMs](const FLDActiveShield& Row)
+            { return Row.EffectId==Template.EffectId && Row.AmountP2>0 && Row.ExpiresAtMs>NowMs; }))
+        {
+            const int64 Added=Share(Layer->AmountP2,Bonus->RatioBp);
+            if (Added>0)
+            {
+                Layer->AmountP2+=Added;
+                Layer->GrantedP2+=Added;
+                Body.Resources.ShieldP2=LDTactical::TotalActiveShieldP2(Body.Shields,NowMs);
+                Body.ShieldGrantedP2+=Added;
+                ++Body.Resources.Revision;
+                ++Body.StateRevision;
+                MarkViewChanged(Body.Victim.EntityId);
+                LedgerShieldGranted(Body,Added);
+            }
+        }
     }
     return true;
 }

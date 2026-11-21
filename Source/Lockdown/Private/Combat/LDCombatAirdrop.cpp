@@ -44,15 +44,13 @@ bool ALDCombatDirector::ApplyAirdropReward(const FGuid& Contender, const FLDGame
     Stat.Amount = P.AirdropMoveSpeedBp;
     if (!LDMatchLifecycle::AddDurationMs(NowMs, P.AirdropMoveSpeedMs, Bonus.ExpiresAtMs, Error)) { return false; }
 
-    FLDBodyCombatState Staged = *Body;
-    Out.HpBeforeP2 = Staged.Resources.HpP2;
-    Out.MomentumBeforeP2 = Staged.Resources.MomentumP2;
-    HealBody(Staged, LDAirdrop::ShareP2(Staged.Resources.MaxHpP2, P.AirdropHealMaxHPBp));
-    GrantMomentum(Staged, P.AirdropMomentumP2, ELDMomentumBook::Other);
-    LDTactical::ApplyTimedBonus(Staged.TimedBonuses, Bonus);
-    if (!RefreshTemporary(Staged, Actor, NowMs, Error)) { return false; }
-    Staged.StateRevision = Body->StateRevision + 1;
-    *Body = MoveTemp(Staged);
+    Out.HpBeforeP2 = Body->Resources.HpP2;
+    Out.MomentumBeforeP2 = Body->Resources.MomentumP2;
+    HealBody(*Body, LDAirdrop::ShareP2(Body->Resources.MaxHpP2, P.AirdropHealMaxHPBp));
+    GrantMomentum(*Body, P.AirdropMomentumP2, ELDMomentumBook::Other);
+    LDTactical::ApplyTimedBonus(Body->TimedBonuses, Bonus);
+    if (!RefreshTemporary(*Body, Actor, NowMs, Error)) { return false; }
+    ++Body->StateRevision;
     Out.HpAfterP2 = Body->Resources.HpP2;
     Out.MomentumAfterP2 = Body->Resources.MomentumP2;
     Out.MoveSpeedBonusUntilMs = Bonus.ExpiresAtMs;
@@ -87,13 +85,11 @@ bool ALDCombatDirector::ApplyCampRecoveryOrb(const FGuid& Contender, const FLDGa
         Error.Reset();
         return true;
     }
-    FLDBodyCombatState Staged = *Body;
-    // Camp-clear recovery orb: 12% MaxHP + 25 momentum.
-    HealBody(Staged, LDAirdrop::ShareP2(Staged.Resources.MaxHpP2, 1200));
-    GrantMomentum(Staged, 2500, ELDMomentumBook::Other);
-    if (!RefreshTemporary(Staged, Actor, Permit.GetBoundary().AtMs, Error)) { return false; }
-    Staged.StateRevision = Body->StateRevision + 1;
-    *Body = MoveTemp(Staged);
+    // Camp-clear recovery orb: 12% MaxHP + 25 momentum. Mutate *Body in place so HealBody's card_grow_fat reprojection stays live.
+    HealBody(*Body, LDAirdrop::ShareP2(Body->Resources.MaxHpP2, 1200));
+    GrantMomentum(*Body, 2500, ELDMomentumBook::Other);
+    if (!RefreshTemporary(*Body, Actor, Permit.GetBoundary().AtMs, Error)) { return false; }
+    ++Body->StateRevision;
     bOutApplied = true;
     Error.Reset();
     return true;
