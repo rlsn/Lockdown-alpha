@@ -300,6 +300,26 @@ bool FLDMinimapStaticInvalidationTest::RunTest(const FString& Parameters)
             &&WedgeOut.FootprintCm.Num()==4
             &&FVector2D::DotProduct((WedgeOut.HighMidCm-WedgeOut.LowMidCm).GetSafeNormal(),FVector2D(0.,1.))>.99
             &&FMath::IsNearlyEqual(WedgeOut.LowMidCm.Y,600.,2.)&&FMath::IsNearlyEqual(WedgeOut.HighMidCm.Y,1050.,2.));
+
+        // Boundary slopes (#341 follow-up): 48 deg steep walkable ramp (< 50 deg CharacterMovement limit) and 3 deg gentle
+        // ramp rising > 15cm (400cm * tan(3 deg) ~= 20.96cm, N.Z < .9999) both extract, while 55 deg (> 50 deg) is rejected.
+        auto MakeSlopeWedge=[](double AngleDeg,double RunCm)
+        {
+            const double RiseCm=RunCm*FMath::Tan(FMath::DegreesToRadians(AngleDeg));
+            return TArray<FVector>{
+                FVector(0.,-100.,0.),FVector(0.,100.,0.),FVector(RunCm,100.,0.),FVector(RunCm,-100.,0.),
+                FVector(RunCm,100.,RiseCm),FVector(RunCm,-100.,RiseCm)
+            };
+        };
+        LDMinimap::FRampOverlay Steep48,Gentle3,Unwalkable55;
+        TestTrue(TEXT("48-degree walkable slope (< 50-degree walkable floor limit) extracts ramp fill and uphill arrow"),
+            LDMinimap::ExtractRampFromConvexVertices(MakeSlopeWedge(48.,200.),Steep48)
+            &&FVector2D::DotProduct((Steep48.HighMidCm-Steep48.LowMidCm).GetSafeNormal(),FVector2D(1.,0.))>.99);
+        TestTrue(TEXT("3-degree gentle slope rising > 15cm (N.Z < .9999) extracts ramp fill and uphill arrow"),
+            LDMinimap::ExtractRampFromConvexVertices(MakeSlopeWedge(3.,400.),Gentle3)
+            &&FVector2D::DotProduct((Gentle3.HighMidCm-Gentle3.LowMidCm).GetSafeNormal(),FVector2D(1.,0.))>.99);
+        TestFalse(TEXT("55-degree unwalkable cliff (> 50-degree walkable floor limit) is not treated as a walkable ramp"),
+            LDMinimap::ExtractRampFromConvexVertices(MakeSlopeWedge(55.,200.),Unwalkable55));
     }
     UStaticMesh* Cube=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
     if(!TestNotNull(TEXT("Basic Cube static mesh loads for live ramp test"),Cube)){return false;}

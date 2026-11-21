@@ -121,6 +121,39 @@ void ALDPlayerController::ClearQuickCastHold(ELDCombatEntry Entry)
     if (Index!=INDEX_NONE) { QuickCastHolds[Index]={}; }
 }
 
+bool ALDPlayerController::CancelPreviewedQuickCastHolds()
+{
+    static constexpr ELDCombatEntry SlotEntries[3]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E};
+    const double NowSec=QuickCastClockSeconds();
+    bool bCancelledQuickHold=false;
+    for (int32 Index=0; Index<3; ++Index)
+    {
+        if (!QuickCastHolds[Index].bHolding || (NowSec-QuickCastHolds[Index].PressSec)<QuickCastHoldPreviewSeconds)
+        {
+            continue;
+        }
+        const ELDCombatEntry Entry=SlotEntries[Index];
+        QuickCastHolds[Index]={};
+        if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry==Entry) { EndOverdriveHold(); }
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(Entry));
+        ArmedCancelEntry=Entry;
+        ++ArmedCancelSerial;
+        bCancelledQuickHold=true;
+    }
+    if (ArmedEntry!=ELDCombatEntry::None && !IsQuickCastHolding(ArmedEntry))
+    {
+        if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry==ArmedEntry) { EndOverdriveHold(); }
+        if (!bCancelledQuickHold)
+        {
+            UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry));
+            ArmedCancelEntry=ArmedEntry;
+            ++ArmedCancelSerial;
+        }
+    }
+    SyncArmedEntryFromQuickCastHolds();
+    return bCancelledQuickHold;
+}
+
 void ALDPlayerController::ClearAllQuickCastHolds()
 {
     QuickCastHolds[0]={};
@@ -186,6 +219,7 @@ void ALDPlayerController::ExecuteQuickCastAim(ELDCombatEntry Entry)
         }
         else
         {
+            if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry==Entry) { EndOverdriveHold(); }
             ClearQuickCastHold(Entry);
             ArmedCancelEntry=Entry;
             ++ArmedCancelSerial;
@@ -194,13 +228,7 @@ void ALDPlayerController::ExecuteQuickCastAim(ELDCombatEntry Entry)
         }
         return;
     }
-    const auto* Body=Cast<ALDCharacter>(GetPawn());
-    const double PlaneZ=Body?Body->GetActorLocation().Z-Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight():0.;
-    FVector AimWorldPoint=FVector::ZeroVector;
-    if (Navigation && Navigation->AimPointAtElevation(PlaneZ,AimWorldPoint))
-    {
-        ConfirmArmedCombat();
-    }
+    ConfirmArmedCombat();
 }
 
 // Shift is no mapped action, so the player input's key state may never see it; Slate's modifier state is the fallback.
@@ -546,7 +574,7 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
     const bool bOverdriveEligible=Terms && bHeld && View->SourceKind==ELDCombatSourceKind::Learned && bStaleOnlyReason && bClock
         && View->ReadyAtMs<=NowMs
         && CombatView.MomentumP2>=(CombatView.OverdriveThresholdP2>0 ? CombatView.OverdriveThresholdP2 : Terms->ThresholdP2)
-        && CombatView.MomentumP2>=View->MomentumCostP2 && !bOverdriveHolding;
+        && CombatView.MomentumP2>=View->MomentumCostP2 && (!bOverdriveHolding || OverdriveEntry!=Entry);
 
     // Keyboard QuickCast on an aimed skill: < 0.18s tap hides the preview and casts on release; >= 0.18s hold reveals the
     // aim indicator and casts on release (right-click after >= 0.18s cancels without firing). Tracked per entry so
@@ -555,7 +583,6 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
     if (bQuick && bAimed && HoldSlot!=INDEX_NONE)
     {
         if (bOverdriveArmed && OverdriveEntry!=Entry) { EndOverdriveHold(); }
-        if (bOverdriveHolding && OverdriveEntry!=Entry) { EndOverdriveHold(); }
         const double NowSec=QuickCastClockSeconds();
         bAttackMoveArmed=false;
         if (ArmedEntry!=Entry) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed entry=%u"),uint32(Entry)); }
@@ -564,7 +591,8 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
         QuickCastHolds[HoldSlot].PressSec=NowSec;
         if (bOverdriveEligible)
         {
-            if (bOverdriveArmed) { EndOverdriveHold(); }
+            if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=Entry) { EndOverdriveHold(); }
+            else if (bOverdriveArmed) { EndOverdriveHold(); }
             OverdriveEntry=Entry;
             OverdriveHoldStartSec=NowSec;
             bOverdriveHolding=true;
@@ -576,7 +604,8 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
 
     if (bOverdriveEligible)
     {
-        if (bOverdriveArmed) { EndOverdriveHold(); }
+        if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=Entry) { EndOverdriveHold(); }
+        else if (bOverdriveArmed) { EndOverdriveHold(); }
         OverdriveEntry=Entry;
         OverdriveHoldStartSec=QuickCastClockSeconds();
         bOverdriveHolding=true;
@@ -761,6 +790,15 @@ void ALDPlayerController::OnRep_CombatView()
         }
         else
         {
+            if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=ELDCombatEntry::None)
+            {
+                const FLDCombatEntryView* OldOver=LDPlayerOrdersDetail::FindEntry(LatestCombatView,OverdriveEntry);
+                const FLDCombatEntryView* NewOver=LDPlayerOrdersDetail::FindEntry(CombatView,OverdriveEntry);
+                if (!OldOver || !NewOver || OldOver->DefinitionId!=NewOver->DefinitionId || OldOver->TargetMode!=NewOver->TargetMode)
+                {
+                    EndOverdriveHold();
+                }
+            }
             static constexpr ELDCombatEntry SlotEntries[3]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E};
             for (int32 Index=0; Index<3; ++Index)
             {

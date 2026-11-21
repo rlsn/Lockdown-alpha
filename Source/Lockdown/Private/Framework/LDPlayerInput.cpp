@@ -296,20 +296,22 @@ void ALDPlayerController::V05Pressed(FName Action)
     }
     else if (Action==TEXT("Navigate"))
     {
-        // A right click while something is armed cancels it and is an ordinary order in the same click, EXCEPT when every
-        // held QuickCast entry is still inside its < 0.18s tap window so rapid right-click kiting never eats an in-flight tap.
+        // A right click cancels only >= 0.18s previewed QuickCast holds (and any unheld manual aim / AttackMove), keeping any
+        // newer < 0.18s tap alive and restoring ArmedEntry from remaining holds.
         if (RootUI && RootUI->PointerOverUI()) { return; }
-        const bool bHasQuickHold=HasAnyQuickCastHold();
-        const bool bTapProtected=bHasQuickHold && !HasPreviewedQuickCastHold();
-        if (!bTapProtected)
+        if (HasAnyQuickCastHold())
         {
-            if (CancelArmedCombat() && bHasQuickHold)
+            if (CancelPreviewedQuickCastHolds())
             {
                 if (auto* GI=GetGameInstance())
                 {
                     if (auto* Audio=GI->GetSubsystem<ULDAudioSubsystem>()) { Audio->Play(ELDAudioCue::UIReject); }
                 }
             }
+        }
+        else
+        {
+            CancelArmedCombat();
         }
         // Shift queues the click behind the current order (shift queue) instead of replacing it.
         Navigation->ClickMove(IsQueueModifierDown());

@@ -8,6 +8,7 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "Framework/LDPlayerController.h"
+#include "Character/LDCharacter.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameState.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -31,6 +32,7 @@
 #include "Styling/CoreStyle.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Components/CapsuleComponent.h"
 #include "Blueprint/WidgetTree.h"
@@ -234,6 +236,7 @@ bool LDMinimap::ExtractRampFromConvexVertices(TConstArrayView<FVector> WorldVert
     for(const FVector& P:Pts){Inside+=P;}
     Inside/=double(Pts.Num());
 
+    const double WalkableFloorZ=double(GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorZ());
     double BestArea=0.;
     FVector BestNormal=FVector::ZeroVector;
     TArray<FVector2D> BestHull;
@@ -247,8 +250,8 @@ bool LDMinimap::ExtractRampFromConvexVertices(TConstArrayView<FVector> WorldVert
                 if(RawCross.SizeSquared()<=1.){continue;}
                 FVector N=RawCross.GetSafeNormal();
                 if(FVector::DotProduct(N,Pts[I]-Inside)<0.){N=-N;}
-                // Walkable sloped face: steeper than flat floors/plateaus (<= ~5 deg) and shallower than cliffs (<= ~47 deg).
-                if(N.Z<.68||N.Z>.996){continue;}
+                // Match LDCharacter walkable floor limit (50 deg) and LDVisionDirector's .9999 flat/slope cutoff.
+                if(N.Z<WalkableFloorZ||N.Z>=.9999){continue;}
                 bool bOuterFace=true;
                 double MinZ=Pts[I].Z,MaxZ=Pts[I].Z;
                 TArray<FVector2D> FaceXY;

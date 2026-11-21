@@ -349,6 +349,9 @@ private:
     bool IsQuickCastHolding(ELDCombatEntry Entry, double* OutPressSec=nullptr) const;
     bool HasAnyQuickCastHold() const;
     bool HasPreviewedQuickCastHold() const;
+    // Right-click during mixed overlaps cancels only >= 0.18s previewed holds (and any unheld manual aim), keeping newer
+    // < 0.18s taps alive and restoring ArmedEntry from remaining holds; true if any QuickCast hold was cancelled.
+    bool CancelPreviewedQuickCastHolds();
     void ClearQuickCastHold(ELDCombatEntry Entry);
     void ClearAllQuickCastHolds();
     void SyncArmedEntryFromQuickCastHolds();

@@ -1,6 +1,7 @@
 #include "UI/LDWorldLabels.h"
 #include "Character/LDCharacter.h"
 #include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -397,21 +398,29 @@ bool FLDWorldLabelsSegmentedTrailTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Wall-hugging character 25cm behind a static wall (Hit.Time > 0.96) is detected as occluded"),
             LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
 
-        // Move wall behind the character; place a Pawn and a Movable component right in front of the chest -> NOT occluded.
-        WallBox->SetWorldLocation(Chest+RayDir*120.);
+        // Place a Movable blocker and a Pawn BETWEEN the camera and the static wall -> retrace ignores them and still finds the static wall!
         auto* BlockerPawn=OccWorld->SpawnActor<ALDCharacter>();
-        if(BlockerPawn){BlockerPawn->SetActorLocation(Chest-RayDir*30.);}
+        if(BlockerPawn)
+        {
+            BlockerPawn->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility,ECR_Block);
+            BlockerPawn->SetActorLocation(Chest-RayDir*160.);
+        }
         auto* MovableActor=OccWorld->SpawnActor<AActor>();
         auto* MovableBox=NewObject<UBoxComponent>(MovableActor);
         MovableActor->SetRootComponent(MovableBox);
         MovableActor->AddInstanceComponent(MovableBox);
         MovableBox->SetMobility(EComponentMobility::Movable);
         MovableBox->SetBoxExtent(FVector(80.,8.,80.));
-        MovableBox->SetWorldLocation(Chest-RayDir*20.);
+        MovableBox->SetWorldLocation(Chest-RayDir*90.);
         MovableBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
         MovableBox->SetCollisionResponseToAllChannels(ECR_Block);
         MovableBox->RegisterComponentWithWorld(OccWorld);
 
+        TestTrue(TEXT("Movable/Pawn blockers in front of a static wall are ignored and retrace still detects static wall occlusion"),
+            LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
+
+        // Now move the static wall behind the character while keeping the Pawn and Movable blockers in front -> NOT occluded.
+        WallBox->SetWorldLocation(Chest+RayDir*120.);
         TestFalse(TEXT("Static wall behind character and Pawn/Movable components in front do not count as static world occlusion"),
             LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
     }

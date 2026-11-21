@@ -358,15 +358,24 @@ bool LDWorldLabels::IsChestOccludedByStaticWorld(const UWorld& World,const FVect
     FCollisionQueryParams Params(SCENE_QUERY_STAT(LDWorldLabelsOcclusion),false);
     Params.AddIgnoredActor(World.GetDefaultBrush());
     if(IsValid(IgnoredBody)){Params.AddIgnoredActor(IgnoredBody);}
-    TArray<FHitResult> Hits;
     const FVector Chest=PresentedFeet+FVector(0.,0.,90.);
-    World.LineTraceMultiByChannel(Hits,CameraLocation,Chest,ECC_Visibility,Params);
-    for(const FHitResult& Hit:Hits)
+    for(int32 Attempt=0;Attempt<16;++Attempt)
     {
-        if(!Hit.bBlockingHit){continue;}
+        FHitResult Hit;
+        if(!World.LineTraceSingleByChannel(Hit,CameraLocation,Chest,ECC_Visibility,Params)||!Hit.bBlockingHit)
+        {
+            return false;
+        }
         const AActor* HitActor=Hit.GetActor();
         const UPrimitiveComponent* Comp=Hit.GetComponent();
-        if(Cast<APawn>(HitActor)||!Comp||Comp->Mobility==EComponentMobility::Movable){continue;}
+        if(!Comp||Comp->Mobility==EComponentMobility::Movable||Cast<APawn>(HitActor))
+        {
+            if(Comp){Params.AddIgnoredComponent(Comp);}
+            if(HitActor&&Cast<APawn>(HitActor)){Params.AddIgnoredActor(HitActor);}
+            else if(!Comp&&HitActor){Params.AddIgnoredActor(HitActor);}
+            if(!Comp&&!HitActor){return false;}
+            continue;
+        }
         return true;
     }
     return false;
