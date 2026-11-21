@@ -12,19 +12,20 @@ class LOCKDOWN_API ULDBasketballAnimInstance : public UAnimInstance
 {
     GENERATED_BODY()
 public:
-    void Bind(ULDBasketballMotionSet* InMotion, UStaticMeshComponent* InBall);
+    void Bind(ULDBasketballMotionSet* InMotion, UStaticMeshComponent* InBall, const FVector& InMeshForward);
     void Prepare(double Clock, float Speed, float FacingYaw, LDBodyMotion::EAction Action, float Age,
         float ImpactSeconds, double ActionIdentity, UAnimSequence* Override, float OverrideTime, bool bDash, bool bShowBall);
     const UAnimSequence* CurrentAction() const { return ActionSequence; }
     float CurrentActionTime() const { return ActionTime; }
     bool UsesUpperBody() const { return UpperWeight > 0; }
     uint32 TurnCount() const { return Turns; }
-    virtual void NativePostEvaluateAnimation() override;
+    virtual void NativeUninitializeAnimation() override;
 protected:
     virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
     virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override;
 private:
     friend struct FLDBasketballAnimProxy;
+    void UpdateBallFromFinalPose();
     UPROPERTY(Transient) TObjectPtr<ULDBasketballMotionSet> Motion;
     UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> Ball;
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> BaseSequence;
@@ -36,7 +37,10 @@ private:
     FLDBasketballActionClip Active;
     float IdleAge=0,LastFacing=0,TurnDuration=0,ActionWeight=0;
     float CurrentAge=0,CurrentImpact=0,CurrentDuration=0;
+    float RunBounceHeight=0,RunDribbleWeight=0;
     bool bHasFacing=false,bLeft=false,bBallVisible=false,bThrowing=false,bWasReleased=false,bNormalizeTurn=false;
+    FVector MeshForward=FVector::ForwardVector;
     FVector ReleasePoint=FVector::ZeroVector,ReleaseForward=FVector::ForwardVector;
+    FDelegateHandle BallPoseHandle;
     uint32 Variation=0,Turns=0;
 };

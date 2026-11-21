@@ -5,6 +5,8 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Engine/SkeletalMesh.h"
 #include "FileHelpers.h"
@@ -115,5 +117,43 @@ bool FLDBasketballRuntimeTest::RunTest(const FString& Parameters)
     Visual->PlayFall();Visual->Animate(FVector::ZeroVector,.016f);Evaluate();
     TestTrue(TEXT("The production death bridge hides the basketball"),Ball->bHiddenInGame);
     TestTrue(TEXT("Animation never changes the gameplay owner transform"),Before.Equals(Owner->GetActorTransform()));
+
+    const double FloorZ=Mesh->GetComponentLocation().Z;
+    auto* Floor=World->SpawnActor<AStaticMeshActor>();
+    Floor->GetStaticMeshComponent()->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
+    Floor->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+    Floor->SetActorScale3D(FVector(10,10,1));
+    Floor->SetActorLocation(FVector(0,0,FloorZ-50));
+    const FName RightHand(TEXT("hand_r"));
+    int32 FloorSamples=0, PalmSamples=0;
+    double MaxPalmGap=0, SmallestLead=MAX_dbl, LowestBall=MAX_dbl;
+    for(int32 Frame=0;Frame<120;++Frame)
+    {
+        Animation->Prepare(7+Frame/60.,Motion->RunSpeedCmPerSec,Owner->GetActorRotation().Yaw,
+            LDBodyMotion::EAction::None,0,.3f,0,nullptr,0,false,true);
+        Evaluate();
+        if(Frame<12){continue;}
+        const FVector Centre=Ball->GetComponentLocation();
+        const double Height=Centre.Z-FloorZ;
+        LowestBall=FMath::Min(LowestBall,Height);
+        if(Animation->GetCurveValue(TEXT("BallContact"))>=.99f)
+        {
+            ++PalmSamples;
+            const FVector PalmCentre=Mesh->GetSocketTransform(RightHand).TransformPosition(Motion->RightPalm);
+            MaxPalmGap=FMath::Max(MaxPalmGap,FVector::Distance(Centre,PalmCentre));
+        }
+        if(Height<=Motion->BallRadiusCm+1)
+        {
+            ++FloorSamples;
+            const FVector Original=Mesh->GetComponentTransform().TransformPosition(FVector(
+                Animation->GetCurveValue(TEXT("BallX")),Animation->GetCurveValue(TEXT("BallY")),Animation->GetCurveValue(TEXT("BallZ"))));
+            SmallestLead=FMath::Min(SmallestLead,FVector::DotProduct(Centre-Original,Owner->GetActorForwardVector()));
+        }
+    }
+    AddInfo(FString::Printf(TEXT("RUN_DRIBBLE contacts=%d max_palm_gap_cm=%.2f bounces=%d forward_lead_cm=%.2f min_height_cm=%.2f"),
+        PalmSamples,MaxPalmGap,FloorSamples,SmallestLead,LowestBall));
+    TestTrue(TEXT("Contact samples keep the ball at the animated palm"),PalmSamples>10&&MaxPalmGap<8.);
+    TestTrue(TEXT("The ball reaches the floor ahead of the old bounce position"),
+        FloorSamples>1&&SmallestLead>8.&&LowestBall>=Motion->BallRadiusCm-.1);
     return true;
 }

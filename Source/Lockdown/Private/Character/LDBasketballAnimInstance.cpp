@@ -75,10 +75,37 @@ struct FLDBasketballAnimProxy : FAnimInstanceProxy
 FAnimInstanceProxy* ULDBasketballAnimInstance::CreateAnimInstanceProxy(){return new FLDBasketballAnimProxy(this);}
 void ULDBasketballAnimInstance::DestroyAnimInstanceProxy(FAnimInstanceProxy* Proxy){delete Proxy;}
 
-void ULDBasketballAnimInstance::Bind(ULDBasketballMotionSet* InMotion,UStaticMeshComponent* InBall)
+void ULDBasketballAnimInstance::Bind(ULDBasketballMotionSet* InMotion,UStaticMeshComponent* InBall,const FVector& InMeshForward)
 {
-    Motion=InMotion;Ball=InBall;SetRootMotionMode(ERootMotionMode::IgnoreRootMotion);
+    Motion=InMotion;Ball=InBall;MeshForward=InMeshForward;SetRootMotionMode(ERootMotionMode::IgnoreRootMotion);
     if(Motion&&!Motion->Idle.IsEmpty()){BaseSequence=Motion->Idle[0].Animation;}
+    if (Motion && !Motion->Run.IsEmpty())
+    {
+        const UAnimSequence* Run=Motion->Run[0].Animation;
+        const int32 Frames=Run->GetNumberOfSampledKeys();
+        RunBounceHeight=MAX_flt;
+        for (int32 Frame=0; Frame<Frames; ++Frame)
+        {
+            RunBounceHeight=FMath::Min(RunBounceHeight,
+                Run->EvaluateCurveData(TEXT("BallZ"),FAnimExtractContext(Run->GetTimeAtFrame(Frame),false),true));
+        }
+        if (Frames==0) { RunBounceHeight=0; }
+    }
+    if (auto* Mesh=GetSkelMeshComponent(); Mesh && !BallPoseHandle.IsValid())
+    {
+        BallPoseHandle=Mesh->RegisterOnBoneTransformsFinalizedDelegate(
+            FOnBoneTransformsFinalizedMultiCast::FDelegate::CreateUObject(this,&ULDBasketballAnimInstance::UpdateBallFromFinalPose));
+    }
+}
+
+void ULDBasketballAnimInstance::NativeUninitializeAnimation()
+{
+    if (auto* Mesh=GetSkelMeshComponent(); Mesh && BallPoseHandle.IsValid())
+    {
+        Mesh->UnregisterOnBoneTransformsFinalizedDelegate(BallPoseHandle);
+    }
+    BallPoseHandle.Reset();
+    Super::NativeUninitializeAnimation();
 }
 
 void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw,LDBodyMotion::EAction Action,float Age,
@@ -149,13 +176,15 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
         }
         else{TurnAt=-1;}
     }
+    const auto* Run=Motion->Run[0].Animation.Get();
+    const float RunWeight=(BaseSequence==Run ? BaseBlend : 0.f)+(PreviousSequence==Run ? 1.f-BaseBlend : 0.f);
+    RunDribbleWeight=(!Override&&!bDash&&Action==LDBodyMotion::EAction::None) ? RunWeight*(1.f-FullWeight) : 0.f;
     LastAction=Action;
     if(Ball&&!bBallVisible){Ball->SetHiddenInGame(true);}
 }
 
-void ULDBasketballAnimInstance::NativePostEvaluateAnimation()
+void ULDBasketballAnimInstance::UpdateBallFromFinalPose()
 {
-    Super::NativePostEvaluateAnimation();
     auto* Mesh=GetSkelMeshComponent();
     if(!Motion||!Ball||!Mesh||!bBallVisible||!Mesh->IsVisible()||Mesh->bHiddenInGame||!Mesh->GetOwner()||Mesh->GetOwner()->IsHidden())
     {if(Ball){Ball->SetHiddenInGame(true);}return;}
@@ -170,8 +199,26 @@ void ULDBasketballAnimInstance::NativePostEvaluateAnimation()
     const bool Left=GetCurveValue(TEXT("BallLeft"))>.5f;
     const FVector Hand=Palm(bThrowing?bLeft:Left);
     const FVector Local(GetCurveValue(TEXT("BallX")),GetCurveValue(TEXT("BallY")),GetCurveValue(TEXT("BallZ")));
-    FVector Desired=Local.IsNearlyZero()?Hand:Mesh->GetComponentTransform().TransformPosition(Local);
-    Desired=FMath::Lerp(Desired,Palm(Left),FMath::Clamp(GetCurveValue(TEXT("BallContact")),0.f,1.f));
+    const FTransform& MeshToWorld=Mesh->GetComponentTransform();
+    const FVector CurvePosition=Local.IsNearlyZero()?Hand:MeshToWorld.TransformPosition(Local);
+    const float Contact=FMath::Clamp(GetCurveValue(TEXT("BallContact")),0.f,1.f);
+    FVector Desired=FMath::Lerp(CurvePosition,Palm(Left),Contact);
+    const float Radius=Motion->BallRadiusCm;
+    double RunFloorWeight=0, AuthoredBounceZ=0;
+    if (RunDribbleWeight>0)
+    {
+        AuthoredBounceZ=MeshToWorld.TransformPosition(FVector(Local.X,Local.Y,RunBounceHeight)).Z;
+        const double AboveBounce=FMath::Max(0.,CurvePosition.Z-AuthoredBounceZ);
+        const double NearBounce=(1.-Contact)*(1.-FMath::SmoothStep(0.,3.*Radius,AboveBounce));
+        // Let the released ball travel from the posed palm toward a stable, forward bounce.
+        // The receiving palm takes over again as the authored height rises.
+        const FVector Forward=MeshToWorld.TransformVectorNoScale(MeshForward).GetSafeNormal2D();
+        const FVector Bounce=CurvePosition+Forward*Radius;
+        const FVector RunPosition=FMath::Lerp(Hand,Bounce,NearBounce);
+        Desired.X=FMath::Lerp(Desired.X,RunPosition.X,RunDribbleWeight);
+        Desired.Y=FMath::Lerp(Desired.Y,RunPosition.Y,RunDribbleWeight);
+        RunFloorWeight=NearBounce*RunDribbleWeight;
+    }
     if(bThrowing)
     {
         if(CurrentAge<CurrentImpact)
@@ -189,10 +236,13 @@ void ULDBasketballAnimInstance::NativePostEvaluateAnimation()
     // Keep the ball above the current physical ground, including ramps, without adding any collision body.
     FHitResult Ground;FCollisionQueryParams Query(SCENE_QUERY_STAT(BasketballVisualGround),false,Mesh->GetOwner());
     if(Mesh->GetWorld()->LineTraceSingleByChannel(Ground,Desired+FVector(0,0,20),Desired-FVector(0,0,250),ECC_WorldStatic,Query))
-    {Desired.Z=FMath::Max(Desired.Z,Ground.ImpactPoint.Z+Motion->BallRadiusCm);}
+    {
+        const double Floor=Ground.ImpactPoint.Z+Radius;
+        const double Correction=FMath::Max(0.,AuthoredBounceZ-Floor)*RunFloorWeight;
+        Desired.Z=FMath::Max(Desired.Z-Correction,Floor);
+    }
     // The old basketball system's calibrated palm disk and finger clearance. Sockets alone are inside the skin;
     // the ball centre must stay on the palm side even while the torso and throwing arm are blended separately.
-    const float Radius=Motion->BallRadiusCm;
     for(bool Side:{false,true})
     {
         const FVector Normal=Mesh->GetSocketQuaternion(Side?TEXT("hand_l"):TEXT("hand_r")).RotateVector(Side?Motion->LeftPalmNormal:Motion->RightPalmNormal).GetSafeNormal();

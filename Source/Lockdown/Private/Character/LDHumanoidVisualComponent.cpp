@@ -695,7 +695,8 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
         auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance());
         if (ensureMsgf(Animation,TEXT("The declared basketball body needs its runtime animation graph.")))
         {
-            Animation->Bind(Art->BasketballMotion,Basketball);
+            Animation->Bind(Art->BasketballMotion,Basketball,
+                Art->MeshTransform.GetRotation().UnrotateVector(FVector::ForwardVector));
             UE_LOG(LogLDContent,Display,TEXT("LD_BASKETBALL_PRESENTATION body=%s owner_class=%s graph=%s source=%s"),
                 *Art->Id,*GetOwner()->GetClass()->GetName(),*Animation->GetClass()->GetPathName(),*Art->BasketballMotion->SourceSha256);
         }
