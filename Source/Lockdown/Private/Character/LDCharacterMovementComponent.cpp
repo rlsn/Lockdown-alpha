@@ -21,6 +21,51 @@ namespace LDCharacterMovementDetail
     const FName DashSourceName(TEXT("LDDemoDash"));
 }
 
+double LDDashCurve::EaseOutCubic(double NormalizedTime)
+{
+    const double Clamped=FMath::Clamp(NormalizedTime,0.,1.);
+    const double Inv=1.-Clamped;
+    return 1.-Inv*Inv*Inv;
+}
+
+FRootMotionSource* FLDRootMotionSource_EaseOutDash::Clone() const
+{
+    return new FLDRootMotionSource_EaseOutDash(*this);
+}
+
+void FLDRootMotionSource_EaseOutDash::PrepareRootMotion(
+    float SimulationTime,
+    float MovementTickTime,
+    const ACharacter& Character,
+    const UCharacterMovementComponent& MoveComponent)
+{
+    RootMotionParams.Clear();
+    const double TotalSeconds=double(GetDuration());
+    const double StartSec=double(GetTime());
+    const double EndSec=StartSec+double(FMath::Max(0.f,SimulationTime));
+    FVector Velocity=FVector::ZeroVector;
+    if (TotalSeconds>UE_SMALL_NUMBER && MovementTickTime>UE_SMALL_NUMBER)
+    {
+        const double T0=FMath::Clamp(StartSec/TotalSeconds,0.,1.);
+        const double T1=FMath::Clamp(EndSec/TotalSeconds,0.,1.);
+        const FVector TotalDisplacement=Force*TotalSeconds;
+        const FVector DeltaDisplacement=TotalDisplacement*(LDDashCurve::EaseOutCubic(T1)-LDDashCurve::EaseOutCubic(T0));
+        Velocity=DeltaDisplacement/double(MovementTickTime);
+    }
+    RootMotionParams.Set(FTransform(Velocity));
+    SetTime(GetTime()+SimulationTime);
+}
+
+UScriptStruct* FLDRootMotionSource_EaseOutDash::GetScriptStruct() const
+{
+    return FLDRootMotionSource_EaseOutDash::StaticStruct();
+}
+
+FString FLDRootMotionSource_EaseOutDash::ToSimpleString() const
+{
+    return FString::Printf(TEXT("[ID:%u]FLDRootMotionSource_EaseOutDash %s"),LocalID,*InstanceName.GetPlainNameString());
+}
+
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
 {
     ++CorrectionCount;
@@ -291,7 +336,10 @@ bool ULDCharacterMovementComponent::ApplyDashRootMotion(const FVector& Direction
         return false;
     }
     // Displacement is native root motion integrated by the issued authority steps; never a teleport.
-    auto Source=MakeShared<FRootMotionSource_ConstantForce>();
+    // Voluntary dashes follow EaseOutCubic (1 - (1 - t)^3); knockback pushes remain linear ConstantForce.
+    TSharedPtr<FRootMotionSource_ConstantForce> Source=bKnockbackMotion
+        ? MakeShared<FRootMotionSource_ConstantForce>()
+        : StaticCastSharedRef<FRootMotionSource_ConstantForce>(MakeShared<FLDRootMotionSource_EaseOutDash>());
     Source->InstanceName=LDCharacterMovementDetail::DashSourceName;
     Source->AccumulateMode=ERootMotionAccumulateMode::Override;
     Source->Priority=5;

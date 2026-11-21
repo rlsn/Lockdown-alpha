@@ -96,8 +96,8 @@ bool ALDCombatDirector::OnMomentumHit(FLDBodyCombatState& Source, const FLDComba
         GrantMomentum(Source,LDMomentum::BasicGainP2(P,Hit.BasicIntervalMs),ELDMomentumBook::Basic);
         return true;
     }
-    // One MOMENTUM.SkillHit per release and body: the release's first native direct hit on it.
-    if (bNativeDirect && Hit.CastLedger && Hit.Source.Kind==ELDCombatSourceKind::Learned)
+    // One MOMENTUM.SkillHit per paid release and body: the release's first native direct hit on it.
+    if (bNativeDirect && Hit.CastLedger && !Hit.CastLedger->bAutoRecast && Hit.Source.Kind==ELDCombatSourceKind::Learned)
     {
         const FLDCombatBodyRef Struck{Victim.Victim,Victim.Identity};
         if (!Hit.CastLedger->MomentumStruck.Contains(Struck))

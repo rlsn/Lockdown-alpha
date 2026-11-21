@@ -16,6 +16,7 @@
 #include "UI/LDResultBuild.h"
 #include "UI/LDWorkshopModel.h"
 #include "UI/LDWorkshop.h"
+#include "Components/CanvasPanelSlot.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDWorkshopPreview.h"
 #include "Framework/LDDemoEntry.h"
@@ -1045,6 +1046,49 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         Workshop->NativeTick(Geometry,1.f/60.f);Choices->NativeTick(Geometry,1.f/60.f);
     };
     Frame();Choices->OpenPanel();
+    {
+        // UI-05 same-pass convergence: starting from Closed Workshop (stale Places/TrayDesired, bStage=false), one
+        // PresentConverged call opens Full Workshop, updates Stage/Dock rectangles AND reruns Choices->Present + SlatePrepass
+        // so StageBox lands in the final Stage rectangle on pass 0 without waiting a second frame.
+        ULDWorkshop::FInput ClosedIn=Input;ClosedIn.Mode=ULDWorkshop::EMode::Closed;ClosedIn.bStage=false;
+        Workshop->Present(ClosedIn);
+        Choices->SetWorkshopPlaces(Workshop->Places());
+        Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
+        Slate->SlatePrepass(2.f/3.f);
+        FHittestGrid ColdHit;FSlateWindowElementList ColdDraw{TSharedPtr<SWindow>()};
+        Slate->Paint(FPaintArgs(nullptr,ColdHit,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1280,720),ColdDraw,0,FWidgetStyle(),true);
+
+        ULDWorkshop::FInput OpenIn=Input;OpenIn.Mode=ULDWorkshop::EMode::Full;OpenIn.bStage=false;OpenIn.TrayDesired=Choices->TrayDesiredSize();
+        ULDWorkshop::PresentConverged(*Workshop,Choices,nullptr,OpenIn,2.f/3.f,[&]()
+        {
+            Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
+        });
+        const ULDChoicesPanel::FWorkshopPlaces Converged=Workshop->Places();
+        const UCanvasPanelSlot* StageSlot=Choices->StageBox?Cast<UCanvasPanelSlot>(Choices->StageBox->Slot):nullptr;
+        const FVector2D ExpectedPos=Workshop->Rects.Stage.Min;
+        const FVector2D ExpectedSize=Workshop->Rects.Stage.GetSize();
+        TestTrue(TEXT("PresentConverged converges bStage, WorkshopPlaces and StageBox geometry in a single pass"),
+            OpenIn.bStage&&Choices->IsStageShown()&&Converged.bActive&&Choices->WorkshopPlaces().Equals(Converged)
+            &&StageSlot&&StageSlot->GetPosition().Equals(ExpectedPos,1.f)&&StageSlot->GetSize().Equals(ExpectedSize,1.f));
+
+        // Also verify SlatePrepass updates TrayDesiredSize inside the same pass when wrapping pending blueprint + card offers.
+        FLDProgressionView WrapView=View;WrapView.bHasActiveOffer=false;
+        for(int32 Bp=0;Bp<FMath::Min(4,Content.Abilities.Num());++Bp){WrapView.PendingBlueprints.Add(FName(*Content.Abilities[Bp].Id));}
+        WrapView.bHasCardOffer=true;WrapView.CardOffer.OfferId=FGuid(9,9,9,1);
+        for(int32 Ci=0;Ci<FMath::Min(3,Content.Cards.Num());++Ci){WrapView.CardOffer.Options.Add(FName(*Content.Cards[Ci].Id));}
+        Workshop->Present(ClosedIn);
+        Choices->SetWorkshopPlaces(ULDChoicesPanel::FWorkshopPlaces());Choices->SetTrayInset(16.f,80.f,0.f,0.f);
+        Choices->Present(WrapView,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
+        Slate->SlatePrepass(2.f/3.f);
+        ULDWorkshop::FInput WrapOpen=Input;WrapOpen.Mode=ULDWorkshop::EMode::Full;WrapOpen.Progression=&WrapView;
+        WrapOpen.bStage=false;WrapOpen.Pending=2;WrapOpen.TrayDesired=Choices->TrayDesiredSize();
+        ULDWorkshop::PresentConverged(*Workshop,Choices,nullptr,WrapOpen,2.f/3.f,[&]()
+        {
+            Choices->Present(WrapView,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
+        });
+        TestTrue(TEXT("PresentConverged prepasses ChoicesPanel so TrayDesiredSize matches Workshop Pending height on pass 0"),
+            WrapOpen.TrayDesired.Equals(Choices->TrayDesiredSize(),.5)&&Workshop->Rects.Pending.bIsValid);
+    }
     for(const float TextScale:{1.f,1.25f})
     {
         Workshop->ApplyTextScale(TextScale);Choices->ApplyTextScale(TextScale);
@@ -1125,6 +1169,9 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             R.Stage.bIsValid&&R.Dock.bIsValid&&R.Stage.Min.X>=0.&&R.Stage.Max.X<=Size.X
             &&R.Dock.Min.X>=0.&&R.Dock.Max.X<=Size.X&&R.Stage.Min.Y>=0.&&R.Stage.Max.Y<=R.Dock.Min.Y
             &&R.Dock.Max.Y<=Size.Y);
+        TestTrue(At+TEXT(": persistent CharacterPanel stays visible beside Stage without overlap"),
+            R.Character.bIsValid&&R.Character.GetSize().X>=200.&&R.Character.GetSize().Y>=200.
+            &&R.Character.Max.X<=R.Stage.Min.X&&R.Character.Max.X<=R.Dock.Min.X);
     }
     Input.bStage=false;Input.bFinalStage=false;Choices->LeaveStage();
     for(int32 Tick=0;Tick<30;++Tick){Frame();}
@@ -1245,6 +1292,12 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             TestTrue(At+TEXT(": full-width dock is below all three panels"),
                 R.Dock.Min.X<=R.Character.Min.X&&R.Dock.Max.X>=R.Library.Max.X&&R.Dock.Min.Y>=R.Character.Max.Y
                 &&R.Dock.Min.Y>=R.Board.Max.Y&&R.Dock.Min.Y>=R.Pending.Max.Y);
+        }
+        else
+        {
+            TestTrue(At+TEXT(": field mode keeps compact CharacterPanel visible above Dock with positive LibraryBody height"),
+                R.Character.bIsValid&&R.Character.GetSize().X>=200.&&R.Character.GetSize().Y>=100.
+                &&R.Character.Max.Y<=R.Dock.Min.Y&&R.LibraryBody.bIsValid&&R.LibraryBody.GetSize().Y>30.);
         }
         TestTrue(At+TEXT(": library has a usable page"),Workshop->LibraryFit.bFits&&!Storage->Cards.IsEmpty());
         const int32 Pages=Workshop->LibraryFit.Pages.Num();
@@ -2561,6 +2614,48 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
                             Dispatched[1].Kind==ELDBuildCommandKind::Respec&&Dispatched[1].PointCounts[0]==5);
                     }
                 }
+            }
+        }
+
+        // INPUT-05 UI: Controlled and phase-locked action slots display specific short badges ("定身", "沉默", "眩晕", "禁").
+        {
+            FLDCombatStatusView RootSt;RootSt.StatusId=uint8(ELDDemoStatusId::Root);RootSt.ControlBlocks=uint8(ELDCombatControlBlock::Displacement);
+            FLDCombatStatusView SilSt;SilSt.StatusId=uint8(ELDDemoStatusId::Silence);SilSt.ControlBlocks=uint8(ELDCombatControlBlock::Cast);
+            FLDCombatStatusView StunSt;StunSt.StatusId=uint8(ELDDemoStatusId::Stun);StunSt.ControlBlocks=uint8(ELDCombatControlBlock::Cast)|uint8(ELDCombatControlBlock::Displacement);
+            const TArray<FLDCombatStatusView> RootAndSil{RootSt,SilSt};
+            TestEqual(TEXT("Root status produces 定身 badge for displacement slots"),
+                LDHUD::ControlStatusBadge(RootAndSil,uint8(ELDCombatControlBlock::Displacement)),FString(TEXT("定身")));
+            TestEqual(TEXT("Silence status produces 沉默 badge for cast slots"),
+                LDHUD::ControlStatusBadge(RootAndSil,uint8(ELDCombatControlBlock::Cast)),FString(TEXT("沉默")));
+            TestEqual(TEXT("Stun outranks Silence/Root with 眩晕 badge"),
+                LDHUD::ControlStatusBadge({RootSt,SilSt,StunSt},uint8(ELDCombatControlBlock::Cast)),FString(TEXT("眩晕")));
+
+            LDHUD::FActionInput DashIn;DashIn.Slot=LDHUD::EActionSlot::Dash;DashIn.bProjected=true;DashIn.bHasSource=true;
+            DashIn.Name=TEXT("冲刺");DashIn.bControlled=true;
+            DashIn.ControlLabel=LDHUD::ControlStatusBadge(RootAndSil,uint8(ELDCombatControlBlock::Displacement));
+            LDHUD::FActionContext ActCtx;ActCtx.KeyLabel=TEXT("D");ActCtx.bOwnContext=true;ActCtx.bPlaying=true;ActCtx.bAlive=true;
+            ActCtx.bClock=true;ActCtx.NowMs=1000;
+            const LDHUD::FActionView DashView=LDHUD::Action(DashIn,ActCtx);
+            TestTrue(TEXT("Rooted Dash slot shows Controlled look and 定身 badge"),
+                LDHUD::ActionLook(DashView,false)==LDHUD::EActionLook::Controlled&&DashView.LockBadge==TEXT("定身"));
+
+            LDHUD::FActionInput PhaseIn;PhaseIn.Slot=LDHUD::EActionSlot::Q;PhaseIn.bProjected=true;PhaseIn.bHasSource=true;PhaseIn.Name=TEXT("肘击");
+            LDHUD::FActionContext LockedCtx=ActCtx;LockedCtx.bPlaying=false;
+            const LDHUD::FActionView LockedView=LDHUD::Action(PhaseIn,LockedCtx);
+            TestEqual(TEXT("Phase-locked (!bPlaying) slot shows 禁 badge"),LockedView.LockBadge,FString(TEXT("禁")));
+
+            LDHUD::FActionInput ReturnIn=PhaseIn;ReturnIn.ServerReject=ELDCombatReject::NotStarted;ReturnIn.ServerBlock=LDHUD::CombatRejectText(ELDCombatReject::NotStarted);
+            TestEqual(TEXT("Rest return countdown (NotStarted) slot shows 禁 badge"),LDHUD::Action(ReturnIn,ActCtx).LockBadge,FString(TEXT("禁")));
+
+            for(const ELDCombatReject Ordinary:{ELDCombatReject::Cooldown,ELDCombatReject::MomentumShort,ELDCombatReject::Busy})
+            {
+                LDHUD::FActionInput OrdIn=PhaseIn;
+                OrdIn.ServerReject=Ordinary;
+                OrdIn.ServerBlock=LDHUD::CombatRejectText(Ordinary);
+                if(Ordinary==ELDCombatReject::Cooldown){OrdIn.ReadyAtMs=3000;OrdIn.CooldownMs=4000;}
+                if(Ordinary==ELDCombatReject::MomentumShort){OrdIn.MomentumCostP2=3000;ActCtx.bMomentumKnown=true;ActCtx.MomentumP2=1000;}
+                TestTrue(TEXT("Cooling / momentum-short / busy slots do not show 禁 badge"),
+                    LDHUD::Action(OrdIn,ActCtx).LockBadge.IsEmpty());
             }
         }
     }

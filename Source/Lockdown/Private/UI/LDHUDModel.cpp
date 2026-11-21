@@ -1397,6 +1397,30 @@ LDHUD::FResultHighlightsView LDHUD::ResultHighlights(const FLDDamageSummaryView&
     return View;
 }
 
+FString LDHUD::ControlStatusBadge(TConstArrayView<FLDCombatStatusView> Statuses,uint8 ControlMask)
+{
+    int32 BestPriority=0;
+    FString Best;
+    for(const FLDCombatStatusView& Status:Statuses)
+    {
+        if((Status.ControlBlocks&ControlMask)==0){continue;}
+        int32 Priority=1;
+        FString Label=TEXT("禁");
+        switch(static_cast<ELDDemoStatusId>(Status.StatusId))
+        {
+        case ELDDemoStatusId::Stun: Priority=6; Label=TEXT("眩晕"); break;
+        case ELDDemoStatusId::Taunt: Priority=5; Label=TEXT("嘲讽"); break;
+        case ELDDemoStatusId::Knockback: Priority=4; Label=TEXT("击退"); break;
+        case ELDDemoStatusId::Silence: Priority=3; Label=TEXT("沉默"); break;
+        case ELDDemoStatusId::Root: Priority=3; Label=TEXT("定身"); break;
+        case ELDDemoStatusId::Disarm: Priority=2; Label=TEXT("缴械"); break;
+        default: break;
+        }
+        if(Priority>BestPriority){BestPriority=Priority;Best=MoveTemp(Label);}
+    }
+    return Best;
+}
+
 LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext& Context)
 {
     FActionView View;
@@ -1423,7 +1447,11 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
             Block(ActionCooldown,TEXT("冷却 ")+TenthsUp(View.CooldownRemainingMs));
         }
     }
-    if(bActive&&Input.bControlled){Block(ActionControlled,TEXT("受控制无法使用"));}
+    if(bActive&&Input.bControlled)
+    {
+        Block(ActionControlled,Input.ControlLabel.IsEmpty()?FString(TEXT("受控制无法使用")):FString::Printf(TEXT("%s无法使用"),*Input.ControlLabel));
+        View.LockBadge=Input.ControlLabel.IsEmpty()?(Input.Slot==EActionSlot::Dash?FString(TEXT("定身")):FString(TEXT("禁"))):Input.ControlLabel;
+    }
     if(bActive&&Context.bMomentumKnown&&Input.MomentumCostP2>Context.MomentumP2)
     {
         Block(ActionMomentum,LDTerms::MomentumShort());
@@ -1431,6 +1459,14 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
         View.Gap=FString::Printf(TEXT("-%lld"),(Input.MomentumCostP2-FMath::Max<int64>(Context.MomentumP2,0)+99)/100);
     }
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
+    const bool bPhaseLocked=!Context.bPlaying
+        ||Input.ServerReject==ELDCombatReject::NotStarted
+        ||Input.ServerReject==ELDCombatReject::MatchClosed;
+    if(View.LockBadge.IsEmpty()&&bActive&&Context.bOwnContext&&Context.bAlive
+        &&!(View.ExecutionBlocks&ActionUnsynced)&&bPhaseLocked)
+    {
+        View.LockBadge=TEXT("禁");
+    }
     View.State=State.IsEmpty()?FString(TEXT("就绪")):State;
     View.Countdown=CooldownText(View.CooldownRemainingMs);
     if(bActive&&Input.MomentumCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.MomentumCostP2,false));}
@@ -3088,6 +3124,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.NextCooldownMs=Entry.NextCooldownMs;
     Input.MomentumCostP2=Entry.MomentumCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
+    Input.ServerReject=Entry.Unavailable;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
 }

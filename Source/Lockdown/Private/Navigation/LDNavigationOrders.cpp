@@ -1127,6 +1127,22 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
     if (!AdmitOrder(Mode,*PawnBody,Permit,Admitted,Failure,Error))
     {
         if (!Error.IsEmpty()) { return false; }
+        const auto* Move=Cast<ULDCharacterMovementComponent>(PawnBody->GetCharacterMovement());
+        if ((Failure==ELDOrderFailure::InvalidGround || Failure==ELDOrderFailure::NoCompletePath)
+            && Move && Move->IsDashing() && !Move->IsKnockbackMotion())
+        {
+            // Retain spatial orders (including out-of-range AttackUnit/CastUnit whose Plan() maps to NoCompletePath)
+            // issued mid-dash while traversing a ramp/step/obstacle; retry normal admission once the dash lands.
+            FPendingOrder Retained;
+            Retained.Request=Next.Request;
+            Retained.Cast=Next.Cast;
+            Retained.Match=Next.Match;
+            Retained.Body=Next.Body;
+            Retained.NotBeforeMs=Mode.GetAuthorityNowMs()+1;
+            Retained.QueueCut=Next.QueueCut;
+            PendingOrder=MoveTemp(Retained);
+            return true;
+        }
         // The previous accepted order keeps running; the rejection still reports the protection change. A refused
         // queued step lets the next one follow.
         Reply(Next.Request,ELDOrderStatus::Rejected,Failure,true,Admitted.bProtectionRemoved,Admitted.LifeRevision);
@@ -1763,7 +1779,6 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking()); }
     // Rooted or stunned bodies get no voluntary input; committed root motion (dashes, jumps) still integrates natively.
     const bool bRooted=Mode->Combat && Mode->Combat->IsMoveBlocked(*Body);
-    const FVector Input=ActiveOrder && !bRooted?AuthoritySteering(*Body):FVector::ZeroVector;
     auto* Movement=Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
     if (!Movement)
     {
@@ -1771,13 +1786,49 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
         Error=TEXT("Registered body is missing its Demo character movement component.");
         return false;
     }
+    const bool bVoluntaryDashingBefore=Movement->IsDashing() && !Movement->IsKnockbackMotion();
+    if (VoluntaryDashBody!=Ref)
+    {
+        VoluntaryDashBody=Ref;
+        bWasVoluntaryDashing=false;
+    }
+    const FVector Input=ActiveOrder && !bRooted && !bVoluntaryDashingBefore ? AuthoritySteering(*Body) : FVector::ZeroVector;
     if (!Movement->AdvanceAuthorityMovement(Step,Ref,Input,Permit,Error)) { return false; }
+    const bool bVoluntaryDashingAfter=Movement->IsDashing() && !Movement->IsKnockbackMotion();
+    const bool bDashJustFinished=(bWasVoluntaryDashing || bVoluntaryDashingBefore) && !bVoluntaryDashingAfter;
+    bWasVoluntaryDashing=bVoluntaryDashingAfter;
     if (!ActiveOrder) { return true; }
+    if (bDashJustFinished)
+    {
+        auto& Order=ActiveOrder.GetValue();
+        Order.LastProgress=Step.EndServerSeconds;
+        if (LDNavOrdersDetail::IsChase(Order.Request,Order.bPinned))
+        {
+            Order.bForceReplan=true;
+        }
+        else if (Order.Request.Kind==ELDSpatialOrderKind::MoveGround || Order.Request.Kind==ELDSpatialOrderKind::AttackMove)
+        {
+            TArray<FVector> Path;
+            FVector Projected;
+            ELDWorldQueryFailure PlanFailure=ELDWorldQueryFailure::None;
+            FString Detail;
+            if (Plan(Order.Destination,Order.Surface,LDPathSteering::EGoal::Ground,Path,Projected,PlanFailure,Detail))
+            {
+                Order.Points=MoveTemp(Path);
+                Order.PointIndex=Order.Points.Num()>1?1:0;
+                Order.Goal=Projected;
+                Order.BestProgress=LDPathSteering::AlongPath(Order.Points,Body->GetNavAgentLocation());
+                Order.bReplanned=false;
+                PublishActive(ELDOrderStatus::Progress);
+            }
+        }
+    }
     if (ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround && GroundArrived(*Body,*ActiveOrder))
     {
         EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking());
         return true;
     }
+    if (bVoluntaryDashingAfter) { ActiveOrder->LastProgress=Step.EndServerSeconds; return true; }
     TrackProgress(*Body,Step.EndServerSeconds,!Input.IsNearlyZero());
     return true;
 }

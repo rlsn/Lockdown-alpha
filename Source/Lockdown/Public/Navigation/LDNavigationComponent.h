@@ -402,9 +402,13 @@ private:
     void StepCastFollowUp(const FLDOrderReceipt& Receipt);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDControlFeelAutoAttackAfterCastTest;
+    friend class FLDControlFeelElevationAimAndClipTest;
+    friend bool LDTestRunDashOrderRetention(class FAutomationTestBase&);
     friend class FLDReconnectProtectionTest;
     friend class FLDDemoCombatProbe;
 #endif
+    bool bWasVoluntaryDashing=false;
+    FLDCombatBodyRef VoluntaryDashBody;
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
     // The sent ground order walked before the server answered it (0 when none), and the kind of the walk being steered.
     FLDMoveIdentity EarlyOrder;
