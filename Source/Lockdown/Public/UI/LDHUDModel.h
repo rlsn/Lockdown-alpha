@@ -578,6 +578,17 @@ namespace LDHUD
         bool bCharging=false;       // the target holds an overdrive charge
         FResourceView Momentum;
         FString Statuses;
+        // The same public statuses as icon squares: the picture (or the name's first character), green when it helps the
+        // bearer and red when it hurts, stacks over 1 in the corner; the name, stacks and remaining time are the tooltip.
+        struct FStatusChip
+        {
+            FString IconId;
+            FString Glyph;
+            FString Tip;
+            bool bPositive=true;
+            uint8 Stacks=1;
+        };
+        TArray<FStatusChip> StatusChips;
         // A visible contender's Q/W/E actives (#112 §10, #198 single level): key, display name and icon; never cooldowns.
         struct FActiveChip
         {

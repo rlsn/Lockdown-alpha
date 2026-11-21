@@ -204,6 +204,8 @@ struct FLDPublicMatchView
     UPROPERTY() int64 CageUntilMs = 0;
     UPROPERTY() FVector CageCentreCm = FVector::ZeroVector;
     UPROPERTY() float CageRadiusCm = 0;
+    // Its integrity: the share of its durability (`hp`) hostile hits across it have not yet worn down (1..10000; 0 = none).
+    UPROPERTY() int32 CageIntegrityBp = 0;
     // Every contender's final mod, in roster order (final field only).
     UPROPERTY() TArray<FLDFinalModHolderView> FinalMods;
     UPROPERTY() TArray<FLDPrivatePoleView> PrivatePoles;

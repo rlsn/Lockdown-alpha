@@ -462,6 +462,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             PendingHits.Add(MoveTemp(Hit));
         }
         if (!HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs, Error)) { return false; }
+        HitFenceInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload);
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }

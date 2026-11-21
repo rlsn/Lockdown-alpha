@@ -38,7 +38,7 @@
 
 ## 地面迷雾与材质调节
 
-`ALDWorldViewRelay` 只把本人当前授权帧的 128×128 `CurrentBits` 转换为世界厘米单位的有符号距离场，不增加本地视线查询或网络字段。`LDFogDistanceField` 按两个方向的实际单元尺寸计算欧氏距离；覆盖和地图尺寸不变时复用结果，变化后在约 0.06 s 内平滑显示，失效、死亡或无身体时立即恢复不可视颜色。单位与技能显隐继续由接收端授权帧管理。
+`ALDWorldViewRelay` 只把本人当前授权帧的 256×128 `CurrentBits`（`CoverageWidth`×`CoverageHeight`，在 21000×10000 cm 地面上约 82×78 cm 一格）转换为世界厘米单位的有符号距离场，不增加本地视线查询或网络字段。`LDFogDistanceField` 按两个方向的实际单元尺寸计算欧氏距离；覆盖和地图尺寸不变时复用结果，变化后在约 0.06 s 内平滑显示，失效、死亡或无身体时立即恢复不可视颜色。单位与技能显隐继续由接收端授权帧管理。
 
 正式游戏和测试关卡共用 `/Game/Lockdown/Art/Fog/MI_FogMist`，父材质 `M_FogMist` 在景深前合成。`BandWidthCm`、`FadePower` 控制向视野内侧消散的渐变，`NoiseAmount`、`NoiseScaleCm`、`DetailWeight`、`FlowSpeedCmPerSec`、`SwirlStrength`、`FlowDirection` 控制世界坐标中的双层流动噪声；`OutsideBrightness`、`HiddenDesaturation`、`FogColorStrength`、`FogColor` 控制外侧颜色，外侧与不可视区域一致。运行中的动态材质只覆盖距离场与坐标参数，继续继承此材质实例的效果设置。
 
@@ -49,6 +49,8 @@
 - 观察者唯一的来源是自己的存活身体。半径取批准内容的 `VISION.RadiusCm`（含边界）。
 - 正式运行使用当前原生碰撞与 `LDVision` 通道判断遮挡；数据夹具仍使用批准的多边形模型。已知身体从实际脚点附近寻找支撑，屋顶不替代其脚下层级。复杂地形按当前观察层的实际碰撞检测，不能把整块网格的最高点套给整个投影。`NoViewBlock` 不遮挡视线，同时保留物理支撑。
 - 观察者与目标落在同一个原生可行走斜面或同一个 `LDIndependentRamp` 碰撞体时，视线随两端的地面高度变化。坡脚观察者也能看见坡上的目标，前提是视线路径从观察者所在高度穿过坡道的可行走入口。两种情况均检测沿途碰撞，并适用于视野覆盖和营地反击感知。坡外的高台目标仍按地形层级处理。
+- 视野宽限（`VISION.SightGraceSec`，`ALDVisionDirector::InSightGrace`）：观察者每次采样记下每个单位这一条命最近在自己视线内的时刻与脚点（`FObserver::LastSeen`，观察者重置时清空）。
+  之后只是被障碍物挡住（`TraceSight` 为 `Blocked`，仍在半径内）、同一条命、脚点位移不超过 400 cm、PK 场地未开启时，宽限期内该单位照常下发并可由 `ResolveObservedUnit` 解析；超出半径、隔离、瞬移或复活都立即失视。
 - 镜头位置、缩放和小地图手势都不授予视野。
 - 编辑器的 `LDSceneAuthoringLibrary::GameplayVisibilityAudit(World, true)` 对当前定位点、可放置营地成员与导航区域只读采样，输出真实胶囊脚点、覆盖格子及近邻视线；不会改动作者布局。
 - 观察者没有存活身体时，帧为显式 `NoLivingBody`：没有覆盖、单位或终结记录。死亡镜头只看静态和公开信息。
@@ -57,6 +59,7 @@
   `Actives` 由 Combat 的 `PublicActivesOf` 在构筑安装和身体准备时写进同一公开事实，只随当前可见单位下发、失视即撤销；
   codec 要求每槽“id 与等级同为 0 或同为非 0”、等级不超过 `LDObservation::MaxActiveRank`（2）、非空槽的 id 两两不同，营地成员三个槽均为 0，接收端只接受批准目录里的主动技能。
   目标卡（`LDHUD::ObservedCard`）据此显示 Q/W/E 图标方格（内容 IconId，无图标时写技能名首字；键位与技能名在悬停里，空槽压暗）。不含冷却、完整属性或规范身体身份。
+  目标卡的公开状态不写文字行：`FObservedCard::StatusChips` 画成一排 24 单位方格（`UWrapBox`，按需增减），图标来自 `LDHUD::StatusIconId`，缺图写名称首字，边框按正负面绿/红，叠层数在右下角，名称、层数与剩余时间在悬停里。
 - 营地成员只携带生物 Id、HP 和公开状态，没有劲。营地成员的 `Presentation` 恒为 0。
   `CampReturning`（3）只出现在营地成员身上，不叠层、无期限：codec 只接受 `Stacks` 为 1、`ExpiresAtServerMs` 为 0 的该状态。
   它由 `ALDCampDirector::AppendObservedFacts` 在核心 `ReadObservedPublicFacts` 之后追加（只在成员处于 Returning 时）；
@@ -235,7 +238,7 @@
   采样按核心时钟排程：普通迟帧保持原相位，停顿后跳过错过的间隔，只采当前姿态一次，不补发历史批次。
   单位、飞行物和句柄仍在每次采样更新；128² 覆盖只在有拥有连接 relay 的发布样本计算，
   观察者脚点与世界修订完全相同时复用上次覆盖，生命/观察代次复位时清掉缓存。
-  AI 与未发布的内部存活帧保留精确 2048 字节的零位图以满足帧校验；它们的可见单位来自各自逐目标视线，
+  AI 与未发布的内部存活帧保留精确 `CoverageBytes`（4096）字节的零位图以满足帧校验；它们的可见单位来自各自逐目标视线，
   不读取覆盖，也不借用真人视图。没有存活身体的帧仍是空覆盖。
   静态地形 tier 与高层区域候选由空间网格筛选，仍以原闭凸包/开内部线段判定作最终裁决；
   覆盖格中心的 tier 在构建世界视线时预计算，不把格中心的覆盖当成单位可见性。
@@ -443,7 +446,7 @@ Q/W/E 动作格（`LDHUD::ActionDetail`）、属性图标与头顶状态方格�
 只栅格化当前显示的区域；仅世界身份/布局/几何 revision、显示区域、view scale、控件尺寸或显示 DPI 变化时重建（进出休息室各重建一次），固定缩放下转向不重建。
 纹理按显示 DPI 生成并留出轮廓抗锯齿边缘，经现有 north-up `Plane` 几何旋转后只提交一个 box；
 使用与 Slate retainer 相同的 gamma-space、premultiplied-alpha 合成，避免半透明填充重复乘 alpha 或改变颜色。
-视野覆盖使用独立 128×128 最近邻纹理，根据授权 `CurrentBits` 将可见格留空、不可见格半透明压暗，以接收端观察 serial 与本人 Match/Life 去重上传。
+视野覆盖使用独立 256×128 最近邻纹理，根据授权 `CurrentBits` 将可见格留空、不可见格半透明压暗，以接收端观察 serial 与本人 Match/Life 去重上传。
 paint 再次检查当前帧状态及 Match/Life，死亡、过期或他局时统一压暗地形，不保留探索层。
 固定地点图标保持直立；自身、可见单位、镜头框及公开事件标记仍逐帧经同一 view 绘制。
 `Lockdown.Rules.Minimap.StaticInvalidation/CoverageTexture` 覆盖静态失效键、覆盖逐格颜色/位序、上传去重键与权限清除；`Minimap.Regions` 覆盖野外、休息室与终局战场三区域互不重叠（含沿整块地面的外围墙）、各区保留自己的墙与终局环、缺区与锚点重叠拒绝。

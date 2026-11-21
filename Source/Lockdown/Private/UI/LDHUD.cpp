@@ -62,6 +62,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/WrapBox.h"
+#include "Components/WrapBoxSlot.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
 #include "Framework/Application/SlateApplication.h"
@@ -194,6 +196,7 @@ constexpr float HudTargetPortrait=32.f;
 constexpr float HudTargetHealthHeight=16.f;
 constexpr float HudTargetMomentumHeight=8.f;
 constexpr float HudTargetActiveSide=34.f;
+constexpr float HudTargetStatusSide=24.f;
 // Mock 5's result page: the whole width, the gap between its cards and the winner's rule board inside its card.
 constexpr float HudResultWidth=1640.f;
 constexpr float HudResultGap=20.f;
@@ -376,7 +379,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         for(UTextBlock* Value:{TargetHealth.Get(),TargetMomentum.Get()}){FSlateFontInfo Font=Value->GetFont();Font.Size=LDHUDStyle::TypeTiny;Value->SetFont(Font);}
         // The 8-unit momentum bar is too thin for its value; the value is the bar's tooltip instead.
         TargetMomentum->SetVisibility(ESlateVisibility::Collapsed);TargetMomentumRow->SetVisibility(ESlateVisibility::Visible);
-        TargetStatuses=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudTargetInner);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
+        TargetStatusRow=WidgetTree->ConstructWidget<UWrapBox>();TargetStatusRow->SetInnerSlotPadding(FVector2D(4,4));
+        TargetStatusRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        TargetBox->AddChildToVerticalBox(TargetStatusRow)->SetPadding(FMargin(0,6,0,0));
         {
             // Mock 1: three 34-unit Q/W/E icon tiles of a visible contender, 8 apart; no cooldown is ever drawn. The key and
             // name are the tile's tooltip; a missing icon shows the name's first character.
@@ -2159,7 +2164,40 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             TargetMomentumBar->SetFillColorAndOpacity(Card.bMomentumFull?LDHUDStyle::Overdrive.CopyWithNewOpacity(Pulse):LDHUDStyle::Momentum);
             bReadModelLive|=Card.bCharging;
         }
-        HudSetText(TargetStatuses,Card.Statuses);
+        // The status squares: grown on demand, the unused ones collapsed.
+        while(TargetStatusTiles.Num()<Card.StatusChips.Num())
+        {
+            UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSmall);Glyph->SetAutoWrapText(false);HudFace(Glyph,true,0);Glyph->SetJustification(ETextJustify::Center);
+            auto* Rim=WidgetTree->ConstructWidget<UBorder>();Rim->SetBrush(HudRound(4.f,LDHUDStyle::Rim,1.5f));
+            Rim->SetPadding(FMargin(0));Rim->SetHorizontalAlignment(HAlign_Center);Rim->SetVerticalAlignment(VAlign_Center);Rim->SetContent(Glyph);
+            UImage* Icon=WidgetTree->ConstructWidget<UImage>();Icon->SetVisibility(ESlateVisibility::Collapsed);
+            UTextBlock* Stack=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeTiny);Stack->SetAutoWrapText(false);HudFace(Stack,true,0);
+            auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+            for(UWidget* Layer:{static_cast<UWidget*>(Rim),static_cast<UWidget*>(Icon)})
+            {auto* LayerSlot=Face->AddChildToOverlay(Layer);LayerSlot->SetHorizontalAlignment(HAlign_Fill);LayerSlot->SetVerticalAlignment(VAlign_Fill);}
+            {auto* StackSlot=Face->AddChildToOverlay(Stack);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);}
+            auto* Side=WidgetTree->ConstructWidget<USizeBox>();Side->SetWidthOverride(HudTargetStatusSide);Side->SetHeightOverride(HudTargetStatusSide);Side->SetContent(Face);
+            Side->SetVisibility(ESlateVisibility::Visible);
+            TargetStatusRow->AddChildToWrapBox(Side);
+            TargetStatusTiles.Add(Side);TargetStatusRims.Add(Rim);TargetStatusIcons.Add(Icon);TargetStatusGlyphs.Add(Glyph);TargetStatusStacks.Add(Stack);
+        }
+        HudSetShown(TargetStatusRow,!Card.StatusChips.IsEmpty(),ESlateVisibility::SelfHitTestInvisible);
+        for(int32 Index=0;Index<TargetStatusTiles.Num();++Index)
+        {
+            const bool bUsed=Card.StatusChips.IsValidIndex(Index);
+            HudSetShown(TargetStatusTiles[Index],bUsed,ESlateVisibility::Visible);
+            if(!bUsed){continue;}
+            const LDHUD::FObservedCard::FStatusChip& Chip=Card.StatusChips[Index];
+            if(!TargetStatusTiles[Index]->GetToolTipText().ToString().Equals(Chip.Tip,ESearchCase::CaseSensitive))
+            {TargetStatusTiles[Index]->SetToolTipText(FText::FromString(Chip.Tip));}
+            const FLinearColor Edge=Chip.bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
+            if(TargetStatusRims[Index]->Background.OutlineSettings.Color!=FSlateColor(Edge))
+            {TargetStatusRims[Index]->SetBrush(HudRound(4.f,Edge,1.5f));TargetStatusRims[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.92f));}
+            const bool bPicture=LDUIIcons::Apply(TargetStatusIcons[Index],Chip.IconId,4.f);
+            HudSetText(TargetStatusGlyphs[Index],bPicture?FString():Chip.Glyph);
+            TargetStatusGlyphs[Index]->SetColorAndOpacity(FSlateColor(Edge));
+            HudSetText(TargetStatusStacks[Index],Chip.Stacks>1?FString::FromInt(Chip.Stacks):FString());
+        }
         HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::SelfHitTestInvisible);
         for(int32 Index=0;Card.bActives&&Index<TargetActiveTiles.Num();++Index)
         {

@@ -46,32 +46,53 @@ bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FStr
     }
     const FGuid Before = LeaderNotice.Leader;
     if (LeaderNotice.Refresh(NowMs, Candidates)) { bPublicMatchDirty = true; }
-    // The leader's unbroken run pays one stat point every LEADER.SurvivalPointSec (a bigger target, a fatter prize).
-    if (!LeaderNotice.Leader.IsValid() || LeaderNotice.Leader != TrendingRunLeader)
+    // Every trending contender's unbroken run (the leader, and the runner-up on a melon day) earns one stat point every
+    // LEADER.SurvivalPointSec; leaving the trending set or dying ends the run. Points are granted in Transactions.
+    for (auto It = TrendingRuns.CreateIterator(); It; ++It)
     {
-        TrendingRunLeader = LeaderNotice.Leader;
-        TrendingRunSinceMs = NowMs;
-        TrendingRunPaid = 0;
+        if (!LeaderNotice.IsTrending(It.Key())) { It.RemoveCurrent(); }
     }
-    else if (const int64 EveryMs = DemoContent ? DemoContent->Get().Parameters.LeaderSurvivalPointMs : 0; EveryMs > 0)
+    const int64 EveryMs = DemoContent ? DemoContent->Get().Parameters.LeaderSurvivalPointMs : 0;
+    for (const FGuid& Id : {LeaderNotice.Leader, LeaderNotice.RunnerUp})
     {
-        const int64 Due = (NowMs - TrendingRunSinceMs) / EveryMs;
-        while (TrendingRunPaid < Due)
+        if (!Id.IsValid()) { continue; }
+        FTrendingRun* Run = TrendingRuns.Find(Id);
+        if (!Run) { TrendingRuns.Add(Id, {NowMs, 0}); continue; }
+        while (EveryMs > 0 && Run->Counted < (NowMs - Run->SinceMs) / EveryMs)
         {
-            ++TrendingRunPaid;
-            const uint32 Words[7] = {TrendingRunLeader.A, TrendingRunLeader.B, TrendingRunLeader.C, TrendingRunLeader.D,
-                uint32(TrendingRunSinceMs), uint32(TrendingRunPaid), 0x54524E44u};
+            ++Run->Counted;
+            const uint32 Words[7] = {Id.A, Id.B, Id.C, Id.D, uint32(Run->SinceMs), uint32(Run->Counted), 0x54524E44u};
             const uint64 Hash = CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
-            const FGuid AwardId(uint32(Hash >> 32), uint32(Hash), MatchContext.Generation, 0x54524E44u);
-            const ELDGrowthReason Reason = Development->GrantPKPoints(TrendingRunLeader, 1, AwardId, false, Permit);
-            UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_SURVIVAL_POINT leader=%s run_ms=%lld paid=%d reason=%d"),
-                *LDLog::Id(TrendingRunLeader), NowMs - TrendingRunSinceMs, TrendingRunPaid, int32(Reason));
+            TrendingPointsOwed.Add({Id, FGuid(uint32(Hash >> 32), uint32(Hash), MatchContext.Generation, 0x54524E44u)});
         }
     }
     if (LeaderNotice.Leader != Before || LeaderNotice.Leader.IsValid())
     {
         UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s field_t_ms=%lld"),
             LeaderNotice.RefreshIndex, *LeaderNotice.Leader.ToString(), NowMs);
+    }
+    return true;
+}
+
+bool ALDGameMode::PayTrendingPoints(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Development)
+    {
+        Error = TEXT("Trending survival points require the current Transactions permit and growth.");
+        return false;
+    }
+    for (int32 Index = 0; Index < TrendingPointsOwed.Num();)
+    {
+        const FTrendingPoint Point = TrendingPointsOwed[Index];
+        const ELDGrowthReason Reason = Development->GrantPKPoints(Point.Contender, 1, Point.AwardId, false, Permit);
+        UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_SURVIVAL_POINT contender=%s award=%s reason=%d"), *LDLog::Id(Point.Contender),
+            *Point.AwardId.ToString(), int32(Reason));
+        // Granted (or already granted) points are done; a contender who left never gets one; anything else waits for the
+        // next Transactions phase.
+        if (Reason == ELDGrowthReason::None || Reason == ELDGrowthReason::PKAwardDuplicate || Reason == ELDGrowthReason::LeftMatch
+            || Reason == ELDGrowthReason::OldMatch || Reason == ELDGrowthReason::MatchClosed)
+        { TrendingPointsOwed.RemoveAt(Index); continue; }
+        ++Index;
     }
     return true;
 }

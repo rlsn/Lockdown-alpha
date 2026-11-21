@@ -408,6 +408,8 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational VisionRadiusCm;
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
+    // VISION.SightGraceSec: a unit an obstacle just hid stays observed this long (not across range, isolation or a teleport).
+    UPROPERTY() int64 VisionSightGraceMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
     // CAPTURE.GuardCheckpointSec: an owner whose guard passed this far and is painted over keeps a checkpoint for its next graffiti.
     UPROPERTY() int64 CaptureGuardCheckpointMs = 0;

@@ -407,12 +407,12 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
         }
         if (Pattern==3)
         {
-            for (int32 Y=0;Y<LDObservation::CoverageSide;++Y)
+            for (int32 Y=0;Y<LDObservation::CoverageHeight;++Y)
             {
-                for (int32 X=0;X<LDObservation::CoverageSide;++X)
+                for (int32 X=0;X<LDObservation::CoverageWidth;++X)
                 {
                     if (FMath::Square(X-64)+FMath::Square(Y-64)<=14*14)
-                    { LDObservation::SetCoverageBit(Coverage.Footprint.CurrentBits,Y*LDObservation::CoverageSide+X); }
+                    { LDObservation::SetCoverageBit(Coverage.Footprint.CurrentBits,Y*LDObservation::CoverageWidth+X); }
                 }
             }
             for (uint32 Index=1;Index<=5;++Index) { Coverage.Units.Add(ContenderUnit(Index)); }
@@ -936,16 +936,16 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
 
     TArray<uint8> Bits;
     Sight.Coverage(West, Bits);
-    const int32 Side = LDObservation::CoverageSide;
-    auto CellOf = [Side](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    auto CellOf = [Width, Height](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
     const int32 Own = CellOf(-1000, 0);
-    TestEqual(TEXT("Coverage is the fixed 128 x 128 bitmap"), Bits.Num(), LDObservation::CoverageBytes);
-    TestTrue(TEXT("Coverage indexes y * 128 + x, low bit first"), LDObservation::CoverageBit(Bits, Own) && (Bits[Own / 8] & (1 << (Own % 8))) != 0);
+    TestEqual(TEXT("Coverage is the fixed width x height bitmap"), Bits.Num(), LDObservation::CoverageBytes);
+    TestTrue(TEXT("Coverage indexes y * width + x, low bit first"), LDObservation::CoverageBit(Bits, Own) && (Bits[Own / 8] & (1 << (Own % 8))) != 0);
     TestFalse(TEXT("Shadowed cells stay dark"), LDObservation::CoverageBit(Bits, CellOf(500, 0)));
     TestFalse(TEXT("Cells beyond the radius stay dark"), LDObservation::CoverageBit(Bits, CellOf(-1000, 3000)));
     const FVector2D Centre = Sight.CellCentre(Own);
-    TestTrue(TEXT("Cell centres follow the registered ground bounds"), FMath::IsNearlyEqual(Centre.X, -976.5625, 1e-9) && FMath::IsNearlyEqual(Centre.Y, 39.0625, 1e-9));
+    TestTrue(TEXT("Cell centres follow the registered ground bounds"), FMath::IsNearlyEqual(Centre.X, -996.09375, 1e-9) && FMath::IsNearlyEqual(Centre.Y, 39.0625, 1e-9));
     // Two observers on either side of the wall see the same target differently, in traces and coverage alike.
     const FVector East(1000, 0, 2), Between(300, 0, 2);
     TArray<uint8> EastBits;
@@ -1002,7 +1002,7 @@ bool FLDDemoVisionCoveragePublicationTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("An AI never computes coverage, even at a publication boundary"), AI.Sample(Sight, East, true, false, Actual));
     TestTrue(TEXT("An AI frame remains codec-valid, with its own units unchanged"), DarkValidFrame());
     TestTrue(TEXT("The first human publication computes coverage"), Human.Sample(Sight, West, true, true, Actual));
-    TestTrue(TEXT("The published human bitmap matches all 2048 reference bytes"), Actual == Expected);
+    TestTrue(TEXT("The published human bitmap matches every reference byte"), Actual == Expected);
     TestFalse(TEXT("An unchanged foot and world reuse the prior coverage"), Human.Sample(Sight, West, true, true, Actual));
     TestTrue(TEXT("Reused coverage is byte-identical"), Actual == Expected);
     TestFalse(TEXT("Movement at a non-publication sample computes nothing"), Human.Sample(Sight, East, false, true, Actual));
@@ -1095,9 +1095,9 @@ bool FLDDemoVisionTieredSightTest::RunTest(const FString& Parameters)
     TArray<uint8> GroundBits, LowBits;
     Sight.Coverage(GroundEye, GroundBits);
     Sight.Coverage(LowEye, LowBits);
-    const int32 Side = LDObservation::CoverageSide;
-    auto CellOf = [Side](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    auto CellOf = [Width, Height](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
     TestTrue(TEXT("Ground coverage lights the ground and leaves the plateau dark"),
         LDObservation::CoverageBit(GroundBits, CellOf(1500, 300)) && !LDObservation::CoverageBit(GroundBits, CellOf(2200, -300)));
     TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CellOf(1300, 300)));
@@ -1137,9 +1137,9 @@ bool FLDDemoVisionTreeSightTest::RunTest(const FString& Parameters)
         && Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -1800, 2)) == ELDSightResult::Visible);
     TArray<uint8> Bits;
     Sight.Coverage(FVector(-2600, -2000, 2), Bits);
-    const int32 Side = LDObservation::CoverageSide;
-    auto CellOf = [Side](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    auto CellOf = [Width, Height](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
     TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CellOf(-1700, -2000)));
     TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CellOf(-1700, -1600)));
     FLDDemoWorldGeometry Low = Geometry;

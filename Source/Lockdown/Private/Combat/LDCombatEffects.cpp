@@ -249,6 +249,10 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp*(10000-Monster->Skill.PassiveBp)/10000;
     }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
+    // final_cage: a basic between a body inside the fence and one outside wears it (it still lands).
+    if (SourceActor && Hit.HitClass==ELDCombatHitClass::BasicPrimary
+        && !Hit.bReflect && !Hit.bRider && !Hit.bExtraStrike && FenceCrosses(FootOf(*SourceActor),FootOf(*Actor)))
+    { HitFence(Hit); }
     // The thick-skin keystone takes its share off the next direct hostile hit of any kind (a basic or a skill), once per interval.
     const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
         && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.SourceEntity!=Body->Victim.EntityId
@@ -349,7 +353,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     Body->Resources.HpP2=Damage.RemainingHPP2;
     Body->Resources.ShieldP2=Damage.RemainingShieldP2;
     // The absorbed amount spends the layers, earliest deadline first; each layer it empties is a break of its own.
-    const int32 BrokenLayers=Damage.ShieldAbsorbedP2>0 ? SpendShieldLayers(*Body,Damage.ShieldAbsorbedP2) : 0;
+    TArray<FGuid> BrokenLayerIds;
+    const int32 BrokenLayers=Damage.ShieldAbsorbedP2>0 ? SpendShieldLayers(*Body,Damage.ShieldAbsorbedP2,&BrokenLayerIds) : 0;
     ++Body->Resources.Revision;
     if (Damage.KeystoneGuardCutP2>0)
     {
@@ -561,7 +566,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
     }
-    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
+    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,BrokenLayerIds,NowMs,Error)) { return false; }
     // Spec §6.5: the hit's damage joins its chain and its owner's strongest hit.
     if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
     // Issue #292 P5: Y06 bursts on a broken shield; Y29 shields a share of the burn its source dealt; K03 remembers the native
@@ -742,6 +747,12 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         const FVector Clear=FMath::Lerp(From,To,ClearFraction);
         const int32 BagStruck=FirstBagOnSegment(Projectile.SourceEntity,From,Clear,Projectile.RadiusCm,BagFraction);
         const FVector Stop=BagStruck!=INDEX_NONE ? FMath::Lerp(From,Clear,BagFraction) : Clear;
+        // final_cage: a skill flight that crosses the fence wears it once (a basic wears it where it lands, in ApplyHit).
+        if (!Projectile.bCrossedFence && Projectile.Payload.HitClass==ELDCombatHitClass::Ability && FenceCrosses(From,Stop))
+        {
+            Projectile.bCrossedFence=true;
+            HitFence(Projectile.Payload);
+        }
         // M14: a pierced body does not end the flight; the search goes on past it in the same step.
         FVector SegmentFrom=From;
         bool bEnded=false;

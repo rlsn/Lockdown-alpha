@@ -1253,10 +1253,43 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
         }
         FLDObservedTerminationFact Termination;
         const bool bDied=Mode.Vision->FindObservedTermination(*PC,ActiveOrder->Target,ActiveOrder->TargetEpoch,Termination);
+        // A basic chase that lost sight (past VISION.SightGraceSec) walks on to where the target was last seen, like a ground
+        // move: the lock and any windup end with it, and nothing resumes the attack there.
+        // Human players only: an opponent AI reads the lost target from the failure and decides for itself.
+        if (Kind==ELDSpatialOrderKind::AttackUnit && !bDied && !ActiveOrder->bForced && ActiveOrder->bHumanLease)
+        {
+            auto& Order=ActiveOrder.GetValue();
+            const FVector LastSeen=Order.TargetFoot;
+            ReleaseOrderLinks(Order,true);
+            Order.bPinned=Order.bEngaged=Order.bCloseIn=Order.bForceReplan=Order.bProgressReplan=Order.bPress=false;
+            Order.Target.Invalidate();
+            Order.TargetEpoch=0;
+            TArray<FVector> Path;
+            FVector Projected;
+            ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
+            FString Detail;
+            if (!Plan(LastSeen,Order.Surface,LDPathSteering::EGoal::Ground,Path,Projected,Failure,Detail))
+            {
+                UE_LOG(LogLDNav,Display,TEXT("LD_NAV_LAST_SEEN_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
+                EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::TargetUnavailable,true);
+                return true;
+            }
+            Order.Request.Kind=ELDSpatialOrderKind::MoveGround;
+            Order.Destination=Projected;
+            Order.Points=MoveTemp(Path);
+            Order.PointIndex=Order.Points.Num()>1?1:0;
+            Order.Goal=Projected;
+            Order.Acceptance=float(GoalAcceptanceCm);
+            Order.BestProgress=LDPathSteering::AlongPath(Order.Points,Body.GetNavAgentLocation());
+            Order.LastProgress=Mode.GetAuthorityNowSeconds();
+            Order.bReplanned=false;
+            PublishActive(ELDOrderStatus::Progress);
+            return true;
+        }
         if (Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::CastUnit || !bDied)
         {
-            // Lost sight cancels the lock and stops this pursuit; it never walks to a last seen position or resumes. A basic
-            // windup at this target is cancelled with the order: its release needs the target observed (2026-11-07).
+            // Lost sight cancels a cast lock, a dead target ends the pursuit. A windup at this target is cancelled with the
+            // order: its release needs the target observed.
             EndActive(bDied?ELDOrderStatus::Completed:ELDOrderStatus::Cancelled,
                 bDied?ELDOrderFailure::TargetDied:ELDOrderFailure::TargetUnavailable,true);
             return true;

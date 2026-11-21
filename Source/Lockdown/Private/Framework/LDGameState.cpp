@@ -108,6 +108,7 @@ void ALDGameState::SyncCaptureFence()
         Fence=nullptr;
         CaptureFence.Reset();
     }
+    if (Fence) { Fence->SetIntegrity(PublicMatch.CageIntegrityBp); }
     if (!bStands||Fence) { return; }
     FActorSpawnParameters Spawn;
     Spawn.ObjectFlags|=RF_Transient;
@@ -121,6 +122,7 @@ void ALDGameState::SyncCaptureFence()
             Error.IsEmpty()?TEXT("The cage fence actor could not be spawned."):*Error);
         return;
     }
+    Fence->SetIntegrity(PublicMatch.CageIntegrityBp);
     CaptureFence=Fence;
 }
 

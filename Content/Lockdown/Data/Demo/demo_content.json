@@ -22051,7 +22051,7 @@
       "unit": "ratio"
     },
     "DAILY.BlackoutVisionCut": {
-      "bp": 3000,
+      "bp": 2500,
       "unit": "ratio"
     },
     "DAILY.ColdChillBonusSec": {
@@ -22947,6 +22947,10 @@
       "denominator": 1,
       "numerator": 1400,
       "unit": "cm"
+    },
+    "VISION.SightGraceSec": {
+      "ms": 300,
+      "unit": "ms"
     },
     "XP.BaseToNext": 60,
     "XP.IncreasePerLevel": 20

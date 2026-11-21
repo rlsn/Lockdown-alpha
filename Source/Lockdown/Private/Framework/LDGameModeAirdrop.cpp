@@ -122,7 +122,8 @@ bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FStrin
     {
         const FLDRecoveryOrbView Orb = RecoveryOrbs[Index];
         FGuid Claimer;
-        if (LDAirdrop::PickClaimer(Orb.PositionCm, PickupCm, Candidates, uint32(Orb.Serial), Claimer))
+        // An orb at or past its end is gone, never claimed on that boundary.
+        if (NowMs < Orb.ExpireAtMs && LDAirdrop::PickClaimer(Orb.PositionCm, PickupCm, Candidates, uint32(Orb.Serial), Claimer))
         {
             FLDContenderLifeRead Life;
             FString LifeError;

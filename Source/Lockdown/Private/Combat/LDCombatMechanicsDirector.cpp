@@ -97,7 +97,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     return true;
 }
 
-int32 ALDCombatDirector::SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2)
+int32 ALDCombatDirector::SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2, TArray<FGuid>* OutEmptied)
 {
     int32 Emptied=0;
     Body.ShieldLayers.Sort([](const FLDBodyCombatState::FShieldLayer& A, const FLDBodyCombatState::FShieldLayer& B)
@@ -108,7 +108,11 @@ int32 ALDCombatDirector::SpendShieldLayers(FLDBodyCombatState& Body, int64 Amoun
         const int64 Taken=FMath::Min(AmountP2,Layer.AmountP2);
         Layer.AmountP2-=Taken;
         AmountP2-=Taken;
-        Emptied+=Layer.AmountP2<=0 && Taken>0 ? 1 : 0;
+        if (Layer.AmountP2<=0 && Taken>0)
+        {
+            ++Emptied;
+            if (OutEmptied) { OutEmptied->Add(Layer.EffectId); }
+        }
     }
     Body.ShieldLayers.RemoveAll([](const FLDBodyCombatState::FShieldLayer& Layer) { return Layer.AmountP2<=0; });
     return Emptied;

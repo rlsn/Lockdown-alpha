@@ -814,6 +814,8 @@ struct FLDCombatProjectile
     FGuid StartContact;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
+    // final_cage: this flight already crossed the standing fence (it wears the fence once).
+    bool bCrossedFence=false;
     // A05's flying basic: the strikes and riders that land with its primary (A06, A09, A11), retargeted to the struck body.
     TArray<FLDCombatHit> Riders;
     // A08 on a flying third basic: its free Q is queued at the first contact, toward the body struck (bComboCast).
@@ -1338,7 +1340,7 @@ private:
     // The single shield entry: live rot cuts the amount, then it applies StackToLatestExpiry; a granted shield
     // records its amount (ShieldGrantedP2).
     // Spends AmountP2 of Body's shield layers, earliest deadline first; returns how many layers it emptied.
-    static int32 SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2);
+    static int32 SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2, TArray<FGuid>* OutEmptied=nullptr);
     // Drops the layers past their deadline and takes their amount off Resources.ShieldP2; true when anything changed.
     static bool ExpireShieldLayers(FLDBodyCombatState& Body, int64 NowMs);
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
@@ -1464,6 +1466,11 @@ private:
     void RemoveBags(TFunctionRef<bool(const FLDCombatBag&)> Which);
     void DamageBag(FLDCombatBag& Bag, const FLDCombatHit& Hit, int64 NowMs);
     // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
+    // final_cage: a hostile hit that crosses the standing fence wears it by its raw amount (RawBagDamageP2); it still
+    // passes through. Crosses: one end inside the ring and the other outside. InCircle: an area that touches the ring.
+    bool FenceCrosses(const FVector& From, const FVector& To) const;
+    void HitFence(const FLDCombatHit& Payload);
+    void HitFenceInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload);
     bool HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs, FString& Error);
     bool HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
         const FLDCombatHit& Payload, int64 NowMs, FString& Error);
@@ -1570,8 +1577,9 @@ private:
     bool ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea, int64 NowMs,
         FString& Error);
     // Branch reactions of a committed hit on Target: S10 B1 discharges, S14 A1 reflections, S16 B stacks, S13 A1 bursts.
-    bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, bool bShieldBroken, int64 NowMs,
-        FString& Error);
+    // BrokenLayers: the shield layers (their EffectIds) this hit emptied; a branch shield settles by its own layer.
+    bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, const TArray<FGuid>& BrokenLayers,
+        int64 NowMs, FString& Error);
     // A flight ended at EndCm: a return that reached its thrower was caught (S06 B2); an outbound flight leaves its landing area.
     bool EndBranchProjectile(const FLDCombatProjectile& Projectile, const FVector& EndCm, bool bReachedRange, FString& Error);
     // S19 A1: Ground's wire to its owner's next newer armed trap within WireCm strikes every enemy body on the segment once.

@@ -153,12 +153,12 @@ struct FReferenceSight
     void Coverage(const FVector& Source, TArray<uint8>& Out) const
     {
         Out.Init(0, LDObservation::CoverageBytes);
-        const double CellX = (Max.X - Min.X) / LDObservation::CoverageSide;
-        const double CellY = (Max.Y - Min.Y) / LDObservation::CoverageSide;
+        const double CellX = (Max.X - Min.X) / LDObservation::CoverageWidth;
+        const double CellY = (Max.Y - Min.Y) / LDObservation::CoverageHeight;
         for (int32 I = 0; I < LDObservation::CoverageCells; ++I)
         {
-            const double X = Min.X + ((I % LDObservation::CoverageSide) + .5) * CellX;
-            const double Y = Min.Y + ((I / LDObservation::CoverageSide) + .5) * CellY;
+            const double X = Min.X + ((I % LDObservation::CoverageWidth) + .5) * CellX;
+            const double Y = Min.Y + ((I / LDObservation::CoverageWidth) + .5) * CellY;
             if (Trace(Source, FVector(X, Y, Source.Z)) == ELDSightResult::Visible) { LDObservation::SetCoverageBit(Out, I); }
         }
     }
@@ -241,7 +241,7 @@ bool FLDDemoVisionGeometryParityTest::RunTest(const FString& Parameters)
         TArray<uint8> Actual, Expected;
         Sight.Coverage(Source, Actual);
         Reference.Coverage(Source, Expected);
-        if (!TestTrue(*FString::Printf(TEXT("All 16384 coverage bits agree at %s"), *Source.ToString()), Actual == Expected))
+        if (!TestTrue(*FString::Printf(TEXT("All coverage bits agree at %s"), *Source.ToString()), Actual == Expected))
         { return false; }
     }
     AddInfo(FString::Printf(TEXT("Exact full-bitmap parity at %d registered anchors, terrain and wall centres, and map corners."), Sources.Num()));

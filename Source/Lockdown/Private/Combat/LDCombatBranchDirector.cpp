@@ -520,16 +520,20 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
             GroundEffects.Add(MoveTemp(Blast));
             Branch.DashEndLedger.Reset();
         }
-        // S14 A2: the shield ran out naturally; its remaining share heals (checked before statuses expire this boundary).
-        if (Branch.ShieldEffectId.IsValid() && (!Body.Shield.IsSet() || Body.Shield->EffectId!=Branch.ShieldEffectId))
+        // S14 A2: the branch's own shield layer ran out naturally; what is left of that layer heals (checked before statuses
+        // expire this boundary). A layer that is gone (spent or replaced) ends the branch terms.
+        const FLDBodyCombatState::FShieldLayer* BranchLayer=Branch.ShieldEffectId.IsValid()
+            ? Body.ShieldLayers.FindByPredicate([&Branch](const FLDBodyCombatState::FShieldLayer& Layer)
+                { return Layer.EffectId==Branch.ShieldEffectId; }) : nullptr;
+        if (Branch.ShieldEffectId.IsValid() && !BranchLayer)
         {
             Branch.ShieldEffectId.Invalidate();
             Branch.ShieldReflectBp=Branch.ShieldEndHealBp=0;
             Branch.ShieldBreakBurst.Reset();
         }
-        else if (Branch.ShieldEndHealBp>0 && Body.Shield.IsSet() && Body.Shield->ExpiresAtMs<=NowMs && Body.Resources.ShieldP2>0)
+        else if (Branch.ShieldEndHealBp>0 && BranchLayer && BranchLayer->ExpiresAtMs<=NowMs && BranchLayer->AmountP2>0)
         {
-            const int64 Heal=Share(Body.Resources.ShieldP2,Branch.ShieldEndHealBp);
+            const int64 Heal=Share(BranchLayer->AmountP2,Branch.ShieldEndHealBp);
             Branch.ShieldEndHealBp=0;
             if (Heal>0 && !HealBody(Body,Heal,Branch.ShieldExit,nullptr,FGuid(),&Error) && !Error.IsEmpty()) { return false; }
         }
@@ -568,8 +572,8 @@ void ALDCombatDirector::ClearBranchState(FLDBodyCombatState& Body)
     Pulses.RemoveAll([&Entity](const FLDCombatPulse& Row) { return Row.Template.SourceEntity==Entity; });
 }
 
-bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, bool bShieldBroken,
-    int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2,
+    const TArray<FGuid>& BrokenLayers, int64 NowMs, FString& Error)
 {
     using namespace LDCombatBranchDetail;
     // A11/K13 rider damage triggers nothing, the taker's branch effects included.
@@ -604,8 +608,11 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
         PendingHits.Add(MoveTemp(Discharge));
     }
     // S14 A1: the shield of this branch reflects a share of the direct damage it took.
-    const bool bShieldOfBranch=Branch.ShieldEffectId.IsValid()
-        && ((Target.Shield.IsSet() && Target.Shield->EffectId==Branch.ShieldEffectId) || bShieldBroken);
+    // The branch's own shield layer: still standing, or emptied by this very hit.
+    const bool bBranchLayerBroken=Branch.ShieldEffectId.IsValid() && BrokenLayers.Contains(Branch.ShieldEffectId);
+    const bool bShieldOfBranch=Branch.ShieldEffectId.IsValid() && (bBranchLayerBroken
+        || Target.ShieldLayers.ContainsByPredicate([&Branch](const FLDBodyCombatState::FShieldLayer& Layer)
+            { return Layer.EffectId==Branch.ShieldEffectId; }));
     if (bShieldOfBranch && Branch.ShieldReflectBp>0 && DamageP2>0 && bOrdinary && FindBody(Hit.SourceBody))
     {
         FLDCombatHit Reflect=MakeHit(Target,Branch.ShieldExit,Hit.SourceBody,FGuid::NewGuid());
@@ -616,7 +623,7 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
         if (Reflect.BaseP2>0) { PendingHits.Add(MoveTemp(Reflect)); }
     }
     // S13 A1: the shield of this branch bursts when it breaks.
-    if (bShieldBroken && bShieldOfBranch && Branch.ShieldBreakBurst.IsSet())
+    if (bBranchLayerBroken && Branch.ShieldBreakBurst.IsSet())
     {
         const FLDDemoEffectDefinition Burst=Branch.ShieldBreakBurst.GetValue();
         Branch.ShieldBreakBurst.Reset();

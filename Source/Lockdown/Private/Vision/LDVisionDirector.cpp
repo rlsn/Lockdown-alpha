@@ -597,9 +597,9 @@ ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVecto
 
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
 {
-    const int32 Side = LDObservation::CoverageSide;
-    const double CellX = (Max.X - Min.X) / Side, CellY = (Max.Y - Min.Y) / Side;
-    return FVector2D(Min.X + ((Index % Side) + .5) * CellX, Min.Y + ((Index / Side) + .5) * CellY);
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
+    return FVector2D(Min.X + ((Index % Width) + .5) * CellX, Min.Y + ((Index / Width) + .5) * CellY);
 }
 
 void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const
@@ -607,12 +607,12 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionCoverage);
     OutBits.Init(0, LDObservation::CoverageBytes);
     if (!IsValid() || !InBounds(SourceFootCm)) { return; }
-    const int32 Side = LDObservation::CoverageSide;
-    const double CellX = (Max.X - Min.X) / Side, CellY = (Max.Y - Min.Y) / Side;
-    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - RadiusCm - Min.X) / CellX), 0, Side - 1);
-    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + RadiusCm - Min.X) / CellX), 0, Side - 1);
-    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Side - 1);
-    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Side - 1);
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
+    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - RadiusCm - Min.X) / CellX), 0, Width - 1);
+    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + RadiusCm - Min.X) / CellX), 0, Width - 1);
+    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Height - 1);
+    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Height - 1);
     const FVector2D From(SourceFootCm);
     double SourceZ=SourceFootCm.Z;
     FHitResult SourceSupport;
@@ -629,7 +629,7 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     {
         for (int32 X = X0; X <= X1; ++X)
         {
-            const int32 Index = Y * Side + X;
+            const int32 Index = Y * Width + X;
             const FVector2D Centre = CellCentre(Index);
             if (FVector2D::DistSquared(From, Centre) > RadiusCm * RadiusCm) { continue; }
             int32 TargetTier = CoverageTiers[Index];
@@ -1444,7 +1444,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     if (!ReadObserver(Observer, Life, Foot, Error)) { return false; }
     bool bReset = false;
     if (!Observer.Ledger.Bind(Life.Phase, Life.Life, bReset, Error)) { return false; }
-    if (bReset) { Observer.Coverage.Reset(); }
+    if (bReset) { Observer.Coverage.Reset(); Observer.LastSeen.Reset(); }
     ALDWorldViewRelay* Relay = Observer.Relay.Get();
     if (bReset && Relay)
     {
@@ -1475,7 +1475,13 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
             const ELDObservedResolve Seen = PresentationSight(*Mode, Combat, PK, Observer.ContenderId, bArena,
                 bSpectating, bPKObserver, Foot, TeammateFeet, Target.Body, Target.FootCm, Sight, Error);
             if (Seen == ELDObservedResolve::AuthorityFault) { return false; }
-            if (Seen == ELDObservedResolve::Resolved) { Visible.Add(&Target); }
+            if (Seen == ELDObservedResolve::Resolved)
+            {
+                Visible.Add(&Target);
+                if (!bArena) { Observer.LastSeen.Add(Target.Body.Victim.EntityId, {Target.Body.Victim.Life, Mode->GetAuthorityNowSeconds(), Target.FootCm}); }
+            }
+            // A thin obstacle that hides it for a moment keeps it in sight (and its lock and windup) for the grace.
+            else if (!bArena && InSightGrace(Observer, Target.Body, Foot, Target.FootCm)) { Visible.Add(&Target); }
         }
     }
     TArray<FGuid> Removed;
@@ -1721,7 +1727,8 @@ ELDObservedResolve ALDVisionDirector::ResolveObservedUnit(const ALDPlayerControl
     const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Sighted);
     if (Outcome == ELDObservedResolve::AuthorityFault)
     { return Refuse(Outcome, FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Sighted))); }
-    if (Outcome != ELDObservedResolve::Resolved)
+    const bool bArena = Core->PKDirector.Get() && Core->PKDirector->IsArenaActive();
+    if (Outcome != ELDObservedResolve::Resolved && (bArena || !InSightGrace(*Observer, Target, Foot, TargetFoot)))
     { return Refuse(Outcome, TEXT("The target is not visible at this authority moment.")); }
     Out.Target = Target;
     Out.FootCm = TargetFoot;
@@ -1877,6 +1884,21 @@ ELDSightResult ALDVisionDirector::TraceObservation(const FVector& SourceFootCm, 
     const FLDWorldRevision& Expected) const
 {
     return TraceSight(SourceFootCm, FootOf(Target), Expected);
+}
+
+bool ALDVisionDirector::InSightGrace(const FObserver& Observer, const FLDCombatBodyRef& Target, const FVector& ObserverFootCm,
+    const FVector& TargetFootCm) const
+{
+    // A body that moves farther than this between two samples was placed (respawn, rest, arena), not hidden.
+    constexpr double TeleportCm = 400.;
+    const FObserver::FSeen* Seen = Observer.LastSeen.Find(Target.Victim.EntityId);
+    const ALDGameMode* Core = AuthorityMode();
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Seen || !Core || !Content || !Registry || Seen->Life != Target.Victim.Life
+        || FVector::Dist2D(Seen->FootCm, TargetFootCm) > TeleportCm
+        || Core->GetAuthorityNowSeconds() - Seen->AtSeconds > double(Content->Get().Parameters.VisionSightGraceMs) / 1000.)
+    { return false; }
+    return TraceSight(ObserverFootCm, TargetFootCm, Registry->Revision()) == ELDSightResult::Blocked;
 }
 
 ELDSightResult ALDVisionDirector::CurrentObservation(const FVector& SourceFootCm, const ALDCharacter& Target) const

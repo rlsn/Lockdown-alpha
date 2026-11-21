@@ -1445,10 +1445,10 @@ bool ALDWorldViewRelay::CoversPoint(const FLDWorldView& Frame, const FVector& Po
     if (!Geometry || Geometry->Surfaces.Num() != 1 || !Geometry->Surfaces[0].MinCm.ToVector(Min, Error)
         || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error) || Max.X <= Min.X || Max.Y <= Min.Y
         || Frame.Footprint.SourceStatus != ELDObservationSource::ActiveBody) { return false; }
-    const int32 Side = LDObservation::CoverageSide;
-    const int32 X = FMath::FloorToInt32((Point.X - Min.X) / (Max.X - Min.X) * Side);
-    const int32 Y = FMath::FloorToInt32((Point.Y - Min.Y) / (Max.Y - Min.Y) * Side);
-    return X >= 0 && X < Side && Y >= 0 && Y < Side && LDObservation::CoverageBit(Frame.Footprint.CurrentBits, Y * Side + X);
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    const int32 X = FMath::FloorToInt32((Point.X - Min.X) / (Max.X - Min.X) * Width);
+    const int32 Y = FMath::FloorToInt32((Point.Y - Min.Y) / (Max.Y - Min.Y) * Height);
+    return X >= 0 && X < Width && Y >= 0 && Y < Height && LDObservation::CoverageBit(Frame.Footprint.CurrentBits, Y * Width + X);
 }
 
 void ALDWorldViewRelay::PresentProxies(float Delta)
@@ -1473,12 +1473,12 @@ void ALDWorldViewRelay::AttachFog()
     AActor* Target = Owning ? Owning->GetViewTarget() : nullptr;
     UCameraComponent* Camera = Target ? Target->FindComponentByClass<UCameraComponent>() : nullptr;
     if (!Owning || !Owning->GetLocalPlayer() || !Camera || CameraOwner == Target) { return; }
-    const int32 Side = LDObservation::CoverageSide;
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
     if (!FogMaterial)
     {
         UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Art/Fog/MI_FogMist.MI_FogMist"));
         if (!ensureMsgf(Base, TEXT("Missing fog material instance /Game/Lockdown/Art/Fog/MI_FogMist"))) { return; }
-        FogTexture = UTexture2D::CreateTransient(Side, Side, PF_B8G8R8A8);
+        FogTexture = UTexture2D::CreateTransient(Width, Height, PF_B8G8R8A8);
         FogTexture->SRGB = false;
         // Bilinear sampling softens the coverage cell edges; with the blend the lit area glides instead of stepping.
         FogTexture->Filter = TF_Bilinear;
@@ -1486,7 +1486,7 @@ void ALDWorldViewRelay::AttachFog()
         FogTexture->AddressY = TA_Clamp;
         FogTexture->NeverStream = true;
         void* Pixels = FogTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
-        FMemory::Memzero(Pixels, Side * Side * 4);
+        FMemory::Memzero(Pixels, Width * Height * 4);
         FogTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
         FogTexture->UpdateResource();
         FogMaterial = UMaterialInstanceDynamic::Create(Base, this);
@@ -1533,7 +1533,7 @@ void ALDWorldViewRelay::UploadFog()
     // Unit-only publications reuse the field; there are no local raycasts or extra network payloads.
     if (FogBits != Bits || FogSpan != Span)
     {
-        LDFogDistanceField::Build(Bits, Span.X / LDObservation::CoverageSide, Span.Y / LDObservation::CoverageSide, FogTarget);
+        LDFogDistanceField::Build(Bits, Span.X / LDObservation::CoverageWidth, Span.Y / LDObservation::CoverageHeight, FogTarget);
         if (FogBits.IsEmpty() || FogShown.Num() != FogTarget.Num()) { FogShown = FogTarget; }
         FogBits = Bits;
         FogSpan = Span;
@@ -1548,7 +1548,7 @@ void ALDWorldViewRelay::BlendFog(float Delta)
         || FogTarget.Num() != LDObservation::CoverageCells) { return; }
     const float Alpha = 1.f - FMath::Exp(-FMath::Max(Delta, 0.f) / .06f);
     bool bMoving = false;
-    const int32 Side = LDObservation::CoverageSide;
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
     uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];
     for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
     {
@@ -1561,7 +1561,7 @@ void ALDWorldViewRelay::BlendFog(float Delta)
         Pixels[Index * 4] = Pixels[Index * 4 + 1] = Pixels[Index * 4 + 2] = Value;
         Pixels[Index * 4 + 3] = 255;
     }
-    FogTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, Side, Side), Side * 4, 4, Pixels,
+    FogTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height), Width * 4, 4, Pixels,
         [](uint8* Data, const FUpdateTextureRegion2D* Regions) { delete[] Data; delete Regions; });
     bFogBlending = bMoving;
 }

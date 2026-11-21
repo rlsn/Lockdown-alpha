@@ -24,6 +24,31 @@ int64 ALDCombatDirector::RawBagDamageP2(const FLDCombatHit& Hit)
     return FMath::Max<int64>(Raw, 0) / 10000 * Scale + FMath::Max<int64>(Raw, 0) % 10000 * Scale / 10000;
 }
 
+bool ALDCombatDirector::FenceCrosses(const FVector& From, const FVector& To) const
+{
+    const auto* Mode = Core();
+    FVector2D Centre;
+    double Radius = 0;
+    FGuid Holder;
+    if (!Mode || !Mode->ReadCageFence(Centre, Radius, Holder)) { return false; }
+    return (FVector2D::Distance(FVector2D(From), Centre) <= Radius) != (FVector2D::Distance(FVector2D(To), Centre) <= Radius);
+}
+
+void ALDCombatDirector::HitFence(const FLDCombatHit& Payload)
+{
+    if (auto* Mode = Core()) { Mode->DamageCageFence(Payload.SourceEntity, RawBagDamageP2(Payload)); }
+}
+
+void ALDCombatDirector::HitFenceInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload)
+{
+    const auto* Mode = Core();
+    FVector2D Ring;
+    double Radius = 0;
+    FGuid Holder;
+    if (!Mode || RadiusCm <= 0 || !Mode->ReadCageFence(Ring, Radius, Holder)) { return; }
+    if (FMath::Abs(FVector2D::Distance(FVector2D(Centre), Ring) - Radius) <= RadiusCm) { HitFence(Payload); }
+}
+
 bool ALDCombatDirector::BagIsEnemyOf(const FLDCombatBag& Bag, const FGuid& Source) const
 {
     if (!Source.IsValid() || Source == Bag.Payload.SourceEntity) { return false; }

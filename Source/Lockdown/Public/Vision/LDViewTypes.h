@@ -36,9 +36,12 @@ namespace LDObservation
     // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven;
-    // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
-    constexpr int32 CoverageSide = 128;
-    constexpr int32 CoverageCells = CoverageSide * CoverageSide;
+    // Display coverage over the registered ground surface bounds, low bit first.
+    // The coverage grid over the ground surface: CoverageWidth columns along X, CoverageHeight rows along Y (the 21000 x
+    // 10000 cm ground gives cells of about 82 x 78 cm). Bit index = row * CoverageWidth + column.
+    constexpr int32 CoverageWidth = 256;
+    constexpr int32 CoverageHeight = 128;
+    constexpr int32 CoverageCells = CoverageWidth * CoverageHeight;
     constexpr int32 CoverageBytes = CoverageCells / 8;
     // Bounded uint8 wire counts permit authored camp instances. Admission counts the actual scene roster,
     // every other contender and the Boss; no hidden unit is dropped to fit this capacity.

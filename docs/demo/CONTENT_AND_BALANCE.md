@@ -219,7 +219,8 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 
 | ID | 单位/类型 | 建议初值/派生 | 依据与适用范围 |
 | --- | --- | --- | --- |
-| `VISION.RadiusCm` | cm/Cm | 1400 | 2250cm 镜头下覆盖更多屏幕；停电日（−30%）仍有 980cm，长于甩你一鞋 850cm 射程；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 3.93s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1400, 2×220)=440 不变 |
+| `VISION.SightGraceSec` | s/Sec | 0.3 | 被障碍物刚挡住的单位仍算看见的时间：擦过树干、路灯不打断锁定、追击与前摇；不跨视野半径、隔离或瞬移 |
+| `VISION.RadiusCm` | cm/Cm | 1400 | 2250cm 镜头下覆盖更多屏幕；停电日（−25%）仍有 1050cm，长于甩你一鞋 850cm 射程；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 3.93s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1400, 2×220)=440 不变 |
 | `TARGET.AttackMoveAcquireRadiusCm` | cm/Cm | min(VISION.RadiusCm, 2×STAT.AttackRangeCm)，初始440 | 随真实普攻射程变化；只搜合法可见目标，最高1320cm；订单/优先级归操作域 |
 | `CAPTURE.RadiusCm` | cm/Cm | 420 | 直径840cm，基速穿过约2.8s，比远程技能射程小一圈但留出圈内走位；地面装饰离旗杆的净空沿用 `camp_clearance_cm`，不随喷漆区变大；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
 | `CAPTURE.SpraySec` | s/Sec | 2.5 | 喷漆区内独自累积满即喷上涂鸦；争夺暂停保留，离区/死亡/离局/硬控施加清零。时长短，主要靠在场的人进区争夺或硬控/击杀打断 |
@@ -276,7 +277,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | --- | --- | --- |
 | 下雨 | `DAILY.RainIntervalSec` 20、`RainPuddles` 6、`RainPuddleSec` 10、`RainWetBonusSec` 2 | 每 20 s 在野外随机 6 处生成无主水洼（10 s）；湿持续 +2 s |
 | 寒潮 | `DAILY.ColdFreezeSec` 20、`ColdChillBonusSec` 2 | 水洼生成 20 s 后变冰面；冻持续 +2 s |
-| 停电 | `DAILY.BlackoutVisionCut` 0.3、`BlackoutShockScale` 2 | 参赛者视野半径 −30%（野怪感知不变）；麻的额外伤害 ×2 |
+| 停电 | `DAILY.BlackoutVisionCut` 0.25、`BlackoutShockScale` 2 | 参赛者视野半径 −25%（1400 cm 剩 1050 cm，不低于常规技能射程；野怪感知不变）；麻的额外伤害 ×2 |
 | 台风 | `DAILY.TyphoonIntervalSec` 30、`TyphoonPushCm` 150 | 每 30 s 全图向同一随机方向吹 150 cm，人和地面状态一起吹 |
 | 高温 | `DAILY.HeatBurnTickScale` 1.3 | 灼烧每跳 ×1.3；起雾不生成雾区 |
 | 打折 | `DAILY.SalePriceScale` 0.5 | 商店技能、牌、技能点与刷新价 ×0.5，向上取整，不低于 1 |
@@ -849,7 +850,7 @@ App Spec §2.1、规则见 §2.2。每项只改终局的胜负或旗杆规则，
 | `final_kill_seconds` 人头换秒 | `guard` 3s | 每击杀一名参赛者 +3s 历史守护；当时是涂鸦主人则同时 +3s 当前守护 |
 | `final_usurp` 篡位 | — | 击杀主旗杆涂鸦主人时，涂鸦归持有者并继承其当前守护进度 |
 | `final_carry_flag` 扛旗跑路 | — | 持有者是涂鸦主人期间，主旗杆与喷漆区跟随其移动；封街圈圆心不跟随 |
-| `final_cage` 铁笼 | `duration` 5s，`hp` 600 | 喷上涂鸦的瞬间在喷漆区边界升起 5s 围栏：只挡身体，不挡远程与范围技能；持有者在围栏期间累计掉 600 生命时围栏提前碎掉 |
+| `final_cage` 铁笼 | `duration` 5s，`hp` 600 | 喷上涂鸦的瞬间在喷漆区边界升起 5s 围栏：只挡身体，不挡远程与范围技能；除持有者外的人隔着围栏打出的原始伤害（普攻、飞过的技能弹道、碰到围栏的范围）累计 600 时围栏提前碎掉 |
 | `final_private_pole` 私人旗杆 | `spray` 3.5s，`guard` 28s，`radius` 200cm | 入场口旁只有持有者能喷的小旗杆，守满即胜；他人进圈冻结守护；不计喷漆次数，超时结算时守护的一半计入持有者的历史守护 |
 | `final_double_yellow` 双黄线 | `radius` 220cm | 持有者是主旗杆涂鸦主人期间，喷漆区半径为 220cm |
 

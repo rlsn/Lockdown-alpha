@@ -1429,9 +1429,14 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
     FString Statuses;
     for(const FLDObservedStatus& Status:Unit.Statuses)
     {
-        Statuses+=(Statuses.IsEmpty()?TEXT(""):TEXT(" · "))+StatusName(Content,Status.StatusId);
-        if(Status.Stacks>1){Statuses+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
-        if(Status.ExpiresAtServerMs>0){Statuses+=TEXT(" ")+TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
+        const FString Name=StatusName(Content,Status.StatusId);
+        FString Part=Name;
+        if(Status.Stacks>1){Part+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
+        if(Status.ExpiresAtServerMs>0){Part+=TEXT(" ")+TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
+        Statuses+=(Statuses.IsEmpty()?TEXT(""):TEXT(" · "))+Part;
+        FObservedCard::FStatusChip& Chip=Card.StatusChips.AddDefaulted_GetRef();
+        Chip.IconId=StatusIconId(Content,Status.StatusId);Chip.Glyph=IconGlyph(Name);Chip.Tip=Part;
+        Chip.bPositive=StatusIsPositive(Status.StatusId);Chip.Stacks=Status.Stacks;
     }
     Card.Statuses=TEXT("状态：")+(Statuses.IsEmpty()?FString(TEXT("无公开状态")):Statuses);
     Card.bActives=bContender&&(Unit.AuthorizedFieldMask&LDObservation::Actives)!=0;
@@ -1634,9 +1639,10 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     {
     case EField::Amount: case EField::Burst:
     {
-        // A skill's damage takes its card factors (K09, K16, K17 ...) as it would release now; shields and heals do not.
+        // A skill's damage (S16's answer too) takes its card factors (K09, K16, K17 ...) as it would release now; shields and
+        // heals do not.
         const ELDDemoEffectOp DamageOp=Effect->GetOp();
-        const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage);
+        const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage||DamageOp==ELDDemoEffectOp::Brace);
         if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
         {
             Out=HudScaling(*Effect);

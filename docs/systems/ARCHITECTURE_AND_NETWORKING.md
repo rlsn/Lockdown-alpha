@@ -329,6 +329,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 接受任意原生落地面。几何变化递增 `CaptureCircleSerial`，下一步 `PublishCaptureMotion` 先按批次起点补一条存在事实，
 再从新圆提取穿越。铁笼由同一函数在持有者新涂鸦出现时写入公开的 `CageUntilMs/CageCentreCm/CageRadiusCm`；
 `ALDGameState::SyncCaptureFence` 在每台机器（含权威端）按公开视图生成 `ALDCaptureFence`，只阻挡 Pawn 通道。
+围栏耐久 `CageDurabilityP2`（`final_cage` 的 `hp`）只由 Combat 经 `ALDGameMode::DamageCageFence` 扣减：`FenceCrosses` 判定两端一在圈内一在圈外的普攻（`ApplyHit`）与技能弹道（每发一次，`bCrossedFence`），`HitFenceInCircle` 判定碰到圈边的释放范围与地面爆炸，数额为 `RawBagDamageP2`，持有者自己的命中不算；耗尽时 `UpdateCaptureGeometry` 落下围栏。公开视图的 `CageIntegrityBp` 按整百分比更新，客户端 `ALDCaptureFence::SetIntegrity` 以固定洗牌顺序让栏片掉落（至少留三分之一），碰撞环保持完整；专用服务器只建碰撞，不加载美术栏片。
 驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
 `ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
 `ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共旗杆状态）。

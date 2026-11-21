@@ -216,7 +216,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 // #198: commands committed at a build deadline settle before the lock of the same boundary.
-                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimRecoveryOrbs(Permit,Error)
+                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimRecoveryOrbs(Permit,Error) && Mode->PayTrendingPoints(Permit,Error)
                         && Mode->ClaimFieldPacing(Permit,Error)
                         && Mode->RetryFieldRewards(Permit,Error)))
                     && Mode->Growth->ProcessTransactions(Permit,Error)

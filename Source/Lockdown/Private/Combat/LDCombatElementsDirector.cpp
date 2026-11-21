@@ -592,7 +592,8 @@ bool ALDCombatDirector::ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffe
     const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger, int64 ShareBp)
 {
     FLDCombatBrace Brace;
-    Brace.ShareBp=FMath::Clamp<int64>(ShareBp,0,10000);
+    // Several A08 copies add their shares (it may pass 100%).
+    Brace.ShareBp=FMath::Max<int64>(ShareBp,0);
     Brace.EffectId=EffectId;
     Brace.CastLedger=MoveTemp(CastLedger);
     Brace.Source=Source;

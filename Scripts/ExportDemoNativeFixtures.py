@@ -423,7 +423,7 @@ def parameter_projection(parameters):
         ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
         ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
-        ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"), ("CAPTURE.GuardCheckpointSec", "CaptureGuardCheckpointMs"), ("CAPTURE.GuardResumeSec", "CaptureGuardResumeMs"),
+        ("CAPTURE.SpraySec", "CaptureSprayMs"), ("VISION.SightGraceSec", "VisionSightGraceMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"), ("CAPTURE.GuardCheckpointSec", "CaptureGuardCheckpointMs"), ("CAPTURE.GuardResumeSec", "CaptureGuardResumeMs"),
         ("SHOWDOWN.UnlockDelaySec", "ShowdownUnlockDelayMs"), ("SHOWDOWN.DurationSec", "ShowdownDurationMs"),
         ("SHOWDOWN.FirstRespawnSec", "ShowdownFirstRespawnMs"),
         ("SHOWDOWN.SecondRespawnSec", "ShowdownSecondRespawnMs"), ("SHOWDOWN.RespawnCutoffSec", "ShowdownRespawnCutoffMs"),

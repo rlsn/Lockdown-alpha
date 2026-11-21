@@ -199,6 +199,8 @@ public:
     // A whole camp clear leaves a recovery orb on its anchor; the first living contender to touch it takes it.
     void DropRecoveryOrb(const FVector& PositionCm);
     bool ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions: grants the trending survival points counted so far; one that fails stays owed.
+    bool PayTrendingPoints(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
     // #198 outer §5 camp markers (World/LDFieldMarkers.h, Framework/LDGameModeFieldMarkers.cpp), keyed to field progress T.
@@ -252,6 +254,10 @@ public:
     ELDSpawnChoiceResult ChooseSpawnForAI(const FGuid& Contender);
     // Spec §10.4: whether a committed death was a trending contender's (its killer and assisters take the bounty).
     bool IsBountyDeath(const FLDDeathKey& Key) const { return BountyDeaths.Contains(Key); }
+    // final_cage: the standing fence's ring and holder; false when none stands.
+    bool ReadCageFence(FVector2D& OutCentreCm, double& OutRadiusCm, FGuid& OutHolder) const;
+    // final_cage: a hit by Source (anyone but the holder) that crossed the fence wears AmountP2 off its durability.
+    void DamageCageFence(const FGuid& Source, int64 AmountP2);
     // A world owner (the camp director's Boss) changed what the public match view shows.
     void MarkPublicMatchDirty() { bPublicMatchDirty = true; }
     // Right after Motion: whether this step's motion completes a guard strictly before the step's end (a guard a
@@ -537,10 +543,9 @@ private:
     // final_cage: the fence's approved duration and the standing fence (CageUntilMs 0: none).
     int64 CageDurationMs = 0;
     int64 CageUntilMs = 0;
-    // The standing fence's durability: the HP its holder may still lose before it breaks, and the HP last read.
+    // The standing fence's durability (final_cage `hp`) and what hostile hits across it left of it.
     int64 CageHPP2 = 0;
     int64 CageDurabilityP2 = 0;
-    int64 CageHolderLastHPP2 = -1;
     FGuid CageHolder;
     FVector2D CageCentreCm = FVector2D::ZeroVector;
     double CageRadiusCm = 0;
@@ -578,9 +583,12 @@ private:
     FLDLeaderState LeaderNotice;
     // The current trending leader's unbroken run (since its first refresh as leader) and how many survival points it has
     // been paid for it; another leader or a death starts over.
-    FGuid TrendingRunLeader;
-    int64 TrendingRunSinceMs = 0;
-    int32 TrendingRunPaid = 0;
+    // LEADER.SurvivalPointSec: each trending contender's unbroken run (field ms it began, points owed so far) and the points
+    // owed but not yet granted; RespawnsAndWorld counts them, Transactions grants them (PayTrendingPoints).
+    struct FTrendingRun { int64 SinceMs = 0; int32 Counted = 0; };
+    TMap<FGuid, FTrendingRun> TrendingRuns;
+    struct FTrendingPoint { FGuid Contender; FGuid AwardId; };
+    TArray<FTrendingPoint> TrendingPointsOwed;
     // ---- P6 field pacing state (Framework/LDGameModePacing.cpp) ----
     TArray<ELDDailyModifier> DailyModifiers;
     FLDObjectiveState Objective;

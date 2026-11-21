@@ -163,7 +163,14 @@ private:
     UPROPERTY() TObjectPtr<UWidget> TargetMomentumRow;
     UPROPERTY() TObjectPtr<UProgressBar> TargetMomentumBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetMomentum;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
+    // The target's public statuses as icon squares (a wrap row, no text line): each tile, its picture, its fallback glyph
+    // and its stack count, grown on demand and collapsed when unused.
+    UPROPERTY() TObjectPtr<class UWrapBox> TargetStatusRow;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> TargetStatusTiles;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> TargetStatusRims;
+    UPROPERTY() TArray<TObjectPtr<UImage>> TargetStatusIcons;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetStatusGlyphs;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetStatusStacks;
     // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
     // icon is missing, and the key and name are the tile's tooltip.
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;

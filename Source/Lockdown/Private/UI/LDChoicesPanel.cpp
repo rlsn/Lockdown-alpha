@@ -927,6 +927,16 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
     ShownCardOffer=bShow?Latest.CardOffer.OfferId:FGuid();
     ShownCardRevision=bShow?Latest.CardOffer.OfferRevision:0;
     ShownCardOptions=bShow?Latest.CardOffer.Options:TArray<FName>();
+    // A larger offer (a bonus or bounty pick of five) grows the row; 重抽 and 跳过 stay after the cards.
+    while(CardRow&&CardCards.Num()<ShownCardOptions.Num())
+    {
+        const int32 Index=CardCards.Num();
+        FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthCard%d"),Index)),[this,Index](){PickCardOffer(Index);},ETrayLook::Card);
+        auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Cell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        Cell->AddChildToVerticalBox(Card.Frame)->SetHorizontalAlignment(HAlign_Center);
+        CardRow->InsertChildAt(Index,Cell);RowWidgets.Add(Cell);
+        CardCards.Add(Card);CardCells.Add(Cell);
+    }
     const bool bVisible=bShow&&TrayShows(ETrayGroup::CardOffer);
     GrowthShown(CardRow,bVisible);TrayRowTiles(CardRow,bTiles);
     const bool bCan=Gate.bCanCardOffer&&!PendingRequest;

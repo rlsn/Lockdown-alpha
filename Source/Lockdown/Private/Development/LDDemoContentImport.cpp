@@ -768,6 +768,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SKILL.GrowthPerLevel"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelBp, 0, 10000},
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
+        {TEXT("VISION.SightGraceSec"), TEXT("ms"), TEXT("ms"), &P.VisionSightGraceMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardCheckpointSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardCheckpointMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardResumeSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardResumeMs, 1, MAX_int64},

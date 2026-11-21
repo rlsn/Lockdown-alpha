@@ -1848,6 +1848,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
         if (Around && !HitBagsInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template, NowMs, Error)) { return false; }
+        if (Around) { HitFenceInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template); }
         // M15 on S07: a blast of the same radius at the release foot after the delay, with one burn stack.
         const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         if (Terms.EchoImpact.IsSet() && AreaEffect)
