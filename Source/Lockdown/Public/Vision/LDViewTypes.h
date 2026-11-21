@@ -22,7 +22,8 @@ namespace LDObservation
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
     // 20 widens the conceal count for the authored roster plus the full flight bound.
-    constexpr uint32 Schema = 20;
+    // 21 packs public status expiry times without losing precision.
+    constexpr uint32 Schema = 21;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).

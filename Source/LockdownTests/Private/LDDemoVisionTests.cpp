@@ -1907,6 +1907,11 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A full unit and warning frame round-trips"),Wire(Frame,Read,&Bytes));
     AddInfo(FString::Printf(TEXT("Fully debuffed frame with maximum flights: %lld bytes"),Bytes));
     TestTrue(TEXT("and stays inside the explicit 64 KiB frame capacity"), Bytes < 65536);
+    FLDWorldView ExpiryBoundary = Frame;
+    ExpiryBoundary.Units[0].Statuses[0].ExpiresAtServerMs = MAX_int64;
+    FLDWorldView ExpiryBoundaryRead;
+    TestTrue(TEXT("Maximum status expiry round-trips through the packed wire field"), Wire(ExpiryBoundary, ExpiryBoundaryRead)
+        && ExpiryBoundaryRead.Units[0].Statuses[0].ExpiresAtServerMs == MAX_int64);
     TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()
         && Read.Units[1].Statuses.Num() == CampAll.Num()
         && Read.Units[0].Statuses.ContainsByPredicate([](const FLDObservedStatus& Row)
