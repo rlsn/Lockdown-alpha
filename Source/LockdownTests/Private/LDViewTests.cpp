@@ -86,6 +86,16 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(FLDLobbyMember::StaticStruct());It;++It)
     {++MemberCount;TestTrue(TEXT("Roster carries public room and previous-result identities, never private build or body data"),Member.Contains(It->GetFName()));}
     TestEqual(TEXT("Demo member schema complete"),MemberCount,6);
+    {
+        FLDResultBuild BuildCheck;
+        BuildCheck.bAvailable=true;
+        BuildCheck.CatalogRoot=FString::ChrN(64,TEXT('a'));
+        BuildCheck.StatPoints={260,0,18,0,0};
+        FString BuildError;
+        TestTrue(TEXT("Result build accepts >255 int32 stat points without clamping"),LDCapture::ValidateResultBuild(BuildCheck,BuildError));
+        BuildCheck.StatPoints[1]=-1;
+        TestFalse(TEXT("Result build rejects negative stat point counts"),LDCapture::ValidateResultBuild(BuildCheck,BuildError));
+    }
     return true;
 }
 #endif

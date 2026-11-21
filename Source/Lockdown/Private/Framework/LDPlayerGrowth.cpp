@@ -2,6 +2,7 @@
 
 #include "Development/LDDevelopmentDirector.h"
 #include "Engine/World.h"
+#include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 
 namespace
@@ -90,6 +91,10 @@ uint64 ALDPlayerController::SubmitBuild(const FLDBuildCommand& Command, ELDGrowt
     Sent.Life = OwnerState.Life;
     Sent.ExpectedLifePhase = OwnerState.LifePhase;
     Sent.RequestId = RequestId;
+    if (auto* GI = Cast<ULDGameInstance>(GetGameInstance()))
+    {
+        GI->NoteCrashCommand(*FString::Printf(TEXT("BuildKind=%u Req=%llu"), uint32(Sent.Kind), Sent.RequestId));
+    }
     ServerGrowthBuild(Sent);
     return RequestId;
 }

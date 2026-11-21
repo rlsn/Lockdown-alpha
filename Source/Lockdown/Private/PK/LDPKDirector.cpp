@@ -273,6 +273,10 @@ bool ALDPKDirector::OnRestStep(const FLDRestStepNotice& Notice, const FLDGamepla
         return true;
     case ELDRestStep::Draw: return DrawFormat(Error);
     case ELDRestStep::Betting:
+        if (View.Serial != 0 && View.Format == ELDPKFormat::None)
+        {
+            return DrawFormat(Error);
+        }
         Publish();
         return true;
     case ELDRestStep::PKReady: return EnterArena(Permit, Error);

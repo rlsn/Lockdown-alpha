@@ -134,6 +134,12 @@ public:
     bool AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, FString& Error);
     bool ProcessAuthorityOrders(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ActivateBufferedCast(const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest& Cast,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    void ReplyBufferedCastCancelled(const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest& Cast,
+        ELDOrderFailure OrderFailure, ELDCombatReject DirectReason);
+    bool ReadPinnedTargetFoot(FVector& OutFootCm) const;
+    bool IsActiveCastOrderInFlight() const;
     uint32 QueryCount=0,RejectedMoves=0,Replans=0;
     double QueryMilliseconds=0;
     TArray<double> AcknowledgementMs;

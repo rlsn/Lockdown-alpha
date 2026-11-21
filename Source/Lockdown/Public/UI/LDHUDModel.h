@@ -76,6 +76,7 @@ namespace LDHUD
     {
         uint8 Level=1;
         int64 ADP2=0;
+        int64 BonusADP2=0;
         int64 APP2=0;
         int64 MaxHPP2=0;
         int64 ArmorP2=0;
@@ -291,6 +292,7 @@ namespace LDHUD
     struct FPKPanelView
     {
         bool bVisible=false;
+        bool bMatchupReveal=false;
         FString Title;
         // PKReady: "N 秒后开打 …"; PK: "最长还剩 N 秒 …" (whole seconds rounded up to the step end).
         FString Countdown;

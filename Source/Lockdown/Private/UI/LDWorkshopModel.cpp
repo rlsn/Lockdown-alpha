@@ -375,6 +375,6 @@ int32 LDWorkshop::RestStepDot(ELDRestStep Step)
 }
 bool LDWorkshop::FullScreen(bool bRest,ELDRestStep Step,bool bDeadWait)
 {
-    if(bRest){return Step==ELDRestStep::Build||Step==ELDRestStep::Payout||Step==ELDRestStep::Return;}
+    if(bRest){return Step==ELDRestStep::Build||Step==ELDRestStep::Settlement||Step==ELDRestStep::Payout||Step==ELDRestStep::Return;}
     return bDeadWait;
 }

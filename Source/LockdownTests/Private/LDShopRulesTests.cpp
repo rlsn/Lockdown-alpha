@@ -142,12 +142,14 @@ bool FLDGrowthShopBuyTest::RunTest(const FString& Parameters)
     FLDProgressionState OutProgression;
     LDProgression::FShopOutcome Outcome;
     const uint8 CardSlot = uint8(Terms.SkillSlots);
+    const int64 ExpectedCardPrice = LDProgression::ShopSlotPrice(Content, Rich.Shop.Slots[CardSlot], Rich.Shop);
     bool bGood = Reason(*this, TEXT("Buying a card"), LDProgression::ApplyShopBuy(Content, Of, Rich, CardSlot, Rich.Shop.Revision, Rest, Out,
         OutProgression, Outcome), ELDGrowthReason::None);
-    bGood &= TestTrue(TEXT("The card joins the library for its stat points and the slot is sold"),
+    bGood &= TestTrue(TEXT("The card joins the library for its rarity price and the slot is sold"),
         Outcome.Kind == ELDShopItemKind::Card && Out.Cards.Num() == 1 && !Out.Cards[0].IsInstalled() && Out.Cards[0].Id == Rich.Shop.Slots[CardSlot].Definition
-        && Unspent(Content, Out, OutProgression) == Points - Terms.CardPrice && Out.ShopSpentPoints == Terms.CardPrice
-        && OutProgression.Shop.Slots[CardSlot].bSold && OutProgression.Shop.Revision == Rich.Shop.Revision + 1 && Outcome.PointsPaid == Terms.CardPrice);
+        && ExpectedCardPrice >= 2 && ExpectedCardPrice <= 4
+        && Unspent(Content, Out, OutProgression) == Points - ExpectedCardPrice && Out.ShopSpentPoints == ExpectedCardPrice
+        && OutProgression.Shop.Slots[CardSlot].bSold && OutProgression.Shop.Revision == Rich.Shop.Revision + 1 && Outcome.PointsPaid == ExpectedCardPrice);
     {
         // Spec §3.13: a respec never returns what the shop took.
         FLDGrowthBuild Allocated = Out, Respecced;
@@ -155,8 +157,8 @@ bool FLDGrowthShopBuyTest::RunTest(const FString& Parameters)
         int64 Refunded = 0;
         bGood &= Reason(*this, TEXT("A respec after a purchase"), LDProgression::ApplyRespec(Content, Allocated, Rich.CumulativeXP, {}, Rest,
             Respecced, Refunded), ELDGrowthReason::None);
-        bGood &= TestTrue(TEXT("It returns the allocated points only"), Respecced.ShopSpentPoints == Terms.CardPrice
-            && Unspent(Content, Respecced, OutProgression) == 18 - Terms.CardPrice);
+        bGood &= TestTrue(TEXT("It returns the allocated points only"), Respecced.ShopSpentPoints == ExpectedCardPrice
+            && Unspent(Content, Respecced, OutProgression) == 18 - ExpectedCardPrice);
     }
     const FLDProgressionState Bought = OutProgression;
     const FLDGrowthBuild BoughtBuild = Out;
@@ -192,7 +194,7 @@ bool FLDGrowthShopBuyTest::RunTest(const FString& Parameters)
     Maxed.BoughtSkillPoints = Terms.SkillPointMaxPerMatch;
     bGood &= Reason(*this, TEXT("Past the match's skill points"), LDProgression::ApplyShopBuy(Content, Maxed, Rich, Point, Rich.Shop.Revision, Rest,
         Out, OutProgression, Outcome), ELDGrowthReason::SkillPointLimit);
-    const FLDGrowthBuild Poor = Build(Content, Terms.CardPrice - 1);
+    const FLDGrowthBuild Poor = Build(Content, ExpectedCardPrice - 1);
     bGood &= Reason(*this, TEXT("Short of the price"), LDProgression::ApplyShopBuy(Content, Poor, Rich, CardSlot, Rich.Shop.Revision, Rest, Out,
         OutProgression, Outcome), ELDGrowthReason::NotEnoughPoints);
     bGood &= TestEqual(TEXT("A refused purchase spends nothing"), Out.ShopSpentPoints, int64(0));

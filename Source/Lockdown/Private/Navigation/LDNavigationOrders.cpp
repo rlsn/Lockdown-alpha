@@ -214,7 +214,8 @@ FLDOrderReceipt ULDNavigationComponent::SubmitCast(const FLDOrderCaller& Caller,
                 && Step.Action.DirectSequence>=Cast.DirectSequence;
         });
     if (Mode->Combat->QueryActionReceipt(CombatCaller,Cast.DirectSequence).Reject!=ELDCombatReject::StaleRequest || bQueuedNewer
-        || Cast.DirectSequence<=RunningQueuedAction)
+        || Cast.DirectSequence<=RunningQueuedAction
+        || Mode->Combat->HasBufferedDirectSequence(Caller.Body.Victim.EntityId,Cast.DirectSequence))
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
     return SubmitSpatial(Caller,Request,&Cast);
 }
@@ -256,6 +257,27 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
             { QueueOwedAggression=FOwedAggression{LDNavOrdersDetail::IntentOf(Request),Caller.Match,Caller.Body}; }
             UE_LOG(LogLDNav,Display,TEXT("LD_NAV_CAST_REFUSED_AT_RECEIPT order=%u failure=%u"),Request.Identity.Order,uint32(Refused));
             return Reply(Request,ELDOrderStatus::Rejected,Refused,true);
+        }
+        // Issue #329 §3.2: a Unit or GroundPoint cast pressed during an active ability windup joins the 2-step 450ms FIFO
+        // pre-input queue instead of overwriting the active windup or wiping queued steps.
+        if (AuthorityMode()->Combat && AuthorityMode()->Combat->ShouldBufferPreInput(Caller.Body.Victim.EntityId,Cast->Entry))
+        {
+            Book.Received=Request.Identity;
+            AddRecord(Request,false);
+            FPendingCombatIntent Buffered;
+            Buffered.Entry=Cast->Entry;
+            Buffered.CastMode=Request.Kind==ELDSpatialOrderKind::CastUnit ? ELDCombatPreInputMode::Unit : ELDCombatPreInputMode::GroundPoint;
+            Buffered.TargetHandle=Request.Observed;
+            Buffered.ObservationEpoch=Request.ObservationEpoch;
+            Buffered.GroundPointCm=Request.GroundCm;
+            Buffered.SurfaceHint=Request.SurfaceHint;
+            Buffered.AimDirection=Cast->Target.Direction;
+            Buffered.bOverdrive=Cast->bOverdrive;
+            Buffered.ExpiresAtMs=AuthorityMode()->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+            Buffered.Action=*Cast;
+            Buffered.SpatialOrder=Request;
+            AuthorityMode()->Combat->BufferPreInputIntent(Caller.Body.Victim.EntityId,MoveTemp(Buffered));
+            return Reply(Request,ELDOrderStatus::Queued,ELDOrderFailure::None,true);
         }
         // A ready cast drops the steps queued before it only once it is admitted (ActivatePending).
         const FLDOrderReceipt Receipt=Enqueue(Caller,Request,false,ELDOrderCancelReason::Stop,Cast);
@@ -501,7 +523,11 @@ FLDOrderReceipt ULDNavigationComponent::CancelOrder(const FLDOrderCaller& Caller
     { return Existing->bStop ? Replay(*Existing) : Reply(StopRequest,ELDOrderStatus::Rejected,ELDOrderFailure::RequestConflict,false); }
     if (Identity.Order<=Book.Received.Order || Identity.Epoch<=Book.Received.Epoch)
     { return Reply(StopRequest,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
-    // S drops the shift queue at once; the current order ends when the Stop activates.
+    // S drops the shift queue and buffered pre-inputs at once; the current order ends when the Stop activates.
+    if (auto* Mode=AuthorityMode(); Mode && Mode->Combat)
+    {
+        Mode->Combat->ClearPreInputQueue(Caller.Body.Victim.EntityId,ELDCombatReject::Cancelled,LDNavOrdersDetail::FromCancel(Reason));
+    }
     ClearQueue(LDNavOrdersDetail::FromCancel(Reason));
     return Enqueue(Caller,StopRequest,true,Reason);
 }
@@ -1090,7 +1116,15 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
         Admitted.bProtectionRemoved=Protection.bProtectionRemoved;
         Admitted.LifeRevision=Protection.LifeRevision;
     }
-    if (!AdmitOrder(Mode,*CastChecked<ALDCharacter>(PC->GetPawn()),Permit,Admitted,Failure,Error))
+    ALDCharacter* PawnBody=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    if (!PawnBody)
+    {
+        UE_LOG(LogLDNav,Error,TEXT("LD_NAV_ADMIT_MISSING_PAWN order=%u"),Next.Request.Identity.Order);
+        Reply(Next.Request,ELDOrderStatus::Rejected,ELDOrderFailure::Dead,true,Admitted.bProtectionRemoved,Admitted.LifeRevision);
+        SettleStep(ELDOrderFailure::Dead);
+        return true;
+    }
+    if (!AdmitOrder(Mode,*PawnBody,Permit,Admitted,Failure,Error))
     {
         if (!Error.IsEmpty()) { return false; }
         // The previous accepted order keeps running; the rejection still reports the protection change. A refused
@@ -1730,7 +1764,13 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     // Rooted or stunned bodies get no voluntary input; committed root motion (dashes, jumps) still integrates natively.
     const bool bRooted=Mode->Combat && Mode->Combat->IsMoveBlocked(*Body);
     const FVector Input=ActiveOrder && !bRooted?AuthoritySteering(*Body):FVector::ZeroVector;
-    auto* Movement=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
+    auto* Movement=Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
+    if (!Movement)
+    {
+        UE_LOG(LogLDNav,Error,TEXT("LD_NAV_MISSING_MOVEMENT body=%s"),*LDLog::Id(Ref.Victim.EntityId));
+        Error=TEXT("Registered body is missing its Demo character movement component.");
+        return false;
+    }
     if (!Movement->AdvanceAuthorityMovement(Step,Ref,Input,Permit,Error)) { return false; }
     if (!ActiveOrder) { return true; }
     if (ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround && GroundArrived(*Body,*ActiveOrder))
@@ -1740,4 +1780,75 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     }
     TrackProgress(*Body,Step.EndServerSeconds,!Input.IsNearlyZero());
     return true;
+}
+
+bool ULDNavigationComponent::ActivateBufferedCast(const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest& CastReq,
+    const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Mode=AuthorityMode();
+    auto* PC=Controller();
+    ALDCharacter* Body=PC?::Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    FLDCombatBodyRef Current;
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None
+        || !PC || !Body || Body->GetController()!=PC || !Mode->ReadBodyRef(*Body,Current))
+    {
+        ReplyBufferedCastCancelled(Request,CastReq,ELDOrderFailure::Dead,ELDCombatReject::Dead);
+        return true;
+    }
+    TOptional<FLDAggressiveIntent> Owed;
+    if (PendingOrder)
+    {
+        const FPendingOrder Older=MoveTemp(PendingOrder.GetValue());
+        PendingOrder.Reset();
+        Reply(Older.Request,ELDOrderStatus::Cancelled,ELDOrderFailure::Superseded,true);
+        Owed=Older.OwedAggression.IsSet() ? Older.OwedAggression
+            : Older.Request.IsAggressive() && !Older.bStop ? TOptional<FLDAggressiveIntent>(LDNavOrdersDetail::IntentOf(Older.Request))
+            : TOptional<FLDAggressiveIntent>();
+    }
+    FPendingOrder Next;
+    Next.Request=Request;
+    Next.Cast=CastReq;
+    Next.Match=Mode->GetMatchContext();
+    Next.Body=Current;
+    Next.NotBeforeMs=Mode->GetAuthorityNowMs();
+    Next.QueueCut=QueueStepSerial+1;
+    Next.OwedAggression=MoveTemp(Owed);
+    PendingOrder=MoveTemp(Next);
+    if (!ActivatePending(*Mode,Permit,Error)) { return false; }
+    if (!ActiveOrder || ActiveOrder->Request.Identity!=Request.Identity) { return true; }
+    if (!AdvanceActive(*Mode,*Body,Permit,Error)) { return false; }
+    if (ActiveOrder && ActiveOrder->Request.Identity==Request.Identity)
+    {
+        const FLDOrderReceipt Latest=MakeReceipt(*ActiveOrder,ELDOrderStatus::Progress,ELDOrderFailure::None);
+        if (Latest.bHasGoal!=ActiveOrder->bSentGoal || Latest.bEngaged!=ActiveOrder->bSentEngaged)
+        {
+            PublishActive(ELDOrderStatus::Progress);
+        }
+    }
+    return true;
+}
+
+void ULDNavigationComponent::ReplyBufferedCastCancelled(const FLDSpatialOrderRequest& Request,
+    const FLDCombatActionRequest& Cast, ELDOrderFailure OrderFailure, ELDCombatReject DirectReason)
+{
+    Reply(Request,ELDOrderStatus::Cancelled,OrderFailure,true);
+    RefuseCast(Cast,DirectReason);
+}
+
+bool ULDNavigationComponent::ReadPinnedTargetFoot(FVector& OutFootCm) const
+{
+    if (!ActiveOrder || !ActiveOrder->bPinned || !ActiveOrder->Request.IsAggressive())
+    {
+        OutFootCm=FVector::ZeroVector;
+        return false;
+    }
+    OutFootCm=ActiveOrder->TargetFoot;
+    return true;
+}
+
+bool ULDNavigationComponent::IsActiveCastOrderInFlight() const
+{
+    return ActiveOrder.IsSet()
+        && (ActiveOrder->Request.Kind==ELDSpatialOrderKind::CastUnit
+            || ActiveOrder->Request.Kind==ELDSpatialOrderKind::CastPoint);
 }

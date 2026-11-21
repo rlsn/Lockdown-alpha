@@ -1,4 +1,5 @@
 #include "Combat/LDTacticalRules.h"
+#include "Algo/StableSort.h"
 #include "Development/LDDemoContentMath.h"
 
 namespace
@@ -75,12 +76,14 @@ namespace LDTactical
         {
             return Fail(EError::Definition, TEXT("HitClass"), TEXT("A resolved hit classification is required"));
         }
-        if (Definition.BaseP2 < 0 || Definition.ADRatioBp < 0 || Definition.APRatioBp < 0 || Definition.MaxHPRatioBp < 0)
+        if (Definition.BaseP2 < 0 || Definition.ADRatioBp < 0 || Definition.APRatioBp < 0 || Definition.AdaptiveRatioBp < 0
+            || Definition.MaxHPRatioBp < 0)
         {
             return Fail(EError::Domain, TEXT("Definition"), TEXT("Damage points and R4 coefficients must be nonnegative"));
         }
         if (Input.HitClass != ELDCombatHitClass::Ability
-            && (Definition.APRatioBp != 0 || Definition.MaxHPRatioBp != 0 || Definition.DamageType != ELDDemoDamageType::Physical))
+            && (Definition.APRatioBp != 0 || Definition.AdaptiveRatioBp != 0 || Definition.MaxHPRatioBp != 0
+                || Definition.DamageType != ELDDemoDamageType::Physical))
         {
             return Fail(EError::Definition, TEXT("Definition"), TEXT("Basic hits must be physical and cannot scale with AP"));
         }
@@ -92,9 +95,13 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("SourceADP2"), TEXT("AD is required by the resolved coefficient"));
         }
-        if (Definition.APRatioBp != 0 && !Input.SourceAPP2.IsSet())
+        if ((Definition.APRatioBp != 0 || Definition.AdaptiveRatioBp != 0) && !Input.SourceAPP2.IsSet())
         {
             return Fail(EError::Numeric, TEXT("SourceAPP2"), TEXT("AP is required by the resolved coefficient"));
+        }
+        if (Definition.AdaptiveRatioBp != 0 && !Input.SourceBonusADP2.IsSet())
+        {
+            return Fail(EError::Numeric, TEXT("SourceBonusADP2"), TEXT("Bonus AD is required by the adaptive coefficient"));
         }
         if (Input.SourceADP2.IsSet() && !WithinP2Bounds(Input.SourceADP2.GetValue(), Parameters.AD))
         {
@@ -103,6 +110,10 @@ namespace LDTactical
         if (Input.SourceAPP2.IsSet() && !WithinP2Bounds(Input.SourceAPP2.GetValue(), Parameters.AP))
         {
             return Fail(EError::Domain, TEXT("SourceAPP2"), TEXT("AP is outside the catalog point domain"));
+        }
+        if (Input.SourceBonusADP2.IsSet() && (Input.SourceBonusADP2.GetValue() < 0 || Input.SourceBonusADP2.GetValue() > Parameters.AD.MaxP2))
+        {
+            return Fail(EError::Domain, TEXT("SourceBonusADP2"), TEXT("Bonus AD is outside the catalog point domain"));
         }
         if (Definition.MaxHPRatioBp != 0 && !Input.SourceMaxHPP2.IsSet())
         {
@@ -116,7 +127,9 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("TargetResistanceP2"), TEXT("The matching target resistance is required"));
         }
-        const auto& ResistanceBounds = Definition.DamageType == ELDDemoDamageType::Physical
+        const ELDDemoDamageType EffectiveType = EffectiveDamageType(Definition.DamageType, Definition.AdaptiveRatioBp,
+            Input.SourceBonusADP2.Get(0), Input.SourceAPP2.Get(0));
+        const auto& ResistanceBounds = EffectiveType == ELDDemoDamageType::Physical
             ? Parameters.Armor : Parameters.MagicResist;
         if (!WithinP2Bounds(Input.TargetResistanceP2.GetValue(), ResistanceBounds))
         {
@@ -153,6 +166,13 @@ namespace LDTactical
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceAPP2.GetValue()),
                 Numbers.Value(Definition.APRatioBp, 10000)));
         }
+        if (Definition.AdaptiveRatioBp != 0)
+        {
+            const bool bAdaptivePhysical = EffectiveType == ELDDemoDamageType::Physical;
+            const int64 AdaptiveStatP2 = bAdaptivePhysical ? Input.SourceBonusADP2.GetValue() : Input.SourceAPP2.GetValue();
+            Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(AdaptiveStatP2),
+                Numbers.Value(Definition.AdaptiveRatioBp, 10000)));
+        }
         if (Definition.MaxHPRatioBp != 0)
         {
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceMaxHPP2.GetValue()),
@@ -164,7 +184,7 @@ namespace LDTactical
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
         if (Input.DamageFactorBp <= 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
-            || Input.KeystoneGuardCapBp < 0 || Input.KeystoneGuardCapBp >= 10000
+            || Input.KeystoneGuardP2 < 0 || Input.KeystoneGuardCapBp < 0 || Input.KeystoneGuardCapBp >= 10000
             || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
         {
             return Fail(EError::Domain, TEXT("DamageFactorBp"), TEXT("A damage factor, delivery share or guard is outside its domain"));
@@ -197,15 +217,27 @@ namespace LDTactical
             Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
         }
         int64 BeforeKeystoneGuardP2 = 0;
-        // The thick-skin keystone cuts its share of a direct hit (the caller arms it only for a ready, direct, hostile hit).
-        const bool bKeystoneGuarded = Input.KeystoneGuardCapBp > 0;
+        const bool bKeystoneGuarded = Input.KeystoneGuardP2 > 0 || Input.KeystoneGuardCapBp > 0;
         if (bKeystoneGuarded)
         {
             if (!QuantizeEvaluation(Damage, false, BeforeKeystoneGuardP2, Check, TEXT("BeforeKeystoneGuardP2")))
             {
                 return Fail(EError::Overflow, TEXT("BeforeKeystoneGuardP2"), MathError);
             }
-            Damage = Numbers.Sub(Damage, Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000)));
+            if (Input.KeystoneGuardP2 > 0)
+            {
+                if (BeforeKeystoneGuardP2 >= 3000)
+                {
+                    const auto Flat = Numbers.Value(Input.KeystoneGuardP2);
+                    const auto RatioCut = Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000));
+                    const auto Cut = Numbers.LE(Flat, RatioCut) ? RatioCut : Flat;
+                    Damage = Numbers.LE(Damage, Cut) ? Numbers.Value(0) : Numbers.Sub(Damage, Cut);
+                }
+            }
+            else
+            {
+                Damage = Numbers.Sub(Damage, Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000)));
+            }
         }
         FLDDamageEvaluation Value;
         if (!QuantizeEvaluation(Damage, false, Value.DamageP2, Check, TEXT("DamageP2")))
@@ -395,6 +427,21 @@ namespace LDTactical
         const int32 Removed = Roots.Num();
         Roots.Reset();
         return Removed;
+    }
+
+    int64 BonusADOf(const FLDDemoContentParameters& Parameters, int32 Level, int64 TotalADP2)
+    {
+        const int64 Steps = FMath::Max<int64>(0, int64(Level) - 1);
+        const int64 BaseADP2 = Parameters.AD.BaseP2 + Steps * Parameters.AD.PerLevelP2;
+        return FMath::Max<int64>(0, TotalADP2 - BaseADP2);
+    }
+
+    ELDDemoDamageType EffectiveDamageType(ELDDemoDamageType DefaultType, int64 AdaptiveRatioBp, int64 BonusADP2, int64 APP2)
+    {
+        if (AdaptiveRatioBp <= 0) { return DefaultType; }
+        const int64 SafeBonus = FMath::Max<int64>(0, BonusADP2);
+        const int64 SafeAP = FMath::Max<int64>(0, APP2);
+        return SafeBonus * 14 >= SafeAP * 10 ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
     }
 
     bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2, const FLDCombatShield& Candidate, int64 AmountP2, int64 AtMs)

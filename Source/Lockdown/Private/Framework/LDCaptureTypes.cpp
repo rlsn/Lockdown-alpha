@@ -195,7 +195,7 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
     }
     FLDDemoContentDigest Root;
     if (!FLDDemoContentDigest::ParseHex(Build.CatalogRoot, Root, Error) || Build.Actives.Num() > 3 || Build.Cards.Num() > 32
-        || Build.StatPoints.Num() > 8)
+        || Build.StatPoints.Num() > 8 || Build.StatPoints.ContainsByPredicate([](int32 Count) { return Count < 0; }))
     { return FailCaptureView(Error, TEXT("Invalid result build catalog or size.")); }
     auto ValidId = [](FName Id)
     {

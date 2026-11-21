@@ -3,6 +3,7 @@
 #include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Navigation/LDOrderRules.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Combat/LDTacticalRules.h"
 #include "Combat/LDControlRules.h"
 #include "Character/LDCharacter.h"
@@ -219,6 +220,10 @@ void ALDCombatDirector::ClosePending(FLDCombatEntityRecord& Record, ELDCombatRej
             { SendReceipt(Record,Stored->Receipt); }
         }
     }
+    ClearPreInputQueue(Record.Entity,Reason,
+        Reason==ELDCombatReject::Dead ? ELDOrderFailure::Dead
+        : Reason==ELDCombatReject::MatchClosed ? ELDOrderFailure::MatchEnded
+        : ELDOrderFailure::Stopped);
 }
 
 void ALDCombatDirector::EndMatchActions()
@@ -318,6 +323,22 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     }
     Receipt.Phase=ELDCombatPhase::Queued;
     Receipt.Reject=ELDCombatReject::None;
+    if (!bQueuedStep && ShouldBufferPreInput(Caller.EntityId,Request.Entry))
+    {
+        StoreReceipt(*Record,Request,Receipt);
+        FPendingCombatIntent Buffered;
+        Buffered.Entry=Request.Entry;
+        Buffered.CastMode=ELDCombatPreInputMode::Direct;
+        Buffered.AimDirection=Request.Target.Direction;
+        Buffered.GroundPointCm=Request.Target.Point;
+        Buffered.bOverdrive=Request.bOverdrive;
+        Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+        Buffered.Action=Request;
+        BufferPreInputIntent(Caller.EntityId,MoveTemp(Buffered));
+        const auto* Stored=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+            { return Entry.Request.DirectSequence==Request.DirectSequence; });
+        return Stored ? Stored->Receipt : Receipt;
+    }
     Record->Pending.Add(Request);
     StoreReceipt(*Record,Request,Receipt);
     return Record->Recent.Last().Receipt;
@@ -355,6 +376,7 @@ FLDCombatActionReceipt ALDCombatDirector::CancelAction(const FLDCombatCaller& Ca
         StoreReceipt(*Record,Pending,Cancelled);
         SendReceipt(*Record,Record->Recent.Last().Receipt);
     }
+    ClearPreInputQueue(Caller.EntityId,ELDCombatReject::Cancelled,ELDOrderFailure::Stopped);
     // Interruptible work only: an unreleased Direct windup at or below the stop bound ends without cost.
     if (auto* Body=FindEntityBody(Caller.EntityId); Body && Body->Action.IsSet()
         && Body->Action->Key.Origin==ELDCombatRequestOrigin::Direct
@@ -497,6 +519,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     Action.BasicIntervalMs=Timing.Value->IntervalMs;
     CancelChannel(*Body);
     Body->Action=Action;
+    Body->LastAttackTarget=Target;
     Body->BasicTiming=Timing.Value.GetValue();
     MarkEngaged(*Body,Now);
     ++Body->StateRevision;
@@ -595,10 +618,210 @@ bool ALDCombatDirector::RecordDirectRefusal(const FLDCombatCaller& Caller, const
 void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep)
 {
     auto* Body=FindEntityBody(Entity);
-    if (Body && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Basic
+    if (!Body) { return; }
+    const auto* Mode=Core();
+    // Issue #335 §3.2: only an unreleased basic windup (< ReleaseAtMs) cancels; once ReleaseAtMs is reached, the due hit
+    // lands this tick and movement immediately cancels any remaining post-release recovery cue without resetting NextAttackAtMs.
+    if (Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Basic
         && Body->Action->Key.Origin==ELDCombatRequestOrigin::Nav && Body->Action->Key.Move==Move
-        && !(Keep.IsValid() && Body->Action->TargetBody==Keep))
-    { FinishAction(*Body,ELDCombatReject::Cancelled,false); }
+        && !(Keep.IsValid() && Body->Action->TargetBody==Keep)
+        && (!Mode || Mode->GetAuthorityNowMs()<Body->Action->ReleaseAtMs))
+    {
+        FinishAction(*Body,ELDCombatReject::Cancelled,false);
+        return;
+    }
+    if (Body->Cues.bReleasedBasic)
+    {
+        Body->Cues.bReleasedBasic=false;
+        ++Body->StateRevision;
+        MarkViewChanged(Entity);
+    }
+}
+
+bool ALDCombatDirector::ShouldBufferPreInput(const FGuid& Entity, ELDCombatEntry Entry) const
+{
+    const auto* Mode=Core();
+    const auto* Record=FindRecord(Entity);
+    const auto* Body=FindEntityBody(Entity);
+    if (!Mode || !Record || !Body || Body->bPendingDeath || !LDCombatPreInput::IsDirectEntry(Entry)) { return false; }
+    const int64 Now=Mode->GetAuthorityNowMs();
+    if (Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability)
+    {
+        return LDCombatPreInput::ServerHolds(Entry,true,Body->Action->ReleaseAtMs,Now);
+    }
+    if (!Record->PreInputQueue.IsEmpty()) { return true; }
+    if (const auto* PC=Mode->FindContenderController(Entity))
+    {
+        if (PC->Navigation && PC->Navigation->IsActiveCastOrderInFlight()) { return true; }
+    }
+    return false;
+}
+
+bool ALDCombatDirector::HasBufferedDirectSequence(const FGuid& Entity, uint64 DirectSequence) const
+{
+    const auto* Record=FindRecord(Entity);
+    return Record && Record->PreInputQueue.ContainsByPredicate([DirectSequence](const FPendingCombatIntent& Intent)
+    {
+        return Intent.Action.DirectSequence==DirectSequence;
+    });
+}
+
+void ALDCombatDirector::BufferPreInputIntent(const FGuid& Entity, FPendingCombatIntent&& Intent)
+{
+    auto* Record=FindRecord(Entity);
+    const auto* Mode=Core();
+    if (!Record || !Mode) { return; }
+    TOptional<FPendingCombatIntent> Evicted;
+    LDCombatPreInput::EnqueueFIFO(Record->PreInputQueue,MoveTemp(Intent),Evicted);
+    if (!Evicted.IsSet()) { return; }
+    const FPendingCombatIntent& Dropped=Evicted.GetValue();
+    if (Dropped.CastMode==ELDCombatPreInputMode::Direct)
+    {
+        FLDCombatActionReceipt Cancelled;
+        Cancelled.Generation=Dropped.Action.Generation;
+        Cancelled.Life=Dropped.Action.Life;
+        Cancelled.DirectSequence=Dropped.Action.DirectSequence;
+        Cancelled.Entry=Dropped.Action.Entry;
+        Cancelled.Phase=ELDCombatPhase::Rejected;
+        Cancelled.Reject=ELDCombatReject::Cancelled;
+        StoreReceipt(*Record,Dropped.Action,Cancelled);
+        if (const auto* Stored=Record->Recent.FindByPredicate([&Dropped](const FLDCombatDirectEntry& Row)
+            { return Row.Request.DirectSequence==Dropped.Action.DirectSequence; }))
+        {
+            SendReceipt(*Record,Stored->Receipt);
+        }
+    }
+    else if (auto* PC=Mode->FindContenderController(Entity); PC && PC->Navigation)
+    {
+        PC->Navigation->ReplyBufferedCastCancelled(Dropped.SpatialOrder,Dropped.Action,ELDOrderFailure::Superseded,
+            ELDCombatReject::Cancelled);
+    }
+}
+
+void ALDCombatDirector::ClearPreInputQueue(const FGuid& Entity, ELDCombatReject DirectReason, ELDOrderFailure OrderFailure)
+{
+    auto* Record=FindRecord(Entity);
+    const auto* Mode=Core();
+    if (!Record || Record->PreInputQueue.IsEmpty()) { return; }
+    const TArray<FPendingCombatIntent> Dropped=MoveTemp(Record->PreInputQueue);
+    Record->PreInputQueue.Reset();
+    auto* PC=Mode?Mode->FindContenderController(Entity):nullptr;
+    for (const FPendingCombatIntent& Intent : Dropped)
+    {
+        if (Intent.CastMode==ELDCombatPreInputMode::Direct)
+        {
+            FLDCombatActionReceipt Cancelled;
+            Cancelled.Generation=Intent.Action.Generation;
+            Cancelled.Life=Intent.Action.Life;
+            Cancelled.DirectSequence=Intent.Action.DirectSequence;
+            Cancelled.Entry=Intent.Action.Entry;
+            Cancelled.Phase=ELDCombatPhase::Rejected;
+            Cancelled.Reject=DirectReason;
+            StoreReceipt(*Record,Intent.Action,Cancelled);
+            if (const auto* Stored=Record->Recent.FindByPredicate([&Intent](const FLDCombatDirectEntry& Row)
+                { return Row.Request.DirectSequence==Intent.Action.DirectSequence; }))
+            {
+                SendReceipt(*Record,Stored->Receipt);
+            }
+        }
+        else if (PC && PC->Navigation)
+        {
+            PC->Navigation->ReplyBufferedCastCancelled(Intent.SpatialOrder,Intent.Action,OrderFailure,DirectReason);
+        }
+    }
+}
+
+bool ALDCombatDirector::FlushPreInputQueues(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Mode=Core();
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
+    {
+        Error=TEXT("Pre-input flush requires the current Actions permit.");
+        return false;
+    }
+    const int64 Now=Mode->GetAuthorityNowMs();
+    TArray<FGuid> Entities;
+    Records.GetKeys(Entities);
+    Entities.Sort();
+    for (const FGuid& Entity : Entities)
+    {
+        for (int32 Pass=0; Pass<LDCombatPreInput::MaxBufferedSteps; ++Pass)
+        {
+            auto* Record=FindRecord(Entity);
+            if (!Record || Record->PreInputQueue.IsEmpty()) { break; }
+            auto* Body=FindEntityBody(Entity);
+            if (!Body || Body->bPendingDeath)
+            {
+                ClearPreInputQueue(Entity,ELDCombatReject::Dead,ELDOrderFailure::Dead);
+                break;
+            }
+            const int64 WindupEnd=Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability
+                ? Body->Action->ReleaseAtMs : Now;
+            int64 LongestHardControl=0;
+            for (const FLDCombatRoot& Stun : Body->Stuns) { LongestHardControl=FMath::Max(LongestHardControl,Stun.ExpiresAtMs); }
+            for (const FLDCombatRoot& Silence : Body->Silences) { LongestHardControl=FMath::Max(LongestHardControl,Silence.ExpiresAtMs); }
+            if (LDCombatPreInput::ShouldClearForHardControl(LongestHardControl,WindupEnd))
+            {
+                ClearPreInputQueue(Entity,ELDCombatReject::ControlBlocked,ELDOrderFailure::Stopped);
+                break;
+            }
+            while (!Record->PreInputQueue.IsEmpty() && Now>Record->PreInputQueue[0].ExpiresAtMs)
+            {
+                FPendingCombatIntent Expired=MoveTemp(Record->PreInputQueue[0]);
+                Record->PreInputQueue.RemoveAt(0);
+                if (Expired.CastMode==ELDCombatPreInputMode::Direct)
+                {
+                    FLDCombatActionReceipt Cancelled;
+                    Cancelled.Generation=Expired.Action.Generation;
+                    Cancelled.Life=Expired.Action.Life;
+                    Cancelled.DirectSequence=Expired.Action.DirectSequence;
+                    Cancelled.Entry=Expired.Action.Entry;
+                    Cancelled.Phase=ELDCombatPhase::Rejected;
+                    Cancelled.Reject=ELDCombatReject::Cancelled;
+                    StoreReceipt(*Record,Expired.Action,Cancelled);
+                    if (const auto* Stored=Record->Recent.FindByPredicate([&Expired](const FLDCombatDirectEntry& Row)
+                        { return Row.Request.DirectSequence==Expired.Action.DirectSequence; }))
+                    {
+                        SendReceipt(*Record,Stored->Receipt);
+                    }
+                }
+                else if (auto* PC=Mode->FindContenderController(Entity); PC && PC->Navigation)
+                {
+                    PC->Navigation->ReplyBufferedCastCancelled(Expired.SpatialOrder,Expired.Action,ELDOrderFailure::Expired,
+                        ELDCombatReject::Cancelled);
+                }
+            }
+            if (Record->PreInputQueue.IsEmpty()) { break; }
+            if (Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability) { break; }
+            auto* PC=Mode->FindContenderController(Entity);
+            if (PC && PC->Navigation && PC->Navigation->IsActiveCastOrderInFlight()) { break; }
+            FPendingCombatIntent Head=MoveTemp(Record->PreInputQueue[0]);
+            Record->PreInputQueue.RemoveAt(0);
+            if (Head.CastMode==ELDCombatPreInputMode::Direct)
+            {
+                FLDCombatActionReceipt Receipt;
+                if (!ProcessDirect(*Record,Head.Action,Permit,Receipt,Error)) { return false; }
+                Record=FindRecord(Entity);
+                if (!Record) { break; }
+                StoreReceipt(*Record,Head.Action,Receipt);
+                SendReceipt(*Record,Receipt);
+            }
+            else if (PC && PC->Navigation)
+            {
+                if (!PC->Navigation->ActivateBufferedCast(Head.SpatialOrder,Head.Action,Permit,Error)) { return false; }
+            }
+            // Extend any second buffered step's expiry while the first popped step begins winding up or approaching.
+            Record=FindRecord(Entity);
+            Body=FindEntityBody(Entity);
+            if (Record && !Record->PreInputQueue.IsEmpty())
+            {
+                const int64 Anchor=Body && Body->Action.IsSet() ? Body->Action->ReleaseAtMs : Now;
+                Record->PreInputQueue[0].ExpiresAtMs=FMath::Max(Record->PreInputQueue[0].ExpiresAtMs,
+                    Anchor+LDCombatPreInput::HoldWindowMs);
+            }
+        }
+    }
+    return true;
 }
 
 bool ALDCombatDirector::AdoptNavAttack(const FGuid& Entity, const FLDMoveIdentity& From, const FLDMoveIdentity& To,
@@ -909,7 +1132,7 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
         if (Reject==ELDCombatReject::None) { Released(); }
         FinishDirectReceipt(Entry.Key,Action,Reject);
     }
-    return true;
+    return FlushPreInputQueues(Permit,Error);
 }
 
 void ALDCombatDirector::FinishDirectReceipt(const FGuid& Entity, const FLDCombatAction& Action, ELDCombatReject Reject)
@@ -1174,11 +1397,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
     // releases a normal cast).
     Body.bReleasedOverdrive=bOverdrive;
-    // A08: a combo cast releases its whole effect at its share (amounts, ratios and control durations); K06: a repeat
-    // releases at its share of the damage.
+    // A08: a combo cast releases its whole effect at its share (damage and shields by ShareBp = 0.45, hard-control durations
+    // by 0.50 per #330 §5.2.6); K06: a repeat releases at its share of the damage.
     if (Action.bAutoRecast && Action.bWholeEffectShare)
     {
         const int64 ShareBp=Action.AutoRecastScaleBp;
+        const int64 HardControlShareBp=5000;
         // A brace keeps its record cap: its answer, heal and shield from the record take the share once at settlement.
         TArray<int64> BraceCaps;
         for (const FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
@@ -1189,16 +1413,18 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
         { if (Effect.GetOp()==ELDDemoEffectOp::Brace) { Effect.LimitP2=BraceCaps[BraceIndex++]; } }
         const auto Share=[ShareBp](int64& Value) { Value=Value/10000*ShareBp+Value%10000*ShareBp/10000; };
+        const auto ShareHardControl=[HardControlShareBp](int64& Value)
+        { Value=FMath::Max<int64>(1,Value/10000*HardControlShareBp+Value%10000*HardControlShareBp/10000); };
         for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
         {
             const ELDDemoEffectOp Op=Effect.GetOp();
-            // Controls, carried controls, slows and pushes last their share.
-            if (Effect.IsControl() || Op==ELDDemoEffectOp::Slow || Op==ELDDemoEffectOp::AttackSlow || Op==ELDDemoEffectOp::Knockback
-                || Op==ELDDemoEffectOp::BraceStun || Op==ELDDemoEffectOp::BraceShove)
+            if (Effect.IsControl() || Op==ELDDemoEffectOp::BraceStun) { ShareHardControl(Effect.DurationMs); }
+            else if (Op==ELDDemoEffectOp::Slow || Op==ELDDemoEffectOp::AttackSlow || Op==ELDDemoEffectOp::Knockback
+                || Op==ELDDemoEffectOp::BraceShove)
             { Share(Effect.DurationMs); }
             // S22's cone slow.
             if (Op==ELDDemoEffectOp::ChannelCone) { Share(Effect.SecondaryDurationMs); }
-            if (int64* Composed=Effect.ComposedControlMs(); Composed && Composed!=&Effect.DurationMs) { Share(*Composed); }
+            if (int64* Composed=Effect.ComposedControlMs(); Composed && Composed!=&Effect.DurationMs) { ShareHardControl(*Composed); }
             // Amounts ScaleValues does not grow: a pull's meeting damage.
             if (Op==ELDDemoEffectOp::Pull) { Share(Effect.BaseP2); Share(Effect.ADRatioBp); }
         }
@@ -1440,10 +1666,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         {
             const int64 MaxHP=Body.Resources.MaxHpP2;
             if (Effect.APRatioBp<0 || Final.APP2<0 || (Effect.APRatioBp>0 && Final.APP2>MAX_int64/Effect.APRatioBp)
+                || Effect.ADRatioBp<0 || Final.ADP2<0 || (Effect.ADRatioBp>0 && Final.ADP2>MAX_int64/Effect.ADRatioBp)
                 || Effect.MaxHPRatioBp<0 || MaxHP<0)
             { Error=TEXT("Shield scaling overflowed."); return false; }
-            // Base + AP share + own max-HP share, through the single shield entry (StackToLatestExpiry).
-            const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000+MaxHP/10000*Effect.MaxHPRatioBp+MaxHP%10000*Effect.MaxHPRatioBp/10000;
+            // Base + AP share + AD share + own max-HP share, through the single shield entry (StackToLatestExpiry).
+            const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000+Effect.ADRatioBp*Final.ADP2/10000
+                +MaxHP/10000*Effect.MaxHPRatioBp+MaxHP%10000*Effect.MaxHPRatioBp/10000;
             if (!GrantShieldTo(Body,Amount,Effect.DurationMs,EffectId,Body.Victim.EntityId,Now,Error,Source)) { return false; }
             break;
         }
@@ -1453,13 +1681,64 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             break;
         case ELDDemoEffectOp::Dash:
         {
-            const double Seconds=double(Effect.DurationMs)/1000.;
+            // Dash cards that read a contact of this dash (D01 reset, D02 cuts, D06 phase strikes, D12 shock).
+            TArray<FLDPassiveEffectRef> Resets, Hastes, Phases, Shocks;
+            if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactReset,Source,Resets,Error)
+                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::HitHasteOther,Source,Hastes,Error)
+                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashPhase,Source,Phases,Error)
+                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactElement,Source,Shocks,Error))
+            { return false; }
             double Distance=LDCA::ToDouble(bInnate ? Innate.DistanceCm : Effect.DistanceCm);
             // Spec §8.3: a dash from an enemy's ice goes GROUND.IceDisplacementScale as far.
             if (Body.bOnEnemyIce) { Distance*=double(Content->Get().Parameters.Ground.IceDisplacementScaleBp)/10000.; }
-            if (!Movement->StartDemoDash(DeliveryAction.Direction,Distance,Seconds,Error)) { return false; }
-            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
+            const double PlannedDistance=Distance;
+            if (bInnate && Phases.IsEmpty())
+            {
+                FVector EnemyCenterCm=FVector::ZeroVector;
+                bool bHasEnemy=false;
+                if (const auto* PC=Mode->FindContenderController(Body.Victim.EntityId); PC && PC->Navigation)
+                {
+                    bHasEnemy=PC->Navigation->ReadPinnedTargetFoot(EnemyCenterCm);
+                }
+                if (!bHasEnemy && Body.LastAttackTarget.IsValid())
+                {
+                    ALDCharacter* TargetActor=nullptr;
+                    if (const auto* TargetState=FindBody(Body.LastAttackTarget,&TargetActor);
+                        TargetState && TargetActor && !TargetState->bPendingDeath)
+                    {
+                        EnemyCenterCm=FootOf(*TargetActor);
+                        bHasEnemy=true;
+                    }
+                }
+                if (bHasEnemy)
+                {
+                    Distance=LDCombatPreInput::ClampInnateDashDistance(Distance,ReleaseFoot,DeliveryAction.Direction,EnemyCenterCm,false);
+                }
+            }
+            const bool bClampedZeroStop=Distance<=0.;
+            const int64 DashDurationMs=bClampedZeroStop ? 1
+                : PlannedDistance>0. && Distance<PlannedDistance
+                    ? FMath::Max<int64>(1,FMath::RoundToInt64(double(Effect.DurationMs)*(Distance/PlannedDistance)))
+                    : Effect.DurationMs;
+            if (!bClampedZeroStop)
+            {
+                const double Seconds=double(DashDurationMs)/1000.;
+                if (!Movement->StartDemoDash(DeliveryAction.Direction,Distance,Seconds,Error)) { return false; }
+            }
+            if (!LDMatchLifecycle::AddDurationMs(Now,DashDurationMs,Body.DashUntilMs,Error)) { return false; }
             Body.DashContact.Reset();
+            if (Body.AttributeProjection.Keystones.bAgility)
+            {
+                FLDCombatTimedBonus AgilityHaste;
+                AgilityHaste.EffectId=FGuid::NewGuid();
+                AgilityHaste.SourceDefinition=FName(TEXT("keystone_agility_haste"));
+                FLDDemoStatBonus& MoveStat=AgilityHaste.Stats.AddDefaulted_GetRef();
+                MoveStat.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
+                MoveStat.Amount=2500;
+                if (!LDMatchLifecycle::AddDurationMs(Now,1500,AgilityHaste.ExpiresAtMs,Error)) { return false; }
+                LDTactical::ApplyTimedBonus(Body.TimedBonuses,AgilityHaste);
+                bTimedBonus=true;
+            }
             // Perfect dodge (spec §4.4) reads where and when a D started.
             if (bInnate)
             {
@@ -1472,13 +1751,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Voluntary.Source=Source;
             Voluntary.StartFootCm=ReleaseFoot;
             Voluntary.EndMs=Body.DashUntilMs;
-            // Dash cards that read a contact of this dash (D01 reset, D02 cuts, D06 phase strikes, D12 shock).
-            TArray<FLDPassiveEffectRef> Resets, Hastes, Phases, Shocks;
-            if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactReset,Source,Resets,Error)
-                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::HitHasteOther,Source,Hastes,Error)
-                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashPhase,Source,Phases,Error)
-                || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactElement,Source,Shocks,Error))
-            { return false; }
+            Voluntary.bClampedStop=bClampedZeroStop;
             const bool bCards=!Resets.IsEmpty() || !Hastes.IsEmpty() || !Phases.IsEmpty() || !Shocks.IsEmpty();
             if (bCards || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
             {
@@ -1707,9 +1980,14 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
     Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
     Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
-    Template.DamageType=DamageEffect ? DamageEffect->DamageType : ELDDemoDamageType::Physical;
+    Template.AdaptiveRatioBp=DamageEffect ? DamageEffect->AdaptiveRatioBp : 0;
+    const int64 BonusADP2=LDTactical::BonusADOf(Catalog()->Get().Parameters,GrowthLevelOf(Body),Final.ADP2);
+    Template.DamageType=DamageEffect
+        ? LDTactical::EffectiveDamageType(DamageEffect->DamageType,DamageEffect->AdaptiveRatioBp,BonusADP2,Final.APP2)
+        : ELDDemoDamageType::Physical;
     Template.SourceADP2=Final.ADP2;
     Template.SourceAPP2=Final.APP2;
+    Template.SourceBonusADP2=BonusADP2;
     Template.MaxHPRatioBp=DamageEffect ? DamageEffect->MaxHPRatioBp : 0;
     Template.SourceMaxHPP2=Body.Resources.MaxHpP2;
     Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
@@ -1773,9 +2051,11 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         Projectile.BaseP2=Template.BaseP2;
         Projectile.ADRatioBp=Template.ADRatioBp;
         Projectile.APRatioBp=Template.APRatioBp;
+        Projectile.AdaptiveRatioBp=Template.AdaptiveRatioBp;
         Projectile.DamageType=Template.DamageType;
         Projectile.SourceADP2=Template.SourceADP2;
         Projectile.SourceAPP2=Template.SourceAPP2;
+        Projectile.SourceBonusADP2=Template.SourceBonusADP2;
         Projectile.MaxHPRatioBp=Template.MaxHPRatioBp;
         Projectile.SourceMaxHPP2=Template.SourceMaxHPP2;
         Projectile.OriginCm=FootOf(Actor);

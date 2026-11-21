@@ -79,17 +79,17 @@ bool RunCampCost(FAutomationTestBase& Test)
     // Approved basic-only baseline: small 3 x 2 hits, middle 2 x 6 hits at L1.
     // Clear time is the first windup plus the remaining basic intervals; each living member retaliates independently.
     // L1 retaliation sums are (1+3+6) x 11.86 and (5+10) x 42.37 (camp attack x 1.4); no regen is credited.
-    bGood &= CheckCamp(Test, TEXT("L1 small camp: 6 player hits, 10 member retaliations"),
-        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 6970, 6, 10, 11860, 74140);
-    bGood &= CheckCamp(Test, TEXT("L1 middle camp: 12 player hits, 15 member retaliations"),
-        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 14974, 12, 15, 63555, 22445);
+    bGood &= CheckCamp(Test, TEXT("L1 small camp: 6 player hits, 9 member retaliations"),
+        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 6065, 6, 9, 10674, 75326);
+    bGood &= CheckCamp(Test, TEXT("L1 middle camp: 12 player hits, 13 member retaliations"),
+        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 13127, 12, 13, 55081, 30919);
     FLDCampCostInput Ten = Input;
     Ten.CurrentHpP2 = Ten.MaxHpP2 = L10.MaxHPP2;
     Ten.Attributes = L10;
     bGood &= CheckCamp(Test, TEXT("L10 low camp uses projected attack speed and windup"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 2515, 3, 3, 3087, L10.MaxHPP2 - 3087);
+        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 2149, 3, 3, 3087, L10.MaxHPP2 - 3087);
     bGood &= CheckCamp(Test, TEXT("L10 high camp"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 8165, 8, 7, 25732, L10.MaxHPP2 - 25732);
+        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 7139, 8, 7, 25732, L10.MaxHPP2 - 25732);
 
     bGood &= Test.TestEqual(TEXT("A retaliation landing exactly at the death time counts"),
         LDOpponentPolicy::RetaliationHits(0, 350, 1250, 350), int64(1));
@@ -99,12 +99,12 @@ bool RunCampCost(FAutomationTestBase& Test)
         LDOpponentPolicy::RetaliationHits(100, 99, 1250, 350), int64(0));
 
     FLDCampCostInput Exhausted = Input;
-    Exhausted.CurrentHpP2 = 11860;
+    Exhausted.CurrentHpP2 = 10674;
     bGood &= CheckCamp(Test, TEXT("Predicted HP exhaustion is NotFeasible, never a win"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 6970, 6, 10, 11860, 0);
-    Exhausted.CurrentHpP2 = 11861;
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 6065, 6, 9, 10674, 0);
+    Exhausted.CurrentHpP2 = 10675;
     bGood &= CheckCamp(Test, TEXT("One P2 more survives with one P2"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 6970, 6, 10, 11860, 1);
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 6065, 6, 9, 10674, 1);
     FLDCampCostInput Zero = Input;
     Zero.Attributes.ADP2 = 0;
     bGood &= Test.TestTrue(TEXT("No effective damage is NotFeasible; no minimum damage is invented"),
@@ -116,7 +116,7 @@ bool RunCampCost(FAutomationTestBase& Test)
     FLDCampCostInput Waiting = Input;
     Waiting.BasicReadyInMs = 1000;
     bGood &= Test.TestEqual(TEXT("A pending basic readiness delays the whole schedule"),
-        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(7970));
+        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(7065));
     FLDCampCostInput Domain = Input;
     Domain.Attributes.AttackSpeed.Numerator = 1;
     Domain.Attributes.AttackSpeed.Denominator = 10;
@@ -850,16 +850,16 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Public.Circle = ELDOpponentCircle::Empty;
     bGood &= Expect(Test, TEXT("An open, empty circle is contested"), Decide(Frame), EMode::Contest, EBody::MoveGround,
         TEXT("capture"));
-    // Both feet inside the 420 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
-    Frame.Self.FootCm = FVector(0, 2750, 0);
-    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3240), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
+    // Both feet inside the 450 cm zone yet farther apart than the 500 cm acquisition radius, so only the zone draws the fight.
+    Frame.Self.FootCm = FVector(0, 2600, 0);
+    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3400), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("Inside the circle only rivals inside it are fought"), Decision, EMode::Contest, EBody::AttackUnit)
         && Test.TestTrue(TEXT("The in-circle rival"), Decision.Body.Handle == Frame.Units[0].Handle);
     Frame.Public.Circle = ELDOpponentCircle::Solo;
     Frame.Public.Occupier = Frame.Self.ContenderId;
-    // Just outside the 420 cm zone edge yet inside the acquisition radius of the holder.
-    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2560)};
+    // Just outside the 450 cm zone edge yet inside the acquisition radius of the holder.
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2540)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("A solo holder does not chase a rival outside the circle"), Decision, EMode::DefendOrHold,
         EBody::None) && Test.TestTrue(TEXT("Hold reason"), Decision.Reason == ELDOpponentReason::HoldCapture);

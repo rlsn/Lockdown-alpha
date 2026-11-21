@@ -46,8 +46,9 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         Error = TEXT("The airdrop claim requires the current Transactions permit, an active schedule, Combat and the growth domain.");
         return false;
     }
-    if (!IsFieldRunning() || Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
+    if (!IsFieldRunning()) { return true; }
     const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
+    if (Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
     const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
     TArray<LDAirdrop::FCandidate> Candidates;
     Combat->ReadLivingContenderFeet(Candidates);
@@ -114,8 +115,7 @@ bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FStrin
     if (RecoveryOrbs.IsEmpty() || !IsFieldRunning()) { return true; }
     const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
     const auto& Parameters = DemoContent->Get().Parameters;
-    const double PickupCm = Parameters.AirdropPickupRadiusCm.Denominator > 0
-        ? double(Parameters.AirdropPickupRadiusCm.Numerator) / double(Parameters.AirdropPickupRadiusCm.Denominator) : 0.;
+    constexpr double PickupCm = 90.0;
     TArray<LDAirdrop::FCandidate> Candidates;
     Combat->ReadLivingContenderFeet(Candidates);
     for (int32 Index = RecoveryOrbs.Num() - 1; Index >= 0; --Index)
@@ -128,7 +128,7 @@ bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FStrin
             FLDContenderLifeRead Life;
             FString LifeError;
             if (ReadContenderLife(MatchContext, Claimer, Life, LifeError)
-                && !Combat->RecoverContender(Life.Body, Parameters.CampClearHealMissingBp, 0, Parameters.CampClearMomentumP2, Permit, Error))
+                && !Combat->RecoverContender(Life.Body, 0, Parameters.CampClearHealMissingBp, Parameters.CampClearMomentumP2, Permit, Error))
             { return false; }
             RecoveryOrbs.RemoveAt(Index);
             bPublicMatchDirty = true;

@@ -197,7 +197,9 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         if (!Body.ShieldLayers.IsEmpty()) { Body.ShieldLayers.Last().AmountP2+=Added; }
         Body.ShieldGrantedP2+=Added;
         ++Body.Resources.Revision;
+        ++Body.StateRevision;
         MarkViewChanged(Body.Victim.EntityId);
+        LedgerShieldGranted(Body,Added);
     }
     return true;
 }

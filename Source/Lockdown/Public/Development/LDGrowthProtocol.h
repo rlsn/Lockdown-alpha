@@ -63,8 +63,8 @@ UENUM()
 enum class ELDCardOfferSource : uint8
 {
     None = 0, Opening = 1, LevelUp = 2, FieldReward = 3, MiniFlag = 4, Arena = 5, Locker = 6, Peddler = 7, CampFridge = 8, CampBonus = 9,
-    // The bounty killer of a trending contender: REWARD.BountyCardOffer cards.
-    Bounty = 10
+    // The bounty killer of a trending contender: REWARD.BountyCardOffer Rare/Legendary cards.
+    Bounty = 10, PvPKill = 11, LeaderBounty = 12, BossLegendary = 13, BossMedal = 14
 };
 
 USTRUCT()
@@ -91,7 +91,7 @@ enum class ELDFieldRewardResult : uint8 { None = 0, Blueprint = 1, BlueprintHeld
 enum class ELDFieldRewardKind : uint8
 {
     None = 0, BuildDraw = 1, Blueprint = 2, CardOffer = 3, MiniFlagOffer = 4, ArenaOffer = 5, LockerOffer = 6, PeddlerOffer = 7,
-    FridgeOffer = 8, BonusOffer = 9, BountyOffer = 10
+    FridgeOffer = 8, BonusOffer = 9, BountyOffer = 10, BossKill = 11
 };
 
 // What an applied ActiveChoice or LearnBlueprint did with its active.

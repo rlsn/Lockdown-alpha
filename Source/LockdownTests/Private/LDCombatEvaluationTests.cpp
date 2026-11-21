@@ -19,8 +19,8 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
         && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.Armor.MaxP2 == 100000 && P.MagicResist.MaxP2 == 100000
         && P.CritMultiplierBp == 20000 && Out->Get().Formulas.ResistanceScaleP2 == 10000
-        && P.AttackSpeed.Base.Numerator == 3 && P.AttackSpeed.Base.Denominator == 4
-        && P.BasicAttackWindupMs == 300);
+        && P.AttackSpeed.Base.Numerator == 17 && P.AttackSpeed.Base.Denominator == 20
+        && P.BasicAttackWindupMs == 180);
 }
 
 FLDDamageEvaluationInput PrimaryInput(const FLDDemoContentSnapshot& Catalog)
@@ -128,11 +128,12 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     Input.TargetResistanceP2 = int64(20000);
     if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 83667, 0})) { return false; }
     Input = PrimaryInput(*Catalog);
-    Input.KeystoneGuardCapBp = 5000;
+    Input.KeystoneGuardP2 = 1200;
+    Input.KeystoneGuardCapBp = 1500;
     const FLDDamageEvaluationResult Guarded = LDTactical::EvaluateDamage(Input, *Catalog);
     if (!TestTrue(TEXT("The keystone primary guard evaluates"), Guarded.IsSuccess())) { return false; }
-    TestEqual(TEXT("Keystone guard cuts its share of the mitigated amount"), Guarded.Value->KeystoneGuardCutP2, int64(2966));
-    TestEqual(TEXT("The guard cut precedes shields"), Guarded.Value->DamageP2, int64(2966));
+    TestEqual(TEXT("Keystone guard cuts Max(Flat, Damage x Ratio) = 1200 P2"), Guarded.Value->KeystoneGuardCutP2, int64(1200));
+    TestEqual(TEXT("The guard cut precedes shields"), Guarded.Value->DamageP2, int64(4732));
     Input.bTargetProtected = true;
     const FLDDamageEvaluationResult Protected = LDTactical::EvaluateDamage(Input, *Catalog);
     if (!TestTrue(TEXT("Protection accepts the same valid guard inputs"), Protected.IsSuccess())) { return false; }
@@ -145,19 +146,20 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    // #198 S06: the one authored (level-1) value set: 90 + 0.9 AD + 0.9 AP, Magical, against 18 magic resistance;
-    // (90 + 63 + 18) / 1.18.
+    // #330 S06: level-1 authored value set: 90 + 0.90 adaptive_ratio; with 0 BonusAD and 20 AP -> (90 + 18) / 1.18 = 91.52 P2.
     const auto* Effect = Snark->Values.Effects.FindByPredicate(
         [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
     if (!TestNotNull(TEXT("The snark bolt has an actual compiled damage effect"), Effect)) { return false; }
     Input = PrimaryInput(*Catalog);
-    Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType);
+    Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType,
+        Effect->MaxHPRatioBp, Effect->AdaptiveRatioBp);
     Input.HitClass = ELDCombatHitClass::Ability;
+    Input.SourceBonusADP2 = int64(0);
     Input.SourceAPP2 = int64(2000);
-    // A Physical hit meets armor, a Magical one magic resistance (the same base points).
-    Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
+    Input.TargetResistanceP2 = LDTactical::EffectiveDamageType(Effect->DamageType, Effect->AdaptiveRatioBp, 0, 2000) == ELDDemoDamageType::Physical
         ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
-    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD and 20 AP"), Input, *Catalog, {14491, 0, 14491, 0, 71509, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD (0 bonus AD) and 20 AP"), Input, *Catalog,
+        {9152, 0, 9152, 0, 76848, 0})) { return false; }
     Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
     Input.SourceADP2 = int64(0);
     if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
@@ -350,17 +352,17 @@ bool FLDDemoBasicTimingTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(*this, Catalog)) { return false; }
     auto Input = TimingInput(*Catalog);
-    if (!CheckTiming(*this, TEXT("Compiled character base"), Input, *Catalog, 1334, 300)) { return false; }
+    if (!CheckTiming(*this, TEXT("Compiled character base"), Input, *Catalog, 1177, 180)) { return false; }
     Input.CurrentAttackSpeed = Rate(27, 25);
-    if (!CheckTiming(*this, TEXT("Changed AS changes both durations"), Input, *Catalog, 926, 209)) { return false; }
+    if (!CheckTiming(*this, TEXT("Changed AS changes both durations"), Input, *Catalog, 926, 142)) { return false; }
     Input.CurrentAttackSpeed = Rate(531, 500);
-    if (!CheckTiming(*this, TEXT("Level-ten base AS"), Input, *Catalog, 942, 212)) { return false; }
+    if (!CheckTiming(*this, TEXT("Level-ten base AS"), Input, *Catalog, 942, 145)) { return false; }
     Input.CurrentAttackSpeed = Rate(711, 500);
-    if (!CheckTiming(*this, TEXT("Approved AS envelope"), Input, *Catalog, 704, 159)) { return false; }
+    if (!CheckTiming(*this, TEXT("Approved AS envelope"), Input, *Catalog, 704, 108)) { return false; }
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Min;
-    if (!CheckTiming(*this, TEXT("AS lower bound"), Input, *Catalog, 3334, 750)) { return false; }
+    if (!CheckTiming(*this, TEXT("AS lower bound"), Input, *Catalog, 3334, 510)) { return false; }
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Max;
-    if (!CheckTiming(*this, TEXT("AS upper bound"), Input, *Catalog, 200, 45)) { return false; }
+    if (!CheckTiming(*this, TEXT("AS upper bound"), Input, *Catalog, 200, 31)) { return false; }
 
     struct FMonsterCase { const TCHAR* Id; int64 Interval; int64 Windup; int64 FasterInterval; int64 FasterWindup; int64 Damage; };
     for (const auto& Case : {
@@ -399,13 +401,13 @@ bool FLDDemoTimingDomainTest::RunTest(const FString& Parameters)
     if (!ReadApprovedFixture(*this, Catalog)) { return false; }
     auto Input = TimingInput(*Catalog);
     Input.CurrentAttackSpeed = Rate(36028797018963967LL, 18014398509481984LL);
-    if (!CheckTiming(*this, TEXT("Reciprocal just above an integer must ceil"), Input, *Catalog, 501, 113)) { return false; }
+    if (!CheckTiming(*this, TEXT("Reciprocal just above an integer must ceil"), Input, *Catalog, 501, 77)) { return false; }
     Input.CurrentAttackSpeed = Rate(2);
-    if (!CheckTiming(*this, TEXT("Exact reciprocal integer does not gain a millisecond"), Input, *Catalog, 500, 113)) { return false; }
+    if (!CheckTiming(*this, TEXT("Exact reciprocal integer does not gain a millisecond"), Input, *Catalog, 500, 77)) { return false; }
     Input.CurrentAttackSpeed = Rate(899999999999999999LL, 1000000000000000000LL);
-    if (!CheckTiming(*this, TEXT("Windup just above 250 is 251, not a double-rounded 250"), Input, *Catalog, 1112, 251)) { return false; }
+    if (!CheckTiming(*this, TEXT("Windup just above 170 is 171, not a double-rounded 170"), Input, *Catalog, 1112, 171)) { return false; }
     Input.CurrentAttackSpeed = Rate(900000000000000001LL, 1000000000000000000LL);
-    if (!CheckTiming(*this, TEXT("Windup just below 250 ceils to 250"), Input, *Catalog, 1112, 250)) { return false; }
+    if (!CheckTiming(*this, TEXT("Windup just below 170 ceils to 170"), Input, *Catalog, 1112, 170)) { return false; }
 
     CheckFailure(*this, TEXT("Missing compiled timing"), LDTactical::EvaluateBasicTiming({}, *Catalog), EError::Definition);
     Input = TimingInput(*Catalog);

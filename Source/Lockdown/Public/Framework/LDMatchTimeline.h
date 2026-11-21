@@ -113,7 +113,8 @@ public:
     bool IsRest() const { return Stage == ELDMatchStage::Rest; }
     bool IsFieldRunning() const { return Stage == ELDMatchStage::Field || Stage == ELDMatchStage::FinalField; }
     // The rest steps in which the rest rebuilds (respec, replace, forget), the shop and training are open.
-    bool IsRestBuildOpen() const { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::Build || Step == ELDRestStep::Payout); }
+    bool IsRestBuildOpen() const
+    { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::Build || Step == ELDRestStep::Settlement || Step == ELDRestStep::Payout); }
     // Sign-up is open in the last SignupMs of the build step, up to and including its deadline instant: operations
     // committed at the deadline settle before the lock.
     bool IsSignupOpen(int64 AtMs) const;
@@ -184,7 +185,7 @@ namespace LDMatchTimeline
     inline bool IsPKRest(uint8 RestIndex) { return RestIndex > 0 && RestIndex < FLDTimelineParameters::TimedSegments; }
     // Field progress T a client derives from the public timeline at ServerNowMs (the authority's own rule).
     LOCKDOWN_API int64 FieldNowFromView(const FLDTimelineView& View, int64 ServerNowMs);
-    // The open rest steps (build/training and payout) of a public timeline.
+    // The open rest steps (build/training and settlement/payout) of a public timeline.
     inline bool IsRestBuildOpen(const FLDTimelineView& View)
-    { return View.Stage == ELDMatchStage::Rest && (View.Step == ELDRestStep::Build || View.Step == ELDRestStep::Payout); }
+    { return View.Stage == ELDMatchStage::Rest && (View.Step == ELDRestStep::Build || View.Step == ELDRestStep::Settlement || View.Step == ELDRestStep::Payout); }
 }

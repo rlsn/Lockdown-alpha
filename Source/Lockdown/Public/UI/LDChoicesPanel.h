@@ -49,6 +49,7 @@ public:
     // In a rest's build window the open workshop shows the rest rebuilds (respec, replace, forget) on the objects they act on;
     // the owning authority still admits every command.
     bool IsServiceShown() const;
+    bool IsBlueprintSwapShown() const;
     // Where the workshop puts the build moments and the services (absolute rectangles from its last layout).
     struct FWorkshopPlaces
     {

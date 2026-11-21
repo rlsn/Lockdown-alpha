@@ -252,7 +252,7 @@ struct FLDResultBuild
    UPROPERTY() TArray<FLDResultBuildCard> Cards;
    UPROPERTY() FName FinalMod;
    // Allocated 5-stat points in design order (#331).
-   UPROPERTY() TArray<uint8> StatPoints;
+   UPROPERTY() TArray<int32> StatPoints;
 };
 
 USTRUCT()

@@ -5,6 +5,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDGameMode.h"
 #include "Framework/LDLifeAuthority.h"
 
 // Read-only projections of Combat state for the observation owner: action cues and projectiles in flight.

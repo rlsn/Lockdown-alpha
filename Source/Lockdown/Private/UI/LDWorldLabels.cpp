@@ -315,9 +315,11 @@ void LDWorldLabels::AdvanceBarTrail(FBarTrailState& State,int64 CurrentHPP2,int6
         const double Span=double(FMath::Max(MaxHPP2,CurrentHPP2+State.PreviousShieldP2));
         State.ShieldBreakFraction=Span>0.?float(FMath::Clamp(double(CurrentHPP2+.5*State.PreviousShieldP2)/Span,0.05,0.98)):.85f;
     }
-    if(State.TrailHPP2>double(CurrentHPP2)&&(NowSec-State.LastDamagedAtSec)>0.12)
+    const double HeldUntil=State.LastDamagedAtSec+0.12;
+    const double DecaySec=FMath::Clamp(FMath::Min(DeltaSec,NowSec-HeldUntil),0.,0.25);
+    if(State.TrailHPP2>double(CurrentHPP2)&&DecaySec>0.)
     {
-        State.TrailHPP2=FMath::Max(double(CurrentHPP2),State.TrailHPP2-2.4*double(MaxHPP2)*DeltaSec);
+        State.TrailHPP2=FMath::Max(double(CurrentHPP2),State.TrailHPP2-2.4*double(MaxHPP2)*DecaySec);
     }
     else if(State.TrailHPP2<double(CurrentHPP2))
     {

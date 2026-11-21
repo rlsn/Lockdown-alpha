@@ -124,7 +124,8 @@ CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 # Spec §6.3 vocabulary keys in bit order (ELDCardVocab).
 CARD_VOCAB = ("basic_hit", "combo3", "skill_hit", "skill_cast", "overdrive", "reaction", "element", "dash", "dash_contact",
               "perfect_dodge", "knockback", "wall_impact", "shield", "shield_break", "controlled", "control", "damaged",
-              "low_hp", "kill", "idle", "ground", "heal", "momentum", "attack_speed", "move_speed", "crit", "armor", "max_hp")
+              "low_hp", "kill", "idle", "ground", "heal", "momentum", "attack_speed", "move_speed", "crit", "armor", "max_hp",
+              "area", "range")
 # Content element names (electric is the shock element); Y25's aura may name any.
 ELEMENTS = ("fire", "water", "electric", "chill", "rot")
 AURA_ELEMENTS = ("fire", "water", "electric", "chill", "rot")
@@ -714,8 +715,10 @@ def _validate_action(target, effects, path):
             require(quantity(effect["distance"]) > 0, "NumericDomain", path, "geometry must be positive")
         if effect["op"] in ("damage", "shield"):
             quantities = [effect["base"], effect["ap_ratio"]] + ([effect["max_hp_ratio"]] if "max_hp_ratio" in effect else [])
-            if effect["op"] == "damage":
+            if "ad_ratio" in effect:
                 quantities += [effect["ad_ratio"]]
+            if "adaptive_ratio" in effect:
+                quantities += [effect["adaptive_ratio"]]
             require(any(quantity(value) > 0 for value in quantities),
                     "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
         if effect["op"] == "slow":
@@ -779,6 +782,9 @@ def _validate_cards(data):
                 "a control card fits a host that controls")
         require(("choose_element" in row) == ("element_aura" in ops), "CardElementChoice", identity,
                 "an element aura names its element choices and nothing else does")
+        if "drop_weight" in row:
+            require(1 <= row["drop_weight"] <= 1000 and row["form"] != "medal", "CardDomain", identity,
+                    "drop_weight belongs on non-medal cards in 1..1000")
         if "choose_element" in row:
             require(len(set(row["choose_element"])) == len(row["choose_element"]), "InvalidReference", identity,
                     "element choices are distinct")
@@ -815,13 +821,17 @@ def _validate_cards(data):
                         else ("step_ratio" in effect and "threshold" not in effect and "step" not in effect), "ObjectShape",
                         identity, "an attack-speed factor names its threshold and step; a move-speed factor its step ratio")
                 require(row["form"] == "body", "CardForm", identity, "a speed factor is a body card")
+            if effect["op"] == "skill_crit" and "stats" in effect:
+                _positive_stats(effect["stats"], identity)
+                require(set(effect["stats"]) == {"CritChanceBonusRatio"}, "UnknownField", identity,
+                        "skill_crit only grants CritChanceBonusRatio")
             if effect["op"] == "hit_growth":
                 _positive_stats(effect["stats"], identity)
                 basic = effect["trigger"] == "BasicHit"
                 require(row["form"] == ("body" if basic else "dash"), "CardForm", identity,
                         "basic hits grow a body card; perfect dodges a dash card")
-                require(set(effect["stats"]) <= ({"ADFlat", "APFlat"} if basic else {"MoveSpeedBonusRatio"}), "UnknownField",
-                        identity, "basic hits grow attack or power; perfect dodges grow move speed")
+                require(set(effect["stats"]) <= ({"ADFlat", "APFlat", "AttackSpeedBonusRatio"} if basic else {"MoveSpeedBonusRatio"}), "UnknownField",
+                        identity, "basic hits grow attack, power or attack speed; perfect dodges grow move speed")
             if effect["op"] == "reshape":
                 fields = {key for key in ("area", "range", "far", "far_ratio", "control") if key in effect}
                 require(fields and all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,
@@ -857,6 +867,10 @@ def ability_vocab(ability):
         vocab.add("shield")
     if ops & {"empower_basic"}:
         vocab.add("basic_hit")
+    if ability["hit_type"] in ("projectile", "area"):
+        vocab.add("area")
+    if ability["hit_type"] in ("targeted", "projectile"):
+        vocab.add("range")
     return [key for key in CARD_VOCAB if key in vocab]
 
 
@@ -1465,8 +1479,10 @@ def _validate_build_envelope(data):
             if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage"):
                 numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
-                if effect["op"] != "shield":
+                if "ad_ratio" in effect:
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
+                if "adaptive_ratio" in effect:
+                    numerator = checked_add(numerator, checked_mul(max(max_ad, max_ap), effect["adaptive_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
             if effect["op"] == "brace":

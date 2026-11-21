@@ -1026,7 +1026,7 @@ void ULDNavigationComponent::TickPointer()
         {
             const double RealNow=FPlatformTime::Seconds();
             FVector2D AtPx=FVector2D::ZeroVector;
-            if (PointerPosition(AtPx) && (RealNow-LastCursorProbeAt>=.12 || FVector2D::DistSquared(AtPx,LastCursorProbePx)>=144.))
+            if (PointerPosition(AtPx) && RealNow-LastCursorProbeAt>=.12)
             {
                 LastCursorProbeAt=RealNow;
                 LastCursorProbePx=AtPx;

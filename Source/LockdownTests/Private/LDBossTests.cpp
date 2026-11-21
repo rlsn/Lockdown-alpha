@@ -193,15 +193,15 @@ bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
         [&Rules](const FLDDemoMonsterDefinition& M) { return M.Id == Rules.Id; });
     bool bGood = TestTrue(TEXT("The Boss is the monster_dean row of the Boss tier"),
         Rules.Id == TEXT("monster_dean") && Row && Row->Tier == ELDDemoCampTier::Boss);
-    bGood &= TestTrue(TEXT("It appears at field T=295 s and leaves at T=480 s"),
-        Rules.AppearAtMs == 295000 && Rules.LeaveAtMs == 480000
+    bGood &= TestTrue(TEXT("It appears at field T=210 s and leaves at T=480 s"),
+        Rules.AppearAtMs == 210000 && Rules.LeaveAtMs == 480000
         && Rules.LeaveAtMs == D.Parameters.FieldSegmentMs * FLDTimelineParameters::TimedSegments);
-    bGood &= TestTrue(TEXT("Its combat values stay as approved (2600 HP, 210 attack)"),
-        Row && Row->HPP2 == 260000 && Row->AttackP2 == 21000);
+    bGood &= TestTrue(TEXT("Its combat values stay as approved (2800 HP, 210 attack)"),
+        Row && Row->HPP2 == 280000 && Row->AttackP2 == 21000);
     LDProgression::FRewardAmounts Amounts;
-    bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 300 XP"),
+    bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 320 XP"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 0, Amounts) == ELDGrowthReason::None
-        && Amounts.XP == 300);
+        && Amounts.XP == 320);
     bGood &= TestTrue(TEXT("The Boss is not a camp and never takes a camp growth stage"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 1, Amounts) == ELDGrowthReason::DataInvalid
         && Amounts.XP == 0);
@@ -216,9 +216,9 @@ bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
     State.Rules.LeaveAtMs = Rules.LeaveAtMs;
     if (!TestTrue(TEXT("The lifecycle rules are valid"), State.IsActive())) { return false; }
     const FLDCombatBodyRef Self = BossBody(State);
-    bGood &= TestTrue(TEXT("Pending, the next instant is its appearance at T=295 s"),
-        State.NextDueMs() == 295000 && !State.IsSpawnDue(294999) && State.IsSpawnDue(295000) && !State.IsLeaveDue(479999));
-    bGood &= TestTrue(TEXT("It appears at T=295 s"), State.Spawned(Self, 295000) && State.Phase == ELDBossPhase::Alive);
+    bGood &= TestTrue(TEXT("Pending, the next instant is its appearance at T=210 s"),
+        State.NextDueMs() == 210000 && !State.IsSpawnDue(209999) && State.IsSpawnDue(210000) && !State.IsLeaveDue(479999));
+    bGood &= TestTrue(TEXT("It appears at T=210 s"), State.Spawned(Self, 210000) && State.Phase == ELDBossPhase::Alive);
     bGood &= TestTrue(TEXT("Alive, the next instant is its departure at T=480 s"),
         State.NextDueMs() == 480000 && !State.IsLeaveDue(479999) && State.IsLeaveDue(480000));
     FString Error;

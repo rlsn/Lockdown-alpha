@@ -192,21 +192,22 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Hit.bCritical=!Crits.IsEmpty() && ChanceBp>0 && CritRandom.RandRange(0,9999)<ChanceBp;
     }
     const bool bCritical=Hit.bCritical;
-    // Adaptive damage: a hit that scales with both attack damage and ability power deals the type of its larger share,
-    // so a strength build and a brains build each hit through the resistance they are built around.
-    if (Hit.ADRatioBp>0 && Hit.APRatioBp>0)
+    // Adaptive damage: a hit with no explicit adaptive_ratio that scales with both attack damage and ability power deals the type of its larger share.
+    if (Hit.AdaptiveRatioBp==0 && Hit.ADRatioBp>0 && Hit.APRatioBp>0)
     {
         const int64 ADShare=Hit.SourceADP2/10000*Hit.ADRatioBp, APShare=Hit.SourceAPP2/10000*Hit.APRatioBp;
         Hit.DamageType=ADShare>APShare ? ELDDemoDamageType::Physical : ADShare<APShare ? ELDDemoDamageType::Magical : Hit.DamageType;
     }
     FLDDamageEvaluationInput Evaluation;
-    Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType,Hit.MaxHPRatioBp);
+    const ELDDemoDamageType EffectiveType=LDTactical::EffectiveDamageType(Hit.DamageType,Hit.AdaptiveRatioBp,Hit.SourceBonusADP2,Hit.SourceAPP2);
+    Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,EffectiveType,Hit.MaxHPRatioBp,Hit.AdaptiveRatioBp);
     Evaluation.HitClass=Hit.HitClass;
     Evaluation.bCritical=bCritical;
     Evaluation.SourceADP2=Hit.SourceADP2;
     Evaluation.SourceAPP2=Hit.SourceAPP2;
+    if (Hit.AdaptiveRatioBp!=0) { Evaluation.SourceBonusADP2=Hit.SourceBonusADP2; }
     if (Hit.MaxHPRatioBp!=0) { Evaluation.SourceMaxHPP2=Hit.SourceMaxHPP2; }
-    const bool bPhysical=Hit.DamageType==ELDDemoDamageType::Physical;
+    const bool bPhysical=EffectiveType==ELDDemoDamageType::Physical;
     // The #147 shared breach cuts the matching resistance by its stacks' flat terms.
     Evaluation.TargetResistanceP2=LDCombatKeywords::BreachedResistanceP2(bPhysical ? Defence.ArmorP2 : Defence.MagicResistP2,
         Body->SharedBreach,NowMs,Keywords);
@@ -256,9 +257,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // The thick-skin keystone takes its share off the next direct hostile hit of any kind (a basic or a skill), once per interval.
     const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
         && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.SourceEntity!=Body->Victim.EntityId
+        && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability)
         && !Hit.bReflect && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bStatusSettle && !Hit.bRider;
     if (bKeystoneGuardReady)
     {
+        Evaluation.KeystoneGuardP2=Content->Get().Parameters.KeystoneThickSkinGuardP2;
         Evaluation.KeystoneGuardCapBp=Content->Get().Parameters.KeystoneThickSkinGuardCapBp;
     }
     // #198 S16: the target's live stance cuts hostile damage (never its own); a due M12 debt is paid at its original amount
@@ -359,6 +362,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Damage.KeystoneGuardCutP2>0)
     {
         Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs;
+        GrantMomentum(*Body,1000,ELDMomentumBook::Reaction);
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Content->Get().Parameters.KeystoneThickSkinSteadyMs,Body->KeystoneSteadyUntilMs,Error))
         { return false; }
     }
@@ -367,10 +371,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Body->Brace.RecordedP2=LDCombatElements::BraceRecordP2(Body->Brace.RecordedP2,Damage.BraceCutP2,Body->Brace.CapP2);
         MarkViewChanged(Body->Victim.EntityId);
     }
-    const bool bShieldBroken=LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
+    const bool bShieldBroken=BrokenLayers>0
+        || LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
     const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
-    if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
+    if (!Body->Shield.IsSet()) { Body->ShieldLayers.Reset(); }
+    if (Ended.bRootsChanged || Ended.bShieldChanged || BrokenLayers>0) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { MarkEngaged(*Body,NowMs); }
     // #198 build safe window: hostile positive damage marks its victim and the contender credited with it (burn ticks
@@ -569,9 +575,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,BrokenLayerIds,NowMs,Error)) { return false; }
     // Spec §6.5: the hit's damage joins its chain and its owner's strongest hit.
     if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
-    // Issue #292 P5: Y06 bursts on a broken shield; Y29 shields a share of the burn its source dealt; K03 remembers the native
-    // skill hits on a contender life (its takedown refresh reads them).
-    // Y06 bursts once for every layer this hit broke (a stacked shield bursts layer by layer).
+    // Issue #292 P5 / #330 §5.2.8: Y06 bursts once for every layer this hit broke (a stacked shield bursts layer by layer).
     if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId)
     {
         for (int32 Layer=0;Layer<FMath::Max(BrokenLayers,bShieldBroken ? 1 : 0);++Layer)
@@ -626,6 +630,10 @@ bool ALDCombatDirector::SnapshotOnHit(const FLDBodyCombatState& Source, int64 Sc
 
 bool ALDCombatDirector::StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const
 {
+    if (const FLDDemoContentSnapshot* Content=Catalog())
+    {
+        InOut.SourceBonusADP2=LDTactical::BonusADOf(Content->Get().Parameters,GrowthLevelOf(Source),Source.AttributeProjection.Final.ADP2);
+    }
     Error.Reset();
     return true;
 }
@@ -721,8 +729,10 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
     Targets.Sort([](const LDCombatEffectsDetail::FProjectileTarget& Left, const LDCombatEffectsDetail::FProjectileTarget& Right)
     { return Left.Body.Victim.EntityId<Right.Body.Victim.EntityId; });
     TArray<int32> Finished;
-    for (int32 Index=0; Index<Projectiles.Num(); ++Index)
+    const int32 InitialCount=Projectiles.Num();
+    for (int32 Index=0; Index<InitialCount; ++Index)
     {
+        if (!Projectiles.IsValidIndex(Index)) { break; }
         FLDCombatProjectile& Projectile=Projectiles[Index];
         const int64 ElapsedMs=NowMs-Projectile.AdvancedThroughMs;
         if (ElapsedMs<=0) { continue; }
@@ -824,9 +834,10 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 SegmentFrom=At;
                 continue;
             }
-            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn
-                && !LaunchReturn(Projectile,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
-            if (!EndBranchProjectile(Projectile,At,false,Error)) { return false; }
+            const FLDCombatProjectile FinishedCopy=Projectile;
+            if (FinishedCopy.ReturnScaleBp>0 && !FinishedCopy.bReturn
+                && !LaunchReturn(FinishedCopy,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
+            if (!EndBranchProjectile(FinishedCopy,At,false,Error)) { return false; }
             bEnded=true;
             break;
         }
@@ -837,17 +848,19 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         }
         if (BagStruck!=INDEX_NONE)
         {
-            DamageBag(Bags[BagStruck],Projectile.Payload,NowMs);
-            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
-            if (!EndBranchProjectile(Projectile,Stop,false,Error)) { return false; }
+            const FLDCombatProjectile FinishedCopy=Projectiles[Index];
+            if (Bags.IsValidIndex(BagStruck)) { DamageBag(Bags[BagStruck],FinishedCopy.Payload,NowMs); }
+            if (FinishedCopy.ReturnScaleBp>0 && !FinishedCopy.bReturn && !LaunchReturn(FinishedCopy,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(FinishedCopy,Stop,false,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }
         if (ClearFraction<1 || bReachesRange)
         {
             // M13: terrain or the end of the reach still sends the return home.
-            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
-            if (!EndBranchProjectile(Projectile,Stop,bReachesRange,Error)) { return false; }
+            const FLDCombatProjectile FinishedCopy=Projectiles[Index];
+            if (FinishedCopy.ReturnScaleBp>0 && !FinishedCopy.bReturn && !LaunchReturn(FinishedCopy,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(FinishedCopy,Stop,bReachesRange,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }
@@ -994,26 +1007,34 @@ bool ALDCombatDirector::InstallBodyProjection(FLDBodyCombatState& Body, ALDChara
 
 bool ALDCombatDirector::RefreshAllTemporary(int64 NowMs, FString& Error)
 {
-    for (auto& Pair : Bodies)
+    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
+    Bodies.GetKeys(BodyKeys);
+    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
     {
-        FLDBodyCombatState& Body=Pair.Value;
-        if (!Pair.Key.IsValid()) { continue; }
+        if (!Key.IsValid()) { continue; }
+        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
+        if (!BodyPtr) { continue; }
+        FLDBodyCombatState& Body=*BodyPtr;
         if (LDTactical::ExpireTemporaryStatuses(Body.Slows,Body.TimedBonuses,NowMs))
         {
             ++Body.StateRevision;
             MarkViewChanged(Body.Victim.EntityId);
         }
         if (Body.bPendingDeath) { continue; }
-        if (!RefreshTemporary(Body,Pair.Key.Get(),NowMs,Error)) { return false; }
+        if (!RefreshTemporary(Body,Key.Get(),NowMs,Error)) { return false; }
     }
     return true;
 }
 
 void ALDCombatDirector::ExpireStatuses(int64 NowMs)
 {
-    for (auto& Pair : Bodies)
+    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
+    Bodies.GetKeys(BodyKeys);
+    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
     {
-        FLDBodyCombatState& Body=Pair.Value;
+        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
+        if (!BodyPtr) { continue; }
+        FLDBodyCombatState& Body=*BodyPtr;
         // Layers lapse on their own deadlines; the record goes with the last of them.
         const bool bLayers=ExpireShieldLayers(Body,NowMs);
         FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
@@ -1111,8 +1132,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             Body.bInDorm=bInDorm;
             MarkViewChanged(Body.Victim.EntityId);
         }
-        // The physique keystone: recovery starts sooner out of combat, and in combat a shield of its share of the maximum HP
-        // comes up every interval.
+        // The physique keystone: recovery starts sooner out of combat; heal-to-shield exclusively owns KeystonePhysiqueReadyAtMs.
         const bool bPhysique=bContender && Body.AttributeProjection.Keystones.bPhysique;
         LDTactical::FOutOfCombatRecovery BodyRecovery=Recovery;
         LDTactical::FOutOfCombatRecovery BodyDorm=DormRecovery ? *DormRecovery : LDTactical::FOutOfCombatRecovery();
@@ -1124,16 +1144,6 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             const int64 CutBp=Parameters.KeystonePhysiqueOutOfCombatCutBp;
             BodyRecovery.DelayMs-=BodyRecovery.DelayMs/10000*CutBp+BodyRecovery.DelayMs%10000*CutBp/10000;
             BodyDorm.DelayMs-=BodyDorm.DelayMs/10000*CutBp+BodyDorm.DelayMs%10000*CutBp/10000;
-            if (!LDTactical::OutOfCombatAt(Body.LastCombatAtMs,BodyRecovery.DelayMs,NowMs) && NowMs>=Body.KeystonePhysiqueReadyAtMs)
-            {
-                const int64 ShieldP2=Pool.MaxHpP2/10000*Parameters.KeystonePhysiqueShieldMaxHPBp
-                    +Pool.MaxHpP2%10000*Parameters.KeystonePhysiqueShieldMaxHPBp/10000;
-                int64 NextReadyAtMs=0;
-                if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,Error)) { return false; }
-                Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs;
-                if (ShieldP2>0 && !GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,FGuid::NewGuid(),
-                    Body.Victim.EntityId,NowMs,Error)) { return false; }
-            }
         }
         if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &BodyRecovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
             Pools,Error,bInDorm && DormRecovery ? &BodyDorm : nullptr))

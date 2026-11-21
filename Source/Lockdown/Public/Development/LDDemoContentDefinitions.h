@@ -555,11 +555,13 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnTickMs = 0;
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
+    UPROPERTY() int64 KeystonePhysiqueHealToShieldBp = 0;
     UPROPERTY() int64 KeystonePhysiqueOutOfCombatCutBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldMaxHPBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldDurationMs = 0;
     UPROPERTY() int64 KeystonePhysiqueIntervalMs = 0;
     UPROPERTY() int64 KeystoneAgilityDashCooldownCutBp = 0;
+    UPROPERTY() int64 KeystoneThickSkinGuardP2 = 0;
     UPROPERTY() int64 KeystoneThickSkinGuardCapBp = 0;
     UPROPERTY() int64 KeystoneThickSkinIntervalMs = 0;
     // COMBAT.KeystoneThickSkinSteadySec: after the thick-skin guard triggers, slows miss and knockbacks are cut this long.
@@ -567,6 +569,7 @@ struct FLDDemoContentParameters
     // COMBAT.KeystoneThickSkinKnockbackRatio: the share of a knockback distance kept during the thick-skin steady window.
     UPROPERTY() int64 KeystoneThickSkinKnockbackBp = 0;
     UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
+    UPROPERTY() int64 KeystoneBrainsMomentumRefundBp = 0;
     UPROPERTY() int64 KeystoneBrainsReactionMomentumP2 = 0;
     UPROPERTY() int64 KeystoneBrainsCooldownCutMs = 0;
     UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
@@ -768,7 +771,7 @@ enum class ELDCardVocab : uint8
 {
     BasicHit, Combo3, SkillHit, SkillCast, Overdrive, Reaction, Element, Dash, DashContact, PerfectDodge, Knockback,
     WallImpact, Shield, ShieldBreak, Controlled, Control, Damaged, LowHP, Kill, Idle, Ground, Heal, Momentum, AttackSpeed,
-    MoveSpeed, Crit, Armor, MaxHP, Count
+    MoveSpeed, Crit, Armor, MaxHP, Area, Range, Count
 };
 
 UENUM()
@@ -870,6 +873,7 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;
     UPROPERTY() int64 APRatioBp = 0;
+    UPROPERTY() int64 AdaptiveRatioBp = 0;
     // Damage only: coefficient of the caster's own max HP, snapshotted at release.
     UPROPERTY() int64 MaxHPRatioBp = 0;
     UPROPERTY() ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
@@ -1139,6 +1143,7 @@ struct FLDDemoCardDefinition
     // that controls (root, stun, silence, disarm or taunt in its level-1 value set).
     UPROPERTY() uint8 HostHitTypes = 0;
     UPROPERTY() bool bHostControl = false;
+    UPROPERTY() int32 DropWeight = 100;
     // Its relative chance in a card draw (basis points of a plain card); the rare jackpot cards draw less often.
     UPROPERTY() int64 DrawWeightBp = 10000;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.

@@ -1325,4 +1325,80 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
         && !LDCapture::PreviousLobbyResult(Public->MatchResult, Public->DemoLobby, *AddedAI));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDShowdownAntiStalemateTest, "Lockdown.Rules.DemoCapture.ShowdownAntiStalemate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDShowdownAntiStalemateTest::RunTest(const FString& Parameters)
+{
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid(), C = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
+
+    // 1. 3-step spray ratchets (1.15s / 2.30s / 3.50s), 7s / 14s guard latches, and +4.0s Showdown kill advance.
+    FCaptureReducerProbe Probe{*this};
+    Probe.Reducer.Begin(0, 3500, 20000, Probe.Error);
+    Probe.Reducer.SetShowdownRatchets({1150, 2300}, {7000, 14000}, 4000);
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A enters"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.Add(CaptureInterrupt(BodyA, 800), TEXT("Interrupted before 1.15s"));
+    Probe.Close(800, false, TEXT("Sub-ratchet interrupt resets to 0"));
+    Probe.ExpectSolo(A, 800, 4300, TEXT("Sub-1.15s interrupt restarts from 0"));
+    Probe.Add(CaptureInterrupt(BodyA, 2100), TEXT("Interrupted at 1.3s progress (>= 1.15s)"));
+    Probe.Close(2100, false, TEXT("First ratchet holds 1.15s"));
+    Probe.ExpectSolo(A, 950, 4450, TEXT("Interrupted after 1.15s keeps the 1.15s floor (2.35s left)"));
+    Probe.Add(CaptureInterrupt(BodyA, 3400), TEXT("Interrupted at 2.45s progress (>= 2.30s)"));
+    Probe.Close(3400, false, TEXT("Second ratchet holds 2.30s"));
+    Probe.ExpectSolo(A, 1100, 4600, TEXT("Interrupted after 2.30s keeps the 2.30s floor (1.20s left)"));
+    Probe.Close(4600, false, TEXT("Spray completes at 4600ms"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 24600, 0, TEXT("A owns pole and begins 20s guard"));
+
+    // Guard reaches 7.5s (at 12100ms), then B steps inside to contest; guard pauses at 7500ms (>= 7000ms latch).
+    Probe.Add(CapturePresence(BodyB, CaptureMs(12100), true), TEXT("B contests at 7.5s guard"));
+    Probe.Close(12100, false, TEXT("Guard frozen"));
+    Probe.ExpectGuard(A, ELDCircleState::Contested, 0, 7500, TEXT("Guard freezes at 7.5s"));
+    // A kills B at 13000ms: +4.0s kill advance brings guard from 7.5s to 11.5s and resumes uncontested (8.5s remaining -> due 21500ms).
+    FLDCaptureEvent KillB = CaptureFact(ELDCaptureEventKind::Died, BodyB, CaptureMs(13000), ELDCommitPhase::DeathsAndRewards);
+    KillB.Killer = A;
+    Probe.Add(KillB, TEXT("A kills B in Showdown"));
+    Probe.Close(13000, false, TEXT("Showdown kill advances guard by +4.0s"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 21500, 0, TEXT("Guard advances to 11.5s, due at 21500ms"));
+    TestEqual(TEXT("Effective guard progress reflects live 11.5s progress for the current owner"),
+        Probe.Reducer.GetEffectiveGuardMs(A, 13000), int64(11500));
+    TestEqual(TEXT("Non-owner has 0 effective guard progress even if they had historical banked guard"),
+        Probe.Reducer.GetEffectiveGuardMs(B, 13000), int64(0));
+
+    // 2. Percentage-based Showdown timeout tiebreaker across main (20s) and private (28s) poles -> kills -> damage.
+    TArray<FLDShowdownTimeoutCandidate> Candidates = {
+        {A, true, 14000, 20000, 0, 0, 1}, // 70.0% on main pole
+        {B, true, 18000, 28000, 5, 99999, 1}, // 64.3% on private pole (more absolute ms, lower %)
+    };
+    TestEqual(TEXT("Higher guard completion percentage beats higher absolute guard seconds"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), A);
+    Candidates = {
+        {A, true, 10000, 20000, 1, 50000, 1}, // 50%, 1 kill
+        {B, true, 14000, 28000, 2, 10000, 1}, // 50%, 2 kills
+    };
+    TestEqual(TEXT("Equal guard percentage breaks ties by Showdown kills"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), B);
+    Candidates = {
+        {A, true, 0, 20000, 1, 25000, 0},
+        {B, true, 0, 20000, 1, 42000, 0},
+        {C, false, 19000, 20000, 9, 99999, 3}, // dead/ineligible
+    };
+    TestEqual(TEXT("Equal guard percentage and kills break ties by Showdown damage among living contenders"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), B);
+    Candidates = {
+        {A, true, 0, 20000, 0, 0, 2}, // lost graffiti; historical sprays do not win a 3-tier tie
+        {B, true, 0, 20000, 0, 0, 0},
+    };
+    TestEqual(TEXT("All three tiers tied at zero yield no winner even if one contender had historical sprays"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
+    Candidates = {
+        {A, true, 10000, 20000, 1, 25000, 3},
+        {B, true, 14000, 28000, 1, 25000, 1},
+    };
+    TestEqual(TEXT("Non-zero three-tier tie ignores historical CompletedSprays and yields no winner"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
+    return true;
+}
 #endif

@@ -310,16 +310,8 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         Navigation->QueueCombatAction(Request,Aim.Kind==ELDCombatTargetKind::Direction?AimCm:nullptr);
         return;
     }
-    int64 NowMs=0;
-    ReadDemoAuthorityTimeMs(NowMs);
-    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
-    if (bCurrentView && LDCombatPreInput::IsDirectEntry(Entry) && LDCombatPreInput::IsWindingUp(CombatView,NowMs))
-    {
-        QueuedCombat={Entry,Aim,OwnerState.Match,OwnerState.Life,FPlatformTime::Seconds(),CombatView.SourceRevision};
-        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT queued match=%u life=%u entry=%u source=%llu"),
-            OwnerState.Match,OwnerState.Life,uint32(Entry),CombatView.SourceRevision);
-        return;
-    }
+    // Issue #329 §3.2: send Direct presses immediately to the server's unified 2-step 450ms FIFO pre-input queue
+    // so mixed Direct / Unit / GroundPoint combinations preserve every press in exact arrival order.
     QueuedCombat={};
     SendCombatNow(Entry,Aim);
 }
@@ -376,6 +368,11 @@ bool ALDPlayerController::NextCombatRequest(ELDCombatEntry Entry, const FLDComba
         Request.bOverdrive=true;
         bOverdriveArmed=false;
         OverdriveEntry=ELDCombatEntry::None;
+    }
+    if (auto* GI=Cast<ULDGameInstance>(GetGameInstance()))
+    {
+        GI->NoteCrashCommand(*FString::Printf(TEXT("CombatEntry=%u Kind=%u Seq=%llu"),
+            uint32(Entry),uint32(Aim.Kind),Request.DirectSequence));
     }
     return true;
 }
@@ -481,10 +478,6 @@ void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTar
     if (!IsLocalController()) { return; }
     FLDCombatActionRequest Request;
     if (!NextCombatRequest(Entry,Aim,Request)) { return; }
-    if (auto* GI=Cast<ULDGameInstance>(GetGameInstance()))
-    {
-        GI->NoteCrashCommand(*FString::Printf(TEXT("CombatEntry=%u Seq=%llu"),uint32(Entry),Request.DirectSequence));
-    }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
         Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind),Request.ExpectedSourceRevision);
     ServerSubmitCombatAction(Request);

@@ -21,16 +21,17 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             return true;
         }
-        int64 Base, AP, AD, Sum;
+        int64 Base, AP, AD, Adaptive, Sum;
         if (!N.Mul64(Effect.BaseP2, 10000, Base, Path) || !N.Mul64(P.AP.MaxP2, Effect.APRatioBp, AP, Path)
-            || !N.Add64(Base, AP, Sum, Path))
+            || !N.Add64(Base, AP, Sum, Path)
+            || !N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) || !N.Add64(Sum, AD, Sum, Path)
+            || !N.Mul64(FMath::Max(P.AD.MaxP2, P.AP.MaxP2), Effect.AdaptiveRatioBp, Adaptive, Path)
+            || !N.Add64(Sum, Adaptive, Sum, Path))
         {
             return false;
         }
         int64 HP;
-        return !bDamage
-            || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path)
-                && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
+        return !bDamage || (N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
     // G(L) = 1 + SKILL.GrowthPerLevel x (L - 1) at the top level; the top rank and overdrive scale the grown amounts again
     // (base and ratios alike), so the envelope checks their product.
@@ -56,7 +57,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         FLDDemoEffectDefinition Grown = Effect;
         if (!Grow(Effect.BaseP2, Grown.BaseP2, Path)) { return false; }
         // Ratios scale with the top rank and overdrive too.
-        for (int64* Ratio : {&Grown.ADRatioBp, &Grown.APRatioBp, &Grown.MaxHPRatioBp})
+        for (int64* Ratio : {&Grown.ADRatioBp, &Grown.APRatioBp, &Grown.AdaptiveRatioBp, &Grown.MaxHPRatioBp})
         {
             int64 Scaled = 0;
             if (!N.Mul64(*Ratio, RankFactor, Scaled, Path)) { return false; }

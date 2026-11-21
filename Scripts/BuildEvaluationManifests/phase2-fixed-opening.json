@@ -28,7 +28,8 @@
             "choices": [
               {"rule": "definition", "definition": "active_elbow"},
               {"rule": "definition", "definition": "active_triple_combo"},
-              {"rule": "definition", "definition": "active_crotch_grab"}
+              {"rule": "definition", "definition": "active_crotch_grab"},
+              "ai_select"
             ],
             "presets": [["active_triple_combo"], ["active_crotch_grab"]],
             "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 26, "stat_agility": 4}}]
@@ -38,7 +39,8 @@
             "choices": [
               {"rule": "definition", "definition": "active_elbow"},
               {"rule": "definition", "definition": "active_triple_combo"},
-              {"rule": "definition", "definition": "active_crotch_grab"}
+              {"rule": "definition", "definition": "active_crotch_grab"},
+              "ai_select"
             ],
             "presets": [["active_triple_combo"], ["active_crotch_grab"]],
             "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 26, "stat_agility": 4}}]
@@ -53,7 +55,8 @@
             "choices": [
               {"rule": "definition", "definition": "active_elbow"},
               {"rule": "definition", "definition": "active_calculus_drop"},
-              {"rule": "definition", "definition": "active_snark_bolt"}
+              {"rule": "definition", "definition": "active_snark_bolt"},
+              "ai_select"
             ],
             "presets": [["active_calculus_drop"], ["active_snark_bolt"]],
             "build": [{"step": "allocate_points", "at": "field", "points": {"stat_brains": 30}}]
@@ -63,7 +66,8 @@
             "choices": [
               {"rule": "definition", "definition": "active_elbow"},
               {"rule": "definition", "definition": "active_triple_combo"},
-              {"rule": "definition", "definition": "active_crotch_grab"}
+              {"rule": "definition", "definition": "active_crotch_grab"},
+              "ai_select"
             ],
             "presets": [["active_triple_combo"], ["active_crotch_grab"]],
             "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 26, "stat_agility": 4}}]

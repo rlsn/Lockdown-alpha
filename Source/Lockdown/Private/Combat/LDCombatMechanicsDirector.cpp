@@ -94,6 +94,30 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
+    if (Healed>0 && HealSource.Kind!=ELDCombatSourceKind::None && Body.AttributeProjection.Keystones.bPhysique
+        && NowMs>=Body.KeystonePhysiqueReadyAtMs)
+    {
+        if (const auto* Content=Catalog())
+        {
+            const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
+            const auto Scale=[](int64 ValueP2, int64 Bp) -> int64
+            {
+                return ValueP2<=0 || Bp<=0 ? 0 : ValueP2/10000*Bp+ValueP2%10000*Bp/10000;
+            };
+            const int64 ShieldP2=FMath::Min(Scale(Healed,Parameters.KeystonePhysiqueHealToShieldBp),
+                Scale(Pool.MaxHpP2,Parameters.KeystonePhysiqueShieldMaxHPBp));
+            int64 ExpiresAtMs=0, NextReadyAtMs=0;
+            FString ShieldError;
+            if (ShieldP2>0
+                && LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueShieldDurationMs,ExpiresAtMs,ShieldError)
+                && LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,ShieldError)
+                && GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,FGuid::NewGuid(),Body.Victim.EntityId,
+                    NowMs,ShieldError))
+            {
+                Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs;
+            }
+        }
+    }
     return true;
 }
 
@@ -133,11 +157,10 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource)
 {
     if (Body.bPendingDeath) { return true; }
-    // Spec §8.1: a live rot cuts the new shield before the replacement check; existing shields are untouched.
+    // Spec §8.1: a live rot cuts the new shield before it enters the stack; existing shields are untouched.
     AmountP2=LDCombatElements::AfterRotP2(AmountP2,Body.ElementMark,NowMs);
     int64 Expires=0;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,Expires,Error)) { return false; }
-    // A weaker shield is a stated sub-effect outcome, not a failed release.
     if (!LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,SourceEntity,Expires},AmountP2,NowMs))
     { return true; }
     Body.ShieldGrantedP2=Body.Resources.ShieldP2;

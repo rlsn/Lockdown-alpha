@@ -334,9 +334,19 @@ bool FLDWorldLabelsSegmentedTrailTest::RunTest(const FString& Parameters)
     LDWorldLabels::AdvanceBarTrail(Trail,75000,100000,0,0,FGuid(1,0,0,1),1.13);
     TestNearlyEqual(TEXT("Still inside 120ms hold"),Trail.TrailHPP2,100000.,1e-2);
 
-    // At +180ms (past 120ms hold, delta 0.05s -> decay 2.4 * 100000 * 0.05 = 12000 P2 -> 88000 P2).
+    // At 1.18s (0.01s after the 1.17s hold deadline -> decay 2.4 * 100000 * 0.01 = 2400 P2 -> 97600 P2).
     LDWorldLabels::AdvanceBarTrail(Trail,75000,100000,0,0,FGuid(1,0,0,1),1.18);
-    TestNearlyEqual(TEXT("After 120ms hold, white trail decays at 2.4x MaxHP/s"),Trail.TrailHPP2,88000.,1.);
+    TestNearlyEqual(TEXT("After 120ms hold, white trail decays strictly by time past deadline"),Trail.TrailHPP2,97600.,1.);
+
+    // Frequent 10ms updates across the exact same 1.05..1.18 window produce the identical trail height.
+    LDWorldLabels::FBarTrailState FrequentTrail;
+    LDWorldLabels::AdvanceBarTrail(FrequentTrail,100000,100000,20000,0,FGuid(),1.00);
+    LDWorldLabels::AdvanceBarTrail(FrequentTrail,75000,100000,0,0,FGuid(1,0,0,1),1.05);
+    for(int32 StepMs=10;StepMs<=130;StepMs+=10)
+    {
+        LDWorldLabels::AdvanceBarTrail(FrequentTrail,75000,100000,0,0,FGuid(1,0,0,1),1.05+double(StepMs)/1000.);
+    }
+    TestNearlyEqual(TEXT("Sparse and frequent ticks match to the point"),Trail.TrailHPP2,FrequentTrail.TrailHPP2,1e-2);
 
     // Heal 750 -> 920 snaps trail up and records 180ms green flash.
     LDWorldLabels::AdvanceBarTrail(Trail,92000,100000,0,0,FGuid(1,0,0,1),1.22);

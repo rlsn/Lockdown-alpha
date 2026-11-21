@@ -629,7 +629,7 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
         Row.Kills = Record->Kills;
         Row.Deaths = Record->Deaths;
         Row.Assists = Record->Assists;
-        Row.BankedGuardMs = CaptureReducer.GetBankedGuardMs(Id);
+        Row.BankedGuardMs = FMath::Clamp<int64>(CaptureReducer.GetBankedGuardMs(Id), 0, View.DurationMs);
         Row.CompletedSprays = CaptureReducer.GetCompletedSprays(Id);
         if (!Progression->ReadFinalLevel(*this, Id, Row.FinalLevel, Error))
         {
