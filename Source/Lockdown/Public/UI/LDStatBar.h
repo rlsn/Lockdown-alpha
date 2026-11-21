@@ -12,7 +12,9 @@ class USizeBox;
 class UUniformGridPanel;
 class UTextBlock;
 class ULDCommandButton;
+class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
+struct FLDCombatOwnerView;
 
 // The own point-bought stats in the HUD band's identity block: one icon per stat in the stats' design order, its allocated
 // points on the corner. Hovering a stat raises a "+" right above its icon while points are unspent; a click on it commits one
@@ -34,7 +36,8 @@ public:
     // the own projection's final rows (empty while none is published) for the popup's current values; bShown: the gameplay
     // HUD shows for the own match.
     void Present(const FLDProgressionView* View,uint32 Match,uint32 Life,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,
-        const FLDDemoContentDefinitions* Content,const TArray<FLDCombatAttributeRowView>& Attributes,bool bShown);
+        const FLDDemoContentDefinitions* Content,const TArray<FLDCombatAttributeRowView>& Attributes,bool bShown,
+        const FLDDemoContentSnapshot* ContentSnapshot=nullptr,const FLDCombatOwnerView* Combat=nullptr);
     // The "+" of the stat at Index (design order): queues points (Shift=+5, Ctrl=to 18 keystone when Count<=0) and coalesces
     // rapid bursts within 120ms. False with a toast when refused locally (no data, closed stage, no unspent point left).
     bool Allocate(int32 Index,int32 RequestedCount=0);
@@ -105,6 +108,8 @@ private:
     FLDProgressionView Latest;
     uint32 LatestMatch=0,LatestLife=0;
     const FLDDemoContentDefinitions* LatestContent=nullptr;
+    const FLDDemoContentSnapshot* LatestSnapshot=nullptr;
+    const FLDCombatOwnerView* LatestCombat=nullptr;
     TArray<FLDCombatAttributeRowView> LatestAttributes;
     LDHUD::FBuildGateView Gate;
     bool bShownNow=false;

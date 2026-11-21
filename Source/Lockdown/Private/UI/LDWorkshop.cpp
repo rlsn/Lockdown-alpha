@@ -514,24 +514,44 @@ void ULDWorkshop::Layout(FVector2D Size)
     else if(Mode==EMode::Full&&Latest.bShop)
     {
         // Side-by-side Rest workspace (#331): Rule Board stays visible in the centre while the Rest Shop expands on the
-        // upper right above the Card Library and Pending tray.
+        // upper right above the Card Library and Pending tray, preserving at least one library page via StackedTrayLimit.
         const float Bottom=H-WorkshopMargin;
         const float DockHeight=FMath::Min(WorkshopDockHeight,FMath::Max(0.f,(Bottom-WorkshopTop)*.25f));
         const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
         const float ShopRightWidth=FMath::Clamp(W*.34f,520.f,680.f);
         const float RightX=W-WorkshopMargin-ShopRightWidth;
         const float TotalRightH=FMath::Max(200.f,ContentBottom-WorkshopTop);
-        const float ShopHeight=FMath::Clamp(TotalRightH*.43f,236.f,316.f);
+        const float ServiceHeight=Latest.bServices?58.f:0.f;
+        const float LibraryChrome=70.f+FilterHeight+14.f;
+        const float PendingChrome=52.f+ServiceHeight;
+        // Minimum library content height for one page of stored cards (36.f when empty, ~82.f+ when cards exist).
+        const float ProbeAvail=10000.f;
+        const float LibraryReserve=FMath::Max(36.f,ProbeAvail-LDWorkshop::StackedTrayLimit(AllCounts,ShopRightWidth-44.f,
+            ProbeAvail,WorkshopMinIconPixels/Scale,TextScale));
+        const float WantedTray=FMath::Max(0.f,float(Latest.TrayDesired.Y));
+        const float NeededBelow=LibraryChrome+LibraryReserve
+            +(WantedTray>0.f?(PendingChrome+FMath::Min(WantedTray,116.f)):(ServiceHeight>0.f?72.f+ServiceHeight:0.f));
+        const float ShopHeight=FMath::Clamp(FMath::Min(TotalRightH*.38f,TotalRightH-14.f-NeededBelow),176.f,296.f);
         Next.Shop=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,WorkshopTop+ShopHeight);
         const float LibTop=float(Next.Shop.Max.Y)+14.f;
-        const float ServiceHeight=Latest.bServices?58.f:0.f;
         const float AvailLibH=FMath::Max(0.f,ContentBottom-LibTop);
-        const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FMath::Max(0.f,AvailLibH-140.f-ServiceHeight));
-        const float PendingHeight=DesiredTray>0.f?(DesiredTray+52.f+ServiceHeight):(ServiceHeight>0.f?72.f+ServiceHeight:0.f);
-        TrayLimit=FMath::Max(0.f,AvailLibH-140.f-ServiceHeight);
-        Next.Pending=PendingHeight>0.f?WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom):FBox2D(ForceInit);
-        Next.Library=WorkshopBox(RightX,LibTop,W-WorkshopMargin,PendingHeight>0.f?float(Next.Pending.Min.Y):ContentBottom);
-        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,RightX-WorkshopGap,ContentBottom);
+        const float StackTrayBudget=FMath::Max(0.f,AvailLibH-LibraryChrome-PendingChrome);
+        const float StackedLimit=LDWorkshop::StackedTrayLimit(AllCounts,ShopRightWidth-44.f,
+            StackTrayBudget,WorkshopMinIconPixels/Scale,TextScale);
+        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
+        const bool bSide=WantedTray>0.f&&WantedTray>StackedLimit&&StackedLimit<84.f
+            &&SideX-WorkshopGap-float(Next.Character.Max.X)-WorkshopGap>=460.f;
+        const float FullSideLimit=FMath::Max(0.f,ContentBottom-WorkshopTop-PendingChrome);
+        TrayLimit=bSide?FullSideLimit:StackedLimit;
+        const float Tray=FMath::Min(FMath::Clamp(WantedTray,0.f,TrayLimit),TrayLimit);
+        const float MaxEmptyPending=FMath::Max(0.f,AvailLibH-LibraryChrome-LibraryReserve);
+        const float PendingHeight=Tray>0.f?(Tray+PendingChrome)
+            :(ServiceHeight>0.f?FMath::Min(72.f+ServiceHeight,MaxEmptyPending):0.f);
+        Next.Pending=PendingHeight<=0.f?FBox2D(ForceInit):bSide
+            ?WorkshopBox(SideX,ContentBottom-PendingHeight,RightX-WorkshopGap,ContentBottom)
+            :WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom);
+        Next.Library=WorkshopBox(RightX,LibTop,W-WorkshopMargin,PendingHeight>0.f&&!bSide?float(Next.Pending.Min.Y):ContentBottom);
+        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,ContentBottom);
     }
     // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
     Next.Capacity=WorkshopBox(Next.Board.Min.X,Next.Board.Min.Y,Next.Board.Max.X,Next.Board.Min.Y+(Mode==EMode::Full?WorkshopCapacityHeight:48.f));
@@ -1311,8 +1331,18 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
             const int32 AddStep=Mods.IsControlDown()?FMath::Max(1,Threshold-Row.Points):Mods.IsShiftDown()?5:1;
             const int32 RefundStep=Mods.IsShiftDown()?FMath::Min(5,FMath::Max(1,Row.Points)):1;
             const bool bCanRespec=Storage.IsValid()&&Storage->BuildGate().bCanRespec;
+            FLDProgressionView EffectiveProg=View;
+            if(StatBar.IsValid()&&View.bValid)
+            {
+                EffectiveProg.StatPoints.Reset();
+                for(int32 SIdx=0;SIdx<StatRows.Num()&&Stats.IsValidIndex(SIdx);++SIdx)
+                {
+                    const int32 Eff=StatBar->EffectivePoints(SIdx);
+                    if(Eff>0){EffectiveProg.StatPoints.Add({StatRows[SIdx].StatId,Eff});}
+                }
+            }
             const LDHUD::FStatHoverPreview HoverPreview=LDHUD::StatHoverPreview(*Stats[Index],Row.Points,AddStep,RefundStep,
-                bCanRespec,Latest.Attributes,*Content);
+                bCanRespec,Latest.Attributes,*Content,Latest.ContentSnapshot,EffectiveProg.bValid?&EffectiveProg:nullptr,Latest.Combat);
             TArray<FString> Lines;
             for(const FString& AttrLine:HoverPreview.AttributeLines){Lines.Add(WorkshopRichEscape(AttrLine));}
             Lines.Add(FString::Printf(TEXT("<b>%s</>"),*WorkshopRichEscape(HoverPreview.KeystoneProgress)));

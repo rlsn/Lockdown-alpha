@@ -343,6 +343,19 @@ bool LDDemoEntry::SplitPastedEndpoint(const FString& Raw, FString& OutHost, FStr
     return true;
 }
 
+bool LDDemoEntry::IsSingleCharTypingEdit(const FString& Previous, const FString& Current)
+{
+    const int32 PrevLen = Previous.Len();
+    const int32 CurLen = Current.Len();
+    if (CurLen <= PrevLen) { return PrevLen - CurLen <= 1; }
+    if (CurLen - PrevLen != 1) { return false; }
+    int32 Prefix = 0;
+    while (Prefix < PrevLen && Previous[Prefix] == Current[Prefix]) { ++Prefix; }
+    int32 Suffix = 0;
+    while (Suffix < PrevLen - Prefix && Previous[PrevLen - 1 - Suffix] == Current[CurLen - 1 - Suffix]) { ++Suffix; }
+    return Prefix + Suffix == PrevLen;
+}
+
 bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
 {
     Version.Reset();

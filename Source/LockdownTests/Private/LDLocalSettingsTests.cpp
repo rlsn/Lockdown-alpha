@@ -198,7 +198,13 @@ constexpr uint32 NearZoomFixtureSchema = 12;
 
     FString DisplayIni(const FLDDisplaySettings& Value)
     {
-        return FString::Printf(TEXT("[/Script/Engine.GameUserSettings]\nbUseVSync=%s\n"), Value.bVSync ? TEXT("True") : TEXT("False"));
+        return FString::Printf(
+            TEXT("[/Script/Engine.GameUserSettings]\nbUseVSync=%s\nFullscreenMode=%d\nResolutionSizeX=%d\nResolutionSizeY=%d\nFrameRateLimit=%.2f\n"),
+            Value.bVSync ? TEXT("True") : TEXT("False"),
+            int32(Value.WindowMode),
+            Value.Resolution.X,
+            Value.Resolution.Y,
+            double(Value.FrameRateLimit));
     }
 
     FString QualityIni(const FLDDisplaySettings& Value)
@@ -1343,6 +1349,29 @@ bool FLDLocalDisplayPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Modify disk without modifying the expected in-memory state"),
         FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
     TestTrue(TEXT("Readback does not trust stale cached VSync"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    for (const TCHAR* MissingLine : {
+        TEXT("FullscreenMode=1\n"),
+        TEXT("ResolutionSizeX=1920\n"),
+        TEXT("ResolutionSizeY=1080\n"),
+        TEXT("FrameRateLimit=0.00\n") })
+    {
+        TestTrue(TEXT("Write display fixture missing one required display field"),
+            FFileHelper::SaveStringToFile(DisplayIni(Expected).Replace(MissingLine, TEXT("")), *Fixture.DisplayFile));
+        TestTrue(FString::Printf(TEXT("Missing %s must fail readback"), MissingLine),
+            Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    }
+    Changed = Expected;
+    Changed.WindowMode = EWindowMode::Windowed;
+    TestTrue(TEXT("Write mismatched FullscreenMode"), FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
+    TestTrue(TEXT("Mismatched FullscreenMode fails readback"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    Changed = Expected;
+    Changed.Resolution = FIntPoint(1280, 720);
+    TestTrue(TEXT("Write mismatched Resolution"), FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
+    TestTrue(TEXT("Mismatched Resolution fails readback"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    Changed = Expected;
+    Changed.FrameRateLimit = 144.f;
+    TestTrue(TEXT("Write mismatched FrameRateLimit"), FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
+    TestTrue(TEXT("Mismatched FrameRateLimit fails readback"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
     TestTrue(TEXT("Restore confirmed display fixture"), FFileHelper::SaveStringToFile(DisplayIni(Expected), *Fixture.DisplayFile));
     Changed = Expected;
     Changed.Quality.TextureQuality = 4;

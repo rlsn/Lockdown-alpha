@@ -397,8 +397,10 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         auto* EndpointRow=WidgetTree->ConstructWidget<UHorizontalBox>();
         Add(Body,EndpointRow,4);
         AddressBox=MakeTextBox(TEXT("房主 IP / IP:端口（可直接粘贴）"),TEXT("JoinAddress"));
-        AddressBox->SetText(FText::FromString(Draft?Draft->Address:FString()));
+        LastAddressInput=Draft?Draft->Address:FString();
+        AddressBox->SetText(FText::FromString(LastAddressInput));
         AddressBox->OnTextChanged.AddDynamic(this,&ULDUIRoot::AddressTextChanged);
+        AddressBox->OnTextCommitted.AddDynamic(this,&ULDUIRoot::AddressTextCommitted);
         EndpointRow->AddChildToHorizontalBox(AddressBox)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         PortBox=MakeTextBox(TEXT("端口"),TEXT("JoinPort"));
         PortBox->SetText(FText::FromString(Draft&&!Draft->Port.IsEmpty()?Draft->Port:bListenPortValid?FString::FromInt(ListenPort):FString()));
@@ -836,6 +838,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const bool bHeader=!bInLobby&&!bInResults&&!PC.Navigation->Enabled();
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     if(bHeader){SetLine(Status,TEXT("对局阶段：")+MatchPhaseText(Match));}
+    if(!bInLobby){CachedRoomEndpoint.Reset();CachedRoomGeneration=0;CachedRoomPort=-1;}
     if(bInLobby){RefreshLobby(PC,*Public);}
     if(!bMenuOpen){return;}
     SetLine(MenuPause,bPlaying?FString(TEXT("对局不会暂停")):FString());
@@ -888,7 +891,19 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
         RoomAddressRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
         if(bHost)
         {
-            RoomAddressLabel->SetText(FText::FromString(FString::Printf(TEXT("房间地址：%s"),*ResolveRoomEndpoint())));
+            const UWorld* World=GetWorld();
+            const int32 LivePort=(World&&World->URL.Port>0&&World->URL.Port<=65535)?World->URL.Port:0;
+            if(CachedRoomEndpoint.IsEmpty()||CachedRoomGeneration!=Lobby.Generation||CachedRoomPort!=LivePort)
+            {
+                CachedRoomEndpoint=ResolveRoomEndpoint();
+                CachedRoomGeneration=Lobby.Generation;
+                CachedRoomPort=LivePort;
+            }
+            SetLine(RoomAddressLabel,FString::Printf(TEXT("房间地址：%s"),*CachedRoomEndpoint));
+        }
+        else if(!CachedRoomEndpoint.IsEmpty())
+        {
+            CachedRoomEndpoint.Reset();CachedRoomGeneration=0;CachedRoomPort=-1;
         }
     }
     AIButtonRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
@@ -1281,6 +1296,7 @@ void ULDUIRoot::Join()
         HostName=SplitHost;
         PortText=SplitPort;
         bSplittingAddress=true;
+        LastAddressInput=HostName;
         AddressBox->SetText(FText::FromString(HostName));
         PortBox->SetText(FText::FromString(PortText));
         bSplittingAddress=false;
@@ -1332,14 +1348,40 @@ void ULDUIRoot::CancelJoin()
 void ULDUIRoot::AddressTextChanged(const FText& Text)
 {
     if(bSplittingAddress||!AddressBox||!PortBox){return;}
+    const FString Current=Text.ToString();
+    const FString Previous=LastAddressInput;
+    LastAddressInput=Current;
+    // Manual typing inserts at most one character per event: wait for commit/blur or Join instead of splitting on the first digit.
+    if(LDDemoEntry::IsSingleCharTypingEdit(Previous,Current)){return;}
     FString SplitHost,SplitPort;
-    if(LDDemoEntry::SplitPastedEndpoint(Text.ToString(),SplitHost,SplitPort))
+    if(LDDemoEntry::SplitPastedEndpoint(Current,SplitHost,SplitPort))
     {
         bSplittingAddress=true;
+        LastAddressInput=SplitHost;
         AddressBox->SetText(FText::FromString(SplitHost));
         PortBox->SetText(FText::FromString(SplitPort));
         if(ULDStartPageDraft* Draft=StartDraft()){Draft->Address=SplitHost;Draft->Port=SplitPort;}
         bSplittingAddress=false;
+    }
+}
+
+void ULDUIRoot::AddressTextCommitted(const FText& Text,ETextCommit::Type Method)
+{
+    if(bSplittingAddress||!AddressBox||!PortBox){return;}
+    if(Method==ETextCommit::OnCleared){LastAddressInput=Text.ToString();return;}
+    FString SplitHost,SplitPort;
+    if(LDDemoEntry::SplitPastedEndpoint(Text.ToString(),SplitHost,SplitPort))
+    {
+        bSplittingAddress=true;
+        LastAddressInput=SplitHost;
+        AddressBox->SetText(FText::FromString(SplitHost));
+        PortBox->SetText(FText::FromString(SplitPort));
+        if(ULDStartPageDraft* Draft=StartDraft()){Draft->Address=SplitHost;Draft->Port=SplitPort;}
+        bSplittingAddress=false;
+    }
+    else
+    {
+        LastAddressInput=Text.ToString();
     }
 }
 
@@ -1379,9 +1421,9 @@ FString ULDUIRoot::ResolveRoomEndpoint() const
 
 void ULDUIRoot::CopyRoomAddress()
 {
-    const FString Endpoint=ResolveRoomEndpoint();
-    FPlatformApplicationMisc::ClipboardCopy(*Endpoint);
-    CopiedAddressFeedback=FString::Printf(TEXT("已复制 %s（发给好友粘贴到加入栏即可）"),*Endpoint);
+    if(CachedRoomEndpoint.IsEmpty()){CachedRoomEndpoint=ResolveRoomEndpoint();}
+    FPlatformApplicationMisc::ClipboardCopy(*CachedRoomEndpoint);
+    CopiedAddressFeedback=FString::Printf(TEXT("已复制 %s（发给好友粘贴到加入栏即可）"),*CachedRoomEndpoint);
     if(LobbyFeedback){LobbyFeedback->SetText(FText::FromString(CopiedAddressFeedback));LobbyFeedback->SetVisibility(ESlateVisibility::SelfHitTestInvisible);}
 }
 

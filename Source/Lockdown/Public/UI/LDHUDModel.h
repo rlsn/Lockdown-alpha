@@ -10,6 +10,7 @@
 // Local presentation only. Other-subject formatting accepts an authorized observed unit plus public
 // roster/content labels, never a canonical actor or another player's owner state.
 // Player-visible Chinese follows APP_SPEC 1.2; identifiers, enums and content keys keep their technical names.
+class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 struct FLDDeathRecapView;
 struct FLDDamageSummaryView;
@@ -697,7 +698,9 @@ namespace LDHUD
         bool bKeystoneLossWarning=false;
     };
     LOCKDOWN_API FStatHoverPreview StatHoverPreview(const FLDDemoStatDefinition& Stat,int32 CurrentPoints,int32 AddStep,int32 RefundStep,
-        bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content);
+        bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content,
+        const FLDDemoContentSnapshot* ContentSnapshot=nullptr,const FLDProgressionView* Progression=nullptr,
+        const FLDCombatOwnerView* Combat=nullptr);
     // The active in Q/W/E slot Slot, or None.
     LOCKDOWN_API FName ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot);
     // "Q", "W" or "E": the server's slot name (widget names, observed contenders).

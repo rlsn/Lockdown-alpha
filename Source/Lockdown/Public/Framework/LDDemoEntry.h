@@ -25,6 +25,8 @@ namespace LDDemoEntry
     LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
     // Splits a pasted "host:port" string into OutHost and OutPort when the port is a valid 1-65535 integer (#331).
     LOCKDOWN_API bool SplitPastedEndpoint(const FString& Raw, FString& OutHost, FString& OutPort);
+    // True when Current is Previous plus or minus at most one typed character, so manual typing of "host:port" is not split mid-edit.
+    LOCKDOWN_API bool IsSingleCharTypingEdit(const FString& Previous, const FString& Current);
     LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
     // The title screen's version line: "版本 <product version> (<short commit>)", with a note when the package was built
     // from uncommitted changes and "unknown" when the commit is unreadable. Only a release build ([Lockdown.Build]

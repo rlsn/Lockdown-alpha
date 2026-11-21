@@ -13,6 +13,7 @@
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDGameInstance.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -1134,6 +1135,13 @@ void ALDWorldViewRelay::FreezeForWorldTeardown()
     }
 }
 
+bool ALDWorldViewRelay::IsShuttingDown() const
+{
+    const UWorld* World = GetWorld();
+    const auto* GI = World ? World->GetGameInstance<ULDGameInstance>() : nullptr;
+    return bFrozenForTeardown || !World || World->bIsTearingDown || (GI && GI->IsLeavingWorld(World));
+}
+
 void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
 {
     FreezeForWorldTeardown();
@@ -1182,6 +1190,7 @@ void ALDWorldViewRelay::Refuse(const FString& Error)
 
 void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
 {
+    if (IsShuttingDown()) { return; }
     FString Error;
     FLDWorldRevision ExpectedRevision;
     if (!EnsureCatalog(Error) || !ExpectedWorld(ExpectedRevision))
@@ -1215,7 +1224,7 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
 
 void ALDWorldViewRelay::ClientPresentedHit_Implementation(const FLDObservedHitReceipt& Hit)
 {
-    if (!bClock) { return; }
+    if (IsShuttingDown() || !bClock) { return; }
     const double Arrival = FPlatformTime::Seconds();
     TArray<FLDObservedClear> Cleared;
     if (Receiver.Tick(Arrival, Cleared))
@@ -1235,6 +1244,7 @@ void ALDWorldViewRelay::ClientPresentedHit_Implementation(const FLDObservedHitRe
 
 void ALDWorldViewRelay::ClientConceal_Implementation(const FLDObservedConceal& Notice)
 {
+    if (IsShuttingDown()) { return; }
     FString Error;
     TArray<FLDObservedClear> Cleared;
     if (Receiver.AcceptConceal(Notice, Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
@@ -1247,6 +1257,7 @@ void ALDWorldViewRelay::ClientConceal_Implementation(const FLDObservedConceal& N
 
 void ALDWorldViewRelay::ClientTermination_Implementation(const FLDObservedTerminationNotice& Notice)
 {
+    if (IsShuttingDown()) { return; }
     FString Error;
     TArray<FLDObservedClear> Cleared;
     if (Receiver.AcceptTermination(Notice, Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)

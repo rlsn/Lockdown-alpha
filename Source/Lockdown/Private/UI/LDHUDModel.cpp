@@ -9,6 +9,9 @@
 #include "Development/LDProgressionRules.h"
 #include "Development/LDSkillGrowth.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDTacticalRules.h"
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDCombatElements.h"
@@ -2005,7 +2008,8 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
     return Effects;
 }
 LDHUD::FStatHoverPreview LDHUD::StatHoverPreview(const FLDDemoStatDefinition& Stat,int32 CurrentPoints,int32 AddStep,
-    int32 RefundStep,bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content)
+    int32 RefundStep,bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content,
+    const FLDDemoContentSnapshot* ContentSnapshot,const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat)
 {
     FStatHoverPreview Out;
     const int32 Step=FMath::Max(1,AddStep);
@@ -2029,60 +2033,200 @@ LDHUD::FStatHoverPreview LDHUD::StatHoverPreview(const FLDDemoStatDefinition& St
         }
         return ELDProjectedAttribute::Count;
     };
+
+    // Reuse authoritative LDAttributeProjection::Project + ApplyTemporary so CritChance probability points (0% -> 0.4%),
+    // percentage multipliers (ADBonusRatio / APBonusRatio / Y13 ArmorToHp), rounding and catalog caps match authority 100%.
+    TOptional<FLDAttributeProjection> AuthBefore,AuthAfter;
+    if(ContentSnapshot)
+    {
+        const FName TargetStatId(*Stat.Id);
+        auto ProjectCandidate=[&](int32 StatPts,const FLDAttributeProjection* PrevBuild,int64 PrevHpP2,
+            FLDAttributeProjection& OutBuild,FLDAttributeProjection& OutEffective,int64& OutHpP2)->bool
+        {
+            FLDBuildProjectionInput In;
+            if(Progression&&Progression->bValid)
+            {
+                FLDProgressionView ProgCopy=*Progression;
+                ProgCopy.StatPoints.RemoveAll([&TargetStatId](const FLDStatPointsView& Entry)
+                {return Entry.StatId==TargetStatId||Entry.Points<=0;});
+                if(StatPts>0){ProgCopy.StatPoints.Add({TargetStatId,StatPts});}
+                In=LDProgression::CombatProjectionInput(&Content,LDProgression::BuildFromView(Content,ProgCopy));
+            }
+            else
+            {
+                In.Level=1;
+                if(StatPts>0){In.StatPoints.Emplace(Stat.Id,StatPts);}
+            }
+            if(Combat)
+            {
+                In.DevBonuses=Combat->PreviewDevBonuses;
+                In.CardGrowth=Combat->CardGrowth;
+            }
+            const FLDAttributeProjectionResult Projected=LDCombatSourceRules::ProjectBuildInput(In,*ContentSnapshot);
+            if(!Projected.IsSuccess()){return false;}
+            OutBuild=Projected.Value.GetValue();
+            OutEffective=OutBuild;
+            OutHpP2=OutBuild.Final.MaxHPP2;
+            if(!Combat||!Combat->bPreviewLiving){return true;}
+            if(!PrevBuild)
+            {
+                OutHpP2=Combat->MaxHPP2>0?FMath::Clamp<int64>(Combat->HPP2,0,OutBuild.Final.MaxHPP2):OutBuild.Final.MaxHPP2;
+            }
+            else
+            {
+                FLDResourceMaxChangeInput HpIn;
+                HpIn.Pool=ELDResourcePool::HP;HpIn.OldCurrentP2=PrevHpP2;
+                HpIn.OldMaxP2=PrevBuild->Final.MaxHPP2;HpIn.NewMaxP2=OutBuild.Final.MaxHPP2;
+                const FLDResourceMaxChangeResult Health=LDAttributeProjection::ResourceMaxChange(HpIn,*ContentSnapshot);
+                if(Health.IsSuccess()){OutHpP2=Health.Value->NewCurrentP2;}
+            }
+            TArray<FLDCombatTimedBonus> Bonuses;
+            for(const FLDCombatPreviewBonus& B:Combat->PreviewBonuses)
+            {
+                FLDCombatTimedBonus& Added=Bonuses.AddDefaulted_GetRef();Added.Stats=B.Stats;Added.ExpiresAtMs=B.ExpiresAtMs;
+            }
+            auto CopySlows=[](const TArray<FLDCombatPreviewSlow>& Rows)
+            {
+                TArray<FLDCombatSlow> Slows;
+                for(const FLDCombatPreviewSlow& R:Rows){FLDCombatSlow& S=Slows.AddDefaulted_GetRef();S.RatioBp=R.RatioBp;S.ExpiresAtMs=R.ExpiresAtMs;}
+                return Slows;
+            };
+            FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Bonuses,CopySlows(Combat->PreviewMoveSlows),Combat->AsOfMs);
+            Terms.AttackSlowBp=LDTactical::StrongestSlowBp(CopySlows(Combat->PreviewAttackSlows),Combat->AsOfMs);
+            int64 CardHasteBp=0;FString HasteError;
+            if(LDCombatSourceRules::CardHasteBp(OutBuild,OutHpP2,OutBuild.Final.MaxHPP2,Combat->PreviewFocusHits,ContentSnapshot,CardHasteBp,HasteError)
+                &&CardHasteBp>0)
+            {
+                FLDDemoStatBonus Bonus;Bonus.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;Bonus.Amount=CardHasteBp;Terms.Bonuses.Add(Bonus);
+            }
+            const FLDAttributeProjectionResult Eff=LDAttributeProjection::ApplyTemporary(OutBuild,Terms,*ContentSnapshot);
+            if(!Eff.IsSuccess()){return false;}
+            OutEffective=Eff.Value.GetValue();
+            return true;
+        };
+        FLDAttributeProjection Build0,Eff0,Build1,Eff1;
+        int64 Hp0=0,Hp1=0;
+        if(ProjectCandidate(FMath::Max(0,CurrentPoints),nullptr,0,Build0,Eff0,Hp0)
+            &&ProjectCandidate(FMath::Max(0,CurrentPoints)+Step,&Build0,Hp0,Build1,Eff1,Hp1))
+        {
+            AuthBefore.Emplace(MoveTemp(Eff0));
+            AuthAfter.Emplace(MoveTemp(Eff1));
+        }
+    }
+
+    auto FormatProjectedGain=[](ELDProjectedAttribute Attr,const FLDDemoRational& BeforeR,const FLDDemoRational& AfterR)->FString
+    {
+        if(BeforeR.Denominator<=0||AfterR.Denominator<=0){return TEXT("+0");}
+        const double BeforeD=double(BeforeR.Numerator)/double(BeforeR.Denominator);
+        const double AfterD=double(AfterR.Numerator)/double(AfterR.Denominator);
+        const double DeltaD=FMath::Max(0.,AfterD-BeforeD);
+        switch(Attr)
+        {
+        case ELDProjectedAttribute::CritChance:
+            return TEXT("+")+HudDecimal(DeltaD*100.)+TEXT("%");
+        case ELDProjectedAttribute::AttackSpeed:
+            return FString::Printf(TEXT("+%d 次/分钟"),FMath::Max(0,FMath::RoundToInt(AfterD*60.)-FMath::RoundToInt(BeforeD*60.)));
+        case ELDProjectedAttribute::AttackRange:
+            return TEXT("+")+HudDecimal(DeltaD)+TEXT(" 厘米");
+        case ELDProjectedAttribute::HPRegen:
+        case ELDProjectedAttribute::MomentumRegen:
+            return TEXT("+")+HudDecimal(DeltaD)+TEXT("/s");
+        default:
+            return TEXT("+")+HudDecimal(DeltaD);
+        }
+    };
+
+    TArray<ELDProjectedAttribute,TInlineAllocator<6>> ShownAttrs;
     TArray<FString> ShortGains;
     for(const FLDDemoStatBonus& Bonus:Stat.PerPoint)
     {
-        const uint8 AttrId=uint8(Target(Bonus.Stat));
-        const FLDCombatAttributeRowView* Row=Attributes.FindByPredicate([AttrId](const FLDCombatAttributeRowView& R){return R.Attribute==AttrId;});
+        const ELDProjectedAttribute AttrEnum=Target(Bonus.Stat);
+        if(AttrEnum==ELDProjectedAttribute::Count||ShownAttrs.Contains(AttrEnum)){continue;}
+        ShownAttrs.Add(AttrEnum);
+        const uint8 AttrId=uint8(AttrEnum);
         FLDCombatAttributeRowView Named;Named.Attribute=AttrId;
-        const FString AttrName=AttributeRow(Row?*Row:Named).Name;
+        const FString AttrName=AttributeRow(Named).Name;
+
+        if(AuthBefore.IsSet()&&AuthAfter.IsSet()
+            &&AuthBefore->Contributions.IsValidIndex(int32(AttrId))&&AuthAfter->Contributions.IsValidIndex(int32(AttrId)))
+        {
+            FLDCombatAttributeRowView BeforeRow;BeforeRow.Attribute=AttrId;
+            BeforeRow.Final=AuthBefore->Contributions[int32(AttrId)].Final;
+            BeforeRow.bClamped=AuthBefore->Contributions[int32(AttrId)].bClamped;
+            FLDCombatAttributeRowView AfterRow;AfterRow.Attribute=AttrId;
+            AfterRow.Final=AuthAfter->Contributions[int32(AttrId)].Final;
+            AfterRow.bClamped=AuthAfter->Contributions[int32(AttrId)].bClamped;
+            const FString GainText=FormatProjectedGain(AttrEnum,BeforeRow.Final,AfterRow.Final);
+            ShortGains.Add(GainText+TEXT(" ")+AttrName);
+            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),
+                *AttrName,*AttributeRow(BeforeRow).Final,*AttributeRow(AfterRow).Final,*GainText));
+            continue;
+        }
+
+        const FLDCombatAttributeRowView* Row=Attributes.FindByPredicate([AttrId](const FLDCombatAttributeRowView& R){return R.Attribute==AttrId;});
         const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" 厘米")
             :Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MomentumRegenFlat?TEXT("/s"):TEXT("");
         const int64 ScaledAmount=Bonus.Amount*int64(Step);
         const FLDDemoRational ScaledCm{Bonus.Cm.Numerator*int64(Step),Bonus.Cm.Denominator};
-        const FString GainText=TEXT("+")+(CardRationalStat(Bonus.Stat)?HudRational(ScaledCm)+Unit
+        const FString RawGain=TEXT("+")+(CardRationalStat(Bonus.Stat)?HudRational(ScaledCm)+Unit
             :CardRatioStat(Bonus.Stat)?HudPercent(ScaledAmount):HudPoints(ScaledAmount)+Unit);
+        if(!Row)
+        {
+            ShortGains.Add(RawGain+TEXT(" ")+AttrName);
+            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s"),*AttrName,*RawGain));
+            continue;
+        }
+        // Fallback when no catalog snapshot was supplied: mirror LDAttributeProjection's exact Flat*Ratio + CritChance flat + bounds.
+        auto ToDouble=[](const FLDDemoRational& R){return R.Denominator>0?double(R.Numerator)/double(R.Denominator):0.;};
+        double Flat=ToDouble(Row->Base)+ToDouble(Row->Level)+ToDouble(Row->Choices)+ToDouble(Row->Cards)+ToDouble(Row->Dev)+ToDouble(Row->Temporary);
+        double Ratio=1.+ToDouble(Row->PercentBonus)+ToDouble(Row->DevPercent)+ToDouble(Row->TemporaryPercent);
+        for(const FLDDemoStatBonus& SameAttr:Stat.PerPoint)
+        {
+            if(Target(SameAttr.Stat)!=AttrEnum){continue;}
+            if(SameAttr.Stat==ELDDemoBonusStat::CritChanceBonusRatio){Flat+=double(SameAttr.Amount*int64(Step))/10000.;}
+            else if(CardRatioStat(SameAttr.Stat)){Ratio+=double(SameAttr.Amount*int64(Step))/10000.;}
+            else if(CardRationalStat(SameAttr.Stat)){Flat+=ToDouble({SameAttr.Cm.Numerator*int64(Step),SameAttr.Cm.Denominator});}
+            else{Flat+=double(SameAttr.Amount*int64(Step))/100.;}
+        }
+        double NextVal=FMath::Max(0.,Flat*Ratio);
+        const FLDDemoContentParameters& P=Content.Parameters;
+        auto ClampP2=[&NextVal](const FLDDemoP2Bounds& B){NextVal=FMath::FloorToDouble(NextVal*100.+1e-9)/100.;NextVal=FMath::Clamp(NextVal,double(B.MinP2)/100.,double(B.MaxP2)/100.);};
+        switch(AttrEnum)
+        {
+        case ELDProjectedAttribute::MaxHP: ClampP2(P.MaxHP); break;
+        case ELDProjectedAttribute::AD: ClampP2(P.AD); break;
+        case ELDProjectedAttribute::AP: ClampP2(P.AP); break;
+        case ELDProjectedAttribute::Armor: ClampP2(P.Armor); break;
+        case ELDProjectedAttribute::MagicResist: ClampP2(P.MagicResist); break;
+        case ELDProjectedAttribute::AttackSpeed: NextVal=FMath::Clamp(NextVal,ToDouble(P.AttackSpeed.Min),ToDouble(P.AttackSpeed.Max)); break;
+        case ELDProjectedAttribute::MoveSpeed: NextVal=FMath::Clamp(NextVal,ToDouble(P.MoveSpeedCmPerSec.Min),ToDouble(P.MoveSpeedCmPerSec.Max)); break;
+        case ELDProjectedAttribute::AttackRange: NextVal=FMath::Clamp(NextVal,ToDouble(P.AttackRangeCm.Min),ToDouble(P.AttackRangeCm.Max)); break;
+        case ELDProjectedAttribute::HPRegen: NextVal=FMath::Clamp(NextVal,ToDouble(P.HPRegen.Min),ToDouble(P.HPRegen.Max)); break;
+        case ELDProjectedAttribute::MomentumRegen: NextVal=FMath::Clamp(NextVal,0.,double(P.Momentum.MaxP2)/100.); break;
+        case ELDProjectedAttribute::CritChance: NextVal=FMath::Clamp(FMath::FloorToDouble(NextVal*10000.+1e-9)/10000.,0.,1.); break;
+        case ELDProjectedAttribute::CooldownHaste: NextVal=FMath::Clamp(FMath::FloorToDouble(NextVal*100.+1e-9)/100.,0.,double(P.CooldownHasteMaxP2)/100.); break;
+        default: break;
+        }
+        FLDCombatAttributeRowView Next=*Row;
+        Next.Final={FMath::RoundToInt64(NextVal*10000.),10000};
+        const FString GainText=FormatProjectedGain(AttrEnum,Row->Final,Next.Final);
         ShortGains.Add(GainText+TEXT(" ")+AttrName);
-        if(Row)
-        {
-            auto AddRational=[](FLDDemoRational A,FLDDemoRational B)->FLDDemoRational
-            {
-                const int64 DenA=A.Denominator>0?A.Denominator:1;
-                const int64 DenB=B.Denominator>0?B.Denominator:1;
-                if(DenB<=0){return A;}
-                int64 Num=A.Numerator*DenB+B.Numerator*DenA;
-                int64 Den=DenA*DenB;
-                const int64 Gcd=FMath::GreatestCommonDivisor(FMath::Abs(Num),Den);
-                if(Gcd>1){Num/=Gcd;Den/=Gcd;}
-                return {Num,Den};
-            };
-            FLDCombatAttributeRowView Next=*Row;
-            if(CardRatioStat(Bonus.Stat))
-            {
-                Next.PercentBonus=AddRational(Next.PercentBonus,{ScaledAmount,10000});
-                const FLDDemoRational FlatSum=AddRational(AddRational(Next.Base,Next.Level),AddRational(Next.Choices,Next.Cards));
-                const FLDDemoRational TotalPct=AddRational({1,1},AddRational(Next.PercentBonus,Next.TemporaryPercent));
-                const int64 ScaledNum=FMath::Max<int64>(0,FlatSum.Numerator)*TotalPct.Numerator;
-                const int64 ScaledDen=FMath::Max<int64>(1,FlatSum.Denominator*FMath::Max<int64>(1,TotalPct.Denominator));
-                const int64 Gcd=FMath::GreatestCommonDivisor(FMath::Abs(ScaledNum),ScaledDen);
-                Next.Final=AddRational({Gcd>1?ScaledNum/Gcd:ScaledNum,Gcd>1?ScaledDen/Gcd:ScaledDen},Next.Temporary);
-            }
-            else if(!CardRationalStat(Bonus.Stat))
-            {
-                Next.Choices=AddRational(Next.Choices,{ScaledAmount,100});
-                Next.Final=AddRational(Row->Final,{ScaledAmount,100});
-            }
-            else if(Bonus.Cm.Denominator>0)
-            {
-                Next.Choices=AddRational(Next.Choices,ScaledCm);
-                Next.Final=AddRational(Row->Final,ScaledCm);
-            }
-            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),*AttrName,*AttributeRow(*Row).Final,*AttributeRow(Next).Final,*GainText));
-        }
-        else
-        {
-            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s"),*AttrName,*GainText));
-        }
+        Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),*AttrName,*AttributeRow(*Row).Final,*AttributeRow(Next).Final,*GainText));
+    }
+    // Also surface indirect MaxHP gain from Y13 (ArmorToHp) when Armor increases under authoritative projection.
+    if(AuthBefore.IsSet()&&AuthAfter.IsSet()&&!ShownAttrs.Contains(ELDProjectedAttribute::MaxHP)
+        &&AuthAfter->Final.MaxHPP2!=AuthBefore->Final.MaxHPP2)
+    {
+        const int32 HpIdx=int32(ELDProjectedAttribute::MaxHP);
+        FLDCombatAttributeRowView BeforeRow,AfterRow;
+        BeforeRow.Attribute=AfterRow.Attribute=uint8(ELDProjectedAttribute::MaxHP);
+        BeforeRow.Final=AuthBefore->Contributions[HpIdx].Final;
+        AfterRow.Final=AuthAfter->Contributions[HpIdx].Final;
+        const FString AttrName=AttributeRow(BeforeRow).Name;
+        const FString GainText=FormatProjectedGain(ELDProjectedAttribute::MaxHP,BeforeRow.Final,AfterRow.Final);
+        ShortGains.Add(GainText+TEXT(" ")+AttrName);
+        Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),
+            *AttrName,*AttributeRow(BeforeRow).Final,*AttributeRow(AfterRow).Final,*GainText));
     }
     Out.DeltaSummary=FString::Printf(TEXT("%s %d → %d（%s）"),*StatName,CurrentPoints,CurrentPoints+Step,*FString::Join(ShortGains,TEXT(", ")));
     const int32 Threshold=int32(FMath::Max<int64>(1,Content.Parameters.KeystoneThresholdPoints));

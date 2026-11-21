@@ -396,6 +396,7 @@ public:
     uint32 TimeoutCount() const { return Timeouts; }
 private:
     bool bFrozenForTeardown = false;
+    bool IsShuttingDown() const;
     uint32 Timeouts = 0;
     uint32 AcceptedImmediateHits = 0;
     void Present(const TArray<FLDObservedClear>& Cleared);

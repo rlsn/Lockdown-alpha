@@ -983,28 +983,29 @@ FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
     FConfigFile Display, Quality;
     if (!ReadConfigFromDisk(SettingsFile, Display) || !ReadConfigFromDisk(QualityFile, Quality))
     { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但无法读取实际配置文件。请重试保存。") }; }
-    FString VSync;
+    FString VSync, ModeText, ResXText, ResYText, LimitText;
+    double ParsedLimit = -1.;
     const TCHAR* Section = *SettingsSection;
-    bool DisplayMatches = Display.GetString(Section, TEXT("bUseVSync"), VSync)
-        && VSync.Equals(Expected.bVSync ? TEXT("True") : TEXT("False"), ESearchCase::IgnoreCase);
-    FString ModeText;
-    if (DisplayMatches && Display.GetString(Section, TEXT("FullscreenMode"), ModeText))
+    const FRegexPattern Number(TEXT("^[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"));
+    auto StrictFloat = [&Number](const FString& Raw, double& OutValue)
     {
-        DisplayMatches &= ModeText.TrimStartAndEnd() == FString::FromInt(int32(Expected.WindowMode));
-    }
-    FString ResXText, ResYText;
-    if (DisplayMatches && Display.GetString(Section, TEXT("ResolutionSizeX"), ResXText) && Display.GetString(Section, TEXT("ResolutionSizeY"), ResYText))
-    {
-        DisplayMatches &= ResXText.TrimStartAndEnd() == FString::FromInt(Expected.Resolution.X)
-            && ResYText.TrimStartAndEnd() == FString::FromInt(Expected.Resolution.Y);
-    }
-    FString LimitText;
-    if (DisplayMatches && Display.GetString(Section, TEXT("FrameRateLimit"), LimitText))
-    {
-        double ParsedLimit = -1.;
-        DisplayMatches &= LexTryParseString(ParsedLimit, *LimitText.TrimStartAndEnd())
-            && FMath::IsNearlyEqual(ParsedLimit, double(Expected.FrameRateLimit), .05);
-    }
+        const FString Trimmed = Raw.TrimStartAndEnd();
+        FRegexMatcher Matcher(Number, Trimmed);
+        return !Trimmed.IsEmpty() && Matcher.FindNext() && Matcher.GetMatchEnding() == Trimmed.Len()
+            && Trimmed.Len() == FCString::Strlen(*Trimmed)
+            && LexTryParseString(OutValue, *Trimmed) && FMath::IsFinite(OutValue);
+    };
+    const bool DisplayMatches = Display.GetString(Section, TEXT("bUseVSync"), VSync)
+        && VSync.Equals(Expected.bVSync ? TEXT("True") : TEXT("False"), ESearchCase::IgnoreCase)
+        && Display.GetString(Section, TEXT("FullscreenMode"), ModeText)
+        && ModeText.TrimStartAndEnd() == FString::FromInt(int32(Expected.WindowMode))
+        && Display.GetString(Section, TEXT("ResolutionSizeX"), ResXText)
+        && Display.GetString(Section, TEXT("ResolutionSizeY"), ResYText)
+        && ResXText.TrimStartAndEnd() == FString::FromInt(Expected.Resolution.X)
+            && ResYText.TrimStartAndEnd() == FString::FromInt(Expected.Resolution.Y)
+        && Display.GetString(Section, TEXT("FrameRateLimit"), LimitText)
+        && StrictFloat(LimitText, ParsedLimit)
+        && FMath::IsNearlyEqual(ParsedLimit, double(Expected.FrameRateLimit), .05);
     const TCHAR* QualitySection = TEXT("ScalabilityGroups");
     const bool QualityMatches = IntMatches(Quality, QualitySection, TEXT("sg.ViewDistanceQuality"), Expected.Quality.ViewDistanceQuality)
         && IntMatches(Quality, QualitySection, TEXT("sg.AntiAliasingQuality"), Expected.Quality.AntiAliasingQuality)
@@ -1022,11 +1023,9 @@ FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
     if (Quality.GetString(QualitySection, TEXT("sg.ResolutionQuality"), ScaleText))
     {
         double Scale = 0;
-        const FRegexPattern Number(TEXT("^[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"));
-        FRegexMatcher Matcher(Number, ScaleText);
-        ScaleMatches = Matcher.FindNext() && Matcher.GetMatchEnding() == ScaleText.Len()
-            && ScaleText.Len() == FCString::Strlen(*ScaleText)
-            && LexTryParseString(Scale, *ScaleText) && FMath::IsFinite(Scale)
+        ScaleMatches = ScaleText.Len() == FCString::Strlen(*ScaleText)
+            && !ScaleText.StartsWith(TEXT(" ")) && !ScaleText.EndsWith(TEXT(" "))
+            && StrictFloat(ScaleText, Scale)
             && FMath::IsNearlyEqual(Scale, double(Expected.Quality.ResolutionQuality), .0001);
     }
     if (!DisplayMatches || !QualityMatches || !ScaleMatches)

@@ -2142,7 +2142,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     {
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
         StatBar->Present(Progression,O.Match,O.Life,Stage,O.LifePhase,Content,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>(),
-            bOwnMatch&&Progression!=nullptr);
+            bOwnMatch&&Progression!=nullptr,DisplayContent.Get(),OwnCombat);
     }
     if(Storage)
     {

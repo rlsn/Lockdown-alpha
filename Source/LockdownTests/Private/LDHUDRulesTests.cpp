@@ -2385,26 +2385,65 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
         }
     }
 
-    // 3) Live stat hover delta & 18-point keystone preview / loss warning (#331 §3.1).
+    // 3) Live stat hover delta & 18-point keystone preview / loss warning (#331 §3.1, authoritative LDAttributeProjection).
     if(!Content.StatsInDesignOrder().IsEmpty())
     {
         const FLDDemoStatDefinition* FirstStat=Content.StatsInDesignOrder()[0];
-        const LDHUD::FStatHoverPreview UpToKeystone=LDHUD::StatHoverPreview(*FirstStat,17,1,1,true,{},Content);
+        const LDHUD::FStatHoverPreview UpToKeystone=LDHUD::StatHoverPreview(*FirstStat,17,1,1,true,{},Content,Catalog.Get());
         TestTrue(TEXT("17 -> 18 stat hover previews keystone progress and attribute delta"),
             !UpToKeystone.AttributeLines.IsEmpty()&&UpToKeystone.KeystoneProgress.Contains(TEXT("17/18")));
 
-        const LDHUD::FStatHoverPreview LoseKeystone=LDHUD::StatHoverPreview(*FirstStat,18,1,1,true,{},Content);
+        const LDHUD::FStatHoverPreview LoseKeystone=LDHUD::StatHoverPreview(*FirstStat,18,1,1,true,{},Content,Catalog.Get());
         TestTrue(TEXT("18 -> 17 refund hover warns about losing keystone"),
             LoseKeystone.bKeystoneActive&&LoseKeystone.bKeystoneLossWarning&&!LoseKeystone.RefundWarning.IsEmpty());
+
+        // CritChance from 0% adds probability points (0% -> >0%, never multiplying 0% * ratio = 0%).
+        if(const FLDDemoStatDefinition* CritStat=Content.Stats.FindByPredicate([](const FLDDemoStatDefinition& S)
+            {return S.PerPoint.ContainsByPredicate([](const FLDDemoStatBonus& B){return B.Stat==ELDDemoBonusStat::CritChanceBonusRatio;});}))
+        {
+            const LDHUD::FStatHoverPreview CritPreview=LDHUD::StatHoverPreview(*CritStat,0,1,1,false,{},Content,Catalog.Get());
+            const bool bNonZeroCrit=CritPreview.AttributeLines.ContainsByPredicate([](const FString& Line)
+                {return Line.Contains(TEXT("0% → "))&&!Line.Contains(TEXT("0% → 0%"));});
+            TestTrue(TEXT("Authoritative stat hover projects 0% CritChance to positive probability gain"),bNonZeroCrit);
+        }
+
+        // MoveSpeed already at catalog cap clamps After to cap (+0 effective gain).
+        if(const FLDDemoStatDefinition* MoveStat=Content.Stats.FindByPredicate([](const FLDDemoStatDefinition& S)
+            {return S.PerPoint.ContainsByPredicate([](const FLDDemoStatBonus& B){return B.Stat==ELDDemoBonusStat::MoveSpeedBonusRatio;});}))
+        {
+            FLDProgressionView CappedProg;CappedProg.bValid=true;CappedProg.Generation=1;CappedProg.Life=1;CappedProg.Level=1;
+            CappedProg.StatPoints={{FName(*MoveStat->Id),260}};
+            const LDHUD::FStatHoverPreview CappedMove=LDHUD::StatHoverPreview(*MoveStat,260,1,1,false,{},Content,Catalog.Get(),&CappedProg);
+            TestTrue(TEXT("MoveSpeed at catalog cap reports +0 effective gain"),
+                CappedMove.DeltaSummary.Contains(TEXT("+0 "))||CappedMove.AttributeLines.ContainsByPredicate([](const FString& L){return L.Contains(TEXT("（+0）"));}));
+        }
     }
 
-    // 4) Pasted host:port auto-split, reversible RestReady copy, PK entrant Lv + odds, damage share bars & colorblind palette (#331 §4).
+    // 4) Pasted host:port auto-split (ignoring 1-char typing), Rest Shop + Services library fit, reversible RestReady, PK & colorblind (#331 §4).
     {
         FString Host,Port;
         TestTrue(TEXT("Valid pasted IPv4:Port splits cleanly"),
             LDDemoEntry::SplitPastedEndpoint(TEXT(" 192.168.1.20:7777 "),Host,Port)&&Host==TEXT("192.168.1.20")&&Port==TEXT("7777"));
         TestFalse(TEXT("Invalid port > 65535 is not split"),
             LDDemoEntry::SplitPastedEndpoint(TEXT("192.168.1.20:70000"),Host,Port));
+        TestTrue(TEXT("Typing first port digit 7 after 192.168.1.20: is detected as a 1-char typing edit"),
+            LDDemoEntry::IsSingleCharTypingEdit(TEXT("192.168.1.20:"),TEXT("192.168.1.20:7")));
+        TestFalse(TEXT("Pasting full 192.168.1.20:7777 into empty or existing host is not a 1-char typing edit"),
+            LDDemoEntry::IsSingleCharTypingEdit(TEXT(""),TEXT("192.168.1.20:7777"))
+            ||LDDemoEntry::IsSingleCharTypingEdit(TEXT("127.0.0.1"),TEXT("10.0.0.2:80")));
+
+        // Verify StackedTrayLimit + side-by-side Rest Shop at 1920x1080 with Services + 200px Pending tray keeps positive Library fit.
+        const FIntVector4 StoredCounts(3,1,1,1);
+        const float ShopRightWidth=FMath::Clamp(1920.f*.34f,520.f,680.f);
+        const float TotalRightH=808.f-108.f;
+        const float LibraryChrome=70.f+56.f+14.f,PendingChrome=52.f+58.f;
+        const float LibraryReserve=FMath::Max(36.f,10000.f-LDWorkshop::StackedTrayLimit(StoredCounts,ShopRightWidth-44.f,10000.f,44.f,1.f));
+        const float ShopH=FMath::Clamp(FMath::Min(TotalRightH*.38f,TotalRightH-14.f-(LibraryChrome+LibraryReserve+PendingChrome+116.f)),176.f,296.f);
+        const float AvailLibH=TotalRightH-ShopH-14.f;
+        const float TrayLim=LDWorkshop::StackedTrayLimit(StoredCounts,ShopRightWidth-44.f,FMath::Max(0.f,AvailLibH-LibraryChrome-PendingChrome),44.f,1.f);
+        const float LibBodyH=AvailLibH-(FMath::Min(200.f,TrayLim)+PendingChrome)-LibraryChrome;
+        TestTrue(TEXT("1920x1080 Rest Shop + Services + 200px tray preserves positive fitting LibraryBody height"),
+            LibBodyH>=LibraryReserve-0.5f&&LDWorkshop::FitLibrary(StoredCounts,ShopRightWidth-44.f,LibBodyH,44.f,1.f).bFits);
         TestTrue(TEXT("Withdrawn rest ready returns explicit confirmation"),
             LDHUD::RestReadyText(ELDRestReadyResult::Withdrawn).Contains(TEXT("已取消准备")));
         TestTrue(TEXT("Colorblind mode switches health bar hues"),

@@ -179,13 +179,14 @@ int32 ULDStatBar::Waiting() const{return StatAbsSum(Queued)+StatAbsSum(InFlight)
 ULDCommandButton* ULDStatBar::PlusButton(int32 Index) const{return Cells.IsValidIndex(Index)?Cells[Index].Plus:nullptr;}
 
 void ULDStatBar::Present(const FLDProgressionView* View,uint32 Match,uint32 Life,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,
-    const FLDDemoContentDefinitions* Content,const TArray<FLDCombatAttributeRowView>& Attributes,bool bShown)
+    const FLDDemoContentDefinitions* Content,const TArray<FLDCombatAttributeRowView>& Attributes,bool bShown,
+    const FLDDemoContentSnapshot* ContentSnapshot,const FLDCombatOwnerView* Combat)
 {
     // Another match's answers never reach this one: its waiting points end with it.
     if(Match!=LatestMatch){PendingRequest=0;AwaitRevision=0;LastBatchSentAt=-1.;Queued.Reset();InFlight.Reset();bAttributes=false;}
     LatestMatch=Match;LatestLife=Life;
     Latest=View?*View:FLDProgressionView();
-    LatestContent=Content;LatestAttributes=Attributes;
+    LatestContent=Content;LatestSnapshot=ContentSnapshot;LatestCombat=Combat;LatestAttributes=Attributes;
     BuildCells();
     Queued.SetNumZeroed(Cells.Num());InFlight.SetNumZeroed(Cells.Num());
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
@@ -299,8 +300,15 @@ const UWidget* ULDStatBar::Hovered(LDHUD::FActionDetailView& Out) const
     const LDHUD::FStatRowView View=LDHUD::StatRow(*StatOrder[HoveredIndex],CurrentPts,LatestContent);
     const int32 AddStep=FMath::Max(1,ResolveAllocateStep(HoveredIndex));
     const int32 RefundStep=FMath::Max(1,ResolveRefundStep(HoveredIndex));
+    FLDProgressionView EffectiveProg=Latest;
+    EffectiveProg.StatPoints.Reset();
+    for(int32 Idx=0;Idx<Cells.Num();++Idx)
+    {
+        const int32 Eff=EffectivePoints(Idx);
+        if(Eff>0){EffectiveProg.StatPoints.Add({Cells[Idx].StatId,Eff});}
+    }
     const LDHUD::FStatHoverPreview Preview=LDHUD::StatHoverPreview(*StatOrder[HoveredIndex],CurrentPts,AddStep,RefundStep,
-        Gate.bCanRespec,LatestAttributes,*LatestContent);
+        Gate.bCanRespec,LatestAttributes,*LatestContent,LatestSnapshot,&EffectiveProg,LatestCombat);
     Out.Name=View.Name;
     Out.Summary=Preview.DeltaSummary+TEXT(" · ")+LDTerms::UnspentPoints(FMath::Max<int64>(0,Available()));
     TArray<FString> Lines=Preview.AttributeLines;

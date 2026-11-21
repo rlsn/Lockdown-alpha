@@ -186,9 +186,14 @@ private:
     UFUNCTION() void Exit();
     UFUNCTION() void TextCommitted(const FText& Text, ETextCommit::Type Method);
     UFUNCTION() void AddressTextChanged(const FText& Text);
+    UFUNCTION() void AddressTextCommitted(const FText& Text, ETextCommit::Type Method);
     void CopyRoomAddress();
     FString ResolveRoomEndpoint() const;
     bool bSplittingAddress = false;
+    FString LastAddressInput;
+    FString CachedRoomEndpoint;
+    uint32 CachedRoomGeneration = 0;
+    int32 CachedRoomPort = -1;
     FString CopiedAddressFeedback;
     void CancelJoin();
     void BuildFrontend(ALDPlayerController& PC, UCanvasPanel& Canvas);
