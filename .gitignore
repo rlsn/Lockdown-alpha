@@ -45,6 +45,7 @@ __pycache__/
 /Config/Local/
 *.local.ini
 *.local.json
+*.local.py
 *.local.toml
 .env
 .env.*
