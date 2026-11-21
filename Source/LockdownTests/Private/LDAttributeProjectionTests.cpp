@@ -434,7 +434,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
     bGood &= ExpectTerms(Test, TEXT("Ten agility points add one move-speed ratio"),
         Projection.Contributions[int32(EAttribute::MoveSpeed)].PermanentChoices, Zero, MakeRational(1, 20));
 
-    // Points of several stats at level 6 (max HP 910, AD 86, attack speed 0.75 x 1.1, HP regeneration 2.2).
+    // Points of several stats at level 6 (max HP 910, AD 87, attack speed 0.75 x 1.1, HP regeneration 2.2).
     FExpectedAttributes Mixed = ApprovedLevel(6);
     Mixed.MaxHPP2 = 138000;
     Mixed.HPRegenPerSec = MakeRational(61, 25);
