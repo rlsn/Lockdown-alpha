@@ -181,11 +181,11 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         Row.ShieldMaxHPBp=Pulse->MaxHPRatioBp;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Pulse->IntervalMs,Row.NextMs,Error)) { return false; }
     }
-    // S14 B2: a self area that reached anybody raises the release's shield.
+    // S14 B2: a self area that reached anybody raises the release's own shield (its grant, never a shield stacked under it).
     if (const FLDDemoEffectDefinition* Bonus=Find(Terms.Values,ELDDemoEffectOp::ShieldHitBonus);
-        Bonus && !AreaTargets.IsEmpty() && Body.Resources.ShieldP2>0)
+        Bonus && !AreaTargets.IsEmpty() && Body.Resources.ShieldP2>0 && Body.LastShieldGrantP2>0)
     {
-        const int64 Added=Share(Body.Resources.ShieldP2,Bonus->RatioBp);
+        const int64 Added=Share(FMath::Min(Body.LastShieldGrantP2,Body.Resources.ShieldP2),Bonus->RatioBp);
         Body.Resources.ShieldP2+=Added;
         Body.ShieldGrantedP2+=Added;
         ++Body.Resources.Revision;

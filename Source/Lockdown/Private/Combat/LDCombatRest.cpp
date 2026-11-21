@@ -228,6 +228,7 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
         Body.Shield.Reset();
         Body.Resources.ShieldP2=0;
         Body.ShieldGrantedP2=0;
+        Body.LastShieldGrantP2=0;
         ++Body.Resources.Revision;
     }
     ++Body.StateRevision;

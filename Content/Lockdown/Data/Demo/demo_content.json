@@ -21735,7 +21735,7 @@
     },
     "CAPTURE.RadiusCm": {
       "denominator": 1,
-      "numerator": 420,
+      "numerator": 300,
       "unit": "cm"
     },
     "CAPTURE.SpraySec": {

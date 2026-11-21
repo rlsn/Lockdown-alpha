@@ -109,6 +109,7 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     if (!LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,SourceEntity,Expires},AmountP2,NowMs))
     { return true; }
     Body.ShieldGrantedP2=Body.Resources.ShieldP2;
+    Body.LastShieldGrantP2=AmountP2;
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);

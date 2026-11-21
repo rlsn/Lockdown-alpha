@@ -267,7 +267,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Reach the keystone threshold before balancing the remaining point"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error)
         && SameCounts(ById(C, Counts), {{Physique, 1}, {Strength, 1}}));
-    Spender.Actives = {Active(TEXT("active_snark_bolt"), 0)};
+    Spender.Actives = {Active(TEXT("active_account_banned"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
     bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone and agility is not relevant"),

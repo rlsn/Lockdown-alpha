@@ -381,6 +381,8 @@ struct FLDBodyCombatState
     uint64 KnockbackSerial=0;
     // The amount the current shield record was granted with.
     int64 ShieldGrantedP2=0;
+    // The amount the newest grant added to the stacked shield (S14 B2 raises only that grant).
+    int64 LastShieldGrantP2=0;
     int64 KeystonePhysiqueReadyAtMs=0;
     int64 KeystoneThickSkinReadyAtMs=0;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach

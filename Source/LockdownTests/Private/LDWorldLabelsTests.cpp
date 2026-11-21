@@ -224,6 +224,10 @@ bool FLDWorldLabelsHealthBarTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The public shield status marks the bar and is still named in the status line"),Calm.bShield&&Calm.Status.Contains(WorldLabelName(TEXT("shield")),ESearchCase::CaseSensitive));
     Camp.Statuses.Add(WorldLabelStatus(ELDDemoStatusId::Shield,0));
     TestTrue(TEXT("A camp member's shield status marks its bar too"),Labelled(Camp).bShield);
+    // The public shield bar is the shield's share of the maximum HP (its segment follows the health fill).
+    FLDObservedUnitView Thick=WorldLabelRival();Thick.ShieldBar=LDObservation::ShieldBarFull/5;
+    TestEqual(TEXT("The shield segment is its share of the maximum HP"),Labelled(Thick).ShieldFraction,float(LDObservation::ShieldBarFull/5)/float(LDObservation::ShieldBarFull));
+    TestEqual(TEXT("No shield bar draws no segment"),Labelled(WorldLabelRival()).ShieldFraction,0.f);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldLabelsOwnBarsTest,"Lockdown.Rules.WorldLabels.OwnBars",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

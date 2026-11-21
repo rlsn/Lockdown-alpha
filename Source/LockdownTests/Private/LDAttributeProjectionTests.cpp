@@ -401,8 +401,8 @@ bool RunStatPoints(FAutomationTestBase& Test)
             EAttribute::MaxHP, MakeRational(400), Zero},
         {TEXT("stat_thick_skin"), [](FExpectedAttributes& E) { E.ArmorP2 = 6100; E.MagicResistP2 = 6100; },
             EAttribute::Armor, MakeRational(25), Zero},
-        {TEXT("stat_strength"), [](FExpectedAttributes& E) { E.ADP2 = 12380; E.CritChanceBp = 400; },
-            EAttribute::AD, MakeRational(25), Zero},
+        {TEXT("stat_strength"), [](FExpectedAttributes& E) { E.ADP2 = 12880; E.CritChanceBp = 600; },
+            EAttribute::AD, MakeRational(30), Zero},
         {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MomentumRegenPerSec = MakeRational(28, 5); },
             EAttribute::AP, MakeRational(60), Zero},
         {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(207, 200); E.MoveSpeedCmPerSec = MakeRational(315); },
@@ -438,8 +438,8 @@ bool RunStatPoints(FAutomationTestBase& Test)
     FExpectedAttributes Mixed = ApprovedLevel(6);
     Mixed.MaxHPP2 = 138000;
     Mixed.HPRegenPerSec = MakeRational(61, 25);
-    Mixed.ADP2 = 9100;
-    Mixed.CritChanceBp = 80;
+    Mixed.ADP2 = 9200;
+    Mixed.CritChanceBp = 120;
     Mixed.AttackSpeed = MakeRational(21, 25);
     Mixed.MoveSpeedCmPerSec = MakeRational(603, 2);
     FLDAttributeProjection Reversed;
@@ -453,7 +453,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
     bGood &= ExpectAttributes(Test, TEXT("Level 6 mixed points"), Projection.Final, Mixed);
     bGood &= Test.TestTrue(TEXT("Point order changes neither attributes nor explanations"), SameAttributes(Projection, Reversed));
     bGood &= ExpectTerms(Test, TEXT("Mixed AD permanent choices"), Projection.Contributions[int32(EAttribute::AD)].PermanentChoices,
-        MakeRational(5), Zero);
+        MakeRational(6), Zero);
     bGood &= ExpectTerms(Test, TEXT("Mixed attack-speed growth stays its own term"),
         Projection.Contributions[int32(EAttribute::AttackSpeed)].LevelGrowth, Zero, MakeRational(1, 10));
     bGood &= ExpectTerms(Test, TEXT("Mixed attack-speed points"), Projection.Contributions[int32(EAttribute::AttackSpeed)].PermanentChoices,
@@ -522,8 +522,8 @@ bool RunEnvelope(FAutomationTestBase& Test)
     if (!Envelope(TEXT("Thick skin envelope"), TEXT("stat_thick_skin"), 48)) { return false; }
     bGood &= Test.TestTrue(TEXT("Resistance envelope is 48 + 48 x 2.5"), Projection.Final.ArmorP2 == 16800 && Projection.Final.MagicResistP2 == 16800);
     if (!Envelope(TEXT("Strength envelope"), TEXT("stat_strength"), 48)) { return false; }
-    bGood &= Test.TestTrue(TEXT("AD envelope is 118 + 48 x 2.5 with 48 x 0.4% crit"),
-        Projection.Final.ADP2 == 23800 && Projection.Final.CritChanceBp == 1920);
+    bGood &= Test.TestTrue(TEXT("AD envelope is 118 + 48 x 3 with 48 x 0.6% crit"),
+        Projection.Final.ADP2 == 26200 && Projection.Final.CritChanceBp == 2880);
     if (!Envelope(TEXT("Brains envelope"), TEXT("stat_brains"), 48)) { return false; }
     bGood &= Test.TestTrue(TEXT("AP envelope is 48 x 6 with 48 haste"), Projection.Final.APP2 == 28800 && Projection.Final.CooldownHasteP2 == 4800);
     bGood &= ExpectRational(Test, TEXT("Momentum regeneration envelope is 5 + 48 x 0.06"), Projection.Final.MomentumRegenPerSec, MakeRational(197, 25));
@@ -580,7 +580,7 @@ bool RunRefusals(FAutomationTestBase& Test)
     bGood &= ProjectBuild(Test, TEXT("A case-folded stat id names the same stat"), MakeBuild(2, {Points(TEXT("Stat_Strength"), 1)}),
         *Catalog, Projection);
     bGood &= Test.TestEqual(TEXT("The case-folded stat projects like its canonical id"), Projection.Final.ADP2,
-        ApprovedLevel(2).ADP2 + 250);
+        ApprovedLevel(2).ADP2 + 300);
     return bGood;
 }
 

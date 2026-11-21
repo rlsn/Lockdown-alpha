@@ -529,8 +529,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             LDProgression::LevelForXP(BrokenCurve, 0, Level), ELDGrowthReason::DataInvalid);
     }
 
-    // The opening opportunity is ordinal 1; reaching level 2 and level 6 each add exactly one more.
-    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 3}, {10, 3}, {16, 3}};
+    // The opening opportunity is ordinal 1; reaching levels 2, 6 and 11 each add exactly one more.
+    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 3}, {10, 3}, {11, 4}, {16, 4}};
     for (const TPair<int32, int32>& Row : OpportunityCases)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Active opportunities held at level %d"), Row.Key),
@@ -540,10 +540,10 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 60, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 60, 2, 80, 3, 2, TEXT("Level 3 adds no active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 6 at once adds both"));
-    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 3, TEXT("780 XP at level 10 reaches level 13 without another"));
-    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
+    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 4, TEXT("780 XP at level 10 reaches level 13 and the level-11 opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 4, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
-    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 3, 1, Change),
+    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 4, 1, Change),
         ELDGrowthReason::ArithmeticOverflow);
     bGood &= Test.TestTrue(TEXT("An overflowing plan carries no partial result"), Change.NewXP == 0 && Change.LevelAfter == 0);
     bGood &= GrowthTestReason(Test, TEXT("60 XP recorded as level 1"), LDProgression::PlanExperience(Curve, 60, 1, 1, 20, Change),
@@ -1175,7 +1175,7 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
         LDProgression::EligibleActives(Content, GrowthTestBuild(Content, 3, {{Elbow, 0}}, {Elbow}), 2, Eligible), ELDGrowthReason::DataInvalid);
 
     // Uniform without replacement and deterministic in the seed: every pool member shows up about equally often.
-    const auto Draws = [&](const FLDGrowthBuild& Build, uint8 Ordinal, const TArray<FName>& Pool, const TCHAR* What)
+    const auto Draws = [&](const FLDGrowthBuild& Build, uint8 Ordinal, const TArray<FName>& Pool, const TCHAR* What, bool bUniform = true)
     {
         TMap<FName, int32> Counts;
         constexpr int32 Rounds = 1300;
@@ -1196,16 +1196,17 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
         bool bGoodDraws = Test.TestTrue(FString::Printf(TEXT("%s: every draw replays, holds min(3, pool) distinct pool members"), What),
             bShape);
         // Each member's expectation is Rounds x 3 / pool; a member far outside half to one and a half of it is no uniform draw.
+        // The bucketed opening draw is not uniform, but it never leaves a pool member out.
         const double Expected = double(Rounds) * FMath::Min(3, Pool.Num()) / Pool.Num();
         for (const FName Id : Pool)
         {
             const int32 Count = Counts.FindRef(Id);
             bGoodDraws &= Test.TestTrue(FString::Printf(TEXT("%s: %s drawn %d times of about %.0f"), What, *Id.ToString(), Count, Expected),
-                Count > Expected * 0.5 && Count < Expected * 1.5);
+                bUniform ? Count > Expected * 0.5 && Count < Expected * 1.5 : Count > 0);
         }
         return bGoodDraws;
     };
-    bGood &= Draws(Fresh, 1, Opening, TEXT("The opening offer"));
+    bGood &= Draws(Fresh, 1, Opening, TEXT("The opening offer"), false);
     bGood &= Draws(Fresh, 2, All, TEXT("A level 3 offer of an empty build"));
     TArray<FName> HeldPool;
     LDProgression::EligibleActives(Content, Held, 2, HeldPool);
@@ -2546,27 +2547,27 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     LDProgression::FRewardAmounts Base;
     GrowthTestReason(*this, TEXT("The level-1 contender bounty is approved"),
         LDProgression::ContenderKillReward(Tuning, uint8(Catalog->Get().Progression.MaxLevel), 1, Base), ELDGrowthReason::None);
-    const int64 SharedXP = Base.XP / 3;
-    if (!TestTrue(TEXT("The split leaves every share below the first level threshold"),
-        Catalog->Get().Progression.XPThresholds.Num() >= 2 && SharedXP > 0 && SharedXP < Catalog->Get().Progression.XPThresholds[1]))
-    { return false; }
+    // The killer keeps the whole XP; each assister takes REWARD.AssistXPRatio of it on top.
+    const int64 KillerXP = Base.XP;
+    const int64 SharedXP = Base.XP * Catalog->Get().Parameters.AssistXPRatioBp / 10000;
+    if (!TestTrue(TEXT("Every assist share is positive and below the whole"), SharedXP > 0 && SharedXP < KillerXP)) { return false; }
 
     const FLDCommittedDeath Assisted = ContenderDeath(1, {A1, A2});
     FLDRewardReceipt Receipt;
     if (!Settle(Assisted, Receipt)) { return false; }
     TestTrue(TEXT("The assisted kill is granted once"), Receipt.Outcome == ELDRewardOutcome::Granted && Receipt.Recipient == Killer);
-    TestTrue(TEXT("Killer and assisters split the XP evenly, floored"),
-        XP(Killer) == SharedXP && XP(A1) == SharedXP && XP(A2) == SharedXP && XP(Victim) == 0);
+    TestTrue(TEXT("The killer keeps the whole XP and each assister takes its share, floored"),
+        XP(Killer) == KillerXP && XP(A1) == SharedXP && XP(A2) == SharedXP && XP(Victim) == 0);
     TestTrue(TEXT("The receipt lists both assisters with their parts in fact order"),
         Receipt.Assists.Num() == 2 && Receipt.Assists[0].Recipient == A1 && Receipt.Assists[1].Recipient == A2
-        && Receipt.Assists[0].XPDelta == SharedXP && Receipt.Assists[1].XPDelta == SharedXP && Receipt.XPDelta == SharedXP);
+        && Receipt.Assists[0].XPDelta == SharedXP && Receipt.Assists[1].XPDelta == SharedXP && Receipt.XPDelta == KillerXP);
     TestTrue(TEXT("The receipt names the killer's committed progression revision"), Receipt.Revisions.bHasProgression
         && Receipt.Revisions.ProgressionRevision == Development->FindProgression(Killer)->Revision);
 
     FLDRewardReceipt Replay;
     if (!Settle(Assisted, Replay)) { return false; }
     TestTrue(TEXT("The same death settles only once: a replay returns the original receipt and pays nothing"),
-        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == SharedXP && XP(A1) == SharedXP
+        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == KillerXP && XP(A1) == SharedXP
         && XP(A2) == SharedXP);
     FLDRewardReceipt Conflict;
     if (!Settle(ContenderDeath(1, {A1}), Conflict)) { return false; }

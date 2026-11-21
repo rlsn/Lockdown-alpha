@@ -1181,11 +1181,21 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const int64 ShareBp=Action.AutoRecastScaleBp;
         if (!LDSkillGrowth::ScaleValues(Terms.Values,ShareBp,ShareBp))
         { Error=TEXT("A combo cast's share overflows its effect."); return false; }
+        const auto Share=[ShareBp](int64& Value) { Value=Value/10000*ShareBp+Value%10000*ShareBp/10000; };
         for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
         {
-            if (Effect.IsControl()) { Effect.DurationMs=Effect.DurationMs/10000*ShareBp+Effect.DurationMs%10000*ShareBp/10000; }
-            else if (int64* Composed=Effect.ComposedControlMs()) { *Composed=*Composed/10000*ShareBp+*Composed%10000*ShareBp/10000; }
+            const ELDDemoEffectOp Op=Effect.GetOp();
+            // Controls, carried controls, slows and pushes last their share.
+            if (Effect.IsControl() || Op==ELDDemoEffectOp::Slow || Op==ELDDemoEffectOp::AttackSlow || Op==ELDDemoEffectOp::Knockback)
+            { Share(Effect.DurationMs); }
+            if (int64* Composed=Effect.ComposedControlMs(); Composed && Composed!=&Effect.DurationMs) { Share(*Composed); }
+            // Amounts ScaleValues does not grow: a pull's meeting damage, a brace answer's record share and its heal share.
+            if (Op==ELDDemoEffectOp::Pull) { Share(Effect.BaseP2); Share(Effect.ADRatioBp); }
+            if (Op==ELDDemoEffectOp::Brace) { Share(Effect.SecondaryRatioBp); }
+            if (Op==ELDDemoEffectOp::BraceHeal) { Share(Effect.RatioBp); }
         }
+        // A pull a card or branch carries outside the value set meets at its share too.
+        if (Terms.PullTerms.IsSet()) { Share(Terms.PullTerms->BaseP2); Share(Terms.PullTerms->ADRatioBp); }
     }
     else if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
     const FLDDemoAbilityValues* ValuesDef=&Terms.Values;

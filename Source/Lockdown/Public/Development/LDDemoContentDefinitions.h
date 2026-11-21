@@ -975,7 +975,8 @@ struct FLDDemoEffectDefinition
             || Op == ELDDemoEffectOp::Disarm || Op == ELDDemoEffectOp::Taunt;
     }
     // The duration of a control another delivery carries (a wall stun, a final-wave root, a centre stun, a last-hit stun,
-    // a blow's stun, a recast's same-target stun or replaced control); null when it carries none. K05/K11 count these.
+    // a blow's stun, a recast's same-target stun or replaced control, a brace answer's stun); null when it carries none.
+    // K05/K11 count these.
     int64* ComposedControlMs()
     {
         switch (GetOp())
@@ -986,6 +987,9 @@ struct FLDDemoEffectDefinition
         case ELDDemoEffectOp::Recast:
             return ExtraDurationMs > 0 ? &ExtraDurationMs
                 : RecastControl != ELDDemoRecastControl::Same && SecondaryDurationMs > 0 ? &SecondaryDurationMs : nullptr;
+        // S16 3A1: the brace answer stuns.
+        case ELDDemoEffectOp::BraceStun:
+            return DurationMs > 0 ? &DurationMs : nullptr;
         default: return nullptr;
         }
     }

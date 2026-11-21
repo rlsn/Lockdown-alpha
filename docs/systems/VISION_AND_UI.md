@@ -51,7 +51,7 @@
 - 镜头位置、缩放和小地图手势都不授予视野。
 - 编辑器的 `LDSceneAuthoringLibrary::GameplayVisibilityAudit(World, true)` 对当前定位点、可放置营地成员与导航区域只读采样，输出真实胶囊脚点、覆盖格子及近邻视线；不会改动作者布局。
 - 观察者没有存活身体时，帧为显式 `NoLivingBody`：没有覆盖、单位或终结记录。死亡镜头只看静态和公开信息。
-- 参赛者单位只携带 SC-07 白名单：参赛者 Id（客户端经公开名册换成名称）、等级、HP、劲比例条（`MomentumBar` 0..255，不给精确值）、爆劲蓄力（`bCharging`）、当前施法是否为爆劲释放（`bOverdriveCast`，只随 Cast 提示）、普攻连击段（`ActionComboStep`）、公开状态，
+- 参赛者单位只携带 SC-07 白名单：参赛者 Id（客户端经公开名册换成名称）、等级、HP 与护盾比例条（`ShieldBar` 0..255，护盾占最大生命的比例，随 HP 字段发送，野怪同样携带，不给精确值）、劲比例条（`MomentumBar` 0..255，不给精确值）、爆劲蓄力（`bCharging`）、当前施法是否为爆劲释放（`bOverdriveCast`，只随 Cast 提示）、普攻连击段（`ActionComboStep`）、公开状态，
   以及 Q/W/E 三个主动的原生 id 与等级（`Actives`，字段位 `LDObservation::Actives`）。
   `Actives` 由 Combat 的 `PublicActivesOf` 在构筑安装和身体准备时写进同一公开事实，只随当前可见单位下发、失视即撤销；
   codec 要求每槽“id 与等级同为 0 或同为非 0”、等级不超过 `LDObservation::MaxActiveRank`（2）、非空槽的 id 两两不同，营地成员三个槽均为 0，接收端只接受批准目录里的主动技能。
@@ -281,7 +281,7 @@ UI 树由 native `RebuildWidget` 构建，`WBP_UIRoot` 以 `ULDUIRoot` 为父类
 | `ULDStatBar`（`UI/LDStatBar.*`） | HUD 底部带左块名称下方的五维属性图标与悬停时图标正上方的“+”：点一下立即发一点 `AllocatePoints`，在途时的连点在本地排队、等本人视图带上上一次的构筑版本后合并发送；读模型 `LDHUD::StatRow/StatPointsOf/BuildGate`；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDComponentStorage`（`UI/LDComponentStorage.*`） | 牌库：`ULDHUD` 放在底部横条右侧的牌堆与悬停展开的图标网格和一排五列已装的牌（Q、W、E、冲刺、本体），拖放、单击拿起再放下与右键快装/卸下、搬动与 Y25 元素选择；工坊打开时同一套状态排成工坊的牌库分组与规则板列，并向工坊报告悬停或拿着的牌（`Focus`）；读模型 `LDHUD::CardStorage/CardDrops/FindDrop/DetachedWith` 与 `EStorageColumn`（`UI/LDHUDModel.h`）；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
-| `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条（参赛者 96 宽、9 高；按最大生命每 100 HP 半格刻度、每 1000 HP 整格刻度；扣血后白色残影停 0.15 s 再收回，按可见区间 `Handle` 记忆）与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
+| `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条（参赛者 96 宽、9 高；生命后接按最大生命比例的护盾段，两者超出整条时按比例共用；按最大生命每 100 HP 半格刻度、每 1000 HP 整格刻度；扣血后白色残影停 0.15 s 再收回；一次掉超过 18% 时条抖 0.25 s，护盾被打空时向外迸一圈护盾色光；按可见区间 `Handle` 记忆）与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
 | `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 23）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，见[设置页](#设置页)） |
 | `ALDWorldViewRelay`（`Vision/`） | 唯一观察帧读取（`ReadObservedFrame/ReadUnit/ReadPresentedLocation`）、呈现时钟与代理、迷雾、可淡化道具 |
 | `LDWidgets`（`UI/LDWidgets.*`） | native 文本/按钮/面板构造（文字按字体角色取字体，按钮带悬停/按下缩放与界面音效；`HoldButton` 是按住确认按钮）、`ULDPanel` 焦点与命中区域、子确认接口 |
@@ -300,7 +300,8 @@ Choices 沿用唯一主面板与输入捕获协议，由右下角“构筑”按
 死亡选点按钮在顶部中央的横幅栈里（不滚动），全屏工坊时随栈移到右上角，不与工作区叠放；已提交事务仍按原回执处理。
 本人在休息外进入死亡等待时，工坊自动打开一次，信息坞默认显示本条生命的承伤记录，悬停其他内容时显示其说明；记录尚未到达时提示同步中。复活时自动收起（有请求在途时等它答复）；休息时不自动打开，有可做的事时只点亮“构筑”按钮；玩家自己打开的工坊在离开全屏时刻后保留并改为下方 46%。野外的新候选只点亮并脉冲“构筑”按钮，新增点数只更新头像左下角的黄色点数圈，都不自动弹窗。构筑随时可做：交战中与死亡等待中都可以手动打开并完成构筑；玩家自己打开的工坊不因交战收起；脱战不自动重开，本地编辑和请求仍保留。野外缺失有效本人身体投影或权威时钟时不把未知状态伪造为交战。野外顶部压缩重复提示，保留时间线与必要旗杆状态。左下小地图上方除对局用时外没有文字行；短时事件播报照常。
 加点不进面板：HUD 左块名称下方每一维一个属性图标，悬停图标时其正上方出现“+”，点一下即提交一点，没有暂存和确认。
-技能栏与工坊列头的技能悬停按已学分支与等级显示数值（`ActiveCard` 的 `Branch`，分支删去的效果读 1 级值，随后逐行列出已选分支）；按住 Alt 时数字改为系数式（`bShowScalingFormula`）。
+技能栏与工坊列头的技能悬停按已学分支与等级显示数值（`ActiveCard` 的 `Branch`，分支删去的效果读 1 级值，随后逐行列出已选分支）；技能栏的伤害数字计入本人视图条目给出的牌乘区（`FLDCombatEntryView::DamageFactorBp`：K09/K12/K16/K17/K18 与已武装的 K05），冷却写下一次释放按急速与牌实际下发的时长（`NextCooldownMs`）；按住 Alt 时数字改为系数式（`bShowScalingFormula`）。
+工坊托盘里技能候选与图纸用蓝色外框、近方形图标，构筑牌三选一用金色外框且更高（像扑克牌）；牌库在工坊外也按牌型的形状与颜色画，元素勋章为圆形。右下角“构筑”按钮的角标按种类分开：技能（候选与图纸，蓝方）、构筑牌（金）、终局改装（粉圆），从右向左排列。
 掉落的元素勋章（升级、野怪、事件或 Boss）以一行提示“获得【…】”告知一次（`FMedalDropWatch`）。
 牌三选一是选择卡，不滚动。悬停牌时弹层展示它的规则；仅查看不消耗奖励。弹层最后一行写点击去向：“装到 <位置>”或“放进牌库”（没有合法位置或已装满）。
 

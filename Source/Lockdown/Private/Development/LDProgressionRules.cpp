@@ -448,17 +448,19 @@ ELDGrowthReason LDProgression::DrawActiveOffer(const FLDDemoContentDefinitions& 
             Roll -= Here;
         }
     };
-    // The opening offer draws one melee brawl, one ranged or area skill and one mobility or control skill, so every
-    // opening fits some build; a bucket with nothing left is filled from the rest.
+    // The opening offer draws one melee brawl (a single-target or self attack-damage skill), one ranged, area or spell skill
+    // and one mobility or control skill, so every opening fits some build; a bucket with nothing left is filled from the rest.
     if (Ordinal == 1)
     {
+        const auto ScalesAD = [](const FLDDemoAbilityDefinition& Row)
+            { return Row.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.ADRatioBp > 0; }); };
+        PickFrom([&ScalesAD](const FLDDemoAbilityDefinition& Row)
+            { return (Row.HitType == ELDDemoHitType::Targeted || Row.HitType == ELDDemoHitType::Self) && ScalesAD(Row); });
+        PickFrom([&ScalesAD](const FLDDemoAbilityDefinition& Row)
+            { return Row.HitType == ELDDemoHitType::Projectile || Row.HitType == ELDDemoHitType::Area
+                || (Row.HitType == ELDDemoHitType::Targeted && !ScalesAD(Row)); });
         PickFrom([](const FLDDemoAbilityDefinition& Row)
-            { return Row.HitType == ELDDemoHitType::Targeted && Row.Values.Effects.ContainsByPredicate(
-                [](const FLDDemoEffectDefinition& Effect) { return Effect.ADRatioBp > 0; }); });
-        PickFrom([](const FLDDemoAbilityDefinition& Row)
-            { return Row.HitType == ELDDemoHitType::Projectile || Row.HitType == ELDDemoHitType::Area; });
-        PickFrom([](const FLDDemoAbilityDefinition& Row)
-            { return Row.HitType == ELDDemoHitType::Dash || Row.HitType == ELDDemoHitType::Self
+            { return Row.HitType == ELDDemoHitType::Dash
                 || Row.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.HasControl(); }); });
     }
     while (Out.Num() < 3 && !Remaining.IsEmpty())

@@ -77,7 +77,7 @@
     "STAT.AttackRange.Max": {"unit": "cm", "value": 1000},
     "UNIT.BasicAttackWindupSec": {"unit": "s", "value": 0.300},
     "VISION.RadiusCm": {"unit": "cm", "value": 1400},
-    "CAPTURE.RadiusCm": {"unit": "cm", "value": 420},
+    "CAPTURE.RadiusCm": {"unit": "cm", "value": 300},
     "CAPTURE.SpraySec": {"unit": "s", "value": 2.5},
     "CAPTURE.GuardSec": {"unit": "s", "value": 20},
     "SHOWDOWN.UnlockDelaySec": {"unit": "s", "value": 10},
