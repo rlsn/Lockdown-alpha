@@ -124,9 +124,9 @@ bool FLDComboStepsTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoComboParameters& P = Catalog->Get().Parameters.Combo;
-    TestTrue(TEXT("The approved steps are 0.9, 0.9, 1.3 and the reset 1.5 s"),
+    TestTrue(TEXT("The approved steps are 0.9, 0.9, 1.3 and the reset 2.5 s"),
         LDMomentum::ComboRatioBp(P, 1) == 9000 && LDMomentum::ComboRatioBp(P, 2) == 9000 && LDMomentum::ComboRatioBp(P, 3) == 13000
-        && LDMomentum::ComboRatioBp(P, 0) == 10000 && P.ResetMs == 1500);
+        && LDMomentum::ComboRatioBp(P, 0) == 10000 && P.ResetMs == 2500);
     uint8 Step = LDMomentum::NextComboStep(0, 0, 1000, P.ResetMs);
     TestEqual(TEXT("The first swing is step 1"), int32(Step), 1);
     Step = LDMomentum::NextComboStep(Step, 1000, 2000, P.ResetMs);
@@ -135,8 +135,8 @@ bool FLDComboStepsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("then 3"), int32(Step), 3);
     Step = LDMomentum::NextComboStep(Step, 3000, 4000, P.ResetMs);
     TestEqual(TEXT("and around to 1"), int32(Step), 1);
-    TestEqual(TEXT("At exactly the reset the combo goes on"), int32(LDMomentum::NextComboStep(2, 1000, 2500, P.ResetMs)), 3);
-    TestEqual(TEXT("More than the reset after the previous start starts over"), int32(LDMomentum::NextComboStep(2, 1000, 2501, P.ResetMs)), 1);
+    TestEqual(TEXT("At exactly the reset the combo goes on"), int32(LDMomentum::NextComboStep(2, 1000, 3500, P.ResetMs)), 3);
+    TestEqual(TEXT("More than the reset after the previous start starts over"), int32(LDMomentum::NextComboStep(2, 1000, 3501, P.ResetMs)), 1);
     return true;
 }
 
@@ -375,7 +375,7 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Rank3 = Catalog->FindValues(*Elbow, 1, ELDSkillBranch::B1);
     const FLDDemoEffectDefinition* Damage = Rank3 ? Rank3->Effects.FindByPredicate([](const FLDDemoEffectDefinition& E)
         { return E.GetOp() == ELDDemoEffectOp::Damage; }) : nullptr;
-    TestTrue(TEXT("S01 B1 at level 1: 55 x 2 + 0.6 x 1.5 AD"), Damage && Damage->BaseP2 == 11000 && Damage->ADRatioBp == 9000);
+    TestTrue(TEXT("S01 B1 at level 1: 55 x 2 + 0.95 x 1.5 AD"), Damage && Damage->BaseP2 == 11000 && Damage->ADRatioBp == 14250);
     TestTrue(TEXT("No variant exists for None outside rank 1, nor a rank-2 path at rank 3"), !Elbow->FindBranch(ELDSkillBranch::None)
         && Catalog->FindValues(*Elbow, 1, ELDSkillBranch::None) != nullptr);
     return true;

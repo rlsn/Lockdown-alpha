@@ -196,8 +196,8 @@ bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("It appears at field T=295 s and leaves at T=480 s"),
         Rules.AppearAtMs == 295000 && Rules.LeaveAtMs == 480000
         && Rules.LeaveAtMs == D.Parameters.FieldSegmentMs * FLDTimelineParameters::TimedSegments);
-    bGood &= TestTrue(TEXT("Its combat values stay as approved (4500 HP, 210 attack)"),
-        Row && Row->HPP2 == 450000 && Row->AttackP2 == 21000);
+    bGood &= TestTrue(TEXT("Its combat values stay as approved (2600 HP, 210 attack)"),
+        Row && Row->HPP2 == 260000 && Row->AttackP2 == 21000);
     LDProgression::FRewardAmounts Amounts;
     bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 300 XP"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 0, Amounts) == ELDGrowthReason::None

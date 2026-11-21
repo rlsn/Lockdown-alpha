@@ -1744,7 +1744,7 @@ bool FLDCombatEventDefenseBudgetTest::RunTest(const FString& Parameters)
                             if (!FAccess::Heal(*F.Driver, Body, 10000)) { AddError(TEXT("The planned heal failed")); return false; }
                             Healed = Body.Resources.HpP2 - Before;
                         }
-                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 30000);
+                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 100000);
                         Hit.DamageType = Type;
                         const int64 BeforeHP = Body.Resources.HpP2, BeforeShield = Body.Resources.ShieldP2;
                         if (!F.Apply(Hit, Error)) { AddError(TEXT("Defensive hit: ") + Error); return false; }

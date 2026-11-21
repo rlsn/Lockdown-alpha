@@ -518,7 +518,7 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestReason(Test, TEXT("LevelForXP(-1)"), LDProgression::LevelForXP(Curve, -1, RefusedLevel),
         ELDGrowthReason::DataInvalid);
     bGood &= Test.TestEqual(TEXT("A refused LevelForXP reports no level"), int32(RefusedLevel), 0);
-    // The extra active opportunities are reached at strictly increasing levels 2..MaxLevel; any other table is refused.
+    // The extra active opportunities are reached at strictly increasing levels 2, 6 and 11; any other table is refused.
     for (const TArray<int32>& Broken : {TArray<int32>({6, 3}), TArray<int32>({3, 3}), TArray<int32>({1}), TArray<int32>({17})})
     {
         FLDDemoProgressionDefinition BrokenCurve = Curve;
@@ -529,8 +529,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             LDProgression::LevelForXP(BrokenCurve, 0, Level), ELDGrowthReason::DataInvalid);
     }
 
-    // The opening opportunity is ordinal 1; reaching level 2 and level 6 each add exactly one more.
-    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 3}, {10, 3}, {16, 3}};
+    // The opening opportunity is ordinal 1; reaching levels 2, 6 and 11 each add exactly one more.
+    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 3}, {10, 3}, {11, 4}, {16, 4}};
     for (const TPair<int32, int32>& Row : OpportunityCases)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Active opportunities held at level %d"), Row.Key),
@@ -540,10 +540,10 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 60, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 60, 2, 80, 3, 2, TEXT("Level 3 adds no active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 6 at once adds both"));
-    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 3, TEXT("780 XP at level 10 reaches level 13 without another"));
-    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
+    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 4, TEXT("780 XP at level 10 reaches level 13 and the level-11 opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 4, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
-    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 3, 1, Change),
+    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 4, 1, Change),
         ELDGrowthReason::ArithmeticOverflow);
     bGood &= Test.TestTrue(TEXT("An overflowing plan carries no partial result"), Change.NewXP == 0 && Change.LevelAfter == 0);
     bGood &= GrowthTestReason(Test, TEXT("60 XP recorded as level 1"), LDProgression::PlanExperience(Curve, 60, 1, 1, 20, Change),
@@ -2396,8 +2396,8 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// #112 §8: one contender death settles the killer's and the assisters' XP parts in one composite commit, every part split
-// evenly, exactly once; malformed assister facts are refused; contributions record on the single entry.
+// #112 §8: one contender death settles the killer's full XP and each assister's approved ratio in one composite commit,
+// exactly once; malformed assister facts are refused; contributions record on the single entry.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAssistSettlementTest, "Lockdown.Rules.DemoAssist.Settlement",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -2546,28 +2546,28 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     LDProgression::FRewardAmounts Base;
     GrowthTestReason(*this, TEXT("The level-1 contender bounty is approved"),
         LDProgression::ContenderKillReward(Tuning, uint8(Catalog->Get().Progression.MaxLevel), 1, Base), ELDGrowthReason::None);
-    const int64 SharedXP = Base.XP / 3;
-    if (!TestTrue(TEXT("The split leaves every share below the first level threshold"),
-        Catalog->Get().Progression.XPThresholds.Num() >= 2 && SharedXP > 0 && SharedXP < Catalog->Get().Progression.XPThresholds[1]))
+    const int64 AssistXP = Base.XP / 10000 * Tuning.AssistXPRatioBp + Base.XP % 10000 * Tuning.AssistXPRatioBp / 10000;
+    if (!TestTrue(TEXT("Each assist share stays below the first level threshold"),
+        Catalog->Get().Progression.XPThresholds.Num() >= 2 && AssistXP > 0 && AssistXP < Catalog->Get().Progression.XPThresholds[1]))
     { return false; }
 
     const FLDCommittedDeath Assisted = ContenderDeath(1, {A1, A2});
     FLDRewardReceipt Receipt;
     if (!Settle(Assisted, Receipt)) { return false; }
     TestTrue(TEXT("The assisted kill is granted once"), Receipt.Outcome == ELDRewardOutcome::Granted && Receipt.Recipient == Killer);
-    TestTrue(TEXT("Killer and assisters split the XP evenly, floored"),
-        XP(Killer) == SharedXP && XP(A1) == SharedXP && XP(A2) == SharedXP && XP(Victim) == 0);
+    TestTrue(TEXT("The killer gets full XP and each assister gets the approved ratio"),
+        XP(Killer) == Base.XP && XP(A1) == AssistXP && XP(A2) == AssistXP && XP(Victim) == 0);
     TestTrue(TEXT("The receipt lists both assisters with their parts in fact order"),
         Receipt.Assists.Num() == 2 && Receipt.Assists[0].Recipient == A1 && Receipt.Assists[1].Recipient == A2
-        && Receipt.Assists[0].XPDelta == SharedXP && Receipt.Assists[1].XPDelta == SharedXP && Receipt.XPDelta == SharedXP);
+        && Receipt.Assists[0].XPDelta == AssistXP && Receipt.Assists[1].XPDelta == AssistXP && Receipt.XPDelta == Base.XP);
     TestTrue(TEXT("The receipt names the killer's committed progression revision"), Receipt.Revisions.bHasProgression
         && Receipt.Revisions.ProgressionRevision == Development->FindProgression(Killer)->Revision);
 
     FLDRewardReceipt Replay;
     if (!Settle(Assisted, Replay)) { return false; }
     TestTrue(TEXT("The same death settles only once: a replay returns the original receipt and pays nothing"),
-        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == SharedXP && XP(A1) == SharedXP
-        && XP(A2) == SharedXP);
+        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == Base.XP
+        && XP(A1) == AssistXP && XP(A2) == AssistXP);
     FLDRewardReceipt Conflict;
     if (!Settle(ContenderDeath(1, {A1}), Conflict)) { return false; }
     GrowthTestReason(*this, TEXT("Another assister set under the same death key conflicts"), Conflict.Reason, ELDGrowthReason::DeathConflict);
