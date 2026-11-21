@@ -1095,10 +1095,21 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     // The card-offer levels 2, 4 and 6 each receive their named card instead of a level-up offer.
     const TArray<FName> FixedCards = {FName(TEXT("card_third_breath")), FName(TEXT("card_third_breath")),
         FName(TEXT("card_hard_skin"))};
+    // Both preparations can roll the same medals from the match secret. The preset keeps those drops.
+    TArray<FName> ExpectedCards;
+    if (Six.IsSuccess())
+    {
+        for (const FLDCardInstance& Card : Six.Value->Build().Cards) { ExpectedCards.Add(Card.Id); }
+    }
+    ExpectedCards.Append(FixedCards);
     const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 500, FixedCards);
+    TArray<FName> ActualCards;
+    if (Fixed.IsSuccess())
+    {
+        for (const FLDCardInstance& Card : Fixed.Value->Build().Cards) { ActualCards.Add(Card.Id); }
+    }
     bGood &= Test.TestTrue(TEXT("The evaluation XP preparation replaces exactly the earned level-up offers without committing"),
-        Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && Fixed.Value->Build().Cards.Num() == 3
-        && Fixed.Value->Build().Cards[0].Id == FixedCards[0] && Fixed.Value->Build().Cards[2].Id == FixedCards[2]
+        Six.IsSuccess() && Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && ActualCards == ExpectedCards
         && Fixed.Value->CardOfferLast() < Fixed.Value->CardOfferFirst()
         && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
     bGood &= Test.TestTrue(TEXT("An incomplete evaluation level preset is refused without changing the existing build"),
