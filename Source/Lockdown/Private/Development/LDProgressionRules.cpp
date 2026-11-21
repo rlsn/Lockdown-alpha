@@ -417,12 +417,57 @@ ELDGrowthReason LDProgression::DrawActiveOffer(const FLDDemoContentDefinitions& 
     {
         return Reason;
     }
+    const auto Ability = [&Content](FName Id) { return ProgressionFindAbility(Content, Id); };
+    const auto Scales = [](const FLDDemoAbilityDefinition& Row, bool bAD)
+    {
+        return Row.Values.Effects.ContainsByPredicate([bAD](const FLDDemoEffectDefinition& Effect)
+            { return (bAD ? Effect.ADRatioBp : Effect.APRatioBp) > 0; });
+    };
+    // A later offer leans twice toward the side the build invests in (strength: attack damage; brains: ability power).
+    const int32 Strength = Content.StatDesignIndex(TEXT("stat_strength")), Brains = Content.StatDesignIndex(TEXT("stat_brains"));
+    const int32 StrengthPoints = Build.StatPoints.IsValidIndex(Strength) ? Build.StatPoints[Strength] : 0;
+    const int32 BrainsPoints = Build.StatPoints.IsValidIndex(Brains) ? Build.StatPoints[Brains] : 0;
+    const auto Weight = [&](FName Id) -> int64
+    {
+        const FLDDemoAbilityDefinition* Row = Ability(Id);
+        if (!Row || Ordinal == 1 || StrengthPoints == BrainsPoints) { return 1; }
+        return Scales(*Row, StrengthPoints > BrainsPoints) ? 2 : 1;
+    };
     uint64 State = Seed;
+    const auto PickFrom = [&](const TFunctionRef<bool(const FLDDemoAbilityDefinition&)>& Fits)
+    {
+        int64 Total = 0;
+        for (FName Id : Remaining) { const FLDDemoAbilityDefinition* Row = Ability(Id); Total += Row && Fits(*Row) ? Weight(Id) : 0; }
+        if (Total <= 0) { return; }
+        int64 Roll = int64(ProgressionSplitMix64(State) % uint64(Total));
+        for (int32 Index = 0; Index < Remaining.Num(); ++Index)
+        {
+            const FLDDemoAbilityDefinition* Row = Ability(Remaining[Index]);
+            const int64 Here = Row && Fits(*Row) ? Weight(Remaining[Index]) : 0;
+            if (Roll < Here) { Out.Add(Remaining[Index]); Remaining.RemoveAt(Index); return; }
+            Roll -= Here;
+        }
+    };
+    // The opening offer draws one melee brawl (a single-target or self attack-damage skill), one ranged, area or spell skill
+    // and one mobility or control skill, so every opening fits some build; a bucket with nothing left is filled from the rest.
+    if (Ordinal == 1)
+    {
+        const auto ScalesAD = [](const FLDDemoAbilityDefinition& Row)
+            { return Row.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.ADRatioBp > 0; }); };
+        PickFrom([&ScalesAD](const FLDDemoAbilityDefinition& Row)
+            { return (Row.HitType == ELDDemoHitType::Targeted || Row.HitType == ELDDemoHitType::Self) && ScalesAD(Row); });
+        PickFrom([&ScalesAD](const FLDDemoAbilityDefinition& Row)
+            { return Row.HitType == ELDDemoHitType::Projectile || Row.HitType == ELDDemoHitType::Area
+                || (Row.HitType == ELDDemoHitType::Targeted && !ScalesAD(Row)); });
+        PickFrom([](const FLDDemoAbilityDefinition& Row)
+            { return Row.HitType == ELDDemoHitType::Dash
+                || Row.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.HasControl(); }); });
+    }
     while (Out.Num() < 3 && !Remaining.IsEmpty())
     {
-        const int32 Pick = int32(ProgressionSplitMix64(State) % uint64(Remaining.Num()));
-        Out.Add(Remaining[Pick]);
-        Remaining.RemoveAt(Pick);
+        const int32 Before = Out.Num();
+        PickFrom([](const FLDDemoAbilityDefinition&) { return true; });
+        if (Out.Num() == Before) { break; }
     }
     return ELDGrowthReason::None;
 }
@@ -519,7 +564,11 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::Respec:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
+    // A blueprint may also replace a learned skill on the field while resting in a dorm out of combat.
     case ELDBuildCommandKind::ReplaceActive:
+        if (Context.Stage == EMatchStage::Live && Context.bDormRested && !bDead) { return ELDGrowthReason::None; }
+        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
+            : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case ELDBuildCommandKind::ForgetActive:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
@@ -1085,12 +1134,8 @@ ELDGrowthReason LDProgression::CardTargetReason(const FLDDemoContentDefinitions&
         {
             return ELDGrowthReason::InvalidTarget;
         }
-        const bool bControls = Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
-        {
-            const ELDDemoEffectOp Op = Effect.GetOp();
-            return Op == ELDDemoEffectOp::Root || Op == ELDDemoEffectOp::Stun || Op == ELDDemoEffectOp::Silence
-                || Op == ELDDemoEffectOp::Disarm || Op == ELDDemoEffectOp::Taunt;
-        });
+        // A control the skill applies itself or carries inside another delivery (a wall stun, a final-wave root ...).
+        const bool bControls = Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.HasControl(); });
         if (Definition->bHostControl && !bControls) { return ELDGrowthReason::InvalidTarget; }
     }
     return ELDGrowthReason::None;
@@ -1158,8 +1203,31 @@ int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, E
     case ELDCardOfferSource::Peddler: return Parameters.Explore.PeddlerCardOffer;
     case ELDCardOfferSource::CampFridge: return Parameters.Affix.FridgeCardOffer;
     case ELDCardOfferSource::CampBonus: return Parameters.Affix.BonusCardOffer;
+    case ELDCardOfferSource::Bounty: return int32(Parameters.BountyCardOffer);
     default: return Parameters.Cards.OfferSize;
     }
+}
+
+int64 LDProgression::CardDrawWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const FLDDemoCardDefinition& Card, uint32 Vocab, int32 VocabWeight)
+{
+    // A host-limited skill card none of the learned skills takes never comes up.
+    if (Card.Form == ELDCardForm::Skill && (Card.HostHitTypes != 0 || Card.bHostControl))
+    {
+        bool bHost = false;
+        for (const FLDLearnedActive& Active : Build.Actives)
+        {
+            FLDCardTarget Target;
+            Target.Kind = ELDCardTargetKind::Skill;
+            Target.Active = Active.Id;
+            bHost |= CardTargetReason(Content, Build, FName(*Card.Id), Target) == ELDGrowthReason::None;
+        }
+        if (!bHost) { return 0; }
+    }
+    // One shared vocabulary key weighs VocabWeight, two or more twice that; the base is the card's own draw weight.
+    const int32 Shared = FMath::CountBits(Card.VocabMask & Vocab);
+    const int64 Factor = Shared >= 2 ? 2 * int64(VocabWeight) : Shared == 1 ? int64(VocabWeight) : 1;
+    return FMath::Max<int64>(1, Card.DrawWeightBp / 100) * Factor;
 }
 
 ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
@@ -1177,7 +1245,10 @@ ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Co
     {
         // Element medals drop on their own (MEDAL.*), never in a card offer.
         if (Card.Form == ELDCardForm::Medal) { continue; }
-        Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Parameters.VocabWeight) : 1);
+        if (const int64 Weight = CardDrawWeight(Content, Build, Card, Vocab, Parameters.VocabWeight); Weight > 0)
+        {
+            Pool.Emplace(FName(*Card.Id), Weight);
+        }
     }
     uint64 State = Seed;
     while (Out.Num() < Size && !Pool.IsEmpty())
@@ -1546,7 +1617,10 @@ ELDGrowthReason LDProgression::DrawShop(const FLDDemoContentDefinitions& Content
     {
         // Element medals are never on a shelf.
         if (Card.Form == ELDCardForm::Medal) { continue; }
-        Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Shop.VocabWeight) : 1);
+        if (const int64 Weight = CardDrawWeight(Content, Build, Card, Vocab, Shop.VocabWeight); Weight > 0)
+        {
+            Pool.Emplace(FName(*Card.Id), Weight);
+        }
     }
     for (int32 Index = 0; Index < Shop.CardSlots && !Pool.IsEmpty(); ++Index)
     {
@@ -1842,9 +1916,10 @@ ELDGrowthReason LDProgression::DrawFieldReward(const FLDDemoContentDefinitions& 
         return ELDGrowthReason::None;
     case ELDFieldRewardKind::MiniFlagOffer: case ELDFieldRewardKind::ArenaOffer: case ELDFieldRewardKind::LockerOffer:
     case ELDFieldRewardKind::PeddlerOffer: case ELDFieldRewardKind::FridgeOffer: case ELDFieldRewardKind::BonusOffer:
+    case ELDFieldRewardKind::BountyOffer:
     {
         static const ELDCardOfferSource Sources[] = {ELDCardOfferSource::MiniFlag, ELDCardOfferSource::Arena, ELDCardOfferSource::Locker,
-            ELDCardOfferSource::Peddler, ELDCardOfferSource::CampFridge, ELDCardOfferSource::CampBonus};
+            ELDCardOfferSource::Peddler, ELDCardOfferSource::CampFridge, ELDCardOfferSource::CampBonus, ELDCardOfferSource::Bounty};
         Out.Result = ELDFieldRewardResult::CardOffer;
         Out.OfferSource = Sources[uint8(Kind) - uint8(ELDFieldRewardKind::MiniFlagOffer)];
         return ELDGrowthReason::None;

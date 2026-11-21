@@ -87,6 +87,7 @@ bool ALDGameMode::BeginFinalMods(const ULDMapRegistry& Registry, FString& Error)
         case ELDDemoFinalModId::FinalKillSeconds: Rules.KillGuardMs = Card->GuardMs; break;
         case ELDDemoFinalModId::FinalCage:
             CageDurationMs = Card->DurationMs;
+            CageHPP2 = Card->HPP2;
             CageSprays.Add(Id, CaptureReducer.GetCompletedSprays(Id));
             break;
         case ELDDemoFinalModId::FinalDoubleYellow: DoubleYellowRadiusCm = RadiusCm; break;
@@ -114,6 +115,8 @@ bool ALDGameMode::BeginFinalMods(const ULDMapRegistry& Registry, FString& Error)
         default: break;
         }
     }
+    Rules.GuardCheckpointMs = DemoContent->Get().Parameters.CaptureGuardCheckpointMs;
+    Rules.GuardResumeMs = DemoContent->Get().Parameters.CaptureGuardResumeMs;
     if (!CaptureReducer.SetFinalRules(Rules, Error)) { return false; }
     for (const FLDFinalModHolderView& Row : ShowdownMods)
     {
@@ -210,6 +213,13 @@ bool ALDGameMode::CloseShowdownIfDue(const FLDGameplayWritePermit& Permit, FStri
     bShowdownClosePending = true;
     if (HasPendingRewardRetries()) { return true; }
     bShowdownClosePending = false;
+    // final_private_pole: half of the guard held on the private pole counts toward the timeout ranking.
+    for (FLDPrivatePole& Pole : PrivatePoles)
+    {
+        if (Pole.bCredited) { continue; }
+        if (!CaptureReducer.CreditGuard(Pole.Holder, Pole.Reducer.GetBankedGuardMs(Pole.Holder) / 2, Error)) { return false; }
+        Pole.bCredited = true;
+    }
     const FGuid Winner = bCanContinue ? CaptureReducer.TimeoutWinner() : FGuid();
     return TryCloseMatch(bCanContinue ? ELDMatchEndReason::ObjectiveTimeout : ELDMatchEndReason::NoChampion,
         Winner, FMath::Min(Now, Showdown.EndsAtMs), Error);

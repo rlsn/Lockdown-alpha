@@ -55,7 +55,8 @@ bool FLDCaptureReducer::SetFinalRules(const FLDCaptureFinalRules& InRules, FStri
     {
         if (!Pair.Key.IsValid()
             || (Pair.Value == ELDDemoFinalModId::FinalHitAndRun && (InRules.HitAndRunSprays < 2 || InRules.HitAndRunFadeMs <= 0))
-            || (Pair.Value == ELDDemoFinalModId::FinalKillSeconds && InRules.KillGuardMs <= 0))
+            || (Pair.Value == ELDDemoFinalModId::FinalKillSeconds && InRules.KillGuardMs <= 0)
+            || InRules.GuardCheckpointMs < 0 || InRules.GuardResumeMs < 0 || InRules.GuardResumeMs > InRules.GuardCheckpointMs)
         {
             Error = TEXT("A final mod holder needs a contender and the approved terms of its card.");
             return false;
@@ -186,6 +187,23 @@ bool FLDCaptureReducer::AccountGuard(int64 ThroughMs, FString& Error)
     }
     Banked += Added;
     GuardAccountedThroughMs = FMath::Max(GuardAccountedThroughMs, End);
+    return true;
+}
+
+bool FLDCaptureReducer::CreditGuard(const FGuid& ContenderId, int64 GuardMs, FString& Error)
+{
+    if (!ContenderId.IsValid() || GuardMs < 0)
+    {
+        Error = TEXT("Credited guard needs a contender and a nonnegative amount.");
+        return false;
+    }
+    int64& Banked = BankedGuard.FindOrAdd(ContenderId);
+    if (Banked > MAX_int64 - GuardMs)
+    {
+        Error = TEXT("Historical guard contribution overflowed.");
+        return false;
+    }
+    Banked += GuardMs;
     return true;
 }
 
@@ -444,9 +462,15 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
         Error = TEXT("Spray epoch exhausted.");
         return false;
     }
-    // The sole sprayer paints over any graffiti and his own guard starts from zero at the spray instant.
+    // The sole sprayer paints over any graffiti and his own guard starts from zero at the spray instant (or from his
+    // checkpoint, once). An owner painted over past the checkpoint keeps one for his next graffiti.
     const int64 At = DueAt;
     const FGuid Sprayer = Occupier;
+    if (Owner.IsValid() && Owner != Sprayer && Rules.GuardCheckpointMs > 0)
+    {
+        const int64 Progress = IsGuardRunning() ? At - (GuardDue - Guard) : GuardKept;
+        if (Progress >= Rules.GuardCheckpointMs) { GuardCheckpoints.Add(Owner, Rules.GuardResumeMs); }
+    }
     if (!AccountGuard(At, Error)) { return false; }
     uint32& Sprays = CompletedSprays.FindOrAdd(Occupier);
     if (Sprays == MAX_uint32)
@@ -465,6 +489,8 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
 #endif
     Owner = Occupier;
     ++Sprays;
+    int64 Resume = 0;
+    if (GuardCheckpoints.RemoveAndCopyValue(Sprayer, Resume)) { NextGuardDue -= FMath::Clamp<int64>(Resume, 0, Guard - 1); }
     GuardDue = NextGuardDue;
     GuardKept = 0;
     GuardAccountedThroughMs = At;
@@ -472,8 +498,10 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     Cause = ELDGraffitiCause::Sprayed;
     if (ModOf(Sprayer) == ELDDemoFinalModId::FinalHitAndRun)
     {
-        // A hit-and-run graffiti has no guard; it fades and its sprayer must leave the zone before spraying again.
+        // A hit-and-run graffiti has no guard; it fades and its sprayer must leave the zone before spraying again. Its
+        // standing time (the fade) counts toward the timeout ranking.
         if (int64(Sprays) >= Rules.HitAndRunSprays) { Win(ELDCaptureWin::Sprays, Sprayer, At); }
+        if (!CreditGuard(Sprayer, Rules.HitAndRunFadeMs, Error)) { return false; }
         GuardDue = 0;
         if (!LDMatchLifecycle::AddDurationMs(At, Rules.HitAndRunFadeMs, FadeAt, Error)) { return false; }
         MustLeave.Add(Sprayer);

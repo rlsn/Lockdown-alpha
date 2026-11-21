@@ -188,7 +188,9 @@ native record sequence 与圈事件/提供者序列分开；`CompleteNativeMotio
 （`LDOrderRules::NearestCandidate`，同距取较小观察句柄，排除自己），半径 `TARGET.AttackMoveAcquireRadiusCm`。选中后按 AttackUnit 交战直到目标死亡、失效或订单替换；
 授权观察到的死亡（`FindObservedTermination`）后重新搜敌或续行；无目标到达即 `Completed`。
 
-**失去视野**：AttackUnit 与已锁定目标的 AttackMove 都以 `Cancelled/TargetUnavailable` 结束，不走向最后可见位置、不恢复原目的地，前摇中的普攻一并取消。
+**失去视野**：视野宽限（`VISION.SightGraceSec`）内目标仍可解析，订单与前摇照常。宽限过后，真人（`bHumanLease`）的 AttackUnit 释放锁定与攻击链接，
+原地改为 MoveGround，目的地是最后一次授权采样的目标脚点（`TargetFoot`），并发布新回执；到达即 `Completed`，不再攻击。
+对手 AI 的 AttackUnit、CastUnit 与已锁定目标的 AttackMove 以 `Cancelled/TargetUnavailable` 结束，不恢复原目的地，前摇中的普攻一并取消。
 只有授权观察到的死亡让 AttackUnit `Completed/TargetDied`；隐藏、过期不被当作死亡。
 
 **嘲讽**（Combat `ReadTaunter`）：`ProcessAuthorityOrders` 按 `LDOrderRules::ForcedOrderStep` 以 `Taunted` 取消当前订单、拒绝待处理订单（含 Stop），

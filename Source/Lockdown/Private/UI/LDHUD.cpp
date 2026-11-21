@@ -62,6 +62,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/WrapBox.h"
+#include "Components/WrapBoxSlot.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
 #include "Framework/Application/SlateApplication.h"
@@ -194,6 +196,7 @@ constexpr float HudTargetPortrait=32.f;
 constexpr float HudTargetHealthHeight=16.f;
 constexpr float HudTargetMomentumHeight=8.f;
 constexpr float HudTargetActiveSide=34.f;
+constexpr float HudTargetStatusSide=24.f;
 // Mock 5's result page: the whole width, the gap between its cards and the winner's rule board inside its card.
 constexpr float HudResultWidth=1640.f;
 constexpr float HudResultGap=20.f;
@@ -376,7 +379,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         for(UTextBlock* Value:{TargetHealth.Get(),TargetMomentum.Get()}){FSlateFontInfo Font=Value->GetFont();Font.Size=LDHUDStyle::TypeTiny;Value->SetFont(Font);}
         // The 8-unit momentum bar is too thin for its value; the value is the bar's tooltip instead.
         TargetMomentum->SetVisibility(ESlateVisibility::Collapsed);TargetMomentumRow->SetVisibility(ESlateVisibility::Visible);
-        TargetStatuses=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudTargetInner);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
+        TargetStatusRow=WidgetTree->ConstructWidget<UWrapBox>();TargetStatusRow->SetInnerSlotPadding(FVector2D(4,4));
+        TargetStatusRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        TargetBox->AddChildToVerticalBox(TargetStatusRow)->SetPadding(FMargin(0,6,0,0));
         {
             // Mock 1: three 34-unit Q/W/E icon tiles of a visible contender, 8 apart; no cooldown is ever drawn. The key and
             // name are the tile's tooltip; a missing icon shows the name's first character.
@@ -1085,12 +1090,19 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(1,1));PromptSlot->SetAlignment(FVector2D(1,1));PromptSlot->SetAutoSize(true);
         PromptSlot->SetPosition(FVector2D(-HudCornerInset,-HudCornerInset));
         {
-            // The pink count on the 构筑 button's corner: how many decisions wait.
-            PromptBadgeText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);PromptBadgeText->SetColorAndOpacity(FLinearColor::White);HudFace(PromptBadgeText,true,0);
-            PromptBadge=WidgetTree->ConstructWidget<UBorder>();PromptBadge->SetBrush(HudRound(9.f,LDHUDStyle::UIBase,1.f));PromptBadge->SetBrushColor(LDHUDStyle::UIEvent);
-            PromptBadge->SetPadding(FMargin(6,0));PromptBadge->SetContent(PromptBadgeText);PromptBadge->SetVisibility(ESlateVisibility::Collapsed);
-            PromptBadgeSlot=Canvas->AddChildToCanvas(PromptBadge);PromptBadgeSlot->SetAnchors(FAnchors(1,1));PromptBadgeSlot->SetAlignment(FVector2D(.5f,.5f));
-            PromptBadgeSlot->SetAutoSize(true);PromptBadgeSlot->SetZOrder(1);
+            // One count per kind of waiting decision on the 构筑 button's corner, each in its kind's colour and cut.
+            const FLinearColor Fills[3]={FLinearColor(.24f,.48f,.95f),FLinearColor(.86f,.62f,.16f),LDHUDStyle::UIEvent};
+            const float Radii[3]={3.f,3.f,9.f};
+            const FMargin Pads[3]={FMargin(5,0),FMargin(4,2),FMargin(6,0)};
+            for(int32 Kind=0;Kind<3;++Kind)
+            {
+                UTextBlock* KindText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);KindText->SetColorAndOpacity(FLinearColor::White);HudFace(KindText,true,0);
+                UBorder* Badge=WidgetTree->ConstructWidget<UBorder>();Badge->SetBrush(HudRound(Radii[Kind],LDHUDStyle::UIBase,1.f));Badge->SetBrushColor(Fills[Kind]);
+                Badge->SetPadding(Pads[Kind]);Badge->SetContent(KindText);Badge->SetVisibility(ESlateVisibility::Collapsed);
+                UCanvasPanelSlot* KindSlot=Canvas->AddChildToCanvas(Badge);KindSlot->SetAnchors(FAnchors(1,1));KindSlot->SetAlignment(FVector2D(.5f,.5f));
+                KindSlot->SetAutoSize(true);KindSlot->SetZOrder(1);
+                PromptBadges.Add(Badge);PromptBadgeTexts.Add(KindText);PromptBadgeSlots.Add(KindSlot);
+            }
         }
         {
             // The dragged slot's ghost follows the pointer; it takes no input.
@@ -1844,6 +1856,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
         if(OwnCombat&&!OwnCombat->Attributes.IsEmpty()){ChoiceStats=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat->Attributes);}
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
+        // Holding Alt spells out the scaling on every card face, the workshop's as well as the skill bar's.
+        ChoiceStats.bShowScalingFormula=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
         // The workshop's places from its last layout; in the field with the workshop closed the pending cards stand as quick
@@ -1851,7 +1865,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Workshop){ChoicesPanel->SetWorkshopPlaces(Workshop->Places());}
         ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
         if(Storage){Storage->SetEngaged(bEngaged);}
-        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC),
+            OwnCombat&&OwnCombat->bDormRegenActive);
         if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
     }
     if(StatBar)
@@ -1963,6 +1978,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const FString Line=LDHUD::FieldRewardNotice(Reward,Content);
             if(!Line.IsEmpty()){Lines.Add(Line);}
         }
+        // An element medal that dropped (a level-up, a camp, an event or the Boss) is named once too.
+        Lines.Append(MedalDropWatch.Observe(Progression,O.Match,Content));
         if(!Lines.IsEmpty()){ShowToast(FString::Join(Lines,TEXT("\n")));}
     }
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
@@ -2054,11 +2071,19 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     {
-        const int32 Waiting=(Pending.bOffer?1:0)+Pending.Blueprints+(Pending.bCardOffer?1:0)+(Pending.bFinalMod?1:0);
-        HudSetText(PromptBadgeText,FString::FromInt(Waiting));
-        HudSetShown(PromptBadge,Waiting>0&&PromptFrame->IsVisible(),ESlateVisibility::HitTestInvisible);
-        const FVector2D Corner(-HudCornerInset-4.f,-HudCornerInset-float(PromptFrame->GetDesiredSize().Y)+4.f);
-        if(PromptBadgeSlot&&!PromptBadgeSlot->GetPosition().Equals(Corner,.5f)){PromptBadgeSlot->SetPosition(Corner);}
+        // Skills (the active offer and the blueprints), build cards, then the final mod; shown badges line up leftward.
+        const int32 Waiting[3]={(Pending.bOffer?1:0)+Pending.Blueprints,Pending.bCardOffer?1:0,Pending.bFinalMod?1:0};
+        float Offset=0.f;
+        for(int32 Kind=0;Kind<PromptBadges.Num()&&Kind<3;++Kind)
+        {
+            const bool bShown=Waiting[Kind]>0&&PromptFrame->IsVisible();
+            HudSetText(PromptBadgeTexts[Kind],FString::FromInt(Waiting[Kind]));
+            HudSetShown(PromptBadges[Kind],bShown,ESlateVisibility::HitTestInvisible);
+            if(!bShown){continue;}
+            const FVector2D Corner(-HudCornerInset-4.f-Offset,-HudCornerInset-float(PromptFrame->GetDesiredSize().Y)+4.f);
+            if(PromptBadgeSlots[Kind]&&!PromptBadgeSlots[Kind]->GetPosition().Equals(Corner,.5f)){PromptBadgeSlots[Kind]->SetPosition(Corner);}
+            Offset+=float(PromptBadges[Kind]->GetDesiredSize().X)+3.f;
+        }
     }
     // The button always opens the workshop; it is lit while something is pending.
     if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}
@@ -2110,6 +2135,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         Context.bInputCaptured=bInputSuppressed;
         Context.bMomentumKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMomentumP2>0;Context.MomentumP2=OwnCombat?OwnCombat->MomentumP2:0;
         Context.Card=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>());
+        // Holding Alt spells out each number's scaling (base + AD/AP/HP shares) instead of its current total.
+        Context.Card.bShowScalingFormula=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
         const LDHUD::EActionLook Look=LDHUD::ActionLook(View,bArmed&&ArmedEntry==Wanted);
@@ -2293,7 +2320,40 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             TargetMomentumBar->SetFillColorAndOpacity(Card.bMomentumFull?LDHUDStyle::Overdrive.CopyWithNewOpacity(Pulse):LDHUDStyle::Momentum);
             bReadModelLive|=Card.bCharging;
         }
-        HudSetText(TargetStatuses,Card.Statuses);
+        // The status squares: grown on demand, the unused ones collapsed.
+        while(TargetStatusTiles.Num()<Card.StatusChips.Num())
+        {
+            UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSmall);Glyph->SetAutoWrapText(false);HudFace(Glyph,true,0);Glyph->SetJustification(ETextJustify::Center);
+            auto* Rim=WidgetTree->ConstructWidget<UBorder>();Rim->SetBrush(HudRound(4.f,LDHUDStyle::Rim,1.5f));
+            Rim->SetPadding(FMargin(0));Rim->SetHorizontalAlignment(HAlign_Center);Rim->SetVerticalAlignment(VAlign_Center);Rim->SetContent(Glyph);
+            UImage* Icon=WidgetTree->ConstructWidget<UImage>();Icon->SetVisibility(ESlateVisibility::Collapsed);
+            UTextBlock* Stack=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeTiny);Stack->SetAutoWrapText(false);HudFace(Stack,true,0);
+            auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+            for(UWidget* Layer:{static_cast<UWidget*>(Rim),static_cast<UWidget*>(Icon)})
+            {auto* LayerSlot=Face->AddChildToOverlay(Layer);LayerSlot->SetHorizontalAlignment(HAlign_Fill);LayerSlot->SetVerticalAlignment(VAlign_Fill);}
+            {auto* StackSlot=Face->AddChildToOverlay(Stack);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);}
+            auto* Side=WidgetTree->ConstructWidget<USizeBox>();Side->SetWidthOverride(HudTargetStatusSide);Side->SetHeightOverride(HudTargetStatusSide);Side->SetContent(Face);
+            Side->SetVisibility(ESlateVisibility::Visible);
+            TargetStatusRow->AddChildToWrapBox(Side);
+            TargetStatusTiles.Add(Side);TargetStatusRims.Add(Rim);TargetStatusIcons.Add(Icon);TargetStatusGlyphs.Add(Glyph);TargetStatusStacks.Add(Stack);
+        }
+        HudSetShown(TargetStatusRow,!Card.StatusChips.IsEmpty(),ESlateVisibility::SelfHitTestInvisible);
+        for(int32 Index=0;Index<TargetStatusTiles.Num();++Index)
+        {
+            const bool bUsed=Card.StatusChips.IsValidIndex(Index);
+            HudSetShown(TargetStatusTiles[Index],bUsed,ESlateVisibility::Visible);
+            if(!bUsed){continue;}
+            const LDHUD::FObservedCard::FStatusChip& Chip=Card.StatusChips[Index];
+            if(!TargetStatusTiles[Index]->GetToolTipText().ToString().Equals(Chip.Tip,ESearchCase::CaseSensitive))
+            {TargetStatusTiles[Index]->SetToolTipText(FText::FromString(Chip.Tip));}
+            const FLinearColor Edge=Chip.bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
+            if(TargetStatusRims[Index]->Background.OutlineSettings.Color!=FSlateColor(Edge))
+            {TargetStatusRims[Index]->SetBrush(HudRound(4.f,Edge,1.5f));TargetStatusRims[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.92f));}
+            const bool bPicture=LDUIIcons::Apply(TargetStatusIcons[Index],Chip.IconId,4.f);
+            HudSetText(TargetStatusGlyphs[Index],bPicture?FString():Chip.Glyph);
+            TargetStatusGlyphs[Index]->SetColorAndOpacity(FSlateColor(Edge));
+            HudSetText(TargetStatusStacks[Index],Chip.Stacks>1?FString::FromInt(Chip.Stacks):FString());
+        }
         HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::SelfHitTestInvisible);
         for(int32 Index=0;Card.bActives&&Index<TargetActiveTiles.Num();++Index)
         {

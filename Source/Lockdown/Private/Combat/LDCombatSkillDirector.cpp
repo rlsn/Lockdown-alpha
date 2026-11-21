@@ -364,6 +364,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
             if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
+            HitFenceInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload);
             // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
             {
                 const FVector Facing=Channel.Direction;
@@ -462,6 +463,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             PendingHits.Add(MoveTemp(Hit));
         }
         if (!HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs, Error)) { return false; }
+        HitFenceInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload);
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }
@@ -594,7 +596,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         if (Struck && !Struck->bPendingDeath && !DashRamHit(*Body, Dash, Contact.Target, Error)) { return false; }
         // D02: the hosted dash's first real contact cuts the holder's skills (once per action).
         if (!HasteOtherActives(*Body, Dash.Source, Dash.EffectId, NowMs, Error)) { return false; }
-        if (!OnDashContact(*Body, Dash, NowMs, Error)) { return false; }
+        if (!OnDashContact(*Body, Dash, Contact.Target.Victim.Kind==ELDVictimKind::Contender, NowMs, Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_DASH_CONTACT t=%lld src=%s target=%s effect=%s native=%d phase=%d"),
             NowMs,*LDLog::Id(Body->Victim.EntityId),*LDLog::Id(Contact.Target.Victim.EntityId),
             *LDLog::Id(Dash.EffectId),bNativeHit,Dash.bPhase);
@@ -603,12 +605,13 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
     return true;
 }
 
-bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, bool bContender, int64 NowMs, FString& Error)
 {
     using namespace LDCombatSkillDetail;
     if (Dash.Body!=FLDCombatBodyRef{Body.Victim,Body.Identity})
     { Error=TEXT("Dash contact belongs to another body life."); return false; }
-    // D01: the dash's first enemy contact makes it ready again (once per dash).
+    // D01: the dash's first enemy contact makes it ready again when it touches a contender; touching a camp body or the
+    // Boss only takes 30% off what is left (once per dash).
     if (Dash.bReset && !Dash.bRefunded)
     {
         auto* Record=FindRecord(Body.Victim.EntityId);
@@ -618,7 +621,8 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
         Dash.bRefunded=true;
         if (Track->LastEffectId==Dash.EffectId && Track->ReadyAtMs>NowMs)
         {
-            Track->ReadyAtMs=NowMs;
+            const int64 Left=Track->ReadyAtMs-NowMs;
+            Track->ReadyAtMs=bContender ? NowMs : NowMs+Left-Left*3/10;
             MarkViewChanged(Body.Victim.EntityId);
             LedgerCardTriggered(Body, FName(TEXT("card_bump_reset")));
             UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_DASH_RESET t=%lld src=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId));

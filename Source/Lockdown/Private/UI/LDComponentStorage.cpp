@@ -562,7 +562,12 @@ void ULDComponentStorage::BuildCard(FName Component,bool bFresh,int32 Copies)
 {
     // A stored card is its icon alone, with 新 on the corner while it is new; hovering it shows the popup.
     UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* Box=nullptr;
-    UBorder* Icon=IconFace(StorageTile,Picture,Glyph,Face,Box);Built.Add(Box);ShowIcon(Picture,Glyph,Component);
+    UBorder* Icon=IconFace(StorageTile,Picture,Glyph,Face,Box);Built.Add(Box);
+    // The face takes its card type's cut and colour, as in the workshop: an element medal is round, a gem in its element ring.
+    const uint8 Kind=uint8(LDWorkshop::CardFacts(Component,LatestContent).Type);
+    ShowIcon(Picture,Glyph,Component,FaceRadius(Kind,StorageTile));
+    Icon->SetBrush(StorageRound(FaceRadius(Kind,StorageTile),LDUIShapes::KindColor(Kind),Kind==uint8(ELDCardType::Element)?2.5f:1.5f));
+    Icon->SetBrushColor(LDHUDStyle::IconFill);
     Icon->SetVisibility(ESlateVisibility::Visible);
     AddCopiesBadge(Face,Copies);
     UWidget* FreshChip=nullptr;

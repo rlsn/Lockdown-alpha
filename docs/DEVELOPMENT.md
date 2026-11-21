@@ -158,7 +158,7 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
 | `Content\Lockdown\Data` | 已生成并校验的运行载荷 |
 | `Content\Lockdown\Generated` | 原生目录、派生碰撞网格与保存的正式关卡 |
 | `Content\Lockdown\Audio` | `ImportDemoAudio.ps1` 由 `SourceData\Audio` 清单导入的音效目录与声音资产 |
-| `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入的身体、动画、装饰道具与美术目录；`Art\UI` 是 `-Mode ImportUI` 由 `SourceData\UI\ui_images.json`（项目方提供的标题与房间背景图，不属于 CC0 美术包）与 `ui_icons.json`（`SourceData\UI\Icons` 的主动、五维属性、构筑牌与状态图标，#85）导入的 UI 纹理，以及由 `ui_fonts.json`（`SourceData\UI\Fonts` 的思源黑体与 OFL 许可）导入的 `Art\UI\Fonts` 字体；`Art\VFX\Hit` 是 `-Mode ImportVFX` 由 `SourceData\VFX\vfx_textures.json`（`SourceData\VFX\Blender\hit_textures.py` 用 Blender 渲染的命中遮罩）导入的特效纹理与导入器生成的两个特效材质 |
+| `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入的身体、动画、装饰道具与美术目录；`Art\UI` 是 `-Mode ImportUI` 由 `SourceData\UI\ui_images.json`（项目方提供的标题与房间背景图，不属于 CC0 美术包）与 `ui_icons.json`（`SourceData\UI\Icons` 的主动、五维属性、构筑牌与状态图标，#85）导入的 UI 纹理，以及由 `ui_fonts.json`（`SourceData\UI\Fonts` 的思源黑体与 OFL 许可）导入的 `Art\UI\Fonts` 字体；`Art\VFX\Hit` 是 `-Mode ImportVFX` 由 `SourceData\VFX\vfx_textures.json`（`SourceData\VFX\Blender\hit_textures.py` 用 Blender 渲染的命中遮罩）导入的特效纹理与导入器生成的两个特效材质 ；铁笼栏片 `SourceData\Art\Lockdown\CageFence\cage_fence.glb` 由 `Scripts\BuildCageFenceModel.py` 在 Blender 中生成（`blender -b --factory-startup --python Scripts\BuildCageFenceModel.py -- <输出 glb>`），改动后重算清单哈希再导入；`-Mode ImportProps` 只重新导入道具与装饰道具引用，保留目录里的身体与从地图读出的装饰记录（不做摆放检查），用于地图仍在重新摆放时加入新道具 |
 | `Config` | 项目、平台与布局配置；本机设置放忽略的 `Config\Local` |
 | `Scripts` | 构建、生成、运行和当前结果校验 |
 | `docs` | 当前产品规则与组件技术说明，不存构建输入或每次运行档案 |

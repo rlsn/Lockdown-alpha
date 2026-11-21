@@ -1,4 +1,5 @@
 #include "Framework/LDGameState.h"
+#include "World/LDRecoveryOrbMarker.h"
 #include "Core/LDLog.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -45,6 +46,46 @@ void ALDGameState::OnRep_PublicMatch()
     SyncCaptureFence();
     SyncDormMarkers();
     SyncAirdropMarker();
+    SyncRecoveryOrbMarkers();
+}
+
+void ALDGameState::SyncRecoveryOrbMarkers()
+{
+    UWorld* World=GetWorld();
+    const bool bShow=ShowsWorldEvents();
+    // Drop the markers whose orb is gone (or of another match); keep the rest.
+    RecoveryOrbMarkers.RemoveAll([&](const TWeakObjectPtr<ALDRecoveryOrbMarker>& Weak)
+    {
+        ALDRecoveryOrbMarker* Marker=Weak.Get();
+        const bool bKeep=Marker&&bShow&&Marker->GetGeneration()==PublicMatch.Generation&&PublicMatch.RecoveryOrbs.ContainsByPredicate(
+            [Marker](const FLDRecoveryOrbView& Orb){return Orb.Serial==Marker->GetSerial();});
+        if(!bKeep&&Marker){Marker->Destroy();}
+        return !bKeep;
+    });
+    if(!bShow||!World){return;}
+    double Radius=0;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FString Error;
+    if(LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content)
+    {
+        const FLDDemoRational& Approved=Content->Get().Parameters.AirdropPickupRadiusCm;
+        Radius=Approved.Denominator>0?double(Approved.Numerator)/double(Approved.Denominator):0.;
+    }
+    for(const FLDRecoveryOrbView& Orb:PublicMatch.RecoveryOrbs)
+    {
+        if(RecoveryOrbMarkers.ContainsByPredicate([&Orb](const TWeakObjectPtr<ALDRecoveryOrbMarker>& Weak)
+            {return Weak.IsValid()&&Weak->GetSerial()==Orb.Serial;})){continue;}
+        FActorSpawnParameters Spawn;
+        Spawn.ObjectFlags|=RF_Transient;
+        ALDRecoveryOrbMarker* Marker=World->SpawnActor<ALDRecoveryOrbMarker>(Spawn);
+        if(!Marker||!Marker->Build(Orb.PositionCm,Radius,Orb.Serial,PublicMatch.Generation,Error))
+        {
+            if(Marker){Marker->Destroy();}
+            UE_LOG(LogLDMatch,Warning,TEXT("LD_RECOVERY_ORB_MARKER_FAILED serial=%llu %s"),Orb.Serial,*Error);
+            continue;
+        }
+        RecoveryOrbMarkers.Add(Marker);
+    }
 }
 
 TArray<const ALDCaptureMarker*> ALDGameState::GetPrivateMarkers() const
@@ -67,6 +108,7 @@ void ALDGameState::SyncCaptureFence()
         Fence=nullptr;
         CaptureFence.Reset();
     }
+    if (Fence) { Fence->SetIntegrity(PublicMatch.CageIntegrityBp); }
     if (!bStands||Fence) { return; }
     FActorSpawnParameters Spawn;
     Spawn.ObjectFlags|=RF_Transient;
@@ -80,6 +122,7 @@ void ALDGameState::SyncCaptureFence()
             Error.IsEmpty()?TEXT("The cage fence actor could not be spawned."):*Error);
         return;
     }
+    Fence->SetIntegrity(PublicMatch.CageIntegrityBp);
     CaptureFence=Fence;
 }
 

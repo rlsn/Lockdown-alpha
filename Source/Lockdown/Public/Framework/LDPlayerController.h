@@ -341,6 +341,9 @@ private:
     double OverdriveHoldStartSec=0;
     bool bOverdriveHolding=false;
     bool bOverdriveArmed=false;
+    // One-press overdrive: the skill key was pressed with Alt held, so letting it go early does not cancel the charge; the
+    // hold completes by itself and fires as an overdrive.
+    bool bOverdriveLatched=false;
     TSharedPtr<const FLDDemoContentSnapshot> OverdriveContent;
     bool bOverdriveContentTried=false;
     const FLDDemoOverdriveParameters* OverdriveTerms();

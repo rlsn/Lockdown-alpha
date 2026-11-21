@@ -83,8 +83,8 @@ ACTIVE_FRAMES = {
 }
 
 
-def magical(base, ap, hp=0):
-    return ("damage", {"ad_ratio": 0, "ap_ratio": r(ap), "base": base, "damage_type": "Magical", "max_hp_ratio": r(hp)})
+def magical(base, ap, hp=0, ad=0):
+    return ("damage", {"ad_ratio": r(ad), "ap_ratio": r(ap), "base": base, "damage_type": "Magical", "max_hp_ratio": r(hp)})
 
 
 def physical(base, ad, ap=0):
@@ -93,12 +93,12 @@ def physical(base, ad, ap=0):
 
 # Every active's effects in authored order and author units; "base" grows with the owner's level at runtime.
 ACTIVE_EFFECTS = {
-    "active_elbow": [physical(55, ".6"), ("knockback", {"distance": 300, "duration": r(".25")})],
-    "active_pants_down": [physical(40, ".4"), ("root", {"duration": r("1.2")})],
-    "active_crotch_grab": [physical(60, ".6"), ("stun", {"duration": r(".8")})],
+    "active_elbow": [physical(55, ".95"), ("knockback", {"distance": 300, "duration": r(".25")})],
+    "active_pants_down": [physical(40, ".75"), ("root", {"duration": r("1.2")})],
+    "active_crotch_grab": [physical(60, "1"), ("stun", {"duration": r(".8")})],
     "active_account_banned": [magical(55, ".6"), ("silence", {"duration": r("1.2")})],
-    "active_unplug": [physical(45, ".45"), ("disarm", {"duration": r("1.4")})],
-    "active_snark_bolt": [magical(90, ".9"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
+    "active_unplug": [physical(45, ".8"), ("disarm", {"duration": r("1.4")})],
+    "active_snark_bolt": [magical(90, ".9", ad=".9"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_seethe": [("self_area", {"radius": 300}), magical(60, ".6", ".02"), ("burn", {"stacks": 2})],
     "active_quick_meeting": [
         ("zone", {"count": 3, "delay": 0, "duration": 3, "interval": 1, "radius": 240}),
@@ -110,14 +110,14 @@ ACTIVE_EFFECTS = {
                    ("chain_bounce", {"count": 2, "interval": r(".15"), "radius": 350, "ratio": r(".7")})],
     "active_bail_out": [
         ("dash", {"distance": 350, "duration": r(".2")}),
-        ("empower_basic", {"ad_ratio": r(".4"), "ap_ratio": 0, "base": 45, "damage_type": "Physical", "duration": 3})],
+        ("empower_basic", {"ad_ratio": r(".75"), "ap_ratio": 0, "base": 45, "damage_type": "Physical", "duration": 3})],
     "active_apology_slide": [
-        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(65, ".5", ".3"),
+        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(65, ".8", ".3"),
         ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_charged_ram": [
         ("dash", {"distance": 450, "duration": r(".3")}),
         ("shield", {"ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
-        ("dash_contact", {"targets": "Every"}), magical(40, ".35"), ("electrify", {})],
+        ("dash_contact", {"targets": "Every"}), magical(40, ".35", ad=".35"), ("electrify", {})],
     "active_not_mad": [
         ("shield", {"ap_ratio": r(".6"), "base": 80, "duration": 3, "max_hp_ratio": r(".05")}), ("dispel_slow", {}), ("dispel_root", {})],
     "active_stare_down": [
@@ -126,10 +126,10 @@ ACTIVE_EFFECTS = {
     "active_brace": [
         ("brace", {"base": 50, "duration": 3, "limit": 120, "radius": 300, "ratio": r(".2"), "record_ratio": r(".6")})],
     "active_triple_combo": [
-        ("empower_basic", {"ad_ratio": r(".12"), "ap_ratio": 0, "base": 18, "charges": 3, "damage_type": "Physical", "duration": 5,
+        ("empower_basic", {"ad_ratio": r(".2"), "ap_ratio": 0, "base": 18, "charges": 3, "damage_type": "Physical", "duration": 5,
                            "stats": {"AttackSpeedBonusRatio": r(".25")}})],
     "active_calculus_drop": [
-        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), magical(110, "1")],
+        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), magical(110, "1", ad="1")],
     "active_flyer_trap": [
         ("contact_trap", {"delay": r(".45"), "duration": 6, "radius": 180, "trigger_radius": 100}), magical(100, ".75"),
         ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
@@ -137,21 +137,21 @@ ACTIVE_EFFECTS = {
         ("zone", {"count": 4, "delay": 0, "duration": 4, "interval": 1, "radius": 220}),
         ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".2"), "base": 22, "damage_type": "Magical"}),
         ("zone_wet", {}), ("zone_haste", {"ratio": r(".15")})],
-    "active_sock_shot": [magical(80, ".75"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("rot", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
+    "active_sock_shot": [magical(80, ".75", ad=".75"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("rot", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_open_mic": [
         ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(35, ".3"), ("knockback", {"distance": 100, "duration": r(".12")})],
     # Issue #287 P4 skills N1-N3.
     "active_cola_shake": [("channel_cone", {"count": 1, "interval": r(".25")}), magical(55, ".5"), ("chill", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_desk_fan": [("fan", {"distance": 60, "duration": 4, "interval": r(".5"), "length": 600, "width": 200})],
-    "active_stale_takeout": [magical(75, ".7"), ("rot", {}), ("ground_state", {"kind": "miasma"}), ("knockback", {"distance": 100, "duration": r(".12")})],
+    "active_stale_takeout": [magical(75, ".7", ad=".7"), ("rot", {}), ("ground_state", {"kind": "miasma"}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_school_bag": [("bag", {"count": 1, "duration": 4, "hp_base": 150, "hp_per_level": 20, "radius": 200, "size": 40}),
-                          magical(80, ".6")],
+                          magical(80, ".6", ad=".6")],
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {
     "stat_physique": (27, {"MaxHPFlat": 40, "HPRegenFlat": r(".08")}),
     "stat_thick_skin": (28, {"ArmorFlat": r("2.5"), "MagicResistFlat": r("2.5")}),
-    "stat_strength": (29, {"ADFlat": r("2.5"), "CritChanceBonusRatio": r(".004")}),
+    "stat_strength": (29, {"ADFlat": r("3"), "CritChanceBonusRatio": r(".006")}),
     "stat_brains": (30, {"APFlat": 6, "CooldownHasteFlat": 1, "MomentumRegenFlat": r(".06")}),
     "stat_agility": (31, {"AttackSpeedBonusRatio": r(".02"), "MoveSpeedBonusRatio": r(".005")}),
 }
@@ -316,8 +316,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("MOMENTUM.BasicRefIntervalSec", "ms", "1.334"), ("MOMENTUM.SkillHit", "momentum", "5"),
             ("MOMENTUM.Reaction", "momentum", "10"), ("MOMENTUM.PerfectDodge", "momentum", "15"),
             ("MOMENTUM.PerfectDodgeWindowSec", "ms", ".3"), ("MOMENTUM.IdleDelaySec", "ms", "5"),
-            ("MOMENTUM.IdleReturnPerSec", "momentum/s", "10"), ("COMBO.ResetSec", "ms", "1.5"),
-            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".3"), ("OVERDRIVE.Scale", "ratio", "1.6"),
+            ("MOMENTUM.IdleReturnPerSec", "momentum/s", "10"), ("COMBO.ResetSec", "ms", "2.5"),
+            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".18"), ("OVERDRIVE.Scale", "ratio", "1.6"),
             ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", ".25"),
@@ -328,8 +328,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".300"), ("VISION.RadiusCm", "cm", "1400"),
-            ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
+            ("CAPTURE.RadiusCm", "cm", "420"),
+            ("CAPTURE.SpraySec", "ms", "2.5"), ("VISION.SightGraceSec", "ms", ".3"), ("CAPTURE.GuardSec", "ms", "20"), ("CAPTURE.GuardCheckpointSec", "ms", "10"), ("CAPTURE.GuardResumeSec", "ms", "8"),
             ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),
             ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
             ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
@@ -339,9 +339,9 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.ReturnSec", "ms", "3"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # The rest PK (R1 and R2): sign-up inside the build step, then draw, betting, ready, fight, settlement and payout.
-            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "3"), ("REST.BettingSec", "ms", "5"),
-            ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "3"),
-            ("REST.PayoutSec", "ms", "3"),
+            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "1"), ("REST.BettingSec", "ms", "5"),
+            ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "1.5"),
+            ("REST.PayoutSec", "ms", "1.5"),
             ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
             ("PK.RingShrinkStartSec", "ms", "5"), ("PK.RingMidSec", "ms", "25"), ("PK.RingFinalSec", "ms", "38"),
             ("PK.RingPreviewSec", "ms", "5"), ("PK.RingDamageTickSec", "ms", ".25"),
@@ -353,13 +353,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("THROW.ExposeSec", "ms", "2"),
             # Issue #287 spec §10-§11 (P6): the showdown ring, respawn, objectives, hotspots, affixes and hidden things.
             ("SHOWDOWN.RingRadiusCm", "cm", "1800"), ("SHOWDOWN.RingFinalRadiusCm", "cm", "600"), ("SHOWDOWN.RingPreviewSec", "ms", "10"),
-            ("SHOWDOWN.RingDamageTickSec", "ms", "0.25"), ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", "0.05"), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", "0.12"),
+            ("SHOWDOWN.RingDamageTickSec", "ms", "0.25"), ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", "0.05"), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", "0.12"), ("SHOWDOWN.KillHealMaxHPRatio", "ratio", ".35"), ("SHOWDOWN.KillMomentum", "momentum", "50"),
             ("LIFE.RespawnBaseSec", "ms", "6"), ("LIFE.RespawnPerLevelSec", "ms", "0.5"), ("LIFE.SpawnChoiceSec", "ms", "6"),
             ("OBJECTIVE.StartSec", "ms", "100"), ("OBJECTIVE.AnnounceLeadSec", "ms", "10"), ("OBJECTIVE.FlagWindowSec", "ms", "30"),
             ("OBJECTIVE.FlagRadiusCm", "cm", "200"), ("OBJECTIVE.FlagSpraySec", "ms", "3"), ("OBJECTIVE.ArenaSec", "ms", "40"),
             ("OBJECTIVE.ArenaRadiusCm", "cm", "900"), ("DAILY.RainIntervalSec", "ms", "20"), ("DAILY.RainPuddleSec", "ms", "10"),
             ("DAILY.RainWetBonusSec", "ms", "2"), ("DAILY.ColdFreezeSec", "ms", "20"), ("DAILY.ColdChillBonusSec", "ms", "2"),
-            ("DAILY.BlackoutVisionCut", "ratio", "0.3"), ("DAILY.BlackoutShockScale", "ratio", "2"), ("DAILY.TyphoonIntervalSec", "ms", "30"),
+            ("DAILY.BlackoutVisionCut", "ratio", "0.25"), ("DAILY.BlackoutShockScale", "ratio", "2"), ("DAILY.TyphoonIntervalSec", "ms", "30"),
             ("DAILY.TyphoonPushCm", "cm", "150"), ("DAILY.HeatBurnTickScale", "ratio", "1.3"), ("DAILY.SalePriceScale", "ratio", "0.5"),
             ("DAILY.DeliveryExpireSec", "ms", "15"), ("DAILY.PatrolBossAppearSec", "ms", "120"), ("DAILY.ExamMonsterXPScale", "ratio", "1.3"),
             ("DAILY.ExamRespawnBonusSec", "ms", "3"), ("DAILY.GymDashCooldownCut", "ratio", "0.3"), ("AFFIX.Chance", "ratio", "0.3"), ("MEDAL.LevelChance", "ratio", "0.15"), ("MEDAL.CampLowChance", "ratio", "0.03"), ("MEDAL.CampHighChance", "ratio", "0.06"), ("MEDAL.CampEliteChance", "ratio", "0.12"), ("MEDAL.CampAncientChance", "ratio", "0.25"), ("MEDAL.BossChance", "ratio", "1"), ("MEDAL.EventChance", "ratio", "0.5"),
@@ -377,14 +377,14 @@ class ApprovedDemoData(unittest.TestCase):
             ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "43"),
             ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
-            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"),
+            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"), ("CAMP.ClearHealMissingRatio", "ratio", ".12"), ("CAMP.ClearMomentum", "momentum", "15"), ("CAMP.ClearOrbSec", "ms", "20"),
             ("AIRDROP.ExpireSec", "ms", "30"), ("CAMPMARK.RevealSec", "ms", "11"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("AIRDROP.HealMaxHPRatio", "ratio", ".20"),
             ("AIRDROP.MoveSpeedRatio", "ratio", ".20"), ("AIRDROP.MoveSpeedSec", "ms", "6"),
-            ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
+            ("LEADER.RefreshSec", "ms", "10"), ("LEADER.SurvivalPointSec", "ms", "30"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
-            ("REWARD.AssistWindowSec", "ms", "15"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
+            ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistXPRatio", "ratio", ".5"), ("REWARD.KillMedalChance", "ratio", ".5"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".45"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -394,18 +394,18 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
             ("COMBAT.BurnPerSec", "points", "4.5"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
             ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"),
-            ("COMBAT.KeystonePhysiqueHealToShieldRatio", "ratio", ".25"),
-            ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", ".035"),
+            ("COMBAT.KeystonePhysiqueOutOfCombatCut", "ratio", ".5"),
+            ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", ".1"),
             ("COMBAT.KeystonePhysiqueShieldDurationSec", "ms", "3"),
-            ("COMBAT.KeystonePhysiqueIntervalSec", "ms", "6"),
-            ("COMBAT.KeystoneThickSkinGuardPoints", "points", "6"),
-            ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", ".12"),
-            ("COMBAT.KeystoneThickSkinIntervalSec", "ms", "8"),
-            ("COMBAT.KeystoneStrengthDamageRatio", "ratio", ".06"),
-            ("COMBAT.KeystoneBrainsMomentumRefundRatio", "ratio", ".15"),
-            ("COMBAT.KeystoneAgilityDamageBase", "points", "12.5"),
-            ("COMBAT.KeystoneAgilityADRatio", "ratio", ".125"),
-            ("COMBAT.KeystoneAgilityEmpowerDurationSec", "ms", "3"),
+            ("COMBAT.KeystonePhysiqueIntervalSec", "ms", "5"),
+            ("COMBAT.KeystoneAgilityDashCooldownCut", "ratio", ".4"),
+            ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", ".3"),
+            ("COMBAT.KeystoneThickSkinIntervalSec", "ms", "6"), ("COMBAT.KeystoneThickSkinSteadySec", "ms", "1.5"), ("COMBAT.KeystoneThickSkinKnockbackRatio", "ratio", ".5"),
+            ("COMBAT.KeystoneStrengthDamageRatio", "ratio", ".18"),
+            ("COMBAT.KeystoneBrainsReactionMomentum", "momentum", "15"), ("COMBAT.KeystoneBrainsCooldownCutSec", "ms", "1"),
+            ("COMBAT.KeystoneAgilityDamageBase", "points", "35"),
+            ("COMBAT.KeystoneAgilityADRatio", "ratio", ".5"),
+            ("COMBAT.KeystoneAgilityEmpowerDurationSec", "ms", "3"), ("COMBAT.KeystoneAgilityMoveSpeedRatio", "ratio", ".25"),
             # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
             ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"),
             ("COMBAT.ReactionBase", "points", "30"), ("COMBAT.ReactionPerLevel", "points", "4"),
@@ -460,7 +460,7 @@ class ApprovedDemoData(unittest.TestCase):
         for key, value in (
             ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20),
             ("SHOWDOWN.RespawnLimit", 2),
-            ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
+            ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("REWARD.BountyXP", 200), ("REWARD.BountyCardOffer", 5), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
@@ -482,7 +482,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
-        expected["SKILL.PointLevels"] = (None, (4, 8, 12))
+        expected["SKILL.PointLevels"] = (None, (3, 6, 9, 12, 15))
         expected["SKILL.RankBaseScale"] = ("ratio", ("1", "1.5", "2"))
         expected["SKILL.RankRatioScale"] = ("ratio", ("1", "1.25", "1.5"))
         expected["COMBO.StepRatios"] = ("ratio", (".9", ".9", "1.3"))
@@ -659,7 +659,7 @@ class ApprovedDemoData(unittest.TestCase):
                          {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap", "active_desk_fan",
                           "active_school_bag"})
         self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 20)
-        self.assertEqual(self.data["progression"]["active_offer_levels"], (2, 6))
+        self.assertEqual(self.data["progression"]["active_offer_levels"], (2, 6, 11))
         self.assertEqual(set(self.data["progression"]),
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
 
@@ -896,7 +896,7 @@ class ApprovedDemoData(unittest.TestCase):
         # D26 (#79), user-approved 2026-11-04 ("Approve as proposed (Recommended)") and 2026-11-05 (windup, waypoints).
         boss = self.data["boss"]
         self.assertEqual(boss["id"], "monster_dean")
-        for key, expected in (("hp", 4500), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
+        for key, expected in (("hp", 2600), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
                               ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
         # #276 tempo: field T=173 s once, leaves at the final timed-field boundary T=390 s; the old approval buff is removed.

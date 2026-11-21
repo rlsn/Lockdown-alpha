@@ -79,7 +79,9 @@ private:
     bool BuildField(const FVector& Foot, FString& Error);
     void UploadField(float DeltaSeconds);
     void Fail(const FString& Error);
-    static constexpr int32 FieldSide = 128;
+    // The lab field matches the shipped coverage grid (LDObservation::CoverageWidth x CoverageHeight).
+    static constexpr int32 FieldWidth = LDObservation::CoverageWidth;
+    static constexpr int32 FieldHeight = LDObservation::CoverageHeight;
     static constexpr float DistanceRangeCm = 900;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
