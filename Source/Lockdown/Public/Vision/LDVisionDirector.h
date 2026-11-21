@@ -98,6 +98,7 @@ public:
     const FQueryDiagnostics& QueryDiagnostics()const{return Diagnostics;}
     const FVector2D& MinCm() const { return Min; }
     const FVector2D& MaxCm() const { return Max; }
+    const FBox2D& CoverageBounds() const { return CoverageWorldBounds; }
     bool InBounds(const FVector& FootCm) const;
     ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
     FVector2D CellCentre(int32 Index) const;
@@ -127,6 +128,7 @@ private:
         FHitResult Support;
     };
     TArray<TArray<FGroundSample>> CoverageGround;
+    FBox2D CoverageWorldBounds{ForceInit};
     struct FCircle
     {
         FVector2D Centre = FVector2D::ZeroVector;

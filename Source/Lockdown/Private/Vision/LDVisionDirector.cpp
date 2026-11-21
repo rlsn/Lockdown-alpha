@@ -310,6 +310,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         NativeTerrainQuery.GetIgnoredComponents();
         SupportSurfaces.Build(*NativeScene);
     }
+    CoverageWorldBounds=LDObservation::SquareCoverageBounds(FBox2D(Min,Max));
     BuildGrid();
     Error.Reset();
     return true;
@@ -476,7 +477,7 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
     if (const UWorld* Native = Scene.Get())
     {
         PrepareNativeScope(From);
-        const bool bDownhill=Target.Z<Source.Z;
+        const bool bDownhill=Target.Z<Source.Z-SightSurfaceOffsetCm;
         auto* SourcePart=SourceSupport.GetComponent();auto* TargetPart=TargetSupport.GetComponent();
         const auto ExtraPart=[&](UPrimitiveComponent* Part)
         {return Part&&!NativeTerrainParts.Contains(FObjectKey(Part))&&!LDSceneTags::NoViewBlock(*Part)&&!LDSceneTags::NoCollision(*Part);};
@@ -557,26 +558,52 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
             const auto Fraction=[&](const FHitResult& H){return FVector::DotProduct(H.ImpactPoint-Eye,Direction)/Direction.SizeSquared();};
             if(bHit)
             {
-                // Only the contiguous supporting plane containing the observer may be skipped. Other lower hills,
-                // even in the same mesh, still use the real descending ray after that plane's first edge.
+                // Follow the observer's contiguous support to its edge. A descending walkable ramp joined there
+                // can continue that support, including where the capsule crosses from the ramp to a separate mesh.
                 const bool bDeparturePlane=SourceSupport.GetComponent()&&First.ImpactNormal.Equals(SourceSupport.ImpactNormal,.001)
                     &&FMath::Abs(FVector::DotProduct(First.ImpactPoint-Source,SourceSupport.ImpactNormal))<=.15;
-                if (!bDeparturePlane)
+                const auto DepartureExit = [&](const FVector& Start,const FHitResult& Support)
                 {
-                    if (!ClearsRampGrazing(First)) { return true; }
-                }
-                else
+                    const double Started=FPlatformTime::Seconds(); ++Diagnostics.DepartureCalls;
+                    const double Exit=SupportSurfaces.DepartureExit(Start,Target,Support);
+                    Diagnostics.DepartureSeconds+=FPlatformTime::Seconds()-Started;
+                    return Exit;
+                };
+                double Exit=0.;
+                if (bDeparturePlane) { Exit=DepartureExit(Source,SourceSupport); }
+                else if (SourceSupport.GetComponent() && !First.bStartPenetrating)
                 {
-                    const double DepartureStarted=FPlatformTime::Seconds();++Diagnostics.DepartureCalls;
-                    const double Exit=SupportSurfaces.DepartureExit(Source,Target,SourceSupport);
-                    Diagnostics.DepartureSeconds+=FPlatformTime::Seconds()-DepartureStarted;
-                    if(Exit+.000001<Fraction(First)){return true;}
-                    if(Exit<1.)
+                    const auto& Walk=*GetDefault<ALDCharacter>()->GetCharacterMovement();
+                    const FVector& Normal=First.ImpactNormal;
+                    const FVector2D Across=To-From;
+                    if (Normal.Z>=Walk.GetWalkableFloorZ() && Normal.Z<.9995 && FVector2D::DotProduct(FVector2D(Normal),Across)>0.)
                     {
-                        const FVector Start=FMath::Lerp(Eye,GroundEnd,Exit)+Direction.GetSafeNormal()*SightSurfaceOffsetCm;
-                        if(TraceTerrain(Hit,FVector(FVector2D(Start),Source.Z+SightSurfaceOffsetCm),Start)){return true;}
-                        if(TraceTerrain(Hit,Start,GroundEnd)&&!ClearsRampGrazing(Hit)){return true;}
+                        const double Edge=DepartureExit(Source,SourceSupport);
+                        if (Edge<=Fraction(First))
+                        {
+                            const FVector2D Seam=FMath::Lerp(From,To,Edge);
+                            const auto PlaneHeight = [&](const FVector& Point,const FVector& PlaneNormal)
+                            {
+                                return Point.Z-FVector2D::DotProduct(Seam-FVector2D(Point),FVector2D(PlaneNormal))/PlaneNormal.Z;
+                            };
+                            const double RampHeight=PlaneHeight(First.ImpactPoint,Normal);
+                            const double Drop=PlaneHeight(Source,SourceSupport.ImpactNormal)-RampHeight;
+                            if (Drop>=-SightSurfaceOffsetCm && Drop<=Walk.MaxStepHeight)
+                            {
+                                Exit=FMath::Lerp(Edge,1.,DepartureExit(FVector(Seam,RampHeight),First));
+                            }
+                        }
                     }
+                }
+                if (Exit+.000001<Fraction(First))
+                {
+                    if (bDeparturePlane || !ClearsRampGrazing(First)) { return true; }
+                }
+                else if (Exit<1.)
+                {
+                    const FVector Start=FMath::Lerp(Eye,GroundEnd,Exit)+Direction.GetSafeNormal()*SightSurfaceOffsetCm;
+                    if(TraceTerrain(Hit,FVector(FVector2D(Start),Source.Z+SightSurfaceOffsetCm),Start)){return true;}
+                    if(TraceTerrain(Hit,Start,GroundEnd)&&!ClearsRampGrazing(Hit)){return true;}
                 }
             }
         }
@@ -714,8 +741,8 @@ ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVecto
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
 {
     const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
-    return FVector2D(Min.X + ((Index % Width) + .5) * CellX, Min.Y + ((Index / Width) + .5) * CellY);
+    const FVector2D Span=CoverageWorldBounds.GetSize();
+    return CoverageWorldBounds.Min+FVector2D(((Index % Width)+.5)*Span.X/Width,((Index / Width)+.5)*Span.Y/Height);
 }
 
 void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const
@@ -724,12 +751,13 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     OutBits.Init(0, LDObservation::CoverageBytes);
     if (!IsValid() || !InBounds(SourceFootCm)) { return; }
     const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
+    const FVector2D Span=CoverageWorldBounds.GetSize(), GridMin=CoverageWorldBounds.Min;
+    const double CellX=Span.X/Width, CellY=Span.Y/Height;
     const double Reach = MaximumRadius();
-    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - Reach - Min.X) / CellX), 0, Width - 1);
-    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + Reach - Min.X) / CellX), 0, Width - 1);
-    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - Reach - Min.Y) / CellY), 0, Height - 1);
-    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + Reach - Min.Y) / CellY), 0, Height - 1);
+    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - Reach - GridMin.X) / CellX), 0, Width - 1);
+    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + Reach - GridMin.X) / CellX), 0, Width - 1);
+    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - Reach - GridMin.Y) / CellY), 0, Height - 1);
+    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + Reach - GridMin.Y) / CellY), 0, Height - 1);
     FVector From; FHitResult Support; ResolveFoot(SourceFootCm, From, Support);
     for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X)
     {

@@ -1438,17 +1438,9 @@ void ALDWorldViewRelay::SyncProxies()
 
 bool ALDWorldViewRelay::CoversPoint(const FLDWorldView& Frame, const FVector& Point) const
 {
-    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
-    FVector Min = FVector::ZeroVector, Max = FVector::ZeroVector;
-    FString Error;
-    if (!Geometry || Geometry->Surfaces.Num() != 1 || !Geometry->Surfaces[0].MinCm.ToVector(Min, Error)
-        || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error) || Max.X <= Min.X || Max.Y <= Min.Y
-        || Frame.Footprint.SourceStatus != ELDObservationSource::ActiveBody) { return false; }
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    const int32 X = FMath::FloorToInt32((Point.X - Min.X) / (Max.X - Min.X) * Width);
-    const int32 Y = FMath::FloorToInt32((Point.Y - Min.Y) / (Max.Y - Min.Y) * Height);
-    return X >= 0 && X < Width && Y >= 0 && Y < Height && LDObservation::CoverageBit(Frame.Footprint.CurrentBits, Y * Width + X);
+    if (Frame.Footprint.SourceStatus != ELDObservationSource::ActiveBody) { return false; }
+    const int32 Index=LDObservation::CoverageIndex(LDObservation::MapCoverageBounds(GetWorld()),FVector2D(Point));
+    return LDObservation::CoverageBit(Frame.Footprint.CurrentBits,Index);
 }
 
 void ALDWorldViewRelay::PresentProxies(float Delta)
@@ -1505,15 +1497,8 @@ void ALDWorldViewRelay::UploadFog()
     if (!FogTexture || !FogTexture->GetResource() || !FogMaterial) { return; }
     const FLDObservedFrameRead Snapshot = Receiver.Read();
     if (Snapshot.LocalSerial == FogSerial) { return; }
-    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
-    FVector GroundMin = FVector::ZeroVector, GroundMax = FVector::ZeroVector;
-    FString Error;
-    const bool bGeometry = Geometry && Geometry->Surfaces.Num() == 1
-        && Geometry->Surfaces[0].MinCm.ToVector(GroundMin, Error)
-        && Geometry->Surfaces[0].MaxCm.ToVector(GroundMax, Error)
-        && GroundMax.X > GroundMin.X && GroundMax.Y > GroundMin.Y;
-    const bool bCurrent = bGeometry && Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
+    const FBox2D Bounds=LDObservation::MapCoverageBounds(GetWorld());
+    const bool bCurrent = Bounds.bIsValid && Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
         && Snapshot.Frame->Footprint.SourceStatus == ELDObservationSource::ActiveBody;
     // A stale/dead/bodiless viewer loses the old appearance immediately. Unit authorization stays in Receiver.
     FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), bCurrent ? 1.f : 0.f);
@@ -1526,8 +1511,8 @@ void ALDWorldViewRelay::UploadFog()
         FogSerial = Snapshot.LocalSerial;
         return;
     }
-    const FVector2D Span(GroundMax.X - GroundMin.X, GroundMax.Y - GroundMin.Y);
-    FogMaterial->SetVectorParameterValue(TEXT("FieldWorldMin"), FLinearColor(GroundMin.X, GroundMin.Y, 0, 0));
+    const FVector2D Span=Bounds.GetSize();
+    FogMaterial->SetVectorParameterValue(TEXT("FieldWorldMin"), FLinearColor(Bounds.Min.X, Bounds.Min.Y, 0, 0));
     FogMaterial->SetVectorParameterValue(TEXT("FieldWorldSpan"), FLinearColor(Span.X, Span.Y, 0, 0));
     const TArray<uint8>& Bits = Snapshot.Frame->Footprint.CurrentBits;
     // Unit-only publications reuse the field; there are no local raycasts or extra network payloads.

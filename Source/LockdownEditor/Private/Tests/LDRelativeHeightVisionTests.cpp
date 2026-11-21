@@ -5,6 +5,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "FileHelpers.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -211,6 +212,13 @@ bool FLDRelativeHeightMap::RunTest(const FString& Parameters)
         ||!TestTrue(TEXT("Neutral comparison builds: ")+Error,Flat.Build(*Registry->GetGeometry(),Registry->Revision(),
         Content->Get().Parameters.VisionRadiusCm,Neutral,Error,World))){return false;}
     const double BuildMs=(FPlatformTime::Seconds()-Start)*1000.;
+    const FBox2D CoverageBounds=Sight.CoverageBounds();
+    const FBox2D RenderBounds=LDObservation::MapCoverageBounds(World);
+    const FVector2D Span=CoverageBounds.GetSize();
+    TestTrue(TEXT("Authority, fog and minimap share coverage coordinates"),RenderBounds.bIsValid
+        && RenderBounds.Min.Equals(CoverageBounds.Min) && RenderBounds.Max.Equals(CoverageBounds.Max));
+    TestTrue(TEXT("Formal ground coverage uses square cells"),
+        FMath::IsNearlyEqual(Span.X/LDObservation::CoverageWidth,Span.Y/LDObservation::CoverageHeight));
     TArray<FVector> Feet;
     for(const auto& Anchor:Geometry->Anchors)
     {
@@ -285,8 +293,51 @@ bool FLDRelativeHeightMap::RunTest(const FString& Parameters)
 
     FVector ShoulderViewer(2250,2244,1500);
     if(!TestTrue(TEXT("The recorded shoulder viewpoint has authored walkable support"),ReadGround(ShoulderViewer))){return false;}
+    AddInfo(FString::Printf(TEXT("RAMP_CREST_GRID cell_cm=%.3f,%.3f"),
+        Span.X/LDObservation::CoverageWidth,Span.Y/LDObservation::CoverageHeight));
+    FCollisionShape Capsule;
+    if (!TestTrue(TEXT("Recorded crossing uses the approved character capsule"),ULDMapRegistry::ContentCapsule(*Content,Capsule,Error))) { return false; }
+    const double HalfHeight=Capsule.GetCapsuleHalfHeight();
+    const double FloorGap=(UCharacterMovementComponent::MIN_FLOOR_DIST+UCharacterMovementComponent::MAX_FLOOR_DIST)*.5;
+    FVector LowGround(1135.520,1386.623,600.);
+    if (!TestTrue(TEXT("Recorded low target has support"),ReadGround(LowGround))) { return false; }
+    const int32 LowCell=LDObservation::CoverageIndex(CoverageBounds,FVector2D(LowGround));
+    int32 Samples=0, PeakLost=0;
+    for (int32 Y : {1930,1985,2210,2290,2371,2450,2530})
+    {
+        int32 LaneSamples=0;
+        TArray<uint8> PreviousBits;
+        const double SeamStart=Y<2000 ? 1659. : 1704.;
+        for (int32 Step=0; Step<=64; ++Step)
+        {
+            const double X=SeamStart+Step*.16;
+            FVector From(X,Y,1150);
+            if (!ReadGround(From)) { continue; }
+            FHitResult SweptFloor;
+            if (!World->SweepSingleByChannel(SweptFloor,FVector(X,Y,From.Z+HalfHeight+80),FVector(X,Y,From.Z+HalfHeight-10),
+                FQuat::Identity,ECC_Pawn,Capsule) || SweptFloor.bStartPenetrating) { continue; }
+            const FVector CapsuleFoot=SweptFloor.Location-FVector(0,0,HalfHeight-FloorGap);
+            Sight.Coverage(CapsuleFoot,Bits);
+            ++LaneSamples;
+            int32 Lost=0;
+            if (PreviousBits.Num()==Bits.Num())
+            {
+                for (int32 I=0; I<Bits.Num(); ++I) { Lost+=FPlatformMath::CountBits(uint32(PreviousBits[I]&~Bits[I])); }
+            }
+            PeakLost=FMath::Max(PeakLost,Lost);
+            if (Y==2371)
+            {
+                TestTrue(FString::Printf(TEXT("The recorded open target stays visible at x=%.2f"),X),
+                    Sight.Trace(CapsuleFoot,LowGround)==ELDSightResult::Visible && LDObservation::CoverageBit(Bits,LowCell));
+            }
+            PreviousBits=Bits;
+        }
+        TestEqual(TEXT("Each recorded lane sweeps across the whole seam"),LaneSamples,65);
+        Samples+=LaneSamples;
+    }
+    AddInfo(FString::Printf(TEXT("RAMP_CREST_REPLAY samples=%d peak_lost_per_step=%d"),Samples,PeakLost));
+    TestTrue(TEXT("Crossing the real ramp seam never discards a large patch of visible terrain"),PeakLost<=8);
     Sight.Coverage(ShoulderViewer,Bits);
-    const FVector2D Span=Sight.MaxCm()-Sight.MinCm();
     int32 CoveredShoulders=0;
     for(FVector Shoulder: {FVector(2450,2030,1500),FVector(2450,1880,1500),FVector(2530,1880,1500)})
     {
@@ -294,10 +345,7 @@ bool FLDRelativeHeightMap::RunTest(const FString& Parameters)
             ReadGround(Shoulder)&&FMath::IsNearlyEqual(Shoulder.Z,ShoulderViewer.Z,3.))){return false;}
         TestEqual(TEXT("An open shoulder beside the ramp is visible to gameplay"),
             Sight.Trace(ShoulderViewer,Shoulder),ELDSightResult::Visible);
-        const FVector2D Cell=(FVector2D(Shoulder)-Sight.MinCm())/Span;
-        const int32 X=FMath::FloorToInt(Cell.X*LDObservation::CoverageWidth);
-        const int32 Y=FMath::FloorToInt(Cell.Y*LDObservation::CoverageHeight);
-        CoveredShoulders+=LDObservation::CoverageBit(Bits,Y*LDObservation::CoverageWidth+X)?1:0;
+        CoveredShoulders+=LDObservation::CoverageBit(Bits,LDObservation::CoverageIndex(CoverageBounds,FVector2D(Shoulder)))?1:0;
     }
     TestEqual(TEXT("The rendered coverage includes the recorded shoulder cells"),CoveredShoulders,3);
     return true;

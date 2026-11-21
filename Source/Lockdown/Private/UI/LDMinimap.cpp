@@ -174,7 +174,7 @@ bool LDMinimap::FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2
 
 namespace
 {
-// The minimap shares the registered ground bounds that observation coverage indexes.
+// Layout uses the registered ground. The coverage overlay maps its padded square-cell bounds separately.
 bool MinimapGroundBounds(const UWorld* World,FBox2D& Out)
 {
     const auto* Registry=World?World->GetSubsystem<ULDMapRegistry>():nullptr;
@@ -668,10 +668,14 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         const ALDWorldViewRelay* Relay=bAlive?PC->LocalView():nullptr;const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
         // Dynamic marks only come from the current authorized frame of this match and life; dead, stale or foreign frames draw none.
         const FLDWorldView* Frame=MinimapAuthorizedFrame(*PC,Read);
-        if(Frame&&Frame->Footprint.SourceStatus==ELDObservationSource::ActiveBody&&Cache.Coverage.IsValid()
+        const FBox2D CoverageBounds=LDObservation::MapCoverageBounds(GetWorld());
+        if(CoverageBounds.bIsValid&&Frame&&Frame->Footprint.SourceStatus==ELDObservationSource::ActiveBody&&Cache.Coverage.IsValid()
             &&Cache.CoverageKey.Matches(Read.LocalSerial,Own.Match,Own.Life))
         {
-            FSlateDrawElement::MakeBox(E,Base+4,Plane.ToPaintGeometry(),&Cache.CoverageBrush,ESlateDrawEffect::NoGamma);
+            const FVector2f CoverageAt((CoverageBounds.Min-Ground.Min)*View.Scale);
+            const FVector2f CoverageSize(CoverageBounds.GetSize()*View.Scale);
+            FSlateDrawElement::MakeBox(E,Base+4,Plane.ToPaintGeometry(CoverageSize,FSlateLayoutTransform(CoverageAt)),
+                &Cache.CoverageBrush,ESlateDrawEffect::NoGamma);
         }
         else { PlaneBox(4, RegionAt, RegionSize, LDMinimapRaster::FogColor()); }
         if(MinimapStaticReady(Cache,GetWorld(),{Region,Size,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World}))

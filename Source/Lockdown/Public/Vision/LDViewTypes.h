@@ -23,7 +23,8 @@ namespace LDObservation
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
     // 20 widens the conceal count for the authored roster plus the full flight bound.
     // 21 packs public status expiry times without losing precision.
-    constexpr uint32 Schema = 21;
+    // 22 uses the finer square-cell ground coverage raster.
+    constexpr uint32 Schema = 22;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -37,13 +38,15 @@ namespace LDObservation
     // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven;
-    // Display coverage over the registered ground surface bounds, low bit first.
-    // The coverage grid over the ground surface: CoverageWidth columns along X, CoverageHeight rows along Y (the 21000 x
-    // 10000 cm ground gives cells of about 82 x 78 cm). Bit index = row * CoverageWidth + column.
-    constexpr int32 CoverageWidth = 256;
-    constexpr int32 CoverageHeight = 128;
+    // Square display cells sampled over the native ground bounds with padding as needed. Low bit first.
+    constexpr int32 CoverageWidth = 512;
+    constexpr int32 CoverageHeight = 320;
     constexpr int32 CoverageCells = CoverageWidth * CoverageHeight;
     constexpr int32 CoverageBytes = CoverageCells / 8;
+    static_assert(CoverageWidth % 8 == 0 && CoverageBytes <= MAX_uint16);
+    LOCKDOWN_API FBox2D SquareCoverageBounds(const FBox2D& Ground);
+    LOCKDOWN_API FBox2D MapCoverageBounds(const UWorld* World);
+    LOCKDOWN_API int32 CoverageIndex(const FBox2D& Bounds, const FVector2D& Point);
     // Bounded uint8 wire counts permit authored camp instances. Admission counts the actual scene roster,
     // every other contender and the Boss; no hidden unit is dropped to fit this capacity.
     // BeginMatch also checks every other resting contender, one owned dummy per contender and all authored shared targets.
