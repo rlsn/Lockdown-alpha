@@ -7537,7 +7537,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "self",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -7764,7 +7764,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "self",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -7869,7 +7869,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "self",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"

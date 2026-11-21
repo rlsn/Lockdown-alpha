@@ -214,6 +214,18 @@ bool FLDSkillRankCardHostTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("S12 ranks up to 2A"), LDProgression::ApplyRankUpSkill(Content, Build, 1, B::A, Context, Out), ELDGrowthReason::None);
     TestTrue(TEXT("2A's root takes K05 and K11"), Reason(Out, TEXT("card_pin_amp"), OnSlide) == ELDGrowthReason::None
         && Reason(Out, TEXT("card_hold_longer"), OnSlide) == ELDGrowthReason::None);
+    // S14 stays a self form; its 2B adds a hit around the caster, which K07 widens.
+    const FName Lid(TEXT("active_not_mad"));
+    FLDCardTarget OnLid;
+    OnLid.Kind = ELDCardTargetKind::Skill;
+    OnLid.Active = Lid;
+    Build = Out;
+    Build.Level = 12;
+    Build.Actives.Add({Lid, 2, B::None});
+    TestEqual(TEXT("Rank-1 S14 only shields its caster and refuses K07"), Reason(Build, TEXT("card_crowd_hit"), OnLid),
+        ELDGrowthReason::InvalidTarget);
+    TestEqual(TEXT("S14 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 2, B::B, Context, Out), ELDGrowthReason::None);
+    TestEqual(TEXT("2B's area around the caster takes K07"), Reason(Out, TEXT("card_crowd_hit"), OnLid), ELDGrowthReason::None);
     return true;
 }
 

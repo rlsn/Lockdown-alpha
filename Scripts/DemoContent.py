@@ -1126,10 +1126,11 @@ def resolve_branches(ability):
             for index, patch in enumerate(ability["ranks"][step]["patches"]):
                 apply_patch(variant, patch, f"{ability['id']}.ranks.{step}.patches[{index}]")
         mode = variant["target"]["mode"]
-        if mode != ability["target"]["mode"]:
-            # A self-centred form hits an area when it names one, else only the caster.
-            variant["hit_type"] = (("area" if any(effect["op"] == "self_area" for effect in variant["effects"]) else "self")
-                                   if mode == "Self" else BRANCH_FORM_HIT_TYPES[mode])
+        if mode == "Self" and any(effect["op"] == "self_area" for effect in variant["effects"]):
+            # A self-centred form that names an area hits that area, whether the step changed the form or only added it.
+            variant["hit_type"] = "area"
+        elif mode != ability["target"]["mode"]:
+            variant["hit_type"] = "self" if mode == "Self" else BRANCH_FORM_HIT_TYPES[mode]
         out.append({"path": name, **variant})
     return out
 
