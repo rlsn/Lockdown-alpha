@@ -33,6 +33,14 @@
 
 namespace
 {
+inline FLDDemoVisionRangeParameters LDVisionTestRange()
+{
+    FLDDemoVisionRangeParameters Range;
+    Range.NeutralHeightCm = {35,1}; Range.FullHeightCm = {120,1};
+    Range.UphillRadiusBp = 7500; Range.DownhillRadiusBp = 12500;
+    return Range;
+}
+
 struct FSceneFixture
 {
     UWorld* World = nullptr;
@@ -142,7 +150,7 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     TestTrue(TEXT("The physics edit invalidates the world revision"),Registry->Revision()!=Revision);
     FLDSightGeometry Sight;
     const auto Bind=[&]() {return Registry->Rebuild(F.Error)&&Sight.Build(*Registry->GetGeometry(),Registry->Revision(),
-        F.Content->Get().Parameters.VisionRadiusCm,F.Error,F.World);};
+        F.Content->Get().Parameters.VisionRadiusCm,F.Content->Get().Parameters.VisionRange,F.Error,F.World);};
     const FVector Left=Centre+Delta-FVector(100,0,0),Right=Centre+Delta+FVector(100,0,0);
     TestTrue(TEXT("Moved native sight binds"),Bind());
     TestEqual(TEXT("The moved native mesh blocks its actual sight location"),Sight.Trace(Left,Right),ELDSightResult::Blocked);
@@ -165,7 +173,7 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     TestTrue(TEXT("Reloaded collision blocks at its edited position"),Hit(Before+Delta));
     Registry=F.World->GetSubsystem<ULDMapRegistry>();Model->Destroy();
     TestTrue(TEXT("Deleting the model rebinds"),Registry->Rebuild(F.Error));
-    Sight.Build(*Registry->GetGeometry(),Registry->Revision(),F.Content->Get().Parameters.VisionRadiusCm,F.Error,F.World);
+    Sight.Build(*Registry->GetGeometry(),Registry->Revision(),F.Content->Get().Parameters.VisionRadiusCm,F.Content->Get().Parameters.VisionRange,F.Error,F.World);
     TestEqual(TEXT("Deleted geometry leaves no stale sight blocker"),Sight.Trace(Left,Right),ELDSightResult::Visible);
     return !HasAnyErrors();
 }
@@ -461,7 +469,7 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
         LDDemoWorld::FTerrain Terrain;
         if (!Terrain.Build(Geometry, Error)) { return false; }
         Terrain.BindScene(*World, FBox(FVector(-5000,-5000,-100), FVector(5000,5000,1000)));
-        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {Radius,1}, Error, World, &Terrain);
+        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {Radius,1}, LDVisionTestRange(), Error, World, &Terrain);
     };
     if (!TestTrue(TEXT("Native terrain sight binds: ") + Error, Bind())) { return false; }
     const FVector Left(-100,0,0), Right(100,0,0);
@@ -473,8 +481,8 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     auto* Wall = Place(FVector(150,0,200), FVector(.5,4,4));
     Wall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
     TestTrue(TEXT("Higher observer and lower wall bind"), Bind());
-    TestEqual(TEXT("High ground sees across a tall wall rooted on the lower level"),
-        Sight.Trace(FVector(-100,0,50), FVector(300,0,0)), ELDSightResult::Visible);
+    TestEqual(TEXT("A tall wall blocks the actual downhill eye-to-ground ray"),
+        Sight.Trace(FVector(-100,0,50), FVector(300,0,0)), ELDSightResult::Blocked);
     Wall->Destroy(); Plateau->Destroy();
     auto* Obstacle = Place(FVector(0,0,200), FVector(.5,4,4));
     Obstacle->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
@@ -494,7 +502,7 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Native ramp binds"), Bind())) { return false; }
     TestEqual(TEXT("Uphill sight crosses height bands on the ramp"), Sight.Trace(RampLow, RampHigh), ELDSightResult::Visible);
     TestEqual(TEXT("Downhill sight crosses height bands on the ramp"), Sight.Trace(RampHigh, RampLow), ELDSightResult::Visible);
-    TestEqual(TEXT("Flat ground beside the ramp retains elevation occlusion"), Sight.Trace(FlatBesideRamp, RampHigh), ELDSightResult::Blocked);
+    TestEqual(TEXT("A clear eye ray can see over the low side of a real ramp"), Sight.Trace(FlatBesideRamp, RampHigh), ELDSightResult::Visible);
     constexpr int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
     const int32 Column = FMath::FloorToInt32((RampHigh.X + 5000.) * Width / 10000.);
     const int32 Row = FMath::FloorToInt32((RampHigh.Y + 5000.) * Height / 10000.);

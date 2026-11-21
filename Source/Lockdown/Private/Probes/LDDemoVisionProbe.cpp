@@ -605,7 +605,7 @@ public:
             LDScenarioWalk::PatrolKeepouts(Patrol, CorridorRadius, WalkKeepouts);
             if(bPeaceful){WalkKeepouts.Reset();}
             FLDSightGeometry FixtureSight;
-            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm, Why,Owner.GetWorld()))
+            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm,Catalog->Get().Parameters.VisionRange, Why,Owner.GetWorld()))
             { return Fail(TEXT("#1"), Why); }
             FLDLegalGround HubGround;ELDWorldQueryFailure HubFailure;
             if(!Registry.QueryGround(Registry.Revision(),Capture.Position,Capsule,Capture.Surface,HubGround,HubFailure,Why))

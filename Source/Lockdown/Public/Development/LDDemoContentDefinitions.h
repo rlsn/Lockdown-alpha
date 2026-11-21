@@ -379,6 +379,24 @@ struct FLDDemoSkillRankParameters
 };
 
 USTRUCT()
+struct FLDDemoVisionRangeParameters
+{
+    GENERATED_BODY()
+    UPROPERTY() FLDDemoRational NeutralHeightCm;
+    UPROPERTY() FLDDemoRational FullHeightCm;
+    UPROPERTY() int64 UphillRadiusBp = 0;
+    UPROPERTY() int64 DownhillRadiusBp = 0;
+    bool IsValid() const
+    {
+        if (NeutralHeightCm.Denominator<=0 || FullHeightCm.Denominator<=0) { return false; }
+        const double Neutral=double(NeutralHeightCm.Numerator)/NeutralHeightCm.Denominator;
+        const double Full=double(FullHeightCm.Numerator)/FullHeightCm.Denominator;
+        return FMath::IsFinite(Neutral) && FMath::IsFinite(Full) && Neutral>=0 && Full>Neutral
+            && UphillRadiusBp>0 && UphillRadiusBp<=10000 && DownhillRadiusBp>=10000 && DownhillRadiusBp<=MAX_int32;
+    }
+};
+
+USTRUCT()
 struct FLDDemoContentParameters
 {
     GENERATED_BODY()
@@ -406,6 +424,7 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRationalBounds AttackRangeCm;
     UPROPERTY() int64 BasicAttackWindupMs = 0;
     UPROPERTY() FLDDemoRational VisionRadiusCm;
+    UPROPERTY() FLDDemoVisionRangeParameters VisionRange;
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     // VISION.SightGraceSec: a unit an obstacle just hid stays observed this long (not across range, isolation or a teleport).

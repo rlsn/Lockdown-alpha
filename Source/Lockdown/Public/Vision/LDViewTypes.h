@@ -199,7 +199,7 @@ struct FLDObservedProjectileView
     UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector; // ground point under the flight
     UPROPERTY() uint16 Heading = 0;
     UPROPERTY() ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;
-    UPROPERTY() float RadiusCm = 0;
+    UPROPERTY() float RadiusCm = 0; // Maximum horizontal reach; CurrentBits and per-unit authorization contain actual visibility.
     UPROPERTY() float InnerRadiusCm = 0;
     UPROPERTY() float AngleDegrees = 0;
     UPROPERTY() float LengthCm = 0;

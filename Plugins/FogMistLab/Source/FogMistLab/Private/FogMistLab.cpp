@@ -360,7 +360,7 @@ bool AFogMistLabGameMode::InitializeLab(FString& Error)
     }
     if (!NativeBounds.IsValid) { Error = TEXT("Lab terrain has no native collision support."); return false; }
     LabTerrain.BindScene(*GetWorld(), NativeBounds);
-    if (!Sight.Build(*Geometry, Revision, Range, Error, GetWorld(), &LabTerrain)) { return false; }
+    if (!Sight.Build(*Geometry, Revision, Range, Content->Get().Parameters.VisionRange, Error, GetWorld(), &LabTerrain)) { return false; }
     TuningMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Art/Fog/MI_FogMist.MI_FogMist"));
     if (!TuningMaterial) { Error = TEXT("Live lab mist material is missing."); return false; }
     for (TActorIterator<APostProcessVolume> It(GetWorld()); It; ++It)

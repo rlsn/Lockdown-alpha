@@ -110,6 +110,7 @@ namespace LDDemoWorld
         bool TraceScene(const FVector& Start, const FVector& End, FHitResult& Hit) const;
         bool SweepScene(const FVector& Start, const FVector& End, const FCollisionShape& Shape, FHitResult& Hit) const;
         bool IsValid() const { return StepCm > 0; }
+        const FBox& NativeBounds() const { return SceneBounds; }
         int32 Tier(const FVector2D& Point) const;
         // Resolve a known body's local support, including beneath roofs; never project down from the world's top.
         bool GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround = false,

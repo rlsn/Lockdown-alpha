@@ -779,7 +779,7 @@ public:
         if (!bCapsule || !Geometry || BossBand <= 0
             || !LDScenarioWalk::Keepouts(*Geometry, *Catalog, BodyRadius, LDDemoCombatScenario::CombatProbeSkillArrivalCm, WalkKeepouts, SiteError)
             || !LDScenarioWalk::PatrolPaths(Registry, *Catalog, Patrol, SiteError)
-            || !Sight.Build(*Geometry, Registry.Revision(), Defs.Parameters.VisionRadiusCm, SiteError))
+            || !Sight.Build(*Geometry, Registry.Revision(), Defs.Parameters.VisionRadiusCm,Defs.Parameters.VisionRange, SiteError))
         {
             return Check(false, TEXT("Start"), TEXT("The duel fixture's camp homes, Boss patrol corridor and sight geometry are available"),
                 SiteError);

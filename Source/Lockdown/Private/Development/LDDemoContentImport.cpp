@@ -769,6 +769,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("VISION.SightGraceSec"), TEXT("ms"), TEXT("ms"), &P.VisionSightGraceMs, 1, MAX_int64},
+        {TEXT("VISION.UphillRadiusScale"), TEXT("ratio"), TEXT("bp"), &P.VisionRange.UphillRadiusBp, 1, 10000},
+        {TEXT("VISION.DownhillRadiusScale"), TEXT("ratio"), TEXT("bp"), &P.VisionRange.DownhillRadiusBp, 10000, MAX_int32},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardCheckpointSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardCheckpointMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardResumeSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardResumeMs, 1, MAX_int64},
@@ -914,6 +916,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     for (const auto& Field : {
         FCmField{TEXT("UNIT.CollisionRadiusCm"), &P.CollisionRadiusCm},
         {TEXT("VISION.RadiusCm"), &P.VisionRadiusCm},
+        {TEXT("VISION.NeutralHeightCm"), &P.VisionRange.NeutralHeightCm},
+        {TEXT("VISION.FullHeightCm"), &P.VisionRange.FullHeightCm},
         {TEXT("CAPTURE.RadiusCm"), &P.CaptureRadiusCm}, {TEXT("CAMP.ResetArrivalRadiusCm"), &P.CampResetArrivalRadiusCm},
         {TEXT("DORM.RadiusCm"), &P.DormRadiusCm}, {TEXT("AIRDROP.PickupRadiusCm"), &P.AirdropPickupRadiusCm},
         {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm},
@@ -991,6 +995,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         return false;
     }
+    if (!Check.Require(P.VisionRange.IsValid(),F.Path,TEXT("vision height thresholds and radius scales must form a valid range"))) { return false; }
     if (!PacingParameters(F, P, Check)) { return false; }
     FLDShowdownParameters Showdown;
     FString ShowdownError;

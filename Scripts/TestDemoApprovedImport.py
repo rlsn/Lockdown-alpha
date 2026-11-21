@@ -332,6 +332,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "250"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".180"), ("VISION.RadiusCm", "cm", "1400"),
+            ("VISION.NeutralHeightCm", "cm", "35"), ("VISION.FullHeightCm", "cm", "120"),
+            ("VISION.UphillRadiusScale", "ratio", ".75"), ("VISION.DownhillRadiusScale", "ratio", "1.25"),
             ("VISION.SightGraceSec", "ms", ".3"), ("CAPTURE.RadiusCm", "cm", "450"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("CAPTURE.GuardCheckpointSec", "ms", "10"), ("CAPTURE.GuardResumeSec", "ms", "8"),
             ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),

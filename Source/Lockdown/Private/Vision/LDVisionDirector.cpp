@@ -17,6 +17,7 @@
 #include "World/LDCampDirector.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "Engine/Brush.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -42,55 +43,7 @@ FGuid LDObservation::ScopedHitId(const FGuid& Handle, const FGuid& HitId)
 namespace
 {
 constexpr double SightCoordinateLimitCm = 1000000.0;
-// Allow small differences at collision seams while keeping the ramp test local to the same inclined plane.
-constexpr double RampSurfaceToleranceCm = 2.0;
-
-bool IsWalkableSightSupport(const FHitResult& Support)
-{
-    static const double WalkableFloorZ = GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorZ();
-    return Support.GetComponent() && !Support.bStartPenetrating && Support.ImpactNormal.Z >= WalkableFloorZ;
-}
-
-bool IsSightSlope(const FHitResult& Support)
-{
-    return IsWalkableSightSupport(Support) && Support.ImpactNormal.Z < .9999;
-}
-
-UPrimitiveComponent* AuthoredSightRamp(const FHitResult& Support)
-{
-    static const FName RampTag(TEXT("LDIndependentRamp"));
-    auto* Part = Support.GetComponent();
-    return Part && Part->GetOwner() && IsWalkableSightSupport(Support)
-        && (Part->ComponentHasTag(RampTag) || Part->GetOwner()->ActorHasTag(RampTag)) ? Part : nullptr;
-}
-
-double RampHeightAt(const FHitResult& Support, const FVector2D& Point)
-{
-    const FVector2D Offset = Point - FVector2D(Support.ImpactPoint);
-    return Support.ImpactPoint.Z - FVector2D::DotProduct(FVector2D(Support.ImpactNormal), Offset) / Support.ImpactNormal.Z;
-}
-
-bool OnSameSightSlope(const FHitResult& Source, const FHitResult& Target)
-{
-    return IsSightSlope(Source) && IsSightSlope(Target) && Source.ImpactNormal.Equals(Target.ImpactNormal, .001)
-        && FMath::Abs(Target.ImpactPoint.Z - RampHeightAt(Source, FVector2D(Target.ImpactPoint))) <= RampSurfaceToleranceCm;
-}
-
-bool EntersSightRampAtBase(const FHitResult& Source, const FHitResult& Target)
-{
-    auto* Ramp = Target.GetComponent();
-    const bool bAuthoredRamp = AuthoredSightRamp(Target) != nullptr;
-    if (!IsWalkableSightSupport(Source) || (!bAuthoredRamp && !IsSightSlope(Target))) { return false; }
-    const double EntryZ = Source.ImpactPoint.Z + RampSurfaceToleranceCm;
-    if (Target.ImpactPoint.Z <= EntryZ) { return false; }
-
-    // At the observer's ground level a ramp mouth presents a walkable face. A raised side,
-    // cliff or detached ramp cannot grant the same exception to the elevation rule.
-    FHitResult Entry;
-    return Ramp->LineTraceComponent(Entry, FVector(FVector2D(Source.ImpactPoint), EntryZ),
-        FVector(FVector2D(Target.ImpactPoint), EntryZ), FCollisionQueryParams(SCENE_QUERY_STAT(DemoRampEntrySight), false))
-        && IsSightSlope(Entry) && (bAuthoredRamp || OnSameSightSlope(Entry, Target));
-}
+constexpr double SightSurfaceOffsetCm = 0.1;
 
 void PKTeammateFeet(const ALDGameMode& Mode, const ALDPKDirector* PK, const FGuid& Observer, TArray<FVector>& Out)
 {
@@ -153,63 +106,10 @@ double SightOrientation(const FVector2D& A, const FVector2D& B, const FVector2D&
     return (B.X - A.X) * (C.Y - A.Y) - (B.Y - A.Y) * (C.X - A.X);
 }
 
-bool SightWithinBox(const FVector2D& A, const FVector2D& B, const FVector2D& Point)
-{
-    return FMath::Min(A.X, B.X) <= Point.X && Point.X <= FMath::Max(A.X, B.X)
-        && FMath::Min(A.Y, B.Y) <= Point.Y && Point.Y <= FMath::Max(A.Y, B.Y);
-}
-
-// Closed segment intersection: touching a blocker edge or corner blocks sight.
-bool SightSegmentsTouch(const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& D)
-{
-    const double O1 = SightOrientation(A, B, C), O2 = SightOrientation(A, B, D);
-    const double O3 = SightOrientation(C, D, A), O4 = SightOrientation(C, D, B);
-    if (((O1 > 0 && O2 < 0) || (O1 < 0 && O2 > 0)) && ((O3 > 0 && O4 < 0) || (O3 < 0 && O4 > 0))) { return true; }
-    return (O1 == 0 && SightWithinBox(A, B, C)) || (O2 == 0 && SightWithinBox(A, B, D))
-        || (O3 == 0 && SightWithinBox(C, D, A)) || (O4 == 0 && SightWithinBox(C, D, B));
-}
-
-// Closed disc test: a segment touching a trunk's edge blocks sight, as a polygon edge does.
-bool SightSegmentTouchesDisc(const FVector2D& A, const FVector2D& B, const FVector2D& Centre, double Radius)
-{
-    const FVector2D Delta = B - A;
-    const double Length = Delta.SizeSquared();
-    const double T = Length > 0 ? FMath::Clamp(FVector2D::DotProduct(Centre - A, Delta) / Length, 0.0, 1.0) : 0.0;
-    return FVector2D::DistSquared(A + Delta * T, Centre) <= Radius * Radius;
-}
-
-// The segment passes through the convex counterclockwise polygon's open interior.
-bool SightSegmentEnters(const FVector2D& A, const FVector2D& B, const TArray<FVector2D>& Polygon)
-{
-    double Lower = 0, Upper = 1;
-    for (int32 Index = 0; Index < Polygon.Num(); ++Index)
-    {
-        const FVector2D Delta = Polygon[(Index + 1) % Polygon.Num()] - Polygon[Index];
-        const double Constant = FVector2D::CrossProduct(Delta, A - Polygon[Index]), Slope = FVector2D::CrossProduct(Delta, B - A);
-        if (Slope == 0)
-        {
-            if (Constant <= 0) { return false; }
-        }
-        else if (Slope > 0) { Lower = FMath::Max(Lower, -Constant / Slope); }
-        else { Upper = FMath::Min(Upper, -Constant / Slope); }
-    }
-    return Lower < Upper;
-}
-
-// The flat level a blocker stands on; the importer requires its base to lie at that level's height.
 bool SightBlockerLevel(double BaseZ, double Step, int32& Out)
 {
     Out = Step > 0 ? FMath::RoundToInt32(BaseZ / Step) : -1;
     return Out >= 0 && Out <= LDDemoWorld::MaxLevel && FMath::IsNearlyEqual(Out * Step, BaseZ, 1e-6);
-}
-
-bool SightInsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point)
-{
-    for (int32 Index = 0; Index < Polygon.Num(); ++Index)
-    {
-        if (SightOrientation(Polygon[Index], Polygon[(Index + 1) % Polygon.Num()], Point) < 0) { return false; }
-    }
-    return true;
 }
 
 uint16 QuantizeObservedYaw(double Yaw)
@@ -246,13 +146,24 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 }
 
 bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld,
-    const FLDDemoRational& InRadius, FString& Error, UWorld* NativeScene, const LDDemoWorld::FTerrain* NativeTerrain)
+    const FLDDemoRational& InRadius, const FLDDemoVisionRangeParameters& InRangeParameters,
+    FString& Error, UWorld* NativeScene, const LDDemoWorld::FTerrain* NativeTerrain)
 {
     *this = FLDSightGeometry();
     double RadiusValue = 0, SampleHeight = 0;
     if (!InWorld.IsValid() || !SightRationalValue(InRadius, RadiusValue) || RadiusValue <= 0 || RadiusValue > SightCoordinateLimitCm)
     {
         Error = TEXT("Observation requires the approved finite positive VISION.RadiusCm and a valid world revision.");
+        return false;
+    }
+    double Neutral = 0, Full = 0;
+    if (!InRangeParameters.IsValid() || !SightRationalValue(InRangeParameters.NeutralHeightCm, Neutral)
+        || !SightRationalValue(InRangeParameters.FullHeightCm, Full) || Neutral < 0 || Full <= Neutral
+        || InRangeParameters.UphillRadiusBp <= 0 || InRangeParameters.UphillRadiusBp > 10000
+        || InRangeParameters.DownhillRadiusBp < 10000
+        || RadiusValue * double(InRangeParameters.DownhillRadiusBp) / 10000. > SightCoordinateLimitCm)
+    {
+        Error = TEXT("Observation requires approved ordered height thresholds and bounded uphill/downhill radius scales.");
         return false;
     }
     if (Geometry.Surfaces.Num() != 1 || !SightRationalValue(Geometry.SightSampleHeightCm, SampleHeight) || SampleHeight <= 0)
@@ -271,6 +182,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     if (!PreparedTerrain.Build(Geometry, Error)) { return false; }
     TArray<TArray<FVector2D>> Prepared;
     TArray<int32> PreparedLevels;
+    TArray<double> PreparedHeights;
     TArray<FCircle> PreparedCircles;
     for (const FLDDemoWorldBlocker& Blocker : Geometry.Blockers)
     {
@@ -297,6 +209,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
                 return false;
             }
             Circle.Centre = FVector2D(Centre.X, Centre.Y);
+            Circle.HeightCm = Height;
             if (!SightBlockerLevel(Centre.Z, PreparedTerrain.StepCm, Circle.Level))
             {
                 Error = FString::Printf(TEXT("Sight blocker %s does not stand on a flat level."), *Blocker.Id);
@@ -326,6 +239,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
             return false;
         }
         PreparedLevels.Add(Level);
+        PreparedHeights.Add(Height);
         for (int32 Index = 0; Index < Polygon.Num(); ++Index)
         {
             if (SightOrientation(Polygon[Index], Polygon[(Index + 1) % Polygon.Num()], Polygon[(Index + 2) % Polygon.Num()]) <= 0)
@@ -340,13 +254,19 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Min = FVector2D(SurfaceMin.X, SurfaceMin.Y);
     Max = FVector2D(SurfaceMax.X, SurfaceMax.Y);
     RadiusCm = RadiusValue;
+    this->RangeParameters = InRangeParameters;
+    DownhillScale = double(InRangeParameters.DownhillRadiusBp) / 10000.;
     Blockers = MoveTemp(Prepared);
     BlockerLevels = MoveTemp(PreparedLevels);
+    BlockerHeights = MoveTemp(PreparedHeights);
     Circles = MoveTemp(PreparedCircles);
     Terrain = MoveTemp(PreparedTerrain);
     Scene = NativeScene;
-    NativeSightQueries.Reset();
+    NativePropQuery = FCollisionQueryParams(SCENE_QUERY_STAT(DemoNativeSight), false);
+    NativeTerrainQuery = FCollisionQueryParams(SCENE_QUERY_STAT(DemoTerrainSight), false);
     NativeTerrainParts.Reset();
+    NativePropQueries.Reset();
+    NativeTerrainQueries.Reset();NativeTerrainExcludedParts.Reset();NativePropExcludedParts.Reset();
     SampleHeightCm = SampleHeight;
     if (NativeScene)
     {
@@ -354,25 +274,41 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         if (NativeTerrain && NativeTerrain->IsValid()) { Terrain = *NativeTerrain; }
         else if (Registry && Registry->Enabled()) { Terrain = Registry->GetTerrain(); }
         else { Error = TEXT("Native sight requires bound terrain or an enabled map registry."); return false; }
-        Terrain.ExcludeViewTransparentGeometry();
+        const FBox& NativeBounds = Terrain.NativeBounds();
+        if (NativeBounds.IsValid)
+        {
+            Min.X = FMath::Min(Min.X, NativeBounds.Min.X); Min.Y = FMath::Min(Min.Y, NativeBounds.Min.Y);
+            Max.X = FMath::Max(Max.X, NativeBounds.Max.X); Max.Y = FMath::Max(Max.Y, NativeBounds.Max.Y);
+        }
+        // Transparency affects occlusion only; the physical support cache keeps NoViewBlock floors.
+        NativePropQuery.AddIgnoredActor(NativeScene->GetDefaultBrush());
+        NativeTerrainQuery = LDNativeGround::Query(*NativeScene);
         // Terrain keeps its semantic tier, but its footprint comes only from the edited native body.
         // Ordinary obstacles use LDVision independently of Pawn/ground-aim collision.
         for (TActorIterator<AActor> It(NativeScene); It; ++It)
         {
-            if (!It->ActorHasTag(LDDemoWorld::TerrainTag)) { continue; }
             TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
             for (auto* Part : Parts)
             {
-                if (!LDNativeGround::IsSupport(*Part) || LDSceneTags::NoViewBlock(*Part)) { continue; }
-                auto& Entry = NativeTerrainParts.AddDefaulted_GetRef();
-                Entry.Component = Part;
-                Entry.Bounds = Part->GetBodyInstance()->GetBodyBounds();
-                for (const auto& Plateau : Geometry.Plateaus)
-                { if (It->ActorHasTag(FName(*Plateau.Id))) { Entry.Tier = 2 * Plateau.Level; break; } }
-                for (const auto& Ramp : Geometry.Ramps)
-                { if (It->ActorHasTag(FName(*Ramp.Id))) { Entry.Tier = 2 * Ramp.LowerLevel + 1; break; } }
+                const auto* Body=Part->GetBodyInstance();
+                const FExcludedPart Exclusion{Part,Body&&Body->IsValidBodyInstance()?Body->GetBodyBounds():Part->Bounds.GetBox()};
+                if (LDSceneTags::NoCollision(*Part) || LDSceneTags::NoViewBlock(*Part))
+                {
+                    NativePropQuery.AddIgnoredComponent(Part);
+                    NativeTerrainQuery.AddIgnoredComponent(Part);
+                    NativeTerrainExcludedParts.Add(Exclusion);NativePropExcludedParts.Add(Exclusion);
+                    continue;
+                }
+                if (!It->ActorHasTag(LDDemoWorld::TerrainTag) || !LDNativeGround::IsSupport(*Part))
+                { NativeTerrainQuery.AddIgnoredComponent(Part); NativeTerrainExcludedParts.Add(Exclusion); continue; }
+                NativeTerrainParts.Add(FObjectKey(Part));
+                NativePropQuery.AddIgnoredComponent(Part);
+                NativePropExcludedParts.Add(Exclusion);
             }
         }
+        NativePropQuery.GetIgnoredComponents();
+        NativeTerrainQuery.GetIgnoredComponents();
+        SupportSurfaces.Build(*NativeScene);
     }
     BuildGrid();
     Error.Reset();
@@ -394,7 +330,6 @@ void FLDSightGeometry::BuildGrid()
     CellPolygons.Empty(); CellPolygons.SetNum(GridWidth * GridHeight);
     CellCircles.Empty(); CellCircles.SetNum(GridWidth * GridHeight);
     CellRegions.Empty(); CellRegions.SetNum(GridWidth * GridHeight);
-    CellNativeTerrain.Empty(); CellNativeTerrain.SetNum(GridWidth * GridHeight);
     int32 X0, Y0, X1, Y1;
     for (int32 Index = 0; !Scene.IsValid() && Index < Terrain.Regions.Num(); ++Index)
     {
@@ -402,12 +337,6 @@ void FLDSightGeometry::BuildGrid()
         for (const FVector2D& Point : Terrain.Regions[Index].Polygon) { Box += Point; }
         CellRange(Box.Min, Box.Max, X0, Y0, X1, Y1);
         for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellRegions[Y * GridWidth + X].Add(Index); } }
-    }
-    for (int32 Index = 0; Index < NativeTerrainParts.Num(); ++Index)
-    {
-        const auto& Box = NativeTerrainParts[Index].Bounds;
-        CellRange(FVector2D(Box.Min), FVector2D(Box.Max), X0, Y0, X1, Y1);
-        for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellNativeTerrain[Y * GridWidth + X].Add(Index); } }
     }
     for (int32 Index = 0; Index < Blockers.Num(); ++Index)
     {
@@ -422,8 +351,36 @@ void FLDSightGeometry::BuildGrid()
         CellRange(Circles[Index].Centre, Circles[Index].Centre, X0, Y0, X1, Y1);
         CellCircles[Y0 * GridWidth + X0].Add(Index);
     }
-    CoverageTiers.SetNumUninitialized(LDObservation::CoverageCells);
-    for (int32 Index = 0; Index < CoverageTiers.Num(); ++Index) { CoverageTiers[Index] = Terrain.Tier(CellCentre(Index)); }
+    CoverageGround.SetNum(LDObservation::CoverageCells);
+    for (int32 Index = 0; Index < CoverageGround.Num(); ++Index)
+    {
+        const FVector2D Centre = CellCentre(Index);
+        if (!Scene.IsValid())
+        {
+            double Z; FVector Normal; Terrain.Ground(Centre, Z, Normal);
+            CoverageGround[Index].Add({FVector(Centre, Z), FHitResult()});
+            continue;
+        }
+        // Cache physical columns once per world revision, including separate floors under bridges/roofs.
+        const FBox& Bounds = Terrain.NativeBounds();
+        double StartZ = Bounds.Max.Z + 1.;
+        while (StartZ > Bounds.Min.Z - 1.)
+        {
+            FHitResult Hit;
+            if (!Terrain.TraceScene(FVector(Centre, StartZ), FVector(Centre, Bounds.Min.Z - 1.), Hit)) { break; }
+            if (!Hit.bStartPenetrating && Hit.ImpactNormal.Z > .5)
+            { CoverageGround[Index].Add({Hit.ImpactPoint, Hit}); }
+            double NextZ = Hit.ImpactPoint.Z - SightSurfaceOffsetCm;
+            if (Hit.bStartPenetrating)
+            {
+                const auto* Body = Hit.GetComponent() ? Hit.GetComponent()->GetBodyInstance() : nullptr;
+                if (!Body || !Body->IsValidBodyInstance()) { break; }
+                NextZ = Body->GetBodyBounds().Min.Z - SightSurfaceOffsetCm;
+            }
+            if (NextZ >= StartZ) { break; }
+            StartZ = NextZ;
+        }
+    }
 }
 
 bool FLDSightGeometry::InBounds(const FVector& FootCm) const
@@ -432,167 +389,289 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
         && FootCm.X >= Min.X && FootCm.X <= Max.X && FootCm.Y >= Min.Y && FootCm.Y <= Max.Y;
 }
 
-bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier,
-    double SourceGroundZ, const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
+double FLDSightGeometry::RadiusForHeights(double SourceGroundZ, double TargetGroundZ) const
 {
-    const UPrimitiveComponent* AuthoredRamp = AuthoredSightRamp(SourceSupport);
-    const bool bSameAuthoredRamp = AuthoredRamp && AuthoredRamp == TargetSupport.GetComponent() && IsWalkableSightSupport(TargetSupport);
-    const bool bSameSlope = bSameAuthoredRamp || OnSameSightSlope(SourceSupport, TargetSupport);
-    const bool bEntersRamp = !bSameSlope && TargetTier > Observer && EntersSightRampAtBase(SourceSupport, TargetSupport);
-    const bool bAlongRamp = bSameSlope || bEntersRamp;
-    if (TargetTier > Observer && !bAlongRamp) { return true; }
-    const int32 Level = Observer / 2;
-    const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
-    int32 X0, Y0, X1, Y1;
-    // Polygons are listed in every cell their bounds touch; circles only in their centre's cell, so widen by a radius.
-    CellRange(Low, High, X0, Y0, X1, Y1);
-    TBitArray<TInlineAllocator<4>> TestedRegions(false, Terrain.Regions.Num());
-    for (int32 Y = Y0; Y <= Y1; ++Y)
+    return RadiusCm * LDObservation::HeightRadiusScale(RangeParameters, SourceGroundZ, TargetGroundZ);
+}
+
+double LDObservation::HeightRadiusScale(const FLDDemoVisionRangeParameters& Parameters, double SourceGroundZ, double TargetGroundZ)
+{
+    const double NeutralHeightCm = double(Parameters.NeutralHeightCm.Numerator) / Parameters.NeutralHeightCm.Denominator;
+    const double FullHeightCm = double(Parameters.FullHeightCm.Numerator) / Parameters.FullHeightCm.Denominator;
+    const double Delta = TargetGroundZ - SourceGroundZ;
+    const double Alpha = FMath::Clamp((FMath::Abs(Delta) - NeutralHeightCm) / (FullHeightCm - NeutralHeightCm), 0., 1.);
+    const double Smooth = Alpha * Alpha * (3. - 2. * Alpha);
+    const double Limit = double(Delta > 0 ? Parameters.UphillRadiusBp : Parameters.DownhillRadiusBp) / 10000.;
+    return FMath::Lerp(1., Limit, Smooth);
+}
+
+namespace
+{
+bool SightClipPolygon(const FVector2D& From, const FVector2D& To, const TArray<FVector2D>& Polygon, double& Lo, double& Hi)
+{
+    Lo = 0.; Hi = 1.;
+    for (int32 I = 0; I < Polygon.Num(); ++I)
     {
-        for (int32 X = X0; X <= X1; ++X)
-        {
-            for (const int32 Index : CellRegions[Y * GridWidth + X])
-            {
-                if (TestedRegions[Index]) { continue; }
-                TestedRegions[Index] = true;
-                const auto& Region = Terrain.Regions[Index];
-                if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
-            }
-        }
+        const FVector2D Edge = Polygon[(I + 1) % Polygon.Num()] - Polygon[I];
+        const double C = FVector2D::CrossProduct(Edge, From - Polygon[I]);
+        const double D = FVector2D::CrossProduct(Edge, To - From);
+        if (FMath::Abs(D) < UE_DOUBLE_SMALL_NUMBER) { if (C < 0) { return false; } }
+        else if (D > 0) { Lo = FMath::Max(Lo, -C / D); }
+        else { Hi = FMath::Min(Hi, -C / D); }
     }
+    return Lo <= Hi;
+}
+
+bool SightHeightOverlap(double Start, double End, double Lo, double Hi, double Base, double Top)
+{
+    const double A = FMath::Lerp(Start, End, Lo), B = FMath::Lerp(Start, End, Hi);
+    return FMath::Max(A, B) >= Base && FMath::Min(A, B) <= Top;
+}
+}
+
+void FLDSightGeometry::PrepareNativeScope(const FVector2D& From) const
+{
+    const FIntPoint Cell(FMath::FloorToInt32(From.X/GridCellCm),FMath::FloorToInt32(From.Y/GridCellCm));
+    if(bHasNativeScope&&Cell==NativeScopeCell){return;}
+    const double Started=FPlatformTime::Seconds();++Diagnostics.Scopes;
+    NativeScopeCell=Cell;bHasNativeScope=true;
+    const double Reach=MaximumRadius()+SightSurfaceOffsetCm;
+    const FBox2D Bounds(FVector2D(Cell.X*GridCellCm-Reach,Cell.Y*GridCellCm-Reach),
+        FVector2D((Cell.X+1)*GridCellCm+Reach,(Cell.Y+1)*GridCellCm+Reach));
+    LocalTerrainQuery=NativeTerrainQuery;LocalTerrainQuery.ClearIgnoredComponents();
+    LocalPropQuery=NativePropQuery;LocalPropQuery.ClearIgnoredComponents();
+    LocalTerrainExcludedParts.Reset();NativeTerrainQueries.Reset();NativePropQueries.Reset();
+    // Every allowed ray lies inside this source-cell envelope. Outside components cannot intersect it;
+    // excluding only nearby components keeps native physics filters small without changing occlusion.
+    const auto InScope=[&](const FExcludedPart& Part)
+    {return Part.Bounds.IsValid&&Bounds.Intersect(FBox2D(FVector2D(Part.Bounds.Min),FVector2D(Part.Bounds.Max)));};
+    for(const auto& Part:NativeTerrainExcludedParts)
+    {
+        if(!InScope(Part)){continue;}
+        if(auto* Component=Part.Component.Get())
+        {LocalTerrainQuery.AddIgnoredComponent(Component);LocalTerrainExcludedParts.Add(Component);}
+    }
+    for(const auto& Part:NativePropExcludedParts)
+    {if(InScope(Part)){if(auto* Component=Part.Component.Get()){LocalPropQuery.AddIgnoredComponent(Component);}}}
+    LocalTerrainQuery.GetIgnoredComponents();LocalPropQuery.GetIgnoredComponents();
+    Diagnostics.ScopeSeconds+=FPlatformTime::Seconds()-Started;
+}
+
+bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Target,
+    const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
+{
+    const FVector2D From(Source), To(Target);
+    const FVector Eye = Source + FVector(0, 0, SampleHeightCm);
+    const FVector GroundEnd = Target + FVector(0, 0, SightSurfaceOffsetCm);
+    // This raised guard rejects intervening high terrain; the real ray below exempts only the departure plane.
+    const FVector TerrainEnd(To, FMath::Max(Source.Z, Target.Z) + SightSurfaceOffsetCm);
+    const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y));
+    const FVector2D High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
+    int32 X0, Y0, X1, Y1;
+    CellRange(Low, High, X0, Y0, X1, Y1);
     if (const UWorld* Native = Scene.Get())
     {
-        const double EndZ = bAlongRamp ? TargetSupport.ImpactPoint.Z : SourceGroundZ;
-        auto* RampStart = bAlongRamp ? SourceSupport.GetComponent() : nullptr;
-        auto* RampEnd = bAlongRamp ? TargetSupport.GetComponent() : nullptr;
-        const bool bAuthoredPath = bSameAuthoredRamp || (bEntersRamp && AuthoredSightRamp(TargetSupport));
-        const auto BlocksRamp = [&](UPrimitiveComponent* Part)
+        PrepareNativeScope(From);
+        const bool bDownhill=Target.Z<Source.Z;
+        auto* SourcePart=SourceSupport.GetComponent();auto* TargetPart=TargetSupport.GetComponent();
+        const auto ExtraPart=[&](UPrimitiveComponent* Part)
+        {return Part&&!NativeTerrainParts.Contains(FObjectKey(Part))&&!LDSceneTags::NoViewBlock(*Part)&&!LDSceneTags::NoCollision(*Part);};
+        const bool bExtraSource=ExtraPart(SourcePart),bExtraTarget=ExtraPart(TargetPart);
+        const FCollisionQueryParams* TerrainQuery=&LocalTerrainQuery;
+        if(bExtraSource||bExtraTarget)
         {
-            FHitResult Hit;
-            // Authored ramps can include changes in grade. Their own surface blocks at the sight ray,
-            // while a shared plane on a merged piece still checks for intervening cliff faces.
-            const double Lift = Part == RampEnd && bAuthoredPath ? SampleHeightCm : RampSurfaceToleranceCm;
-            return Part && !LDSceneTags::NoViewBlock(*Part) && Part->LineTraceComponent(Hit,
-                FVector(From, SourceGroundZ + Lift), FVector(To, EndZ + Lift),
-                FCollisionQueryParams(SCENE_QUERY_STAT(DemoRampSight), false));
+            const TPair<FObjectKey,FObjectKey> Key(bExtraSource?FObjectKey(SourcePart):FObjectKey(),bExtraTarget?FObjectKey(TargetPart):FObjectKey());
+            auto* Prepared=NativeTerrainQueries.Find(Key);
+            if(!Prepared)
+            {
+                const double PreparationStarted=FPlatformTime::Seconds();++Diagnostics.TerrainBuilds;
+                if(NativeTerrainQueries.Num()>=256){NativeTerrainQueries.Reset();}
+                Prepared=&NativeTerrainQueries.Add(Key,LocalTerrainQuery);Prepared->ClearIgnoredComponents();
+                for(const auto& Weak:LocalTerrainExcludedParts)
+                {
+                    auto* Part=Weak.Get();if(!Part||(bExtraSource&&Part==SourcePart)||(bExtraTarget&&Part==TargetPart)){continue;}
+                    Prepared->AddIgnoredComponent(Part);
+                }
+                Prepared->GetIgnoredComponents();
+                Diagnostics.TerrainBuildSeconds+=FPlatformTime::Seconds()-PreparationStarted;
+            }
+            TerrainQuery=Prepared;
+        }
+        const auto TraceTerrain = [&](FHitResult& Out, const FVector& Start, const FVector& End)
+        {
+            const FCollisionQueryParams* Query = TerrainQuery;
+            TOptional<FCollisionQueryParams> Filtered;
+            while (LDNativeGround::Trace(*Native, Out, Start, End, *Query))
+            {
+                auto* Part = Out.GetComponent();
+                if (!Part) { return true; }
+                const bool bTerrain = NativeTerrainParts.Contains(FObjectKey(Part))
+                    || Part == SourcePart || Part == TargetPart
+                    || (Part->GetOwner() && Part->GetOwner()->ActorHasTag(LDDemoWorld::TerrainTag));
+                if (bTerrain && !LDSceneTags::NoViewBlock(*Part) && !LDSceneTags::NoCollision(*Part)) { return true; }
+                // Physics-only props can spawn after the scene cache, e.g. a capture fence. They remain
+                // movement obstacles; only LDVision may make them sight obstacles. Never cache their visibility.
+                if (!Filtered.IsSet()) { Filtered = *TerrainQuery; }
+                Filtered->AddIgnoredComponent(Part);
+                Query = &Filtered.GetValue();
+            }
+            return false;
         };
-        // A merged piece can still contain a cliff between two ramp points.
-        if (BlocksRamp(RampStart) || (RampEnd != RampStart && BlocksRamp(RampEnd))) { return true; }
-        TBitArray<TInlineAllocator<4>> TestedParts(false, NativeTerrainParts.Num());
-        for (int32 Y = Y0; Y <= Y1; ++Y)
+        FHitResult Hit;
+        // A solid deck/roof above the destination is never exempted as a departure edge.
+        if(bDownhill&&TraceTerrain(Hit,FVector(To,Source.Z+SightSurfaceOffsetCm),GroundEnd)){return true;}
+        if(TraceTerrain(Hit,Eye,TerrainEnd)){return true;}
+        if(bDownhill)
         {
-            for (int32 X = X0; X <= X1; ++X)
+            FHitResult First;
+            const bool bHit=TraceTerrain(First,Eye,GroundEnd);
+            const FVector Direction=GroundEnd-Eye;
+            const auto Fraction=[&](const FHitResult& H){return FVector::DotProduct(H.ImpactPoint-Eye,Direction)/Direction.SizeSquared();};
+            if(bHit)
             {
-                for (const int32 Index : CellNativeTerrain[Y * GridWidth + X])
+                // Only the contiguous supporting plane containing the observer may be skipped. Other lower hills,
+                // even in the same mesh, still use the real descending ray after that plane's first edge.
+                if(!SourceSupport.GetComponent()||!First.ImpactNormal.Equals(SourceSupport.ImpactNormal,.001)
+                    ||FMath::Abs(FVector::DotProduct(First.ImpactPoint-Source,SourceSupport.ImpactNormal))>.15){return true;}
+                const double DepartureStarted=FPlatformTime::Seconds();++Diagnostics.DepartureCalls;
+                const double Exit=SupportSurfaces.DepartureExit(Source,Target,SourceSupport);
+                Diagnostics.DepartureSeconds+=FPlatformTime::Seconds()-DepartureStarted;
+                if(Exit+.000001<Fraction(First)){return true;}
+                if(Exit<1.)
                 {
-                    if (TestedParts[Index]) { continue; }
-                    TestedParts[Index] = true;
-                    const auto& Entry = NativeTerrainParts[Index];
-                    auto* Part = Entry.Component.Get();
-                    if (!Part || Part == RampStart || Part == RampEnd || (Entry.Tier!=INDEX_NONE && Entry.Tier <= Observer)) { continue; }
-                    if (Entry.Tier==INDEX_NONE)
-                    {
-                        if (bAlongRamp)
-                        {
-                            if (BlocksRamp(Part)) { return true; }
-                            continue;
-                        }
-                        // A single edited mesh may contain low ground, ramps and high ground. Its highest vertex
-                        // cannot turn its entire footprint into a cliff, including the observer's own floor.
-                        const double Height=(Observer+1)*Terrain.StepCm*.5+.01;
-                        FHitResult Hit;
-                        if (Part->LineTraceComponent(Hit,FVector(From,Height),FVector(To,Height),
-                            FCollisionQueryParams(SCENE_QUERY_STAT(DemoTerrainSight),false))) { return true; }
-                        continue;
-                    }
-                    // Project current collision vertically; a short plateau still hides lower ground even below eye height.
-                    const FVector Centre = Entry.Bounds.GetCenter();
-                    const auto Column = FCollisionShape::MakeBox(FVector(.01, .01, Entry.Bounds.GetExtent().Z + .01));
-                    FHitResult Hit;
-                    if (Part->SweepComponent(Hit, FVector(From, Centre.Z), FVector(To, Centre.Z), FQuat::Identity, Column)) { return true; }
+                    const FVector Start=FMath::Lerp(Eye,GroundEnd,Exit)+Direction.GetSafeNormal()*SightSurfaceOffsetCm;
+                    if(TraceTerrain(Hit,FVector(FVector2D(Start),Source.Z+SightSurfaceOffsetCm),Start)){return true;}
+                    if(TraceTerrain(Hit,Start,GroundEnd)){return true;}
                 }
             }
         }
-        const double Z=SourceGroundZ;
-        if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
-        auto* Query = NativeSightQueries.Find(Level);
-        if (!Query)
+        const auto NeedsIgnore = [&](UPrimitiveComponent* Part)
         {
-            // Cache per observer level: coverage casts thousands of rays against this same world revision.
-            FCollisionQueryParams PreparedQuery(SCENE_QUERY_STAT(DemoNativeSight), false);
-            for (TActorIterator<AActor> It(Native); It; ++It)
-            {
-                TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
-                for (const auto* Part : Parts)
-                {
-                    if (LDSceneTags::NoCollision(*Part) || LDSceneTags::NoViewBlock(*Part))
-                    { PreparedQuery.AddIgnoredComponent(Part); continue; }
-                    const auto* Body = Part->GetBodyInstance();
-                    if (!Part->IsQueryCollisionEnabled() || !Body || !Body->IsValidBodyInstance()) { continue; }
-                    const double Base = Body->GetBodyBounds().Min.Z;
-                    if (FMath::Max(0, FMath::FloorToInt32((Base + .01) / Terrain.StepCm)) < Level) { PreparedQuery.AddIgnoredComponent(Part); }
-                }
-            }
-            Query = &NativeSightQueries.Add(Level, MoveTemp(PreparedQuery));
+            return Part && !NativeTerrainParts.Contains(FObjectKey(Part))
+                && Part->GetCollisionResponseToChannel(ECC_GameTraceChannel2)==ECR_Block
+                && !LDSceneTags::NoViewBlock(*Part) && !LDSceneTags::NoCollision(*Part);
+        };
+        const bool bIgnoreSource=NeedsIgnore(SourcePart),bIgnoreTarget=NeedsIgnore(TargetPart);
+        // Reuse the already-normalized ignore list. Adding duplicate terrain ids per cell re-sorts a large list.
+        if (!bIgnoreSource && !bIgnoreTarget)
+        { return Native->LineTraceTestByChannel(Eye,GroundEnd,ECC_GameTraceChannel2,LocalPropQuery); }
+        const TPair<FObjectKey,FObjectKey> Key(bIgnoreSource?FObjectKey(SourcePart):FObjectKey(),
+            bIgnoreTarget?FObjectKey(TargetPart):FObjectKey());
+        auto* Query=NativePropQueries.Find(Key);
+        if(!Query)
+        {
+            const double PreparationStarted=FPlatformTime::Seconds();++Diagnostics.PropBuilds;
+            // Bound geometry-filter memory; no visibility result or actor state is cached here.
+            if(NativePropQueries.Num()>=256){NativePropQueries.Reset();}
+            Query=&NativePropQueries.Add(Key,LocalPropQuery);
+            if(bIgnoreSource){Query->AddIgnoredComponent(SourcePart);}
+            if(bIgnoreTarget){Query->AddIgnoredComponent(TargetPart);}
+            Query->GetIgnoredComponents();
+            Diagnostics.PropBuildSeconds+=FPlatformTime::Seconds()-PreparationStarted;
         }
-        return Native->LineTraceTestByChannel(FVector(From, Z + SampleHeightCm),
-            FVector(To, EndZ + SampleHeightCm), ECC_GameTraceChannel2, *Query);
+        return Native->LineTraceTestByChannel(Eye, GroundEnd, ECC_GameTraceChannel2, *Query);
     }
-    for (int32 Y = Y0; Y <= Y1; ++Y)
+
+    double Departure=0;
+    if(Target.Z<Source.Z)
     {
-        for (int32 X = X0; X <= X1; ++X)
+        double Z;FVector Normal;Terrain.Ground(From,Z,Normal);
+        TArray<FVector2D,TInlineAllocator<8>> Intervals;
+        for(const auto& Region:Terrain.Regions)
         {
-            for (const int32 Blocker : CellPolygons[Y * GridWidth + X])
+            const FVector2D Up(-Region.Along.Y,Region.Along.X);
+            const double Gradient=Region.Rise/Region.Width;
+            const FVector N=FVector(-Up.X*Gradient,-Up.Y*Gradient,1).GetSafeNormal();
+            const double At=Region.Base+Gradient*FVector2D::CrossProduct(Region.Along,From-Region.Origin);
+            double Lo,Hi;
+            if(N.Equals(Normal,.001)&&FMath::Abs(At-Source.Z)<.15&&SightClipPolygon(From,To,Region.Polygon,Lo,Hi))
+            {Intervals.Add(FVector2D(Lo,Hi));}
+        }
+        Intervals.Sort([](const FVector2D& L,const FVector2D& R){return L.X<R.X;});
+        const double Tolerance=.15/FMath::Max(.001,FVector2D::Distance(From,To));
+        for(const auto& Interval:Intervals)
+        {if(Interval.X>Departure+Tolerance){break;}Departure=FMath::Max(Departure,Interval.Y);}
+    }
+    TBitArray<TInlineAllocator<4>> Tested(false, Terrain.Regions.Num());
+    for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X)
+    {
+        for (const int32 I : CellRegions[Y * GridWidth + X])
+        {
+            if (Tested[I]) { continue; } Tested[I] = true;
+            const auto& Region = Terrain.Regions[I];
+            double Lo, Hi;
+            if (!SightClipPolygon(From, To, Region.Polygon, Lo, Hi)) { continue; }
+            const auto Height = [&](double T)
             {
-                if (BlockerLevels[Blocker] < Level) { continue; }
-                const TArray<FVector2D>& Polygon = Blockers[Blocker];
-                if (SightInsideConvex(Polygon, From) || SightInsideConvex(Polygon, To)) { return true; }
-                for (int32 Index = 0; Index < Polygon.Num(); ++Index)
-                {
-                    if (SightSegmentsTouch(From, To, Polygon[Index], Polygon[(Index + 1) % Polygon.Num()])) { return true; }
-                }
+                return Region.Base + Region.Rise * FMath::Clamp(
+                    FVector2D::CrossProduct(Region.Along, FMath::Lerp(From, To, T) - Region.Origin), 0., Region.Width) / Region.Width;
+            };
+            if (Height(Lo) > FMath::Lerp(Eye.Z, TerrainEnd.Z, Lo)
+                || Height(Hi) > FMath::Lerp(Eye.Z, TerrainEnd.Z, Hi)) { return true; }
+            if(Target.Z<Source.Z&&Hi>Departure)
+            {
+                const double Begin=FMath::Max(Lo,Departure+.000001);
+                if(Begin<=Hi&&(Height(Begin)>FMath::Lerp(Eye.Z,GroundEnd.Z,Begin)
+                    ||Height(Hi)>FMath::Lerp(Eye.Z,GroundEnd.Z,Hi))){return true;}
             }
         }
-    }
+        for (const int32 I : CellPolygons[Y * GridWidth + X])
+        {
+            double Lo, Hi;
+            if (SightClipPolygon(From, To, Blockers[I], Lo, Hi)
+                && SightHeightOverlap(Eye.Z, GroundEnd.Z, Lo, Hi, BlockerLevels[I] * Terrain.StepCm,
+                    BlockerLevels[I] * Terrain.StepCm + BlockerHeights[I])) { return true; }
+        }
+    } }
     const FVector2D Reach(MaxCircleRadius, MaxCircleRadius);
     CellRange(Low - Reach, High + Reach, X0, Y0, X1, Y1);
-    for (int32 Y = Y0; Y <= Y1; ++Y)
+    for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X)
     {
-        for (int32 X = X0; X <= X1; ++X)
+        for (const int32 I : CellCircles[Y * GridWidth + X])
         {
-            for (const int32 Index : CellCircles[Y * GridWidth + X])
-            {
-                const FCircle& Circle = Circles[Index];
-                if (Circle.Level >= Level && SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
-            }
+            const auto& Circle = Circles[I];
+            const FVector2D D = To - From, P = From - Circle.Centre;
+            const double A = D.SizeSquared(), B = FVector2D::DotProduct(P, D);
+            const double C = P.SizeSquared() - Circle.Radius * Circle.Radius;
+            const double Disc = B * B - A * C;
+            if (A <= UE_DOUBLE_SMALL_NUMBER)
+            { if (C <= 0 && SightHeightOverlap(Eye.Z, GroundEnd.Z, 0, 1, Circle.Level * Terrain.StepCm,
+                Circle.Level * Terrain.StepCm + Circle.HeightCm)) { return true; } continue; }
+            if (Disc < 0) { continue; }
+            const double Root = FMath::Sqrt(Disc);
+            const double Lo = FMath::Max(0., (-B - Root) / A), Hi = FMath::Min(1., (-B + Root) / A);
+            if (Lo <= Hi && SightHeightOverlap(Eye.Z, GroundEnd.Z, Lo, Hi, Circle.Level * Terrain.StepCm,
+                Circle.Level * Terrain.StepCm + Circle.HeightCm)) { return true; }
         }
-    }
+    } }
     return false;
+}
+
+void FLDSightGeometry::ResolveFoot(const FVector& Foot, FVector& Ground, FHitResult& Support) const
+{
+    Ground = Foot;
+    int32 IgnoredTier;
+    double Z;
+    if (Terrain.GroundNear(Foot, Z, IgnoredTier, false, &Support)
+        || Terrain.GroundNear(Foot, Z, IgnoredTier, true, &Support)) { Ground.Z = Z; }
+}
+
+ELDSightResult FLDSightGeometry::TracePrepared(const FVector& From, const FVector& To,
+    const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
+{
+    const double Range = RadiusForHeights(From.Z, To.Z);
+    if (FVector2D::DistSquared(FVector2D(From), FVector2D(To)) > Range * Range) { return ELDSightResult::OutOfRange; }
+    return SegmentBlocked(From, To, SourceSupport, TargetSupport) ? ELDSightResult::Blocked : ELDSightResult::Visible;
 }
 
 ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const
 {
     if (!IsValid()) { return ELDSightResult::StaleWorld; }
     if (!InBounds(SourceFootCm) || !InBounds(TargetFootCm)) { return ELDSightResult::InvalidPoint; }
-    const FVector2D From(SourceFootCm.X, SourceFootCm.Y), To(TargetFootCm.X, TargetFootCm.Y);
-    if (FVector2D::DistSquared(From, To) > RadiusCm * RadiusCm) { return ELDSightResult::OutOfRange; }
-    double SourceZ=SourceFootCm.Z,TargetZ=TargetFootCm.Z;
-    int32 Observer, Target;
-    FHitResult SourceSupport, TargetSupport;
-    if (Scene.IsValid())
-    {
-        if (!Terrain.GroundNear(SourceFootCm,SourceZ,Observer,false,&SourceSupport))
-        { Observer=FMath::Max(0,FMath::FloorToInt32((SourceFootCm.Z+.01)*2/Terrain.StepCm)); }
-        if (!Terrain.GroundNear(TargetFootCm,TargetZ,Target,false,&TargetSupport))
-        { Target=FMath::Max(0,FMath::FloorToInt32((TargetFootCm.Z+.01)*2/Terrain.StepCm)); }
-    }
-    else
-    {
-        Observer = Terrain.Tier(From);
-        Target = Terrain.Tier(To);
-    }
-    return SegmentBlocked(From, To, Observer, Target, SourceZ, SourceSupport, TargetSupport)
-        ? ELDSightResult::Blocked : ELDSightResult::Visible;
+    if (FVector::DistSquared2D(SourceFootCm, TargetFootCm) > FMath::Square(MaximumRadius())) { return ELDSightResult::OutOfRange; }
+    FVector From, To; FHitResult SourceSupport, TargetSupport;
+    ResolveFoot(SourceFootCm, From, SourceSupport); ResolveFoot(TargetFootCm, To, TargetSupport);
+    return TracePrepared(From, To, SourceSupport, TargetSupport);
 }
 
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
@@ -609,62 +688,22 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     if (!IsValid() || !InBounds(SourceFootCm)) { return; }
     const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
     const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
-    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - RadiusCm - Min.X) / CellX), 0, Width - 1);
-    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + RadiusCm - Min.X) / CellX), 0, Width - 1);
-    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Height - 1);
-    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Height - 1);
-    const FVector2D From(SourceFootCm);
-    double SourceZ=SourceFootCm.Z;
-    FHitResult SourceSupport;
-    int32 ObserverTier;
-    if (!Scene.IsValid()) { ObserverTier = Terrain.Tier(From); }
-    else if (!Terrain.GroundNear(SourceFootCm,SourceZ,ObserverTier,false,&SourceSupport))
-    { ObserverTier=FMath::Max(0,FMath::FloorToInt32((SourceFootCm.Z+.01)*2/Terrain.StepCm)); }
-    auto* AuthoredRamp = AuthoredSightRamp(SourceSupport);
-    const FBodyInstance* RampBody = AuthoredRamp ? AuthoredRamp->GetBodyInstance() : nullptr;
-    const FBox RampBounds = RampBody ? RampBody->GetBodyBounds() : FBox(ForceInit);
-    const bool bOnSlope = IsSightSlope(SourceSupport);
-    const FCollisionQueryParams RampQuery(SCENE_QUERY_STAT(DemoRampCoverage), false);
-    for (int32 Y = Y0; Y <= Y1; ++Y)
+    const double Reach = MaximumRadius();
+    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - Reach - Min.X) / CellX), 0, Width - 1);
+    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + Reach - Min.X) / CellX), 0, Width - 1);
+    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - Reach - Min.Y) / CellY), 0, Height - 1);
+    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + Reach - Min.Y) / CellY), 0, Height - 1);
+    FVector From; FHitResult Support; ResolveFoot(SourceFootCm, From, Support);
+    for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X)
     {
-        for (int32 X = X0; X <= X1; ++X)
+        const int32 Index = Y * Width + X;
+        if (FVector2D::DistSquared(FVector2D(From), CellCentre(Index)) > Reach * Reach) { continue; }
+        for (const auto& Target : CoverageGround[Index])
         {
-            const int32 Index = Y * Width + X;
-            const FVector2D Centre = CellCentre(Index);
-            if (FVector2D::DistSquared(From, Centre) > RadiusCm * RadiusCm) { continue; }
-            int32 TargetTier = CoverageTiers[Index];
-            FHitResult TargetSupport;
-            if (Scene.IsValid())
-            {
-                double TargetZ = 0;
-                const bool bOnAuthoredRamp = RampBounds.IsValid && RampBounds.IsInsideXY(FVector(Centre, 0.))
-                    && AuthoredRamp->LineTraceComponent(TargetSupport, FVector(Centre, RampBounds.Max.Z + 1.),
-                        FVector(Centre, RampBounds.Min.Z - 1.), RampQuery) && IsWalkableSightSupport(TargetSupport);
-                const bool bOnSameSlope = !bOnAuthoredRamp && bOnSlope
-                    && Terrain.GroundNear(FVector(Centre, RampHeightAt(SourceSupport, Centre) + RampSurfaceToleranceCm),
-                        TargetZ, TargetTier, false, &TargetSupport) && OnSameSightSlope(SourceSupport, TargetSupport);
-                if (bOnAuthoredRamp) { TargetTier = ObserverTier; }
-                else if (!bOnSameSlope)
-                {
-                    const int32 TopTier = CoverageTiers[Index];
-                    FHitResult TopSupport;
-                    if (TopTier > ObserverTier && Terrain.TraceGround(Centre, TopSupport)
-                        && (IsSightSlope(TopSupport) || AuthoredSightRamp(TopSupport)))
-                    {
-                        TargetTier = TopTier;
-                        TargetSupport = TopSupport;
-                    }
-                    else
-                    {
-                        TargetTier = TopTier;
-                        Terrain.GroundNear(FVector(Centre, SourceZ + .1), TargetZ, TargetTier, true, &TargetSupport);
-                    }
-                }
-            }
-            if (!SegmentBlocked(From, Centre, ObserverTier, TargetTier, SourceZ, SourceSupport, TargetSupport))
-            { LDObservation::SetCoverageBit(OutBits, Index); }
+            if (TracePrepared(From, Target.Foot, Support, Target.Support) == ELDSightResult::Visible)
+            { LDObservation::SetCoverageBit(OutBits, Index); break; }
         }
-    }
+    } }
 }
 
 void FLDSightGeometry::AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const
@@ -1173,7 +1212,7 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
         SightRadius.Numerator *= 10000 - Loaded->Get().Parameters.Daily.BlackoutVisionCutBp;
         SightRadius.Denominator *= 10000;
     }
-    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), SightRadius, Error, GetWorld())) { return false; }
+    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), SightRadius, Loaded->Get().Parameters.VisionRange, Error, GetWorld())) { return false; }
     int64 CampMembers = 0;
     FLDCampRoster CampRoster;
     if (!LDCamp::BuildRoster(Loaded->Get(), *Registry->GetGeometry(), CampRoster, Error)) { return false; }
@@ -1535,7 +1574,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     {
         View.Footprint.SourceStatus = ELDObservationSource::ActiveBody;
         View.Footprint.SourceFeetCm = Foot;
-        View.Footprint.RadiusCm = float(Sight.Radius());
+        View.Footprint.RadiusCm = float(Sight.MaximumRadius());
         Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
         // #198 session D: a spectator's authorized coverage includes the whole arena; a PK life's includes its teammates'.
         if (bPublish && Relay && (bSpectating || !TeammateFeet.IsEmpty()))

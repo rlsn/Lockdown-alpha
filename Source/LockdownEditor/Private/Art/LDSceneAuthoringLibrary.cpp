@@ -294,7 +294,7 @@ FString ULDSceneAuthoringLibrary::GameplayVisibilityAudit(UWorld* World, bool bS
     FLDSightGeometry Sight;
     if (!Registry || !(Registry->Enabled() || Registry->Rebuild(Error)) || !LDDemoEntry::LoadRuntimeContent(Content,Error)
         || !ULDMapRegistry::ContentCapsule(*Content,Capsule,Error)
-        || !Sight.Build(*Registry->GetGeometry(),Registry->Revision(),Content->Get().Parameters.VisionRadiusCm,Error,World))
+        || !Sight.Build(*Registry->GetGeometry(),Registry->Revision(),Content->Get().Parameters.VisionRadiusCm,Content->Get().Parameters.VisionRange,Error,World))
     { Result->SetBoolField(TEXT("ready"),false);Result->SetStringField(TEXT("error"),Error);return Finish(); }
     Result->SetBoolField(TEXT("ready"),true);
     Result->SetNumberField(TEXT("cell_width_cm"),(Sight.MaxCm().X-Sight.MinCm().X)/LDObservation::CoverageWidth);

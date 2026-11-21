@@ -19,6 +19,7 @@ REQUIRED_TESTS = frozenset(
     {
         "Lockdown.Rules.Vision.FogDistanceField",
         "Lockdown.Rules.DemoVision.GeometryParity",
+        "Lockdown.Rules.DemoVision.RelativeHeightRange",
         "Lockdown.Rules.DemoVision.CoveragePublication",
         "Lockdown.Rules.DemoVision.ArrivalRoutes",
         "Lockdown.Rules.DemoVision.PatrolCorridor",
@@ -44,6 +45,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.StaticScene.AuthoredCampInstances",
         "Lockdown.Rules.StaticScene.CampPhysicalPlacement",
         "Lockdown.Rules.StaticScene.NativeSightEdits",
+        "Lockdown.Rules.StaticScene.RelativeHeightVision",
+        "Lockdown.Rules.StaticScene.RelativeHeightMap",
         "Lockdown.Rules.SceneTags.CollisionAndNavigation",
         "Lockdown.Rules.SceneTags.SightAndTerrain",
         "Lockdown.Rules.SceneTags.NativeMeshSight",

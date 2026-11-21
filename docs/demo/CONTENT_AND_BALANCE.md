@@ -221,6 +221,11 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | --- | --- | --- | --- |
 | `VISION.SightGraceSec` | s/Sec | 0.3 | 被障碍物刚挡住的单位仍算看见的时间：擦过树干、路灯不打断锁定、追击与前摇；不跨视野半径、隔离或瞬移 |
 | `VISION.RadiusCm` | cm/Cm | 1400 | 2250cm 镜头下覆盖更多屏幕；停电日（−25%）仍有 1050cm，长于甩你一鞋 850cm 射程；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 3.93s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1400, 2×220)=440 不变 |
+| `VISION.NeutralHeightCm` | cm/Cm | 35 | 双方实际脚下地面高差不超过此值时，视野半径保持原值；小台阶不改变视野资源 |
+| `VISION.FullHeightCm` | cm/Cm | 120 | 高差从中性阈值到此值时，以 smoothstep 平滑达到完整倍率；高差更大不继续叠加 |
+| `VISION.UphillRadiusScale` | ratio/bp | 0.75 | 看高处的水平半径下限；常态最短 1050cm |
+| `VISION.DownhillRadiusScale` | ratio/bp | 1.25 | 看低处的水平半径上限；常态最远 1750cm；同步修正野怪既有感知半径，攻击、技能和追击边界不因此增加 |
+
 | `TARGET.AttackMoveAcquireRadiusCm` | cm/Cm | min(VISION.RadiusCm, 2×STAT.AttackRangeCm)，初始440 | 随真实普攻射程变化；只搜合法可见目标，最高1320cm；订单/优先级归操作域 |
 | `CAPTURE.RadiusCm` | cm/Cm | 420 | 直径840cm，基速穿过约2.8s，比远程技能射程小一圈但留出圈内走位；地面装饰离旗杆的净空沿用 `camp_clearance_cm`，不随喷漆区变大；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
 | `CAPTURE.SpraySec` | s/Sec | 2.5 | 喷漆区内独自累积满即喷上涂鸦；争夺暂停保留，离区/死亡/离局/硬控施加清零。时长短，主要靠在场的人进区争夺或硬控/击杀打断 |
@@ -263,6 +268,12 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `OBJECTIVE.ArenaSec` / `ArenaRadiusCm` | s, cm | 40 / 900 | 野外 2 的擂台：以旗杆为中心，开放 40 s，只计双方都在圈内的参赛者伤害 |
 | `OBJECTIVE.ArenaCardOffer` | Count | 5 | 擂台胜者的牌选组大小；擂台胜者另在 R3 多一个终局改装候选 |
 | `LIFE.ProtectionSec` | s/Sec | 3 | 短暂移动/读局时间；不能计入“必需回防延迟”，合法主动可以提前解除 |
+
+相对高度取双方实际支撑面，不能用世界高度分层、模型名字、身体动画或镜头高度代替。
+令 `t=clamp((abs(目标地面Z−观察者地面Z)−VISION.NeutralHeightCm)/(VISION.FullHeightCm−VISION.NeutralHeightCm),0,1)`，
+`s=t²(3−2t)`，半径为 `VISION.RadiusCm × lerp(1,对应方向倍率,s)`；距离按 XY 水平直线计算，含边界。
+地图的 `sight_sample_height_cm=120` 是统一虚拟眼高；地形遮挡检查眼睛到目标地面，向下看时免除脚下平台边缘造成的台脚盲区。
+实心桥面、屋顶仍遮住下面的单位，其他山体和实际障碍仍可遮挡；只露头不授予单位可见。倍率数值属于试玩方案，尚未经过平衡测试。
 
 野外复活的候选在全部出生点中等概率不放回抽取，不按安全度筛选；
 所有属性/技能和待选继续保留，只有等待与位置代价。
