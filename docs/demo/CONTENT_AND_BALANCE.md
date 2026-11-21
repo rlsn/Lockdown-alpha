@@ -165,7 +165,7 @@
 | `COMBO.StepRatios` | 0.9、0.9、1.3 | 普攻三段的原始量倍率，先于暴击；第 3 段用暴击档的命中停顿 |
 | `COMBO.ResetSec` | 2.5s | 距上次成功普攻起手超过即回到第 1 段；前摇取消的普攻不推进 |
 | `OVERDRIVE.Threshold` | 60 | 释放瞬间劲至少这么多才按爆劲结算，否则按普通施放结算；爆劲花掉本人门槛那么多的劲（不少于技能劲消耗），余下的保留 |
-| `OVERDRIVE.HoldSec` | 0.3s | 劲满时按住技能键这么久发出爆劲请求；服务器看到的蓄力至少一半才承认 |
+| `OVERDRIVE.HoldSec` | 0.18s | 劲满时按住技能键这么久发出爆劲请求（按住 Alt 再按一下技能键时蓄力自动走完）；服务器看到的蓄力至少一半才承认 |
 | `OVERDRIVE.Scale` | 1.6 | 伤害、护盾、治疗的基础量与系数整体乘；控制时长不乘 |
 | `OVERDRIVE.FireBurnStacks` | 3 | 烫：额外灼烧层数（区域按跳数分摊） |
 | `OVERDRIVE.WaterSlow` / `WaterSlowSec` | 45% / 1.5s | 湿：减速提高到此 |
@@ -221,8 +221,9 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | --- | --- | --- | --- |
 | `VISION.RadiusCm` | cm/Cm | 1400 | 2250cm 镜头下覆盖更多屏幕；停电日（−30%）仍有 980cm，长于甩你一鞋 850cm 射程；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 3.93s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1400, 2×220)=440 不变 |
 | `TARGET.AttackMoveAcquireRadiusCm` | cm/Cm | min(VISION.RadiusCm, 2×STAT.AttackRangeCm)，初始440 | 随真实普攻射程变化；只搜合法可见目标，最高1320cm；订单/优先级归操作域 |
-| `CAPTURE.RadiusCm` | cm/Cm | 300 | 直径600cm，基速穿过约2.0s；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
+| `CAPTURE.RadiusCm` | cm/Cm | 420 | 直径840cm，基速穿过约2.8s，比远程技能射程小一圈但留出圈内走位；地面装饰离旗杆的净空沿用 `camp_clearance_cm`，不随喷漆区变大；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
 | `CAPTURE.SpraySec` | s/Sec | 2.5 | 喷漆区内独自累积满即喷上涂鸦；争夺暂停保留，离区/死亡/离局/硬控施加清零。时长短，主要靠在场的人进区争夺或硬控/击杀打断 |
+| `CAPTURE.GuardCheckpointSec` / `CAPTURE.GuardResumeSec` | s/Sec | 10 / 8 | 守护过半后被改漆的主人记一个存档点，下一次喷上自己的涂鸦时守护从 8 s 起算（一次） |
 | `CAPTURE.GuardSec` | s/Sec | 20 | 主人独自在核心内累计守护；离圈、死亡暂停，他人进区冻结，只有对手喷成才清当前进度；历史独占守护贡献保留 |
 | `SHOWDOWN.UnlockDelaySec` | s/Sec | 10 | R3 返场至隔离封街战场后开始计时，到期解锁旗杆 |
 | `SHOWDOWN.DurationSec` | s/Sec | 150 | 从终局开始计（含 10 s 解锁等待），终局最长 150 s；到期仅以存活合格者的历史守护、成功喷漆排序；完全并列或无人有贡献则无人胜 |
@@ -600,7 +601,7 @@ $$
 | Y02 | `card_takedown` | 人头刷新 | 触发 | 击杀或助攻参赛者 → 刷新全部技能冷却，劲回满 | kill, momentum |
 | Y03 | `card_hang_on` | 死扛 | 触发 | 生命低于 15% → 2 s 内受到的每次伤害降为 1（每条命一次） | low_hp |
 | Y04 | `card_reaction_refund` | 反应回本 | 触发 | 触发反应 → 回 15 劲 | reaction, momentum |
-| Y05 | `card_wave_after` | 一波接一波 | 触发 | 触发反应 → 给目标挂一个随机的、与刚被消耗的不同的元素 | reaction, element |
+| Y05 | `card_wave_after` | 一波接一波 | 触发 | 触发反应 → 反应结算后给目标挂一个随机的、与刚被消耗的不同的元素（只从不会与目标剩下的元素再反应的元素里抽，保证挂上） | reaction, element |
 | Y06 | `card_shell_burst` | 壳碎了也崩你 | 触发 | 护盾被打破 → 300 cm 内的敌人受 60 + 3% 生命上限魔法伤害 | shield_break |
 | Y07 | `card_hard_skin` | 挨揍起硬皮 | 触发 | 受到敌方正伤害后获得护盾 45 + 4%H，3 s；获得后 8 s 才能再获得 | damaged, shield |
 | Y08 | `card_ball_kick` | 拿你当球踢 | 触发 | 你造成的击退撞上固定障碍 → 眩晕 0.8 s；撞上另一敌人 → 两人各受 P 60 + 0.5AD | knockback, wall_impact |
@@ -807,7 +808,7 @@ $$
 **上热搜**：从开局起每 `LEADER.RefreshSec=10` 秒刷新。仍在对局中、等级不低于 `LEADER.MinLevel=3` 的参赛者里
 等级唯一最高者上热搜，等级相同按击杀数，仍相同则无人上热搜；此刻已死亡也不上热搜。公开圆半径 `LEADER.CircleRadiusCm=1500`，
 圆心是刷新瞬间脚点加均匀随机偏移，最多 `LEADER.CircleMaxOffsetCm=1000`（内容校验要求不超过半径，上热搜者总在圈内）；
-随机流只由对局身份和刷新序号决定。上热搜没有额外奖励，击杀上热搜者只得正常击杀奖励。
+随机流只由对局身份和刷新序号决定。击杀上热搜者另得 `REWARD.BountyXP`；同一人连续当选上热搜且未死亡，每满 `LEADER.SurvivalPointSec=30` 秒得到 1 个属性点（在刷新时结算，换人或死亡后重新计时）。
 上热搜者死亡结束本次上热搜。是首轮试玩值，未经平衡验证。
 
 **画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=295` 秒
@@ -848,8 +849,8 @@ App Spec §2.1、规则见 §2.2。每项只改终局的胜负或旗杆规则，
 | `final_kill_seconds` 人头换秒 | `guard` 3s | 每击杀一名参赛者 +3s 历史守护；当时是涂鸦主人则同时 +3s 当前守护 |
 | `final_usurp` 篡位 | — | 击杀主旗杆涂鸦主人时，涂鸦归持有者并继承其当前守护进度 |
 | `final_carry_flag` 扛旗跑路 | — | 持有者是涂鸦主人期间，主旗杆与喷漆区跟随其移动；封街圈圆心不跟随 |
-| `final_cage` 铁笼 | `duration` 5s | 喷上涂鸦的瞬间在喷漆区边界升起 5s 围栏：只挡身体，不挡远程与范围技能 |
-| `final_private_pole` 私人旗杆 | `spray` 3.5s，`guard` 28s，`radius` 200cm | 入场口旁只有持有者能喷的小旗杆，守满即胜；他人进圈冻结守护；不计历史守护与喷漆次数 |
+| `final_cage` 铁笼 | `duration` 5s，`hp` 600 | 喷上涂鸦的瞬间在喷漆区边界升起 5s 围栏：只挡身体，不挡远程与范围技能；持有者在围栏期间累计掉 600 生命时围栏提前碎掉 |
+| `final_private_pole` 私人旗杆 | `spray` 3.5s，`guard` 28s，`radius` 200cm | 入场口旁只有持有者能喷的小旗杆，守满即胜；他人进圈冻结守护；不计喷漆次数，超时结算时守护的一半计入持有者的历史守护 |
 | `final_double_yellow` 双黄线 | `radius` 220cm | 持有者是主旗杆涂鸦主人期间，喷漆区半径为 220cm |
 
 同一结算时刻多人达成时，守护满 > 喷漆次数满 > 清场，同一条件仍并列则无人获胜。期限裁决仍只比较主旗杆的

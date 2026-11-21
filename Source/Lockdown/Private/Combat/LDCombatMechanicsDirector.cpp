@@ -97,6 +97,34 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     return true;
 }
 
+int32 ALDCombatDirector::SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2)
+{
+    int32 Emptied=0;
+    Body.ShieldLayers.Sort([](const FLDBodyCombatState::FShieldLayer& A, const FLDBodyCombatState::FShieldLayer& B)
+        { return A.ExpiresAtMs<B.ExpiresAtMs; });
+    for (FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers)
+    {
+        if (AmountP2<=0) { break; }
+        const int64 Taken=FMath::Min(AmountP2,Layer.AmountP2);
+        Layer.AmountP2-=Taken;
+        AmountP2-=Taken;
+        Emptied+=Layer.AmountP2<=0 && Taken>0 ? 1 : 0;
+    }
+    Body.ShieldLayers.RemoveAll([](const FLDBodyCombatState::FShieldLayer& Layer) { return Layer.AmountP2<=0; });
+    return Emptied;
+}
+
+bool ALDCombatDirector::ExpireShieldLayers(FLDBodyCombatState& Body, int64 NowMs)
+{
+    int64 Lapsed=0;
+    const int32 Before=Body.ShieldLayers.Num();
+    Body.ShieldLayers.RemoveAll([NowMs,&Lapsed](const FLDBodyCombatState::FShieldLayer& Layer)
+        { if (Layer.ExpiresAtMs>NowMs) { return false; } Lapsed+=Layer.AmountP2; return true; });
+    if (Body.ShieldLayers.Num()==Before) { return false; }
+    Body.Resources.ShieldP2=FMath::Max<int64>(0,Body.Resources.ShieldP2-Lapsed);
+    return true;
+}
+
 bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
     const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource)
 {
@@ -110,6 +138,9 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     { return true; }
     Body.ShieldGrantedP2=Body.Resources.ShieldP2;
     Body.LastShieldGrantP2=AmountP2;
+    // Layers left over from an expired record are gone with it; this grant is its own layer.
+    if (Body.Resources.ShieldP2==AmountP2) { Body.ShieldLayers.Reset(); }
+    Body.ShieldLayers.Add({EffectId,Expires,AmountP2});
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);

@@ -1179,6 +1179,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Knockbacks.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;
+    Body->ShieldLayers.Reset();
     Body->Resources.MaxHpP2=Prepared.MaxHPP2;
     Body->Resources.HpP2=Prepared.MaxHPP2;
     Body->HpRegenMicroP2=0;

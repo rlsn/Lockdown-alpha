@@ -21437,6 +21437,10 @@
         "ms": 5000,
         "unit": "ms"
       },
+      "hp": {
+        "p2": 60000,
+        "unit": "hp"
+      },
       "id": "final_cage",
       "native_id": 30
     },
@@ -21694,6 +21698,10 @@
       "p2": 1500,
       "unit": "momentum"
     },
+    "CAMP.ClearOrbSec": {
+      "ms": 20000,
+      "unit": "ms"
+    },
     "CAMP.GrowthAttackRatioPerStage": {
       "bp": 800,
       "unit": "ratio"
@@ -21729,13 +21737,21 @@
       "ms": 11000,
       "unit": "ms"
     },
+    "CAPTURE.GuardCheckpointSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "CAPTURE.GuardResumeSec": {
+      "ms": 8000,
+      "unit": "ms"
+    },
     "CAPTURE.GuardSec": {
       "ms": 20000,
       "unit": "ms"
     },
     "CAPTURE.RadiusCm": {
       "denominator": 1,
-      "numerator": 300,
+      "numerator": 420,
       "unit": "cm"
     },
     "CAPTURE.SpraySec": {
@@ -22304,6 +22320,10 @@
       "ms": 10000,
       "unit": "ms"
     },
+    "LEADER.SurvivalPointSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
     "LIFE.ProtectionSec": {
       "ms": 3000,
       "unit": "ms"
@@ -22437,7 +22457,7 @@
     },
     "OVERDRIVE.FireBurnStacks": 3,
     "OVERDRIVE.HoldSec": {
-      "ms": 300,
+      "ms": 180,
       "unit": "ms"
     },
     "OVERDRIVE.RotDurationScale": {

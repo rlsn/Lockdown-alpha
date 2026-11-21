@@ -910,7 +910,8 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
         if (Spent>0)
         {
             Holder.Resources.ShieldP2-=Spent;
-            if (Holder.Resources.ShieldP2<=0) { Holder.Shield.Reset(); Holder.Resources.ShieldP2=0; }
+            SpendShieldLayers(Holder,Spent);
+            if (Holder.Resources.ShieldP2<=0) { Holder.Shield.Reset(); Holder.Resources.ShieldP2=0; Holder.ShieldLayers.Reset(); }
             ++Holder.Resources.Revision;
             ++Holder.StateRevision;
             MarkViewChanged(Holder.Victim.EntityId);
@@ -1180,7 +1181,9 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
             }
         }
     }
-    // Y05: the primary target takes a random element other than the one just consumed (each copy one more).
+    // Y05: the primary target takes a random element other than the one just consumed (each copy one more). It lands at the
+    // end of the reaction: an element that would react with what the target still holds (a ferment's rot, say) would be
+    // swallowed by the reaction lock, so only elements that stay on as a mark are drawn while any is left.
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
     for (const FLDPassiveEffectRef& Wave : Waves)
@@ -1188,7 +1191,11 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
             ELDCombatElement::Chill,ELDCombatElement::Rot};
         Choices.Remove(Fact.Consumed);
-        const ELDCombatElement Kind=Choices[CritRandom.RandRange(0,Choices.Num()-1)];
+        const ELDCombatElement Still=ElementOfBody(*Primary,NowMs);
+        TArray<ELDCombatElement> Lands=Choices.FilterByPredicate([Still](ELDCombatElement Candidate)
+            { return LDCombatElements::ReactionOf(Still,Candidate)==ELDCombatReaction::None; });
+        if (Lands.IsEmpty()) { Lands=Choices; }
+        const ELDCombatElement Kind=Lands[CritRandom.RandRange(0,Lands.Num()-1)];
         FLDElementApplier Applier;
         Applier.SourceEntity=Trigger->Victim.EntityId;
         Applier.SourceBody=Fact.TriggerBody;

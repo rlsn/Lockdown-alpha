@@ -409,6 +409,10 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
+    // CAPTURE.GuardCheckpointSec: an owner whose guard passed this far and is painted over keeps a checkpoint for its next graffiti.
+    UPROPERTY() int64 CaptureGuardCheckpointMs = 0;
+    // CAPTURE.GuardResumeSec: the guard the next own graffiti of that owner starts from.
+    UPROPERTY() int64 CaptureGuardResumeMs = 0;
     UPROPERTY() int64 ShowdownUnlockDelayMs = 0;
     UPROPERTY() int64 ShowdownDurationMs = 0;
     UPROPERTY() int64 ShowdownRespawnLimit = 0;
@@ -513,6 +517,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CampClearHealMissingBp = 0;
     // CAMP.ClearMomentum: and gains this much momentum.
     UPROPERTY() int64 CampClearMomentumP2 = 0;
+    // CAMP.ClearOrbSec: how long a camp clear recovery orb lies on the ground before it fades (field progress T).
+    UPROPERTY() int64 CampClearOrbMs = 0;
     // D26 (#79) / #198 outer §5 airdrop: the drops land at the explicit field progress instants AirdropLandMs (strictly
     // increasing), each public AnnounceLead earlier, and leave unclaimed AirdropExpireMs after landing.
     UPROPERTY() TArray<int64> AirdropLandMs;
@@ -531,6 +537,8 @@ struct FLDDemoContentParameters
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
+    // LEADER.SurvivalPointSec: the trending leader earns one stat point for every this long it stays the leader alive.
+    UPROPERTY() int64 LeaderSurvivalPointMs = 0;
     UPROPERTY() FLDDemoRational LeaderCircleRadiusCm;
     UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
@@ -1144,8 +1152,9 @@ struct FLDDemoFinalModDefinition
     UPROPERTY() int64 GuardMs = 0;
     // final_private_pole: its spray duration.
     UPROPERTY() int64 SprayMs = 0;
-    // final_cage: how long the fence stands.
+    // final_cage: how long the fence stands, and how much damage its holder takes from contenders before it breaks.
     UPROPERTY() int64 DurationMs = 0;
+    UPROPERTY() int64 HPP2 = 0;
     // final_private_pole: its spray zone; final_double_yellow: the main zone while the holder owns it.
     UPROPERTY() FLDDemoRational RadiusCm;
 

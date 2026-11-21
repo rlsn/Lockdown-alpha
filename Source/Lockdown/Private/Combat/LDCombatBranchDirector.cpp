@@ -187,6 +187,8 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
     {
         const int64 Added=Share(FMath::Min(Body.LastShieldGrantP2,Body.Resources.ShieldP2),Bonus->RatioBp);
         Body.Resources.ShieldP2+=Added;
+        // The raise belongs to the release's own grant, the newest layer.
+        if (!Body.ShieldLayers.IsEmpty()) { Body.ShieldLayers.Last().AmountP2+=Added; }
         Body.ShieldGrantedP2+=Added;
         ++Body.Resources.Revision;
         MarkViewChanged(Body.Victim.EntityId);

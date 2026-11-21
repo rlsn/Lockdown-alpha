@@ -308,7 +308,8 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
         for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
-        // D27: the shown leader's death spends the notice.
+        // D27: the shown leader's death spends the notice and ends its survival run.
+        if (Id == TrendingRunLeader) { TrendingRunLeader.Invalidate(); TrendingRunPaid = 0; }
         if (LeaderNotice.LeaderDied(Id, GetFieldNowMs()))
         {
             bPublicMatchDirty = true;
@@ -476,11 +477,31 @@ void ALDGameMode::UpdateCaptureGeometry(int64 AtMs)
         CageUntilMs = AtMs + CageDurationMs;
         CageCentreCm = CaptureCircle.CenterCm;
         CageRadiusCm = CaptureCircle.RadiusCm;
+        CageHolder = Pair.Key;
+        CageDurabilityP2 = CageHPP2;
+        CageHolderLastHPP2 = -1;
         bPublicMatchDirty = true;
         UE_LOG(LogLDMatch, Display, TEXT("LD_FINAL_CAGE_UP holder=%s until_ms=%lld"), *LDLog::Id(Pair.Key), CageUntilMs);
     }
-    if (CageUntilMs != 0 && AtMs >= CageUntilMs)
+    // The fence breaks under focus fire: the HP its holder loses while it stands wears it down (heals do not mend it).
+    bool bCageBroken = false;
+    if (CageUntilMs != 0 && CageHolder.IsValid() && Combat)
     {
+        FLDCombatBodyRef HolderBody;
+        FVector HolderFoot = FVector::ZeroVector;
+        FLDCombatBodyRead Read;
+        if (ReadLivingBody(CageHolder, HolderBody, HolderFoot) && Combat->ReadCombatBody(HolderBody, Read))
+        {
+            if (CageHolderLastHPP2 >= 0 && Read.HPP2 < CageHolderLastHPP2) { CageDurabilityP2 -= CageHolderLastHPP2 - Read.HPP2; }
+            CageHolderLastHPP2 = Read.HPP2;
+            bCageBroken = CageDurabilityP2 <= 0;
+        }
+    }
+    if (CageUntilMs != 0 && (AtMs >= CageUntilMs || bCageBroken))
+    {
+        if (bCageBroken) { UE_LOG(LogLDMatch, Display, TEXT("LD_FINAL_CAGE_BROKEN holder=%s at_ms=%lld"), *LDLog::Id(CageHolder), AtMs); }
+        CageHolder.Invalidate();
+        CageHolderLastHPP2 = -1;
         CageUntilMs = 0;
         CageCentreCm = FVector2D::ZeroVector;
         CageRadiusCm = 0;
@@ -810,6 +831,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     if (!Showdown.bStarted)
     {
         View.Airdrop = Airdrop.View();
+        View.RecoveryOrbs = RecoveryOrbs;
         View.Leader = LeaderNotice.View();
         View.Boss = Camps ? Camps->BossView() : FLDBossView();
         FieldMarkers.View(View.Markers);

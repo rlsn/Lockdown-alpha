@@ -850,7 +850,7 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Public.Circle = ELDOpponentCircle::Empty;
     bGood &= Expect(Test, TEXT("An open, empty circle is contested"), Decide(Frame), EMode::Contest, EBody::MoveGround,
         TEXT("capture"));
-    // Both feet inside the 300 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
+    // Both feet inside the 420 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
     Frame.Self.FootCm = FVector(0, 2750, 0);
     Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3240), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
     Decision = Decide(Frame);
@@ -858,8 +858,8 @@ bool RunPriorities(FAutomationTestBase& Test)
         && Test.TestTrue(TEXT("The in-circle rival"), Decision.Body.Handle == Frame.Units[0].Handle);
     Frame.Public.Circle = ELDOpponentCircle::Solo;
     Frame.Public.Occupier = Frame.Self.ContenderId;
-    // Just outside the zone edge yet inside the acquisition radius of the holder.
-    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2650)};
+    // Just outside the 420 cm zone edge yet inside the acquisition radius of the holder.
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2560)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("A solo holder does not chase a rival outside the circle"), Decision, EMode::DefendOrHold,
         EBody::None) && Test.TestTrue(TEXT("Hold reason"), Decision.Reason == ELDOpponentReason::HoldCapture);

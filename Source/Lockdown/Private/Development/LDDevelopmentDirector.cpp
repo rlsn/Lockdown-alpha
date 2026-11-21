@@ -1067,7 +1067,9 @@ ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, 
 {
     ALDGameMode* GameMode = Mode();
     FRecord* Record = Records.Find(ContenderId);
-    if (!GameMode || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    // PK settlements pay in Transactions; the trending leader's survival points pay in RespawnsAndWorld.
+    if (!GameMode || (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None
+        && GameMode->ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None))
     {
         return ELDGrowthReason::AuthorityFault;
     }

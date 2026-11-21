@@ -119,8 +119,9 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
 bool ALDCombatDirector::RecoverContender(const FLDCombatBodyRef& Ref,int64 MissingBp,int64 MaxBp,int64 MomentumP2,
     const FLDGameplayWritePermit& Permit,FString& Error)
 {
-    if(!Authority() || Authority()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
-    {Error=TEXT("A match event recovery requires the current death permit.");return false;}
+    if(!Authority() || (Authority()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None
+        && Authority()->ValidateWritePermit(Permit,ELDCommitPhase::Transactions)!=ELDCommitReject::None))
+    {Error=TEXT("A match event recovery requires the current death or transaction permit.");return false;}
     FLDBodyCombatState* Body=FindBody(Ref);
     if(!Body || Body->bPendingDeath || Body->Victim.Kind!=ELDVictimKind::Contender){return true;}
     const int64 Missing=FMath::Max<int64>(0,Body->Resources.MaxHpP2-Body->Resources.HpP2);

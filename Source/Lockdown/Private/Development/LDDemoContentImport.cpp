@@ -769,6 +769,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
+        {TEXT("CAPTURE.GuardCheckpointSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardCheckpointMs, 1, MAX_int64},
+        {TEXT("CAPTURE.GuardResumeSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardResumeMs, 1, MAX_int64},
         {TEXT("SHOWDOWN.UnlockDelaySec"), TEXT("ms"), TEXT("ms"), &P.ShowdownUnlockDelayMs, 0, MAX_int32},
         {TEXT("SHOWDOWN.DurationSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownDurationMs, 1, MAX_int32},
         {TEXT("SHOWDOWN.FirstRespawnSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownFirstRespawnMs, 1, MAX_int32},
@@ -821,6 +823,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAMP.GrowthRewardXPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthRewardXPPerStageBp, 0, MAX_int64},
         {TEXT("CAMP.ClearHealMissingRatio"), TEXT("ratio"), TEXT("bp"), &P.CampClearHealMissingBp, 1, 10000},
         {TEXT("CAMP.ClearMomentum"), TEXT("momentum"), TEXT("p2"), &P.CampClearMomentumP2, 1, MAX_int64},
+        {TEXT("CAMP.ClearOrbSec"), TEXT("ms"), TEXT("ms"), &P.CampClearOrbMs, 1, MAX_int64},
         {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
         {TEXT("AIRDROP.HealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropHealMaxHPBp, 1, 10000},
@@ -828,6 +831,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AIRDROP.MoveSpeedSec"), TEXT("ms"), TEXT("ms"), &P.AirdropMoveSpeedMs, 1, MAX_int64},
         {TEXT("CAMPMARK.RevealSec"), TEXT("ms"), TEXT("ms"), &P.CampMarkRevealMs, 1, MAX_int64},
         {TEXT("LEADER.RefreshSec"), TEXT("ms"), TEXT("ms"), &P.LeaderRefreshMs, 1, MAX_int64},
+        {TEXT("LEADER.SurvivalPointSec"), TEXT("ms"), TEXT("ms"), &P.LeaderSurvivalPointMs, 1, MAX_int64},
         {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
         {TEXT("REWARD.AssistXPRatio"), TEXT("ratio"), TEXT("bp"), &P.AssistXPRatioBp, 1, 10000},
         {TEXT("GROWTH.BuildSafeWindowSec"), TEXT("ms"), TEXT("ms"), &P.BuildSafeWindowMs, 1, MAX_int64},
@@ -2801,7 +2805,7 @@ bool FinalMod(const FValue& Value, FLDDemoFinalModDefinition& Out, FCheck& Check
         Valid = Time(TEXT("guard"), Out.GuardMs);
         break;
     case ELDDemoFinalModId::FinalCage:
-        Valid = Time(TEXT("duration"), Out.DurationMs);
+        Valid = Time(TEXT("duration"), Out.DurationMs) && F.Fixed(TEXT("hp"), TEXT("hp"), TEXT("p2"), Out.HPP2, 1);
         break;
     case ELDDemoFinalModId::FinalPrivatePole:
         Valid = Time(TEXT("spray"), Out.SprayMs) && Time(TEXT("guard"), Out.GuardMs)

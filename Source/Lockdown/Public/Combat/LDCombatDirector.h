@@ -337,6 +337,10 @@ struct FLDBodyCombatState
     // death fact when the life locks its death.
     TArray<FLDDamageSample> DamageLog;
     TOptional<FLDCombatShield> Shield;
+    // Every grant of the stacked shield as its own layer (its amount left and its own deadline). Resources.ShieldP2 is
+    // their sum and Shield names the newest grant with the latest deadline; damage spends the earliest-expiring layer first.
+    struct FShieldLayer { FGuid EffectId; int64 ExpiresAtMs=0; int64 AmountP2=0; };
+    TArray<FShieldLayer> ShieldLayers;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
@@ -1331,6 +1335,10 @@ private:
         int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid(), FString* OutError=nullptr);
     // The single shield entry: live rot cuts the amount, then it applies StackToLatestExpiry; a granted shield
     // records its amount (ShieldGrantedP2).
+    // Spends AmountP2 of Body's shield layers, earliest deadline first; returns how many layers it emptied.
+    static int32 SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2);
+    // Drops the layers past their deadline and takes their amount off Resources.ShieldP2; true when anything changed.
+    static bool ExpireShieldLayers(FLDBodyCombatState& Body, int64 NowMs);
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
     // The forced displacement of one committed knockback (control kind Knockback): server root motion along the ground

@@ -150,7 +150,7 @@ bool FLDOverdriveReadyTest::RunTest(const FString& Parameters)
     const FLDDemoOverdriveParameters& O = Catalog->Get().Parameters.Overdrive;
     TestTrue(TEXT("Overdrive needs 60 momentum"), O.ThresholdP2 == 6000 && !LDMomentum::OverdriveReady(O, 5999)
         && LDMomentum::OverdriveReady(O, 6000));
-    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 300 && O.ScaleBp == 16000 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
+    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 180 && O.ScaleBp == 16000 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
         && O.WaterSlowMs == 1500 && O.ShockReactionBp == 5000 && O.RotDurationBp == 20000);
     return true;
 }

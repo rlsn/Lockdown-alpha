@@ -341,6 +341,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     const int64 HPBefore=Body->Resources.HpP2;
     Body->Resources.HpP2=Damage.RemainingHPP2;
     Body->Resources.ShieldP2=Damage.RemainingShieldP2;
+    // The absorbed amount spends the layers, earliest deadline first; each layer it empties is a break of its own.
+    const int32 BrokenLayers=Damage.ShieldAbsorbedP2>0 ? SpendShieldLayers(*Body,Damage.ShieldAbsorbedP2) : 0;
     ++Body->Resources.Revision;
     if (Damage.KeystoneGuardCutP2>0) { Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs; }
     if (bBraced && Damage.BraceCutP2>0)
@@ -543,7 +545,14 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
     // Issue #292 P5: Y06 bursts on a broken shield; Y29 shields a share of the burn its source dealt; K03 remembers the native
     // skill hits on a contender life (its takedown refresh reads them).
-    if (!bProtected && bShieldBroken && Hit.SourceEntity!=Body->Victim.EntityId && !OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+    // Y06 bursts once for every layer this hit broke (a stacked shield bursts layer by layer).
+    if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId)
+    {
+        for (int32 Layer=0;Layer<FMath::Max(BrokenLayers,bShieldBroken ? 1 : 0);++Layer)
+        {
+            if (!OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+        }
+    }
     if (!bProtected && Source && Hit.bBurnTick && Hit.SourceEntity!=Body->Victim.EntityId
         && !OnBurnDealtCards(*Source,Damage.HPLostP2,NowMs,Error)) { return false; }
     if (!bProtected && bNativeDirect && Damage.DamageP2>0 && Body->Victim.Kind==ELDVictimKind::Contender && Hit.CreditOwner.IsValid()
@@ -973,7 +982,11 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
     for (auto& Pair : Bodies)
     {
         FLDBodyCombatState& Body=Pair.Value;
-        const FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
+        // Layers lapse on their own deadlines; the record goes with the last of them.
+        const bool bLayers=ExpireShieldLayers(Body,NowMs);
+        FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
+        Expired.bShieldChanged|=bLayers;
+        if (!Body.Shield.IsSet()) { Body.ShieldLayers.Reset(); }
         const FLDStatusExpiry Control=LDControl::ExpireControlStatuses(Body.Taunt,NowMs);
         const bool bControls=LDCombatControl::ExpireDisarmsAndStuns(Body.Disarms,Body.Stuns,NowMs,&Body.Silences)
             | LDCombatKeywords::ExpireBreach(Body.SharedBreach,NowMs) | LDCombatKeywords::ExpireBurn(Body.Burn,NowMs);

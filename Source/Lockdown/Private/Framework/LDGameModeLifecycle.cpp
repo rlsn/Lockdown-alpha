@@ -155,6 +155,8 @@ void ALDGameMode::RetireMatchDomains()
     ShowdownMods.Reset();
     CageSprays.Reset();
     CageUntilMs=0;
+    RecoveryOrbs.Reset();
+    RecoveryOrbSerial=0;
     Showdown={};
     ShowdownRespawns.Reset();
     ShowdownBurn.Reset();

@@ -78,8 +78,10 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         case ELDDemoWorldAnchorKind::RestSpawn: KeepOut.Radius = SpawnRadius + SpawnReach + Body; break;
         case ELDDemoWorldAnchorKind::FinalSpawn: KeepOut.Radius = SpawnRadius + SpawnReach + Body; break;
         case ELDDemoWorldAnchorKind::Camp: KeepOut.Radius = CampClearance; break;
-        case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CaptureRadius + Body; break;
-        case ELDDemoWorldAnchorKind::FinalCapture: KeepOut.Radius = CaptureRadius + Body; break;
+        // Ground cover keeps the authored decoration clearance (camp_clearance_cm) around a flagpole, not the gameplay
+        // spray radius: low, flat dressing inside a wider spray zone neither blocks a body nor hides one.
+        case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CampClearance + Body; break;
+        case ELDDemoWorldAnchorKind::FinalCapture: KeepOut.Radius = CampClearance + Body; break;
         // The pickup and service disks stay clear so their occupants and approaching bodies read plainly.
         case ELDDemoWorldAnchorKind::Airdrop:
         case ELDDemoWorldAnchorKind::RestService: KeepOut.Radius = AirdropRadius + Body; break;

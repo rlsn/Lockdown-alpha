@@ -196,6 +196,9 @@ public:
     // Transactions (growth applies only there or in DeathsAndRewards): the first living contender inside the pickup disk
     // of a landed drop claims it through the growth reward composite. False only on an authority fault.
     bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
+    // A whole camp clear leaves a recovery orb on its anchor; the first living contender to touch it takes it.
+    void DropRecoveryOrb(const FVector& PositionCm);
+    bool ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
     // #198 outer §5 camp markers (World/LDFieldMarkers.h, Framework/LDGameModeFieldMarkers.cpp), keyed to field progress T.
@@ -520,6 +523,8 @@ private:
         FLDCaptureReducer Reducer;
         FLDCaptureCircle Circle;
         TMap<FGuid, bool> Inside;
+        // Its guard was credited to the main flagpole's timeout ranking (once).
+        bool bCredited = false;
     };
     TArray<FLDPrivatePole> PrivatePoles;
     // The final field's main flagpole: its arena anchor, approved radius and the final mods that move or shrink it.
@@ -532,6 +537,11 @@ private:
     // final_cage: the fence's approved duration and the standing fence (CageUntilMs 0: none).
     int64 CageDurationMs = 0;
     int64 CageUntilMs = 0;
+    // The standing fence's durability: the HP its holder may still lose before it breaks, and the HP last read.
+    int64 CageHPP2 = 0;
+    int64 CageDurabilityP2 = 0;
+    int64 CageHolderLastHPP2 = -1;
+    FGuid CageHolder;
     FVector2D CageCentreCm = FVector2D::ZeroVector;
     double CageRadiusCm = 0;
     TMap<FGuid, uint32> CageSprays;
@@ -548,6 +558,8 @@ private:
     void UpdateCaptureGeometry(int64 AtMs);
     FLDDormZones DormZones;
     FLDAirdropState Airdrop;
+    TArray<FLDRecoveryOrbView> RecoveryOrbs;
+    uint64 RecoveryOrbSerial = 0;
     // #198 outer §5 camp markers of this match; inactive outside a running match.
     FLDFieldMarkerState FieldMarkers;
     // Map event rewards refused as retryable, paid at the next Transactions boundaries.
@@ -564,6 +576,11 @@ private:
     TArray<FLDOwedFieldReward> OwedFieldRewards;
     bool CommitOwedFieldReward(const FLDOwedFieldReward& Reward, const FLDGameplayWritePermit& Permit, FString& Error);
     FLDLeaderState LeaderNotice;
+    // The current trending leader's unbroken run (since its first refresh as leader) and how many survival points it has
+    // been paid for it; another leader or a death starts over.
+    FGuid TrendingRunLeader;
+    int64 TrendingRunSinceMs = 0;
+    int32 TrendingRunPaid = 0;
     // ---- P6 field pacing state (Framework/LDGameModePacing.cpp) ----
     TArray<ELDDailyModifier> DailyModifiers;
     FLDObjectiveState Objective;
