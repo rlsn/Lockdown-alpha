@@ -25,6 +25,11 @@ namespace LDHUDStyle
     // dark outline then keeps its contrast.
     inline const FLinearColor OwnHealth(.05f,.45f,.08f);
     inline const FLinearColor EnemyHealth(.70f,.07f,.05f);
+    // Red-green colorblind friendly Okabe-Ito palette (#331): own crisp sky-blue, hostile vivid orange-vermilion.
+    inline const FLinearColor OwnHealthColorblind(.06f,.48f,.88f);
+    inline const FLinearColor EnemyHealthColorblind(.90f,.32f,.02f);
+    inline FLinearColor OwnHealthOf(bool bColorblind){return bColorblind?OwnHealthColorblind:OwnHealth;}
+    inline FLinearColor EnemyHealthOf(bool bColorblind){return bColorblind?EnemyHealthColorblind:EnemyHealth;}
     // A contender who cannot be attacked right now (anyone in a rest outside the PK, a PK teammate): never the hostile red.
     inline const FLinearColor PeacefulHealth(.16f,.42f,.78f);
     inline const FLinearColor CampHealth(.85f,.32f,.03f);

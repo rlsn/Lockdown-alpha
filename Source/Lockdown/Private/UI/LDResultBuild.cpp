@@ -109,6 +109,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         FLDActiveSlotView& Row = Progression.Actives.AddDefaulted_GetRef();
         Row.DefinitionId = Active.DefinitionId;
         Row.Slot = Active.Slot;
+        Row.Branch = Active.Branch;
     }
     for (const FLDResultBuildCard& Card : Build.Cards)
     {
@@ -126,15 +127,20 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
     for (const LDHUD::FStorageColumnView& Column : Board.Columns) { Most = FMath::Max(Most, Column.Entries.Num()); }
     const float ColumnWidth = Width / float(LDHUD::StorageColumnCount);
     const bool bExpanded = Height >= 180.f;
-    const float Header = bExpanded ? 64.f : FMath::Min(Height * .34f, ColumnWidth * .36f);
+    const bool bShowStats = bExpanded && Height >= 205.f && !Build.StatPoints.IsEmpty();
+    const float StatStripHeight = bShowStats ? 26.f : 0.f;
+    const float BoardHeight = Height - StatStripHeight;
+    const float Header = bExpanded ? 64.f : FMath::Min(BoardHeight * .34f, ColumnWidth * .36f);
     const int32 Rows = FMath::Max(1, FMath::DivideAndRoundUp(Most, 2));
-    const float TileSize = bExpanded ? 56.f
-        : FMath::Clamp(FMath::Min((ColumnWidth - 4.f) / 2.f, (Height - Header - 4.f) / Rows - 1.f), 4.f, Header * .72f);
+    const float TileSize = bExpanded ? 54.f
+        : FMath::Clamp(FMath::Min((ColumnWidth - 4.f) / 2.f, (BoardHeight - Header - 4.f) / Rows - 1.f), 4.f, Header * .72f);
 
     // A final mod binds no source: it sits on the body column.
     const int32 FinalColumn = Build.FinalMod.IsNone() ? INDEX_NONE : int32(LDHUD::EStorageColumn::Body);
+    auto* Outer = Tree->ConstructWidget<UVerticalBox>();
     auto* Columns = Tree->ConstructWidget<UHorizontalBox>();
-    Bounds->SetContent(Columns);
+    Outer->AddChildToVerticalBox(Columns);
+    Bounds->SetContent(Outer);
     // 普攻, Q, W, E, D, 本体 left to right, like the workshop board.
     for (int32 Position = 0; Position < LDHUD::StorageColumnCount; ++Position)
     {
@@ -156,10 +162,34 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
             UWidget* Icon = BoardIcon(Tree, Content, Column.Active, Header, false,
                 ColumnId == LDHUD::EStorageColumn::Dash ? FString(LDUIIcons::Dash) : FString());
             Head->AddChildToHorizontalBox(Icon)->SetPadding(FMargin(2, 0, 0, 0));
+            if (!Column.Active.IsNone())
+            {
+                const FLDResultBuildActive* FoundActive = Build.Actives.FindByPredicate([&Column](const FLDResultBuildActive& A)
+                { return A.DefinitionId == Column.Active; });
+                if (FoundActive)
+                {
+                    const uint8 Rank = LDSkillBranch::RankOf(FoundActive->Branch);
+                    FString Tip = LDHUD::ContentName(Content, Column.Active.ToString()) + FString::Printf(TEXT(" · %s %u"), LDTerms::SkillRank, uint32(Rank));
+                    if (FoundActive->Branch != ELDSkillBranch::None)
+                    {
+                        const LDHUD::FBranchCardView BranchView = LDHUD::BranchCard(Content, Column.Active, FoundActive->Branch, LDHUD::FCardStats());
+                        if (!BranchView.Name.IsEmpty()) { Tip += TEXT("（") + BranchView.Name + TEXT("）"); }
+                    }
+                    Icon->SetToolTipText(FText::FromString(Tip));
+                    if (bExpanded)
+                    {
+                        UTextBlock* Dots = BoardText(Tree, LDHUD::RankDots(Rank), FMath::Max(8, FMath::RoundToInt(9 * TextScale)));
+                        Dots->SetColorAndOpacity(Rank >= 3 ? LDHUDStyle::UIAction : LDHUDStyle::TextAccent);
+                        auto* DotsSlot = Head->AddChildToHorizontalBox(Dots);
+                        DotsSlot->SetVerticalAlignment(VAlign_Bottom);
+                        DotsSlot->SetPadding(FMargin(2, 0, 0, 0));
+                    }
+                }
+            }
         }
         if (FinalColumn == Index)
         {
-            UWidget* Final = BoardIcon(Tree, Content, Build.FinalMod, bExpanded ? 56.f : Header * .65f, false);
+            UWidget* Final = BoardIcon(Tree, Content, Build.FinalMod, bExpanded ? 54.f : Header * .65f, false);
             Head->AddChildToHorizontalBox(Final)->SetPadding(FMargin(2, 0, 0, 0));
         }
         auto* Grid = Tree->ConstructWidget<UWrapBox>();
@@ -187,6 +217,22 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
             More->SetToolTipText(FText::FromString(FString::Join(Names,TEXT("\n"))));
             Grid->AddChildToWrapBox(More);
         }
+    }
+    if (bShowStats)
+    {
+        auto* StatRow = Tree->ConstructWidget<UHorizontalBox>();
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->StatsInDesignOrder();
+        const int32 Threshold = int32(FMath::Max<int64>(1, Content->Parameters.KeystoneThresholdPoints));
+        for (int32 StatIdx = 0; StatIdx < StatOrder.Num() && Build.StatPoints.IsValidIndex(StatIdx); ++StatIdx)
+        {
+            const int32 Pts = int32(Build.StatPoints[StatIdx]);
+            const FString StatName = LDHUD::ContentName(Content, StatOrder[StatIdx]->Id);
+            const FString EntryText = FString::Printf(TEXT("%s %d%s"), *StatName, Pts, Pts >= Threshold ? TEXT("★") : TEXT(""));
+            UTextBlock* Chip = BoardText(Tree, EntryText, FMath::Max(10, FMath::RoundToInt(13 * TextScale)));
+            Chip->SetColorAndOpacity(Pts >= Threshold ? LDHUDStyle::UIAction : LDHUDStyle::UIText);
+            StatRow->AddChildToHorizontalBox(Chip)->SetPadding(FMargin(StatIdx ? 14.f : 0.f, 0, 0, 0));
+        }
+        Outer->AddChildToVerticalBox(StatRow)->SetPadding(FMargin(0, 6, 0, 0));
     }
     return Bounds;
 }

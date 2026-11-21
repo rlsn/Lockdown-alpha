@@ -12,6 +12,7 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "InputKeyEventArgs.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
@@ -226,6 +227,7 @@ void ALDPlayerController::V05Back()
     if (RootUI->CloseTopModal()) { return; }
     if (CancelArmedCombat()) { return; }
     if (HUDUI && HUDUI->CancelPKThrowAim()) { return; }
+    if (HUDUI && HUDUI->CloseRankUp()) { return; }
     if (HUDUI && HUDUI->CancelStorage()) { return; }
     if (RootUI->CloseTopPanel()) { return; }
     if (!StaleKeys.Contains(BindingKey(TEXT("Back")))) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
@@ -329,6 +331,30 @@ void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
     if (Controls->SetAppliedZoom(ALDCharacter::ZoomedArmLength(Controls->Zoom,Value.Get<float>()),Error))
     { CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush(); }
     else { IntentFeedback=Error; }
+}
+
+bool ALDPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+    if (Params.Event == IE_Pressed && !IsFrontend() && !bControlsSuppressed && !IsWorldInputCaptured())
+    {
+        const bool bAlt = IsInputKeyDown(EKeys::LeftAlt) || IsInputKeyDown(EKeys::RightAlt);
+        const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+        const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
+        if (HandleContextualKeyPress(Params.Key, bAlt, bCtrl, bShift))
+        {
+            return true;
+        }
+    }
+    return Super::InputKey(Params);
+}
+
+bool ALDPlayerController::HandleContextualKeyPress(const FKey& Key, bool bAlt, bool bCtrl, bool bShift)
+{
+    if (!HUDUI || IsFrontend() || bControlsSuppressed || IsWorldInputCaptured())
+    {
+        return false;
+    }
+    return HUDUI->HandleContextualKeyPress(Key, bAlt, bCtrl, bShift);
 }
 
 void ALDPlayerController::RecordAppliedCameraZoom()

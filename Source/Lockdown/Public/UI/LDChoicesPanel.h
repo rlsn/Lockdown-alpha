@@ -83,6 +83,8 @@ public:
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
+    // Alt+1/2/3 hotkey: takes candidate Index of the currently active 3-choice offer (#331).
+    bool PickByHotkey(int32 Index);
     // Universal final cards: a tray click commits at once (ChooseFinalMod); on the stage a click only selects
     // (SelectFinalMod) and the hold of GrowthFinalLock commits (LockFinalMod).
     bool ChooseFinalMod(int32 Index);
@@ -161,10 +163,16 @@ private:
         FName Component;
         TObjectPtr<USizeBox> Frame;
         TObjectPtr<ULDCommandButton> Button;
+        TObjectPtr<UBorder> Shape;
         TObjectPtr<USizeBox> IconFrame;
         TObjectPtr<UImage> Picture;
         TObjectPtr<UTextBlock> Glyph;
         TObjectPtr<UTextBlock> Name;
+        FString FullName;
+        TObjectPtr<UWidget> HotkeyChip;
+        TObjectPtr<UTextBlock> HotkeyText;
+        TObjectPtr<UWidget> CompatBox;
+        TObjectPtr<UTextBlock> CompatText;
         // What the face shows (the definition and the outcome it was rendered for), so it is rendered again only on a change.
         FString ShownKey;
         FString AppliedIcon;
@@ -295,7 +303,9 @@ private:
     UPROPERTY() TArray<TObjectPtr<UWidget>> ShopCells;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ShopPrices;
     TArray<FTrayCard> ShopCards;
-    bool bShopOpen=false;
+    bool bShopOpen=true;
+    uint32 AutoShopStock=0;
+    uint32 AutoShopMatch=0;
     bool IsShopOffered() const;
     void RefreshShopPanel();
     bool ShopCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out);
@@ -349,7 +359,7 @@ private:
     // The lowest empty Q/W/E slot of the latest view, or 3 when all are full.
     uint8 FirstEmptySlot() const;
     // Builds one tray card whose click runs Click; the caller adds its Frame to a row.
-    FTrayCard MakeCard(FName ButtonName,TFunction<void()> Click);
+    FTrayCard MakeCard(FName ButtonName,TFunction<void()> Click,bool bHold=false);
     // The face of Card needs rendering for Key (another definition or outcome, or new numbers).
     bool CardStale(const FTrayCard& Card,const FString& Key) const;
     // Fills a card's name, icon and popup for Key.

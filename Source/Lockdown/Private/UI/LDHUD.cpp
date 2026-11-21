@@ -506,7 +506,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 ChoiceLine->AddChildToHorizontalBox(ChoiceTitle)->SetVerticalAlignment(VAlign_Center);
                 for(int32 Index=0;Index<LDPacing::MaxSpawnChoices;++Index)
                 {
-                    ULDCommandButton* Choice=LDWidgets::Button(WidgetTree,LDTerms::SpawnCandidate(Index),[this,Index](){SubmitSpawnChoice(Index);},true,
+                    ULDCommandButton* Choice=LDWidgets::Button(WidgetTree,LDTerms::SpawnCandidate(Index),[this,Index](){SelectSpawnCandidate(Index);},true,
                         FName(*FString::Printf(TEXT("HUDSpawnChoice%d"),Index+1)));
                     Choice->SetVisibility(ESlateVisibility::Collapsed);
                     ChoiceLine->AddChildToHorizontalBox(Choice)->SetPadding(FMargin(10,0,0,0));
@@ -520,6 +520,23 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Place(TopCentre,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,22));
             // Above the workshop (its rest actions stay usable in the full view), below the tray and the storage.
             TopCentreSlot=Cast<UCanvasPanelSlot>(TopCentre->Slot);if(TopCentreSlot){TopCentreSlot->SetZOrder(9);}
+            {
+                // #331: compact top PK matchup + betting bar shown over the open Workshop during Draw / Betting.
+                auto* CompactLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+                PKCompactTitle=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);HudFace(PKCompactTitle,true,1);PKCompactTitle->SetColorAndOpacity(LDHUDStyle::TextAccent);
+                CompactLine->AddChildToHorizontalBox(PKCompactTitle)->SetVerticalAlignment(VAlign_Center);
+                PKCompactBetButtons.Reset();
+                for(int32 Index=0;Index<6;++Index)
+                {
+                    ULDCommandButton* Bet=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){SubmitPKBet(Index);},true,FName(*FString::Printf(TEXT("HUDPKCompactBet%d"),Index+1)));
+                    Bet->SetVisibility(ESlateVisibility::Collapsed);
+                    CompactLine->AddChildToHorizontalBox(Bet)->SetPadding(FMargin(8,0,0,0));
+                    PKCompactBetButtons.Add(Bet);
+                }
+                PKCompactBar=Panel(CompactLine,true);PKCompactBar->SetVisibility(ESlateVisibility::Collapsed);
+                Place(PKCompactBar,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,66));
+                if(auto* CompactSlot=Cast<UCanvasPanelSlot>(PKCompactBar->Slot)){CompactSlot->SetZOrder(12);}
+            }
         }
         auto* DeathBox=WidgetTree->ConstructWidget<UVerticalBox>();
         DeathTitle=OneLine(TEXT(""),LDHUDStyle::TypeDisplay,0);HudFace(DeathTitle,true,0);DeathTitle->SetColorAndOpacity(LDHUDStyle::TextDanger);
@@ -527,11 +544,21 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DeathNote=OneLine(TEXT(""),LDHUDStyle::TypeSmall,520);DeathNote->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         for(UTextBlock* DeathLine:{DeathTitle.Get(),DeathCauseText.Get(),DeathCountdown.Get(),DeathNote.Get()})
         {DeathLine->SetJustification(ETextJustify::Center);DeathBox->AddChildToVerticalBox(DeathLine)->SetHorizontalAlignment(HAlign_Center);}
-        // The recap lines shrink together to the banner width instead of wrapping or scrolling.
+        // The recap lines shrink together to the banner width instead of wrapping or scrolling, with a collapse toggle (#331).
         {
-            auto* RecapBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            auto* HeadLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             DeathRecapHeading=OneLine(TEXT(""),15,0);DeathRecapHeading->SetJustification(ETextJustify::Center);
-            RecapBox->AddChildToVerticalBox(DeathRecapHeading)->SetHorizontalAlignment(HAlign_Center);
+            HeadLine->AddChildToHorizontalBox(DeathRecapHeading)->SetVerticalAlignment(VAlign_Center);
+            DeathRecapToggle=LDWidgets::Button(WidgetTree,TEXT("收起 ▲"),[this]()
+            {
+                bDeathRecapCollapsed=!bDeathRecapCollapsed;
+                MarkReadModelDirty();
+            },true,TEXT("HUDDeathRecapToggle"));
+            DeathRecapToggle->SetVisibility(ESlateVisibility::Collapsed);
+            HeadLine->AddChildToHorizontalBox(DeathRecapToggle)->SetPadding(FMargin(10,0,0,0));
+            DeathBox->AddChildToVerticalBox(HeadLine)->SetHorizontalAlignment(HAlign_Center);
+
+            auto* RecapBox=WidgetTree->ConstructWidget<UVerticalBox>();
             DeathRecapRows.Reset();DeathRecapShown.Reset();
             for(int32 Row=0;Row<LDHUD::DeathRecapAttackersMax;++Row)
             {
@@ -542,9 +569,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RecapFit=WidgetTree->ConstructWidget<UScaleBox>();RecapFit->SetStretch(EStretch::ScaleToFit);RecapFit->SetStretchDirection(EStretchDirection::DownOnly);
             RecapFit->SetContent(RecapBox);
             auto* RecapWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDDeathRecap"));RecapWidth->SetMaxDesiredWidth(640);RecapWidth->SetContent(RecapFit);
-            auto* RecapSlot=DeathBox->AddChildToVerticalBox(RecapWidth);RecapSlot->SetHorizontalAlignment(HAlign_Center);RecapSlot->SetPadding(FMargin(0,8,0,0));
+            DeathRecapContainer=RecapWidth;
+            auto* RecapSlot=DeathBox->AddChildToVerticalBox(RecapWidth);RecapSlot->SetHorizontalAlignment(HAlign_Center);RecapSlot->SetPadding(FMargin(0,6,0,0));
         }
-        DeathBanner=Panel(DeathBox,false);Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,200));DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
+        DeathWorkshopButton=LDWidgets::Button(WidgetTree,LDTerms::DeathWorkshopPrompt(TEXT("B"),FString()),[this](){ToggleWorkshop();},true,TEXT("HUDDeathWorkshopButton"));
+        LDWidgets::SetLook(DeathWorkshopButton,LDUIPaint::EButton::Primary);
+        DeathWorkshopButton->SetVisibility(ESlateVisibility::Collapsed);
+        auto* DeathBtnSlot=DeathBox->AddChildToVerticalBox(DeathWorkshopButton);DeathBtnSlot->SetHorizontalAlignment(HAlign_Center);DeathBtnSlot->SetPadding(FMargin(0,10,0,0));
+        DeathBanner=Panel(DeathBox,false);DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
+        Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,176));
         // #198: the rest return countdown, large in the screen centre; it never takes pointer input.
         ReturnCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeGiant,TEXT("ReturnCountdownText"));ReturnCountdownText->SetAutoWrapText(false);
         ReturnCountdownText->SetJustification(ETextJustify::Center);HudFace(ReturnCountdownText,true,4);
@@ -566,14 +599,22 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         }
         ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Left);ResultSubtitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,18));
-        // Mock 5: the contender table on the left, the winner's rule board in its own card on the right.
+        // Mock 5 (#331): the contender table on the left (click any row to switch), the selected contender's rule board on the right.
         {
             auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(Body);
+            auto* LeftCol=WidgetTree->ConstructWidget<UVerticalBox>();
             ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();
-            auto* RowsSlot=Body->AddChildToHorizontalBox(ResultRows);RowsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));RowsSlot->SetPadding(FMargin(0,0,HudResultGap,0));
+            LeftCol->AddChildToVerticalBox(ResultRows);
+            UTextBlock* SwitchHint=OneLine(LDTerms::ResultClickSwitchHint,13,0);SwitchHint->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            LeftCol->AddChildToVerticalBox(SwitchHint)->SetPadding(FMargin(2,6,0,0));
+            auto* RowsSlot=Body->AddChildToHorizontalBox(LeftCol);RowsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));RowsSlot->SetPadding(FMargin(0,0,HudResultGap,0));
             auto* BoardBox=WidgetTree->ConstructWidget<UVerticalBox>();
-            UTextBlock* BoardTitle=OneLine(TEXT("赢家规则板"),LDHUDStyle::TypeHeading,0);HudFace(BoardTitle,true,0);
-            BoardBox->AddChildToVerticalBox(BoardTitle)->SetPadding(FMargin(0,0,0,14));
+            auto* BoardHead=WidgetTree->ConstructWidget<UHorizontalBox>();
+            ResultBoardTitle=OneLine(TEXT("赢家规则板"),LDHUDStyle::TypeHeading,0);HudFace(ResultBoardTitle,true,0);
+            auto* BoardTitleSlot=BoardHead->AddChildToHorizontalBox(ResultBoardTitle);BoardTitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));BoardTitleSlot->SetVerticalAlignment(VAlign_Center);
+            ResultInspectSelfButton=LDWidgets::Button(WidgetTree,LDTerms::ResultInspectSelf,[this,PC](){SelectResultContender(PC->OwnerState.ContenderId);},false,TEXT("ResultInspectSelf"));
+            BoardHead->AddChildToHorizontalBox(ResultInspectSelfButton)->SetVerticalAlignment(VAlign_Center);
+            BoardBox->AddChildToVerticalBox(BoardHead)->SetPadding(FMargin(0,0,0,12));
             ResultWinnerBuild=WidgetTree->ConstructWidget<USizeBox>();BoardBox->AddChildToVerticalBox(ResultWinnerBuild);
             ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
             auto* Board=WidgetTree->ConstructWidget<UBorder>();Board->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
@@ -581,21 +622,45 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* BoardWidth=WidgetTree->ConstructWidget<USizeBox>();BoardWidth->SetWidthOverride(HudResultBoardWidth+48.f);BoardWidth->SetContent(Board);
             Body->AddChildToHorizontalBox(BoardWidth)->SetVerticalAlignment(VAlign_Fill);
         }
-        // The own damage per source in one card: a heading, then DamageSummarySourcesMax cells on one line.
-        ResultDamageCells.Reset();
+        // The own damage per source in one card (#331): icon + text + colored share bar per source on one line (never a scroll view).
+        ResultDamageCells.Reset();ResultDamageSlots.Reset();ResultDamageIcons.Reset();ResultDamageGlyphs.Reset();ResultDamageBars.Reset();
         {
             auto* DamageBox=WidgetTree->ConstructWidget<UVerticalBox>();
             ResultDamageHeading=Text(TEXT(""),LDHUDStyle::TypeHeading);HudFace(ResultDamageHeading,true,0);
             DamageBox->AddChildToVerticalBox(ResultDamageHeading)->SetPadding(FMargin(0,0,0,10));
             auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();DamageBox->AddChildToVerticalBox(Line);
+            const float CellW=(HudResultWidth-48.f)/LDHUD::DamageSummarySourcesMax-12.f;
             for(int32 Index=0;Index<LDHUD::DamageSummarySourcesMax;++Index)
             {
-                UTextBlock* Cell=OneLine(TEXT(""),15,0);Cell->SetColorAndOpacity(LDHUDStyle::UIText);
+                auto* CellStack=WidgetTree->ConstructWidget<UVerticalBox>();
+                auto* TopRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+                auto* IconFrame=WidgetTree->ConstructWidget<UBorder>();IconFrame->SetBrush(HudRound(4.f,LDHUDStyle::PanelRim,1.f));
+                IconFrame->SetBrushColor(FLinearColor(.04f,.06f,.09f,.95f));IconFrame->SetPadding(FMargin(0));
+                auto* IconOverlay=WidgetTree->ConstructWidget<UOverlay>();
+                UImage* Pic=WidgetTree->ConstructWidget<UImage>();Pic->SetVisibility(ESlateVisibility::Collapsed);
+                auto* PicSlot=IconOverlay->AddChildToOverlay(Pic);PicSlot->SetHorizontalAlignment(HAlign_Fill);PicSlot->SetVerticalAlignment(VAlign_Fill);
+                UTextBlock* Glyph=OneLine(TEXT(""),12,0);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
+                auto* GlyphSlot=IconOverlay->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+                IconFrame->SetContent(IconOverlay);
+                auto* IconSize=WidgetTree->ConstructWidget<USizeBox>();IconSize->SetWidthOverride(22);IconSize->SetHeightOverride(22);IconSize->SetContent(IconFrame);
+                TopRow->AddChildToHorizontalBox(IconSize)->SetVerticalAlignment(VAlign_Center);
+
+                UTextBlock* Cell=OneLine(TEXT(""),14,0);Cell->SetColorAndOpacity(LDHUDStyle::UIText);
                 auto* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
                 Fit->SetContent(Cell);
                 if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);}
-                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride((HudResultWidth-48.f)/LDHUD::DamageSummarySourcesMax-12.f);Box->SetContent(Fit);
-                Line->AddChildToHorizontalBox(Box)->SetPadding(FMargin(0,0,12,0));ResultDamageCells.Add(Cell);
+                auto* TextBox=WidgetTree->ConstructWidget<USizeBox>();TextBox->SetWidthOverride(FMath::Max(40.f,CellW-28.f));TextBox->SetContent(Fit);
+                auto* TextSlot=TopRow->AddChildToHorizontalBox(TextBox);TextSlot->SetPadding(FMargin(6,0,0,0));TextSlot->SetVerticalAlignment(VAlign_Center);
+                CellStack->AddChildToVerticalBox(TopRow);
+
+                UProgressBar* ShareBar=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(ShareBar,LDHUDStyle::UIAction);ShareBar->SetPercent(0.f);
+                auto* BarBox=WidgetTree->ConstructWidget<USizeBox>();BarBox->SetHeightOverride(6.f);BarBox->SetContent(ShareBar);
+                CellStack->AddChildToVerticalBox(BarBox)->SetPadding(FMargin(0,5,0,0));
+
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(CellW);Box->SetContent(CellStack);
+                Box->SetVisibility(ESlateVisibility::Collapsed);
+                Line->AddChildToHorizontalBox(Box)->SetPadding(FMargin(0,0,12,0));
+                ResultDamageSlots.Add(Box);ResultDamageIcons.Add(Pic);ResultDamageGlyphs.Add(Glyph);ResultDamageCells.Add(Cell);ResultDamageBars.Add(ShareBar);
             }
             auto* DamageCard=WidgetTree->ConstructWidget<UBorder>();DamageCard->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
             DamageCard->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));DamageCard->SetPadding(FMargin(24,18));DamageCard->SetContent(DamageBox);
@@ -933,34 +998,70 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
         }
         {
-            // The rank-up page: the skill's name, two big branch cards (icon, name, one-line change; hover for the numbers)
-            // and a close button. A card click submits RankUpSkill.
+            // The rank-up page (#287 spec §12 + #331 3-rank tree preview): two branch cards ([1]/[2]), with Rank 3 sub-nodes
+            // beneath 2A and 2B during 1->2 selection so players can hover 3A1/3A2/3B1/3B2 before committing.
             auto* PageBox=WidgetTree->ConstructWidget<UVerticalBox>();
             RankTitle=Text(TEXT(""),LDHUDStyle::TypeBanner);HudFace(RankTitle,true,0);RankTitle->SetJustification(ETextJustify::Center);
             PageBox->AddChildToVerticalBox(RankTitle)->SetHorizontalAlignment(HAlign_Center);
+            RankHint=OneLine(TEXT("按 [1] / [2] 选择分支 · 悬停下方三级节点预览终极形态 · [Esc] 关闭"),LDHUDStyle::TypeCaption,0);
+            RankHint->SetColorAndOpacity(LDHUDStyle::TextSecondary);RankHint->SetJustification(ETextJustify::Center);
+            PageBox->AddChildToVerticalBox(RankHint)->SetPadding(FMargin(0,4,0,0));
             auto* CardRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            RankSubRows.Reset();RankSubChips.Reset();RankSubNames.Reset();RankSubIcons.Reset();
             for(int32 Card=0;Card<2;++Card)
             {
+                auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();
                 auto* CardBox=WidgetTree->ConstructWidget<UVerticalBox>();
+                auto* TopKey=OneLine(FString::Printf(TEXT("[%d]"),Card+1),LDHUDStyle::TypeCaption,0);
+                HudFace(TopKey,true,1);TopKey->SetColorAndOpacity(LDHUDStyle::TextAccent);
+                CardBox->AddChildToVerticalBox(TopKey)->SetHorizontalAlignment(HAlign_Right);
                 auto* Icon=WidgetTree->ConstructWidget<UImage>();
-                auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(72);IconBox->SetHeightOverride(72);IconBox->SetContent(Icon);
+                auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(68);IconBox->SetHeightOverride(68);IconBox->SetContent(Icon);
                 CardBox->AddChildToVerticalBox(IconBox)->SetHorizontalAlignment(HAlign_Center);
                 UTextBlock* Name=Text(TEXT(""),LDHUDStyle::TypeLabel);HudFace(Name,true,0);Name->SetJustification(ETextJustify::Center);
-                CardBox->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,8,0,0));
+                CardBox->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,6,0,0));
                 UTextBlock* Line=Text(TEXT(""),LDHUDStyle::TypeSmall);Line->SetAutoWrapText(true);Line->SetJustification(ETextJustify::Center);
                 CardBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,6,0,0));
-                auto* CardPanel=LDWidgets::Panel(WidgetTree,CardBox,FMargin(14,12));CardPanel->SetBrushColor(FLinearColor(.04f,.06f,.09f,.96f));
-                auto* CardSize=WidgetTree->ConstructWidget<USizeBox>();CardSize->SetWidthOverride(240);CardSize->SetHeightOverride(220);CardSize->SetContent(CardPanel);
+                auto* CardPanel=LDWidgets::Panel(WidgetTree,CardBox,FMargin(14,10));CardPanel->SetBrushColor(FLinearColor(.04f,.06f,.09f,.96f));
+                auto* CardSize=WidgetTree->ConstructWidget<USizeBox>();CardSize->SetWidthOverride(260);CardSize->SetHeightOverride(228);CardSize->SetContent(CardPanel);
                 ULDCommandButton* Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Card](){SubmitRankUp(Card);},true,FName(*FString::Printf(TEXT("HUDRankCard%d"),Card)));
                 Button->SetContent(CardSize);
-                CardRow->AddChildToHorizontalBox(Button)->SetPadding(FMargin(Card==0?0:24,0,0,0));
+                Column->AddChildToVerticalBox(Button);
+
+                auto* SubWrap=WidgetTree->ConstructWidget<UVerticalBox>();
+                auto* Connector=OneLine(TEXT("▼ 后续三级终极分化（悬停看完整数值）"),11,0);
+                Connector->SetColorAndOpacity(LDHUDStyle::TextSecondary);Connector->SetJustification(ETextJustify::Center);
+                SubWrap->AddChildToVerticalBox(Connector)->SetPadding(FMargin(0,6,0,4));
+                auto* SubRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+                for(int32 Sub=0;Sub<2;++Sub)
+                {
+                    auto* ChipLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+                    UImage* SubIcon=WidgetTree->ConstructWidget<UImage>();
+                    auto* SubIconBox=WidgetTree->ConstructWidget<USizeBox>();SubIconBox->SetWidthOverride(22);SubIconBox->SetHeightOverride(22);SubIconBox->SetContent(SubIcon);
+                    ChipLine->AddChildToHorizontalBox(SubIconBox)->SetVerticalAlignment(VAlign_Center);
+                    UTextBlock* SubName=OneLine(TEXT(""),12,0);SubName->SetColorAndOpacity(LDHUDStyle::TextPrimary);
+                    auto* SubNameSlot=ChipLine->AddChildToHorizontalBox(SubName);SubNameSlot->SetPadding(FMargin(5,0,0,0));SubNameSlot->SetVerticalAlignment(VAlign_Center);
+                    auto* Chip=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),FName(*FString::Printf(TEXT("HUDRankSubChip_%d_%d"),Card,Sub)));
+                    Chip->SetBrush(HudRound(5.f,LDHUDStyle::PanelRim,1.f));Chip->SetBrushColor(FLinearColor(.03f,.045f,.07f,.92f));
+                    Chip->SetPadding(FMargin(6,5));Chip->SetContent(ChipLine);
+                    auto* ChipSize=WidgetTree->ConstructWidget<USizeBox>();ChipSize->SetWidthOverride(126);ChipSize->SetContent(Chip);
+                    SubRow->AddChildToHorizontalBox(ChipSize)->SetPadding(FMargin(Sub==0?0:8,0,0,0));
+                    RankSubChips.Add(Chip);RankSubNames.Add(SubName);RankSubIcons.Add(SubIcon);
+                }
+                SubWrap->AddChildToVerticalBox(SubRow);
+                SubWrap->SetVisibility(ESlateVisibility::Collapsed);
+                Column->AddChildToVerticalBox(SubWrap);
+                RankSubRows.Add(SubWrap);
+
+                CardRow->AddChildToHorizontalBox(Column)->SetPadding(FMargin(Card==0?0:24,0,0,0));
                 RankCards.Add(Button);RankCardNames.Add(Name);RankCardLines.Add(Line);RankCardIcons.Add(Icon);
             }
-            PageBox->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,16,0,0));
+            PageBox->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,14,0,0));
             ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){RankSlot=INDEX_NONE;MarkReadModelDirty();},true,TEXT("HUDRankClose"));
-            PageBox->AddChildToVerticalBox(Close)->SetPadding(FMargin(0,16,0,0));
+            PageBox->AddChildToVerticalBox(Close)->SetPadding(FMargin(0,14,0,0));
             RankPage=LDWidgets::Panel(WidgetTree,PageBox,FMargin(24,18));RankPage->SetBrushColor(FLinearColor(.02f,.03f,.05f,.97f));
             RankPage->SetVisibility(ESlateVisibility::Collapsed);
+            HitPanels.Add(RankPage);
             auto* PageSlot=Canvas->AddChildToCanvas(RankPage);PageSlot->SetAnchors(FAnchors(.5f,.5f));PageSlot->SetAlignment(FVector2D(.5f,.5f));
             PageSlot->SetAutoSize(true);PageSlot->SetZOrder(25);
         }
@@ -1128,6 +1229,11 @@ bool ULDHUD::IsUIAt(FVector2D P) const
     if(Storage&&Storage->IsHit(P)){return true;}
     if(Workshop&&Workshop->IsHit(P)){return true;}
     if(ChoicesPanel&&ChoicesPanel->IsQuickHit(P)){return true;}
+    if(DeathBanner&&DeathBanner->IsVisible())
+    {
+        if(DeathWorkshopButton&&DeathWorkshopButton->IsVisible()&&DeathWorkshopButton->GetCachedGeometry().IsUnderLocation(P)){return true;}
+        if(DeathRecapToggle&&DeathRecapToggle->IsVisible()&&DeathRecapToggle->GetCachedGeometry().IsUnderLocation(P)){return true;}
+    }
     for(const ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelHit(P)){return true;}}
     for(const auto& Panel:HitPanels){if(Panel&&Panel->IsVisible()&&Panel->GetCachedGeometry().IsUnderLocation(P)){return true;}}return false;
 }
@@ -1368,9 +1474,10 @@ LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameS
         Put(PC.BuildBlueprints&&PC.BuildBlueprints->IsViewerOpen(),1);
         Put(ChoicesPanel&&ChoicesPanel->IsPanelOpen(),1);Put(ChoicesPanel&&ChoicesPanel->IsTrayOpen(),1);
         Put(Workshop&&Workshop->IsOpen(),1);Put(Storage&&Storage->IsDragging(),1);Put(bDragging,1);
+        Put(PC.Controls&&PC.Controls->bColorblindMode,1);
         int64 NowMs=0;Put(PC.ReadDemoAuthorityTimeMs(NowMs),1);
         // Owner statistics that arrive by RPC (the low bits of their serials are enough to notice a new one).
-        Put(PC.BuildStats.Serial,4);Put(PC.TrainingCombo.Serial,4);
+        Put(PC.BuildStats.Serial,3);Put(PC.TrainingCombo.Serial,4);
         check(Shift<=64);
         Key.Flags=Flags;
     }
@@ -1434,7 +1541,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Storage){Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
-            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(SpawnChoicePanel.Get()),
+            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(PKCompactBar.Get()),
+            static_cast<UWidget*>(SpawnChoicePanel.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         // The result enters row by row until AnimateResult settles it, and the showdown ring shrinks: both move with time.
         bReadModelLive=(bResults&&!Overlay&&ResultShownAt>=0.)||ShowdownRing.IsValid();
@@ -1488,12 +1596,16 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const bool bRestActions=bRestPlanning||(Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Payout);
         if(!bRestActions){bTrainingResetInFlight=false;bRestReadyInFlight=false;}
         HudSetShown(RestActionsPanel,bRestActions,ESlateVisibility::Visible);
-        const FString ReadyLabel=O.bRestReady?TEXT("已准备"):bRestReadyInFlight?TEXT("提交中…"):TEXT("准备完毕");
+        const FString ReadyLabel=bRestReadyInFlight?TEXT("提交中…"):O.bRestReady?FString(LDTerms::RestReadyCancel):FString(LDTerms::RestReadyCommit);
         if(bRestActions)
         {
             if(TrainingResetButton->GetIsEnabled()==bTrainingResetInFlight){TrainingResetButton->SetIsEnabled(!bTrainingResetInFlight);}
             HudSetText(Cast<UTextBlock>(RestReadyButton->GetContent()),ReadyLabel);
-            RestReadyButton->SetIsEnabled(O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight);
+            RestReadyButton->SetIsEnabled(O.bCanRestReady&&!bRestReadyInFlight);
+            const LDUIPaint::EButton ReadyLook=O.bRestReady?LDUIPaint::EButton::Normal:LDUIPaint::EButton::Primary;
+            if(RestReadyButton->Look!=ReadyLook){LDWidgets::SetLook(RestReadyButton,ReadyLook);}
+            const FLinearColor ReadyTint=O.bRestReady?LDHUDStyle::StatusPositive:FLinearColor::White;
+            if(RestReadyButton->GetBackgroundColor()!=ReadyTint){RestReadyButton->SetBackgroundColor(ReadyTint);}
             HudSetShown(RestReadyButton,bRestPlanning,ESlateVisibility::Visible);
             const bool bThisRest=RestAnswerMatch==Public.Generation&&RestAnswerRest==Public.Timeline.RestIndex;
             HudSetText(RestAnswerText,bThisRest?RestAnswer:FString());
@@ -1501,17 +1613,21 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         }
         SyncSignupMarker(Public,O.Match,bRestActions&&Timeline.bSignupStep,Timeline.bSignupOpen,Timeline.bSignedUp);
         // A finished training combo on the dummy: each source and its damage, largest first, beside the rest actions.
+        // Live per-hit updates (!bFinished) drive ULDWorldLabels' overhead dummy board without spamming HUD toasts (#331).
         if(const FLDTrainingComboView& Combo=PC->TrainingCombo;Combo.Match==O.Match&&Combo.Serial!=SeenTrainingCombo)
         {
             SeenTrainingCombo=Combo.Serial;
-            int64 TotalP2=0;
-            TArray<FString> Parts;
-            for(const FLDDamageLine& Line:Combo.Lines)
+            if(Combo.bFinished)
             {
-                TotalP2+=Line.DamageP2;
-                if(Parts.Num()<5){Parts.Add(FString::Printf(TEXT("%s %lld"),*LDHUD::DamageSourceName(Content,Line.Source),Line.DamageP2/100));}
+                int64 TotalP2=0;
+                TArray<FString> Parts;
+                for(const FLDDamageLine& Line:Combo.Lines)
+                {
+                    TotalP2+=Line.DamageP2;
+                    if(Parts.Num()<5){Parts.Add(FString::Printf(TEXT("%s %lld"),*LDHUD::DamageSourceName(Content,Line.Source),Line.DamageP2/100));}
+                }
+                if(TotalP2>0){ShowRestAnswer(FString::Printf(TEXT("%lld：%s"),TotalP2/100,*FString::Join(Parts,TEXT(" · "))));}
             }
-            if(TotalP2>0){ShowRestAnswer(FString::Printf(TEXT("%lld：%s"),TotalP2/100,*FString::Join(Parts,TEXT(" · "))));}
         }
     }
     RefreshPK(*PC,Public,Lobby,bClock,NowMs);
@@ -1526,6 +1642,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const bool bShown=Choice.bVisible&&Index<Choice.Count;
             HudSetShown(Button,bShown,ESlateVisibility::Visible);
             if(!bShown){continue;}
+            HudSetText(Cast<UTextBlock>(Button->GetContent()),
+                FString::Printf(TEXT("[%d] %s"),Index+1,*LDTerms::SpawnCandidate(Index)));
             const FLinearColor Tint=Index==Choice.Chosen?HudPromptFill:FLinearColor::White;
             if(Button->GetBackgroundColor()!=Tint){Button->SetBackgroundColor(Tint);}
             if(Button->GetIsEnabled()==bSpawnChoiceInFlight){Button->SetIsEnabled(!bSpawnChoiceInFlight);}
@@ -1555,7 +1673,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     HudSetShown(ReturnCountdownText,!ReturnCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
     HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
+    HudSetShown(DeathBanner,Death.bVisible&&!(bWorkshopOpen&&bWorkshopFull),ESlateVisibility::SelfHitTestInvisible);
     // Moving with time: the arena ring, the flagpole bar and the death countdown with its ring.
     bReadModelLive|=ShowdownRing.IsValid()||PKRing.IsValid()||Circle.bProgress||Death.bVisible;
     if(Death.bVisible)
@@ -1568,12 +1686,18 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         // Until the recap of exactly this life arrives there is no recap section at all.
         const LDHUD::FDamageListView Recap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);
         HudSetText(DeathRecapHeading,Recap.Heading);HudSetShown(DeathRecapHeading,Recap.bAvailable,ESlateVisibility::HitTestInvisible);
+        if(DeathRecapToggle)
+        {
+            HudSetShown(DeathRecapToggle,Recap.bAvailable,ESlateVisibility::Visible);
+            HudSetText(Cast<UTextBlock>(DeathRecapToggle->GetContent()),bDeathRecapCollapsed?TEXT("展开 ▼"):TEXT("收起 ▲"));
+        }
+        HudSetShown(DeathRecapContainer,Recap.bAvailable&&!bDeathRecapCollapsed,ESlateVisibility::HitTestInvisible);
         // Each row is its icon chain (who triggered → what it consumed → what it produced), rebuilt only when it changes;
         // new text takes the current text scale, later scale changes rescale it with the rest of the HUD.
         const float Scale=AppliedScale>0?AppliedScale:1.f;
         for(int32 Row=0;Row<DeathRecapRows.Num();++Row)
         {
-            const bool bRow=Recap.bAvailable&&Recap.Chains.IsValidIndex(Row);
+            const bool bRow=Recap.bAvailable&&!bDeathRecapCollapsed&&Recap.Chains.IsValidIndex(Row);
             const LDHUD::FRecapChain Chain=bRow?Recap.Chains[Row]:LDHUD::FRecapChain();
             if(DeathRecapShown.IsValidIndex(Row)&&!(DeathRecapShown[Row]==Chain))
             {
@@ -1581,6 +1705,20 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
                 LDRecapChain::Fill(WidgetTree,DeathRecapRows[Row],Chain,FMath::RoundToFloat(20.f*Scale),FMath::RoundToInt(14.f*Scale));
             }
             HudSetShown(DeathRecapRows[Row],bRow,ESlateVisibility::HitTestInvisible);
+        }
+        if(DeathWorkshopButton)
+        {
+            const bool bCanOpenBuild=bDeathWait&&!bRestPhase&&!bWorkshopOpen;
+            HudSetShown(DeathWorkshopButton,bCanOpenBuild,ESlateVisibility::Visible);
+            if(bCanOpenBuild)
+            {
+                const FString KeyName=PC->BindingLabel(TEXT("Workshop"));
+                const FString LeftSec=(bClock&&O.RespawnAtMs>NowMs)
+                    ?FString::Printf(TEXT("（%.1fs 后复活）"),double(O.RespawnAtMs-NowMs)/1000.)
+                    :FString();
+                HudSetText(Cast<UTextBlock>(DeathWorkshopButton->GetContent()),
+                    FString::Printf(TEXT("按 [%s] 趁复活调整构筑%s"),*KeyName,*LeftSec));
+            }
         }
     }
 
@@ -1618,6 +1756,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     }
     FString HealthLine=Health.Text;
     if(Health.bKnown&&ShieldPoints>0){HealthLine+=FString::Printf(TEXT(" · %s %.0f"),LDTerms::Shield,FMath::CeilToDouble(ShieldPoints));}
+    const bool bColorblind=PC->Controls&&PC->Controls->bColorblindMode;
+    const FLinearColor OwnHealthTint=LDHUDStyle::OwnHealthOf(bColorblind);
+    if(HealthBar->GetFillColorAndOpacity()!=OwnHealthTint){HealthBar->SetFillColorAndOpacity(OwnHealthTint);}
     HealthBar->SetPercent(Health.Fraction);HudSetText(HealthText,HealthLine);
     // A bar at the own overdrive threshold (OVERDRIVE.Threshold, or Y11's lower one) glows overdrive gold and says so; the bar
     // has no rate text (momentum is no steady regeneration).
@@ -1776,19 +1917,34 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             }
             Storage->SetContributions(BuildStats.Match==O.Match?BuildStats.Serial:0,Did);
         }
-        Storage->Present(Progression,O.Match,Stage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr);
+        Storage->Present(Progression,O.Match,Stage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr,HudSlotKeys(*PC));
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
     {
-        // The own death wait outside a rest opens the workshop by itself (once per death); a rest never does, the 构筑 entry
-        // lights instead. Leaving that full-screen moment closes a workshop that opened by itself again unless a request is
-        // still on its way. One the player opened stays, at the field size.
-        const bool bNewDeath=bDeathWait&&!bRestPhase&&!bWorkshopSeenDead;
-        if(bNewDeath){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
-        if(!ChoicesPanel->IsTrayOpen()){bWorkshopAutoOpened=false;}
-        if(bWorkshopWasFull&&!bWorkshopFull&&bWorkshopAutoOpened&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
-        {PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);bWorkshopAutoOpened=false;}
-        bWorkshopSeenDead=bDeathWait&&!bRestPhase;bWorkshopWasFull=bWorkshopFull;
+        // #331: field death never auto-opens the full-screen Workshop (so SpawnChoice + minimap stay unobstructed); if the
+        // player manually opens Workshop during death, respawn closes it immediately. Entering R1-R3 Build auto-opens the
+        // full-screen Workshop with Rest Shop side-by-side.
+        const bool bFieldDead=bDeathWait&&!bRestPhase;
+        if(bFieldDead&&ChoicesPanel->IsTrayOpen()){bWorkshopOpenedDuringDeath=true;}
+        if(!ChoicesPanel->IsTrayOpen()){bWorkshopAutoOpened=false;bWorkshopOpenedDuringDeath=false;}
+        const bool bRespawnedFromDeath=bWorkshopSeenDead&&!bFieldDead;
+        if((bRespawnedFromDeath&&(bWorkshopAutoOpened||bWorkshopOpenedDuringDeath))
+            ||(bWorkshopWasFull&&!bWorkshopFull&&bWorkshopAutoOpened))
+        {
+            if(ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
+            {
+                PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);
+                bWorkshopAutoOpened=false;
+                bWorkshopOpenedDuringDeath=false;
+            }
+        }
+        if(bRestPlanning&&!bWorkshopSeenRestBuild&&!ChoicesPanel->IsPanelOpen())
+        {
+            AutoOpenSince=GetWorld()->GetRealTimeSeconds();
+        }
+        bWorkshopSeenDead=bFieldDead;
+        bWorkshopSeenRestBuild=bRestPlanning;
+        bWorkshopWasFull=bWorkshopFull;
     }
     // D10/APP_SPEC §4.2: the growth panel opens by itself only for the match's opening offer, and only when nothing else is
     // open; later offers and new points light the 构筑 entry instead. It never opens over the player's own UI
@@ -2121,9 +2277,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const FString Relation=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PKRelationText(Public,O.ContenderId,Subject.ContenderId):FString();
         HudSetText(TargetTitle,Relation.IsEmpty()?Card.Title:Card.Title+TEXT(" · ")+Relation);HudSetText(TargetGlyph,Card.Title.Left(1));
         TargetPortrait->SetBrushColor(Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PaletteColor(Subject.Presentation):ULDHumanoidVisualComponent::MonsterTint(Subject.CreatureId));
-        // The bar speaks the shared language: other contenders red, camp members amber (the own body would read green).
+        // The bar speaks the shared language: other contenders red, camp members amber (the own body would read green; #331 colorblind option).
         const bool bContender=Subject.Kind==ELDObservedUnitKind::Contender;
-        const FLinearColor HealthFill=!bContender?LDHUDStyle::CampHealth:Subject.ContenderId==O.ContenderId?LDHUDStyle::OwnHealth:LDHUDStyle::EnemyHealth;
+        const FLinearColor HealthFill=!bContender?LDHUDStyle::CampHealth:Subject.ContenderId==O.ContenderId?LDHUDStyle::OwnHealthOf(bColorblind):LDHUDStyle::EnemyHealthOf(bColorblind);
         if(TargetHealthBar->GetFillColorAndOpacity()!=HealthFill){TargetHealthBar->SetFillColorAndOpacity(HealthFill);}
         TargetHealthBar->SetPercent(Card.Health.Fraction);HudSetText(TargetHealth,Card.Health.Text);
         HudSetShown(TargetMomentumRow,Card.bMomentum,ESlateVisibility::Visible);
@@ -2175,8 +2331,16 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
 }
 void ULDHUD::OpenRankUp(int32 ProgressionSlot)
 {
-    RankSlot=ProgressionSlot;
+    RankSlot=(RankSlot==ProgressionSlot)?INDEX_NONE:ProgressionSlot;
     MarkReadModelDirty();
+}
+
+bool ULDHUD::CloseRankUp()
+{
+    if(RankSlot==INDEX_NONE){return false;}
+    RankSlot=INDEX_NONE;
+    MarkReadModelDirty();
+    return true;
 }
 
 void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
@@ -2191,7 +2355,14 @@ void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoCo
     RankAbility=Learned->DefinitionId;
     FString SkillName;
     LDHUD::ContentText(Content,RankAbility.ToString(),false,SkillName);
-    HudSetText(RankTitle,FString::Printf(TEXT("%s · %s %u"),*SkillName,LDTerms::SkillRank,uint32(LDSkillBranch::RankOf(RankOptions[0]))));
+    const uint8 NextRank=LDSkillBranch::RankOf(RankOptions[0]);
+    HudSetText(RankTitle,FString::Printf(TEXT("%s · %s %u"),*SkillName,LDTerms::SkillRank,uint32(NextRank)));
+    if(RankHint)
+    {
+        HudSetText(RankHint,NextRank==2
+            ?FString(TEXT("按 [1] / [2] 选择二级分化 · 悬停下方三级节点预览终极形态 · [Esc] 关闭"))
+            :FString(TEXT("按 [1] / [2] 选择三级终极形态 · [Esc] 关闭")));
+    }
     for(int32 Card=0;Card<RankCards.Num();++Card)
     {
         const LDHUD::FBranchCardView View=LDHUD::BranchCard(Content,RankAbility,RankOptions[Card],Stats);
@@ -2200,6 +2371,22 @@ void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoCo
         RankCards[Card]->SetToolTipText(FText::FromString(View.Detail));
         RankCards[Card]->SetIsEnabled(View.bKnown);
         LDUIIcons::Apply(RankCardIcons[Card],View.IconId,8.f,FLinearColor::White);
+
+        const TArray<ELDSkillBranch> SubBranches=LDHUD::NextBranches(RankOptions[Card]);
+        const bool bShowSub=SubBranches.Num()==2&&RankSubRows.IsValidIndex(Card);
+        if(RankSubRows.IsValidIndex(Card)){HudSetShown(RankSubRows[Card],bShowSub,ESlateVisibility::SelfHitTestInvisible);}
+        for(int32 Sub=0;bShowSub&&Sub<2;++Sub)
+        {
+            const int32 ChipIdx=Card*2+Sub;
+            if(!RankSubChips.IsValidIndex(ChipIdx)){continue;}
+            const LDHUD::FBranchCardView SubView=LDHUD::BranchCard(Content,RankAbility,SubBranches[Sub],Stats);
+            const TCHAR* Code=(SubBranches[Sub]==ELDSkillBranch::A1)?TEXT("3A1")
+                :(SubBranches[Sub]==ELDSkillBranch::A2)?TEXT("3A2")
+                :(SubBranches[Sub]==ELDSkillBranch::B1)?TEXT("3B1"):TEXT("3B2");
+            HudSetText(RankSubNames[ChipIdx],FString::Printf(TEXT("%s · %s"),Code,*SubView.Name));
+            LDUIIcons::Apply(RankSubIcons[ChipIdx],SubView.IconId,4.f,FLinearColor::White);
+            RankSubChips[ChipIdx]->SetToolTipText(FText::FromString(SubView.Detail));
+        }
     }
 }
 
@@ -2265,9 +2452,10 @@ void ULDHUD::SubmitRestReady()
     MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(!PC||bRestReadyInFlight){return;}
-    if(!PC->OwnerState.bCanRestReady||PC->OwnerState.bRestReady)
+    if(!PC->OwnerState.bCanRestReady)
     {ShowRestAnswer(TEXT("当前不能提交准备，未改变准备状态。"));return;}
-    bRestReadyInFlight=true;PC->SubmitRestReady(true);
+    bRestReadyInFlight=true;
+    PC->SubmitRestReady(!PC->OwnerState.bRestReady);
 }
 void ULDHUD::HandleRestReady(ELDRestReadyResult Result)
 {
@@ -2291,6 +2479,93 @@ void ULDHUD::ShowRestAnswer(const FString& Text)
     RestAnswerRest=GS?GS->PublicMatch.Timeline.RestIndex:0;
     ShowToast(Text);
 }
+bool ULDHUD::SelectSpawnCandidate(int32 Index)
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
+    if(!PC||!GS||GS->PublicMatch.Generation==0||GS->PublicMatch.Generation!=PC->OwnerState.Match){return false;}
+    int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
+    const LDHUD::FSpawnChoiceView Choice=LDHUD::SpawnChoice(PC->OwnerState,bClock,NowMs);
+    if(!Choice.bVisible||Index<0||Index>=Choice.Count||!PC->OwnerState.Pacing.SpawnCandidates.IsValidIndex(Index)){return false;}
+    SubmitSpawnChoice(Index);
+    if(PC->Navigation&&PC->OwnerState.Pacing.SpawnCandidateCm.IsValidIndex(Index))
+    {
+        PC->Navigation->PanTo(PC->OwnerState.Pacing.SpawnCandidateCm[Index]);
+    }
+    return true;
+}
+
+bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool bShift)
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!IsVisible()){return false;}
+    if(PC->ControlsUI&&PC->ControlsUI->IsOpen()){return false;}
+    if(PC->RootUI&&PC->RootUI->IsMenuOpen()){return false;}
+
+    // 1) Active skill rank-up modal: [1] / [2] pick branch A or B immediately.
+    if(RankSlot!=INDEX_NONE&&!bAlt&&!bCtrl)
+    {
+        if(Key==EKeys::One){SubmitRankUp(0);return true;}
+        if(Key==EKeys::Two){SubmitRankUp(1);return true;}
+    }
+
+    // 2) Ctrl + Q / W / E (or bound Skill1 / Skill2 / SkillE): open/toggle RankPage for that skill when a skill point is available.
+    if(bCtrl&&!bAlt&&!bShift)
+    {
+        const FName SkillActions[3]={TEXT("Skill1"),TEXT("Skill2"),TEXT("SkillE")};
+        const FKey FallbackKeys[3]={EKeys::Q,EKeys::W,EKeys::E};
+        for(int32 VisualIdx=0;VisualIdx<3;++VisualIdx)
+        {
+            if(Key==PC->BindingKey(SkillActions[VisualIdx])||Key==FallbackKeys[VisualIdx])
+            {
+                const ELDCombatEntry Shown=PC->SkillAtKey[VisualIdx];
+                const int32 ProgSlot=Shown==ELDCombatEntry::Q?0:Shown==ELDCombatEntry::W?1:Shown==ELDCombatEntry::E?2:INDEX_NONE;
+                const FLDProgressionView* Prog=PC->ReadOwnProgression();
+                const FLDActiveSlotView* Learned=Prog&&ProgSlot!=INDEX_NONE
+                    ?Prog->Actives.FindByPredicate([ProgSlot](const FLDActiveSlotView& Row){return Row.Slot==ProgSlot;}):nullptr;
+                if(Learned&&LDSkillBranch::RankOf(Learned->Branch)<3&&Prog->SkillPoints>0&&PC->OwnerState.LifePhase==ELDLifePhase::Alive)
+                {
+                    OpenRankUp(ProgSlot);
+                    return true;
+                }
+                return false;
+            }
+        }
+    }
+
+    // 3) Alt + 1 / 2 / 3: 3-choice offer quick-pick (works both expanded and combat-folded).
+    if(bAlt&&!bCtrl&&ChoicesPanel)
+    {
+        const int32 OfferIdx=Key==EKeys::One?0:Key==EKeys::Two?1:Key==EKeys::Three?2:INDEX_NONE;
+        if(OfferIdx!=INDEX_NONE&&ChoicesPanel->PickByHotkey(OfferIdx))
+        {
+            MarkReadModelDirty();
+            return true;
+        }
+    }
+
+    // 4) Storage inline QuickEquip open: Q / W / E / D installs the selected uninstalled card directly into that slot.
+    if(!bAlt&&!bCtrl&&Storage&&Storage->IsQuickEquipOpen())
+    {
+        if(Storage->HandleQuickEquipKey(Key,PC->SkillAtKey,PC->Controls.Get()))
+        {
+            MarkReadModelDirty();
+            return true;
+        }
+    }
+
+    // 5) Active SpawnChoice during field death wait: [1] / [2] / [3] selects spawn candidate + pans camera preview.
+    if(!bAlt&&!bCtrl&&!bShift)
+    {
+        const int32 SpawnIdx=Key==EKeys::One?0:Key==EKeys::Two?1:Key==EKeys::Three?2:INDEX_NONE;
+        if(SpawnIdx!=INDEX_NONE&&SelectSpawnCandidate(SpawnIdx))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void ULDHUD::SubmitSpawnChoice(int32 Index)
 {
     MarkReadModelDirty();
@@ -2422,6 +2697,33 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     if(!View.bCanThrow){bPKThrowArmed=false;bPKThrowInFlight=false;}
     const bool bWorkspaceOpen=ChoicesPanel&&ChoicesPanel->IsPanelOpen();
     if(bWorkspaceOpen){bPKThrowArmed=false;}
+    const bool bShowCompact=View.bVisible&&bWorkspaceOpen
+        &&(Public.Timeline.Step==ELDRestStep::Draw||Public.Timeline.Step==ELDRestStep::Betting);
+    if(PKCompactBar)
+    {
+        HudSetShown(PKCompactBar,bShowCompact,ESlateVisibility::Visible);
+        if(bShowCompact)
+        {
+            TArray<FString> SideParts;
+            for(const LDHUD::FPKSideView& Side:View.Sides){SideParts.Add(Side.Line);}
+            const FString Summary=FString::Printf(TEXT("%s%s%s"),*View.Title,
+                View.Countdown.IsEmpty()?TEXT(""):*FString::Printf(TEXT(" · %s"),*View.Countdown),
+                SideParts.IsEmpty()?TEXT(""):*FString::Printf(TEXT(" · %s"),*FString::Join(SideParts,TEXT(" vs "))));
+            HudSetText(PKCompactTitle,Summary);
+            for(int32 Index=0;Index<PKCompactBetButtons.Num();++Index)
+            {
+                ULDCommandButton* Bet=PKCompactBetButtons[Index];
+                const bool bShown=View.bCanBet&&View.Sides.IsValidIndex(Index);
+                HudSetShown(Bet,bShown,ESlateVisibility::Visible);
+                if(!bShown){continue;}
+                const LDHUD::FPKSideView& Side=View.Sides[Index];
+                HudSetText(CastChecked<UTextBlock>(Bet->GetContent()),Side.bOwnBet?Side.BetAction+TEXT(" · ")+LDTerms::PKOwnBet:Side.BetAction);
+                const FLinearColor Tint=Side.bOwnBet?HudPromptFill:FLinearColor::White;
+                if(Bet->GetBackgroundColor()!=Tint){Bet->SetBackgroundColor(Tint);}
+                if(Bet->GetIsEnabled()==bPKBetInFlight){Bet->SetIsEnabled(!bPKBetInFlight);}
+            }
+        }
+    }
     HudSetShown(PKPanelBorder,View.bVisible&&!bWorkspaceOpen,ESlateVisibility::Visible);
     // The PK countdowns, the ring line and the throw cooldown move with time.
     bReadModelLive|=View.bVisible;
@@ -2714,6 +3016,66 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
     // Each line fades out and leaves on time.
     bReadModelLive|=!Lines.IsEmpty();
 }
+void ULDHUD::SelectResultContender(const FGuid& ContenderId)
+{
+    if(!ContenderId.IsValid()||InspectedResultContender==ContenderId){return;}
+    InspectedResultContender=ContenderId;
+    MarkReadModelDirty();
+    if(const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr)
+    {
+        if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
+        {
+            RefreshResultInspectedBuild(GS->MatchResult,PC->OwnerState.ContenderId);
+        }
+    }
+}
+
+void ULDHUD::RefreshResultInspectedBuild(const FLDResultView& Result,const FGuid& OwnContenderId)
+{
+    const FLDResultRow* Chosen=InspectedResultContender.IsValid()
+        ?Result.Rows.FindByPredicate([this](const FLDResultRow& Row){return Row.ContenderId==InspectedResultContender;}):nullptr;
+    if(!Chosen&&Result.Winner.IsValid())
+    {
+        Chosen=Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row){return Row.ContenderId==Result.Winner;});
+    }
+    if(!Chosen&&!Result.Rows.IsEmpty()){Chosen=&Result.Rows[0];}
+    if(Chosen){InspectedResultContender=Chosen->ContenderId;}
+
+    if(ResultBoardTitle)
+    {
+        const bool bIsWinner=Chosen&&Result.Winner.IsValid()&&Chosen->ContenderId==Result.Winner;
+        const bool bIsSelf=Chosen&&OwnContenderId.IsValid()&&Chosen->ContenderId==OwnContenderId;
+        const FString Suffix=bIsWinner?TEXT(" ★"):bIsSelf?TEXT("（你）"):TEXT("");
+        HudSetText(ResultBoardTitle,Chosen?FString::Printf(TEXT("【%s%s】的规则板"),*Chosen->Name,*Suffix):FString(TEXT("终局规则板")));
+    }
+    if(ResultInspectSelfButton)
+    {
+        const bool bHasSelf=OwnContenderId.IsValid()&&Result.Rows.ContainsByPredicate([&OwnContenderId](const FLDResultRow& R){return R.ContenderId==OwnContenderId;});
+        HudSetShown(ResultInspectSelfButton,bHasSelf,ESlateVisibility::Visible);
+        if(bHasSelf)
+        {
+            ResultInspectSelfButton->SetIsEnabled(!Chosen||Chosen->ContenderId!=OwnContenderId);
+        }
+    }
+    ResultWinnerBuild->ClearChildren();
+    ResultWinnerBuild->SetVisibility(Chosen?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    if(Chosen)
+    {
+        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,Chosen->Build,DisplayDefinitions(),HudResultBoardWidth,214.f,
+            AppliedScale>0?AppliedScale:1.f));
+    }
+    for(int32 Idx=0;Idx<ResultRowCards.Num()&&Idx<ResultRowContenders.Num();++Idx)
+    {
+        UBorder* Card=ResultRowCards[Idx];
+        if(!Card){continue;}
+        const bool bSelected=Chosen&&ResultRowContenders[Idx]==Chosen->ContenderId;
+        const bool bSelf=OwnContenderId.IsValid()&&ResultRowContenders[Idx]==OwnContenderId;
+        const FLinearColor Rim=bSelected?LDHUDStyle::TextAccent:bSelf?LDHUDStyle::UIAction:LDHUDStyle::PanelRim;
+        Card->SetBrush(HudRound(6.f,Rim,(bSelected||bSelf)?2.f:1.f));
+        Card->SetBrushColor(bSelected?FLinearColor(.06f,.13f,.18f,.94f):bSelf?LDHUDStyle::UIRaised:LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));
+    }
+}
+
 void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
 {
     const FLDResultView& Result=Public.MatchResult;
@@ -2727,11 +3089,11 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         HudSetText(ResultTitle,TEXT("对局结束"));HudSetText(ResultSubtitle,TEXT("结算同步中…"));
         ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
         ResultWinnerBuild->ClearChildren();
-        if(ShownResultId.IsValid()){ResultRows->ClearChildren();ResultEntries.Reset();ShownResultId.Invalidate();ShownResultSerial=0;}
+        if(ShownResultId.IsValid()){ResultRows->ClearChildren();ResultEntries.Reset();ResultRowCards.Reset();ResultRowContenders.Reset();InspectedResultContender.Invalidate();ShownResultId.Invalidate();ShownResultSerial=0;}
         ResultShownAt=-1.;
         for(UWidget* Widget:{ResultWinnerBand.Get(),ResultActionsBox.Get()}){LDTween::SetOpacity(Widget,1.f);LDTween::SetScale(Widget,1.f);LDTween::SetTranslation(Widget,FVector2D::ZeroVector);}
         HudSetShown(ResultDamageHeading,false,ESlateVisibility::HitTestInvisible);
-        for(UTextBlock* Cell:ResultDamageCells){HudSetShown(Cell,false,ESlateVisibility::HitTestInvisible);}
+        for(UWidget* SlotWidget:ResultDamageSlots){HudSetShown(SlotWidget,false,ESlateVisibility::HitTestInvisible);}
         HudSetShown(ResultHighlightsCard,false,ESlateVisibility::HitTestInvisible);
         return;
     }
@@ -2739,16 +3101,37 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     // The own damage arrives on the owner channel apart from the public result, so it is read every refresh; without
     // the summary of exactly this result the section says so instead of showing zeros.
     {
-        const LDHUD::FDamageListView Damage=LDHUD::DamageSummary(PC.DamageSummary,Result,DisplayDefinitions());
+        const FLDDemoContentDefinitions* Content=DisplayDefinitions();
+        const LDHUD::FDamageListView Damage=LDHUD::DamageSummary(PC.DamageSummary,Result,Content);
         HudSetText(ResultDamageHeading,Damage.bAvailable?Damage.Heading:FString(TEXT("你的伤害统计不可用")));
         HudSetShown(ResultDamageHeading,true,ESlateVisibility::HitTestInvisible);
         for(int32 Index=0;Index<ResultDamageCells.Num();++Index)
         {
             const bool bCell=Damage.bAvailable&&Damage.Rows.IsValidIndex(Index);
             HudSetText(ResultDamageCells[Index],bCell?Damage.Rows[Index]:FString());
-            HudSetShown(ResultDamageCells[Index],bCell,ESlateVisibility::HitTestInvisible);
+            if(ResultDamageSlots.IsValidIndex(Index)){HudSetShown(ResultDamageSlots[Index],bCell,ESlateVisibility::HitTestInvisible);}
+            if(bCell&&Damage.Shares.IsValidIndex(Index))
+            {
+                const LDHUD::FDamageShareRow& Share=Damage.Shares[Index];
+                if(ResultDamageIcons.IsValidIndex(Index)&&ResultDamageGlyphs.IsValidIndex(Index))
+                {
+                    const bool bPic=!Share.IconId.IsEmpty()&&LDUIIcons::Apply(ResultDamageIcons[Index],Share.IconId,3.f);
+                    HudSetShown(ResultDamageIcons[Index],bPic,ESlateVisibility::HitTestInvisible);
+                    HudSetShown(ResultDamageGlyphs[Index],!bPic,ESlateVisibility::HitTestInvisible);
+                    HudSetText(ResultDamageGlyphs[Index],LDHUD::IconGlyph(Share.Name));
+                }
+                if(ResultDamageBars.IsValidIndex(Index))
+                {
+                    const FLinearColor BarTint=Share.Kind==0?LDHUDStyle::UIAction
+                        :(Share.Kind==1||Share.Kind==2)?LDHUDStyle::TextAccent
+                        :Share.Kind==3?FLinearColor(.68f,.44f,1.f,1.f)
+                        :FLinearColor(1.f,.46f,.36f,1.f);
+                    ResultDamageBars[Index]->SetFillColorAndOpacity(BarTint);
+                    ResultDamageBars[Index]->SetPercent(Share.Share);
+                }
+            }
         }
-        const LDHUD::FResultHighlightsView Highlights=LDHUD::ResultHighlights(PC.DamageSummary,Result,PC.OwnerState.ContenderId,DisplayDefinitions());
+        const LDHUD::FResultHighlightsView Highlights=LDHUD::ResultHighlights(PC.DamageSummary,Result,PC.OwnerState.ContenderId,Content);
         HudSetShown(ResultHighlightsCard,Highlights.bAvailable,ESlateVisibility::HitTestInvisible);
         for(int32 Index=0;Index<ResultHighlightCells.Num();++Index)
         {
@@ -2761,18 +3144,12 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     }
     if(ShownResultId==Result.ResultId&&ShownResultSerial==Result.ResultSerial){return;}
     ShownResultId=Result.ResultId;ShownResultSerial=Result.ResultSerial;
+    InspectedResultContender=Result.Winner.IsValid()?Result.Winner:(Result.Rows.Num()>0?Result.Rows[0].ContenderId:FGuid());
     const FLDResultRow* WinnerRow=Result.Winner.IsValid()?Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row){return Row.ContenderId==Result.Winner;}):nullptr;
     HudSetText(ResultTitle,LDHUD::ResultHeadline(Result,WinnerRow?WinnerRow->Name:FString()));
-    ResultWinnerBuild->ClearChildren();
-    ResultWinnerBuild->SetVisibility(WinnerRow?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    if(WinnerRow)
-    {
-        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),HudResultBoardWidth,184.f,
-            AppliedScale>0?AppliedScale:1.f));
-    }
     const int64 Seconds=FMath::Max<int64>(0,Result.DurationMs)/1000;
     HudSetText(ResultSubtitle,FString::Printf(TEXT("本局用时 %lld:%02lld · 击杀不决定胜负"),Seconds/60,Seconds%60));
-    ResultRows->ClearChildren();ResultEntries.Reset();
+    ResultRows->ClearChildren();ResultEntries.Reset();ResultRowCards.Reset();ResultRowContenders.Reset();
     ResultShownAt=GetWorld()?GetWorld()->GetRealTimeSeconds():0.;
     const int32 Size=FMath::RoundToInt(16*(AppliedScale>0?AppliedScale:1.f));
     auto Cell=[this,Size](const FString& Value,float Width,const FLinearColor& Ink,LDUIFonts::ERole Role,bool bLeft)
@@ -2783,22 +3160,21 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         if(!Value.IsEmpty()){Box->SetToolTipText(FText::FromString(Value));}
         Box->SetContent(Label);return Box;
     };
-    // Every row is a seat-coloured strip and a card; the own row is raised with a yellow rim, the winner's mark in yellow.
-    auto Row=[&](const TArray<FString>& Values,const FLinearColor* Seat,bool bSelf,bool bWinner)
+    // Every contender row is clickable (#331) to inspect that contender's full build on the right-side rule board.
+    auto Row=[&](const TArray<FString>& Values,const FLinearColor* Seat,bool bSelf,bool bWinner,const FGuid& RowId,int32 RowIndex)
     {
         static constexpr float Widths[]={190,90,90,60,90,100,60,70};
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        // Mock 5: the winner's star, then a seat-coloured portrait tile carrying the name's first glyph.
         {
             UTextBlock* Star=LDWidgets::Text(WidgetTree,bWinner?TEXT("★"):TEXT(""),LDHUDStyle::TypeHeading,NAME_None,LDUIFonts::ERole::Strong);
             Star->SetAutoWrapText(false);Star->SetColorAndOpacity(LDHUDStyle::UIAction);Star->SetJustification(ETextJustify::Center);
             auto* StarBox=WidgetTree->ConstructWidget<USizeBox>();StarBox->SetWidthOverride(36.f);StarBox->SetContent(Star);
             Line->AddChildToHorizontalBox(StarBox)->SetVerticalAlignment(VAlign_Center);
-            auto* Portrait=WidgetTree->ConstructWidget<UBorder>();Portrait->SetBrush(HudRound(4.f,FLinearColor::Transparent,0.f));
-            Portrait->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);Portrait->SetHorizontalAlignment(HAlign_Center);Portrait->SetVerticalAlignment(VAlign_Center);
-            if(Seat&&Values.Num()>0){UTextBlock* Glyph=LDWidgets::Text(WidgetTree,LDHUD::IconGlyph(Values[0]),Size+2,NAME_None,LDUIFonts::ERole::Strong);Glyph->SetAutoWrapText(false);Glyph->SetColorAndOpacity(LDHUDStyle::UIText);Portrait->SetContent(Glyph);}
+            auto* RowPortrait=WidgetTree->ConstructWidget<UBorder>();RowPortrait->SetBrush(HudRound(4.f,FLinearColor::Transparent,0.f));
+            RowPortrait->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);RowPortrait->SetHorizontalAlignment(HAlign_Center);RowPortrait->SetVerticalAlignment(VAlign_Center);
+            if(Seat&&Values.Num()>0){UTextBlock* Glyph=LDWidgets::Text(WidgetTree,LDHUD::IconGlyph(Values[0]),Size+2,NAME_None,LDUIFonts::ERole::Strong);Glyph->SetAutoWrapText(false);Glyph->SetColorAndOpacity(LDHUDStyle::UIText);RowPortrait->SetContent(Glyph);}
             auto* PortraitBox=WidgetTree->ConstructWidget<USizeBox>();PortraitBox->SetWidthOverride(44.f);PortraitBox->SetHeightOverride(Seat?44.f:8.f);
-            PortraitBox->SetContent(Portrait);
+            PortraitBox->SetContent(RowPortrait);
             Line->AddChildToHorizontalBox(PortraitBox)->SetPadding(FMargin(0,0,14,0));
             if(auto* PortraitSlot=Cast<UHorizontalBoxSlot>(PortraitBox->Slot)){PortraitSlot->SetVerticalAlignment(VAlign_Center);}
         }
@@ -2808,7 +3184,6 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
             const bool bMark=Column==UE_ARRAY_COUNT(Widths)-1;
             if(!Seat&&Column>0)
             {
-                // The head row draws a glyph per column; its name stays in the tooltip.
                 auto* Glyph=WidgetTree->ConstructWidget<ULDPaintLayer>();
                 const EHudResultGlyph Kind=static_cast<EHudResultGlyph>(Column);
                 const FLinearColor GlyphInk=bMark?LDHUDStyle::UIAction:LDHUDStyle::TextSecondary;
@@ -2830,12 +3205,21 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
             auto* Card=WidgetTree->ConstructWidget<UBorder>();
             Card->SetBrush(HudRound(6.f,bSelf?LDHUDStyle::UIAction:LDHUDStyle::PanelRim,bSelf?2.f:1.f));
             Card->SetBrushColor(bSelf?LDHUDStyle::UIRaised:LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));
-            Card->SetPadding(FMargin(0,6,10,6));Card->SetContent(Line);Entry=Card;
+            Card->SetPadding(FMargin(0,6,10,6));Card->SetContent(Line);
+            ResultRowCards.Add(Card);
+            ResultRowContenders.Add(RowId);
+            ULDCommandButton* RowButton=LDWidgets::Button(WidgetTree,TEXT(""),[this,RowId](){SelectResultContender(RowId);},true,
+                FName(*FString::Printf(TEXT("ResultContenderRow%d"),RowIndex+1)));
+            auto RowBtnStyle=RowButton->GetStyle();RowBtnStyle.Normal=FSlateNoResource();RowBtnStyle.Hovered=FSlateNoResource();RowBtnStyle.Pressed=FSlateNoResource();
+            RowBtnStyle.NormalPadding=FMargin(0);RowBtnStyle.PressedPadding=FMargin(0);RowButton->SetStyle(RowBtnStyle);
+            RowButton->SetContent(Card);
+            if(UButtonSlot* BtnSlot=Cast<UButtonSlot>(Card->Slot)){BtnSlot->SetPadding(FMargin(0));BtnSlot->SetHorizontalAlignment(HAlign_Fill);BtnSlot->SetVerticalAlignment(VAlign_Fill);}
+            Entry=RowButton;
         }
         ResultRows->AddChildToVerticalBox(Entry)->SetPadding(FMargin(0,3));
         ResultEntries.Add(Entry);
     };
-    Row({TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,LDTerms::ResultAssists,TEXT("最终等级"),TEXT("守护贡献"),TEXT("喷漆"),FString()},nullptr,false,false);
+    Row({TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,LDTerms::ResultAssists,TEXT("最终等级"),TEXT("守护贡献"),TEXT("喷漆"),FString()},nullptr,false,false,FGuid(),INDEX_NONE);
     // Rows follow the locked start roster, whose position is each contender's seat colour.
     for(int32 Index=0;Index<Result.Rows.Num();++Index)
     {
@@ -2844,8 +3228,9 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         const FLinearColor Seat=LDHUD::PaletteColor(uint8(Index));
         Row({View.Name,View.Kills,View.Deaths,View.Assists,View.Level,FString::Printf(TEXT("%.1f s"),double(Entry.BankedGuardMs)/1000.),
             FString::Printf(TEXT("%u"),Entry.CompletedSprays),View.bWinner?FString(LDTerms::Winner):FString()},
-            &Seat,PC.OwnerState.ContenderId.IsValid()&&Entry.ContenderId==PC.OwnerState.ContenderId,View.bWinner);
+            &Seat,PC.OwnerState.ContenderId.IsValid()&&Entry.ContenderId==PC.OwnerState.ContenderId,View.bWinner,Entry.ContenderId,Index);
     }
+    RefreshResultInspectedBuild(Result,PC.OwnerState.ContenderId);
     AnimateResult();
 }
 void ULDHUD::AnimateResult()
@@ -2876,9 +3261,39 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
 void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,int32 Layer) const
 {
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
-    if(!PC||!PC->CanWorldCommand()||!Band){return;}
+    if(!PC||!Band){return;}
     auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
     auto Project=[&](FVector P,FVector2D& Out){FVector2D Screen;if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}int32 W=0,H=0;PC->GetViewportSize(W,H);Out=Screen*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));return true;};
+    // #331: PK spectator throw aim draws a 120cm orange-yellow dashed circle + center reticle at the cursor's ground hit.
+    if(bPKThrowArmed&&!PC->IsWorldInputSuppressed()&&PC->Navigation)
+    {
+        FHitResult ThrowGround;
+        if(PC->Navigation->GroundUnderPointer(ThrowGround))
+        {
+            const float ThrowRadiusCm=bPKParamsValid&&PKParams.ThrowRadiusCm>0.f?float(PKParams.ThrowRadiusCm):120.f;
+            const FLinearColor ThrowColor(1.f,.72f,.18f,.92f);
+            constexpr int32 DashCount=24;
+            for(int32 Dash=0;Dash<DashCount;++Dash)
+            {
+                const float A0=2.f*PI*(float(Dash)/float(DashCount));
+                const float A1=2.f*PI*((float(Dash)+.62f)/float(DashCount));
+                FVector2D P0,P1;
+                if(Project(ThrowGround.ImpactPoint+FVector(FMath::Cos(A0)*ThrowRadiusCm,FMath::Sin(A0)*ThrowRadiusCm,4.f),P0)
+                    &&Project(ThrowGround.ImpactPoint+FVector(FMath::Cos(A1)*ThrowRadiusCm,FMath::Sin(A1)*ThrowRadiusCm,4.f),P1))
+                {
+                    Lines({P0,P1},ThrowColor,2.5f);
+                }
+            }
+            FVector2D C0,C1,C2,C3;
+            if(Project(ThrowGround.ImpactPoint+FVector(-18.f,0,4.f),C0)&&Project(ThrowGround.ImpactPoint+FVector(18.f,0,4.f),C1)
+                &&Project(ThrowGround.ImpactPoint+FVector(0,-18.f,4.f),C2)&&Project(ThrowGround.ImpactPoint+FVector(0,18.f,4.f),C3))
+            {
+                Lines({C0,C1},ThrowColor,2.f);
+                Lines({C2,C3},ThrowColor,2.f);
+            }
+        }
+    }
+    if(!PC->CanWorldCommand()){return;}
     // The inspected unit is marked only by the selection ring under its feet; the HUD draws no bracket over it.
     // Armed preview (MOVEMENT_INPUT_AND_CAMERA ability targets): the own range ring around the feet, and for direction forms the direction from the
     // feet toward the cursor. Local presentation only; the server re-checks range, direction and target on confirm.

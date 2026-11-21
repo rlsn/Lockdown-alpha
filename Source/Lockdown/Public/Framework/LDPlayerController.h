@@ -32,6 +32,9 @@ public:
     virtual void PlayerTick(float Delta) override;
     virtual void UpdateCameraManager(float DeltaSeconds) override;
     virtual void FlushPressedKeys() override;
+    virtual bool InputKey(const struct FInputKeyEventArgs& Params) override;
+    // Contextual in-match shortcuts (#331): 1/2/3 spawn choice, Q/W/E storage quick-equip, Alt+1/2/3 offers, Ctrl+Q/W/E & 1/2 skill rank-up.
+    bool HandleContextualKeyPress(const FKey& Key, bool bAlt, bool bCtrl, bool bShift);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 #if WITH_DEV_AUTOMATION_TESTS
     void SetDevArtCaptureCamera(ACameraActor* Camera);

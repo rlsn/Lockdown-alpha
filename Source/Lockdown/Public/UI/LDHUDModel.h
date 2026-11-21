@@ -407,6 +407,17 @@ namespace LDHUD
         TArray<FRecapNode> Nodes;
         bool operator==(const FRecapChain& Other) const {return Nodes==Other.Nodes;}
     };
+    struct FDamageShareRow
+    {
+        FString Name;
+        FString ValueText;
+        FString PercentText;
+        FString IconId;
+        FString Glyph;
+        float Share=0.f;
+        // 0: basic, 1: active skill, 2: dash, 3: card, 4: reaction/other.
+        uint8 Kind=0;
+    };
     struct FDamageListView
     {
         // False: no statistic was delivered for this death or this result; the caller says so instead of showing zeros.
@@ -415,6 +426,8 @@ namespace LDHUD
         TArray<FString> Rows;
         // The death recap only: Rows[i] as an icon chain (same order and content).
         TArray<FRecapChain> Chains;
+        // The result damage breakdown: per-source icon, amount and share bar.
+        TArray<FDamageShareRow> Shares;
     };
     // Bounds that keep both lists on screen without scrolling; what does not fit is summed into one 其他 entry.
     inline constexpr int32 DeathRecapAttackersMax=4;
@@ -653,6 +666,19 @@ namespace LDHUD
     };
     // Every attribute in Stat's per-point list, in that order (the stat icon's hover popup).
     LOCKDOWN_API TArray<FStatEffectView> StatEffects(const FLDDemoStatDefinition& Stat,const TArray<FLDCombatAttributeRowView>& Attributes);
+    // Live before->after secondary stat preview, 18-point keystone progress/effect and refund loss warning (#331).
+    struct FStatHoverPreview
+    {
+        FString DeltaSummary;
+        TArray<FString> AttributeLines;
+        FString KeystoneProgress;
+        FString KeystoneRule;
+        FString RefundWarning;
+        bool bKeystoneActive=false;
+        bool bKeystoneLossWarning=false;
+    };
+    LOCKDOWN_API FStatHoverPreview StatHoverPreview(const FLDDemoStatDefinition& Stat,int32 CurrentPoints,int32 AddStep,int32 RefundStep,
+        bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content);
     // The active in Q/W/E slot Slot, or None.
     LOCKDOWN_API FName ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot);
     // "Q", "W" or "E": the server's slot name (widget names, observed contenders).
@@ -829,6 +855,12 @@ namespace LDHUD
     // The atomic replace drops of a stored card on a full workshop (the server's InstallCard with ReplacingSerial): one on the
     // tile of each installed card in a column the card takes.
     LOCKDOWN_API TArray<FCardDrop> ReplaceDrops(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // Atomic replace drops in a specific column (when WorkshopFull or when that column already holds >= 4 installed cards).
+    LOCKDOWN_API TArray<FCardDrop> ColumnReplaceDrops(FName Key,EStorageColumn Column,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
+    // Live host-compatibility strip for a skill-form card on 3-choice offers and the rest shop (#331). Empty for non-skill cards.
+    LOCKDOWN_API FString SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull);
     // What letting go of Key on Drop does, for the drag caption: "装到 Q", "替换 X · 装到 Q".
     LOCKDOWN_API FString DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);

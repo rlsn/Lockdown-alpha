@@ -18,6 +18,8 @@
 #include "UI/LDWorkshop.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDWorkshopPreview.h"
+#include "Framework/LDDemoEntry.h"
+#include "PK/LDPKRules.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -2324,3 +2326,119 @@ bool FLDHUDReadModelGateTest::RunTest(const FString&)
     TestFalse(TEXT("A still build stops the per-sample rebuild"),Gate.ShouldRebuild(Key));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDFlowSmoothnessTest,"Lockdown.Rules.HUDFlowSmoothness",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
+    const FLDDemoContentDefinitions& Content=Catalog->Get();
+
+    // 1) Minimap spawn badge hit-testing (#331 §1.3): 22px click radius around each candidate centre.
+    {
+        const FBox2D Ground(FVector2D(-5000,-5000),FVector2D(5000,5000));
+        const LDMinimap::FView View=LDMinimap::MakeView(ELDMinimapOrientation::North,Ground,FVector2D(260,260),0.,false,0.);
+        const TArray<FVector> Candidates={FVector(-3000,-3000,0),FVector(0,0,0),FVector(3200,2800,0)};
+        const FVector2D Spot1=LDMinimap::ToFrame(View,Candidates[1]);
+        TestEqual(TEXT("Click within 22px hits spawn candidate 1"),
+            LDMinimap::HitSpawnCandidate(View,Spot1+FVector2D(15.,12.),Candidates),1);
+        TestEqual(TEXT("Click beyond 22px misses spawn badges"),
+            LDMinimap::HitSpawnCandidate(View,Spot1+FVector2D(21.,12.),Candidates),INDEX_NONE);
+    }
+
+    // 2) Host compatibility strip on skill cards & 1-click full-column replacement (#331 §2.2 & §2.3).
+    {
+        const FLDDemoCardDefinition* SkillCardDef=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Form==ELDCardForm::Skill;});
+        if(TestNotNull(TEXT("Catalog contains a skill-form card"),SkillCardDef)&&!Content.Abilities.IsEmpty())
+        {
+            FLDProgressionView EmptyProg;EmptyProg.bValid=true;EmptyProg.Level=5;
+            bool bHasHost=true,bAllFull=false;
+            const FString NoHostText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),EmptyProg,&Content,LDHUD::FSlotKeys(),bHasHost,bAllFull);
+            TestTrue(TEXT("Skill card without compatible active warns in amber"),!bHasHost&&NoHostText.Contains(TEXT("暂无可装槽")));
+
+            // Find an active compatible with SkillCardDef and fill its column with 4 cards to test 1-click replacement drops.
+            for(const FLDDemoAbilityDefinition& Abil:Content.Abilities)
+            {
+                FLDProgressionView FullColProg;FullColProg.bValid=true;FullColProg.Level=8;
+                FLDActiveSlotView Slot0;Slot0.DefinitionId=FName(*Abil.Id);Slot0.Slot=0;Slot0.Branch=ELDSkillBranch::None;
+                FullColProg.Actives.Add(Slot0);
+                bool bFitsAbil=false,bColFull=false;
+                const FString FitText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),FullColProg,&Content,LDHUD::FSlotKeys(),bFitsAbil,bColFull);
+                if(!bFitsAbil){continue;}
+                TestTrue(TEXT("Compatible active appears on skill card strip"),FitText.Contains(TEXT("可装："))&&FitText.Contains(TEXT("0/4")));
+
+                // Install 4 cards on Q and add 1 uninstalled copy to storage.
+                for(int32 i=0;i<4;++i)
+                {
+                    FLDCardInstanceView& Installed=FullColProg.Cards.AddDefaulted_GetRef();
+                    Installed.Serial=uint16(i+1);Installed.DefinitionId=FName(*SkillCardDef->Id);
+                    Installed.Target.Kind=ELDCardTargetKind::Skill;Installed.Target.Active=FName(*Abil.Id);
+                    if(!SkillCardDef->ChooseElements.IsEmpty()){Installed.Target.Element=SkillCardDef->ChooseElements[0];}
+                }
+                FLDCardInstanceView& Candidate=FullColProg.Cards.AddDefaulted_GetRef();
+                Candidate.Serial=99;Candidate.DefinitionId=FName(*SkillCardDef->Id);
+                const FName CandidateKey=LDHUD::CardKey(Candidate.DefinitionId,Candidate.Serial);
+                const TArray<LDHUD::FCardDrop> RepDrops=LDHUD::ColumnReplaceDrops(CandidateKey,LDHUD::EStorageColumn::SlotQ,FullColProg,&Content);
+                TestEqual(TEXT("Full 4-card column exposes 4 direct replacement targets even when workshop < 22"),RepDrops.Num(),4);
+                break;
+            }
+        }
+    }
+
+    // 3) Live stat hover delta & 18-point keystone preview / loss warning (#331 §3.1).
+    if(!Content.StatsInDesignOrder().IsEmpty())
+    {
+        const FLDDemoStatDefinition* FirstStat=Content.StatsInDesignOrder()[0];
+        const LDHUD::FStatHoverPreview UpToKeystone=LDHUD::StatHoverPreview(*FirstStat,17,1,1,true,{},Content);
+        TestTrue(TEXT("17 -> 18 stat hover previews keystone progress and attribute delta"),
+            !UpToKeystone.AttributeLines.IsEmpty()&&UpToKeystone.KeystoneProgress.Contains(TEXT("17/18")));
+
+        const LDHUD::FStatHoverPreview LoseKeystone=LDHUD::StatHoverPreview(*FirstStat,18,1,1,true,{},Content);
+        TestTrue(TEXT("18 -> 17 refund hover warns about losing keystone"),
+            LoseKeystone.bKeystoneActive&&LoseKeystone.bKeystoneLossWarning&&!LoseKeystone.RefundWarning.IsEmpty());
+    }
+
+    // 4) Pasted host:port auto-split, reversible RestReady copy, PK entrant Lv + odds, damage share bars & colorblind palette (#331 §4).
+    {
+        FString Host,Port;
+        TestTrue(TEXT("Valid pasted IPv4:Port splits cleanly"),
+            LDDemoEntry::SplitPastedEndpoint(TEXT(" 192.168.1.20:7777 "),Host,Port)&&Host==TEXT("192.168.1.20")&&Port==TEXT("7777"));
+        TestFalse(TEXT("Invalid port > 65535 is not split"),
+            LDDemoEntry::SplitPastedEndpoint(TEXT("192.168.1.20:70000"),Host,Port));
+        TestTrue(TEXT("Withdrawn rest ready returns explicit confirmation"),
+            LDHUD::RestReadyText(ELDRestReadyResult::Withdrawn).Contains(TEXT("已取消准备")));
+        TestTrue(TEXT("Colorblind mode switches health bar hues"),
+            LDHUDStyle::OwnHealthOf(true)!=LDHUDStyle::OwnHealthOf(false)
+            &&LDHUDStyle::EnemyHealthOf(true)!=LDHUDStyle::EnemyHealthOf(false));
+
+        FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::Rest;
+        Public.Timeline.Generation=1;Public.Timeline.Stage=ELDMatchStage::Rest;Public.Timeline.RestIndex=1;Public.Timeline.Step=ELDRestStep::Betting;
+        Public.Timeline.StepEndsAtMs=10000;
+        Public.PK.Generation=1;Public.PK.Serial=1;Public.PK.Format=ELDPKFormat::Duel;Public.PK.SideCount=2;
+        const FGuid A(1,0,0,1),B(2,0,0,2),Spectator(3,0,0,3);
+        FLDPKEntrantView EntA;EntA.Contender=A;EntA.Side=1;EntA.Level=6;
+        FLDPKEntrantView EntB;EntB.Contender=B;EntB.Side=2;EntB.Level=4;
+        Public.PK.Entrants={EntA,EntB};
+        Public.PK.Bettors={Spectator};
+        FLDLobbyView Lobby;Lobby.Members={{A,TEXT("甲"),ELDContenderKind::Human,true,true},{B,TEXT("乙"),ELDContenderKind::Human,false,true}};
+        FLDPKParameters PKParams;FString PKError;
+        if(TestTrue(TEXT("PK parameters load"),FLDPKParameters::FromContent(Content.Parameters,PKParams,PKError)))
+        {
+            LDHUD::FPKPanelInput PKIn;PKIn.Self=Spectator;PKIn.bClock=true;PKIn.NowMs=4000;PKIn.Params=&PKParams;
+            const LDHUD::FPKPanelView PKView=LDHUD::PKPanel(Public,Lobby,PKIn);
+            TestTrue(TEXT("PK betting side line shows entrant level and odds"),
+                PKView.bCanBet&&PKView.Sides.Num()==2&&PKView.Sides[0].Line.Contains(TEXT("Lv.6"))&&PKView.Sides[0].BetAction.Contains(TEXT("1:")));
+        }
+
+        FLDResultView Res;Res.Generation=1;Res.ResultId=FGuid(9,9,9,9);
+        FLDDamageSummaryView Sum;Sum.Match=1;Sum.ResultId=Res.ResultId;
+        FLDDamageLine L0;L0.Source.Kind=ELDCombatSourceKind::Basic;L0.DamageP2=7000;
+        FLDDamageLine L1;L1.Source.Kind=ELDCombatSourceKind::Innate;L1.DamageP2=3000;
+        Sum.Lines={L0,L1};
+        const LDHUD::FDamageListView DmgView=LDHUD::DamageSummary(Sum,Res,&Content);
+        TestTrue(TEXT("Result damage summary exposes structured share bars"),
+            DmgView.bAvailable&&DmgView.Shares.Num()==2&&FMath::IsNearlyEqual(DmgView.Shares[0].Share,.7f,.01f));
+    }
+    return true;
+}
+

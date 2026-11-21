@@ -191,6 +191,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
     const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
+    const bool bColorblind=PC->Controls&&PC->Controls->bColorblindMode;
     const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeText,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),LDHUDStyle::TypeText,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),LDHUDStyle::TypeSmall,TextScale);
     // The level badge grows with the text preference, so its number always fits.
     const FSlateFontInfo LevelFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeCaption,TextScale,1);
@@ -258,7 +259,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const float RimLeft=OwnX-RimW*.5f,RimTop=OwnBottom-RimH,BarX=RimLeft+1.f,HealthTop=RimTop+1.f;
             Box(1,FVector2f(RimLeft,RimTop),FVector2f(RimW,RimH),LDHUDStyle::Rim);
             Box(2,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth,OwnHealthHeight),LDHUDStyle::BarTrack);
-            if(SelfBars.Health>0.f){Box(3,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth*SelfBars.Health,OwnHealthHeight),LDHUDStyle::OwnHealth);}
+            if(SelfBars.Health>0.f){Box(3,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth*SelfBars.Health,OwnHealthHeight),LDHUDStyle::OwnHealthOf(bColorblind));}
             if(SelfBars.Shield>0.f){Box(3,FVector2f(BarX+OwnBarWidth*SelfBars.Health,HealthTop),FVector2f(OwnBarWidth*SelfBars.Shield,OwnHealthHeight),LDHUDStyle::Shield);}
             if(SelfBars.bMomentum)
             {
@@ -306,7 +307,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 for(int32 Index=0;Index<Squares.Num();++Index)
                 {
                     const FLDOwnStatusMark& Mark=(*Marks)[Index];const FSlateRect& Square=Squares[Index];
-                    const FLinearColor Edge=Mark.bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
+                    const FLinearColor Edge=Mark.bPositive?(bColorblind?FLinearColor(.25f,.68f,1.f):LDHUDStyle::StatusPositive)
+                        :(bColorblind?FLinearColor(1.f,.52f,.10f):LDHUDStyle::StatusNegative);
                     const FVector2f At(Square.Left,Square.Top);
                     Box(1,At-FVector2f(1.f,1.f),FVector2f(Side+2.f,Side+2.f),Edge);
                     Box(2,At,FVector2f(Side,Side),FLinearColor(.02f,.03f,.05f,.92f));
@@ -367,6 +369,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         // LeftReach/RightReach: the bar row around the unit; TextWidth: the widest text row, drawn kept inside the viewport.
         float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,TextWidth=0.f,Height=0.f,Row=0.f;
         bool bPublicService=false;
+        FString DummyBoard;
+        FLinearColor DummyBoardInk=FLinearColor::White;
     };
     TArray<FPending> Pending;
     if(Public->PublicMatch.Generation==Own.Match&&Public->PublicMatch.Phase==ELDMatchPhase::Rest)
@@ -406,6 +410,40 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const bool bFighting=Step==ELDRestStep::PKReady||Step==ELDRestStep::PK;
                 const bool bDummy=Entry.Label.Name.StartsWith(LDTerms::TrainingDummy);
                 Entry.Label.bPeaceful=!bDummy&&((Public->PublicMatch.Phase==ELDMatchPhase::Rest&&!bFighting)||Relation==LDTerms::PKTeammate);
+                if(bDummy&&Public->PublicMatch.Phase==ELDMatchPhase::Rest)
+                {
+                    const FLDTrainingComboView& Combo=PC->TrainingCombo;
+                    const bool bThisDummy=Combo.Match==Own.Match&&(!Combo.DummyId.IsValid()||Combo.DummyId==Unit.ContenderId);
+                    if(bThisDummy&&(Combo.TotalP2>0||Combo.PreviousTotalP2>0))
+                    {
+                        const int64 Total=(Combo.TotalP2+99)/100;
+                        const double Sec=Combo.ElapsedMs>0?FMath::Max(1.,double(Combo.ElapsedMs)/1000.):1.;
+                        const int64 Dps=Combo.TotalP2>0?FMath::RoundToInt64(double(Total)/Sec):0;
+                        FString Board=FString::Printf(TEXT("本轮总伤 %lld · 实时秒伤 %lld/s"),Total,Dps);
+                        Entry.DummyBoardInk=LDHUDStyle::UIAction;
+                        if(Combo.PreviousTotalP2>0&&Combo.TotalP2>0)
+                        {
+                            const double Pct=(double(Combo.TotalP2-Combo.PreviousTotalP2)/double(Combo.PreviousTotalP2))*100.;
+                            if(Pct>=.05)
+                            {
+                                Board+=FString::Printf(TEXT(" · 较上轮 +%.1f%% ▲"),Pct);
+                                Entry.DummyBoardInk=bColorblind?FLinearColor(.30f,.75f,1.f):LDHUDStyle::UILegal;
+                            }
+                            else if(Pct<=-.05)
+                            {
+                                Board+=FString::Printf(TEXT(" · 较上轮 %.1f%% ▼"),Pct);
+                                Entry.DummyBoardInk=LDHUDStyle::UIReplace;
+                            }
+                            else{Board+=TEXT(" · 较上轮 ±0.0%");}
+                        }
+                        else if(Combo.PreviousTotalP2>0&&Combo.TotalP2==0)
+                        {
+                            Board+=FString::Printf(TEXT(" · 上轮基准 %lld"),(Combo.PreviousTotalP2+99)/100);
+                            Entry.DummyBoardInk=LDHUDStyle::TextSecondary;
+                        }
+                        Entry.DummyBoard=MoveTemp(Board);
+                    }
+                }
             }
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;
@@ -429,6 +467,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             {
                 const FVector2f Status=FontMeasure->Measure(Label.Status,StatusFont);
                 Entry.TextWidth=FMath::Max(Entry.TextWidth,Status.X);Lines+=Status.Y;
+            }
+            if(!Entry.DummyBoard.IsEmpty())
+            {
+                const FVector2f BoardExt=FontMeasure->Measure(Entry.DummyBoard,ContenderFont)+FVector2f(16.f,8.f);
+                Entry.TextWidth=FMath::Max(Entry.TextWidth,BoardExt.X);Lines+=BoardExt.Y+4.f;
             }
             Entry.Height=Entry.Row+(Entry.Row>0.f&&Lines>0.f?WorldRowGap:0.f)+Lines;
             Pending.Add(MoveTemp(Entry));
@@ -496,7 +539,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
             Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
             if(Label.HealthFraction>0.f)
-            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
+            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealthOf(bColorblind));}
             if(Label.bContender&&Label.Level>0)
             {
                 // The badge carries the identity tint: the name itself identifies, the colour is only an extra cue.
@@ -537,6 +580,18 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 Draw(Label.StatusParts[Index].Text,WorldStatusInk(Label.StatusParts[Index].StatusId));
             }
             Bottom=Top;
+        }
+        if(!Entry.DummyBoard.IsEmpty())
+        {
+            const FVector2f TextExt=FontMeasure->Measure(Entry.DummyBoard,ContenderFont);
+            const FVector2f PlateExt=TextExt+FVector2f(16.f,8.f);
+            const float PlateLeft=RowLeft(CentreX,PlateExt.X);
+            const float PlateTop=Bottom-PlateExt.Y-3.f;
+            Box(1,FVector2f(PlateLeft-1.f,PlateTop-1.f),PlateExt+FVector2f(2.f,2.f),Entry.DummyBoardInk.CopyWithNewOpacity(.85f));
+            Box(2,FVector2f(PlateLeft,PlateTop),PlateExt,FLinearColor(.02f,.035f,.055f,.92f));
+            FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(TextExt,FSlateLayoutTransform(FVector2f(PlateLeft+8.f,PlateTop+4.f))),
+                Entry.DummyBoard,ContenderFont,ESlateDrawEffect::None,Entry.DummyBoardInk);
+            Bottom=PlateTop-1.f;
         }
     }
     return Base+4;

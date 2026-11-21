@@ -538,6 +538,29 @@ inline constexpr TCHAR BlueprintReadOnly[]=TEXT("只读记录 · 只保存配方
 inline constexpr TCHAR BlueprintExport[]=TEXT("导出文件");
 inline constexpr TCHAR BlueprintOpenFolder[]=TEXT("打开所在文件夹");
 inline constexpr TCHAR BlueprintImport[]=TEXT("导入查看");
+
+// 交互丝滑度提示与关键石名称（#331）
+inline FString DeathWorkshopPrompt(const FString& Key,const FString& Countdown)
+{return Countdown.IsEmpty()?FString::Printf(TEXT("按 [%s] 趁复活调整构筑"),*Key):FString::Printf(TEXT("按 [%s] 趁复活调整构筑（%s 后复活）"),*Key,*Countdown);}
+inline constexpr TCHAR InstalledCardHint[]=TEXT("右键：卸下 · 拖拽：换槽");
+inline constexpr TCHAR ReplacePickPrompt[]=TEXT("点击要替换的旧牌（Esc 取消）");
+inline constexpr TCHAR NoCompatibleSkillHost[]=TEXT("⚠ 当前已学技能暂无可装槽（换技能后可用）");
+inline const TCHAR* KeystoneName(FName StatId)
+{
+    if(StatId==TEXT("stat_physique")){return TEXT("回血成盾");}
+    if(StatId==TEXT("stat_thick_skin")){return TEXT("硬骨头");}
+    if(StatId==TEXT("stat_strength")){return TEXT("破竹势");}
+    if(StatId==TEXT("stat_brains")){return TEXT("省流大师");}
+    if(StatId==TEXT("stat_agility")){return TEXT("顺步追击");}
+    return TEXT("关键石");
+}
+inline FString ResultRuleBoardTitle(const FString& Name){return Name.IsEmpty()?FString(TEXT("赢家规则板")):FString::Printf(TEXT("【%s】的规则板"),*Name);}
+inline constexpr TCHAR ResultViewSelf[]=TEXT("查看自己");
+inline constexpr TCHAR ResultInspectSelf[]=TEXT("查看自己");
+inline constexpr TCHAR ResultClickSwitchHint[]=TEXT("点击左侧任意参赛者行可切换查看其完整终局构筑");
+inline constexpr TCHAR CopyRoomAddress[]=TEXT("复制房间地址");
+inline constexpr TCHAR RestReadyCommit[]=TEXT("准备完毕");
+inline constexpr TCHAR RestReadyCancel[]=TEXT("已准备（点击取消）");
 inline constexpr TCHAR BlueprintBack[]=TEXT("返回本局");
 inline constexpr TCHAR NotCollected[]=TEXT("未采集");
 // 按构筑版本汇总的事实，顺序与 ELDBlueprintFact 一致（LDBlueprintPanel.cpp 静态核对数量）。

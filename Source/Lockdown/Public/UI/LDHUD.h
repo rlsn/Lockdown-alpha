@@ -124,6 +124,14 @@ public:
     void ToggleWorkshop();
     // Back: closes the storage's chooser or drops its drag (V05Back, after an armed preview).
     bool CancelStorage();
+    bool CloseRankUp();
+    bool IsRankUpOpen() const { return RankSlot != INDEX_NONE; }
+    // Selects spawn candidate Index (0-based) and pans the death camera there (#331).
+    bool SelectSpawnCandidate(int32 Index);
+    // Contextual shortcuts routed from ALDPlayerController / ULDUIRoot (#331).
+    bool HandleContextualKeyPress(const FKey& Key, bool bAlt, bool bCtrl, bool bShift);
+    void SelectResultContender(const FGuid& ContenderId);
+    FGuid GetInspectedResultContender() const { return InspectedResultContender; }
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
@@ -173,9 +181,11 @@ private:
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     // The top-centre stack (the banner and the rest actions); the full workshop moves it to the top-right corner.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> TopCentreSlot;
-    // The workshop opens by itself when the own death wait begins (never for a rest), and closes when that full-screen
-    // moment ends.
+    // #331: the workshop auto-opens on entering R1-R3 Build (never on field death), and closes on respawn if manually
+    // opened while dead, or when leaving an auto-opened full-screen Rest step.
     bool bWorkshopSeenDead=false;
+    bool bWorkshopSeenRestBuild=false;
+    bool bWorkshopOpenedDuringDeath=false;
     bool bWorkshopWasFull=false;
     // The open workshop was opened by its moment, not by the player: it closes again when the moment ends.
     bool bWorkshopAutoOpened=false;
@@ -227,6 +237,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
     UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
+    // #331: compact PK matchup + betting strip kept visible at the top while Workshop is open during Draw / Betting.
+    UPROPERTY() TObjectPtr<UBorder> PKCompactBar;
+    UPROPERTY() TObjectPtr<UTextBlock> PKCompactTitle;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKCompactBetButtons;
 
     // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
     // throw aim, the last throw answer's ReadyAtMs and the last answer line.
@@ -302,11 +316,21 @@ private:
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
     UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
+    UPROPERTY() TObjectPtr<UTextBlock> ResultBoardTitle;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ResultInspectSelfButton;
     UPROPERTY() TObjectPtr<USizeBox> ResultWinnerBuild;
     UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
-    // The own per-source damage of the shown result: a heading and a fixed grid of cells (never a scroll view).
+    UPROPERTY() TArray<TObjectPtr<UBorder>> ResultRowCards;
+    TArray<FGuid> ResultRowContenders;
+    FGuid InspectedResultContender;
+    // The own per-source damage of the shown result: a heading and a fixed grid of cells with icon + colored share bar (#331).
     UPROPERTY() TObjectPtr<UTextBlock> ResultDamageHeading;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> ResultDamageSlots;
+    UPROPERTY() TArray<TObjectPtr<UImage>> ResultDamageIcons;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageGlyphs;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageCells;
+    UPROPERTY() TArray<TObjectPtr<UProgressBar>> ResultDamageBars;
+    void RefreshResultInspectedBuild(const struct FLDResultView& Result, const FGuid& OwnContenderId);
     // Spec §12 结算“本局最离谱”: one line per contender (LDHUD::ResultHighlights).
     UPROPERTY() TObjectPtr<UWidget> ResultHighlightsCard;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultHighlightCells;
@@ -317,8 +341,12 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathCauseText;
     UPROPERTY() TObjectPtr<UTextBlock> DeathCountdown;
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
-    // The recap of the death shown: a heading and one line per attacker.
+    // The recap of the death shown: a heading, optional collapse button, one line per attacker, and a [B] workshop capsule (#331).
     UPROPERTY() TObjectPtr<UTextBlock> DeathRecapHeading;
+    UPROPERTY() TObjectPtr<ULDCommandButton> DeathRecapToggle;
+    UPROPERTY() TObjectPtr<UWidget> DeathRecapContainer;
+    UPROPERTY() TObjectPtr<ULDCommandButton> DeathWorkshopButton;
+    bool bDeathRecapCollapsed=false;
     // One icon chain per recap row (LDRecapChain), rebuilt only when its row changes.
     UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DeathRecapRows;
     TArray<LDHUD::FRecapChain> DeathRecapShown;
@@ -362,13 +390,19 @@ private:
     UPROPERTY() TObjectPtr<USizeBox> BodySlot;
     // The basic attack's three combo pips under the body slot: the current step lit, the third gold.
     UPROPERTY() TArray<TObjectPtr<UBorder>> ComboPips;
-    // The rank-up page (issue #287 spec §12): two big cards of the chosen skill's next rank; a click submits RankUpSkill.
+    // The rank-up page (issue #287 spec §12, #331 3-rank preview): two big cards of the chosen skill's next rank, with
+    // Rank 3 sub-branch preview chips beneath 2A and 2B during 1->2 selection; a click or 1/2 submits RankUpSkill.
     UPROPERTY() TObjectPtr<UBorder> RankPage;
     UPROPERTY() TObjectPtr<UTextBlock> RankTitle;
+    UPROPERTY() TObjectPtr<UTextBlock> RankHint;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RankCards;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardLines;
     UPROPERTY() TArray<TObjectPtr<UImage>> RankCardIcons;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> RankSubRows;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> RankSubChips;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankSubNames;
+    UPROPERTY() TArray<TObjectPtr<UImage>> RankSubIcons;
     int32 RankSlot=INDEX_NONE;
     TArray<ELDSkillBranch> RankOptions;
     FName RankAbility;

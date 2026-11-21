@@ -35,14 +35,16 @@ public:
     // HUD shows for the own match.
     void Present(const FLDProgressionView* View,uint32 Match,uint32 Life,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,
         const FLDDemoContentDefinitions* Content,const TArray<FLDCombatAttributeRowView>& Attributes,bool bShown);
-    // The "+" of the stat at Index (design order): queues one point and sends it as soon as it may. False with a toast when
-    // refused locally (no data, closed stage, no unspent point left).
-    bool Allocate(int32 Index);
+    // The "+" of the stat at Index (design order): queues points (Shift=+5, Ctrl=to 18 keystone when Count<=0) and coalesces
+    // rapid bursts within 120ms. False with a toast when refused locally (no data, closed stage, no unspent point left).
+    bool Allocate(int32 Index,int32 RequestedCount=0);
     // Whether Allocate(Index) would queue a point now; no notice (the held "+" asks before each repeat).
     bool CanAllocate(int32 Index) const;
-    // One point of the stat at Index back to the unspent ones (a one-point Respec), sent at once. Refused with a toast outside a
-    // rest build window, with nothing in that stat, or while another allocation is on its way.
-    bool Refund(int32 Index);
+    // Refunds points of the stat at Index back to unspent (Shift=-5 when Count<=0; rest build window only), coalesced smoothly.
+    bool Refund(int32 Index,int32 RequestedCount=0);
+    int32 EffectivePoints(int32 Index) const;
+    int64 EffectiveUnspent() const {return Available();}
+    void FlushNow();
     // Stat icons <-> attribute view; each match starts on the stat icons.
     void ToggleView();
     void SetDetailsHeld(bool bHeld);
@@ -68,6 +70,7 @@ public:
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
+    virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
 private:
     struct FCell
@@ -90,7 +93,7 @@ private:
     };
     UPROPERTY() TObjectPtr<UHorizontalBox> Row;
     UPROPERTY() TObjectPtr<UTextBlock> Syncing;
-    UPROPERTY() TObjectPtr<USizeBox> AttrFrame;
+    UPROPERTY() TObjectPtr<UWidget> AttrFrame;
     UPROPERTY() TObjectPtr<UUniformGridPanel> AttrGrid;
     // Every widget built for the cells, kept alive with the tree.
     UPROPERTY() TArray<TObjectPtr<UWidget>> Built;
@@ -107,21 +110,24 @@ private:
     bool bShownNow=false;
     int32 HoveredIndex=INDEX_NONE;
     int32 PinnedHover=INDEX_NONE;
-    // Per stat in design order: clicked but not sent, and sent but not yet in the own view.
+    // Per stat in design order: signed delta (+allocate / -refund) coalesced locally, and sent delta not yet in own view.
     TArray<int32> Queued;
     TArray<int32> InFlight;
     uint64 PendingRequest=0;
     uint32 Answers=0;
-    // An applied allocation waits for the own view to carry this build revision before the next one goes out.
+    // An applied allocation/respec waits for the own view to carry this build revision before the next batch goes out.
     uint64 AwaitRevision=0;
     double AwaitSince=0;
+    double LastBatchSentAt=-1.;
+    int32 ResolveAllocateStep(int32 Index) const;
+    int32 ResolveRefundStep(int32 Index) const;
     bool Usable() const;
     int64 Available() const;
     void BuildCells();
     void Refresh();
     void RefreshAttributes();
     const FLDCombatAttributeRowView* AttributeOf(uint8 Attribute) const;
-    void Flush();
+    void Flush(bool bIgnoreWindow=false);
     void DropWaiting();
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);

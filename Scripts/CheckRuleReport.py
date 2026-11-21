@@ -388,6 +388,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDPendingPages",
         "Lockdown.Rules.HUDWorkshopPreview",
         "Lockdown.Rules.HUDFieldRewardNotices",
+        "Lockdown.Rules.HUDFlowSmoothness",
         "Lockdown.Rules.HUDDevTestPanel",
         "Lockdown.Rules.HUDTermsGlossary",
         "Lockdown.Rules.IssuedCommandLiveness",

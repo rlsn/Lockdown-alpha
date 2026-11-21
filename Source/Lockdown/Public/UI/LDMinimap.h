@@ -44,6 +44,10 @@ namespace LDMinimap
     // A gesture's ground point: X and Y clamped inside the registered ground (half-open at the far edges), Z = 0. The
     // map grants no height and no target; a move is still validated against the ground surface below.
     LOCKDOWN_API FVector ClampToGround(const FVector& World,const FBox2D& Ground);
+    // Death spawn-choice badges on the minimap: 14 px visual radius, 22 px click hit radius around each candidate centre.
+    constexpr double SpawnBadgeRadius=14.;
+    constexpr double SpawnBadgeHitRadius=22.;
+    LOCKDOWN_API int32 HitSpawnCandidate(const FView& View,const FVector2D& Local,TConstArrayView<FVector> CandidatesCm);
     // The regions the map shows one at a time, as indices into FitRegions' anchors and output.
     enum ERegion : int32 { FieldRegion, RestRegion, FinalRegion, RegionCount };
     // The walls around a region's anchors lie within this reach of them (the final arena's ring reaches about 1300 cm past

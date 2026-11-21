@@ -513,7 +513,25 @@ void ULDWorkshop::Layout(FVector2D Size)
     }
     else if(Mode==EMode::Full&&Latest.bShop)
     {
-        Next.Shop=Next.Board;Next.Board=FBox2D(ForceInit);
+        // Side-by-side Rest workspace (#331): Rule Board stays visible in the centre while the Rest Shop expands on the
+        // upper right above the Card Library and Pending tray.
+        const float Bottom=H-WorkshopMargin;
+        const float DockHeight=FMath::Min(WorkshopDockHeight,FMath::Max(0.f,(Bottom-WorkshopTop)*.25f));
+        const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
+        const float ShopRightWidth=FMath::Clamp(W*.34f,520.f,680.f);
+        const float RightX=W-WorkshopMargin-ShopRightWidth;
+        const float TotalRightH=FMath::Max(200.f,ContentBottom-WorkshopTop);
+        const float ShopHeight=FMath::Clamp(TotalRightH*.43f,236.f,316.f);
+        Next.Shop=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,WorkshopTop+ShopHeight);
+        const float LibTop=float(Next.Shop.Max.Y)+14.f;
+        const float ServiceHeight=Latest.bServices?58.f:0.f;
+        const float AvailLibH=FMath::Max(0.f,ContentBottom-LibTop);
+        const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FMath::Max(0.f,AvailLibH-140.f-ServiceHeight));
+        const float PendingHeight=DesiredTray>0.f?(DesiredTray+52.f+ServiceHeight):(ServiceHeight>0.f?72.f+ServiceHeight:0.f);
+        TrayLimit=FMath::Max(0.f,AvailLibH-140.f-ServiceHeight);
+        Next.Pending=PendingHeight>0.f?WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom):FBox2D(ForceInit);
+        Next.Library=WorkshopBox(RightX,LibTop,W-WorkshopMargin,PendingHeight>0.f?float(Next.Pending.Min.Y):ContentBottom);
+        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,RightX-WorkshopGap,ContentBottom);
     }
     // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
     Next.Capacity=WorkshopBox(Next.Board.Min.X,Next.Board.Min.Y,Next.Board.Max.X,Next.Board.Min.Y+(Mode==EMode::Full?WorkshopCapacityHeight:48.f));
@@ -884,7 +902,7 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(HolderName,Latest.HolderName);
     WorkshopText(LevelBadge,View.bValid?FString::FromInt(View.Level):FString(TEXT("—")));
     WorkshopText(LevelLine,Latest.Level.Experience);
-    const int64 Unspent=View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
+    const int64 Unspent=StatBar.IsValid()&&View.bValid?StatBar->EffectiveUnspent():View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
     if(RespecSpace){const float Foot=Latest.bCharacterServices?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
     // With the trainer the respec foot replaces the reactions so the stats and attributes keep a legible size.
@@ -945,7 +963,8 @@ void ULDWorkshop::RefreshCharacter()
         for(int32 Index=0;Index<StatRows.Num()&&Stats.IsValidIndex(Index);++Index)
         {
             FStatRow& Row=StatRows[Index];
-            const LDHUD::FStatRowView Shown=LDHUD::StatRow(*Stats[Index],LDHUD::StatPointsOf(View,Row.StatId),Content);
+            const int32 ShownPts=StatBar.IsValid()&&View.bValid?StatBar->EffectivePoints(Index):LDHUD::StatPointsOf(View,Row.StatId);
+            const LDHUD::FStatRowView Shown=LDHUD::StatRow(*Stats[Index],ShownPts,Content);
             WorkshopText(Row.Name,Shown.Name);WorkshopText(Row.Points,FString::FromInt(Shown.Points));WorkshopText(Row.Glyph,Shown.Glyph);
             Row.Value=Shown.Points;
             if(Row.PendingFlashRevision!=0&&View.bValid&&View.BuildRevision>=Row.PendingFlashRevision)
@@ -1171,6 +1190,7 @@ void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::F
     TArray<FString> Links,Notes;
     TArray<FString> Lines;LDHUD::ConnectionsText(Component,View,Content).ParseIntoArrayLines(Lines);
     for(FString& Line:Lines){Line.RemoveFromStart(TEXT("联动："));Links.Add(Line);}
+    if(bInstalled){Notes.Add(LDTerms::InstalledCardHint);}
     if(Focus&&Focus->bOverDrop&&!Focus->Drop.Replacing.IsNone())
     {
         Notes.Add(LDTerms::DropReplaces(LDHUD::ContentName(Content,LDHUD::CardDefinition(Focus->Drop.Replacing).ToString()),
@@ -1280,10 +1300,23 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
         {
             if(!StatRows[Index].Row||!StatRows[Index].Row->IsHovered()){continue;}
             const LDHUD::FStatRowView Row=LDHUD::StatRow(*Stats[Index],StatRows[Index].Value,Content);
+            const FModifierKeysState Mods=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetModifierKeys():FModifierKeysState();
+            const int32 Threshold=int32(FMath::Max<int64>(1,Content->Parameters.KeystoneThresholdPoints));
+            const int32 AddStep=Mods.IsControlDown()?FMath::Max(1,Threshold-Row.Points):Mods.IsShiftDown()?5:1;
+            const int32 RefundStep=Mods.IsShiftDown()?FMath::Min(5,FMath::Max(1,Row.Points)):1;
+            const bool bCanRespec=Storage.IsValid()&&Storage->BuildGate().bCanRespec;
+            const LDHUD::FStatHoverPreview HoverPreview=LDHUD::StatHoverPreview(*Stats[Index],Row.Points,AddStep,RefundStep,
+                bCanRespec,Latest.Attributes,*Content);
             TArray<FString> Lines;
-            for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*Stats[Index],Latest.Attributes))
-            {Lines.Add(FString::Printf(TEXT("%s  %s  <b>%s</>"),*Effect.Attribute,*Effect.Current,*Effect.PerPoint));}
-            ShowTextDock(TEXT("S|")+Row.Name+FString::FromInt(Row.Points)+FString::Join(Lines,TEXT("|")),Row.Name,Row.PerPoint,FString::Join(Lines,TEXT("\n")),Row.IconId,Row.Glyph);
+            for(const FString& AttrLine:HoverPreview.AttributeLines){Lines.Add(WorkshopRichEscape(AttrLine));}
+            Lines.Add(FString::Printf(TEXT("<b>%s</>"),*WorkshopRichEscape(HoverPreview.KeystoneProgress)));
+            if(!HoverPreview.KeystoneRule.IsEmpty()){Lines.Add(WorkshopRichEscape(HoverPreview.KeystoneRule));}
+            if(HoverPreview.bKeystoneLossWarning&&!HoverPreview.RefundWarning.IsEmpty())
+            {
+                Lines.Add(FString::Printf(TEXT("<cost>%s</>"),*WorkshopRichEscape(HoverPreview.RefundWarning)));
+            }
+            ShowTextDock(TEXT("S|")+Row.Name+FString::FromInt(Row.Points)+HoverPreview.DeltaSummary+HoverPreview.RefundWarning,
+                Row.Name,HoverPreview.DeltaSummary,FString::Join(Lines,TEXT("\n")),Row.IconId,Row.Glyph);
             return;
         }
     }

@@ -459,6 +459,7 @@ FString LDHUD::RestReadyText(ELDRestReadyResult Result)
     switch(Result)
     {
     case ELDRestReadyResult::Accepted: return TEXT("已准备。");
+    case ELDRestReadyResult::Withdrawn: return TEXT("已取消准备，可继续调整构筑。");
     case ELDRestReadyResult::NotContender: return TEXT("准备失败：你不是本局参赛者。");
     case ELDRestReadyResult::StaleMatch: return TEXT("准备失败：对局已变化，请等待同步。");
     case ELDRestReadyResult::StaleWindow: return TEXT("准备失败：本次配装窗口已结束。");
@@ -650,6 +651,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
             bAny=true;
             const FString Listed=RosterName(Lobby,Entrant.Contender);
             FString Name=Listed.IsEmpty()?FString(LDTerms::PKUnlisted):Listed;
+            if(Entrant.Level>0){Name+=FString::Printf(TEXT(" Lv.%u"),uint32(Entrant.Level));}
             if(Entrant.bForfeited){Name+=FString(TEXT("（"))+LDTerms::PKForfeit+TEXT("）");}
             else if(bFought&&!Entrant.bAlive){Name+=FString(TEXT("（"))+LDTerms::PKOut+TEXT("）");}
             else{bAnyIn=true;}
@@ -666,6 +668,16 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         FString Line=FString::Join(Members,TEXT("、"));
         if(PK.Format==ELDPKFormat::Teams){Line=LDTerms::PKSide(Side)+TEXT("：")+Line;}
         if(Bets>0){Line+=TEXT(" · ")+LDTerms::PKBetCount(Bets);}
+        if(Step==ELDRestStep::Betting&&In.Params&&PK.Bettors.Num()>0)
+        {
+            const int64 BasePool=FMath::Min<int64>(PK.Bettors.Num(),In.Params->BettingPoolMaxPoints);
+            const int64 ScaledPool=BasePool>0&&In.Params->RewardMultiplierBp>0
+                ?(BasePool*In.Params->RewardMultiplierBp+9999)/10000:BasePool;
+            const int32 ShareCount=FMath::Max(1,Bets+(Row.bOwnBet?0:1));
+            const double Odds=double(ScaledPool)/double(ShareCount);
+            Line+=FString::Printf(TEXT("（赔率 1:%.1f）"),Odds);
+            Row.BetAction+=FString::Printf(TEXT(" (1:%.1f)"),Odds);
+        }
         if(Row.bOwnSide){Line+=TEXT(" · ")+FString(LDTerms::PKOwnSide);}
         if(Row.bOwnBet){Line+=TEXT(" · ")+FString(LDTerms::PKOwnBet);}
         Row.Line=Line;
@@ -1237,14 +1249,58 @@ LDHUD::FDamageListView LDHUD::DamageSummary(const FLDDamageSummaryView& Summary,
     View.bAvailable=true;
     if(Summary.Lines.IsEmpty()){View.Heading=TEXT("你本局没有造成伤害");return View;}
     int64 AllP2=0,RestP2=0;
+    for(const FLDDamageLine& Line:Summary.Lines){AllP2+=Line.DamageP2;}
     const int32 Shown=Summary.Lines.Num()>DamageSummarySourcesMax?DamageSummarySourcesMax-1:Summary.Lines.Num();
     for(int32 Index=0;Index<Summary.Lines.Num();++Index)
     {
         const FLDDamageLine& Line=Summary.Lines[Index];
-        AllP2+=Line.DamageP2;
-        if(Index<Shown){View.Rows.Add(HudDamageEntry(DamageSourceName(Content,Line.Source),Line.DamageP2));}else{RestP2+=Line.DamageP2;}
+        if(Index<Shown)
+        {
+            const FString SourceName=DamageSourceName(Content,Line.Source);
+            View.Rows.Add(HudDamageEntry(SourceName,Line.DamageP2));
+            FDamageShareRow& Share=View.Shares.AddDefaulted_GetRef();
+            Share.Name=SourceName;
+            Share.ValueText=FString::Printf(TEXT("%lld"),HudWholePoints(Line.DamageP2,true));
+            Share.Share=AllP2>0?float(FMath::Clamp(double(Line.DamageP2)/double(AllP2),0.,1.)):0.f;
+            Share.PercentText=FString::Printf(TEXT("%.0f%%"),Share.Share*100.f);
+            Share.Glyph=IconGlyph(SourceName);
+            if(Line.Source.Kind==ELDCombatSourceKind::Innate&&Line.Source.DefinitionId==TEXT("dash"))
+            {
+                Share.IconId=LDUIIcons::Dash;
+                Share.Kind=2;
+            }
+            else if(Line.Source.Kind==ELDCombatSourceKind::Innate)
+            {
+                Share.Kind=0;
+            }
+            else if(Line.Source.DefinitionId.ToString().StartsWith(TEXT("card_")))
+            {
+                Share.IconId=ContentIconId(Content,Line.Source.DefinitionId.ToString());
+                Share.Kind=3;
+            }
+            else if(!Line.Source.DefinitionId.IsNone())
+            {
+                Share.IconId=ContentIconId(Content,Line.Source.DefinitionId.ToString());
+                Share.Kind=1;
+            }
+            else
+            {
+                Share.Kind=4;
+            }
+        }
+        else{RestP2+=Line.DamageP2;}
     }
-    if(RestP2>0){View.Rows.Add(HudDamageEntry(TEXT("其他"),RestP2));}
+    if(RestP2>0)
+    {
+        View.Rows.Add(HudDamageEntry(TEXT("其他"),RestP2));
+        FDamageShareRow& Share=View.Shares.AddDefaulted_GetRef();
+        Share.Name=TEXT("其他");
+        Share.ValueText=FString::Printf(TEXT("%lld"),HudWholePoints(RestP2,true));
+        Share.Share=AllP2>0?float(FMath::Clamp(double(RestP2)/double(AllP2),0.,1.)):0.f;
+        Share.PercentText=FString::Printf(TEXT("%.0f%%"),Share.Share*100.f);
+        Share.Glyph=TEXT("其");
+        Share.Kind=4;
+    }
     View.Heading=FString::Printf(TEXT("你造成的伤害 %lld"),HudWholePoints(AllP2,true));
     return View;
 }
@@ -1920,6 +1976,136 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
     }
     return Effects;
 }
+LDHUD::FStatHoverPreview LDHUD::StatHoverPreview(const FLDDemoStatDefinition& Stat,int32 CurrentPoints,int32 AddStep,
+    int32 RefundStep,bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content)
+{
+    FStatHoverPreview Out;
+    const int32 Step=FMath::Max(1,AddStep);
+    const FString StatName=ContentName(&Content,Stat.Id);
+    const auto Target=[](ELDDemoBonusStat Bonus)
+    {
+        switch(Bonus)
+        {
+        case ELDDemoBonusStat::ADFlat: case ELDDemoBonusStat::ADBonusRatio: return ELDProjectedAttribute::AD;
+        case ELDDemoBonusStat::APFlat: case ELDDemoBonusStat::APBonusRatio: return ELDProjectedAttribute::AP;
+        case ELDDemoBonusStat::MaxHPFlat: return ELDProjectedAttribute::MaxHP;
+        case ELDDemoBonusStat::ArmorFlat: return ELDProjectedAttribute::Armor;
+        case ELDDemoBonusStat::MagicResistFlat: return ELDProjectedAttribute::MagicResist;
+        case ELDDemoBonusStat::CooldownHasteFlat: return ELDProjectedAttribute::CooldownHaste;
+        case ELDDemoBonusStat::AttackRangeCmFlat: return ELDProjectedAttribute::AttackRange;
+        case ELDDemoBonusStat::AttackSpeedBonusRatio: return ELDProjectedAttribute::AttackSpeed;
+        case ELDDemoBonusStat::MoveSpeedBonusRatio: return ELDProjectedAttribute::MoveSpeed;
+        case ELDDemoBonusStat::CritChanceBonusRatio: return ELDProjectedAttribute::CritChance;
+        case ELDDemoBonusStat::HPRegenFlat: return ELDProjectedAttribute::HPRegen;
+        case ELDDemoBonusStat::MomentumRegenFlat: return ELDProjectedAttribute::MomentumRegen;
+        }
+        return ELDProjectedAttribute::Count;
+    };
+    TArray<FString> ShortGains;
+    for(const FLDDemoStatBonus& Bonus:Stat.PerPoint)
+    {
+        const uint8 AttrId=uint8(Target(Bonus.Stat));
+        const FLDCombatAttributeRowView* Row=Attributes.FindByPredicate([AttrId](const FLDCombatAttributeRowView& R){return R.Attribute==AttrId;});
+        FLDCombatAttributeRowView Named;Named.Attribute=AttrId;
+        const FString AttrName=AttributeRow(Row?*Row:Named).Name;
+        const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" 厘米")
+            :Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MomentumRegenFlat?TEXT("/s"):TEXT("");
+        const int64 ScaledAmount=Bonus.Amount*int64(Step);
+        const FLDDemoRational ScaledCm{Bonus.Cm.Numerator*int64(Step),Bonus.Cm.Denominator};
+        const FString GainText=TEXT("+")+(CardRationalStat(Bonus.Stat)?HudRational(ScaledCm)+Unit
+            :CardRatioStat(Bonus.Stat)?HudPercent(ScaledAmount):HudPoints(ScaledAmount)+Unit);
+        ShortGains.Add(GainText+TEXT(" ")+AttrName);
+        if(Row)
+        {
+            auto AddRational=[](FLDDemoRational A,FLDDemoRational B)->FLDDemoRational
+            {
+                const int64 DenA=A.Denominator>0?A.Denominator:1;
+                const int64 DenB=B.Denominator>0?B.Denominator:1;
+                if(DenB<=0){return A;}
+                int64 Num=A.Numerator*DenB+B.Numerator*DenA;
+                int64 Den=DenA*DenB;
+                const int64 Gcd=FMath::GreatestCommonDivisor(FMath::Abs(Num),Den);
+                if(Gcd>1){Num/=Gcd;Den/=Gcd;}
+                return {Num,Den};
+            };
+            FLDCombatAttributeRowView Next=*Row;
+            if(CardRatioStat(Bonus.Stat))
+            {
+                Next.PercentBonus=AddRational(Next.PercentBonus,{ScaledAmount,10000});
+                const FLDDemoRational FlatSum=AddRational(AddRational(Next.Base,Next.Level),AddRational(Next.Choices,Next.Cards));
+                const FLDDemoRational TotalPct=AddRational({1,1},AddRational(Next.PercentBonus,Next.TemporaryPercent));
+                const int64 ScaledNum=FMath::Max<int64>(0,FlatSum.Numerator)*TotalPct.Numerator;
+                const int64 ScaledDen=FMath::Max<int64>(1,FlatSum.Denominator*FMath::Max<int64>(1,TotalPct.Denominator));
+                const int64 Gcd=FMath::GreatestCommonDivisor(FMath::Abs(ScaledNum),ScaledDen);
+                Next.Final=AddRational({Gcd>1?ScaledNum/Gcd:ScaledNum,Gcd>1?ScaledDen/Gcd:ScaledDen},Next.Temporary);
+            }
+            else if(!CardRationalStat(Bonus.Stat))
+            {
+                Next.Choices=AddRational(Next.Choices,{ScaledAmount,100});
+                Next.Final=AddRational(Row->Final,{ScaledAmount,100});
+            }
+            else if(Bonus.Cm.Denominator>0)
+            {
+                Next.Choices=AddRational(Next.Choices,ScaledCm);
+                Next.Final=AddRational(Row->Final,ScaledCm);
+            }
+            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),*AttrName,*AttributeRow(*Row).Final,*AttributeRow(Next).Final,*GainText));
+        }
+        else
+        {
+            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s"),*AttrName,*GainText));
+        }
+    }
+    Out.DeltaSummary=FString::Printf(TEXT("%s %d → %d（%s）"),*StatName,CurrentPoints,CurrentPoints+Step,*FString::Join(ShortGains,TEXT(", ")));
+    const int32 Threshold=int32(FMath::Max<int64>(1,Content.Parameters.KeystoneThresholdPoints));
+    const FName IdName(*Stat.Id);
+    const TCHAR* Keystone=LDTerms::KeystoneName(IdName);
+    const int32 Clamped=FMath::Clamp(CurrentPoints,0,Threshold);
+    FString Bar=TEXT("[");
+    for(int32 Cell=0;Cell<Threshold;++Cell){Bar+=Cell<Clamped?TEXT("■"):TEXT("□");}
+    Bar+=FString::Printf(TEXT("] %d/%d"),Clamped,Threshold);
+    Out.bKeystoneActive=CurrentPoints>=Threshold;
+    if(Out.bKeystoneActive)
+    {
+        Out.KeystoneProgress=FString::Printf(TEXT("%s · ★ 已激活 %d 点关键石【%s】"),*Bar,Threshold,Keystone);
+    }
+    else
+    {
+        Out.KeystoneProgress=FString::Printf(TEXT("%s · 再投 %d 点激活【%s】"),*Bar,Threshold-CurrentPoints,Keystone);
+    }
+    const FLDDemoContentParameters& P=Content.Parameters;
+    if(IdName==TEXT("stat_physique"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：自身构筑回血的 %s 转为护盾（上限 %s 最大生命，持续 %s 秒，冷却 %s 秒）"),
+            Keystone,*HudPercent(P.KeystonePhysiqueHealToShieldBp),*HudPercent(P.KeystonePhysiqueShieldMaxHPBp),
+            *HudSeconds(P.KeystonePhysiqueShieldDurationMs),*HudSeconds(P.KeystonePhysiqueIntervalMs));
+    }
+    else if(IdName==TEXT("stat_thick_skin"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：每 %s 秒至多一次，受敌方普攻减免 min(%s 点, 伤害 %s)"),
+            Keystone,*HudSeconds(P.KeystoneThickSkinIntervalMs),*HudPoints(P.KeystoneThickSkinGuardP2),*HudPercent(P.KeystoneThickSkinGuardCapBp));
+    }
+    else if(IdName==TEXT("stat_strength"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：对减速或硬控目标额外造成 %s 伤害"),Keystone,*HudPercent(P.KeystoneStrengthDamageBp));
+    }
+    else if(IdName==TEXT("stat_brains"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：自己施加的元素反应触发时返还该次技能劲耗 %s"),Keystone,*HudPercent(P.KeystoneBrainsMomentumRefundBp));
+    }
+    else if(IdName==TEXT("stat_agility"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：冲刺完成后 %s 秒内下次普攻额外造成 %s + %s 攻击力"),
+            Keystone,*HudSeconds(P.KeystoneAgilityEmpowerDurationMs),*HudPoints(P.KeystoneAgilityDamageBaseP2),*HudPercent(P.KeystoneAgilityADRatioBp));
+    }
+    const int32 EffectiveRefund=FMath::Max(1,RefundStep);
+    if(bCanRespec&&CurrentPoints>=Threshold&&CurrentPoints-EffectiveRefund<Threshold)
+    {
+        Out.bKeystoneLossWarning=true;
+        Out.RefundWarning=FString::Printf(TEXT("⚠ 退点后将失去 %d 点关键石【%s】"),Threshold,Keystone);
+    }
+    return Out;
+}
 FName LDHUD::ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot)
 {
     const FLDActiveSlotView* Active=Progression.Actives.FindByPredicate([Slot](const FLDActiveSlotView& A){return A.Slot==Slot;});
@@ -2328,6 +2514,66 @@ TArray<LDHUD::FCardDrop> LDHUD::ReplaceDrops(FName Key,const FLDProgressionView&
         for(FLDCardInstanceView& Row:Freed.Cards){if(Row.Serial==Replaced.Serial){Row.Target=Replaced.Target;}}
     }
     return Out;
+}
+TArray<LDHUD::FCardDrop> LDHUD::ColumnReplaceDrops(FName Key,EStorageColumn Column,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    TArray<FCardDrop> Out;
+    const FLDCardInstanceView* Self=FindCard(Progression,Key);
+    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,Key);
+    if(!Self||Self->IsInstalled()||!Definition||Definition->Form==ELDCardForm::Medal||!Progression.bValid||!Content){return Out;}
+    FLDProgressionView Freed=Progression;
+    Freed.CardCapacity=FMath::Max(Progression.CardCapacity,Progression.Cards.Num()+1);
+    const TArray<FCardDrop> FreeTargets=CardDrops(Key,Freed,Content);
+    const FCardDrop* Landing=FreeTargets.FindByPredicate([Column](const FCardDrop& D){return D.Column==Column;});
+    if(!Landing){return Out;}
+    for(const FLDCardInstanceView& Replaced:Progression.Cards)
+    {
+        if(!Replaced.IsInstalled()||LDProgression::IsMedal(*Content,Replaced.DefinitionId)){continue;}
+        EStorageColumn ReplacedCol=EStorageColumn::Body;
+        if(!CardColumn(Progression,Replaced.Target.Kind,Replaced.Target.Active,ReplacedCol)||ReplacedCol!=Column){continue;}
+        FCardDrop Drop=*Landing;
+        Drop.Host=CardKey(Replaced.DefinitionId,Replaced.Serial);
+        Drop.Replacing=Drop.Host;
+        Out.Add(MoveTemp(Drop));
+    }
+    return Out;
+}
+FString LDHUD::SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+    const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull)
+{
+    bOutHasMatch=false;bOutAllFull=false;
+    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,CardId);
+    if(!Definition||Definition->Form!=ELDCardForm::Skill||!Progression.bValid||!Content){return FString();}
+    const FLDGrowthBuild Build=LDProgression::BuildFromView(*Content,Progression);
+    const ELDDemoElement Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
+    const bool bWorkshopIsFull=WorkshopFull(Progression,Content);
+    TArray<FString> Chips;
+    bool bAnyFree=false;
+    for(uint8 Slot=0;Slot<3;++Slot)
+    {
+        const FName Held=ActiveInSlot(Progression,Slot);
+        if(Held.IsNone()){continue;}
+        if(LDProgression::CardTargetReason(*Content,Build,FName(*Definition->Id),HudTarget(ELDCardTargetKind::Skill,Held,Element))!=ELDGrowthReason::None)
+        {continue;}
+        int32 ColCount=0;
+        for(const FLDCardInstanceView& Owned:Progression.Cards)
+        {
+            if(Owned.IsInstalled()&&Owned.Target.Kind==ELDCardTargetKind::Skill&&Owned.Target.Active==Held
+                &&!LDProgression::IsMedal(*Content,Owned.DefinitionId))
+            {++ColCount;}
+        }
+        const bool bColFull=bWorkshopIsFull||ColCount>=4;
+        if(!bColFull){bAnyFree=true;}
+        Chips.Add(FString::Printf(TEXT("[%s %s %d/4]"),*Keys.Of(Slot),*ContentName(Content,Held.ToString()),ColCount));
+    }
+    if(Chips.IsEmpty())
+    {
+        return FString(LDTerms::NoCompatibleSkillHost);
+    }
+    bOutHasMatch=true;
+    bOutAllFull=!bAnyFree;
+    return FString(TEXT("可装："))+FString::Join(Chips,TEXT(" "));
 }
 FString LDHUD::DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {

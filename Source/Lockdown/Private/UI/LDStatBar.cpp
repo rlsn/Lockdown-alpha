@@ -29,9 +29,10 @@ namespace
 constexpr float StatIconSize=44.f;
 constexpr float StatGap=8.f;
 constexpr float StatPlusHeight=24.f;
-// The attribute view: three per row, as tall as the stat row so toggling never moves the band.
-constexpr int32 AttrColumns=3;
+// The attribute view (#331): compact two-column list expanded ABOVE the permanently visible 5-stat row.
+constexpr int32 AttrColumns=2;
 constexpr float AttrGlyphSize=20.f;
+constexpr double StatCoalesceSeconds=.12;
 // An applied allocation that never shows in the own view stops holding the next one back after this long.
 constexpr double StatAwaitTimeout=5.;
 const FLinearColor StatFill(.02f,.03f,.05f,.9f);
@@ -59,6 +60,7 @@ void StatBold(UTextBlock* Text,int32 Outline)
     Text->SetFont(Font);
 }
 int32 StatSum(const TArray<int32>& Counts){int32 Total=0;for(const int32 Count:Counts){Total+=Count;}return Total;}
+int32 StatAbsSum(const TArray<int32>& Counts){int32 Total=0;for(const int32 Count:Counts){Total+=FMath::Abs(Count);}return Total;}
 }
 
 TSharedRef<SWidget> ULDStatBar::RebuildWidget()
@@ -67,14 +69,9 @@ TSharedRef<SWidget> ULDStatBar::RebuildWidget()
     if(!Row)
     {
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);WidgetTree->RootWidget=Root;
-        Row=WidgetTree->ConstructWidget<UHorizontalBox>();Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        Root->AddChildToVerticalBox(Row);
-        // Until the catalog and the own view arrive the block says so instead of showing empty stats.
-        Syncing=LDWidgets::Text(WidgetTree,TEXT("属性同步中"),LDHUDStyle::TypeSmall);Syncing->SetAutoWrapText(false);Syncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-        Syncing->SetVisibility(ESlateVisibility::Collapsed);
-        Root->AddChildToVerticalBox(Syncing)->SetPadding(FMargin(0,StatPlusHeight,0,0));
+        // Secondary combat attributes expand ABOVE the primary 5-stat row when P is toggled (#331), never hiding the + buttons.
         AttrGrid=WidgetTree->ConstructWidget<UUniformGridPanel>();AttrGrid->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        AttrGrid->SetSlotPadding(FMargin(0,1,6,1));
+        AttrGrid->SetSlotPadding(FMargin(0,2,10,2));
         const TArray<uint8> Order=LDHUD::AttributeViewOrder();
         for(int32 Index=0;Index<Order.Num();++Index)
         {
@@ -85,7 +82,7 @@ TSharedRef<SWidget> ULDStatBar::RebuildWidget()
             auto* Icon=WidgetTree->ConstructWidget<UBorder>();Icon->SetBrush(StatRound(4.f,StatEdge,1.f));Icon->SetBrushColor(StatFill);
             Icon->SetPadding(FMargin(0));Icon->SetHorizontalAlignment(HAlign_Center);Icon->SetVerticalAlignment(VAlign_Center);Icon->SetContent(Glyph);
             auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(AttrGlyphSize);IconBox->SetHeightOverride(AttrGlyphSize);IconBox->SetContent(Icon);
-            Cell.Value=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBody);Cell.Value->SetAutoWrapText(false);StatBold(Cell.Value,1);
+            Cell.Value=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSmall);Cell.Value->SetAutoWrapText(false);StatBold(Cell.Value,1);
             Cell.Value->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
             auto* Entry=WidgetTree->ConstructWidget<UHorizontalBox>();Entry->SetVisibility(ESlateVisibility::Visible);
             Entry->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);
@@ -96,9 +93,17 @@ TSharedRef<SWidget> ULDStatBar::RebuildWidget()
             UUniformGridSlot* GridSlot=AttrGrid->AddChildToUniformGrid(Entry,Index/AttrColumns,Index%AttrColumns);
             GridSlot->SetHorizontalAlignment(HAlign_Fill);GridSlot->SetVerticalAlignment(VAlign_Center);
         }
-        AttrFrame=WidgetTree->ConstructWidget<USizeBox>();AttrFrame->SetHeightOverride(StatPlusHeight+2.f+StatIconSize);
-        AttrFrame->SetContent(AttrGrid);AttrFrame->SetVisibility(ESlateVisibility::Collapsed);
-        Root->AddChildToVerticalBox(AttrFrame);
+        auto* AttrPanel=LDWidgets::Panel(WidgetTree,AttrGrid,FMargin(8,6));
+        AttrPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(.90f));
+        AttrPanel->SetVisibility(ESlateVisibility::Collapsed);
+        AttrFrame=AttrPanel;
+        Root->AddChildToVerticalBox(AttrPanel)->SetPadding(FMargin(0,0,0,6));
+        Row=WidgetTree->ConstructWidget<UHorizontalBox>();Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        Root->AddChildToVerticalBox(Row);
+        // Until the catalog and the own view arrive the block says so instead of showing empty stats.
+        Syncing=LDWidgets::Text(WidgetTree,TEXT("属性同步中"),LDHUDStyle::TypeSmall);Syncing->SetAutoWrapText(false);Syncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        Syncing->SetVisibility(ESlateVisibility::Collapsed);
+        Root->AddChildToVerticalBox(Syncing)->SetPadding(FMargin(0,StatPlusHeight,0,0));
     }
     return Super::RebuildWidget();
 }
@@ -161,16 +166,23 @@ bool ULDStatBar::Usable() const
 }
 int64 ULDStatBar::Available() const
 {
-    return FMath::Max<int64>(0,Latest.UnspentPoints)-StatSum(Queued)-StatSum(InFlight);
+    return FMath::Max<int64>(0,Latest.UnspentPoints-StatSum(Queued)-StatSum(InFlight));
 }
-int32 ULDStatBar::Waiting() const{return StatSum(Queued)+StatSum(InFlight);}
+int32 ULDStatBar::EffectivePoints(int32 Index) const
+{
+    if(!Cells.IsValidIndex(Index)){return 0;}
+    const int32 Base=LDHUD::StatPointsOf(Latest,Cells[Index].StatId);
+    const int32 Pending=(Queued.IsValidIndex(Index)?Queued[Index]:0)+(InFlight.IsValidIndex(Index)?InFlight[Index]:0);
+    return FMath::Max(0,Base+Pending);
+}
+int32 ULDStatBar::Waiting() const{return StatAbsSum(Queued)+StatAbsSum(InFlight);}
 ULDCommandButton* ULDStatBar::PlusButton(int32 Index) const{return Cells.IsValidIndex(Index)?Cells[Index].Plus:nullptr;}
 
 void ULDStatBar::Present(const FLDProgressionView* View,uint32 Match,uint32 Life,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,
     const FLDDemoContentDefinitions* Content,const TArray<FLDCombatAttributeRowView>& Attributes,bool bShown)
 {
     // Another match's answers never reach this one: its waiting points end with it.
-    if(Match!=LatestMatch){PendingRequest=0;AwaitRevision=0;Queued.Reset();InFlight.Reset();bAttributes=false;}
+    if(Match!=LatestMatch){PendingRequest=0;AwaitRevision=0;LastBatchSentAt=-1.;Queued.Reset();InFlight.Reset();bAttributes=false;}
     LatestMatch=Match;LatestLife=Life;
     Latest=View?*View:FLDProgressionView();
     LatestContent=Content;LatestAttributes=Attributes;
@@ -189,13 +201,13 @@ void ULDStatBar::Present(const FLDProgressionView* View,uint32 Match,uint32 Life
 }
 void ULDStatBar::ToggleView()
 {
-    bAttributes=!bAttributes;HoveredIndex=INDEX_NONE;AttrHovered=INDEX_NONE;
+    bAttributes=!bAttributes;AttrHovered=INDEX_NONE;
     Refresh();
 }
 void ULDStatBar::SetDetailsHeld(bool bHeld)
 {
     if(bDetailsHeld==bHeld){return;}
-    bDetailsHeld=bHeld;HoveredIndex=INDEX_NONE;AttrHovered=INDEX_NONE;
+    bDetailsHeld=bHeld;AttrHovered=INDEX_NONE;
     Refresh();
 }
 const FLDCombatAttributeRowView* ULDStatBar::AttributeOf(uint8 Attribute) const
@@ -213,8 +225,8 @@ void ULDStatBar::RefreshAttributes()
 }
 void ULDStatBar::Refresh()
 {
-    const bool bStats=(!bAttributes||bDetailsHeld)&&Usable();
-    const bool bAttrs=bAttributes&&!bDetailsHeld&&!LatestAttributes.IsEmpty();
+    const bool bStats=Usable();
+    const bool bAttrs=bAttributes&&!LatestAttributes.IsEmpty();
     StatShown(Syncing,!bStats&&!bAttrs,ESlateVisibility::HitTestInvisible);
     StatShown(Row,bStats,ESlateVisibility::SelfHitTestInvisible);
     StatShown(AttrFrame,bAttrs,ESlateVisibility::SelfHitTestInvisible);
@@ -233,10 +245,11 @@ void ULDStatBar::Refresh()
         }
         StatText(Cell.Glyph,View.Glyph);
         const int32 Pending=Queued[Index]+InFlight[Index];
-        StatText(Cell.Points,Pending>0?FString::Printf(TEXT("%d+%d"),View.Points,Pending):FString::FromInt(View.Points));
-        Cell.Points->SetColorAndOpacity(Pending>0?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);
-        // The "+" rises over the hovered stat while a point is left to spend; a closed stage greys it and the popup says why.
-        const bool bPlus=bShownNow&&bCanSpend&&Index==HoveredIndex;
+        const int32 Optimistic=FMath::Max(0,View.Points+Pending);
+        StatText(Cell.Points,FString::FromInt(Optimistic));
+        Cell.Points->SetColorAndOpacity(Pending!=0?LDHUDStyle::TextAccent:Optimistic>=int32(LatestContent->Parameters.KeystoneThresholdPoints)?LDHUDStyle::UIAction:LDHUDStyle::TextPrimary);
+        // The "+" stays accessible on the permanently visible 5-stat row (#331).
+        const bool bPlus=bShownNow&&bCanSpend&&(Index==HoveredIndex||bAttributes);
         StatShown(Cell.Plus,bPlus,ESlateVisibility::Visible,ESlateVisibility::Hidden);
         if(Cell.Plus->GetIsEnabled()!=Gate.bCanAllocate){Cell.Plus->SetIsEnabled(Gate.bCanAllocate);}
         const bool bHover=Index==HoveredIndex;
@@ -250,17 +263,17 @@ void ULDStatBar::Refresh()
 void ULDStatBar::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
+    Flush();
     int32 Next=INDEX_NONE;
     AttrHovered=INDEX_NONE;
-    if(bShownNow&&bAttributes&&AttrFrame&&AttrFrame->IsVisible()&&FSlateApplication::IsInitialized())
+    if(bShownNow&&FSlateApplication::IsInitialized())
     {
         const FVector2D Pointer=FSlateApplication::Get().GetCursorPos();
-        for(int32 Index=0;Index<AttrCells.Num();++Index)
-        {if(AttrCells[Index].Box->GetCachedGeometry().IsUnderLocation(Pointer)){AttrHovered=Index;break;}}
-    }
-    else if(bShownNow&&!bAttributes&&FSlateApplication::IsInitialized())
-    {
-        const FVector2D Pointer=FSlateApplication::Get().GetCursorPos();
+        if(bAttributes&&AttrFrame&&AttrFrame->IsVisible())
+        {
+            for(int32 Index=0;Index<AttrCells.Num();++Index)
+            {if(AttrCells[Index].Box->GetCachedGeometry().IsUnderLocation(Pointer)){AttrHovered=Index;break;}}
+        }
         for(int32 Index=0;Index<Cells.Num();++Index)
         {if(Cells[Index].Box&&Cells[Index].Box->IsVisible()&&Cells[Index].Box->GetCachedGeometry().IsUnderLocation(Pointer)){Next=Index;break;}}
         if(Next==INDEX_NONE&&Cells.IsValidIndex(PinnedHover)){Next=PinnedHover;}
@@ -269,7 +282,7 @@ void ULDStatBar::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 }
 const UWidget* ULDStatBar::Hovered(LDHUD::FActionDetailView& Out) const
 {
-    if(bShownNow&&bAttributes&&AttrCells.IsValidIndex(AttrHovered))
+    if(bShownNow&&bAttributes&&AttrCells.IsValidIndex(AttrHovered)&&HoveredIndex==INDEX_NONE)
     {
         const FAttrCell& Cell=AttrCells[AttrHovered];
         const FLDCombatAttributeRowView* Published=AttributeOf(Cell.Attribute);
@@ -278,68 +291,112 @@ const UWidget* ULDStatBar::Hovered(LDHUD::FActionDetailView& Out) const
         Out.Name=View.Name;Out.Summary=View.Final;Out.Body=View.Breakdown;
         return Cell.Box;
     }
-    if(!bShownNow||bAttributes||!Usable()||!Cells.IsValidIndex(HoveredIndex)){return nullptr;}
+    if(!bShownNow||!Usable()||!Cells.IsValidIndex(HoveredIndex)){return nullptr;}
     const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
     if(!StatOrder.IsValidIndex(HoveredIndex)){return nullptr;}
     const FCell& Cell=Cells[HoveredIndex];
-    const LDHUD::FStatRowView View=LDHUD::StatRow(*StatOrder[HoveredIndex],LDHUD::StatPointsOf(Latest,Cell.StatId),LatestContent);
+    const int32 CurrentPts=EffectivePoints(HoveredIndex);
+    const LDHUD::FStatRowView View=LDHUD::StatRow(*StatOrder[HoveredIndex],CurrentPts,LatestContent);
+    const int32 AddStep=FMath::Max(1,ResolveAllocateStep(HoveredIndex));
+    const int32 RefundStep=FMath::Max(1,ResolveRefundStep(HoveredIndex));
+    const LDHUD::FStatHoverPreview Preview=LDHUD::StatHoverPreview(*StatOrder[HoveredIndex],CurrentPts,AddStep,RefundStep,
+        Gate.bCanRespec,LatestAttributes,*LatestContent);
     Out.Name=View.Name;
-    Out.Summary=FString::Printf(TEXT("已加 %d 点"),View.Points);
-    const int32 Pending=Queued[HoveredIndex]+InFlight[HoveredIndex];
-    if(Pending>0){Out.Summary+=FString::Printf(TEXT(" · 提交中 +%d"),Pending);}
-    Out.Summary+=TEXT(" · ")+LDTerms::UnspentPoints(FMath::Max<int64>(0,Available()));
-    // One line per raised attribute: its current value, then what one more point adds.
-    TArray<FString> Lines;
-    for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*StatOrder[HoveredIndex],LatestAttributes))
-    {Lines.Add(FString::Printf(TEXT("%s %s（每点 %s）"),*Effect.Attribute,*Effect.Current,*Effect.PerPoint));}
+    Out.Summary=Preview.DeltaSummary+TEXT(" · ")+LDTerms::UnspentPoints(FMath::Max<int64>(0,Available()));
+    TArray<FString> Lines=Preview.AttributeLines;
+    Lines.Add(Preview.KeystoneProgress);
+    if(!Preview.KeystoneRule.IsEmpty()){Lines.Add(Preview.KeystoneRule);}
+    Lines.Add(TEXT("Shift+点击：±5 点 · Ctrl+点击：凑满 18 点关键石"));
+    if(Preview.bKeystoneLossWarning&&!Preview.RefundWarning.IsEmpty()){Lines.Add(Preview.RefundWarning);}
     Out.Body=FString::Join(Lines,TEXT("\n"));
     if(Available()>0&&!Gate.bCanAllocate){Out.Body+=TEXT("\n\n现在不能加点：")+Gate.AllocateBlocked;}
     return Cell.Box;
 }
 
+int32 ULDStatBar::ResolveAllocateStep(int32 Index) const
+{
+    if(!Cells.IsValidIndex(Index)||!LatestContent){return 1;}
+    const int64 Free=Available();
+    if(Free<=0){return 1;}
+    const FModifierKeysState Mods=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetModifierKeys():FModifierKeysState();
+    const int32 Current=EffectivePoints(Index);
+    const int32 Threshold=int32(FMath::Max<int64>(1,LatestContent->Parameters.KeystoneThresholdPoints));
+    if(Mods.IsControlDown())
+    {
+        const int32 Needed=Threshold>Current?Threshold-Current:1;
+        return int32(FMath::Min<int64>(Free,Needed));
+    }
+    if(Mods.IsShiftDown())
+    {
+        return int32(FMath::Min<int64>(Free,5));
+    }
+    return 1;
+}
+
+int32 ULDStatBar::ResolveRefundStep(int32 Index) const
+{
+    if(!Cells.IsValidIndex(Index)){return 1;}
+    const int32 Current=EffectivePoints(Index);
+    if(Current<=0){return 1;}
+    const FModifierKeysState Mods=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetModifierKeys():FModifierKeysState();
+    if(Mods.IsShiftDown()){return FMath::Min(Current,5);}
+    return 1;
+}
+
 bool ULDStatBar::CanAllocate(int32 Index) const
 {
     return Usable()&&Cells.IsValidIndex(Index)&&Gate.bCanAllocate&&Available()>0
-        &&LDHUD::StatPointsOf(Latest,Cells[Index].StatId)+Queued[Index]+InFlight[Index]<MAX_uint8;
+        &&EffectivePoints(Index)<MAX_uint8;
 }
-bool ULDStatBar::Allocate(int32 Index)
+bool ULDStatBar::Allocate(int32 Index,int32 RequestedCount)
 {
     const auto Refuse=[this](const FString& Why){if(Notify){Notify(FString(TEXT("加点："))+Why);}return false;};
     if(!Usable()){return Refuse(TEXT("属性数据同步中。"));}
     if(!Cells.IsValidIndex(Index)){return false;}
     if(!Gate.bCanAllocate){return Refuse(Gate.AllocateBlocked);}
     if(Available()<=0){return Refuse(TEXT("没有未分配点数了。"));}
-    if(LDHUD::StatPointsOf(Latest,Cells[Index].StatId)+Queued[Index]+InFlight[Index]>=MAX_uint8){return Refuse(TEXT("这一项加不下了。"));}
-    ++Queued[Index];
+    const int32 Room=MAX_uint8-EffectivePoints(Index);
+    if(Room<=0){return Refuse(TEXT("这一项加不下了。"));}
+    const int32 Step=FMath::Clamp(RequestedCount>0?RequestedCount:ResolveAllocateStep(Index),1,int32(FMath::Min<int64>(Available(),Room)));
+    Queued[Index]+=Step;
     Flush();
     Refresh();
     return true;
 }
-bool ULDStatBar::Refund(int32 Index)
+bool ULDStatBar::Refund(int32 Index,int32 RequestedCount)
 {
     const auto Refuse=[this](const FString& Why){if(Notify){Notify(FString(TEXT("退点："))+Why);}return false;};
     if(!Usable()){return Refuse(TEXT("属性数据同步中。"));}
     if(!Cells.IsValidIndex(Index)){return false;}
     if(!Gate.bCanRespec){return Refuse(Gate.RespecBlocked);}
-    if(PendingRequest||AwaitRevision!=0||StatSum(Queued)+StatSum(InFlight)>0||(PeekRequestId&&PeekRequestId()==0))
-    {return Refuse(TEXT("上一个请求仍在处理中。"));}
-    if(LDHUD::StatPointsOf(Latest,Cells[Index].StatId)<=0){return Refuse(LDHUD::GrowthReasonText(ELDGrowthReason::NothingToRespec));}
-    const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
-    FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::Respec;
-    for(int32 Stat=0;Stat<Cells.Num();++Stat)
+    const int32 Current=EffectivePoints(Index);
+    if(Current<=0){return Refuse(LDHUD::GrowthReasonText(ELDGrowthReason::NothingToRespec));}
+    const int32 Step=FMath::Clamp(RequestedCount>0?RequestedCount:ResolveRefundStep(Index),1,Current);
+    Queued[Index]-=Step;
+    Flush();
+    Refresh();
+    return true;
+}
+FReply ULDStatBar::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    if(Event.GetEffectingButton()==EKeys::RightMouseButton&&bShownNow)
     {
-        if(!StatOrder.IsValidIndex(Stat)||Latest.StatPoints[Stat].StatId!=FName(*StatOrder[Stat]->Id))
-        {return Refuse(TEXT("没有提交：属性数据与内容目录不一致。"));}
-        Command.PointCounts.Add(Stat==Index?1:0);
+        for(int32 Index=0;Index<Cells.Num();++Index)
+        {
+            if(Cells[Index].Box&&Cells[Index].Box->IsVisible()&&Cells[Index].Box->GetCachedGeometry().IsUnderLocation(Event.GetScreenSpacePosition()))
+            {
+                Refund(Index);
+                return FReply::Handled();
+            }
+        }
     }
-    return Send(Command);
+    return Super::NativeOnMouseButtonDown(Geometry,Event);
 }
 FReply ULDStatBar::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
 {
-    // The wheel over a stat icon: up adds a point, down takes one back (rest only); elsewhere the bar lets it pass. The cell
-    // is the one under the wheel event itself, never the last tick's hover (which may be stale or pinned).
+    // The wheel over a stat icon: up adds points, down takes points back (rest only); elsewhere the bar lets it pass.
     int32 Under=INDEX_NONE;
-    if(bShownNow&&!bAttributes)
+    if(bShownNow)
     {
         for(int32 Index=0;Index<Cells.Num();++Index)
         {
@@ -351,27 +408,73 @@ FReply ULDStatBar::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEv
     if(Event.GetWheelDelta()>0.f){Allocate(Under);}else{Refund(Under);}
     return FReply::Handled();
 }
-void ULDStatBar::Flush()
+void ULDStatBar::FlushNow()
 {
-    // One AllocatePoints at a time, after the previous one shows in the view and while no other build request holds the
-    // owner's in-flight slot (the growth panel or the storage); the clicks meanwhile go out together.
-    if(PendingRequest||AwaitRevision!=0||StatSum(Queued)==0||!Usable()){return;}
+    Flush(true);
+}
+void ULDStatBar::Flush(bool bIgnoreWindow)
+{
+    // Leading-edge + 120ms trailing coalescing: first click sends immediately; rapid bursts within 120ms or while a request
+    // is in flight coalesce locally with optimistic UI and send as one authoritative batch.
+    if(PendingRequest||AwaitRevision!=0||StatAbsSum(Queued)==0||!Usable()){return;}
     if(PeekRequestId&&PeekRequestId()==0){return;}
-    if(!Gate.bCanAllocate){if(Notify){Notify(FString(TEXT("加点："))+Gate.AllocateBlocked);}DropWaiting();return;}
-    // One count per stat in the stats' design order, exactly as the view lists them; a mismatch is a data error, not a guess.
+    const double Now=UiNow();
+    if(!bIgnoreWindow&&Now>0.&&LastBatchSentAt>=0.&&Now-LastBatchSentAt<StatCoalesceSeconds){return;}
+    bool bHasPositive=false,bHasNegative=false;
+    for(const int32 Delta:Queued){if(Delta>0){bHasPositive=true;}else if(Delta<0){bHasNegative=true;}}
     const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
-    FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::AllocatePoints;
-    for(int32 Index=0;Index<Cells.Num();++Index)
+    if(bHasPositive)
     {
-        if(!StatOrder.IsValidIndex(Index)||Latest.StatPoints[Index].StatId!=FName(*StatOrder[Index]->Id))
+        if(!Gate.bCanAllocate){if(Notify){Notify(FString(TEXT("加点："))+Gate.AllocateBlocked);}DropWaiting();return;}
+        FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::AllocatePoints;
+        for(int32 Index=0;Index<Cells.Num();++Index)
         {
-            if(Notify){Notify(TEXT("加点：没有提交：属性数据与内容目录不一致。"));}
-            DropWaiting();return;
+            if(!StatOrder.IsValidIndex(Index)||Latest.StatPoints[Index].StatId!=FName(*StatOrder[Index]->Id))
+            {
+                if(Notify){Notify(TEXT("加点：没有提交：属性数据与内容目录不一致。"));}
+                DropWaiting();return;
+            }
+            const int32 SendCount=FMath::Clamp(Queued[Index],0,int32(MAX_uint8));
+            Command.PointCounts.Add(uint8(SendCount));
         }
-        Command.PointCounts.Add(uint8(Queued[Index]));
+        for(int32 Index=0;Index<Cells.Num();++Index)
+        {
+            if(Queued[Index]>0){const int32 SentCount=FMath::Min(Queued[Index],int32(MAX_uint8));InFlight[Index]+=SentCount;Queued[Index]-=SentCount;}
+        }
+        LastBatchSentAt=Now;
+        Send(Command);
+        return;
     }
-    for(int32 Index=0;Index<Cells.Num();++Index){InFlight[Index]+=Queued[Index];Queued[Index]=0;}
-    Send(Command);
+    if(bHasNegative)
+    {
+        if(!Gate.bCanRespec){if(Notify){Notify(FString(TEXT("退点："))+Gate.RespecBlocked);}DropWaiting();return;}
+        FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::Respec;
+        for(int32 Index=0;Index<Cells.Num();++Index)
+        {
+            if(!StatOrder.IsValidIndex(Index)||Latest.StatPoints[Index].StatId!=FName(*StatOrder[Index]->Id))
+            {
+                if(Notify){Notify(TEXT("退点：没有提交：属性数据与内容目录不一致。"));}
+                DropWaiting();return;
+            }
+            const int32 RefundCount=FMath::Clamp(-Queued[Index],0,LDHUD::StatPointsOf(Latest,Cells[Index].StatId));
+            Command.PointCounts.Add(uint8(RefundCount));
+        }
+        bool bAny=false;
+        for(const uint8 C:Command.PointCounts){bAny|=C>0;}
+        if(!bAny){for(int32& Delta:Queued){if(Delta<0){Delta=0;}}return;}
+        for(int32 Index=0;Index<Cells.Num();++Index)
+        {
+            if(Queued[Index]<0)
+            {
+                const int32 RefundCount=int32(Command.PointCounts[Index]);
+                InFlight[Index]-=RefundCount;
+                Queued[Index]+=RefundCount;
+                if(Queued[Index]<0){Queued[Index]=0;}
+            }
+        }
+        LastBatchSentAt=Now;
+        Send(Command);
+    }
 }
 void ULDStatBar::DropWaiting()
 {
