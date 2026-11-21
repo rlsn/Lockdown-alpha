@@ -302,6 +302,11 @@ bool FLDRelativeHeightMap::RunTest(const FString& Parameters)
     FVector LowGround(1135.520,1386.623,600.);
     if (!TestTrue(TEXT("Recorded low target has support"),ReadGround(LowGround))) { return false; }
     const int32 LowCell=LDObservation::CoverageIndex(CoverageBounds,FVector2D(LowGround));
+    FLDSightGeometry LocalSight;
+    if (!TestTrue(TEXT("Local terrain coverage initializes on demand"),LocalSight.Build(*Registry->GetGeometry(),
+        Registry->Revision(),Content->Get().Parameters.VisionRadiusCm,Content->Get().Parameters.VisionRange,
+        Error,World,&Registry->GetTerrain(),true))) { return false; }
+    FLDSightGeometry::FCoverageScan LocalScan;
     int32 Samples=0, PeakLost=0;
     for (int32 Y : {1930,1985,2210,2290,2371,2450,2530})
     {
@@ -317,7 +322,18 @@ bool FLDRelativeHeightMap::RunTest(const FString& Parameters)
             if (!World->SweepSingleByChannel(SweptFloor,FVector(X,Y,From.Z+HalfHeight+80),FVector(X,Y,From.Z+HalfHeight-10),
                 FQuat::Identity,ECC_Pawn,Capsule) || SweptFloor.bStartPenetrating) { continue; }
             const FVector CapsuleFoot=SweptFloor.Location-FVector(0,0,HalfHeight-FloorGap);
-            Sight.Coverage(CapsuleFoot,Bits);
+            if (!TestTrue(TEXT("Local terrain scan starts with the character's capsule foot"),LocalSight.BeginCoverage(CapsuleFoot,LocalScan)))
+            { return false; }
+            if (Y==2371 && Step==32)
+            {
+                TestFalse(TEXT("The local scan can yield without publishing a partial mask"),
+                    LocalSight.ContinueCoverage(LocalScan,FPlatformTime::Seconds()));
+                LocalSight.ContinueCoverage(LocalScan);
+                Sight.Coverage(CapsuleFoot,Bits);
+                TestTrue(TEXT("A resumed local scan exactly matches an unsliced server scan"),LocalScan.Bits==Bits);
+            }
+            else { LocalSight.ContinueCoverage(LocalScan); }
+            Swap(Bits,LocalScan.Bits);
             ++LaneSamples;
             int32 Lost=0;
             if (PreviousBits.Num()==Bits.Num())

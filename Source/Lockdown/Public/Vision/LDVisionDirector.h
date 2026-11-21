@@ -84,7 +84,7 @@ class LOCKDOWN_API FLDSightGeometry
 public:
     bool Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld, const FLDDemoRational& InRadius,
         const FLDDemoVisionRangeParameters& RangeParameters, FString& Error, UWorld* NativeScene = nullptr,
-        const LDDemoWorld::FTerrain* NativeTerrain = nullptr);
+        const LDDemoWorld::FTerrain* NativeTerrain = nullptr, bool bLazyCoverage = false);
     bool IsValid() const { return World.IsValid() && RadiusCm > 0; }
     const FLDWorldRevision& Revision() const { return World; }
     double Radius() const { return RadiusCm; }
@@ -102,6 +102,17 @@ public:
     bool InBounds(const FVector& FootCm) const;
     ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
     FVector2D CellCentre(int32 Index) const;
+    struct FCoverageScan
+    {
+        FVector Ground = FVector::ZeroVector;
+        FHitResult Support;
+        FIntRect Region{0,0,0,0};
+        FIntPoint Next{0,0};
+        TArray<uint8> Bits;
+    };
+    bool BeginCoverage(const FVector& SourceFootCm, FCoverageScan& Scan) const;
+    // A zero deadline runs the whole scan. A yielded scan retains its exact source and next column.
+    bool ContinueCoverage(FCoverageScan& Scan, double DeadlineSeconds = 0.) const;
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
     // #198 session D: marks every coverage cell whose centre lies within the disk (a spectator's arena permission).
     void AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const;
@@ -114,7 +125,8 @@ private:
     void PrepareNativeScope(const FVector2D& From) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
     // blockers of the cells its bounds touch (a blocker may be tested more than once, never skipped).
-    void BuildGrid();
+    void BuildGrid(bool bLazyCoverage);
+    void CacheCoverageGround(int32 Index, const FVector2D& Centre) const;
     void CellRange(const FVector2D& Low, const FVector2D& High, int32& X0, int32& Y0, int32& X1, int32& Y1) const;
     static constexpr double GridCellCm = 400.;
     int32 GridWidth = 0, GridHeight = 0;
@@ -127,7 +139,8 @@ private:
         FVector Foot = FVector::ZeroVector;
         FHitResult Support;
     };
-    TArray<TArray<FGroundSample>> CoverageGround;
+    mutable TArray<TArray<FGroundSample>> CoverageGround;
+    mutable TBitArray<> CachedCoverageColumns;
     FBox2D CoverageWorldBounds{ForceInit};
     struct FCircle
     {

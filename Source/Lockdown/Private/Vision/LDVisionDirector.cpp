@@ -147,7 +147,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 
 bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld,
     const FLDDemoRational& InRadius, const FLDDemoVisionRangeParameters& InRangeParameters,
-    FString& Error, UWorld* NativeScene, const LDDemoWorld::FTerrain* NativeTerrain)
+    FString& Error, UWorld* NativeScene, const LDDemoWorld::FTerrain* NativeTerrain, bool bLazyCoverage)
 {
     *this = FLDSightGeometry();
     double RadiusValue = 0, SampleHeight = 0;
@@ -311,7 +311,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         SupportSurfaces.Build(*NativeScene);
     }
     CoverageWorldBounds=LDObservation::SquareCoverageBounds(FBox2D(Min,Max));
-    BuildGrid();
+    BuildGrid(bLazyCoverage);
     Error.Reset();
     return true;
 }
@@ -324,7 +324,7 @@ void FLDSightGeometry::CellRange(const FVector2D& Low, const FVector2D& High, in
     Y1 = FMath::Clamp(FMath::FloorToInt32((High.Y - Min.Y) / GridCellCm), 0, GridHeight - 1);
 }
 
-void FLDSightGeometry::BuildGrid()
+void FLDSightGeometry::BuildGrid(bool bLazyCoverage)
 {
     GridWidth = FMath::Max(1, FMath::CeilToInt32((Max.X - Min.X) / GridCellCm));
     GridHeight = FMath::Max(1, FMath::CeilToInt32((Max.Y - Min.Y) / GridCellCm));
@@ -353,34 +353,41 @@ void FLDSightGeometry::BuildGrid()
         CellCircles[Y0 * GridWidth + X0].Add(Index);
     }
     CoverageGround.SetNum(LDObservation::CoverageCells);
-    for (int32 Index = 0; Index < CoverageGround.Num(); ++Index)
+    CachedCoverageColumns.Init(false, CoverageGround.Num());
+    if (!bLazyCoverage)
     {
-        const FVector2D Centre = CellCentre(Index);
-        if (!Scene.IsValid())
+        for (int32 Index = 0; Index < CoverageGround.Num(); ++Index)
+        { CacheCoverageGround(Index, CellCentre(Index)); }
+    }
+}
+
+void FLDSightGeometry::CacheCoverageGround(int32 Index, const FVector2D& Centre) const
+{
+    CachedCoverageColumns[Index] = true;
+    if (!Scene.IsValid())
+    {
+        double Z; FVector Normal; Terrain.Ground(Centre, Z, Normal);
+        CoverageGround[Index].Add({FVector(Centre, Z), FHitResult()});
+        return;
+    }
+    // Cache physical columns once per world revision, including separate floors under bridges/roofs.
+    const FBox& Bounds = Terrain.NativeBounds();
+    double StartZ = Bounds.Max.Z + 1.;
+    while (StartZ > Bounds.Min.Z - 1.)
+    {
+        FHitResult Hit;
+        if (!Terrain.TraceScene(FVector(Centre, StartZ), FVector(Centre, Bounds.Min.Z - 1.), Hit)) { break; }
+        if (!Hit.bStartPenetrating && Hit.ImpactNormal.Z > .5)
+        { CoverageGround[Index].Add({Hit.ImpactPoint, Hit}); }
+        double NextZ = Hit.ImpactPoint.Z - SightSurfaceOffsetCm;
+        if (Hit.bStartPenetrating)
         {
-            double Z; FVector Normal; Terrain.Ground(Centre, Z, Normal);
-            CoverageGround[Index].Add({FVector(Centre, Z), FHitResult()});
-            continue;
+            const auto* Body = Hit.GetComponent() ? Hit.GetComponent()->GetBodyInstance() : nullptr;
+            if (!Body || !Body->IsValidBodyInstance()) { break; }
+            NextZ = Body->GetBodyBounds().Min.Z - SightSurfaceOffsetCm;
         }
-        // Cache physical columns once per world revision, including separate floors under bridges/roofs.
-        const FBox& Bounds = Terrain.NativeBounds();
-        double StartZ = Bounds.Max.Z + 1.;
-        while (StartZ > Bounds.Min.Z - 1.)
-        {
-            FHitResult Hit;
-            if (!Terrain.TraceScene(FVector(Centre, StartZ), FVector(Centre, Bounds.Min.Z - 1.), Hit)) { break; }
-            if (!Hit.bStartPenetrating && Hit.ImpactNormal.Z > .5)
-            { CoverageGround[Index].Add({Hit.ImpactPoint, Hit}); }
-            double NextZ = Hit.ImpactPoint.Z - SightSurfaceOffsetCm;
-            if (Hit.bStartPenetrating)
-            {
-                const auto* Body = Hit.GetComponent() ? Hit.GetComponent()->GetBodyInstance() : nullptr;
-                if (!Body || !Body->IsValidBodyInstance()) { break; }
-                NextZ = Body->GetBodyBounds().Min.Z - SightSurfaceOffsetCm;
-            }
-            if (NextZ >= StartZ) { break; }
-            StartZ = NextZ;
-        }
+        if (NextZ >= StartZ) { break; }
+        StartZ = NextZ;
     }
 }
 
@@ -745,11 +752,10 @@ FVector2D FLDSightGeometry::CellCentre(int32 Index) const
     return CoverageWorldBounds.Min+FVector2D(((Index % Width)+.5)*Span.X/Width,((Index / Width)+.5)*Span.Y/Height);
 }
 
-void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const
+bool FLDSightGeometry::BeginCoverage(const FVector& SourceFootCm, FCoverageScan& Scan) const
 {
-    TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionCoverage);
-    OutBits.Init(0, LDObservation::CoverageBytes);
-    if (!IsValid() || !InBounds(SourceFootCm)) { return; }
+    Scan.Bits.Init(0, LDObservation::CoverageBytes);
+    if (!IsValid() || !InBounds(SourceFootCm)) { return false; }
     const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
     const FVector2D Span=CoverageWorldBounds.GetSize(), GridMin=CoverageWorldBounds.Min;
     const double CellX=Span.X/Width, CellY=Span.Y/Height;
@@ -758,17 +764,43 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + Reach - GridMin.X) / CellX), 0, Width - 1);
     const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - Reach - GridMin.Y) / CellY), 0, Height - 1);
     const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + Reach - GridMin.Y) / CellY), 0, Height - 1);
-    FVector From; FHitResult Support; ResolveFoot(SourceFootCm, From, Support);
-    for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X)
+    Scan.Region = FIntRect(X0, Y0, X1 + 1, Y1 + 1);
+    Scan.Next = Scan.Region.Min;
+    ResolveFoot(SourceFootCm, Scan.Ground, Scan.Support);
+    return true;
+}
+
+bool FLDSightGeometry::ContinueCoverage(FCoverageScan& Scan, double DeadlineSeconds) const
+{
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionCoverage);
+    const double ReachSquared = FMath::Square(MaximumRadius());
+    int32 Visited = 0;
+    while (Scan.Next.Y < Scan.Region.Max.Y)
     {
-        const int32 Index = Y * Width + X;
-        if (FVector2D::DistSquared(FVector2D(From), CellCentre(Index)) > Reach * Reach) { continue; }
+        if (DeadlineSeconds > 0. && Visited > 0 && (Visited % 16) == 0
+            && FPlatformTime::Seconds() >= DeadlineSeconds) { return false; }
+        ++Visited;
+        const int32 Index = Scan.Next.Y * LDObservation::CoverageWidth + Scan.Next.X;
+        if (++Scan.Next.X == Scan.Region.Max.X)
+        { Scan.Next.X = Scan.Region.Min.X; ++Scan.Next.Y; }
+        const FVector2D Centre = CellCentre(Index);
+        if (FVector2D::DistSquared(FVector2D(Scan.Ground), Centre) > ReachSquared) { continue; }
+        if (!CachedCoverageColumns[Index]) { CacheCoverageGround(Index, Centre); }
         for (const auto& Target : CoverageGround[Index])
         {
-            if (TracePrepared(From, Target.Foot, Support, Target.Support) == ELDSightResult::Visible)
-            { LDObservation::SetCoverageBit(OutBits, Index); break; }
+            if (TracePrepared(Scan.Ground, Target.Foot, Scan.Support, Target.Support) == ELDSightResult::Visible)
+            { LDObservation::SetCoverageBit(Scan.Bits, Index); break; }
         }
-    } }
+    }
+    return true;
+}
+
+void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const
+{
+    FCoverageScan Scan;
+    Scan.Bits = MoveTemp(OutBits);
+    if (BeginCoverage(SourceFootCm, Scan)) { ContinueCoverage(Scan); }
+    OutBits = MoveTemp(Scan.Bits);
 }
 
 void FLDSightGeometry::AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const
