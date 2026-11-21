@@ -281,7 +281,7 @@ UI 树由 native `RebuildWidget` 构建，`WBP_UIRoot` 以 `ULDUIRoot` 为父类
 | `ULDStatBar`（`UI/LDStatBar.*`） | HUD 底部带左块名称下方的五维属性图标与悬停时图标正上方的“+”：点一下立即发一点 `AllocatePoints`，在途时的连点在本地排队、等本人视图带上上一次的构筑版本后合并发送；读模型 `LDHUD::StatRow/StatPointsOf/BuildGate`；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDComponentStorage`（`UI/LDComponentStorage.*`） | 牌库：`ULDHUD` 放在底部横条右侧的牌堆与悬停展开的图标网格和一排五列已装的牌（Q、W、E、冲刺、本体），拖放、单击拿起再放下与右键快装/卸下、搬动与 Y25 元素选择；工坊打开时同一套状态排成工坊的牌库分组与规则板列，并向工坊报告悬停或拿着的牌（`Focus`）；读模型 `LDHUD::CardStorage/CardDrops/FindDrop/DetachedWith` 与 `EStorageColumn`（`UI/LDHUDModel.h`）；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
-| `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
+| `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条（参赛者 96 宽、9 高；按最大生命每 100 HP 半格刻度、每 1000 HP 整格刻度；扣血后白色残影停 0.15 s 再收回，按可见区间 `Handle` 记忆）与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
 | `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 23）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，见[设置页](#设置页)） |
 | `ALDWorldViewRelay`（`Vision/`） | 唯一观察帧读取（`ReadObservedFrame/ReadUnit/ReadPresentedLocation`）、呈现时钟与代理、迷雾、可淡化道具 |
 | `LDWidgets`（`UI/LDWidgets.*`） | native 文本/按钮/面板构造（文字按字体角色取字体，按钮带悬停/按下缩放与界面音效；`HoldButton` 是按住确认按钮）、`ULDPanel` 焦点与命中区域、子确认接口 |
@@ -300,6 +300,8 @@ Choices 沿用唯一主面板与输入捕获协议，由右下角“构筑”按
 死亡选点按钮在顶部中央的横幅栈里（不滚动），全屏工坊时随栈移到右上角，不与工作区叠放；已提交事务仍按原回执处理。
 本人在休息外进入死亡等待时，工坊自动打开一次，信息坞默认显示本条生命的承伤记录，悬停其他内容时显示其说明；记录尚未到达时提示同步中。复活时自动收起（有请求在途时等它答复）；休息时不自动打开，有可做的事时只点亮“构筑”按钮；玩家自己打开的工坊在离开全屏时刻后保留并改为下方 46%。野外的新候选只点亮并脉冲“构筑”按钮，新增点数只更新头像左下角的黄色点数圈，都不自动弹窗。构筑随时可做：交战中与死亡等待中都可以手动打开并完成构筑；玩家自己打开的工坊不因交战收起；脱战不自动重开，本地编辑和请求仍保留。野外缺失有效本人身体投影或权威时钟时不把未知状态伪造为交战。野外顶部压缩重复提示，保留时间线与必要旗杆状态。左下小地图上方除对局用时外没有文字行；短时事件播报照常。
 加点不进面板：HUD 左块名称下方每一维一个属性图标，悬停图标时其正上方出现“+”，点一下即提交一点，没有暂存和确认。
+技能栏与工坊列头的技能悬停按已学分支与等级显示数值（`ActiveCard` 的 `Branch`，分支删去的效果读 1 级值，随后逐行列出已选分支）；按住 Alt 时数字改为系数式（`bShowScalingFormula`）。
+掉落的元素勋章（升级、野怪、事件或 Boss）以一行提示“获得【…】”告知一次（`FMedalDropWatch`）。
 牌三选一是选择卡，不滚动。悬停牌时弹层展示它的规则；仅查看不消耗奖励。弹层最后一行写点击去向：“装到 <位置>”或“放进牌库”（没有合法位置或已装满）。
 
 牌库与面板的普通读模型刷新复用现有行及 Slate 身份；只有条目、安装分组或排序变化时才调整列表，避免按下/释放或拖动跨刷新时丢鼠标捕获或焦点。
@@ -602,7 +604,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | TargetUnavailable / InvalidGround / Direction / OutOfRange / Blocked | 来源按钮附近显示精简原因；TargetUnavailable 不细分隐藏对象是否存在/死亡 | 不沿隐藏位置追踪、不靠服务器错误反查目标；不把路径失败当到达。 |
 | NoSource / CD / MomentumShort / ControlBlocked | 明确空槽、冷却、劲不足、控制类别；执行限制和意图派发分开 | 不把“保护中”一律禁进攻，不根据本地预测阻断全部无效意图。 |
 | `Rejected + ProtectionRemoved` | 同时显示“劲不足”等执行结果和“复活保护没了”；按 LifeRevision 等待/接受相应 owner 变化 | **Rejected 不等于全部状态未变**。目标/资源失败不扣未提交的劲与冷却，但真实保护变化不回滚。 |
-| NoEmptySlot / SlotOccupied / NotEnoughPoints / PhaseClosed / BuildLocked / NotRestWindow / Dead（成长） | 学到按钮与属性图标的“+”置灰并写原因：“Q/W/E 已满”、点数不足、对局已结束；休息服务写返回倒计时不能用、“休息时才能替换”或“阵亡中”；Q/W/E 已满时选技能照常可做，存为图纸并在回执里写明原因 | 不在回执前改本地构筑；不把存为图纸说成已学到，不替玩家自动学习或加点。没有“未脱战”原因。 |
+| NoEmptySlot / SlotOccupied / NotEnoughPoints / PhaseClosed / BuildLocked / NotRestWindow / Dead（成长） | 学到按钮与属性图标的“+”置灰并写原因：“Q/W/E 已满”、点数不足、对局已结束；休息服务写返回倒计时不能用、“休息时或在躺平角脱战后才能替换”或“阵亡中”；Q/W/E 已满时选技能照常可做，存为图纸并在回执里写明原因 | 不在回执前改本地构筑；不把存为图纸说成已学到，不替玩家自动学习或加点。没有“未脱战”原因。 |
 | NumericUnderflow / NumericDomain（成长） | 明确数值域非法、本次业务零提交；保留原候选并按域结果恢复可操作状态 | 不把下溢/非法结果钳成 0 后显示 Applied，不部分消费机会。 |
 | RequestConflict / ReceiptExpired / ServiceUnavailable / AuthorityFault | 明确拒绝、合法重读/查询或返回菜单；内部细节留服务器日志 | 不吞异常、不无限等待按钮；回执缓存清理不能重新执行旧请求。 |
 | MatchClosed / LeftMatch / HostLost | 关闭 gameplay 输入/会话，切合法结果或菜单中断原因 | 不把 HostLost 当赢、不伪造终局表、不把普通离开算击杀。 |
