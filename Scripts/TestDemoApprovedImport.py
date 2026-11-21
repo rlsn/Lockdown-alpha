@@ -354,7 +354,7 @@ class ApprovedDemoData(unittest.TestCase):
             # Issue #287 spec §10-§11 (P6): the showdown ring, respawn, objectives, hotspots, affixes and hidden things.
             ("SHOWDOWN.RingRadiusCm", "cm", "1800"), ("SHOWDOWN.RingFinalRadiusCm", "cm", "600"), ("SHOWDOWN.RingPreviewSec", "ms", "10"),
             ("SHOWDOWN.RingDamageTickSec", "ms", "0.25"), ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ratio", "0.05"), ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ratio", "0.12"),
-            ("LIFE.RespawnBaseSec", "ms", "6"), ("LIFE.RespawnPerLevelSec", "ms", "0.5"), ("LIFE.SpawnChoiceSec", "ms", "4"),
+            ("LIFE.RespawnBaseSec", "ms", "6"), ("LIFE.RespawnPerLevelSec", "ms", "0.5"), ("LIFE.SpawnChoiceSec", "ms", "6"),
             ("OBJECTIVE.StartSec", "ms", "100"), ("OBJECTIVE.AnnounceLeadSec", "ms", "10"), ("OBJECTIVE.FlagWindowSec", "ms", "30"),
             ("OBJECTIVE.FlagRadiusCm", "cm", "200"), ("OBJECTIVE.FlagSpraySec", "ms", "3"), ("OBJECTIVE.ArenaSec", "ms", "40"),
             ("OBJECTIVE.ArenaRadiusCm", "cm", "900"), ("DAILY.RainIntervalSec", "ms", "20"), ("DAILY.RainPuddleSec", "ms", "10"),
@@ -468,7 +468,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # Issue #287 spec §10-§11 (P6) counts.
-            ("LIFE.SpawnChoiceCount", 2), ("OBJECTIVE.FlagCardOffer", 3), ("OBJECTIVE.ArenaCardOffer", 5),
+            ("LIFE.SpawnChoiceCount", 3), ("OBJECTIVE.FlagCardOffer", 3), ("OBJECTIVE.ArenaCardOffer", 5),
             ("DAILY.Count", 2), ("DAILY.RainPuddles", 6), ("DAILY.RumorLeaders", 2), ("AFFIX.FridgeCardOffer", 3),
             ("AFFIX.BonusCardOffer", 5), ("AFFIX.AuditSkillPointsMax", 1), ("EXPLORE.LockerCount", 4),
             ("EXPLORE.LockerCardOffer", 3), ("EXPLORE.PeddlerCardOffer", 5),
