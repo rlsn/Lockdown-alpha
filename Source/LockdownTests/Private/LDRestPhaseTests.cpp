@@ -39,8 +39,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
 {
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
-    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 45, rest build 40, return 5"),
-        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 45000 && P.BuildMs == 40000 && P.ReturnMs == 5000);
+    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 20, rest build 40, return 3"),
+        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 20000 && P.BuildMs == 40000 && P.ReturnMs == 3000);
     FString Error;
     {
         FLDMatchTimeline Paused;
@@ -145,8 +145,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 3 * Seg + 60000 && View.FieldEndT == -1);
-    // Start to the flagpole: R0 (45 + 5 s), three rests (40 + 5 s each) and three 160 s segments, 665 s.
-    bGood &= TestEqual(TEXT("The flagpole opens 665 s after the start"), Final - Start, int64(665000));
+    // Start to the flagpole: R0 (20 + 3 s), three rests (40 + 3 s each) and three 160 s segments, 632 s.
+    bGood &= TestEqual(TEXT("The flagpole opens 632 s after the start"), Final - Start, int64(632000));
     return bGood;
 }
 
