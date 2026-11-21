@@ -158,7 +158,7 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
 | `Content\Lockdown\Data` | 已生成并校验的运行载荷 |
 | `Content\Lockdown\Generated` | 原生目录、派生碰撞网格与保存的正式关卡 |
 | `Content\Lockdown\Audio` | `ImportDemoAudio.ps1` 由 `SourceData\Audio` 清单导入的音效目录与声音资产 |
-| `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入的身体、动画、装饰道具与美术目录；`Art\UI` 是 `-Mode ImportUI` 由 `SourceData\UI\ui_images.json`（项目方提供的标题与房间背景图，不属于 CC0 美术包）与 `ui_icons.json`（`SourceData\UI\Icons` 的主动、五维属性、构筑牌与状态图标，#85）导入的 UI 纹理，以及由 `ui_fonts.json`（`SourceData\UI\Fonts` 的思源黑体与 OFL 许可）导入的 `Art\UI\Fonts` 字体；`Art\VFX\Hit` 是 `-Mode ImportVFX` 由 `SourceData\VFX\vfx_textures.json`（`SourceData\VFX\Blender\hit_textures.py` 用 Blender 渲染的命中遮罩）导入的特效纹理与导入器生成的两个特效材质 ；铁笼栏片 `SourceData\Art\Lockdown\CageFence\cage_fence.glb` 由 `Scripts\BuildCageFenceModel.py` 在 Blender 中生成（`blender -b --factory-startup --python Scripts\BuildCageFenceModel.py -- <输出 glb>`），改动后重算清单哈希再导入；`-Mode ImportProps` 只重新导入道具与装饰道具引用，保留目录里的身体与从地图读出的装饰记录（不做摆放检查），用于地图仍在重新摆放时加入新道具 |
+| `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入身体、动画、道具与美术目录；`Art\UI` 由 `-Mode ImportUI` 从 `ui_images.json`、`ui_icons.json` 与 `ui_fonts.json` 导入背景、图标与思源黑体；`Art\VFX\Hit` 由 `-Mode ImportVFX` 从 `vfx_textures.json` 导入命中遮罩并生成特效材质；铁笼模型由 `Scripts\BuildCageFenceModel.py` 生成；`-Mode ImportProps` 仅增量重导道具与装饰引用 |
 | `Config` | 项目、平台与布局配置；本机设置放忽略的 `Config\Local` |
 | `Scripts` | 构建、生成、运行和当前结果校验 |
 | `docs` | 当前产品规则与组件技术说明，不存构建输入或每次运行档案 |
@@ -228,11 +228,9 @@ Host 仅请求 `/Game/Lockdown/Generated/Maps/L_Demo?listen`；
 Join 还携带独立 wire 版本、产品版本和根 manifest 摘要；连接中不表示准入已成功。
 原生 GameMode 不再通过旧 profile 创建战斗、经济、人口、旧目标或 probe 服务。
 
-GameMode 提供真人和最多 3 个 AI 共用的六人容量、Host 权限、结构名单版本与有界会话回执。
-Ready 变化不增加结构版本，成员/AI 名额变化清除真人 Ready；开局时每个 AI 名额由对手提供者生成一个服务器
-`ALDOpponentController`。只有全部正常开局提供者都已注册时才能开局，缺任一提供者时明确拒绝。
-玩家名称经 `?LDName=` 传入并由服务器按设置中的名称规则复核；加入被拒时客户端显示中文原因与稳定原因码。
-场景见[验证手册](systems/VERIFICATION.md#最小验证选择)。
+GameMode 提供真人和最多 3 个 AI 共用的六人容量、Host 权限（房主免准备）、结构名单版本与有界会话回执。
+Ready 变化只推进公共发布版本；真人成员进出推进结构版本并清除真人 Ready，房主调整 AI 名额保留已准备真人的 Ready 状态；开局时每个 AI 名额生成一个服务器 `ALDOpponentController`。全部必需提供者已注册且除房主外的真人均已准备时才允许开局。
+玩家名称经 `?LDName=` 传入并由服务器复核；加入被拒时客户端显示中文原因与稳定原因码。场景见[验证手册](systems/VERIFICATION.md#最小验证选择)。
 
 Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 同机可使用回环地址，其他设备使用局域网地址；公网直连需要相应网络配置，不提供自动穿透。
@@ -263,10 +261,9 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 - 资源与重复试验：加经验、补满生命与劲、重置冷却、重置到开局；加 1 个技能点、把劲设为 0 到上限之间的整数（只在面板里，没有控制台命令）；
 - 主动技能：运行目录里全部主动，显示是否已学，“学习”直接学到空槽（不需要机会或图纸），Q/W/E 都满时用“替换”；
 - 五维加点：用自己的未分配点数给五维属性加点；
-- 测试属性：十一项属性各一个输入框，旁边显示服务器提交后的最终值与来源（含“测试”这一项）；清除全部测试属性；
-- 打击感与特效：`ld.Feel.*` 每项一行 -/+ 步进（命中停顿、镜头、出手闪光、命中粒子、拟声字、出手预测、挥击轨迹、施法聚能）与“全部恢复初值”；
-  这些是本机客户端控制台变量，不发送 DEV 命令、只在本次运行有效，设置页“特效”页步进同一组值（[视野与界面](systems/VISION_AND_UI.md)）；
-- 整局（只有房主看得到）：刷新已清空营地、提前开圈。
+- 测试属性：`LDDevTest::StatFields()` 各项属性输入框，旁列服务器提交后的最终值与来源（含“测试”层）；支持一键清除；
+- 打击感与特效：`ld.Feel.*` 步进调节、恢复初值与一键复制当前手感配置到剪贴板（本机客户端控制台变量，本次运行有效）；
+- 整局（仅限房主）：刷新已清空营地、提前开圈、一键应用 10 套质变样板（`ld.Dev.Breakout <样板>`）。
 
 面板的成长与战斗项只把输入换成同一组 DEV 测试命令，结果由服务器按真实规则提交；数量或数值格式不对时在本地拒绝、不发送，
 面板顶部显示最近一次的结果或拒绝原因。也可以按 `~` 打开控制台使用同样的命令：
@@ -331,7 +328,7 @@ python -B .\Scripts\SummarizePlaytestLog.py <RunDemo 输出目录> --check-clien
 `--death-window` 可改）、经济时间线、每个标记前 30 秒到后 10 秒的事件与标记前最近的状态行（`--mark-before`/`--mark-after`；
 AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能与网络汇总、警告与错误。
 
-有房主日志时，每局还有一节“Metrics (spec §16)”（参赛者以 `LD_MATCH_ROSTER` 为准；休息室私人训练不计：`LD_TRAINING_DUMMY_SPAWN` 的假人与名单外的参赛者类身体，以及心跳全在休息里的生命——开局到第一次 `LD_FIELD_ENTER`、每次 `LD_REST_ENTER` 到下一次 `LD_FIELD_ENTER`——的劲账本与完美闪避；伤害因子与反应种类也排除假人），末尾一节把全部局汇总成史诗 #287 §16 的指标表（目标只供判断，不是门禁）：
+有房主日志时，每局另输出对局指标汇总（参赛者以 `LD_MATCH_ROSTER` 为准；排除休息室训练假人与休息期间生命，指标仅供试玩诊断，不是门禁）：
 
 | 指标 | 口径 |
 | --- | --- |

@@ -1,5 +1,0 @@
-import unreal
-unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play()
-print(unreal.SystemLibrary.capsule_trace_single_for_objects.__doc__)
-print(unreal.SystemLibrary.line_trace_single_for_objects.__doc__)
-print(unreal.SystemLibrary.capsule_overlap_actors.__doc__)
