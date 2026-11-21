@@ -88,7 +88,8 @@ void ALDPlayerController::PawnLeavingGame()
 void ALDPlayerController::InitializeLocalUI()
 {
     if (!IsLocalController() || !GetLocalPlayer() || RootUI) { return; }
-    auto* Instance=CastChecked<ULDGameInstance>(GetGameInstance());
+    auto* Instance=Cast<ULDGameInstance>(GetGameInstance());
+    if (!Instance) { return; }
     // A room this client already leaves for a refusal or a closed room gets no room UI: building it would mark that
     // reason as already seen, and the frontend would show none.
     if (Instance->IsLeavingWorld(GetWorld())) { return; }
@@ -194,8 +195,10 @@ void ALDPlayerController::ClientBuildStats_Implementation(const FLDBuildStatsVie
 void ALDPlayerController::ClientTrainingCombo_Implementation(const FLDTrainingComboView& Combo)
 {
     FString Error;
-    if (Combo.Match==0 || !LDDamageRecap::ValidateLines(Combo.Lines,Error) || Combo.Match<TrainingCombo.Match
-        || (Combo.Match==TrainingCombo.Match && Combo.Serial<=TrainingCombo.Serial)) { return; }
+    const bool bLinesValid=Combo.Lines.IsEmpty() ? Combo.TotalP2==0 : LDDamageRecap::ValidateLines(Combo.Lines,Error);
+    if (Combo.Match==0 || !bLinesValid || Combo.TotalP2<0 || Combo.ElapsedMs<0 || Combo.PreviousTotalP2<0
+        || Combo.Match<TrainingCombo.Match || (Combo.Match==TrainingCombo.Match && Combo.Serial<=TrainingCombo.Serial))
+    { return; }
     TrainingCombo=Combo;
 }
 

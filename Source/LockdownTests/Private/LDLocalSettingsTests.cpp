@@ -77,6 +77,7 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 MusiclessFixtureSchema = 19;
     constexpr uint32 CombatFeelLessFixtureSchema = 21;
     constexpr uint32 CombatFeelFixtureSchema = 22;
+    constexpr uint32 ColorblindlessFixtureSchema = 23;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -103,6 +104,11 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         {
             uint8 ReduceEffects=Values.bReduceCombatEffects?1:0, CameraShake=Values.bCameraShake?1:0;
             Payload << ReduceEffects << CameraShake;
+        }
+        if (Schema > ColorblindlessFixtureSchema)
+        {
+            uint8 Colorblind=Values.bColorblindMode?1:0;
+            Payload << Colorblind;
         }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
@@ -192,7 +198,13 @@ constexpr uint32 NearZoomFixtureSchema = 12;
 
     FString DisplayIni(const FLDDisplaySettings& Value)
     {
-        return FString::Printf(TEXT("[/Script/Engine.GameUserSettings]\nbUseVSync=%s\n"), Value.bVSync ? TEXT("True") : TEXT("False"));
+        return FString::Printf(
+            TEXT("[/Script/Engine.GameUserSettings]\nbUseVSync=%s\nFullscreenMode=%d\nResolutionSizeX=%d\nResolutionSizeY=%d\nFrameRateLimit=%.2f\n"),
+            Value.bVSync ? TEXT("True") : TEXT("False"),
+            int32(Value.WindowMode),
+            Value.Resolution.X,
+            Value.Resolution.Y,
+            double(Value.FrameRateLimit));
     }
 
     FString QualityIni(const FLDDisplaySettings& Value)
@@ -589,18 +601,20 @@ bool FLDLocalSettingsCombatFeedbackTest::RunTest(const FString& Parameters)
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     TestFalse(TEXT("Combat effects are full strength by default"), Applied->bReduceCombatEffects);
     TestTrue(TEXT("Camera shake is enabled by default"), Applied->bCameraShake);
+    TestFalse(TEXT("Colorblind mode is off by default"), Applied->bColorblindMode);
     Applied->bReduceCombatEffects = true;
     Applied->bCameraShake = false;
-    TestTrue(TEXT("The combat feedback preferences save and round-trip"),
+    Applied->bColorblindMode = true;
+    TestTrue(TEXT("The combat feedback and colorblind preferences save and round-trip"),
         Applied->SaveLocalSettings().IsSaved());
     const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("The saved combat feedback preferences load exactly"),
+    TestTrue(TEXT("The saved combat feedback and colorblind preferences load exactly"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
-        && Loaded.Settings->bReduceCombatEffects && !Loaded.Settings->bCameraShake);
+        && Loaded.Settings->bReduceCombatEffects && !Loaded.Settings->bCameraShake && Loaded.Settings->bColorblindMode);
     if (!Loaded.Settings) { return false; }
     Loaded.Settings->ResetPreferenceGroup(ELDPreferenceGroup::Interface);
-    TestTrue(TEXT("Restoring the interface page resets both combat feedback preferences"),
-        !Loaded.Settings->bReduceCombatEffects && Loaded.Settings->bCameraShake);
+    TestTrue(TEXT("Restoring the interface page resets combat feedback and colorblind preferences"),
+        !Loaded.Settings->bReduceCombatEffects && Loaded.Settings->bCameraShake && !Loaded.Settings->bColorblindMode);
 
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
@@ -1134,8 +1148,13 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
         Settings->Bindings.Remove(Name);
     }
     TestTrue(TEXT("Raw-map probes leave exactly the Demo defaults"), HasExactDemoDefaults(*Settings));
+    FString Swapped;
+    TestTrue(TEXT("Conflicting action key swaps bindings cleanly (#331)"),
+        Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error, &Swapped)
+        && Settings->Key(TEXT("PanUp")) == EKeys::Q && Settings->Key(TEXT("Skill1")) == EKeys::Up && !Swapped.IsEmpty());
+    Settings->ResetBindings();
     const auto Before = Settings->Bindings;
-    TestFalse(TEXT("Conflicting key is rejected, never relocated"), Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error));
+    TestFalse(TEXT("Reserved Back key cannot be swapped onto another action"), Settings->Rebind(TEXT("PanUp"), EKeys::Escape, Error));
     TestTrue(TEXT("Rejected rebind preserves every binding"), Settings->Bindings.OrderIndependentCompareEqual(Before));
     TestTrue(TEXT("The applied owner accepts a chosen name"), Settings->SetAppliedPlayerName(TEXT("王小明"), Error));
     Settings->TextScale = 1.25f;
@@ -1207,11 +1226,14 @@ bool FLDLocalDisplayBorderlessOnlyTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("It is the confirmed mode, so a later save writes no unconfirmed window"),
         Settings->GetLastConfirmedFullscreenMode() == EWindowMode::WindowedFullscreen
         && Settings->GetLastConfirmedScreenResolution() == Desktop);
-    TestTrue(TEXT("VSync, quality and render scale are untouched"), FLDDisplaySettings::Read(*Settings) == Before);
+    const auto Held = FLDDisplaySettings::Read(*Settings);
+    TestTrue(TEXT("VSync, quality and render scale are untouched while mode & resolution update (#331)"),
+        Held.bVSync == Before.bVSync && Held.Quality == Before.Quality
+        && Held.WindowMode == EWindowMode::WindowedFullscreen && Held.Resolution == Desktop);
     LDLocalSettings::HoldBorderlessDesktop(*Settings);
     TestTrue(TEXT("Holding it again changes nothing"),
         Settings->GetFullscreenMode() == EWindowMode::WindowedFullscreen && Settings->GetScreenResolution() == Desktop
-        && FLDDisplaySettings::Read(*Settings) == Before);
+        && FLDDisplaySettings::Read(*Settings) == Held);
     return true;
 }
 
@@ -1327,6 +1349,29 @@ bool FLDLocalDisplayPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Modify disk without modifying the expected in-memory state"),
         FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
     TestTrue(TEXT("Readback does not trust stale cached VSync"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    for (const TCHAR* MissingLine : {
+        TEXT("FullscreenMode=1\n"),
+        TEXT("ResolutionSizeX=1920\n"),
+        TEXT("ResolutionSizeY=1080\n"),
+        TEXT("FrameRateLimit=0.00\n") })
+    {
+        TestTrue(TEXT("Write display fixture missing one required display field"),
+            FFileHelper::SaveStringToFile(DisplayIni(Expected).Replace(MissingLine, TEXT("")), *Fixture.DisplayFile));
+        TestTrue(FString::Printf(TEXT("Missing %s must fail readback"), MissingLine),
+            Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    }
+    Changed = Expected;
+    Changed.WindowMode = EWindowMode::Windowed;
+    TestTrue(TEXT("Write mismatched FullscreenMode"), FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
+    TestTrue(TEXT("Mismatched FullscreenMode fails readback"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    Changed = Expected;
+    Changed.Resolution = FIntPoint(1280, 720);
+    TestTrue(TEXT("Write mismatched Resolution"), FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
+    TestTrue(TEXT("Mismatched Resolution fails readback"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
+    Changed = Expected;
+    Changed.FrameRateLimit = 144.f;
+    TestTrue(TEXT("Write mismatched FrameRateLimit"), FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
+    TestTrue(TEXT("Mismatched FrameRateLimit fails readback"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
     TestTrue(TEXT("Restore confirmed display fixture"), FFileHelper::SaveStringToFile(DisplayIni(Expected), *Fixture.DisplayFile));
     Changed = Expected;
     Changed.Quality.TextureQuality = 4;
@@ -1931,6 +1976,19 @@ bool FLDLocalSettingsSkillEMigrationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Schema 22 keeps an existing B binding and assigns an unused workshop key"),
         WorkshopFallback.Status == ELDLocalSettingsLoadStatus::Migrated && WorkshopFallback.Settings
         && WorkshopFallback.Settings->Key(TEXT("Stop")) == EKeys::B && WorkshopFallback.Settings->Key(TEXT("Workshop")) == EKeys::F10);
+
+    Values->ResetBindings();
+    Values->bColorblindMode = true;
+    const TArray<uint8> ColorblindlessFile = FixtureBytes(*Values, ColorblindlessFixtureSchema, 0);
+    Write(ColorblindlessFile);
+    const auto ColorblindDefault = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 23 migrates to 24 with colorblind mode off by default and preserves bindings"),
+        ColorblindDefault.Status == ELDLocalSettingsLoadStatus::Migrated && ColorblindDefault.Settings
+        && !ColorblindDefault.Settings->bColorblindMode
+        && ColorblindDefault.Settings->Key(TEXT("Workshop")) == EKeys::B);
+    After.Reset();
+    TestTrue(TEXT("The schema 23 file is not rewritten by loading"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && After == ColorblindlessFile);
     return true;
 }
 
@@ -1941,7 +1999,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 23);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 24);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);

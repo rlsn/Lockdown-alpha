@@ -11,7 +11,10 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDChainCodex.h"
+#include "HAL/PlatformApplicationMisc.h"
+#include "IPAddress.h"
 #include "Misc/ConfigCacheIni.h"
+#include "SocketSubsystem.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
@@ -393,8 +396,11 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         Add(Body,Label(TEXT("房主 IP 与端口"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
         auto* EndpointRow=WidgetTree->ConstructWidget<UHorizontalBox>();
         Add(Body,EndpointRow,4);
-        AddressBox=MakeTextBox(TEXT("房主 IP 或主机名"),TEXT("JoinAddress"));
-        AddressBox->SetText(FText::FromString(Draft?Draft->Address:FString()));
+        AddressBox=MakeTextBox(TEXT("房主 IP / IP:端口（可直接粘贴）"),TEXT("JoinAddress"));
+        LastAddressInput=Draft?Draft->Address:FString();
+        AddressBox->SetText(FText::FromString(LastAddressInput));
+        AddressBox->OnTextChanged.AddDynamic(this,&ULDUIRoot::AddressTextChanged);
+        AddressBox->OnTextCommitted.AddDynamic(this,&ULDUIRoot::AddressTextCommitted);
         EndpointRow->AddChildToHorizontalBox(AddressBox)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         PortBox=MakeTextBox(TEXT("端口"),TEXT("JoinPort"));
         PortBox->SetText(FText::FromString(Draft&&!Draft->Port.IsEmpty()?Draft->Port:bListenPortValid?FString::FromInt(ListenPort):FString()));
@@ -486,7 +492,17 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     LobbyPage=MakePage(Canvas,860,Lobby);
     LobbyPage->SetVisibility(ESlateVisibility::Collapsed);
     Add(Lobby,Label(TEXT("房间"),LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
-    Add(Lobby,Label(TEXT("所有真人准备后，由房主开始对局。"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
+    Add(Lobby,Label(TEXT("房主免准备；所有客机准备后，由房主直接开始对局。"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
+    RoomAddressRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+    Add(Lobby,RoomAddressRow,4);
+    RoomAddressLabel=Label(FString(),LDHUDStyle::TypeBody,LDHUDStyle::MenuSection);
+    RoomAddressLabel->SetAutoWrapText(false);
+    UHorizontalBoxSlot* AddrTextSlot=RoomAddressRow->AddChildToHorizontalBox(RoomAddressLabel);
+    AddrTextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    AddrTextSlot->SetVerticalAlignment(VAlign_Center);
+    CopyAddressButton=MakeButton(LDTerms::CopyRoomAddress,TEXT("CopyRoomAddress"),[this](){CopyRoomAddress();},LDHUDStyle::TypeBody);
+    RoomAddressRow->AddChildToHorizontalBox(CopyAddressButton)->SetPadding(FMargin(8,0,0,0));
+    RoomAddressRow->SetVisibility(ESlateVisibility::Collapsed);
     RosterRows=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Lobby,RosterRows,8);
     AIButtonRow=WidgetTree->ConstructWidget<UHorizontalBox>();
@@ -531,7 +547,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Add(Lobby,LobbyBlocker,4);
     LobbyFeedback=Label(FString(),LDHUDStyle::TypeText);
     Add(Lobby,LobbyFeedback,4);
-    Add(Lobby,Label(TEXT("最多 6 名参赛者（含房主），其中 AI 最多 3 个；空位不会自动补满。成员或 AI 数量变化会清除真人准备。"),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted),6);
+    Add(Lobby,Label(TEXT("最多 6 名参赛者（含房主），其中 AI 最多 3 个；空位不会自动补满。真人进出会清除准备，调整 AI 数量保留真人准备。"),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted),6);
     // #198 §10: the own last build blueprint and the read-only import view, outside any match.
     Add(Lobby,MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
     {
@@ -822,6 +838,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const bool bHeader=!bInLobby&&!bInResults&&!PC.Navigation->Enabled();
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     if(bHeader){SetLine(Status,TEXT("对局阶段：")+MatchPhaseText(Match));}
+    if(!bInLobby){CachedRoomEndpoint.Reset();CachedRoomGeneration=0;CachedRoomPort=-1;}
     if(bInLobby){RefreshLobby(PC,*Public);}
     if(!bMenuOpen){return;}
     SetLine(MenuPause,bPlaying?FString(TEXT("对局不会暂停")):FString());
@@ -869,6 +886,26 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
             AIButtons[Count]->SetIsEnabled(Lobby.Members.Num()-Lobby.AICount+Count<=LDMatchLifecycle::MaxContenders);
         }
     }
+    if(RoomAddressRow&&RoomAddressLabel)
+    {
+        RoomAddressRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
+        if(bHost)
+        {
+            const UWorld* World=GetWorld();
+            const int32 LivePort=(World&&World->URL.Port>0&&World->URL.Port<=65535)?World->URL.Port:0;
+            if(CachedRoomEndpoint.IsEmpty()||CachedRoomGeneration!=Lobby.Generation||CachedRoomPort!=LivePort)
+            {
+                CachedRoomEndpoint=ResolveRoomEndpoint();
+                CachedRoomGeneration=Lobby.Generation;
+                CachedRoomPort=LivePort;
+            }
+            SetLine(RoomAddressLabel,FString::Printf(TEXT("房间地址：%s"),*CachedRoomEndpoint));
+        }
+        else if(!CachedRoomEndpoint.IsEmpty())
+        {
+            CachedRoomEndpoint.Reset();CachedRoomGeneration=0;CachedRoomPort=-1;
+        }
+    }
     AIButtonRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     SetLine(AIReadOnly,bHost||!bCurrent?FString():FString::Printf(TEXT("AI 对手：%d"),int32(Lobby.AICount)));
     // A DEV test room says so before anyone starts: its results are fixture evidence, never a cheat-free match.
@@ -876,16 +913,46 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
         :FString(Lobby.DevTestSession?TEXT("测试模式房间：对局中可用“测试”面板改自己的状态"):TEXT("开发房间"))
         +(Lobby.DevContentReload?TEXT(" · 内容热重载：只接受房主与 AI"):TEXT(""))+TEXT("；结果不算无作弊对局。"));
     StartMatchButton->SetVisibility(bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    if(UWidget* StartWrap=StartMatchButton->GetParent()){StartWrap->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);}
+    if(UWidget* StartWrap=StartMatchButton->GetParent())
+    {
+        StartWrap->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
+        if(auto* StartSlot=Cast<UHorizontalBoxSlot>(StartWrap->Slot)){StartSlot->SetPadding(FMargin(bHost?0.f:8.f,0,0,0));}
+    }
     StartMatchButton->SetIsEnabled(bCurrent&&Lobby.CanStart);
     const bool bCanStart=bHost&&bCurrent&&Lobby.CanStart;
     const LDUIPaint::EButton StartLook=bCanStart?LDUIPaint::EButton::Primary:LDUIPaint::EButton::Normal;
     if(StartMatchButton->Look!=StartLook){LDWidgets::SetLook(StartMatchButton,StartLook);}
     StartMatchGlow->SetVisibility(bCanStart?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
-    ReadyButton->SetIsEnabled(bOwnerCurrent);
-    SetLine(CastChecked<UTextBlock>(ReadyButton->GetContent()),Mine.bReady?TEXT("取消准备"):TEXT("准备"));
-    SetLine(LobbyBlocker,!bCurrent||Lobby.CanStart||Lobby.StartBlocker.IsEmpty()?FString():TEXT("暂不能开始：")+Lobby.StartBlocker);
-    SetLine(LobbyFeedback,PC.IntentFeedback);
+    // #337 §4: hide ReadyButton for the Host; only guests see Ready / Cancel Ready.
+    ReadyButton->SetVisibility(!bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    ReadyButton->SetIsEnabled(bOwnerCurrent&&!bHost);
+    if(UTextBlock* ReadyCap=Cast<UTextBlock>(ReadyButton->GetContent()))
+    {
+        SetLine(ReadyCap,Mine.bReady?TEXT("取消准备"):TEXT("准备"));
+    }
+    int32 GuestTotal=0,GuestReady=0;
+    for(const FLDLobbyMember& Member:Lobby.Members)
+    {
+        if(Member.Kind==ELDContenderKind::Human&&!Member.Host)
+        {
+            ++GuestTotal;
+            if(Member.Ready){++GuestReady;}
+        }
+    }
+    FString BlockerLine;
+    if(bCurrent&&!Lobby.CanStart)
+    {
+        if(bHost&&GuestTotal>0&&GuestReady<GuestTotal)
+        {
+            BlockerLine=FString::Printf(TEXT("等待其他玩家准备 (%d/%d)"),GuestReady,GuestTotal);
+        }
+        else if(!Lobby.StartBlocker.IsEmpty())
+        {
+            BlockerLine=TEXT("暂不能开始：")+Lobby.StartBlocker;
+        }
+    }
+    SetLine(LobbyBlocker,BlockerLine);
+    SetLine(LobbyFeedback,!PC.IntentFeedback.IsEmpty()?PC.IntentFeedback:CopiedAddressFeedback);
 }
 
 const FLDDemoContentDefinitions* ULDUIRoot::ResultDefinitions()
@@ -1221,8 +1288,19 @@ void ULDUIRoot::Join()
     Draft->NoticeFor=ELDFrontendAttempt::Join;
     FString Name;
     if(!ApplyPlayerName(*PC,Name)){return;}
-    const FString HostName=AddressBox->GetText().ToString().TrimStartAndEnd();
-    const FString PortText=PortBox->GetText().ToString().TrimStartAndEnd();
+    FString HostName=AddressBox->GetText().ToString().TrimStartAndEnd();
+    FString PortText=PortBox->GetText().ToString().TrimStartAndEnd();
+    FString SplitHost,SplitPort;
+    if(LDDemoEntry::SplitPastedEndpoint(HostName,SplitHost,SplitPort))
+    {
+        HostName=SplitHost;
+        PortText=SplitPort;
+        bSplittingAddress=true;
+        LastAddressInput=HostName;
+        AddressBox->SetText(FText::FromString(HostName));
+        PortBox->SetText(FText::FromString(PortText));
+        bSplittingAddress=false;
+    }
     Draft->Address=HostName;
     Draft->Port=PortText;
     int32 Port=0;
@@ -1265,6 +1343,88 @@ void ULDUIRoot::CancelJoin()
     Draft->NoticeFor=ELDFrontendAttempt::Join;
     Draft->Notice=TEXT("已取消连接");
     UpdateStartControls();
+}
+
+void ULDUIRoot::AddressTextChanged(const FText& Text)
+{
+    if(bSplittingAddress||!AddressBox||!PortBox){return;}
+    const FString Current=Text.ToString();
+    const FString Previous=LastAddressInput;
+    LastAddressInput=Current;
+    // Manual typing inserts at most one character per event: wait for commit/blur or Join instead of splitting on the first digit.
+    if(LDDemoEntry::IsSingleCharTypingEdit(Previous,Current)){return;}
+    FString SplitHost,SplitPort;
+    if(LDDemoEntry::SplitPastedEndpoint(Current,SplitHost,SplitPort))
+    {
+        bSplittingAddress=true;
+        LastAddressInput=SplitHost;
+        AddressBox->SetText(FText::FromString(SplitHost));
+        PortBox->SetText(FText::FromString(SplitPort));
+        if(ULDStartPageDraft* Draft=StartDraft()){Draft->Address=SplitHost;Draft->Port=SplitPort;}
+        bSplittingAddress=false;
+    }
+}
+
+void ULDUIRoot::AddressTextCommitted(const FText& Text,ETextCommit::Type Method)
+{
+    if(bSplittingAddress||!AddressBox||!PortBox){return;}
+    if(Method==ETextCommit::OnCleared){LastAddressInput=Text.ToString();return;}
+    FString SplitHost,SplitPort;
+    if(LDDemoEntry::SplitPastedEndpoint(Text.ToString(),SplitHost,SplitPort))
+    {
+        bSplittingAddress=true;
+        LastAddressInput=SplitHost;
+        AddressBox->SetText(FText::FromString(SplitHost));
+        PortBox->SetText(FText::FromString(SplitPort));
+        if(ULDStartPageDraft* Draft=StartDraft()){Draft->Address=SplitHost;Draft->Port=SplitPort;}
+        bSplittingAddress=false;
+    }
+    else
+    {
+        LastAddressInput=Text.ToString();
+    }
+}
+
+FString ULDUIRoot::ResolveRoomEndpoint() const
+{
+    int32 Port=7777;
+    if(const UWorld* World=GetWorld();World&&World->URL.Port>0&&World->URL.Port<=65535)
+    {
+        Port=World->URL.Port;
+    }
+    else if(GConfig)
+    {
+        GConfig->GetInt(TEXT("URL"),TEXT("Port"),Port,GEngineIni);
+    }
+    FString ChosenIP=TEXT("127.0.0.1");
+    if(ISocketSubsystem* Sockets=ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM))
+    {
+        TArray<TSharedPtr<FInternetAddr>> Addresses;
+        if(Sockets->GetLocalAdapterAddresses(Addresses))
+        {
+            int32 BestRank=0;
+            for(const TSharedPtr<FInternetAddr>& Addr:Addresses)
+            {
+                if(!Addr.IsValid()){continue;}
+                const FString Text=Addr->ToString(false);
+                if(Text.IsEmpty()||Text.Contains(TEXT(":"))||Text==TEXT("0.0.0.0")||Text==TEXT("127.0.0.1")||Text.StartsWith(TEXT("169.254.")))
+                {continue;}
+                int32 Rank=1;
+                if(Text.StartsWith(TEXT("192.168."))||Text.StartsWith(TEXT("10."))){Rank=3;}
+                else if(Text.StartsWith(TEXT("172."))){Rank=2;}
+                if(Rank>BestRank){BestRank=Rank;ChosenIP=Text;}
+            }
+        }
+    }
+    return FString::Printf(TEXT("%s:%d"),*ChosenIP,Port);
+}
+
+void ULDUIRoot::CopyRoomAddress()
+{
+    if(CachedRoomEndpoint.IsEmpty()){CachedRoomEndpoint=ResolveRoomEndpoint();}
+    FPlatformApplicationMisc::ClipboardCopy(*CachedRoomEndpoint);
+    CopiedAddressFeedback=FString::Printf(TEXT("已复制 %s（发给好友粘贴到加入栏即可）"),*CachedRoomEndpoint);
+    if(LobbyFeedback){LobbyFeedback->SetText(FText::FromString(CopiedAddressFeedback));LobbyFeedback->SetVisibility(ESlateVisibility::SelfHitTestInvisible);}
 }
 
 void ULDUIRoot::TextCommitted(const FText&,ETextCommit::Type Method)
@@ -1587,6 +1747,14 @@ FReply ULDUIRoot::NativeOnPreviewKeyDown(const FGeometry& Geometry,const FKeyEve
         if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()); PC && !Event.IsRepeat() && PC->ToggleDevTestMenu())
         {return FReply::Handled();}
         if(Event.IsRepeat()) {return FReply::Handled();}
+    }
+    if(!Event.IsRepeat() && !TextEditingOwner() && ActiveMainPanel()!=ELDUIMainPanel::Settings && Confirm==ELDRootConfirm::None)
+    {
+        if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+            PC && PC->HandleContextualKeyPress(Event.GetKey(), Event.IsAltDown(), Event.IsControlDown(), Event.IsShiftDown()))
+        {
+            return FReply::Handled();
+        }
     }
     return Super::NativeOnPreviewKeyDown(Geometry,Event);
 }

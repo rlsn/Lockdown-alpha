@@ -255,8 +255,8 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
 | `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 返回野外是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
 | `LIFE.RespawnBaseSec` / `RespawnPerLevelSec` | s/Sec | 6 / 0.5 | 野外复活等待 = 6 + 0.5 × 死亡时等级（秒）；考试周另加 `DAILY.ExamRespawnBonusSec` |
-| `LIFE.SpawnChoiceCount` | Count | 2 | 死亡时从全部野外出生点不放回抽这么多个候选；不超过 4，也不超过出生点数 |
-| `LIFE.SpawnChoiceSec` | s/Sec | 4 | 死者在这段时间内选一个候选，不选用第一个 |
+| `LIFE.SpawnChoiceCount` | Count | 3 | 死亡时从全部野外出生点不放回抽这么多个候选；不超过 4，也不超过出生点数 |
+| `LIFE.SpawnChoiceSec` | s/Sec | 6 | 死者在这段时间内选一个候选，不选用第一个 |
 | `OBJECTIVE.StartSec` / `AnnounceLeadSec` | s/Sec | 100 / 10 | 每段定时野外第 100 s 开放野外目标，提前 10 s 预告；须在本段内开始并结束 |
 | `OBJECTIVE.FlagWindowSec` / `FlagRadiusCm` / `FlagSpraySec` | s, cm, s | 30 / 200 / 3 | 野外 1、3 的小迷你旗：开放 30 s，半径 200 cm，独自累计喷漆 3 s 获胜（规则同旗杆喷漆） |
 | `OBJECTIVE.FlagCardOffer` | Count | 3 | 小迷你旗胜者的牌选组大小 |

@@ -410,4 +410,65 @@ bool FLDControlFeelAutoAttackAfterCastTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelElevationAimAndClipTest, "Lockdown.Rules.DemoControlFeel.ElevationAimAndClip",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
+{
+    // #335 §1: Camera ray aimed toward (1000, 300, 0) from top-down camera (0, -900, 1200) passes right through a 600cm
+    // wall top along the way; IntersectElevationPlane(Z=0) recovers the exact planar direction with 0.0 deg deflection.
+    const FVector CasterFeet(200., 100., 0.);
+    const FVector DesiredGround(1000., 300., 0.);
+    const FVector CamOrigin(200., -800., 1200.);
+    const FVector RayDir = (DesiredGround - CamOrigin).GetSafeNormal();
+    // Simulate a 600cm tall wall intercepting the ray halfway at Z=600 (which used to deflect GroundUnderPointer):
+    const double WallT = (600. - CamOrigin.Z) / RayDir.Z;
+    const FVector WallTopHit = CamOrigin + RayDir * WallT;
+    const FVector DeflectedDir = FVector(WallTopHit.X - CasterFeet.X, WallTopHit.Y - CasterFeet.Y, 0.).GetSafeNormal();
+    const FVector ExpectedDir = FVector(DesiredGround.X - CasterFeet.X, DesiredGround.Y - CasterFeet.Y, 0.).GetSafeNormal();
+    TestTrue(TEXT("Wall-top hit would have severely deflected direction"), FVector::DotProduct(DeflectedDir, ExpectedDir) < .85);
+
+    FVector PlaneHit = FVector::ZeroVector;
+    TestTrue(TEXT("IntersectElevationPlane resolves exact caster foot plane"),
+        LDOrderRules::IntersectElevationPlane(CamOrigin, RayDir, CasterFeet.Z, FVector(1., 0., 0.), CasterFeet, PlaneHit));
+    TestNearlyEqual(TEXT("Plane Z matches caster foot elevation"), PlaneHit.Z, CasterFeet.Z, 1e-4);
+    const FVector ResolvedDir = LDOrderRules::ResolveElevationAimDirection(CasterFeet, PlaneHit, FVector(0., 1., 0.));
+    const double AngleDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(ResolvedDir, ExpectedDir), -1., 1.)));
+    TestNearlyEqual(TEXT("Zero-degree angular error despite 600cm wall along camera ray (#335)"), AngleDeg, 0., 1e-4);
+
+    // Deadzone < 8cm falls back to CasterForward instead of dropping the cast.
+    const FVector NearFoot = CasterFeet + FVector(3., -4., 0.);
+    const FVector FallbackFwd = FVector(0., 1., 0.);
+    TestTrue(TEXT("Aim within 8cm deadzone falls back to CasterForward"),
+        LDOrderRules::ResolveElevationAimDirection(CasterFeet, NearFoot, FallbackFwd).Equals(FallbackFwd, 1e-4));
+
+    // #335 §2: Off-screen corridor segment clips cleanly to viewport instead of disappearing.
+    FVector2D SegA(960., 540.), SegB(960., 2400.);
+    TestTrue(TEXT("Half off-screen corridor segment remains visible"),
+        LDOrderRules::ClipViewportSegment(SegA, SegB, FVector2D(0., 0.), FVector2D(1920., 1080.)));
+    TestNearlyEqual(TEXT("Start inside viewport unchanged"), SegA.Y, 540., 1e-3);
+    TestNearlyEqual(TEXT("Far endpoint clipped cleanly to bottom edge"), SegB.Y, 1080., 1e-3);
+
+    FVector2D OutsideA(-200., -100.), OutsideB(-50., -20.);
+    TestFalse(TEXT("Wholly off-screen segment is culled"),
+        LDOrderRules::ClipViewportSegment(OutsideA, OutsideB, FVector2D(0., 0.), FVector2D(1920., 1080.)));
+
+    // #337 §3.2: 50ms / <15cm ClickMove coalescing bound to move identity and zero queued steps.
+    const FLDMoveIdentity MoveId{1, 1, 5, 0}, NextOrderId{1, 1, 6, 0}, StoppedId{1, 1, 6, 1};
+    TestTrue(TEXT("Rapid click within 50ms and <15cm on the same active move identity coalesces"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), MoveId, MoveId, 0));
+    TestFalse(TEXT("Intervening unit cast / order advancing Local.Order prevents coalescing"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), NextOrderId, MoveId, 0));
+    TestFalse(TEXT("Intervening Stop epoch prevents coalescing"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), StoppedId, MoveId, 0));
+    TestFalse(TEXT("Queued Shift steps prevent plain right-click from coalescing instead of clearing queue"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), MoveId, MoveId, 1));
+    TestFalse(TEXT("Invalidated / zero cached move identity never coalesces"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), MoveId, FLDMoveIdentity{}, 0));
+    TestFalse(TEXT("Click >=15cm away sends immediately even within 50ms"),
+        LDOrderRules::ShouldCoalesceClickMove(10.02, 10.00, FVector(100., 200., 0.), FVector(120., 200., 0.), MoveId, MoveId, 0));
+    TestFalse(TEXT("Click after 50ms window sends"),
+        LDOrderRules::ShouldCoalesceClickMove(10.06, 10.00, FVector(100., 200., 0.), FVector(102., 200., 0.), MoveId, MoveId, 0));
+    return true;
+}
+
 #endif

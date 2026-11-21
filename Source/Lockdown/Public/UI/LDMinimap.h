@@ -44,6 +44,10 @@ namespace LDMinimap
     // A gesture's ground point: X and Y clamped inside the registered ground (half-open at the far edges), Z = 0. The
     // map grants no height and no target; a move is still validated against the ground surface below.
     LOCKDOWN_API FVector ClampToGround(const FVector& World,const FBox2D& Ground);
+    // Death spawn-choice badges on the minimap: 14 px visual radius, 22 px click hit radius around each candidate centre.
+    constexpr double SpawnBadgeRadius=14.;
+    constexpr double SpawnBadgeHitRadius=22.;
+    LOCKDOWN_API int32 HitSpawnCandidate(const FView& View,const FVector2D& Local,TConstArrayView<FVector> CandidatesCm);
     // The regions the map shows one at a time, as indices into FitRegions' anchors and output.
     enum ERegion : int32 { FieldRegion, RestRegion, FinalRegion, RegionCount };
     // The walls around a region's anchors lie within this reach of them (the final arena's ring reaches about 1300 cm past
@@ -68,7 +72,9 @@ public:
     // Fraction is of the widget area and goes through the same view as the painted map, then the ground clamp.
     bool Gesture(FVector2D Fraction,bool Move);
     bool IsDragging() const {return bDragging;}
+    void FreezeForWorldTeardown();
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
+    virtual void NativeDestruct() override;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
@@ -78,6 +84,7 @@ protected:
     virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& Event) override;
 private:
     bool bDragging=false;
+    bool bFrozenForTeardown=false;
     // Owner match/life at drag start: a new life ends the drag so its camera is not overridden by an old gesture.
     uint32 DragMatch=0,DragLife=0;
     // Local size of the last tick or pointer event; a gesture's view is built for it.

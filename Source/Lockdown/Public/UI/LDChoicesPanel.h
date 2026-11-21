@@ -84,6 +84,8 @@ public:
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
+    // Alt+1/2/3 hotkey: takes candidate Index of the currently active 3-choice offer (#331).
+    bool PickByHotkey(int32 Index);
     // Universal final cards: a tray click commits at once (ChooseFinalMod); on the stage a click only selects
     // (SelectFinalMod) and the hold of GrowthFinalLock commits (LockFinalMod).
     bool ChooseFinalMod(int32 Index);
@@ -162,10 +164,19 @@ private:
         FName Component;
         TObjectPtr<USizeBox> Frame;
         TObjectPtr<ULDCommandButton> Button;
+        TObjectPtr<UBorder> Shape;
         TObjectPtr<USizeBox> IconFrame;
         TObjectPtr<UImage> Picture;
         TObjectPtr<UTextBlock> Glyph;
         TObjectPtr<UTextBlock> Name;
+        FString FullName;
+        TObjectPtr<UWidget> HotkeyChip;
+        TObjectPtr<UTextBlock> HotkeyText;
+        TObjectPtr<UWidget> KindBanner;
+        TObjectPtr<UTextBlock> KindBannerText;
+        TObjectPtr<UWidget> CompatBox;
+        TObjectPtr<UTextBlock> CompatText;
+        bool bElementStone=false;
         // What the face shows (the definition and the outcome it was rendered for), so it is rendered again only on a change.
         FString ShownKey;
         FString AppliedIcon;
@@ -296,7 +307,9 @@ private:
     UPROPERTY() TArray<TObjectPtr<UWidget>> ShopCells;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ShopPrices;
     TArray<FTrayCard> ShopCards;
-    bool bShopOpen=false;
+    bool bShopOpen=true;
+    uint32 AutoShopStock=0;
+    uint32 AutoShopMatch=0;
     bool IsShopOffered() const;
     void RefreshShopPanel();
     bool ShopCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out);
@@ -340,6 +353,7 @@ private:
     bool bCardsStale=true;
     // PreviewOffer's pinned card, whose popup shows while no card is hovered.
     int32 PinnedPreview=INDEX_NONE;
+    bool bPinnedOfferExplicit=false;
     uint64 PendingRequest=0;
     ELDBuildCommandKind PendingKind=ELDBuildCommandKind::None;
     uint32 Answers=0;
@@ -353,7 +367,7 @@ private:
     // What a tray card stands for, so each kind reads apart at a glance: a skill (blue frame, square-cut icon), a build card
     // (gold frame, taller like a playing card) or anything else (the plain frame).
     enum class ETrayLook : uint8 { Plain, Skill, Card };
-    FTrayCard MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look=ETrayLook::Plain);
+    FTrayCard MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look=ETrayLook::Plain,bool bHold=false);
     // The face of Card needs rendering for Key (another definition or outcome, or new numbers).
     bool CardStale(const FTrayCard& Card,const FString& Key) const;
     // Fills a card's name, icon and popup for Key.

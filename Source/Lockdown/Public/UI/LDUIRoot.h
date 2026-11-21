@@ -117,6 +117,9 @@ private:
     // Full-screen picture behind the lobby page (LDUIBackgrounds), shown exactly while the lobby is; null when missing.
     UPROPERTY() TObjectPtr<UWidget> LobbyBackground;
     UPROPERTY() TObjectPtr<UVerticalBox> RosterRows;
+    UPROPERTY() TObjectPtr<UHorizontalBox> RoomAddressRow;
+    UPROPERTY() TObjectPtr<UTextBlock> RoomAddressLabel;
+    UPROPERTY() TObjectPtr<ULDCommandButton> CopyAddressButton;
     UPROPERTY() TObjectPtr<UHorizontalBox> AIButtonRow;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> AIButtons;
     UPROPERTY() TObjectPtr<UTextBlock> AIReadOnly;
@@ -182,6 +185,16 @@ private:
     UFUNCTION() void Leave();
     UFUNCTION() void Exit();
     UFUNCTION() void TextCommitted(const FText& Text, ETextCommit::Type Method);
+    UFUNCTION() void AddressTextChanged(const FText& Text);
+    UFUNCTION() void AddressTextCommitted(const FText& Text, ETextCommit::Type Method);
+    void CopyRoomAddress();
+    FString ResolveRoomEndpoint() const;
+    bool bSplittingAddress = false;
+    FString LastAddressInput;
+    FString CachedRoomEndpoint;
+    uint32 CachedRoomGeneration = 0;
+    int32 CachedRoomPort = -1;
+    FString CopiedAddressFeedback;
     void CancelJoin();
     void BuildFrontend(ALDPlayerController& PC, UCanvasPanel& Canvas);
     void BuildWorld(UCanvasPanel& Canvas);

@@ -40,6 +40,7 @@ struct LOCKDOWN_API FLDPKEntrantView
     GENERATED_BODY()
     UPROPERTY() FGuid Contender;
     UPROPERTY() uint8 Side = 0;
+    UPROPERTY() uint8 Level = 0;
     // Standing in the arena now (false before PKReady placed it, after it was eliminated, or after it forfeited).
     UPROPERTY() bool bAlive = false;
     // Left the match after the lock: eliminated at once, no participation or winner points.

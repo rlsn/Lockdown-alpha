@@ -53,16 +53,18 @@ struct FLDLocalSettingsSaveResult
     bool IsSaved() const { return Status == ELDLocalSettingsSaveStatus::Saved; }
 };
 
-// The player-editable display values. The window itself is not a setting: the game always runs borderless at the
-// desktop resolution (ULDGameInstance::Init), so VSync and overall quality are applied with a plain Apply.
+// The player-editable display values (#331): window mode, resolution, frame-rate limit, VSync and overall quality,
+// applied together on Display Apply.
 struct LOCKDOWN_API FLDDisplaySettings
 {
+    EWindowMode::Type WindowMode = EWindowMode::WindowedFullscreen;
+    FIntPoint Resolution = FIntPoint(1920, 1080);
+    float FrameRateLimit = 0.f;
     bool bVSync = false;
     Scalability::FQualityLevels Quality;
 
     static FLDDisplaySettings Read(const UGameUserSettings& Settings);
-    // Product defaults for "restore defaults" (VISION_AND_UI settings page): the overall quality of SetToDefaults on a transient
-    // object of the live settings class, and the engine's r.VSync default because SetToDefaults leaves VSync unchanged.
+    // Product defaults for "restore defaults" (VISION_AND_UI settings page): borderless desktop, unlimited FPS, default VSync & quality.
     // Live is not modified.
     static bool ProductDefaults(const UGameUserSettings& Live, FLDDisplaySettings& Out, FString& Error);
     bool operator==(const FLDDisplaySettings& Other) const;
@@ -124,7 +126,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 23;
+    static constexpr int32 CurrentSchema = 24;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (MOVEMENT_INPUT_AND_CAMERA local settings).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -158,6 +160,7 @@ public:
     // Local presentation-only accessibility options; they never affect authority or replicated state.
     UPROPERTY(SaveGame) bool bReduceCombatEffects=false;
     UPROPERTY(SaveGame) bool bCameraShake=true;
+    UPROPERTY(SaveGame) bool bColorblindMode=false;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
@@ -188,7 +191,7 @@ public:
     ELDLocalSettingsPhase GetPhase() const { return Phase; }
     FKey Key(FName Action) const;
     FString Label(FName Action) const;
-    bool Rebind(FName Action,FKey NewKey,FString& Error);
+    bool Rebind(FName Action,FKey NewKey,FString& Error,FString* OutSwappedLabel=nullptr);
     bool Valid() const;
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;

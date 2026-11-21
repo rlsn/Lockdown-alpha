@@ -49,7 +49,8 @@ public:
     };
     // Called on every HUD refresh. bShown: the gameplay HUD is shown for the own match.
     void Present(const FLDProgressionView* View,uint32 Match,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,
-        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const FAnchors& Anchors,bool bShown);
+        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const FAnchors& Anchors,bool bShown,
+        const LDHUD::FSlotKeys& InKeys=LDHUD::FSlotKeys());
     // Over the stack, or over the open list, a column or the chooser, or dragging: world clicks belong to the storage.
     bool IsHit(FVector2D Absolute) const;
     bool IsExpanded() const {return bExpanded;}
@@ -123,8 +124,13 @@ public:
     const LDHUD::FStorageView& Model() const {return LatestModel;}
     const LDHUD::FBuildGateView& BuildGate() const {return Gate;}
     void SetPreviewCaption(FName Component,const FString& DropText,const FString& Value);
-    // Right click (D6): a stored card with exactly one place installs there; an installed one goes back to the storage.
+    // Right click (D6 / #331): a stored card with one free place installs there; multiple places open inline [Q/W/E] capsules;
+    // an installed one goes back to the storage.
     bool QuickInstall(FName Component);
+    bool IsQuickEquipOpen() const {return QuickEquip.bOpen;}
+    bool IsReplacePickOpen() const {return ReplacePick.bOpen;}
+    bool SelectQuickTarget(int32 Index);
+    bool HandleQuickEquipKey(FKey Key,const ELDCombatEntry (&SkillAtKey)[3],const class ULDControlSettings* Settings);
     // A click without a drag (D6) picks the card up; the next click on a place drops it there (or anywhere else drops it
     // back).
     bool IsHolding() const {return Drag.bActive&&Drag.bPicked;}
@@ -220,6 +226,24 @@ private:
         LDHUD::FCardDrop Drop;
         FVector2D At=FVector2D::ZeroVector;
     };
+    struct FQuickTarget
+    {
+        LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
+        bool bReplace=false;
+    };
+    struct FQuickEquip
+    {
+        bool bOpen=false;
+        FName Component;
+        TArray<FQuickTarget> Targets;
+        FVector2D At=FVector2D::ZeroVector;
+    };
+    struct FReplacePick
+    {
+        bool bOpen=false;
+        FName Component;
+        LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
+    };
     // A move's install half, sent once the uninstall is applied and the own view carries its build revision.
     struct FFollowUp
     {
@@ -249,6 +273,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> StackFresh;
     UPROPERTY() TObjectPtr<UWidget> ListFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ListSlot;
+    UPROPERTY() TObjectPtr<UWidget> StoneTraySection;
+    UPROPERTY() TObjectPtr<class UWrapBox> StoneTrayList;
     UPROPERTY() TObjectPtr<UWrapBox> CardList;
     UPROPERTY() TObjectPtr<UWidget> PopupFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PopupSlot;
@@ -261,6 +287,13 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ChooserTitle;
     UPROPERTY() TObjectPtr<UHorizontalBox> ChooserLine;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ChooserButtons;
+    UPROPERTY() TObjectPtr<UWidget> QuickFrame;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> QuickSlot;
+    UPROPERTY() TObjectPtr<UHorizontalBox> QuickLine;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> QuickButtons;
+    UPROPERTY() TObjectPtr<UWidget> ReplacePromptFrame;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ReplacePromptSlot;
+    UPROPERTY() TObjectPtr<UTextBlock> ReplacePromptText;
     UPROPERTY() TObjectPtr<UWidget> GhostFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostSlot;
     UPROPERTY() TObjectPtr<UImage> GhostPicture;
@@ -320,6 +353,7 @@ private:
     LDHUD::FBuildGateView Gate;
     const FLDDemoContentDefinitions* LatestContent=nullptr;
     LDHUD::FCardStats LatestStats;
+    LDHUD::FSlotKeys SlotKeys;
     FAnchors Anchors;
     FString BuiltKey;
     bool bShownNow=false;
@@ -330,6 +364,8 @@ private:
     FPress Press;
     FDrag Drag;
     FChooser Chooser;
+    FQuickEquip QuickEquip;
+    FReplacePick ReplacePick;
     FFollowUp Follow;
     uint64 PendingRequest=0;
     uint32 Answers=0;
@@ -376,6 +412,13 @@ private:
     FString ComponentName(FName Component) const;
     void OpenChooser(FName Component,const LDHUD::FCardDrop& Drop);
     void CloseChooser();
+    void CollectQuickTargets(FName Component,TArray<FQuickTarget>& Out) const;
+    FString QuickTargetLabel(const FQuickTarget& Target) const;
+    bool OpenQuickEquip(FName Component,FVector2D At);
+    void CloseQuickEquip();
+    bool BeginReplacePick(FName Component,LDHUD::EStorageColumn Column);
+    void CloseReplacePick();
+    int32 ColumnInstalledCards(LDHUD::EStorageColumn Column) const;
     bool Commit(FName Component,const LDHUD::FCardDrop& Drop,ELDDemoElement Element);
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);

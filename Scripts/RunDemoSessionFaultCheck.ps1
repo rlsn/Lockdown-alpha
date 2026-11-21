@@ -47,13 +47,17 @@ $required = @{
     'Race/Joiner' = @('The frontend offers the name, address, port and Join controls',
         'A join that loses the race to the match start is refused with its own reason', 'A refused join stays on the frontend',
         'The Join control is usable again after a refusal')
-    'HostLeave/HostMatch' = @($connection, 'Every provider is wired: the ready room may start normally',
+    'HostLeave/HostMatch' = @($connection, 'The Host is exempt from Ready and starts once guests are ready',
+        'Every provider is wired: the ready room may start normally',
         'The Host holds a live match with its owning client before it leaves', 'The in-match menu has no separate end-match action',
         'The in-match leave action names its destination',
         'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'HostLeave/Host' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLeave/Client1Match' = @($connection)
     'HostLeave/Client1' = @('The room closed because the Host left through its menu', 'The client shows that the Host left, not a lost connection',
+        'A closed room never produced a result table', 'A closed room is not reported as a failed join')
+    'HostLeave/Client2Match' = @($connection)
+    'HostLeave/Client2' = @('The room closed because the Host left through its menu', 'The client shows that the Host left, not a lost connection',
         'A closed room never produced a result table', 'A closed room is not reported as a failed join')
     'HostQuit/Host' = @($connection, 'Every provider is wired: the ready room may start normally',
         'The Host holds a live match with its owning client before it quits')
@@ -253,20 +257,24 @@ try {
     $port = New-LoopbackPort
     $leavingHost = Start-FaultRole -Phase 'HostLeave' -Role 'Host' -Url "/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=LeavingHost" -Port $port -Ui
     Wait-FaultFiles $directory @('HostJoined.json') @($leavingHost)
-    $remaining = Start-FaultRole -Phase 'HostLeave' -Role 'Client1' -Url (& $clientUrl $port 'FaultRemaining') -Ui
-    Wait-FaultFiles $directory @('HostMatch.json', 'Host.json', 'Client1Match.json', 'Client1.json') @($leavingHost, $remaining)
+    $remaining = Start-FaultRole -Phase 'HostLeave' -Role 'Client1' -Url (& $clientUrl $port 'FaultRemaining1') -Ui
+    $remaining2 = Start-FaultRole -Phase 'HostLeave' -Role 'Client2' -Url (& $clientUrl $port 'FaultRemaining2') -Ui
+    Wait-FaultFiles $directory @('HostMatch.json', 'Host.json', 'Client1Match.json', 'Client1.json', 'Client2Match.json', 'Client2.json') @($leavingHost, $remaining, $remaining2)
     $null = Read-FaultReport 'HostLeave' 'HostMatch'
     $null = Read-FaultReport 'HostLeave' 'Host'
     $null = Read-FaultReport 'HostLeave' 'Client1Match'
     $hostLeftReport = Read-FaultReport 'HostLeave' 'Client1'
+    $null = Read-FaultReport 'HostLeave' 'Client2Match'
+    $null = Read-FaultReport 'HostLeave' 'Client2'
     if (-not (Select-String -LiteralPath (Join-Path $output 'HostLeave-Host.log') -Pattern 'LD_DEMO_ROOM_CLOSED_BY_HOST' -SimpleMatch -Quiet)) {
         throw "The Host's room did not close before its map change: $output"
     }
     Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Exit'
-    Stop-Role $remaining 'Client after the Host left'
+    Stop-Role $remaining 'Client1 after the Host left'
+    Stop-Role $remaining2 'Client2 after the Host left'
     Set-Content -LiteralPath (Join-Path $directory 'Finish') -Value 'Complete'
     Stop-Role $leavingHost 'Leaving Host'
-    Assert-FaultLogs 'HostLeave' @('Client1')
+    Assert-FaultLogs 'HostLeave' @('Client1', 'Client2')
 
     # Phase 7: the Listen Host's process quits normally mid-match, as closing its window does, while its client is still
     # connected. The engine tears the world down (PreExit) with that connection open; the Host must exit cleanly with no

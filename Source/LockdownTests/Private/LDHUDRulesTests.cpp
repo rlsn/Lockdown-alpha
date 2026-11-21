@@ -18,6 +18,8 @@
 #include "UI/LDWorkshop.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDWorkshopPreview.h"
+#include "Framework/LDDemoEntry.h"
+#include "PK/LDPKRules.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -2324,3 +2326,356 @@ bool FLDHUDReadModelGateTest::RunTest(const FString&)
     TestFalse(TEXT("A still build stops the per-sample rebuild"),Gate.ShouldRebuild(Key));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDFlowSmoothnessTest,"Lockdown.Rules.HUDFlowSmoothness",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
+    const FLDDemoContentDefinitions& Content=Catalog->Get();
+
+    // 1) Minimap spawn badge hit-testing (#331 §1.3): 22px click radius around each candidate centre.
+    {
+        const FBox2D Ground(FVector2D(-5000,-5000),FVector2D(5000,5000));
+        const LDMinimap::FView View=LDMinimap::MakeView(ELDMinimapOrientation::North,Ground,FVector2D(260,260),0.,false,0.);
+        const TArray<FVector> Candidates={FVector(-3000,-3000,0),FVector(0,0,0),FVector(3200,2800,0)};
+        const FVector2D Spot1=LDMinimap::ToFrame(View,Candidates[1]);
+        TestEqual(TEXT("Click within 22px hits spawn candidate 1"),
+            LDMinimap::HitSpawnCandidate(View,Spot1+FVector2D(15.,12.),Candidates),1);
+        TestEqual(TEXT("Click beyond 22px misses spawn badges"),
+            LDMinimap::HitSpawnCandidate(View,Spot1+FVector2D(21.,12.),Candidates),INDEX_NONE);
+    }
+
+    // 2) Host compatibility strip on skill cards & 1-click full-column replacement (#331 §2.2 & §2.3).
+    {
+        const FLDDemoCardDefinition* SkillCardDef=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Form==ELDCardForm::Skill;});
+        if(TestNotNull(TEXT("Catalog contains a skill-form card"),SkillCardDef)&&!Content.Abilities.IsEmpty())
+        {
+            FLDProgressionView EmptyProg;EmptyProg.bValid=true;EmptyProg.Level=5;
+            bool bHasHost=true,bAllFull=false;
+            const FString NoHostText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),EmptyProg,&Content,LDHUD::FSlotKeys(),bHasHost,bAllFull);
+            TestTrue(TEXT("Skill card without compatible active warns in amber"),!bHasHost&&NoHostText.Contains(TEXT("暂无可装槽")));
+
+            // Find an active compatible with SkillCardDef and fill its column with 4 cards to test 1-click replacement drops.
+            for(const FLDDemoAbilityDefinition& Abil:Content.Abilities)
+            {
+                FLDProgressionView FullColProg;FullColProg.bValid=true;FullColProg.Level=8;
+                FLDActiveSlotView Slot0;Slot0.DefinitionId=FName(*Abil.Id);Slot0.Slot=0;Slot0.Branch=ELDSkillBranch::None;
+                FullColProg.Actives.Add(Slot0);
+                bool bFitsAbil=false,bColFull=false;
+                const FString FitText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),FullColProg,&Content,LDHUD::FSlotKeys(),bFitsAbil,bColFull);
+                if(!bFitsAbil){continue;}
+                TestTrue(TEXT("Compatible active appears on skill card strip"),FitText.Contains(TEXT("可装："))&&FitText.Contains(TEXT("0/4")));
+
+                // Install 4 cards on Q and add 1 uninstalled copy to storage.
+                for(int32 i=0;i<4;++i)
+                {
+                    FLDCardInstanceView& Installed=FullColProg.Cards.AddDefaulted_GetRef();
+                    Installed.Serial=uint16(i+1);Installed.DefinitionId=FName(*SkillCardDef->Id);
+                    Installed.Target.Kind=ELDCardTargetKind::Skill;Installed.Target.Active=FName(*Abil.Id);
+                    if(!SkillCardDef->ChooseElements.IsEmpty()){Installed.Target.Element=SkillCardDef->ChooseElements[0];}
+                }
+                FLDCardInstanceView& Candidate=FullColProg.Cards.AddDefaulted_GetRef();
+                Candidate.Serial=99;Candidate.DefinitionId=FName(*SkillCardDef->Id);
+                const FName CandidateKey=LDHUD::CardKey(Candidate.DefinitionId,Candidate.Serial);
+                const TArray<LDHUD::FCardDrop> RepDrops=LDHUD::ColumnReplaceDrops(CandidateKey,LDHUD::EStorageColumn::SlotQ,FullColProg,&Content);
+                TestEqual(TEXT("Full 4-card column exposes 4 direct replacement targets even when workshop < 22"),RepDrops.Num(),4);
+                break;
+            }
+        }
+    }
+
+    // 3) Live stat hover delta & 18-point keystone preview / loss warning (#331 §3.1, authoritative LDAttributeProjection).
+    if(!Content.StatsInDesignOrder().IsEmpty())
+    {
+        const FLDDemoStatDefinition* FirstStat=Content.StatsInDesignOrder()[0];
+        const LDHUD::FStatHoverPreview UpToKeystone=LDHUD::StatHoverPreview(*FirstStat,17,1,1,true,{},Content,Catalog.Get());
+        TestTrue(TEXT("17 -> 18 stat hover previews keystone progress and attribute delta"),
+            !UpToKeystone.AttributeLines.IsEmpty()&&UpToKeystone.KeystoneProgress.Contains(TEXT("17/18")));
+
+        const LDHUD::FStatHoverPreview LoseKeystone=LDHUD::StatHoverPreview(*FirstStat,18,1,1,true,{},Content,Catalog.Get());
+        TestTrue(TEXT("18 -> 17 refund hover warns about losing keystone"),
+            LoseKeystone.bKeystoneActive&&LoseKeystone.bKeystoneLossWarning&&!LoseKeystone.RefundWarning.IsEmpty());
+
+        // CritChance from 0% adds probability points (0% -> >0%, never multiplying 0% * ratio = 0%).
+        if(const FLDDemoStatDefinition* CritStat=Content.Stats.FindByPredicate([](const FLDDemoStatDefinition& S)
+            {return S.PerPoint.ContainsByPredicate([](const FLDDemoStatBonus& B){return B.Stat==ELDDemoBonusStat::CritChanceBonusRatio;});}))
+        {
+            const LDHUD::FStatHoverPreview CritPreview=LDHUD::StatHoverPreview(*CritStat,0,1,1,false,{},Content,Catalog.Get());
+            const bool bNonZeroCrit=CritPreview.AttributeLines.ContainsByPredicate([](const FString& Line)
+                {return Line.Contains(TEXT("0% → "))&&!Line.Contains(TEXT("0% → 0%"));});
+            TestTrue(TEXT("Authoritative stat hover projects 0% CritChance to positive probability gain"),bNonZeroCrit);
+        }
+
+        // MoveSpeed already at catalog cap clamps After to cap (+0 effective gain).
+        if(const FLDDemoStatDefinition* MoveStat=Content.Stats.FindByPredicate([](const FLDDemoStatDefinition& S)
+            {return S.PerPoint.ContainsByPredicate([](const FLDDemoStatBonus& B){return B.Stat==ELDDemoBonusStat::MoveSpeedBonusRatio;});}))
+        {
+            FLDProgressionView CappedProg;CappedProg.bValid=true;CappedProg.Generation=1;CappedProg.Life=1;CappedProg.Level=1;
+            CappedProg.StatPoints={{FName(*MoveStat->Id),260}};
+            const LDHUD::FStatHoverPreview CappedMove=LDHUD::StatHoverPreview(*MoveStat,260,1,1,false,{},Content,Catalog.Get(),&CappedProg);
+            TestTrue(TEXT("MoveSpeed at catalog cap reports +0 effective gain"),
+                CappedMove.DeltaSummary.Contains(TEXT("+0 "))||CappedMove.AttributeLines.ContainsByPredicate([](const FString& L){return L.Contains(TEXT("（+0）"));}));
+        }
+    }
+
+    // 4) Pasted host:port auto-split (ignoring 1-char typing), Rest Shop + Services library fit, reversible RestReady, PK & colorblind (#331 §4).
+    {
+        FString Host,Port;
+        TestTrue(TEXT("Valid pasted IPv4:Port splits cleanly"),
+            LDDemoEntry::SplitPastedEndpoint(TEXT(" 192.168.1.20:7777 "),Host,Port)&&Host==TEXT("192.168.1.20")&&Port==TEXT("7777"));
+        TestFalse(TEXT("Invalid port > 65535 is not split"),
+            LDDemoEntry::SplitPastedEndpoint(TEXT("192.168.1.20:70000"),Host,Port));
+        TestTrue(TEXT("Typing first port digit 7 after 192.168.1.20: is detected as a 1-char typing edit"),
+            LDDemoEntry::IsSingleCharTypingEdit(TEXT("192.168.1.20:"),TEXT("192.168.1.20:7")));
+        TestFalse(TEXT("Pasting full 192.168.1.20:7777 into empty or existing host is not a 1-char typing edit"),
+            LDDemoEntry::IsSingleCharTypingEdit(TEXT(""),TEXT("192.168.1.20:7777"))
+            ||LDDemoEntry::IsSingleCharTypingEdit(TEXT("127.0.0.1"),TEXT("10.0.0.2:80")));
+
+        // Verify StackedTrayLimit + side-by-side Rest Shop at 1920x1080 with Services + 200px Pending tray keeps positive Library fit.
+        const FIntVector4 StoredCounts(3,1,1,1);
+        const float ShopRightWidth=FMath::Clamp(1920.f*.34f,520.f,680.f);
+        const float TotalRightH=808.f-108.f;
+        const float LibraryChrome=70.f+56.f+14.f,PendingChrome=52.f+58.f;
+        const float LibraryReserve=FMath::Max(36.f,10000.f-LDWorkshop::StackedTrayLimit(StoredCounts,ShopRightWidth-44.f,10000.f,44.f,1.f));
+        const float ShopH=FMath::Clamp(FMath::Min(TotalRightH*.38f,TotalRightH-14.f-(LibraryChrome+LibraryReserve+PendingChrome+116.f)),176.f,296.f);
+        const float AvailLibH=TotalRightH-ShopH-14.f;
+        const float TrayLim=LDWorkshop::StackedTrayLimit(StoredCounts,ShopRightWidth-44.f,FMath::Max(0.f,AvailLibH-LibraryChrome-PendingChrome),44.f,1.f);
+        const float LibBodyH=AvailLibH-(FMath::Min(200.f,TrayLim)+PendingChrome)-LibraryChrome;
+        TestTrue(TEXT("1920x1080 Rest Shop + Services + 200px tray preserves positive fitting LibraryBody height"),
+            LibBodyH>=LibraryReserve-0.5f&&LDWorkshop::FitLibrary(StoredCounts,ShopRightWidth-44.f,LibBodyH,44.f,1.f).bFits);
+        TestTrue(TEXT("Withdrawn rest ready returns explicit confirmation"),
+            LDHUD::RestReadyText(ELDRestReadyResult::Withdrawn).Contains(TEXT("已取消准备")));
+        TestTrue(TEXT("Colorblind mode switches health bar hues"),
+            LDHUDStyle::OwnHealthOf(true)!=LDHUDStyle::OwnHealthOf(false)
+            &&LDHUDStyle::EnemyHealthOf(true)!=LDHUDStyle::EnemyHealthOf(false));
+
+        FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::Rest;
+        Public.Timeline.Generation=1;Public.Timeline.Stage=ELDMatchStage::Rest;Public.Timeline.RestIndex=1;Public.Timeline.Step=ELDRestStep::Betting;
+        Public.Timeline.StepEndsAtMs=10000;
+        Public.PK.Generation=1;Public.PK.Serial=1;Public.PK.Format=ELDPKFormat::Duel;Public.PK.SideCount=2;
+        const FGuid A(1,0,0,1),B(2,0,0,2),Spectator(3,0,0,3);
+        FLDPKEntrantView EntA;EntA.Contender=A;EntA.Side=1;EntA.Level=6;
+        FLDPKEntrantView EntB;EntB.Contender=B;EntB.Side=2;EntB.Level=4;
+        Public.PK.Entrants={EntA,EntB};
+        Public.PK.Bettors={Spectator};
+        FLDLobbyView Lobby;Lobby.Members={{A,TEXT("甲"),ELDContenderKind::Human,true,true},{B,TEXT("乙"),ELDContenderKind::Human,false,true}};
+        FLDPKParameters PKParams;FString PKError;
+        if(TestTrue(TEXT("PK parameters load"),FLDPKParameters::FromContent(Content.Parameters,PKParams,PKError)))
+        {
+            LDHUD::FPKPanelInput PKIn;PKIn.Self=Spectator;PKIn.bClock=true;PKIn.NowMs=4000;PKIn.Params=&PKParams;
+            const LDHUD::FPKPanelView PKView=LDHUD::PKPanel(Public,Lobby,PKIn);
+            TestTrue(TEXT("PK betting side line shows entrant level and odds"),
+                PKView.bCanBet&&PKView.Sides.Num()==2&&PKView.Sides[0].Line.Contains(TEXT("Lv.6"))&&PKView.Sides[0].BetAction.Contains(TEXT("1:")));
+        }
+
+        FLDResultView Res;Res.Generation=1;Res.ResultId=FGuid(9,9,9,9);
+        FLDDamageSummaryView Sum;Sum.Match=1;Sum.ResultId=Res.ResultId;
+        FLDDamageLine L0;L0.Source.Kind=ELDCombatSourceKind::Basic;L0.DamageP2=7000;
+        FLDDamageLine L1;L1.Source.Kind=ELDCombatSourceKind::Innate;L1.DamageP2=3000;
+        Sum.Lines={L0,L1};
+        const LDHUD::FDamageListView DmgView=LDHUD::DamageSummary(Sum,Res,&Content);
+        TestTrue(TEXT("Result damage summary exposes structured share bars"),
+            DmgView.bAvailable&&DmgView.Shares.Num()==2&&FMath::IsNearlyEqual(DmgView.Shares[0].Share,.7f,.01f));
+
+        // 5) ULDStatBar batch ordering & >255 refund chunking:
+        //    (a) Refunds dispatch BEFORE allocations funded by those refunds when UnspentPoints == 0;
+        //    (b) Refund of 260 points splits into 255 + 5 across acknowledged revisions instead of narrowing uint8(260) == 4.
+        UWorld* StatWorld=UWorld::CreateWorld(EWorldType::Game,false);
+        if(TestNotNull(TEXT("StatBar test world created"),StatWorld))
+        {
+            ON_SCOPE_EXIT{StatWorld->DestroyWorld(false);};
+            ULDStatBar* Bar=NewObject<ULDStatBar>(StatWorld);
+            Bar->Initialize();
+            const TSharedRef<SWidget> BarSlate=Bar->TakeWidget();
+            (void)BarSlate;
+            const TArray<const FLDDemoStatDefinition*> StatOrder=Content.StatsInDesignOrder();
+            if(StatOrder.Num()>=2)
+            {
+                TArray<FLDBuildCommand> Dispatched;
+                uint64 NextReq=1;
+                Bar->PeekRequestId=[&]()->uint64{return Bar->HasPendingRequest()?0:NextReq;};
+                Bar->SubmitBuild=[&](const FLDBuildCommand& Cmd,ELDGrowthReason& OutReason)->uint64
+                {
+                    OutReason=ELDGrowthReason::None;
+                    Dispatched.Add(Cmd);
+                    return NextReq++;
+                };
+                auto MakeProg=[&](uint64 Rev,int64 Unspent,int32 S0,int32 S1)
+                {
+                    FLDProgressionView V;V.bValid=true;V.Generation=1;V.Life=1;V.Level=5;V.BuildRevision=Rev;V.UnspentPoints=Unspent;
+                    for(int32 I=0;I<StatOrder.Num();++I)
+                    {
+                        V.StatPoints.Add({FName(*StatOrder[I]->Id),I==0?S0:I==1?S1:0});
+                    }
+                    return V;
+                };
+                auto AckLast=[&](uint64 NewRev,const FLDProgressionView& Updated)
+                {
+                    FLDSubmitResult Ack;
+                    Ack.Generation=1;Ack.Family=ELDGrowthFamily::Build;Ack.RequestId=NextReq-1;
+                    Ack.Status=ELDAdmissionStatus::Final;Ack.bHasBuildReceipt=true;
+                    Ack.BuildReceipt.Header.Generation=1;Ack.BuildReceipt.Header.OriginalLife=1;Ack.BuildReceipt.Header.RequestId=Ack.RequestId;
+                    Ack.BuildReceipt.Header.Outcome=ELDReceiptOutcome::Applied;
+                    Ack.BuildReceipt.Header.Revisions.bHasBuild=true;Ack.BuildReceipt.Header.Revisions.BuildRevision=NewRev;
+                    Bar->HandleSubmit(Ack);
+                    Bar->Present(&Updated,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true,Catalog.Get());
+                };
+
+                // Case (a): Unspent == 0, S0 == 2, S1 == 0. First click allocates nothing yet; hold request id = 0 while staging
+                // Refund(0, 2) + Allocate(1, 2) together, then FlushNow -> Respec goes FIRST, AllocatePoints goes SECOND after ack!
+                FLDProgressionView V0=MakeProg(10,0,2,0);
+                Bar->Present(&V0,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true,Catalog.Get());
+                Bar->PeekRequestId=[]()->uint64{return 0;}; // hold coalescing window so both queue together
+                TestTrue(TEXT("Refund 2 points on stat 0 queued"),Bar->Refund(0,2));
+                TestTrue(TEXT("Allocate 2 points on stat 1 funded by pending refund queued"),Bar->Allocate(1,2));
+                Bar->PeekRequestId=[&]()->uint64{return Bar->HasPendingRequest()?0:NextReq;};
+                Bar->FlushNow();
+                if(TestEqual(TEXT("First dispatched command is Respec alone"),Dispatched.Num(),1))
+                {
+                    TestTrue(TEXT("Refunds dispatch before allocations"),
+                        Dispatched[0].Kind==ELDBuildCommandKind::Respec&&Dispatched[0].PointCounts[0]==2&&Dispatched[0].PointCounts[1]==0);
+                    AckLast(11,MakeProg(11,2,0,0));
+                    if(TestEqual(TEXT("Allocation funded by refund dispatches automatically on revision ack"),Dispatched.Num(),2))
+                    {
+                        TestTrue(TEXT("Second command allocates the 2 funded points"),
+                            Dispatched[1].Kind==ELDBuildCommandKind::AllocatePoints&&Dispatched[1].PointCounts[1]==2);
+                    }
+                    AckLast(12,MakeProg(12,0,0,2));
+                }
+
+                // Case (b): S0 == 260 (> 255). Refund(0, 260) sends 255 in batch 1 and retains 5 for batch 2 after ack.
+                Dispatched.Reset();
+                FLDProgressionView V260=MakeProg(20,0,260,0);
+                Bar->Present(&V260,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true,Catalog.Get());
+                TestTrue(TEXT("Refund 260 points accepted"),Bar->Refund(0,260));
+                if(TestEqual(TEXT("First chunk of >255 refund sent"),Dispatched.Num(),1))
+                {
+                    TestTrue(TEXT("First chunk caps at 255 instead of narrowing 260 -> 4"),
+                        Dispatched[0].Kind==ELDBuildCommandKind::Respec&&Dispatched[0].PointCounts[0]==255);
+                    TestEqual(TEXT("Optimistic effective points stay at 0 while remainder waits"),Bar->EffectivePoints(0),0);
+                    AckLast(21,MakeProg(21,255,5,0));
+                    if(TestEqual(TEXT("Remaining 5-point refund chunk dispatches after ack"),Dispatched.Num(),2))
+                    {
+                        TestTrue(TEXT("Second chunk sends exact remainder 5"),
+                            Dispatched[1].Kind==ELDBuildCommandKind::Respec&&Dispatched[1].PointCounts[0]==5);
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLiveSkillTooltipTest,"Lockdown.Rules.HUDLiveSkillTooltip",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;FString Error;
+    if(!TestTrue(TEXT("Approved runtime content loads"),LDDemoEntry::LoadRuntimeContent(Snapshot,Error)&&Snapshot.IsValid())){return false;}
+    const FLDDemoContentDefinitions& Content=Snapshot->Get();
+
+    // Pick active_snark_bolt (a learned magical projectile damage active) and equip card_big_one + card_lend_fist + 25 CooldownHaste.
+    const FName SkillId(TEXT("active_snark_bolt"));
+    const FLDDemoAbilityDefinition* Ab=Content.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A){return A.Id==TEXT("active_snark_bolt");});
+    const FLDDemoCardDefinition* BigOne=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Id==TEXT("card_big_one");});
+    const FLDDemoCardDefinition* LendFist=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Id==TEXT("card_lend_fist");});
+    if(!TestTrue(TEXT("Catalog contains active_snark_bolt, card_big_one and card_lend_fist"),Ab&&BigOne&&LendFist)){return false;}
+
+    FLDProgressionView Build;Build.bValid=true;Build.Generation=1;Build.Life=1;Build.Level=5;
+    FLDActiveSlotView SlotQ;SlotQ.Slot=0;SlotQ.DefinitionId=SkillId;SlotQ.Branch=ELDSkillBranch::None;
+    Build.Actives={SlotQ};
+    FLDCardInstanceView C1;C1.Serial=1;C1.DefinitionId=TEXT("card_big_one");C1.Target.Kind=ELDCardTargetKind::Skill;C1.Target.Active=SkillId;
+    FLDCardInstanceView C2;C2.Serial=2;C2.DefinitionId=TEXT("card_lend_fist");C2.Target.Kind=ELDCardTargetKind::Skill;C2.Target.Active=SkillId;
+    FLDCardInstanceView StoredStone;StoredStone.Serial=3;StoredStone.DefinitionId=TEXT("medal_fire");
+    FLDCardInstanceView StoredCard;StoredCard.Serial=4;StoredCard.DefinitionId=TEXT("card_practice");
+    Build.Cards={C1,C2,StoredStone,StoredCard};
+    Build.PendingBlueprints={TEXT("active_elbow")};
+
+    // #328 §2: 3-way pending category counts separate skills, build cards and element stones.
+    const LDHUD::FPendingCategoryCounts Cats=LDHUD::PendingCategoryCounts(&Build,1,&Content);
+    TestTrue(TEXT("PendingCategoryCounts separates skill blueprints, build cards and element stones (#328)"),
+        Cats.SkillCount==1&&Cats.CardCount==1&&Cats.StoneCount==1);
+
+    // Combat owner attributes: AD = 100, AP = 120, MaxHP = 1500, Armor = 40, CooldownHaste = 25.
+    FLDCombatOwnerView OwnCombat;OwnCombat.Generation=1;OwnCombat.Life=1;OwnCombat.bHasBody=true;
+    auto MakeAttr=[](ELDProjectedAttribute Attr,int64 WholeValue)
+    {
+        FLDCombatAttributeRowView Row;Row.Attribute=uint8(Attr);
+        Row.Final.Numerator=WholeValue;Row.Final.Denominator=1;
+        return Row;
+    };
+    OwnCombat.Attributes={
+        MakeAttr(ELDProjectedAttribute::AD,100),
+        MakeAttr(ELDProjectedAttribute::AP,120),
+        MakeAttr(ELDProjectedAttribute::MaxHP,1500),
+        MakeAttr(ELDProjectedAttribute::Armor,40),
+        MakeAttr(ELDProjectedAttribute::CooldownHaste,25)
+    };
+
+    LDHUD::FActionInput In;In.Slot=LDHUD::EActionSlot::Q;In.bProjected=true;In.bHasSource=true;
+    In.DefinitionId=SkillId;In.Name=LDHUD::ContentName(&Content,SkillId.ToString());In.Branch=ELDSkillBranch::None;
+    In.MomentumCostP2=Ab->Values.MomentumCostP2;In.CooldownMs=Ab->Values.CooldownMs;
+    LDHUD::FActionContext Ctx;Ctx.KeyLabel=TEXT("Q");Ctx.bOwnContext=true;Ctx.bPlaying=true;Ctx.bAlive=true;
+    Ctx.bClock=true;Ctx.NowMs=5000;Ctx.bMomentumKnown=true;Ctx.MomentumP2=10000;
+    Ctx.Card=LDHUD::CardStatsOf(Build.Level,OwnCombat.Attributes);
+    const LDHUD::FActionView ActView=LDHUD::Action(In,Ctx);
+
+    // Compare bare tooltip (no installed cards) vs card+haste tooltip.
+    FLDProgressionView BareBuild=Build;BareBuild.Cards.Reset();
+    const LDHUD::FLiveSkillTooltip BareTip=LDHUD::EvaluateLiveSkillTooltip(ActView,In,Ctx,&BareBuild,&OwnCombat,&Content,false);
+    const LDHUD::FLiveSkillTooltip FullTip=LDHUD::EvaluateLiveSkillTooltip(ActView,In,Ctx,&Build,&OwnCombat,&Content,true);
+
+    // Verify exact combat arithmetic: card_big_one multiplies primary damage & AD rider, and scales CD before 25 haste.
+    int64 BigOneDmgFactorBp=10000,BigOneCdBp=10000;
+    for(const FLDDemoEffectDefinition& Ef:BigOne->Effects)
+    {
+        if(Ef.GetOp()==ELDDemoEffectOp::SkillDamageFactor){BigOneDmgFactorBp=10000+Ef.RatioBp;}
+        if(Ef.GetOp()==ELDDemoEffectOp::CooldownCost&&Ef.SecondaryRatioBp>0){BigOneCdBp=Ef.SecondaryRatioBp;}
+    }
+    int64 LendFistAdBp=0;
+    for(const FLDDemoEffectDefinition& Ef:LendFist->Effects)
+    {
+        if(Ef.GetOp()==ELDDemoEffectOp::SkillAdRider){LendFistAdBp+=Ef.ADRatioBp;}
+    }
+    auto Share=[](int64 A,int64 B){return (A/10000)*B+((A%10000)*B)/10000;};
+    const int64 ExpectedFinalDmgP2=Share(BareTip.FinalPrimaryDamageP2,BigOneDmgFactorBp);
+    const int64 ExpectedRiderP2=Share(Share(100*100,LendFistAdBp),BigOneDmgFactorBp);
+    const int64 CardCdMs=Share(Ab->Values.CooldownMs,BigOneCdBp);
+    const int64 HasteScale=Content.Formulas.HasteScaleP2>0?Content.Formulas.HasteScaleP2:10000;
+    const int64 ExpectedCdMs=FMath::Max<int64>(Content.Parameters.SkillRanks.CooldownFloorMs,
+        FMath::DivideAndRoundUp<int64>(CardCdMs*HasteScale,HasteScale+2500));
+
+    TestEqual(TEXT("Live tooltip primary damage matches exact card_big_one combat multiplier"),FullTip.FinalPrimaryDamageP2,ExpectedFinalDmgP2);
+    TestEqual(TEXT("Live tooltip rider matches exact card_lend_fist AD * card_big_one combat value"),FullTip.RiderDamageP2,ExpectedRiderP2);
+    TestEqual(TEXT("Live tooltip cooldown matches exact card_big_one * 25 haste formula"),FullTip.FinalCooldownMs,ExpectedCdMs);
+    TestTrue(TEXT("Main tooltip body embeds multiplied damage and +rider text"),
+        FullTip.Detail.Body.Contains(FString::Printf(TEXT("%lld"),(ExpectedFinalDmgP2+50)/100))
+        &&FullTip.Detail.Body.Contains(FString::Printf(TEXT("+ %lld 额外物理伤害"),(ExpectedRiderP2+50)/100)));
+    TestTrue(TEXT("Summary displays haste+card adjusted cooldown to 0.1s"),
+        FullTip.Detail.Summary.Contains(FString::Printf(TEXT("冷却 %.1f秒"),double(ExpectedCdMs)/1000.)));
+    TestTrue(TEXT("Alt expansion lists base, level growth, stat bonus, card multipliers, final damage and cooldown"),
+        FullTip.FormulaLines.Num()>=6
+        &&FullTip.FormulaLines[0].Contains(TEXT("基础与分支"))
+        &&FullTip.FormulaLines[3].Contains(TEXT("构筑乘区"))
+        &&FullTip.FormulaLines[4].Contains(FString::Printf(TEXT("= %lld"),(ExpectedFinalDmgP2+50)/100))
+        &&FullTip.FormulaLines.Last().Contains(TEXT("技能急速")));
+
+    // #328 §4.4: 6-player tactical scoreboard combines roster, leader crown, graffiti guard bar and sighted skills.
+    FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::CaptureOpen;
+    const FGuid SelfId(1,0,0,1),RivalId(2,0,0,2);
+    Public.Leader.Leader=RivalId;Public.Leader.LeaderLevel=8;
+    Public.GraffitiOwner=RivalId;Public.CircleState=ELDCircleState::Guarded;Public.GuardDueAtMs=14000;
+    FLDLobbyView Lobby;Lobby.Members={{SelfId,TEXT("我方"),ELDContenderKind::Human,true,true},{RivalId,TEXT("敌王"),ELDContenderKind::Human,false,true}};
+    FLDKillFeedView Feed;
+    TMap<FGuid,LDHUD::FTacticalSighting> Sightings;
+    LDHUD::FTacticalSighting SeenRival;SeenRival.Presentation=1;SeenRival.LastSeenLevel=9;SeenRival.RevealedActives[0]=Ab->NativeId;
+    Sightings.Add(RivalId,SeenRival);
+    const TArray<LDHUD::FTacticalScoreRow> TacRows=LDHUD::BuildTacticalScoreboard(Public,Feed,Lobby,SelfId,Sightings,&Build,&Content,true,8000);
+    TestTrue(TEXT("Tactical scoreboard lists contenders with crown, sighted level, live guard bar and sighted skill"),
+        TacRows.Num()==2&&TacRows[1].bLeaderCrown&&TacRows[1].LevelText==TEXT("Lv.9")
+        &&TacRows[1].GraffitiFraction>0.5f&&!TacRows[1].ActiveNames[0].IsEmpty());
+    return true;
+}
+
+
+

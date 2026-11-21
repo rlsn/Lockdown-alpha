@@ -25,6 +25,89 @@ int32 LDOrderRules::NearestCandidate(const TArray<FLDObservedUnitView>& Units, c
 bool LDOrderRules::QueueHeadDue(bool bPending, bool bActive, bool bActionRunning)
 { return !bPending && !bActive && !bActionRunning; }
 
+bool LDOrderRules::ShouldCoalesceClickMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
+    const FVector& GroundCm, const FLDMoveIdentity& CurrentLocal, const FLDMoveIdentity& CachedMoveIdentity,
+    int32 QueuedStepCount)
+{
+    if (!FMath::IsFinite(NowSeconds) || !FMath::IsFinite(LastSentSeconds) || LastSentSeconds <= 0.
+        || LastGroundCm.ContainsNaN() || GroundCm.ContainsNaN()
+        || CachedMoveIdentity.Order == 0 || !(CurrentLocal == CachedMoveIdentity) || QueuedStepCount != 0)
+    {
+        return false;
+    }
+    return NowSeconds >= LastSentSeconds
+        && (NowSeconds - LastSentSeconds) < ClickMoveCoalesceSeconds
+        && FVector::DistSquared2D(LastGroundCm, GroundCm) < FMath::Square(ClickMoveCoalesceCm);
+}
+
+bool LDOrderRules::IntersectElevationPlane(const FVector& RayOrigin, const FVector& RayDirection, double PlaneZ,
+    const FVector& FallbackForward, const FVector& FallbackFeet, FVector& OutWorldPoint)
+{
+    OutWorldPoint = FVector::ZeroVector;
+    if (!FMath::IsFinite(PlaneZ) || RayOrigin.ContainsNaN() || RayDirection.ContainsNaN()) { return false; }
+    if (RayDirection.Z >= -0.001)
+    {
+        FVector Fwd(FallbackForward.X, FallbackForward.Y, 0.);
+        Fwd = Fwd.GetSafeNormal();
+        if (Fwd.IsZero()) { return false; }
+        OutWorldPoint = FVector(FallbackFeet.X, FallbackFeet.Y, PlaneZ) + Fwd * 400.;
+        OutWorldPoint.Z = PlaneZ;
+        return true;
+    }
+    const double T = (PlaneZ - RayOrigin.Z) / RayDirection.Z;
+    if (!FMath::IsFinite(T) || T < 0.) { return false; }
+    OutWorldPoint = RayOrigin + RayDirection * T;
+    OutWorldPoint.Z = PlaneZ;
+    return !OutWorldPoint.ContainsNaN();
+}
+
+FVector LDOrderRules::ResolveElevationAimDirection(const FVector& CasterFeet, const FVector& AimWorldPoint,
+    const FVector& CasterForward)
+{
+    const FVector Delta(AimWorldPoint.X - CasterFeet.X, AimWorldPoint.Y - CasterFeet.Y, 0.);
+    if (!Delta.ContainsNaN() && Delta.SizeSquared() >= FMath::Square(AimDeadzoneCm))
+    {
+        return Delta.GetSafeNormal();
+    }
+    const FVector Fallback(CasterForward.X, CasterForward.Y, 0.);
+    const FVector Norm = Fallback.GetSafeNormal();
+    return Norm.IsZero() ? FVector(1., 0., 0.) : Norm;
+}
+
+bool LDOrderRules::ClipViewportSegment(FVector2D& InOutA, FVector2D& InOutB, const FVector2D& Min, const FVector2D& Max)
+{
+    if (InOutA.ContainsNaN() || InOutB.ContainsNaN() || Min.X >= Max.X || Min.Y >= Max.Y) { return false; }
+    const double DX = InOutB.X - InOutA.X, DY = InOutB.Y - InOutA.Y;
+    const double P[4] = {-DX, DX, -DY, DY};
+    const double Q[4] = {InOutA.X - Min.X, Max.X - InOutA.X, InOutA.Y - Min.Y, Max.Y - InOutA.Y};
+    double T0 = 0., T1 = 1.;
+    for (int32 Edge = 0; Edge < 4; ++Edge)
+    {
+        if (FMath::Abs(P[Edge]) <= 1e-9)
+        {
+            if (Q[Edge] < 0.) { return false; }
+        }
+        else
+        {
+            const double R = Q[Edge] / P[Edge];
+            if (P[Edge] < 0.)
+            {
+                if (R > T1) { return false; }
+                T0 = FMath::Max(T0, R);
+            }
+            else
+            {
+                if (R < T0) { return false; }
+                T1 = FMath::Min(T1, R);
+            }
+        }
+    }
+    const FVector2D A0 = InOutA;
+    InOutA = A0 + FVector2D(DX, DY) * T0;
+    InOutB = A0 + FVector2D(DX, DY) * T1;
+    return true;
+}
+
 LDOrderRules::EQueueAfter LDOrderRules::QueueAfter(ELDOrderFailure Failure)
 {
     switch (Failure)

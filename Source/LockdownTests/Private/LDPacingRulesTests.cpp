@@ -143,8 +143,8 @@ bool FLDPacingRespawnChoiceTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDPacingRulesTesting::Approved(*this, Catalog)) { return false; }
     const FLDDemoContentParameters& P = Catalog->Get().Parameters;
-    bool bGood = TestTrue(TEXT("Approved: 6 s + 0.5 s per level, two candidates, 4 s to choose"),
-        P.RespawnBaseMs == 6000 && P.RespawnPerLevelMs == 500 && P.SpawnChoiceCount == 2 && P.SpawnChoiceMs == 4000);
+    bool bGood = TestTrue(TEXT("Approved: 6 s + 0.5 s per level, three candidates, 6 s to choose"),
+        P.RespawnBaseMs == 6000 && P.RespawnPerLevelMs == 500 && P.SpawnChoiceCount == 3 && P.SpawnChoiceMs == 6000);
     bGood &= TestEqual(TEXT("Level 1 waits 6.5 s"), LDPacing::FieldRespawnWaitMs(P, 1, false), int64(6500));
     bGood &= TestEqual(TEXT("Level 10 waits 11 s"), LDPacing::FieldRespawnWaitMs(P, 10, false), int64(11000));
     bGood &= TestEqual(TEXT("Exam week adds its approved bonus"), LDPacing::FieldRespawnWaitMs(P, 10, true),
@@ -153,8 +153,9 @@ bool FLDPacingRespawnChoiceTest::RunTest(const FString& Parameters)
     TArray<FName> Drawn, Again;
     LDFieldPacing::DrawCandidates(42, 7, Anchors, P.SpawnChoiceCount, Drawn);
     LDFieldPacing::DrawCandidates(42, 7, Anchors, P.SpawnChoiceCount, Again);
-    bGood &= TestTrue(TEXT("Two distinct spawn anchors, fixed by the seed"), Drawn.Num() == 2 && Drawn[0] != Drawn[1] && Drawn == Again
-        && Anchors.Contains(Drawn[0]) && Anchors.Contains(Drawn[1]));
+    bGood &= TestTrue(TEXT("Three distinct spawn anchors, fixed by the seed"),
+        Drawn.Num() == 3 && Drawn[0] != Drawn[1] && Drawn[0] != Drawn[2] && Drawn[1] != Drawn[2] && Drawn == Again
+        && Anchors.Contains(Drawn[0]) && Anchors.Contains(Drawn[1]) && Anchors.Contains(Drawn[2]));
     TSet<FName> Seen;
     for (uint64 Seed = 1; Seed <= 200; ++Seed)
     {

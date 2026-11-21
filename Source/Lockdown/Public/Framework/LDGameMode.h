@@ -450,7 +450,7 @@ private:
     TMap<FGuid, FGuid> PreviousLobbyAI;
     bool AdmitRoomMember(ALDPlayerController* Controller, FString& Reason);
     TMap<TWeakObjectPtr<ALDPlayerController>,FTimerHandle> PendingReconnects;
-    bool AdvanceRoster(FString& Reason);
+    bool AdvanceRoster(FString& Reason, bool bClearReady = true);
     void PublishLobby();
     bool CheckDemoStartInputs(FString& Reason) const;
     TWeakObjectPtr<ALDPlayerController> LobbyHost;

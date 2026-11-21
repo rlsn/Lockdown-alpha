@@ -425,6 +425,55 @@ void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeom
         Edge(Elements,Layer,Geometry,EShape::Rounded,Box,3.f,bHot?Accent.CopyWithNewOpacity(.7f*Opacity):FLinearColor(1,1,1,.075f*Opacity),1.f);
         return;
     }
+    case EButton::CardActive:
+    {
+        // #328 §2: Active skill / blueprint — chamfered hexagonal/octagonal frame in amber gold #F59E0B over #451A03.
+        const FLinearColor Gold=State.Tint.A>0.f?State.Tint:Hex(0xF59E0B);
+        Halo(Elements,Layer,Geometry,EShape::Octagon,Box,0.f,FLinearColor(0,0,0,.58f*Opacity),28.f,FVector2D(0,12));
+        Halo(Elements,Layer,Geometry,EShape::Octagon,Box,0.f,Gold.CopyWithNewOpacity((bHot?.38f:.20f)*Opacity),bHot?24.f:14.f);
+        Shape(Elements,Layer+1,Geometry,EShape::Octagon,Box,0.f,
+            FFill::Linear(180.f,{{0.f,Hex(bHot?0x5C2506:0x451A03)},{.55f,Hex(0x261004)},{1.f,Hex(0x120804)}}),Opacity);
+        Edge(Elements,Layer+1,Geometry,EShape::Octagon,Box,0.f,Gold.CopyWithNewOpacity((bHot?1.f:.86f)*Opacity),bHot?2.4f:1.8f);
+        const float Cham=LDUIShapes::Chamfer(Box);
+        Line(Elements,Layer+2,Geometry,FVector2D(Box.Min.X+Cham,Box.Min.Y+2.f),FVector2D(Box.Max.X-Cham,Box.Min.Y+2.f),Gold.CopyWithNewOpacity(.85f*Opacity),2.f);
+        return;
+    }
+    case EButton::CardBuild:
+    {
+        // #328 §2: Build card — vertical rounded poker frame in royal blue #3B82F6 (or rare #A855F7 / legendary #FACC15) over #172554.
+        const FLinearColor Rim=State.Tint.A>0.f?State.Tint:Hex(0x3B82F6);
+        Halo(Elements,Layer,Geometry,EShape::Rounded,Box,8.f,FLinearColor(0,0,0,.55f*Opacity),26.f,FVector2D(0,12));
+        if(bHot||State.Tint.A>0.f)
+        {
+            Halo(Elements,Layer,Geometry,EShape::Rounded,Box,8.f,Rim.CopyWithNewOpacity((bHot?.34f:.16f)*Opacity),bHot?22.f:14.f);
+        }
+        Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,8.f,
+            FFill::Linear(180.f,{{0.f,Hex(bHot?0x1E3A8A:0x172554)},{.6f,Hex(0x0F172A)},{1.f,Hex(0x090D16)}}),Opacity);
+        Edge(Elements,Layer+1,Geometry,EShape::Rounded,Box,8.f,Rim.CopyWithNewOpacity((bHot?1.f:.82f)*Opacity),bHot?2.2f:1.6f);
+        Line(Elements,Layer+2,Geometry,FVector2D(Box.Min.X+8.f,Box.Min.Y+2.f),FVector2D(Box.Max.X-8.f,Box.Min.Y+2.f),Rim.CopyWithNewOpacity(.75f*Opacity),2.f);
+        return;
+    }
+    case EButton::CardStone:
+    {
+        // #328 §2: Element stone (medal_*) — true circular emerald crystal disc (#10B981 + inner element ring), never a poker rectangle!
+        const FVector2D Center=Box.GetCenter();
+        const float Diameter=float(FMath::Min(Box.GetSize().X,Box.GetSize().Y))-2.f;
+        const float R=FMath::Max(8.f,Diameter*.5f);
+        const FBox2D DiscBox(Center-FVector2D(R,R),Center+FVector2D(R,R));
+        const FLinearColor Emerald=Hex(0x10B981);
+        const FLinearColor InnerElem=State.Tint.A>0.f?State.Tint:Hex(0x34D399);
+        Halo(Elements,Layer,Geometry,EShape::Circle,DiscBox,R,FLinearColor(0,0,0,.58f*Opacity),20.f,FVector2D(0,8));
+        Halo(Elements,Layer,Geometry,EShape::Circle,DiscBox,R,Emerald.CopyWithNewOpacity((bHot?.45f:.24f)*Opacity),bHot?22.f:14.f);
+        Shape(Elements,Layer+1,Geometry,EShape::Circle,DiscBox,R,
+            FFill::Linear(155.f,{{0.f,Hex(bHot?0x065F46:0x064E3B)},{.65f,Hex(0x022C22)},{1.f,Hex(0x041F1A)}}),Opacity);
+        Edge(Elements,Layer+1,Geometry,EShape::Circle,DiscBox,R,Emerald.CopyWithNewOpacity((bHot?1.f:.92f)*Opacity),bHot?2.8f:2.2f);
+        const FBox2D InnerDisc=Grow(DiscBox,-4.5f);
+        if(InnerDisc.GetSize().X>8.f)
+        {
+            Edge(Elements,Layer+2,Geometry,EShape::Circle,InnerDisc,float(InnerDisc.GetSize().X)*.5f,InnerElem.CopyWithNewOpacity(.82f*Opacity),1.5f);
+        }
+        return;
+    }
     case EButton::Card:
     {
         // .ocard: the deep vertical surface with its hairline, top highlight and long shadow; hovering lifts its edge, a

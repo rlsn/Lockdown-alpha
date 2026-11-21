@@ -73,8 +73,8 @@ namespace LDUIPaint
     // A raised panel: the vertical surface gradient, a one-pixel highlight on the top, the hairline border, the drop shadow
     // and the yellow corner fold top-left with a thin tick bottom-right (bFolds).
     LOCKDOWN_API void Panel(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,bool bFolds=true,float Opacity=1.f);
-    // Card: a choice card's raised surface (.ocard); its Tint marks it chosen (any colour but the idle card colour).
-    enum class EButton : uint8 { Normal, Primary, Event, Plus, Key, Tag, TagOn, Ghost, Card };
+    // Card: a choice card's raised surface (.ocard); CardActive / CardBuild / CardStone provide #328 §2 3-way silhouettes.
+    enum class EButton : uint8 { Normal, Primary, Event, Plus, Key, Tag, TagOn, Ghost, Card, CardActive, CardBuild, CardStone };
     struct FButtonState
     {
         bool bHovered=false;

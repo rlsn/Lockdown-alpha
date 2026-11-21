@@ -54,10 +54,10 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays"),TEXT("Build")},
         TEXT("Result rows carry settled totals and frozen rule identities, never live resources, cooldowns, attributes or position"));
     ExpectStruct(FLDResultBuild::StaticStruct(),{TEXT("bAvailable"),TEXT("CatalogRoot"),TEXT("Actives"),TEXT("Cards"),
-        TEXT("FinalMod")},
-        TEXT("Frozen build summaries contain only catalog and installed rule identities"));
-    ExpectStruct(FLDResultBuildActive::StaticStruct(),{TEXT("DefinitionId"),TEXT("Slot")},
-        TEXT("Frozen active summaries contain only their identity and slot"));
+        TEXT("FinalMod"),TEXT("StatPoints")},
+        TEXT("Frozen build summaries contain only catalog, installed rule identities and settled stat points"));
+    ExpectStruct(FLDResultBuildActive::StaticStruct(),{TEXT("DefinitionId"),TEXT("Slot"),TEXT("Branch")},
+        TEXT("Frozen active summaries contain only their identity, slot and learned branch"));
     ExpectStruct(FLDResultBuildCard::StaticStruct(),{TEXT("DefinitionId"),TEXT("Target"),TEXT("TargetId"),TEXT("Element")},
         TEXT("Frozen card summaries contain only their identity, place and element"));
     ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices"),TEXT("Scores")},TEXT("Kill feed is a bounded public ring with the public K/D/A"));
@@ -86,6 +86,16 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(FLDLobbyMember::StaticStruct());It;++It)
     {++MemberCount;TestTrue(TEXT("Roster carries public room and previous-result identities, never private build or body data"),Member.Contains(It->GetFName()));}
     TestEqual(TEXT("Demo member schema complete"),MemberCount,6);
+    {
+        FLDResultBuild BuildCheck;
+        BuildCheck.bAvailable=true;
+        BuildCheck.CatalogRoot=FString::ChrN(64,TEXT('a'));
+        BuildCheck.StatPoints={260,0,18,0,0};
+        FString BuildError;
+        TestTrue(TEXT("Result build accepts >255 int32 stat points without clamping"),LDCapture::ValidateResultBuild(BuildCheck,BuildError));
+        BuildCheck.StatPoints[1]=-1;
+        TestFalse(TEXT("Result build rejects negative stat point counts"),LDCapture::ValidateResultBuild(BuildCheck,BuildError));
+    }
     return true;
 }
 #endif

@@ -69,20 +69,37 @@ float TrayCellHeight(bool bTile,float TextScale,float Scale,bool bCompact)
     const float Icon=TrayIconSize(bTile,Scale,bCompact);
     return bTile?Icon+2.f*TrayCardPadding:Icon+2.f*TrayCardPadding+4.f+FMath::CeilToFloat(LDHUDStyle::TypeBody*TextScale*2.7f);
 }
-// #198 G dismantle selection buttons per line (their labels may carry the installed warning).
-// A card's painted face (LDUIPaint::EButton::Card): idle, or chosen in its state's colour at full strength.
-void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
+// #328 §2: maps a reward card's button to its 3-way surface look (CardActive / CardBuild / CardStone) and optional accent tint.
+void GrowthCardLook(ULDCommandButton* Button,LDUIPaint::EButton Look,const FLinearColor& Color=LDHUDStyle::CardIdle)
 {
     if(!Button){return;}
-    if(Button->Look!=LDUIPaint::EButton::Card)
+    if(Button->Look!=Look)
     {
-        Button->Look=LDUIPaint::EButton::Card;
+        Button->Look=Look;
         auto Style=Button->GetStyle();Style.Normal=FSlateNoResource();Style.Hovered=FSlateNoResource();Style.Pressed=FSlateNoResource();Style.Disabled=FSlateNoResource();
         Button->SetStyle(Style);
+        if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}
     }
     const float Peak=FMath::Max3(Color.R,Color.G,Color.B);
     const FLinearColor Mark=Color.Equals(LDHUDStyle::CardIdle)||Peak<=0.f?FLinearColor::Transparent:FLinearColor(Color.R/Peak,Color.G/Peak,Color.B/Peak,1.f);
     if(!Button->Tint.Equals(Mark)){Button->Tint=Mark;if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}}
+}
+void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
+{
+    if(!Button){return;}
+    const LDUIPaint::EButton Keep=(Button->Look==LDUIPaint::EButton::CardActive||Button->Look==LDUIPaint::EButton::CardBuild||Button->Look==LDUIPaint::EButton::CardStone)
+        ?Button->Look:LDUIPaint::EButton::Card;
+    GrowthCardLook(Button,Keep,Color);
+}
+FLinearColor ElementStoneRingColor(FName DefinitionId)
+{
+    const FString Id=LDHUD::CardDefinition(DefinitionId).ToString();
+    if(Id.Contains(TEXT("fire"))){return FLinearColor(FColor(0xFB,0x92,0x3C));}
+    if(Id.Contains(TEXT("water"))){return FLinearColor(FColor(0x38,0xBD,0xF8));}
+    if(Id.Contains(TEXT("electric"))||Id.Contains(TEXT("shock"))){return FLinearColor(FColor(0xC0,0x84,0xFC));}
+    if(Id.Contains(TEXT("chill"))||Id.Contains(TEXT("ice"))){return FLinearColor(FColor(0x67,0xE8,0xF9));}
+    if(Id.Contains(TEXT("rot"))){return FLinearColor(FColor(0x84,0xCC,0x16));}
+    return FLinearColor(FColor(0x34,0xD3,0x99));
 }
 void GrowthText(UTextBlock* Text,const FString& Value)
 {
@@ -155,7 +172,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 auto* Actions=WidgetTree->ConstructWidget<UVerticalBox>();Actions->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
                 CardRerollButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){RerollCardOffer();},true,TEXT("GrowthCardReroll"));
                 Actions->AddChildToVerticalBox(CardRerollButton)->SetHorizontalAlignment(HAlign_Fill);
-                CardSkipButton=LDWidgets::Button(WidgetTree,LDTerms::CardSkip,[this](){SkipCardOffer();},true,TEXT("GrowthCardSkip"));
+                CardSkipButton=LDWidgets::HoldButton(WidgetTree,LDTerms::CardSkip,[this](){SkipCardOffer();},TEXT("GrowthCardSkip"));
                 Actions->AddChildToVerticalBox(CardSkipButton)->SetPadding(FMargin(0,6,0,0));
                 CardRow->AddChildToWrapBox(Actions);RowWidgets.Add(Actions);CardActions=Actions;
             }
@@ -173,7 +190,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)),[this,Index](){ChooseOffer(Index);},ETrayLook::Skill);
                 OfferRow->AddChildToWrapBox(Card.Frame);OfferCards.Add(Card);
             }
-            SkipCard=MakeCard(TEXT("GrowthOfferSkip"),[this](){SkipOffer();});
+            SkipCard=MakeCard(TEXT("GrowthOfferSkip"),[this](){SkipOffer();},ETrayLook::Plain,true);
             OfferRow->AddChildToWrapBox(SkipCard.Frame);
             auto* FinalLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             FinalModGroup=FinalLine;
@@ -319,22 +336,39 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
     }
     return Super::RebuildWidget();
 }
-ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look)
+ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look,bool bHold)
 {
     FTrayCard Card;
-    // The kind's colour and icon cut: skills blue with a nearly square icon, build cards gold.
-    const FLinearColor LookRim=Look==ETrayLook::Skill?FLinearColor(.36f,.62f,1.f):Look==ETrayLook::Card?FLinearColor(.95f,.74f,.3f):LDHUDStyle::ShapeRim;
-    const float LookRadius=Look==ETrayLook::Skill?2.f:TrayIconRadius;
+    const FLinearColor LookRim=Look==ETrayLook::Skill?LDHUDStyle::RewardActiveRim:Look==ETrayLook::Card?LDHUDStyle::RewardCardRim:LDHUDStyle::ShapeRim;
+    const float LookRadius=Look==ETrayLook::Skill?3.f:TrayIconRadius;
     auto* Face=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Face);
+    Card.KindBannerText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeMicro,NAME_None,LDUIFonts::ERole::Strong);
+    Card.KindBannerText->SetAutoWrapText(false);Card.KindBannerText->SetJustification(ETextJustify::Center);
+    ScaleNewText(Card.KindBannerText);RowWidgets.Add(Card.KindBannerText);
+    auto* BannerBorder=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(BannerBorder);
+    BannerBorder->SetBrush(FSlateRoundedBoxBrush(FLinearColor(0.f,0.f,0.f,.42f),3.f,FLinearColor::Transparent,0.f));
+    BannerBorder->SetPadding(FMargin(5,1));BannerBorder->SetContent(Card.KindBannerText);
+    BannerBorder->SetVisibility(ESlateVisibility::Collapsed);Card.KindBanner=BannerBorder;
+    Face->AddChildToVerticalBox(BannerBorder)->SetHorizontalAlignment(HAlign_Center);
+    if(UVerticalBoxSlot* BSlot=Cast<UVerticalBoxSlot>(BannerBorder->Slot)){BSlot->SetPadding(FMargin(0,0,0,3));}
+
     auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();RowWidgets.Add(IconBox);
     auto* Shape=WidgetTree->ConstructWidget<UBorder>();Shape->SetVisibility(ESlateVisibility::HitTestInvisible);RowWidgets.Add(Shape);
-    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LookRadius,LookRim,Look==ETrayLook::Plain?1.5f:2.5f));Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LookRadius,LookRim,Look==ETrayLook::Plain?1.5f:2.2f));Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+    Card.Shape=Shape;
     auto* ShapeSlot=IconBox->AddChildToOverlay(Shape);ShapeSlot->SetHorizontalAlignment(HAlign_Fill);ShapeSlot->SetVerticalAlignment(VAlign_Fill);
     Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Picture);
     auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
     Card.Glyph=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSection);Card.Glyph->SetAutoWrapText(false);Card.Glyph->SetJustification(ETextJustify::Center);
     ScaleNewText(Card.Glyph);RowWidgets.Add(Card.Glyph);
     auto* GlyphSlot=IconBox->AddChildToOverlay(Card.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+    Card.HotkeyText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeMicro,NAME_None,LDUIFonts::ERole::Number);
+    Card.HotkeyText->SetAutoWrapText(false);Card.HotkeyText->SetColorAndOpacity(LDHUDStyle::UIAction);ScaleNewText(Card.HotkeyText);RowWidgets.Add(Card.HotkeyText);
+    auto* HotkeyBorder=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(HotkeyBorder);
+    HotkeyBorder->SetBrush(FSlateRoundedBoxBrush(FLinearColor(0.f,0.f,0.f,.78f),4.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.65f),1.f));
+    HotkeyBorder->SetPadding(FMargin(4,0));HotkeyBorder->SetContent(Card.HotkeyText);HotkeyBorder->SetVisibility(ESlateVisibility::Collapsed);
+    HotkeyBorder->SetRenderTranslation(FVector2D(-4,-4));Card.HotkeyChip=HotkeyBorder;
+    auto* HotkeySlot=IconBox->AddChildToOverlay(HotkeyBorder);HotkeySlot->SetHorizontalAlignment(HAlign_Left);HotkeySlot->SetVerticalAlignment(VAlign_Top);
     Card.IconFrame=WidgetTree->ConstructWidget<USizeBox>();Card.IconFrame->SetWidthOverride(TrayCardIcon);Card.IconFrame->SetHeightOverride(TrayCardIcon);
     Card.IconFrame->SetContent(IconBox);RowWidgets.Add(Card.IconFrame);
     Face->AddChildToVerticalBox(Card.IconFrame)->SetHorizontalAlignment(HAlign_Center);
@@ -342,6 +376,11 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
     Card.Name->SetWrapTextAt(TrayCardWidth-2.f*TrayCardPadding);
     Card.Name->SetJustification(ETextJustify::Center);ScaleNewText(Card.Name);RowWidgets.Add(Card.Name);
     auto* NameSlot=Face->AddChildToVerticalBox(Card.Name);NameSlot->SetHorizontalAlignment(HAlign_Fill);NameSlot->SetPadding(FMargin(0,4,0,0));
+    Card.CompatText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeMicro);Card.CompatText->SetAutoWrapText(false);
+    Card.CompatText->SetJustification(ETextJustify::Center);ScaleNewText(Card.CompatText);RowWidgets.Add(Card.CompatText);
+    UScaleBox* CompatFit=LDWidgets::Fit(WidgetTree,Card.CompatText);RowWidgets.Add(CompatFit);
+    CompatFit->SetVisibility(ESlateVisibility::Collapsed);Card.CompatBox=CompatFit;
+    Face->AddChildToVerticalBox(CompatFit)->SetPadding(FMargin(0,2,0,0));
     {
         // The stage face's extra lines: targeting, momentum cost and cooldown; the tags; the element chip on the icon; the 可接 row.
         const auto Line=[this](int32 Size,const FLinearColor& Ink,LDUIFonts::ERole Role)
@@ -373,21 +412,19 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
         if(UVerticalBoxSlot* LinksSlot=Cast<UVerticalBoxSlot>(Card.Links->Slot)){LinksSlot->SetHorizontalAlignment(HAlign_Center);}
     }
     // A world button: picking a card in the field never takes keyboard focus from the game.
-    Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),true,ButtonName);RowWidgets.Add(Card.Button);
-    Card.Button->SetContent(Face);GrowthTint(Card.Button,LDHUDStyle::CardIdle);
+    Card.Button=bHold?static_cast<ULDCommandButton*>(LDWidgets::HoldButton(WidgetTree,TEXT(""),MoveTemp(Click),ButtonName))
+        :LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),true,ButtonName);
+    RowWidgets.Add(Card.Button);
+    Card.Button->SetContent(Face);
+    const LDUIPaint::EButton InitialLook=Look==ETrayLook::Skill?LDUIPaint::EButton::CardActive
+        :Look==ETrayLook::Card?LDUIPaint::EButton::CardBuild:LDUIPaint::EButton::Card;
+    GrowthCardLook(Card.Button,InitialLook,Look==ETrayLook::Skill?LDHUDStyle::RewardActiveRim
+        :Look==ETrayLook::Card?LDHUDStyle::RewardCardRim:LDHUDStyle::CardIdle);
     {auto Style=Card.Button->GetStyle();Style.NormalPadding=FMargin(TrayCardPadding);Style.PressedPadding=FMargin(TrayCardPadding);Card.Button->SetStyle(Style);}
     // After SetContent: replacing the caption makes a new, centred slot; the face fills the card instead.
     if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
     Card.Frame=WidgetTree->ConstructWidget<USizeBox>();Card.Frame->SetWidthOverride(TrayCardWidth);
-    if(Look==ETrayLook::Plain){Card.Frame->SetContent(Card.Button);}
-    else
-    {
-        // A coloured outer frame names the kind; a build card stands taller, like a playing card.
-        auto* Rim=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(Rim);
-        Rim->SetBrush(FSlateRoundedBoxBrush(FLinearColor::Transparent,Look==ETrayLook::Skill?3.f:8.f,LookRim,2.f));
-        Rim->SetPadding(FMargin(2.f));Rim->SetContent(Card.Button);Card.Frame->SetContent(Rim);
-        if(Look==ETrayLook::Card){Card.Frame->SetMinDesiredHeight(TrayCardWidth*1.3f);}
-    }
+    Card.Frame->SetContent(Card.Button);
     Card.Frame->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Frame);
     return Card;
 }
@@ -398,20 +435,34 @@ bool ULDChoicesPanel::CardStale(const FTrayCard& Card,const FString& Key) const
 void ULDChoicesPanel::ShowFace(FTrayCard& Card,const FString& Key,const FString& Name,const FString& IconId,const FString& Glyph,
     const LDHUD::FActionDetailView& Detail)
 {
-    Card.ShownKey=Key;Card.Detail=Detail;
+    Card.ShownKey=Key;Card.Detail=Detail;Card.FullName=Name;
     GrowthText(Card.Name,Name);GrowthText(Card.Glyph,Glyph);
     Card.AppliedIcon=IconId;Card.AppliedEnabled=-1;
 }
 void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVisible)
 {
     GrowthShown(Card.Frame,bVisible);
+    const bool bCombatCompact=!bOpen&&bQuickShown&&bQuickCompact&&!Card.bBig;
+    // Combat-folded compact mode keeps icon + 4-char short name + category color frame (#331).
+    if(bCombatCompact){bTile=false;}
     bTile|=bIconOnlyTray&&!Card.bBig;
     Card.bTile=bTile;
+    if(!Card.FullName.IsEmpty())
+    {
+        GrowthText(Card.Name,bCombatCompact?Card.FullName.Left(4):Card.FullName);
+    }
     if(!Card.bBig)
     {
         const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
-        const float Width=TrayCellWidth(bTile,Scale,bCompactTray),Height=TrayCellHeight(bTile,AppliedTextScale,Scale,bCompactTray);
-        const float Icon=TrayIconSize(bTile,Scale,bCompactTray);
+        const bool bUseCompact=bCompactTray||bCombatCompact;
+        const float Width=TrayCellWidth(bTile,Scale,bUseCompact);
+        const float ExtraBanner=Card.KindBanner&&Card.KindBanner->GetVisibility()!=ESlateVisibility::Collapsed&&!bCombatCompact&&!bTile?18.f:0.f;
+        const float ExtraCompat=Card.CompatBox&&Card.CompatBox->GetVisibility()!=ESlateVisibility::Collapsed&&!bCombatCompact&&!bTile?18.f:0.f;
+        // #328 §2: Element stones (medal_*) use a true circular crystal badge silhouette (square aspect Width x Width).
+        const float Height=Card.bElementStone&&!bTile
+            ?FMath::Max(Width,TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)*.88f)
+            :(TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)+ExtraBanner+ExtraCompat);
+        const float Icon=Card.bElementStone?TrayIconSize(bTile,Scale,bUseCompact)*.86f:TrayIconSize(bTile,Scale,bUseCompact);
         if(!FMath::IsNearlyEqual(Card.Frame->GetWidthOverride(),Width)){Card.Frame->SetWidthOverride(Width);}
         if(!FMath::IsNearlyEqual(Card.Frame->GetHeightOverride(),Height)){Card.Frame->SetHeightOverride(Height);}
         if(!FMath::IsNearlyEqual(Card.IconFrame->GetWidthOverride(),Icon))
@@ -425,7 +476,8 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
     if(Card.AppliedEnabled!=int32(bEnabled))
     {
         Card.AppliedEnabled=int32(bEnabled);
-        const bool bPicture=LDUIIcons::Apply(Card.Picture,Card.AppliedIcon,TrayIconRadius,bEnabled?FLinearColor::White:LDHUDStyle::IconBlocked);
+        const float PicRadius=Card.bElementStone?Card.IconFrame->GetWidthOverride()*.5f:TrayIconRadius;
+        const bool bPicture=LDUIIcons::Apply(Card.Picture,Card.AppliedIcon,PicRadius,bEnabled?FLinearColor::White:LDHUDStyle::IconBlocked);
         GrowthShown(Card.Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
     }
 }
@@ -455,18 +507,26 @@ FVector2D ULDChoicesPanel::TrayDesiredSize() const
 const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent,FString* OutIcon) const
 {
     if(OutComponent){*OutComponent=NAME_None;}
-    // Quick picks in an engagement window are icons only: no description.
-    if((!bOpen&&!(bQuickShown&&!bQuickCompact))||!Tray){return nullptr;}
+    // Combat-folded compact cards still pop full hover details on explicit mouse hover (#331).
+    if((!bOpen&&!bQuickShown)||!Tray){return nullptr;}
     const FTrayCard* Found=nullptr;
+    const bool bOfferPinnedSurface=(OfferRow&&OfferRow->IsVisible())||(bStageShown&&!bStageFinal);
+    if(bPinnedOfferExplicit&&bOfferPinnedSurface&&OfferCards.IsValidIndex(PinnedPreview)
+        &&OfferCards[PinnedPreview].Frame&&OfferCards[PinnedPreview].Frame->IsVisible())
+    {
+        Found=&OfferCards[PinnedPreview];
+    }
     const auto Over=[&Found,Pointer](const FTrayCard& Card)
     {
         if(!Found&&Card.Frame&&Card.Frame->IsVisible()&&Card.Frame->GetCachedGeometry().IsUnderLocation(Pointer)){Found=&Card;}
     };
     const auto Row=[&Over](const UWidget* Box,const TArray<FTrayCard>& Cards){if(Box&&Box->IsVisible()){for(const FTrayCard& Card:Cards){Over(Card);}}};
-    Row(OfferRow,OfferCards);if(OfferRow&&OfferRow->IsVisible()){Over(SkipCard);}Row(CardRow,CardCards);Row(BlueprintCardRow,BlueprintCards);
+    Row(OfferRow,OfferCards);if(OfferRow&&OfferRow->IsVisible()){Over(SkipCard);}
+    if(bStageShown&&StageCards&&StageCards->IsVisible()){for(const FTrayCard& Card:OfferCards){Over(Card);}Over(SkipCard);for(const FTrayCard& Card:FinalCards){Over(Card);}}
+    Row(CardRow,CardCards);Row(BlueprintCardRow,BlueprintCards);
     Row(FinalModRow,FinalCards);
     if(ShopPanel&&ShopPanel->IsVisible()){Row(ShopSlotRow,ShopCards);}
-    if(!Found&&OfferRow->IsVisible()&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
+    if(!Found&&bOfferPinnedSurface&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
     if(!Found){return nullptr;}
     Out=Found->Detail;
     if(OutComponent){*OutComponent=Found->Component;}
@@ -505,7 +565,6 @@ bool ULDChoicesPanel::ClosePanel()
     LDWidgets::ReleaseHolds(WidgetTree);
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);
     PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;bOpen=false;
-    bShopOpen=false;
     bFinalFeedbackAllowed=false;
     const LDHUD::FOfferMotionTicket PendingOffer=OfferMotion.Ticket;
     OfferMotion=FOfferMotion();
@@ -670,6 +729,12 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     SlotKeys=Keys;
     Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;
     LatestContent=Content;LatestStats=Stats;
+    if(Latest.Shop.bStocked&&(Match!=AutoShopMatch||uint32(Latest.Shop.Revision)!=AutoShopStock))
+    {
+        bShopOpen=true;
+        AutoShopMatch=Match;
+        AutoShopStock=uint32(Latest.Shop.Revision);
+    }
     if(!Tray){return;}
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,bDormRested):LDHUD::FBuildGateView();
     if(bStatsChanged){bCardsStale=true;}
@@ -694,7 +759,7 @@ void ULDChoicesPanel::RefreshAll()
     UpdateStage();
     GrowthShown(TrayFrame,(bOpen||bQuickShown)&&!bStageShown);
     PlanTrayPages(bTiles);
-    RefreshOffer();RefreshFinalMod();RefreshCardOffer(bTiles||bIconOnlyTray||(bQuickShown&&bQuickCompact));
+    RefreshOffer();RefreshFinalMod();RefreshCardOffer(bTiles||bIconOnlyTray);
     RefreshBlueprintCards();RefreshBlueprints();RefreshRest();
     RefreshStage();
     RefreshShopPanel();
@@ -791,7 +856,7 @@ void ULDChoicesPanel::RefreshOffer()
 {
     const bool bOffer=HasAvailableOffer();
     // A new offer drops the pinned popup; ids and revisions travel with the click, never a card index.
-    if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;}
+    if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;bPinnedOfferExplicit=false;}
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
     // A queued opportunity without an eligible candidate waits as one grey card; its description says why.
     const bool bWaiting=!bOffer&&Usable()&&!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0;
@@ -866,6 +931,11 @@ void ULDChoicesPanel::RefreshOffer()
             }
             if(!Lines.IsEmpty()){Detail.Body+=TEXT("\n\n")+FString::Join(Lines,TEXT("\n"));}
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,Detail);
+            if(Card.Shape)
+            {
+                Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,LDHUDStyle::UIAction,1.8f));
+                Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+            }
             // The stage face: targeting, momentum cost and cooldown, the keywords as tags, the element and the 可接 icons.
             GrowthText(Card.Facts,View.Target+TEXT("\n")+View.Cost);
             GrowthText(Card.Tags,FString::Join(LDWorkshop::KeywordNames(View.Keywords),TEXT("  ·  ")));
@@ -879,7 +949,20 @@ void ULDChoicesPanel::RefreshOffer()
             }
             Card.Links->SetToolTipText(FText::FromString(LinksLine));
         }
-        ShowLook(Card,bQuickShown&&bQuickCompact,Gate.bCanChoose&&!PendingRequest,bVisible);
+        if(Card.HotkeyText&&Card.HotkeyChip)
+        {
+            GrowthText(Card.HotkeyText,FString::Printf(TEXT("Alt+%d"),Index+1));
+            GrowthShown(Card.HotkeyChip,bVisible,ESlateVisibility::HitTestInvisible);
+        }
+        Card.bElementStone=false;
+        GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
+        if(Card.KindBanner&&Card.KindBannerText)
+        {
+            GrowthText(Card.KindBannerText,TEXT("♛ 主动技能"));
+            Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
+            GrowthShown(Card.KindBanner,bVisible&&!(bQuickShown&&bQuickCompact),ESlateVisibility::HitTestInvisible);
+        }
+        ShowLook(Card,false,Gate.bCanChoose&&!PendingRequest,bVisible);
         GrowthShown(Card.ElementChip,Card.bBig&&!Card.Element->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
         GrowthShown(Card.Links,Card.bBig&&Card.LinkIcons.Num()>0&&Card.LinkIcons[0]->GetVisibility()!=ESlateVisibility::Collapsed,ESlateVisibility::Visible);
     }
@@ -962,6 +1045,8 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
     const bool bVisible=bShow&&TrayShows(ETrayGroup::CardOffer);
     GrowthShown(CardRow,bVisible);TrayRowTiles(CardRow,bTiles);
     const bool bCan=Gate.bCanCardOffer&&!PendingRequest;
+    const bool bShowHotkeys=bVisible&&!HasAvailableOffer();
+    const bool bCombatCompact=!bOpen&&bQuickShown&&bQuickCompact;
     for(int32 Index=0;Index<CardCards.Num();++Index)
     {
         FTrayCard& Card=CardCards[Index];
@@ -982,13 +1067,62 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
                 :LDTerms::DropInstallsOn(Target.Kind==ELDCardTargetKind::Skill?LDHUD::ContentName(LatestContent,Target.Active.ToString())
                     :LDHUD::ColumnLabel(Column));
         }
+        bool bCompatMatch=false,bCompatFull=false;
+        const FString Compat=LDHUD::SkillCardCompatStrip(Id,Latest,LatestContent,SlotKeys,bCompatMatch,bCompatFull);
         const int32 Copies=LDHUD::OwnedCopies(Latest,Id);
-        const FString Key=Id.ToString()+TEXT("|")+Outcome+FString::Printf(TEXT("|%d"),Copies);
+        const FString Key=Id.ToString()+TEXT("|")+Outcome+TEXT("|")+Compat+FString::Printf(TEXT("|%d"),Copies);
+        const LDHUD::FCardFaceView View=LDHUD::CardFace(Id,LatestContent,LatestStats);
         if(CardStale(Card,Key))
         {
-            const LDHUD::FCardFaceView View=LDHUD::CardFace(Id,LatestContent,LatestStats);
-            ShowFace(Card,Key,Copies>0?View.Name+TEXT(" ")+LDTerms::CopiesBadge(Copies+1):View.Name,View.IconId,View.Glyph,
-                LDHUD::CardChoiceDetail(View,Outcome));
+            LDHUD::FActionDetailView Detail=LDHUD::CardChoiceDetail(View,Compat.IsEmpty()?Outcome:Outcome+TEXT("\n")+Compat);
+            ShowFace(Card,Key,Copies>0?View.Name+TEXT(" ")+LDTerms::CopiesBadge(Copies+1):View.Name,View.IconId,View.Glyph,Detail);
+        }
+        if(Card.Shape)
+        {
+            const bool bStone=View.Form==ELDCardForm::Medal||Id.ToString().StartsWith(TEXT("medal_"));
+            Card.bElementStone=bStone;
+            if(bStone)
+            {
+                const FLinearColor InnerRing=ElementStoneRingColor(Id);
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardStone,InnerRing);
+                const float DiscR=FMath::Max(18.f,Card.IconFrame->GetWidthOverride()*.5f);
+                Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,DiscR,LDHUDStyle::RewardStoneRim,2.2f));
+                Card.Shape->SetBrushColor(LDHUDStyle::RewardStoneBase);
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    GrowthText(Card.KindBannerText,TEXT("◆ 元素石"));
+                    Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardStoneRim);
+                    GrowthShown(Card.KindBanner,!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
+                }
+            }
+            else
+            {
+                const FLinearColor RimColor=View.Type==ELDCardType::Convert?LDHUDStyle::RewardCardRare
+                    :View.Type==ELDCardType::Grow?LDHUDStyle::RewardCardLegend:LDHUDStyle::RewardCardRim;
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardBuild,RimColor);
+                const FLinearColor KindEdge=LDUIShapes::KindColor(uint8(View.Type));
+                Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,KindEdge,bCombatCompact?2.2f:1.5f));
+                Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    const TCHAR* FormTag=View.Form==ELDCardForm::Skill?TEXT("构筑牌·技能")
+                        :View.Form==ELDCardForm::Dash?TEXT("构筑牌·冲刺"):TEXT("构筑牌·身体");
+                    GrowthText(Card.KindBannerText,FormTag);
+                    Card.KindBannerText->SetColorAndOpacity(RimColor);
+                    GrowthShown(Card.KindBanner,!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
+                }
+            }
+        }
+        if(Card.HotkeyText&&Card.HotkeyChip)
+        {
+            GrowthText(Card.HotkeyText,FString::Printf(TEXT("Alt+%d"),Index+1));
+            GrowthShown(Card.HotkeyChip,bShowHotkeys&&Index<3,ESlateVisibility::HitTestInvisible);
+        }
+        if(Card.CompatText&&Card.CompatBox)
+        {
+            GrowthText(Card.CompatText,Compat);
+            Card.CompatText->SetColorAndOpacity(!bCompatMatch?LDHUDStyle::UIReplace:bCompatFull?LDHUDStyle::CardModify:LDHUDStyle::UILegal);
+            GrowthShown(Card.CompatBox,!Compat.IsEmpty()&&!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,bTiles,bCan,bVisible);
         if(LatestContent)
@@ -1000,7 +1134,7 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
             GrowthTint(Card.Button,Tint);
         }
     }
-    GrowthShown(CardActions,bShow&&!bTiles);
+    GrowthShown(CardActions,bShow&&!bTiles&&!bCombatCompact);
     GrowthText(Cast<UTextBlock>(CardRerollButton->GetContent()),LDTerms::CardReroll(Latest.CardRerolls));
     GrowthEnabled(CardRerollButton,bCan&&Latest.CardRerolls>0);
     GrowthEnabled(CardSkipButton,bCan);
@@ -1072,6 +1206,14 @@ void ULDChoicesPanel::RefreshBlueprintCards()
         {
             const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Id,LatestContent,LatestStats);
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome));
+        }
+        Card.bElementStone=false;
+        GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
+        if(Card.KindBanner&&Card.KindBannerText)
+        {
+            GrowthText(Card.KindBannerText,TEXT("♛ 技能图纸"));
+            Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
+            GrowthShown(Card.KindBanner,TrayShows(ETrayGroup::Blueprint,Index),ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,false,Gate.bCanLearn&&!PendingRequest,TrayShows(ETrayGroup::Blueprint,Index));
     }
@@ -1171,6 +1313,17 @@ bool ULDChoicesPanel::SkipOffer()
     if(Send(Command)){return true;}
     OfferMotion=FOfferMotion();return false;
 }
+bool ULDChoicesPanel::PickByHotkey(int32 Index)
+{
+    if(Index<0||Index>=3||(!bOpen&&!bQuickShown)){return false;}
+    if(HasAvailableOffer()&&Latest.ActiveOffer.Options.IsValidIndex(Index)){return ChooseOffer(Index);}
+    if(Usable()&&Latest.bHasCardOffer&&ShownCardOptions.IsValidIndex(Index)){return PickCardOffer(Index);}
+    if(HasAvailableFinal()&&Latest.FinalModOptions.IsValidIndex(Index))
+    {
+        return IsFinalStage()?SelectFinalMod(Index):ReopenFinalStage(Index);
+    }
+    return false;
+}
 bool ULDChoicesPanel::ChooseFinalMod(int32 Index)
 {
     if(!Usable()||!Latest.bFinalModPending||!Latest.FinalModOptions.IsValidIndex(Index)||Latest.FinalModOfferId!=ShownFinalMod){return false;}
@@ -1217,8 +1370,9 @@ bool ULDChoicesPanel::LockFinalMod()
 }
 bool ULDChoicesPanel::PreviewOffer(int32 Index)
 {
+    if(Index==INDEX_NONE){bPinnedOfferExplicit=false;PinnedPreview=INDEX_NONE;return true;}
     if(!Latest.bHasActiveOffer||!Latest.ActiveOffer.Options.IsValidIndex(Index)||Latest.ActiveOffer.OfferId!=ShownOffer){return false;}
-    PinnedPreview=Index;return true;
+    PinnedPreview=Index;bPinnedOfferExplicit=true;return true;
 }
 bool ULDChoicesPanel::LearnBlueprint(int32 Index,uint8 Key)
 {
@@ -1407,7 +1561,6 @@ void ULDChoicesPanel::RefreshShopPanel()
 {
     if(!ShopPanel){return;}
     const bool bOffered=IsShopOffered();
-    if(!bOffered){bShopOpen=false;}
     const bool bShown=bShopOpen&&bOffered;
     GrowthShown(ShopToggleButton,bOffered,ESlateVisibility::Visible);
     GrowthShown(ShopPanel,bShown,ESlateVisibility::Visible);
@@ -1441,7 +1594,10 @@ void ULDChoicesPanel::RefreshShopPanel()
         const bool bNoHost=Row.Kind==ELDShopItemKind::Card&&LatestContent
             &&!LDProgression::HasValidSkillHost(*LatestContent,LDProgression::BuildFromView(*LatestContent,Latest),Row.DefinitionId);
         if(bNoHost&&!Row.bSold){Outcome+=TEXT(" · 需替换对应宿主技能后生效");}
-        const FString Key=FString::Printf(TEXT("%llu|%d|"),Shop.Revision,Index)+Row.DefinitionId.ToString()+TEXT("|")+Outcome;
+        bool bCompatMatch=false,bCompatFull=false;
+        const FString Compat=Row.Kind==ELDShopItemKind::Skill?FString()
+            :LDHUD::SkillCardCompatStrip(Row.DefinitionId,Latest,LatestContent,SlotKeys,bCompatMatch,bCompatFull);
+        const FString Key=FString::Printf(TEXT("%llu|%d|"),Shop.Revision,Index)+Row.DefinitionId.ToString()+TEXT("|")+Outcome+TEXT("|")+Compat;
         if(CardStale(Card,Key))
         {
             if(Row.Kind==ELDShopItemKind::Skill)
@@ -1452,8 +1608,67 @@ void ULDChoicesPanel::RefreshShopPanel()
             else
             {
                 const LDHUD::FCardFaceView View=LDHUD::CardFace(Row.DefinitionId,LatestContent,LatestStats);
-                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,Outcome));
+                const FString ExtraCompat=(Compat.IsEmpty()||(bNoHost&&!Row.bSold))?Outcome:(Outcome+TEXT("\n")+Compat);
+                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,ExtraCompat));
             }
+        }
+        if(Row.Kind==ELDShopItemKind::Skill)
+        {
+            Card.bElementStone=false;
+            GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
+            if(Card.KindBanner&&Card.KindBannerText)
+            {
+                GrowthText(Card.KindBannerText,TEXT("♛ 主动技能"));
+                Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
+                GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
+            }
+        }
+        else
+        {
+            const LDWorkshop::FCardFacts Facts=LDWorkshop::CardFacts(Row.DefinitionId,LatestContent);
+            const bool bStone=Facts.Form==ELDCardForm::Medal||Row.DefinitionId.ToString().StartsWith(TEXT("medal_"));
+            Card.bElementStone=bStone;
+            if(bStone)
+            {
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardStone,ElementStoneRingColor(Row.DefinitionId));
+                if(Card.Shape)
+                {
+                    Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,32.f,LDHUDStyle::RewardStoneRim,2.2f));
+                    Card.Shape->SetBrushColor(LDHUDStyle::RewardStoneBase);
+                }
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    GrowthText(Card.KindBannerText,TEXT("◆ 元素石"));
+                    Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardStoneRim);
+                    GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
+                }
+            }
+            else
+            {
+                const FLinearColor RimColor=Facts.Type==ELDCardType::Convert?LDHUDStyle::RewardCardRare
+                    :Facts.Type==ELDCardType::Grow?LDHUDStyle::RewardCardLegend:LDHUDStyle::RewardCardRim;
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardBuild,RimColor);
+                if(Card.Shape)
+                {
+                    const FLinearColor KindEdge=LDUIShapes::KindColor(uint8(Facts.Type));
+                    Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,KindEdge,1.5f));
+                    Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+                }
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    const TCHAR* FormTag=Facts.Form==ELDCardForm::Skill?TEXT("构筑牌·技能")
+                        :Facts.Form==ELDCardForm::Dash?TEXT("构筑牌·冲刺"):TEXT("构筑牌·身体");
+                    GrowthText(Card.KindBannerText,FormTag);
+                    Card.KindBannerText->SetColorAndOpacity(RimColor);
+                    GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
+                }
+            }
+        }
+        if(Card.CompatText&&Card.CompatBox)
+        {
+            GrowthText(Card.CompatText,Compat);
+            Card.CompatText->SetColorAndOpacity(!bCompatMatch?LDHUDStyle::UIReplace:bCompatFull?LDHUDStyle::CardModify:LDHUDStyle::UILegal);
+            GrowthShown(Card.CompatBox,!Compat.IsEmpty()&&!Row.bSold,ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,false,bCan&&!Row.bSold&&bAfford,true);
         if(Row.Kind==ELDShopItemKind::Card&&LatestContent)

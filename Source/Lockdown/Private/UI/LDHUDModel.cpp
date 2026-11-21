@@ -9,6 +9,9 @@
 #include "Development/LDProgressionRules.h"
 #include "Development/LDSkillGrowth.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDTacticalRules.h"
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDCombatElements.h"
@@ -473,6 +476,7 @@ FString LDHUD::RestReadyText(ELDRestReadyResult Result)
     switch(Result)
     {
     case ELDRestReadyResult::Accepted: return TEXT("已准备。");
+    case ELDRestReadyResult::Withdrawn: return TEXT("已取消准备，可继续调整构筑。");
     case ELDRestReadyResult::NotContender: return TEXT("准备失败：你不是本局参赛者。");
     case ELDRestReadyResult::StaleMatch: return TEXT("准备失败：对局已变化，请等待同步。");
     case ELDRestReadyResult::StaleWindow: return TEXT("准备失败：本次配装窗口已结束。");
@@ -672,6 +676,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
             bAny=true;
             const FString Listed=RosterName(Lobby,Entrant.Contender);
             FString Name=Listed.IsEmpty()?FString(LDTerms::PKUnlisted):Listed;
+            if(Entrant.Level>0){Name+=FString::Printf(TEXT(" Lv.%u"),uint32(Entrant.Level));}
             if(Entrant.bForfeited){Name+=FString(TEXT("（"))+LDTerms::PKForfeit+TEXT("）");}
             else if(bFought&&!Entrant.bAlive){Name+=FString(TEXT("（"))+LDTerms::PKOut+TEXT("）");}
             else{bAnyIn=true;}
@@ -688,6 +693,16 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         FString Line=FString::Join(Members,TEXT("、"));
         if(PK.Format==ELDPKFormat::Teams){Line=LDTerms::PKSide(Side)+TEXT("：")+Line;}
         if(Bets>0){Line+=TEXT(" · ")+LDTerms::PKBetCount(Bets);}
+        if(Step==ELDRestStep::Betting&&In.Params&&PK.Bettors.Num()>0)
+        {
+            const int64 BasePool=FMath::Min<int64>(PK.Bettors.Num(),In.Params->BettingPoolMaxPoints);
+            const int64 ScaledPool=BasePool>0&&In.Params->RewardMultiplierBp>0
+                ?(BasePool*In.Params->RewardMultiplierBp+9999)/10000:BasePool;
+            const int32 ShareCount=FMath::Max(1,Bets+(Row.bOwnBet?0:1));
+            const double Odds=double(ScaledPool)/double(ShareCount);
+            Line+=FString::Printf(TEXT("（赔率 1:%.1f）"),Odds);
+            Row.BetAction+=FString::Printf(TEXT(" (1:%.1f)"),Odds);
+        }
         if(Row.bOwnSide){Line+=TEXT(" · ")+FString(LDTerms::PKOwnSide);}
         if(Row.bOwnBet){Line+=TEXT(" · ")+FString(LDTerms::PKOwnBet);}
         Row.Line=Line;
@@ -1267,14 +1282,58 @@ LDHUD::FDamageListView LDHUD::DamageSummary(const FLDDamageSummaryView& Summary,
     View.bAvailable=true;
     if(Summary.Lines.IsEmpty()){View.Heading=TEXT("你本局没有造成伤害");return View;}
     int64 AllP2=0,RestP2=0;
+    for(const FLDDamageLine& Line:Summary.Lines){AllP2+=Line.DamageP2;}
     const int32 Shown=Summary.Lines.Num()>DamageSummarySourcesMax?DamageSummarySourcesMax-1:Summary.Lines.Num();
     for(int32 Index=0;Index<Summary.Lines.Num();++Index)
     {
         const FLDDamageLine& Line=Summary.Lines[Index];
-        AllP2+=Line.DamageP2;
-        if(Index<Shown){View.Rows.Add(HudDamageEntry(DamageSourceName(Content,Line.Source),Line.DamageP2));}else{RestP2+=Line.DamageP2;}
+        if(Index<Shown)
+        {
+            const FString SourceName=DamageSourceName(Content,Line.Source);
+            View.Rows.Add(HudDamageEntry(SourceName,Line.DamageP2));
+            FDamageShareRow& Share=View.Shares.AddDefaulted_GetRef();
+            Share.Name=SourceName;
+            Share.ValueText=FString::Printf(TEXT("%lld"),HudWholePoints(Line.DamageP2,true));
+            Share.Share=AllP2>0?float(FMath::Clamp(double(Line.DamageP2)/double(AllP2),0.,1.)):0.f;
+            Share.PercentText=FString::Printf(TEXT("%.0f%%"),Share.Share*100.f);
+            Share.Glyph=IconGlyph(SourceName);
+            if(Line.Source.Kind==ELDCombatSourceKind::Innate&&Line.Source.DefinitionId==TEXT("dash"))
+            {
+                Share.IconId=LDUIIcons::Dash;
+                Share.Kind=2;
+            }
+            else if(Line.Source.Kind==ELDCombatSourceKind::Innate)
+            {
+                Share.Kind=0;
+            }
+            else if(Line.Source.DefinitionId.ToString().StartsWith(TEXT("card_")))
+            {
+                Share.IconId=ContentIconId(Content,Line.Source.DefinitionId.ToString());
+                Share.Kind=3;
+            }
+            else if(!Line.Source.DefinitionId.IsNone())
+            {
+                Share.IconId=ContentIconId(Content,Line.Source.DefinitionId.ToString());
+                Share.Kind=1;
+            }
+            else
+            {
+                Share.Kind=4;
+            }
+        }
+        else{RestP2+=Line.DamageP2;}
     }
-    if(RestP2>0){View.Rows.Add(HudDamageEntry(TEXT("其他"),RestP2));}
+    if(RestP2>0)
+    {
+        View.Rows.Add(HudDamageEntry(TEXT("其他"),RestP2));
+        FDamageShareRow& Share=View.Shares.AddDefaulted_GetRef();
+        Share.Name=TEXT("其他");
+        Share.ValueText=FString::Printf(TEXT("%lld"),HudWholePoints(RestP2,true));
+        Share.Share=AllP2>0?float(FMath::Clamp(double(RestP2)/double(AllP2),0.,1.)):0.f;
+        Share.PercentText=FString::Printf(TEXT("%.0f%%"),Share.Share*100.f);
+        Share.Glyph=TEXT("其");
+        Share.Kind=4;
+    }
     View.Heading=FString::Printf(TEXT("你造成的伤害 %lld"),HudWholePoints(AllP2,true));
     return View;
 }
@@ -1974,6 +2033,279 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
     }
     return Effects;
 }
+LDHUD::FStatHoverPreview LDHUD::StatHoverPreview(const FLDDemoStatDefinition& Stat,int32 CurrentPoints,int32 AddStep,
+    int32 RefundStep,bool bCanRespec,const TArray<FLDCombatAttributeRowView>& Attributes,const FLDDemoContentDefinitions& Content,
+    const FLDDemoContentSnapshot* ContentSnapshot,const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat)
+{
+    FStatHoverPreview Out;
+    const int32 Step=FMath::Max(1,AddStep);
+    const FString StatName=ContentName(&Content,Stat.Id);
+    const auto Target=[](ELDDemoBonusStat Bonus)
+    {
+        switch(Bonus)
+        {
+        case ELDDemoBonusStat::ADFlat: case ELDDemoBonusStat::ADBonusRatio: return ELDProjectedAttribute::AD;
+        case ELDDemoBonusStat::APFlat: case ELDDemoBonusStat::APBonusRatio: return ELDProjectedAttribute::AP;
+        case ELDDemoBonusStat::MaxHPFlat: return ELDProjectedAttribute::MaxHP;
+        case ELDDemoBonusStat::ArmorFlat: return ELDProjectedAttribute::Armor;
+        case ELDDemoBonusStat::MagicResistFlat: return ELDProjectedAttribute::MagicResist;
+        case ELDDemoBonusStat::CooldownHasteFlat: return ELDProjectedAttribute::CooldownHaste;
+        case ELDDemoBonusStat::AttackRangeCmFlat: return ELDProjectedAttribute::AttackRange;
+        case ELDDemoBonusStat::AttackSpeedBonusRatio: return ELDProjectedAttribute::AttackSpeed;
+        case ELDDemoBonusStat::MoveSpeedBonusRatio: return ELDProjectedAttribute::MoveSpeed;
+        case ELDDemoBonusStat::CritChanceBonusRatio: return ELDProjectedAttribute::CritChance;
+        case ELDDemoBonusStat::HPRegenFlat: return ELDProjectedAttribute::HPRegen;
+        case ELDDemoBonusStat::MomentumRegenFlat: return ELDProjectedAttribute::MomentumRegen;
+        }
+        return ELDProjectedAttribute::Count;
+    };
+
+    // Reuse authoritative LDAttributeProjection::Project + ApplyTemporary so CritChance probability points (0% -> 0.4%),
+    // percentage multipliers (ADBonusRatio / APBonusRatio / Y13 ArmorToHp), rounding and catalog caps match authority 100%.
+    TOptional<FLDAttributeProjection> AuthBefore,AuthAfter;
+    if(ContentSnapshot)
+    {
+        const FName TargetStatId(*Stat.Id);
+        auto ProjectCandidate=[&](int32 StatPts,const FLDAttributeProjection* PrevBuild,int64 PrevHpP2,
+            FLDAttributeProjection& OutBuild,FLDAttributeProjection& OutEffective,int64& OutHpP2)->bool
+        {
+            FLDBuildProjectionInput In;
+            if(Progression&&Progression->bValid)
+            {
+                FLDProgressionView ProgCopy=*Progression;
+                ProgCopy.StatPoints.RemoveAll([&TargetStatId](const FLDStatPointsView& Entry)
+                {return Entry.StatId==TargetStatId||Entry.Points<=0;});
+                if(StatPts>0){ProgCopy.StatPoints.Add({TargetStatId,StatPts});}
+                In=LDProgression::CombatProjectionInput(&Content,LDProgression::BuildFromView(Content,ProgCopy));
+            }
+            else
+            {
+                In.Level=1;
+                if(StatPts>0){In.StatPoints.Emplace(Stat.Id,StatPts);}
+            }
+            if(Combat)
+            {
+                In.DevBonuses=Combat->PreviewDevBonuses;
+                In.CardGrowth=Combat->CardGrowth;
+            }
+            const FLDAttributeProjectionResult Projected=LDCombatSourceRules::ProjectBuildInput(In,*ContentSnapshot);
+            if(!Projected.IsSuccess()){return false;}
+            OutBuild=Projected.Value.GetValue();
+            OutEffective=OutBuild;
+            OutHpP2=OutBuild.Final.MaxHPP2;
+            if(!Combat||!Combat->bPreviewLiving){return true;}
+            if(!PrevBuild)
+            {
+                OutHpP2=Combat->MaxHPP2>0?FMath::Clamp<int64>(Combat->HPP2,0,OutBuild.Final.MaxHPP2):OutBuild.Final.MaxHPP2;
+            }
+            else
+            {
+                FLDResourceMaxChangeInput HpIn;
+                HpIn.Pool=ELDResourcePool::HP;HpIn.OldCurrentP2=PrevHpP2;
+                HpIn.OldMaxP2=PrevBuild->Final.MaxHPP2;HpIn.NewMaxP2=OutBuild.Final.MaxHPP2;
+                const FLDResourceMaxChangeResult Health=LDAttributeProjection::ResourceMaxChange(HpIn,*ContentSnapshot);
+                if(Health.IsSuccess()){OutHpP2=Health.Value->NewCurrentP2;}
+            }
+            TArray<FLDCombatTimedBonus> Bonuses;
+            for(const FLDCombatPreviewBonus& B:Combat->PreviewBonuses)
+            {
+                FLDCombatTimedBonus& Added=Bonuses.AddDefaulted_GetRef();Added.Stats=B.Stats;Added.ExpiresAtMs=B.ExpiresAtMs;
+            }
+            auto CopySlows=[](const TArray<FLDCombatPreviewSlow>& Rows)
+            {
+                TArray<FLDCombatSlow> Slows;
+                for(const FLDCombatPreviewSlow& R:Rows){FLDCombatSlow& S=Slows.AddDefaulted_GetRef();S.RatioBp=R.RatioBp;S.ExpiresAtMs=R.ExpiresAtMs;}
+                return Slows;
+            };
+            FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Bonuses,CopySlows(Combat->PreviewMoveSlows),Combat->AsOfMs);
+            Terms.AttackSlowBp=LDTactical::StrongestSlowBp(CopySlows(Combat->PreviewAttackSlows),Combat->AsOfMs);
+            int64 CardHasteBp=0;FString HasteError;
+            if(LDCombatSourceRules::CardHasteBp(OutBuild,OutHpP2,OutBuild.Final.MaxHPP2,Combat->PreviewFocusHits,ContentSnapshot,CardHasteBp,HasteError)
+                &&CardHasteBp>0)
+            {
+                FLDDemoStatBonus Bonus;Bonus.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;Bonus.Amount=CardHasteBp;Terms.Bonuses.Add(Bonus);
+            }
+            const FLDAttributeProjectionResult Eff=LDAttributeProjection::ApplyTemporary(OutBuild,Terms,*ContentSnapshot);
+            if(!Eff.IsSuccess()){return false;}
+            OutEffective=Eff.Value.GetValue();
+            return true;
+        };
+        FLDAttributeProjection Build0,Eff0,Build1,Eff1;
+        int64 Hp0=0,Hp1=0;
+        if(ProjectCandidate(FMath::Max(0,CurrentPoints),nullptr,0,Build0,Eff0,Hp0)
+            &&ProjectCandidate(FMath::Max(0,CurrentPoints)+Step,&Build0,Hp0,Build1,Eff1,Hp1))
+        {
+            AuthBefore.Emplace(MoveTemp(Eff0));
+            AuthAfter.Emplace(MoveTemp(Eff1));
+        }
+    }
+
+    auto FormatProjectedGain=[](ELDProjectedAttribute Attr,const FLDDemoRational& BeforeR,const FLDDemoRational& AfterR)->FString
+    {
+        if(BeforeR.Denominator<=0||AfterR.Denominator<=0){return TEXT("+0");}
+        const double BeforeD=double(BeforeR.Numerator)/double(BeforeR.Denominator);
+        const double AfterD=double(AfterR.Numerator)/double(AfterR.Denominator);
+        const double DeltaD=FMath::Max(0.,AfterD-BeforeD);
+        switch(Attr)
+        {
+        case ELDProjectedAttribute::CritChance:
+            return TEXT("+")+HudDecimal(DeltaD*100.)+TEXT("%");
+        case ELDProjectedAttribute::AttackSpeed:
+            return FString::Printf(TEXT("+%d 次/分钟"),FMath::Max(0,FMath::RoundToInt(AfterD*60.)-FMath::RoundToInt(BeforeD*60.)));
+        case ELDProjectedAttribute::AttackRange:
+            return TEXT("+")+HudDecimal(DeltaD)+TEXT(" 厘米");
+        case ELDProjectedAttribute::HPRegen:
+        case ELDProjectedAttribute::MomentumRegen:
+            return TEXT("+")+HudDecimal(DeltaD)+TEXT("/s");
+        default:
+            return TEXT("+")+HudDecimal(DeltaD);
+        }
+    };
+
+    TArray<ELDProjectedAttribute,TInlineAllocator<6>> ShownAttrs;
+    TArray<FString> ShortGains;
+    for(const FLDDemoStatBonus& Bonus:Stat.PerPoint)
+    {
+        const ELDProjectedAttribute AttrEnum=Target(Bonus.Stat);
+        if(AttrEnum==ELDProjectedAttribute::Count||ShownAttrs.Contains(AttrEnum)){continue;}
+        ShownAttrs.Add(AttrEnum);
+        const uint8 AttrId=uint8(AttrEnum);
+        FLDCombatAttributeRowView Named;Named.Attribute=AttrId;
+        const FString AttrName=AttributeRow(Named).Name;
+
+        if(AuthBefore.IsSet()&&AuthAfter.IsSet()
+            &&AuthBefore->Contributions.IsValidIndex(int32(AttrId))&&AuthAfter->Contributions.IsValidIndex(int32(AttrId)))
+        {
+            FLDCombatAttributeRowView BeforeRow;BeforeRow.Attribute=AttrId;
+            BeforeRow.Final=AuthBefore->Contributions[int32(AttrId)].Final;
+            BeforeRow.bClamped=AuthBefore->Contributions[int32(AttrId)].bClamped;
+            FLDCombatAttributeRowView AfterRow;AfterRow.Attribute=AttrId;
+            AfterRow.Final=AuthAfter->Contributions[int32(AttrId)].Final;
+            AfterRow.bClamped=AuthAfter->Contributions[int32(AttrId)].bClamped;
+            const FString GainText=FormatProjectedGain(AttrEnum,BeforeRow.Final,AfterRow.Final);
+            ShortGains.Add(GainText+TEXT(" ")+AttrName);
+            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),
+                *AttrName,*AttributeRow(BeforeRow).Final,*AttributeRow(AfterRow).Final,*GainText));
+            continue;
+        }
+
+        const FLDCombatAttributeRowView* Row=Attributes.FindByPredicate([AttrId](const FLDCombatAttributeRowView& R){return R.Attribute==AttrId;});
+        const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" 厘米")
+            :Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MomentumRegenFlat?TEXT("/s"):TEXT("");
+        const int64 ScaledAmount=Bonus.Amount*int64(Step);
+        const FLDDemoRational ScaledCm{Bonus.Cm.Numerator*int64(Step),Bonus.Cm.Denominator};
+        const FString RawGain=TEXT("+")+(CardRationalStat(Bonus.Stat)?HudRational(ScaledCm)+Unit
+            :CardRatioStat(Bonus.Stat)?HudPercent(ScaledAmount):HudPoints(ScaledAmount)+Unit);
+        if(!Row)
+        {
+            ShortGains.Add(RawGain+TEXT(" ")+AttrName);
+            Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s"),*AttrName,*RawGain));
+            continue;
+        }
+        // Fallback when no catalog snapshot was supplied: mirror LDAttributeProjection's exact Flat*Ratio + CritChance flat + bounds.
+        auto ToDouble=[](const FLDDemoRational& R){return R.Denominator>0?double(R.Numerator)/double(R.Denominator):0.;};
+        double Flat=ToDouble(Row->Base)+ToDouble(Row->Level)+ToDouble(Row->Choices)+ToDouble(Row->Cards)+ToDouble(Row->Dev)+ToDouble(Row->Temporary);
+        double Ratio=1.+ToDouble(Row->PercentBonus)+ToDouble(Row->DevPercent)+ToDouble(Row->TemporaryPercent);
+        for(const FLDDemoStatBonus& SameAttr:Stat.PerPoint)
+        {
+            if(Target(SameAttr.Stat)!=AttrEnum){continue;}
+            if(SameAttr.Stat==ELDDemoBonusStat::CritChanceBonusRatio){Flat+=double(SameAttr.Amount*int64(Step))/10000.;}
+            else if(CardRatioStat(SameAttr.Stat)){Ratio+=double(SameAttr.Amount*int64(Step))/10000.;}
+            else if(CardRationalStat(SameAttr.Stat)){Flat+=ToDouble({SameAttr.Cm.Numerator*int64(Step),SameAttr.Cm.Denominator});}
+            else{Flat+=double(SameAttr.Amount*int64(Step))/100.;}
+        }
+        double NextVal=FMath::Max(0.,Flat*Ratio);
+        const FLDDemoContentParameters& P=Content.Parameters;
+        auto ClampP2=[&NextVal](const FLDDemoP2Bounds& B){NextVal=FMath::FloorToDouble(NextVal*100.+1e-9)/100.;NextVal=FMath::Clamp(NextVal,double(B.MinP2)/100.,double(B.MaxP2)/100.);};
+        switch(AttrEnum)
+        {
+        case ELDProjectedAttribute::MaxHP: ClampP2(P.MaxHP); break;
+        case ELDProjectedAttribute::AD: ClampP2(P.AD); break;
+        case ELDProjectedAttribute::AP: ClampP2(P.AP); break;
+        case ELDProjectedAttribute::Armor: ClampP2(P.Armor); break;
+        case ELDProjectedAttribute::MagicResist: ClampP2(P.MagicResist); break;
+        case ELDProjectedAttribute::AttackSpeed: NextVal=FMath::Clamp(NextVal,ToDouble(P.AttackSpeed.Min),ToDouble(P.AttackSpeed.Max)); break;
+        case ELDProjectedAttribute::MoveSpeed: NextVal=FMath::Clamp(NextVal,ToDouble(P.MoveSpeedCmPerSec.Min),ToDouble(P.MoveSpeedCmPerSec.Max)); break;
+        case ELDProjectedAttribute::AttackRange: NextVal=FMath::Clamp(NextVal,ToDouble(P.AttackRangeCm.Min),ToDouble(P.AttackRangeCm.Max)); break;
+        case ELDProjectedAttribute::HPRegen: NextVal=FMath::Clamp(NextVal,ToDouble(P.HPRegen.Min),ToDouble(P.HPRegen.Max)); break;
+        case ELDProjectedAttribute::MomentumRegen: NextVal=FMath::Clamp(NextVal,0.,double(P.Momentum.MaxP2)/100.); break;
+        case ELDProjectedAttribute::CritChance: NextVal=FMath::Clamp(FMath::FloorToDouble(NextVal*10000.+1e-9)/10000.,0.,1.); break;
+        case ELDProjectedAttribute::CooldownHaste: NextVal=FMath::Clamp(FMath::FloorToDouble(NextVal*100.+1e-9)/100.,0.,double(P.CooldownHasteMaxP2)/100.); break;
+        default: break;
+        }
+        FLDCombatAttributeRowView Next=*Row;
+        Next.Final={FMath::RoundToInt64(NextVal*10000.),10000};
+        const FString GainText=FormatProjectedGain(AttrEnum,Row->Final,Next.Final);
+        ShortGains.Add(GainText+TEXT(" ")+AttrName);
+        Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),*AttrName,*AttributeRow(*Row).Final,*AttributeRow(Next).Final,*GainText));
+    }
+    // Also surface indirect MaxHP gain from Y13 (ArmorToHp) when Armor increases under authoritative projection.
+    if(AuthBefore.IsSet()&&AuthAfter.IsSet()&&!ShownAttrs.Contains(ELDProjectedAttribute::MaxHP)
+        &&AuthAfter->Final.MaxHPP2!=AuthBefore->Final.MaxHPP2)
+    {
+        const int32 HpIdx=int32(ELDProjectedAttribute::MaxHP);
+        FLDCombatAttributeRowView BeforeRow,AfterRow;
+        BeforeRow.Attribute=AfterRow.Attribute=uint8(ELDProjectedAttribute::MaxHP);
+        BeforeRow.Final=AuthBefore->Contributions[HpIdx].Final;
+        AfterRow.Final=AuthAfter->Contributions[HpIdx].Final;
+        const FString AttrName=AttributeRow(BeforeRow).Name;
+        const FString GainText=FormatProjectedGain(ELDProjectedAttribute::MaxHP,BeforeRow.Final,AfterRow.Final);
+        ShortGains.Add(GainText+TEXT(" ")+AttrName);
+        Out.AttributeLines.Add(FString::Printf(TEXT("%s：%s → %s（%s）"),
+            *AttrName,*AttributeRow(BeforeRow).Final,*AttributeRow(AfterRow).Final,*GainText));
+    }
+    Out.DeltaSummary=FString::Printf(TEXT("%s %d → %d（%s）"),*StatName,CurrentPoints,CurrentPoints+Step,*FString::Join(ShortGains,TEXT(", ")));
+    const int32 Threshold=int32(FMath::Max<int64>(1,Content.Parameters.KeystoneThresholdPoints));
+    const FName IdName(*Stat.Id);
+    const TCHAR* Keystone=LDTerms::KeystoneName(IdName);
+    const int32 Clamped=FMath::Clamp(CurrentPoints,0,Threshold);
+    FString Bar=TEXT("[");
+    for(int32 Cell=0;Cell<Threshold;++Cell){Bar+=Cell<Clamped?TEXT("■"):TEXT("□");}
+    Bar+=FString::Printf(TEXT("] %d/%d"),Clamped,Threshold);
+    Out.bKeystoneActive=CurrentPoints>=Threshold;
+    if(Out.bKeystoneActive)
+    {
+        Out.KeystoneProgress=FString::Printf(TEXT("%s · ★ 已激活 %d 点关键石【%s】"),*Bar,Threshold,Keystone);
+    }
+    else
+    {
+        Out.KeystoneProgress=FString::Printf(TEXT("%s · 再投 %d 点激活【%s】"),*Bar,Threshold-CurrentPoints,Keystone);
+    }
+    const FLDDemoContentParameters& P=Content.Parameters;
+    if(IdName==TEXT("stat_physique"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：脱战回复等待缩短 %s，周期获得 %s 最大生命护盾（持续 %s，冷却 %s）"),
+            Keystone,*HudPercent(P.KeystonePhysiqueOutOfCombatCutBp),*HudPercent(P.KeystonePhysiqueShieldMaxHPBp),
+            *HudSeconds(P.KeystonePhysiqueShieldDurationMs),*HudSeconds(P.KeystonePhysiqueIntervalMs));
+    }
+    else if(IdName==TEXT("stat_thick_skin"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：每 %s 至多一次，受敌方普攻减免 %s，并在 %s 内免疫减速且击退缩短"),
+            Keystone,*HudSeconds(P.KeystoneThickSkinIntervalMs),*HudPercent(P.KeystoneThickSkinGuardCapBp),*HudSeconds(P.KeystoneThickSkinSteadyMs));
+    }
+    else if(IdName==TEXT("stat_strength"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：对减速或硬控目标额外造成 %s 伤害"),Keystone,*HudPercent(P.KeystoneStrengthDamageBp));
+    }
+    else if(IdName==TEXT("stat_brains"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：元素反应回复 %s 劲力，并缩短技能剩余冷却 %s"),
+            Keystone,*HudPoints(P.KeystoneBrainsReactionMomentumP2),*HudSeconds(P.KeystoneBrainsCooldownCutMs));
+    }
+    else if(IdName==TEXT("stat_agility"))
+    {
+        Out.KeystoneRule=FString::Printf(TEXT("【%s】：冲刺冷却缩短 %s；冲刺后 %s 内移速 +%s 且下次普攻附带 %s + %s 攻击力"),
+            Keystone,*HudPercent(P.KeystoneAgilityDashCooldownCutBp),*HudSeconds(P.KeystoneAgilityEmpowerDurationMs),
+            *HudPercent(P.KeystoneAgilityMoveSpeedBp),*HudPoints(P.KeystoneAgilityDamageBaseP2),*HudPercent(P.KeystoneAgilityADRatioBp));
+    }
+    const int32 EffectiveRefund=FMath::Max(1,RefundStep);
+    if(bCanRespec&&CurrentPoints>=Threshold&&CurrentPoints-EffectiveRefund<Threshold)
+    {
+        Out.bKeystoneLossWarning=true;
+        Out.RefundWarning=FString::Printf(TEXT("⚠ 退点后将失去 %d 点关键石【%s】"),Threshold,Keystone);
+    }
+    return Out;
+}
 FName LDHUD::ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot)
 {
     const FLDActiveSlotView* Active=Progression.Actives.FindByPredicate([Slot](const FLDActiveSlotView& A){return A.Slot==Slot;});
@@ -2384,6 +2716,66 @@ TArray<LDHUD::FCardDrop> LDHUD::ReplaceDrops(FName Key,const FLDProgressionView&
         for(FLDCardInstanceView& Row:Freed.Cards){if(Row.Serial==Replaced.Serial){Row.Target=Replaced.Target;}}
     }
     return Out;
+}
+TArray<LDHUD::FCardDrop> LDHUD::ColumnReplaceDrops(FName Key,EStorageColumn Column,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    TArray<FCardDrop> Out;
+    const FLDCardInstanceView* Self=FindCard(Progression,Key);
+    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,Key);
+    if(!Self||Self->IsInstalled()||!Definition||Definition->Form==ELDCardForm::Medal||!Progression.bValid||!Content){return Out;}
+    FLDProgressionView Freed=Progression;
+    Freed.CardCapacity=FMath::Max(Progression.CardCapacity,Progression.Cards.Num()+1);
+    const TArray<FCardDrop> FreeTargets=CardDrops(Key,Freed,Content);
+    const FCardDrop* Landing=FreeTargets.FindByPredicate([Column](const FCardDrop& D){return D.Column==Column;});
+    if(!Landing){return Out;}
+    for(const FLDCardInstanceView& Replaced:Progression.Cards)
+    {
+        if(!Replaced.IsInstalled()||LDProgression::IsMedal(*Content,Replaced.DefinitionId)){continue;}
+        EStorageColumn ReplacedCol=EStorageColumn::Body;
+        if(!CardColumn(Progression,Replaced.Target.Kind,Replaced.Target.Active,ReplacedCol)||ReplacedCol!=Column){continue;}
+        FCardDrop Drop=*Landing;
+        Drop.Host=CardKey(Replaced.DefinitionId,Replaced.Serial);
+        Drop.Replacing=Drop.Host;
+        Out.Add(MoveTemp(Drop));
+    }
+    return Out;
+}
+FString LDHUD::SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+    const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull)
+{
+    bOutHasMatch=false;bOutAllFull=false;
+    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,CardId);
+    if(!Definition||Definition->Form!=ELDCardForm::Skill||!Progression.bValid||!Content){return FString();}
+    const FLDGrowthBuild Build=LDProgression::BuildFromView(*Content,Progression);
+    const ELDDemoElement Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
+    const bool bWorkshopIsFull=WorkshopFull(Progression,Content);
+    TArray<FString> Chips;
+    bool bAnyFree=false;
+    for(uint8 Slot=0;Slot<3;++Slot)
+    {
+        const FName Held=ActiveInSlot(Progression,Slot);
+        if(Held.IsNone()){continue;}
+        if(LDProgression::CardTargetReason(*Content,Build,FName(*Definition->Id),HudTarget(ELDCardTargetKind::Skill,Held,Element))!=ELDGrowthReason::None)
+        {continue;}
+        int32 ColCount=0;
+        for(const FLDCardInstanceView& Owned:Progression.Cards)
+        {
+            if(Owned.IsInstalled()&&Owned.Target.Kind==ELDCardTargetKind::Skill&&Owned.Target.Active==Held
+                &&!LDProgression::IsMedal(*Content,Owned.DefinitionId))
+            {++ColCount;}
+        }
+        const bool bColFull=bWorkshopIsFull||ColCount>=4;
+        if(!bColFull){bAnyFree=true;}
+        Chips.Add(FString::Printf(TEXT("[%s %s %d/4]"),*Keys.Of(Slot),*ContentName(Content,Held.ToString()),ColCount));
+    }
+    if(Chips.IsEmpty())
+    {
+        return FString(LDTerms::NoCompatibleSkillHost);
+    }
+    bOutHasMatch=true;
+    bOutAllFull=!bAnyFree;
+    return FString(TEXT("可装："))+FString::Join(Chips,TEXT(" "));
 }
 FString LDHUD::DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
@@ -2962,4 +3354,453 @@ FString LDHUD::SpawnChoiceText(ELDSpawnChoiceResult Result)
     case ELDSpawnChoiceResult::StaleMatch: case ELDSpawnChoiceResult::StaleLife: return TEXT("这次复活已经过去");
     default: return TEXT("不能选择出生点");
     }
+}
+
+LDHUD::FPendingCategoryCounts LDHUD::PendingCategoryCounts(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
+{
+    FPendingCategoryCounts Out;
+    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return Out;}
+    Out.SkillCount=int32(Progression->QueuedActiveOpportunities)+Progression->PendingBlueprints.Num();
+    if(Progression->bHasActiveOffer&&Out.SkillCount==0){Out.SkillCount=1;}
+    if(Progression->bHasCardOffer)
+    {
+        bool bAnyStone=false,bAnyCard=false;
+        for(const FName Opt:Progression->CardOffer.Options)
+        {
+            const bool bStone=(Content&&LDProgression::IsMedal(*Content,Opt))||Opt.ToString().StartsWith(TEXT("medal_"));
+            bAnyStone|=bStone;
+            bAnyCard|=!bStone;
+        }
+        if(bAnyStone&&!bAnyCard){Out.StoneCount+=FMath::Max(1,int32(Progression->QueuedCardOffers));}
+        else{Out.CardCount+=FMath::Max(1,int32(Progression->QueuedCardOffers));if(bAnyStone){++Out.StoneCount;}}
+    }
+    else if(Progression->QueuedCardOffers>0)
+    {
+        Out.CardCount+=int32(Progression->QueuedCardOffers);
+    }
+    for(const FLDCardInstanceView& Owned:Progression->Cards)
+    {
+        if(Owned.IsInstalled()){continue;}
+        const bool bStone=(Content&&LDProgression::IsMedal(*Content,Owned.DefinitionId))||Owned.DefinitionId.ToString().StartsWith(TEXT("medal_"));
+        if(bStone){++Out.StoneCount;}
+        else{++Out.CardCount;}
+    }
+    return Out;
+}
+
+LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View,const FActionInput& Input,
+    const FActionContext& Context,const FLDProgressionView* Build,const FLDCombatOwnerView* OwnCombat,
+    const FLDDemoContentDefinitions* Content,bool bExpandFormula,int32 SkillHitStacks)
+{
+    FLiveSkillTooltip Result;
+    Result.Detail=ActionDetail(View,Input,Context,Content);
+    const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W||Input.Slot==EActionSlot::E;
+    if(!bLearned||!Input.bHasSource||!Content)
+    {
+        return Result;
+    }
+    const FString Id=Input.DefinitionId.ToString();
+    const FLDDemoAbilityDefinition* Ability=Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;});
+    const FLDDemoDisplayDefinition* Display=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
+    if(!Ability||!Display){return Result;}
+    const FLDDemoAbilityBranch* Path=Ability->FindBranch(Input.Branch);
+    if(Input.Branch!=ELDSkillBranch::None&&!Path){return Result;}
+
+    // Resolve live attributes (AD/AP/MaxHP/Armor + CooldownHaste) from OwnCombat when available, falling back to Context.Card.
+    FCardStats LiveStats=Context.Card;
+    int64 HasteP2=0;
+    if(OwnCombat&&!OwnCombat->Attributes.IsEmpty())
+    {
+        LiveStats=CardStatsOf(Build&&Build->Level>0?Build->Level:Context.Card.Level,OwnCombat->Attributes);
+        const FLDCombatAttributeRowView* HasteRow=OwnCombat->Attributes.FindByPredicate([](const FLDCombatAttributeRowView& R)
+        {return R.Attribute==uint8(ELDProjectedAttribute::CooldownHaste);});
+        if(HasteRow&&HasteRow->Final.Denominator>0&&HasteRow->Final.Numerator>0)
+        {
+            HasteP2=HasteRow->Final.Numerator*100/HasteRow->Final.Denominator;
+        }
+    }
+    else if(Build&&Build->bValid)
+    {
+        for(const FLDStatPointsView& SP:Build->StatPoints)
+        {
+            const FLDDemoStatDefinition* StatDef=Content->Stats.FindByPredicate([&SP](const FLDDemoStatDefinition& S){return S.Id==SP.StatId.ToString();});
+            if(!StatDef||SP.Points<=0){continue;}
+            for(const FLDDemoStatBonus& Bonus:StatDef->PerPoint)
+            {
+                if(Bonus.Stat==ELDDemoBonusStat::CooldownHasteFlat){HasteP2+=Bonus.Amount*int64(SP.Points);}
+            }
+        }
+    }
+
+    const uint8 Rank=LDSkillBranch::RankOf(Input.Branch);
+    const FLDDemoAbilityValues& RawValues=Path?Path->Values:Ability->Values;
+    FLDDemoAbilityValues GrownValues,RankOnlyValues,GrownBaseValues;
+    if(!LDSkillGrowth::GrowValues(RawValues,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,LiveStats.Level,Rank,GrownValues)
+        ||!LDSkillGrowth::GrowValues(RawValues,Content->Parameters.SkillRanks,0,1,Rank,RankOnlyValues)
+        ||!LDSkillGrowth::GrowValues(Ability->Values,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,LiveStats.Level,Rank,GrownBaseValues))
+    {
+        return Result;
+    }
+
+    auto Share=[](int64 Amount,int64 RatioBp)->int64
+    {
+        if(Amount<=0||RatioBp<=0){return 0;}
+        return (Amount/10000)*RatioBp+((Amount%10000)*RatioBp)/10000;
+    };
+
+    // Gather installed cards targeting this skill (Body or Skill == Input.DefinitionId) & 18-point keystones.
+    const int64 CardLevelFactor=LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,LiveStats.Level);
+    TMap<FName,int64> CdDeltas,CostDeltas;
+    TArray<TPair<FString,int64>> FactorList;
+    int64 TotalFactorBp=10000;
+    int64 RiderADBp=0;
+    TArray<FString> RiderCardNames;
+    if(Build&&Build->bValid)
+    {
+        for(const FLDCardInstanceView& Inst:Build->Cards)
+        {
+            if(!Inst.IsInstalled()){continue;}
+            const bool bTargetsSkill=Inst.Target.Kind==ELDCardTargetKind::Body
+                ||(Inst.Target.Kind==ELDCardTargetKind::Skill&&Inst.Target.Active==Input.DefinitionId);
+            if(!bTargetsSkill){continue;}
+            const FString CardIdStr=Inst.DefinitionId.ToString();
+            const FLDDemoCardDefinition* CardDef=Content->Cards.FindByPredicate([&CardIdStr](const FLDDemoCardDefinition& C){return C.Id==CardIdStr;});
+            if(!CardDef){continue;}
+            const FString CardDisplayName=ContentName(Content,CardIdStr);
+            for(const FLDDemoEffectDefinition& AuthoredEf:CardDef->Effects)
+            {
+                FLDDemoEffectDefinition Ef=AuthoredEf;
+                LDSkillGrowth::GrowEffect(AuthoredEf,CardLevelFactor,Ef);
+                switch(Ef.GetOp())
+                {
+                case ELDDemoEffectOp::CooldownCost:
+                    if(Ef.SecondaryRatioBp>0){CdDeltas.FindOrAdd(Inst.DefinitionId)+=(Ef.SecondaryRatioBp-10000);}
+                    if(Ef.CostRatioBp>0){CostDeltas.FindOrAdd(Inst.DefinitionId)+=(Ef.CostRatioBp-10000);}
+                    break;
+                case ELDDemoEffectOp::SkillDamageFactor:
+                    if(Ef.RatioBp!=0)
+                    {
+                        const int64 MultBp=10000+Ef.RatioBp;
+                        TotalFactorBp=Share(TotalFactorBp,MultBp);
+                        FactorList.Add({CardDisplayName,MultBp});
+                    }
+                    break;
+                case ELDDemoEffectOp::IdleReadyAmp:
+                    if(Ef.IntervalMs>0&&Ef.RatioBp>0)
+                    {
+                        const int64 ReadySince=FMath::Max<int64>(0,Input.ReadyAtMs);
+                        const int64 Steps=(Context.bClock&&Context.NowMs>=ReadySince)?((Context.NowMs-ReadySince)/Ef.IntervalMs):0;
+                        if(Steps>0)
+                        {
+                            const int64 MultBp=10000+Steps*Ef.RatioBp;
+                            TotalFactorBp=Share(TotalFactorBp,MultBp);
+                            FactorList.Add({FString::Printf(TEXT("%s%lld层"),*CardDisplayName,Steps),MultBp});
+                        }
+                    }
+                    break;
+                case ELDDemoEffectOp::SkillGrowth:
+                    if(SkillHitStacks>0&&Ef.RatioBp>0)
+                    {
+                        const int64 MultBp=10000+int64(SkillHitStacks)*Ef.RatioBp;
+                        TotalFactorBp=Share(TotalFactorBp,MultBp);
+                        FactorList.Add({FString::Printf(TEXT("%s%d层"),*CardDisplayName,SkillHitStacks),MultBp});
+                    }
+                    break;
+                case ELDDemoEffectOp::SkillAdRider:
+                    if(Ef.ADRatioBp>0)
+                    {
+                        RiderADBp+=Ef.ADRatioBp;
+                        RiderCardNames.AddUnique(CardDisplayName);
+                    }
+                    break;
+                default: break;
+                }
+            }
+        }
+    }
+    if(Content->Parameters.DamageFactorTechCapBp>0)
+    {
+        TotalFactorBp=FMath::Min(TotalFactorBp,Content->Parameters.DamageFactorTechCapBp);
+    }
+
+    bool bKeystoneStrength=false;
+    int64 KeystoneStrengthBp=10000+Content->Parameters.KeystoneStrengthDamageBp;
+    if(Build&&Build->bValid&&Content->Parameters.KeystoneThresholdPoints>0&&Content->Parameters.KeystoneStrengthDamageBp>0)
+    {
+        for(const FLDStatPointsView& SP:Build->StatPoints)
+        {
+            if(SP.StatId==TEXT("stat_strength")&&SP.Points>=Content->Parameters.KeystoneThresholdPoints)
+            {
+                bKeystoneStrength=true;
+                break;
+            }
+        }
+    }
+
+    int64 CardCdMultBp=10000,CardCostMultBp=10000;
+    for(const TPair<FName,int64>& Pair:CdDeltas){CardCdMultBp=Share(CardCdMultBp,FMath::Max<int64>(0,10000+Pair.Value));}
+    for(const TPair<FName,int64>& Pair:CostDeltas){CardCostMultBp=Share(CardCostMultBp,FMath::Max<int64>(0,10000+Pair.Value));}
+
+    const int64 CardAdjustedCdMs=Share(GrownValues.CooldownMs,CardCdMultBp);
+    const int64 HasteScaleP2=Content->Formulas.HasteScaleP2>0?Content->Formulas.HasteScaleP2:10000;
+    const int64 FloorMs=Content->Parameters.SkillRanks.CooldownFloorMs;
+    const int64 FinalCdMs=CardAdjustedCdMs>0
+        ?FMath::Max<int64>(FloorMs,FMath::DivideAndRoundUp<int64>(CardAdjustedCdMs*HasteScaleP2,HasteScaleP2+FMath::Max<int64>(0,HasteP2)))
+        :0;
+    const int64 RawCost=GrownValues.MomentumCostP2;
+    const int64 FinalCostP2=(RawCost/10000)*CardCostMultBp+((RawCost%10000)*CardCostMultBp+9999)/10000;
+    Result.FinalCooldownMs=FinalCdMs;
+    Result.FinalMomentumCostP2=FinalCostP2;
+
+    if(RiderADBp>0&&LiveStats.ADP2>0)
+    {
+        const int64 RawRiderP2=Share(LiveStats.ADP2,RiderADBp);
+        Result.RiderDamageP2=Share(RawRiderP2,TotalFactorBp);
+    }
+
+    // Render live card description using card-multiplied damage values (including AdaptiveRatioBp from #339).
+    const int64 AdaptiveStatP2=LiveStats.BonusADP2*14>=LiveStats.APP2*10?LiveStats.BonusADP2:LiveStats.APP2;
+    auto LiveCardValue=[&](const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& ValSet,FString& Out)->bool
+    {
+        if(Token.bPerPoint){return false;}
+        if(Token.Field==LDDemoCardText::EField::Amount||Token.Field==LDDemoCardText::EField::Burst)
+        {
+            const FLDDemoEffectDefinition* Effect=LDDemoCardText::FindEffect(ValSet,Token);
+            if(!Effect){return false;}
+            int64 P2=Effect->BaseP2+Share(LiveStats.ADP2,Effect->ADRatioBp)+Share(LiveStats.APP2,Effect->APRatioBp)
+                +Share(AdaptiveStatP2,Effect->AdaptiveRatioBp)+Share(LiveStats.MaxHPP2,Effect->MaxHPRatioBp)+Share(LiveStats.ArmorP2,Effect->ArmorRatioBp);
+            if(Token.Field==LDDemoCardText::EField::Burst){P2=Share(P2,Effect->SecondaryRatioBp);}
+            if(Effect->GetOp()!=ELDDemoEffectOp::Shield){P2=Share(P2,TotalFactorBp);}
+            Out=FString::Printf(TEXT("%lld"),(P2+50)/100);
+            return true;
+        }
+        return CardValue(Token,ValSet,LiveStats,Out);
+    };
+    FCardText LiveSentence=CardRender(Display->DescriptionText,[&](const LDDemoCardText::FToken& Token,FString& Out)
+    {
+        return LiveCardValue(Token,GrownValues,Out)||LiveCardValue(Token,GrownBaseValues,Out);
+    });
+    TArray<ELDSkillBranch> Steps;
+    for(ELDSkillBranch Step=Input.Branch;Step!=ELDSkillBranch::None;Step=LDSkillBranch::ParentOf(Step)){Steps.Insert(Step,0);}
+    for(const ELDSkillBranch Step:Steps)
+    {
+        const FString StepId=LDSkillBranch::DisplayId(Id,Step);
+        const FLDDemoDisplayDefinition* StepRow=Content->Display.FindByPredicate([&StepId](const FLDDemoDisplayDefinition& Row){return Row.Id==StepId;});
+        const FLDDemoAbilityBranch* StepPath=Ability->FindBranch(Step);
+        if(!StepRow||!StepPath){continue;}
+        FString StepName;
+        if(!ContentText(Content,StepId,false,StepName)){StepName=StepRow->NameText;}
+        FLDDemoAbilityValues GrownStep;
+        if(LDSkillGrowth::GrowValues(StepPath->Values,Content->Parameters.SkillRanks,Content->Parameters.SkillGrowthPerLevelBp,LiveStats.Level,Rank,GrownStep))
+        {
+            const FCardText StepLine=CardRender(StepRow->DescriptionText,[&](const LDDemoCardText::FToken& Token,FString& Out)
+            {
+                return LiveCardValue(Token,GrownValues,Out)||LiveCardValue(Token,GrownStep,Out);
+            });
+            LiveSentence.Plain+=FString::Printf(TEXT("\n%s：%s"),*StepName,*StepLine.Plain);
+        }
+    }
+
+    FString MainText=LiveSentence.Plain;
+    if(Result.RiderDamageP2>0)
+    {
+        MainText+=FString::Printf(TEXT("（+ %lld 额外物理伤害）"),(Result.RiderDamageP2+50)/100);
+    }
+    if(bKeystoneStrength)
+    {
+        MainText+=FString::Printf(TEXT("（控场时 ×%.2f）"),double(KeystoneStrengthBp)/10000.);
+    }
+
+    // Summary line with real haste+card adjusted cooldown (0.1s precision) & cost.
+    FString Head=View.Key.IsEmpty()?FString::Printf(TEXT("%s · %s"),*View.Kind,*View.State)
+        :FString::Printf(TEXT("%s [%s] · %s"),*View.Kind,*View.Key,*View.State);
+    Head+=FString::Printf(TEXT(" · 冷却 %.1f秒"),double(FinalCdMs)/1000.);
+    if(FinalCostP2>0){Head+=FString::Printf(TEXT(" · 耗劲 %lld"),HudWholePoints(FinalCostP2,false));}
+    Result.Detail.Summary=Head;
+
+    // Step-by-step formula breakdown for Alt / C expansion.
+    Result.bHasFormula=true;
+    int32 DmgIdx=INDEX_NONE;
+    for(int32 I=0;I<GrownValues.Effects.Num();++I)
+    {
+        const ELDDemoEffectOp Op=GrownValues.Effects[I].GetOp();
+        if(Op==ELDDemoEffectOp::Damage||Op==ELDDemoEffectOp::ZoneDamage||Op==ELDDemoEffectOp::GroundImpact||Op==ELDDemoEffectOp::ChannelCone||Op==ELDDemoEffectOp::DashContact)
+        {
+            DmgIdx=I;
+            Result.PrimaryTone=GrownValues.Effects[I].DamageType==ELDDemoDamageType::Magical?2:1;
+            break;
+        }
+        if(DmgIdx==INDEX_NONE&&Op==ELDDemoEffectOp::Shield){Result.PrimaryTone=4;}
+    }
+    const FString RankTag=Input.Branch==ELDSkillBranch::None?FString::Printf(TEXT("%u级"),uint32(Rank))
+        :FString::Printf(TEXT("%u级%s"),uint32(Rank),*FString(LDSkillBranch::StepKey(Input.Branch)).ToUpper());
+    if(DmgIdx!=INDEX_NONE&&RankOnlyValues.Effects.IsValidIndex(DmgIdx))
+    {
+        const FLDDemoEffectDefinition& GE=GrownValues.Effects[DmgIdx];
+        const int64 BaseBranchP2=RankOnlyValues.Effects[DmgIdx].BaseP2;
+        const int64 LevelDeltaP2=FMath::Max<int64>(0,GE.BaseP2-BaseBranchP2);
+        const int64 StatBonusP2=Share(LiveStats.ADP2,GE.ADRatioBp)+Share(LiveStats.APP2,GE.APRatioBp)
+            +Share(AdaptiveStatP2,GE.AdaptiveRatioBp)+Share(LiveStats.MaxHPP2,GE.MaxHPRatioBp)+Share(LiveStats.ArmorP2,GE.ArmorRatioBp);
+        const int64 PreMultP2=GE.BaseP2+StatBonusP2;
+        const int64 FinalDmgP2=Share(PreMultP2,TotalFactorBp);
+        Result.FinalPrimaryDamageP2=FinalDmgP2;
+
+        const int64 LvGrowthPctBp=Content->Parameters.SkillGrowthPerLevelBp*FMath::Max<int32>(0,int32(LiveStats.Level)-1);
+        Result.FormulaLines.Add(FString::Printf(TEXT("基础与分支 (%s): %lld"),*RankTag,(BaseBranchP2+50)/100));
+        Result.FormulaLines.Add(FString::Printf(TEXT("等级成长 (Lv.%u, +%s): +%lld"),uint32(LiveStats.Level),*HudPercent(LvGrowthPctBp),(LevelDeltaP2+50)/100));
+
+        TArray<FString> StatParts;
+        if(GE.ADRatioBp>0){StatParts.Add(HudPercent(GE.ADRatioBp)+TEXT(" 攻击"));}
+        if(GE.APRatioBp>0){StatParts.Add(HudPercent(GE.APRatioBp)+TEXT(" 法强"));}
+        if(GE.AdaptiveRatioBp>0){StatParts.Add(HudPercent(GE.AdaptiveRatioBp)+TEXT(" 自适应"));}
+        if(GE.MaxHPRatioBp>0){StatParts.Add(HudPercent(GE.MaxHPRatioBp)+TEXT(" 最大生命"));}
+        if(GE.ArmorRatioBp>0){StatParts.Add(HudPercent(GE.ArmorRatioBp)+TEXT(" 护甲"));}
+        Result.FormulaLines.Add(FString::Printf(TEXT("属性加成 (%s): +%lld"),
+            StatParts.IsEmpty()?TEXT("无系数"):*FString::Join(StatParts,TEXT(" + ")),(StatBonusP2+50)/100));
+
+        if(!FactorList.IsEmpty())
+        {
+            TArray<FString> MultTokens;
+            for(const TPair<FString,int64>& F:FactorList)
+            {
+                MultTokens.Add(FString::Printf(TEXT("×%.2f [%s]"),double(F.Value)/10000.,*F.Key));
+            }
+            Result.FormulaLines.Add(TEXT("构筑乘区: ")+FString::Join(MultTokens,TEXT(" ")));
+        }
+        else
+        {
+            Result.FormulaLines.Add(TEXT("构筑乘区: ×1.00（无额外乘区牌）"));
+        }
+
+        FString FinalExpr=FString::Printf(TEXT("最终单次伤害: (%lld + %lld + %lld)"),
+            (BaseBranchP2+50)/100,(LevelDeltaP2+50)/100,(StatBonusP2+50)/100);
+        for(const TPair<FString,int64>& F:FactorList){FinalExpr+=FString::Printf(TEXT(" × %.2f"),double(F.Value)/10000.);}
+        FinalExpr+=FString::Printf(TEXT(" = %lld"),(FinalDmgP2+50)/100);
+        if(Result.RiderDamageP2>0)
+        {
+            FinalExpr+=FString::Printf(TEXT("  + %lld 额外物理伤害 [%s]"),
+                (Result.RiderDamageP2+50)/100,*FString::Join(RiderCardNames,TEXT("+")));
+        }
+        Result.FormulaLines.Add(FinalExpr);
+    }
+    {
+        const double HastePct=HasteScaleP2>0?(double(FMath::Max<int64>(0,HasteP2))/double(HasteScaleP2))*100.:0.;
+        FString CdExpr=FString::Printf(TEXT("实际冷却: %.1fs"),double(GrownValues.CooldownMs)/1000.);
+        if(CardCdMultBp!=10000){CdExpr+=FString::Printf(TEXT(" × %.2f [构筑牌]"),double(CardCdMultBp)/10000.);}
+        CdExpr+=FString::Printf(TEXT(" ÷ (1 + %.0f%% 技能急速) = %.1fs"),HastePct,double(FinalCdMs)/1000.);
+        Result.FormulaLines.Add(CdExpr);
+    }
+
+    TArray<FString> BodyLines;
+    BodyLines.Add(MainText);
+    BodyLines.Add(TargetLine(Path?Path->Target:Ability->Target));
+    Result.FooterHint=bExpandFormula?TEXT("松开 [Alt] 收起计算过程"):TEXT("按住 [Alt] 查看实时伤害与冷却计算过程");
+    if(Context.bInputCaptured){BodyLines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
+    Result.Detail.Body=FString::Join(BodyLines,TEXT("\n"));
+    return Result;
+}
+
+TArray<LDHUD::FTacticalScoreRow> LDHUD::BuildTacticalScoreboard(const FLDPublicMatchView& Public,const FLDKillFeedView& Feed,
+    const FLDLobbyView& Lobby,const FGuid& Self,const TMap<FGuid,FTacticalSighting>& Sightings,
+    const FLDProgressionView* OwnProgression,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs)
+{
+    TArray<FTacticalScoreRow> Out;
+    if(Public.Generation==0){return Out;}
+    const TArray<FScoreLine> BaseScores=Scoreboard(Feed,Public.Generation,Lobby,Self);
+    const int64 GuardTargetMs=Public.Showdown.bStarted&&Public.Showdown.GuardMs>0
+        ?Public.Showdown.GuardMs:(Content&&Content->Parameters.CaptureGuardMs>0?Content->Parameters.CaptureGuardMs:20000);
+    const double GuardTargetSec=FMath::Max(1.,double(GuardTargetMs)/1000.);
+
+    auto BuildRow=[&](const FGuid& ContenderId,const FString& Name,uint64 Kills,uint64 Deaths,uint64 Assists,uint8 DefaultSeat)
+    {
+        FTacticalScoreRow Row;
+        Row.ContenderId=ContenderId;
+        Row.Name=Name;
+        Row.bSelf=ContenderId==Self;
+        Row.Kills=Kills;Row.Deaths=Deaths;Row.Assists=Assists;
+        Row.bLeaderCrown=(Public.Leader.Leader.IsValid()&&Public.Leader.Leader==ContenderId)
+            ||(Public.Leader.RunnerUp.IsValid()&&Public.Leader.RunnerUp==ContenderId);
+
+        const FTacticalSighting* Seen=Sightings.Find(ContenderId);
+        Row.Presentation=Seen?Seen->Presentation:DefaultSeat;
+        if(Row.bSelf&&OwnProgression&&OwnProgression->bValid&&OwnProgression->Level>0)
+        {
+            Row.LevelText=FString::Printf(TEXT("Lv.%u"),uint32(OwnProgression->Level));
+            for(const FLDActiveSlotView& Act:OwnProgression->Actives)
+            {
+                if(Act.Slot<3&&!Act.DefinitionId.IsNone())
+                {
+                    Row.ActiveIcons[Act.Slot]=ContentIconId(Content,Act.DefinitionId.ToString());
+                    Row.ActiveNames[Act.Slot]=ContentName(Content,Act.DefinitionId.ToString());
+                }
+            }
+        }
+        else if(Seen&&Seen->LastSeenLevel>0)
+        {
+            Row.LevelText=FString::Printf(TEXT("Lv.%u"),uint32(Seen->LastSeenLevel));
+            for(int32 S=0;S<3;++S)
+            {
+                const uint8 AbId=Seen->RevealedActives[S];
+                if(AbId!=0&&Content)
+                {
+                    if(const FLDDemoAbilityDefinition* Ab=Content->Abilities.FindByPredicate([AbId](const FLDDemoAbilityDefinition& A){return A.NativeId==AbId;}))
+                    {
+                        Row.ActiveIcons[S]=ContentIconId(Content,Ab->Id);
+                        Row.ActiveNames[S]=ContentName(Content,Ab->Id);
+                    }
+                }
+            }
+        }
+        else if(Public.Leader.Leader==ContenderId&&Public.Leader.LeaderLevel>0)
+        {
+            Row.LevelText=FString::Printf(TEXT("Lv.%u"),uint32(Public.Leader.LeaderLevel));
+        }
+        else
+        {
+            Row.LevelText=TEXT("Lv.?");
+        }
+
+        int64 HeldMs=Seen?Seen->KnownGuardMs:0;
+        if(Public.GraffitiOwner==ContenderId)
+        {
+            if(Public.CircleState==ELDCircleState::Guarded&&bClock&&Public.GuardDueAtMs>0)
+            {
+                HeldMs=FMath::Clamp<int64>(GuardTargetMs-FMath::Max<int64>(0,Public.GuardDueAtMs-NowMs),0,GuardTargetMs);
+            }
+            else
+            {
+                HeldMs=FMath::Max<int64>(HeldMs,FMath::Max<int64>(Public.GuardKeptMs,Public.OwnerBankedGuardMs));
+            }
+        }
+        Row.GraffitiFraction=GuardTargetMs>0?float(FMath::Clamp(double(HeldMs)/double(GuardTargetMs),0.,1.)):0.f;
+        Row.GraffitiText=FString::Printf(TEXT("%.1fs / %.0fs"),double(HeldMs)/1000.,GuardTargetSec);
+        if(Public.Showdown.bStarted)
+        {
+            Row.FinalModText=PublicFinalMod(Public,ContenderId,Content);
+        }
+        Out.Add(MoveTemp(Row));
+    };
+
+    if(!BaseScores.IsEmpty())
+    {
+        for(int32 Idx=0;Idx<BaseScores.Num();++Idx)
+        {
+            uint8 Seat=uint8(Idx%6);
+            for(int32 M=0;M<Lobby.Members.Num();++M)
+            {
+                if(Lobby.Members[M].ContenderId==BaseScores[Idx].ContenderId){Seat=uint8(M%6);break;}
+            }
+            BuildRow(BaseScores[Idx].ContenderId,BaseScores[Idx].Name,BaseScores[Idx].Kills,BaseScores[Idx].Deaths,BaseScores[Idx].Assists,Seat);
+        }
+    }
+    else
+    {
+        for(int32 M=0;M<Lobby.Members.Num()&&Out.Num()<6;++M)
+        {
+            const FLDLobbyMember& Mem=Lobby.Members[M];
+            if(!Mem.ContenderId.IsValid()||Mem.Name.IsEmpty()){continue;}
+            BuildRow(Mem.ContenderId,RosterName(Lobby,Mem.ContenderId),0,0,0,uint8(M%6));
+        }
+    }
+    return Out;
 }

@@ -513,7 +513,45 @@ void ULDWorkshop::Layout(FVector2D Size)
     }
     else if(Mode==EMode::Full&&Latest.bShop)
     {
-        Next.Shop=Next.Board;Next.Board=FBox2D(ForceInit);
+        // Side-by-side Rest workspace (#331): Rule Board stays visible in the centre while the Rest Shop expands on the
+        // upper right above the Card Library and Pending tray, preserving at least one library page via StackedTrayLimit.
+        const float Bottom=H-WorkshopMargin;
+        const float DockHeight=FMath::Min(WorkshopDockHeight,FMath::Max(0.f,(Bottom-WorkshopTop)*.25f));
+        const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
+        const float ShopRightWidth=FMath::Clamp(W*.34f,520.f,680.f);
+        const float RightX=W-WorkshopMargin-ShopRightWidth;
+        const float TotalRightH=FMath::Max(200.f,ContentBottom-WorkshopTop);
+        const float ServiceHeight=Latest.bServices?58.f:0.f;
+        const float LibraryChrome=70.f+FilterHeight+14.f;
+        const float PendingChrome=52.f+ServiceHeight;
+        // Minimum library content height for one page of stored cards (36.f when empty, ~82.f+ when cards exist).
+        const float ProbeAvail=10000.f;
+        const float LibraryReserve=FMath::Max(36.f,ProbeAvail-LDWorkshop::StackedTrayLimit(AllCounts,ShopRightWidth-44.f,
+            ProbeAvail,WorkshopMinIconPixels/Scale,TextScale));
+        const float WantedTray=FMath::Max(0.f,float(Latest.TrayDesired.Y));
+        const float NeededBelow=LibraryChrome+LibraryReserve
+            +(WantedTray>0.f?(PendingChrome+FMath::Min(WantedTray,116.f)):(ServiceHeight>0.f?72.f+ServiceHeight:0.f));
+        const float ShopHeight=FMath::Clamp(FMath::Min(TotalRightH*.38f,TotalRightH-14.f-NeededBelow),176.f,296.f);
+        Next.Shop=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,WorkshopTop+ShopHeight);
+        const float LibTop=float(Next.Shop.Max.Y)+14.f;
+        const float AvailLibH=FMath::Max(0.f,ContentBottom-LibTop);
+        const float StackTrayBudget=FMath::Max(0.f,AvailLibH-LibraryChrome-PendingChrome);
+        const float StackedLimit=LDWorkshop::StackedTrayLimit(AllCounts,ShopRightWidth-44.f,
+            StackTrayBudget,WorkshopMinIconPixels/Scale,TextScale);
+        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
+        const bool bSide=WantedTray>0.f&&WantedTray>StackedLimit&&StackedLimit<84.f
+            &&SideX-WorkshopGap-float(Next.Character.Max.X)-WorkshopGap>=460.f;
+        const float FullSideLimit=FMath::Max(0.f,ContentBottom-WorkshopTop-PendingChrome);
+        TrayLimit=bSide?FullSideLimit:StackedLimit;
+        const float Tray=FMath::Min(FMath::Clamp(WantedTray,0.f,TrayLimit),TrayLimit);
+        const float MaxEmptyPending=FMath::Max(0.f,AvailLibH-LibraryChrome-LibraryReserve);
+        const float PendingHeight=Tray>0.f?(Tray+PendingChrome)
+            :(ServiceHeight>0.f?FMath::Min(72.f+ServiceHeight,MaxEmptyPending):0.f);
+        Next.Pending=PendingHeight<=0.f?FBox2D(ForceInit):bSide
+            ?WorkshopBox(SideX,ContentBottom-PendingHeight,RightX-WorkshopGap,ContentBottom)
+            :WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom);
+        Next.Library=WorkshopBox(RightX,LibTop,W-WorkshopMargin,PendingHeight>0.f&&!bSide?float(Next.Pending.Min.Y):ContentBottom);
+        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,ContentBottom);
     }
     // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
     Next.Capacity=WorkshopBox(Next.Board.Min.X,Next.Board.Min.Y,Next.Board.Max.X,Next.Board.Min.Y+(Mode==EMode::Full?WorkshopCapacityHeight:48.f));
@@ -830,6 +868,12 @@ void ULDWorkshop::Present(const FInput& Input)
     WorkshopShown(LockBadge,bLocked,ESlateVisibility::HitTestInvisible);
     if(bLocked){WorkshopText(LockBadge,Storage->BuildGate().InstallBlocked.IsEmpty()?FString(LDTerms::WorkshopLocked):Storage->BuildGate().InstallBlocked);}
     WorkshopText(PendingTitle,FString::Printf(TEXT("%s  %d"),LDTerms::WorkshopPending,Input.Pending));
+    if(FSlateApplication::IsInitialized())
+    {
+        const bool bHadRight=DockHasRight();
+        RefreshDock(FSlateApplication::Get().GetCursorPos());
+        if(DockHasRight()!=bHadRight){Layout(Size);}
+    }
 }
 
 void ULDWorkshop::RefreshPhase()
@@ -884,7 +928,7 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(HolderName,Latest.HolderName);
     WorkshopText(LevelBadge,View.bValid?FString::FromInt(View.Level):FString(TEXT("—")));
     WorkshopText(LevelLine,Latest.Level.Experience);
-    const int64 Unspent=View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
+    const int64 Unspent=StatBar.IsValid()&&View.bValid?StatBar->EffectiveUnspent():View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
     if(RespecSpace){const float Foot=Latest.bCharacterServices?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
     // With the trainer the respec foot replaces the reactions so the stats and attributes keep a legible size.
@@ -906,16 +950,16 @@ void ULDWorkshop::RefreshCharacter()
             // .stat: the 44 icon, the name, the sixteen-cell meter filling the middle, the value and the yellow "+".
             auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(44.f);IconBox->SetHeightOverride(44.f);IconBox->SetContent(IconStack);
             Line->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);Row.Icon=IconBox;
-            Row.Name=LDWidgets::Text(WidgetTree,TEXT(""),18,NAME_None,LDUIFonts::ERole::Strong);Row.Name->SetAutoWrapText(false);
+            Row.Name=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeLead,NAME_None,LDUIFonts::ERole::Strong);Row.Name->SetAutoWrapText(false);
             Row.Name->SetColorAndOpacity(LDHUDStyle::UIText);
-            auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(52.f);NameBox->SetContent(Row.Name);
+            auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetMinDesiredWidth(52.f);NameBox->SetContent(Row.Name);
             auto* NameSlot=Line->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetPadding(FMargin(12,0,0,0));
             auto* Meter=WidgetTree->ConstructWidget<USizeBox>();Meter->SetHeightOverride(10.f);Row.Meter=Meter;
             auto* MeterSlot=Line->AddChildToHorizontalBox(Meter);MeterSlot->SetVerticalAlignment(VAlign_Center);MeterSlot->SetPadding(FMargin(12,0,0,0));
             MeterSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            Row.Points=LDWidgets::Text(WidgetTree,TEXT(""),24,NAME_None,LDUIFonts::ERole::Number);Row.Points->SetAutoWrapText(false);
+            Row.Points=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSection,NAME_None,LDUIFonts::ERole::Number);Row.Points->SetAutoWrapText(false);
             Row.Points->SetColorAndOpacity(LDHUDStyle::UIText);Row.Points->SetJustification(ETextJustify::Right);
-            auto* PointsBox34=WidgetTree->ConstructWidget<USizeBox>();PointsBox34->SetWidthOverride(34.f);PointsBox34->SetContent(Row.Points);
+            auto* PointsBox34=WidgetTree->ConstructWidget<USizeBox>();PointsBox34->SetMinDesiredWidth(34.f);PointsBox34->SetContent(Row.Points);
             Line->AddChildToHorizontalBox(PointsBox34)->SetVerticalAlignment(VAlign_Center);
             if(UHorizontalBoxSlot* PointsSlot=Cast<UHorizontalBoxSlot>(PointsBox34->Slot)){PointsSlot->SetPadding(FMargin(12,0,0,0));}
             Built.Add(NameBox);Built.Add(PointsBox34);
@@ -925,13 +969,13 @@ void ULDWorkshop::RefreshCharacter()
             Row.Plus->EnableRepeat([this,StatIndex](){return StatBar.IsValid()&&StatBar->CanAllocate(StatIndex)&&StatBar->Allocate(StatIndex);});
             LDWidgets::SetLook(Row.Plus,LDUIPaint::EButton::Plus);
             if(UTextBlock* PlusText=Cast<UTextBlock>(Row.Plus->GetContent()))
-            {PlusText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,24));PlusText->SetJustification(ETextJustify::Center);PlusText->SetRenderTranslation(FVector2D(0,-3));}
+            {PlusText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeSection));PlusText->SetJustification(ETextJustify::Center);PlusText->SetRenderTranslation(FVector2D(0,-2));}
             {auto Style=Row.Plus->GetStyle();Style.NormalPadding=FMargin(0);Style.PressedPadding=FMargin(0);Row.Plus->SetStyle(Style);}
             auto* PlusBox=WidgetTree->ConstructWidget<USizeBox>();PlusBox->SetWidthOverride(36.f);PlusBox->SetHeightOverride(36.f);PlusBox->SetContent(Row.Plus);
             auto* PlusSlot=Line->AddChildToHorizontalBox(PlusBox);PlusSlot->SetPadding(FMargin(12,0,0,0));PlusSlot->SetVerticalAlignment(VAlign_Center);
             auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetPadding(FMargin(0));Frame->SetContent(Line);
             Frame->SetVerticalAlignment(VAlign_Center);Frame->SetVisibility(ESlateVisibility::Visible);Row.Row=Frame;
-            auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetHeightOverride(66.f);RowHeight->SetContent(Frame);Built.Add(RowHeight);
+            auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetMinDesiredHeight(66.f);RowHeight->SetContent(Frame);Built.Add(RowHeight);
             StatList->AddChildToVerticalBox(RowHeight);
             for(UTextBlock* Fresh:{Row.Glyph,Row.Name,Row.Points,Cast<UTextBlock>(Row.Plus->GetContent())}){ScaleFresh(Fresh);}
             for(UWidget* Each:{static_cast<UWidget*>(Line),static_cast<UWidget*>(IconStack),static_cast<UWidget*>(IconBox),static_cast<UWidget*>(Meter),static_cast<UWidget*>(PlusBox)}){Built.Add(Each);}
@@ -945,7 +989,8 @@ void ULDWorkshop::RefreshCharacter()
         for(int32 Index=0;Index<StatRows.Num()&&Stats.IsValidIndex(Index);++Index)
         {
             FStatRow& Row=StatRows[Index];
-            const LDHUD::FStatRowView Shown=LDHUD::StatRow(*Stats[Index],LDHUD::StatPointsOf(View,Row.StatId),Content);
+            const int32 ShownPts=StatBar.IsValid()&&View.bValid?StatBar->EffectivePoints(Index):LDHUD::StatPointsOf(View,Row.StatId);
+            const LDHUD::FStatRowView Shown=LDHUD::StatRow(*Stats[Index],ShownPts,Content);
             WorkshopText(Row.Name,Shown.Name);WorkshopText(Row.Points,FString::FromInt(Shown.Points));WorkshopText(Row.Glyph,Shown.Glyph);
             Row.Value=Shown.Points;
             if(Row.PendingFlashRevision!=0&&View.bValid&&View.BuildRevision>=Row.PendingFlashRevision)
@@ -1171,6 +1216,7 @@ void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::F
     TArray<FString> Links,Notes;
     TArray<FString> Lines;LDHUD::ConnectionsText(Component,View,Content).ParseIntoArrayLines(Lines);
     for(FString& Line:Lines){Line.RemoveFromStart(TEXT("联动："));Links.Add(Line);}
+    if(bInstalled){Notes.Add(LDTerms::InstalledCardHint);}
     if(Focus&&Focus->bOverDrop&&!Focus->Drop.Replacing.IsNone())
     {
         Notes.Add(LDTerms::DropReplaces(LDHUD::ContentName(Content,LDHUD::CardDefinition(Focus->Drop.Replacing).ToString()),
@@ -1280,10 +1326,33 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
         {
             if(!StatRows[Index].Row||!StatRows[Index].Row->IsHovered()){continue;}
             const LDHUD::FStatRowView Row=LDHUD::StatRow(*Stats[Index],StatRows[Index].Value,Content);
+            const FModifierKeysState Mods=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetModifierKeys():FModifierKeysState();
+            const int32 Threshold=int32(FMath::Max<int64>(1,Content->Parameters.KeystoneThresholdPoints));
+            const int32 AddStep=Mods.IsControlDown()?FMath::Max(1,Threshold-Row.Points):Mods.IsShiftDown()?5:1;
+            const int32 RefundStep=Mods.IsShiftDown()?FMath::Min(5,FMath::Max(1,Row.Points)):1;
+            const bool bCanRespec=Storage.IsValid()&&Storage->BuildGate().bCanRespec;
+            FLDProgressionView EffectiveProg=View;
+            if(StatBar.IsValid()&&View.bValid)
+            {
+                EffectiveProg.StatPoints.Reset();
+                for(int32 SIdx=0;SIdx<StatRows.Num()&&Stats.IsValidIndex(SIdx);++SIdx)
+                {
+                    const int32 Eff=StatBar->EffectivePoints(SIdx);
+                    if(Eff>0){EffectiveProg.StatPoints.Add({StatRows[SIdx].StatId,Eff});}
+                }
+            }
+            const LDHUD::FStatHoverPreview HoverPreview=LDHUD::StatHoverPreview(*Stats[Index],Row.Points,AddStep,RefundStep,
+                bCanRespec,Latest.Attributes,*Content,Latest.ContentSnapshot,EffectiveProg.bValid?&EffectiveProg:nullptr,Latest.Combat);
             TArray<FString> Lines;
-            for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*Stats[Index],Latest.Attributes))
-            {Lines.Add(FString::Printf(TEXT("%s  %s  <b>%s</>"),*Effect.Attribute,*Effect.Current,*Effect.PerPoint));}
-            ShowTextDock(TEXT("S|")+Row.Name+FString::FromInt(Row.Points)+FString::Join(Lines,TEXT("|")),Row.Name,Row.PerPoint,FString::Join(Lines,TEXT("\n")),Row.IconId,Row.Glyph);
+            for(const FString& AttrLine:HoverPreview.AttributeLines){Lines.Add(WorkshopRichEscape(AttrLine));}
+            Lines.Add(FString::Printf(TEXT("<b>%s</>"),*WorkshopRichEscape(HoverPreview.KeystoneProgress)));
+            if(!HoverPreview.KeystoneRule.IsEmpty()){Lines.Add(WorkshopRichEscape(HoverPreview.KeystoneRule));}
+            if(HoverPreview.bKeystoneLossWarning&&!HoverPreview.RefundWarning.IsEmpty())
+            {
+                Lines.Add(FString::Printf(TEXT("<cost>%s</>"),*WorkshopRichEscape(HoverPreview.RefundWarning)));
+            }
+            ShowTextDock(TEXT("S|")+Row.Name+FString::FromInt(Row.Points)+HoverPreview.DeltaSummary+HoverPreview.RefundWarning,
+                Row.Name,HoverPreview.DeltaSummary,FString::Join(Lines,TEXT("\n")),Row.IconId,Row.Glyph);
             return;
         }
     }

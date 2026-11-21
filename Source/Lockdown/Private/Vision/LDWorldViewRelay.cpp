@@ -13,6 +13,7 @@
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDGameInstance.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -29,6 +30,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Engine/Level.h"
+#include "RenderingThread.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Camera/PlayerCameraManager.h"
 
@@ -1122,8 +1124,27 @@ ALDWorldViewRelay::ALDWorldViewRelay()
     PrimaryActorTick.bCanEverTick = true;
 }
 
+void ALDWorldViewRelay::FreezeForWorldTeardown()
+{
+    bFrozenForTeardown = true;
+    bFogBlending = false;
+    SetActorTickEnabled(false);
+    if (FogTexture && FogTexture->GetResource())
+    {
+        FlushRenderingCommands();
+    }
+}
+
+bool ALDWorldViewRelay::IsShuttingDown() const
+{
+    const UWorld* World = GetWorld();
+    const auto* GI = World ? World->GetGameInstance<ULDGameInstance>() : nullptr;
+    return bFrozenForTeardown || !World || World->bIsTearingDown || (GI && GI->IsLeavingWorld(World));
+}
+
 void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
 {
+    FreezeForWorldTeardown();
     TArray<FLDObservedClear> Cleared;
     Receiver.Reset(ELDObservedClearReason::Disconnected, Cleared);
     LastClears = Cleared;
@@ -1169,6 +1190,7 @@ void ALDWorldViewRelay::Refuse(const FString& Error)
 
 void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
 {
+    if (IsShuttingDown()) { return; }
     FString Error;
     FLDWorldRevision ExpectedRevision;
     if (!EnsureCatalog(Error) || !ExpectedWorld(ExpectedRevision))
@@ -1202,7 +1224,7 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
 
 void ALDWorldViewRelay::ClientPresentedHit_Implementation(const FLDObservedHitReceipt& Hit)
 {
-    if (!bClock) { return; }
+    if (IsShuttingDown() || !bClock) { return; }
     const double Arrival = FPlatformTime::Seconds();
     TArray<FLDObservedClear> Cleared;
     if (Receiver.Tick(Arrival, Cleared))
@@ -1222,6 +1244,7 @@ void ALDWorldViewRelay::ClientPresentedHit_Implementation(const FLDObservedHitRe
 
 void ALDWorldViewRelay::ClientConceal_Implementation(const FLDObservedConceal& Notice)
 {
+    if (IsShuttingDown()) { return; }
     FString Error;
     TArray<FLDObservedClear> Cleared;
     if (Receiver.AcceptConceal(Notice, Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
@@ -1234,6 +1257,7 @@ void ALDWorldViewRelay::ClientConceal_Implementation(const FLDObservedConceal& N
 
 void ALDWorldViewRelay::ClientTermination_Implementation(const FLDObservedTerminationNotice& Notice)
 {
+    if (IsShuttingDown()) { return; }
     FString Error;
     TArray<FLDObservedClear> Cleared;
     if (Receiver.AcceptTermination(Notice, Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
@@ -1494,7 +1518,17 @@ void ALDWorldViewRelay::AttachFog()
         FogMaterial->SetScalarParameterValue(TEXT("CoverageOnly"), 1);
         FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), 0);
     }
-    Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
+        Camera->PostProcessSettings.bOverride_AutoExposureMethod = true;
+        Camera->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+        Camera->PostProcessSettings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+        Camera->PostProcessSettings.AutoExposureApplyPhysicalCameraExposure = false;
+        Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+        Camera->PostProcessSettings.AutoExposureBias = 0.0f;
+        Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness = true;
+        Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness = true;
+        Camera->PostProcessSettings.AutoExposureMinBrightness = 1.0f;
+        Camera->PostProcessSettings.AutoExposureMaxBrightness = 1.0f;
+        Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
     CameraOwner = Target;
     FogSerial = MAX_uint64;
     UploadFog();
@@ -1583,6 +1617,8 @@ void ALDWorldViewRelay::TrackOwnBody(const ALDPlayerController& Owning)
 void ALDWorldViewRelay::Tick(float Delta)
 {
     Super::Tick(Delta);
+    const UWorld* World = GetWorld();
+    if (bFrozenForTeardown || !World || World->bIsTearingDown) { return; }
     const auto* Owning = Cast<ALDPlayerController>(GetOwner());
     // Present only for this machine's real viewer: never for a server-side opponent or a remote client's server copy.
     if (!Owning || !Owning->GetLocalPlayer()) { return; }

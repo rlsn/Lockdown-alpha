@@ -29,6 +29,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "CoreGlobals.h"
 #include "GameFramework/GameUserSettings.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
@@ -69,7 +70,35 @@ namespace
         TEXT("按 100% 原生分辨率渲染；完整的实时全局光照与反射、更精细的阴影与特效。对显卡要求最高的常规档。"),
         TEXT("在极高基础上再提高阴影、光照、视距与纹理预算，面向截图与录像，不建议对局使用。")};
     // The unapplied-draft prompt names what Back does next, so it never just toggles the prompt away and back.
-    const TCHAR* const CloseDraftText=TEXT("画面更改（垂直同步、画质）尚未应用；其他页已生效的更改会保留。再按“返回”或 Esc 将放弃画面更改并返回。");
+    const TCHAR* const CloseDraftText=TEXT("画面更改尚未应用；其他页已生效的更改会保留。再按“返回”或 Esc 将放弃画面更改并返回。");
+    struct FWindowModeOption { EWindowMode::Type Mode; const TCHAR* Name; const TCHAR* Button; };
+    constexpr FWindowModeOption WindowModes[] = {
+        { EWindowMode::WindowedFullscreen, TEXT("无边框全屏"), TEXT("WindowModeBorderless") },
+        { EWindowMode::Fullscreen, TEXT("独占全屏"), TEXT("WindowModeFullscreen") },
+        { EWindowMode::Windowed, TEXT("窗口化"), TEXT("WindowModeWindowed") }
+    };
+    const TCHAR* WindowModeName(EWindowMode::Type Mode)
+    {
+        for (const auto& Entry : WindowModes) { if (Entry.Mode == Mode) { return Entry.Name; } }
+        return TEXT("无边框全屏");
+    }
+    struct FFrameRateOption { float Value; const TCHAR* Label; const TCHAR* Button; };
+    constexpr FFrameRateOption FrameRateOptions[] = {
+        { 60.f, TEXT("60"), TEXT("FPSLimit60") },
+        { 120.f, TEXT("120"), TEXT("FPSLimit120") },
+        { 144.f, TEXT("144"), TEXT("FPSLimit144") },
+        { 240.f, TEXT("240"), TEXT("FPSLimit240") },
+        { 0.f, TEXT("无限制"), TEXT("FPSLimitUnlimited") }
+    };
+    FString FrameRateLabel(float Limit)
+    {
+        if (Limit <= 0.f) { return TEXT("无限制"); }
+        for (const auto& Opt : FrameRateOptions)
+        {
+            if (Opt.Value > 0.f && FMath::IsNearlyEqual(Limit, Opt.Value, .5f)) { return Opt.Label; }
+        }
+        return FString::Printf(TEXT("%.0f"), Limit);
+    }
 
     // Tab names are stable automation handles; titles are player-facing copy only.
     struct FCategoryInfo {const TCHAR* Title;const TCHAR* Tab;};
@@ -291,12 +320,41 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         {
             UScrollBox* Scroll=nullptr;UVerticalBox* Content=NewPage(Scroll);
             auto* Page=Tree->ConstructWidget<UVerticalBox>();Page->AddChildToVerticalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            Content->AddChildToVerticalBox(Text(Tree,TEXT("游戏始终以无边框全屏运行。本页更改需要点击“应用”后才会生效。"),NoteSize,LDHUDStyle::TextSecondary))
+            Content->AddChildToVerticalBox(Text(Tree,TEXT("调整窗口模式、分辨率、帧率上限、垂直同步与整体画质；本页更改点击“应用”后生效。"),NoteSize,LDHUDStyle::TextSecondary))
                 ->SetPadding(FMargin(6,16,6,4));
             DisplayUnavailable=Text(Tree,TEXT(""),LabelSize,LDHUDStyle::TextWarning);DisplayUnavailable->SetVisibility(ESlateVisibility::Collapsed);
             Content->AddChildToVerticalBox(DisplayUnavailable)->SetPadding(FMargin(6,12));
             DisplayRows=Tree->ConstructWidget<UVerticalBox>();Content->AddChildToVerticalBox(DisplayRows);
             // Every draft edit is a new request, so an apply the instance refused may be tried again.
+            auto* ModeSegs=Tree->ConstructWidget<UHorizontalBox>();
+            for(const auto& Opt:WindowModes)
+            {
+                const EWindowMode::Type Mode=Opt.Mode;
+                AddSegment(Tree,ModeSegs,Opt.Button,Opt.Name,[this,Mode]()
+                {
+                    DisplayDraft.WindowMode=Mode;
+                    if(Mode==EWindowMode::WindowedFullscreen)
+                    {
+                        if(const auto* Live=GEngine?GEngine->GetGameUserSettings():nullptr)
+                        {
+                            const FIntPoint Desktop=Live->GetDesktopResolution();
+                            if(Desktop.X>=640&&Desktop.Y>=360){DisplayDraft.Resolution=Desktop;}
+                        }
+                    }
+                    EditDisplayDraft();
+                });
+            }
+            WindowModeNote=AddRow(Tree,DisplayRows,TEXT("窗口模式"),TEXT("无边框全屏切换窗口最快；独占全屏与窗口化可自由改选分辨率。"),ModeSegs);
+            ResolutionNote=AddRow(Tree,DisplayRows,TEXT("分辨率"),TEXT("窗口化与独占全屏下可选本机支持的分辨率；无边框全屏固定使用桌面分辨率。"),
+                Stepper(Tree,TEXT("ResolutionDraftLower"),TEXT("ResolutionDraftHigher"),TEXT("ResolutionDraftValue"),
+                    [this](){StepResolution(-1);},[this](){StepResolution(1);}));
+            auto* FpsSegs=Tree->ConstructWidget<UHorizontalBox>();
+            for(const auto& Opt:FrameRateOptions)
+            {
+                const float Limit=Opt.Value;
+                AddSegment(Tree,FpsSegs,Opt.Button,Opt.Label,[this,Limit](){DisplayDraft.FrameRateLimit=Limit;EditDisplayDraft();});
+            }
+            FrameRateNote=AddRow(Tree,DisplayRows,TEXT("帧率上限"),TEXT("限制最高帧率以稳定帧耗时与显卡负载；无限制则不主动限帧。"),FpsSegs);
             VSyncNote=AddRow(Tree,DisplayRows,TEXT("垂直同步"),VSyncHint,
                 Switch(Tree,TEXT("VSyncDraft"),[this](){DisplayDraft.bVSync=!DisplayDraft.bVSync;EditDisplayDraft();}));
             QualityNote=AddRow(Tree,DisplayRows,TEXT("画质"),QualityHint(DisplayDraft.Quality),Stepper(Tree,TEXT("QualityDraftLower"),TEXT("QualityDraftHigher"),
@@ -422,6 +480,8 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
                     [this,Option](){ChangePreference([Option](auto& S){S.MinimapOrientation=Option;});});
             }
             AddRow(Tree,Content,TEXT("小地图朝向"),TEXT("小地图的上方朝向；只旋转显示，不改变能看到的内容。"),Orientation);
+            AddRow(Tree,Content,TEXT("色盲友好血条（红绿色弱）"),TEXT("将己方/友方血条改为高对比度蓝色，敌方血条改为琥珀橙色（Okabe-Ito 配色）。"),
+                Switch(Tree,TEXT("ToggleColorblind"),[this](){ChangePreference([](auto& S){S.bColorblindMode=!S.bColorblindMode;});}));
             AddSection(Tree,Content,TEXT("诊断"));
             AddRow(Tree,Content,TEXT("网络诊断"),TEXT("在右上角显示延迟、抖动、丢包与移动校正。"),
                 Switch(Tree,TEXT("ToggleNetworkDiagnostics"),[this](){ChangePreference([](auto& S){S.bShowNetworkDiagnostics=!S.bShowNetworkDiagnostics;});}));
@@ -525,7 +585,9 @@ void ULDControlsPanel::SetFeedback(const FString& Message,bool bProblem)
 void ULDControlsPanel::Populate()
 {
     if(!Feedback){return;}
-    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    const auto& Applied=*PC->Controls;
     // Text size (VISION_AND_UI readability) rescales every label once per change; the fixed control columns already leave room for 125%.
     ApplyTextScale(Applied.TextScale);
     PopulatePreferences();
@@ -537,7 +599,9 @@ void ULDControlsPanel::Populate()
 
 void ULDControlsPanel::PopulatePreferences()
 {
-    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    const auto& Applied=*PC->Controls;
     SetSwitch(WidgetTree,TEXT("ToggleQuickCast"),Applied.GetQuickCast());
     SetSwitch(WidgetTree,TEXT("ToggleAutoAttackAfterCast"),Applied.GetAutoAttackAfterCast());
     SetSwitch(WidgetTree,TEXT("ToggleEdgePan"),Applied.bEdgePan);
@@ -545,6 +609,7 @@ void ULDControlsPanel::PopulatePreferences()
     SetSwitch(WidgetTree,TEXT("ToggleNetworkDiagnostics"),Applied.bShowNetworkDiagnostics);
     SetSwitch(WidgetTree,TEXT("ToggleFPS"),Applied.bShowFPS);
     SetSwitch(WidgetTree,TEXT("ToggleCameraShake"),Applied.bCameraShake);
+    SetSwitch(WidgetTree,TEXT("ToggleColorblind"),Applied.bColorblindMode);
     VolumeValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MasterVolume))));
     MusicValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MusicVolume))));
     ZoomValue->SetText(FText::FromString(FString::Printf(TEXT("%.0f 厘米"),Applied.Zoom)));
@@ -581,7 +646,9 @@ void ULDControlsPanel::StepEffect(int32 Field,int32 Direction)
 
 void ULDControlsPanel::PopulateBindings()
 {
-    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    const auto& Applied=*PC->Controls;
     const auto& Definitions=ULDControlSettings::Definitions();
     for(int32 Index=0;Index<Definitions.Num()&&Index<BindingKeys.Num();++Index)
     {
@@ -626,9 +693,9 @@ void ULDControlsPanel::PopulateFooter()
 
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     auto* Instance=SettingsInstance.Get();
-    if(!Instance){SetFeedback(TEXT("本地设置的所有者不可用，没有应用任何更改。"),true);return;}
+    if(!Instance||!PC||!PC->Controls){SetFeedback(TEXT("本地设置的所有者不可用，没有应用任何更改。"),true);return;}
     auto* Draft=PC->Controls->CreateDraft();
     Change(*Draft);
     const auto Result=Instance->ApplyLocalSettings(*Draft);
@@ -704,8 +771,10 @@ void ULDControlsPanel::AskReset()
     {
         FLDDisplaySettings Product;FString Error;const auto* Live=GEngine?GEngine->GetGameUserSettings():nullptr;
         Scope=Live&&FLDDisplaySettings::ProductDefaults(*Live,Product,Error)
-            ?FString::Printf(TEXT("垂直同步 %s、画质 %s，确认后立即应用；未应用的画面更改会被替换。"),OnOff(Product.bVSync),*QualityName(Product.Quality))
-            :FString(TEXT("垂直同步与画质恢复为产品默认值，确认后立即应用；未应用的画面更改会被替换。"));
+            ?FString::Printf(TEXT("窗口模式 %s、分辨率 %dx%d、帧率上限 %s、垂直同步 %s、画质 %s，确认后立即应用；未应用的画面更改会被替换。"),
+                WindowModeName(Product.WindowMode),Product.Resolution.X,Product.Resolution.Y,*FrameRateLabel(Product.FrameRateLimit),
+                OnOff(Product.bVSync),*QualityName(Product.Quality))
+            :FString(TEXT("画面与画质恢复为产品默认值，确认后立即应用；未应用的画面更改会被替换。"));
         break;
     }
     case ECategory::Audio:
@@ -716,8 +785,8 @@ void ULDControlsPanel::AskReset()
         Scope=FString::Printf(TEXT("镜头距离 %.0f 厘米、边缘平移 %s、开局镜头跟随 %s、镜头平移速度 %.0f cm/s。"),
             Defaults->Zoom,OnOff(Defaults->bEdgePan),OnOff(Defaults->bStartFollowing),Defaults->CameraPanCmPerSec);break;
     case ECategory::Interface:
-        Scope=FString::Printf(TEXT("战斗特效降低 %s、镜头震动 %s、文字大小 %.0f%%、小地图朝向 %s、网络诊断 %s、FPS 显示 %s。"),
-            OnOff(Defaults->bReduceCombatEffects),OnOff(Defaults->bCameraShake),100*Defaults->TextScale,
+        Scope=FString::Printf(TEXT("战斗特效降低 %s、镜头震动 %s、色盲友好血条 %s、文字大小 %.0f%%、小地图朝向 %s、网络诊断 %s、FPS 显示 %s。"),
+            OnOff(Defaults->bReduceCombatEffects),OnOff(Defaults->bCameraShake),OnOff(Defaults->bColorblindMode),100*Defaults->TextScale,
             *ULDControlSettings::MinimapOrientationLabel(Defaults->MinimapOrientation),OnOff(Defaults->bShowNetworkDiagnostics),OnOff(Defaults->bShowFPS));break;
     case ECategory::Effects:
         Scope=TEXT("全部特效调参恢复试玩初值。");break;
@@ -728,8 +797,8 @@ void ULDControlsPanel::AskReset()
 
 void ULDControlsPanel::ShowRecoveryConfirmation()
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
-    if(!PC->Controls->NeedsRecovery())
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls||!PC->Controls->NeedsRecovery())
     {ShowChild(EChildConfirmation::None);SetFeedback(TEXT("没有需要替换的无法读取或不兼容的设置文件。"),false);PopulateFooter();return;}
     ShowChild(EChildConfirmation::Recovery);
 }
@@ -784,6 +853,65 @@ void ULDControlsPanel::EditDisplayDraft()
     PopulateDisplay();
 }
 
+void ULDControlsPanel::RebuildResolutionChoices()
+{
+    SupportedResolutions.Reset();
+    auto AddUnique=[this](const FIntPoint& Res)
+    {
+        if(Res.X<640||Res.Y<360){return;}
+        SupportedResolutions.AddUnique(Res);
+    };
+    TArray<FIntPoint> Hardware;
+    if(UKismetSystemLibrary::GetSupportedFullscreenResolutions(Hardware))
+    {
+        for(const FIntPoint& Res:Hardware){AddUnique(Res);}
+    }
+    TArray<FIntPoint> Windowed;
+    if(UKismetSystemLibrary::GetConvenientWindowedResolutions(Windowed))
+    {
+        for(const FIntPoint& Res:Windowed){AddUnique(Res);}
+    }
+    FIntPoint Desktop(1920,1080);
+    if(const auto* Live=GEngine?GEngine->GetGameUserSettings():nullptr)
+    {
+        const FIntPoint D=Live->GetDesktopResolution();
+        if(D.X>=640&&D.Y>=360){Desktop=D;}
+    }
+    for(const FIntPoint Preset:{FIntPoint(1280,720),FIntPoint(1600,900),FIntPoint(1920,1080),FIntPoint(2560,1440),FIntPoint(3840,2160)})
+    {
+        if(Preset.X<=Desktop.X&&Preset.Y<=Desktop.Y){AddUnique(Preset);}
+    }
+    AddUnique(Desktop);
+    AddUnique(AppliedDisplay.Resolution);
+    AddUnique(DisplayDraft.Resolution);
+    SupportedResolutions.Sort([](const FIntPoint& A,const FIntPoint& B)
+    {
+        return A.X!=B.X?A.X<B.X:A.Y<B.Y;
+    });
+}
+
+void ULDControlsPanel::StepResolution(int32 Direction)
+{
+    if(DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen){return;}
+    RebuildResolutionChoices();
+    if(SupportedResolutions.IsEmpty()){return;}
+    int32 Index=SupportedResolutions.IndexOfByKey(DisplayDraft.Resolution);
+    if(Index==INDEX_NONE)
+    {
+        Index=0;
+        for(int32 i=0;i<SupportedResolutions.Num();++i)
+        {
+            if(SupportedResolutions[i].X<=DisplayDraft.Resolution.X){Index=i;}
+        }
+    }
+    const int32 Next=FMath::Clamp(Index+Direction,0,SupportedResolutions.Num()-1);
+    if(SupportedResolutions.IsValidIndex(Next))
+    {
+        DisplayDraft.Resolution=SupportedResolutions[Next];
+        EditDisplayDraft();
+    }
+}
+
 void ULDControlsPanel::StepQuality(int32 Direction)
 {
     const int32 Level=DisplayDraft.Quality.GetSingleQualityLevel();
@@ -809,12 +937,40 @@ void ULDControlsPanel::PopulateDisplay()
     PopulateFooter();
     if(!Available){return;}
     const bool bUnresolved=DisplayApplyUnresolved();
+    RebuildResolutionChoices();
+    for(const auto& Opt:WindowModes)
+    {
+        MarkChosen(Find(WidgetTree,Opt.Button),DisplayDraft.WindowMode==Opt.Mode,RestStyle);
+    }
+    const bool bBorderless=DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen;
+    const int32 ResIdx=SupportedResolutions.IndexOfByKey(DisplayDraft.Resolution);
+    SetStepper(WidgetTree,TEXT("ResolutionDraftLower"),TEXT("ResolutionDraftHigher"),TEXT("ResolutionDraftValue"),
+        FString::Printf(TEXT("%d × %d"),DisplayDraft.Resolution.X,DisplayDraft.Resolution.Y),
+        !bBorderless&&ResIdx>0,!bBorderless&&ResIdx!=INDEX_NONE&&ResIdx<SupportedResolutions.Num()-1);
+    for(const auto& Opt:FrameRateOptions)
+    {
+        const bool bMatch=(Opt.Value<=0.f&&DisplayDraft.FrameRateLimit<=0.f)
+            ||(Opt.Value>0.f&&FMath::IsNearlyEqual(DisplayDraft.FrameRateLimit,Opt.Value,.5f));
+        MarkChosen(Find(WidgetTree,Opt.Button),bMatch,RestStyle);
+    }
     SetSwitch(WidgetTree,TEXT("VSyncDraft"),DisplayDraft.bVSync);
     const int32 Level=DisplayDraft.Quality.GetSingleQualityLevel();
     SetStepper(WidgetTree,TEXT("QualityDraftLower"),TEXT("QualityDraftHigher"),TEXT("QualityDraftValue"),QualityName(DisplayDraft.Quality),
         Level!=0,Level<QualityLevels-1);
+    const bool bModeChanged=AppliedDisplay.WindowMode!=DisplayDraft.WindowMode;
+    const bool bResChanged=AppliedDisplay.Resolution!=DisplayDraft.Resolution;
+    const bool bFpsChanged=!FMath::IsNearlyEqual(AppliedDisplay.FrameRateLimit,DisplayDraft.FrameRateLimit,.01f);
     const bool bVSyncChanged=AppliedDisplay.bVSync!=DisplayDraft.bVSync;
     const bool bQualityChanged=!(AppliedDisplay.Quality==DisplayDraft.Quality);
+    SetNote(WindowModeNote,bModeChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),WindowModeName(AppliedDisplay.WindowMode))
+        :FString(TEXT("无边框全屏切换窗口最快；独占全屏与窗口化可自由改选分辨率。")),
+        bModeChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
+    SetNote(ResolutionNote,bResChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%d × %d）"),AppliedDisplay.Resolution.X,AppliedDisplay.Resolution.Y)
+        :FString(bBorderless?TEXT("无边框全屏固定使用桌面分辨率；切到窗口化或独占全屏即可更改。"):TEXT("窗口化与独占全屏下可选本机支持的分辨率。")),
+        bResChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
+    SetNote(FrameRateNote,bFpsChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),*FrameRateLabel(AppliedDisplay.FrameRateLimit))
+        :FString(TEXT("限制最高帧率以稳定帧耗时与显卡负载；无限制则不主动限帧。")),
+        bFpsChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
     SetNote(VSyncNote,bVSyncChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),OnOff(AppliedDisplay.bVSync)):FString(VSyncHint),
         bVSyncChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
     SetNote(QualityNote,bQualityChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）\n%s"),*QualityName(AppliedDisplay.Quality),*QualityHint(DisplayDraft.Quality))
@@ -828,6 +984,9 @@ void ULDControlsPanel::PopulateDisplay()
     else if(bDisplayDraftDirty)
     {
         TArray<FString> Changes;
+        if(bModeChanged){Changes.Add(FString::Printf(TEXT("窗口模式 %s → %s"),WindowModeName(AppliedDisplay.WindowMode),WindowModeName(DisplayDraft.WindowMode)));}
+        if(bResChanged){Changes.Add(FString::Printf(TEXT("分辨率 %dx%d → %dx%d"),AppliedDisplay.Resolution.X,AppliedDisplay.Resolution.Y,DisplayDraft.Resolution.X,DisplayDraft.Resolution.Y));}
+        if(bFpsChanged){Changes.Add(FString::Printf(TEXT("帧率上限 %s → %s"),*FrameRateLabel(AppliedDisplay.FrameRateLimit),*FrameRateLabel(DisplayDraft.FrameRateLimit)));}
         if(bVSyncChanged){Changes.Add(FString::Printf(TEXT("垂直同步 %s → %s"),OnOff(AppliedDisplay.bVSync),OnOff(DisplayDraft.bVSync)));}
         if(bQualityChanged){Changes.Add(FString::Printf(TEXT("画质 %s → %s"),*QualityName(AppliedDisplay.Quality),*QualityName(DisplayDraft.Quality)));}
         Line=Changes.IsEmpty()?FString(TEXT("有未应用的画面更改。")):TEXT("未应用：")+FString::Join(Changes,TEXT(" · "));
@@ -896,7 +1055,9 @@ void ULDControlsPanel::ConfirmResetDefaults()
     const ELDPreferenceGroup Group=ResetCategory==ECategory::Audio?ELDPreferenceGroup::Audio
         :ResetCategory==ECategory::Controls?ELDPreferenceGroup::Controls
         :ResetCategory==ECategory::Camera?ELDPreferenceGroup::Camera:ELDPreferenceGroup::Interface;
-    auto* Draft=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls->CreateDraft();
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    auto* Draft=PC->Controls->CreateDraft();
     Draft->ResetPreferenceGroup(Group);
     const auto Result=Instance->ApplyLocalSettings(*Draft);
     if(Group==ELDPreferenceGroup::Controls){LastCapture=NAME_None;CaptureResult.Reset();bCaptureProblem=false;}
@@ -929,7 +1090,9 @@ void ULDControlsPanel::Open()
     bOpen=true;Capture=NAME_None;LastCapture=NAME_None;CaptureResult.Reset();bCaptureProblem=false;bFeedbackProblem=false;
     SettingsInstance=GetGameInstance<ULDGameInstance>();
     SetVisibility(ESlateVisibility::Visible);
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC){return;}
+    PC->SetMenuOpen(true);
     ShowChild(EChildConfirmation::None);PendingFocus=NAME_None;
     auto* Instance=SettingsInstance.Get();
     // Only results that arrive while the panel is open are news; the last apply of an earlier visit is not shown again. A
@@ -1023,7 +1186,8 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     const bool bFlushPending=Instance->IsLocalSettingsFlushPending();
     if((bSeenFlushPending||bVolumeSavePending)&&!bFlushPending)
     {
-        const ULDControlSettings* Applied=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls.Get();
+        const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+        const ULDControlSettings* Applied=PC?PC->Controls.Get():nullptr;
         const bool bProblem=Applied&&(Applied->IsDirty()||Applied->NeedsRecovery());
         if(bProblem||bVolumeSavePending||!bFeedbackProblem){SetFeedback(Instance->GetLocalSettingsMessage(),bProblem);}
         bVolumeSavePending=false;
@@ -1037,10 +1201,12 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
 FReply ULDControlsPanel::CaptureKey(FKey Key)
 {
     if(Key==EKeys::Escape){EndCapture();return FReply::Handled();}
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());FString Error;auto* Draft=PC->Controls->CreateDraft();
-    if(!Draft->Rebind(Capture,Key,Error))
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return FReply::Handled();}
+    FString Error,SwappedLabel;auto* Draft=PC->Controls->CreateDraft();
+    if(!Draft->Rebind(Capture,Key,Error,&SwappedLabel))
     {
-        // A refused key (reserved, wrong device or already used) is named on the row and the capture keeps waiting.
+        // A refused key (reserved, wrong device or unswappable axis) is named on the row and the capture keeps waiting.
         CaptureResult=Error;bCaptureProblem=true;PopulateBindings();
         const int32 Index=BindingIndex(Capture);
         if(BindingNotes.IsValidIndex(Index)){PendingRevealRow=RowOf(BindingNotes[Index]);PendingRevealFrame=GFrameCounter;}
@@ -1053,8 +1219,20 @@ FReply ULDControlsPanel::CaptureKey(FKey Key)
         :FLDLocalSettingsSaveResult{ELDLocalSettingsSaveStatus::Invalid,TEXT("本地设置的所有者不可用。")};
     const bool bApplied=PC->Controls->Key(Action)==Key;
     bCaptureProblem=!bApplied;
-    CaptureResult=bApplied?FString::Printf(TEXT("已改为 %s。"),*PC->Controls->Label(Action)):TEXT("按键未更改：")+Result.Message;
-    SetFeedback(Result.Message,!Result.IsSaved()&&Result.Status!=ELDLocalSettingsSaveStatus::NoChanges);
+    if(bApplied)
+    {
+        CaptureResult=SwappedLabel.IsEmpty()
+            ?FString::Printf(TEXT("已改为 %s。"),*PC->Controls->Label(Action))
+            :FString::Printf(TEXT("已改为 %s（已与 [%s] 互换键位）。"),*PC->Controls->Label(Action),*SwappedLabel);
+    }
+    else
+    {
+        CaptureResult=TEXT("按键未更改：")+Result.Message;
+    }
+    const FString FooterText=(!SwappedLabel.IsEmpty()&&bApplied&&Result.IsSaved())
+        ?FString::Printf(TEXT("已与 [%s] 互换键位 · %s"),*SwappedLabel,*Result.Message)
+        :Result.Message;
+    SetFeedback(FooterText,!Result.IsSaved()&&Result.Status!=ELDLocalSettingsSaveStatus::NoChanges);
     Populate();
     return FReply::Handled();
 }

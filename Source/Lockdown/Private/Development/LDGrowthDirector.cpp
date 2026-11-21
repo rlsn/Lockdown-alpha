@@ -862,7 +862,9 @@ bool ALDGrowthDirector::ReadResultBuild(const FGuid& ContenderId, FLDResultBuild
         FLDResultBuildActive& Row = View.Actives.AddDefaulted_GetRef();
         Row.DefinitionId = Active.Id;
         Row.Slot = Active.Slot;
+        Row.Branch = Active.Branch;
     }
+    View.StatPoints = Build->StatPoints;
     for (const FLDCardInstance& Card : Build->Cards)
     {
         if (!Card.IsInstalled()) { continue; }

@@ -1,7 +1,9 @@
 #include "UI/LDMinimap.h"
 #include "World/LDFieldPacing.h"
 #include "UI/LDMinimapRaster.h"
+#include "UI/LDHUD.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDUIFonts.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -16,8 +18,11 @@
 #include "Core/LDGroundQueries.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Layout/Clipping.h"
 #include "Rendering/DrawElements.h"
+#include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -29,6 +34,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Math/OrthoMatrix.h"
+#include "RenderingThread.h"
 #include "Slate/WidgetRenderer.h"
 #include "Widgets/SLeafWidget.h"
 #include "UObject/StrongObjectPtr.h"
@@ -121,6 +127,19 @@ FVector LDMinimap::ClampToGround(const FVector& World,const FBox2D& Ground)
 {
     const FVector2D Span=Ground.GetSize();
     return FVector(FMath::Clamp(World.X,Ground.Min.X,Ground.Min.X+.999999*Span.X),FMath::Clamp(World.Y,Ground.Min.Y,Ground.Min.Y+.999999*Span.Y),0.);
+}
+int32 LDMinimap::HitSpawnCandidate(const FView& View,const FVector2D& Local,TConstArrayView<FVector> CandidatesCm)
+{
+    if(!View.IsValid()||Local.ContainsNaN()){return INDEX_NONE;}
+    int32 Best=INDEX_NONE;
+    double BestDistSq=SpawnBadgeHitRadius*SpawnBadgeHitRadius;
+    for(int32 Index=0;Index<CandidatesCm.Num();++Index)
+    {
+        const FVector2D Spot=ToFrame(View,CandidatesCm[Index]);
+        const double DistSq=FVector2D::DistSquared(Local,Spot);
+        if(DistSq<=BestDistSq){BestDistSq=DistSq;Best=Index;}
+    }
+    return Best;
 }
 bool LDMinimap::FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2D> Footprints,const FBox2D& Ground,
     TArray<FBox2D>& Out,FString& Error)
@@ -556,43 +575,90 @@ LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FBox2D& Reg
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()
 {if(!WidgetTree->RootWidget){auto* Background=WidgetTree->ConstructWidget<UBorder>();Background->SetBrushColor(FLinearColor::Transparent);WidgetTree->RootWidget=Background;}return Super::RebuildWidget();}
 
+void ULDMinimap::FreezeForWorldTeardown()
+{
+    bFrozenForTeardown=true;
+    bDragging=false;
+    if(StaticMap&&StaticMap->Coverage.IsValid()&&StaticMap->Coverage->GetResource())
+    {
+        FlushRenderingCommands();
+    }
+}
+void ULDMinimap::NativeDestruct()
+{
+    FreezeForWorldTeardown();
+    StaticMap.Reset();
+    Super::NativeDestruct();
+}
 FVector2D ULDMinimap::Fraction(const FGeometry& G,const FPointerEvent& E) const
 {return G.AbsoluteToLocal(E.GetScreenSpacePosition())/G.GetLocalSize();}
 bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->IsFrontend()){return false;}
+    UWorld* World=GetWorld();
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC||PC->IsFrontend()||!PC->Navigation){return false;}
     // Death keeps camera operations (MOVEMENT_INPUT_AND_CAMERA input ownership); a ground order still needs the controller's world-command gate.
     if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(FString(LDTerms::Dead)+TEXT("，只能移动镜头，不能下达移动"));}return false;}
-    FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
-    const FBox2D Region=MinimapRegion(*PC,MinimapCache(StaticMap),GetWorld(),Ground);
+    FBox2D Ground(ForceInit);if(!MinimapGroundBounds(World,Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
+    const FBox2D Region=MinimapRegion(*PC,MinimapCache(StaticMap),World,Ground);
     const LDMinimap::FView View=MinimapLiveView(*PC,Region,FrameSize);
     if(!View.IsValid()){PC->PostIntentNotice(TEXT("小地图不可用：尚未完成布局"));return false;}
     // A point off the ground (a turned corner, the fitted margin) is clamped onto it like any edge point; a move is then
     // still validated against the public ground below.
     const FVector XY=LDMinimap::ClampToGround(LDMinimap::ToWorld(View,P*View.FrameSize),Region);
     if(!Move){PC->Navigation->PanTo(XY);return true;}
-    FVector Surface;if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
+    FVector Surface;if(!LDGround::MapSurface(World,XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
     // Shift queues the minimap move like a Shift right click in the world.
     PC->Navigation->Navigate(Surface,PC->IsQueueModifierDown());return true;
 }
 FReply ULDMinimap::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {
     FrameSize=G.GetLocalSize();
+    UWorld* World=GetWorld();
+    auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!Owner){return FReply::Unhandled();}
+    const FVector2D LocalClick=Fraction(G,E)*FrameSize;
+    const FKey Button=E.GetEffectingButton();
     {
-        const auto* Owner=CastChecked<ALDPlayerController>(GetOwningPlayer());FBox2D Ground(ForceInit);
-        if(!Owner->IsFrontend()&&MinimapGroundBounds(GetWorld(),Ground))
+        FBox2D Ground(ForceInit);
+        if(!Owner->IsFrontend()&&MinimapGroundBounds(World,Ground))
         {
-            const FBox2D Region=MinimapRegion(*Owner,MinimapCache(StaticMap),GetWorld(),Ground);
-            if(!LDMinimap::OnGround(MinimapLiveView(*Owner,Region,FrameSize),Fraction(G,E)*FrameSize,Region)){return FReply::Unhandled();}
+            const FBox2D Region=MinimapRegion(*Owner,MinimapCache(StaticMap),World,Ground);
+            const LDMinimap::FView View=MinimapLiveView(*Owner,Region,FrameSize);
+            // Spawn-choice candidate badges take priority within 22 px of any badge centre (left or right click),
+            // even if a high-ground edge badge reaches slightly into the minimap margin.
+            if(Button==EKeys::LeftMouseButton||Button==EKeys::RightMouseButton)
+            {
+                int64 NowMs=0;const bool bClock=Owner->ReadDemoAuthorityTimeMs(NowMs);
+                const LDHUD::FSpawnChoiceView Choice=LDHUD::SpawnChoice(Owner->OwnerState,bClock,NowMs);
+                if(Choice.bVisible)
+                {
+                    const int32 Count=FMath::Min(Choice.Count,Owner->OwnerState.Pacing.SpawnCandidateCm.Num());
+                    const int32 Hit=LDMinimap::HitSpawnCandidate(View,LocalClick,
+                        TConstArrayView<FVector>(Owner->OwnerState.Pacing.SpawnCandidateCm.GetData(),Count));
+                    if(Hit!=INDEX_NONE)
+                    {
+                        bDragging=false;
+                        if(Owner->HUDUI){Owner->HUDUI->SelectSpawnCandidate(Hit);}
+                        else
+                        {
+                            Owner->SubmitSpawnChoice(uint8(Hit));
+                            if(Owner->Navigation){Owner->Navigation->PanTo(Owner->OwnerState.Pacing.SpawnCandidateCm[Hit]);}
+                        }
+                        return FReply::Handled();
+                    }
+                }
+            }
+            if(!LDMinimap::OnGround(View,LocalClick,Region)){return FReply::Unhandled();}
         }
     }
-    if(E.GetEffectingButton()==EKeys::LeftMouseButton)
+    if(Button==EKeys::LeftMouseButton)
     {
         // The press keeps the pointer until release even when the pan is refused, so the release never reaches the world.
-        const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());DragMatch=PC->OwnerState.Match;DragLife=PC->OwnerState.Life;
+        DragMatch=Owner->OwnerState.Match;DragLife=Owner->OwnerState.Life;
         bDragging=Gesture(Fraction(G,E),false);return FReply::Handled().CaptureMouse(TakeWidget());
     }
-    if(E.GetEffectingButton()==EKeys::RightMouseButton){Gesture(Fraction(G,E),true);return FReply::Handled();}return FReply::Handled();
+    if(Button==EKeys::RightMouseButton){Gesture(Fraction(G,E),true);return FReply::Handled();}return FReply::Handled();
 }
 FReply ULDMinimap::NativeOnMouseMove(const FGeometry& G,const FPointerEvent& E)
 {FrameSize=G.GetLocalSize();if(bDragging&&!Gesture(Fraction(G,E),false)){bDragging=false;}return FReply::Handled();}
@@ -602,18 +668,21 @@ void ULDMinimap::NativeOnMouseCaptureLost(const FCaptureLostEvent& E){bDragging=
 void ULDMinimap::NativeTick(const FGeometry& G,float D)
 {
     Super::NativeTick(G,D);FrameSize=G.GetLocalSize();
-    const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());FLDMinimapStatic& Cache=MinimapCache(StaticMap);FBox2D Ground(ForceInit);
-    const bool bGround=MinimapGroundBounds(GetWorld(),Ground);
+    UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC){bDragging=false;return;}
+    FLDMinimapStatic& Cache=MinimapCache(StaticMap);FBox2D Ground(ForceInit);
+    const bool bGround=MinimapGroundBounds(World,Ground);
     if(bGround)
     {
-        MinimapResolveRevision(Cache,GetWorld(),Ground);
+        MinimapResolveRevision(Cache,World,Ground);
         // Capture the region once. Only the zone overlays depend on the current display scale.
-        const FBox2D Region=MinimapRegion(*PC,Cache,GetWorld(),Ground);
+        const FBox2D Region=MinimapRegion(*PC,Cache,World,Ground);
         const LDMinimap::FView View=MinimapLiveView(*PC,Region,FrameSize);
         if(View.IsValid())
         {
-            MinimapUpdateImage(Cache, GetWorld(), Region);
-            MinimapUpdateStatic(Cache,GetWorld(),{Region,FrameSize,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World});
+            MinimapUpdateImage(Cache, World, Region);
+            MinimapUpdateStatic(Cache,World,{Region,FrameSize,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World});
         }
         MinimapUpdateCoverage(Cache,*PC);
     }
@@ -623,7 +692,10 @@ void ULDMinimap::NativeTick(const FGeometry& G,float D)
 }
 int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
-    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
+    const UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC){return Base;}
     const FVector2D Size=G.GetLocalSize();const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));const FLinearColor Ink(.02f,.03f,.03f,.92f);
     auto Box=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint){FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
     auto Diamond=[&](int32 Layer,const FVector2f& At,float Edge,const FLinearColor& Tint){FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};
@@ -741,15 +813,6 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                     Box(6,At-FVector2f(5.f,5.f),FVector2f(10.f,10.f),FLinearColor(.86f,.56f,.24f));
                     if(Locker.bChanneling){Box(7,At-FVector2f(5.f,5.f),FVector2f(10.f,3.f),FLinearColor(.98f,.92f,.78f));}
                 }
-                // P6 spec §10.4: the own dead life's spawn candidates, the chosen one larger.
-                if(Own.LifePhase==ELDLifePhase::Dead&&Own.Pacing.SpawnLife==Own.Life)
-                {
-                    for(int32 Index=0;Index<Own.Pacing.SpawnCandidateCm.Num();++Index)
-                    {
-                        const FVector2f At=Spot(Own.Pacing.SpawnCandidateCm[Index]);const bool bChosen=Index==Own.Pacing.SpawnChosen;
-                        Disc(8,At,bChosen?14.f:10.f,Ink);Disc(9,At,bChosen?11.f:7.f,FLinearColor(.30f,1.f,.86f));
-                    }
-                }
                 // #198 outer §5: an open camp marker, a marker-violet ring around its camp diamond.
                 for(const FLDFieldMarkerView& Marker:Public->PublicMatch.Markers)
                 {
@@ -818,6 +881,63 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         TArray<FVector2f> Rim={Spot(FVector(Region.Min.X,Region.Min.Y,0.)),Spot(FVector(Region.Max.X,Region.Min.Y,0.)),
             Spot(FVector(Region.Max.X,Region.Max.Y,0.)),Spot(FVector(Region.Min.X,Region.Max.Y,0.))};
         const FVector2f Closing=Rim[0];Rim.Add(Closing);Lines(13,Rim,FLinearColor(.42f,.55f,.62f,.9f),1.5f);
+        // Spawn-choice candidate badges (14 px radius) sit above the region rim so edge spawn anchors are never clipped.
+        if(const auto* Public=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
+            Public&&Public->PublicMatch.Generation==Own.Match&&Own.LifePhase==ELDLifePhase::Dead&&Own.Pacing.SpawnLife==Own.Life)
+        {
+            int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
+            const LDHUD::FSpawnChoiceView Choice=LDHUD::SpawnChoice(Own,bClock,NowMs);
+            if(Choice.bVisible)
+            {
+                const double UiSec=FPlatformTime::Seconds();
+                const float Breath=float(.5+.5*FMath::Sin(UiSec*6.));
+                const float HaloPhase=float(FMath::Fmod(UiSec*1.25,1.));
+                const FLinearColor Gold(FColor(0xFA,0xCC,0x15));
+                const FLinearColor Emerald(FColor(0x10,0xB9,0x81));
+                const FLinearColor DarkFill(FColor(0x0F,0x17,0x2A));
+                const FSlateFontInfo BadgeFont=LDUIFonts::Font(LDUIFonts::ERole::Number,14);
+                FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
+                const TSharedPtr<FSlateFontMeasure> FontMeasure=Renderer?TSharedPtr<FSlateFontMeasure>(Renderer->GetFontMeasureService()):nullptr;
+                const int32 Count=FMath::Min(Choice.Count,Own.Pacing.SpawnCandidateCm.Num());
+                const float Diameter=float(LDMinimap::SpawnBadgeRadius*2.);
+                for(int32 Index=0;Index<Count;++Index)
+                {
+                    const FVector2f At=Spot(Own.Pacing.SpawnCandidateCm[Index]);
+                    const bool bChosen=Index==Choice.Chosen;
+                    if(bChosen)
+                    {
+                        const float HaloRadius=float(LDMinimap::SpawnBadgeRadius)+10.f*HaloPhase;
+                        TArray<FVector2f> Halo;Halo.Reserve(25);
+                        for(int32 Step=0;Step<=24;++Step)
+                        {
+                            const float Angle=float(UE_DOUBLE_TWO_PI*Step/24.);
+                            Halo.Add(At+FVector2f(FMath::Cos(Angle),FMath::Sin(Angle))*HaloRadius);
+                        }
+                        Lines(14,Halo,Gold.CopyWithNewOpacity((1.f-HaloPhase)*.85f),2.f);
+                        Disc(14,At,Diameter+3.f,Ink);
+                        Disc(15,At,Diameter,Gold);
+                    }
+                    else
+                    {
+                        const float PulseRim=Diameter+2.f*Breath;
+                        Disc(14,At,PulseRim+2.f,Ink);
+                        Disc(15,At,PulseRim,Emerald.CopyWithNewOpacity(.82f+.18f*Breath));
+                        Disc(16,At,Diameter-4.f,DarkFill.CopyWithNewOpacity(.96f));
+                    }
+                    const FString Label=FString::FromInt(Index+1);
+                    const FVector2f Extent=FontMeasure.IsValid()?FontMeasure->Measure(Label,BadgeFont):FVector2f(9.f,16.f);
+                    const FLinearColor TextInk=bChosen?FLinearColor(.01f,.015f,.02f,1.f):FLinearColor::White;
+                    FSlateDrawElement::MakeText(E,Base+17,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At-Extent*.5f)),
+                        Label,BadgeFont,ESlateDrawEffect::None,TextInk);
+                }
+            }
+            else if(!Own.Pacing.SpawnCandidateCm.IsEmpty())
+            {
+                const int32 Locked=Own.Pacing.SpawnCandidateCm.IsValidIndex(Own.Pacing.SpawnChosen)?Own.Pacing.SpawnChosen:0;
+                const FVector2f At=Spot(Own.Pacing.SpawnCandidateCm[Locked]);
+                Disc(14,At,14.f,Ink);Disc(15,At,11.f,FLinearColor(FColor(0xFA,0xCC,0x15)));
+            }
+        }
     }
-    E.PopClip();return Base+14;
+    E.PopClip();return Base+18;
 }

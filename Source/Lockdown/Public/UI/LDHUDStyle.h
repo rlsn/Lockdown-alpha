@@ -25,6 +25,11 @@ namespace LDHUDStyle
     // dark outline then keeps its contrast.
     inline const FLinearColor OwnHealth(.05f,.45f,.08f);
     inline const FLinearColor EnemyHealth(.70f,.07f,.05f);
+    // Red-green colorblind friendly Okabe-Ito palette (#331): own crisp sky-blue, hostile vivid orange-vermilion.
+    inline const FLinearColor OwnHealthColorblind(.06f,.48f,.88f);
+    inline const FLinearColor EnemyHealthColorblind(.90f,.32f,.02f);
+    inline FLinearColor OwnHealthOf(bool bColorblind){return bColorblind?OwnHealthColorblind:OwnHealth;}
+    inline FLinearColor EnemyHealthOf(bool bColorblind){return bColorblind?EnemyHealthColorblind:EnemyHealth;}
     // A contender who cannot be attacked right now (anyone in a rest outside the PK, a PK teammate): never the hostile red.
     inline const FLinearColor PeacefulHealth(.16f,.42f,.78f);
     inline const FLinearColor CampHealth(.85f,.32f,.03f);
@@ -81,12 +86,21 @@ namespace LDHUDStyle
     inline const FLinearColor UILegal=FLinearColor(FColor(0x57,0xE3,0x89));
     inline const FLinearColor UIReplace=FLinearColor(FColor(0xFF,0x9A,0x3D));
     inline const FLinearColor UIReject=FLinearColor(FColor(0xFF,0x6A,0x5D));
-    // Card types (ELDCardType): each its own colour beside its own shape (LDUIShapes::KindShape).
+    // Card types (ELDCardType): each its own colour beside its own shape (LDUIShapes::KindShape); Element stones use #10B981 emerald (#328 §2).
     inline const FLinearColor CardTrigger=FLinearColor(FColor(0xDF,0xE4,0xEE));
     inline const FLinearColor CardModify=FLinearColor(FColor(0x3F,0xD8,0xF0));
     inline const FLinearColor CardConvert=FLinearColor(FColor(0xB5,0x8C,0xFF));
     inline const FLinearColor CardGrow=FLinearColor(FColor(0x7E,0xE0,0x81));
-    inline const FLinearColor CardElement=FLinearColor(FColor(0xFF,0xA4,0x4D));
+    inline const FLinearColor CardElement=FLinearColor(FColor(0x10,0xB9,0x81));
+    // #328 §2 3-way reward palette: Active Skill (#F59E0B / #451A03), Build Card (#3B82F6 / #172554), Element Stone (#10B981 / #064E3B).
+    inline const FLinearColor RewardActiveRim=FLinearColor(FColor(0xF5,0x9E,0x0B));
+    inline const FLinearColor RewardActiveBase=FLinearColor(FColor(0x45,0x1A,0x03));
+    inline const FLinearColor RewardCardRim=FLinearColor(FColor(0x3B,0x82,0xF6));
+    inline const FLinearColor RewardCardBase=FLinearColor(FColor(0x17,0x25,0x54));
+    inline const FLinearColor RewardCardRare=FLinearColor(FColor(0xA8,0x55,0xF7));
+    inline const FLinearColor RewardCardLegend=FLinearColor(FColor(0xFA,0xCC,0x15));
+    inline const FLinearColor RewardStoneRim=FLinearColor(FColor(0x10,0xB9,0x81));
+    inline const FLinearColor RewardStoneBase=FLinearColor(FColor(0x06,0x4E,0x3B));
     constexpr float RadiusPanel=6.f;
     constexpr float RadiusButton=5.f;
 
@@ -127,27 +141,27 @@ namespace LDHUDStyle
     inline const FLinearColor DropLegal=StatusPositive;
     inline const FLinearColor DropReplace(1.f,.72f,.25f);
 
-    // Type scale. Every size the interface draws comes from here; the local text-size preference scales it.
-    // The smallest tiers stay at 13 so dense Chinese strokes remain legible at 1080p.
-    constexpr int32 TypeMicro=13;
-    constexpr int32 TypeTiny=13;
-    constexpr int32 TypeCaption=14;
-    constexpr int32 TypeSmall=14;
-    constexpr int32 TypeBody=15;
-    constexpr int32 TypeText=16;
-    constexpr int32 TypeLabel=17;
-    constexpr int32 TypeLead=18;
-    constexpr int32 TypeHeading=20;
-    constexpr int32 TypeTitle=21;
-    constexpr int32 TypeSection=22;
-    constexpr int32 TypeSubBanner=26;
-    constexpr int32 TypeVerdict=28;
-    constexpr int32 TypePage=30;
-    constexpr int32 TypeBanner=32;
-    constexpr int32 TypeDisplay=34;
-    constexpr int32 TypeMenuTitle=40;
-    constexpr int32 TypeHero=44;
-    constexpr int32 TypeGiant=96;
+    // Type scale calibrated for FontDPI=96 (1 pt = 4/3 px at 1080p): helper 11pt (~14.7px), body 12pt (16px),
+    // key labels/numbers 14-15pt (18.7-20px). Every size the interface draws comes from here; TextScale multiplies it.
+    constexpr int32 TypeMicro=11;
+    constexpr int32 TypeTiny=11;
+    constexpr int32 TypeCaption=11;
+    constexpr int32 TypeSmall=11;
+    constexpr int32 TypeBody=12;
+    constexpr int32 TypeText=15;
+    constexpr int32 TypeLabel=14;
+    constexpr int32 TypeLead=15;
+    constexpr int32 TypeHeading=16;
+    constexpr int32 TypeTitle=17;
+    constexpr int32 TypeSection=18;
+    constexpr int32 TypeSubBanner=20;
+    constexpr int32 TypeVerdict=22;
+    constexpr int32 TypePage=23;
+    constexpr int32 TypeBanner=25;
+    constexpr int32 TypeDisplay=26;
+    constexpr int32 TypeMenuTitle=30;
+    constexpr int32 TypeHero=33;
+    constexpr int32 TypeGiant=72;
     // Title role: the heavy face leans right by 8 degrees.
     constexpr float TitleSkew=.1405f;
 

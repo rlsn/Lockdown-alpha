@@ -69,10 +69,16 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
     Camera->SetupAttachment(CameraArm);
     Camera->FieldOfView = LDCamera::FieldOfView;
+    Camera->PostProcessSettings.bOverride_AutoExposureMethod = true;
+    Camera->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+    Camera->PostProcessSettings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+    Camera->PostProcessSettings.AutoExposureApplyPhysicalCameraExposure = false;
+    Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+    Camera->PostProcessSettings.AutoExposureBias = 0.0f;
     Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness = true;
     Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness = true;
-    Camera->PostProcessSettings.AutoExposureMinBrightness = 0;
-    Camera->PostProcessSettings.AutoExposureMaxBrightness = 0;
+    Camera->PostProcessSettings.AutoExposureMinBrightness = 1.0f;
+    Camera->PostProcessSettings.AutoExposureMaxBrightness = 1.0f;
     Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
     Camera->PostProcessSettings.MotionBlurAmount = 0;
 }

@@ -33,6 +33,9 @@ public:
     void ReturnAfterRoomClosed(UWorld* World, const FString& Reason);
     // A room world this client already leaves for a refusal or a closed room.
     bool IsLeavingWorld(const UWorld* World) const { return World && World == LeavingWorld.Get(); }
+    // Lightweight crash breadcrumbs (#337 §2.3), dumped to Saved/Logs/LastCrashContext.json on system error.
+    void NoteCrashMatchState(uint32 Generation, uint8 Phase, uint8 TimelineStep);
+    void NoteCrashCommand(const TCHAR* CommandKind);
     virtual void Init() override;
     virtual void Shutdown() override;
     ULDControlSettings* GetLocalControlSettings();
@@ -61,7 +64,13 @@ private:
     uint64 EntryAttemptSerial = 0;
     FString LastRejectedEntryURL;
     FTSTicker::FDelegateHandle EntryReturnTicker;
-    FDelegateHandle NetworkHandle, TravelHandle;
+    FTSTicker::FDelegateHandle FailureReturnTicker;
+    FDelegateHandle NetworkHandle, TravelHandle, SystemErrorHandle;
+    uint32 CrashMatchGeneration = 0;
+    uint8 CrashMatchPhase = 0;
+    uint8 CrashTimelineStep = 0;
+    TCHAR CrashLastCommand[64] = {};
+    void HandleSystemError();
     void NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& Error);
     void TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString& Error);
     void ReturnAfterFailure(UWorld* World, const FString& Error);

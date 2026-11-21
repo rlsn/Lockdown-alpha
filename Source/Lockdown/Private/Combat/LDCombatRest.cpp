@@ -296,6 +296,15 @@ bool ALDCombatDirector::ResetTraining(const FGuid& OwnerId, const FGuid& Dummy, 
         Body->ComboStep=0;
         ++Body->Resources.Revision;
     }
+    FTrainingCombo& Combo=TrainingCombos.FindOrAdd(OwnerId);
+    if (Combo.TotalP2>0) { Combo.PreviousTotalP2=Combo.TotalP2; }
+    Combo.DummyId=Dummy;
+    Combo.Lines.Reset();
+    Combo.TotalP2=0;
+    Combo.FirstAtMs=0;
+    Combo.LastAtMs=0;
+    Combo.bLiveDirty=true;
+    Combo.bFinishPending=false;
     return ReadyAllForPhase(OwnerId,Permit,Error);
 }
 

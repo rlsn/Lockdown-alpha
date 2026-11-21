@@ -52,7 +52,7 @@ bool ALDGameMode::IsGameplayWriteOpen(const FLDMatchContext& Context) const
             || MatchPhase == ELDMatchPhase::CaptureOpen);
 }
 
-bool ALDGameMode::AdvanceRoster(FString& Reason)
+bool ALDGameMode::AdvanceRoster(FString& Reason, bool bClearReady)
 {
     if (RosterRevision == MAX_uint64 || LobbyPublicRevision == MAX_uint64)
     {
@@ -61,11 +61,19 @@ bool ALDGameMode::AdvanceRoster(FString& Reason)
         UE_LOG(LogLDMatch, Error, TEXT("LD_ROOM_REVISION_EXHAUSTED"));
         return false;
     }
+    const uint64 PreviousRevision = RosterRevision;
     ++RosterRevision;
     for (auto& Pair : Contenders)
     {
-        Pair.Value.State.bReady = false;
-        Pair.Value.ReadyRosterRevision = 0;
+        if (bClearReady)
+        {
+            Pair.Value.State.bReady = false;
+            Pair.Value.ReadyRosterRevision = 0;
+        }
+        else if (Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == PreviousRevision)
+        {
+            Pair.Value.ReadyRosterRevision = RosterRevision;
+        }
     }
     return true;
 }
@@ -260,7 +268,9 @@ void ALDGameMode::LeaveRoomMember(ALDPlayerController& Controller)
     {Controller.ClientWasKicked(FText::FromString(TEXT("这个连接不是房间成员。")));return;}
     Controller.bExplicitRoomLeave=true;
     if(LobbyHost==&Controller){CloseRoomForHostDeparture(&Controller);}
-    Controller.ClientDemoRoomClosed(MatchContext.Generation,TEXT("已离开房间。"));
+    // Voluntary leaver returns cleanly to Frontend with an empty failure message; other members in CloseRoomForHostDeparture
+    // already received the explicit Host-left reason above.
+    Controller.ClientDemoRoomClosed(MatchContext.Generation,FString());
 }
 
 bool ALDGameMode::CheckDemoStartInputs(FString& Reason) const
@@ -293,8 +303,9 @@ FLDLobbyView ALDGameMode::ReadLobby() const
             Member.Name = Record.Name;
             Member.Kind = Record.Kind;
             Member.Host = Pair.Key == LobbyHost;
-            Member.Ready = Record.State.bReady && Record.ReadyRosterRevision == RosterRevision;
-            AllReady &= Member.Ready;
+            // #337 §4: the Lobby Host is exempt from manually toggling Ready; only guests gate AllReady.
+            Member.Ready = Member.Host || (Record.State.bReady && Record.ReadyRosterRevision == RosterRevision);
+            if (!Member.Host) { AllReady &= Member.Ready; }
             View.Members.Add(MoveTemp(Member));
         }
     }
@@ -394,13 +405,13 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             {
                 Receipt.Reason = ELDSessionReject::RoomFull;
             }
-            else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail))
+            else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail, false))
             {
                 while (LobbyAISlots.Num() > Request.AICount) { PreviousLobbyAI.Remove(LobbyAISlots.Pop()); }
                 while (LobbyAISlots.Num() < Request.AICount) { LobbyAISlots.Add(FGuid::NewGuid()); }
                 Receipt.Outcome = ELDSessionOutcome::Committed;
                 Receipt.Reason = ELDSessionReject::None;
-                Receipt.Detail = Changed ? TEXT("AI 对手数量已更新，所有真人需要重新准备。") : TEXT("AI 对手数量未变化。");
+                Receipt.Detail = Changed ? TEXT("AI 对手数量已更新。") : TEXT("AI 对手数量未变化。");
             }
             else { Receipt.Reason = ELDSessionReject::AuthorityFault; }
         }
@@ -410,7 +421,10 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
                 && Contenders.Num() + LobbyAISlots.Num() <= LDMatchLifecycle::MaxContenders;
             for (const auto& Pair : Contenders)
             {
-                AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;
+                if (Pair.Key != LobbyHost)
+                {
+                    AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;
+                }
             }
             if (!AllReady) { Receipt.Reason = ELDSessionReject::NotAllReady; }
             else if (!CheckDemoStartInputs(Receipt.Detail)) { Receipt.Reason = ELDSessionReject::MissingDemoDefinition; }

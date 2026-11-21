@@ -22631,9 +22631,9 @@
       "ms": 500,
       "unit": "ms"
     },
-    "LIFE.SpawnChoiceCount": 2,
+    "LIFE.SpawnChoiceCount": 3,
     "LIFE.SpawnChoiceSec": {
-      "ms": 4000,
+      "ms": 6000,
       "unit": "ms"
     },
     "MATCH.FieldSegmentSec": {

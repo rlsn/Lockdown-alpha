@@ -341,7 +341,7 @@ Combat 的资源/冷却/来源拒绝沿 Combat 回执呈现，操作层不复制
 
 动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`SkillE`、`Dash`、`Stop`、`Attributes`、`Details`、`Workshop`、`Scoreboard`、`Mark`、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom`、`Back`（Esc 保留）。没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作。
-改按键要同步 `LDControlSettings`、控制器路由、帮助文本、HUD 标记与输入检查；消费者不能查询已退役动作名而静默得到无效键。重绑冲突明确拒绝，不静默交换。
+改按键要同步 `LDControlSettings`、控制器路由、帮助文本、HUD 标记与输入检查；消费者不能查询已退役动作名而静默得到无效键。普通动作按键冲突时自动与原持有动作互换键位并明确提示；`Esc`（`Back`）、`Shift` 与滚轮轴仍保留并拒绝。
 
 ## 相机与小地图
 
@@ -380,11 +380,11 @@ pitch −60°、yaw −90°（世界 −Y 在屏幕上方）、FOV 55°、目标
 | `CameraPanCmPerSec` | 1800 | 900–3600，设置页 300 步进 / Camera |
 | `TextScale` | 1 | 1–1.25 / Interface |
 | `MinimapOrientation` | `Camera` | `Camera/Facing/North`，越界 `Corrupt` / Interface |
-| `bShowNetworkDiagnostics`、`bShowFPS`、`bReduceCombatEffects`、`bCameraShake` | 关、关、关、开 | — / Interface |
+| `bShowNetworkDiagnostics`、`bShowFPS`、`bReduceCombatEffects`、`bCameraShake`、`bColorblindMode` | 关、关、关、开、关 | — / Interface |
 | `MasterVolume`、`MusicVolume` | 1、0.6 | 0–1，越界或非有限 `Corrupt` / Audio |
 | `PlayerName` | 空（尚未设置，不填默认名） | 见下，不属于任何恢复组 |
 
-- 文件为有限字段正向清单序列化（非反射），`CurrentSchema` 为 23，与产品/网络版本无关。
+- 文件为有限字段正向清单序列化（非反射），`CurrentSchema` 为 24，与产品/网络版本无关。
 - `LoadLocalSettings` 区分 `Loaded`、`Migrated`、`Missing`、`UnsupportedSchema`、`Corrupt`、`ReadFailed`、`InvalidStorage`。缺文件用当前默认值但不称已保存；
   损坏或不支持的文件保持原样，菜单与设置页提示显式恢复。只有绑定不合法而其他偏好合法时，恢复保留这些偏好，当前绑定仅本会话有效；确认替换之前通用 flush 不覆盖原文件。
   `Key`/`Rebind` 只接受注册表动作，已退役动作名得到无效键并被逐名指出。
@@ -408,11 +408,11 @@ pitch −60°、yaw −90°（世界 −Y 在屏幕上方）、FOV 55°、目标
 - `FLDLocalSettingsStorage::User()` 只选 `Saved/SaveGames/LockdownLocalControlsV1.sav`；已退役的 V07/V08 槽文件不读也不删。测试必须用 `Automation(FGuid)`
   （忽略的 `Artifacts/Automation/LocalSettings`），无效夹具不回落到用户文件；无人值守/commandlet 未指定夹具时禁止用户文件写入。
 
-**显示**只由引擎 `UGameUserSettings` 管理。游戏只有无边框全屏、桌面分辨率：`ULDGameInstance::Init` 在 `UGameEngine::Init` 建窗口前经 `LDLocalSettings::HoldBorderlessDesktop`
-把旧存档改为无边框桌面分辨率，再 `ApplyResolutionSettings(true)`；PIE 窗口归编辑器。`-windowed`、`-ResX/-ResY` 仍作用于本次请求（自动化与同机多开），存档保持无边框；
-`DefaultInput.ini` 关闭 Alt+Enter/F11。设置页没有窗口模式、分辨率或试用回滚。
+**显示**由引擎 `UGameUserSettings` 管理。首次无配置启动时，`ULDGameInstance::Init` 在 `UGameEngine::Init` 建窗口前经 `LDLocalSettings::HoldBorderlessDesktop`
+默认设为无边框桌面分辨率；若已保存有效窗口模式则沿用玩家设置，PIE 窗口归编辑器。`-windowed`、`-ResX/-ResY` 仍作用于本次请求（自动化与同机多开）；
+`DefaultInput.ini` 关闭 Alt+Enter/F11。
 
-- 显示草稿只有 VSync 与整体画质（“画面”页），草稿不写配置；与已核验生效值不同才算未应用（应用失败后的请求值不算生效值）。画面页底部应用栏列出未应用项，
+- 显示草稿包含窗口模式（无边框全屏 / 独占全屏 / 窗口化）、分辨率、帧率上限（60 / 120 / 144 / 240 / 无限制）、VSync 与整体画质（“画面”页），草稿不写配置；与已核验生效值不同才算未应用（应用失败后的请求值不算生效值）。画面页底部应用栏列出未应用项，
   “应用”经 `ApplyDisplaySettings` 立即应用并保存，“撤销更改”丢弃草稿。被拒绝的同一份草稿在修改前不能再应用，提示同时说明可撤销。
 - 默认画质的 `ResolutionQuality` 为 0（沿用项目 `r.ScreenPercentage`）；每次应用画质后 `LDLocalSettings::ApplyRenderScale` 撤销 Scalability 优先级的旧比例，无需重启。
 - `SaveSettings` 的 void 返回不代表成功：核验从实际配置文件读入新的 `FConfigFile`，不读 GConfig 缓存。UE 5.8 的 `GGameUserSettingsIni` 等是缓存标识而非物理路径，

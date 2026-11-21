@@ -301,4 +301,57 @@ bool FLDWorldLabelsOwnStatusIconsTest::RunTest(const FString& Parameters)
         &&FMath::IsNearlyEqual(Eight[6].Left,100.f-23.5f)&&FMath::IsNearlyEqual(Eight[7].Right,100.f+23.5f));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldLabelsSegmentedTrailTest,"Lockdown.Rules.WorldLabels.SegmentedTrail",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDWorldLabelsSegmentedTrailTest::RunTest(const FString& Parameters)
+{
+    // #328 §1.2: 100 HP minor ticks (<3500 HP), 250 HP minor ticks (>=3500 HP), 1000 HP full-height major ticks.
+    TArray<LDWorldLabels::FBarTick> Ticks1000,Ticks3200,Ticks4000;
+    LDWorldLabels::BuildHealthTicks(100000,100000,0,108.f,Ticks1000);
+    int32 Major1000=0;for(const auto& T:Ticks1000){if(T.bMajor){++Major1000;}}
+    TestTrue(TEXT("1000 HP fragile unit has 9 minor 100-HP ticks and 0 interior 1000-HP dividers"),Ticks1000.Num()==9&&Major1000==0);
+
+    LDWorldLabels::BuildHealthTicks(320000,320000,0,108.f,Ticks3200);
+    int32 Major3200=0;for(const auto& T:Ticks3200){if(T.bMajor){++Major3200;}}
+    TestEqual(TEXT("3200 HP bruiser has 3 interior 1000-HP major dividers"),Major3200,3);
+
+    LDWorldLabels::BuildHealthTicks(400000,400000,0,108.f,Ticks4000);
+    int32 Major4000=0;for(const auto& T:Ticks4000){if(T.bMajor){++Major4000;}}
+    TestTrue(TEXT(">=3500 HP switches minor ticks to 250 HP (15 interior ticks total, 3 major)"),Ticks4000.Num()==15&&Major4000==3);
+
+    // #328 §1.3-§1.4: 120ms white damage hold, 2.4x MaxHP/s smooth decay, >=18% MaxHP shake, heal snap & shield break.
+    LDWorldLabels::FBarTrailState Trail;
+    LDWorldLabels::AdvanceBarTrail(Trail,100000,100000,20000,0,FGuid(),1.00);
+    TestTrue(TEXT("Primed at full HP"),Trail.bPrimed&&FMath::IsNearlyEqual(Trail.TrailHPP2,100000.));
+
+    // Hit breaks 200 shield and drops HP 1000 -> 750 (25% >= 18% MaxHP).
+    LDWorldLabels::AdvanceBarTrail(Trail,75000,100000,0,0,FGuid(1,0,0,1),1.05);
+    TestNearlyEqual(TEXT("Trail holds PreviousHP during 0..120ms window"),Trail.TrailHPP2,100000.,1e-2);
+    TestNearlyEqual(TEXT(">=18% MaxHP drop triggers bar shake"),Trail.LastShakeAtSec,1.05,1e-4);
+    TestNearlyEqual(TEXT("Shield >0 -> 0 under damage triggers 6-shard shield break"),Trail.LastShieldBreakAtSec,1.05,1e-4);
+
+    // At +80ms (still <= 120ms): white trail still held at 100000.
+    LDWorldLabels::AdvanceBarTrail(Trail,75000,100000,0,0,FGuid(1,0,0,1),1.13);
+    TestNearlyEqual(TEXT("Still inside 120ms hold"),Trail.TrailHPP2,100000.,1e-2);
+
+    // At 1.18s (0.01s after the 1.17s hold deadline -> decay 2.4 * 100000 * 0.01 = 2400 P2 -> 97600 P2).
+    LDWorldLabels::AdvanceBarTrail(Trail,75000,100000,0,0,FGuid(1,0,0,1),1.18);
+    TestNearlyEqual(TEXT("After 120ms hold, white trail decays strictly by time past deadline"),Trail.TrailHPP2,97600.,1.);
+
+    // Frequent 10ms updates across the exact same 1.05..1.18 window produce the identical trail height.
+    LDWorldLabels::FBarTrailState FrequentTrail;
+    LDWorldLabels::AdvanceBarTrail(FrequentTrail,100000,100000,20000,0,FGuid(),1.00);
+    LDWorldLabels::AdvanceBarTrail(FrequentTrail,75000,100000,0,0,FGuid(1,0,0,1),1.05);
+    for(int32 StepMs=10;StepMs<=130;StepMs+=10)
+    {
+        LDWorldLabels::AdvanceBarTrail(FrequentTrail,75000,100000,0,0,FGuid(1,0,0,1),1.05+double(StepMs)/1000.);
+    }
+    TestNearlyEqual(TEXT("Sparse and frequent ticks match to the point"),Trail.TrailHPP2,FrequentTrail.TrailHPP2,1e-2);
+
+    // Heal 750 -> 920 snaps trail up and records 180ms green flash.
+    LDWorldLabels::AdvanceBarTrail(Trail,92000,100000,0,0,FGuid(1,0,0,1),1.22);
+    TestNearlyEqual(TEXT("Heal above TrailHP snaps TrailHP immediately"),Trail.TrailHPP2,92000.,1.);
+    TestNearlyEqual(TEXT("Heal arms 180ms green flash"),Trail.LastHealedAtSec,1.22,1e-4);
+    return true;
+}
 #endif

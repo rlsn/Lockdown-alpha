@@ -188,13 +188,14 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
     if (!Build.bAvailable)
     {
         if (!Build.CatalogRoot.IsEmpty() || !Build.Actives.IsEmpty() || !Build.Cards.IsEmpty()
-            || !Build.FinalMod.IsNone())
+            || !Build.FinalMod.IsNone() || !Build.StatPoints.IsEmpty())
         { return FailCaptureView(Error, TEXT("An unavailable result build must not carry partial data.")); }
         Error.Reset();
         return true;
     }
     FLDDemoContentDigest Root;
-    if (!FLDDemoContentDigest::ParseHex(Build.CatalogRoot, Root, Error) || Build.Actives.Num() > 3 || Build.Cards.Num() > 32)
+    if (!FLDDemoContentDigest::ParseHex(Build.CatalogRoot, Root, Error) || Build.Actives.Num() > 3 || Build.Cards.Num() > 32
+        || Build.StatPoints.Num() > 8 || Build.StatPoints.ContainsByPredicate([](int32 Count) { return Count < 0; }))
     { return FailCaptureView(Error, TEXT("Invalid result build catalog or size.")); }
     auto ValidId = [](FName Id)
     {
@@ -205,7 +206,8 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
     TSet<uint8> Slots;
     for (const FLDResultBuildActive& Active : Build.Actives)
     {
-        if (!ValidId(Active.DefinitionId) || Active.Slot >= 3 || Slots.Contains(Active.Slot) || ActiveIds.Contains(Active.DefinitionId))
+        if (!ValidId(Active.DefinitionId) || Active.Slot >= 3 || Slots.Contains(Active.Slot) || ActiveIds.Contains(Active.DefinitionId)
+            || uint8(Active.Branch) > uint8(ELDSkillBranch::B2))
         { return FailCaptureView(Error, TEXT("Invalid or duplicate result build active.")); }
         Slots.Add(Active.Slot);
         ActiveIds.Add(Active.DefinitionId);

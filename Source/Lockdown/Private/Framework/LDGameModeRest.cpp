@@ -147,13 +147,26 @@ ELDRestReadyResult ALDGameMode::SubmitRestReady(ALDPlayerController& Controller,
     if (Generation != MatchContext.Generation) { return ELDRestReadyResult::StaleMatch; }
     const FLDTimelineView View = Timeline.MakeView(Generation, TimelineRevision);
     if (RestIndex != View.RestIndex || StartedAtMs != View.StepStartedAtMs) { return ELDRestReadyResult::StaleWindow; }
-    if (!bReady || !CanRestReady(Id)) { return ELDRestReadyResult::NotOpen; }
-    if (!RestReady.Contains(Id))
+    if (!CanRestReady(Id)) { return ELDRestReadyResult::NotOpen; }
+    if (bReady)
     {
-        RestReady.Add(Id);
-        PublishTimeline();
-        SyncOwner(&Controller);
-        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_READY contender=%s rest=%u"), *LDLog::Id(Id), RestIndex);
+        if (!RestReady.Contains(Id))
+        {
+            RestReady.Add(Id);
+            PublishTimeline();
+            SyncOwner(&Controller);
+            UE_LOG(LogLDMatch, Display, TEXT("LD_REST_READY contender=%s rest=%u"), *LDLog::Id(Id), RestIndex);
+        }
+    }
+    else
+    {
+        if (RestReady.Remove(Id) > 0)
+        {
+            PublishTimeline();
+            SyncOwner(&Controller);
+            UE_LOG(LogLDMatch, Display, TEXT("LD_REST_UNREADY contender=%s rest=%u"), *LDLog::Id(Id), RestIndex);
+        }
+        return ELDRestReadyResult::Withdrawn;
     }
     return ELDRestReadyResult::Accepted;
 }

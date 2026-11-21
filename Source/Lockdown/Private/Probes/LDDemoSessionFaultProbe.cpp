@@ -118,10 +118,13 @@ public:
     TArray<TSharedPtr<FJsonValue>> Checks;
     TSharedPtr<FJsonObject> Summary = MakeShared<FJsonObject>();
 
-    int32 ExpectedHumans() const { return Mode == ELDSessionFaultMode::Leave || Mode == ELDSessionFaultMode::Refuse ? 3 : 2; }
+    int32 ExpectedHumans() const
+    {
+        return Mode == ELDSessionFaultMode::Leave || Mode == ELDSessionFaultMode::Refuse || Mode == ELDSessionFaultMode::HostLeave ? 3 : 2;
+    }
     TArray<FString> Roles() const
     {
-        return Mode == ELDSessionFaultMode::Leave || Mode == ELDSessionFaultMode::Refuse
+        return Mode == ELDSessionFaultMode::Leave || Mode == ELDSessionFaultMode::Refuse || Mode == ELDSessionFaultMode::HostLeave
             ? TArray<FString>{TEXT("Host"), TEXT("Client1"), TEXT("Client2")} : TArray<FString>{TEXT("Host"), TEXT("Client1")};
     }
 
@@ -344,7 +347,12 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         }
         const FLDLobbyMember* Self = Lobby.Members.FindByPredicate([&PC](const FLDLobbyMember& Row)
         { return Row.ContenderId == PC.OwnerState.ContenderId; });
-        if (!Self || !Self->Ready)
+        if (Role == TEXT("Host"))
+        {
+            if (!Check(Self && Self->Host && Self->Ready && !ReadySent,
+                TEXT("The Host is exempt from Ready and starts once guests are ready"))) { return Finish(); }
+        }
+        else if (!Self || !Self->Ready)
         {
             if (!ReadySent || FPlatformTime::Seconds() - StageAt >= 3.)
             {
@@ -400,7 +408,7 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
             || ((Mode == ELDSessionFaultMode::HostLoss || Mode == ELDSessionFaultMode::HostQuit) && Role == TEXT("Client1"))
             || Mode == ELDSessionFaultMode::HostLeave;
         if ((Mode == ELDSessionFaultMode::HostLoss || Mode == ELDSessionFaultMode::HostLeave || Mode == ELDSessionFaultMode::HostQuit)
-            && Role == TEXT("Client1") && !SaveMatchPart()) { return Finish(); }
+            && Role != TEXT("Host") && !SaveMatchPart()) { return Finish(); }
         Stage = ELDSessionFaultStage::Match;
         StageAt = FPlatformTime::Seconds();
         return true;
@@ -417,15 +425,19 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         }
         if (Mode == ELDSessionFaultMode::HostLoss || Mode == ELDSessionFaultMode::HostLeave || Mode == ELDSessionFaultMode::HostQuit)
         {
-            if (Role == TEXT("Client1"))
+            if (Role != TEXT("Host"))
             {
                 if (View.Phase == ELDMatchPhase::Results && !MarkedResults) { MarkedResults = Mark(SawResults); }
                 return true;
             }
-            if (LeaveSent || !Exists(TEXT("Client1InMatch.json")) || !Exists(TEXT("Client1Match.json"))) { return true; }
+            const bool bClientsReady = Mode == ELDSessionFaultMode::HostLeave
+                ? (Exists(TEXT("Client1InMatch.json")) && Exists(TEXT("Client1Match.json"))
+                    && Exists(TEXT("Client2InMatch.json")) && Exists(TEXT("Client2Match.json")))
+                : (Exists(TEXT("Client1InMatch.json")) && Exists(TEXT("Client1Match.json")));
+            if (LeaveSent || !bClientsReady) { return true; }
             auto* Authority = World.GetAuthGameMode<ALDGameMode>();
             const bool bLive = Authority && Authority->IsGameplayWriteOpen(Authority->GetMatchContext())
-                && PC.OwnerState.LifePhase == ELDLifePhase::Alive && RemoteControllers(World) == 1;
+                && PC.OwnerState.LifePhase == ELDLifePhase::Alive && RemoteControllers(World) == ExpectedHumans() - 1;
             Summary->SetNumberField(TEXT("generation"), double(View.Generation));
             if (Mode == ELDSessionFaultMode::HostLoss)
             {
@@ -676,7 +688,7 @@ void Start(ALDPlayerController& Controller)
     const bool bRole = Probe->Mode == ELDSessionFaultMode::Join ? bJoiner
         : Probe->Mode == ELDSessionFaultMode::Refuse ? bJoiner || bRoomRole || Probe->Role == TEXT("Client2")
         : Probe->Mode == ELDSessionFaultMode::Race ? bJoiner || bRoomRole
-        : bRoomRole || (Probe->Mode == ELDSessionFaultMode::Leave && Probe->Role == TEXT("Client2"));
+        : bRoomRole || ((Probe->Mode == ELDSessionFaultMode::Leave || Probe->Mode == ELDSessionFaultMode::HostLeave) && Probe->Role == TEXT("Client2"));
     // The joiners live on the frontend; one probe per process follows every frontend reload.
     const bool bFrontendJoiner = Probe->Mode == ELDSessionFaultMode::Join || (bLiveHostJoiner && bJoiner);
     if (!bArguments || !bRole || (ModeText != TEXT("Leave") && ModeText != TEXT("HostLoss") && ModeText != TEXT("Join")
@@ -699,7 +711,7 @@ void Start(ALDPlayerController& Controller)
             || ((Probe->Mode == ELDSessionFaultMode::HostLoss || Probe->Mode == ELDSessionFaultMode::HostQuit)
                 && Probe->Role == TEXT("Client1") && Probe->Exists(TEXT("Client1InMatch.json")))
             || (Probe->Mode == ELDSessionFaultMode::HostLeave
-                && Probe->Exists(Probe->Role == TEXT("Host") ? FString(HostLeaveRequested) : FString(TEXT("Client1InMatch.json"))));
+                && Probe->Exists(Probe->Role == TEXT("Host") ? FString(HostLeaveRequested) : (Probe->Role + TEXT("InMatch.json"))));
         if (!bContinue) { return; }
         if (bFrontendJoiner)
         {

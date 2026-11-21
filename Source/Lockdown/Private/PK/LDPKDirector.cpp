@@ -219,6 +219,10 @@ void ALDPKDirector::Publish()
             FLDPKEntrantView& Row = View.Entrants.AddDefaulted_GetRef();
             Row.Contender = Entrants[Seat];
             Row.Side = Drawn.SideOfSeat.IsValidIndex(Seat) ? Drawn.SideOfSeat[Seat] : 0;
+            if (Core && Core->Development)
+            {
+                if (const FLDGrowthBuild* Build = Core->Development->FindBuild(Row.Contender)) { Row.Level = Build->Level; }
+            }
             Row.bAlive = Alive[Seat];
             Row.bForfeited = Forfeited[Seat];
         }

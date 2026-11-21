@@ -15,16 +15,23 @@
 #include "Character/LDCharacter.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "UI/LDControlsPanel.h"
+#include "UI/LDHUD.h"
+#include "UI/LDUIRoot.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "UObject/UObjectGlobals.h"
 
 namespace
@@ -207,6 +214,7 @@ void ULDGameInstance::Init()
     PreLoadMapHandle = FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this, &ULDGameInstance::LocalSettingsPreLoadMap);
     PreClientTravelHandle = OnNotifyPreClientTravel().AddUObject(this, &ULDGameInstance::LocalSettingsPreClientTravel);
     EngineExitHandle = FCoreDelegates::OnEnginePreExit.AddUObject(this, &ULDGameInstance::PrepareLocalSettingsForTravel);
+    SystemErrorHandle = FCoreDelegates::OnHandleSystemError.AddUObject(this, &ULDGameInstance::HandleSystemError);
 }
 void ULDGameInstance::Shutdown()
 {
@@ -215,6 +223,7 @@ void ULDGameInstance::Shutdown()
     FCoreUObjectDelegates::PreLoadMapWithContext.Remove(PreLoadMapHandle);
     OnNotifyPreClientTravel().Remove(PreClientTravelHandle);
     FCoreDelegates::OnEnginePreExit.Remove(EngineExitHandle);
+    FCoreDelegates::OnHandleSystemError.Remove(SystemErrorHandle);
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StopEntryObservation(*this);
 #endif
@@ -223,9 +232,36 @@ void ULDGameInstance::Shutdown()
         FTSTicker::GetCoreTicker().RemoveTicker(EntryReturnTicker);
         EntryReturnTicker.Reset();
     }
+    if (FailureReturnTicker.IsValid())
+    {
+        FTSTicker::GetCoreTicker().RemoveTicker(FailureReturnTicker);
+        FailureReturnTicker.Reset();
+    }
     GEngine->OnNetworkFailure().Remove(NetworkHandle);
     GEngine->OnTravelFailure().Remove(TravelHandle);
     Super::Shutdown();
+}
+
+void ULDGameInstance::NoteCrashMatchState(uint32 Generation, uint8 Phase, uint8 TimelineStep)
+{
+    CrashMatchGeneration = Generation;
+    CrashMatchPhase = Phase;
+    CrashTimelineStep = TimelineStep;
+}
+
+void ULDGameInstance::NoteCrashCommand(const TCHAR* CommandKind)
+{
+    if (!CommandKind) { return; }
+    FCString::Strncpy(CrashLastCommand, CommandKind, UE_ARRAY_COUNT(CrashLastCommand));
+}
+
+void ULDGameInstance::HandleSystemError()
+{
+    const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Logs"), TEXT("LastCrashContext.json"));
+    const FString Payload = FString::Printf(
+        TEXT("{\"match_generation\":%u,\"phase\":%u,\"timeline_step\":%u,\"last_command\":\"%s\"}\n"),
+        CrashMatchGeneration, uint32(CrashMatchPhase), uint32(CrashTimelineStep), CrashLastCommand);
+    FFileHelper::SaveStringToFile(Payload, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 }
 void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& ErrorString)
 {
@@ -277,14 +313,37 @@ void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
     if (!World || World->GetGameInstance() != this) { return; }
     // A refusal or a closed room is followed by its connection closing: the room's first reason stays the shown one.
     if (World == LeavingWorld.Get()) { return; }
+    const bool bLeaveMap = !World->GetMapName().Contains(TEXT("L_Frontend"));
+    if (bLeaveMap)
+    {
+        // #337 §1.2: freeze all local input/UI sampling BEFORE teardown or next-tick travel so neither HUD, Minimap,
+        // WorldLabels nor WorldViewRelay touches half-destroyed actors, subsystems or owning controllers.
+        LeavingWorld = World;
+        for (auto It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+            if (auto* PC = Cast<ALDPlayerController>(It->Get()); PC && PC->IsLocalController())
+            {
+                PC->ClearControls();
+                if (PC->ControlsUI && PC->ControlsUI->IsOpen()) { PC->ControlsUI->ForceClose(); }
+                if (PC->HUDUI) { PC->HUDUI->FreezeForWorldTeardown(); }
+                if (ALDWorldViewRelay* Relay = PC->LocalView()) { Relay->FreezeForWorldTeardown(); }
+            }
+        }
+    }
     PrepareLocalSettingsForTravel();
     ConnectionMessage = Error;
-    if (!World->GetMapName().Contains(TEXT("L_Frontend")))
+    if (bLeaveMap)
     {
-        LeavingWorld = World;
-        World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+        if (FailureReturnTicker.IsValid())
         {
-            UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_Frontend"));
+            FTSTicker::GetCoreTicker().RemoveTicker(FailureReturnTicker);
+            FailureReturnTicker.Reset();
+        }
+        FailureReturnTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float)
+        {
+            FailureReturnTicker.Reset();
+            UGameplayStatics::OpenLevel(this, LDDemoEntry::FrontendMap);
+            return false;
         }));
     }
 }
@@ -318,6 +377,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->bShowFPS = Loaded.RecoverablePreferences->bShowFPS;
             LocalControlSettings->bReduceCombatEffects = Loaded.RecoverablePreferences->bReduceCombatEffects;
             LocalControlSettings->bCameraShake = Loaded.RecoverablePreferences->bCameraShake;
+            LocalControlSettings->bColorblindMode = Loaded.RecoverablePreferences->bColorblindMode;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");
@@ -446,14 +506,18 @@ void ULDGameInstance::PrepareLocalSettingsForTravel()
 
 void ULDGameInstance::UseBorderlessWindow()
 {
-    // The window is not a setting: the game always runs borderless at the desktop resolution, whatever an older save
-    // holds. Init runs before UGameEngine::Init creates the window, so the first window already uses it. The engine's
-    // launch overrides (-windowed, -ResX/-ResY) still apply to the request; automation and several clients on one machine
-    // use them. Editor PIE windows belong to the editor.
+    // Default to borderless desktop on first launch; preserve a player-chosen WindowMode/Resolution/FrameRateLimit (#331)
+    // when GameUserSettings.ini already stores a valid FullscreenMode. Launch overrides (-windowed, -ResX/-ResY) still apply.
     if (GIsEditor || !FApp::CanEverRender() || IsRunningCommandlet() || !Cast<UGameEngine>(GEngine)) { return; }
     auto* Settings = GEngine->GetGameUserSettings();
     if (!Settings) { UE_LOG(LogLDMatch, Error, TEXT("No engine display settings; the window keeps its launch mode.")); return; }
-    LDLocalSettings::HoldBorderlessDesktop(*Settings);
+    FString SavedMode;
+    const bool bHasSavedMode = GConfig && GConfig->GetString(*Settings->GetClass()->GetPathName(), TEXT("FullscreenMode"), SavedMode, GGameUserSettingsIni)
+        && (SavedMode == TEXT("0") || SavedMode == TEXT("1") || SavedMode == TEXT("2"));
+    if (!bHasSavedMode)
+    {
+        LDLocalSettings::HoldBorderlessDesktop(*Settings);
+    }
     // ApplyResolutionSettings can also adjust resolution quality; the window choice must not change quality.
     const auto Quality = Settings->ScalabilityQuality;
     Settings->ApplyResolutionSettings(true);
@@ -492,12 +556,22 @@ FLDDisplaySettingsResult ULDGameInstance::ApplyDisplaySettings(const FLDDisplayS
     auto* Settings = DisplaySettingsOwner();
     if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("显示设置需要可交互的游戏窗口，没有应用任何显示修改。")); }
     if (!Draft.IsValid()) { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("所选的显示参数无效，没有应用。请改选后再应用。")); }
+    const auto TargetQuality = Draft.Quality;
+    const FIntPoint Desktop = Settings->GetDesktopResolution();
+    const FIntPoint TargetRes = (Draft.WindowMode == EWindowMode::WindowedFullscreen && Desktop.X >= 640 && Desktop.Y >= 360)
+        ? Desktop : Draft.Resolution;
+    Settings->SetFullscreenMode(Draft.WindowMode);
+    Settings->SetScreenResolution(TargetRes);
+    Settings->SetFrameRateLimit(Draft.FrameRateLimit);
     Settings->SetVSyncEnabled(Draft.bVSync);
-    Settings->ScalabilityQuality = Draft.Quality;
+    Settings->ScalabilityQuality = TargetQuality;
+    Settings->ApplyResolutionSettings(false);
+    Settings->ConfirmVideoMode();
+    Settings->ScalabilityQuality = TargetQuality;
     Settings->ApplyNonResolutionSettings();
     bDisplaySettingsDirty = true;
     if (Settings->IsVSyncDirty() || Scalability::GetQualityLevels() != Draft.Quality)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("垂直同步或画质没有完全应用，可能被引擎覆盖设置锁定；尚未保存。")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("显示或画质没有完全应用，可能被引擎覆盖设置锁定；尚未保存。")); }
     // The default render scale (0) is a no-op in the engine; without this, restoring defaults kept the old scale until restart.
     auto* ScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
     if (!ScreenPercentage || !LDLocalSettings::ApplyRenderScale(*ScreenPercentage, Draft.Quality.ResolutionQuality))

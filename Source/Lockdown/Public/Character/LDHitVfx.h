@@ -67,6 +67,9 @@ namespace LDHitVfx
     LOCKDOWN_API FRecipe ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // A visible body's fall: a glowing ground crack that stays two seconds and a double shock ring.
     LOCKDOWN_API FRecipe ForKill(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
+    // Ground dust shock-ring at dash launch and golden flare ring on PerfectDodge (#335 §3.1).
+    LOCKDOWN_API FRecipe ForDashStart(const FLinearColor& Tint, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
+    LOCKDOWN_API FRecipe ForPerfectDodge(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // 0 before DelaySeconds and from Seconds on; a quick rise to 1 at PeakAt, then an ease-out fade.
     LOCKDOWN_API float Brightness(const FLayer& Layer, float AgeSeconds);
     LOCKDOWN_API float ScaleAt(const FLayer& Layer, float AgeSeconds);

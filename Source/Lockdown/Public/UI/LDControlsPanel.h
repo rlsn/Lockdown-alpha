@@ -76,8 +76,12 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DisplayUnavailable;
     UPROPERTY() TObjectPtr<UBorder> DisplayBar;
     UPROPERTY() TObjectPtr<UTextBlock> DisplayFeedback;
+    UPROPERTY() TObjectPtr<UTextBlock> WindowModeNote;
+    UPROPERTY() TObjectPtr<UTextBlock> ResolutionNote;
+    UPROPERTY() TObjectPtr<UTextBlock> FrameRateNote;
     UPROPERTY() TObjectPtr<UTextBlock> VSyncNote;
     UPROPERTY() TObjectPtr<UTextBlock> QualityNote;
+    TArray<FIntPoint> SupportedResolutions;
     UPROPERTY() TObjectPtr<USlider> VolumeSlider;
     UPROPERTY() TObjectPtr<UTextBlock> VolumeValue;
     UPROPERTY() TObjectPtr<USlider> MusicSlider;
@@ -136,6 +140,8 @@ private:
     bool DisplayApplyUnresolved() const;
     // After a retry (here or elsewhere) confirms the live values, they become the verified values the draft is compared with.
     void AdoptVerifiedDisplay();
+    void RebuildResolutionChoices();
+    void StepResolution(int32 Direction);
     void StepQuality(int32 Direction);
     void SetDisplayMessage(const FLDDisplaySettingsResult& Result);
     void ChangePreference(TFunction<void(ULDControlSettings&)> Change);
