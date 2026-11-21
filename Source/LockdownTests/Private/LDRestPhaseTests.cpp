@@ -341,7 +341,9 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     Record.NextAttackAtMs = 70000;
     SA.Roots.AddDefaulted();
     SA.Roots[0].ExpiresAtMs = 99999;
-    SA.Shields.Add({FGuid::NewGuid(), FGuid::NewGuid(), 3000, 3000, 99999});
+    const FGuid PhaseShieldId = FGuid::NewGuid();
+    SA.Shield = FLDCombatShield{PhaseShieldId, FGuid::NewGuid(), 99999};
+    SA.ShieldLayers.Add({PhaseShieldId, 99999, 3000});
     SA.Resources.ShieldP2 = 3000;
     SA.Burn.Layers.AddDefaulted();
     Driver->PendingHits.AddDefaulted();
@@ -385,7 +387,7 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("Both in-flight effects are cancelled by the phase"), Cancelled, 2);
     bGood &= TestTrue(TEXT("Nothing in flight survives and no hit was invented"), Driver->PendingHits.IsEmpty() && Driver->Projectiles.IsEmpty());
     bGood &= TestTrue(TEXT("Controls, shields and burns end on every body"),
-        SA.Roots.IsEmpty() && SA.Shields.IsEmpty() && SA.Resources.ShieldP2 == 0 && SA.Burn.Layers.IsEmpty());
+        SA.Roots.IsEmpty() && !SA.Shield.IsSet() && SA.ShieldLayers.IsEmpty() && SA.Resources.ShieldP2 == 0 && SA.Burn.Layers.IsEmpty());
     bGood &= TestTrue(TEXT("The phase leaves HP alone (new lives start full by construction)"), HpAfterCleanup == HpBeforePhase);
     bGood &= TestTrue(TEXT("A training reset refills the owner and its dummy and clears the dummy's statuses"),
         SA.Resources.HpP2 == SA.Resources.MaxHpP2 && SD.Resources.HpP2 == SD.Resources.MaxHpP2 && SD.Stuns.IsEmpty());

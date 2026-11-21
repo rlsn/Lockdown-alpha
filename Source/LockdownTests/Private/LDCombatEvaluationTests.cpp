@@ -161,6 +161,7 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD (0 bonus AD) and 20 AP"), Input, *Catalog,
         {9152, 0, 9152, 0, 76848, 0})) { return false; }
     Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
+    Input.SourceADP2 = int64(0);
     if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
         {7627, 0, 7627, 0, 78373, 0})) { return false; }
     Input.TargetResistanceP2 = int64(20000);
@@ -400,13 +401,13 @@ bool FLDDemoTimingDomainTest::RunTest(const FString& Parameters)
     if (!ReadApprovedFixture(*this, Catalog)) { return false; }
     auto Input = TimingInput(*Catalog);
     Input.CurrentAttackSpeed = Rate(36028797018963967LL, 18014398509481984LL);
-    if (!CheckTiming(*this, TEXT("Reciprocal just above an integer must ceil"), Input, *Catalog, 501, 113)) { return false; }
+    if (!CheckTiming(*this, TEXT("Reciprocal just above an integer must ceil"), Input, *Catalog, 501, 77)) { return false; }
     Input.CurrentAttackSpeed = Rate(2);
-    if (!CheckTiming(*this, TEXT("Exact reciprocal integer does not gain a millisecond"), Input, *Catalog, 500, 113)) { return false; }
+    if (!CheckTiming(*this, TEXT("Exact reciprocal integer does not gain a millisecond"), Input, *Catalog, 500, 77)) { return false; }
     Input.CurrentAttackSpeed = Rate(899999999999999999LL, 1000000000000000000LL);
-    if (!CheckTiming(*this, TEXT("Windup just above 250 is 251, not a double-rounded 250"), Input, *Catalog, 1112, 251)) { return false; }
+    if (!CheckTiming(*this, TEXT("Windup just above 170 is 171, not a double-rounded 170"), Input, *Catalog, 1112, 171)) { return false; }
     Input.CurrentAttackSpeed = Rate(900000000000000001LL, 1000000000000000000LL);
-    if (!CheckTiming(*this, TEXT("Windup just below 250 ceils to 250"), Input, *Catalog, 1112, 250)) { return false; }
+    if (!CheckTiming(*this, TEXT("Windup just below 170 ceils to 170"), Input, *Catalog, 1112, 170)) { return false; }
 
     CheckFailure(*this, TEXT("Missing compiled timing"), LDTactical::EvaluateBasicTiming({}, *Catalog), EError::Definition);
     Input = TimingInput(*Catalog);

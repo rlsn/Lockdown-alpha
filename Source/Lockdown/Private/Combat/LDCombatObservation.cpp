@@ -295,21 +295,6 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.RadiusCm=float(Channel.RangeCm);
         Fact.AngleDegrees=float(Channel.AngleDegrees);
     }
-    if (const ALDGameMode* GameMode=Core(); GameMode && GameMode->IsFieldRunning())
-    {
-        TArray<TPair<FGuid,FVector>> RecoveryOrbs;
-        GameMode->ReadActiveCampRecoveryOrbs(RecoveryOrbs);
-        for (const TPair<FGuid,FVector>& Orb : RecoveryOrbs)
-        {
-            FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-            Fact.Key=Orb.Key;
-            Fact.PositionCm=Orb.Value;
-            Fact.Heading=FVector2D(1,0);
-            Fact.Look=ELDObservedProjectileLook::AreaWater;
-            Fact.RadiusCm=90.f;
-            Fact.InnerRadiusCm=35.f;
-        }
-    }
     Error.Reset();
     return true;
 }

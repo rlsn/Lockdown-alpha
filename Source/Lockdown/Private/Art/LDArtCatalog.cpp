@@ -275,6 +275,9 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
     if (!Out.AirdropCrate || !ArtUsableTransform(AirdropTransform))
     { return ArtFail(Error, TEXT("The airdrop crate needs a catalog prop and a usable transform, found '") + AirdropProp + TEXT("'.")); }
     Out.AirdropTransform = AirdropTransform;
+    Out.CageFence = PropsById.FindRef(CageFenceProp);
+    if (!Out.CageFence || !Out.CageFence->Mesh)
+    { return ArtFail(Error, TEXT("The cage fence needs an imported catalog prop, found '") + CageFenceProp + TEXT("'.")); }
     Error.Reset();
     return true;
 }

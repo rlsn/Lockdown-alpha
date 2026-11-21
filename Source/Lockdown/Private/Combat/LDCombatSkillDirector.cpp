@@ -370,6 +370,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
             if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
+            HitFenceInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload);
             // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
             {
                 const FVector Facing=Channel.Direction;
@@ -468,6 +469,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             PendingHits.Add(MoveTemp(Hit));
         }
         if (!HitBagsInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload, NowMs, Error)) { return false; }
+        HitFenceInCircle(Ground.CentreCm, Ground.RadiusCm, Ground.Payload);
         GroundEffects.RemoveAt(Index);
         if (Completed.LingerMs > 0
             && !SpawnLingerZone(Completed.Payload, Completed.CentreCm, Completed.RadiusCm, Completed.LingerMs, NowMs, Error)) { return false; }
@@ -633,7 +635,7 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
     using namespace LDCombatSkillDetail;
     if (Dash.Body!=FLDCombatBodyRef{Body.Victim,Body.Identity})
     { Error=TEXT("Dash contact belongs to another body life."); return false; }
-    // D01 (#330 §5.3): hitting an enemy contender resets 100% cooldown and refunds 100% paid momentum; hitting a monster or
+    // D01 (#330 §5.2.5): hitting an enemy contender resets 100% cooldown and refunds 100% paid momentum; hitting a monster or
     // summon cuts 50% of the dash cooldown and refunds no momentum (once per dash).
     if (Dash.bReset && !Dash.bRefunded)
     {

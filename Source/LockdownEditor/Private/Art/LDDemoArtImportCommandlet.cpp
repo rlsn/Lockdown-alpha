@@ -21,6 +21,8 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
     const bool bUI = FParse::Param(*Params, TEXT("UI"));
     // -VFX imports only the hit-effect masks and rebuilds their materials; everything else is left and still validated.
     const bool bVfx = FParse::Param(*Params, TEXT("VFX"));
+    // -Props re-imports only the props and dressing props; bodies and the saved-map decorations stay as they are.
+    const bool bProps = FParse::Param(*Params, TEXT("Props"));
     FString Error;
     FString ExportPath;
     if (FParse::Value(*Params, TEXT("ExportStaticScene="), ExportPath))
@@ -29,12 +31,12 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
         if (!LDStaticSceneEditor::Export(ExportPath, Error)) { UE_LOG(LogLDEditor, Error, TEXT("LD_STATIC_SCENE_REJECTED %s"), *Error); return 1; }
         UE_LOG(LogLDEditor, Display, TEXT("LD_STATIC_SCENE_EXPORTED %s"), *ExportPath); return 0;
     }
-    if (int32(bValidate) + int32(bUI) + int32(bVfx) > 1)
+    if (int32(bValidate) + int32(bUI) + int32(bVfx) + int32(bProps) > 1)
     {
-        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED -Validate, -UI and -VFX are exclusive."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED -Validate, -UI, -VFX and -Props are exclusive."));
         return 1;
     }
-    const bool bImported = bValidate || (bUI ? LDDemoUIImageImport::Import(Error) : bVfx ? LDDemoVfxImport::Import(Error) : LDDemoArtImport::Import(Error));
+    const bool bImported = bValidate || (bUI ? LDDemoUIImageImport::Import(Error) : bVfx ? LDDemoVfxImport::Import(Error) : LDDemoArtImport::Import(Error, bProps));
     if (!bImported || (bValidate && !(LDDemoArtImport::Validate(Error) && LDDemoUIImageImport::Validate(Error) && LDDemoVfxImport::Validate(Error))))
     {
         UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED %s"), *Error);
@@ -46,6 +48,6 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
         return 1;
     }
     UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_SUCCESS %s: licensed sources, imported and authored bodies, clips, props, catalog, UI backgrounds and icons, hit-effect masks and materials validated."),
-        bValidate ? TEXT("Validate") : bUI ? TEXT("ImportUI") : bVfx ? TEXT("ImportVFX") : TEXT("Import"));
+        bValidate ? TEXT("Validate") : bUI ? TEXT("ImportUI") : bVfx ? TEXT("ImportVFX") : bProps ? TEXT("ImportProps") : TEXT("Import"));
     return 0;
 }

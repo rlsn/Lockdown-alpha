@@ -82,8 +82,9 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         : (!View.PoleCentreCm.IsZero() || View.PoleRadiusCm != 0 || View.CageUntilMs != 0 || !View.FinalMods.IsEmpty()
             || !View.PrivatePoles.IsEmpty()))
     { return FailCaptureView(Error, TEXT("Only the final field publishes its flagpole zone and final mods.")); }
-    if (View.CageUntilMs < 0 || (View.CageUntilMs == 0 ? (!View.CageCentreCm.IsZero() || View.CageRadiusCm != 0)
-        : (View.CageCentreCm.ContainsNaN() || !FMath::IsFinite(View.CageRadiusCm) || View.CageRadiusCm <= 0)))
+    if (View.CageUntilMs < 0 || (View.CageUntilMs == 0 ? (!View.CageCentreCm.IsZero() || View.CageRadiusCm != 0 || View.CageIntegrityBp != 0)
+        : (View.CageCentreCm.ContainsNaN() || !FMath::IsFinite(View.CageRadiusCm) || View.CageRadiusCm <= 0
+            || View.CageIntegrityBp <= 0 || View.CageIntegrityBp > 10000)))
     { return FailCaptureView(Error, TEXT("Invalid final cage.")); }
     if (View.FinalMods.Num() > CaptureResultRowsMax
         || View.FinalMods.ContainsByPredicate([](const FLDFinalModHolderView& Row) { return !Row.Contender.IsValid() || Row.Mod.IsNone(); })

@@ -768,7 +768,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SKILL.GrowthPerLevel"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelBp, 0, 10000},
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
+        {TEXT("VISION.SightGraceSec"), TEXT("ms"), TEXT("ms"), &P.VisionSightGraceMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
+        {TEXT("CAPTURE.GuardCheckpointSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardCheckpointMs, 1, MAX_int64},
+        {TEXT("CAPTURE.GuardResumeSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardResumeMs, 1, MAX_int64},
         {TEXT("SHOWDOWN.UnlockDelaySec"), TEXT("ms"), TEXT("ms"), &P.ShowdownUnlockDelayMs, 0, MAX_int32},
         {TEXT("SHOWDOWN.DurationSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownDurationMs, 1, MAX_int32},
         {TEXT("SHOWDOWN.FirstRespawnSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownFirstRespawnMs, 1, MAX_int32},
@@ -807,6 +810,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SHOWDOWN.RingDamageTickSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownRingTickMs, 1, MAX_int32},
         {TEXT("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.ShowdownRingEarlyDamageBp, 1, 10000},
         {TEXT("SHOWDOWN.RingDamageLateMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.ShowdownRingLateDamageBp, 1, 10000},
+        {TEXT("SHOWDOWN.KillHealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.ShowdownKillHealMaxHPBp, 1, 10000},
+        {TEXT("SHOWDOWN.KillMomentum"), TEXT("momentum"), TEXT("p2"), &P.ShowdownKillMomentumP2, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
         {TEXT("DORM.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.DormRegenDelayMs, 1, MAX_int64},
@@ -817,6 +822,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAMP.GrowthAttackRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthAttackPerStageBp, 0, MAX_int64},
         {TEXT("CAMP.GrowthResistPerStage"), TEXT("points"), TEXT("p2"), &P.CampGrowthResistPerStageP2, 0, MAX_int64},
         {TEXT("CAMP.GrowthRewardXPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthRewardXPPerStageBp, 0, MAX_int64},
+        {TEXT("CAMP.ClearHealMissingRatio"), TEXT("ratio"), TEXT("bp"), &P.CampClearHealMissingBp, 1, 10000},
+        {TEXT("CAMP.ClearMomentum"), TEXT("momentum"), TEXT("p2"), &P.CampClearMomentumP2, 1, MAX_int64},
+        {TEXT("CAMP.ClearOrbSec"), TEXT("ms"), TEXT("ms"), &P.CampClearOrbMs, 1, MAX_int64},
         {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
         {TEXT("AIRDROP.HealMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AirdropHealMaxHPBp, 1, 10000},
@@ -824,7 +832,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AIRDROP.MoveSpeedSec"), TEXT("ms"), TEXT("ms"), &P.AirdropMoveSpeedMs, 1, MAX_int64},
         {TEXT("CAMPMARK.RevealSec"), TEXT("ms"), TEXT("ms"), &P.CampMarkRevealMs, 1, MAX_int64},
         {TEXT("LEADER.RefreshSec"), TEXT("ms"), TEXT("ms"), &P.LeaderRefreshMs, 1, MAX_int64},
+        {TEXT("LEADER.SurvivalPointSec"), TEXT("ms"), TEXT("ms"), &P.LeaderSurvivalPointMs, 1, MAX_int64},
         {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
+        {TEXT("REWARD.AssistXPRatio"), TEXT("ratio"), TEXT("bp"), &P.AssistXPRatioBp, 1, 10000},
+        {TEXT("REWARD.KillMedalChance"), TEXT("ratio"), TEXT("bp"), &P.KillMedalChanceBp, 0, 10000},
         {TEXT("GROWTH.BuildSafeWindowSec"), TEXT("ms"), TEXT("ms"), &P.BuildSafeWindowMs, 1, MAX_int64},
         {TEXT("AI.RetreatHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.RetreatHPBp, 0, 10000},
         {TEXT("AI.ResumeFarmHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.ResumeFarmHPBp, 0, 10000},
@@ -844,17 +855,24 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.BurnTickSec"), TEXT("ms"), TEXT("ms"), &P.BurnTickMs, 1, MAX_int64},
         {TEXT("COMBAT.BurnSec"), TEXT("ms"), TEXT("ms"), &P.BurnMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystonePhysiqueHealToShieldRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueHealToShieldBp, 1, 10000},
+        {TEXT("COMBAT.KeystonePhysiqueOutOfCombatCut"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueOutOfCombatCutBp, 1, 10000},
         {TEXT("COMBAT.KeystonePhysiqueShieldMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueShieldMaxHPBp, 1, 10000},
         {TEXT("COMBAT.KeystonePhysiqueShieldDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystonePhysiqueShieldDurationMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystonePhysiqueIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystonePhysiqueIntervalMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneAgilityDashCooldownCut"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityDashCooldownCutBp, 1, 9999},
         {TEXT("COMBAT.KeystoneThickSkinGuardPoints"), TEXT("points"), TEXT("p2"), &P.KeystoneThickSkinGuardP2, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneThickSkinGuardCapRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneThickSkinGuardCapBp, 1, 9999},
         {TEXT("COMBAT.KeystoneThickSkinIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneThickSkinIntervalMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneThickSkinSteadySec"), TEXT("ms"), TEXT("ms"), &P.KeystoneThickSkinSteadyMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneThickSkinKnockbackRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneThickSkinKnockbackBp, 0, 10000},
         {TEXT("COMBAT.KeystoneStrengthDamageRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneStrengthDamageBp, 1, 10000},
         {TEXT("COMBAT.KeystoneBrainsMomentumRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsMomentumRefundBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneBrainsReactionMomentum"), TEXT("momentum"), TEXT("p2"), &P.KeystoneBrainsReactionMomentumP2, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneBrainsCooldownCutSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneBrainsCooldownCutMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneAgilityDamageBase"), TEXT("points"), TEXT("p2"), &P.KeystoneAgilityDamageBaseP2, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneAgilityADRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityADRatioBp, 1, 10000},
         {TEXT("COMBAT.KeystoneAgilityEmpowerDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneAgilityEmpowerDurationMs, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneAgilityMoveSpeedRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityMoveSpeedBp, 0, 10000},
         // #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
         {TEXT("COMBAT.WetSec"), TEXT("ms"), TEXT("ms"), &P.WetMs, 1, MAX_int64},
         {TEXT("COMBAT.WetSlow"), TEXT("ratio"), TEXT("bp"), &P.WetSlowBp, 1, 9999},
@@ -916,7 +934,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     for (const auto& Field : {
         FCountField{TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
         {TEXT("SHOWDOWN.RespawnLimit"), &P.ShowdownRespawnLimit, 0},
-        {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0},
+        {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0}, {TEXT("REWARD.BountyXP"), &P.BountyXP, 0}, {TEXT("REWARD.BountyCardOffer"), &P.BountyCardOffer, 1},
         {TEXT("AI.RetryPolicy.MaxAttempts"), &P.AI.RetryMaxAttempts, 1},
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
         {TEXT("CAMP.GrowthMaxStage"), &P.CampGrowthMaxStage, 1},
@@ -1033,7 +1051,7 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
         DEMO_POLICY(SourceLeave, CancelUnsettledNoRefund), DEMO_POLICY(InvalidAggressionProtection, BreakOnAggressiveIntent),
         DEMO_POLICY(CritSampling, OncePerAttackId), DEMO_POLICY(LifestealBasis, PrimaryBasicAttackHPLost),
         DEMO_POLICY(LifestealRecursiveTriggers, Disabled), DEMO_POLICY(BasicSecondaryTriggers, Disabled),
-        DEMO_POLICY(RegenIntegration, CarrySubP2Remainder), DEMO_POLICY(ShieldPolicy, ReplaceIfNotWeaker),
+        DEMO_POLICY(RegenIntegration, CarrySubP2Remainder), DEMO_POLICY(ShieldPolicy, StackToLatestExpiry),
         DEMO_POLICY(CampAggroTrigger, ConfirmedCombatHit), DEMO_POLICY(CampResetPolicy, ReturnThenReset),
         DEMO_POLICY(CampMomentumPolicy, NotApplicable),
     };
@@ -2043,6 +2061,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             || !Check.Require(StatMask(Out.Stats) == Bit(ELDDemoBonusStat::CritChanceBonusRatio), Path,
                 TEXT("skill_crit only grants CritChanceBonusRatio"))))
         { return false; }
+        if (!OptionalFixed(F, TEXT("chance"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 0, 10000)) { return false; }
         break;
     case ELDDemoEffectOp::ComboKnockback:
     case ELDDemoEffectOp::DashSplit:
@@ -2528,7 +2547,8 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
             Out.HostHitTypes |= uint8(1u << Index);
         }
     }
-    if (!OptionalFlag(F, TEXT("host_control"), Out.bHostControl)) { return false; }
+    if (!OptionalFlag(F, TEXT("host_control"), Out.bHostControl)
+        || !OptionalFixed(F, TEXT("draw_weight"), TEXT("ratio"), TEXT("bp"), Out.DrawWeightBp, 1, 10000)) { return false; }
     if (!Check.Require(Out.Form == ELDCardForm::Skill || (Out.HostHitTypes == 0 && !Out.bHostControl), Path,
         TEXT("only a skill card limits its host")))
     {
@@ -2810,7 +2830,7 @@ bool FinalMod(const FValue& Value, FLDDemoFinalModDefinition& Out, FCheck& Check
         Valid = Time(TEXT("guard"), Out.GuardMs);
         break;
     case ELDDemoFinalModId::FinalCage:
-        Valid = Time(TEXT("duration"), Out.DurationMs);
+        Valid = Time(TEXT("duration"), Out.DurationMs) && F.Fixed(TEXT("hp"), TEXT("hp"), TEXT("p2"), Out.HPP2, 1);
         break;
     case ELDDemoFinalModId::FinalPrivatePole:
         Valid = Time(TEXT("spray"), Out.SprayMs) && Time(TEXT("guard"), Out.GuardMs)

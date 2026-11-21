@@ -30,4 +30,6 @@ namespace LDAssist
 
     // Splits the victim's base kill XP evenly (floored) among the killer and the assisters. False on a negative input.
     LOCKDOWN_API bool SplitKillReward(int64 BaseXP, int32 AssisterCount, FLDAssistRewardShares& Out);
+    // A contender kill: the killer keeps the whole kill XP and each assister takes AssistBp of it on top.
+    LOCKDOWN_API bool ContenderKillShares(int64 BaseXP, int32 AssisterCount, int64 AssistBp, FLDAssistRewardShares& Out);
 }

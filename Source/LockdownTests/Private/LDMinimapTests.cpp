@@ -283,11 +283,12 @@ bool FLDMinimapCoverageTextureTest::RunTest(const FString& Parameters)
 {
     TArray<uint8> Bits;Bits.Init(0,LDObservation::CoverageBytes);
     TArray<FColor> Pixels;
-    for(int32 I=0;I<LDObservation::CoverageCells;++I){if((I%128)%2==(I/128)%2){LDObservation::SetCoverageBit(Bits,I);}}
-    TestTrue(TEXT("Exact 2048 byte coverage builds 128 squared pixels"),LDMinimapRaster::CoveragePixels(Bits,Pixels)&&Pixels.Num()==16384);
-    const FColor Visible=LDMinimapRaster::CoverageColor().ToFColorSRGB(),Hidden=LDMinimapRaster::GroundColor().ToFColorSRGB();
+    for(int32 I=0;I<LDObservation::CoverageCells;++I){if((I%LDObservation::CoverageWidth)%2==(I/LDObservation::CoverageWidth)%2){LDObservation::SetCoverageBit(Bits,I);}}
+    TestTrue(TEXT("Exact coverage bytes build one pixel per cell"),LDMinimapRaster::CoveragePixels(Bits,Pixels)&&Pixels.Num()==LDObservation::CoverageCells);
+    const FColor Visible=FColor::Transparent,Hidden=LDMinimapRaster::FogColor().ToFColorSRGB();
+    TestTrue(TEXT("Fog leaves the public terrain readable"),Hidden.A>0&&Hidden.A<255);
     for(int32 I=0;I<Pixels.Num();++I)
-    {if(!TestTrue(TEXT("Low-bit-first row-major cells retain exact colors and opaque alpha"),Pixels[I]==(LDObservation::CoverageBit(Bits,I)?Visible:Hidden))){return false;}}
+    {if(!TestTrue(TEXT("Low-bit-first row-major cells retain the exact fog color and alpha"),Pixels[I]==(LDObservation::CoverageBit(Bits,I)?Visible:Hidden))){return false;}}
     Bits.Init(0,LDObservation::CoverageBytes);
     TestTrue(TEXT("A new empty coverage replaces every old cell"),LDMinimapRaster::CoveragePixels(Bits,Pixels));
     for(const FColor& Pixel:Pixels){if(!TestTrue(TEXT("No remembered coverage"),Pixel==Hidden)){return false;}}

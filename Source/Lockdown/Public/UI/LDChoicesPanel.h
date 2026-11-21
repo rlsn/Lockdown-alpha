@@ -43,7 +43,7 @@ public:
     // stage, LDProgression::StageForPublic) and the life phase judge what the server would refuse, for the disabled reasons.
     // Keys: the key the HUD shows for each Q/W/E slot; every line that names a slot uses it.
     void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
-        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormSwapReady=false);
+        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested=false);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
     // In a rest's build window the open workshop shows the rest rebuilds (respec, replace, forget) on the objects they act on;
@@ -350,7 +350,10 @@ private:
     // The lowest empty Q/W/E slot of the latest view, or 3 when all are full.
     uint8 FirstEmptySlot() const;
     // Builds one tray card whose click runs Click; the caller adds its Frame to a row.
-    FTrayCard MakeCard(FName ButtonName,TFunction<void()> Click);
+    // What a tray card stands for, so each kind reads apart at a glance: a skill (blue frame, square-cut icon), a build card
+    // (gold frame, taller like a playing card) or anything else (the plain frame).
+    enum class ETrayLook : uint8 { Plain, Skill, Card };
+    FTrayCard MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look=ETrayLook::Plain);
     // The face of Card needs rendering for Key (another definition or outcome, or new numbers).
     bool CardStale(const FTrayCard& Card,const FString& Key) const;
     // Fills a card's name, icon and popup for Key.

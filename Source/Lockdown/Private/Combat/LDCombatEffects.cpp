@@ -182,14 +182,22 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     FLDKeywordTerms Keywords;
     if (!KeywordTerms(Keywords,Error)) { return false; }
     // A primary basic crits, sampled once at its release; Y09 lets a native skill hit sample its own (once per HitId).
-    if (!Hit.bCritical && Source && IsNativeDirectHit(Hit) && Hit.SourceEntity!=Body->Victim.EntityId
-        && Source->AttributeProjection.Final.CritChanceBp>0)
+    if (!Hit.bCritical && Source && IsNativeDirectHit(Hit) && Hit.SourceEntity!=Body->Victim.EntityId)
     {
         TArray<FLDPassiveEffectRef> Crits;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::SkillCrit,Crits,Error)) { return false; }
-        Hit.bCritical=!Crits.IsEmpty() && CritRandom.RandRange(0,9999)<Source->AttributeProjection.Final.CritChanceBp;
+        // Y09's own chance adds to the holder's (each copy).
+        int64 ChanceBp=Source->AttributeProjection.Final.CritChanceBp;
+        for (const FLDPassiveEffectRef& Ref : Crits) { ChanceBp+=Ref.Effect.RatioBp; }
+        Hit.bCritical=!Crits.IsEmpty() && ChanceBp>0 && CritRandom.RandRange(0,9999)<ChanceBp;
     }
     const bool bCritical=Hit.bCritical;
+    // Adaptive damage: a hit with no explicit adaptive_ratio that scales with both attack damage and ability power deals the type of its larger share.
+    if (Hit.AdaptiveRatioBp==0 && Hit.ADRatioBp>0 && Hit.APRatioBp>0)
+    {
+        const int64 ADShare=Hit.SourceADP2/10000*Hit.ADRatioBp, APShare=Hit.SourceAPP2/10000*Hit.APRatioBp;
+        Hit.DamageType=ADShare>APShare ? ELDDemoDamageType::Physical : ADShare<APShare ? ELDDemoDamageType::Magical : Hit.DamageType;
+    }
     FLDDamageEvaluationInput Evaluation;
     const ELDDemoDamageType EffectiveType=LDTactical::EffectiveDamageType(Hit.DamageType,Hit.AdaptiveRatioBp,Hit.SourceBonusADP2,Hit.SourceAPP2);
     Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,EffectiveType,Hit.MaxHPRatioBp,Hit.AdaptiveRatioBp);
@@ -242,10 +250,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp*(10000-Monster->Skill.PassiveBp)/10000;
     }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
+    // final_cage: a basic between a body inside the fence and one outside wears it (it still lands).
+    if (SourceActor && Hit.HitClass==ELDCombatHitClass::BasicPrimary
+        && !Hit.bReflect && !Hit.bRider && !Hit.bExtraStrike && FenceCrosses(FootOf(*SourceActor),FootOf(*Actor)))
+    { HitFence(Hit); }
+    // The thick-skin keystone takes its share off the next direct hostile hit of any kind (a basic or a skill), once per interval.
     const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
-        && NowMs>=Body->KeystoneThickSkinReadyAtMs
+        && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.SourceEntity!=Body->Victim.EntityId
         && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability)
-        && Hit.SourceEntity!=Body->Victim.EntityId;
+        && !Hit.bReflect && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bStatusSettle && !Hit.bRider;
     if (bKeystoneGuardReady)
     {
         Evaluation.KeystoneGuardP2=Content->Get().Parameters.KeystoneThickSkinGuardP2;
@@ -292,9 +305,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         if (Hit.HitClass==ELDCombatHitClass::BasicPrimary)
         {
-            // A body medal rides the last step of the basic combo only.
+            // A body medal rides every basic from the second combo step on.
             TArray<FLDPassiveEffectRef> Elements;
-            if (int32(Hit.ComboStep)==Content->Get().Parameters.Combo.StepRatiosBp.Num()
+            if (int32(Hit.ComboStep)>=2
                 && !CardsOn(Source->AttributeProjection,ELDDemoEffectOp::SkillElement,{ELDCombatSourceKind::Basic,NAME_None},Elements,Error))
             { return false; }
             for (const FLDPassiveEffectRef& Ref : Elements)
@@ -341,26 +354,29 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 
     const int64 HPBefore=Body->Resources.HpP2;
     Body->Resources.HpP2=Damage.RemainingHPP2;
-    TArray<FGuid> BrokenShieldIds;
-    LDTactical::AbsorbActiveShields(Body->Shields,Body->Resources.ShieldP2,Damage.ShieldAbsorbedP2,NowMs,BrokenShieldIds);
-    Damage.RemainingShieldP2=Body->Resources.ShieldP2;
+    Body->Resources.ShieldP2=Damage.RemainingShieldP2;
+    // The absorbed amount spends the layers, earliest deadline first; each layer it empties is a break of its own.
+    TArray<FGuid> BrokenLayerIds;
+    const int32 BrokenLayers=Damage.ShieldAbsorbedP2>0 ? SpendShieldLayers(*Body,Damage.ShieldAbsorbedP2,&BrokenLayerIds) : 0;
     ++Body->Resources.Revision;
     if (Damage.KeystoneGuardCutP2>0)
     {
         Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs;
         GrantMomentum(*Body,1000,ELDMomentumBook::Reaction);
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Content->Get().Parameters.KeystoneThickSkinSteadyMs,Body->KeystoneSteadyUntilMs,Error))
+        { return false; }
     }
     if (bBraced && Damage.BraceCutP2>0)
     {
         Body->Brace.RecordedP2=LDCombatElements::BraceRecordP2(Body->Brace.RecordedP2,Damage.BraceCutP2,Body->Brace.CapP2);
         MarkViewChanged(Body->Victim.EntityId);
     }
-    const bool bShieldBroken=!BrokenShieldIds.IsEmpty()
+    const bool bShieldBroken=BrokenLayers>0
         || LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
-    const bool bBranchShieldBroken=Body->Branch.ShieldEffectId.IsValid() && BrokenShieldIds.Contains(Body->Branch.ShieldEffectId);
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
-    const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shields,Body->Resources.ShieldP2,NowMs);
-    if (Ended.bRootsChanged || Ended.bShieldChanged || !BrokenShieldIds.IsEmpty()) { ++Body->StateRevision; }
+    const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
+    if (!Body->Shield.IsSet()) { Body->ShieldLayers.Reset(); }
+    if (Ended.bRootsChanged || Ended.bShieldChanged || BrokenLayers>0) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { MarkEngaged(*Body,NowMs); }
     // #198 build safe window: hostile positive damage marks its victim and the contender credited with it (burn ticks
@@ -391,10 +407,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (bOut) { ControlMask|=LDCombatEffectsDetail::ControlBit(Kind); }
         return true;
     };
+    // The thick-skin steady window: slows miss and a knockback travels its share of the distance.
+    const bool bSteady=NowMs<Body->KeystoneSteadyUntilMs;
     if (bControllable)
     {
         bool bApplied=false;
-        if (Hit.AttackSlowBp>0 && Hit.AttackSlowMs>0)
+        if (Hit.AttackSlowBp>0 && Hit.AttackSlowMs>0 && !bSteady)
         {
             FLDCombatSlow Slow;
             Slow.EffectId=Hit.EffectId;
@@ -416,11 +434,18 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // #198: the push stops at the first blocking geometry (ApplyKnockback); a wall adds no further control.
         if (Hit.KnockbackCm>0 && Hit.KnockbackMs>0)
         {
-            if (!ApplyKnockback(*Actor,*Body,Hit,NowMs,bApplied,Error)) { return false; }
+            FLDCombatHit Push=Hit;
+            if (bSteady)
+            {
+                const int64 KeepBp=Content->Get().Parameters.KeystoneThickSkinKnockbackBp;
+                Push.KnockbackCm=Push.KnockbackCm*KeepBp/10000;
+                Push.KnockbackMs=FMath::Max<int64>(1,Push.KnockbackMs*KeepBp/10000);
+            }
+            if (Push.KnockbackCm>0 && !ApplyKnockback(*Actor,*Body,Push,NowMs,bApplied,Error)) { return false; }
             bControlled|=bApplied;
             if (bApplied) { ControlMask|=LDCombatEffectsDetail::KnockbackBit; }
         }
-        if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
+        if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !bSteady && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
         { return false; }
     }
     // #147: the shared breach and burn this hit (its payload, its card fire or its source's basic triggers) adds.
@@ -547,14 +572,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
     }
-    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bBranchShieldBroken,NowMs,Error)) { return false; }
+    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,BrokenLayerIds,NowMs,Error)) { return false; }
     // Spec §6.5: the hit's damage joins its chain and its owner's strongest hit.
     if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
-    // Issue #292 P5 / #330 §5.4: every individual shield broken to 0 triggers card_shell_burst.
-    if (!bProtected && bShieldBroken && Hit.SourceEntity!=Body->Victim.EntityId)
+    // Issue #292 P5 / #330 §5.2.8: Y06 bursts once for every layer this hit broke (a stacked shield bursts layer by layer).
+    if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId)
     {
-        const int32 BreakCount=FMath::Max(1,BrokenShieldIds.Num());
-        for (int32 BreakIdx=0; BreakIdx<BreakCount; ++BreakIdx)
+        for (int32 Layer=0;Layer<FMath::Max(BrokenLayers,bShieldBroken ? 1 : 0);++Layer)
         {
             if (!OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
         }
@@ -733,6 +757,12 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         const FVector Clear=FMath::Lerp(From,To,ClearFraction);
         const int32 BagStruck=FirstBagOnSegment(Projectile.SourceEntity,From,Clear,Projectile.RadiusCm,BagFraction);
         const FVector Stop=BagStruck!=INDEX_NONE ? FMath::Lerp(From,Clear,BagFraction) : Clear;
+        // final_cage: a skill flight that crosses the fence wears it once (a basic wears it where it lands, in ApplyHit).
+        if (!Projectile.bCrossedFence && Projectile.Payload.HitClass==ELDCombatHitClass::Ability && FenceCrosses(From,Stop))
+        {
+            Projectile.bCrossedFence=true;
+            HitFence(Projectile.Payload);
+        }
         // M14: a pierced body does not end the flight; the search goes on past it in the same step.
         FVector SegmentFrom=From;
         bool bEnded=false;
@@ -1005,7 +1035,11 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
         FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
         if (!BodyPtr) { continue; }
         FLDBodyCombatState& Body=*BodyPtr;
-        const FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shields,Body.Resources.ShieldP2,NowMs);
+        // Layers lapse on their own deadlines; the record goes with the last of them.
+        const bool bLayers=ExpireShieldLayers(Body,NowMs);
+        FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
+        Expired.bShieldChanged|=bLayers;
+        if (!Body.Shield.IsSet()) { Body.ShieldLayers.Reset(); }
         const FLDStatusExpiry Control=LDControl::ExpireControlStatuses(Body.Taunt,NowMs);
         const bool bControls=LDCombatControl::ExpireDisarmsAndStuns(Body.Disarms,Body.Stuns,NowMs,&Body.Silences)
             | LDCombatKeywords::ExpireBreach(Body.SharedBreach,NowMs) | LDCombatKeywords::ExpireBurn(Body.Burn,NowMs);
@@ -1098,8 +1132,32 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             Body.bInDorm=bInDorm;
             MarkViewChanged(Body.Victim.EntityId);
         }
-        if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &Recovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
-            Pools,Error,bInDorm ? DormRecovery : nullptr))
+        // The physique keystone: recovery starts sooner out of combat, and in combat a shield of its share of the maximum HP
+        // comes up every interval.
+        const bool bPhysique=bContender && Body.AttributeProjection.Keystones.bPhysique;
+        LDTactical::FOutOfCombatRecovery BodyRecovery=Recovery;
+        LDTactical::FOutOfCombatRecovery BodyDorm=DormRecovery ? *DormRecovery : LDTactical::FOutOfCombatRecovery();
+        if (bPhysique)
+        {
+            const FLDDemoContentSnapshot* Content=Catalog();
+            if (!Content) { Error=TEXT("The physique keystone requires the approved Demo content."); return false; }
+            const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
+            const int64 CutBp=Parameters.KeystonePhysiqueOutOfCombatCutBp;
+            BodyRecovery.DelayMs-=BodyRecovery.DelayMs/10000*CutBp+BodyRecovery.DelayMs%10000*CutBp/10000;
+            BodyDorm.DelayMs-=BodyDorm.DelayMs/10000*CutBp+BodyDorm.DelayMs%10000*CutBp/10000;
+            if (!LDTactical::OutOfCombatAt(Body.LastCombatAtMs,BodyRecovery.DelayMs,NowMs) && NowMs>=Body.KeystonePhysiqueReadyAtMs)
+            {
+                const int64 ShieldP2=Pool.MaxHpP2/10000*Parameters.KeystonePhysiqueShieldMaxHPBp
+                    +Pool.MaxHpP2%10000*Parameters.KeystonePhysiqueShieldMaxHPBp/10000;
+                int64 NextReadyAtMs=0;
+                if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,Error)) { return false; }
+                Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs;
+                if (ShieldP2>0 && !GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,FGuid::NewGuid(),
+                    Body.Victim.EntityId,NowMs,Error)) { return false; }
+            }
+        }
+        if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &BodyRecovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
+            Pools,Error,bInDorm && DormRecovery ? &BodyDorm : nullptr))
         {
             Error=FString::Printf(TEXT("Regeneration of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
             return false;

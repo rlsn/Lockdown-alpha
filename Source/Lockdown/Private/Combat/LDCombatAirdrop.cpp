@@ -58,39 +58,3 @@ bool ALDCombatDirector::ApplyAirdropReward(const FGuid& Contender, const FLDGame
     Error.Reset();
     return true;
 }
-
-bool ALDCombatDirector::ApplyCampRecoveryOrb(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
-    FString& Error)
-{
-    bOutApplied = false;
-    ILDLifeAuthority* Mode = Authority();
-    if (!Mode || Mode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Contender.IsValid())
-    {
-        Error = TEXT("A camp recovery orb needs the current Transactions permit and a contender.");
-        return false;
-    }
-    FLDBodyCombatState* Body = nullptr;
-    ALDCharacter* Actor = nullptr;
-    for (auto& Pair : Bodies)
-    {
-        if (Pair.Key.IsValid() && Pair.Value.Victim.Kind == ELDVictimKind::Contender && Pair.Value.Victim.EntityId == Contender)
-        {
-            Body = &Pair.Value;
-            Actor = Pair.Key.Get();
-            break;
-        }
-    }
-    if (!Body || Body->bPendingDeath || Body->Resources.HpP2 <= 0)
-    {
-        Error.Reset();
-        return true;
-    }
-    // Camp-clear recovery orb: 12% MaxHP + 25 momentum. Mutate *Body in place so HealBody's card_grow_fat reprojection stays live.
-    HealBody(*Body, LDAirdrop::ShareP2(Body->Resources.MaxHpP2, 1200));
-    GrantMomentum(*Body, 2500, ELDMomentumBook::Other);
-    if (!RefreshTemporary(*Body, Actor, Permit.GetBoundary().AtMs, Error)) { return false; }
-    ++Body->StateRevision;
-    bOutApplied = true;
-    Error.Reset();
-    return true;
-}

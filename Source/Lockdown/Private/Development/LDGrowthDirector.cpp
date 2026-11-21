@@ -344,6 +344,18 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
 
     if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
     {
+        // The final field gives no XP; a contender kill heals the killer and gives momentum instead.
+        if (bContenderVictim)
+        {
+            FLDContenderLifeRead KillerLife;
+            FString LifeError, RecoverError;
+            const auto& P = Content->Get().Parameters;
+            if (M->ReadContenderLife(M->GetMatchContext(), Recipient, KillerLife, LifeError)
+                && !M->Combat->RecoverContender(KillerLife.Body, 0, P.ShowdownKillHealMaxHPBp, P.ShowdownKillMomentumP2, Permit, RecoverError))
+            {
+                UE_LOG(LogLDGrowth, Error, TEXT("LD_FINAL_KILL_RECOVERY_FAULT killer=%s: %s"), *LDLog::Id(Recipient), *RecoverError);
+            }
+        }
         Receipt.Recipient = Recipient;
         Finish(ELDRewardOutcome::NoReward, ELDGrowthReason::PhaseClosed);
         RecordReward(Receipt);
@@ -351,24 +363,31 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     }
 
     // Killer receives 100% XP + 1 card offer (up to 2 per field segment, else +2 stat points); each assister receives
-    // 50% XP + 1 stat point independently; shutting down a trending Leader grants extra +150 XP + 3 stat points + 1 Rare/Legendary offer.
+    // 50% XP + 1 stat point independently; shutting down a trending Leader grants extra BountyXP + 3 stat points + 1 Rare/Legendary offer.
     FLDAssistRewardShares Split;
-    if (!LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
+    if (bContenderVictim
+        ? !LDAssist::ContenderKillShares(Amounts.XP, Death.Assisters.Num(), Content->Get().Parameters.AssistXPRatioBp, Split)
+        : !LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow);
     }
     const bool bLeaderShutdown = bContenderVictim && M->IsBountyDeath(Death.Key);
+    if (bLeaderShutdown)
+    {
+        if (Split.KillerXP > MAX_int64 - Content->Get().Parameters.BountyXP)
+        { return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow); }
+        Split.KillerXP += Content->Get().Parameters.BountyXP;
+    }
     TArray<FRewardShare> Shares;
     FRewardShare& Killer = Shares.AddDefaulted_GetRef();
     Killer.Recipient = Recipient;
-    Killer.Amounts.XP = Split.KillerXP + (bLeaderShutdown ? 150 : 0);
+    Killer.Amounts.XP = Split.KillerXP;
     if (bContenderVictim)
     {
         Killer.PvPKillSegment = int32(M->GetTimeline().GetFieldSegment());
         if (bLeaderShutdown)
         {
             Killer.BonusStatPoints += 3;
-            Killer.ExtraOffers.Add(ELDCardOfferSource::LeaderBounty);
         }
     }
     for (const FGuid& Assister : Death.Assisters)
@@ -393,6 +412,23 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     if (Outcome != ELDRewardOutcome::Granted)
     {
         return Finish(Outcome, Reason);
+    }
+    // A contender kill may drop an element medal (REWARD.KillMedalChance); the bounty killer also picks one of
+    // REWARD.BountyCardOffer cards.
+    if (bContenderVictim)
+    {
+        FString KillError;
+        const uint64 DeathHash = HashCombine(GetTypeHash(Death.Key.Victim.EntityId), Death.Key.Victim.Life);
+        if (!M->Development->RollMedal(Recipient, Content->Get().Parameters.KillMedalChanceBp, 0x4B494C4C00000000ull ^ DeathHash,
+            TEXT("contender_kill"), Permit, KillError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_MEDAL_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *KillError);
+        }
+        if (M->IsBountyDeath(Death.Key)
+            && !M->PayFieldReward(Recipient, TEXT("bounty"), DeathHash | 1ull, 0, ELDFieldRewardKind::BountyOffer, Permit, KillError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_BOUNTY_OFFER_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *KillError);
+        }
     }
     // The last hit on a camp monster may drop an element medal by the camp's tier (MEDAL.Camp*Chance). The peddler keeps a
     // camp definition but is an event: its own reward rolls MEDAL.EventChance once.

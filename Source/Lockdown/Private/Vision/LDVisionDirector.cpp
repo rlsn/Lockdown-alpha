@@ -18,6 +18,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -41,6 +42,55 @@ FGuid LDObservation::ScopedHitId(const FGuid& Handle, const FGuid& HitId)
 namespace
 {
 constexpr double SightCoordinateLimitCm = 1000000.0;
+// Allow small differences at collision seams while keeping the ramp test local to the same inclined plane.
+constexpr double RampSurfaceToleranceCm = 2.0;
+
+bool IsWalkableSightSupport(const FHitResult& Support)
+{
+    static const double WalkableFloorZ = GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorZ();
+    return Support.GetComponent() && !Support.bStartPenetrating && Support.ImpactNormal.Z >= WalkableFloorZ;
+}
+
+bool IsSightSlope(const FHitResult& Support)
+{
+    return IsWalkableSightSupport(Support) && Support.ImpactNormal.Z < .9999;
+}
+
+UPrimitiveComponent* AuthoredSightRamp(const FHitResult& Support)
+{
+    static const FName RampTag(TEXT("LDIndependentRamp"));
+    auto* Part = Support.GetComponent();
+    return Part && Part->GetOwner() && IsWalkableSightSupport(Support)
+        && (Part->ComponentHasTag(RampTag) || Part->GetOwner()->ActorHasTag(RampTag)) ? Part : nullptr;
+}
+
+double RampHeightAt(const FHitResult& Support, const FVector2D& Point)
+{
+    const FVector2D Offset = Point - FVector2D(Support.ImpactPoint);
+    return Support.ImpactPoint.Z - FVector2D::DotProduct(FVector2D(Support.ImpactNormal), Offset) / Support.ImpactNormal.Z;
+}
+
+bool OnSameSightSlope(const FHitResult& Source, const FHitResult& Target)
+{
+    return IsSightSlope(Source) && IsSightSlope(Target) && Source.ImpactNormal.Equals(Target.ImpactNormal, .001)
+        && FMath::Abs(Target.ImpactPoint.Z - RampHeightAt(Source, FVector2D(Target.ImpactPoint))) <= RampSurfaceToleranceCm;
+}
+
+bool EntersSightRampAtBase(const FHitResult& Source, const FHitResult& Target)
+{
+    auto* Ramp = Target.GetComponent();
+    const bool bAuthoredRamp = AuthoredSightRamp(Target) != nullptr;
+    if (!IsWalkableSightSupport(Source) || (!bAuthoredRamp && !IsSightSlope(Target))) { return false; }
+    const double EntryZ = Source.ImpactPoint.Z + RampSurfaceToleranceCm;
+    if (Target.ImpactPoint.Z <= EntryZ) { return false; }
+
+    // At the observer's ground level a ramp mouth presents a walkable face. A raised side,
+    // cliff or detached ramp cannot grant the same exception to the elevation rule.
+    FHitResult Entry;
+    return Ramp->LineTraceComponent(Entry, FVector(FVector2D(Source.ImpactPoint), EntryZ),
+        FVector(FVector2D(Target.ImpactPoint), EntryZ), FCollisionQueryParams(SCENE_QUERY_STAT(DemoRampEntrySight), false))
+        && IsSightSlope(Entry) && (bAuthoredRamp || OnSameSightSlope(Entry, Target));
+}
 
 void PKTeammateFeet(const ALDGameMode& Mode, const ALDPKDirector* PK, const FGuid& Observer, TArray<FVector>& Out)
 {
@@ -186,7 +236,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
         && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0) && A.RecentReaction == B.RecentReaction
         && A.RecentHitId == B.RecentHitId
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
-        && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
+        && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2 && A.ShieldBar == B.ShieldBar
         && A.MomentumBar == B.MomentumBar && A.bCharging == B.bCharging && A.bOverdriveCast == B.bOverdriveCast
         && A.ActionComboStep == B.ActionComboStep
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
@@ -382,9 +432,15 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
         && FootCm.X >= Min.X && FootCm.X <= Max.X && FootCm.Y >= Min.Y && FootCm.Y <= Max.Y;
 }
 
-bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier, double SourceGroundZ) const
+bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier,
+    double SourceGroundZ, const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
 {
-    if (TargetTier > Observer) { return true; }
+    const UPrimitiveComponent* AuthoredRamp = AuthoredSightRamp(SourceSupport);
+    const bool bSameAuthoredRamp = AuthoredRamp && AuthoredRamp == TargetSupport.GetComponent() && IsWalkableSightSupport(TargetSupport);
+    const bool bSameSlope = bSameAuthoredRamp || OnSameSightSlope(SourceSupport, TargetSupport);
+    const bool bEntersRamp = !bSameSlope && TargetTier > Observer && EntersSightRampAtBase(SourceSupport, TargetSupport);
+    const bool bAlongRamp = bSameSlope || bEntersRamp;
+    if (TargetTier > Observer && !bAlongRamp) { return true; }
     const int32 Level = Observer / 2;
     const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
     int32 X0, Y0, X1, Y1;
@@ -406,6 +462,22 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
     }
     if (const UWorld* Native = Scene.Get())
     {
+        const double EndZ = bAlongRamp ? TargetSupport.ImpactPoint.Z : SourceGroundZ;
+        auto* RampStart = bAlongRamp ? SourceSupport.GetComponent() : nullptr;
+        auto* RampEnd = bAlongRamp ? TargetSupport.GetComponent() : nullptr;
+        const bool bAuthoredPath = bSameAuthoredRamp || (bEntersRamp && AuthoredSightRamp(TargetSupport));
+        const auto BlocksRamp = [&](UPrimitiveComponent* Part)
+        {
+            FHitResult Hit;
+            // Authored ramps can include changes in grade. Their own surface blocks at the sight ray,
+            // while a shared plane on a merged piece still checks for intervening cliff faces.
+            const double Lift = Part == RampEnd && bAuthoredPath ? SampleHeightCm : RampSurfaceToleranceCm;
+            return Part && !LDSceneTags::NoViewBlock(*Part) && Part->LineTraceComponent(Hit,
+                FVector(From, SourceGroundZ + Lift), FVector(To, EndZ + Lift),
+                FCollisionQueryParams(SCENE_QUERY_STAT(DemoRampSight), false));
+        };
+        // A merged piece can still contain a cliff between two ramp points.
+        if (BlocksRamp(RampStart) || (RampEnd != RampStart && BlocksRamp(RampEnd))) { return true; }
         TBitArray<TInlineAllocator<4>> TestedParts(false, NativeTerrainParts.Num());
         for (int32 Y = Y0; Y <= Y1; ++Y)
         {
@@ -417,9 +489,14 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                     TestedParts[Index] = true;
                     const auto& Entry = NativeTerrainParts[Index];
                     auto* Part = Entry.Component.Get();
-                    if (!Part || (Entry.Tier!=INDEX_NONE && Entry.Tier <= Observer)) { continue; }
+                    if (!Part || Part == RampStart || Part == RampEnd || (Entry.Tier!=INDEX_NONE && Entry.Tier <= Observer)) { continue; }
                     if (Entry.Tier==INDEX_NONE)
                     {
+                        if (bAlongRamp)
+                        {
+                            if (BlocksRamp(Part)) { return true; }
+                            continue;
+                        }
                         // A single edited mesh may contain low ground, ramps and high ground. Its highest vertex
                         // cannot turn its entire footprint into a cliff, including the observer's own floor.
                         const double Height=(Observer+1)*Terrain.StepCm*.5+.01;
@@ -459,7 +536,7 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
             Query = &NativeSightQueries.Add(Level, MoveTemp(PreparedQuery));
         }
         return Native->LineTraceTestByChannel(FVector(From, Z + SampleHeightCm),
-            FVector(To, Z + SampleHeightCm), ECC_GameTraceChannel2, *Query);
+            FVector(To, EndZ + SampleHeightCm), ECC_GameTraceChannel2, *Query);
     }
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
@@ -500,22 +577,29 @@ ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVecto
     const FVector2D From(SourceFootCm.X, SourceFootCm.Y), To(TargetFootCm.X, TargetFootCm.Y);
     if (FVector2D::DistSquared(From, To) > RadiusCm * RadiusCm) { return ELDSightResult::OutOfRange; }
     double SourceZ=SourceFootCm.Z,TargetZ=TargetFootCm.Z;
-    int32 Observer=Terrain.Tier(From),Target=Terrain.Tier(To);
+    int32 Observer, Target;
+    FHitResult SourceSupport, TargetSupport;
     if (Scene.IsValid())
     {
-        if (!Terrain.GroundNear(SourceFootCm,SourceZ,Observer))
+        if (!Terrain.GroundNear(SourceFootCm,SourceZ,Observer,false,&SourceSupport))
         { Observer=FMath::Max(0,FMath::FloorToInt32((SourceFootCm.Z+.01)*2/Terrain.StepCm)); }
-        if (!Terrain.GroundNear(TargetFootCm,TargetZ,Target))
+        if (!Terrain.GroundNear(TargetFootCm,TargetZ,Target,false,&TargetSupport))
         { Target=FMath::Max(0,FMath::FloorToInt32((TargetFootCm.Z+.01)*2/Terrain.StepCm)); }
     }
-    return SegmentBlocked(From, To, Observer, Target, SourceZ) ? ELDSightResult::Blocked : ELDSightResult::Visible;
+    else
+    {
+        Observer = Terrain.Tier(From);
+        Target = Terrain.Tier(To);
+    }
+    return SegmentBlocked(From, To, Observer, Target, SourceZ, SourceSupport, TargetSupport)
+        ? ELDSightResult::Blocked : ELDSightResult::Visible;
 }
 
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
 {
-    const int32 Side = LDObservation::CoverageSide;
-    const double CellX = (Max.X - Min.X) / Side, CellY = (Max.Y - Min.Y) / Side;
-    return FVector2D(Min.X + ((Index % Side) + .5) * CellX, Min.Y + ((Index / Side) + .5) * CellY);
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
+    return FVector2D(Min.X + ((Index % Width) + .5) * CellX, Min.Y + ((Index / Width) + .5) * CellY);
 }
 
 void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const
@@ -523,27 +607,61 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionCoverage);
     OutBits.Init(0, LDObservation::CoverageBytes);
     if (!IsValid() || !InBounds(SourceFootCm)) { return; }
-    const int32 Side = LDObservation::CoverageSide;
-    const double CellX = (Max.X - Min.X) / Side, CellY = (Max.Y - Min.Y) / Side;
-    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - RadiusCm - Min.X) / CellX), 0, Side - 1);
-    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + RadiusCm - Min.X) / CellX), 0, Side - 1);
-    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Side - 1);
-    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Side - 1);
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    const double CellX = (Max.X - Min.X) / Width, CellY = (Max.Y - Min.Y) / Height;
+    const int32 X0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X - RadiusCm - Min.X) / CellX), 0, Width - 1);
+    const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + RadiusCm - Min.X) / CellX), 0, Width - 1);
+    const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Height - 1);
+    const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Height - 1);
     const FVector2D From(SourceFootCm);
     double SourceZ=SourceFootCm.Z;
-    int32 ObserverTier = Terrain.Tier(From);
-    if (Scene.IsValid() && !Terrain.GroundNear(SourceFootCm,SourceZ,ObserverTier))
+    FHitResult SourceSupport;
+    int32 ObserverTier;
+    if (!Scene.IsValid()) { ObserverTier = Terrain.Tier(From); }
+    else if (!Terrain.GroundNear(SourceFootCm,SourceZ,ObserverTier,false,&SourceSupport))
     { ObserverTier=FMath::Max(0,FMath::FloorToInt32((SourceFootCm.Z+.01)*2/Terrain.StepCm)); }
+    auto* AuthoredRamp = AuthoredSightRamp(SourceSupport);
+    const FBodyInstance* RampBody = AuthoredRamp ? AuthoredRamp->GetBodyInstance() : nullptr;
+    const FBox RampBounds = RampBody ? RampBody->GetBodyBounds() : FBox(ForceInit);
+    const bool bOnSlope = IsSightSlope(SourceSupport);
+    const FCollisionQueryParams RampQuery(SCENE_QUERY_STAT(DemoRampCoverage), false);
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
         for (int32 X = X0; X <= X1; ++X)
         {
-            const int32 Index = Y * Side + X;
+            const int32 Index = Y * Width + X;
             const FVector2D Centre = CellCentre(Index);
-            int32 TargetTier=CoverageTiers[Index];
-            double TargetZ=0;
-            if (Scene.IsValid()) { Terrain.GroundNear(FVector(Centre,SourceZ+.1),TargetZ,TargetTier,true); }
-            if (FVector2D::DistSquared(From, Centre) <= RadiusCm * RadiusCm && !SegmentBlocked(From, Centre, ObserverTier, TargetTier, SourceZ))
+            if (FVector2D::DistSquared(From, Centre) > RadiusCm * RadiusCm) { continue; }
+            int32 TargetTier = CoverageTiers[Index];
+            FHitResult TargetSupport;
+            if (Scene.IsValid())
+            {
+                double TargetZ = 0;
+                const bool bOnAuthoredRamp = RampBounds.IsValid && RampBounds.IsInsideXY(FVector(Centre, 0.))
+                    && AuthoredRamp->LineTraceComponent(TargetSupport, FVector(Centre, RampBounds.Max.Z + 1.),
+                        FVector(Centre, RampBounds.Min.Z - 1.), RampQuery) && IsWalkableSightSupport(TargetSupport);
+                const bool bOnSameSlope = !bOnAuthoredRamp && bOnSlope
+                    && Terrain.GroundNear(FVector(Centre, RampHeightAt(SourceSupport, Centre) + RampSurfaceToleranceCm),
+                        TargetZ, TargetTier, false, &TargetSupport) && OnSameSightSlope(SourceSupport, TargetSupport);
+                if (bOnAuthoredRamp) { TargetTier = ObserverTier; }
+                else if (!bOnSameSlope)
+                {
+                    const int32 TopTier = CoverageTiers[Index];
+                    FHitResult TopSupport;
+                    if (TopTier > ObserverTier && Terrain.TraceGround(Centre, TopSupport)
+                        && (IsSightSlope(TopSupport) || AuthoredSightRamp(TopSupport)))
+                    {
+                        TargetTier = TopTier;
+                        TargetSupport = TopSupport;
+                    }
+                    else
+                    {
+                        TargetTier = TopTier;
+                        Terrain.GroundNear(FVector(Centre, SourceZ + .1), TargetZ, TargetTier, true, &TargetSupport);
+                    }
+                }
+            }
+            if (!SegmentBlocked(From, Centre, ObserverTier, TargetTier, SourceZ, SourceSupport, TargetSupport))
             { LDObservation::SetCoverageBit(OutBits, Index); }
         }
     }
@@ -1268,6 +1386,8 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         else { Unit.ActionCueImpactDelayMs = 0; }
         Unit.Health.CurrentP2 = State->Resources.HpP2;
         Unit.Health.MaxP2 = State->Resources.MaxHpP2;
+        Unit.ShieldBar = State->Resources.MaxHpP2 > 0 ? uint8(FMath::Clamp<int64>(FMath::Max<int64>(State->Resources.ShieldP2, 0)
+            * LDObservation::ShieldBarFull / State->Resources.MaxHpP2, 0, LDObservation::ShieldBarFull)) : 0;
         Unit.Statuses = Facts.Statuses;
         if (Ref.Victim.Kind == ELDVictimKind::Contender)
         {
@@ -1324,7 +1444,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     if (!ReadObserver(Observer, Life, Foot, Error)) { return false; }
     bool bReset = false;
     if (!Observer.Ledger.Bind(Life.Phase, Life.Life, bReset, Error)) { return false; }
-    if (bReset) { Observer.Coverage.Reset(); }
+    if (bReset) { Observer.Coverage.Reset(); Observer.LastSeen.Reset(); }
     ALDWorldViewRelay* Relay = Observer.Relay.Get();
     if (bReset && Relay)
     {
@@ -1355,7 +1475,13 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
             const ELDObservedResolve Seen = PresentationSight(*Mode, Combat, PK, Observer.ContenderId, bArena,
                 bSpectating, bPKObserver, Foot, TeammateFeet, Target.Body, Target.FootCm, Sight, Error);
             if (Seen == ELDObservedResolve::AuthorityFault) { return false; }
-            if (Seen == ELDObservedResolve::Resolved) { Visible.Add(&Target); }
+            if (Seen == ELDObservedResolve::Resolved)
+            {
+                Visible.Add(&Target);
+                if (!bArena) { Observer.LastSeen.Add(Target.Body.Victim.EntityId, {Target.Body.Victim.Life, Mode->GetAuthorityNowSeconds(), Target.FootCm}); }
+            }
+            // A thin obstacle that hides it for a moment keeps it in sight (and its lock and windup) for the grace.
+            else if (!bArena && InSightGrace(Observer, Target.Body, Foot, Target.FootCm)) { Visible.Add(&Target); }
         }
     }
     TArray<FGuid> Removed;
@@ -1601,7 +1727,8 @@ ELDObservedResolve ALDVisionDirector::ResolveObservedUnit(const ALDPlayerControl
     const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Sighted);
     if (Outcome == ELDObservedResolve::AuthorityFault)
     { return Refuse(Outcome, FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Sighted))); }
-    if (Outcome != ELDObservedResolve::Resolved)
+    const bool bArena = Core->PKDirector.Get() && Core->PKDirector->IsArenaActive();
+    if (Outcome != ELDObservedResolve::Resolved && (bArena || !InSightGrace(*Observer, Target, Foot, TargetFoot)))
     { return Refuse(Outcome, TEXT("The target is not visible at this authority moment.")); }
     Out.Target = Target;
     Out.FootCm = TargetFoot;
@@ -1757,6 +1884,21 @@ ELDSightResult ALDVisionDirector::TraceObservation(const FVector& SourceFootCm, 
     const FLDWorldRevision& Expected) const
 {
     return TraceSight(SourceFootCm, FootOf(Target), Expected);
+}
+
+bool ALDVisionDirector::InSightGrace(const FObserver& Observer, const FLDCombatBodyRef& Target, const FVector& ObserverFootCm,
+    const FVector& TargetFootCm) const
+{
+    // A body that moves farther than this between two samples was placed (respawn, rest, arena), not hidden.
+    constexpr double TeleportCm = 400.;
+    const FObserver::FSeen* Seen = Observer.LastSeen.Find(Target.Victim.EntityId);
+    const ALDGameMode* Core = AuthorityMode();
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Seen || !Core || !Content || !Registry || Seen->Life != Target.Victim.Life
+        || FVector::Dist2D(Seen->FootCm, TargetFootCm) > TeleportCm
+        || Core->GetAuthorityNowSeconds() - Seen->AtSeconds > double(Content->Get().Parameters.VisionSightGraceMs) / 1000.)
+    { return false; }
+    return TraceSight(ObserverFootCm, TargetFootCm, Registry->Revision()) == ELDSightResult::Blocked;
 }
 
 ELDSightResult ALDVisionDirector::CurrentObservation(const FVector& SourceFootCm, const ALDCharacter& Target) const

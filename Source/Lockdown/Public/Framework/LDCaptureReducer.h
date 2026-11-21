@@ -77,6 +77,10 @@ struct FLDCaptureFinalRules
     int64 HitAndRunFadeMs = 0;
     // final_kill_seconds: guard granted per contender kill.
     int64 KillGuardMs = 0;
+    // The guard checkpoint: an owner painted over after guarding at least GuardCheckpointMs starts its next own graffiti
+    // at GuardResumeMs instead of zero (once). 0 = none.
+    int64 GuardCheckpointMs = 0;
+    int64 GuardResumeMs = 0;
 };
 
 struct FLDShowdownTimeoutCandidate
@@ -159,6 +163,8 @@ public:
     bool IsCommittedMember(const FGuid& ContenderId) const;
     int64 GetBankedGuardMs(const FGuid& ContenderId) const { return BankedGuard.FindRef(ContenderId); }
     int64 GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const;
+    // final_private_pole: guard held elsewhere that counts toward the timeout ranking (its share, added once at the end).
+    bool CreditGuard(const FGuid& ContenderId, int64 GuardMs, FString& Error);
     uint32 GetCompletedSprays(const FGuid& ContenderId) const { return CompletedSprays.FindRef(ContenderId); }
     // A strict objective-contribution leader among living, unprotected members; a complete tie has no winner.
     FGuid TimeoutWinner() const;
@@ -217,6 +223,8 @@ private:
     FGuid Occupier;
     FGuid Owner;
     TMap<FGuid, int64> BankedGuard;
+    // Owners painted over past the checkpoint, and the guard their next own graffiti starts from.
+    TMap<FGuid, int64> GuardCheckpoints;
     TMap<FGuid, uint32> CompletedSprays;
     int64 GuardAccountedThroughMs = 0;
     FLDCaptureFinalRules Rules;

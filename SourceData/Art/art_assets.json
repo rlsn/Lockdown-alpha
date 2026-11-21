@@ -152,6 +152,17 @@
       "license": "Project-owned",
       "license_file": "ChefNinja/LICENSE.txt",
       "license_sha256": "c25236e3634ddecb4be45fb4b1d7186c0f8dadbfc92b734c89bb13eb9b39c696"
+    },
+    {
+      "id": "lockdown-cage-fence",
+      "name": "Cage fence panel (Blender model for Lockdown)",
+      "author": "Lockdown project",
+      "page_url": "",
+      "download_url": "",
+      "downloaded": "2026-11-21",
+      "license": "Project-owned",
+      "license_file": "Lockdown/CageFence/LICENSE.txt",
+      "license_sha256": "750721b27a44c4c204dbfafc6f0a1d69639901db580eabc723121176f438e598"
     }
   ],
   "files": [
@@ -567,6 +578,13 @@
       "pack_path": "tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_roughness.JPEG",
       "sha256": "47b1b3985424117ad6df5871549209f709ccc7d59d8d917ede0cc136c0991b9a",
       "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Lockdown/CageFence/cage_fence.glb",
+      "pack": "lockdown-cage-fence",
+      "pack_path": "cage_fence.glb",
+      "sha256": "6e1ce37770efd628e26d3c52370aa2a2c1e406c4075116175e434c2a4f134e2e",
+      "purpose": "final_cage fence panel"
     }
   ],
   "characters": [
@@ -1057,9 +1075,15 @@
       "id": "crate",
       "source": "Quaternius/ToonShooterGameKit/Crate.glb",
       "scale": 1.0
+    },
+    {
+      "id": "cage_fence",
+      "source": "Lockdown/CageFence/cage_fence.glb",
+      "scale": 1.0
     }
   ],
   "dressing": {
-    "airdrop_prop": "crate"
+    "airdrop_prop": "crate",
+    "cage_fence_prop": "cage_fence"
   }
 }

@@ -74,7 +74,8 @@ struct FLDObservedTarget
 // strictly convex polygon or an upright cylinder standing on one flat level, taller than the sight sample height.
 // #97 tiers (LDDemoWorld::FTerrain): nothing on a higher tier than the observer is seen, terrain of a higher tier
 // between them hides, and an obstacle hides only from observers at or below its level (a ramp counts as its lower
-// level), so high ground sees low ground over its walls and trees.
+// level), so high ground sees low ground over its walls and trees. A common walkable ramp plane
+// can span several native height bands.
 class LOCKDOWN_API FLDSightGeometry
 {
 public:
@@ -92,7 +93,8 @@ public:
     // #198 session D: marks every coverage cell whose centre lies within the disk (a spectator's arena permission).
     void AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const;
 private:
-    bool SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 ObserverTier, int32 TargetTier, double SourceGroundZ) const;
+    bool SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 ObserverTier, int32 TargetTier,
+        double SourceGroundZ, const FHitResult& SourceSupport, const FHitResult& TargetSupport) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
     // blockers of the cells its bounds touch (a blocker may be tested more than once, never skipped).
     void BuildGrid();
@@ -278,6 +280,9 @@ private:
         FLDObserverCoverage Coverage;
         FLDWorldView Latest;
         bool bHasLatest = false;
+        // VISION.SightGraceSec: when and where each unit's life was last in this observer's own sight.
+        struct FSeen { uint32 Life = 0; double AtSeconds = 0; FVector FootCm = FVector::ZeroVector; };
+        TMap<FGuid, FSeen> LastSeen;
     };
     ALDGameMode* AuthorityMode() const;
     FObserver* FindObserver(const ALDPlayerController& Caller);
@@ -286,6 +291,10 @@ private:
     // Authority-time observation of a registered body that also proves the registered world has not changed under
     // observation.
     ELDSightResult CurrentObservation(const FVector& SourceFootCm, const ALDCharacter& Target) const;
+    // VISION.SightGraceSec: Target was in Observer's own sight a moment ago and only an obstacle hides it now (in range,
+    // the same life, no teleport, outside an active PK arena).
+    bool InSightGrace(const FObserver& Observer, const FLDCombatBodyRef& Target, const FVector& ObserverFootCm,
+        const FVector& TargetFootCm) const;
     bool GatherTargets(TArray<FLDObservedTarget>& Out, FString& Error) const;
     bool SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
         const TArray<FLDObservedProjectileFact>& Flights, const TArray<FLDObservedGroundFact>& Grounds, bool bPublish, FString& Error);

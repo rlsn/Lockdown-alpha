@@ -55,14 +55,20 @@ bool FLDDemoAssistRewardSplitTest::RunTest(const FString& Parameters)
     FLDAssistRewardShares Shares;
     TestTrue(TEXT("Without assisters the killer takes everything"), LDAssist::SplitKillReward(100, 0, Shares)
         && Shares.KillerXP == 100 && Shares.AssisterXP == 0);
-    TestTrue(TEXT("Two assisters: killer keeps 100% and each assister receives 50%"),
-        LDAssist::SplitKillReward(100, 2, Shares) && Shares.KillerXP == 100 && Shares.AssisterXP == 50);
-    TestTrue(TEXT("Three assisters: 120 XP -> 120 killer, 60 each assister"),
-        LDAssist::SplitKillReward(120, 3, Shares) && Shares.KillerXP == 120 && Shares.AssisterXP == 60);
-    TestTrue(TEXT("An odd amount floors the assister half: 7 XP -> 7 killer, 3 each assister"),
-        LDAssist::SplitKillReward(7, 4, Shares) && Shares.KillerXP == 7 && Shares.AssisterXP == 3);
+    TestTrue(TEXT("Two assisters split three ways, floored"),
+        LDAssist::SplitKillReward(100, 2, Shares) && Shares.KillerXP == 33 && Shares.AssisterXP == 33);
+    TestTrue(TEXT("Three assisters split four ways"),
+        LDAssist::SplitKillReward(120, 3, Shares) && Shares.KillerXP == 30 && Shares.AssisterXP == 30);
+    TestTrue(TEXT("A remainder is dropped rather than invented: 7 XP five ways -> 1 each"),
+        LDAssist::SplitKillReward(7, 4, Shares) && Shares.KillerXP == 1 && Shares.AssisterXP == 1);
     TestFalse(TEXT("A negative amount is refused"), LDAssist::SplitKillReward(-1, 1, Shares));
     TestFalse(TEXT("A negative assister count is refused"), LDAssist::SplitKillReward(10, -1, Shares));
+    // A contender kill: the killer keeps the whole XP and each assister takes its share on top.
+    TestTrue(TEXT("A contender kill keeps the whole XP for the killer and gives each assister half"),
+        LDAssist::ContenderKillShares(180, 2, 5000, Shares) && Shares.KillerXP == 180 && Shares.AssisterXP == 90);
+    TestTrue(TEXT("Without assisters the killer still takes everything"),
+        LDAssist::ContenderKillShares(100, 0, 5000, Shares) && Shares.KillerXP == 100 && Shares.AssisterXP == 0);
+    TestFalse(TEXT("A share above the whole is refused"), LDAssist::ContenderKillShares(100, 1, 10001, Shares));
     return true;
 }
 

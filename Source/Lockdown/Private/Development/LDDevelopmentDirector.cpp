@@ -619,8 +619,7 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
     Out.Stage = GameMode->ReadBuildStage(Match);
-    Out.bDormSwapReady = Out.Stage == LDProgression::EMatchStage::Live && Out.LifePhase == ELDLifePhase::Alive
-        && GameMode->Combat->IsDormSwapReady(ContenderId, GameMode->GetAuthorityNowMs());
+    Out.bDormRested = Out.Stage == LDProgression::EMatchStage::Live && GameMode->Combat->IsDormRested(LifeRead.Body);
     return true;
 }
 
@@ -1069,6 +1068,7 @@ ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, 
 {
     ALDGameMode* GameMode = Mode();
     FRecord* Record = Records.Find(ContenderId);
+    // PK settlements and trending survival points pay in Transactions.
     if (!GameMode || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
     {
         return ELDGrowthReason::AuthorityFault;

@@ -1095,10 +1095,21 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     // The card-offer levels 2, 4 and 6 each receive their named card instead of a level-up offer.
     const TArray<FName> FixedCards = {FName(TEXT("card_third_breath")), FName(TEXT("card_third_breath")),
         FName(TEXT("card_hard_skin"))};
+    // Both preparations can roll the same medals from the match secret. The preset keeps those drops.
+    TArray<FName> ExpectedCards;
+    if (Six.IsSuccess())
+    {
+        for (const FLDCardInstance& Card : Six.Value->Build().Cards) { ExpectedCards.Add(Card.Id); }
+    }
+    ExpectedCards.Append(FixedCards);
     const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 500, FixedCards);
+    TArray<FName> ActualCards;
+    if (Fixed.IsSuccess())
+    {
+        for (const FLDCardInstance& Card : Fixed.Value->Build().Cards) { ActualCards.Add(Card.Id); }
+    }
     bGood &= Test.TestTrue(TEXT("The evaluation XP preparation replaces exactly the earned level-up offers without committing"),
-        Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && Fixed.Value->Build().Cards.Num() == 3
-        && Fixed.Value->Build().Cards[0].Id == FixedCards[0] && Fixed.Value->Build().Cards[2].Id == FixedCards[2]
+        Six.IsSuccess() && Fixed.IsSuccess() && Fixed.Value->Build().Level == 6 && ActualCards == ExpectedCards
         && Fixed.Value->CardOfferLast() < Fixed.Value->CardOfferFirst()
         && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
     bGood &= Test.TestTrue(TEXT("An incomplete evaluation level preset is refused without changing the existing build"),
@@ -1175,7 +1186,7 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
         LDProgression::EligibleActives(Content, GrowthTestBuild(Content, 3, {{Elbow, 0}}, {Elbow}), 2, Eligible), ELDGrowthReason::DataInvalid);
 
     // Uniform without replacement and deterministic in the seed: every pool member shows up about equally often.
-    const auto Draws = [&](const FLDGrowthBuild& Build, uint8 Ordinal, const TArray<FName>& Pool, const TCHAR* What)
+    const auto Draws = [&](const FLDGrowthBuild& Build, uint8 Ordinal, const TArray<FName>& Pool, const TCHAR* What, bool bUniform = true)
     {
         TMap<FName, int32> Counts;
         constexpr int32 Rounds = 1300;
@@ -1196,16 +1207,17 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
         bool bGoodDraws = Test.TestTrue(FString::Printf(TEXT("%s: every draw replays, holds min(3, pool) distinct pool members"), What),
             bShape);
         // Each member's expectation is Rounds x 3 / pool; a member far outside half to one and a half of it is no uniform draw.
+        // The bucketed opening draw is not uniform, but it never leaves a pool member out.
         const double Expected = double(Rounds) * FMath::Min(3, Pool.Num()) / Pool.Num();
         for (const FName Id : Pool)
         {
             const int32 Count = Counts.FindRef(Id);
             bGoodDraws &= Test.TestTrue(FString::Printf(TEXT("%s: %s drawn %d times of about %.0f"), What, *Id.ToString(), Count, Expected),
-                Count > Expected * 0.5 && Count < Expected * 1.5);
+                bUniform ? Count > Expected * 0.5 && Count < Expected * 1.5 : Count > 0);
         }
         return bGoodDraws;
     };
-    bGood &= Draws(Fresh, 1, Opening, TEXT("The opening offer"));
+    bGood &= Draws(Fresh, 1, Opening, TEXT("The opening offer"), false);
     bGood &= Draws(Fresh, 2, All, TEXT("A level 3 offer of an empty build"));
     TArray<FName> HeldPool;
     LDProgression::EligibleActives(Content, Held, 2, HeldPool);
@@ -2546,8 +2558,10 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     LDProgression::FRewardAmounts Base;
     GrowthTestReason(*this, TEXT("The level-1 contender bounty is approved"),
         LDProgression::ContenderKillReward(Tuning, uint8(Catalog->Get().Progression.MaxLevel), 1, Base), ELDGrowthReason::None);
+    // The killer keeps the whole XP; each assister takes REWARD.AssistXPRatio of it on top + 1 stat point.
     const int64 KillerXP = Base.XP;
-    const int64 AssistXP = Base.XP / 2;
+    const int64 AssistXP = Base.XP * Catalog->Get().Parameters.AssistXPRatioBp / 10000;
+    if (!TestTrue(TEXT("Every assist share is positive and below the whole"), AssistXP > 0 && AssistXP < KillerXP)) { return false; }
 
     const FLDCommittedDeath Assisted = ContenderDeath(1, {A1, A2});
     FLDRewardReceipt Receipt;

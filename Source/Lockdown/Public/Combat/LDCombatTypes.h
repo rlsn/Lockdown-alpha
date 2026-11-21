@@ -425,6 +425,10 @@ struct FLDCombatEntryView
     // Skill rank 1..3 and branch path of a learned Q/W/E (ELDSkillBranch); 0/None for the innate dash or an empty slot.
     UPROPERTY() uint8 Rank=0;
     UPROPERTY() uint8 Branch=0;
+    // A learned Q/W/E as it would release now: the product of its card damage factors (K09/K12/K16/K17/K18 and an armed
+    // K05; 10000 = none) and the cooldown its next release would issue after haste and cards (0 when unknown).
+    UPROPERTY() int64 DamageFactorBp=10000;
+    UPROPERTY() int64 NextCooldownMs=0;
     UPROPERTY() FGuid IssuedCooldownId;              // persistent cooldown identity; owner view only
     UPROPERTY() int64 ReadyAtMs=0;                   // persistent track end; <= now means ready
     UPROPERTY() int64 CooldownMs=0;                  // duration last issued on this track, for the UI ratio

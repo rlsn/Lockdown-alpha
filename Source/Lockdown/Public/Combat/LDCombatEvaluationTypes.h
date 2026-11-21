@@ -64,7 +64,7 @@ struct FLDDamageEvaluationInput
     int64 DeliveryScaleBp = 10000;
     // A package multiplier of the raw amount (a skill branch's share), applied with the delivery share; 1..100000.
     int64 PackageScaleBp = 10000;
-    // The activated thick-skin keystone cuts after the ordinary primary guard.
+    // The activated thick-skin keystone cuts Max(KeystoneGuardP2, Damage * KeystoneGuardCapBp) on hits >= 30 (or pure ratio when KeystoneGuardP2 == 0).
     int64 KeystoneGuardP2 = 0;
     int64 KeystoneGuardCapBp = 0;
     // #198 S16: the target's stance cuts this share of the hit after resistance and delivery scaling, before the guard.
@@ -101,17 +101,6 @@ struct FLDCombatRoot
     int64 ExpiresAtMs = 0;
 };
 
-// One independent shield entry in a body's multi-source shield stack (shortest remaining duration absorbs first).
-struct FLDActiveShield
-{
-    FGuid EffectId;
-    FGuid SourceEntity;
-    int64 AmountP2 = 0;
-    int64 GrantedP2 = 0;
-    int64 ExpiresAtMs = 0;
-};
-
-// Legacy single-slot shield struct kept for pure status-rule compatibility.
 struct FLDCombatShield
 {
     FGuid EffectId;

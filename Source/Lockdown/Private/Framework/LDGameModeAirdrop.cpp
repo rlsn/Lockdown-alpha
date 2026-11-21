@@ -38,22 +38,6 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
     return true;
 }
 
-void ALDGameMode::SpawnCampRecoveryOrb(const FVector& FootCm, int64 FieldMs)
-{
-    CampRecoveryOrbs.Add({FGuid::NewGuid(), FootCm, FieldMs + 12000, ++NextCampOrbSerial});
-}
-
-void ALDGameMode::ReadActiveCampRecoveryOrbs(TArray<TPair<FGuid, FVector>>& Out) const
-{
-    Out.Reset();
-    if (!IsFieldRunning() || CampRecoveryOrbs.IsEmpty()) { return; }
-    const int64 NowMs = GetFieldNowMs();
-    for (const FLDCampRecoveryOrb& Orb : CampRecoveryOrbs)
-    {
-        if (Orb.ObservedKey.IsValid() && NowMs < Orb.ExpiresFieldMs) { Out.Emplace(Orb.ObservedKey, Orb.FootCm); }
-    }
-}
-
 bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Airdrop.IsActive()
@@ -64,35 +48,6 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
     }
     if (!IsFieldRunning()) { return true; }
     const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
-    if (!CampRecoveryOrbs.IsEmpty())
-    {
-        CampRecoveryOrbs.RemoveAll([NowMs](const FLDCampRecoveryOrb& Orb) { return NowMs >= Orb.ExpiresFieldMs; });
-        if (!CampRecoveryOrbs.IsEmpty())
-        {
-            TArray<LDAirdrop::FCandidate> OrbCandidates;
-            Combat->ReadLivingContenderFeet(OrbCandidates);
-            for (int32 Index = 0; Index < CampRecoveryOrbs.Num();)
-            {
-                const FLDCampRecoveryOrb Orb = CampRecoveryOrbs[Index];
-                FGuid OrbClaimer;
-                if (!LDAirdrop::PickClaimer(Orb.FootCm, 90.0, OrbCandidates, 0xCA4902B0ull + Orb.Serial, OrbClaimer))
-                {
-                    ++Index;
-                    continue;
-                }
-                bool bOrbApplied = false;
-                if (!Combat->ApplyCampRecoveryOrb(OrbClaimer, Permit, bOrbApplied, Error)) { return false; }
-                if (!bOrbApplied)
-                {
-                    ++Index;
-                    continue;
-                }
-                UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_ORB_CLAIM serial=%llu contender=%s field_t_ms=%lld"),
-                    Orb.Serial, *LDLog::Id(OrbClaimer), NowMs);
-                CampRecoveryOrbs.RemoveAt(Index, EAllowShrinking::No);
-            }
-        }
-    }
     if (Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
     const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
     TArray<LDAirdrop::FCandidate> Candidates;
@@ -136,5 +91,55 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, uint32(Receipt.FieldResult),
         *Receipt.FieldDefinition.ToString(), *LDLog::P2(Effects.HpBeforeP2), *LDLog::P2(Effects.HpAfterP2),
         *LDLog::P2(Effects.MomentumBeforeP2), *LDLog::P2(Effects.MomentumAfterP2), Effects.MoveSpeedBonusUntilMs, NowMs);
+    return true;
+}
+
+void ALDGameMode::DropRecoveryOrb(const FVector& PositionCm)
+{
+    if (!DemoContent || !IsFieldRunning()) { return; }
+    FLDRecoveryOrbView& Orb = RecoveryOrbs.AddDefaulted_GetRef();
+    Orb.Serial = ++RecoveryOrbSerial;
+    Orb.PositionCm = PositionCm;
+    Orb.ExpireAtMs = GetFieldNowMs() + DemoContent->Get().Parameters.CampClearOrbMs;
+    bPublicMatchDirty = true;
+    UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_DROP serial=%llu field_t_ms=%lld"), Orb.Serial, GetFieldNowMs());
+}
+
+bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Combat || !DemoContent)
+    {
+        Error = TEXT("A recovery orb claim requires the current Transactions permit, Combat and the approved content.");
+        return false;
+    }
+    if (RecoveryOrbs.IsEmpty() || !IsFieldRunning()) { return true; }
+    const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
+    const auto& Parameters = DemoContent->Get().Parameters;
+    constexpr double PickupCm = 90.0;
+    TArray<LDAirdrop::FCandidate> Candidates;
+    Combat->ReadLivingContenderFeet(Candidates);
+    for (int32 Index = RecoveryOrbs.Num() - 1; Index >= 0; --Index)
+    {
+        const FLDRecoveryOrbView Orb = RecoveryOrbs[Index];
+        FGuid Claimer;
+        // An orb at or past its end is gone, never claimed on that boundary.
+        if (NowMs < Orb.ExpireAtMs && LDAirdrop::PickClaimer(Orb.PositionCm, PickupCm, Candidates, uint32(Orb.Serial), Claimer))
+        {
+            FLDContenderLifeRead Life;
+            FString LifeError;
+            if (ReadContenderLife(MatchContext, Claimer, Life, LifeError)
+                && !Combat->RecoverContender(Life.Body, 0, Parameters.CampClearHealMissingBp, Parameters.CampClearMomentumP2, Permit, Error))
+            { return false; }
+            RecoveryOrbs.RemoveAt(Index);
+            bPublicMatchDirty = true;
+            UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_CLAIM serial=%llu contender=%s field_t_ms=%lld"), Orb.Serial,
+                *LDLog::Id(Claimer), NowMs);
+        }
+        else if (NowMs >= Orb.ExpireAtMs)
+        {
+            RecoveryOrbs.RemoveAt(Index);
+            bPublicMatchDirty = true;
+        }
+    }
     return true;
 }

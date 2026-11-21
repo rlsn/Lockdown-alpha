@@ -55,6 +55,17 @@ struct FLDAirdropView
     // Claimed says only that the drop is gone: neither who took it nor when (App Spec §5.3).
 };
 
+// A recovery orb a whole camp clear leaves on the camp anchor: the first living contender to touch it (AIRDROP.PickupRadiusCm)
+// heals CAMP.ClearHealMissingRatio of its missing HP and gains CAMP.ClearMomentum; it fades at ExpireAtMs (field T).
+USTRUCT()
+struct FLDRecoveryOrbView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() FVector PositionCm = FVector::ZeroVector;
+    UPROPERTY() int64 ExpireAtMs = 0;
+};
+
 // #198 outer §5 camp markers. Wire values are stable.
 UENUM()
 enum class ELDFieldMarkerKind : uint8 { None = 0, High = 1, Elite = 2 };
@@ -171,6 +182,8 @@ struct FLDPublicMatchView
     UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
     UPROPERTY() FLDAirdropView Airdrop;
+    // The recovery orbs on the field now (none outside a running field).
+    UPROPERTY() TArray<FLDRecoveryOrbView> RecoveryOrbs;
     UPROPERTY() FLDLeaderView Leader;
     UPROPERTY() FLDBossView Boss;
     // #198 outer §5: the camp markers of the current (or, until the next reveal, the last) timed field segment.
@@ -191,6 +204,8 @@ struct FLDPublicMatchView
     UPROPERTY() int64 CageUntilMs = 0;
     UPROPERTY() FVector CageCentreCm = FVector::ZeroVector;
     UPROPERTY() float CageRadiusCm = 0;
+    // Its integrity: the share of its durability (`hp`) hostile hits across it have not yet worn down (1..10000; 0 = none).
+    UPROPERTY() int32 CageIntegrityBp = 0;
     // Every contender's final mod, in roster order (final field only).
     UPROPERTY() TArray<FLDFinalModHolderView> FinalMods;
     UPROPERTY() TArray<FLDPrivatePoleView> PrivatePoles;

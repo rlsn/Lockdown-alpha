@@ -175,6 +175,36 @@ bool FLDFinalModClearOutTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureGuardCheckpointTest, "Lockdown.Rules.DemoCapture.GuardCheckpoint",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureGuardCheckpointTest::RunTest(const FString& Parameters)
+{
+    // An owner painted over after guarding past the checkpoint starts his next own graffiti from the resume guard, once.
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = FinalBody(A, 1), BodyB = FinalBody(B, 1);
+    FFinalProbe Probe{*this};
+    FLDCaptureFinalRules Rules;
+    Rules.GuardCheckpointMs = 500;
+    Rules.GuardResumeMs = 400;
+    TestTrue(TEXT("The reducer starts with a checkpoint"), Probe.Reducer.Begin(1000, 350, 1000, Probe.Error)
+        && Probe.Reducer.SetFinalRules(Rules, Probe.Error));
+    Probe.Add(FinalJoined(BodyA, true), TEXT("A joins inside"));
+    Probe.Add(FinalJoined(BodyB, false), TEXT("B joins outside"));
+    Probe.ExpectNoWin(1000, TEXT("Opening"));
+    Probe.ExpectNoWin(1350, TEXT("A's graffiti lands"));
+    Probe.Add(FinalPresence(BodyB, 1900, true), TEXT("B enters after A guarded 550"));
+    Probe.ExpectNoWin(1900, TEXT("B freezes A's guard"));
+    Probe.Add(FinalPresence(BodyA, 1950, false), TEXT("A leaves"));
+    Probe.ExpectNoWin(1950, TEXT("B sprays alone"));
+    Probe.ExpectNoWin(2300, TEXT("B paints over A's graffiti"));
+    Probe.Add(FinalPresence(BodyB, 2400, false), TEXT("B leaves"));
+    Probe.Add(FinalPresence(BodyA, 2400, true), TEXT("A comes back"));
+    Probe.ExpectNoWin(2400, TEXT("A sprays again"));
+    Probe.ExpectNoWin(2750, TEXT("A's graffiti lands again"));
+    TestEqual(TEXT("A's guard starts from the checkpoint's resume guard"), Probe.Reducer.GetGuardDueAtMs(), int64(2750 + 1000 - 400));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFinalModKillSecondsTest, "Lockdown.Rules.DemoFinalMod.KillSeconds",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDFinalModKillSecondsTest::RunTest(const FString& Parameters)

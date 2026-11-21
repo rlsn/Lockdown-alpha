@@ -128,7 +128,9 @@ Rejected 也可能 `ProtectionRemoved=true`。所有角色主动（含自身守�
 
 - Root 按 effect/cast + 完整目标生命保存独立实例与原期限，任一未到期即生效，显示最大剩余；同实例重发不续期，较早到期不清掉另一来源。禁止项为 `POLICY.RootBlocks`。
   “我没急”（`active_not_mad`）给护盾并解除当时全部减速与 Root，不带后续免疫。
-- `EFFECT.ShieldPolicy=ReplaceIfNotWeaker` 比较旧盾**当前剩余量**：新量不少于剩余即以新量、新来源、新截止完整替换；较弱保留旧盾，且只是子效果结果，组合净化照常、劲与冷却照付。
+- `EFFECT.ShieldPolicy=StackToLatestExpiry`（`LDTactical::ApplyShield`）：新盾的量加到旧盾**当前剩余量**上，没有上限；记录换成新来源，截止取新旧两者中较晚的一个。组合净化照常、劲与冷却照付。
+  每次施加另记一层（`FLDBodyCombatState::ShieldLayers`：EffectId、截止、剩余量），`Resources.ShieldP2` 是各层之和；
+  `ExpireShieldLayers` 让各层按自己的截止消失，伤害经 `SpendShieldLayers` 先扣最早到期的一层，返回打空的层数，`ApplyHit` 按层数各调用一次 `OnShieldBrokenCards`。护盾分支（S13 A1、S14 A1/A2）按层保存在 `FLDCombatBranchState::ShieldBranches`（以层的 EffectId 为键）：每层按自己的条款到期治疗、被打空时爆炸，层消失即删除；反伤取仍在或刚被打空的分支层中比例最高的一份。
   之后 Max/AP 变化不重算已快照盾。
 - **嘲讽**：`taunt` 在释放时让施放者半径内（脚点平面距离含边界）存活、无保护且此刻能观察到施放者的其他参赛者被嘲讽（野怪不受）；同一身体只保留最新一次；落地是一次控制（`LDControl::TauntVictim`）。
   期间 Q/W/E 与 D 经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能打嘲讽者那条生命，前摇中被禁止的动作当场放弃。每个 Actions 开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局
@@ -154,6 +156,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
 | `FLDDamageEvaluationResult` | `TOptional` Value 与 Code/Field/Message 的 Error；成功给 DamageP2、ShieldAbsorbedP2、HPLostP2、OverkillP2、RemainingHPP2/RemainingShieldP2。只有 `HPLostP2` 是实际扣血/吸血基数 |
 | `FLDBasicTimingInput` / `Result` | 基础与当前攻速有理数及 BaseWindupMs（玩家 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物 `CAMP.*.AttackSpeed/AttackWindupSec`）；输出 IntervalMs/WindupMs 且前摇小于间隔，不生成绝对时刻 |
 
+- 同时带攻击力与法强系数的命中，`ApplyHit` 按施放者两份贡献（攻击力 × ADRatio 与法强 × APRatio）中较大的一份定为物理或魔法伤害，相等时保留定义的类型。
 - HitClass 为 BasicPrimary、BasicSecondary、Ability：只有主普攻允许本次暴击（×`STAT.CritMultiplier`，在乘区之前）；带暴击的技能输入以 Domain 拒绝；反伤与附加伤害不暴击；Basic 拒绝 AP 系数与魔法伤害。
 - 完整字段、数值域与精确算术校验先于保护零伤；中间有理数保留到最终一次 floor/ceil；精度与取整只取内容合同（`FORMULA.Crit/Resistance/Damage`、`FORMULA.AttackIntervalMs/AttackWindupMs`）。
   原生公式夹具使用 producer 生成的 `approved_base`，`base` 是独立合成输入，不在夹具缺失时回退生产资产。
@@ -411,6 +414,9 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   的 Bp 相加，再把各组的 (1 + ΣBp) 相乘，结果以 `DAMAGE.FactorTechCap` 为技术上限（触顶 `LD_DAMAGE_FACTOR_CAPPED`），负值、无名键或
   int64 溢出明确失败。`EvaluateDamage` 读 `DamageFactorBp`（10000 = ×1），在暴击之后、抗性之前乘一次。释放时锁定的乘区
   （K09/K12 `skill_damage_factor`、K16 闲置、K17 成长）挂在 `FLDCombatCastLedger::Factors` 上，随本次释放的每个原生直接命中生效；
+- **关键石**（单项 18 点）：体格缩短脱战与躺平角回复等待并在战斗中按间隔给最大生命份额的护盾（`RegenerateBodies`）；
+  脸皮让下一次敌方直接伤害按份额减少、按间隔一次（`KeystoneGuardCapBp`）；力道对减速、减攻速、击退中或受硬控目标加乘区；
+  脑力在触发反应（含勋章）时给固定劲并减少全部冷却中技能的冷却（`ApplyElement`）；身手缩短 D 冷却并在冲刺完成后武装强化普攻。
   K04 记号、Y22 蓄力、Y27 反应倍率与力道关键石在命中时加入。Y22 与 K16 只按当前交战（`MarkEngaged` 记下的 `FightStartedAtMs`，
   距上次战斗事件不超过 `MOMENTUM.IdleDelaySec`）中的闲置计时，开打前最多带入 `CARDS.IdleCarrySec`（`IdleCountFloorMs`）。`LD_HIT` 写 `factor_bp` 与 `factors=键:Bp,...`。
 - **连锁保护**（spec §3.8）：`FLDCombatHit::ChainDepth` 是派生深度；`ApplyPendingHits` 给每个派生命中记上一层，超过 `CHAIN.MaxDepth`
@@ -427,7 +433,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   不触发技能本身效果）；A04 第 3 段真实击退；A06 第 3 段变成 N+1 下，各 0.8；A09 超出攻速上限的部分换成多打一下的概率；
   A11 附加法强魔法伤害（`FLDCombatHit::bRider` 骑乘命中，与主击共享暴击与乘区，不再触发）；A12 同一目标连续命中叠攻速；
   A14 主击加破防；A05 普攻变成飞行物（射程投影加长，命中即停）；A07 第 3 段扇形横扫；
-  A08 第 3 段命中按 Q 的射程以缩放效果放 Q（`QueueComboCast`，不耗劲、不进冷却、不触发爆劲）；A10 低攻速换普攻乘区；
+  A08 第 3 段命中按 Q 的射程以缩放效果放 Q（`QueueComboCast`，`bWholeEffectShare`：伤害、护盾、治疗的基础与系数及控制与附带控制时长都按份额缩放；不耗劲、不进冷却、不触发爆劲）；A10 低攻速换普攻乘区；
   A13 普攻命中参赛者计数成长攻击力。
 - **技能牌**（宿主是 `Active` 那个已学技能）：K01/D02 命中或接触后其他技能冷却减少（`HasteOtherActives`）；K02 命中回劲；K04 记号；
   K06 释放后排程 N 次自动重放（`ScheduleAutoRecasts`，60% 效果、不耗劲，`RunAutoRecasts` 在动作阶段执行）；K08/K09 冷却与劲耗
@@ -439,7 +445,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
 - **元素勋章**（`ELDCardForm::Medal`，`skill_element`）：在技能的元素槽里，宿主的命中带该元素（烫按 `stacks` 层）；在本体的元素槽里，
   `CardsOn(SkillElement, Basic)` 只把它加到最后一段普攻主击上。勋章不占容量（`LDProgression::InstalledCards` 不计），每个宿主一枚，
   装第二枚把第一枚换回牌库（`ApplyInstallCard`）。
-- **冲刺牌**：D01 接触敌人刷新冲刺冷却（每次冲刺一次）；D03 冲刺结束武装强化普攻；D05 冲刺分段（`SplitSegments`，同名多份多段，
+- **冲刺牌**：D01 接触参赛者刷新冲刺冷却，接触野怪或 Boss 只减剩余冷却的 30%（`OnDashContact`，每次冲刺一次）；D03 冲刺结束武装强化普攻；D05 冲刺分段（`SplitSegments`，同名多份多段，
   冷却不变）；D06 穿过敌人，对每个穿过的身体经 `MakeBasicStrike` 打一次普攻（算普攻命中，不推进连击）；D12 接触挂麻；
   D04 完美闪避后下一个技能免劲（`FreeCasts`，`OnPerfectDodgeCards`）；D07 冲刺加长并撞人（`DashRamHit`）；D08 冲刺耗劲换冷却
   （`DashMomentumCostP2`）；D09 完美闪避计数成长移速。
@@ -463,7 +469,7 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它�
   `ULDCharacterMovementComponent::StartDemoDash` 沿地面推开（遇阻停在最远合法点）；方向由 `KnockbackDirection` 从施放点（命中的
   `KnockbackAnchorCm` 或来源脚点）指向目标脚点。窗口内 `IsActionBlocked` 拒绝移动、位移、普攻与技能；Navigation 看到
   `ReadKnockbackSerial` 变化即放弃当前订单（`ELDOrderFailure::KnockedBack`，AI 视为 Dropped）。公开状态 `knockback`。
-- **护盾入口**：所有护盾（技能、受伤触发护盾、按嘲讽人数的护盾）只经 `GrantShieldTo` 以 `ReplaceIfNotWeaker` 安装；
+- **护盾入口**：所有护盾（技能、受伤触发护盾、按嘲讽人数的护盾）只经 `GrantShieldTo` 以 `StackToLatestExpiry` 安装；
   `ShieldGrantedP2` 记录当前记录的获得量。被伤害打空（`LDCombatMechanics::ShieldBroken`，到期或被消耗不算）时触发反击
   `OnShieldBroken`（`shield_break_retort`，内置冷却 `RetortReadyAtMs`；当前目录没有来源）；
   这些命中带 `bFromShieldTrigger`，不算 Q/W/E 命中。
@@ -706,7 +712,7 @@ World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Retu
 Y25 元素与缺元素拒绝；勋章让宿主命中挂冻与烫、第 3 段普攻挂馊；D10 路径冰带、D11 挪动一次、Y12 多留一份、Y23 站立乘区与离开清零）；其余牌的触发行为由 `Combat.Events.*` 与原生场景覆盖，未覆盖的写在 PR 里。
 `Combat.Events.*`在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻与灼烧入口驱动：S08 火与电同批先火后电及雾的即时潮湿、
 S19 触发后引信与到期不爆、S20 队友加速等，
-`DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
+`DemoAssist.*` 覆盖助攻贡献记录与窗口、野怪经验平分与参赛者击杀的全额加助攻份额（`ContenderKillShares`）、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `DamageRecap.Window` 覆盖承伤样本的记录与过期、窗口边界、按攻击者与来源求和及排序、各来源总量和列表的形状校验，
 `DamageRecap.Chain` 覆盖反应伤害按规则链分行、最近一击的距今时长、规则链与助攻提示的形状校验，
 `BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、

@@ -42,7 +42,8 @@ Demo 没有装备与金钱；成长由经验、等级、派生的五维点数、
 - **牌三选一队列**：开局（`BeginMatch`）入队一次（`ELDCardOfferSource::Opening`），升到能被 `CARDS.OfferEveryLevels` 整除的等级时入队一次（`LevelUp`，`LDProgression::LevelUpCardOffers`），
   空投/Boss 的牌奖励与精英营地标记各入队一次（`FieldReward`）。队首在开局机会处理（选定或放弃）之后才抽出（`RefreshCardOffer`），
   一次只有一组；抽取 `DrawCardOffer`：`CARDS.OfferSize` 张互异的牌，按权重无放回抽取——与本构筑词汇
-  （已装的牌与已学技能，`BuildVocab`）共享至少一个键的为 `CARDS.VocabWeight`，否则为 1；种子由本局私有 `MatchSecret`、参赛者、序号与重抽次数派生
+  （已装的牌与已学技能，`BuildVocab`）共享一个键的乘 `CARDS.VocabWeight`、两个以上乘其两倍，基础为牌的 `draw_weight`（`CardDrawWeight`）；
+  限定宿主的技能牌在没有已学技能能装时权重为 0；商店货架用同一权重；种子由本局私有 `MatchSecret`、参赛者、序号与重抽次数派生
   （`CardOfferSeed`）。重抽次数：开局 `CARDS.FreeRerolls`，R1–R3 每次休息加 `CARDS.RerollsPerRest`（`GrantRestRerolls`）。
 - **容量**：每张已装的牌占 1 格；`ApplyInstallCard` 在位置合法之后检查容量，满为 `WorkshopFull` = 151，不改构筑；
   可带 `Replacing`（另一张已装的牌）在同一提交里先把它卸回牌库再装。`PickCard` 的“顺手安装”遇满或位置不合法则只进牌库
@@ -154,7 +155,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 | 输入 | 结果 |
 | --- | --- |
 | 参赛者击杀野怪 | 全部归该所有者，无助攻、距离或伤害比例分配 |
-| 参赛者击杀参赛者 | 致死瞬间冻结助攻者（`FLDCommittedDeath::Assisters`）；XP 由击杀者与助攻者平分（`LDAssist::SplitKillReward`，各自向下取整），全部准备成功后一起安装 |
+| 参赛者击杀参赛者 | 致死瞬间冻结助攻者（`FLDCommittedDeath::Assisters`）；XP 击杀者拿全额、每名助攻者另得 `REWARD.AssistXPRatio`（`LDAssist::ContenderKillShares`，向下取整），受害者死时“上热搜”（`IsBountyDeath`）的击杀者再加 `REWARD.BountyXP`；终局不给 XP，改由 `RecoverContender` 给击杀者回血与劲；全部准备成功后一起安装 |
 | 同批互相致死 | 两个 DeathKey，各按各自致死快照与仍在局的所有者收奖 |
 | 已阵亡来源的存续效果击杀 | 致死时所有者仍在本局则全额收奖 |
 | 无主、自杀、实际致死前已离局 | `NoReward`（`NoRewardNoOwner/NoRewardSelf/NoRewardOwnerLeft`），同一死亡仍封已处理 |
@@ -192,7 +193,7 @@ Combat 投影与 HP 同比换算），在同一调用栈重验许可后进入不
 
 | 事务 | 同次提交 |
 | --- | --- |
-| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数、牌三选一与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻。最终野外的死亡记为 NoReward，仍去重但不发成长奖励；其他成长奖励也在最终野外拒绝 |
+| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；参赛者击杀给击杀者全额 XP、每名助攻者按 `REWARD.AssistXPRatio` 另得 XP，野怪击杀由击杀者与助攻者平均分配（`LDAssist::SplitKillReward`），并分别提交逐级点数、牌三选一与主动机会；升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻。最终野外的死亡记为 NoReward，仍去重但不发成长奖励；其他成长奖励也在最终野外拒绝 |
 | `CommitEventReward` | 地图事件（空投）以 (Event, Serial) 为业务身份，整局只付一次；同一事件的第二次领取以 `DataInvalid` 永久拒绝，不付任何经验 |
 | `CommitPendingBuild` | 许可 → 旧局/目录/上下文/离局/旧生命/生死阶段/`BuildStale` 重查 → 按 Kind 校验（`NoActiveOffer`、`OfferAlreadyCommitted`、`UnknownOffer`、`OfferGuardStale`、`InvalidOption`；休息服务的 `OfferOutstanding`、`NothingToRespec`、`SlotEmpty`、`NoBlueprint`；商店见上）→ 合法性矩阵 → 安装构筑（等级、点数、Q/W/E 或已安装组件变化时才重投影 Combat；只改图纸、库存实例、商店或机会时推进构筑修订而不重装 Combat；商店的扣费与所得同次安装）→ 抽下一组 |
 

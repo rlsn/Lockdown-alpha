@@ -43,7 +43,7 @@ POLICIES = (
     "None", "AddFlatThenAdditivePercent", "Allowed",
     "ContinueServerTime", "PreserveRatio", "ContinueForRemainingContender", "CancelUnsettledNoRefund",
     "BreakOnAggressiveIntent", "OncePerAttackId", "PrimaryBasicAttackHPLost", "Disabled",
-    "CarrySubP2Remainder", "ReplaceIfNotWeaker", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
+    "CarrySubP2Remainder", "StackToLatestExpiry", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
 )
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
@@ -175,6 +175,8 @@ def effect(value):
         ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
         ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
         ("burn_ratio", "RatioBp"),
+        # Y09's own skill crit chance.
+        ("chance", "RatioBp"),
     ):
         # A05/A10 rates are rationals (card_terms places them).
         if source in value and not (value.get("op") in ("speed_factor", "overcap_extra_hit") and source == "threshold"):
@@ -392,6 +394,7 @@ def card(row):
         "HostHitTypes": sum(1 << HIT_TYPES.index(kind) for kind in row.get("host_hit_types", [])),
         "bHostControl": bool(row.get("host_control", False)),
         "DropWeight": row.get("drop_weight", 100),
+        "DrawWeightBp": scalar(row["draw_weight"]) if "draw_weight" in row else 10000,
         "Effects": [effect(value) for value in row["effects"]],
     }
 
@@ -421,7 +424,7 @@ def parameter_projection(parameters):
         ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
         ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
-        ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
+        ("CAPTURE.SpraySec", "CaptureSprayMs"), ("VISION.SightGraceSec", "VisionSightGraceMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"), ("CAPTURE.GuardCheckpointSec", "CaptureGuardCheckpointMs"), ("CAPTURE.GuardResumeSec", "CaptureGuardResumeMs"),
         ("SHOWDOWN.UnlockDelaySec", "ShowdownUnlockDelayMs"), ("SHOWDOWN.DurationSec", "ShowdownDurationMs"),
         ("SHOWDOWN.FirstRespawnSec", "ShowdownFirstRespawnMs"),
         ("SHOWDOWN.SecondRespawnSec", "ShowdownSecondRespawnMs"), ("SHOWDOWN.RespawnCutoffSec", "ShowdownRespawnCutoffMs"),
@@ -440,20 +443,20 @@ def parameter_projection(parameters):
         ("THROW.SlowRatio", "ThrowSlowBp"), ("THROW.SlowSec", "ThrowSlowMs"), ("THROW.ExposeSec", "ThrowExposeMs"),
         ("SHOWDOWN.RingPreviewSec", "ShowdownRingPreviewMs"), ("SHOWDOWN.RingDamageTickSec", "ShowdownRingTickMs"),
         ("SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec", "ShowdownRingEarlyDamageBp"),
-        ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ShowdownRingLateDamageBp"),
+        ("SHOWDOWN.RingDamageLateMaxHPRatioPerSec", "ShowdownRingLateDamageBp"), ("SHOWDOWN.KillHealMaxHPRatio", "ShowdownKillHealMaxHPBp"), ("SHOWDOWN.KillMomentum", "ShowdownKillMomentumP2"),
         ("LIFE.RespawnBaseSec", "RespawnBaseMs"), ("LIFE.RespawnPerLevelSec", "RespawnPerLevelMs"),
         ("LIFE.SpawnChoiceSec", "SpawnChoiceMs"),
         ("LIFE.ProtectionSec", "ProtectionMs"),
-        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
+        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistXPRatio", "AssistXPRatioBp"), ("REWARD.KillMedalChance", "KillMedalChanceBp"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
         ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"),
         ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"), ("CAMP.GrowthStageSec", "CampGrowthStageMs"),
         ("CAMP.GrowthHPRatioPerStage", "CampGrowthHPPerStageBp"), ("CAMP.GrowthAttackRatioPerStage", "CampGrowthAttackPerStageBp"),
-        ("CAMP.GrowthResistPerStage", "CampGrowthResistPerStageP2"), ("CAMP.GrowthRewardXPRatioPerStage", "CampGrowthRewardXPPerStageBp"),
+        ("CAMP.GrowthResistPerStage", "CampGrowthResistPerStageP2"), ("CAMP.GrowthRewardXPRatioPerStage", "CampGrowthRewardXPPerStageBp"), ("CAMP.ClearHealMissingRatio", "CampClearHealMissingBp"), ("CAMP.ClearMomentum", "CampClearMomentumP2"), ("CAMP.ClearOrbSec", "CampClearOrbMs"),
         ("AIRDROP.ExpireSec", "AirdropExpireMs"), ("CAMPMARK.RevealSec", "CampMarkRevealMs"),
-        ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"),
+        ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"), ("LEADER.SurvivalPointSec", "LeaderSurvivalPointMs"),
         ("AIRDROP.MoveSpeedSec", "AirdropMoveSpeedMs"),
         ("AIRDROP.HealMaxHPRatio", "AirdropHealMaxHPBp"), ("AIRDROP.Momentum", "AirdropMomentumP2"),
         ("AIRDROP.MoveSpeedRatio", "AirdropMoveSpeedBp"),
@@ -461,17 +464,21 @@ def parameter_projection(parameters):
         ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
         ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"),
         ("COMBAT.KeystonePhysiqueHealToShieldRatio", "KeystonePhysiqueHealToShieldBp"),
+        ("COMBAT.KeystonePhysiqueOutOfCombatCut", "KeystonePhysiqueOutOfCombatCutBp"),
         ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "KeystonePhysiqueShieldMaxHPBp"),
         ("COMBAT.KeystonePhysiqueShieldDurationSec", "KeystonePhysiqueShieldDurationMs"),
         ("COMBAT.KeystonePhysiqueIntervalSec", "KeystonePhysiqueIntervalMs"),
+        ("COMBAT.KeystoneAgilityDashCooldownCut", "KeystoneAgilityDashCooldownCutBp"),
         ("COMBAT.KeystoneThickSkinGuardPoints", "KeystoneThickSkinGuardP2"),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "KeystoneThickSkinGuardCapBp"),
-        ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"),
+        ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"), ("COMBAT.KeystoneThickSkinSteadySec", "KeystoneThickSkinSteadyMs"), ("COMBAT.KeystoneThickSkinKnockbackRatio", "KeystoneThickSkinKnockbackBp"),
         ("COMBAT.KeystoneStrengthDamageRatio", "KeystoneStrengthDamageBp"),
         ("COMBAT.KeystoneBrainsMomentumRefundRatio", "KeystoneBrainsMomentumRefundBp"),
+        ("COMBAT.KeystoneBrainsReactionMomentum", "KeystoneBrainsReactionMomentumP2"),
+        ("COMBAT.KeystoneBrainsCooldownCutSec", "KeystoneBrainsCooldownCutMs"),
         ("COMBAT.KeystoneAgilityDamageBase", "KeystoneAgilityDamageBaseP2"),
         ("COMBAT.KeystoneAgilityADRatio", "KeystoneAgilityADRatioBp"),
-        ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"),
+        ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"), ("COMBAT.KeystoneAgilityMoveSpeedRatio", "KeystoneAgilityMoveSpeedBp"),
         # #198 elements and reactions.
         ("COMBAT.WetSec", "WetMs"), ("COMBAT.WetSlow", "WetSlowBp"), ("COMBAT.ReactionBase", "ReactionBaseP2"),
         ("COMBAT.ReactionPerLevel", "ReactionPerLevelP2"), ("COMBAT.ReactionAPRatio", "ReactionAPRatioBp"), ("COMBAT.ReactionLockSec", "ReactionLockMs"),
@@ -497,7 +504,7 @@ def parameter_projection(parameters):
         result[dest] = rational(parameters[source])
     for source, dest in (
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
-        ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"),
+        ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"), ("REWARD.BountyXP", "BountyXP"), ("REWARD.BountyCardOffer", "BountyCardOffer"),
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"), ("CAMP.GrowthMaxStage", "CampGrowthMaxStage"),
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("LEADER.MinLevel", "LeaderMinLevel"),
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
@@ -732,7 +739,7 @@ def expected_projection(compilation):
         "FinalMods": [{
             "Id": row["id"], "NativeId": row["native_id"], "Sprays": row.get("sprays", 0),
             **{dest: scalar(row[source]) if source in row else 0 for source, dest in (
-                ("fade", "FadeMs"), ("guard", "GuardMs"), ("spray", "SprayMs"), ("duration", "DurationMs"),
+                ("fade", "FadeMs"), ("guard", "GuardMs"), ("spray", "SprayMs"), ("duration", "DurationMs"), ("hp", "HPP2"),
             )},
             "RadiusCm": rational(row["radius"]) if "radius" in row else {"Numerator": 0, "Denominator": 1},
         } for row in data["final_mods"]],

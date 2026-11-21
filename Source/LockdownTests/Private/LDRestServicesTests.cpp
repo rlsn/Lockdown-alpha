@@ -298,7 +298,7 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     bGood &= Unchanged(TEXT("Replacing on the field outside a dorm"), Replace(Full, Settled, D, 1, Field), ELDGrowthReason::ReplacementNotAllowed, Full);
     {
         LDProgression::FBuildContext DormField = Field;
-        DormField.bDormSwapReady = true;
+        DormField.bDormRested = true;
         FLDGrowthBuild DormOut;
         FName DormForgotten;
         TArray<uint16> DormReclaimed;
@@ -316,7 +316,13 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     }
     bGood &= Unchanged(TEXT("Replacing while dead on the field"),
         Replace(Full, Settled, D, 1, RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead)),
-        ELDGrowthReason::Dead, Full);
+        ELDGrowthReason::ReplacementNotAllowed, Full);
+    {
+        LDProgression::FBuildContext DeadDorm = RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead);
+        DeadDorm.bDormRested = true;
+        bGood &= Unchanged(TEXT("Replacing while dead even with bDormRested"),
+            Replace(Full, Settled, D, 1, DeadDorm), ELDGrowthReason::ReplacementNotAllowed, Full);
+    }
     bGood &= Unchanged(TEXT("Replacing while builds are locked"), Replace(Full, Settled, D, 1, Locked), ELDGrowthReason::BuildLocked, Full);
     bGood &= Unchanged(TEXT("Replacing while an active offer is outstanding"), Replace(Full, Offered, D, 1, Rest),
         ELDGrowthReason::OfferOutstanding, Full);

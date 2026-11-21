@@ -408,7 +408,13 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational VisionRadiusCm;
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
+    // VISION.SightGraceSec: a unit an obstacle just hid stays observed this long (not across range, isolation or a teleport).
+    UPROPERTY() int64 VisionSightGraceMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
+    // CAPTURE.GuardCheckpointSec: an owner whose guard passed this far and is painted over keeps a checkpoint for its next graffiti.
+    UPROPERTY() int64 CaptureGuardCheckpointMs = 0;
+    // CAPTURE.GuardResumeSec: the guard the next own graffiti of that owner starts from.
+    UPROPERTY() int64 CaptureGuardResumeMs = 0;
     UPROPERTY() int64 ShowdownUnlockDelayMs = 0;
     UPROPERTY() int64 ShowdownDurationMs = 0;
     UPROPERTY() int64 ShowdownRespawnLimit = 0;
@@ -478,6 +484,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ShowdownRingTickMs = 0;
     UPROPERTY() int64 ShowdownRingEarlyDamageBp = 0;
     UPROPERTY() int64 ShowdownRingLateDamageBp = 0;
+    // SHOWDOWN.KillHealMaxHPRatio: a contender kill in the final field heals the killer this share of its maximum HP.
+    UPROPERTY() int64 ShowdownKillHealMaxHPBp = 0;
+    // SHOWDOWN.KillMomentum: and gives this much momentum.
+    UPROPERTY() int64 ShowdownKillMomentumP2 = 0;
     // Spec §10.4 (P6): a field respawn waits RespawnBaseMs + RespawnPerLevelMs x level; the dead contender chooses among
     // SpawnChoiceCount distinct spawn anchors within SpawnChoiceMs (else the first).
     UPROPERTY() int64 RespawnBaseMs = 0;
@@ -505,6 +515,12 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CampGrowthAttackPerStageBp = 0;
     UPROPERTY() int64 CampGrowthResistPerStageP2 = 0;
     UPROPERTY() int64 CampGrowthRewardXPPerStageBp = 0;
+    // CAMP.ClearHealMissingRatio: the contender who clears a whole camp heals this share of its missing HP.
+    UPROPERTY() int64 CampClearHealMissingBp = 0;
+    // CAMP.ClearMomentum: and gains this much momentum.
+    UPROPERTY() int64 CampClearMomentumP2 = 0;
+    // CAMP.ClearOrbSec: how long a camp clear recovery orb lies on the ground before it fades (field progress T).
+    UPROPERTY() int64 CampClearOrbMs = 0;
     // D26 (#79) / #198 outer §5 airdrop: the drops land at the explicit field progress instants AirdropLandMs (strictly
     // increasing), each public AnnounceLead earlier, and leave unclaimed AirdropExpireMs after landing.
     UPROPERTY() TArray<int64> AirdropLandMs;
@@ -523,6 +539,8 @@ struct FLDDemoContentParameters
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
+    // LEADER.SurvivalPointSec: the trending leader earns one stat point for every this long it stays the leader alive.
+    UPROPERTY() int64 LeaderSurvivalPointMs = 0;
     UPROPERTY() FLDDemoRational LeaderCircleRadiusCm;
     UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
@@ -538,17 +556,27 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
     UPROPERTY() int64 KeystonePhysiqueHealToShieldBp = 0;
+    UPROPERTY() int64 KeystonePhysiqueOutOfCombatCutBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldMaxHPBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldDurationMs = 0;
     UPROPERTY() int64 KeystonePhysiqueIntervalMs = 0;
+    UPROPERTY() int64 KeystoneAgilityDashCooldownCutBp = 0;
     UPROPERTY() int64 KeystoneThickSkinGuardP2 = 0;
     UPROPERTY() int64 KeystoneThickSkinGuardCapBp = 0;
     UPROPERTY() int64 KeystoneThickSkinIntervalMs = 0;
+    // COMBAT.KeystoneThickSkinSteadySec: after the thick-skin guard triggers, slows miss and knockbacks are cut this long.
+    UPROPERTY() int64 KeystoneThickSkinSteadyMs = 0;
+    // COMBAT.KeystoneThickSkinKnockbackRatio: the share of a knockback distance kept during the thick-skin steady window.
+    UPROPERTY() int64 KeystoneThickSkinKnockbackBp = 0;
     UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
     UPROPERTY() int64 KeystoneBrainsMomentumRefundBp = 0;
+    UPROPERTY() int64 KeystoneBrainsReactionMomentumP2 = 0;
+    UPROPERTY() int64 KeystoneBrainsCooldownCutMs = 0;
     UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
     UPROPERTY() int64 KeystoneAgilityADRatioBp = 0;
     UPROPERTY() int64 KeystoneAgilityEmpowerDurationMs = 0;
+    // COMBAT.KeystoneAgilityMoveSpeedRatio: the move speed bonus the agility keystone grants for its empower window after a dash.
+    UPROPERTY() int64 KeystoneAgilityMoveSpeedBp = 0;
     // Elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs from their
     // own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp. R = ReactionBase + ReactionPerLevel x
     // (L - 1) + ReactionAPRatio x AP of the reaction's trigger. Fog (fire + water): a FogRadiusCm zone for FogMs giving wet
@@ -574,10 +602,18 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
+    // REWARD.BountyXP: extra XP for the killer of a contender shown trending (上热搜) at its death.
+    UPROPERTY() int64 BountyXP = 0;
+    // REWARD.BountyCardOffer: the size of the card offer the bounty killer picks one from.
+    UPROPERTY() int64 BountyCardOffer = 0;
     UPROPERTY() int64 PlayerXPPerLevel = 0;
     // Contender kills only: a contribution within this window before the death earns an assist; the killer and the
     // assisters split the kill XP.
     UPROPERTY() int64 AssistWindowMs = 0;
+    // REWARD.AssistXPRatio: each assister of a contender kill takes this share of its XP; the killer keeps the whole.
+    UPROPERTY() int64 AssistXPRatioBp = 0;
+    // REWARD.KillMedalChance: the chance a contender kill outside the final field drops an element medal for the killer.
+    UPROPERTY() int64 KillMedalChanceBp = 0;
     // #198 points: OpeningPoints at BeginMatch, PointsPerLevel for every level crossed up to the cap, then MaxLevelPoints
     // for every full MaxLevelPointsXP past the top threshold. A build change commits only BuildSafeWindowMs after the
     // contender's last combat action (GROWTH.BuildSafeWindowSec).
@@ -649,7 +685,7 @@ enum class ELDDemoPolicy : uint8
     None, AddFlatThenAdditivePercent, Allowed,
     ContinueServerTime, PreserveRatio, ContinueForRemainingContender, CancelUnsettledNoRefund,
     BreakOnAggressiveIntent, OncePerAttackId, PrimaryBasicAttackHPLost, Disabled,
-    CarrySubP2Remainder, ReplaceIfNotWeaker, ConfirmedCombatHit, ReturnThenReset, NotApplicable
+    CarrySubP2Remainder, StackToLatestExpiry, ConfirmedCombatHit, ReturnThenReset, NotApplicable
 };
 
 UENUM()
@@ -954,6 +990,34 @@ struct FLDDemoEffectDefinition
     // ground_relocate and double_stall no fields; ground_growth RatioBp (factor per interval) + IntervalMs.
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
+
+    // A hard control this effect is itself (root, stun, silence, disarm, taunt).
+    bool IsControl() const
+    {
+        const ELDDemoEffectOp Op = GetOp();
+        return Op == ELDDemoEffectOp::Root || Op == ELDDemoEffectOp::Stun || Op == ELDDemoEffectOp::Silence
+            || Op == ELDDemoEffectOp::Disarm || Op == ELDDemoEffectOp::Taunt;
+    }
+    // The duration of a control another delivery carries (a wall stun, a final-wave root, a centre stun, a last-hit stun,
+    // a blow's stun, a recast's same-target stun or replaced control, a brace answer's stun); null when it carries none.
+    // K05/K11 count these.
+    int64* ComposedControlMs()
+    {
+        switch (GetOp())
+        {
+        case ELDDemoEffectOp::Knockback: case ELDDemoEffectOp::ChannelCone: case ELDDemoEffectOp::GroundImpact:
+        case ELDDemoEffectOp::EmpowerBasic: case ELDDemoEffectOp::Fan:
+            return ExtraDurationMs > 0 ? &ExtraDurationMs : nullptr;
+        case ELDDemoEffectOp::Recast:
+            return ExtraDurationMs > 0 ? &ExtraDurationMs
+                : RecastControl != ELDDemoRecastControl::Same && SecondaryDurationMs > 0 ? &SecondaryDurationMs : nullptr;
+        // S16 3A1: the brace answer stuns.
+        case ELDDemoEffectOp::BraceStun:
+            return DurationMs > 0 ? &DurationMs : nullptr;
+        default: return nullptr;
+        }
+    }
+    bool HasControl() const { return IsControl() || const_cast<FLDDemoEffectDefinition*>(this)->ComposedControlMs() != nullptr; }
 };
 
 // #198: the one value set of an active (no ranks); its fixed amounts grow with the owner's level (LDSkillGrowth).
@@ -1080,6 +1144,8 @@ struct FLDDemoCardDefinition
     UPROPERTY() uint8 HostHitTypes = 0;
     UPROPERTY() bool bHostControl = false;
     UPROPERTY() int32 DropWeight = 100;
+    // Its relative chance in a card draw (basis points of a plain card); the rare jackpot cards draw less often.
+    UPROPERTY() int64 DrawWeightBp = 10000;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 
@@ -1103,8 +1169,9 @@ struct FLDDemoFinalModDefinition
     UPROPERTY() int64 GuardMs = 0;
     // final_private_pole: its spray duration.
     UPROPERTY() int64 SprayMs = 0;
-    // final_cage: how long the fence stands.
+    // final_cage: how long the fence stands, and how much damage its holder takes from contenders before it breaks.
     UPROPERTY() int64 DurationMs = 0;
+    UPROPERTY() int64 HPP2 = 0;
     // final_private_pole: its spray zone; final_double_yellow: the main zone while the holder owns it.
     UPROPERTY() FLDDemoRational RadiusCm;
 

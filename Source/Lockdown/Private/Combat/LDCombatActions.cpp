@@ -10,6 +10,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDSkillGrowth.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Region/LDMapRegistry.h"
@@ -1396,28 +1397,42 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
     // releases a normal cast).
     Body.bReleasedOverdrive=bOverdrive;
-    // K06 / A08: a repeat releases at its share of the damage; A08 also halves hard-control durations.
-    if (Action.bAutoRecast)
+    // A08: a combo cast releases its whole effect at its share (damage and shields by ShareBp = 0.45, hard-control durations
+    // by 0.50 per #330 §5.2.6); K06: a repeat releases at its share of the damage.
+    if (Action.bAutoRecast && Action.bWholeEffectShare)
     {
-        Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000;
-        if (Action.bComboCastRepeat)
+        const int64 ShareBp=Action.AutoRecastScaleBp;
+        const int64 HardControlShareBp=5000;
+        // A brace keeps its record cap: its answer, heal and shield from the record take the share once at settlement.
+        TArray<int64> BraceCaps;
+        for (const FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
+        { if (Effect.GetOp()==ELDDemoEffectOp::Brace) { BraceCaps.Add(Effect.LimitP2); } }
+        if (!LDSkillGrowth::ScaleValues(Terms.Values,ShareBp,ShareBp))
+        { Error=TEXT("A combo cast's share overflows its effect."); return false; }
+        int32 BraceIndex=0;
+        for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
+        { if (Effect.GetOp()==ELDDemoEffectOp::Brace) { Effect.LimitP2=BraceCaps[BraceIndex++]; } }
+        const auto Share=[ShareBp](int64& Value) { Value=Value/10000*ShareBp+Value%10000*ShareBp/10000; };
+        const auto ShareHardControl=[HardControlShareBp](int64& Value)
+        { Value=FMath::Max<int64>(1,Value/10000*HardControlShareBp+Value%10000*HardControlShareBp/10000); };
+        for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
         {
-            for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
-            {
-                const ELDDemoEffectOp Op=Effect.GetOp();
-                if (Op==ELDDemoEffectOp::Root || Op==ELDDemoEffectOp::Stun || Op==ELDDemoEffectOp::Silence
-                    || Op==ELDDemoEffectOp::Disarm || Op==ELDDemoEffectOp::Taunt)
-                {
-                    Effect.DurationMs=FMath::Max<int64>(1,Effect.DurationMs*5000/10000);
-                }
-                if ((Op==ELDDemoEffectOp::Knockback || Op==ELDDemoEffectOp::ChannelCone || Op==ELDDemoEffectOp::GroundImpact)
-                    && Effect.ExtraDurationMs>0)
-                {
-                    Effect.ExtraDurationMs=FMath::Max<int64>(1,Effect.ExtraDurationMs*5000/10000);
-                }
-            }
+            const ELDDemoEffectOp Op=Effect.GetOp();
+            if (Effect.IsControl() || Op==ELDDemoEffectOp::BraceStun) { ShareHardControl(Effect.DurationMs); }
+            else if (Op==ELDDemoEffectOp::Slow || Op==ELDDemoEffectOp::AttackSlow || Op==ELDDemoEffectOp::Knockback
+                || Op==ELDDemoEffectOp::BraceShove)
+            { Share(Effect.DurationMs); }
+            // S22's cone slow.
+            if (Op==ELDDemoEffectOp::ChannelCone) { Share(Effect.SecondaryDurationMs); }
+            if (int64* Composed=Effect.ComposedControlMs(); Composed && Composed!=&Effect.DurationMs) { ShareHardControl(*Composed); }
+            // Amounts ScaleValues does not grow: a pull's meeting damage.
+            if (Op==ELDDemoEffectOp::Pull) { Share(Effect.BaseP2); Share(Effect.ADRatioBp); }
         }
+        // A pull a card or branch carries outside the value set meets at its share too.
+        if (Terms.PullTerms.IsSet()) { Share(Terms.PullTerms->BaseP2); Share(Terms.PullTerms->ADRatioBp); Share(Terms.PullTerms->DurationMs); }
+        if (Terms.FinalKnockbackTerms.IsSet()) { Share(Terms.FinalKnockbackTerms->DurationMs); }
     }
+    else if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
     const FLDDemoAbilityValues* ValuesDef=&Terms.Values;
     const FLDDemoTargetDefinition& TargetDef=Terms.Target;
     // The caster's foot before any displacement of this release (areas, zones and pushes centre here).
@@ -1544,6 +1559,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     {
         DurationMs=FMath::Max<int64>(1,DurationMs*(10000-Content->Get().Parameters.Daily.GymDashCooldownCutBp)/10000);
     }
+    // The agility keystone: the D dash recovers its share sooner.
+    if (bInnate && Body.AttributeProjection.Keystones.bAgility)
+    {
+        DurationMs=FMath::Max<int64>(1,DurationMs*(10000-Content->Get().Parameters.KeystoneAgilityDashCooldownCutBp)/10000);
+    }
     if (!bInnate && !LDTactical::CooldownDurationMs(BaseCooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
             Content->Get().Formulas.HasteScaleP2,DurationMs,Error)) { return false; }
     // SKILL.CooldownFloorSec: the technical floor of a hasted Q/W/E (animation and network), not a gameplay cap.
@@ -1649,12 +1669,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 || Effect.ADRatioBp<0 || Final.ADP2<0 || (Effect.ADRatioBp>0 && Final.ADP2>MAX_int64/Effect.ADRatioBp)
                 || Effect.MaxHPRatioBp<0 || MaxHP<0)
             { Error=TEXT("Shield scaling overflowed."); return false; }
-            int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000+Effect.ADRatioBp*Final.ADP2/10000
+            // Base + AP share + AD share + own max-HP share, through the single shield entry (StackToLatestExpiry).
+            const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000+Effect.ADRatioBp*Final.ADP2/10000
                 +MaxHP/10000*Effect.MaxHPRatioBp+MaxHP%10000*Effect.MaxHPRatioBp/10000;
-            if (Action.bComboCastRepeat)
-            {
-                Amount=Amount/10000*Action.AutoRecastScaleBp+Amount%10000*Action.AutoRecastScaleBp/10000;
-            }
             if (!GrantShieldTo(Body,Amount,Effect.DurationMs,EffectId,Body.Victim.EntityId,Now,Error,Source)) { return false; }
             break;
         }
@@ -1862,7 +1879,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::BraceShield:
             break;
         case ELDDemoEffectOp::Brace:
-            if (!ReleaseBrace(Body,Effect,Source,EffectId,Action.Token,Now,Error,CastLedger)) { return false; }
+            if (!ReleaseBrace(Body,Effect,Source,EffectId,Action.Token,Now,Error,CastLedger,
+                Action.bAutoRecast && Action.bWholeEffectShare ? Action.AutoRecastScaleBp : 10000)) { return false; }
             break;
         case ELDDemoEffectOp::Root:
         case ELDDemoEffectOp::Slow:
@@ -2104,6 +2122,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
         if (Around && !HitBagsInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template, NowMs, Error)) { return false; }
+        if (Around) { HitFenceInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template); }
         // M15 on S07: a blast of the same radius at the release foot after the delay, with one burn stack.
         const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         if (Terms.EchoImpact.IsSet() && AreaEffect)

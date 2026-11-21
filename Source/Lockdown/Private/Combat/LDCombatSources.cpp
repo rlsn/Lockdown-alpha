@@ -491,6 +491,23 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     }
     View.TargetMode=static_cast<uint8>(Target->Mode);
     View.MomentumCostP2=Values->MomentumCostP2;
+    // The owner's card text reads what this release would do now: its damage factors and its hasted cooldown.
+    if (Source.Kind==ELDCombatSourceKind::Learned && Body && Catalog())
+    {
+        const FLDDemoContentSnapshot& Content=*Catalog();
+        TArray<FLDDamageFactor> Factors;
+        FString FactorError;
+        int64 FactorBp=10000;
+        bool bCapped=false;
+        if (ReleaseFactors(*Body,Record,Source,TrackFor(Record,Entry),NowMs,Factors,FactorError)
+            && LDTactical::DamageFactorProduct(Factors,Content.Get().Parameters.DamageFactorTechCapBp,FactorBp,bCapped,FactorError))
+        { View.DamageFactorBp=FactorBp; }
+        int64 Hasted=0;
+        FString HasteError;
+        if (LDTactical::CooldownDurationMs(Values->CooldownMs,Body->AttributeProjection.Final.CooldownHasteP2,
+            Content.Get().Formulas.HasteScaleP2,Hasted,HasteError))
+        { View.NextCooldownMs=FMath::Max(Hasted,Content.Get().Parameters.SkillRanks.CooldownFloorMs); }
+    }
     // A dash has no authored target range; its reach is the Dash effect distance of the active.
     const FLDDemoEffectDefinition* Dash=Target->Mode==ELDDemoTargetMode::DirectionDash
         ? Values->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
@@ -801,6 +818,18 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     MarkViewChanged(Prepared.Contender);
 }
 
+bool ALDCombatDirector::IsDormRested(const FLDCombatBodyRef& Ref) const
+{
+    const FLDBodyCombatState* Body=FindBody(Ref);
+    const auto* Mode=Core();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Body || !Mode || !Content || !Body->bInDorm || Body->bPendingDeath) { return false; }
+    // The same wait the owner view shows: the physique keystone shortens it.
+    const int64 CutBp=Body->AttributeProjection.Keystones.bPhysique ? Content->Get().Parameters.KeystonePhysiqueOutOfCombatCutBp : 0;
+    const int64 DelayMs=Content->Get().Parameters.DormRegenDelayMs;
+    return LDTactical::OutOfCombatAt(Body->LastCombatAtMs,DelayMs-(DelayMs/10000*CutBp+DelayMs%10000*CutBp/10000),Mode->GetAuthorityNowMs());
+}
+
 FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const
 {
     FLDCombatEntryView Refused;
@@ -814,14 +843,6 @@ FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& C
     const FLDCombatEntityRecord* Record=Caller.Kind==ELDVictimKind::Contender ? FindRecord(Caller.EntityId) : nullptr;
     if (!Record || Record->Kind!=ELDVictimKind::Contender) { Refused.Unavailable=ELDCombatReject::NotOwner; return Refused; }
     return EntryView(*Record,FindEntityBody(Caller.EntityId),Entry,Mode->GetAuthorityNowMs());
-}
-
-bool ALDCombatDirector::IsDormSwapReady(const FGuid& ContenderId, int64 NowMs) const
-{
-    const FLDDemoContentSnapshot* Content=Catalog();
-    const FLDBodyCombatState* Body=FindEntityBody(ContenderId);
-    return Content && Body && !Body->bPendingDeath && Body->bInDorm
-        && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,NowMs);
 }
 
 bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const
@@ -936,11 +957,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
                 EmpowerStatus.ExpiresAtMs=EmpoweredUntilMs;
             }
-            if (const int64 ShieldUntilMs=LDTactical::ActiveShieldUntilMs(Body->Shields,NowMs); ShieldUntilMs>0 && Body->Resources.ShieldP2>0)
+            if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
             {
                 FLDCombatStatusView& ShieldStatus=Out.Statuses.AddDefaulted_GetRef();
                 ShieldStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Shield);
-                ShieldStatus.ExpiresAtMs=ShieldUntilMs;
+                ShieldStatus.ExpiresAtMs=Body->Shield->ExpiresAtMs;
                 ShieldStatus.AmountP2=Body->Resources.ShieldP2;
             }
             // Own temporary terms: the same public slow/boost/mark cues.
@@ -995,19 +1016,20 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move)
                 || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; });
             const auto& Parameters=Content->Get().Parameters;
-            const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
+            // The physique keystone starts both recoveries sooner (as the settle does).
+            const int64 CutBp=Body->AttributeProjection.Keystones.bPhysique ? Parameters.KeystonePhysiqueOutOfCombatCutBp : 0;
+            const auto Cut=[CutBp](int64 DelayMs) { return DelayMs-(DelayMs/10000*CutBp+DelayMs%10000*CutBp/10000); };
+            const LDTactical::FOutOfCombatRecovery Recovery{Cut(Parameters.OutOfCombatRegenDelayMs),
                 Parameters.OutOfCombatMaxHPRegenBp};
             // Inside a 躺平角 (D21) its term is part of the displayed rate, as it is of the settled one.
-            const LDTactical::FOutOfCombatRecovery Dorm{Parameters.DormRegenDelayMs,Parameters.DormMaxHPRegenBp};
+            const LDTactical::FOutOfCombatRecovery Dorm{Cut(Parameters.DormRegenDelayMs),Parameters.DormMaxHPRegenBp};
             const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Body->LastCombatAtMs,NowMs,
                 Body->bInDorm ? &Dorm : nullptr);
             Out.HPRegenPerSec=Regen.HP;
             // The D21 contender recovery (this view is a contender's) is running.
-            Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
-                Content->Get().Parameters.OutOfCombatRegenDelayMs,NowMs);
+            Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Recovery.DelayMs,NowMs);
             Out.bInDorm=Body->bInDorm;
-            Out.bDormRegenActive=Body->bInDorm
-                && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,NowMs);
+            Out.bDormRegenActive=Body->bInDorm && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Dorm.DelayMs,NowMs);
         }
     }
     else
@@ -1148,7 +1170,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Disarms.Reset();
     Body->Stuns.Reset();
     Body->Empowers.Reset();
-    Body->Shields.Reset();
+    Body->Shield.Reset();
     Body->KeystoneStrengthTargetReadyAtMs.Reset();
     Body->WaveAfterExemptChainId.Invalidate();
     // #147 keyword records end with the reset too (the camp's burn clears on its return).
@@ -1159,6 +1181,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Knockbacks.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;
+    Body->ShieldLayers.Reset();
     Body->Resources.MaxHpP2=Prepared.MaxHPP2;
     Body->Resources.HpP2=Prepared.MaxHPP2;
     Body->HpRegenMicroP2=0;

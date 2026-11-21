@@ -146,7 +146,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 CardRow=TrayRow(WidgetTree);AddRow(CardRow);
                 for(int32 Index=0;Index<3;++Index)
                 {
-                    FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthCard%d"),Index)),[this,Index](){PickCardOffer(Index);});
+                    FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthCard%d"),Index)),[this,Index](){PickCardOffer(Index);},ETrayLook::Card);
                     auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Cell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
                     Cell->AddChildToVerticalBox(Card.Frame)->SetHorizontalAlignment(HAlign_Center);
                     CardRow->AddChildToWrapBox(Cell);RowWidgets.Add(Cell);
@@ -170,7 +170,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             OfferLine->AddChildToHorizontalBox(OfferFrame)->SetPadding(FMargin(8,0,0,0));AddRow(OfferLine);
             for(int32 Index=0;Index<3;++Index)
             {
-                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)),[this,Index](){ChooseOffer(Index);});
+                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)),[this,Index](){ChooseOffer(Index);},ETrayLook::Skill);
                 OfferRow->AddChildToWrapBox(Card.Frame);OfferCards.Add(Card);
             }
             SkipCard=MakeCard(TEXT("GrowthOfferSkip"),[this](){SkipOffer();});
@@ -319,13 +319,16 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
     }
     return Super::RebuildWidget();
 }
-ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<void()> Click)
+ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look)
 {
     FTrayCard Card;
+    // The kind's colour and icon cut: skills blue with a nearly square icon, build cards gold.
+    const FLinearColor LookRim=Look==ETrayLook::Skill?FLinearColor(.36f,.62f,1.f):Look==ETrayLook::Card?FLinearColor(.95f,.74f,.3f):LDHUDStyle::ShapeRim;
+    const float LookRadius=Look==ETrayLook::Skill?2.f:TrayIconRadius;
     auto* Face=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Face);
     auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();RowWidgets.Add(IconBox);
     auto* Shape=WidgetTree->ConstructWidget<UBorder>();Shape->SetVisibility(ESlateVisibility::HitTestInvisible);RowWidgets.Add(Shape);
-    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,LDHUDStyle::ShapeRim,1.5f));Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LookRadius,LookRim,Look==ETrayLook::Plain?1.5f:2.5f));Shape->SetBrushColor(LDHUDStyle::ShapeFill);
     auto* ShapeSlot=IconBox->AddChildToOverlay(Shape);ShapeSlot->SetHorizontalAlignment(HAlign_Fill);ShapeSlot->SetVerticalAlignment(VAlign_Fill);
     Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Picture);
     auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
@@ -375,7 +378,16 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
     {auto Style=Card.Button->GetStyle();Style.NormalPadding=FMargin(TrayCardPadding);Style.PressedPadding=FMargin(TrayCardPadding);Card.Button->SetStyle(Style);}
     // After SetContent: replacing the caption makes a new, centred slot; the face fills the card instead.
     if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
-    Card.Frame=WidgetTree->ConstructWidget<USizeBox>();Card.Frame->SetWidthOverride(TrayCardWidth);Card.Frame->SetContent(Card.Button);
+    Card.Frame=WidgetTree->ConstructWidget<USizeBox>();Card.Frame->SetWidthOverride(TrayCardWidth);
+    if(Look==ETrayLook::Plain){Card.Frame->SetContent(Card.Button);}
+    else
+    {
+        // A coloured outer frame names the kind; a build card stands taller, like a playing card.
+        auto* Rim=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(Rim);
+        Rim->SetBrush(FSlateRoundedBoxBrush(FLinearColor::Transparent,Look==ETrayLook::Skill?3.f:8.f,LookRim,2.f));
+        Rim->SetPadding(FMargin(2.f));Rim->SetContent(Card.Button);Card.Frame->SetContent(Rim);
+        if(Look==ETrayLook::Card){Card.Frame->SetMinDesiredHeight(TrayCardWidth*1.3f);}
+    }
     Card.Frame->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Frame);
     return Card;
 }
@@ -508,7 +520,7 @@ bool ULDChoicesPanel::IsServiceShown() const
 }
 bool ULDChoicesPanel::IsBlueprintSwapShown() const
 {
-    return bOpen&&Places.bActive&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bCanReplace);
+    return bOpen&&Places.bActive&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bDormSwap);
 }
 bool ULDChoicesPanel::LeaveStage()
 {
@@ -647,18 +659,19 @@ void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
     if(!bSkip&&SkipCard.Frame&&SkipCard.Frame->IsVisible()){OfferMotion.Others.Add(Capture(SkipCard));}
 }
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
-    const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormSwapReady)
+    const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested)
 {
     if(OfferMotion.Ticket.Match!=0&&(OfferMotion.Ticket.Match!=Match||OfferMotion.Ticket.Life!=Life)){OfferMotion=FOfferMotion();}
     if(ConfirmedOffer.IsValid()&&(ConfirmedMatch!=Match||ConfirmedLife!=Life))
     {ConfirmedOffer.Invalidate();ConfirmedMatch=ConfirmedLife=0;}
     const bool bStatsChanged=Stats.Level!=LatestStats.Level||Stats.ADP2!=LatestStats.ADP2||Stats.APP2!=LatestStats.APP2
-        ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Content!=LatestContent||!(Keys==SlotKeys);
+        ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Stats.bShowScalingFormula!=LatestStats.bShowScalingFormula
+        ||Content!=LatestContent||!(Keys==SlotKeys);
     SlotKeys=Keys;
     Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;
     LatestContent=Content;LatestStats=Stats;
     if(!Tray){return;}
-    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,bDormSwapReady):LDHUD::FBuildGateView();
+    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,bDormRested):LDHUD::FBuildGateView();
     if(bStatsChanged){bCardsStale=true;}
     // The HUD presents every frame; a collapsed panel only keeps the inputs and refreshes when it opens.
     if(!bOpen&&!bQuick&&!bQuickShown){return;}
@@ -936,6 +949,16 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
     ShownCardOffer=bShow?Latest.CardOffer.OfferId:FGuid();
     ShownCardRevision=bShow?Latest.CardOffer.OfferRevision:0;
     ShownCardOptions=bShow?Latest.CardOffer.Options:TArray<FName>();
+    // A larger offer (a bonus or bounty pick of five) grows the row; 重抽 and 跳过 stay after the cards.
+    while(CardRow&&CardCards.Num()<ShownCardOptions.Num())
+    {
+        const int32 Index=CardCards.Num();
+        FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthCard%d"),Index)),[this,Index](){PickCardOffer(Index);},ETrayLook::Card);
+        auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Cell->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        Cell->AddChildToVerticalBox(Card.Frame)->SetHorizontalAlignment(HAlign_Center);
+        CardRow->InsertChildAt(Index,Cell);RowWidgets.Add(Cell);
+        CardCards.Add(Card);CardCells.Add(Cell);
+    }
     const bool bVisible=bShow&&TrayShows(ETrayGroup::CardOffer);
     GrowthShown(CardRow,bVisible);TrayRowTiles(CardRow,bTiles);
     const bool bCan=Gate.bCanCardOffer&&!PendingRequest;
@@ -1025,7 +1048,7 @@ ULDChoicesPanel::FTrayCard& ULDChoicesPanel::BlueprintCardAt(int32 Index)
     while(BlueprintCards.Num()<=Index)
     {
         const int32 CardIndex=BlueprintCards.Num();
-        FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthBlueprint%d"),CardIndex)),[this,CardIndex](){LearnBlueprintCard(CardIndex);});
+        FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthBlueprint%d"),CardIndex)),[this,CardIndex](){LearnBlueprintCard(CardIndex);},ETrayLook::Skill);
         BlueprintCardRow->AddChildToWrapBox(Card.Frame);BlueprintCards.Add(Card);
     }
     return BlueprintCards[Index];
@@ -1083,7 +1106,7 @@ ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
 }
 void ULDChoicesPanel::RefreshBlueprints()
 {
-    // The rebuild buttons on the Q/W/E heads for the selected blueprint (rest or field Dorm out-of-combat); the tray shows
+    // The rest rebuild buttons on the Q/W/E heads for the selected blueprint (rest or a dorm rest on the field); the tray shows
     // blueprints as cards (RefreshBlueprintCards).
     const bool bShown=IsBlueprintSwapShown()&&!ShownBlueprints.IsEmpty();
     GrowthShown(TrainerPicks,bShown);
@@ -1091,7 +1114,7 @@ void ULDChoicesPanel::RefreshBlueprints()
     bool bEmpty[3]={false,false,false};
     for(uint8 Key=0;Key<3;++Key){bEmpty[Key]=LDHUD::ActiveInSlot(Latest,Key).IsNone();}
     // A full Q/W/E: the blueprint replaces an occupied slot (after a confirm).
-    const FString ReplaceWhy=ReplaceRefusal();
+    const FString ReplaceWhy=Gate.bInRest||Gate.bDormSwap?ReplaceRefusal():FString(LDTerms::ReplaceAtRest);
     for(int32 Index=0;Index<FMath::Max(ShownBlueprints.Num(),BlueprintRows.Num());++Index)
     {
         const bool bRow=bShown&&ShownBlueprints.IsValidIndex(Index);
@@ -1243,8 +1266,8 @@ FString ULDChoicesPanel::RestConfirmRefusal() const
 void ULDChoicesPanel::RefreshRest()
 {
     if(!RestSection){return;}
-    const bool bShown=Usable()&&(Gate.bInRest||Gate.bCanReplace);
-    // A confirm line whose terms changed (another slot content, a used blueprint, changed components, the rest/Dorm over) is
+    const bool bShown=Usable()&&(Gate.bInRest||Gate.bDormSwap);
+    // A confirm line whose terms changed (another slot content, a used blueprint, changed components, the rest over) is
     // withdrawn, never resent.
     if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bShown||!RestConfirmHolds()))
     {
@@ -1253,8 +1276,8 @@ void ULDChoicesPanel::RefreshRest()
     }
     GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
     const bool bServices=IsServiceShown();
-    const bool bSwap=IsBlueprintSwapShown();
-    GrowthShown(ServiceDock,(bServices||bSwap)&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
+    // A dorm swap on the field confirms in the same dock; respec and forget stay in a rest.
+    GrowthShown(ServiceDock,IsBlueprintSwapShown()&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
     GrowthShown(RespecBox,bServices);
     if(!bShown){return;}
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
@@ -1753,7 +1776,7 @@ void ULDChoicesPanel::LayoutLayer()
     }
     PlaceOnLayer(ShopToggleButton,Places.ShopButton,FVector2D(0.f,.5f));
     if(IsShopShown()){PlaceOnLayer(ShopPanel,Places.Shop,FVector2D::ZeroVector,true);}
-    if(!IsServiceShown()&&!IsBlueprintSwapShown()){return;}
+    if(!IsBlueprintSwapShown()){return;}
     if(IsServiceShown()){PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);}
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);

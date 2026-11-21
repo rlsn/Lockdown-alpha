@@ -44,8 +44,8 @@ void ALDGameMode::ResetPacing()
     PacingControlled.Reset();
     PacingCheckedAtMs = 0;
     BountyDeaths.Reset();
-    CampRecoveryOrbs.Reset();
-    NextCampOrbSerial = 0;
+    TrendingRuns.Reset();
+    TrendingPointsOwed.Reset();
 }
 
 bool ALDGameMode::InitializePacing(FString& Error)

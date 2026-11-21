@@ -11674,7 +11674,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11767,7 +11767,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11877,7 +11877,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11974,7 +11974,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12077,7 +12077,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12187,7 +12187,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12299,7 +12299,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 7500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -12396,7 +12396,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12487,7 +12487,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12596,7 +12596,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12691,7 +12691,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12786,7 +12786,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12899,7 +12899,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13013,7 +13013,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 7000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -21708,6 +21708,10 @@
         "ms": 5000,
         "unit": "ms"
       },
+      "hp": {
+        "p2": 60000,
+        "unit": "hp"
+      },
       "id": "final_cage",
       "native_id": 30
     },
@@ -21735,7 +21739,7 @@
       },
       "id": "final_hit_and_run",
       "native_id": 25,
-      "sprays": 5
+      "sprays": 4
     },
     {
       "guard": {
@@ -21957,6 +21961,18 @@
       "unit": "cm"
     },
     "AIRDROP.RewardXP": 200,
+    "CAMP.ClearHealMissingRatio": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "CAMP.ClearMomentum": {
+      "p2": 2500,
+      "unit": "momentum"
+    },
+    "CAMP.ClearOrbSec": {
+      "ms": 12000,
+      "unit": "ms"
+    },
     "CAMP.GrowthAttackRatioPerStage": {
       "bp": 800,
       "unit": "ratio"
@@ -21990,6 +22006,14 @@
     },
     "CAMPMARK.RevealSec": {
       "ms": 11000,
+      "unit": "ms"
+    },
+    "CAPTURE.GuardCheckpointSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "CAPTURE.GuardResumeSec": {
+      "ms": 8000,
       "unit": "ms"
     },
     "CAPTURE.GuardSec": {
@@ -22125,13 +22149,29 @@
       "p2": 3500,
       "unit": "points"
     },
+    "COMBAT.KeystoneAgilityDashCooldownCut": {
+      "bp": 4000,
+      "unit": "ratio"
+    },
     "COMBAT.KeystoneAgilityEmpowerDurationSec": {
       "ms": 3000,
+      "unit": "ms"
+    },
+    "COMBAT.KeystoneAgilityMoveSpeedRatio": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneBrainsCooldownCutSec": {
+      "ms": 1000,
       "unit": "ms"
     },
     "COMBAT.KeystoneBrainsMomentumRefundRatio": {
       "bp": 3000,
       "unit": "ratio"
+    },
+    "COMBAT.KeystoneBrainsReactionMomentum": {
+      "p2": 1500,
+      "unit": "momentum"
     },
     "COMBAT.KeystonePhysiqueHealToShieldRatio": {
       "bp": 5000,
@@ -22140,6 +22180,10 @@
     "COMBAT.KeystonePhysiqueIntervalSec": {
       "ms": 4000,
       "unit": "ms"
+    },
+    "COMBAT.KeystonePhysiqueOutOfCombatCut": {
+      "bp": 5000,
+      "unit": "ratio"
     },
     "COMBAT.KeystonePhysiqueShieldDurationSec": {
       "ms": 4000,
@@ -22163,6 +22207,14 @@
     },
     "COMBAT.KeystoneThickSkinIntervalSec": {
       "ms": 5000,
+      "unit": "ms"
+    },
+    "COMBAT.KeystoneThickSkinKnockbackRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneThickSkinSteadySec": {
+      "ms": 1500,
       "unit": "ms"
     },
     "COMBAT.MeltRatio": {
@@ -22260,7 +22312,7 @@
       "unit": "ratio"
     },
     "COMBO.ResetSec": {
-      "ms": 1500,
+      "ms": 2500,
       "unit": "ms"
     },
     "COMBO.StepRatios": [
@@ -22282,7 +22334,7 @@
       "unit": "ratio"
     },
     "DAILY.BlackoutVisionCut": {
-      "bp": 3000,
+      "bp": 2500,
       "unit": "ratio"
     },
     "DAILY.ColdChillBonusSec": {
@@ -22563,6 +22615,10 @@
       "ms": 10000,
       "unit": "ms"
     },
+    "LEADER.SurvivalPointSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
     "LIFE.ProtectionSec": {
       "ms": 3000,
       "unit": "ms"
@@ -22696,7 +22752,7 @@
     },
     "OVERDRIVE.FireBurnStacks": 3,
     "OVERDRIVE.HoldSec": {
-      "ms": 300,
+      "ms": 180,
       "unit": "ms"
     },
     "OVERDRIVE.RotDurationScale": {
@@ -22842,6 +22898,16 @@
       "ms": 15000,
       "unit": "ms"
     },
+    "REWARD.AssistXPRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "REWARD.BountyCardOffer": 3,
+    "REWARD.BountyXP": 150,
+    "REWARD.KillMedalChance": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
     "REWARD.PlayerXP.Base": 140,
     "REWARD.PlayerXP.PerLevel": 28,
     "SHOP.CardPrice": 2,
@@ -22865,6 +22931,14 @@
     "SHOWDOWN.FirstRespawnSec": {
       "ms": 18000,
       "unit": "ms"
+    },
+    "SHOWDOWN.KillHealMaxHPRatio": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
+    "SHOWDOWN.KillMomentum": {
+      "p2": 5000,
+      "unit": "momentum"
     },
     "SHOWDOWN.RespawnCutoffSec": {
       "ms": 90000,
@@ -23157,6 +23231,10 @@
       "numerator": 1400,
       "unit": "cm"
     },
+    "VISION.SightGraceSec": {
+      "ms": 300,
+      "unit": "ms"
+    },
     "XP.BaseToNext": 60,
     "XP.IncreasePerLevel": 20
   },
@@ -23181,7 +23259,7 @@
       "Move",
       "Dash"
     ],
-    "ShieldPolicy": "ReplaceIfNotWeaker",
+    "ShieldPolicy": "StackToLatestExpiry",
     "SourceLeave": "CancelUnsettledNoRefund",
     "StatStacking": "AddFlatThenAdditivePercent"
   },

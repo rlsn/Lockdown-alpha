@@ -818,9 +818,10 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     // #198 outer §5: the first clear of a marked camp takes its segment's marker; its affix pays its clear reward.
     if (Result == ELDCampDeathResult::CampCleared)
     {
-        AuthorityMode()->SpawnCampRecoveryOrb(LastFootCm, FieldMs);
         const ELDCampAffix Affix = CampAffixes.FindRef(Spec.CampId);
         CampAffixes.Remove(Spec.CampId);
+        // A whole clear leaves a recovery orb where the last member fell: whoever touches it first heals and gains momentum.
+        AuthorityMode()->DropRecoveryOrb(LastFootCm);
         return PayAffixClear(Affix, Spec.Tier, Spec.CampId, Fact.CreditOwner, Permit, Error)
             && AuthorityMode()->ConsumeCampClear(Spec.CampId, Fact.CreditOwner, FieldMs, Permit, Error);
     }

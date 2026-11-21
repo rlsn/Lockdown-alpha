@@ -217,20 +217,26 @@ namespace LDTactical
             Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
         }
         int64 BeforeKeystoneGuardP2 = 0;
-        const bool bKeystoneGuarded = (Input.HitClass == ELDCombatHitClass::BasicPrimary || Input.HitClass == ELDCombatHitClass::Ability)
-            && Input.KeystoneGuardP2 > 0;
+        const bool bKeystoneGuarded = Input.KeystoneGuardP2 > 0 || Input.KeystoneGuardCapBp > 0;
         if (bKeystoneGuarded)
         {
             if (!QuantizeEvaluation(Damage, false, BeforeKeystoneGuardP2, Check, TEXT("BeforeKeystoneGuardP2")))
             {
                 return Fail(EError::Overflow, TEXT("BeforeKeystoneGuardP2"), MathError);
             }
-            if (BeforeKeystoneGuardP2 >= 3000)
+            if (Input.KeystoneGuardP2 > 0)
             {
-                const auto Flat = Numbers.Value(Input.KeystoneGuardP2);
-                const auto RatioCut = Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000));
-                const auto Cut = Numbers.LE(Flat, RatioCut) ? RatioCut : Flat;
-                Damage = Numbers.LE(Damage, Cut) ? Numbers.Value(0) : Numbers.Sub(Damage, Cut);
+                if (BeforeKeystoneGuardP2 >= 3000)
+                {
+                    const auto Flat = Numbers.Value(Input.KeystoneGuardP2);
+                    const auto RatioCut = Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000));
+                    const auto Cut = Numbers.LE(Flat, RatioCut) ? RatioCut : Flat;
+                    Damage = Numbers.LE(Damage, Cut) ? Numbers.Value(0) : Numbers.Sub(Damage, Cut);
+                }
+            }
+            else
+            {
+                Damage = Numbers.Sub(Damage, Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000)));
             }
         }
         FLDDamageEvaluation Value;
@@ -438,98 +444,16 @@ namespace LDTactical
         return SafeBonus * 14 >= SafeAP * 10 ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
     }
 
-    int64 TotalActiveShieldP2(const TArray<FLDActiveShield>& Shields, int64 AtMs)
-    {
-        int64 Sum = 0;
-        for (const FLDActiveShield& Entry : Shields)
-        {
-            if (Entry.ExpiresAtMs > AtMs && Entry.AmountP2 > 0) { Sum += Entry.AmountP2; }
-        }
-        return Sum;
-    }
-
-    int64 ActiveShieldUntilMs(const TArray<FLDActiveShield>& Shields, int64 AtMs)
-    {
-        int64 Until = 0;
-        for (const FLDActiveShield& Entry : Shields)
-        {
-            if (Entry.ExpiresAtMs > AtMs && Entry.AmountP2 > 0) { Until = FMath::Max(Until, Entry.ExpiresAtMs); }
-        }
-        return Until;
-    }
-
-    bool AddActiveShield(TArray<FLDActiveShield>& Shields, int64& ShieldP2, const FLDActiveShield& Entry, int64 AtMs)
-    {
-        Shields.RemoveAll([AtMs](const FLDActiveShield& Existing) { return Existing.ExpiresAtMs <= AtMs || Existing.AmountP2 <= 0; });
-        if (Entry.AmountP2 <= 0 || !Entry.EffectId.IsValid() || Entry.ExpiresAtMs <= AtMs)
-        {
-            ShieldP2 = TotalActiveShieldP2(Shields, AtMs);
-            return false;
-        }
-        FLDActiveShield Added = Entry;
-        if (Added.GrantedP2 <= 0) { Added.GrantedP2 = Added.AmountP2; }
-        Shields.Add(Added);
-        ShieldP2 = TotalActiveShieldP2(Shields, AtMs);
-        return true;
-    }
-
-    int64 AbsorbActiveShields(TArray<FLDActiveShield>& Shields, int64& ShieldP2, int64 AbsorbP2, int64 AtMs,
-        TArray<FGuid>& OutBrokenEffectIds)
-    {
-        OutBrokenEffectIds.Reset();
-        Shields.RemoveAll([AtMs](const FLDActiveShield& Existing) { return Existing.ExpiresAtMs <= AtMs || Existing.AmountP2 <= 0; });
-        if (AbsorbP2 <= 0 || Shields.IsEmpty())
-        {
-            ShieldP2 = TotalActiveShieldP2(Shields, AtMs);
-            return 0;
-        }
-        // Shortest remaining duration absorbs first; stable order breaks ties.
-        TArray<int32> Order;
-        Order.Reserve(Shields.Num());
-        for (int32 Index = 0; Index < Shields.Num(); ++Index) { Order.Add(Index); }
-        Algo::StableSortBy(Order, [&Shields](int32 Index) { return Shields[Index].ExpiresAtMs; });
-        int64 RemainingToAbsorb = AbsorbP2;
-        int64 Absorbed = 0;
-        for (int32 Index : Order)
-        {
-            if (RemainingToAbsorb <= 0) { break; }
-            FLDActiveShield& Entry = Shields[Index];
-            const int64 Taken = FMath::Min(Entry.AmountP2, RemainingToAbsorb);
-            Entry.AmountP2 -= Taken;
-            RemainingToAbsorb -= Taken;
-            Absorbed += Taken;
-            if (Entry.AmountP2 <= 0)
-            {
-                OutBrokenEffectIds.Add(Entry.EffectId);
-            }
-        }
-        Shields.RemoveAll([](const FLDActiveShield& Existing) { return Existing.AmountP2 <= 0; });
-        ShieldP2 = TotalActiveShieldP2(Shields, AtMs);
-        return Absorbed;
-    }
-
-    FLDStatusExpiry ExpireTimedStatuses(TArray<FLDCombatRoot>& Roots, TArray<FLDActiveShield>& Shields, int64& ShieldP2, int64 AtMs)
-    {
-        FLDStatusExpiry Result;
-        Result.bRootsChanged = Roots.RemoveAll([AtMs](const FLDCombatRoot& Root) { return Root.ExpiresAtMs <= AtMs; }) > 0;
-        const int32 RemovedShields = Shields.RemoveAll([AtMs](const FLDActiveShield& Entry)
-        { return Entry.ExpiresAtMs <= AtMs || Entry.AmountP2 <= 0; });
-        const int64 NewTotal = TotalActiveShieldP2(Shields, AtMs);
-        if (RemovedShields > 0 || ShieldP2 != NewTotal)
-        {
-            ShieldP2 = NewTotal;
-            Result.bShieldChanged = true;
-        }
-        return Result;
-    }
-
     bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2, const FLDCombatShield& Candidate, int64 AmountP2, int64 AtMs)
     {
         if (AmountP2 <= 0 || !Candidate.EffectId.IsValid() || Candidate.ExpiresAtMs <= AtMs) { return false; }
-        const int64 Remaining = Shield.IsSet() && Shield->ExpiresAtMs > AtMs ? FMath::Max<int64>(ShieldP2, 0) : 0;
-        if (AmountP2 < Remaining) { return false; }
+        const bool bLive = Shield.IsSet() && Shield->ExpiresAtMs > AtMs;
+        const int64 Remaining = bLive ? FMath::Max<int64>(ShieldP2, 0) : 0;
+        if (Remaining > MAX_int64 - AmountP2) { return false; }
+        const int64 ExpiresAtMs = bLive ? FMath::Max(Shield->ExpiresAtMs, Candidate.ExpiresAtMs) : Candidate.ExpiresAtMs;
         Shield = Candidate;
-        ShieldP2 = AmountP2;
+        Shield->ExpiresAtMs = ExpiresAtMs;
+        ShieldP2 = Remaining + AmountP2;
         return true;
     }
 

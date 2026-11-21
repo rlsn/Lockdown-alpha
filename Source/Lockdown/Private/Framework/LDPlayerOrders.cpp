@@ -382,6 +382,7 @@ void ALDPlayerController::EndOverdriveHold()
     OverdriveEntry=ELDCombatEntry::None;
     bOverdriveHolding=false;
     bOverdriveArmed=false;
+    bOverdriveLatched=false;
 }
 
 void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
@@ -405,6 +406,8 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
         OverdriveEntry=Entry;
         OverdriveHoldStartSec=FPlatformTime::Seconds();
         bOverdriveHolding=true;
+        // Alt with the key: one press is enough, the charge completes without holding the key.
+        bOverdriveLatched=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
         SendCharge(Entry,true);
         // An aimed skill is armed from the press itself: a left click during the hold is an ordinary cast, and only a
         // hold that completes turns the armed aim into overdrive. Quick cast and self skills fire on activation, so
@@ -419,6 +422,8 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
 void ALDPlayerController::ReleaseSkill(ELDCombatEntry Entry)
 {
     if (!bOverdriveHolding || Entry!=OverdriveEntry) { return; }
+    // A one-press (Alt) charge keeps going after the key is let go.
+    if (bOverdriveLatched) { return; }
     // Let go before the hold completed: the charge ends and the press is an ordinary cast.
     EndOverdriveHold();
     // Armed from the press already: nothing to repeat. Quick cast was not activated on the press, so it reads the aim now.

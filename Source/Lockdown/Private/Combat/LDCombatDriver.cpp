@@ -56,7 +56,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (!Body.Burn.Layers.IsEmpty()) { Consider(LDCombatKeywords::NextBurnTickAtMs(Body.Burn)); }
         for (const auto& Package : Body.Empowers) { Consider(Package.ExpiresAtMs); }
         if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
-        for (const FLDActiveShield& ShieldEntry : Body.Shields) { Consider(ShieldEntry.ExpiresAtMs); }
+        if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
+        for (const FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers) { Consider(Layer.ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
@@ -226,7 +227,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 // #198: commands committed at a build deadline settle before the lock of the same boundary.
-                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimFieldPacing(Permit,Error)
+                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimRecoveryOrbs(Permit,Error) && Mode->PayTrendingPoints(Permit,Error)
+                        && Mode->ClaimFieldPacing(Permit,Error)
                         && Mode->RetryFieldRewards(Permit,Error)))
                     && Mode->Growth->ProcessTransactions(Permit,Error)
                     && Mode->LockTimelineBuild(Permit,Error)
@@ -478,9 +480,16 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
         FLDCombatCaller Caller{Mode->GetMatchContext(),ELDVictimKind::Contender,Pair.Value.Session,PC};
         FLDCombatOwnerView View;
         if (!BuildOwnerView(Caller,View)) { Error=TEXT("A present contender has no Combat owner projection."); return false; }
-        // These owner-only facts can change without another resource mutation. Advance the revision so clients
-        // accept the publication instead of discarding it as an older view of the same life.
-        if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
+        // These owner-only facts can change without another resource mutation (a K16 idle factor that grows, a K18 window
+        // that ends). Advance the revision so clients accept the publication instead of discarding it as an older view.
+        bool bEntryTermsChanged=View.Entries.Num()!=PC->CombatView.Entries.Num();
+        for (int32 Index=0; !bEntryTermsChanged && Index<View.Entries.Num(); ++Index)
+        {
+            const FLDCombatEntryView& New=View.Entries[Index];
+            const FLDCombatEntryView& Old=PC->CombatView.Entries[Index];
+            bEntryTermsChanged=New.DamageFactorBp!=Old.DamageFactorBp || New.NextCooldownMs!=Old.NextCooldownMs;
+        }
+        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
             || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {

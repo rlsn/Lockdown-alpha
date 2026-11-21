@@ -252,6 +252,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoFinalMod.HitAndRun",
         "Lockdown.Rules.DemoFinalMod.ClearOut",
         "Lockdown.Rules.DemoFinalMod.KillSeconds",
+        "Lockdown.Rules.DemoCapture.GuardCheckpoint",
         "Lockdown.Rules.DemoFinalMod.Usurp",
         "Lockdown.Rules.DemoFinalMod.PrivatePole",
         "Lockdown.Rules.DemoFinalMod.SameInstantSettlement",

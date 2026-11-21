@@ -32,8 +32,8 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     // Several Root instances show as one cue with the latest remaining deadline.
     if (const int64 RootUntil=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs); RootUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Root),1,RootUntil}); }
-    if (const int64 ShieldUntil=LDTactical::ActiveShieldUntilMs(Body->Shields,NowMs); ShieldUntil>0 && Body->Resources.ShieldP2>0)
-    { Out.Add({uint8(ELDDemoStatusId::Shield),1,ShieldUntil}); }
+    if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
+    { Out.Add({uint8(ELDDemoStatusId::Shield),1,Body->Shield->ExpiresAtMs}); }
     // A slow shows its strongest instance; timed bonuses and control marks show one cue each with the latest deadline.
     if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }

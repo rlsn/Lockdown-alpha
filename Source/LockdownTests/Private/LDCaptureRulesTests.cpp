@@ -873,6 +873,8 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
         Bad.CageUntilMs=120000;
         TestFalse(TEXT("A cage names its circle"),LDCapture::ValidatePublicMatchView(Bad,Error));
         Bad.CageCentreCm=Final.PoleCentreCm;Bad.CageRadiusCm=300.f;
+        TestFalse(TEXT("A standing cage publishes its integrity"),LDCapture::ValidatePublicMatchView(Bad,Error));
+        Bad.CageIntegrityBp=10000;
         TestTrue(TEXT("A standing cage is public"),LDCapture::ValidatePublicMatchView(Bad,Error));
         FLDPublicMatchView Field=Open;
         Field.PoleRadiusCm=300.f;

@@ -1093,7 +1093,9 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     const auto Control = [&From](int64 Until) { return FLDCombatRoot{FGuid::NewGuid(), From, Until}; };
     // Every public combat cue at once.
     Body.Roots.Add(Control(5000));
-    Body.Shields.Add({FGuid::NewGuid(), From, 1000, 1000, 5000});
+    const FGuid ShieldId = FGuid::NewGuid();
+    Body.Shield = FLDCombatShield{ShieldId, From, 5000};
+    Body.ShieldLayers.Add({ShieldId, 5000, 1000});
     Body.Resources.ShieldP2 = 1000;
     Body.Slows.Add({FGuid::NewGuid(), From, 3000, 5000});
     FLDCombatTimedBonus Boost;
@@ -1741,10 +1743,13 @@ bool FLDCombatEventDefenseBudgetTest::RunTest(const FString& Parameters)
                         if (HitIndex == 1)
                         {
                             const int64 Before = Body.Resources.HpP2;
-                            if (!FAccess::Heal(*F.Driver, Body, 10000)) { AddError(TEXT("The planned heal failed")); return false; }
+                            // A full body (the thick-skin keystone and the shield can stop the first hit) has nothing to heal.
+                            if (!FAccess::Heal(*F.Driver, Body, 10000) && Before < Body.Resources.MaxHpP2)
+                            { AddError(TEXT("The planned heal failed")); return false; }
                             Healed = Body.Resources.HpP2 - Before;
                         }
-                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 30000);
+                        // 400 HP: the first hit still reaches HP past the thick-skin keystone and the 100 HP shield, and the light builds live.
+                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 40000);
                         Hit.DamageType = Type;
                         const int64 BeforeHP = Body.Resources.HpP2, BeforeShield = Body.Resources.ShieldP2;
                         if (!F.Apply(Hit, Error)) { AddError(TEXT("Defensive hit: ") + Error); return false; }
@@ -2797,6 +2802,7 @@ bool FLDCardRuleY01Test::RunTest(const FString& Parameters)
     bool bGood = TestTrue(FString::Printf(TEXT("Y01 x%d: one magic reflection of 25%% per copy to the attacker"), Copies),
         Reflect && Reflect->Target.Victim == Attacker.Victim && Reflect->DamageType == ELDDemoDamageType::Magical
         && Reflect->BaseP2 == Dealt * 2500 * Copies / 10000);
+    bGood &= TestTrue(TEXT("Y01: a reflection never lifesteals"), Reflect && !Reflect->bLifesteal && Reflect->LifestealRatioBp == 0);
     // A reflection is never reflected back.
     if (Reflect)
     {
@@ -3962,18 +3968,19 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
         GuardedSmall.IsSuccess() && GuardedSmall.Value->KeystoneGuardCutP2 == 0 && GuardedSmall.Value->DamageP2 == 2500);
 
     // 4. card_muscle_memory (A13) grows AttackSpeedBonusRatio in CardGrowth without InputDomain rejection.
-    FLDBuildProjectionInput MuscleBuild;
-    MuscleBuild.MatchGeneration = 1;
-    MuscleBuild.CatalogRoot = F.Catalog->Root();
-    MuscleBuild.Level = 6;
-    MuscleBuild.Cards.Add({1, FName(TEXT("card_muscle_memory")), ELDCardTargetKind::Body});
-    MuscleBuild.CardGrowth.Add({ELDDemoBonusStat::AttackSpeedBonusRatio, 400});
-    const auto BaseMuscle = LDTactical::ProjectBuild(
-        FLDBuildProjectionInput{1, F.Catalog->Root(), 6, {}, {}, {MuscleBuild.Cards[0]}}, *F.Catalog);
-    const auto GrownMuscle = LDTactical::ProjectBuild(MuscleBuild, *F.Catalog);
+    FLDAttributeBuildValues BaseMuscleValues(6, {});
+    BaseMuscleValues.Cards.Add({FName(TEXT("card_muscle_memory")), 1, ELDCardTargetKind::Body});
+    FLDAttributeBuildValues GrownMuscleValues = BaseMuscleValues;
+    FLDDemoStatBonus GrownAS;
+    GrownAS.Stat = ELDDemoBonusStat::AttackSpeedBonusRatio;
+    GrownAS.Amount = 400;
+    GrownMuscleValues.CardGrowth.Add(GrownAS);
+    const auto BaseMuscle = LDAttributeProjection::Project(BaseMuscleValues, *F.Catalog);
+    const auto GrownMuscle = LDAttributeProjection::Project(GrownMuscleValues, *F.Catalog);
     TestTrue(TEXT("card_muscle_memory CardGrowth AttackSpeedBonusRatio projects cleanly and increases attack speed"),
         BaseMuscle.IsSuccess() && GrownMuscle.IsSuccess()
-        && GrownMuscle.Value->Final.AttackSpeedP4 > BaseMuscle.Value->Final.AttackSpeedP4);
+        && GrownMuscle.Value->Final.AttackSpeed.Numerator * BaseMuscle.Value->Final.AttackSpeed.Denominator
+            > BaseMuscle.Value->Final.AttackSpeed.Numerator * GrownMuscle.Value->Final.AttackSpeed.Denominator);
     return true;
 }
 
