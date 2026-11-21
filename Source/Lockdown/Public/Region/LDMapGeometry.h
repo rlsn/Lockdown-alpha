@@ -112,7 +112,10 @@ namespace LDDemoWorld
         bool IsValid() const { return StepCm > 0; }
         int32 Tier(const FVector2D& Point) const;
         // Resolve a known body's local support, including beneath roofs; never project down from the world's top.
-        bool GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround = false) const;
+        bool GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround = false,
+            FHitResult* OutHit = nullptr) const;
+        // Topmost public native surface at Point.
+        bool TraceGround(const FVector2D& Point, FHitResult& Hit) const;
         // Supporting height and upward unit normal at Point.
         void Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) const;
         double StepCm = 0;
