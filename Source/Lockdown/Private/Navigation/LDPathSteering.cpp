@@ -8,6 +8,8 @@
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "NavigationData.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "Character/LDCharacter.h"
 #include "Engine/World.h"
 
 namespace LDPathSteering
@@ -148,6 +150,24 @@ namespace LDPathSteering
         return FVector(X,Y,Z);
     }
 
+    bool VerticalNavPoint(const ANavigationData& Data, const FVector& Foot, double HeightToleranceCm, FVector& Out)
+    {
+        const auto* Recast=Cast<ARecastNavMesh>(&Data);
+        if (!Recast || !FMath::IsFinite(HeightToleranceCm) || HeightToleranceCm<=0) { return false; }
+        TArray<FNavLocation> Layers;
+        if (!Recast->ProjectPointMulti(Foot,Layers,FVector(.01,.01,HeightToleranceCm),
+            Foot.Z-HeightToleranceCm,Foot.Z+HeightToleranceCm)) { return false; }
+        double Best=HeightToleranceCm+1.;bool bFound=false;
+        for (const auto& Layer:Layers)
+        {
+            const double Height=FMath::Abs(Layer.Location.Z-Foot.Z);
+            if (FVector::DistSquared2D(Layer.Location,Foot)<=UE_KINDA_SMALL_NUMBER
+                && Height<=HeightToleranceCm && Height<Best)
+            { Out=FVector(Foot.X,Foot.Y,Layer.Location.Z);Best=Height;bFound=true; }
+        }
+        return bFound;
+    }
+
     bool PlanStart(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FCollisionShape& Capsule,
         FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error)
     {
@@ -155,6 +175,12 @@ namespace LDPathSteering
         auto* Nav=World?FNavigationSystem::GetCurrent<UNavigationSystemV1>(World):nullptr;
         const ANavigationData* Data=Nav?Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate):nullptr;
         const double Reach=Capsule.GetCapsuleRadius();
+        FVector Vertical;
+        if (Data && VerticalNavPoint(*Data,BodyGround.SurfaceCm,
+            GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight,Vertical))
+        {
+            Out=BodyGround;Failure=ELDWorldQueryFailure::None;Error.Reset();return true;
+        }
         FNavLocation OnMesh;
         if (!Data || !Nav->ProjectPointToNavigation(BodyGround.SurfaceCm,OnMesh,FVector(Reach,Reach,Capsule.GetCapsuleHalfHeight()),Data)
             || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)<=UE_KINDA_SMALL_NUMBER

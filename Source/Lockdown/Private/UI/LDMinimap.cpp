@@ -446,7 +446,8 @@ void MinimapUpdateImage(FLDMinimapStatic& Cache, UWorld* World, const FBox2D& Re
         return;
     }
 
-    Image.Texture.Reset(NewObject<UTextureRenderTarget2D>(World, NAME_None, RF_Transient));
+    // Slate can retain a brush through teardown; its transient texture must not retain the old world.
+    Image.Texture.Reset(NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient));
     Image.Texture->ClearColor = LDMinimapRaster::GroundColor();
     Image.Texture->Filter = TF_Bilinear;
     Image.Texture->InitCustomFormat(Width, Height, PF_B8G8R8A8, true);

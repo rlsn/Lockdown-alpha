@@ -460,7 +460,14 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     {
         LDDemoWorld::FTerrain Terrain;
         if (!Terrain.Build(Geometry, Error)) { return false; }
-        Terrain.BindScene(*World, FBox(FVector(-5000,-5000,-100), FVector(5000,5000,1000)));
+        FBox Bounds(FVector(-5000,-5000,-100), FVector(5000,5000,1000));
+        for (TActorIterator<AActor> It(World); It; ++It)
+        {
+            TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+            for (auto* Part : Parts)
+            { if (LDNativeGround::IsSupport(*Part)) { Bounds += Part->GetBodyInstance()->GetBodyBounds(); } }
+        }
+        Terrain.BindScene(*World, Bounds);
         return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {Radius,1}, Error, World, &Terrain);
     };
     if (!TestTrue(TEXT("Native terrain sight binds: ") + Error, Bind())) { return false; }
@@ -531,6 +538,57 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Wall across the ramp entrance binds"), Bind())) { return false; }
     TestEqual(TEXT("A wall across the ramp entrance still blocks sight from below"),
         Sight.Trace(GroundAtRampBase, Uphill), ELDSightResult::Blocked);
+
+    // The playable shoreline extends outside the original rectangle and changes grade below sea level.
+    // Neither a native support nor an observation height band is restricted to nonnegative Z.
+    const auto BeachPiece = [&](double StartX, double LowZ, double HighZ)
+    {
+        const double Run = 900.;
+        const double Pitch = FMath::RadiansToDegrees(FMath::Atan2(HighZ - LowZ, Run));
+        const FRotator Rotation(Pitch, 0, 0);
+        const FVector TopCentre(StartX + Run * .5, -2000, (LowZ + HighZ) * .5);
+        auto* Piece = Place(TopCentre - Rotation.RotateVector(FVector(0,0,5)),
+            FVector(FMath::Sqrt(Run * Run + FMath::Square(HighZ - LowZ)) / 100., 4, .1));
+        Piece->SetActorRotation(Rotation);
+        Piece->Tags.Add(LDDemoWorld::TerrainTag);
+        return Piece;
+    };
+    auto* LowerBeach = BeachPiece(5100, -180, -90);
+    auto* UpperBeach = BeachPiece(6000, -90, 90);
+    LowerBeach->Tags.Add(TEXT("demo_ground"));
+    const FVector Waterline(5400, -2000, -150), Coast(6600, -2000, 30);
+    if (!TestTrue(TEXT("Coastal support outside the authored rectangle binds"), Bind())) { return false; }
+    TestTrue(TEXT("Both coastal feet are in the native coverage bounds"), Sight.InBounds(Waterline) && Sight.InBounds(Coast));
+    LDDemoWorld::FTerrain CoastalTerrain;
+    TestTrue(TEXT("Coastal tier fixture builds"), CoastalTerrain.Build(Geometry, Error));
+    CoastalTerrain.BindScene(*World, FBox(FVector(-5000,-5000,-300), FVector(7000,5000,1000)));
+    TestTrue(TEXT("Waterline retains a signed negative height band"), CoastalTerrain.Tier(FVector2D(Waterline)) < 0);
+    TestEqual(TEXT("A below-zero observer sees itself"), Sight.Trace(Waterline, Waterline), ELDSightResult::Visible);
+    TestEqual(TEXT("Changing-grade beach is visible uphill from negative Z"), Sight.Trace(Waterline, Coast), ELDSightResult::Visible);
+    TestEqual(TEXT("The same changing-grade beach is visible downhill"), Sight.Trace(Coast, Waterline), ELDSightResult::Visible);
+    const int32 CoastColumn = FMath::FloorToInt32((Coast.X - Sight.MinCm().X) * Width / (Sight.MaxCm().X - Sight.MinCm().X));
+    const int32 CoastRow = FMath::FloorToInt32((Coast.Y - Sight.MinCm().Y) * Height / (Sight.MaxCm().Y - Sight.MinCm().Y));
+    Sight.Coverage(Waterline, Coverage);
+    TestTrue(TEXT("Beach coverage follows the target support above the observer"),
+        LDObservation::CoverageBit(Coverage, CoastRow * Width + CoastColumn));
+
+    auto* BeachWall = Place(FVector(6000,-2000,80), FVector(.2,4,4));
+    BeachWall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+    TestTrue(TEXT("A real coastal wall rebinds"), Bind());
+    TestEqual(TEXT("A real wall still blocks coastal sight"), Sight.Trace(Waterline, Coast), ELDSightResult::Blocked);
+    TestEqual(TEXT("A real coastal wall also blocks downhill sight"), Sight.Trace(Coast, Waterline), ELDSightResult::Blocked);
+    BeachWall->Tags.Add(TEXT("NoViewBlock"));
+    TestTrue(TEXT("View-transparent coastal prop rebinds"), Bind());
+    TestEqual(TEXT("NoViewBlock cannot become an uphill terrain barrier"), Sight.Trace(Waterline, Coast), ELDSightResult::Visible);
+    TestEqual(TEXT("View-transparent coastal props remain transparent downhill"), Sight.Trace(Coast, Waterline), ELDSightResult::Visible);
+    BeachWall->Destroy();
+
+    auto* CliffLow = Place(FVector(5500,-3000,-185), FVector(8,4,.1));
+    auto* CliffHigh = Place(FVector(6400,-3000,-45), FVector(10,4,.1));
+    CliffLow->Tags.Add(LDDemoWorld::TerrainTag); CliffHigh->Tags.Add(LDDemoWorld::TerrainTag);
+    TestTrue(TEXT("A real negative-height cliff rebinds"), Bind());
+    TestEqual(TEXT("A negative-height cliff retains one-way elevation occlusion"),
+        Sight.Trace(FVector(5700,-3000,-180), FVector(6100,-3000,-40)), ELDSightResult::Blocked);
 
     auto* Guard = Place(FVector(0,1000,100), FVector(.02,4,2));
     Guard->Tags.Add(TEXT("LDDemoCliffGuard"));

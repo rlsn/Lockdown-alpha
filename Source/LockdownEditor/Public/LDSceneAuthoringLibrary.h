@@ -24,4 +24,7 @@ public:
     // Read-only sight/coverage diagnostics at authored locations and the current local player.
     UFUNCTION(BlueprintCallable, Category="Lockdown|Scene Authoring")
     static FString GameplayVisibilityAudit(UWorld* World, bool bSampleNavigation = false);
+    // Native collision envelopes, narrow passages, and deterministic complete-path samples.
+    UFUNCTION(BlueprintCallable, Category="Lockdown|Scene Authoring")
+    static FString GameplayTraversalAudit(UWorld* World, int32 PathPairCount = 200);
 };

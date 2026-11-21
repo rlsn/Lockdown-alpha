@@ -43,6 +43,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.StaticScene.AuthoredCampInstances",
         "Lockdown.Rules.StaticScene.CampPhysicalPlacement",
         "Lockdown.Rules.StaticScene.NativeSightEdits",
+        "Lockdown.Rules.StaticScene.MapTraversal",
+        "Lockdown.Rules.StaticScene.TraversalTopology",
         "Lockdown.Rules.SceneTags.CollisionAndNavigation",
         "Lockdown.Rules.SceneTags.SightAndTerrain",
         "Lockdown.Rules.SceneTags.NativeMeshSight",
