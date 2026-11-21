@@ -2477,6 +2477,92 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
         const LDHUD::FDamageListView DmgView=LDHUD::DamageSummary(Sum,Res,&Content);
         TestTrue(TEXT("Result damage summary exposes structured share bars"),
             DmgView.bAvailable&&DmgView.Shares.Num()==2&&FMath::IsNearlyEqual(DmgView.Shares[0].Share,.7f,.01f));
+
+        // 5) ULDStatBar batch ordering & >255 refund chunking:
+        //    (a) Refunds dispatch BEFORE allocations funded by those refunds when UnspentPoints == 0;
+        //    (b) Refund of 260 points splits into 255 + 5 across acknowledged revisions instead of narrowing uint8(260) == 4.
+        UWorld* StatWorld=UWorld::CreateWorld(EWorldType::Game,false);
+        if(TestNotNull(TEXT("StatBar test world created"),StatWorld))
+        {
+            ON_SCOPE_EXIT{StatWorld->DestroyWorld(false);};
+            ULDStatBar* Bar=NewObject<ULDStatBar>(StatWorld);
+            Bar->Initialize();
+            const TSharedRef<SWidget> BarSlate=Bar->TakeWidget();
+            (void)BarSlate;
+            const TArray<const FLDDemoStatDefinition*> StatOrder=Content.StatsInDesignOrder();
+            if(StatOrder.Num()>=2)
+            {
+                TArray<FLDBuildCommand> Dispatched;
+                uint64 NextReq=1;
+                Bar->PeekRequestId=[&]()->uint64{return Bar->HasPendingRequest()?0:NextReq;};
+                Bar->SubmitBuild=[&](const FLDBuildCommand& Cmd,ELDGrowthReason& OutReason)->uint64
+                {
+                    OutReason=ELDGrowthReason::None;
+                    Dispatched.Add(Cmd);
+                    return NextReq++;
+                };
+                auto MakeProg=[&](uint64 Rev,int64 Unspent,int32 S0,int32 S1)
+                {
+                    FLDProgressionView V;V.bValid=true;V.Generation=1;V.Life=1;V.Level=5;V.BuildRevision=Rev;V.UnspentPoints=Unspent;
+                    for(int32 I=0;I<StatOrder.Num();++I)
+                    {
+                        V.StatPoints.Add({FName(*StatOrder[I]->Id),I==0?S0:I==1?S1:0});
+                    }
+                    return V;
+                };
+                auto AckLast=[&](uint64 NewRev,const FLDProgressionView& Updated)
+                {
+                    FLDSubmitResult Ack;
+                    Ack.Generation=1;Ack.Family=ELDGrowthFamily::Build;Ack.RequestId=NextReq-1;
+                    Ack.Status=ELDAdmissionStatus::Final;Ack.bHasBuildReceipt=true;
+                    Ack.BuildReceipt.Header.Generation=1;Ack.BuildReceipt.Header.OriginalLife=1;Ack.BuildReceipt.Header.RequestId=Ack.RequestId;
+                    Ack.BuildReceipt.Header.Outcome=ELDReceiptOutcome::Applied;
+                    Ack.BuildReceipt.Header.Revisions.bHasBuild=true;Ack.BuildReceipt.Header.Revisions.BuildRevision=NewRev;
+                    Bar->HandleSubmit(Ack);
+                    Bar->Present(&Updated,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true,Catalog.Get());
+                };
+
+                // Case (a): Unspent == 0, S0 == 2, S1 == 0. First click allocates nothing yet; hold request id = 0 while staging
+                // Refund(0, 2) + Allocate(1, 2) together, then FlushNow -> Respec goes FIRST, AllocatePoints goes SECOND after ack!
+                FLDProgressionView V0=MakeProg(10,0,2,0);
+                Bar->Present(&V0,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true,Catalog.Get());
+                Bar->PeekRequestId=[]()->uint64{return 0;}; // hold coalescing window so both queue together
+                TestTrue(TEXT("Refund 2 points on stat 0 queued"),Bar->Refund(0,2));
+                TestTrue(TEXT("Allocate 2 points on stat 1 funded by pending refund queued"),Bar->Allocate(1,2));
+                Bar->PeekRequestId=[&]()->uint64{return Bar->HasPendingRequest()?0:NextReq;};
+                Bar->FlushNow();
+                if(TestEqual(TEXT("First dispatched command is Respec alone"),Dispatched.Num(),1))
+                {
+                    TestTrue(TEXT("Refunds dispatch before allocations"),
+                        Dispatched[0].Kind==ELDBuildCommandKind::Respec&&Dispatched[0].PointCounts[0]==2&&Dispatched[0].PointCounts[1]==0);
+                    AckLast(11,MakeProg(11,2,0,0));
+                    if(TestEqual(TEXT("Allocation funded by refund dispatches automatically on revision ack"),Dispatched.Num(),2))
+                    {
+                        TestTrue(TEXT("Second command allocates the 2 funded points"),
+                            Dispatched[1].Kind==ELDBuildCommandKind::AllocatePoints&&Dispatched[1].PointCounts[1]==2);
+                    }
+                    AckLast(12,MakeProg(12,0,0,2));
+                }
+
+                // Case (b): S0 == 260 (> 255). Refund(0, 260) sends 255 in batch 1 and retains 5 for batch 2 after ack.
+                Dispatched.Reset();
+                FLDProgressionView V260=MakeProg(20,0,260,0);
+                Bar->Present(&V260,1,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,{},true,Catalog.Get());
+                TestTrue(TEXT("Refund 260 points accepted"),Bar->Refund(0,260));
+                if(TestEqual(TEXT("First chunk of >255 refund sent"),Dispatched.Num(),1))
+                {
+                    TestTrue(TEXT("First chunk caps at 255 instead of narrowing 260 -> 4"),
+                        Dispatched[0].Kind==ELDBuildCommandKind::Respec&&Dispatched[0].PointCounts[0]==255);
+                    TestEqual(TEXT("Optimistic effective points stay at 0 while remainder waits"),Bar->EffectivePoints(0),0);
+                    AckLast(21,MakeProg(21,255,5,0));
+                    if(TestEqual(TEXT("Remaining 5-point refund chunk dispatches after ack"),Dispatched.Num(),2))
+                    {
+                        TestTrue(TEXT("Second chunk sends exact remainder 5"),
+                            Dispatched[1].Kind==ELDBuildCommandKind::Respec&&Dispatched[1].PointCounts[0]==5);
+                    }
+                }
+            }
+        }
     }
     return true;
 }

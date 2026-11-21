@@ -53,11 +53,13 @@ namespace LDOrderRules
     constexpr double HeldMoveShiftCm = 40.;
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
         const FVector& GroundCm);
-    // #337 §3.2: rapid right-click move spam coalesces within 50 ms (20 Hz) when the target ground point shifted < 15 cm.
+    // #337 §3.2: rapid right-click move spam coalesces within 50 ms (20 Hz) when the target ground point shifted < 15 cm,
+    // bound strictly to the cached move identity with zero queued steps or intervening commands.
     constexpr double ClickMoveCoalesceSeconds = .05;
     constexpr double ClickMoveCoalesceCm = 15.;
     LOCKDOWN_API bool ShouldCoalesceClickMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
-        const FVector& GroundCm);
+        const FVector& GroundCm, const FLDMoveIdentity& CurrentLocal, const FLDMoveIdentity& CachedMoveIdentity,
+        int32 QueuedStepCount = 0);
     // #335 §1.2: intersects a pointer ray with horizontal plane Z = PlaneZ (ignoring walls/roofs) and resolves the
     // planar aim direction from CasterFeet; within AimDeadzoneCm (8 cm) of CasterFeet it falls back to CasterForward.
     constexpr double AimDeadzoneCm = 8.;

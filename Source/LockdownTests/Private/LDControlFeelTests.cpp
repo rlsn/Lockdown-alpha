@@ -452,13 +452,22 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Wholly off-screen segment is culled"),
         LDOrderRules::ClipViewportSegment(OutsideA, OutsideB, FVector2D(0., 0.), FVector2D(1920., 1080.)));
 
-    // #337 §3.2: 50ms / <15cm ClickMove coalescing.
-    TestTrue(TEXT("Rapid click within 50ms and <15cm coalesces"),
-        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.)));
+    // #337 §3.2: 50ms / <15cm ClickMove coalescing bound to move identity and zero queued steps.
+    const FLDMoveIdentity MoveId{1, 1, 5, 0}, NextOrderId{1, 1, 6, 0}, StoppedId{1, 1, 6, 1};
+    TestTrue(TEXT("Rapid click within 50ms and <15cm on the same active move identity coalesces"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), MoveId, MoveId, 0));
+    TestFalse(TEXT("Intervening unit cast / order advancing Local.Order prevents coalescing"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), NextOrderId, MoveId, 0));
+    TestFalse(TEXT("Intervening Stop epoch prevents coalescing"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), StoppedId, MoveId, 0));
+    TestFalse(TEXT("Queued Shift steps prevent plain right-click from coalescing instead of clearing queue"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), MoveId, MoveId, 1));
+    TestFalse(TEXT("Invalidated / zero cached move identity never coalesces"),
+        LDOrderRules::ShouldCoalesceClickMove(10.03, 10.00, FVector(100., 200., 0.), FVector(108., 205., 0.), MoveId, FLDMoveIdentity{}, 0));
     TestFalse(TEXT("Click >=15cm away sends immediately even within 50ms"),
-        LDOrderRules::ShouldCoalesceClickMove(10.02, 10.00, FVector(100., 200., 0.), FVector(120., 200., 0.)));
+        LDOrderRules::ShouldCoalesceClickMove(10.02, 10.00, FVector(100., 200., 0.), FVector(120., 200., 0.), MoveId, MoveId, 0));
     TestFalse(TEXT("Click after 50ms window sends"),
-        LDOrderRules::ShouldCoalesceClickMove(10.06, 10.00, FVector(100., 200., 0.), FVector(102., 200., 0.)));
+        LDOrderRules::ShouldCoalesceClickMove(10.06, 10.00, FVector(100., 200., 0.), FVector(102., 200., 0.), MoveId, MoveId, 0));
     return true;
 }
 

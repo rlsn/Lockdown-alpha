@@ -456,6 +456,7 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     uint32 FollowUpEpoch=0;
     if (Cast) { PrepareCastFollowUp(Request.Kind,*Cast,Request.bQueue,FollowUp,FollowUpEpoch); }
     if (!NextLocalIdentity(false,Local)) { return false; }
+    InvalidateClickMoveCoalesce();
     Request.Identity=Local;
     // Listen hosts can receive a terminal receipt synchronously inside the server call.
     RememberSentOrder(Request,FollowUp,FollowUpEpoch,bAutomaticAttack);
@@ -517,6 +518,7 @@ void ULDNavigationComponent::QueueCombatAction(const FLDCombatActionRequest& Req
 {
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand()) { return; }
+    InvalidateClickMoveCoalesce();
     // A Shift step decides what follows the current order; an automatic non-Shift attack would drop it.
     ClearCastFollowUp();
     Status=LDNavigationDetail::QueuedText();
@@ -545,6 +547,7 @@ void ULDNavigationComponent::Stop()
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner()) { return; }
     bHeldMove=false;
+    InvalidateClickMoveCoalesce();
     PC->CancelArmedCombat();
     if (!NextLocalIdentity(true,Local)) { return; }
     ClearCastFollowUp();
@@ -589,6 +592,7 @@ void ULDNavigationComponent::ResetLife()
     bFollowing=bLocalActive=bLocalPending=bLocalStop=false;
     bActiveHasGoal=bActiveEngaged=false;
     bHeldMove=false;
+    InvalidateClickMoveCoalesce();
     ClientActive={};
     EarlyOrder=RevokedOrder={};
     ClearCastFollowUp();
@@ -858,10 +862,15 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     if (!GroundUnderPointer(GroundHit)) { return; }
     const FVector Goal=GroundHit.ImpactPoint;
     const double RealNow=FPlatformTime::Seconds();
-    if (!bQueue && bLocalActive && (ActiveKind==ELDSpatialOrderKind::MoveGround || FollowKind==ELDSpatialOrderKind::MoveGround)
-        && LDOrderRules::ShouldCoalesceClickMove(RealNow,LastClickMoveSentAt,LastClickMoveGoalCm,Goal))
+    const bool bCurrentMoveMatches=LastClickMoveIdentity.Order!=0 && Local==LastClickMoveIdentity
+        && ((ClientActive==LastClickMoveIdentity && ActiveKind==ELDSpatialOrderKind::MoveGround)
+            || (EarlyOrder==LastClickMoveIdentity && FollowKind==ELDSpatialOrderKind::MoveGround)
+            || bLocalPending);
+    if (!bQueue && bLocalActive && !bLocalStop && bCurrentMoveMatches
+        && LDOrderRules::ShouldCoalesceClickMove(RealNow,LastClickMoveSentAt,LastClickMoveGoalCm,Goal,
+            Local,LastClickMoveIdentity,QueuedMarks.Num()))
     {
-        // #337 §3.2: coalesce rapid <50ms, <15cm right-click spam without dropping held-move state.
+        // #337 §3.2: coalesce rapid <50ms, <15cm right-click spam on the same active move without dropping held-move state.
         bHeldMove=true;
         return;
     }
@@ -873,6 +882,7 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     {
         LastClickMoveSentAt=RealNow;
         LastClickMoveGoalCm=Goal;
+        LastClickMoveIdentity=Local;
     }
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing, and a
     // Shift click is a single queued step.

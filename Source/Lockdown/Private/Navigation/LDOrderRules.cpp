@@ -26,10 +26,12 @@ bool LDOrderRules::QueueHeadDue(bool bPending, bool bActive, bool bActionRunning
 { return !bPending && !bActive && !bActionRunning; }
 
 bool LDOrderRules::ShouldCoalesceClickMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
-    const FVector& GroundCm)
+    const FVector& GroundCm, const FLDMoveIdentity& CurrentLocal, const FLDMoveIdentity& CachedMoveIdentity,
+    int32 QueuedStepCount)
 {
     if (!FMath::IsFinite(NowSeconds) || !FMath::IsFinite(LastSentSeconds) || LastSentSeconds <= 0.
-        || LastGroundCm.ContainsNaN() || GroundCm.ContainsNaN())
+        || LastGroundCm.ContainsNaN() || GroundCm.ContainsNaN()
+        || CachedMoveIdentity.Order == 0 || !(CurrentLocal == CachedMoveIdentity) || QueuedStepCount != 0)
     {
         return false;
     }

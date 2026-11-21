@@ -192,12 +192,14 @@ void ULDStatBar::Present(const FLDProgressionView* View,uint32 Match,uint32 Life
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
     bShownNow=bShown;
     // The last applied allocation is in the view (or never arrived): its points stop counting as waiting.
+    bool bJustAcknowledged=false;
     if(AwaitRevision!=0&&(Latest.BuildRevision>=AwaitRevision||UiNow()-AwaitSince>StatAwaitTimeout))
     {
         if(Latest.BuildRevision<AwaitRevision){UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_STAT_VIEW_LATE The own view did not carry the applied allocation within %.0f s."),StatAwaitTimeout);}
+        else{bJustAcknowledged=true;}
         AwaitRevision=0;for(int32& Count:InFlight){Count=0;}
     }
-    Flush();
+    Flush(bJustAcknowledged);
     Refresh();
 }
 void ULDStatBar::ToggleView()
@@ -431,6 +433,47 @@ void ULDStatBar::Flush(bool bIgnoreWindow)
     bool bHasPositive=false,bHasNegative=false;
     for(const int32 Delta:Queued){if(Delta>0){bHasPositive=true;}else if(Delta<0){bHasNegative=true;}}
     const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
+    // Dispatch refunds BEFORE allocations so pending refunds raise UnspentPoints and BuildRevision before any allocation
+    // funded by those refunded points goes out; cap each refund batch at MAX_uint8 (255) and retain any owned remainder.
+    if(bHasNegative)
+    {
+        if(!Gate.bCanRespec){if(Notify){Notify(FString(TEXT("退点："))+Gate.RespecBlocked);}DropWaiting();return;}
+        FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::Respec;
+        for(int32 Index=0;Index<Cells.Num();++Index)
+        {
+            if(!StatOrder.IsValidIndex(Index)||Latest.StatPoints[Index].StatId!=FName(*StatOrder[Index]->Id))
+            {
+                if(Notify){Notify(TEXT("退点：没有提交：属性数据与内容目录不一致。"));}
+                DropWaiting();return;
+            }
+            const int32 MaxOwned=LDHUD::StatPointsOf(Latest,Cells[Index].StatId);
+            Queued[Index]=FMath::Max(Queued[Index],-MaxOwned);
+            const int32 RefundCount=FMath::Clamp(-Queued[Index],0,FMath::Min(MaxOwned,int32(MAX_uint8)));
+            Command.PointCounts.Add(uint8(RefundCount));
+        }
+        bool bAny=false;
+        for(const uint8 C:Command.PointCounts){bAny|=C>0;}
+        if(!bAny)
+        {
+            for(int32& Delta:Queued){if(Delta<0){Delta=0;}}
+            if(!bHasPositive){return;}
+        }
+        else
+        {
+            for(int32 Index=0;Index<Cells.Num();++Index)
+            {
+                const int32 RefundCount=int32(Command.PointCounts[Index]);
+                if(RefundCount>0)
+                {
+                    InFlight[Index]-=RefundCount;
+                    Queued[Index]+=RefundCount;
+                }
+            }
+            LastBatchSentAt=Now;
+            Send(Command);
+            return;
+        }
+    }
     if(bHasPositive)
     {
         if(!Gate.bCanAllocate){if(Notify){Notify(FString(TEXT("加点："))+Gate.AllocateBlocked);}DropWaiting();return;}
@@ -452,36 +495,6 @@ void ULDStatBar::Flush(bool bIgnoreWindow)
         LastBatchSentAt=Now;
         Send(Command);
         return;
-    }
-    if(bHasNegative)
-    {
-        if(!Gate.bCanRespec){if(Notify){Notify(FString(TEXT("退点："))+Gate.RespecBlocked);}DropWaiting();return;}
-        FLDBuildCommand Command;Command.Kind=ELDBuildCommandKind::Respec;
-        for(int32 Index=0;Index<Cells.Num();++Index)
-        {
-            if(!StatOrder.IsValidIndex(Index)||Latest.StatPoints[Index].StatId!=FName(*StatOrder[Index]->Id))
-            {
-                if(Notify){Notify(TEXT("退点：没有提交：属性数据与内容目录不一致。"));}
-                DropWaiting();return;
-            }
-            const int32 RefundCount=FMath::Clamp(-Queued[Index],0,LDHUD::StatPointsOf(Latest,Cells[Index].StatId));
-            Command.PointCounts.Add(uint8(RefundCount));
-        }
-        bool bAny=false;
-        for(const uint8 C:Command.PointCounts){bAny|=C>0;}
-        if(!bAny){for(int32& Delta:Queued){if(Delta<0){Delta=0;}}return;}
-        for(int32 Index=0;Index<Cells.Num();++Index)
-        {
-            if(Queued[Index]<0)
-            {
-                const int32 RefundCount=int32(Command.PointCounts[Index]);
-                InFlight[Index]-=RefundCount;
-                Queued[Index]+=RefundCount;
-                if(Queued[Index]<0){Queued[Index]=0;}
-            }
-        }
-        LastBatchSentAt=Now;
-        Send(Command);
     }
 }
 void ULDStatBar::DropWaiting()

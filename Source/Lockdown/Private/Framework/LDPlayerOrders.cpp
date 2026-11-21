@@ -478,6 +478,7 @@ void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTar
     if (!IsLocalController()) { return; }
     FLDCombatActionRequest Request;
     if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+    if (Navigation) { Navigation->InvalidateClickMoveCoalesce(); }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
         Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind),Request.ExpectedSourceRevision);
     ServerSubmitCombatAction(Request);

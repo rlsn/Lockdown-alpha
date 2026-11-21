@@ -271,6 +271,7 @@ private:
     FVector HeldPoint=FVector::ZeroVector;
     double LastClickMoveSentAt=-1.;
     FVector LastClickMoveGoalCm=FVector::ZeroVector;
+    FLDMoveIdentity LastClickMoveIdentity;
     double LastCursorProbeAt=-1.;
     FVector2D LastCursorProbePx=FVector2D(-1000.,-1000.);
     bool bCursorGroundBlocked=false;
@@ -285,6 +286,7 @@ private:
     void HoldMoveForCast(const FLDCombatActionRequest& Cast);
     void ClearHeldCast();
 public:
+    void InvalidateClickMoveCoalesce() { LastClickMoveSentAt=-1.; LastClickMoveIdentity={}; }
     // Owning client: every combat receipt, so a held move resumes only after its cast left the body free.
     void NoteCombatReceipt(const FLDCombatActionReceipt& Receipt);
 private:
