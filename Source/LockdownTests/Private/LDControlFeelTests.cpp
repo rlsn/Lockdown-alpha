@@ -1,5 +1,6 @@
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatPreInput.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDControlSettings.h"
@@ -108,6 +109,15 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
     const double Clamped = ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(1, 0, 0), FVector(200, 0, 0), false);
     TestTrue(TEXT("Dashing straight at an enemy 200cm ahead clamps 450cm dash to 65cm (stopping at 135cm)"),
         FMath::IsNearlyEqual(Clamped, 65.0, 1e-4));
+    TestTrue(TEXT("Dashing at an enemy already at or inside 135cm clamps to 0cm in-place stop instead of pushing closer"),
+        FMath::IsNearlyEqual(ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(1, 0, 0), FVector(135, 0, 0), false), 0.0, 1e-6)
+        && FMath::IsNearlyEqual(ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(1, 0, 0), FVector(100, 0, 0), false), 0.0, 1e-6));
+    FLDCombatVoluntaryDash ClampedZeroDash;
+    ClampedZeroDash.StartFootCm = FVector::ZeroVector;
+    ClampedZeroDash.EndMs = 1001;
+    ClampedZeroDash.bClampedStop = true;
+    TestTrue(TEXT("A zero-displacement clamped stop dash still completes naturally at EndMs"),
+        LDCombatControl::DashCompleted(ClampedZeroDash, 1001, FVector::ZeroVector));
     TestTrue(TEXT("card_pass_through preserves the full 450cm dash through the enemy"),
         FMath::IsNearlyEqual(ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(1, 0, 0), FVector(200, 0, 0), true), 450.0, 1e-4));
     TestTrue(TEXT("Dashing away into open ground preserves the full 450cm dash"),

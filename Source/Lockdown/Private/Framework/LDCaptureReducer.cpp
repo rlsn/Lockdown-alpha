@@ -247,7 +247,6 @@ FGuid FLDCaptureReducer::ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTi
         if (LeftNum != RightNum) { return LeftNum > RightNum ? 1 : -1; }
         if (Left.ShowdownKills != Right.ShowdownKills) { return Left.ShowdownKills > Right.ShowdownKills ? 1 : -1; }
         if (Left.ShowdownDamageP2 != Right.ShowdownDamageP2) { return Left.ShowdownDamageP2 > Right.ShowdownDamageP2 ? 1 : -1; }
-        if (Left.CompletedSprays != Right.CompletedSprays) { return Left.CompletedSprays > Right.CompletedSprays ? 1 : -1; }
         return 0;
     };
     int32 EligibleCount = 0;
@@ -257,7 +256,7 @@ FGuid FLDCaptureReducer::ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTi
         if (!Row.bEligible || !Row.Contender.IsValid()) { continue; }
         ++EligibleCount;
         SoleEligible = Row.Contender;
-        if (Row.GuardProgressMs <= 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0 && Row.CompletedSprays == 0)
+        if (Row.GuardProgressMs <= 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0)
         {
             continue;
         }

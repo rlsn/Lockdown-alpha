@@ -1223,22 +1223,26 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
     // reaction in the same rule chain is exempted once from the mother reaction's 0.5 s lock (#330 §5.2.8).
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
-    const FGuid ChainKey=CurrentChain.IsValid() ? CurrentChain : Fact.TriggerEffectId;
+    const FGuid ChainKey=CurrentChain.IsValid() ? CurrentChain
+        : Fact.TriggerEffectId.IsValid() ? Fact.TriggerEffectId
+        : Fact.HitId.IsValid() ? Fact.HitId : FGuid::NewGuid();
     TGuardValue<FGuid> ChainScope(CurrentChain,ChainKey);
-    if (ChainKey.IsValid() && !WaveAfterExemptedChains.Contains(ChainKey))
-    {
-        Primary->WaveAfterExemptChainId=ChainKey;
-    }
     for (const FLDPassiveEffectRef& Wave : Waves)
     {
+        const bool bExemptAvailable=ChainKey.IsValid() && !WaveAfterExemptedChains.Contains(ChainKey);
+        Primary->WaveAfterExemptChainId=bExemptAvailable ? ChainKey : FGuid();
         TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
             ELDCombatElement::Chill,ELDCombatElement::Rot};
         Choices.Remove(Fact.Consumed);
-        const ELDCombatElement Still=ElementOfBody(*Primary,NowMs);
-        TArray<ELDCombatElement> Lands=Choices.FilterByPredicate([Still](ELDCombatElement Candidate)
-            { return LDCombatElements::ReactionOf(Still,Candidate)==ELDCombatReaction::None; });
-        if (Lands.IsEmpty()) { Lands=Choices; }
-        const ELDCombatElement Kind=Lands[CritRandom.RandRange(0,Lands.Num()-1)];
+        TArray<ELDCombatElement> Pool=Choices;
+        if (!bExemptAvailable)
+        {
+            const ELDCombatElement Still=ElementOfBody(*Primary,NowMs);
+            TArray<ELDCombatElement> Lands=Choices.FilterByPredicate([Still](ELDCombatElement Candidate)
+                { return LDCombatElements::ReactionOf(Still,Candidate)==ELDCombatReaction::None; });
+            if (!Lands.IsEmpty()) { Pool=MoveTemp(Lands); }
+        }
+        const ELDCombatElement Kind=Pool[CritRandom.RandRange(0,Pool.Num()-1)];
         FLDElementApplier Applier;
         Applier.SourceEntity=Trigger->Victim.EntityId;
         Applier.SourceBody=Fact.TriggerBody;
@@ -1247,6 +1251,7 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         Applier.Level=GrowthLevelOf(*Trigger);
         Applier.SourceAPP2=FMath::Max<int64>(Trigger->AttributeProjection.Final.APP2,0);
         if (!ApplyElement(*Primary,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
+        if (Primary->WaveAfterExemptChainId==ChainKey) { Primary->WaveAfterExemptChainId.Invalidate(); }
         LedgerCardTriggered(*Trigger,Wave.Key);
     }
     return true;

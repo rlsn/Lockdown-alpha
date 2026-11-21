@@ -1510,12 +1510,8 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareEvaluationExperience(co
         return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid,
             *FString::Printf(TEXT("An evaluation preset names %d level cards for %d levels crossed."), LevelCards.Num(), Crossed));
     }
-    // The preset replaces exactly the level-up offers this change queued: each crossed level receives its named card instead.
-    if (const FRecord* Record = Records.Find(ContenderId))
-    {
-        Prepared.NewBuild.Cards = Record->Build.Cards;
-        Prepared.NewBuild.NextCardSerial = Record->Build.NextCardSerial;
-    }
+    // The preset replaces exactly the level-up offers this change queued: each crossed level receives its named card instead,
+    // while keeping any bonus medals PrepareExperience rolled.
     FLDProgressionState& Progression = Prepared.NewProgression;
     Progression.CardQueue.SetNum(Progression.CardQueue.Num() - Crossed);
     Progression.CardOffersEarned = uint16(Progression.CardOffersEarned - Crossed);

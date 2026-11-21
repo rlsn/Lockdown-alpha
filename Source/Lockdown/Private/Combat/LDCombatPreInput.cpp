@@ -76,7 +76,7 @@ double LDCombatPreInput::ClampInnateDashDistance(double PlannedDistanceCm, const
     const double StopOffset = Along - FMath::Sqrt(FMath::Square(CloseDashStopCm) - PerpSq);
     if (StopOffset <= 0.0)
     {
-        return FMath::Min(PlannedDistanceCm, FMath::Max(1.0, Along * 0.25));
+        return 0.0;
     }
     return FMath::Min(PlannedDistanceCm, StopOffset);
 }

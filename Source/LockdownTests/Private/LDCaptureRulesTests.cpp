@@ -1387,6 +1387,18 @@ bool FLDShowdownAntiStalemateTest::RunTest(const FString& Parameters)
     };
     TestEqual(TEXT("Equal guard percentage and kills break ties by Showdown damage among living contenders"),
         FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), B);
+    Candidates = {
+        {A, true, 0, 20000, 0, 0, 2}, // lost graffiti; historical sprays do not win a 3-tier tie
+        {B, true, 0, 20000, 0, 0, 0},
+    };
+    TestEqual(TEXT("All three tiers tied at zero yield no winner even if one contender had historical sprays"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
+    Candidates = {
+        {A, true, 10000, 20000, 1, 25000, 3},
+        {B, true, 14000, 28000, 1, 25000, 1},
+    };
+    TestEqual(TEXT("Non-zero three-tier tie ignores historical CompletedSprays and yields no winner"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
     return true;
 }
 #endif

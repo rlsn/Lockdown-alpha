@@ -1132,8 +1132,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             Body.bInDorm=bInDorm;
             MarkViewChanged(Body.Victim.EntityId);
         }
-        // The physique keystone: recovery starts sooner out of combat, and in combat a shield of its share of the maximum HP
-        // comes up every interval.
+        // The physique keystone: recovery starts sooner out of combat; heal-to-shield exclusively owns KeystonePhysiqueReadyAtMs.
         const bool bPhysique=bContender && Body.AttributeProjection.Keystones.bPhysique;
         LDTactical::FOutOfCombatRecovery BodyRecovery=Recovery;
         LDTactical::FOutOfCombatRecovery BodyDorm=DormRecovery ? *DormRecovery : LDTactical::FOutOfCombatRecovery();
@@ -1145,16 +1144,6 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             const int64 CutBp=Parameters.KeystonePhysiqueOutOfCombatCutBp;
             BodyRecovery.DelayMs-=BodyRecovery.DelayMs/10000*CutBp+BodyRecovery.DelayMs%10000*CutBp/10000;
             BodyDorm.DelayMs-=BodyDorm.DelayMs/10000*CutBp+BodyDorm.DelayMs%10000*CutBp/10000;
-            if (!LDTactical::OutOfCombatAt(Body.LastCombatAtMs,BodyRecovery.DelayMs,NowMs) && NowMs>=Body.KeystonePhysiqueReadyAtMs)
-            {
-                const int64 ShieldP2=Pool.MaxHpP2/10000*Parameters.KeystonePhysiqueShieldMaxHPBp
-                    +Pool.MaxHpP2%10000*Parameters.KeystonePhysiqueShieldMaxHPBp/10000;
-                int64 NextReadyAtMs=0;
-                if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,Error)) { return false; }
-                Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs;
-                if (ShieldP2>0 && !GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,FGuid::NewGuid(),
-                    Body.Victim.EntityId,NowMs,Error)) { return false; }
-            }
         }
         if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &BodyRecovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
             Pools,Error,bInDorm && DormRecovery ? &BodyDorm : nullptr))

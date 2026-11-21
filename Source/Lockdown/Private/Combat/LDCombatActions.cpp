@@ -1715,11 +1715,16 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                     Distance=LDCombatPreInput::ClampInnateDashDistance(Distance,ReleaseFoot,DeliveryAction.Direction,EnemyCenterCm,false);
                 }
             }
-            const int64 DashDurationMs=PlannedDistance>0. && Distance<PlannedDistance
-                ? FMath::Max<int64>(1,FMath::RoundToInt64(double(Effect.DurationMs)*(Distance/PlannedDistance)))
-                : Effect.DurationMs;
-            const double Seconds=double(DashDurationMs)/1000.;
-            if (!Movement->StartDemoDash(DeliveryAction.Direction,Distance,Seconds,Error)) { return false; }
+            const bool bClampedZeroStop=Distance<=0.;
+            const int64 DashDurationMs=bClampedZeroStop ? 1
+                : PlannedDistance>0. && Distance<PlannedDistance
+                    ? FMath::Max<int64>(1,FMath::RoundToInt64(double(Effect.DurationMs)*(Distance/PlannedDistance)))
+                    : Effect.DurationMs;
+            if (!bClampedZeroStop)
+            {
+                const double Seconds=double(DashDurationMs)/1000.;
+                if (!Movement->StartDemoDash(DeliveryAction.Direction,Distance,Seconds,Error)) { return false; }
+            }
             if (!LDMatchLifecycle::AddDurationMs(Now,DashDurationMs,Body.DashUntilMs,Error)) { return false; }
             Body.DashContact.Reset();
             if (Body.AttributeProjection.Keystones.bAgility)
@@ -1746,6 +1751,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Voluntary.Source=Source;
             Voluntary.StartFootCm=ReleaseFoot;
             Voluntary.EndMs=Body.DashUntilMs;
+            Voluntary.bClampedStop=bClampedZeroStop;
             const bool bCards=!Resets.IsEmpty() || !Hastes.IsEmpty() || !Phases.IsEmpty() || !Shocks.IsEmpty();
             if (bCards || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
             {

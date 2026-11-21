@@ -76,7 +76,7 @@ namespace LDCombatControl
 
     bool DashCompleted(const FLDCombatVoluntaryDash& Dash, int64 AtMs, const FVector& FootCm)
     {
-        return AtMs >= Dash.EndMs && FVector::Dist2D(Dash.StartFootCm, FootCm) > DashDisplacementEpsilonCm;
+        return AtMs >= Dash.EndMs && (Dash.bClampedStop || FVector::Dist2D(Dash.StartFootCm, FootCm) > DashDisplacementEpsilonCm);
     }
 
     bool IsHardControl(ELDControlKind Kind)

@@ -73,6 +73,7 @@ struct FLDCombatVoluntaryDash
     FLDCombatSourceRef Source;
     FVector StartFootCm = FVector::ZeroVector;
     int64 EndMs = 0;
+    bool bClampedStop = false;
 };
 
 namespace LDCombatControl
