@@ -446,14 +446,18 @@ void ULDGameInstance::PrepareLocalSettingsForTravel()
 
 void ULDGameInstance::UseBorderlessWindow()
 {
-    // The window is not a setting: the game always runs borderless at the desktop resolution, whatever an older save
-    // holds. Init runs before UGameEngine::Init creates the window, so the first window already uses it. The engine's
-    // launch overrides (-windowed, -ResX/-ResY) still apply to the request; automation and several clients on one machine
-    // use them. Editor PIE windows belong to the editor.
+    // Default to borderless desktop on first launch; preserve a player-chosen WindowMode/Resolution/FrameRateLimit (#331)
+    // when GameUserSettings.ini already stores a valid FullscreenMode. Launch overrides (-windowed, -ResX/-ResY) still apply.
     if (GIsEditor || !FApp::CanEverRender() || IsRunningCommandlet() || !Cast<UGameEngine>(GEngine)) { return; }
     auto* Settings = GEngine->GetGameUserSettings();
     if (!Settings) { UE_LOG(LogLDMatch, Error, TEXT("No engine display settings; the window keeps its launch mode.")); return; }
-    LDLocalSettings::HoldBorderlessDesktop(*Settings);
+    FString SavedMode;
+    const bool bHasSavedMode = GConfig && GConfig->GetString(*Settings->GetClass()->GetPathName(), TEXT("FullscreenMode"), SavedMode, GGameUserSettingsIni)
+        && (SavedMode == TEXT("0") || SavedMode == TEXT("1") || SavedMode == TEXT("2"));
+    if (!bHasSavedMode)
+    {
+        LDLocalSettings::HoldBorderlessDesktop(*Settings);
+    }
     // ApplyResolutionSettings can also adjust resolution quality; the window choice must not change quality.
     const auto Quality = Settings->ScalabilityQuality;
     Settings->ApplyResolutionSettings(true);
@@ -492,12 +496,22 @@ FLDDisplaySettingsResult ULDGameInstance::ApplyDisplaySettings(const FLDDisplayS
     auto* Settings = DisplaySettingsOwner();
     if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("显示设置需要可交互的游戏窗口，没有应用任何显示修改。")); }
     if (!Draft.IsValid()) { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("所选的显示参数无效，没有应用。请改选后再应用。")); }
+    const auto TargetQuality = Draft.Quality;
+    const FIntPoint Desktop = Settings->GetDesktopResolution();
+    const FIntPoint TargetRes = (Draft.WindowMode == EWindowMode::WindowedFullscreen && Desktop.X >= 640 && Desktop.Y >= 360)
+        ? Desktop : Draft.Resolution;
+    Settings->SetFullscreenMode(Draft.WindowMode);
+    Settings->SetScreenResolution(TargetRes);
+    Settings->SetFrameRateLimit(Draft.FrameRateLimit);
     Settings->SetVSyncEnabled(Draft.bVSync);
-    Settings->ScalabilityQuality = Draft.Quality;
+    Settings->ScalabilityQuality = TargetQuality;
+    Settings->ApplyResolutionSettings(false);
+    Settings->ConfirmVideoMode();
+    Settings->ScalabilityQuality = TargetQuality;
     Settings->ApplyNonResolutionSettings();
     bDisplaySettingsDirty = true;
     if (Settings->IsVSyncDirty() || Scalability::GetQualityLevels() != Draft.Quality)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("垂直同步或画质没有完全应用，可能被引擎覆盖设置锁定；尚未保存。")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("显示或画质没有完全应用，可能被引擎覆盖设置锁定；尚未保存。")); }
     // The default render scale (0) is a no-op in the engine; without this, restoring defaults kept the old scale until restart.
     auto* ScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
     if (!ScreenPercentage || !LDLocalSettings::ApplyRenderScale(*ScreenPercentage, Draft.Quality.ResolutionQuality))

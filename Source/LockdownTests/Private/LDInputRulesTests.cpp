@@ -20,7 +20,11 @@ bool FLDInputMappingsTest::RunTest(const FString& Parameters)
         &&!Settings->Bindings.Contains(TEXT("Item1"))&&!Settings->Bindings.Contains(TEXT("Item2"))&&!Settings->Bindings.Contains(TEXT("Item3"))
         &&!Settings->Bindings.Contains(TEXT("Sprint"))&&!Settings->Bindings.Contains(TEXT("Help"))
         &&Settings->Key(TEXT("AttackMove"))==EKeys::A&&Settings->Key(TEXT("Attributes"))==EKeys::P&&Settings->Key(TEXT("Recenter"))==EKeys::SpaceBar);
-    TestFalse(TEXT("Conflict cannot silently replace another command"),Settings->Rebind(TEXT("Skill1"),EKeys::W,Error));
+    FString SwappedLabel;
+    TestTrue(TEXT("Conflicting key automatically swaps bindings (#331)"),
+        Settings->Rebind(TEXT("Skill1"),EKeys::W,Error,&SwappedLabel) && Settings->Key(TEXT("Skill1"))==EKeys::W
+        && Settings->Key(TEXT("Skill2"))==EKeys::Q && !SwappedLabel.IsEmpty()
+        && Settings->Rebind(TEXT("Skill1"),EKeys::Q,Error,&SwappedLabel) && Settings->Key(TEXT("Skill2"))==EKeys::W);
     TestFalse(TEXT("Global Escape cannot be taken by a world action"),Settings->Rebind(TEXT("Skill1"),EKeys::Escape,Error));
     TestFalse(TEXT("Back remains reserved"),Settings->Rebind(TEXT("Back"),EKeys::Z,Error));
     TestFalse(TEXT("Shift stays the fixed shift-queue modifier"),Settings->Rebind(TEXT("Skill1"),EKeys::LeftShift,Error)||Settings->Rebind(TEXT("Stop"),EKeys::RightShift,Error));

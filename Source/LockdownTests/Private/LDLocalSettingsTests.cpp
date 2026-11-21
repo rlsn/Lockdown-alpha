@@ -77,6 +77,7 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 MusiclessFixtureSchema = 19;
     constexpr uint32 CombatFeelLessFixtureSchema = 21;
     constexpr uint32 CombatFeelFixtureSchema = 22;
+    constexpr uint32 ColorblindlessFixtureSchema = 23;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -103,6 +104,11 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         {
             uint8 ReduceEffects=Values.bReduceCombatEffects?1:0, CameraShake=Values.bCameraShake?1:0;
             Payload << ReduceEffects << CameraShake;
+        }
+        if (Schema > ColorblindlessFixtureSchema)
+        {
+            uint8 Colorblind=Values.bColorblindMode?1:0;
+            Payload << Colorblind;
         }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
@@ -589,18 +595,20 @@ bool FLDLocalSettingsCombatFeedbackTest::RunTest(const FString& Parameters)
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     TestFalse(TEXT("Combat effects are full strength by default"), Applied->bReduceCombatEffects);
     TestTrue(TEXT("Camera shake is enabled by default"), Applied->bCameraShake);
+    TestFalse(TEXT("Colorblind mode is off by default"), Applied->bColorblindMode);
     Applied->bReduceCombatEffects = true;
     Applied->bCameraShake = false;
-    TestTrue(TEXT("The combat feedback preferences save and round-trip"),
+    Applied->bColorblindMode = true;
+    TestTrue(TEXT("The combat feedback and colorblind preferences save and round-trip"),
         Applied->SaveLocalSettings().IsSaved());
     const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("The saved combat feedback preferences load exactly"),
+    TestTrue(TEXT("The saved combat feedback and colorblind preferences load exactly"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
-        && Loaded.Settings->bReduceCombatEffects && !Loaded.Settings->bCameraShake);
+        && Loaded.Settings->bReduceCombatEffects && !Loaded.Settings->bCameraShake && Loaded.Settings->bColorblindMode);
     if (!Loaded.Settings) { return false; }
     Loaded.Settings->ResetPreferenceGroup(ELDPreferenceGroup::Interface);
-    TestTrue(TEXT("Restoring the interface page resets both combat feedback preferences"),
-        !Loaded.Settings->bReduceCombatEffects && Loaded.Settings->bCameraShake);
+    TestTrue(TEXT("Restoring the interface page resets combat feedback and colorblind preferences"),
+        !Loaded.Settings->bReduceCombatEffects && Loaded.Settings->bCameraShake && !Loaded.Settings->bColorblindMode);
 
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
@@ -1134,8 +1142,13 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
         Settings->Bindings.Remove(Name);
     }
     TestTrue(TEXT("Raw-map probes leave exactly the Demo defaults"), HasExactDemoDefaults(*Settings));
+    FString Swapped;
+    TestTrue(TEXT("Conflicting action key swaps bindings cleanly (#331)"),
+        Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error, &Swapped)
+        && Settings->Key(TEXT("PanUp")) == EKeys::Q && Settings->Key(TEXT("Skill1")) == EKeys::Up && !Swapped.IsEmpty());
+    Settings->ResetBindings();
     const auto Before = Settings->Bindings;
-    TestFalse(TEXT("Conflicting key is rejected, never relocated"), Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error));
+    TestFalse(TEXT("Reserved Back key cannot be swapped onto another action"), Settings->Rebind(TEXT("PanUp"), EKeys::Escape, Error));
     TestTrue(TEXT("Rejected rebind preserves every binding"), Settings->Bindings.OrderIndependentCompareEqual(Before));
     TestTrue(TEXT("The applied owner accepts a chosen name"), Settings->SetAppliedPlayerName(TEXT("王小明"), Error));
     Settings->TextScale = 1.25f;
@@ -1207,11 +1220,14 @@ bool FLDLocalDisplayBorderlessOnlyTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("It is the confirmed mode, so a later save writes no unconfirmed window"),
         Settings->GetLastConfirmedFullscreenMode() == EWindowMode::WindowedFullscreen
         && Settings->GetLastConfirmedScreenResolution() == Desktop);
-    TestTrue(TEXT("VSync, quality and render scale are untouched"), FLDDisplaySettings::Read(*Settings) == Before);
+    const auto Held = FLDDisplaySettings::Read(*Settings);
+    TestTrue(TEXT("VSync, quality and render scale are untouched while mode & resolution update (#331)"),
+        Held.bVSync == Before.bVSync && Held.Quality == Before.Quality
+        && Held.WindowMode == EWindowMode::WindowedFullscreen && Held.Resolution == Desktop);
     LDLocalSettings::HoldBorderlessDesktop(*Settings);
     TestTrue(TEXT("Holding it again changes nothing"),
         Settings->GetFullscreenMode() == EWindowMode::WindowedFullscreen && Settings->GetScreenResolution() == Desktop
-        && FLDDisplaySettings::Read(*Settings) == Before);
+        && FLDDisplaySettings::Read(*Settings) == Held);
     return true;
 }
 

@@ -52,6 +52,8 @@ namespace
     constexpr uint32 CombatFeelSchema = 22;
     // Schema 22 has the current layout; only its key list predates the Workshop key.
     constexpr uint32 WorkshoplessSchema = 22;
+    // Schema 23 predates the red-green colorblind mode toggle (#331).
+    constexpr uint32 ColorblindlessSchema = 23;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -268,8 +270,9 @@ void ULDControlSettings::ResetBindings()
     for (const auto& B : Definitions()) { Bindings.Add(B.Action, B.Key); }
     if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
 }
-bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
+bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error,FString* OutSwappedLabel)
 {
+    if(OutSwappedLabel){OutSwappedLabel->Reset();}
     const auto* Definition=Definitions().FindByPredicate([&](const FLDControlBinding& B){return B.Action==Action;});
     if(!Definition){Error=TEXT("此动作不在当前按键注册表中。");return false;}
     if(Action==TEXT("Back")||NewKey==EKeys::Escape){Error=TEXT("Esc 保留给返回 / 取消。");return false;}
@@ -282,7 +285,22 @@ bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
     {
         const FKey Other=Key(B.Action);
         const bool WheelOverlap=(NewKey==EKeys::MouseScrollUp||NewKey==EKeys::MouseScrollDown)&&Other==EKeys::MouseWheelAxis;
-        if(B.Action!=Action&&(Other==NewKey||WheelOverlap)){Error=TEXT("该键已被“")+B.Label+TEXT("”使用，请选择其他键。");return false;}
+        if(B.Action!=Action&&WheelOverlap){Error=TEXT("该键已被“")+B.Label+TEXT("”使用，请选择其他键。");return false;}
+        if(B.Action!=Action&&Other==NewKey)
+        {
+            if(B.Axis||Definition->Axis||B.Action==TEXT("Back"))
+            {
+                Error=TEXT("该键已被“")+B.Label+TEXT("”使用，请选择其他键。");
+                return false;
+            }
+            const FKey Previous=Key(Action);
+            Bindings.Add(B.Action,Previous);
+            Bindings.Add(Action,NewKey);
+            if(OutSwappedLabel){*OutSwappedLabel=B.Label;}
+            if(Phase!=ELDLocalSettingsPhase::EditingDraft){Phase=ELDLocalSettingsPhase::ConfirmedApplied;}
+            Error.Empty();
+            return true;
+        }
     }
     Bindings.Add(Action,NewKey);
     if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
@@ -366,6 +384,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     bShowFPS = Other.bShowFPS;
     bReduceCombatEffects = Other.bReduceCombatEffects;
     bCameraShake = Other.bCameraShake;
+    bColorblindMode = Other.bColorblindMode;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -544,6 +563,7 @@ void ULDControlSettings::ResetPreferenceGroup(ELDPreferenceGroup Group)
         bShowFPS = CurrentDefaults->bShowFPS;
         bReduceCombatEffects = CurrentDefaults->bReduceCombatEffects;
         bCameraShake = CurrentDefaults->bCameraShake;
+        bColorblindMode = CurrentDefaults->bColorblindMode;
         break;
     }
 }
@@ -587,7 +607,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
             || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
-            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema);
+            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema
+            || SavedSchema == ColorblindlessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -598,6 +619,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
     uint8 Network = 0, FPS = 0, AutoAttack = Settings->bAutoAttackAfterCast ? 1 : 0;
     uint8 ReduceEffects = Settings->bReduceCombatEffects ? 1 : 0, CameraShake = Settings->bCameraShake ? 1 : 0;
+    uint8 Colorblind = Settings->bColorblindMode ? 1 : 0;
     int32 Count = 0;
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
@@ -614,9 +636,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema > AutoAttacklessSchema) { Reader << AutoAttack; }
     if (SavedSchema > MusiclessSchema) { Reader << Settings->MusicVolume; }
     if (SavedSchema >= CombatFeelSchema) { Reader << ReduceEffects << CameraShake; }
+    if (SavedSchema > ColorblindlessSchema) { Reader << Colorblind; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1
-        || ReduceEffects > 1 || CameraShake > 1 || Count < 0 || Count > MaxBindingCount)
+        || ReduceEffects > 1 || CameraShake > 1 || Colorblind > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
     if (SavedName.Len() != FCString::Strlen(*SavedName))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
@@ -628,6 +651,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     Settings->bShowFPS = FPS != 0;
     Settings->bReduceCombatEffects = ReduceEffects != 0;
     Settings->bCameraShake = CameraShake != 0;
+    Settings->bColorblindMode = Colorblind != 0;
     Settings->PlayerName = SavedName;
     // Kept as stored: an unsupported value is rejected by the preference validation below, like an out-of-range zoom.
     Settings->MinimapOrientation = static_cast<ELDMinimapOrientation>(Orientation);
@@ -724,9 +748,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         { MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume)); }
         if (SavedSchema < CombatFeelSchema) { MigrationNotes += TEXT("降低战斗特效关闭、镜头震动开启。"); }
         if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
-            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema)
+            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema
+            || SavedSchema == ColorblindlessSchema)
         {
-            const FString Preserved = SavedSchema == WorkshoplessSchema
+            const FString Preserved = SavedSchema >= WorkshoplessSchema
                 ? TEXT("已从旧版本设置迁移：全部偏好与按键已保留，下次保存时写入新格式。")
                 : SavedSchema != AutoAttacklessSchema
                 ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法、诊断与施法后自动攻击偏好已保留，下次保存时写入新格式。")
@@ -779,12 +804,12 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
     uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0, AutoAttack = bAutoAttackAfterCast ? 1 : 0;
-    uint8 ReduceEffects = bReduceCombatEffects ? 1 : 0, CameraShake = bCameraShake ? 1 : 0;
+    uint8 ReduceEffects = bReduceCombatEffects ? 1 : 0, CameraShake = bCameraShake ? 1 : 0, Colorblind = bColorblindMode ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec, SavedMusic = MusicVolume;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
     Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation
-        << SavedQuick << Network << FPS << AutoAttack << SavedMusic << ReduceEffects << CameraShake << Count;
+        << SavedQuick << Network << FPS << AutoAttack << SavedMusic << ReduceEffects << CameraShake << Colorblind << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();
@@ -833,6 +858,14 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 FLDDisplaySettings FLDDisplaySettings::Read(const UGameUserSettings& Settings)
 {
     FLDDisplaySettings Result;
+    const EWindowMode::Type Mode = Settings.GetFullscreenMode();
+    Result.WindowMode = (Mode == EWindowMode::Fullscreen || Mode == EWindowMode::WindowedFullscreen || Mode == EWindowMode::Windowed)
+        ? Mode : EWindowMode::WindowedFullscreen;
+    const FIntPoint Res = Settings.GetScreenResolution();
+    const FIntPoint Desktop = Settings.GetDesktopResolution();
+    Result.Resolution = (Res.X >= 640 && Res.Y >= 360) ? Res : (Desktop.X >= 640 && Desktop.Y >= 360) ? Desktop : FIntPoint(1920, 1080);
+    const float Limit = Settings.GetFrameRateLimit();
+    Result.FrameRateLimit = (FMath::IsFinite(Limit) && Limit > 0.f) ? Limit : 0.f;
     Result.bVSync = Settings.IsVSyncEnabled();
     Result.Quality = Settings.ScalabilityQuality;
     return Result;
@@ -846,6 +879,10 @@ bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, FLDDispl
     auto* EngineDefaults = NewObject<UGameUserSettings>(GetTransientPackage(), Live.GetClass(), NAME_None, RF_Transient);
     EngineDefaults->SetToDefaults();
     FLDDisplaySettings Result = Read(*EngineDefaults);
+    Result.WindowMode = EWindowMode::WindowedFullscreen;
+    const FIntPoint Desktop = Live.GetDesktopResolution();
+    Result.Resolution = (Desktop.X >= 640 && Desktop.Y >= 360) ? Desktop : FIntPoint(1920, 1080);
+    Result.FrameRateLimit = 0.f;
     Result.bVSync = DefaultVSync != 0;
     if (!Result.IsValid())
     { Error = TEXT("无法确定默认画质，显示与画质未恢复默认。"); return false; }
@@ -854,9 +891,19 @@ bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, FLDDispl
     return true;
 }
 bool FLDDisplaySettings::operator==(const FLDDisplaySettings& Other) const
-{ return bVSync == Other.bVSync && Quality == Other.Quality; }
+{
+    return WindowMode == Other.WindowMode && Resolution == Other.Resolution
+        && FMath::IsNearlyEqual(FrameRateLimit, Other.FrameRateLimit, .01f)
+        && bVSync == Other.bVSync && Quality == Other.Quality;
+}
 bool FLDDisplaySettings::IsValid() const
 {
+    if (WindowMode != EWindowMode::Fullscreen && WindowMode != EWindowMode::WindowedFullscreen && WindowMode != EWindowMode::Windowed)
+    { return false; }
+    if (Resolution.X < 640 || Resolution.Y < 360 || Resolution.X > 16384 || Resolution.Y > 16384)
+    { return false; }
+    if (!FMath::IsFinite(FrameRateLimit) || FrameRateLimit < 0.f || FrameRateLimit > 1000.f)
+    { return false; }
     if (!FMath::IsFinite(Quality.ResolutionQuality) || Quality.ResolutionQuality < 0 || Quality.ResolutionQuality > 100) { return false; }
     for (int32 Value : { Quality.ViewDistanceQuality, Quality.AntiAliasingQuality, Quality.ShadowQuality,
         Quality.GlobalIlluminationQuality, Quality.ReflectionQuality, Quality.PostProcessQuality, Quality.TextureQuality,
@@ -938,8 +985,26 @@ FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
     { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但无法读取实际配置文件。请重试保存。") }; }
     FString VSync;
     const TCHAR* Section = *SettingsSection;
-    const bool DisplayMatches = Display.GetString(Section, TEXT("bUseVSync"), VSync)
+    bool DisplayMatches = Display.GetString(Section, TEXT("bUseVSync"), VSync)
         && VSync.Equals(Expected.bVSync ? TEXT("True") : TEXT("False"), ESearchCase::IgnoreCase);
+    FString ModeText;
+    if (DisplayMatches && Display.GetString(Section, TEXT("FullscreenMode"), ModeText))
+    {
+        DisplayMatches &= ModeText.TrimStartAndEnd() == FString::FromInt(int32(Expected.WindowMode));
+    }
+    FString ResXText, ResYText;
+    if (DisplayMatches && Display.GetString(Section, TEXT("ResolutionSizeX"), ResXText) && Display.GetString(Section, TEXT("ResolutionSizeY"), ResYText))
+    {
+        DisplayMatches &= ResXText.TrimStartAndEnd() == FString::FromInt(Expected.Resolution.X)
+            && ResYText.TrimStartAndEnd() == FString::FromInt(Expected.Resolution.Y);
+    }
+    FString LimitText;
+    if (DisplayMatches && Display.GetString(Section, TEXT("FrameRateLimit"), LimitText))
+    {
+        double ParsedLimit = -1.;
+        DisplayMatches &= LexTryParseString(ParsedLimit, *LimitText.TrimStartAndEnd())
+            && FMath::IsNearlyEqual(ParsedLimit, double(Expected.FrameRateLimit), .05);
+    }
     const TCHAR* QualitySection = TEXT("ScalabilityGroups");
     const bool QualityMatches = IntMatches(Quality, QualitySection, TEXT("sg.ViewDistanceQuality"), Expected.Quality.ViewDistanceQuality)
         && IntMatches(Quality, QualitySection, TEXT("sg.AntiAliasingQuality"), Expected.Quality.AntiAliasingQuality)
