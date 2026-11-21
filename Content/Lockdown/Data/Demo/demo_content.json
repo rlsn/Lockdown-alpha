@@ -14735,7 +14735,7 @@
       "unit": "cm"
     },
     "hp": {
-      "p2": 450000,
+      "p2": 260000,
       "unit": "hp"
     },
     "id": "monster_dean",
@@ -21464,7 +21464,7 @@
       },
       "id": "final_hit_and_run",
       "native_id": 25,
-      "sprays": 5
+      "sprays": 4
     },
     {
       "guard": {
@@ -21476,7 +21476,7 @@
     },
     {
       "guard": {
-        "ms": 45000,
+        "ms": 28000,
         "unit": "ms"
       },
       "id": "final_private_pole",
@@ -21686,6 +21686,14 @@
       "unit": "cm"
     },
     "AIRDROP.RewardXP": 200,
+    "CAMP.ClearHealMissingRatio": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "CAMP.ClearMomentum": {
+      "p2": 1500,
+      "unit": "momentum"
+    },
     "CAMP.GrowthAttackRatioPerStage": {
       "bp": 800,
       "unit": "ratio"
@@ -21727,11 +21735,11 @@
     },
     "CAPTURE.RadiusCm": {
       "denominator": 1,
-      "numerator": 300,
+      "numerator": 420,
       "unit": "cm"
     },
     "CAPTURE.SpraySec": {
-      "ms": 3500,
+      "ms": 2500,
       "unit": "ms"
     },
     "CARDS.CapacityBase": 6,
@@ -22531,7 +22539,7 @@
       "unit": "ms"
     },
     "REST.DrawSec": {
-      "ms": 3000,
+      "ms": 1000,
       "unit": "ms"
     },
     "REST.EntryReadyTimeoutSec": {
@@ -22551,7 +22559,7 @@
       "unit": "ms"
     },
     "REST.PayoutSec": {
-      "ms": 3000,
+      "ms": 1500,
       "unit": "ms"
     },
     "REST.ReturnSearchRadiusCm": {
@@ -22564,7 +22572,7 @@
       "unit": "ms"
     },
     "REST.SettlementSec": {
-      "ms": 3000,
+      "ms": 1500,
       "unit": "ms"
     },
     "REST.SignupSec": {
@@ -22575,6 +22583,11 @@
       "ms": 15000,
       "unit": "ms"
     },
+    "REWARD.AssistXPRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "REWARD.BountyXP": 200,
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
     "SHOP.CardPrice": 2,
@@ -22598,6 +22611,14 @@
     "SHOWDOWN.FirstRespawnSec": {
       "ms": 18000,
       "unit": "ms"
+    },
+    "SHOWDOWN.KillHealMaxHPRatio": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
+    "SHOWDOWN.KillMomentum": {
+      "p2": 5000,
+      "unit": "momentum"
     },
     "SHOWDOWN.RespawnCutoffSec": {
       "ms": 90000,

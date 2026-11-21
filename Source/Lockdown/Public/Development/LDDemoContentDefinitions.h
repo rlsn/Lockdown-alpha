@@ -478,6 +478,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ShowdownRingTickMs = 0;
     UPROPERTY() int64 ShowdownRingEarlyDamageBp = 0;
     UPROPERTY() int64 ShowdownRingLateDamageBp = 0;
+    // SHOWDOWN.KillHealMaxHPRatio: a contender kill in the final field heals the killer this share of its maximum HP.
+    UPROPERTY() int64 ShowdownKillHealMaxHPBp = 0;
+    // SHOWDOWN.KillMomentum: and gives this much momentum.
+    UPROPERTY() int64 ShowdownKillMomentumP2 = 0;
     // Spec §10.4 (P6): a field respawn waits RespawnBaseMs + RespawnPerLevelMs x level; the dead contender chooses among
     // SpawnChoiceCount distinct spawn anchors within SpawnChoiceMs (else the first).
     UPROPERTY() int64 RespawnBaseMs = 0;
@@ -505,6 +509,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CampGrowthAttackPerStageBp = 0;
     UPROPERTY() int64 CampGrowthResistPerStageP2 = 0;
     UPROPERTY() int64 CampGrowthRewardXPPerStageBp = 0;
+    // CAMP.ClearHealMissingRatio: the contender who clears a whole camp heals this share of its missing HP.
+    UPROPERTY() int64 CampClearHealMissingBp = 0;
+    // CAMP.ClearMomentum: and gains this much momentum.
+    UPROPERTY() int64 CampClearMomentumP2 = 0;
     // D26 (#79) / #198 outer §5 airdrop: the drops land at the explicit field progress instants AirdropLandMs (strictly
     // increasing), each public AnnounceLead earlier, and leave unclaimed AirdropExpireMs after landing.
     UPROPERTY() TArray<int64> AirdropLandMs;
@@ -575,10 +583,14 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
+    // REWARD.BountyXP: extra XP for the killer of a contender shown trending (上热搜) at its death.
+    UPROPERTY() int64 BountyXP = 0;
     UPROPERTY() int64 PlayerXPPerLevel = 0;
     // Contender kills only: a contribution within this window before the death earns an assist; the killer and the
     // assisters split the kill XP.
     UPROPERTY() int64 AssistWindowMs = 0;
+    // REWARD.AssistXPRatio: each assister of a contender kill takes this share of its XP; the killer keeps the whole.
+    UPROPERTY() int64 AssistXPRatioBp = 0;
     // #198 points: OpeningPoints at BeginMatch, PointsPerLevel for every level crossed up to the cap, then MaxLevelPoints
     // for every full MaxLevelPointsXP past the top threshold. A build change commits only BuildSafeWindowMs after the
     // contender's last combat action (GROWTH.BuildSafeWindowSec).

@@ -444,8 +444,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         1500, 1760, 2040, 2340, 2660, 3000};
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2 and 6"),
-        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 6}));
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2, 6 and 11"),
+        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 6, 11}));
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20);
     bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),

@@ -244,8 +244,8 @@ bool FLDSkillRankBranchTest::RunTest(const FString& Parameters)
     FLDGrowthBuild Out;
     TestEqual(TEXT("Level 1 has no skill point"), LDProgression::SkillPoints(Content, Build), 0);
     TestEqual(TEXT("so a rank-up is refused"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A, Context, Out), ELDGrowthReason::NoSkillPoint);
-    Build.Level = 4;
-    TestEqual(TEXT("Level 4 gives the first point"), LDProgression::SkillPoints(Content, Build), 1);
+    Build.Level = 3;
+    TestEqual(TEXT("Level 3 gives the first point"), LDProgression::SkillPoints(Content, Build), 1);
     TestEqual(TEXT("A rank-3 path cannot skip rank 2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
     TestEqual(TEXT("An empty slot has nothing to raise"), LDProgression::ApplyRankUpSkill(Content, Build, 1, B::A, Context, Out),
@@ -253,16 +253,16 @@ bool FLDSkillRankBranchTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Rank 2 takes A and spends the point"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A, Context, Out)
         == ELDGrowthReason::None && Out.Actives[0].Branch == B::A && LDProgression::SkillPoints(Content, Out) == 0);
     Build = Out;
-    Build.Level = 8;
+    Build.Level = 6;
     TestEqual(TEXT("Under A, rank 3 is A1 or A2, never B1"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::B1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
-    TestTrue(TEXT("Level 8's point takes A2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A2, Context, Out)
+    TestTrue(TEXT("Level 6's point takes A2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A2, Context, Out)
         == ELDGrowthReason::None && Out.Actives[0].Branch == B::A2);
     Build = Out;
-    Build.Level = 12;
+    Build.Level = 9;
     TestEqual(TEXT("Rank 3 is the last"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
-    TestEqual(TEXT("Level 12's point stays unspent"), LDProgression::SkillPoints(Content, Build), 1);
+    TestEqual(TEXT("Level 9's point stays unspent"), LDProgression::SkillPoints(Content, Build), 1);
     LDProgression::FBuildContext Closed = Context;
     Closed.Stage = LDProgression::EMatchStage::Closed;
     TestEqual(TEXT("A closed match refuses it"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Closed, Out),
@@ -279,7 +279,7 @@ bool FLDSkillRankRefundTest::RunTest(const FString& Parameters)
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
-    Build.Level = 12;
+    Build.Level = 9;
     Build.Actives.Add({FName(TEXT("active_elbow")), 0, ELDSkillBranch::B2});
     Build.Actives.Add({FName(TEXT("active_pants_down")), 1, ELDSkillBranch::None});
     TestEqual(TEXT("A rank-3 skill holds two of the three points"), LDProgression::SkillPoints(Content, Build), 1);
