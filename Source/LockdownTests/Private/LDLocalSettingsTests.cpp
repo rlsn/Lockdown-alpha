@@ -1563,17 +1563,46 @@ bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
     auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit quick cast fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
     FString Error;
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
-    TestTrue(TEXT("Quick cast is off by default: a skill key arms for a left-click confirmation"),
-        !Applied->GetQuickCast() && !GetDefault<ULDControlSettings>()->bQuickCast);
+    TestTrue(TEXT("Quick cast is on by default and Follow defaults to Y"),
+        Applied->GetQuickCast() && GetDefault<ULDControlSettings>()->bQuickCast
+        && Applied->Key(TEXT("Follow")) == EKeys::Y);
     auto* Draft = Applied->CreateDraft();
+    Draft->bQuickCast = false;
+    TestTrue(TEXT("Applying a draft turns quick cast off"), Applied->ApplyLocalSettings(*Draft, Error) && !Applied->GetQuickCast());
+    TestTrue(TEXT("Quick cast off is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A current-schema round trip restores quick cast off"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && !Loaded.Settings->GetQuickCast());
+    Draft = Applied->CreateDraft();
     Draft->bQuickCast = true;
-    TestTrue(TEXT("Applying a draft turns quick cast on"), Applied->ApplyLocalSettings(*Draft, Error) && Applied->GetQuickCast());
-    TestTrue(TEXT("Quick cast is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
-    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("A current-schema round trip restores quick cast"),
+    TestTrue(TEXT("Applying a draft turns quick cast back on"), Applied->ApplyLocalSettings(*Draft, Error) && Applied->GetQuickCast());
+    TestTrue(TEXT("Quick cast on is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A current-schema round trip restores quick cast on"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetQuickCast());
 
-    // A schema 9 file has no quick cast field: it migrates with quick cast off, whatever the writer held.
+    // Schema 24 -> 25 preserves both saved bQuickCast values (false and true) and any saved Follow binding (such as Home).
+    for (const bool bSavedQuick : {false, true})
+    {
+        auto* Schema24 = NewObject<ULDControlSettings>();
+        Schema24->ResetBindings();
+        Schema24->Bindings.Add(TEXT("Follow"), EKeys::Home);
+        Schema24->PlayerName = TEXT("老玩家");
+        Schema24->bQuickCast = bSavedQuick;
+        const TArray<uint8> Schema24Bytes = FixtureBytes(*Schema24, 24, 0);
+        Write(Schema24Bytes);
+        const auto Migrated24 = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("Schema 24 migrates to 25 while preserving saved bQuickCast and saved Follow binding"),
+            Migrated24.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated24.Settings
+            && Migrated24.Settings->GetQuickCast() == bSavedQuick
+            && Migrated24.Settings->Key(TEXT("Follow")) == EKeys::Home
+            && Migrated24.Settings->IsDirty());
+        TestTrue(TEXT("Saving migrated schema 24 writes schema 25 cleanly"), Migrated24.Settings && Migrated24.Settings->SaveLocalSettings().IsSaved());
+        uint32 DiskSchema = 0;
+        TestTrue(TEXT("Rewritten file carries schema 25"), FixtureFileSchema(Fixture.Storage.Filename(), DiskSchema) && DiskSchema == 25);
+    }
+
+    // A schema 9 file has no quick cast field: it migrates deterministically with quick cast off, whatever the writer held.
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
     Values->PlayerName = TEXT("王小明");
@@ -1999,7 +2028,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 24);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 25);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);

@@ -4001,7 +4001,7 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
     }
     if(!PC->CanWorldCommand()){return;}
     ELDCombatEntry Armed=ELDCombatEntry::None;
-    const bool bArmedEntry=PC->ReadArmedCombatEntry(Armed);
+    const bool bArmedEntry=PC->ReadArmedCombatEntry(Armed)&&PC->ShouldShowArmedPreview();
     const auto* Self=Cast<ALDCharacter>(PC->GetPawn());
     const FLDOwnerState& Own=PC->OwnerState;
     const bool bOwnCombat=Self&&Own.Life!=0&&PC->CombatView.bHasBody&&PC->CombatView.Generation==Own.Match&&PC->CombatView.Life==Own.Life;

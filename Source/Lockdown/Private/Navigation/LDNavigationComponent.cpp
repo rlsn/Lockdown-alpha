@@ -927,6 +927,14 @@ bool ULDNavigationComponent::AimPointAtElevation(double PlaneZ, FVector& OutWorl
     if (!PC || !FMath::IsFinite(PlaneZ)) { return false; }
     FVector2D At;
     FVector Origin=FVector::ZeroVector, Direction=FVector::ZeroVector;
+#if WITH_DEV_AUTOMATION_TESTS
+    if (DevAimRay.IsSet())
+    {
+        Origin=DevAimRay->Key;
+        Direction=DevAimRay->Value;
+    }
+    else
+#endif
     if (!PointerPosition(At) || !PC->DeprojectScreenPositionToWorld(At.X, At.Y, Origin, Direction))
     {
         return false;
@@ -935,6 +943,15 @@ bool ULDNavigationComponent::AimPointAtElevation(double PlaneZ, FVector& OutWorl
     const FVector Fwd=Pawn?Pawn->GetActorForwardVector():FVector::ZeroVector;
     const FVector Feet=Pawn?Pawn->GetActorLocation():FVector::ZeroVector;
     return LDOrderRules::IntersectElevationPlane(Origin, Direction, PlaneZ, Fwd, Feet, OutWorldPoint);
+}
+
+void ULDNavigationComponent::DevSetAimRay(const TOptional<TPair<FVector, FVector>>& Ray)
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    DevAimRay=Ray;
+#else
+    (void)Ray;
+#endif
 }
 
 bool ULDNavigationComponent::ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const
@@ -1031,7 +1048,7 @@ void ULDNavigationComponent::TickPointer()
             }
         }
         if (PC->IsAttackMoveArmed()) { Cursor=LDCursor::AttackAim; }
-        else if (PC->ReadArmedCombatEntry(Armed)) { Cursor=LDCursor::CastAim; }
+        else if (PC->ReadArmedCombatEntry(Armed) && PC->ShouldShowArmedPreview()) { Cursor=LDCursor::CastAim; }
         else if (Hovered.IsValid()) { Cursor=LDCursor::EnemySword; }
         else
         {
@@ -1171,7 +1188,7 @@ void ULDNavigationComponent::UpdateLocalCamera(float Delta)
         ELDCombatEntry Armed=ELDCombatEntry::None;
         if (bEdgePan && (!PC->HUDUI || !PC->HUDUI->Minimap || !PC->HUDUI->Minimap->IsDragging())
             && !FApp::IsUnattended() && FSlateApplication::IsInitialized() && FSlateApplication::Get().IsActive()
-            && (!PC->RootUI || !PC->RootUI->PointerOverUI()) && !PC->IsAttackMoveArmed() && !PC->ReadArmedCombatEntry(Armed))
+            && (!PC->RootUI || !PC->RootUI->PointerOverUI()) && !PC->ShouldShowArmedPreview())
         {
             float X=0,Y=0; int32 Width=0,Height=0;
             PC->GetViewportSize(Width,Height);

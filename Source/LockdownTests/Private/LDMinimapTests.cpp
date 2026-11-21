@@ -1,5 +1,11 @@
 #include "UI/LDMinimap.h"
 #include "UI/LDMinimapRaster.h"
+#include "Region/LDMapGeometry.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/World.h"
+#include "Misc/ScopeExit.h"
 #include "Misc/AutomationTest.h"
 #include <limits>
 #if WITH_DEV_AUTOMATION_TESTS
@@ -275,6 +281,98 @@ bool FLDMinimapStaticInvalidationTest::RunTest(const FString& Parameters)
         auto Reference=Changed;
         Reference.Scale=LDMinimap::MakeView(ELDMinimapOrientation::Facing,Key.Ground,Key.FrameSize,-45.,true,0.).Scale;
         TestTrue(TEXT("Turning at constant scale reuses the north-up raster"),Changed.Matches(Reference));
+    }
+
+    // Live scene ramp extraction (#341 review): moved, rotated, scaled and copied terrain ramps resolve at their live
+    // world transforms and uphill directions rather than frozen source coordinates.
+    {
+        // Also verify a 6-vertex BuildPrism wedge transformed (moved + rotated 90 deg + scaled 1.5x).
+        const FTransform WedgeXform(FRotator(0.,90.,0.),FVector(-800.,600.,0.),FVector(1.5,1.2,1.));
+        const TArray<FVector> LocalWedge={
+            FVector(0.,-100.,0.),FVector(0.,100.,0.),FVector(300.,100.,0.),FVector(300.,-100.,0.),
+            FVector(300.,100.,150.),FVector(300.,-100.,150.)
+        };
+        TArray<FVector> WorldWedge;
+        for(const FVector& V:LocalWedge){WorldWedge.Add(WedgeXform.TransformPosition(V));}
+        LDMinimap::FRampOverlay WedgeOut;
+        TestTrue(TEXT("Transformed 6-vertex BuildPrism wedge extracts +Y uphill and transformed footprint"),
+            LDMinimap::ExtractRampFromConvexVertices(WorldWedge,WedgeOut)
+            &&WedgeOut.FootprintCm.Num()==4
+            &&FVector2D::DotProduct((WedgeOut.HighMidCm-WedgeOut.LowMidCm).GetSafeNormal(),FVector2D(0.,1.))>.99
+            &&FMath::IsNearlyEqual(WedgeOut.LowMidCm.Y,600.,2.)&&FMath::IsNearlyEqual(WedgeOut.HighMidCm.Y,1050.,2.));
+
+        // Boundary slopes (#341 follow-up): 48 deg steep walkable ramp (< 50 deg CharacterMovement limit) and 3 deg gentle
+        // ramp rising > 15cm (400cm * tan(3 deg) ~= 20.96cm, N.Z < .9999) both extract, while 55 deg (> 50 deg) is rejected.
+        auto MakeSlopeWedge=[](double AngleDeg,double RunCm)
+        {
+            const double RiseCm=RunCm*FMath::Tan(FMath::DegreesToRadians(AngleDeg));
+            return TArray<FVector>{
+                FVector(0.,-100.,0.),FVector(0.,100.,0.),FVector(RunCm,100.,0.),FVector(RunCm,-100.,0.),
+                FVector(RunCm,100.,RiseCm),FVector(RunCm,-100.,RiseCm)
+            };
+        };
+        LDMinimap::FRampOverlay Steep48,Gentle3,Unwalkable55;
+        TestTrue(TEXT("48-degree walkable slope (< 50-degree walkable floor limit) extracts ramp fill and uphill arrow"),
+            LDMinimap::ExtractRampFromConvexVertices(MakeSlopeWedge(48.,200.),Steep48)
+            &&FVector2D::DotProduct((Steep48.HighMidCm-Steep48.LowMidCm).GetSafeNormal(),FVector2D(1.,0.))>.99);
+        TestTrue(TEXT("3-degree gentle slope rising > 15cm (N.Z < .9999) extracts ramp fill and uphill arrow"),
+            LDMinimap::ExtractRampFromConvexVertices(MakeSlopeWedge(3.,400.),Gentle3)
+            &&FVector2D::DotProduct((Gentle3.HighMidCm-Gentle3.LowMidCm).GetSafeNormal(),FVector2D(1.,0.))>.99);
+        TestFalse(TEXT("55-degree unwalkable cliff (> 50-degree walkable floor limit) is not treated as a walkable ramp"),
+            LDMinimap::ExtractRampFromConvexVertices(MakeSlopeWedge(55.,200.),Unwalkable55));
+    }
+    UStaticMesh* Cube=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
+    if(!TestNotNull(TEXT("Basic Cube static mesh loads for live ramp test"),Cube)){return false;}
+    const auto WorldValues=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(true)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&WorldValues);
+    if(!TestNotNull(TEXT("Minimap scene ramp fixture world"),World)){return false;}
+    ON_SCOPE_EXIT{World->DestroyWorld(false);};
+    auto SpawnTerrainSlab=[&](const FVector& Location,const FRotator& Rotation,const FVector& Scale)
+    {
+        auto* Actor=World->SpawnActor<AStaticMeshActor>();
+        Actor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Static);
+        Actor->GetStaticMeshComponent()->SetStaticMesh(Cube);
+        Actor->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+        Actor->SetActorLocation(Location);
+        Actor->SetActorRotation(Rotation);
+        Actor->SetActorScale3D(Scale);
+        Actor->Tags={LDDemoWorld::TerrainTag};
+        Actor->GetStaticMeshComponent()->RecreatePhysicsState();
+        return Actor;
+    };
+    // Flat plateau (pitch 0) must NOT register as a ramp; moved+rotated+scaled ramp (+Y uphill) and copied ramp (-X uphill) both DO.
+    SpawnTerrainSlab(FVector(0.,0.,100.),FRotator::ZeroRotator,FVector(6.,6.,1.));
+    SpawnTerrainSlab(FVector(1200.,-500.,120.),FRotator(0.,90.,0.)+FRotator(20.,0.,0.),FVector(5.,3.,.2));
+    // Note: FRotator(Pitch=20, Yaw=90, Roll=0) tilts local +X upward by +20 deg along world +Y (uphill = +Y)!
+    auto* RotatedRamp=World->SpawnActor<AStaticMeshActor>();
+    RotatedRamp->GetStaticMeshComponent()->SetMobility(EComponentMobility::Static);
+    RotatedRamp->GetStaticMeshComponent()->SetStaticMesh(Cube);
+    RotatedRamp->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+    RotatedRamp->SetActorLocation(FVector(2400.,800.,120.));
+    RotatedRamp->SetActorRotation(FRotator(20.,180.,0.)); // uphill = -X (copied & rotated instance)
+    RotatedRamp->SetActorScale3D(FVector(6.,4.,.2));
+    RotatedRamp->Tags={LDDemoWorld::TerrainTag,TEXT("ramp_copy_instance")};
+    RotatedRamp->GetStaticMeshComponent()->RecreatePhysicsState();
+
+    TArray<LDMinimap::FRampOverlay> Ramps;
+    LDMinimap::CollectSceneRamps(*World,Ramps);
+    TestEqual(TEXT("Flat plateau is ignored while moved/rotated/scaled original and copied ramp both resolve"),Ramps.Num(),2);
+    if(Ramps.Num()==2)
+    {
+        const int32 FirstIdx=FMath::Abs(Ramps[0].LowMidCm.X-1200.)<400.?0:1;
+        const LDMinimap::FRampOverlay& MovedRotated=Ramps[FirstIdx];
+        const LDMinimap::FRampOverlay& Copied=Ramps[1-FirstIdx];
+        const FVector2D UphillA=(MovedRotated.HighMidCm-MovedRotated.LowMidCm).GetSafeNormal();
+        const FVector2D UphillB=(Copied.HighMidCm-Copied.LowMidCm).GetSafeNormal();
+        TestTrue(TEXT("Moved + 90-deg rotated + scaled ramp resolves at (1200, -500) with +Y uphill and 300cm scaled width"),
+            FVector2D::Distance((MovedRotated.LowMidCm+MovedRotated.HighMidCm)*.5,FVector2D(1200.,-500.))<30.
+            &&FVector2D::DotProduct(UphillA,FVector2D(0.,1.))>.98
+            &&FMath::IsNearlyEqual(MovedRotated.WidthCm,300.,5.));
+        TestTrue(TEXT("Copied + 180-deg rotated ramp resolves at (2400, 800) with -X uphill and 400cm scaled width"),
+            FVector2D::Distance((Copied.LowMidCm+Copied.HighMidCm)*.5,FVector2D(2400.,800.))<30.
+            &&FVector2D::DotProduct(UphillB,FVector2D(-1.,0.))>.98
+            &&FMath::IsNearlyEqual(Copied.WidthCm,400.,5.));
     }
     return true;
 }

@@ -54,6 +54,8 @@ namespace
     constexpr uint32 WorkshoplessSchema = 22;
     // Schema 23 predates the red-green colorblind mode toggle (#331).
     constexpr uint32 ColorblindlessSchema = 23;
+    // Schema 24 predates default-on QuickCast and EKeys::Y Follow; saved bindings and bQuickCast bytes are preserved.
+    constexpr uint32 PreDefaultQuickCastSchema = 24;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -223,7 +225,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Mark"),TEXT("标记此刻（写入试玩日志）"),EKeys::F9},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
         {TEXT("PanLeft"),TEXT("镜头左移"),EKeys::Left},{TEXT("PanRight"),TEXT("镜头右移"),EKeys::Right},
-        {TEXT("Recenter"),TEXT("按住镜头回到自己"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("切换镜头跟随"),EKeys::Home},
+        {TEXT("Recenter"),TEXT("按住镜头回到自己"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("切换镜头跟随"),EKeys::Y},
         {TEXT("Zoom"),TEXT("镜头缩放"),EKeys::MouseWheelAxis,true},
         {TEXT("Back"),TEXT("返回 / 取消（保留键）"),EKeys::Escape}
     };
@@ -608,7 +610,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
             || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
             || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema
-            || SavedSchema == ColorblindlessSchema);
+            || SavedSchema == ColorblindlessSchema || SavedSchema == PreDefaultQuickCastSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -616,7 +618,9 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
 
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
-    uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
+    // Schemas 5..9 predate QuickCast and migrate deterministically with QuickCast off; schemas 10..24 read their saved Quick byte.
+    uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation);
+    uint8 Quick = SavedSchema <= QuickCastlessSchema ? 0 : (Settings->bQuickCast ? 1 : 0);
     uint8 Network = 0, FPS = 0, AutoAttack = Settings->bAutoAttackAfterCast ? 1 : 0;
     uint8 ReduceEffects = Settings->bReduceCombatEffects ? 1 : 0, CameraShake = Settings->bCameraShake ? 1 : 0;
     uint8 Colorblind = Settings->bColorblindMode ? 1 : 0;
@@ -749,7 +753,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         if (SavedSchema < CombatFeelSchema) { MigrationNotes += TEXT("降低战斗特效关闭、镜头震动开启。"); }
         if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
             || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema
-            || SavedSchema == ColorblindlessSchema)
+            || SavedSchema == ColorblindlessSchema || SavedSchema == PreDefaultQuickCastSchema)
         {
             const FString Preserved = SavedSchema >= WorkshoplessSchema
                 ? TEXT("已从旧版本设置迁移：全部偏好与按键已保留，下次保存时写入新格式。")

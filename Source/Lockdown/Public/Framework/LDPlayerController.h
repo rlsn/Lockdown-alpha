@@ -190,11 +190,15 @@ public:
     // Input half: the menu or Settings, a child confirmation or text edit, or keys still held since a menu, focus or
     // mapping change. It blocks new world commands only; accepted orders keep moving and sending heartbeats (MOVEMENT_INPUT_AND_CAMERA input ownership).
     bool IsWorldInputSuppressed() const;
+    static constexpr double QuickCastHoldPreviewSeconds = 0.18;
     // Hotkeys and HUD icons share this entry. Self sends now; Unit/Direction arm and wait for a
     // left-click confirmation; right click or Back cancels the armed entry without a world command.
     // A resolved press aim uses the same confirmation path without requiring a mouse viewport (owning input probes).
     void ActivateCombatEntry(ELDCombatEntry Entry, const FLDCombatTarget* PressAim=nullptr, const FVector* AimCm=nullptr);
     bool ReadArmedCombatEntry(ELDCombatEntry& Out) const;
+    // True when an armed entry or AttackMove should show its world aim preview and CastAim cursor: suppressed during a
+    // < 0.18s keyboard QuickCast tap, and shown once held >= 0.18s (or whenever armed via non-QuickCast / HUD click).
+    bool ShouldShowArmedPreview() const;
     // The armed skill last cancelled without a cast (a right click, S, Back, a menu, a new life) and how many were: the
     // HUD flashes that slot once per cancel.
     uint32 GetArmedCancelSerial() const { return ArmedCancelSerial; }
@@ -324,6 +328,7 @@ private:
     };
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDControlFeelSourceBufferTest;
+    friend class FLDControlFeelElevationAimAndClipTest;
 #endif
     FQueuedCombat QueuedCombat;
     void FlushQueuedCombat();
@@ -334,6 +339,25 @@ private:
     ELDCombatEntry ArmedCancelEntry=ELDCombatEntry::None;
     uint32 ArmedCancelSerial=0;
     bool bAttackMoveArmed=false;
+    struct FQuickCastSlotHold
+    {
+        bool bHolding=false;
+        double PressSec=0.;
+    };
+    FQuickCastSlotHold QuickCastHolds[3];
+    static int32 QuickCastSlotIndex(ELDCombatEntry Entry);
+    bool IsQuickCastHolding(ELDCombatEntry Entry, double* OutPressSec=nullptr) const;
+    bool HasAnyQuickCastHold() const;
+    bool HasPreviewedQuickCastHold() const;
+    // Right-click during mixed overlaps cancels only >= 0.18s previewed holds (and any unheld manual aim), keeping newer
+    // < 0.18s taps alive and restoring ArmedEntry from remaining holds; true if any QuickCast hold was cancelled.
+    bool CancelPreviewedQuickCastHolds();
+    void ClearQuickCastHold(ELDCombatEntry Entry);
+    void ClearAllQuickCastHolds();
+    void SyncArmedEntryFromQuickCastHolds();
+    double QuickCastTestClockSec=-1.;
+    double QuickCastClockSeconds() const;
+    void ExecuteQuickCastAim(ELDCombatEntry Entry);
     // Overdrive hold (CONTENT_AND_BALANCE §3.5): a Q/W/E pressed with a full bar waits for its release (a normal cast) or
     // OVERDRIVE.HoldSec (an overdrive request); the charge intent tells the server while the key is held. bOverdriveArmed
     // marks the next request of OverdriveEntry (sent at once, or at the armed aim's confirmation).

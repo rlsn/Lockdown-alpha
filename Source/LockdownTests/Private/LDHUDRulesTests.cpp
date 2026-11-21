@@ -2387,7 +2387,7 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
     if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
     const FLDDemoContentDefinitions& Content=Catalog->Get();
 
-    // 1) Minimap spawn badge hit-testing (#331 §1.3): 22px click radius around each candidate centre.
+    // 1) Minimap spawn badge hit-testing (#331 §1.3), OwnFootZ camera frustum plane (#329 §2.4), and semantic blocker overlay (#329 §2.2).
     {
         const FBox2D Ground(FVector2D(-5000,-5000),FVector2D(5000,5000));
         const LDMinimap::FView View=LDMinimap::MakeView(ELDMinimapOrientation::North,Ground,FVector2D(260,260),0.,false,0.);
@@ -2397,6 +2397,21 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
             LDMinimap::HitSpawnCandidate(View,Spot1+FVector2D(15.,12.),Candidates),1);
         TestEqual(TEXT("Click beyond 22px misses spawn badges"),
             LDMinimap::HitSpawnCandidate(View,Spot1+FVector2D(21.,12.),Candidates),INDEX_NONE);
+
+        const FVector HighGroundFoot(1200.,-800.,450.);
+        const FVector CamDir=FRotator(-60.,-90.,0.).Vector();
+        const FVector CamPos=HighGroundFoot-CamDir*2250.;
+        FVector HitElevated=FVector::ZeroVector,HitZero=FVector::ZeroVector;
+        TestTrue(TEXT("Minimap camera ray intersects Z = OwnFootZ (450 cm) with zero parallax shift"),
+            LDMinimap::IntersectCameraPlane(CamPos,CamDir,HighGroundFoot.Z,HitElevated)
+            &&FVector::Dist2D(HitElevated,HighGroundFoot)<1e-3);
+        TestTrue(TEXT("Intersecting Z = 0 on 450 cm high ground would have introduced >200 cm parallax offset"),
+            LDMinimap::IntersectCameraPlane(CamPos,CamDir,0.,HitZero)&&FVector::Dist2D(HitZero,HighGroundFoot)>200.);
+        TestTrue(TEXT("Minimap blocker classifier distinguishes FullBlocker, LowBlocker and non-movement blockers"),
+            LDMinimap::ClassifyBlocker(true,true)==LDMinimap::EBlockerOverlay::FullBlocker
+            &&LDMinimap::ClassifyBlocker(true,false)==LDMinimap::EBlockerOverlay::LowBlocker
+            &&LDMinimap::ClassifyBlocker(false,true)==LDMinimap::EBlockerOverlay::None
+            &&LDMinimap::ClassifyBlocker(false,false)==LDMinimap::EBlockerOverlay::None);
     }
 
     // 2) Host compatibility strip on skill cards & 1-click full-column replacement (#331 §2.2 & §2.3).
