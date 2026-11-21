@@ -293,16 +293,8 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         Navigation->QueueCombatAction(Request,Aim.Kind==ELDCombatTargetKind::Direction?AimCm:nullptr);
         return;
     }
-    int64 NowMs=0;
-    ReadDemoAuthorityTimeMs(NowMs);
-    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
-    if (bCurrentView && LDCombatPreInput::IsDirectEntry(Entry) && LDCombatPreInput::IsWindingUp(CombatView,NowMs))
-    {
-        QueuedCombat={Entry,Aim,OwnerState.Match,OwnerState.Life,FPlatformTime::Seconds(),CombatView.SourceRevision};
-        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT queued match=%u life=%u entry=%u source=%llu"),
-            OwnerState.Match,OwnerState.Life,uint32(Entry),CombatView.SourceRevision);
-        return;
-    }
+    // Issue #329 §3.2: send Direct presses immediately to the server's unified 2-step 450ms FIFO pre-input queue
+    // so mixed Direct / Unit / GroundPoint combinations preserve every press in exact arrival order.
     QueuedCombat={};
     SendCombatNow(Entry,Aim);
 }

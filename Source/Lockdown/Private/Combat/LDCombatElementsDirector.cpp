@@ -235,9 +235,18 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     if (!TargetActor) { Error=TEXT("An element target has no registered actor."); return false; }
     const FVector Foot=FootOf(*TargetActor);
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
-    // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole (no mark,
-    // no credit, no momentum); the same element still refreshes and a free body still takes a new one.
-    if (NowMs<Target.ReactionLockedUntilMs && LDCombatElements::ReactionOf(Held,Kind)!=ELDCombatReaction::None) { return true; }
+    if (NowMs>=Target.ReactionLockedUntilMs) { Target.WaveAfterExemptChainId.Invalidate(); }
+    // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole unless
+    // card_wave_after granted one secondary-reaction exemption for the same rule chain on this body.
+    if (NowMs<Target.ReactionLockedUntilMs && LDCombatElements::ReactionOf(Held,Kind)!=ELDCombatReaction::None)
+    {
+        const bool bWaveExempt=Target.WaveAfterExemptChainId.IsValid() && CurrentChain.IsValid()
+            && Target.WaveAfterExemptChainId==CurrentChain && !WaveAfterExemptedChains.Contains(CurrentChain);
+        if (!bWaveExempt) { return true; }
+        Target.WaveAfterExemptChainId.Invalidate();
+        if (WaveAfterExemptedChains.Num()>512) { WaveAfterExemptedChains.Reset(); }
+        WaveAfterExemptedChains.Add(CurrentChain);
+    }
     bElementApplied=true;
     // Who applied the held element, the setters of a reaction's rule chain: the mark's latest applier; for fire, the applier
     // of every layer that still had ticks to settle (filled from the settled shares below).
@@ -267,8 +276,8 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
         { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
     }
-    // The brains keystone: a reaction its holder triggers (any source, medals included; once per cast) gives momentum and
-    // takes a fixed time off every learned skill still cooling down.
+    // The brains keystone (#330 §4.4): a reaction its holder triggers refunds 30% of paid cast momentum (or grants reaction
+    // momentum on 0-cost medal triggers, once per cast) and cuts every cooling learned skill by 1.0 s.
     if (Reaction!=ELDCombatReaction::None && !(Applier.CastLedger && Applier.CastLedger->bBrainsKeystoneRefunded))
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
@@ -276,7 +285,11 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         {
             const FLDDemoContentParameters& Parameters=Catalog()->Get().Parameters;
             if (Applier.CastLedger) { Applier.CastLedger->bBrainsKeystoneRefunded=true; }
-            GrantMomentum(*SourceBody,Parameters.KeystoneBrainsReactionMomentumP2,ELDMomentumBook::Reaction);
+            const int64 PaidP2=Applier.CastLedger ? Applier.CastLedger->PaidMomentumP2 : 0;
+            const int64 RefundP2=PaidP2>0
+                ? PaidP2/10000*Parameters.KeystoneBrainsMomentumRefundBp+PaidP2%10000*Parameters.KeystoneBrainsMomentumRefundBp/10000
+                : Parameters.KeystoneBrainsReactionMomentumP2;
+            if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }
             if (FLDCombatEntityRecord* Record=FindRecord(SourceBody->Victim.EntityId))
             {
                 for (FLDCombatTrack& Track : Record->Tracks)
@@ -349,6 +362,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         return ConvertGroundAt(Foot,Kind,Applier,NowMs,Error);
     }
     // A reaction: the held element is consumed; the trigger is the new element's applier. Observers float its name over the target.
+    Target.WaveAfterExemptChainId.Invalidate();
     const FLDReactionRule Rule=LDCombatElements::RuleOf(Reaction,Terms);
     Target.Cues.LastReaction=uint8(Reaction);
     Target.Cues.LastReactionAtMs=NowMs;
@@ -745,10 +759,14 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
     }
     FLDElementTerms Terms;
     if (!ElementTerms(Terms,Error)) { return false; }
-    for (auto& Pair : Bodies)
+    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
+    Bodies.GetKeys(BodyKeys);
+    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
     {
-        FLDBodyCombatState& Body=Pair.Value;
-        ALDCharacter* Actor=Pair.Key.Get();
+        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
+        if (!BodyPtr) { continue; }
+        FLDBodyCombatState& Body=*BodyPtr;
+        ALDCharacter* Actor=Key.Get();
         // Rot ticks due by now (through its end), credited to its latest applier at the applier's snapshot.
         FLDCombatElementMark& Mark=Body.ElementMark;
         while (!Body.bPendingDeath && Mark.Kind==ELDCombatElement::Rot && Mark.NextTickMs>0 && Mark.NextTickMs<=NowMs

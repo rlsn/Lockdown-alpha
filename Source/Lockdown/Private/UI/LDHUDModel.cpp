@@ -621,6 +621,8 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
     const ELDRestStep Step=Public.Timeline.Step;
     if(!HasPK(Public)||Step<ELDRestStep::Draw||Step>ELDRestStep::Payout){return View;}
     View.bVisible=true;
+    View.bMatchupReveal=Step==ELDRestStep::Betting&&In.bClock&&TimelineNow>=Public.Timeline.StepStartedAtMs
+        &&TimelineNow-Public.Timeline.StepStartedAtMs<1000;
     const int32 Entrants=PK.Entrants.Num();
     const FString Format=PKFormatText(PK.Format,PK.SideCount,Entrants);
     View.Title=LDTerms::PKTitle(PK.Serial,Format.IsEmpty()?FString(LDTerms::PKFormatPending):Format,Entrants);
@@ -628,7 +630,13 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
     const bool bRunning=PK.Outcome==ELDPKOutcome::Running;
     // Whole seconds rounded up, like the timeline banner.
     const auto Seconds=[](int64 Ms){return Ms>0?(Ms+999)/1000:int64(0);};
-    if(Step==ELDRestStep::PKReady||(Step==ELDRestStep::PK&&!bDecided))
+    if(Step==ELDRestStep::Betting)
+    {
+        View.Countdown=!In.bClock?FString(LDTerms::PKClockSync)
+            :View.bMatchupReveal?FString::Printf(TEXT("对阵揭晓 · 下注剩 %lld 秒"),FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)))
+            :FString::Printf(TEXT("下注剩 %lld 秒"),FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)));
+    }
+    else if(Step==ELDRestStep::PKReady||(Step==ELDRestStep::PK&&!bDecided))
     {
         if(!In.bClock){View.Countdown=LDTerms::PKClockSync;}
         // The authority starts the fight; a local clock that reaches the end first holds 1.
@@ -846,6 +854,14 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 for(const FGuid& Assister:Notice->Assisters){Assisters.Add(Name(Assister));}
                 const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName,Assisters);
                 Add(Line.Text,Line.bSelf);
+                if(Notice->Cause==ELDKillCause::Contender&&Notice->Killer.IsValid()
+                    &&Notice->CreatureName==TEXT("leader_bounty"))
+                {
+                    const FString KillerLabel=Name(Notice->Killer).IsEmpty()?FString(TEXT("参赛者")):Name(Notice->Killer);
+                    const FString VictimLabel=Name(Notice->Victim).IsEmpty()?FString(TEXT("热搜榜首")):Name(Notice->Victim);
+                    Add(FString::Printf(TEXT("终结悬赏！%s 终结了热搜 %s"),*KillerLabel,*VictimLabel),
+                        In.Self.IsValid()&&(Notice->Killer==In.Self||Notice->Victim==In.Self));
+                }
             }
         }
         if(In.OwnReactionAssists)
@@ -966,7 +982,7 @@ FString LDHUD::LeaderLine(const FGuid& Trending,const FGuid& Self,const FString&
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;
-    if(!Notice.CreatureName.IsEmpty()){return LDTerms::KilledByLine(Victim,Notice.CreatureName);}
+    if(Notice.Cause!=ELDKillCause::Contender&&!Notice.CreatureName.IsEmpty()){return LDTerms::KilledByLine(Victim,Notice.CreatureName);}
     switch(Notice.Cause)
     {
     case ELDKillCause::Contender:
@@ -1004,7 +1020,7 @@ FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FG
     for(const FLDKillNotice& Notice:Feed.Notices)
     {if(Notice.Victim==Self&&Notice.OccurredAtMs>=NotBeforeMs&&(!Latest||Notice.Serial>Latest->Serial)){Latest=&Notice;}}
     if(!Latest){return FString();}
-    if(!Latest->CreatureName.IsEmpty()){return LDTerms::KilledBy(Latest->CreatureName);}
+    if(Latest->Cause!=ELDKillCause::Contender&&!Latest->CreatureName.IsEmpty()){return LDTerms::KilledBy(Latest->CreatureName);}
     switch(Latest->Cause)
     {
     case ELDKillCause::Contender:
@@ -1518,6 +1534,7 @@ FString HudScaling(const FLDDemoEffectDefinition& Effect)
     FString Text=HudPoints(Effect.BaseP2);
     if(Effect.ADRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ADRatioBp)+LDTerms::AttackDamage;}
     if(Effect.APRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.APRatioBp)+LDTerms::AbilityPower;}
+    if(Effect.AdaptiveRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.AdaptiveRatioBp)+TEXT("自适应(额外攻击力/法术强度)");}
     if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身")+LDTerms::MaxHealth();}
     if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
     return Text;
@@ -1607,12 +1624,20 @@ LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttribute
 {
     FCardStats Stats;
     Stats.Level=Level>0?Level:1;
-    const auto P2=[&Attributes](ELDProjectedAttribute Attribute)
+    const auto RationalP2=[](const FLDDemoRational& Val)
+    {
+        return Val.Denominator>0&&Val.Numerator>=0&&Val.Numerator<=MAX_int64/100?Val.Numerator*100/Val.Denominator:int64(0);
+    };
+    const auto P2=[&Attributes,&RationalP2](ELDProjectedAttribute Attribute)
     {
         const FLDCombatAttributeRowView* Row=Attributes.FindByPredicate([Attribute](const FLDCombatAttributeRowView& R){return R.Attribute==uint8(Attribute);});
-        return Row&&Row->Final.Denominator>0&&Row->Final.Numerator>=0&&Row->Final.Numerator<=MAX_int64/100?Row->Final.Numerator*100/Row->Final.Denominator:int64(0);
+        return Row?RationalP2(Row->Final):int64(0);
     };
     Stats.ADP2=P2(ELDProjectedAttribute::AD);Stats.APP2=P2(ELDProjectedAttribute::AP);
+    if(const FLDCombatAttributeRowView* ADRow=Attributes.FindByPredicate([](const FLDCombatAttributeRowView& R){return R.Attribute==uint8(ELDProjectedAttribute::AD);}))
+    {
+        Stats.BonusADP2=FMath::Max<int64>(0,Stats.ADP2-(RationalP2(ADRow->Base)+RationalP2(ADRow->Level)));
+    }
     Stats.MaxHPP2=P2(ELDProjectedAttribute::MaxHP);Stats.ArmorP2=P2(ELDProjectedAttribute::Armor);
     return Stats;
 }
@@ -1643,15 +1668,16 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         // heals do not.
         const ELDDemoEffectOp DamageOp=Effect->GetOp();
         const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage||DamageOp==ELDDemoEffectOp::Brace);
-        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
+        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->AdaptiveRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
         {
             Out=HudScaling(*Effect);
             if(bFactored){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Stats.DamageFactorBp);}
             if(Token.Field==EField::Burst){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Effect->SecondaryRatioBp);}
             return true;
         }
-        int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
-            +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+        const int64 AdaptiveStatP2=Stats.BonusADP2*14>=Stats.APP2*10?Stats.BonusADP2:Stats.APP2;
+        int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)
+            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2);
         if(bFactored){P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;

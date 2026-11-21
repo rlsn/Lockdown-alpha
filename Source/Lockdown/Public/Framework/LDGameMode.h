@@ -631,6 +631,8 @@ private:
     FLDShowdownRing ShowdownRing;
     FLDShowdownParameters ShowdownRules;
     TMap<FGuid, int32> ShowdownRespawns;
+    TMap<FGuid, int32> ShowdownKills;
+    TMap<FGuid, int64> ShowdownDamageP2;
     struct FLDShowdownBurn
     {
         uint32 Life = 0;

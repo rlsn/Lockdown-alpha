@@ -418,7 +418,8 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     const bool bControlled=LDTactical::StrongestSlowBp(Target.Slows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Roots,NowMs)
         || LDTactical::StrongestSlowBp(Target.AttackSlows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Knockbacks,NowMs)
         || LDTactical::HasActiveRoot(Target.Stuns,NowMs) || LDTactical::HasActiveRoot(Target.Disarms,NowMs)
-        || LDControl::IsTaunted(Target.Taunt,NowMs) || LDTactical::HasActiveRoot(Target.Silences,NowMs);
+        || LDControl::IsTaunted(Target.Taunt,NowMs) || LDTactical::HasActiveRoot(Target.Silences,NowMs)
+        || LDTactical::HasActiveRoot(Target.Knockbacks,NowMs);
     if (Source && Source->AttributeProjection.Keystones.bStrength && bControlled)
     { Out.Add({FName(TEXT("keystone_strength")),Content->Get().Parameters.KeystoneStrengthDamageBp}); }
     // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
@@ -426,7 +427,7 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     if (Hit.BranchAmpBp>0) { Out.Add({FName(TEXT("branch_next_basic")),Hit.BranchAmpBp}); }
     // Shatter (shock + chill): the next damaging native skill hit on this life within its window takes more, then the
     // shatter is spent. Zero-damage blows (fans, pushes), riders, reflections, settles and ticks neither take nor spend it.
-    const bool bDamaging=Hit.BaseP2>0 || Hit.ADRatioBp>0 || Hit.APRatioBp>0 || Hit.MaxHPRatioBp>0;
+    const bool bDamaging=Hit.BaseP2>0 || Hit.ADRatioBp>0 || Hit.APRatioBp>0 || Hit.AdaptiveRatioBp>0 || Hit.MaxHPRatioBp>0;
     if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && IsNativeDirectHit(Hit) && bDamaging && !Hit.bPeriodic)
     {
         Out.Add({FName(TEXT("reaction_shatter")),Target.ShatterBp});
@@ -916,7 +917,8 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
     // K14: the host's hit spends a share of the holder's shield as damage of its own type (copies add their share).
     TArray<FLDPassiveEffectRef> Spends;
     if (!CardsOn(Holder.AttributeProjection,ELDDemoEffectOp::ShieldSpend,Host,Spends,Error)) { return false; }
-    if (!Spends.IsEmpty() && Holder.Shield.IsSet() && Holder.Resources.ShieldP2>0 && ChainAllows(Hit,TEXT("shield_spend")))
+    if (!Spends.IsEmpty() && Holder.Shield.IsSet() && Holder.Shield->ExpiresAtMs>NowMs && Holder.Resources.ShieldP2>0
+        && ChainAllows(Hit,TEXT("shield_spend")))
     {
         int64 ShareBp=0;
         for (const FLDPassiveEffectRef& Ref : Spends) { ShareBp+=Ref.Effect.RatioBp; }
@@ -1108,8 +1110,30 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 LedgerCardTriggered(*Source,Ref.Key);
             }
         }
-        // A13: every primary basic hit on a contender counts toward its match growth.
-        if (Hit.Target.Victim.Kind==ELDVictimKind::Contender)
+        // Strength 18-pt keystone: basic crit or Combo 3 on an enemy contender deals 4% of target current HP Physical damage
+        // (1.5 s per-target internal cooldown).
+        if (!Hit.bExtraStrike && Source->AttributeProjection.Keystones.bStrength
+            && Hit.Target.Victim.Kind==ELDVictimKind::Contender && !Target.bTrainingDummy && (Hit.bCritical || bThird))
+        {
+            const int64 ReadyAt=Source->KeystoneStrengthTargetReadyAtMs.FindRef(Hit.Target.Victim.EntityId);
+            if (NowMs>=ReadyAt)
+            {
+                Source->KeystoneStrengthTargetReadyAtMs.Add(Hit.Target.Victim.EntityId,NowMs+1500);
+                const int64 CurrentHPP2=Target.Resources.HpP2+Damage.HPLostP2;
+                const int64 BonusP2=CurrentHPP2/10000*400+CurrentHPP2%10000*400/10000;
+                if (BonusP2>0)
+                {
+                    FLDCombatHit Heavy=MakeHit(*Source,{ELDCombatSourceKind::Basic,NAME_None},Hit.Target,Hit.EffectId);
+                    Heavy.BaseP2=BonusP2;
+                    Heavy.DamageType=ELDDemoDamageType::Physical;
+                    Heavy.bRider=true;
+                    PendingHits.Add(MoveTemp(Heavy));
+                }
+            }
+        }
+        // A13: primary basic hits grant 2 progress on contenders and 1 progress on monsters toward match growth.
+        if (!Target.bTrainingDummy
+            && (Hit.Target.Victim.Kind==ELDVictimKind::Contender || Hit.Target.Victim.Kind==ELDVictimKind::CampMember))
         {
             TArray<FLDPassiveEffectRef> Practice;
             if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::HitGrowth,Practice,Error)) { return false; }
@@ -1117,7 +1141,7 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             {
                 if (FLDCombatEntityRecord* Record=FindRecord(Source->Victim.EntityId))
                 {
-                    ++Record->CardGrowth.BasicHits;
+                    Record->CardGrowth.BasicHits+=(Hit.Target.Victim.Kind==ELDVictimKind::Contender) ? 2 : 1;
                     if (!RefreshCardGrowth(Source->Victim.EntityId,NowMs,Error)) { return false; }
                 }
             }
@@ -1195,21 +1219,30 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
             }
         }
     }
-    // Y05: the primary target takes a random element other than the one just consumed (each copy one more). It lands at the
-    // end of the reaction: an element that would react with what the target still holds (a ferment's rot, say) would be
-    // swallowed by the reaction lock, so only elements that stay on as a mark are drawn while any is left.
+    // Y05: the primary target takes a random element other than the one just consumed (each copy one more). Its secondary
+    // reaction in the same rule chain is exempted once from the mother reaction's 0.5 s lock (#330 §5.2.8).
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
+    const FGuid ChainKey=CurrentChain.IsValid() ? CurrentChain
+        : Fact.TriggerEffectId.IsValid() ? Fact.TriggerEffectId
+        : Fact.HitId.IsValid() ? Fact.HitId : FGuid::NewGuid();
+    TGuardValue<FGuid> ChainScope(CurrentChain,ChainKey);
     for (const FLDPassiveEffectRef& Wave : Waves)
     {
+        const bool bExemptAvailable=ChainKey.IsValid() && !WaveAfterExemptedChains.Contains(ChainKey);
+        Primary->WaveAfterExemptChainId=bExemptAvailable ? ChainKey : FGuid();
         TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
             ELDCombatElement::Chill,ELDCombatElement::Rot};
         Choices.Remove(Fact.Consumed);
-        const ELDCombatElement Still=ElementOfBody(*Primary,NowMs);
-        TArray<ELDCombatElement> Lands=Choices.FilterByPredicate([Still](ELDCombatElement Candidate)
-            { return LDCombatElements::ReactionOf(Still,Candidate)==ELDCombatReaction::None; });
-        if (Lands.IsEmpty()) { Lands=Choices; }
-        const ELDCombatElement Kind=Lands[CritRandom.RandRange(0,Lands.Num()-1)];
+        TArray<ELDCombatElement> Pool=Choices;
+        if (!bExemptAvailable)
+        {
+            const ELDCombatElement Still=ElementOfBody(*Primary,NowMs);
+            TArray<ELDCombatElement> Lands=Choices.FilterByPredicate([Still](ELDCombatElement Candidate)
+                { return LDCombatElements::ReactionOf(Still,Candidate)==ELDCombatReaction::None; });
+            if (!Lands.IsEmpty()) { Pool=MoveTemp(Lands); }
+        }
+        const ELDCombatElement Kind=Pool[CritRandom.RandRange(0,Pool.Num()-1)];
         FLDElementApplier Applier;
         Applier.SourceEntity=Trigger->Victim.EntityId;
         Applier.SourceBody=Fact.TriggerBody;
@@ -1218,6 +1251,7 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         Applier.Level=GrowthLevelOf(*Trigger);
         Applier.SourceAPP2=FMath::Max<int64>(Trigger->AttributeProjection.Final.APP2,0);
         if (!ApplyElement(*Primary,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
+        if (Primary->WaveAfterExemptChainId==ChainKey) { Primary->WaveAfterExemptChainId.Invalidate(); }
         LedgerCardTriggered(*Trigger,Wave.Key);
     }
     return true;
@@ -1669,7 +1703,10 @@ int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
     FString Error;
     if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
     {
-        for (const FLDPassiveEffectRef& Ref : Shorts) { if (Ref.Effect.MultiplierBp>0) { Scale=FMath::Min(Scale,Ref.Effect.MultiplierBp); } }
+        for (const FLDPassiveEffectRef& Ref : Shorts)
+        {
+            if (Ref.Effect.MultiplierBp>0) { Scale=Scale*8750/10000; }
+        }
     }
     return Scale;
 }

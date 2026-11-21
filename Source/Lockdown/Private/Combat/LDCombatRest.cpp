@@ -232,6 +232,8 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
         Body.LastShieldGrantP2=0;
         ++Body.Resources.Revision;
     }
+    Body.KeystoneStrengthTargetReadyAtMs.Reset();
+    Body.WaveAfterExemptChainId.Invalidate();
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
     return RefreshTemporary(Body,Actor,NowMs,Error);

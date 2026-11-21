@@ -270,7 +270,13 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
                 if (GroundEffects[Index].bTrap && GroundEffects[Index].Payload.SourceEntity == Body.Victim.EntityId) { Owned.Add(Index); }
             }
             Owned.Sort([this](int32 Left, int32 Right) { return GroundEffects[Left].CreatedSerial < GroundEffects[Right].CreatedSerial; });
-            for (int32 Drop=Owned.Num()-Allowed; Drop >= 0; --Drop) { GroundEffects.RemoveAt(Owned[Drop]); }
+            const int32 EvictCount=FMath::Max(0,Owned.Num()-Allowed+1);
+            Owned.SetNum(EvictCount);
+            Owned.Sort();
+            for (int32 Drop=Owned.Num()-1; Drop >= 0; --Drop)
+            {
+                if (GroundEffects.IsValidIndex(Owned[Drop])) { GroundEffects.RemoveAt(Owned[Drop]); }
+            }
             Ground.CreatedSerial=++NextAreaSerial;
         }
         GroundEffects.Add(MoveTemp(Ground));
@@ -596,22 +602,41 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         if (Struck && !Struck->bPendingDeath && !DashRamHit(*Body, Dash, Contact.Target, Error)) { return false; }
         // D02: the hosted dash's first real contact cuts the holder's skills (once per action).
         if (!HasteOtherActives(*Body, Dash.Source, Dash.EffectId, NowMs, Error)) { return false; }
-        if (!OnDashContact(*Body, Dash, Contact.Target.Victim.Kind==ELDVictimKind::Contender, NowMs, Error)) { return false; }
+        const ELDVictimKind ContactKind=(Struck && Struck->bTrainingDummy) ? ELDVictimKind::CampMember : Contact.Target.Victim.Kind;
+        if (!OnDashContact(*Body, Dash, ContactKind, NowMs, Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_DASH_CONTACT t=%lld src=%s target=%s effect=%s native=%d phase=%d"),
             NowMs,*LDLog::Id(Body->Victim.EntityId),*LDLog::Id(Contact.Target.Victim.EntityId),
             *LDLog::Id(Dash.EffectId),bNativeHit,Dash.bPhase);
+    }
+    for (const auto& Frame : ContactMotion)
+    {
+        if (!Frame.Dash.IsValid() || !Frame.Batch.IsValid() || !Frame.Dash->bReset || Frame.Dash->bRefunded) { continue; }
+        ALDCharacter* SourceActor=nullptr;
+        FLDBodyCombatState* Body=FindBody(Frame.Dash->Body,&SourceActor);
+        if (!Body || !SourceActor || Body->bPendingDeath || Body->Victim.Kind==ELDVictimKind::CampMember) { continue; }
+        const double SourceRadius=SourceActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
+        for (const auto& Record : Frame.Batch->Records)
+        {
+            if (Record.Kind != ELDNativeMotionRecordKind::Movement || Record.EndServerSeconds <= Record.StartServerSeconds) { continue; }
+            double BagFraction=0.;
+            if (FirstBagOnSegment(Body->Victim.EntityId, Record.FromFootCm, Record.ToFootCm, SourceRadius, BagFraction) != INDEX_NONE)
+            {
+                if (!OnDashContact(*Body, *Frame.Dash, ELDVictimKind::CampMember, NowMs, Error)) { return false; }
+                break;
+            }
+        }
     }
     ContactMotion.Reset();
     return true;
 }
 
-bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, bool bContender, int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, ELDVictimKind TargetKind, int64 NowMs, FString& Error)
 {
     using namespace LDCombatSkillDetail;
     if (Dash.Body!=FLDCombatBodyRef{Body.Victim,Body.Identity})
     { Error=TEXT("Dash contact belongs to another body life."); return false; }
-    // D01: the dash's first enemy contact makes it ready again when it touches a contender; touching a camp body or the
-    // Boss only takes 30% off what is left (once per dash).
+    // D01 (#330 §5.2.5): hitting an enemy contender resets 100% cooldown and refunds 100% paid momentum; hitting a monster or
+    // summon cuts 50% of the dash cooldown and refunds no momentum (once per dash).
     if (Dash.bReset && !Dash.bRefunded)
     {
         auto* Record=FindRecord(Body.Victim.EntityId);
@@ -621,8 +646,18 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
         Dash.bRefunded=true;
         if (Track->LastEffectId==Dash.EffectId && Track->ReadyAtMs>NowMs)
         {
-            const int64 Left=Track->ReadyAtMs-NowMs;
-            Track->ReadyAtMs=bContender ? NowMs : NowMs+Left-Left*3/10;
+            if (TargetKind==ELDVictimKind::Contender)
+            {
+                Track->ReadyAtMs=NowMs;
+                if (Dash.PaidMomentumP2>0)
+                {
+                    GrantMomentum(Body,Dash.PaidMomentumP2,ELDMomentumBook::Reaction);
+                }
+            }
+            else
+            {
+                Track->ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track->ReadyAtMs,NowMs,Track->LastDurationMs/2);
+            }
             MarkViewChanged(Body.Victim.EntityId);
             LedgerCardTriggered(Body, FName(TEXT("card_bump_reset")));
             UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_DASH_RESET t=%lld src=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId));

@@ -957,7 +957,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
                 EmpowerStatus.ExpiresAtMs=EmpoweredUntilMs;
             }
-            if (Body->Shield.IsSet() && Body->Resources.ShieldP2>0)
+            if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
             {
                 FLDCombatStatusView& ShieldStatus=Out.Statuses.AddDefaulted_GetRef();
                 ShieldStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Shield);
@@ -1171,6 +1171,8 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Stuns.Reset();
     Body->Empowers.Reset();
     Body->Shield.Reset();
+    Body->KeystoneStrengthTargetReadyAtMs.Reset();
+    Body->WaveAfterExemptChainId.Invalidate();
     // #147 keyword records end with the reset too (the camp's burn clears on its return).
     Body->Silences.Reset();
     Body->SharedBreach=FLDCombatSharedBreach();

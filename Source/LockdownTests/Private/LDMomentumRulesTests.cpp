@@ -263,6 +263,9 @@ bool FLDSkillRankBranchTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Rank 3 is the last"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
     TestEqual(TEXT("Level 9's point stays unspent"), LDProgression::SkillPoints(Content, Build), 1);
+    Build.Level = 15;
+    TestEqual(TEXT("Levels 3, 6, 9, 12 and 15 grant five points total (3 unspent after one rank-3 skill)"),
+        LDProgression::SkillPoints(Content, Build), 3);
     LDProgression::FBuildContext Closed = Context;
     Closed.Stage = LDProgression::EMatchStage::Closed;
     TestEqual(TEXT("A closed match refuses it"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Closed, Out),
@@ -282,7 +285,7 @@ bool FLDSkillRankRefundTest::RunTest(const FString& Parameters)
     Build.Level = 9;
     Build.Actives.Add({FName(TEXT("active_elbow")), 0, ELDSkillBranch::B2});
     Build.Actives.Add({FName(TEXT("active_pants_down")), 1, ELDSkillBranch::None});
-    TestEqual(TEXT("A rank-3 skill holds two of the three points"), LDProgression::SkillPoints(Content, Build), 1);
+    TestEqual(TEXT("A rank-3 skill holds two of the three points at level 9"), LDProgression::SkillPoints(Content, Build), 1);
     FLDProgressionState Progression;
     LDProgression::FBuildContext Rest;
     Rest.Stage = LDProgression::EMatchStage::Rest;
@@ -295,7 +298,7 @@ bool FLDSkillRankRefundTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Forgetting returns every point it spent"), LDProgression::SkillPoints(Content, Out), 3);
     TestTrue(TEXT("Its rank and branch are gone with it"), !Out.FindActive(FName(TEXT("active_elbow"))));
     TestEqual(TEXT("A build that spent more points than it earned is refused"),
-        LDProgression::SkillPoints(Content, [&]{ FLDGrowthBuild Bad = Build; Bad.Level = 4; return Bad; }()), -1);
+        LDProgression::SkillPoints(Content, [&]{ FLDGrowthBuild Bad = Build; Bad.Level = 3; return Bad; }()), -1);
     return true;
 }
 
@@ -375,7 +378,7 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Rank3 = Catalog->FindValues(*Elbow, 1, ELDSkillBranch::B1);
     const FLDDemoEffectDefinition* Damage = Rank3 ? Rank3->Effects.FindByPredicate([](const FLDDemoEffectDefinition& E)
         { return E.GetOp() == ELDDemoEffectOp::Damage; }) : nullptr;
-    TestTrue(TEXT("S01 B1 at level 1: 55 x 2 + 0.95 x 1.5 AD"), Damage && Damage->BaseP2 == 11000 && Damage->ADRatioBp == 14250);
+    TestTrue(TEXT("S01 B1 at level 1: 65 x 2 + 0.85 x 1.5 AD"), Damage && Damage->BaseP2 == 13000 && Damage->ADRatioBp == 12750);
     TestTrue(TEXT("No variant exists for None outside rank 1, nor a rank-2 path at rank 3"), !Elbow->FindBranch(ELDSkillBranch::None)
         && Catalog->FindValues(*Elbow, 1, ELDSkillBranch::None) != nullptr);
     return true;

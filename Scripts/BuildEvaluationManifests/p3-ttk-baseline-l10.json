@@ -39,6 +39,7 @@
             "choices": [
               "ai_select",
               "ai_select",
+              "ai_select",
               "ai_select"
             ],
             "keep_points_unspent": true,
@@ -58,6 +59,7 @@
           },
           "opponent": {
             "choices": [
+              "ai_select",
               "ai_select",
               "ai_select",
               "ai_select"
@@ -86,11 +88,13 @@
             "choices": [
               "ai_select",
               "ai_select",
+              "ai_select",
               "ai_select"
             ]
           },
           "opponent": {
             "choices": [
+              "ai_select",
               "ai_select",
               "ai_select",
               "ai_select"

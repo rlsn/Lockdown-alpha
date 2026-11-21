@@ -39,9 +39,31 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
 {
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
-    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 20, rest build 40, return 3"),
-        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 20000 && P.BuildMs == 40000 && P.ReturnMs == 3000);
+    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 20, rest build 40, betting 6, settlement 3, return 3"),
+        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 20000 && P.BuildMs == 40000
+        && P.DrawMs == 0 && P.BettingMs == 6000 && P.SettlementMs == 3000 && P.PayoutMs == 0 && P.ReturnMs == 3000);
     FString Error;
+    {
+        // Merged PK rest steps (#330): Draw + Betting merge into 6.0s Betting; Settlement + Payout merge into 3.0s Settlement (build open).
+        FLDMatchTimeline PKLine;
+        TArray<FLDTimelineEvent> PKEvents;
+        bGood &= TestTrue(TEXT("PK rest timeline begins"), PKLine.Begin(P, 0, Error));
+        while (PKLine.GetRestIndex() != 1 || !PKLine.IsRest()) { PKLine.Advance(PKLine.NextDueMs(), 0, true, true, PKEvents, Error); }
+        const int64 LockAt = PKLine.NextDueMs();
+        PKEvents.Reset();
+        bGood &= TestTrue(TEXT("Signed-up R1 advances directly into merged 6s Betting without Draw"),
+            PKLine.Advance(LockAt, 2, true, true, PKEvents, Error)
+            && PKLine.GetStep() == ELDRestStep::Betting && PKLine.NextDueMs() == LockAt + 6000);
+        bGood &= TestTrue(TEXT("Betting ends into PKReady -> PK"),
+            PKLine.Advance(LockAt + 6000, 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::PKReady
+            && PKLine.Advance(PKLine.NextDueMs(), 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::PK);
+        const int64 FinishPKAt = PKLine.GetStepEndsAtMs() - P.PKMaxMs + 5000;
+        bGood &= TestTrue(TEXT("Finishing PK enters merged 3s Settlement with rest build reopened and skips Payout into Return"),
+            PKLine.FinishPK(FinishPKAt, Error)
+            && PKLine.Advance(FinishPKAt, 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::Settlement
+            && PKLine.IsRestBuildOpen() && PKLine.NextDueMs() == FinishPKAt + 3000
+            && PKLine.Advance(FinishPKAt + 3000, 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::Return);
+    }
     {
         FLDMatchTimeline Paused;
         TArray<FLDTimelineEvent> Events;
@@ -319,7 +341,9 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     Record.NextAttackAtMs = 70000;
     SA.Roots.AddDefaulted();
     SA.Roots[0].ExpiresAtMs = 99999;
-    SA.Shield.Emplace();
+    const FGuid PhaseShieldId = FGuid::NewGuid();
+    SA.Shield = FLDCombatShield{PhaseShieldId, FGuid::NewGuid(), 99999};
+    SA.ShieldLayers.Add({PhaseShieldId, 99999, 3000});
     SA.Resources.ShieldP2 = 3000;
     SA.Burn.Layers.AddDefaulted();
     Driver->PendingHits.AddDefaulted();
@@ -363,7 +387,7 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("Both in-flight effects are cancelled by the phase"), Cancelled, 2);
     bGood &= TestTrue(TEXT("Nothing in flight survives and no hit was invented"), Driver->PendingHits.IsEmpty() && Driver->Projectiles.IsEmpty());
     bGood &= TestTrue(TEXT("Controls, shields and burns end on every body"),
-        SA.Roots.IsEmpty() && !SA.Shield.IsSet() && SA.Resources.ShieldP2 == 0 && SA.Burn.Layers.IsEmpty());
+        SA.Roots.IsEmpty() && !SA.Shield.IsSet() && SA.ShieldLayers.IsEmpty() && SA.Resources.ShieldP2 == 0 && SA.Burn.Layers.IsEmpty());
     bGood &= TestTrue(TEXT("The phase leaves HP alone (new lives start full by construction)"), HpAfterCleanup == HpBeforePhase);
     bGood &= TestTrue(TEXT("A training reset refills the owner and its dummy and clears the dummy's statuses"),
         SA.Resources.HpP2 == SA.Resources.MaxHpP2 && SD.Resources.HpP2 == SD.Resources.MaxHpP2 && SD.Stuns.IsEmpty());

@@ -1496,8 +1496,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         HudSetText(TimelineText,Timeline.Headline);HudSetShown(TimelineText,!Timeline.Headline.IsEmpty(),ESlateVisibility::HitTestInvisible);
         HudSetText(TimelineDetailText,Timeline.Detail);
         HudSetShown(TimelineDetailText,LDHUD::TimelineDetailVisible(Public,Timeline,bChoicesRestOpen),ESlateVisibility::HitTestInvisible);
-        // The reset exists only in a rest's open steps (build and payout); leaving them drops a wait the server will still answer.
-        const bool bRestActions=bRestPlanning||(Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Payout);
+        // The reset exists only in a rest's open steps (build and settlement/payout); leaving them drops a wait the server will still answer.
+        const bool bRestActions=bRestPlanning||(Public.Phase==ELDMatchPhase::Rest&&(Public.Timeline.Step==ELDRestStep::Settlement||Public.Timeline.Step==ELDRestStep::Payout));
         if(!bRestActions){bTrainingResetInFlight=false;bRestReadyInFlight=false;}
         HudSetShown(RestActionsPanel,bRestActions,ESlateVisibility::Visible);
         const FString ReadyLabel=O.bRestReady?TEXT("已准备"):bRestReadyInFlight?TEXT("提交中…"):TEXT("准备完毕");
@@ -1725,7 +1725,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
         if(Storage){Storage->SetEngaged(bEngaged);}
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC),
-            OwnCombat&&OwnCombat->bDormRegenActive);
+            bOwnMatch&&OwnCombat&&OwnCombat->bDormRegenActive);
         if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
     }
     if(StatBar)
@@ -1770,9 +1770,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bCardOffer?1:0)+(Waiting.bFinalMod?1:0);
             In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
             In.bStage=ChoicesPanel&&ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel&&ChoicesPanel->IsFinalStage();
-            In.bServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
+            In.bServices=ChoicesPanel&&(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown());
             In.bShop=ChoicesPanel&&ChoicesPanel->IsShopShown();
-            In.bCharacterServices=In.bServices;
+            In.bCharacterServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
             Workshop->Present(In);
             Storage->SetWorkshop(Workshop->StorageLayout());
         }
@@ -2489,6 +2489,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     const auto Line=[](UTextBlock* Text,const FString& Value){HudSetText(Text,Value);HudSetShown(Text,!Value.IsEmpty(),ESlateVisibility::HitTestInvisible);};
     Line(PKTitleText,View.Title);
     Line(PKCountdownText,View.Countdown);
+    HudSetColor(PKCountdownText,View.bMatchupReveal?LDHUDStyle::Celebration:LDHUDStyle::TextAccent);
     Line(PKRingText,View.Ring);
     for(int32 Index=0;Index<PKSideTexts.Num();++Index)
     {

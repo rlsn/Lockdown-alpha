@@ -67,6 +67,39 @@ bool FLDCaptureReducer::SetFinalRules(const FLDCaptureFinalRules& InRules, FStri
     return true;
 }
 
+void FLDCaptureReducer::SetShowdownRatchets(const TArray<int64>& InSprayCheckpointsMs,
+    const TArray<int64>& InGuardCheckpointsMs, int64 InBaseKillGuardMs)
+{
+    SprayCheckpointsMs = InSprayCheckpointsMs;
+    GuardCheckpointsMs = InGuardCheckpointsMs;
+    BaseKillGuardMs = FMath::Max<int64>(0, InBaseKillGuardMs);
+}
+
+void FLDCaptureReducer::UpdateSprayLatch(const FGuid& ContenderId, int64 ProgressMs)
+{
+    if (!ContenderId.IsValid() || ProgressMs <= 0) { return; }
+    for (const int64 Checkpoint : SprayCheckpointsMs)
+    {
+        if (Checkpoint > 0 && Checkpoint < Spray && ProgressMs >= Checkpoint)
+        {
+            int64& Stored = SprayLatchedMs.FindOrAdd(ContenderId);
+            Stored = FMath::Max(Stored, Checkpoint);
+        }
+    }
+}
+
+void FLDCaptureReducer::UpdateGuardLatch(int64 ProgressMs)
+{
+    if (ProgressMs <= 0) { return; }
+    for (const int64 Checkpoint : GuardCheckpointsMs)
+    {
+        if (Checkpoint > 0 && Checkpoint < Guard && ProgressMs >= Checkpoint)
+        {
+            GuardLatchedMs = FMath::Max(GuardLatchedMs, Checkpoint);
+        }
+    }
+}
+
 bool FLDCaptureReducer::BeginPrivate(const FLDCaptureReducer& Main, const FGuid& Holder, int64 SprayMs, int64 GuardMs, FString& Error)
 {
     if (!Main.bActive || Main.bOpen || !Holder.IsValid() || !Main.Committed.Contains(Holder))
@@ -85,6 +118,9 @@ bool FLDCaptureReducer::BeginPrivate(const FLDCaptureReducer& Main, const FGuid&
     ClosedThrough = Main.ClosedThrough;
     LastReducedSeconds = Main.LastReducedSeconds;
     OnlySprayer = Holder;
+    SprayCheckpointsMs = Main.SprayCheckpointsMs;
+    GuardCheckpointsMs = Main.GuardCheckpointsMs;
+    BaseKillGuardMs = Main.BaseKillGuardMs;
     Error.Reset();
     return true;
 }
@@ -188,6 +224,61 @@ bool FLDCaptureReducer::AccountGuard(int64 ThroughMs, FString& Error)
     Banked += Added;
     GuardAccountedThroughMs = FMath::Max(GuardAccountedThroughMs, End);
     return true;
+}
+
+int64 FLDCaptureReducer::GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const
+{
+    if (!ContenderId.IsValid() || Guard <= 0 || Owner != ContenderId || FadeAt != 0) { return 0; }
+    return IsGuardRunning()
+        ? FMath::Clamp<int64>(AtMs - (GuardDue - Guard), 0, Guard)
+        : FMath::Clamp<int64>(GuardKept, 0, Guard);
+}
+
+FGuid FLDCaptureReducer::ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTimeoutCandidate>& Candidates)
+{
+    const FLDShowdownTimeoutCandidate* Best = nullptr;
+    bool bTied = false;
+    auto Compare = [](const FLDShowdownTimeoutCandidate& Left, const FLDShowdownTimeoutCandidate& Right) -> int32
+    {
+        const int64 LeftTarget = FMath::Max<int64>(1, Left.GuardTargetMs);
+        const int64 RightTarget = FMath::Max<int64>(1, Right.GuardTargetMs);
+        const int64 LeftNum = FMath::Clamp<int64>(Left.GuardProgressMs, 0, LeftTarget) * RightTarget;
+        const int64 RightNum = FMath::Clamp<int64>(Right.GuardProgressMs, 0, RightTarget) * LeftTarget;
+        if (LeftNum != RightNum) { return LeftNum > RightNum ? 1 : -1; }
+        if (Left.ShowdownKills != Right.ShowdownKills) { return Left.ShowdownKills > Right.ShowdownKills ? 1 : -1; }
+        if (Left.ShowdownDamageP2 != Right.ShowdownDamageP2) { return Left.ShowdownDamageP2 > Right.ShowdownDamageP2 ? 1 : -1; }
+        return 0;
+    };
+    int32 EligibleCount = 0;
+    FGuid SoleEligible;
+    for (const FLDShowdownTimeoutCandidate& Row : Candidates)
+    {
+        if (!Row.bEligible || !Row.Contender.IsValid()) { continue; }
+        ++EligibleCount;
+        SoleEligible = Row.Contender;
+        if (Row.GuardProgressMs <= 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0)
+        {
+            continue;
+        }
+        if (!Best)
+        {
+            Best = &Row;
+            bTied = false;
+            continue;
+        }
+        const int32 Order = Compare(Row, *Best);
+        if (Order > 0)
+        {
+            Best = &Row;
+            bTied = false;
+        }
+        else if (Order == 0)
+        {
+            bTied = true;
+        }
+    }
+    if (Best) { return bTied ? FGuid() : Best->Contender; }
+    return EligibleCount == 1 ? SoleEligible : FGuid();
 }
 
 bool FLDCaptureReducer::CreditGuard(const FGuid& ContenderId, int64 GuardMs, FString& Error)
@@ -343,6 +434,10 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         return false;
     }
     if (!AccountGuard(Now, Error)) { return false; }
+    if (Occupier.IsValid())
+    {
+        UpdateSprayLatch(Occupier, State == ELDCircleState::Solo ? Now - SoloSince : Paused);
+    }
     // A hit-and-run sprayer may spray again only after leaving the zone (or the life).
     for (auto It = MustLeave.CreateIterator(); It; ++It)
     {
@@ -363,7 +458,7 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
     const ELDCircleState Next = Count == 0 ? ELDCircleState::Empty
         : Count == 1 ? (Only == NextOwner ? ELDCircleState::Guarded : CanSpray(Only) ? ELDCircleState::Solo : ELDCircleState::Contested)
         : ELDCircleState::Contested;
-    // Exit, death, departure, protection or an interruption ends the holder's progress; nobody inherits it.
+    // Exit, death, departure, protection or an interruption ends the holder's progress above its latched ratchet floor.
     const bool bInterrupt = Interrupted.IsValid() && Interrupted == Occupier;
     FGuid NextHolder = bHolderEffective && !bInterrupt ? Occupier : FGuid();
     int64 NextPaused = NextHolder.IsValid() ? Paused : 0;
@@ -380,8 +475,9 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         }
         else
         {
-            // The paused holder resumes from his frozen progress; any other sole sprayer starts at zero.
-            const int64 Resumed = NextHolder == Only ? NextPaused : 0;
+            // The paused holder resumes from his frozen progress; any sole sprayer keeps his latched 3-step ratchet floor.
+            const int64 Floor = SprayLatchedMs.FindRef(Only);
+            const int64 Resumed = NextHolder == Only ? FMath::Max(NextPaused, Floor) : Floor;
             bResumed = Resumed > 0;
             NextHolder = Only;
             NextSince = Now - Resumed;
@@ -392,6 +488,15 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
     else if (Next == ELDCircleState::Contested)
     {
         if (State == ELDCircleState::Solo && NextHolder.IsValid()) { NextPaused = Now - SoloSince; }
+        else if (bInterrupt && bHolderEffective)
+        {
+            const int64 Floor = SprayLatchedMs.FindRef(Occupier);
+            if (Floor > 0)
+            {
+                NextHolder = Occupier;
+                NextPaused = Floor;
+            }
+        }
         if (NextPaused <= 0)
         {
             NextHolder.Invalidate();
@@ -409,10 +514,12 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
     {
         const bool bWasRunning = IsGuardRunning();
         const bool bRuns = GuardRunsIn(Next);
+        const int64 CurrentGuard = bWasRunning ? Now - (GuardDue - Guard) : GuardKept;
+        UpdateGuardLatch(CurrentGuard);
         if (bWasRunning && bRuns) { NextGuardDue = GuardDue; }
-        else if (!bWasRunning && !bRuns) { NextGuardKept = GuardKept; }
-        else if (bWasRunning) { NextGuardKept = Now - (GuardDue - Guard); }
-        else if (!LDMatchLifecycle::AddDurationMs(Now - GuardKept, Guard, NextGuardDue, Error)) { return false; }
+        else if (!bWasRunning && !bRuns) { NextGuardKept = FMath::Max(GuardLatchedMs, GuardKept); }
+        else if (bWasRunning) { NextGuardKept = FMath::Max(GuardLatchedMs, CurrentGuard); }
+        else if (!LDMatchLifecycle::AddDurationMs(Now - FMath::Max(GuardLatchedMs, GuardKept), Guard, NextGuardDue, Error)) { return false; }
     }
     if (Next == State && NextHolder == Occupier && NextSince == SoloSince && NextDue == DueAt && NextPaused == Paused
         && NextOwner == Owner && NextGuardDue == GuardDue && NextGuardKept == GuardKept)
@@ -489,6 +596,8 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
 #endif
     Owner = Occupier;
     ++Sprays;
+    SprayLatchedMs.Reset();
+    GuardLatchedMs = 0;
     int64 Resume = 0;
     if (GuardCheckpoints.RemoveAndCopyValue(Sprayer, Resume)) { NextGuardDue -= FMath::Clamp<int64>(Resume, 0, Guard - 1); }
     GuardDue = NextGuardDue;
@@ -529,6 +638,7 @@ bool FLDCaptureReducer::Fade(FString& Error)
     FadeAt = 0;
     GuardDue = 0;
     GuardKept = 0;
+    GuardLatchedMs = 0;
     return Evaluate(At, FGuid(), Error);
 }
 
@@ -671,39 +781,8 @@ bool FLDCaptureReducer::ApplyKill(const FLDCaptureEvent& Event, FString& Error)
     const FMember* Holder = Killer.IsValid() ? Reduced.Find(Killer) : nullptr;
     if (!bOpen || !Holder || Killer == Victim || Holder->Phase == ELDLifePhase::Left) { return true; }
     const int64 Now = Event.Time.BucketMs;
-    switch (ModOf(Killer))
+    if (ModOf(Killer) == ELDDemoFinalModId::FinalUsurp && Owner == Victim && Holder->Phase == ELDLifePhase::Alive)
     {
-    case ELDDemoFinalModId::FinalKillSeconds:
-    {
-        if (!AccountGuard(Now, Error)) { return false; }
-        int64& Banked = BankedGuard.FindOrAdd(Killer);
-        if (Banked > MAX_int64 - Rules.KillGuardMs)
-        {
-            Error = TEXT("Historical guard contribution overflowed.");
-            return false;
-        }
-        Banked += Rules.KillGuardMs;
-        if (Owner != Killer || FadeAt != 0) { return true; }
-        if (Epoch == MAX_uint64)
-        {
-            Error = TEXT("Spray epoch exhausted.");
-            return false;
-        }
-        ++Epoch;
-        if (IsGuardRunning())
-        {
-            // The kill moves the running guard's due instant earlier; reaching it now wins at this instant.
-            GuardDue = FMath::Max(Now, GuardDue - Rules.KillGuardMs);
-            if (GuardDue == Now) { Win(ELDCaptureWin::Guard, Killer, Now); }
-            return true;
-        }
-        GuardKept = FMath::Min(Guard, GuardKept + Rules.KillGuardMs);
-        if (GuardKept == Guard && Holder->Phase == ELDLifePhase::Alive) { Win(ELDCaptureWin::Guard, Killer, Now); }
-        return true;
-    }
-    case ELDDemoFinalModId::FinalUsurp:
-    {
-        if (Owner != Victim || Holder->Phase != ELDLifePhase::Alive) { return true; }
         if (!AccountGuard(Now, Error)) { return false; }
         if (Epoch == MAX_uint64)
         {
@@ -718,16 +797,43 @@ bool FLDCaptureReducer::ApplyKill(const FLDCaptureEvent& Event, FString& Error)
             // A fading graffiti had no guard: the usurper's starts from zero.
             FadeAt = 0;
             GuardKept = 0;
+            GuardLatchedMs = 0;
             if (GuardRunsIn(State) && !LDMatchLifecycle::AddDurationMs(Now, Guard, GuardDue, Error)) { return false; }
         }
 #if WITH_DEV_AUTOMATION_TESTS
         DevCounts.GraffitiSinceMs = Now;
 #endif
+    }
+    const int64 BonusGuardMs = (ModOf(Killer) == ELDDemoFinalModId::FinalKillSeconds ? Rules.KillGuardMs : 0)
+        + (Owner == Killer && FadeAt == 0 ? BaseKillGuardMs : 0);
+    if (BonusGuardMs <= 0) { return true; }
+    if (!AccountGuard(Now, Error)) { return false; }
+    int64& Banked = BankedGuard.FindOrAdd(Killer);
+    if (Banked > MAX_int64 - BonusGuardMs)
+    {
+        Error = TEXT("Historical guard contribution overflowed.");
+        return false;
+    }
+    Banked += BonusGuardMs;
+    if (Owner != Killer || FadeAt != 0) { return true; }
+    if (Epoch == MAX_uint64)
+    {
+        Error = TEXT("Spray epoch exhausted.");
+        return false;
+    }
+    ++Epoch;
+    if (IsGuardRunning())
+    {
+        // The kill moves the running guard's due instant earlier; reaching it now wins at this instant.
+        GuardDue = FMath::Max(Now, GuardDue - BonusGuardMs);
+        UpdateGuardLatch(Now - (GuardDue - Guard));
+        if (GuardDue == Now) { Win(ELDCaptureWin::Guard, Killer, Now); }
         return true;
     }
-    default:
-        return true;
-    }
+    GuardKept = FMath::Min(Guard, GuardKept + BonusGuardMs);
+    UpdateGuardLatch(GuardKept);
+    if (GuardKept == Guard && Holder->Phase == ELDLifePhase::Alive) { Win(ELDCaptureWin::Guard, Killer, Now); }
+    return true;
 }
 
 void FLDCaptureReducer::CheckClearOut(int64 AtMs)

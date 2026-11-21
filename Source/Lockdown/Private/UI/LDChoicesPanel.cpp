@@ -515,8 +515,12 @@ bool ULDChoicesPanel::ClosePanel()
 }
 bool ULDChoicesPanel::IsServiceShown() const
 {
-    // Only a rest's build windows (build and payout) offer the rest rebuilds; the locked steps and the return take them away.
+    // Only a rest's build windows (build and settlement/payout) offer the rest rebuilds; the locked steps and the return take them away.
     return bOpen&&Places.bActive&&!bStageShown&&LatestStage==LDProgression::EMatchStage::Rest;
+}
+bool ULDChoicesPanel::IsBlueprintSwapShown() const
+{
+    return bOpen&&Places.bActive&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bDormSwap);
 }
 bool ULDChoicesPanel::LeaveStage()
 {
@@ -540,14 +544,32 @@ TArray<FName> ULDChoicesPanel::ConfirmWarnings() const
     TArray<FName> Out;
     if(RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive||RestConfirm.Kind==ELDBuildCommandKind::ForgetActive)
     {
-        // The cards on the forgotten skill go back to the library (APP_SPEC §4); they light orange first.
         const LDHUD::FStorageView Shown=LDHUD::CardStorage(Latest,LatestContent);
         const int32 Column=int32(LDHUD::SlotColumn(RestConfirm.Slot));
         if(Shown.Columns.IsValidIndex(Column))
         {
-            for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){Out.Append(Entry.Keys);}
-            // The medal in its element slot goes back too.
-            if(Shown.Columns[Column].bHasMedal){Out.Append(Shown.Columns[Column].Medal.Keys);}
+            TSet<uint16> ReclaimedSerials;
+            if(RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive&&LatestContent)
+            {
+                FLDGrowthBuild Current=LDProgression::BuildFromView(*LatestContent,Latest),After;
+                FLDProgressionState Dummy;FName Forgotten;TArray<uint16> Reclaimed;
+                LDProgression::FBuildContext Context;Context.Stage=LDProgression::EMatchStage::Rest;Context.LifePhase=ELDLifePhase::Alive;
+                if(LDProgression::ApplyReplaceActive(*LatestContent,Current,Dummy,RestConfirm.Blueprint,RestConfirm.Slot,Context,After,Forgotten,Reclaimed)==ELDGrowthReason::None)
+                {
+                    for(uint16 Serial:Reclaimed){ReclaimedSerials.Add(Serial);}
+                }
+            }
+            auto AppendFiltered=[&](const TArray<FName>& Keys)
+            {
+                if(RestConfirm.Kind==ELDBuildCommandKind::ForgetActive||!LatestContent){Out.Append(Keys);return;}
+                for(const FName& Key:Keys)
+                {
+                    const uint16 Serial=LDHUD::CardSerial(Key);
+                    if(Serial!=0&&ReclaimedSerials.Contains(Serial)){Out.Add(Key);}
+                }
+            };
+            for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){AppendFiltered(Entry.Keys);}
+            if(Shown.Columns[Column].bHasMedal){AppendFiltered(Shown.Columns[Column].Medal.Keys);}
         }
     }
     return Out;
@@ -969,6 +991,14 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
                 LDHUD::CardChoiceDetail(View,Outcome));
         }
         ShowLook(Card,bTiles,bCan,bVisible);
+        if(LatestContent)
+        {
+            const auto Rarity=LDProgression::CardRarity(*LatestContent,Id);
+            const FLinearColor Tint=Rarity==LDProgression::ELDCardRarity::Legendary?FLinearColor(.55f,.42f,.08f,1.f)
+                :Rarity==LDProgression::ELDCardRarity::Rare?FLinearColor(.36f,.18f,.55f,1.f)
+                :FLinearColor(.16f,.26f,.38f,1.f);
+            GrowthTint(Card.Button,Tint);
+        }
     }
     GrowthShown(CardActions,bShow&&!bTiles);
     GrowthText(Cast<UTextBlock>(CardRerollButton->GetContent()),LDTerms::CardReroll(Latest.CardRerolls));
@@ -1076,10 +1106,9 @@ ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
 }
 void ULDChoicesPanel::RefreshBlueprints()
 {
-    // The rest rebuild buttons on the Q/W/E heads for the selected blueprint; the tray shows blueprints as cards
-    // (RefreshBlueprintCards).
-    // A dorm rest on the field offers the blueprint swap as well.
-    const bool bShown=(IsServiceShown()||Gate.bDormSwap)&&!ShownBlueprints.IsEmpty();
+    // The rest rebuild buttons on the Q/W/E heads for the selected blueprint (rest or a dorm rest on the field); the tray shows
+    // blueprints as cards (RefreshBlueprintCards).
+    const bool bShown=IsBlueprintSwapShown()&&!ShownBlueprints.IsEmpty();
     GrowthShown(TrainerPicks,bShown);
     if(!ShownBlueprints.IsValidIndex(TrainerBlueprint)){TrainerBlueprint=0;}
     bool bEmpty[3]={false,false,false};
@@ -1248,7 +1277,7 @@ void ULDChoicesPanel::RefreshRest()
     GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
     const bool bServices=IsServiceShown();
     // A dorm swap on the field confirms in the same dock; respec and forget stay in a rest.
-    GrowthShown(ServiceDock,(bServices||Gate.bDormSwap)&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
+    GrowthShown(ServiceDock,IsBlueprintSwapShown()&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
     GrowthShown(RespecBox,bServices);
     if(!bShown){return;}
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
@@ -1407,8 +1436,11 @@ void ULDChoicesPanel::RefreshShopPanel()
         const FLDShopSlotView& Row=Shop.Slots[Index];
         Card.Component=Row.DefinitionId;
         const bool bAfford=Points>=Row.Price;
-        const FString Outcome=Row.bSold?FString(LDTerms::ShopSoldMark):!Gate.bCanShop?Gate.ShopBlocked
+        FString Outcome=Row.bSold?FString(LDTerms::ShopSoldMark):!Gate.bCanShop?Gate.ShopBlocked
             :bAfford?LDTerms::ShopPrice(Row.Price):LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughPoints);
+        const bool bNoHost=Row.Kind==ELDShopItemKind::Card&&LatestContent
+            &&!LDProgression::HasValidSkillHost(*LatestContent,LDProgression::BuildFromView(*LatestContent,Latest),Row.DefinitionId);
+        if(bNoHost&&!Row.bSold){Outcome+=TEXT(" · 需替换对应宿主技能后生效");}
         const FString Key=FString::Printf(TEXT("%llu|%d|"),Shop.Revision,Index)+Row.DefinitionId.ToString()+TEXT("|")+Outcome;
         if(CardStale(Card,Key))
         {
@@ -1424,6 +1456,19 @@ void ULDChoicesPanel::RefreshShopPanel()
             }
         }
         ShowLook(Card,false,bCan&&!Row.bSold&&bAfford,true);
+        if(Row.Kind==ELDShopItemKind::Card&&LatestContent)
+        {
+            const auto Rarity=LDProgression::CardRarity(*LatestContent,Row.DefinitionId);
+            const FLinearColor Tint=bNoHost?FLinearColor(.52f,.34f,.08f,1.f)
+                :Rarity==LDProgression::ELDCardRarity::Legendary?FLinearColor(.55f,.42f,.08f,1.f)
+                :Rarity==LDProgression::ELDCardRarity::Rare?FLinearColor(.36f,.18f,.55f,1.f)
+                :FLinearColor(.16f,.26f,.38f,1.f);
+            GrowthTint(Card.Button,Tint);
+        }
+        else
+        {
+            GrowthTint(Card.Button,LDHUDStyle::CardIdle);
+        }
         GrowthText(ShopPrices[Index],Row.bSold?FString(LDTerms::ShopSoldMark):LDTerms::ShopPrice(Row.Price));
         ShopPrices[Index]->SetColorAndOpacity(Row.bSold||!bAfford?LDHUDStyle::TextSecondary:LDHUDStyle::TextAccent);
     }
@@ -1731,7 +1776,7 @@ void ULDChoicesPanel::LayoutLayer()
     }
     PlaceOnLayer(ShopToggleButton,Places.ShopButton,FVector2D(0.f,.5f));
     if(IsShopShown()){PlaceOnLayer(ShopPanel,Places.Shop,FVector2D::ZeroVector,true);}
-    if(!IsServiceShown()&&!Gate.bDormSwap){return;}
+    if(!IsBlueprintSwapShown()){return;}
     if(IsServiceShown()){PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);}
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);

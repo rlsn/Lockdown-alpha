@@ -128,6 +128,24 @@ struct FLDBuildPrimitivesAccess
     static bool GrantShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2, int64 NowMs, FString& Error)
     { return Driver.GrantShieldTo(Body, AmountP2, 3000, FGuid::NewGuid(), Body.Victim.EntityId, NowMs, Error); }
     static bool Heal(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2) { return Driver.HealBody(Body, AmountP2); }
+    static bool HealSourced(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& Source, FString& Error)
+    { return Driver.HealBody(Body, AmountP2, Source, nullptr, FGuid(), &Error); }
+    static bool Regenerate(ALDCombatDirector& Driver, int64 NowMs, FString& Error)
+    {
+        const FLDDemoContentParameters& P = Driver.Catalog()->Get().Parameters;
+        return Driver.RegenerateBodies({P.OutOfCombatRegenDelayMs, P.OutOfCombatMaxHPRegenBp}, NowMs, Error);
+    }
+    static bool ApplyReactionElement(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatElement Element,
+        const FLDCombatBodyRef& SourceRef, const FLDCombatSourceRef& Source, int64 NowMs, FString& Error)
+    {
+        FLDElementApplier Applier;
+        Applier.SourceEntity = SourceRef.Victim.EntityId;
+        Applier.SourceBody = SourceRef;
+        Applier.CreditOwner = SourceRef.Victim.EntityId;
+        Applier.Source = Source;
+        Applier.Level = 6;
+        return Driver.ApplyElement(Body, Element, Applier, Element == ELDCombatElement::Fire ? 1 : 0, FGuid::NewGuid(), NowMs, Error);
+    }
     // #198 B components.
     static bool ResolveDashCompletions(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ResolveDashCompletions(NowMs, Error); }
     static bool Collect(const ALDCombatDirector& Driver, const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
@@ -1093,7 +1111,9 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     const auto Control = [&From](int64 Until) { return FLDCombatRoot{FGuid::NewGuid(), From, Until}; };
     // Every public combat cue at once.
     Body.Roots.Add(Control(5000));
-    Body.Shield = FLDCombatShield{FGuid::NewGuid(), From, 5000};
+    const FGuid ShieldId = FGuid::NewGuid();
+    Body.Shield = FLDCombatShield{ShieldId, From, 5000};
+    Body.ShieldLayers.Add({ShieldId, 5000, 1000});
     Body.Resources.ShieldP2 = 1000;
     Body.Slows.Add({FGuid::NewGuid(), From, 3000, 5000});
     FLDCombatTimedBonus Boost;
@@ -2839,7 +2859,40 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY05Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleY05Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_wave_after"), ELDDemoEffectOp::ReactionElement, ELDCardTargetKind::Body});
+    if (!RunCardRule(*this, {TEXT("card_wave_after"), ELDDemoEffectOp::ReactionElement, ELDCardTargetKind::Body}))
+    {
+        return false;
+    }
+    // Regression: when Water + Rot triggers Ferment (leaving Rot and starting the 500ms reaction lock), card_wave_after draws
+    // from full Choices (excluding Water) while the chain exemption is available so a secondary reaction can actually fire.
+    bool bSawSecondaryReaction = false;
+    {
+        FFixture F;
+        if (!F.Init(*this)) { return false; }
+        const FLDCombatBodyRef Holder = F.AddBody();
+        if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_wave_after"), ELDCardTargetKind::Body}})) { return false; }
+        const FLDCombatSourceRef Src = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
+        for (int32 Trial = 0; Trial < 32 && !bSawSecondaryReaction; ++Trial)
+        {
+            const int64 AtMs = 2000 + Trial * 1000;
+            FAccess::SetNow(*F.Mode, AtMs);
+            FAccess::Reactions(*F.Driver).Reset();
+            const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 500000);
+            FString Error;
+            if (!FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Rot, Holder, Src, AtMs, Error)
+                || !FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Water, Holder, Src, AtMs, Error)
+                || !FAccess::AdvanceElements(*F.Driver, AtMs, Error))
+            {
+                AddError(Error);
+                return false;
+            }
+            if (FAccess::Reactions(*F.Driver).Num() >= 2)
+            {
+                bSawSecondaryReaction = true;
+            }
+        }
+    }
+    return TestTrue(TEXT("card_wave_after triggers an exempted secondary reaction after Ferment leaves Rot"), bSawSecondaryReaction);
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY07Test, "Lockdown.Rules.Combat.Cards.Y07",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -3901,5 +3954,105 @@ bool FLDCardRuleD08Test::RunTest(const FString& Parameters)
         });
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAdaptiveAndKeystonesTest, "Lockdown.Rules.Combat.AdaptiveAndKeystones",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+
+    // 1. Adaptive ratio chooses Physical BonusAD when BonusAD * 1.4 >= AP, else Magical AP.
+    TestEqual(TEXT("BonusAD * 1.4 >= AP selects Physical adaptive scaling"),
+        LDTactical::EffectiveDamageType(ELDDemoDamageType::Physical, 6000, 5000, 7000), ELDDemoDamageType::Physical);
+    TestEqual(TEXT("AP > BonusAD * 1.4 selects Magical adaptive scaling"),
+        LDTactical::EffectiveDamageType(ELDDemoDamageType::Physical, 6000, 5000, 7001), ELDDemoDamageType::Magical);
+
+    FLDDamageEvaluationInput AdaptivePhys;
+    AdaptivePhys.Definition.Emplace(5000, 0, 0, ELDDemoDamageType::Physical, 0, 6000);
+    AdaptivePhys.HitClass = ELDCombatHitClass::Ability;
+    AdaptivePhys.bCritical = false;
+    AdaptivePhys.SourceBonusADP2 = 5000;
+    AdaptivePhys.SourceAPP2 = 7000;
+    AdaptivePhys.TargetResistanceP2 = 0;
+    AdaptivePhys.TargetHPP2 = 50000;
+    AdaptivePhys.TargetShieldP2 = 0;
+    AdaptivePhys.bTargetProtected = false;
+    const auto PhysEval = LDTactical::EvaluateDamage(AdaptivePhys, *F.Catalog);
+    TestTrue(TEXT("Physical adaptive damage adds BonusAD * adaptive_ratio (50 + 30 = 80)"),
+        PhysEval.IsSuccess() && PhysEval.Value->DamageP2 == 8000);
+
+    FLDDamageEvaluationInput AdaptiveMag = AdaptivePhys;
+    AdaptiveMag.SourceAPP2 = 10000;
+    const auto MagEval = LDTactical::EvaluateDamage(AdaptiveMag, *F.Catalog);
+    TestTrue(TEXT("Magical adaptive damage adds AP * adaptive_ratio (50 + 60 = 110)"),
+        MagEval.IsSuccess() && MagEval.Value->DamageP2 == 11000);
+
+    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) multiplies overdrive scale by 0.875x per copy.
+    const FLDCombatBodyRef Holder = F.AddBody();
+    if (!InstallCards(*this, F, Holder, 6, {
+        {TEXT("card_skill_crit"), ELDCardTargetKind::Body},
+        {TEXT("card_short_breath"), ELDCardTargetKind::Body},
+        {TEXT("card_short_breath"), ELDCardTargetKind::Body}}))
+    {
+        return false;
+    }
+    TestEqual(TEXT("card_skill_crit adds +15% flat crit chance"), F.Body(Holder).AttributeProjection.Final.CritChanceBp, int64(1500));
+    FLDCombatActiveTerms Plain, Over;
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    const int64 ExpectedScaleBp = F.Catalog->Get().Parameters.Overdrive.ScaleBp * 8750 / 10000 * 8750 / 10000;
+    TestEqual(TEXT("Two card_short_breath copies multiply overdrive scale independently by 0.875^2"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2,
+        FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * ExpectedScaleBp / 10000);
+
+    // 3. Thick Skin keystone reduces any post-mitigation hit >= 30 by Max(Flat, Damage * Ratio) and ignores hits < 30.
+    FLDDamageEvaluationInput GuardInput = AdaptivePhys;
+    GuardInput.Definition.Emplace(20000, 0, 0, ELDDemoDamageType::Magical);
+    GuardInput.KeystoneGuardP2 = 1200;
+    GuardInput.KeystoneGuardCapBp = 1500;
+    const auto GuardedBig = LDTactical::EvaluateDamage(GuardInput, *F.Catalog);
+    TestTrue(TEXT("Thick Skin cuts an ability hit >= 30 by Max(12, 15% of 200) = 30"),
+        GuardedBig.IsSuccess() && GuardedBig.Value->KeystoneGuardCutP2 == 3000 && GuardedBig.Value->DamageP2 == 17000);
+    GuardInput.Definition.Emplace(2500, 0, 0, ELDDemoDamageType::Magical);
+    const auto GuardedSmall = LDTactical::EvaluateDamage(GuardInput, *F.Catalog);
+    TestTrue(TEXT("Hits below 30 do not trigger Thick Skin's guard cut"),
+        GuardedSmall.IsSuccess() && GuardedSmall.Value->KeystoneGuardCutP2 == 0 && GuardedSmall.Value->DamageP2 == 2500);
+
+    // 4. card_muscle_memory (A13) grows AttackSpeedBonusRatio in CardGrowth without InputDomain rejection.
+    FLDAttributeBuildValues BaseMuscleValues(6, {});
+    BaseMuscleValues.Cards.Add({FName(TEXT("card_muscle_memory")), 1, ELDCardTargetKind::Body});
+    FLDAttributeBuildValues GrownMuscleValues = BaseMuscleValues;
+    FLDDemoStatBonus GrownAS;
+    GrownAS.Stat = ELDDemoBonusStat::AttackSpeedBonusRatio;
+    GrownAS.Amount = 400;
+    GrownMuscleValues.CardGrowth.Add(GrownAS);
+    const auto BaseMuscle = LDAttributeProjection::Project(BaseMuscleValues, *F.Catalog);
+    const auto GrownMuscle = LDAttributeProjection::Project(GrownMuscleValues, *F.Catalog);
+    TestTrue(TEXT("card_muscle_memory CardGrowth AttackSpeedBonusRatio projects cleanly and increases attack speed"),
+        BaseMuscle.IsSuccess() && GrownMuscle.IsSuccess()
+        && GrownMuscle.Value->Final.AttackSpeed.Numerator * BaseMuscle.Value->Final.AttackSpeed.Denominator
+            > BaseMuscle.Value->Final.AttackSpeed.Numerator * GrownMuscle.Value->Final.AttackSpeed.Denominator);
+
+    // 5. Physique keystone: combat regeneration never consumes KeystonePhysiqueReadyAtMs; effective healing grants 50% shield.
+    const FLDCombatBodyRef PhysiqueRef = F.AddBody();
+    const auto PhysiqueProj = LDAttributeProjection::Project(
+        FLDAttributeBuildValues(16, {FLDStatPointsValue(TEXT("stat_physique"), 18)}), *F.Catalog);
+    if (!TestTrue(TEXT("18-point Physique projection succeeds"), PhysiqueProj.IsSuccess())) { return false; }
+    FLDBodyCombatState& PhysiqueBody = F.Body(PhysiqueRef);
+    PhysiqueBody.BuildProjection = PhysiqueBody.AttributeProjection = PhysiqueProj.Value.GetValue();
+    PhysiqueBody.Resources.MaxHpP2 = 200000;
+    PhysiqueBody.Resources.HpP2 = 100000;
+    PhysiqueBody.LastCombatAtMs = 1500;
+    FAccess::SetNow(*F.Mode, 2000);
+    FString RegenError;
+    TestTrue(TEXT("Combat regeneration succeeds without granting unconditional Physique shield"),
+        FAccess::Regenerate(*F.Driver, 2000, RegenError) && PhysiqueBody.Resources.ShieldP2 == 0
+        && PhysiqueBody.KeystonePhysiqueReadyAtMs == 0);
+    FString HealError;
+    TestTrue(TEXT("Effective healing exclusively triggers Physique 50% heal-to-shield and advances its cooldown"),
+        FAccess::HealSourced(*F.Driver, PhysiqueBody, 20000, SourceOf(ELDCombatSourceKind::Learned, TEXT("active_not_mad")), HealError)
+        && PhysiqueBody.Resources.ShieldP2 == 10000 && PhysiqueBody.KeystonePhysiqueReadyAtMs == 6000);
+    return true;
+}
 
 #endif

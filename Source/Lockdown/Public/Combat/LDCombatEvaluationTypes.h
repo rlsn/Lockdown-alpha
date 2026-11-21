@@ -27,8 +27,9 @@ struct FLDDamageDefinitionValues
 {
     // P2 points and R4 coefficients from an already-resolved definition/rank.
     FLDDamageDefinitionValues(int64 InBaseP2, int64 InADRatioBp, int64 InAPRatioBp, ELDDemoDamageType InDamageType,
-        int64 InMaxHPRatioBp = 0)
-        : BaseP2(InBaseP2), ADRatioBp(InADRatioBp), APRatioBp(InAPRatioBp), DamageType(InDamageType), MaxHPRatioBp(InMaxHPRatioBp) {}
+        int64 InMaxHPRatioBp = 0, int64 InAdaptiveRatioBp = 0)
+        : BaseP2(InBaseP2), ADRatioBp(InADRatioBp), APRatioBp(InAPRatioBp), DamageType(InDamageType),
+          MaxHPRatioBp(InMaxHPRatioBp), AdaptiveRatioBp(InAdaptiveRatioBp) {}
 
     int64 BaseP2;
     int64 ADRatioBp;
@@ -36,6 +37,8 @@ struct FLDDamageDefinitionValues
     ELDDemoDamageType DamageType;
     // R4 coefficient of the source's own max HP (P2), alongside AD and AP (active_seethe).
     int64 MaxHPRatioBp;
+    // R4 adaptive coefficient: BonusAD * 1.4 >= AP -> BonusAD * AdaptiveRatioBp (Physical), else AP * AdaptiveRatioBp (Magical).
+    int64 AdaptiveRatioBp;
 };
 
 struct FLDDamageEvaluationInput
@@ -46,6 +49,7 @@ struct FLDDamageEvaluationInput
     // A source attribute may be absent only when its resolved coefficient is zero.
     TOptional<int64> SourceADP2;
     TOptional<int64> SourceAPP2;
+    TOptional<int64> SourceBonusADP2;
     // The source's max HP snapshotted at release; required only when MaxHPRatioBp is nonzero.
     TOptional<int64> SourceMaxHPP2;
     // Resistance is the matching armor or magic-resist point value, not a reduction ratio.
@@ -60,7 +64,8 @@ struct FLDDamageEvaluationInput
     int64 DeliveryScaleBp = 10000;
     // A package multiplier of the raw amount (a skill branch's share), applied with the delivery share; 1..100000.
     int64 PackageScaleBp = 10000;
-    // The activated thick-skin keystone cuts this share of a direct hit after the ordinary primary guard.
+    // The activated thick-skin keystone cuts Max(KeystoneGuardP2, Damage * KeystoneGuardCapBp) on hits >= 30 (or pure ratio when KeystoneGuardP2 == 0).
+    int64 KeystoneGuardP2 = 0;
     int64 KeystoneGuardCapBp = 0;
     // #198 S16: the target's stance cuts this share of the hit after resistance and delivery scaling, before the guard.
     int64 BraceCutBp = 0;
@@ -96,7 +101,6 @@ struct FLDCombatRoot
     int64 ExpiresAtMs = 0;
 };
 
-// The single barrier record (EFFECT.ShieldPolicy); the remaining amount is the resource ShieldP2.
 struct FLDCombatShield
 {
     FGuid EffectId;

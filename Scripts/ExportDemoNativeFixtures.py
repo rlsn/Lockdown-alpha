@@ -147,7 +147,7 @@ CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 
 def effect(value):
     result = {
-        "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
+        "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "AdaptiveRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "RatioBp": 0,
         "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
@@ -159,7 +159,7 @@ def effect(value):
         "GroundKind": 0, "bCarryElement": False,
     }
     for source, dest in (
-        ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
+        ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("adaptive_ratio", "AdaptiveRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
         ("cooldown", "AmountMs"), ("momentum", "BaseP2"),
@@ -393,6 +393,7 @@ def card(row):
         "VocabMask": vocab_mask(row["vocab"]), "ChooseElements": [ELEMENTS.index(element) for element in row.get("choose_element", [])],
         "HostHitTypes": sum(1 << HIT_TYPES.index(kind) for kind in row.get("host_hit_types", [])),
         "bHostControl": bool(row.get("host_control", False)),
+        "DropWeight": row.get("drop_weight", 100),
         "DrawWeightBp": scalar(row["draw_weight"]) if "draw_weight" in row else 10000,
         "Effects": [effect(value) for value in row["effects"]],
     }
@@ -462,14 +463,17 @@ def parameter_projection(parameters):
         ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
         ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
         ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"),
+        ("COMBAT.KeystonePhysiqueHealToShieldRatio", "KeystonePhysiqueHealToShieldBp"),
         ("COMBAT.KeystonePhysiqueOutOfCombatCut", "KeystonePhysiqueOutOfCombatCutBp"),
         ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "KeystonePhysiqueShieldMaxHPBp"),
         ("COMBAT.KeystonePhysiqueShieldDurationSec", "KeystonePhysiqueShieldDurationMs"),
         ("COMBAT.KeystonePhysiqueIntervalSec", "KeystonePhysiqueIntervalMs"),
         ("COMBAT.KeystoneAgilityDashCooldownCut", "KeystoneAgilityDashCooldownCutBp"),
+        ("COMBAT.KeystoneThickSkinGuardPoints", "KeystoneThickSkinGuardP2"),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "KeystoneThickSkinGuardCapBp"),
         ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"), ("COMBAT.KeystoneThickSkinSteadySec", "KeystoneThickSkinSteadyMs"), ("COMBAT.KeystoneThickSkinKnockbackRatio", "KeystoneThickSkinKnockbackBp"),
         ("COMBAT.KeystoneStrengthDamageRatio", "KeystoneStrengthDamageBp"),
+        ("COMBAT.KeystoneBrainsMomentumRefundRatio", "KeystoneBrainsMomentumRefundBp"),
         ("COMBAT.KeystoneBrainsReactionMomentum", "KeystoneBrainsReactionMomentumP2"),
         ("COMBAT.KeystoneBrainsCooldownCutSec", "KeystoneBrainsCooldownCutMs"),
         ("COMBAT.KeystoneAgilityDamageBase", "KeystoneAgilityDamageBaseP2"),

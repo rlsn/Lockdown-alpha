@@ -45,8 +45,11 @@ bool ALDGameMode::BeginShowdown(const FLDGameplayWritePermit& Permit, FString& E
         && !LDMatchLifecycle::AddDurationMs(Showdown.ClosureAtMs, ShowdownRing.TickMs, ShowdownRingTickAtMs, Error))
     { return false; }
     ShowdownRespawns.Reset();
+    ShowdownKills.Reset();
+    ShowdownDamageP2.Reset();
     ShowdownBurn.Reset();
     bShowdownClosePending = false;
+    CaptureReducer.SetShowdownRatchets({1150, 2300}, {7000, 14000}, 4000);
     int64 OpensAt = 0;
     if (!LDMatchLifecycle::AddDurationMs(Showdown.StartedAtMs, Settings->UnlockDelayMs, OpensAt, Error)
         || !CaptureReducer.ScheduleOpen(OpensAt, Error) || !BeginFinalMods(*Registry, Error)) { return false; }
@@ -213,14 +216,43 @@ bool ALDGameMode::CloseShowdownIfDue(const FLDGameplayWritePermit& Permit, FStri
     bShowdownClosePending = true;
     if (HasPendingRewardRetries()) { return true; }
     bShowdownClosePending = false;
-    // final_private_pole: half of the guard held on the private pole counts toward the timeout ranking.
     for (FLDPrivatePole& Pole : PrivatePoles)
     {
         if (Pole.bCredited) { continue; }
         if (!CaptureReducer.CreditGuard(Pole.Holder, Pole.Reducer.GetBankedGuardMs(Pole.Holder) / 2, Error)) { return false; }
         Pole.bCredited = true;
     }
-    const FGuid Winner = bCanContinue ? CaptureReducer.TimeoutWinner() : FGuid();
+    FGuid Winner;
+    if (bCanContinue)
+    {
+        const int64 CloseAt = FMath::Min(Now, Showdown.EndsAtMs);
+        TArray<FLDShowdownTimeoutCandidate> Candidates;
+        for (const FGuid& Id : RosterOrder)
+        {
+            const FLDLifeRecord* Life = Lives.Find(Id);
+            FLDShowdownTimeoutCandidate& Row = Candidates.AddDefaulted_GetRef();
+            Row.Contender = Id;
+            Row.bEligible = IsMemberPresent(Id) && Life && Life->Phase == ELDLifePhase::Alive && Life->ProtectedUntilMs <= CloseAt;
+            Row.GuardTargetMs = FMath::Max<int64>(1, CaptureReducer.GetGuardMs());
+            Row.GuardProgressMs = CaptureReducer.GetEffectiveGuardMs(Id, CloseAt);
+            Row.CompletedSprays = CaptureReducer.GetCompletedSprays(Id);
+            for (const FLDPrivatePole& Pole : PrivatePoles)
+            {
+                if (!Pole.Reducer.IsActive()) { continue; }
+                const int64 PoleTarget = FMath::Max<int64>(1, Pole.Reducer.GetGuardMs());
+                const int64 PoleProgress = Pole.Reducer.GetEffectiveGuardMs(Id, CloseAt);
+                if (PoleProgress * Row.GuardTargetMs > Row.GuardProgressMs * PoleTarget)
+                {
+                    Row.GuardProgressMs = PoleProgress;
+                    Row.GuardTargetMs = PoleTarget;
+                }
+                Row.CompletedSprays = FMath::Max(Row.CompletedSprays, Pole.Reducer.GetCompletedSprays(Id));
+            }
+            Row.ShowdownKills = ShowdownKills.FindRef(Id);
+            Row.ShowdownDamageP2 = ShowdownDamageP2.FindRef(Id);
+        }
+        Winner = FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates);
+    }
     return TryCloseMatch(bCanContinue ? ELDMatchEndReason::ObjectiveTimeout : ELDMatchEndReason::NoChampion,
         Winner, FMath::Min(Now, Showdown.EndsAtMs), Error);
 }

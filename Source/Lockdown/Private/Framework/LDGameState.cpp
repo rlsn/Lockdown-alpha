@@ -63,14 +63,8 @@ void ALDGameState::SyncRecoveryOrbMarkers()
         return !bKeep;
     });
     if(!bShow||!World){return;}
-    double Radius=0;
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    constexpr double Radius=90.0;
     FString Error;
-    if(LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content)
-    {
-        const FLDDemoRational& Approved=Content->Get().Parameters.AirdropPickupRadiusCm;
-        Radius=Approved.Denominator>0?double(Approved.Numerator)/double(Approved.Denominator):0.;
-    }
     for(const FLDRecoveryOrbView& Orb:PublicMatch.RecoveryOrbs)
     {
         if(RecoveryOrbMarkers.ContainsByPredicate([&Orb](const TWeakObjectPtr<ALDRecoveryOrbMarker>& Weak)

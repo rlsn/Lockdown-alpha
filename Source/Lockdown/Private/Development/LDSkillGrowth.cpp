@@ -74,6 +74,7 @@ bool LDSkillGrowth::ScaleRatios(FLDDemoEffectDefinition& InOut, int64 RatioBp)
 {
     using LDSkillGrowthDetail::ScaleBp;
     return ScaleBp(InOut.ADRatioBp, RatioBp, InOut.ADRatioBp) && ScaleBp(InOut.APRatioBp, RatioBp, InOut.APRatioBp)
+        && ScaleBp(InOut.AdaptiveRatioBp, RatioBp, InOut.AdaptiveRatioBp)
         && ScaleBp(InOut.MaxHPRatioBp, RatioBp, InOut.MaxHPRatioBp);
 }
 

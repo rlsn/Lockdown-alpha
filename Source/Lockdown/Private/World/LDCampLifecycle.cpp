@@ -205,7 +205,7 @@ void FLDCampMatchState::End()
 const FLDCampMemberState* FLDCampMatchState::FindMember(const FGuid& EntityId, int32* OutCamp, int32* OutSlot) const
 {
     const FIntPoint* At = MemberIndex.Find(EntityId);
-    if (!At) { return nullptr; }
+    if (!At || !Camps.IsValidIndex(At->X) || !Camps[At->X].Members.IsValidIndex(At->Y)) { return nullptr; }
     if (OutCamp) { *OutCamp = At->X; }
     if (OutSlot) { *OutSlot = At->Y; }
     return &Camps[At->X].Members[At->Y];

@@ -33,6 +33,10 @@ namespace LDTactical
     LOCKDOWN_API bool ApplyRoot(TArray<FLDCombatRoot>& Roots, const FLDCombatRoot& Instance, int64 AtMs);
     // Root-only cleanse: removes every current Root instance and nothing else. Returns the removed count.
     LOCKDOWN_API int32 DispelRoots(TArray<FLDCombatRoot>& Roots);
+    // BonusAD = max(0, TotalADP2 - (AD.BaseP2 + (Level - 1) * AD.PerLevelP2)).
+    LOCKDOWN_API int64 BonusADOf(const FLDDemoContentParameters& Parameters, int32 Level, int64 TotalADP2);
+    // Adaptive damage type: BonusAD * 1.4 >= AP -> Physical, else Magical; DefaultType when AdaptiveRatioBp <= 0.
+    LOCKDOWN_API ELDDemoDamageType EffectiveDamageType(ELDDemoDamageType DefaultType, int64 AdaptiveRatioBp, int64 BonusADP2, int64 APP2);
     // EFFECT.ShieldPolicy=StackToLatestExpiry: a new barrier adds its amount to the live remainder and the record lasts until
     // the later deadline (no cap); the record names the newest grant. Returns whether the candidate applied.
     LOCKDOWN_API bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2,
