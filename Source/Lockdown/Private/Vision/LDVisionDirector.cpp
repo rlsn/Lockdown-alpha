@@ -521,10 +521,34 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
             }
             return false;
         };
+        const auto ClearsRampGrazing = [&](const FHitResult& BlockingHit)
+        {
+            // A walkable incline can meet the low ground ray long before the viewer reaches the crest.
+            // Use a higher terrain sample nearby, falling continuously to the foot at the range edge.
+            // Only this first, grazing hit is eligible. The alternate ray still tests every solid surface.
+            const double NormalZ=BlockingHit.ImpactNormal.Z;
+            const double WalkableZ=GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorZ();
+            if (BlockingHit.bStartPenetrating || NormalZ<WalkableZ || NormalZ>=.9995) { return false; }
+            const auto* Ramp=BlockingHit.GetComponent();
+            const auto SharesRampPlane = [&](const FHitResult& Support, const FVector& Foot)
+            {
+                return Ramp && Ramp==Support.GetComponent()
+                    && BlockingHit.ImpactNormal.Equals(Support.ImpactNormal,.01)
+                    && FMath::Abs(FVector::DotProduct(BlockingHit.ImpactPoint-Foot,BlockingHit.ImpactNormal))<=2.;
+            };
+            const bool bOnRamp=SharesRampPlane(SourceSupport,Source)||SharesRampPlane(TargetSupport,Target);
+            const bool bLowShoulder=FMath::Abs(Target.Z-Source.Z)<=SampleHeightCm
+                && BlockingHit.ImpactPoint.Z<=FMath::Max(Source.Z,Target.Z)+SampleHeightCm*.5;
+            if (!bOnRamp && !bLowShoulder) { return false; }
+            const double Lift=SampleHeightCm*(1.-DistanceFractionSquared);
+            if (Lift<=SightSurfaceOffsetCm) { return false; }
+            FHitResult RaisedBlocker;
+            return !TraceTerrain(RaisedBlocker,TerrainEye,GroundEnd+FVector(0,0,Lift));
+        };
         FHitResult Hit;
         // A solid deck/roof above the destination is never exempted as a departure edge.
         if(bDownhill&&TraceTerrain(Hit,FVector(To,Source.Z+SightSurfaceOffsetCm),GroundEnd)){return true;}
-        if(TraceTerrain(Hit,TerrainEye,TerrainEnd)){return true;}
+        if(TraceTerrain(Hit,TerrainEye,TerrainEnd)&&!ClearsRampGrazing(Hit)){return true;}
         if(bDownhill)
         {
             FHitResult First;
@@ -535,17 +559,24 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
             {
                 // Only the contiguous supporting plane containing the observer may be skipped. Other lower hills,
                 // even in the same mesh, still use the real descending ray after that plane's first edge.
-                if(!SourceSupport.GetComponent()||!First.ImpactNormal.Equals(SourceSupport.ImpactNormal,.001)
-                    ||FMath::Abs(FVector::DotProduct(First.ImpactPoint-Source,SourceSupport.ImpactNormal))>.15){return true;}
-                const double DepartureStarted=FPlatformTime::Seconds();++Diagnostics.DepartureCalls;
-                const double Exit=SupportSurfaces.DepartureExit(Source,Target,SourceSupport);
-                Diagnostics.DepartureSeconds+=FPlatformTime::Seconds()-DepartureStarted;
-                if(Exit+.000001<Fraction(First)){return true;}
-                if(Exit<1.)
+                const bool bDeparturePlane=SourceSupport.GetComponent()&&First.ImpactNormal.Equals(SourceSupport.ImpactNormal,.001)
+                    &&FMath::Abs(FVector::DotProduct(First.ImpactPoint-Source,SourceSupport.ImpactNormal))<=.15;
+                if (!bDeparturePlane)
                 {
-                    const FVector Start=FMath::Lerp(Eye,GroundEnd,Exit)+Direction.GetSafeNormal()*SightSurfaceOffsetCm;
-                    if(TraceTerrain(Hit,FVector(FVector2D(Start),Source.Z+SightSurfaceOffsetCm),Start)){return true;}
-                    if(TraceTerrain(Hit,Start,GroundEnd)){return true;}
+                    if (!ClearsRampGrazing(First)) { return true; }
+                }
+                else
+                {
+                    const double DepartureStarted=FPlatformTime::Seconds();++Diagnostics.DepartureCalls;
+                    const double Exit=SupportSurfaces.DepartureExit(Source,Target,SourceSupport);
+                    Diagnostics.DepartureSeconds+=FPlatformTime::Seconds()-DepartureStarted;
+                    if(Exit+.000001<Fraction(First)){return true;}
+                    if(Exit<1.)
+                    {
+                        const FVector Start=FMath::Lerp(Eye,GroundEnd,Exit)+Direction.GetSafeNormal()*SightSurfaceOffsetCm;
+                        if(TraceTerrain(Hit,FVector(FVector2D(Start),Source.Z+SightSurfaceOffsetCm),Start)){return true;}
+                        if(TraceTerrain(Hit,Start,GroundEnd)&&!ClearsRampGrazing(Hit)){return true;}
+                    }
                 }
             }
         }

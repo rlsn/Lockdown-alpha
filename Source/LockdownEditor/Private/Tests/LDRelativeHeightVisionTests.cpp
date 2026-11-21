@@ -6,6 +6,8 @@
 #include "Engine/World.h"
 #include "FileHelpers.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Misc/ScopeExit.h"
 #include "HAL/PlatformTime.h"
 #include "Art/LDArtPlacement.h"
@@ -161,7 +163,7 @@ bool FLDRelativeHeightVision::RunTest(const FString& Parameters)
     const auto RampFoot = [&](double X) { return FVector(X, LaneY, (X + Run * .5) * Rise / Run); };
     const FVector LandingTargets[] = {{650,LaneY,Rise}, {850,LaneY,Rise}, {1025,LaneY,Rise}};
     int32 FirstVisible[] = {INDEX_NONE, INDEX_NONE, INDEX_NONE};
-    for (int32 X = 150; X <= 400; X += 5)
+    for (int32 X = -450; X <= 400; X += 5)
     {
         for (int32 I = 0; I < UE_ARRAY_COUNT(LandingTargets); ++I)
         {
@@ -181,6 +183,10 @@ bool FLDRelativeHeightVision::RunTest(const FString& Parameters)
         Sight.Trace(RampFoot(575), FVector(-1000,LaneY,0)), ELDSightResult::OutOfRange);
     TestEqual(TEXT("Descending brings that deeper downhill ground into view"),
         Sight.Trace(RampFoot(300), FVector(-1000,LaneY,0)), ELDSightResult::Visible);
+    Place(FVector(400,LaneY,400),FVector(.2,8,2),false);
+    if (!TestTrue(TEXT("An ordinary wall across the ramp binds"),Bind(1120))) { return false; }
+    TestEqual(TEXT("A wall still blocks a landing reached by the higher terrain ray"),
+        Sight.Trace(RampFoot(100),LandingTargets[0]),ELDSightResult::Blocked);
     return true;
 }
 
@@ -246,5 +252,53 @@ bool FLDRelativeHeightMap::RunTest(const FString& Parameters)
     const auto& D=Sight.QueryDiagnostics();
     AddInfo(FString::Printf(TEXT("HEIGHT_MAP_QUERY terrain_preparations=%llu prop_preparations=%llu departure_calls=%llu scopes=%llu terrain_prep_ms=%.2f prop_prep_ms=%.2f departure_ms=%.2f scope_ms=%.2f"),
         D.TerrainBuilds,D.PropBuilds,D.DepartureCalls,D.Scopes,D.TerrainBuildSeconds*1000.,D.PropBuildSeconds*1000.,D.DepartureSeconds*1000.,D.ScopeSeconds*1000.));
+
+    if(!FParse::Param(FCommandLine::Get(),TEXT("LDReplayPlaytestRamp"))){return true;}
+    const auto ReadGround = [&](FVector& Foot)
+    {
+        int32 Tier=0;
+        double Z=0;
+        if(!Registry->GetTerrain().GroundNear(Foot,Z,Tier,true)){return false;}
+        Foot.Z=Z;
+        return true;
+    };
+    // These sample positions come from the recorded playtest on the saved map.
+    constexpr double LandingLaneY=2371;
+    const auto VisibleLandingCount = [&](double X) -> int32
+    {
+        FVector From(X,LandingLaneY,1150);
+        if(!ReadGround(From)){return INDEX_NONE;}
+        int32 Visible=0;
+        for(int32 TargetX:{1760,1900,2050,2250})
+        {
+            FVector To(TargetX,LandingLaneY,1150);
+            if(!ReadGround(To)){return INDEX_NONE;}
+            if(Sight.Trace(From,To)==ELDSightResult::Visible){++Visible;}
+        }
+        return Visible;
+    };
+    const int32 LandingNear=VisibleLandingCount(1300), LandingMid=VisibleLandingCount(1436), LandingFar=VisibleLandingCount(1550);
+    AddInfo(FString::Printf(TEXT("RAMP_PLAYTEST_LANDING visible_targets near=%d mid=%d far=%d of 4"),
+        LandingNear,LandingMid,LandingFar));
+    TestTrue(TEXT("The recorded ramp reveals one part of the upper landing at a time"),
+        LandingNear>0&&LandingNear<LandingMid&&LandingMid<LandingFar&&LandingFar==4);
+
+    FVector ShoulderViewer(2250,2244,1500);
+    if(!TestTrue(TEXT("The recorded shoulder viewpoint has authored walkable support"),ReadGround(ShoulderViewer))){return false;}
+    Sight.Coverage(ShoulderViewer,Bits);
+    const FVector2D Span=Sight.MaxCm()-Sight.MinCm();
+    int32 CoveredShoulders=0;
+    for(FVector Shoulder: {FVector(2450,2030,1500),FVector(2450,1880,1500),FVector(2530,1880,1500)})
+    {
+        if(!TestTrue(TEXT("The recorded shoulder point lies on the same elevation"),
+            ReadGround(Shoulder)&&FMath::IsNearlyEqual(Shoulder.Z,ShoulderViewer.Z,3.))){return false;}
+        TestEqual(TEXT("An open shoulder beside the ramp is visible to gameplay"),
+            Sight.Trace(ShoulderViewer,Shoulder),ELDSightResult::Visible);
+        const FVector2D Cell=(FVector2D(Shoulder)-Sight.MinCm())/Span;
+        const int32 X=FMath::FloorToInt(Cell.X*LDObservation::CoverageWidth);
+        const int32 Y=FMath::FloorToInt(Cell.Y*LDObservation::CoverageHeight);
+        CoveredShoulders+=LDObservation::CoverageBit(Bits,Y*LDObservation::CoverageWidth+X)?1:0;
+    }
+    TestEqual(TEXT("The rendered coverage includes the recorded shoulder cells"),CoveredShoulders,3);
     return true;
 }
