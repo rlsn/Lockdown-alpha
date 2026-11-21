@@ -130,7 +130,7 @@ Rejected 也可能 `ProtectionRemoved=true`。所有角色主动（含自身守�
   “我没急”（`active_not_mad`）给护盾并解除当时全部减速与 Root，不带后续免疫。
 - `EFFECT.ShieldPolicy=StackToLatestExpiry`（`LDTactical::ApplyShield`）：新盾的量加到旧盾**当前剩余量**上，没有上限；记录换成新来源，截止取新旧两者中较晚的一个。组合净化照常、劲与冷却照付。
   每次施加另记一层（`FLDBodyCombatState::ShieldLayers`：EffectId、截止、剩余量），`Resources.ShieldP2` 是各层之和；
-  `ExpireShieldLayers` 让各层按自己的截止消失，伤害经 `SpendShieldLayers` 先扣最早到期的一层，返回打空的层数，`ApplyHit` 按层数各调用一次 `OnShieldBrokenCards`。
+  `ExpireShieldLayers` 让各层按自己的截止消失，伤害经 `SpendShieldLayers` 先扣最早到期的一层，返回打空的层数，`ApplyHit` 按层数各调用一次 `OnShieldBrokenCards`。护盾分支（S13 A1、S14 A1/A2）按层保存在 `FLDCombatBranchState::ShieldBranches`（以层的 EffectId 为键）：每层按自己的条款到期治疗、被打空时爆炸，层消失即删除；反伤取仍在或刚被打空的分支层中比例最高的一份。
   之后 Max/AP 变化不重算已快照盾。
 - **嘲讽**：`taunt` 在释放时让施放者半径内（脚点平面距离含边界）存活、无保护且此刻能观察到施放者的其他参赛者被嘲讽（野怪不受）；同一身体只保留最新一次；落地是一次控制（`LDControl::TauntVictim`）。
   期间 Q/W/E 与 D 经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能打嘲讽者那条生命，前摇中被禁止的动作当场放弃。每个 Actions 开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局

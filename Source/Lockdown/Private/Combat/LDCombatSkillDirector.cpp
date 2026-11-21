@@ -364,6 +364,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             if (!CollectAreaTargets(Origin, Channel.RangeCm, Body, Body->Victim.EntityId, Targets, Error)) { return false; }
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
             if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
+            HitFenceInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload);
             // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
             {
                 const FVector Facing=Channel.Direction;

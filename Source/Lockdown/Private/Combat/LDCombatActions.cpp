@@ -1203,7 +1203,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             if (Op==ELDDemoEffectOp::Pull) { Share(Effect.BaseP2); Share(Effect.ADRatioBp); }
         }
         // A pull a card or branch carries outside the value set meets at its share too.
-        if (Terms.PullTerms.IsSet()) { Share(Terms.PullTerms->BaseP2); Share(Terms.PullTerms->ADRatioBp); }
+        if (Terms.PullTerms.IsSet()) { Share(Terms.PullTerms->BaseP2); Share(Terms.PullTerms->ADRatioBp); Share(Terms.PullTerms->DurationMs); }
         if (Terms.FinalKnockbackTerms.IsSet()) { Share(Terms.FinalKnockbackTerms->DurationMs); }
     }
     else if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }

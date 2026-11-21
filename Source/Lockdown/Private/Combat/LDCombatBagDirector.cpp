@@ -19,8 +19,13 @@ int64 ALDCombatDirector::RawBagDamageP2(const FLDCombatHit& Hit)
 {
     // The hit's own amount before crits, factors and resistances: a bag has none of them.
     const int64 Scale = Hit.DeliveryScaleBp > 0 ? Hit.DeliveryScaleBp : 10000;
-    const int64 Raw = FMath::Max<int64>(Hit.BaseP2, 0) + FMath::Max<int64>(Hit.SourceADP2, 0) / 10000 * Hit.ADRatioBp
-        + FMath::Max<int64>(Hit.SourceAPP2, 0) / 10000 * Hit.APRatioBp;
+    // A stat times its ratio keeps the remainder: 70 AD at 0.9 is 63, not 0.
+    const auto Term = [](int64 StatP2, int64 RatioBp)
+    {
+        StatP2 = FMath::Max<int64>(StatP2, 0);
+        return StatP2 / 10000 * RatioBp + StatP2 % 10000 * RatioBp / 10000;
+    };
+    const int64 Raw = FMath::Max<int64>(Hit.BaseP2, 0) + Term(Hit.SourceADP2, Hit.ADRatioBp) + Term(Hit.SourceAPP2, Hit.APRatioBp);
     return FMath::Max<int64>(Raw, 0) / 10000 * Scale + FMath::Max<int64>(Raw, 0) % 10000 * Scale / 10000;
 }
 
@@ -31,7 +36,41 @@ bool ALDCombatDirector::FenceCrosses(const FVector& From, const FVector& To) con
     double Radius = 0;
     FGuid Holder;
     if (!Mode || !Mode->ReadCageFence(Centre, Radius, Holder)) { return false; }
-    return (FVector2D::Distance(FVector2D(From), Centre) <= Radius) != (FVector2D::Distance(FVector2D(To), Centre) <= Radius);
+    // The segment crosses the ring when its ends lie on either side, or when both lie outside and it dips inside on the way.
+    const FVector2D A(From), B(To);
+    const bool bInA = FVector2D::Distance(A, Centre) <= Radius, bInB = FVector2D::Distance(B, Centre) <= Radius;
+    if (bInA != bInB) { return true; }
+    if (bInA) { return false; }
+    const FVector2D Path = B - A;
+    const double Length2 = Path.SizeSquared();
+    const double T = Length2 > 0 ? FMath::Clamp(FVector2D::DotProduct(Centre - A, Path) / Length2, 0., 1.) : 0.;
+    return FVector2D::Distance(A + Path * T, Centre) < Radius;
+}
+
+void ALDCombatDirector::HitFenceInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
+    const FLDCombatHit& Payload)
+{
+    const auto* Mode = Core();
+    FVector2D Ring;
+    double Radius = 0;
+    FGuid Holder;
+    if (!Mode || RangeCm <= 0 || !Mode->ReadCageFence(Ring, Radius, Holder)) { return; }
+    // The cone touches the fence when any of the ring's panel points lies inside it (one wear per wave).
+    const FVector2D From(Origin), Facing = FVector2D(Direction).GetSafeNormal();
+    const double CosHalf = FMath::Cos(FMath::DegreesToRadians(AngleDegrees * .5));
+    constexpr int32 Samples = 96;
+    for (int32 Index = 0; Index < Samples; ++Index)
+    {
+        const double Angle = UE_DOUBLE_TWO_PI * Index / Samples;
+        const FVector2D Point = Ring + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Radius;
+        const FVector2D Offset = Point - From;
+        const double Distance = Offset.Size();
+        if (Distance <= RangeCm && (Distance <= KINDA_SMALL_NUMBER || FVector2D::DotProduct(Offset / Distance, Facing) >= CosHalf))
+        {
+            HitFence(Payload);
+            return;
+        }
+    }
 }
 
 void ALDCombatDirector::HitFence(const FLDCombatHit& Payload)
@@ -277,6 +316,7 @@ bool ALDCombatDirector::ExplodeBag(const FLDCombatBag& Bag, int64 NowMs, FString
         PendingHits.Add(MoveTemp(Hit));
     }
     if (!HitBagsInCircle(Bag.CentreCm, Bag.BlastRadiusCm, Bag.Payload, NowMs, Error)) { return false; }
+    HitFenceInCircle(Bag.CentreCm, Bag.BlastRadiusCm, Bag.Payload);
     UE_LOG(LogLDCombat, Log, TEXT("LD_BAG_BLAST t=%lld owner=%s via=%s centre=%s knocked_out=%d targets=%d fire_ms=%lld"), NowMs,
         *LDLog::Id(Bag.Payload.SourceEntity), *LDLog::Source(Bag.Payload.Source), *Bag.CentreCm.ToCompactString(), Bag.HpP2 <= 0 ? 1 : 0,
         Targets.Num(), Bag.FireFieldMs);

@@ -118,11 +118,24 @@ struct FLDCombatBranchState
     FLDCombatSourceRef OverchargeExit;
     int32 OverchargeLevel=1;
     int64 OverchargeAPP2=0;
-    // The current shield's branch terms (S13 A1, S14 A1/A2), keyed by the shield's effect.
-    FGuid ShieldEffectId;
-    int64 ShieldReflectBp=0, ShieldEndHealBp=0;
-    TOptional<FLDDemoEffectDefinition> ShieldBreakBurst;
-    FLDCombatSourceRef ShieldExit;
+    // The shield branch terms (S13 A1, S14 A1/A2) of every standing shield layer, keyed by the layer's effect: each layer
+    // reflects, heals when it lapses and bursts when it breaks by its own terms; an entry ends with its layer.
+    struct FShieldBranch
+    {
+        FGuid EffectId;
+        int64 ReflectBp=0, EndHealBp=0;
+        TOptional<FLDDemoEffectDefinition> BreakBurst;
+        FLDCombatSourceRef Exit;
+    };
+    TArray<FShieldBranch> ShieldBranches;
+    FShieldBranch& ShieldBranchFor(const FGuid& EffectId)
+    {
+        if (FShieldBranch* Known=ShieldBranches.FindByPredicate([&EffectId](const FShieldBranch& Row) { return Row.EffectId==EffectId; }))
+        { return *Known; }
+        FShieldBranch& Added=ShieldBranches.AddDefaulted_GetRef();
+        Added.EffectId=EffectId;
+        return Added;
+    }
     // The current brace's branch terms (S16), keyed by the brace's effect.
     FGuid BraceEffectId;
     int64 BraceStunMs=0, BraceHealBp=0, BraceStackBp=0, BraceShieldMs=0, BraceShoveMs=0;
@@ -1471,6 +1484,7 @@ private:
     bool FenceCrosses(const FVector& From, const FVector& To) const;
     void HitFence(const FLDCombatHit& Payload);
     void HitFenceInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload);
+    void HitFenceInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees, const FLDCombatHit& Payload);
     bool HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs, FString& Error);
     bool HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
         const FLDCombatHit& Payload, int64 NowMs, FString& Error);
