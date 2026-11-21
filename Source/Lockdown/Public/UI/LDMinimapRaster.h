@@ -20,7 +20,7 @@ namespace LDMinimapRaster
         }
     };
     inline FLinearColor GroundColor(){return FLinearColor(.16f,.23f,.18f);}
-    inline FLinearColor FogColor(){return FLinearColor(.015f,.025f,.022f,.48f);}
+    inline FLinearColor FogColor(){return FLinearColor(.015f,.025f,.022f,.34f);}
     struct FCoverageKey
     {
         uint64 Serial=MAX_uint64;
