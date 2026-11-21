@@ -155,6 +155,7 @@ struct FLDCombatReactionFact
     FLDCombatBodyRef Primary;
     FGuid HitId;
     int64 AtMs = 0;
+    TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
 // The fog of one owner (fire + water, or fire / water on a puddle or fire ground): a fixed zone that gives element-free

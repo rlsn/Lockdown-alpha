@@ -62,6 +62,7 @@ public:
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
     void DevSetPointer(const TOptional<FVector2D>& Pointer);
+    void DevSetAimRay(const TOptional<TPair<FVector, FVector>>& Ray);
     ALDPointerFeedback* PointerFeedback() const;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     // Registered id of the single Demo ground surface; None when the world is unavailable.
@@ -266,6 +267,7 @@ private:
     ALDPointerFeedback* EnsurePointer();
     TWeakObjectPtr<ALDPointerFeedback> Pointer;
     TOptional<FVector2D> DevPointer;
+    TOptional<TPair<FVector, FVector>> DevAimRay;
     FGuid Hovered;
     uint32 HoveredEpoch=0;
     FVector HeldPoint=FVector::ZeroVector;
@@ -402,9 +404,13 @@ private:
     void StepCastFollowUp(const FLDOrderReceipt& Receipt);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDControlFeelAutoAttackAfterCastTest;
+    friend class FLDControlFeelElevationAimAndClipTest;
+    friend bool LDTestRunDashOrderRetention(class FAutomationTestBase&);
     friend class FLDReconnectProtectionTest;
     friend class FLDDemoCombatProbe;
 #endif
+    bool bWasVoluntaryDashing=false;
+    FLDCombatBodyRef VoluntaryDashBody;
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
     // The sent ground order walked before the server answered it (0 when none), and the kind of the walk being steered.
     FLDMoveIdentity EarlyOrder;

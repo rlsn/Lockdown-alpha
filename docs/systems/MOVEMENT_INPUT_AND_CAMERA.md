@@ -33,7 +33,7 @@
 | 按住 Tab | 局内排行榜 | 只读公开 `KillFeed.Scores` |
 | F9 | 试玩标记：本机日志写 `LD_PLAYER_MARK`，经 `ServerPlaytestMark` 让房主日志记下；HUD 提示“已标记 #N” | 只在本局进行中生效；房主日志每名参赛者每秒最多一条（[开发指南](../DEVELOPMENT.md#试玩问题排查)） |
 | 方向键/屏幕边缘 | 平移镜头 | 不改角色、视野或订单 |
-| Space / Home | 按住临时跟随自己 / 切换跟随并保存偏好 | 本地 |
+| Space / Y | 按住临时跟随自己 / 切换跟随并保存偏好 | 本地 |
 | 滚轮 | 世界区域内缩放 | 指针在 UI 上时滚面板不缩放 |
 | 小地图左键/拖动、右键 | 平移镜头；右键对该点发 `MoveGround` | 与世界右键同一订单入口 |
 | Shift + 上述右键、A 左键、Q/W/E/D | 订单带 `bQueue`，技能经 `ServerQueueCombatAction` 排队；不预输入、不按住重复；地面步骤显示小圈与虚线 | 排在当前订单与已排步骤之后，最多 `LDOrderRules::MaxQueuedSteps`（8）步 |
@@ -56,7 +56,7 @@
 | GroundPoint | 左键取指针下地面点 | 释放时夹到技能射程 |
 | 无法解析 | 无单位/地面或方向为零时以 `Missing` 发送 | 服务器明确拒绝，客户端不吞确认 |
 
-- **快速施法**（`bQuickCast`，默认关）：Unit 技能指针下已有可见单位、方向技能指针下有地面时，按键即经 `ConfirmArmedCombat` 发送；否则照常准备。
+- **快速施法**（`bQuickCast`，默认开）：键盘按下瞄准型 Q/W/E 时，短按不足 `0.18 s` 不显示瞄准预览、期间右键走位不取消，松开立即朝指针施放；按住满 `0.18 s` 显示瞄准预览并在松开时施放，按住满 `0.18 s` 后点右键则显式取消预览并照常移动。关闭后按键或鼠标点击技能栏图标进入准备态等待左键确认。
 - **施法后自动攻击**（`bAutoAttackAfterCast`，默认开）：不带 Shift 的 `CastUnit/CastPoint` 发出时按 `LDOrderRules::CastFollowUpTarget`
   记下跟进目标（单位技能取其目标；地面/方向技能取施法前服务器已激活的 `AttackUnit` 目标）。客户端按订单身份保留已发攻击的观察句柄，
   以 `ClientActive` 选正在执行的目标；排队或被拒请求不覆盖它。跟进目标在发 RPC 前登记（Listen Host 同步回执）。
@@ -374,7 +374,7 @@ pitch −60°、yaw −90°（世界 −Y 在屏幕上方）、FOV 55°、目标
 | 字段 | 默认 | 合法域 / 恢复组 |
 | --- | --- | --- |
 | `Bindings` | `Definitions()` 默认键 | 无冲突，Esc 保留给 Back，Shift 不可绑 / Controls |
-| `bQuickCast`、`bAutoAttackAfterCast` | 关、开 | — / Controls |
+| `bQuickCast`、`bAutoAttackAfterCast` | 开、开 | — / Controls |
 | `Zoom`（cm） | 2250 | 1300–2400 / Camera |
 | `bEdgePan`、`bStartFollowing` | 开、开 | — / Camera |
 | `CameraPanCmPerSec` | 1800 | 900–3600，设置页 300 步进 / Camera |
@@ -384,11 +384,11 @@ pitch −60°、yaw −90°（世界 −Y 在屏幕上方）、FOV 55°、目标
 | `MasterVolume`、`MusicVolume` | 1、0.6 | 0–1，越界或非有限 `Corrupt` / Audio |
 | `PlayerName` | 空（尚未设置，不填默认名） | 见下，不属于任何恢复组 |
 
-- 文件为有限字段正向清单序列化（非反射），`CurrentSchema` 为 24，与产品/网络版本无关。
+- 文件为有限字段正向清单序列化（非反射），`CurrentSchema` 为 25，与产品/网络版本无关。
 - `LoadLocalSettings` 区分 `Loaded`、`Migrated`、`Missing`、`UnsupportedSchema`、`Corrupt`、`ReadFailed`、`InvalidStorage`。缺文件用当前默认值但不称已保存；
   损坏或不支持的文件保持原样，菜单与设置页提示显式恢复。只有绑定不合法而其他偏好合法时，恢复保留这些偏好，当前绑定仅本会话有效；确认替换之前通用 flush 不覆盖原文件。
   `Key`/`Rebind` 只接受注册表动作，已退役动作名得到无效键并被逐名指出。
-- **迁移**：schema 5–22 显式迁移，返回 `Migrated`，处于 `ConfirmedApplied` 而非 `PersistenceVerified`，立即生效，下一次核验保存写成当前 schema；加载本身不改写旧文件。
+- **迁移**：schema 5–24 显式迁移，返回 `Migrated`，处于 `ConfirmedApplied` 而非 `PersistenceVerified`，立即生效，下一次核验保存写成当前 schema；加载本身不改写旧文件。
   缺少的偏好取默认（名称空，并提示先设置名称再建房或加入）。各 schema 新增字段：6 名称、7 主音量、8 平移速度、9 小地图朝向、10 快速施法、15 两个诊断开关、
   18 施法后自动攻击、20 音乐音量、22 战斗反馈两项。缺少的动作在默认键空闲时补上并在提示中说明：Dash（≤10）、Scoreboard（≤13）、Mark（≤15）、SkillE（≤18）、
   Details（≤20）、Workshop（≤22）；Details 与 Workshop 的默认键被占时改用空闲备用键，其他动作默认键被占即按 `Corrupt` 恢复，不抢占原绑定。

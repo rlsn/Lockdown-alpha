@@ -1,8 +1,24 @@
 #include "Navigation/LDOrderRules.h"
+#include "Navigation/LDPathSteering.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Character/LDCharacter.h"
+#include "Character/LDCharacterMovementComponent.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatPreInput.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
+#include "Framework/LDMatchProviders.h"
 #include "Framework/LDPlayerController.h"
+#include "Region/LDMapDefinition.h"
+#include "Region/LDMapRegistry.h"
+#include "Vision/LDVisionDirector.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Misc/PackageName.h"
+#include "UObject/Package.h"
 #include "UI/LDControlSettings.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -12,6 +28,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include <limits>
+
+bool LDTestRunDashOrderRetention(FAutomationTestBase& Test);
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelHeldMoveTest, "Lockdown.Rules.DemoControlFeel.HeldMove",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -468,7 +486,247 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         LDOrderRules::ShouldCoalesceClickMove(10.02, 10.00, FVector(100., 200., 0.), FVector(120., 200., 0.), MoveId, MoveId, 0));
     TestFalse(TEXT("Click after 50ms window sends"),
         LDOrderRules::ShouldCoalesceClickMove(10.06, 10.00, FVector(100., 200., 0.), FVector(102., 200., 0.), MoveId, MoveId, 0));
-    return true;
+
+    // MAP-02: Ramp/elevation corner advancement requires <=28cm horizontal AND <=35cm vertical without pure 2D plane skipping.
+    const TArray<FVector> FlatPath{FVector(0., 0., 0.), FVector(200., 0., 0.), FVector(200., 200., 0.)};
+    TestTrue(TEXT("Flat corner still advances via 2D normal plane crossing past corner"),
+        LDPathSteering::ShouldAdvanceCorner(FlatPath, 1, FVector(205., 25., 0.), false));
+    const TArray<FVector> RampPath{FVector(0., 0., 0.), FVector(200., 0., 0.), FVector(400., 0., 120.)};
+    TestFalse(TEXT("Elevation-approach corner never skips via 2D plane crossing at 32cm lateral offset (>28cm)"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(205., 32., 0.), false));
+    TestFalse(TEXT("Elevation corner never advances when vertical difference exceeds 35cm"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(200., 10., 45.), false));
+    TestTrue(TEXT("Elevation corner advances once within 28cm horizontally and 35cm vertically"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(204., 20., 18.), false));
+    TestFalse(TEXT("Sloped floor (<0.999 normal Z) also blocks pure 2D plane skipping outside 28cm"),
+        LDPathSteering::ShouldAdvanceCorner(FlatPath, 1, FVector(205., 32., 0.), true));
+
+    // DASH-03: Deterministic EaseOutCubic (1 - (1 - t)^3) bursts faster in early half than late half and hits exact 1.0 endpoint.
+    const double EarlyDelta = LDDashCurve::EaseOutCubic(0.5) - LDDashCurve::EaseOutCubic(0.0);
+    const double LateDelta = LDDashCurve::EaseOutCubic(1.0) - LDDashCurve::EaseOutCubic(0.5);
+    TestNearlyEqual(TEXT("EaseOutCubic starts at 0"), LDDashCurve::EaseOutCubic(0.0), 0.0, 1e-9);
+    TestNearlyEqual(TEXT("EaseOutCubic reaches 87.5% at midpoint"), EarlyDelta, 0.875, 1e-9);
+    TestNearlyEqual(TEXT("EaseOutCubic decelerates smoothly over remaining 12.5% to exact 1.0"), LateDelta, 0.125, 1e-9);
+    TestTrue(TEXT("Early-half displacement exceeds late-half displacement"), EarlyDelta > LateDelta);
+    TestNearlyEqual(TEXT("Total normalized displacement equals 1.0"), EarlyDelta + LateDelta, 1.0, 1e-9);
+
+    // UX-01 / INPUT-02 (#329 §3.1): Default bQuickCast == true + 0.18s tap/hold release-cast & right-click kiting vs cancel.
+    {
+        TestTrue(TEXT("bQuickCast defaults to true on fresh ULDControlSettings"), GetDefault<ULDControlSettings>()->bQuickCast);
+        const auto WorldValues = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* QCWorld = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &WorldValues);
+        if (!TestNotNull(TEXT("QuickCast feel fixture world"), QCWorld)) { return false; }
+        ON_SCOPE_EXIT { QCWorld->DestroyWorld(false); };
+        auto* Public = QCWorld->SpawnActor<ALDGameState>();
+        auto* PC = QCWorld->SpawnActor<ALDPlayerController>();
+        auto* Body = QCWorld->SpawnActor<ALDCharacter>();
+        if (!TestNotNull(TEXT("QuickCast feel actors"), Public) || !TestNotNull(TEXT("QuickCast PC"), PC)
+            || !TestNotNull(TEXT("QuickCast pawn"), Body)) { return false; }
+        QCWorld->SetGameState(Public);
+        PC->Player = NewObject<ULocalPlayer>(GEngine);
+        PC->Controls = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage());
+        TestTrue(TEXT("Session settings start with QuickCast on"), PC->Controls->GetQuickCast());
+        PC->SetPawn(Body);
+        Body->SetActorLocation(FVector(0., 0., 90.));
+        Public->PublicMatch.Generation = 1;
+        Public->PublicMatch.Phase = ELDMatchPhase::Development;
+        PC->OwnerState.Match = 1;
+        PC->OwnerState.Life = 1;
+        PC->OwnerState.LifePhase = ELDLifePhase::Alive;
+        PC->OwnerState.BodyRef = {{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
+        PC->CombatView.Generation = 1;
+        PC->CombatView.Life = 1;
+        PC->CombatView.SourceRevision = 1;
+        FLDCombatEntryView& EntryQ = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryQ.Entry = ELDCombatEntry::Q;
+        EntryQ.SourceKind = ELDCombatSourceKind::Learned;
+        EntryQ.DefinitionId = TEXT("active_charged_ram");
+        EntryQ.TargetMode = uint8(ELDDemoTargetMode::DirectionDash);
+        EntryQ.RangeCm = 600;
+        PC->Navigation->DevSetAimRay(TPair<FVector, FVector>(FVector(0., -800., 1200.), FVector(0.3, 0.8, -0.5).GetSafeNormal()));
+
+        // Direct ActivateCombatEntry (HUD button click / probe path) still arms Q without firing even when QuickCast is on.
+        ELDCombatEntry Armed = ELDCombatEntry::None;
+        PC->ActivateCombatEntry(ELDCombatEntry::Q);
+        TestTrue(TEXT("Direct ActivateCombatEntry arms Q for explicit confirmation and shows preview immediately"),
+            PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q && PC->ShouldShowArmedPreview()
+            && PC->NextDirectSequence == 0);
+        PC->CancelArmedCombat();
+        const uint32 CancelBase = PC->GetArmedCancelSerial();
+
+        // (b) < 0.18s tap + mid-tap right-click does NOT cancel the QuickCast, hides preview during tap, and fires on release.
+        PC->QuickCastTestClockSec = 10.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("PressSkill arms QuickCast hold while suppressing < 0.18s preview"),
+            PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q
+            && !PC->ShouldShowArmedPreview());
+        PC->QuickCastTestClockSec = 10.06; // 60ms < 180ms
+        PC->V05Pressed(TEXT("Navigate"));
+        TestTrue(TEXT("Mid-tap (< 0.18s) right-click kiting keeps QuickCast alive without cancelling"),
+            PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q
+            && PC->GetArmedCancelSerial() == CancelBase);
+        PC->QuickCastTestClockSec = 10.09; // 90ms < 180ms
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Releasing < 0.18s tap fires the skill request immediately"),
+            !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed) && PC->NextDirectSequence == 1);
+
+        // (c) >= 0.18s hold reveals aim indicator, right-click cancels cleanly, and releasing afterwards does NOT fire.
+        PC->QuickCastTestClockSec = 20.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 20.22; // 220ms >= 180ms
+        TestTrue(TEXT("Holding >= 0.18s reveals the world aim indicator"), PC->ShouldShowArmedPreview());
+        PC->V05Pressed(TEXT("Navigate"));
+        TestTrue(TEXT("Right-click during >= 0.18s hold explicitly cancels QuickCast and increments ArmedCancelSerial"),
+            !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed) && PC->GetArmedCancelSerial() == CancelBase + 1);
+        PC->QuickCastTestClockSec = 20.30;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestEqual(TEXT("Releasing key after >= 0.18s right-click cancel sends nothing"), PC->NextDirectSequence, uint64(1));
+
+        // (d) Overlapping aimed (Q + W), Dash, and Self inputs preserve every pending QuickCast release without leaving stale aims.
+        FLDCombatEntryView& EntryW = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryW.Entry = ELDCombatEntry::W;
+        EntryW.SourceKind = ELDCombatSourceKind::Learned;
+        EntryW.DefinitionId = TEXT("active_snark_bolt");
+        EntryW.TargetMode = uint8(ELDDemoTargetMode::DirectionProjectile);
+        EntryW.RangeCm = 700;
+        FLDCombatEntryView& EntryE = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryE.Entry = ELDCombatEntry::E;
+        EntryE.SourceKind = ELDCombatSourceKind::Learned;
+        EntryE.DefinitionId = TEXT("active_not_mad");
+        EntryE.TargetMode = uint8(ELDDemoTargetMode::Self);
+        FLDCombatEntryView& EntryDash = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryDash.Entry = ELDCombatEntry::Dash;
+        EntryDash.SourceKind = ELDCombatSourceKind::Innate;
+        EntryDash.DefinitionId = TEXT("innate_dash");
+        EntryDash.TargetMode = uint8(ELDDemoTargetMode::DirectionDash);
+
+        // Overlapping Q -> W -> release Q -> release W sends both in release order (sequences 2 and 3).
+        PC->QuickCastTestClockSec = 30.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 30.03;
+        PC->PressSkill(ELDCombatEntry::W);
+        TestTrue(TEXT("Overlapping Q and W holds keep both slots pending"),
+            PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->IsQuickCastHolding(ELDCombatEntry::W));
+        PC->QuickCastTestClockSec = 30.06;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Releasing Q sends Q and shifts ArmedEntry back to still-held W"),
+            PC->NextDirectSequence == 2 && !PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->IsQuickCastHolding(ELDCombatEntry::W)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W);
+        PC->QuickCastTestClockSec = 30.09;
+        PC->ReleaseSkill(ELDCombatEntry::W);
+        TestTrue(TEXT("Releasing W sends W and leaves nothing armed"),
+            PC->NextDirectSequence == 3 && !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed));
+
+        // Overlapping PressSkill(Q) -> Dash -> Self E -> ReleaseSkill(Q) fires Dash (4), Self E (5), and still fires Q on release (6).
+        PC->QuickCastTestClockSec = 40.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 40.02;
+        PC->ActivateCombatEntry(ELDCombatEntry::Dash);
+        TestTrue(TEXT("Innate Dash fires immediately without clearing unreleased Q tap"),
+            PC->NextDirectSequence == 4 && PC->IsQuickCastHolding(ELDCombatEntry::Q)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 40.04;
+        PC->PressSkill(ELDCombatEntry::E);
+        TestTrue(TEXT("Self skill E fires immediately without clearing unreleased Q tap"),
+            PC->NextDirectSequence == 5 && PC->IsQuickCastHolding(ELDCombatEntry::Q)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 40.07;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Releasing Q after overlapping Dash and Self E still fires Q"),
+            PC->NextDirectSequence == 6 && !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed));
+
+        // Unheld manual aim (HUD click) followed by Self E clears the stale unheld aim cleanly.
+        PC->ActivateCombatEntry(ELDCombatEntry::Q);
+        TestTrue(TEXT("Manual HUD click arms Q without a QuickCast hold"),
+            PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q && !PC->HasAnyQuickCastHold());
+        PC->PressSkill(ELDCombatEntry::E);
+        TestTrue(TEXT("Self skill clears stale unheld ArmedEntry instead of leaving it armed"),
+            PC->NextDirectSequence == 7 && !PC->ReadArmedCombatEntry(Armed));
+
+        // (e) Mixed-duration overlap: hold Q 230ms (>= 180ms), press W, right-click 30ms later -> cancels Q only, keeps W tap alive!
+        PC->QuickCastTestClockSec = 50.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 50.23; // Q held 230ms >= 180ms
+        PC->PressSkill(ELDCombatEntry::W);
+        PC->QuickCastTestClockSec = 50.26; // Q at 260ms (>= 180ms), W at 30ms (< 180ms)
+        PC->V05Pressed(TEXT("Navigate"));
+        TestTrue(TEXT("Mixed-duration right-click cancels >= 0.18s Q hold while preserving < 0.18s W tap"),
+            !PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->IsQuickCastHolding(ELDCombatEntry::W)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W && !PC->ShouldShowArmedPreview());
+        PC->QuickCastTestClockSec = 50.29;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestEqual(TEXT("Releasing cancelled Q sends nothing"), PC->NextDirectSequence, uint64(7));
+        PC->ReleaseSkill(ELDCombatEntry::W);
+        TestTrue(TEXT("Releasing preserved W tap fires W"),
+            PC->NextDirectSequence == 8 && !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed));
+
+        // (f) Unresolvable elevation aim (e.g. pointer off-viewport) on release sends Missing through confirmation path,
+        // clears ArmedEntry instead of leaving it stuck for a later left-click, and restores any other pending key's preview.
+        PC->Navigation->DevSetAimRay(TOptional<TPair<FVector, FVector>>());
+        PC->QuickCastTestClockSec = 60.00;
+        PC->PressSkill(ELDCombatEntry::W);
+        PC->QuickCastTestClockSec = 60.20;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 60.24;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Off-viewport QuickCast release dispatches confirmation without leaving Q stuck and restores held W preview"),
+            PC->NextDirectSequence == 9 && !PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->IsQuickCastHolding(ELDCombatEntry::W)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W && PC->ShouldShowArmedPreview());
+        PC->CancelArmedCombat();
+        PC->Navigation->DevSetAimRay(TPair<FVector, FVector>(FVector(0., -800., 1200.), FVector(0.3, 0.8, -0.5).GetSafeNormal()));
+
+        // (g) Full-momentum long-held Unit QuickCast released with no nearby target ends completed overdrive cleanly
+        // while preserving another entry's pending QuickCast hold.
+        Public->DemoClock = {1, 1, 1000};
+        PC->CombatView.MomentumP2 = 10000;
+        PC->CombatView.OverdriveThresholdP2 = 10000;
+        PC->CombatView.Entries[0].TargetMode = uint8(ELDDemoTargetMode::Unit); // Q = Unit
+        PC->CombatView.Entries[0].MomentumCostP2 = 2500;
+        PC->CombatView.Entries[0].ReadyAtMs = 0;
+        PC->QuickCastTestClockSec = 70.00;
+        PC->PressSkill(ELDCombatEntry::W);
+        PC->QuickCastTestClockSec = 70.02;
+        PC->PressSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Full-momentum Unit Q starts overdrive hold"), PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 70.30; // past OVERDRIVE.HoldSec
+        PC->TickOverdriveHold();
+        TestTrue(TEXT("Completed overdrive hold arms overdrive while key remains held"),
+            PC->bOverdriveArmed && FMath::IsNearlyEqual(PC->OverdriveHoldProgress(ELDCombatEntry::Q), 1.f));
+        PC->ReleaseSkill(ELDCombatEntry::Q); // no ObservedNearPointer target in headless fixture
+        TestTrue(TEXT("Failed Unit QuickCast target resolution ends overdrive and restores held W"),
+            !PC->bOverdriveArmed && !PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::None
+            && FMath::IsNearlyEqual(PC->OverdriveHoldProgress(ELDCombatEntry::Q), 0.f)
+            && PC->IsQuickCastHolding(ELDCombatEntry::W) && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W);
+        PC->CancelArmedCombat();
+
+        // (h) Replacing a charging skill via OnRep_CombatView ends its overdrive charge even when another slot is ArmedEntry.
+        PC->CombatView.MomentumP2 = 10000;
+        PC->LatestCombatView = PC->CombatView;
+        PC->QuickCastTestClockSec = 80.00;
+        PC->PressSkill(ELDCombatEntry::Q); // starts overdrive hold on Q
+        PC->QuickCastTestClockSec = 80.02;
+        PC->CombatView.MomentumP2 = 0; // W won't steal overdrive
+        PC->PressSkill(ELDCombatEntry::W); // ArmedEntry is now W, while OverdriveEntry is still Q!
+        TestTrue(TEXT("Q overdrive hold stays active while W becomes ArmedEntry"),
+            PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::Q
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W);
+        ++PC->CombatView.Revision;
+        ++PC->CombatView.SourceRevision;
+        PC->CombatView.Entries[0].DefinitionId = TEXT("active_elbow"); // Q replaced!
+        PC->OnRep_CombatView();
+        TestTrue(TEXT("OnRep_CombatView ends replaced Q's overdrive hold so TickOverdriveHold never fires replacement Q"),
+            !PC->bOverdriveHolding && !PC->bOverdriveArmed && PC->OverdriveEntry == ELDCombatEntry::None
+            && PC->IsQuickCastHolding(ELDCombatEntry::W));
+        const uint64 SeqBeforeTick = PC->NextDirectSequence;
+        PC->QuickCastTestClockSec = 80.50;
+        PC->TickOverdriveHold();
+        TestEqual(TEXT("TickOverdriveHold sends nothing for invalidated Q overdrive"), PC->NextDirectSequence, SeqBeforeTick);
+        PC->CancelArmedCombat();
+    }
+
+    // DASH-02: Issuing MoveGround or AttackUnit while IsDashing() retains the order across the dash and pursues/attacks upon completion.
+    return LDTestRunDashOrderRetention(*this);
 }
 
 #endif

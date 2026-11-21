@@ -495,21 +495,29 @@ void ULDWorkshop::Layout(FVector2D Size)
         Next.Pending=PendingHeight<=0.f?FBox2D(ForceInit):bSide?WorkshopBox(SideX,Bottom-PendingHeight,RightX-WorkshopGap,Bottom)
             :WorkshopBox(RightX,Bottom-PendingHeight,W-Margin,Bottom);
         Next.Library=WorkshopBox(RightX,Inner,W-Margin,PendingHeight>0.f&&!bSide?Next.Pending.Min.Y:Bottom);
-        Next.Dock=WorkshopBox(Margin,Inner,Margin+WorkshopFieldDockWidth,Bottom);
+        const float FieldColSpan=FMath::Max(160.f,Bottom-Inner);
+        const float FieldCharBottom=Inner+FieldColSpan*.52f-6.f;
+        Next.Character=WorkshopBox(Margin,Inner,Margin+WorkshopFieldDockWidth,FieldCharBottom);
+        Next.Dock=WorkshopBox(Margin,FieldCharBottom+12.f,Margin+WorkshopFieldDockWidth,Bottom);
         Next.Board=WorkshopBox(BoardLeft,Inner,(bSide?SideX:RightX)-16.f,Bottom);
         Next.HeadIcon=64.f;
         ActionsAt=FVector2D(W-WorkshopMargin-86.f,30.f);
     }
     if(Mode==EMode::Full&&Latest.bStage)
     {
-        // A build moment takes the centre: the board, the library, the pending area and the character column step aside; the
-        // offer keeps a centred dock, the final mod page puts its own description there.
+        // Keep CharacterPanel visible on the left so stats, 18-pt keystones and element statuses remain readable during
+        // skill and final-mod offers, fitting Stage + Dock cleanly in the remaining right span.
         const float Bottom=H-WorkshopMargin;
-        Next.Dock=WorkshopBox(FMath::Max(WorkshopMargin,W*.5f-548.f),Bottom-300.f,
-            FMath::Min(W-WorkshopMargin,W*.5f+548.f),Bottom);
-        Next.Stage=WorkshopBox(FMath::Max(WorkshopMargin,W*.5f-820.f),96.f,
-            FMath::Min(W-WorkshopMargin,W*.5f+820.f),float(Next.Dock.Min.Y)-16.f);
-        Next.Character=Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
+        const float CharWidth=FMath::Min(WorkshopCharacterWidth,FMath::Max(240.f,W*.24f));
+        Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+CharWidth,Bottom);
+        const float RightSpanLeft=float(Next.Character.Max.X)+WorkshopGap;
+        const float RightSpanRight=W-WorkshopMargin;
+        const float RightSpanMid=(RightSpanLeft+RightSpanRight)*.5f;
+        Next.Dock=WorkshopBox(FMath::Max(RightSpanLeft,RightSpanMid-548.f),Bottom-300.f,
+            FMath::Min(RightSpanRight,RightSpanMid+548.f),Bottom);
+        Next.Stage=WorkshopBox(FMath::Max(RightSpanLeft,RightSpanMid-734.f),96.f,
+            FMath::Min(RightSpanRight,RightSpanMid+734.f),float(Next.Dock.Min.Y)-16.f);
+        Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
     }
     else if(Mode==EMode::Full&&Latest.bShop)
     {
@@ -588,7 +596,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     Place(PhasePanel,bFull?Rects.Phase:FBox2D(ForceInit));
     Place(PageTitle,bFull?Rects.Title:FBox2D(ForceInit));
     Place(CloseButton,WorkshopBox(W-WorkshopMargin-74.f,bFull?34.f:float(Rects.Region.Min.Y)-60.f,W-WorkshopMargin,bFull?86.f:float(Rects.Region.Min.Y)-8.f));
-    Place(CharacterPanel,bFull?Rects.Character:FBox2D(ForceInit));
+    Place(CharacterPanel,WorkshopHasArea(Rects.Character)?Rects.Character:FBox2D(ForceInit));
     Place(BoardPanel,Rects.Board);
     Place(DockPanel,Rects.Dock);
     Place(LibraryPanel,Rects.Library);
@@ -656,10 +664,14 @@ void ULDWorkshop::Layout(FVector2D Size)
     else
     {
         // The field dock stacks the name and rule under the icon and puts where it goes beside the icon.
-        Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+20.f,Rects.Dock.Min.Y+16.f,Rects.Dock.Min.X+140.f,Rects.Dock.Min.Y+146.f));
-        Place(DockRight,WorkshopBox(Rects.Dock.Min.X+150.f,Rects.Dock.Min.Y+16.f,Rects.Dock.Max.X-20.f,Rects.Dock.Min.Y+146.f));
-        Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+20.f,Rects.Dock.Min.Y+150.f,Rects.Dock.Max.X-20.f,Rects.Dock.Max.Y-12.f));
-        CentreWrap=float(Rects.Dock.GetSize().X)-40.f;RightWrap=float(Rects.Dock.GetSize().X)-170.f;
+        const float DockH=FMath::Max(80.f,float(Rects.Dock.GetSize().Y));
+        const float TopRowH=FMath::Clamp(DockH*.44f,68.f,118.f);
+        DockArtSize=FMath::Clamp(TopRowH-12.f,56.f,96.f);
+        const float LeftEnd=18.f+DockArtSize+12.f;
+        Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+18.f,Rects.Dock.Min.Y+12.f,Rects.Dock.Min.X+LeftEnd,Rects.Dock.Min.Y+12.f+TopRowH));
+        Place(DockRight,WorkshopBox(Rects.Dock.Min.X+LeftEnd+10.f,Rects.Dock.Min.Y+12.f,Rects.Dock.Max.X-18.f,Rects.Dock.Min.Y+12.f+TopRowH));
+        Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+18.f,Rects.Dock.Min.Y+16.f+TopRowH,Rects.Dock.Max.X-18.f,Rects.Dock.Max.Y-10.f));
+        CentreWrap=float(Rects.Dock.GetSize().X)-36.f;RightWrap=FMath::Max(40.f,float(Rects.Dock.GetSize().X)-LeftEnd-28.f);
     }
     Place(FilterRow,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+62.f,Rects.Library.Max.X-20.f,float(Rects.LibraryBody.Min.Y)-6.f));
     Place(PendingTitle,WorkshopHasArea(Rects.Pending)?WorkshopBox(Rects.Pending.Min.X+46.f,Rects.Pending.Min.Y+16.f,Rects.Pending.Min.X+200.f,Rects.Pending.Min.Y+38.f):FBox2D(ForceInit));
@@ -679,11 +691,26 @@ void ULDWorkshop::Layout(FVector2D Size)
     if(DockIconBox&&!FMath::IsNearlyEqual(DockIconBox->GetWidthOverride(),DockArtSize)){DockIconBox->SetWidthOverride(DockArtSize);DockIconBox->SetHeightOverride(DockArtSize);}
 }
 
+const FGeometry& EffectiveWorkshopGeometry(const UWidget& Widget)
+{
+    for(const UWidget* Cur=&Widget;Cur;Cur=Cur->GetParent())
+    {
+        const FGeometry& TickG=Cur->GetCachedGeometry();
+        if(TickG.GetLocalSize().X>1.f&&TickG.GetLocalSize().Y>1.f){return TickG;}
+        if(TSharedPtr<SWidget> Slate=Cur->GetCachedWidget())
+        {
+            const FGeometry& PaintG=Slate->GetPaintSpaceGeometry();
+            if(PaintG.GetLocalSize().X>1.f&&PaintG.GetLocalSize().Y>1.f){return PaintG;}
+        }
+    }
+    return Widget.GetCachedGeometry();
+}
+
 ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
 {
     ULDChoicesPanel::FWorkshopPlaces Out;
     if(Mode!=EMode::Full||!Canvas){return Out;}
-    const FGeometry& Geometry=GetCachedGeometry();
+    const FGeometry& Geometry=EffectiveWorkshopGeometry(*this);
     if(Geometry.GetLocalSize().X<=0.f){return Out;}
     const auto Absolute=[&Geometry](const FBox2D& Box)
     {
@@ -727,7 +754,7 @@ ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
 {
     ULDComponentStorage::FWorkshopLayout Out;
     if(!IsOpen()||!Canvas){return Out;}
-    const FGeometry& Geometry=GetCachedGeometry();
+    const FGeometry& Geometry=EffectiveWorkshopGeometry(*this);
     if(Geometry.GetLocalSize().X<=0.f){return Out;}
     const auto Absolute=[&Geometry](const FBox2D& Box)
     {
@@ -818,7 +845,7 @@ void ULDWorkshop::Present(const FInput& Input)
     if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
     ClosingAt=-1.;
     WorkshopShown(this,true);
-    FVector2D Size=GetCachedGeometry().GetLocalSize();
+    FVector2D Size=EffectiveWorkshopGeometry(*this).GetLocalSize();
     if(Size.X<=1.f||Size.Y<=1.f){Size=FVector2D(1920.f,1080.f);}
     LastSize=Size;
     Layout(Size);
@@ -876,6 +903,61 @@ void ULDWorkshop::Present(const FInput& Input)
     }
 }
 
+void ULDWorkshop::PresentConverged(ULDWorkshop& Workshop,ULDChoicesPanel* ChoicesPanel,ULDComponentStorage* Storage,
+    FInput& In,float LayoutScale,TFunctionRef<void()> PresentChoices)
+{
+    const float PrepassScale=LayoutScale>0.f?LayoutScale:1.f;
+    const auto PrepassChoices=[ChoicesPanel,PrepassScale]()
+    {
+        if(!ChoicesPanel){return;}
+        if(TSharedPtr<SWidget> Slate=ChoicesPanel->GetCachedWidget()){Slate->SlatePrepass(PrepassScale);}
+    };
+    const ULDChoicesPanel::FWorkshopPlaces PrevPlaces=ChoicesPanel?ChoicesPanel->WorkshopPlaces():ULDChoicesPanel::FWorkshopPlaces();
+    const FVector2D PrevInset=ChoicesPanel?ChoicesPanel->CurrentTrayInset():FVector2D(-1.f,-1.f);
+    const float PrevWrap=ChoicesPanel?ChoicesPanel->CurrentTrayWrap():-1.f;
+    const float PrevLimit=ChoicesPanel?ChoicesPanel->CurrentTrayLimit():-1.f;
+    Workshop.Present(In);
+    if(ChoicesPanel&&Workshop.IsOpen())
+    {
+        const ULDChoicesPanel::FWorkshopPlaces NextPlaces=Workshop.Places();
+        const FVector2D NextInset=Workshop.TrayInset();
+        const float NextWrap=Workshop.TrayWrapWidth();
+        const float NextLimit=Workshop.TrayHeightLimit();
+        if(!NextPlaces.Equals(PrevPlaces)||!NextInset.Equals(PrevInset,.5f)
+            ||!FMath::IsNearlyEqual(NextWrap,PrevWrap,.5f)||!FMath::IsNearlyEqual(NextLimit,PrevLimit,.5f))
+        {
+            ChoicesPanel->SetWorkshopPlaces(NextPlaces);
+            ChoicesPanel->SetTrayInset(NextInset.X,NextInset.Y,NextWrap,NextLimit);
+            PresentChoices();
+            PrepassChoices();
+            if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
+            const FVector2D ConvergedTray=ChoicesPanel->TrayDesiredSize();
+            if(!ConvergedTray.Equals(In.TrayDesired,.5)||In.bStage!=ChoicesPanel->IsStageShown()
+                ||In.bFinalStage!=ChoicesPanel->IsFinalStage()||In.bShop!=ChoicesPanel->IsShopShown()
+                ||In.bServices!=(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown()))
+            {
+                In.TrayDesired=ConvergedTray;
+                In.bStage=ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel->IsFinalStage();
+                In.bServices=ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown();
+                In.bShop=ChoicesPanel->IsShopShown();
+                In.bCharacterServices=ChoicesPanel->IsServiceShown();
+                Workshop.Present(In);
+                const ULDChoicesPanel::FWorkshopPlaces FinalPlaces=Workshop.Places();
+                const FVector2D FinalInset=Workshop.TrayInset();
+                const float FinalWrap=Workshop.TrayWrapWidth();
+                const float FinalLimit=Workshop.TrayHeightLimit();
+                ChoicesPanel->SetWorkshopPlaces(FinalPlaces);
+                ChoicesPanel->SetTrayInset(FinalInset.X,FinalInset.Y,FinalWrap,FinalLimit);
+                PresentChoices();
+                PrepassChoices();
+                In.TrayDesired=ChoicesPanel->TrayDesiredSize();
+                if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
+            }
+        }
+    }
+    if(Storage){Storage->SetWorkshop(Workshop.StorageLayout());}
+}
+
 void ULDWorkshop::RefreshPhase()
 {
     if(Mode!=EMode::Full){return;}
@@ -921,7 +1003,10 @@ void ULDWorkshop::InterruptFinalFeedback()
 
 void ULDWorkshop::RefreshCharacter()
 {
-    if(Mode!=EMode::Full){return;}
+    if(!IsOpen()){return;}
+    const bool bFull=Mode==EMode::Full;
+    if(UBorder* PanelBorder=Cast<UBorder>(CharacterPanel.Get())){PanelBorder->SetPadding(bFull?FMargin(24,22):FMargin(14,10));}
+    if(PortraitFrame&&PortraitFrame->GetParent()){WorkshopShown(PortraitFrame->GetParent(),bFull);}
     const FLDDemoContentDefinitions* Content=Latest.Content;
     WorkshopText(PortraitGlyph,Latest.HolderName.IsEmpty()?FString(TEXT("?")):Latest.HolderName.Left(1));
     if(Portrait&&Portrait->GetBrushColor()!=Latest.HolderColor){Portrait->SetBrushColor(Latest.HolderColor);}
@@ -930,9 +1015,9 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(LevelLine,Latest.Level.Experience);
     const int64 Unspent=StatBar.IsValid()&&View.bValid?StatBar->EffectiveUnspent():View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
-    if(RespecSpace){const float Foot=Latest.bCharacterServices?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
+    if(RespecSpace){const float Foot=(bFull&&Latest.bCharacterServices)?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
     // With the trainer the respec foot replaces the reactions so the stats and attributes keep a legible size.
-    WorkshopShown(ReactionBlock,!Latest.bCharacterServices);
+    WorkshopShown(ReactionBlock,!(bFull&&Latest.bCharacterServices));
     WorkshopText(PointsText,FString::FromInt(Unspent));
     // The stat rows follow the catalog's design order; each "+" spends one point through the band's stat bar.
     if(Content&&StatRows.IsEmpty())
@@ -1431,8 +1516,7 @@ FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerE
 {
     // The row under the wheel event itself (the band below is hidden while the workshop is open). Only while the full
     // workshop shows its character panel: a collapsed panel keeps its rows' old geometry.
-    const bool bRowsShown=Mode==EMode::Full&&CharacterPanel&&CharacterPanel->IsVisible()
-        &&!(Choices.IsValid()&&Choices->IsStageShown());
+    const bool bRowsShown=IsOpen()&&CharacterPanel&&CharacterPanel->IsVisible();
     if(bRowsShown&&StatBar.IsValid()&&Event.GetWheelDelta()!=0.f)
     {
         for(int32 Index=0;Index<StatRows.Num();++Index)
@@ -1487,7 +1571,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         Paint.Edge(Base,EShape::Rounded,Rects.Phase,6.f,Line,1.f);
         Paint.Line(Base,FVector2D(Rects.Phase.Min.X+6.f,Rects.Phase.Min.Y+1.5f),FVector2D(Rects.Phase.Max.X-6.f,Rects.Phase.Min.Y+1.5f),FLinearColor(1,1,1,.08f),1.f);
     }
-    if(bFull&&WorkshopHasArea(Rects.Character)){Paint.Panel(Base,Rects.Character);}
+    if(WorkshopHasArea(Rects.Character)){Paint.Panel(Base,Rects.Character);}
     if(WorkshopHasArea(Rects.Board)){Paint.Panel(Base,Rects.Board);}
     if(WorkshopHasArea(Rects.Dock))
     {
@@ -1551,7 +1635,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         }
     }
     // ---- the character column ----
-    if(bFull&&WorkshopHasArea(Rects.Character))
+    if(WorkshopHasArea(Rects.Character))
     {
         if(Shown(PortraitFrame))
         {

@@ -61,6 +61,8 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UTextBlock> Key;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
+    UPROPERTY() TObjectPtr<UBorder> ControlChip;
+    UPROPERTY() TObjectPtr<UTextBlock> ControlBadge;
     // A skill is bound: only such a slot can be dragged onto another (#97).
     bool bHasSource=false;
     // Over the icon: the cooldown mask shrinking with the remainder, its remaining time and the ready flash.

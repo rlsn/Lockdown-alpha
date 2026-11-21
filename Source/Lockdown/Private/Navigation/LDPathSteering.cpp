@@ -40,18 +40,34 @@ namespace LDPathSteering
         return Progress;
     }
 
+    bool ShouldAdvanceCorner(const TArray<FVector>& Path, int32 Index, const FVector& Foot, bool bSlopedFloor)
+    {
+        if (!Path.IsValidIndex(Index) || Index>=Path.Num()-1) { return false; }
+        const FVector Corner=Path[Index];
+        const bool bElevationCorner=FMath::Abs(Path[Index+1].Z-Corner.Z)>ElevationCornerDeltaZCm
+            || (Index>0 && FMath::Abs(Corner.Z-Path[Index-1].Z)>ElevationCornerDeltaZCm)
+            || bSlopedFloor;
+        if (bElevationCorner)
+        {
+            return FVector::DistSquared2D(Foot,Corner)<=FMath::Square(ElevationWaypointToleranceCm)
+                && FMath::Abs(Foot.Z-Corner.Z)<=ElevationCornerMaxVerticalDiffCm;
+        }
+        const FVector Incoming=Index>0?(Corner-Path[Index-1]).GetSafeNormal2D():FVector::ZeroVector;
+        return FVector::DistSquared2D(Foot,Corner)<=FMath::Square(WaypointToleranceCm)
+            || FVector::DotProduct(FVector(Foot.X-Corner.X,Foot.Y-Corner.Y,0),Incoming)>=0;
+    }
+
     FVector Steering(const TArray<FVector>& Path, int32& Index, const ACharacter& Body)
     {
         if (!Path.IsValidIndex(Index)) { return FVector::ZeroVector; }
         const FVector Foot=Body.GetNavAgentLocation();
-        // A corner is passed once reached or once the foot has crossed the plane through it normal to the incoming leg, so a
-        // step longer than the tolerance never turns the body back towards a corner it already went past.
-        while (Index<Path.Num()-1)
+        const auto* Move=Body.GetCharacterMovement();
+        const bool bSlopedFloor=Move && Move->CurrentFloor.bBlockingHit
+            && Move->CurrentFloor.HitResult.ImpactNormal.Z<0.999;
+        // Flat corners advance once reached or once the foot crosses the normal plane; elevation/ramp corners require
+        // reaching within 28 cm horizontally and 35 cm vertically so pure 2D plane-crossing never skips ramp ends.
+        while (ShouldAdvanceCorner(Path,Index,Foot,bSlopedFloor))
         {
-            const FVector Corner=Path[Index];
-            const FVector Incoming=Index>0?(Corner-Path[Index-1]).GetSafeNormal2D():FVector::ZeroVector;
-            if (FVector::DistSquared2D(Foot,Corner)>FMath::Square(WaypointToleranceCm)
-                && FVector::DotProduct(FVector(Foot.X-Corner.X,Foot.Y-Corner.Y,0),Incoming)<0) { break; }
             ++Index;
         }
         const FVector Delta=Path[Index]-Foot;

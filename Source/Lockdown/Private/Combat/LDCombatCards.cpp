@@ -889,8 +889,9 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
     int64 NowMs, FString& Error)
 {
     if (Holder.bPendingDeath) { return true; }
-    // K01: the host's hit cuts the other skills (once per release and copy).
-    if (!HasteOtherActives(Holder,Host,Hit.EffectId,NowMs,Error)) { return false; }
+    const bool bFreeAutoRecast=Hit.CastLedger && Hit.CastLedger->bAutoRecast;
+    // K01: the host's hit cuts the other skills (once per paid release and copy; free auto-recasts do not refund cooldown).
+    if (!bFreeAutoRecast && !HasteOtherActives(Holder,Host,Hit.EffectId,NowMs,Error)) { return false; }
     // K04: the host's hit sets (or refreshes) its mark on the struck life.
     Holder.SetupMarks.RemoveAll([NowMs](const FLDCombatSetupMark& Mark) { return Mark.ExpiresAtMs<=NowMs; });
     TArray<FLDPassiveEffectRef> Setups, Grants, Growths;
@@ -909,10 +910,13 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
         Mark->Host=Setup.Active;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Setup.Effect.DurationMs,Mark->ExpiresAtMs,Error)) { return false; }
     }
-    // K02: every hit of the host gives momentum (each copy).
-    for (const FLDPassiveEffectRef& Granted : Grants)
+    // K02: every paid hit of the host gives momentum (each copy); free auto-recasts paid nothing and do not refund momentum.
+    if (!bFreeAutoRecast)
     {
-        if (GrantMomentum(Holder,Granted.Effect.LimitP2,ELDMomentumBook::Skill)>0) { LedgerCardTriggered(Holder,Granted.Key); }
+        for (const FLDPassiveEffectRef& Granted : Grants)
+        {
+            if (GrantMomentum(Holder,Granted.Effect.LimitP2,ELDMomentumBook::Skill)>0) { LedgerCardTriggered(Holder,Granted.Key); }
+        }
     }
     // K14: the host's hit spends a share of the holder's shield as damage of its own type (copies add their share).
     TArray<FLDPassiveEffectRef> Spends;
@@ -1199,8 +1203,9 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
     {
         if (GrantMomentum(*Trigger,Ref.Effect.LimitP2,ELDMomentumBook::Reaction)>0) { LedgerCardTriggered(*Trigger,Ref.Key); }
     }
-    // K25: the host skill that triggered it cuts its own remaining cooldown (once per release and copy).
-    if (Fact.TriggerSource.Kind==ELDCombatSourceKind::Learned && Fact.TriggerEffectId.IsValid() && !Reloads.IsEmpty())
+    // K25: the host skill that triggered it cuts its own remaining cooldown (once per paid release and copy).
+    if (!(Fact.CastLedger && Fact.CastLedger->bAutoRecast)
+        && Fact.TriggerSource.Kind==ELDCombatSourceKind::Learned && Fact.TriggerEffectId.IsValid() && !Reloads.IsEmpty())
     {
         if (FLDCombatEntityRecord* Record=FindRecord(Trigger->Victim.EntityId))
         {
@@ -1250,6 +1255,7 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         Applier.Source=Wave.Source;
         Applier.Level=GrowthLevelOf(*Trigger);
         Applier.SourceAPP2=FMath::Max<int64>(Trigger->AttributeProjection.Final.APP2,0);
+        Applier.CastLedger=Fact.CastLedger;
         if (!ApplyElement(*Primary,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
         if (Primary->WaveAfterExemptChainId==ChainKey) { Primary->WaveAfterExemptChainId.Invalidate(); }
         LedgerCardTriggered(*Trigger,Wave.Key);

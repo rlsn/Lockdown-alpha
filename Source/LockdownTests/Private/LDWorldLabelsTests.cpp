@@ -1,4 +1,8 @@
 #include "UI/LDWorldLabels.h"
+#include "Character/LDCharacter.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/World.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
@@ -352,6 +356,74 @@ bool FLDWorldLabelsSegmentedTrailTest::RunTest(const FString& Parameters)
     LDWorldLabels::AdvanceBarTrail(Trail,92000,100000,0,0,FGuid(1,0,0,1),1.22);
     TestNearlyEqual(TEXT("Heal above TrailHP snaps TrailHP immediately"),Trail.TrailHPP2,92000.,1.);
     TestNearlyEqual(TEXT("Heal arms 180ms green flash"),Trail.LastHealedAtSec,1.22,1e-4);
+
+    // #329 §4.3: Throttled (~70ms) visibility-trace cache & screen-space capsule silhouette bounds.
+    TestTrue(TEXT("Fresh negative timestamp refreshes occlusion immediately"),LDWorldLabels::ShouldRefreshOcclusion(-10.,5.0));
+    TestFalse(TEXT("Sample within 70ms throttle interval reuses cached occlusion result"),LDWorldLabels::ShouldRefreshOcclusion(5.00,5.05));
+    TestTrue(TEXT("Sample at >= 70ms refreshes occlusion result"),LDWorldLabels::ShouldRefreshOcclusion(5.00,5.071));
+    FSlateRect SilRect;
+    TestTrue(TEXT("Projected capsule head/foot computes valid silhouette bounds"),
+        LDWorldLabels::ComputeSilhouetteBounds(FVector2f(500.f,420.f),FVector2f(500.f,510.f),22.f,SilRect)
+        &&FMath::IsNearlyEqual(SilRect.Top,420.f)&&FMath::IsNearlyEqual(SilRect.Bottom,510.f)
+        &&FMath::IsNearlyEqual(SilRect.Right-SilRect.Left,44.f));
+    TestFalse(TEXT("Degenerate tiny capsule height is rejected"),
+        LDWorldLabels::ComputeSilhouetteBounds(FVector2f(500.f,500.f),FVector2f(500.f,503.f),10.f,SilRect));
+
+    // Wall-hugging occlusion (#341 review): a static wall immediately in front of the character (within the final 4% of
+    // the camera-to-chest ray, Hit.Time > 0.96) still triggers the silhouette, while pawns/movable proxies do not.
+    {
+        const auto WorldValues=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(true)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* OccWorld=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&WorldValues);
+        if(!TestNotNull(TEXT("Occlusion physics fixture world"),OccWorld)){return false;}
+        ON_SCOPE_EXIT{OccWorld->DestroyWorld(false);};
+
+        const FVector CamPos(0.,-2000.,1200.);
+        const FVector UnitFeet(0.,0.,0.);
+        const FVector Chest=UnitFeet+FVector(0.,0.,90.);
+        // Place a thin static wall only 25cm ahead of the chest along the ray (Hit.Time ~= 0.989 > 0.96).
+        const FVector RayDir=(Chest-CamPos).GetSafeNormal();
+        auto* WallActor=OccWorld->SpawnActor<AActor>();
+        auto* WallBox=NewObject<UBoxComponent>(WallActor);
+        WallActor->SetRootComponent(WallBox);
+        WallActor->AddInstanceComponent(WallBox);
+        WallBox->SetMobility(EComponentMobility::Static);
+        WallBox->SetBoxExtent(FVector(200.,8.,200.));
+        WallBox->SetWorldLocation(Chest-RayDir*25.);
+        WallBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        WallBox->SetCollisionObjectType(ECC_WorldStatic);
+        WallBox->SetCollisionResponseToAllChannels(ECR_Block);
+        WallBox->RegisterComponentWithWorld(OccWorld);
+
+        TestTrue(TEXT("Wall-hugging character 25cm behind a static wall (Hit.Time > 0.96) is detected as occluded"),
+            LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
+
+        // Place a Movable blocker and a Pawn BETWEEN the camera and the static wall -> retrace ignores them and still finds the static wall!
+        auto* BlockerPawn=OccWorld->SpawnActor<ALDCharacter>();
+        if(BlockerPawn)
+        {
+            BlockerPawn->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility,ECR_Block);
+            BlockerPawn->SetActorLocation(Chest-RayDir*160.);
+        }
+        auto* MovableActor=OccWorld->SpawnActor<AActor>();
+        auto* MovableBox=NewObject<UBoxComponent>(MovableActor);
+        MovableActor->SetRootComponent(MovableBox);
+        MovableActor->AddInstanceComponent(MovableBox);
+        MovableBox->SetMobility(EComponentMobility::Movable);
+        MovableBox->SetBoxExtent(FVector(80.,8.,80.));
+        MovableBox->SetWorldLocation(Chest-RayDir*90.);
+        MovableBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MovableBox->SetCollisionResponseToAllChannels(ECR_Block);
+        MovableBox->RegisterComponentWithWorld(OccWorld);
+
+        TestTrue(TEXT("Movable/Pawn blockers in front of a static wall are ignored and retrace still detects static wall occlusion"),
+            LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
+
+        // Now move the static wall behind the character while keeping the Pawn and Movable blockers in front -> NOT occluded.
+        WallBox->SetWorldLocation(Chest+RayDir*120.);
+        TestFalse(TEXT("Static wall behind character and Pawn/Movable components in front do not count as static world occlusion"),
+            LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
+    }
     return true;
 }
 #endif
