@@ -1038,6 +1038,10 @@ public:
 
     // ---- Camps.
     bool CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGameplayWritePermit& Permit,FString& Error);
+    // A match event's recovery for a living contender body: MissingBp of its missing HP plus MaxBp of its maximum HP, and
+    // MomentumP2 momentum (a camp clear, a final-field kill).
+    bool RecoverContender(const FLDCombatBodyRef& Body,int64 MissingBp,int64 MaxBp,int64 MomentumP2,
+        const FLDGameplayWritePermit& Permit,FString& Error);
     bool CancelCampWindup(const FLDCombatBodyRef& Body,const FLDGameplayWritePermit& Permit,FString& Error);
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);

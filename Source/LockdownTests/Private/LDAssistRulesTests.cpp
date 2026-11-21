@@ -63,6 +63,12 @@ bool FLDDemoAssistRewardSplitTest::RunTest(const FString& Parameters)
         LDAssist::SplitKillReward(7, 4, Shares) && Shares.KillerXP == 1 && Shares.AssisterXP == 1);
     TestFalse(TEXT("A negative amount is refused"), LDAssist::SplitKillReward(-1, 1, Shares));
     TestFalse(TEXT("A negative assister count is refused"), LDAssist::SplitKillReward(10, -1, Shares));
+    // A contender kill: the killer keeps the whole XP and each assister takes its share on top.
+    TestTrue(TEXT("A contender kill keeps the whole XP for the killer and gives each assister half"),
+        LDAssist::ContenderKillShares(180, 2, 5000, Shares) && Shares.KillerXP == 180 && Shares.AssisterXP == 90);
+    TestTrue(TEXT("Without assisters the killer still takes everything"),
+        LDAssist::ContenderKillShares(100, 0, 5000, Shares) && Shares.KillerXP == 100 && Shares.AssisterXP == 0);
+    TestFalse(TEXT("A share above the whole is refused"), LDAssist::ContenderKillShares(100, 1, 10001, Shares));
     return true;
 }
 

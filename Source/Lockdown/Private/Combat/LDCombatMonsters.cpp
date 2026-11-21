@@ -116,6 +116,23 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
     return true;
 }
 
+bool ALDCombatDirector::RecoverContender(const FLDCombatBodyRef& Ref,int64 MissingBp,int64 MaxBp,int64 MomentumP2,
+    const FLDGameplayWritePermit& Permit,FString& Error)
+{
+    if(!Authority() || Authority()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
+    {Error=TEXT("A match event recovery requires the current death permit.");return false;}
+    FLDBodyCombatState* Body=FindBody(Ref);
+    if(!Body || Body->bPendingDeath || Body->Victim.Kind!=ELDVictimKind::Contender){return true;}
+    const int64 Missing=FMath::Max<int64>(0,Body->Resources.MaxHpP2-Body->Resources.HpP2);
+    const int64 Heal=Missing/10000*MissingBp+Missing%10000*MissingBp/10000
+        +Body->Resources.MaxHpP2/10000*MaxBp+Body->Resources.MaxHpP2%10000*MaxBp/10000;
+    FString HealError;
+    if(Heal>0){HealBody(*Body,Heal,FLDCombatSourceRef(),nullptr,FGuid(),&HealError);}
+    if(!HealError.IsEmpty()){Error=MoveTemp(HealError);return false;}
+    if(MomentumP2>0){GrantMomentum(*Body,MomentumP2,ELDMomentumBook::Other);}
+    return true;
+}
+
 bool ALDCombatDirector::CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGameplayWritePermit& Permit,FString& Error)
 {
     if(!Authority() || Authority()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)

@@ -344,17 +344,38 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
 
     if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
     {
+        // The final field gives no XP; a contender kill heals the killer and gives momentum instead.
+        if (bContenderVictim)
+        {
+            FLDContenderLifeRead KillerLife;
+            FString LifeError, RecoverError;
+            const auto& P = Content->Get().Parameters;
+            if (M->ReadContenderLife(M->GetMatchContext(), Recipient, KillerLife, LifeError)
+                && !M->Combat->RecoverContender(KillerLife.Body, 0, P.ShowdownKillHealMaxHPBp, P.ShowdownKillMomentumP2, Permit, RecoverError))
+            {
+                UE_LOG(LogLDGrowth, Error, TEXT("LD_FINAL_KILL_RECOVERY_FAULT killer=%s: %s"), *LDLog::Id(Recipient), *RecoverError);
+            }
+        }
         Receipt.Recipient = Recipient;
         Finish(ELDRewardOutcome::NoReward, ELDGrowthReason::PhaseClosed);
         RecordReward(Receipt);
         return Receipt;
     }
 
-    // The killer and the assisters split the kill XP evenly.
+    // A contender kill: the killer keeps the whole XP (plus the bounty on a trending victim) and each assister takes its
+    // share on top; a camp kill splits evenly.
     FLDAssistRewardShares Split;
-    if (!LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
+    if (bContenderVictim
+        ? !LDAssist::ContenderKillShares(Amounts.XP, Death.Assisters.Num(), Content->Get().Parameters.AssistXPRatioBp, Split)
+        : !LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow);
+    }
+    if (bContenderVictim && M->IsBountyDeath(Death.Key))
+    {
+        if (Split.KillerXP > MAX_int64 - Content->Get().Parameters.BountyXP)
+        { return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow); }
+        Split.KillerXP += Content->Get().Parameters.BountyXP;
     }
     TArray<FRewardShare> Shares;
     FRewardShare& Killer = Shares.AddDefaulted_GetRef();

@@ -259,7 +259,7 @@ struct FContext
             }
             else if (Unit.Kind == ELDOpponentUnitKind::CampMember && Unit.MonsterId.Equals(Catalog.Get().Boss.Id, ESearchCase::CaseSensitive))
             {
-                // D26: the Boss turns on anyone near it, so a seen Boss is always a threat; AIs never pick a fight with it.
+                // D26: the Boss turns on anyone near it, so a seen Boss is always a threat; only a healthy AI fights it.
                 Boss = &Unit;
                 Threats.Add(&Unit);
             }
@@ -270,6 +270,12 @@ struct FContext
             }
         }
         return true;
+    }
+
+    // A healthy body (at least AI.HighCampEntryHPBp of its HP) contests a seen Boss instead of stepping away from it.
+    bool BossFightReady() const
+    {
+        return Boss && Boss->HpP2.IsSet() && Boss->HpP2.GetValue() > 0 && RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.HighCampEntryHPBp);
     }
 
     // Members are associated with the nearest public camp of their own creature; no hidden camp table.
@@ -2724,6 +2730,13 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     // walks on to its place while the Boss stays in sight; turning back at the band's edge sent a new order on every
     // decision, flipping between the escape and the errand that led back toward the Boss.
     const bool bInBossBand = C.Boss && C.Distance(C.Boss->FootCm) <= C.BossBandCm;
+    if (C.Boss && !bHoldingSolo && !State.bRecovering && C.BossFightReady())
+    {
+        EndVisit(State, false);
+        State.bEscapingBoss = false;
+        Body(EngageBody(C, *C.Boss));
+        return Finish(EMode::Engage, EReason::EngageTarget);
+    }
     if (C.Boss && !bHoldingSolo && (bInBossBand || State.bEscapingBoss))
     {
         EndVisit(State, false);
