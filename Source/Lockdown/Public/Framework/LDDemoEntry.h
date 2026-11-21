@@ -10,7 +10,7 @@ namespace LDDemoEntry
     inline constexpr TCHAR FrontendMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Frontend");
     inline constexpr TCHAR WorldMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Demo");
     inline constexpr TCHAR WorldDefinition[] = TEXT("/Game/Lockdown/Generated/Data/DA_DemoWorld");
-    inline constexpr uint32 WireProtocol = 35;
+    inline constexpr uint32 WireProtocol = 36;
 
     LOCKDOWN_API bool ValidateSelection(const FString& PackageName, const FString& Options, FString& Error);
     LOCKDOWN_API bool VerifyRuntimeFiles(FString& Error, FString* CatalogDigest = nullptr);
@@ -23,6 +23,8 @@ namespace LDDemoEntry
         const FLDDemoContentDigest& ExpectedRoot);
     LOCKDOWN_API bool VerifyWorldPackages(FString& Error);
     LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
+    // Splits a pasted "host:port" string into OutHost and OutPort when the port is a valid 1-65535 integer (#331).
+    LOCKDOWN_API bool SplitPastedEndpoint(const FString& Raw, FString& OutHost, FString& OutPort);
     LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
     // The title screen's version line: "版本 <product version> (<short commit>)", with a note when the package was built
     // from uncommitted changes and "unknown" when the commit is unreadable. Only a release build ([Lockdown.Build]

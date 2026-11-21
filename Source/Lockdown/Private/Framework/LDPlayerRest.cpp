@@ -56,7 +56,7 @@ void ALDPlayerController::ServerRestReady_Implementation(uint32 Generation, uint
 
 void ALDPlayerController::ClientRestReady_Implementation(ELDRestReadyResult Result)
 {
-    if (uint8(Result) > uint8(ELDRestReadyResult::NotOpen))
+    if (uint8(Result) > uint8(ELDRestReadyResult::Withdrawn))
     {
         UE_LOG(LogLDMatch, Warning, TEXT("LD_REST_READY_RESULT_MALFORMED value=%u"), uint32(Result));
         return;

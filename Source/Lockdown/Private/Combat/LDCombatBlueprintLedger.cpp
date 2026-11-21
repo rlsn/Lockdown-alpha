@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDGameMode.h"
 #include "Framework/LDLifeAuthority.h"
 
 // #198 §10: the build blueprint ledger is fed only from the points where Combat commits a build install, a release, a hit,
@@ -155,8 +156,20 @@ void ALDCombatDirector::RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombat
         if (Trainee && Trainee->Kind==ELDVictimKind::Contender)
         {
             FTrainingCombo& Combo=TrainingCombos.FindOrAdd(Hit.CreditOwner);
+            if (Combo.TotalP2>0 && Combo.LastAtMs>0 && NowMs-Combo.LastAtMs>=ALDGameMode::TrainingComboQuietMs)
+            {
+                Combo.PreviousTotalP2=Combo.TotalP2;
+                Combo.Lines.Reset();
+                Combo.TotalP2=0;
+                Combo.FirstAtMs=NowMs;
+            }
+            if (Combo.TotalP2==0) { Combo.FirstAtMs=NowMs; }
+            Combo.DummyId=Victim.Victim.EntityId;
+            Combo.TotalP2+=Damage.DamageP2;
             LDDamageRecap::AddTotal(Combo.Lines,Hit.Source,Damage.DamageP2);
             Combo.LastAtMs=NowMs;
+            Combo.bLiveDirty=true;
+            Combo.bFinishPending=true;
         }
     }
     if (Damage.DamageP2<=0 || Hit.SourceEntity==Victim.Victim.EntityId || LDCombatBlueprintLedgerDetail::IsTraining(Victim)) { return; }
@@ -206,14 +219,24 @@ bool ALDCombatDirector::CardTriggersOf(const FGuid& Contender, TArray<FLDCardTri
     return true;
 }
 
-void ALDCombatDirector::TakeFinishedTrainingCombos(int64 NowMs, int64 QuietMs, TMap<FGuid,TArray<FLDDamageLine>>& Out)
+void ALDCombatDirector::TakeFinishedTrainingCombos(int64 NowMs, int64 QuietMs, TMap<FGuid,FLDTrainingComboView>& Out)
 {
-    for (auto It=TrainingCombos.CreateIterator(); It; ++It)
+    for (TPair<FGuid,FTrainingCombo>& Pair : TrainingCombos)
     {
-        if (NowMs-It.Value().LastAtMs<QuietMs) { continue; }
-        LDDamageRecap::SortTotals(It.Value().Lines);
-        Out.Add(It.Key(),MoveTemp(It.Value().Lines));
-        It.RemoveCurrent();
+        FTrainingCombo& Combo=Pair.Value;
+        const bool bQuietFinished=Combo.bFinishPending && Combo.TotalP2>0 && NowMs-Combo.LastAtMs>=QuietMs;
+        if (!Combo.bLiveDirty && !bQuietFinished) { continue; }
+        LDDamageRecap::SortTotals(Combo.Lines);
+        FLDTrainingComboView View;
+        View.DummyId=Combo.DummyId;
+        View.TotalP2=Combo.TotalP2;
+        View.ElapsedMs=Combo.TotalP2>0 && Combo.LastAtMs>=Combo.FirstAtMs ? FMath::Max<int64>(1000,Combo.LastAtMs-Combo.FirstAtMs) : 0;
+        View.PreviousTotalP2=Combo.PreviousTotalP2;
+        View.bFinished=bQuietFinished;
+        View.Lines=Combo.Lines;
+        Combo.bLiveDirty=false;
+        if (bQuietFinished) { Combo.bFinishPending=false; }
+        Out.Add(Pair.Key,MoveTemp(View));
     }
 }
 

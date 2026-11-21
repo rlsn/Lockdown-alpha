@@ -18,7 +18,7 @@ UENUM()
 enum class ELDRestStep : uint8 { None = 0, Build = 1, Draw = 2, Betting = 3, PKReady = 4, PK = 5, Settlement = 6, Payout = 7, Return = 8 };
 
 UENUM()
-enum class ELDRestReadyResult : uint8 { None = 0, Accepted = 1, NotContender = 2, StaleMatch = 3, StaleWindow = 4, NotOpen = 5 };
+enum class ELDRestReadyResult : uint8 { None = 0, Accepted = 1, NotContender = 2, StaleMatch = 3, StaleWindow = 4, NotOpen = 5, Withdrawn = 6 };
 
 // Public, replicated read model of the timeline. Times are authority ms; T values are field ms.
 USTRUCT()

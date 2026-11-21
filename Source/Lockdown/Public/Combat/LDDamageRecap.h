@@ -70,14 +70,19 @@ struct FLDBuildStatsView
     UPROPERTY() TArray<FLDCardTriggerRow> Triggers;
 };
 
-// Owner-only summary of one training combo on a dummy (ALDGameMode::SendTrainingCombos): the damage per source of the hits
-// that followed each other within the quiet gap, sent once the gap passed. Serial grows with every send.
+// Owner-only summary of one training combo on a dummy (ALDGameMode::SendTrainingCombos): live combo total, DPS window,
+// delta vs previous combo and per-source breakdown (#331). Serial grows with every send.
 USTRUCT()
 struct FLDTrainingComboView
 {
     GENERATED_BODY()
     UPROPERTY() uint32 Match = 0;
     UPROPERTY() uint32 Serial = 0;
+    UPROPERTY() FGuid DummyId;
+    UPROPERTY() int64 TotalP2 = 0;
+    UPROPERTY() int64 ElapsedMs = 0;
+    UPROPERTY() int64 PreviousTotalP2 = 0;
+    UPROPERTY() bool bFinished = false;
     UPROPERTY() TArray<FLDDamageLine> Lines;
 };
 

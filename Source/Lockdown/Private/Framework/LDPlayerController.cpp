@@ -194,8 +194,10 @@ void ALDPlayerController::ClientBuildStats_Implementation(const FLDBuildStatsVie
 void ALDPlayerController::ClientTrainingCombo_Implementation(const FLDTrainingComboView& Combo)
 {
     FString Error;
-    if (Combo.Match==0 || !LDDamageRecap::ValidateLines(Combo.Lines,Error) || Combo.Match<TrainingCombo.Match
-        || (Combo.Match==TrainingCombo.Match && Combo.Serial<=TrainingCombo.Serial)) { return; }
+    const bool bLinesValid=Combo.Lines.IsEmpty() ? Combo.TotalP2==0 : LDDamageRecap::ValidateLines(Combo.Lines,Error);
+    if (Combo.Match==0 || !bLinesValid || Combo.TotalP2<0 || Combo.ElapsedMs<0 || Combo.PreviousTotalP2<0
+        || Combo.Match<TrainingCombo.Match || (Combo.Match==TrainingCombo.Match && Combo.Serial<=TrainingCombo.Serial))
+    { return; }
     TrainingCombo=Combo;
 }
 

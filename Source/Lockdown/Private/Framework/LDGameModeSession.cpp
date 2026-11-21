@@ -52,7 +52,7 @@ bool ALDGameMode::IsGameplayWriteOpen(const FLDMatchContext& Context) const
             || MatchPhase == ELDMatchPhase::CaptureOpen);
 }
 
-bool ALDGameMode::AdvanceRoster(FString& Reason)
+bool ALDGameMode::AdvanceRoster(FString& Reason, bool bClearReady)
 {
     if (RosterRevision == MAX_uint64 || LobbyPublicRevision == MAX_uint64)
     {
@@ -61,11 +61,19 @@ bool ALDGameMode::AdvanceRoster(FString& Reason)
         UE_LOG(LogLDMatch, Error, TEXT("LD_ROOM_REVISION_EXHAUSTED"));
         return false;
     }
+    const uint64 PreviousRevision = RosterRevision;
     ++RosterRevision;
     for (auto& Pair : Contenders)
     {
-        Pair.Value.State.bReady = false;
-        Pair.Value.ReadyRosterRevision = 0;
+        if (bClearReady)
+        {
+            Pair.Value.State.bReady = false;
+            Pair.Value.ReadyRosterRevision = 0;
+        }
+        else if (Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == PreviousRevision)
+        {
+            Pair.Value.ReadyRosterRevision = RosterRevision;
+        }
     }
     return true;
 }
@@ -394,13 +402,13 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             {
                 Receipt.Reason = ELDSessionReject::RoomFull;
             }
-            else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail))
+            else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail, false))
             {
                 while (LobbyAISlots.Num() > Request.AICount) { PreviousLobbyAI.Remove(LobbyAISlots.Pop()); }
                 while (LobbyAISlots.Num() < Request.AICount) { LobbyAISlots.Add(FGuid::NewGuid()); }
                 Receipt.Outcome = ELDSessionOutcome::Committed;
                 Receipt.Reason = ELDSessionReject::None;
-                Receipt.Detail = Changed ? TEXT("AI 对手数量已更新，所有真人需要重新准备。") : TEXT("AI 对手数量未变化。");
+                Receipt.Detail = Changed ? TEXT("AI 对手数量已更新。") : TEXT("AI 对手数量未变化。");
             }
             else { Receipt.Reason = ELDSessionReject::AuthorityFault; }
         }

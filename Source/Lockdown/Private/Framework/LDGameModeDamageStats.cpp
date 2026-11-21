@@ -104,16 +104,15 @@ void ALDGameMode::SendBuildStats()
 void ALDGameMode::SendTrainingCombos()
 {
     if (!HasAuthority() || !Combat) { return; }
-    TMap<FGuid, TArray<FLDDamageLine>> Finished;
-    Combat->TakeFinishedTrainingCombos(GetAuthorityNowMs(), TrainingComboQuietMs, Finished);
-    for (TPair<FGuid, TArray<FLDDamageLine>>& Pair : Finished)
+    TMap<FGuid, FLDTrainingComboView> Updates;
+    Combat->TakeFinishedTrainingCombos(GetAuthorityNowMs(), TrainingComboQuietMs, Updates);
+    for (TPair<FGuid, FLDTrainingComboView>& Pair : Updates)
     {
         ALDPlayerController* Controller = FindContenderController(Pair.Key);
-        if (!Controller || Pair.Value.IsEmpty() || Pair.Value.Num() > LDDamageRecap::MaxLines) { continue; }
-        FLDTrainingComboView View;
+        if (!Controller || Pair.Value.Lines.Num() > LDDamageRecap::MaxLines) { continue; }
+        FLDTrainingComboView View = MoveTemp(Pair.Value);
         View.Match = MatchContext.Generation;
         View.Serial = ++BuildStatsSerial;
-        View.Lines = MoveTemp(Pair.Value);
         Controller->ClientTrainingCombo(View);
     }
 }

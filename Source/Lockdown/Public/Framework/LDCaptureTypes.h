@@ -211,6 +211,7 @@ struct FLDResultBuildActive
    GENERATED_BODY()
    UPROPERTY() FName DefinitionId;
    UPROPERTY() uint8 Slot = 0;
+   UPROPERTY() ELDSkillBranch Branch = ELDSkillBranch::None;
 };
 
 USTRUCT()
@@ -235,6 +236,8 @@ struct FLDResultBuild
    // Installed cards by serial; copies of one card are separate rows.
    UPROPERTY() TArray<FLDResultBuildCard> Cards;
    UPROPERTY() FName FinalMod;
+   // Allocated 5-stat points in design order (#331).
+   UPROPERTY() TArray<uint8> StatPoints;
 };
 
 USTRUCT()

@@ -988,9 +988,8 @@ public:
     bool DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageLine>& Out) const;
     // This match's trigger count of each of Contender's cards (training excluded), by card name; false like DamageTotalsOf.
     bool CardTriggersOf(const FGuid& Contender, TArray<FLDCardTriggerRow>& Out) const;
-    // Training combos (damage on a training dummy, per source) whose last hit is at least QuietMs old at NowMs: each is
-    // handed out once, by its contender, and forgotten.
-    void TakeFinishedTrainingCombos(int64 NowMs, int64 QuietMs, TMap<FGuid,TArray<FLDDamageLine>>& Out);
+    // Training combos (live updates + finished quiet-gap summaries + resets) ready to send to each contender (#331).
+    void TakeFinishedTrainingCombos(int64 NowMs, int64 QuietMs, TMap<FGuid,FLDTrainingComboView>& Out);
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
@@ -1717,7 +1716,17 @@ private:
     TMap<FGuid,TArray<FLDDamageLine>> DamageTotals;
     // Per contender: how often each card triggered in this match (training excluded).
     TMap<FGuid,TMap<FName,int32>> CardTriggerCounts;
-    // Per contender: the running training combo on a dummy and the authority ms of its last hit.
-    struct FTrainingCombo { TArray<FLDDamageLine> Lines; int64 LastAtMs=0; };
+    // Per contender: the running training combo on a dummy, its window and the previous combo's baseline (#331).
+    struct FTrainingCombo
+    {
+        FGuid DummyId;
+        TArray<FLDDamageLine> Lines;
+        int64 TotalP2=0;
+        int64 PreviousTotalP2=0;
+        int64 FirstAtMs=0;
+        int64 LastAtMs=0;
+        bool bLiveDirty=false;
+        bool bFinishPending=false;
+    };
     TMap<FGuid,FTrainingCombo> TrainingCombos;
 };

@@ -316,6 +316,33 @@ bool LDDemoEntry::ValidateAddress(const FString& Address, FString& Error)
     return true;
 }
 
+bool LDDemoEntry::SplitPastedEndpoint(const FString& Raw, FString& OutHost, FString& OutPort)
+{
+    OutHost.Reset();
+    OutPort.Reset();
+    const FString Trimmed = Raw.TrimStartAndEnd();
+    int32 ColonIndex = INDEX_NONE;
+    if (!Trimmed.FindChar(TEXT(':'), ColonIndex) || ColonIndex <= 0 || ColonIndex >= Trimmed.Len() - 1)
+    { return false; }
+    // Ignore multi-colon strings (such as bare IPv6 literals).
+    if (Trimmed.Find(TEXT(":"), ESearchCase::CaseSensitive, ESearchDir::FromStart, ColonIndex + 1) != INDEX_NONE)
+    { return false; }
+    const FString Host = Trimmed.Left(ColonIndex).TrimStartAndEnd();
+    const FString Port = Trimmed.Mid(ColonIndex + 1).TrimStartAndEnd();
+    if (Host.IsEmpty() || Port.IsEmpty() || Port.Len() > 5) { return false; }
+    for (TCHAR Ch : Port)
+    {
+        if (Ch < TEXT('0') || Ch > TEXT('9')) { return false; }
+    }
+    const int32 PortNum = FCString::Atoi(*Port);
+    if (PortNum < 1 || PortNum > 65535) { return false; }
+    FString Error;
+    if (!ValidateAddress(FString::Printf(TEXT("%s:%d"), *Host, PortNum), Error)) { return false; }
+    OutHost = Host;
+    OutPort = FString::FromInt(PortNum);
+    return true;
+}
+
 bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
 {
     Version.Reset();

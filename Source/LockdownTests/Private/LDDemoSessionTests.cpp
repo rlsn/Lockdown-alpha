@@ -359,7 +359,8 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The final admission refusal of a full room carries its client-mapped code"),
         LDDemoEntry::DescribeJoinRefusal(Error, Shown) && Shown.Contains(TEXT("（RoomFull）")));
     TestEqual(TEXT("Failed admission does not advance roster"), Mode->RosterRevision, FullRoster);
-    TestFalse(TEXT("Structural changes clear every human's readiness"), Mode->StateFor(Host)->bReady || Mode->StateFor(Guest)->bReady || Mode->StateFor(Third)->bReady);
+    TestTrue(TEXT("Changing AI count preserves human readiness (#331)"),
+        Mode->StateFor(Host)->bReady && Mode->StateFor(Guest)->bReady && Mode->StateFor(Third)->bReady);
     Request.Key.RequestSequence = 3;
     Request.Command = ELDSessionCommand::SetReady;
     Request.AICount = 0;
