@@ -53,6 +53,15 @@ namespace LDMinimap
     LOCKDOWN_API bool IntersectCameraPlane(const FVector& Origin,const FVector& Direction,double PlaneZ,FVector& OutHit);
     enum class EBlockerOverlay : uint8 { None=0, LowBlocker=1, FullBlocker=2 };
     LOCKDOWN_API EBlockerOverlay ClassifyBlocker(bool bBlocksMovement,bool bBlocksSight);
+    struct FRampOverlay
+    {
+        TArray<FVector2D> FootprintCm;
+        FVector2D LowMidCm=FVector2D::ZeroVector;
+        FVector2D HighMidCm=FVector2D::ZeroVector;
+        double WidthCm=0.;
+    };
+    LOCKDOWN_API bool ExtractRampFromConvexVertices(TConstArrayView<FVector> WorldVertices,FRampOverlay& OutRamp);
+    LOCKDOWN_API void CollectSceneRamps(const UWorld& World,TArray<FRampOverlay>& OutRamps);
     // The regions the map shows one at a time, as indices into FitRegions' anchors and output.
     enum ERegion : int32 { FieldRegion, RestRegion, FinalRegion, RegionCount };
     // The walls around a region's anchors lie within this reach of them (the final arena's ring reaches about 1300 cm past

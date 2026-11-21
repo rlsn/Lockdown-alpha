@@ -15,7 +15,12 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
+#include "World/LDNativeGround.h"
 #include "Core/LDGroundQueries.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/BodyInstance.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Fonts/FontMeasure.h"
@@ -158,6 +163,207 @@ LDMinimap::EBlockerOverlay LDMinimap::ClassifyBlocker(bool bBlocksMovement,bool 
     if(!bBlocksMovement){return EBlockerOverlay::None;}
     return bBlocksSight?EBlockerOverlay::FullBlocker:EBlockerOverlay::LowBlocker;
 }
+namespace
+{
+TArray<FVector2D> MinimapConvexHull2D(TArray<FVector2D> Pts)
+{
+    Pts.Sort([](const FVector2D& A,const FVector2D& B){return A.X!=B.X?A.X<B.X:A.Y<B.Y;});
+    TArray<FVector2D> Unique;Unique.Reserve(Pts.Num());
+    for(const FVector2D& P:Pts)
+    {
+        if(Unique.IsEmpty()||FVector2D::DistSquared(Unique.Last(),P)>.25){Unique.Add(P);}
+    }
+    if(Unique.Num()<3){return {};}
+    auto Cross=[](const FVector2D& O,const FVector2D& A,const FVector2D& B)
+    {return (A.X-O.X)*(B.Y-O.Y)-(A.Y-O.Y)*(B.X-O.X);};
+    TArray<FVector2D> Lower,Upper;
+    for(const FVector2D& P:Unique)
+    {
+        while(Lower.Num()>=2&&Cross(Lower[Lower.Num()-2],Lower.Last(),P)<=1e-3){Lower.Pop(EAllowShrinking::No);}
+        Lower.Add(P);
+    }
+    for(int32 I=Unique.Num()-1;I>=0;--I)
+    {
+        const FVector2D& P=Unique[I];
+        while(Upper.Num()>=2&&Cross(Upper[Upper.Num()-2],Upper.Last(),P)<=1e-3){Upper.Pop(EAllowShrinking::No);}
+        Upper.Add(P);
+    }
+    Lower.Pop(EAllowShrinking::No);Upper.Pop(EAllowShrinking::No);
+    Lower.Append(Upper);
+    return Lower;
+}
+}
+bool LDMinimap::ExtractRampFromConvexVertices(TConstArrayView<FVector> WorldVertices,FRampOverlay& OutRamp)
+{
+    OutRamp=FRampOverlay();
+    TArray<FVector> Pts;Pts.Reserve(WorldVertices.Num());
+    for(const FVector& V:WorldVertices)
+    {
+        if(V.ContainsNaN()){return false;}
+        if(!Pts.ContainsByPredicate([&V](const FVector& Existing){return FVector::DistSquared(Existing,V)<=.25;}))
+        {
+            Pts.Add(V);
+        }
+    }
+    if(Pts.Num()<4){return false;}
+    if(Pts.Num()>32)
+    {
+        TArray<FVector> Reduced;Reduced.Reserve(32);
+        for(int32 Az=0;Az<16;++Az)
+        {
+            const double Yaw=UE_DOUBLE_TWO_PI*double(Az)/16.;
+            for(const double ZSign:{.65,-.65})
+            {
+                const FVector Dir=FVector(FMath::Cos(Yaw),FMath::Sin(Yaw),ZSign).GetSafeNormal();
+                int32 BestIdx=0;double BestDot=FVector::DotProduct(Pts[0],Dir);
+                for(int32 I=1;I<Pts.Num();++I)
+                {
+                    const double D=FVector::DotProduct(Pts[I],Dir);
+                    if(D>BestDot){BestDot=D;BestIdx=I;}
+                }
+                if(!Reduced.ContainsByPredicate([&](const FVector& E){return FVector::DistSquared(E,Pts[BestIdx])<=.25;}))
+                {
+                    Reduced.Add(Pts[BestIdx]);
+                }
+            }
+        }
+        Pts=MoveTemp(Reduced);
+        if(Pts.Num()<4){return false;}
+    }
+    FVector Inside=FVector::ZeroVector;
+    for(const FVector& P:Pts){Inside+=P;}
+    Inside/=double(Pts.Num());
+
+    double BestArea=0.;
+    FVector BestNormal=FVector::ZeroVector;
+    TArray<FVector2D> BestHull;
+    for(int32 I=0;I<Pts.Num();++I)
+    {
+        for(int32 J=I+1;J<Pts.Num();++J)
+        {
+            for(int32 K=J+1;K<Pts.Num();++K)
+            {
+                const FVector RawCross=FVector::CrossProduct(Pts[J]-Pts[I],Pts[K]-Pts[I]);
+                if(RawCross.SizeSquared()<=1.){continue;}
+                FVector N=RawCross.GetSafeNormal();
+                if(FVector::DotProduct(N,Pts[I]-Inside)<0.){N=-N;}
+                // Walkable sloped face: steeper than flat floors/plateaus (<= ~5 deg) and shallower than cliffs (<= ~47 deg).
+                if(N.Z<.68||N.Z>.996){continue;}
+                bool bOuterFace=true;
+                double MinZ=Pts[I].Z,MaxZ=Pts[I].Z;
+                TArray<FVector2D> FaceXY;
+                for(const FVector& P:Pts)
+                {
+                    const double SignedDist=FVector::DotProduct(N,P-Pts[I]);
+                    if(SignedDist>1.5){bOuterFace=false;break;}
+                    if(SignedDist>=-1.5)
+                    {
+                        FaceXY.Add(FVector2D(P.X,P.Y));
+                        MinZ=FMath::Min(MinZ,P.Z);
+                        MaxZ=FMath::Max(MaxZ,P.Z);
+                    }
+                }
+                if(!bOuterFace||FaceXY.Num()<3||(MaxZ-MinZ)<15.){continue;}
+                TArray<FVector2D> Hull=MinimapConvexHull2D(MoveTemp(FaceXY));
+                if(Hull.Num()<3){continue;}
+                double Twice=0.;
+                for(int32 H=0;H<Hull.Num();++H)
+                {
+                    const FVector2D& A=Hull[H];const FVector2D& B=Hull[(H+1)%Hull.Num()];
+                    Twice+=A.X*B.Y-B.X*A.Y;
+                }
+                const double Area=FMath::Abs(Twice)*.5;
+                if(Area>BestArea&&Area>100.)
+                {
+                    BestArea=Area;
+                    BestNormal=N;
+                    BestHull=MoveTemp(Hull);
+                }
+            }
+        }
+    }
+    if(BestHull.Num()<3){return false;}
+    const FVector2D Uphill=FVector2D(-BestNormal.X,-BestNormal.Y).GetSafeNormal();
+    if(Uphill.IsNearlyZero()){return false;}
+    const FVector2D Side(-Uphill.Y,Uphill.X);
+    double MinAlong=TNumericLimits<double>::Max(),MaxAlong=-TNumericLimits<double>::Max();
+    double MinSide=TNumericLimits<double>::Max(),MaxSide=-TNumericLimits<double>::Max();
+    for(const FVector2D& P:BestHull)
+    {
+        const double Along=FVector2D::DotProduct(P,Uphill);
+        const double Across=FVector2D::DotProduct(P,Side);
+        MinAlong=FMath::Min(MinAlong,Along);MaxAlong=FMath::Max(MaxAlong,Along);
+        MinSide=FMath::Min(MinSide,Across);MaxSide=FMath::Max(MaxSide,Across);
+    }
+    if(MaxAlong-MinAlong<10.){return false;}
+    const double Band=FMath::Max(5.,(MaxAlong-MinAlong)*.15);
+    FVector2D LowSum=FVector2D::ZeroVector,HighSum=FVector2D::ZeroVector;
+    int32 LowCount=0,HighCount=0;
+    for(const FVector2D& P:BestHull)
+    {
+        const double Along=FVector2D::DotProduct(P,Uphill);
+        if(Along<=MinAlong+Band){LowSum+=P;++LowCount;}
+        if(Along>=MaxAlong-Band){HighSum+=P;++HighCount;}
+    }
+    OutRamp.FootprintCm=MoveTemp(BestHull);
+    OutRamp.LowMidCm=LowCount>0?LowSum/double(LowCount):FVector2D::ZeroVector;
+    OutRamp.HighMidCm=HighCount>0?HighSum/double(HighCount):FVector2D::ZeroVector;
+    OutRamp.WidthCm=FMath::Max(20.,MaxSide-MinSide);
+    return FVector2D::DistSquared(OutRamp.LowMidCm,OutRamp.HighMidCm)>=100.;
+}
+void LDMinimap::CollectSceneRamps(const UWorld& World,TArray<FRampOverlay>& OutRamps)
+{
+    OutRamps.Reset();
+    TArray<const UStaticMeshComponent*> PartsToInspect;
+    for(const ULevel* Level:World.GetLevels())
+    {
+        if(!Level||!Level->bIsVisible){continue;}
+        for(const AActor* Actor:Level->Actors)
+        {
+            if(!IsValid(Actor)||Actor->IsEditorOnly()||Actor==World.GetDefaultBrush()
+                ||!Actor->ActorHasTag(LDDemoWorld::TerrainTag)){continue;}
+            TInlineComponentArray<UStaticMeshComponent*> MeshParts(Actor);
+            for(const UStaticMeshComponent* Part:MeshParts)
+            {
+                if(Part&&LDNativeGround::IsSupport(*Part)){PartsToInspect.Add(Part);}
+            }
+        }
+    }
+    PartsToInspect.Sort([](const UStaticMeshComponent& A,const UStaticMeshComponent& B)
+    {return A.GetPathName()<B.GetPathName();});
+    for(const UStaticMeshComponent* Part:PartsToInspect)
+    {
+        const UBodySetup* Body=Part->GetStaticMesh()?Part->GetStaticMesh()->GetBodySetup():nullptr;
+        if(!Body){continue;}
+        const FTransform& CompTransform=Part->GetComponentTransform();
+        for(const FKConvexElem& Convex:Body->AggGeom.ConvexElems)
+        {
+            const FTransform ElemWorld=Convex.GetTransform()*CompTransform;
+            TArray<FVector> WorldPts;WorldPts.Reserve(Convex.VertexData.Num());
+            for(const FVector& V:Convex.VertexData){WorldPts.Add(ElemWorld.TransformPosition(V));}
+            FRampOverlay Ramp;
+            if(ExtractRampFromConvexVertices(WorldPts,Ramp)){OutRamps.Add(MoveTemp(Ramp));}
+        }
+        for(const FKBoxElem& Box:Body->AggGeom.BoxElems)
+        {
+            const FTransform ElemWorld=Box.GetTransform()*CompTransform;
+            const FVector Half(Box.X*.5,Box.Y*.5,Box.Z*.5);
+            TArray<FVector> WorldPts;WorldPts.Reserve(8);
+            for(double SX:{-1.,1.})
+            {
+                for(double SY:{-1.,1.})
+                {
+                    for(double SZ:{-1.,1.})
+                    {
+                        WorldPts.Add(ElemWorld.TransformPosition(FVector(Half.X*SX,Half.Y*SY,Half.Z*SZ)));
+                    }
+                }
+            }
+            FRampOverlay Ramp;
+            if(ExtractRampFromConvexVertices(WorldPts,Ramp)){OutRamps.Add(MoveTemp(Ramp));}
+        }
+    }
+}
 bool LDMinimap::FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2D> Footprints,const FBox2D& Ground,
     TArray<FBox2D>& Out,FString& Error)
 {
@@ -268,7 +474,7 @@ LDMinimap::ERegion MinimapRegionOf(ELDDemoWorldAnchorKind Kind)
     if(Kind==ELDDemoWorldAnchorKind::FinalSpawn||Kind==ELDDemoWorldAnchorKind::FinalCapture){return LDMinimap::FinalRegion;}
     return LDMinimap::FieldRegion;
 }
-bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
+bool MinimapResolveStatic(FLDMinimapStatic& Cache,const UWorld* World,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
     Cache.Areas.Reset();Cache.RampChevrons.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);Cache.Final=FBox2D(ForceInit);
     if(!Approved.World.MapId.Equals(Geometry.MapId,ESearchCase::CaseSensitive))
@@ -281,28 +487,65 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
-    for(const FLDDemoWorldRamp& Ramp:Geometry.Ramps)
+    bool bHasSceneTerrain=false;
+    if(World)
     {
-        if(Ramp.PolygonCm.Num()<3){continue;}
-        FLDMinimapStatic::FArea Area;
-        Area.Style=FLDMinimapStatic::EArea::Ramp;
-        Area.Cm.Reserve(Ramp.PolygonCm.Num());
-        for(const FLDDemoWorldPoint& Vertex:Ramp.PolygonCm)
+        for(const ULevel* Level:World->GetLevels())
         {
-            FVector2D Pt=FVector2D::ZeroVector;
-            if(!ToCm(Ramp.Id,Vertex,Pt)){return false;}
-            Area.Cm.Add(Pt);
-        }
-        if(Ramp.PolygonCm.Num()==4)
-        {
-            const FVector2D LowMid=(Area.Cm[0]+Area.Cm[1])*.5;
-            const FVector2D HighMid=(Area.Cm[2]+Area.Cm[3])*.5;
-            if(Ground.IsInsideOrOn(LowMid)&&Ground.IsInsideOrOn(HighMid))
+            if(!Level||!Level->bIsVisible){continue;}
+            for(const AActor* Actor:Level->Actors)
             {
-                Cache.RampChevrons.Add({LowMid,HighMid,FVector2D::Distance(Area.Cm[0],Area.Cm[1])});
+                if(IsValid(Actor)&&!Actor->IsEditorOnly()&&Actor!=World->GetDefaultBrush()
+                    &&Actor->ActorHasTag(LDDemoWorld::TerrainTag))
+                {
+                    bHasSceneTerrain=true;
+                    break;
+                }
             }
+            if(bHasSceneTerrain){break;}
         }
-        if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
+    }
+    if(bHasSceneTerrain&&World)
+    {
+        TArray<LDMinimap::FRampOverlay> SceneRamps;
+        LDMinimap::CollectSceneRamps(*World,SceneRamps);
+        for(LDMinimap::FRampOverlay& SceneRamp:SceneRamps)
+        {
+            FLDMinimapStatic::FArea Area;
+            Area.Style=FLDMinimapStatic::EArea::Ramp;
+            Area.Cm=MoveTemp(SceneRamp.FootprintCm);
+            if(Ground.IsInsideOrOn(SceneRamp.LowMidCm)&&Ground.IsInsideOrOn(SceneRamp.HighMidCm))
+            {
+                Cache.RampChevrons.Add({SceneRamp.LowMidCm,SceneRamp.HighMidCm,SceneRamp.WidthCm});
+            }
+            if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
+        }
+    }
+    else
+    {
+        for(const FLDDemoWorldRamp& Ramp:Geometry.Ramps)
+        {
+            if(Ramp.PolygonCm.Num()<3){continue;}
+            FLDMinimapStatic::FArea Area;
+            Area.Style=FLDMinimapStatic::EArea::Ramp;
+            Area.Cm.Reserve(Ramp.PolygonCm.Num());
+            for(const FLDDemoWorldPoint& Vertex:Ramp.PolygonCm)
+            {
+                FVector2D Pt=FVector2D::ZeroVector;
+                if(!ToCm(Ramp.Id,Vertex,Pt)){return false;}
+                Area.Cm.Add(Pt);
+            }
+            if(Ramp.PolygonCm.Num()==4)
+            {
+                const FVector2D LowMid=(Area.Cm[0]+Area.Cm[1])*.5;
+                const FVector2D HighMid=(Area.Cm[2]+Area.Cm[3])*.5;
+                if(Ground.IsInsideOrOn(LowMid)&&Ground.IsInsideOrOn(HighMid))
+                {
+                    Cache.RampChevrons.Add({LowMid,HighMid,FVector2D::Distance(Area.Cm[0],Area.Cm[1])});
+                }
+            }
+            if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
+        }
     }
     TArray<FBox2D> Anchors;Anchors.Init(FBox2D(ForceInit),LDMinimap::RegionCount);
     for(const FLDDemoWorldBlocker& Blocker:Geometry.Blockers)
@@ -481,7 +724,7 @@ void MinimapResolveRevision(FLDMinimapStatic& Cache,const UWorld* World,const FB
     Cache.bResolved=true;Cache.World=Registry->Revision();Cache.ResolvedGround=Ground;Cache.RasterKey=LDMinimapRaster::FStaticKey();FString Error;
     Cache.MapImages.Reset();
     if(!Cache.bContentTried){Cache.bContentTried=true;if(!LDDemoEntry::LoadRuntimeContent(Cache.Content,Error)||!Cache.Content){Cache.Content.Reset();Cache.ContentError=Error;}}
-    Cache.bValid=Cache.Content&&MinimapResolveStatic(Cache,*Geometry,Cache.Content->Get(),Ground,Error);
+    Cache.bValid=Cache.Content&&MinimapResolveStatic(Cache,World,*Geometry,Cache.Content->Get(),Ground,Error);
     if(!Cache.bValid)
     {
         Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);Cache.Final=FBox2D(ForceInit);

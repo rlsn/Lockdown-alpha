@@ -339,9 +339,19 @@ private:
     ELDCombatEntry ArmedCancelEntry=ELDCombatEntry::None;
     uint32 ArmedCancelSerial=0;
     bool bAttackMoveArmed=false;
-    bool bQuickCastHolding=false;
-    ELDCombatEntry QuickCastHoldEntry=ELDCombatEntry::None;
-    double QuickCastPressSec=0.;
+    struct FQuickCastSlotHold
+    {
+        bool bHolding=false;
+        double PressSec=0.;
+    };
+    FQuickCastSlotHold QuickCastHolds[3];
+    static int32 QuickCastSlotIndex(ELDCombatEntry Entry);
+    bool IsQuickCastHolding(ELDCombatEntry Entry, double* OutPressSec=nullptr) const;
+    bool HasAnyQuickCastHold() const;
+    bool HasPreviewedQuickCastHold() const;
+    void ClearQuickCastHold(ELDCombatEntry Entry);
+    void ClearAllQuickCastHolds();
+    void SyncArmedEntryFromQuickCastHolds();
     double QuickCastTestClockSec=-1.;
     double QuickCastClockSeconds() const;
     void ExecuteQuickCastAim(ELDCombatEntry Entry);

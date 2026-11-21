@@ -352,6 +352,26 @@ bool LDWorldLabels::ComputeSilhouetteBounds(const FVector2f& HeadPx,const FVecto
     return true;
 }
 
+bool LDWorldLabels::IsChestOccludedByStaticWorld(const UWorld& World,const FVector& CameraLocation,
+    const FVector& PresentedFeet,const AActor* IgnoredBody)
+{
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(LDWorldLabelsOcclusion),false);
+    Params.AddIgnoredActor(World.GetDefaultBrush());
+    if(IsValid(IgnoredBody)){Params.AddIgnoredActor(IgnoredBody);}
+    TArray<FHitResult> Hits;
+    const FVector Chest=PresentedFeet+FVector(0.,0.,90.);
+    World.LineTraceMultiByChannel(Hits,CameraLocation,Chest,ECC_Visibility,Params);
+    for(const FHitResult& Hit:Hits)
+    {
+        if(!Hit.bBlockingHit){continue;}
+        const AActor* HitActor=Hit.GetActor();
+        const UPrimitiveComponent* Comp=Hit.GetComponent();
+        if(Cast<APawn>(HitActor)||!Comp||Comp->Mobility==EComponentMobility::Movable){continue;}
+        return true;
+    }
+    return false;
+}
+
 void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
@@ -575,21 +595,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         if(LDWorldLabels::ShouldRefreshOcclusion(Sample.LastCheckedSec,UiNow))
         {
             Sample.LastCheckedSec=UiNow;
-            Sample.bOccluded=false;
-            FCollisionQueryParams Params(SCENE_QUERY_STAT(LDWorldLabelsOcclusion),false);
-            if(IsValid(OwnBody)){Params.AddIgnoredActor(OwnBody);}
-            TArray<FHitResult> Hits;
-            const FVector Chest=PresentedFeet+FVector(0.,0.,90.);
-            World->LineTraceMultiByChannel(Hits,CamLocation,Chest,ECC_Visibility,Params);
-            for(const FHitResult& Hit:Hits)
-            {
-                if(!Hit.bBlockingHit||Hit.Time>=.96f){continue;}
-                const AActor* HitActor=Hit.GetActor();
-                const UPrimitiveComponent* Comp=Hit.GetComponent();
-                if(Cast<APawn>(HitActor)||!Comp||Comp->Mobility==EComponentMobility::Movable){continue;}
-                Sample.bOccluded=true;
-                break;
-            }
+            Sample.bOccluded=LDWorldLabels::IsChestOccludedByStaticWorld(*World,CamLocation,PresentedFeet,OwnBody);
         }
         return Sample.bOccluded;
     };

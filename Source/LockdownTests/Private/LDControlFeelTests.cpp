@@ -559,16 +559,17 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         PC->QuickCastTestClockSec = 10.00;
         PC->PressSkill(ELDCombatEntry::Q);
         TestTrue(TEXT("PressSkill arms QuickCast hold while suppressing < 0.18s preview"),
-            PC->bQuickCastHolding && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q && !PC->ShouldShowArmedPreview());
+            PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q
+            && !PC->ShouldShowArmedPreview());
         PC->QuickCastTestClockSec = 10.06; // 60ms < 180ms
         PC->V05Pressed(TEXT("Navigate"));
         TestTrue(TEXT("Mid-tap (< 0.18s) right-click kiting keeps QuickCast alive without cancelling"),
-            PC->bQuickCastHolding && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q
+            PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q
             && PC->GetArmedCancelSerial() == CancelBase);
         PC->QuickCastTestClockSec = 10.09; // 90ms < 180ms
         PC->ReleaseSkill(ELDCombatEntry::Q);
         TestTrue(TEXT("Releasing < 0.18s tap fires the skill request immediately"),
-            !PC->bQuickCastHolding && !PC->ReadArmedCombatEntry(Armed) && PC->NextDirectSequence == 1);
+            !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed) && PC->NextDirectSequence == 1);
 
         // (c) >= 0.18s hold reveals aim indicator, right-click cancels cleanly, and releasing afterwards does NOT fire.
         PC->QuickCastTestClockSec = 20.00;
@@ -577,10 +578,71 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Holding >= 0.18s reveals the world aim indicator"), PC->ShouldShowArmedPreview());
         PC->V05Pressed(TEXT("Navigate"));
         TestTrue(TEXT("Right-click during >= 0.18s hold explicitly cancels QuickCast and increments ArmedCancelSerial"),
-            !PC->bQuickCastHolding && !PC->ReadArmedCombatEntry(Armed) && PC->GetArmedCancelSerial() == CancelBase + 1);
+            !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed) && PC->GetArmedCancelSerial() == CancelBase + 1);
         PC->QuickCastTestClockSec = 20.30;
         PC->ReleaseSkill(ELDCombatEntry::Q);
         TestEqual(TEXT("Releasing key after >= 0.18s right-click cancel sends nothing"), PC->NextDirectSequence, uint64(1));
+
+        // (d) Overlapping aimed (Q + W), Dash, and Self inputs preserve every pending QuickCast release without leaving stale aims.
+        FLDCombatEntryView& EntryW = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryW.Entry = ELDCombatEntry::W;
+        EntryW.SourceKind = ELDCombatSourceKind::Learned;
+        EntryW.DefinitionId = TEXT("active_snark_bolt");
+        EntryW.TargetMode = uint8(ELDDemoTargetMode::DirectionProjectile);
+        EntryW.RangeCm = 700;
+        FLDCombatEntryView& EntryE = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryE.Entry = ELDCombatEntry::E;
+        EntryE.SourceKind = ELDCombatSourceKind::Learned;
+        EntryE.DefinitionId = TEXT("active_not_mad");
+        EntryE.TargetMode = uint8(ELDDemoTargetMode::Self);
+        FLDCombatEntryView& EntryDash = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryDash.Entry = ELDCombatEntry::Dash;
+        EntryDash.SourceKind = ELDCombatSourceKind::Innate;
+        EntryDash.DefinitionId = TEXT("innate_dash");
+        EntryDash.TargetMode = uint8(ELDDemoTargetMode::DirectionDash);
+
+        // Overlapping Q -> W -> release Q -> release W sends both in release order (sequences 2 and 3).
+        PC->QuickCastTestClockSec = 30.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 30.03;
+        PC->PressSkill(ELDCombatEntry::W);
+        TestTrue(TEXT("Overlapping Q and W holds keep both slots pending"),
+            PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->IsQuickCastHolding(ELDCombatEntry::W));
+        PC->QuickCastTestClockSec = 30.06;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Releasing Q sends Q and shifts ArmedEntry back to still-held W"),
+            PC->NextDirectSequence == 2 && !PC->IsQuickCastHolding(ELDCombatEntry::Q) && PC->IsQuickCastHolding(ELDCombatEntry::W)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W);
+        PC->QuickCastTestClockSec = 30.09;
+        PC->ReleaseSkill(ELDCombatEntry::W);
+        TestTrue(TEXT("Releasing W sends W and leaves nothing armed"),
+            PC->NextDirectSequence == 3 && !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed));
+
+        // Overlapping PressSkill(Q) -> Dash -> Self E -> ReleaseSkill(Q) fires Dash (4), Self E (5), and still fires Q on release (6).
+        PC->QuickCastTestClockSec = 40.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 40.02;
+        PC->ActivateCombatEntry(ELDCombatEntry::Dash);
+        TestTrue(TEXT("Innate Dash fires immediately without clearing unreleased Q tap"),
+            PC->NextDirectSequence == 4 && PC->IsQuickCastHolding(ELDCombatEntry::Q)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 40.04;
+        PC->PressSkill(ELDCombatEntry::E);
+        TestTrue(TEXT("Self skill E fires immediately without clearing unreleased Q tap"),
+            PC->NextDirectSequence == 5 && PC->IsQuickCastHolding(ELDCombatEntry::Q)
+            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 40.07;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Releasing Q after overlapping Dash and Self E still fires Q"),
+            PC->NextDirectSequence == 6 && !PC->HasAnyQuickCastHold() && !PC->ReadArmedCombatEntry(Armed));
+
+        // Unheld manual aim (HUD click) followed by Self E clears the stale unheld aim cleanly.
+        PC->ActivateCombatEntry(ELDCombatEntry::Q);
+        TestTrue(TEXT("Manual HUD click arms Q without a QuickCast hold"),
+            PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q && !PC->HasAnyQuickCastHold());
+        PC->PressSkill(ELDCombatEntry::E);
+        TestTrue(TEXT("Self skill clears stale unheld ArmedEntry instead of leaving it armed"),
+            PC->NextDirectSequence == 7 && !PC->ReadArmedCombatEntry(Armed));
     }
 
     // DASH-02: Issuing MoveGround or AttackUnit while IsDashing() retains the order across the dash and pursues/attacks upon completion.

@@ -296,15 +296,14 @@ void ALDPlayerController::V05Pressed(FName Action)
     }
     else if (Action==TEXT("Navigate"))
     {
-        // A right click while something is armed cancels it and is an ordinary order in the same click, EXCEPT during a
-        // < 0.18s QuickCast tap so rapid right-click kiting never eats an in-flight skill tap.
+        // A right click while something is armed cancels it and is an ordinary order in the same click, EXCEPT when every
+        // held QuickCast entry is still inside its < 0.18s tap window so rapid right-click kiting never eats an in-flight tap.
         if (RootUI && RootUI->PointerOverUI()) { return; }
-        const bool bTapProtected=bQuickCastHolding && ArmedEntry==QuickCastHoldEntry
-            && (QuickCastClockSeconds()-QuickCastPressSec)<QuickCastHoldPreviewSeconds;
+        const bool bHasQuickHold=HasAnyQuickCastHold();
+        const bool bTapProtected=bHasQuickHold && !HasPreviewedQuickCastHold();
         if (!bTapProtected)
         {
-            const bool bCancellingQuickHold=bQuickCastHolding && ArmedEntry!=ELDCombatEntry::None;
-            if (CancelArmedCombat() && bCancellingQuickHold)
+            if (CancelArmedCombat() && bHasQuickHold)
             {
                 if (auto* GI=GetGameInstance())
                 {

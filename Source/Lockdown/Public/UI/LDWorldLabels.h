@@ -105,6 +105,8 @@ namespace LDWorldLabels
     constexpr double OcclusionTraceIntervalSec=0.07;
     LOCKDOWN_API bool ShouldRefreshOcclusion(double LastCheckedSec,double NowSec,double IntervalSec=OcclusionTraceIntervalSec);
     LOCKDOWN_API bool ComputeSilhouetteBounds(const FVector2f& HeadPx,const FVector2f& FootPx,float HalfWidthPx,FSlateRect& OutRect);
+    LOCKDOWN_API bool IsChestOccludedByStaticWorld(const UWorld& World,const FVector& CameraLocation,
+        const FVector& PresentedFeet,const AActor* IgnoredBody=nullptr);
 }
 
 // Full-viewport layer under the HUD that is never hit-tested or focused; ULDUIRoot shows it exactly while the in-match

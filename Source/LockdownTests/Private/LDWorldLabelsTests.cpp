@@ -1,4 +1,7 @@
 #include "UI/LDWorldLabels.h"
+#include "Character/LDCharacter.h"
+#include "Components/BoxComponent.h"
+#include "Engine/World.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
@@ -364,6 +367,54 @@ bool FLDWorldLabelsSegmentedTrailTest::RunTest(const FString& Parameters)
         &&FMath::IsNearlyEqual(SilRect.Right-SilRect.Left,44.f));
     TestFalse(TEXT("Degenerate tiny capsule height is rejected"),
         LDWorldLabels::ComputeSilhouetteBounds(FVector2f(500.f,500.f),FVector2f(500.f,503.f),10.f,SilRect));
+
+    // Wall-hugging occlusion (#341 review): a static wall immediately in front of the character (within the final 4% of
+    // the camera-to-chest ray, Hit.Time > 0.96) still triggers the silhouette, while pawns/movable proxies do not.
+    {
+        const auto WorldValues=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(true)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* OccWorld=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&WorldValues);
+        if(!TestNotNull(TEXT("Occlusion physics fixture world"),OccWorld)){return false;}
+        ON_SCOPE_EXIT{OccWorld->DestroyWorld(false);};
+
+        const FVector CamPos(0.,-2000.,1200.);
+        const FVector UnitFeet(0.,0.,0.);
+        const FVector Chest=UnitFeet+FVector(0.,0.,90.);
+        // Place a thin static wall only 25cm ahead of the chest along the ray (Hit.Time ~= 0.989 > 0.96).
+        const FVector RayDir=(Chest-CamPos).GetSafeNormal();
+        auto* WallActor=OccWorld->SpawnActor<AActor>();
+        auto* WallBox=NewObject<UBoxComponent>(WallActor);
+        WallActor->SetRootComponent(WallBox);
+        WallActor->AddInstanceComponent(WallBox);
+        WallBox->SetMobility(EComponentMobility::Static);
+        WallBox->SetBoxExtent(FVector(200.,8.,200.));
+        WallBox->SetWorldLocation(Chest-RayDir*25.);
+        WallBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        WallBox->SetCollisionObjectType(ECC_WorldStatic);
+        WallBox->SetCollisionResponseToAllChannels(ECR_Block);
+        WallBox->RegisterComponentWithWorld(OccWorld);
+
+        TestTrue(TEXT("Wall-hugging character 25cm behind a static wall (Hit.Time > 0.96) is detected as occluded"),
+            LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
+
+        // Move wall behind the character; place a Pawn and a Movable component right in front of the chest -> NOT occluded.
+        WallBox->SetWorldLocation(Chest+RayDir*120.);
+        auto* BlockerPawn=OccWorld->SpawnActor<ALDCharacter>();
+        if(BlockerPawn){BlockerPawn->SetActorLocation(Chest-RayDir*30.);}
+        auto* MovableActor=OccWorld->SpawnActor<AActor>();
+        auto* MovableBox=NewObject<UBoxComponent>(MovableActor);
+        MovableActor->SetRootComponent(MovableBox);
+        MovableActor->AddInstanceComponent(MovableBox);
+        MovableBox->SetMobility(EComponentMobility::Movable);
+        MovableBox->SetBoxExtent(FVector(80.,8.,80.));
+        MovableBox->SetWorldLocation(Chest-RayDir*20.);
+        MovableBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MovableBox->SetCollisionResponseToAllChannels(ECR_Block);
+        MovableBox->RegisterComponentWithWorld(OccWorld);
+
+        TestFalse(TEXT("Static wall behind character and Pawn/Movable components in front do not count as static world occlusion"),
+            LDWorldLabels::IsChestOccludedByStaticWorld(*OccWorld,CamPos,UnitFeet));
+    }
     return true;
 }
 #endif
