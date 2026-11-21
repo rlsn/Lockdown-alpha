@@ -129,7 +129,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "targeted",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -387,7 +387,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "targeted",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -458,7 +458,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "targeted",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -7537,7 +7537,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "self",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -7764,7 +7764,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "self",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -7869,7 +7869,7 @@
             }
           ],
           "element": "none",
-          "hit_type": "self",
+          "hit_type": "area",
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -21891,7 +21891,7 @@
       "unit": "points"
     },
     "COMBAT.ReactionLockSec": {
-      "ms": 3000,
+      "ms": 500,
       "unit": "ms"
     },
     "COMBAT.ReactionPerLevel": {
@@ -22495,7 +22495,7 @@
       "unit": "ms"
     },
     "REST.OpeningBuildSec": {
-      "ms": 45000,
+      "ms": 20000,
       "unit": "ms"
     },
     "REST.PKMaxSec": {
@@ -22516,7 +22516,7 @@
       "unit": "cm"
     },
     "REST.ReturnSec": {
-      "ms": 5000,
+      "ms": 3000,
       "unit": "ms"
     },
     "REST.SettlementSec": {
@@ -22841,7 +22841,7 @@
     },
     "VISION.RadiusCm": {
       "denominator": 1,
-      "numerator": 1050,
+      "numerator": 1400,
       "unit": "cm"
     },
     "XP.BaseToNext": 60,

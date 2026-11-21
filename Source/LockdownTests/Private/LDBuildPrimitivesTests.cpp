@@ -2080,8 +2080,10 @@ FLDCombatTrack& TrackOf(FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* A
 // ---- Mods M16-M20 (docs/systems/COMBAT_AND_GROWTH.md): real releases of a fixture contender's learned active.
 namespace LDBuildPrimitivesTests
 {
-// One real ReleaseAbility of Active on Q, with the body's installed projection as its record's build.
-bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* Active)
+// One real ReleaseAbility of Active on Q, with the body's installed projection as its record's build, from a bar of
+// StartMomentumP2; bOverdrive asks for an overdrive release.
+bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* Active,
+    int64 StartMomentumP2 = 10000, bool bOverdrive = false)
 {
     FLDBodyCombatState& Body = F.Body(Ref);
     FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Ref.Victim.EntityId);
@@ -2089,10 +2091,11 @@ bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& 
     Record.Build.Actives.Reset();
     Record.Build.Actives.Add({FName(Active), ELDCombatEntry::Q});
     TrackOf(F, Ref, Active, 0);
-    Body.Resources.MomentumP2 = 10000;
+    Body.Resources.MomentumP2 = StartMomentumP2;
     FLDCombatAction Action;
     Action.Kind = ELDCombatActionKind::Ability;
     Action.Entry = ELDCombatEntry::Q;
+    Action.bOverdrive = bOverdrive;
     Action.Source = SourceOf(ELDCombatSourceKind::Learned, Active);
     Action.Direction = FVector(1, 0, 0);
     ELDCombatReject Reject = ELDCombatReject::None;
@@ -2356,6 +2359,32 @@ bool FLDOverdriveReleaseTest::RunTest(const FString& Parameters)
         && FindEffect(Over.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp * 16 / 10);
     TestTrue(TEXT("Only a bar at the approved 60 momentum may overdrive"), !LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 5999)
         && LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 6000));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveCostTest, "Lockdown.Rules.Combat.Overdrive.Cost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDOverdriveCostTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    // S06 costs 30 momentum; an overdrive pays the 60 threshold, not the whole bar.
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, true)) { return false; }
+    TestTrue(TEXT("An overdrive from a full bar pays the 60 threshold and keeps 40"),
+        F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 4000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 5900, true)) { return false; }
+    TestTrue(TEXT("A bar below the threshold releases normally and pays the skill's cost"),
+        !F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 2900);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, false)) { return false; }
+    TestEqual(TEXT("A normal release pays only the skill's cost"), F.Body(Holder).Resources.MomentumP2, int64(7000));
+    // Y11 lowers the holder's threshold to 35, which is what its overdrive pays.
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_short_breath"), ELDCardTargetKind::Body}})) { return false; }
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, true)) { return false; }
+    TestTrue(TEXT("Y11's overdrive pays its 35 threshold and keeps 65"),
+        F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 6500);
     return true;
 }
 

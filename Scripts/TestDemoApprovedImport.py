@@ -327,7 +327,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
-            ("UNIT.BasicAttackWindupSec", "ms", ".300"), ("VISION.RadiusCm", "cm", "1050"),
+            ("UNIT.BasicAttackWindupSec", "ms", ".300"), ("VISION.RadiusCm", "cm", "1400"),
             ("CAPTURE.RadiusCm", "cm", "300"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
             ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),
@@ -335,8 +335,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
             # Issue #287 spec §10 (P6): three 160 s field segments and 25 s rests.
             ("MATCH.FieldSegmentSec", "ms", "160"),
-            ("REST.OpeningBuildSec", "ms", "45"), ("REST.BuildSec", "ms", "40"),
-            ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
+            ("REST.OpeningBuildSec", "ms", "20"), ("REST.BuildSec", "ms", "40"),
+            ("REST.ReturnSec", "ms", "3"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # The rest PK (R1 and R2): sign-up inside the build step, then draw, betting, ready, fight, settlement and payout.
             ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "3"), ("REST.BettingSec", "ms", "5"),
@@ -409,7 +409,7 @@ class ApprovedDemoData(unittest.TestCase):
             # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
             ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"),
             ("COMBAT.ReactionBase", "points", "30"), ("COMBAT.ReactionPerLevel", "points", "4"),
-            ("COMBAT.ReactionAPRatio", "ratio", ".25"), ("COMBAT.ReactionLockSec", "ms", "3"), ("COMBAT.FogRadiusCm", "cm", "250"), ("COMBAT.FogSec", "ms", "3"),
+            ("COMBAT.ReactionAPRatio", "ratio", ".25"), ("COMBAT.ReactionLockSec", "ms", ".5"), ("COMBAT.FogRadiusCm", "cm", "250"), ("COMBAT.FogSec", "ms", "3"),
             ("COMBAT.FogIntervalSec", "ms", "1"), ("COMBAT.ConductRadiusCm", "cm", "450"), ("COMBAT.ConductSlow", "ratio", ".3"),
             ("COMBAT.ConductSlowSec", "ms", "1.5"), ("COMBAT.OverloadRadiusCm", "cm", "200"),
             ("COMBAT.ShockSec", "ms", "4"),
@@ -704,7 +704,7 @@ class ApprovedDemoData(unittest.TestCase):
         schema.validate(author)
         projected = content.project_author(schema, author)
         guardian = next(row for row in projected["camps"]["monsters"] if row["id"] == "monster_guardian")
-        guardian["leash_radius"].update(numerator=1100, denominator=1)
+        guardian["leash_radius"].update(numerator=1450, denominator=1)
         content.validate_definitions(projected, ids)
         with self.assertRaisesRegex(content.ContentError, "InvalidGeometry"):
             content.validate_numbers(projected)

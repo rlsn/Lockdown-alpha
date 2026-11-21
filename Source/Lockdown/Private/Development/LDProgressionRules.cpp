@@ -904,6 +904,15 @@ ELDGrowthReason LDProgression::ApplyRankUpSkill(const FLDDemoContentDefinitions&
         return ELDGrowthReason::NoSkillPoint;
     }
     Out.Actives[Index].Branch = Branch;
+    // A branch may change the host's delivery (K07/K10 hit types); a card the ranked skill no longer takes returns to the library.
+    for (FLDCardInstance& Card : Out.Cards)
+    {
+        if (Card.Target.Kind == ELDCardTargetKind::Skill && Card.Target.Active == Out.Actives[Index].Id
+            && CardTargetReason(Content, Out, Card.Id, Card.Target) != ELDGrowthReason::None)
+        {
+            Card.Target = FLDCardTarget();
+        }
+    }
     return ELDGrowthReason::None;
 }
 
@@ -1066,11 +1075,17 @@ ELDGrowthReason LDProgression::CardTargetReason(const FLDDemoContentDefinitions&
     {
         const FLDDemoAbilityDefinition* Host = ProgressionFindAbility(Content, Target.Active);
         if (!Host) { return ELDGrowthReason::DataInvalid; }
-        if (Definition->HostHitTypes != 0 && (Definition->HostHitTypes & (1u << uint8(Host->HitType))) == 0)
+        // The host as learned: a chosen branch brings its own delivery and effects (a rank-3 stun takes K05/K11).
+        const FLDLearnedActive* Learned = Build.FindActive(Target.Active);
+        const FLDDemoAbilityBranch* Path = Learned ? Host->FindBranch(Learned->Branch) : nullptr;
+        if (Learned && Learned->Branch != ELDSkillBranch::None && !Path) { return ELDGrowthReason::DataInvalid; }
+        const ELDDemoHitType HitType = Path ? Path->HitType : Host->HitType;
+        const FLDDemoAbilityValues& Values = Path ? Path->Values : Host->Values;
+        if (Definition->HostHitTypes != 0 && (Definition->HostHitTypes & (1u << uint8(HitType))) == 0)
         {
             return ELDGrowthReason::InvalidTarget;
         }
-        const bool bControls = Host->Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+        const bool bControls = Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
         {
             const ELDDemoEffectOp Op = Effect.GetOp();
             return Op == ELDDemoEffectOp::Root || Op == ELDDemoEffectOp::Stun || Op == ELDDemoEffectOp::Silence

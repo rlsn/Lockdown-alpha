@@ -173,6 +173,62 @@ bool FLDPerfectDodgeWindowTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDSkillRankCardHostTest, "Lockdown.Rules.Growth.SkillRank.CardHosts",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDSkillRankCardHostTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    using B = ELDSkillBranch;
+    const FName Banned(TEXT("active_account_banned")), Slide(TEXT("active_apology_slide"));
+    FLDGrowthBuild Build = LDProgression::StartBuild(Content);
+    Build.Level = 8;
+    Build.Actives.Add({Banned, 0, B::None});
+    Build.Actives.Add({Slide, 1, B::None});
+    FLDCardTarget OnBanned, OnSlide;
+    OnBanned.Kind = OnSlide.Kind = ELDCardTargetKind::Skill;
+    OnBanned.Active = Banned;
+    OnSlide.Active = Slide;
+    FLDCardInstance Reach;
+    Reach.Serial = 1;
+    Reach.Id = TEXT("card_long_reach");
+    Reach.Target = OnBanned;
+    Build.Cards.Add(Reach);
+    Build.NextCardSerial = 2;
+    const auto Reason = [&Content](const FLDGrowthBuild& On, const TCHAR* Card, const FLDCardTarget& Target)
+        { return LDProgression::CardTargetReason(Content, On, FName(Card), Target); };
+    // S04 at rank 1 is a targeted single-target silence: K10 fits, K07 does not.
+    TestTrue(TEXT("Rank-1 S04 takes K10 and refuses K07"), Reason(Build, TEXT("card_long_reach"), OnBanned) == ELDGrowthReason::None
+        && Reason(Build, TEXT("card_crowd_hit"), OnBanned) == ELDGrowthReason::InvalidTarget);
+    const LDProgression::FBuildContext Context = LDMomentumRulesTests::LiveContext();
+    FLDGrowthBuild Out;
+    TestEqual(TEXT("S04 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::B, Context, Out), ELDGrowthReason::None);
+    TestTrue(TEXT("2B silences around the caster: K10 returns to the library and K07 now fits"), !Out.Cards[0].IsInstalled()
+        && Reason(Out, TEXT("card_long_reach"), OnBanned) == ELDGrowthReason::InvalidTarget
+        && Reason(Out, TEXT("card_crowd_hit"), OnBanned) == ELDGrowthReason::None);
+    // S12 only slows at rank 1; its 2A turns the slow into a root, which K05/K11 take.
+    TestEqual(TEXT("Rank-1 S12 refuses K05"), Reason(Out, TEXT("card_pin_amp"), OnSlide), ELDGrowthReason::InvalidTarget);
+    Build = Out;
+    TestEqual(TEXT("S12 ranks up to 2A"), LDProgression::ApplyRankUpSkill(Content, Build, 1, B::A, Context, Out), ELDGrowthReason::None);
+    TestTrue(TEXT("2A's root takes K05 and K11"), Reason(Out, TEXT("card_pin_amp"), OnSlide) == ELDGrowthReason::None
+        && Reason(Out, TEXT("card_hold_longer"), OnSlide) == ELDGrowthReason::None);
+    // S14 stays a self form; its 2B adds a hit around the caster, which K07 widens.
+    const FName Lid(TEXT("active_not_mad"));
+    FLDCardTarget OnLid;
+    OnLid.Kind = ELDCardTargetKind::Skill;
+    OnLid.Active = Lid;
+    Build = Out;
+    Build.Level = 12;
+    Build.Actives.Add({Lid, 2, B::None});
+    TestEqual(TEXT("Rank-1 S14 only shields its caster and refuses K07"), Reason(Build, TEXT("card_crowd_hit"), OnLid),
+        ELDGrowthReason::InvalidTarget);
+    TestEqual(TEXT("S14 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 2, B::B, Context, Out), ELDGrowthReason::None);
+    TestEqual(TEXT("2B's area around the caster takes K07"), Reason(Out, TEXT("card_crowd_hit"), OnLid), ELDGrowthReason::None);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDSkillRankBranchTest, "Lockdown.Rules.Growth.SkillRank.Branch",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
