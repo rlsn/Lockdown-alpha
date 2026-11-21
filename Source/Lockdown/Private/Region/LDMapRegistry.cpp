@@ -236,7 +236,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     for (TActorIterator<AActor> It(GetWorld()); It; ++It)
     {
         if (const auto* Anchor = Cast<ALDMapAnchor>(*It)) { ++AnchorCount; CandidateDefinition = Anchor->Definition; }
-        if (const auto* Start = Cast<APlayerStart>(*It)) { Starts.Add(Start); }
+        if (const auto* Start = Cast<APlayerStart>(*It); Start && !Start->IsEditorOnly()) { Starts.Add(Start); }
         if (*It == GetWorld()->GetDefaultBrush()) { continue; }
         TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
         for (auto* Part : Parts)
@@ -361,9 +361,9 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         {
             const auto* Found = Starts.FindByPredicate([&](const APlayerStart* Start) { return Start->PlayerStartTag == Binding.Id; });
             if (!Found || SpawnIds.Contains(Binding.Id)
-                || !FVector2D((*Found)->GetActorLocation()).Equals(FVector2D(Binding.Position), UE_KINDA_SMALL_NUMBER))
+                || !FVector2D((*Found)->GetActorLocation()).Equals(FVector2D(Binding.Position), .001))
             {
-                Error = TEXT("Saved player start identity/position differs from the approved anchor: ") + Anchor.Id;
+                Error = TEXT("Saved player start does not match its projected field anchor: ") + Anchor.Id;
                 return false;
             }
             SpawnIds.Add(Binding.Id);
@@ -396,7 +396,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     }
     if (SpawnIds.Num() != Starts.Num())
     {
-        Error = TEXT("Every saved player start must be one approved spawn anchor.");
+        Error = TEXT("Every playable PlayerStart must bind to one field spawn anchor.");
         return false;
     }
     Definition = CandidateDefinition;

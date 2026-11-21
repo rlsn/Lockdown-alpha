@@ -285,10 +285,10 @@ void ALDGameMode::NoteContenderDamage(const FGuid& Attacker, const FGuid& Victim
 void ALDGameMode::OpenSpawnChoice(const FGuid& Contender, uint32 Life, int64 AtMs)
 {
     using namespace LDGameModePacingDetail;
-    if (!DemoContent) { return; }
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!DemoContent || !Registry || !Registry->Enabled()) { return; }
     const auto& Content = DemoContent->Get();
-    TArray<FName> Anchors;
-    for (const FString& Id : Content.World.SpawnIds) { Anchors.Add(FName(*Id)); }
+    const TArray<FName> Anchors = Registry->FieldSpawnAnchors();
     FLDSpawnChoice& Choice = SpawnChoices.Add(Contender);
     Choice.Life = Life;
     Choice.Chosen = INDEX_NONE;

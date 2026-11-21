@@ -64,6 +64,7 @@ public:
     bool QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,
         const FCollisionShape& Capsule, FLDCompletePath& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
     // Static support and complete routes for every possible field/final spawn, before retiring a current life.
+    TArray<FName> FieldSpawnAnchors() const;
     bool ValidateFieldSpawnPaths(bool bFinalField, FString& Error) const;
     bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,

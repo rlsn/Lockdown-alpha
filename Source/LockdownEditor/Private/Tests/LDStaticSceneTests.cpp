@@ -13,6 +13,7 @@
 #include "EngineUtils.h"
 #include "FileHelpers.h"
 #include "Framework/LDDemoEntry.h"
+#include "GameFramework/PlayerStart.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/PackageName.h"
@@ -103,6 +104,34 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     FLDDemoWorldGeometry Base;
     TestTrue(TEXT("Authoring reads its complete saved geometry"),Definition->ReadSavedForEditing(Base,F.Error)
         &&FLDDemoWorldGeometry::StaticStruct()->CompareScriptStruct(&Base,F.Geometry.Get(),PPF_None));
+    TArray<FName> SavedStarts;
+    APlayerStart* EditedStart = nullptr;
+    for (TActorIterator<APlayerStart> It(F.World); It; ++It)
+    {
+        if (It->IsEditorOnly()) { continue; }
+        SavedStarts.Add(It->PlayerStartTag);
+        if (!EditedStart) { EditedStart = *It; }
+    }
+    const auto InitialRoster = Registry->FieldSpawnAnchors();
+    TestEqual(TEXT("Every saved field start is in the live spawn pool"), InitialRoster.Num(), SavedStarts.Num());
+    TestTrue(TEXT("The live pool contains only identities from the saved map"),
+        !InitialRoster.ContainsByPredicate([&SavedStarts](FName Id) { return !SavedStarts.Contains(Id); }));
+    if (!TestNotNull(TEXT("An authored field start to edit"), EditedStart)) { return false; }
+    const FName BeforeEditing = EditedStart->PlayerStartTag;
+    const FName NewIdentity(TEXT("regression_field_start"));
+    EditedStart->PlayerStartTag = NewIdentity;
+    const bool bRebound = Registry->Rebuild(F.Error);
+    if (TestTrue(TEXT("An edited field start binds without exporting the old roster: ") + F.Error, bRebound))
+    {
+        const auto EditedRoster = Registry->FieldSpawnAnchors();
+        TestTrue(TEXT("The edited identity enters the live pool"), EditedRoster.Contains(NewIdentity));
+        TestFalse(TEXT("The old identity leaves the live pool"), EditedRoster.Contains(BeforeEditing));
+        const auto* Spawn = Registry->Resolve(NewIdentity, Registry->Generation);
+        TestTrue(TEXT("The new live binding uses the saved player start coordinates"), Spawn
+            && FVector2D(Spawn->Position).Equals(FVector2D(EditedStart->GetActorLocation()), .001));
+    }
+    EditedStart->PlayerStartTag = BeforeEditing;
+    if (!TestTrue(TEXT("The original field roster rebinds"), Registry->Rebuild(F.Error))) { return false; }
     TStrongObjectPtr<ULDMapDefinition> Damaged(DuplicateObject<ULDMapDefinition>(Definition,GetTransientPackage()));
     Damaged->Checksum=TEXT("invalid");
     TestFalse(TEXT("Altered checksum is refused"),Damaged->ReadSavedForEditing(Base,F.Error));

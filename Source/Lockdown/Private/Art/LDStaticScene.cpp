@@ -124,6 +124,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     TMap<FString, const AStaticMeshActor*> Shapes;
     TMap<FString, FString> Prototypes;
     TMap<FString, const AActor*> Points;
+    TArray<FString> FieldStartIds;
     TMap<FString, const ALDLayoutPoint*> SharedTraining;
     auto Fail = [&](const FString& Why) { Error = Why; return false; };
     for (const AActor* Actor : World.PersistentLevel->Actors)
@@ -204,6 +205,12 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         }
         const auto* Start = Cast<APlayerStart>(Actor);
         FString Id = Start ? Start->PlayerStartTag.ToString() : !Anchor.IsEmpty() ? Anchor : Member;
+        if (bForPlay && Start)
+        {
+            if (Start->PlayerStartTag.IsNone())
+            { return Fail(TEXT("A field PlayerStart requires a unique PlayerStartTag: ") + Start->GetPathName()); }
+            FieldStartIds.Add(Id);
+        }
         if (!Id.IsEmpty())
         {
             ELDDemoWorldAnchorKind OptionalKind;
@@ -388,6 +395,28 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         LDDemoWorld::OptionalKindOf(Id, Anchor.Kind);
         Anchor.SurfaceId = Base.Surfaces[0].Id;
         ++OptionalCounts[Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : 1];
+    }
+    // The saved PlayerStarts supply the live field roster. The imported definition is still used
+    // by the explicit source projection and by analysis fixtures outside the saved scene.
+    if (bForPlay)
+    {
+        const int32 SourceStartCount = Out.Anchors.RemoveAll([](const FLDDemoWorldAnchor& A)
+        { return A.Kind == ELDDemoWorldAnchorKind::Spawn; });
+        if (SourceStartCount > 0 || !FieldStartIds.IsEmpty())
+        {
+            if (FieldStartIds.Num() < LDDemoWorld::MinSpawns || FieldStartIds.Num() > LDDemoWorld::MaxSpawns)
+            {
+                return Fail(FString::Printf(TEXT("The map has %d field PlayerStarts; it requires %d to %d."),
+                    FieldStartIds.Num(), LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns));
+            }
+            for (const FString& Id : FieldStartIds)
+            {
+                auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
+                Anchor.Id = Id;
+                Anchor.Kind = ELDDemoWorldAnchorKind::Spawn;
+                Anchor.SurfaceId = Out.Surfaces[0].Id;
+            }
+        }
     }
     // The definition keeps its anchors in ordinal id order; the projection matches it.
     Out.Anchors.Sort([](const FLDDemoWorldAnchor& A, const FLDDemoWorldAnchor& B) { return A.Id.Compare(B.Id, ESearchCase::CaseSensitive) < 0; });

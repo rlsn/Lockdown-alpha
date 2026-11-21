@@ -632,7 +632,12 @@ void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdenti
     }
     if (Body->Cues.bReleasedBasic)
     {
+        // Nonzero release times with bReleasedBasic cleared describe a released cast.
         Body->Cues.bReleasedBasic=false;
+        Body->Cues.ReleasedStartedAtMs=0;
+        Body->Cues.ReleasedAtMs=0;
+        Body->Cues.ReleasedComboStep=0;
+        Body->ReleasedSource={};
         ++Body->StateRevision;
         MarkViewChanged(Entity);
     }
