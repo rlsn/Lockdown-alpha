@@ -848,6 +848,12 @@ void ULDWorkshop::Present(const FInput& Input)
     WorkshopShown(LockBadge,bLocked,ESlateVisibility::HitTestInvisible);
     if(bLocked){WorkshopText(LockBadge,Storage->BuildGate().InstallBlocked.IsEmpty()?FString(LDTerms::WorkshopLocked):Storage->BuildGate().InstallBlocked);}
     WorkshopText(PendingTitle,FString::Printf(TEXT("%s  %d"),LDTerms::WorkshopPending,Input.Pending));
+    if(FSlateApplication::IsInitialized())
+    {
+        const bool bHadRight=DockHasRight();
+        RefreshDock(FSlateApplication::Get().GetCursorPos());
+        if(DockHasRight()!=bHadRight){Layout(Size);}
+    }
 }
 
 void ULDWorkshop::RefreshPhase()

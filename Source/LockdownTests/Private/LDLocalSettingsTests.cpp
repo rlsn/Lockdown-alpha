@@ -1947,6 +1947,19 @@ bool FLDLocalSettingsSkillEMigrationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Schema 22 keeps an existing B binding and assigns an unused workshop key"),
         WorkshopFallback.Status == ELDLocalSettingsLoadStatus::Migrated && WorkshopFallback.Settings
         && WorkshopFallback.Settings->Key(TEXT("Stop")) == EKeys::B && WorkshopFallback.Settings->Key(TEXT("Workshop")) == EKeys::F10);
+
+    Values->ResetBindings();
+    Values->bColorblindMode = true;
+    const TArray<uint8> ColorblindlessFile = FixtureBytes(*Values, ColorblindlessFixtureSchema, 0);
+    Write(ColorblindlessFile);
+    const auto ColorblindDefault = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 23 migrates to 24 with colorblind mode off by default and preserves bindings"),
+        ColorblindDefault.Status == ELDLocalSettingsLoadStatus::Migrated && ColorblindDefault.Settings
+        && !ColorblindDefault.Settings->bColorblindMode
+        && ColorblindDefault.Settings->Key(TEXT("Workshop")) == EKeys::B);
+    After.Reset();
+    TestTrue(TEXT("The schema 23 file is not rewritten by loading"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && After == ColorblindlessFile);
     return true;
 }
 
@@ -1957,7 +1970,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 23);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 24);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);

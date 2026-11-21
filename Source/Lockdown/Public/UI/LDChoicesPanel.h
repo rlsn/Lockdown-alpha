@@ -352,6 +352,7 @@ private:
     bool bCardsStale=true;
     // PreviewOffer's pinned card, whose popup shows while no card is hovered.
     int32 PinnedPreview=INDEX_NONE;
+    bool bPinnedOfferExplicit=false;
     uint64 PendingRequest=0;
     ELDBuildCommandKind PendingKind=ELDBuildCommandKind::None;
     uint32 Answers=0;

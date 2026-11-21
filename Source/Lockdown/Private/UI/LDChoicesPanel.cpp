@@ -510,6 +510,12 @@ const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailVi
     // Combat-folded compact cards still pop full hover details on explicit mouse hover (#331).
     if((!bOpen&&!bQuickShown)||!Tray){return nullptr;}
     const FTrayCard* Found=nullptr;
+    const bool bOfferPinnedSurface=(OfferRow&&OfferRow->IsVisible())||(bStageShown&&!bStageFinal);
+    if(bPinnedOfferExplicit&&bOfferPinnedSurface&&OfferCards.IsValidIndex(PinnedPreview)
+        &&OfferCards[PinnedPreview].Frame&&OfferCards[PinnedPreview].Frame->IsVisible())
+    {
+        Found=&OfferCards[PinnedPreview];
+    }
     const auto Over=[&Found,Pointer](const FTrayCard& Card)
     {
         if(!Found&&Card.Frame&&Card.Frame->IsVisible()&&Card.Frame->GetCachedGeometry().IsUnderLocation(Pointer)){Found=&Card;}
@@ -520,7 +526,7 @@ const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailVi
     Row(CardRow,CardCards);Row(BlueprintCardRow,BlueprintCards);
     Row(FinalModRow,FinalCards);
     if(ShopPanel&&ShopPanel->IsVisible()){Row(ShopSlotRow,ShopCards);}
-    if(!Found&&OfferRow->IsVisible()&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
+    if(!Found&&bOfferPinnedSurface&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
     if(!Found){return nullptr;}
     Out=Found->Detail;
     if(OutComponent){*OutComponent=Found->Component;}
@@ -828,7 +834,7 @@ void ULDChoicesPanel::RefreshOffer()
 {
     const bool bOffer=HasAvailableOffer();
     // A new offer drops the pinned popup; ids and revisions travel with the click, never a card index.
-    if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;}
+    if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;bPinnedOfferExplicit=false;}
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
     // A queued opportunity without an eligible candidate waits as one grey card; its description says why.
     const bool bWaiting=!bOffer&&Usable()&&!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0;
@@ -1335,8 +1341,9 @@ bool ULDChoicesPanel::LockFinalMod()
 }
 bool ULDChoicesPanel::PreviewOffer(int32 Index)
 {
+    if(Index==INDEX_NONE){bPinnedOfferExplicit=false;PinnedPreview=INDEX_NONE;return true;}
     if(!Latest.bHasActiveOffer||!Latest.ActiveOffer.Options.IsValidIndex(Index)||Latest.ActiveOffer.OfferId!=ShownOffer){return false;}
-    PinnedPreview=Index;return true;
+    PinnedPreview=Index;bPinnedOfferExplicit=true;return true;
 }
 bool ULDChoicesPanel::LearnBlueprint(int32 Index,uint8 Key)
 {
