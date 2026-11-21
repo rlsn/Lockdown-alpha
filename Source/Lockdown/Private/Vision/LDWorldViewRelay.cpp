@@ -1493,11 +1493,6 @@ void ALDWorldViewRelay::AttachFog()
         FogMaterial->SetTextureParameterValue(TEXT("OcclusionDistance"), FogTexture);
         FogMaterial->SetScalarParameterValue(TEXT("CoverageOnly"), 1);
         FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), 0);
-        // A terrain horizon can change many coverage cells at once. Widen the authored
-        // world-space feather while retaining the artist's base band width.
-        float BandWidthCm = 0.f;
-        if (Base->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("BandWidthCm")), BandWidthCm))
-        { FogMaterial->SetScalarParameterValue(TEXT("BandWidthCm"), BandWidthCm * 1.5f); }
     }
     Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
     CameraOwner = Target;
@@ -1551,7 +1546,7 @@ void ALDWorldViewRelay::BlendFog(float Delta)
 {
     if (!bFogBlending || !FogTexture || !FogTexture->GetResource() || FogShown.Num() != LDObservation::CoverageCells
         || FogTarget.Num() != LDObservation::CoverageCells) { return; }
-    const float Alpha = 1.f - FMath::Exp(-FMath::Max(Delta, 0.f) / .16f);
+    const float Alpha = 1.f - FMath::Exp(-FMath::Max(Delta, 0.f) / .06f);
     bool bMoving = false;
     const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
     uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];

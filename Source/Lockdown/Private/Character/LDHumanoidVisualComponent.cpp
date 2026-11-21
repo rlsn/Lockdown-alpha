@@ -1006,7 +1006,6 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
             Animation->Prepare(Clock,Speed,GetOwner()?GetOwner()->GetActorRotation().Yaw:0.f,Showing,ActionAge,
                 ImpactSeconds,ActionOnset,bOverride?Entry->Sequence.Get():nullptr,Time,
                 Showing==EAction::Cast&&CastAbility==0&&LDHitVfx::IsDashing(Speed,bKnockback,bFalling),CanShowImpact());
-            FRotator Rotation=Mesh->GetRelativeRotation();Rotation.Yaw-=Animation->FacingCorrection();Mesh->SetRelativeRotation(Rotation);
         }
         return;
     }

@@ -106,7 +106,7 @@ public:
     void AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const;
 private:
     bool SegmentBlocked(const FVector& From, const FVector& To,
-        const FHitResult& SourceSupport, const FHitResult& TargetSupport) const;
+        const FHitResult& SourceSupport, const FHitResult& TargetSupport, double DistanceFractionSquared) const;
     ELDSightResult TracePrepared(const FVector& From, const FVector& To,
         const FHitResult& SourceSupport, const FHitResult& TargetSupport) const;
     void ResolveFoot(const FVector& Foot, FVector& Ground, FHitResult& Support) const;

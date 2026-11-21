@@ -50,12 +50,12 @@ bool FLDRelativeHeightVision::RunTest(const FString& Parameters)
     Range.UphillRadiusBp=7500; Range.DownhillRadiusBp=12500;
     FString Error;
     FLDSightGeometry Sight;
-    const auto Bind = [&]()
+    const auto Bind = [&](int32 Radius = 1400)
     {
         LDDemoWorld::FTerrain Terrain;
         if (!Terrain.Build(Geometry, Error)) { return false; }
         Terrain.BindScene(*World,FBox(FVector(-5000,-5000,-100),FVector(5000,5000,1500)));
-        return Sight.Build(Geometry,{TEXT("height_sight"),1,1},{1400,1},Range,Error,World,&Terrain);
+        return Sight.Build(Geometry,{TEXT("height_sight"),1,1},{Radius,1},Range,Error,World,&Terrain);
     };
     if (!TestTrue(TEXT("Current physical scene binds: ")+Error,Bind())) { return false; }
     TestEqual(TEXT("Flat boundary included"),Sight.Trace(FVector(0,1500,0),FVector(1400,1500,0)),ELDSightResult::Visible);
@@ -148,6 +148,39 @@ bool FLDRelativeHeightVision::RunTest(const FString& Parameters)
     Times.Sort(); double Total=0; for(double T:Times){Total+=T;}
     AddInfo(FString::Printf(TEXT("HEIGHT_VISION_PERF coverage_ms mean=%.3f p95=%.3f max=%.3f samples=%d"),
         Total/Times.Num(),Times[30],Times.Last(),Times.Num()));
+
+    constexpr double LaneY = 2400, Run = 1200, Rise = 360;
+    const FVector Along(Run, 0, Rise);
+    const FQuat RampRotation = FRotationMatrix::MakeFromXZ(Along, FVector::UpVector).ToQuat();
+    auto* Ramp = Place(FVector(0, LaneY, Rise * .5) - RampRotation.GetAxisZ() * 50,
+        FVector(Along.Size() / 100., 8, 1), true);
+    Ramp->SetActorRotation(RampRotation);
+    Place(FVector(1400, LaneY, Rise * .5), FVector(16, 8, Rise / 100.), true);
+    if (!TestTrue(TEXT("A walkable ramp and flush landing bind at the playtest radius"), Bind(1120))) { return false; }
+
+    const auto RampFoot = [&](double X) { return FVector(X, LaneY, (X + Run * .5) * Rise / Run); };
+    const FVector LandingTargets[] = {{650,LaneY,Rise}, {850,LaneY,Rise}, {1025,LaneY,Rise}};
+    int32 FirstVisible[] = {INDEX_NONE, INDEX_NONE, INDEX_NONE};
+    for (int32 X = 150; X <= 400; X += 5)
+    {
+        for (int32 I = 0; I < UE_ARRAY_COUNT(LandingTargets); ++I)
+        {
+            const bool bVisible = Sight.Trace(RampFoot(X), LandingTargets[I]) == ELDSightResult::Visible;
+            if (bVisible && FirstVisible[I] == INDEX_NONE) { FirstVisible[I] = X; }
+            TestTrue(TEXT("An open ramp keeps already revealed landing positions visible as the player advances"),
+                bVisible || FirstVisible[I] == INDEX_NONE);
+        }
+    }
+    AddInfo(FString::Printf(TEXT("RAMP_REVEAL source_x_cm near=%d middle=%d far=%d"), FirstVisible[0], FirstVisible[1], FirstVisible[2]));
+    TestTrue(TEXT("The actual visibility of the landing advances from the lip toward the far side over several steps"),
+        FirstVisible[0] != INDEX_NONE && FirstVisible[1] > FirstVisible[0] && FirstVisible[2] > FirstVisible[1]
+        && FirstVisible[2] - FirstVisible[0] >= 35);
+    TestEqual(TEXT("The lower landing is already visible near its edge from the top of the ramp"),
+        Sight.Trace(RampFoot(575), FVector(-650,LaneY,0)), ELDSightResult::Visible);
+    TestEqual(TEXT("Distance still hides deeper downhill ground when farther up the ramp"),
+        Sight.Trace(RampFoot(575), FVector(-1000,LaneY,0)), ELDSightResult::OutOfRange);
+    TestEqual(TEXT("Descending brings that deeper downhill ground into view"),
+        Sight.Trace(RampFoot(300), FVector(-1000,LaneY,0)), ELDSightResult::Visible);
     return true;
 }
 

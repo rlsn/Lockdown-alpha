@@ -458,10 +458,14 @@ void FLDSightGeometry::PrepareNativeScope(const FVector2D& From) const
 }
 
 bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Target,
-    const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
+    const FHitResult& SourceSupport, const FHitResult& TargetSupport, double DistanceFractionSquared) const
 {
     const FVector2D From(Source), To(Target);
     const FVector Eye = Source + FVector(0, 0, SampleHeightCm);
+    // A grazing view of a higher platform opens near its lip first. Require progressively
+    // more terrain clearance for farther targets while keeping the real eye for prop occlusion.
+    const double Rise = FMath::Clamp(Target.Z - Source.Z, 0., SampleHeightCm);
+    const FVector TerrainEye = Eye - FVector(0, 0, .5 * Rise * DistanceFractionSquared);
     const FVector GroundEnd = Target + FVector(0, 0, SightSurfaceOffsetCm);
     // This raised guard rejects intervening high terrain; the real ray below exempts only the departure plane.
     const FVector TerrainEnd(To, FMath::Max(Source.Z, Target.Z) + SightSurfaceOffsetCm);
@@ -520,7 +524,7 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
         FHitResult Hit;
         // A solid deck/roof above the destination is never exempted as a departure edge.
         if(bDownhill&&TraceTerrain(Hit,FVector(To,Source.Z+SightSurfaceOffsetCm),GroundEnd)){return true;}
-        if(TraceTerrain(Hit,Eye,TerrainEnd)){return true;}
+        if(TraceTerrain(Hit,TerrainEye,TerrainEnd)){return true;}
         if(bDownhill)
         {
             FHitResult First;
@@ -606,8 +610,8 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
                 return Region.Base + Region.Rise * FMath::Clamp(
                     FVector2D::CrossProduct(Region.Along, FMath::Lerp(From, To, T) - Region.Origin), 0., Region.Width) / Region.Width;
             };
-            if (Height(Lo) > FMath::Lerp(Eye.Z, TerrainEnd.Z, Lo)
-                || Height(Hi) > FMath::Lerp(Eye.Z, TerrainEnd.Z, Hi)) { return true; }
+            if (Height(Lo) > FMath::Lerp(TerrainEye.Z, TerrainEnd.Z, Lo)
+                || Height(Hi) > FMath::Lerp(TerrainEye.Z, TerrainEnd.Z, Hi)) { return true; }
             if(Target.Z<Source.Z&&Hi>Departure)
             {
                 const double Begin=FMath::Max(Lo,Departure+.000001);
@@ -659,9 +663,11 @@ void FLDSightGeometry::ResolveFoot(const FVector& Foot, FVector& Ground, FHitRes
 ELDSightResult FLDSightGeometry::TracePrepared(const FVector& From, const FVector& To,
     const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
 {
-    const double Range = RadiusForHeights(From.Z, To.Z);
-    if (FVector2D::DistSquared(FVector2D(From), FVector2D(To)) > Range * Range) { return ELDSightResult::OutOfRange; }
-    return SegmentBlocked(From, To, SourceSupport, TargetSupport) ? ELDSightResult::Blocked : ELDSightResult::Visible;
+    const double RangeSquared = FMath::Square(RadiusForHeights(From.Z, To.Z));
+    const double DistanceSquared = FVector::DistSquared2D(From, To);
+    if (DistanceSquared > RangeSquared) { return ELDSightResult::OutOfRange; }
+    return SegmentBlocked(From, To, SourceSupport, TargetSupport, DistanceSquared / RangeSquared)
+        ? ELDSightResult::Blocked : ELDSightResult::Visible;
 }
 
 ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const

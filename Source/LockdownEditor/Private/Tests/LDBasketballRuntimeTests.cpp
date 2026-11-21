@@ -67,10 +67,25 @@ bool FLDBasketballRuntimeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Dribbling follows the retained pose/ball curves"),FVector::Distance(InitialBall,Ball->GetComponentLocation())>1);
     const float PosedHeight=Mesh->GetSocketLocation(TEXT("head")).Z-FMath::Min(Mesh->GetSocketLocation(TEXT("foot_l")).Z,Mesh->GetSocketLocation(TEXT("foot_r")).Z);
     TestTrue(TEXT("Retained root scale produces a human-size pose on the current production skeleton"),PosedHeight>80&&PosedHeight<220);
-    Animation->Prepare(1.2,500,180,LDBodyMotion::EAction::None,0,.2f,0,nullptr,0,false,true);Evaluate();
-    Animation->Prepare(1.3,500,180,LDBodyMotion::EAction::None,0,.2f,0,nullptr,0,false,true);Evaluate();
-    TestTrue(TEXT("An abrupt running reversal uses the retained spin clip"),Animation->TurnCount()>0
-        &&Animation->CurrentAction()&&Animation->CurrentAction()->GetName().Contains(TEXT("Spin_Move")));
+    const FName Pelvis(TEXT("pelvis"));
+    const FVector PelvisForward=Mesh->GetSocketTransform(Pelvis,RTS_Component).GetRotation().UnrotateVector(FVector::YAxisVector);
+    FVector PreviousForward=FVector::YAxisVector;
+    bool bUsedSpin=false;
+    double MinForwardDot=1, MinStepDot=1;
+    for(int32 Frame=0;Frame<=37;++Frame)
+    {
+        Animation->Prepare(1.2+Frame/60.,500,180,LDBodyMotion::EAction::None,0,.2f,0,nullptr,0,false,true);
+        Evaluate();
+        bUsedSpin|=Animation->CurrentAction()&&Animation->CurrentAction()->GetName().Contains(TEXT("Spin_Move"));
+        const FVector Forward=Mesh->GetSocketTransform(Pelvis,RTS_Component).GetRotation().RotateVector(PelvisForward).GetSafeNormal2D();
+        MinForwardDot=FMath::Min(MinForwardDot,Forward.Y);
+        MinStepDot=FMath::Min(MinStepDot,FVector::DotProduct(PreviousForward,Forward));
+        PreviousForward=Forward;
+    }
+    TestTrue(TEXT("An abrupt running reversal uses the retained spin footwork"),Animation->TurnCount()==1&&bUsedSpin);
+    AddInfo(FString::Printf(TEXT("BASKETBALL_TURN pose_forward_dot=%.3f frame_to_frame_dot=%.3f"),MinForwardDot,MinStepDot));
+    TestTrue(TEXT("The blended turn stays facing forward in mesh space and crosses the authored half-turn without snapping"),
+        MinForwardDot>.5&&MinStepDot>.85);
     Animation->Prepare(2,500,180,LDBodyMotion::EAction::Attack,.12f,.12f,2,nullptr,0,false,true);Evaluate();
     TestTrue(TEXT("Moving basic attacks retain locomotion legs and a one-handed pass"),Animation->UsesUpperBody()
         &&Animation->CurrentAction()&&(Animation->CurrentAction()->GetName()==TEXT("Hooper_Attack")||Animation->CurrentAction()->GetName().Contains(TEXT("Wraparound_Pass"))));

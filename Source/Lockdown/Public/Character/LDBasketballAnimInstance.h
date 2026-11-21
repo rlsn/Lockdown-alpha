@@ -15,7 +15,6 @@ public:
     void Bind(ULDBasketballMotionSet* InMotion, UStaticMeshComponent* InBall);
     void Prepare(double Clock, float Speed, float FacingYaw, LDBodyMotion::EAction Action, float Age,
         float ImpactSeconds, double ActionIdentity, UAnimSequence* Override, float OverrideTime, bool bDash, bool bShowBall);
-    float FacingCorrection() const { return TurnFacing; }
     const UAnimSequence* CurrentAction() const { return ActionSequence; }
     float CurrentActionTime() const { return ActionTime; }
     bool UsesUpperBody() const { return UpperWeight > 0; }
@@ -35,9 +34,9 @@ private:
     double LastClock=-1,LastActionIdentity=-1,TurnAt=-1,NextTurnAt=0;
     LDBodyMotion::EAction LastAction=LDBodyMotion::EAction::None;
     FLDBasketballActionClip Active;
-    float IdleAge=0,LastFacing=0,TurnDuration=0,TurnFacing=0,ActionWeight=0;
+    float IdleAge=0,LastFacing=0,TurnDuration=0,ActionWeight=0;
     float CurrentAge=0,CurrentImpact=0,CurrentDuration=0;
-    bool bHasFacing=false,bLeft=false,bBallVisible=false,bThrowing=false,bWasReleased=false;
+    bool bHasFacing=false,bLeft=false,bBallVisible=false,bThrowing=false,bWasReleased=false,bNormalizeTurn=false;
     FVector ReleasePoint=FVector::ZeroVector,ReleaseForward=FVector::ForwardVector;
     uint32 Variation=0,Turns=0;
 };

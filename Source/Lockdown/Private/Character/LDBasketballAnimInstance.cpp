@@ -10,9 +10,34 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 
+struct FLDBasketballActionEvaluator : FAnimNode_SequenceEvaluator_Standalone
+{
+    bool bNormalizeTurn = false;
+
+    virtual void Evaluate_AnyThread(FPoseContext& Output) override
+    {
+        FAnimNode_SequenceEvaluator_Standalone::Evaluate_AnyThread(Output);
+        if (!bNormalizeTurn || Output.Pose.GetNumBones() == 0) { return; }
+
+        // The authored spin includes nearly a full revolution. Normalize it in the sampled
+        // pose before blending, so only the character's presentation yaw turns the body.
+        const float AuthoredYaw = Output.Curve.Get(TEXT("TurnFacing"));
+        const FQuat Correction(FVector::UpVector, FMath::DegreesToRadians(-AuthoredYaw));
+        FTransform& Root = Output.Pose[FCompactPoseBoneIndex(0)];
+        Root.SetRotation((Correction * Root.GetRotation()).GetNormalized());
+
+        // Ball curves are expressed in the same component frame as the authored turn.
+        const FVector BallPosition(Output.Curve.Get(TEXT("BallX")), Output.Curve.Get(TEXT("BallY")), 0);
+        const FVector NormalizedBall = Correction.RotateVector(BallPosition);
+        Output.Curve.Set(TEXT("BallX"), NormalizedBall.X);
+        Output.Curve.Set(TEXT("BallY"), NormalizedBall.Y);
+    }
+};
+
 struct FLDBasketballAnimProxy : FAnimInstanceProxy
 {
-    FAnimNode_SequenceEvaluator_Standalone Base,Previous,Action;
+    FAnimNode_SequenceEvaluator_Standalone Base,Previous;
+    FLDBasketballActionEvaluator Action;
     FAnimNode_TwoWayBlend Locomotion,Full;
     FAnimNode_LayeredBoneBlend Upper,Arm;
     FName LastArm;
@@ -39,6 +64,7 @@ struct FLDBasketballAnimProxy : FAnimInstanceProxy
         Previous.SetSequence(View->PreviousSequence?View->PreviousSequence:View->BaseSequence);
         Previous.SetExplicitTime(View->PreviousSequence?View->PreviousTime:View->BaseTime);
         Action.SetSequence(View->ActionSequence?View->ActionSequence:View->BaseSequence);Action.SetExplicitTime(View->ActionTime);
+        Action.bNormalizeTurn=View->bNormalizeTurn;
         Locomotion.Alpha=View->BaseBlend;Full.Alpha=View->FullWeight;
         Upper.BlendWeights[0]=View->UpperWeight;Arm.BlendWeights[0]=View->ArmWeight;
         const FName Bone=View->bLeft?TEXT("clavicle_l"):TEXT("clavicle_r");
@@ -76,7 +102,7 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
     const auto Advance=[](UAnimSequence* Sequence,float Time,float Dt){return Sequence&&Sequence->GetPlayLength()>0?FMath::Fmod(Time+Dt,Sequence->GetPlayLength()):0;};
     BaseTime=Advance(BaseSequence,BaseTime,Delta*Rate);PreviousTime=Advance(PreviousSequence,PreviousTime,Delta*Rate);
     BaseBlend=FMath::Min(1.f,BaseBlend+Delta/.12f);
-    FullWeight=UpperWeight=ArmWeight=0;TurnFacing=0;ActionSequence=nullptr;
+    FullWeight=UpperWeight=ArmWeight=0;bNormalizeTurn=false;ActionSequence=nullptr;
     bBallVisible=bShowBall&&!Override;bThrowing=false;
     const float TurnDelta=bHasFacing?FMath::FindDeltaAngleDegrees(LastFacing,FacingYaw):0;
     LastFacing=FacingYaw;bHasFacing=true;
@@ -109,27 +135,19 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
     else
     {
         bWasReleased=false;
-        if(bDash)
+        if(Speed>80&&FMath::Abs(TurnDelta)>105&&Clock>NextTurnAt)
         {
-            Active=Motion->Crossovers[0];ActionSequence=Active.Animation;
-            ActionTime=FMath::Lerp(Active.Start,Active.End,FMath::Fmod(float(Clock),.45f)/.45f);UpperWeight=1;
+            Active=Motion->Turns[TurnDelta<0&&Motion->Turns.Num()>1?1:0];
+            TurnAt=Clock;TurnDuration=FMath::Clamp(FMath::Abs(TurnDelta)/300.f,.38f,.60f);NextTurnAt=Clock+.6;++Turns;
         }
-        else
+        if(TurnAt>=0&&Clock-TurnAt<TurnDuration)
         {
-            if(Speed>80&&FMath::Abs(TurnDelta)>105&&Clock>NextTurnAt)
-            {
-                Active=Motion->Turns[TurnDelta<0&&Motion->Turns.Num()>1?1:0];
-                TurnAt=Clock;TurnDuration=FMath::Clamp(FMath::Abs(TurnDelta)/300.f,.38f,.60f);NextTurnAt=Clock+.6;++Turns;
-            }
-            if(TurnAt>=0&&Clock-TurnAt<TurnDuration)
-            {
-                const float AgeTurn=float(Clock-TurnAt);ActionSequence=Active.Animation;
-                ActionTime=FMath::Lerp(Active.Start,Active.End,AgeTurn/TurnDuration);
-                FullWeight=FMath::Min(FMath::SmoothStep(0.f,.07f,AgeTurn),FMath::SmoothStep(0.f,.1f,TurnDuration-AgeTurn));
-                TurnFacing=FMath::UnwindDegrees(Active.Animation->EvaluateCurveData(TEXT("TurnFacing"),FAnimExtractContext(ActionTime,false),true))*FullWeight;
-            }
-            else{TurnAt=-1;}
+            const float AgeTurn=float(Clock-TurnAt);ActionSequence=Active.Animation;
+            ActionTime=FMath::Lerp(Active.Start,Active.End,AgeTurn/TurnDuration);
+            FullWeight=FMath::Min(FMath::SmoothStep(0.f,.07f,AgeTurn),FMath::SmoothStep(0.f,.1f,TurnDuration-AgeTurn));
+            bNormalizeTurn=true;
         }
+        else{TurnAt=-1;}
     }
     LastAction=Action;
     if(Ball&&!bBallVisible){Ball->SetHiddenInGame(true);}
