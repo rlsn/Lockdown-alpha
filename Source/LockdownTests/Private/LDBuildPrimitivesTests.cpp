@@ -2699,7 +2699,8 @@ bool FLDCardRuleK06Test::RunTest(const FString& Parameters)
     const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 5000000);
     F.Place(Holder, 0., 0.);
     F.Place(Target, 260., 0.);
-    // Install active_hose_down (DirectionLine 600cm, applies Wet) on Q + active_elbow on W, with K06/K08/K02/K01 on Q + 18 Brains.
+    // Install active_hose_down (DirectionLine 600cm, applies Wet) on Q + active_elbow on W, with K06/K08/K02/K01 on Q + Y05 on Body + 18 Brains.
+    FAccess::SeedCritRandom(*F.Driver, 1337);
     const FName HoseId(TEXT("active_hose_down")), ElbowId(TEXT("active_elbow"));
     FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindOrAdd(Holder.Victim.EntityId);
     Record.Kind = ELDVictimKind::Contender;
@@ -2711,7 +2712,8 @@ bool FLDCardRuleK06Test::RunTest(const FString& Parameters)
         {FName(TEXT("card_encore")), 1, ELDCardTargetKind::Skill, HoseId},
         {FName(TEXT("card_again_now")), 2, ELDCardTargetKind::Skill, HoseId},
         {FName(TEXT("card_pay_back")), 3, ELDCardTargetKind::Skill, HoseId},
-        {FName(TEXT("card_next_up")), 4, ELDCardTargetKind::Skill, HoseId}
+        {FName(TEXT("card_next_up")), 4, ELDCardTargetKind::Skill, HoseId},
+        {FName(TEXT("card_wave_after")), 5, ELDCardTargetKind::Body}
     };
     FLDAttributeBuildValues BuildVals(16, Record.Build.StatPoints);
     BuildVals.Cards = Record.Build.Cards;
@@ -2758,31 +2760,70 @@ bool FLDCardRuleK06Test::RunTest(const FString& Parameters)
     const int64 TargetHpAfterPaid = F.Body(Target).Resources.HpP2;
     TestTrue(TEXT("Paid cast reduced cooling Elbow via K01 + Brains"), ElbowReadyAfterPaid < 9000);
 
-    // Advance past reaction lock (1600ms >= 1500ms), keep Target in line at 300cm, re-apply Rot, and run the free K06 repeat.
-    F.Place(Target, 300., 0.);
-    F.Now(1600);
-    F.Body(Target).ReactionLockedUntilMs = 0;
-    F.Body(Target).ElementMark = FLDCombatElementMark();
-    if (!TestTrue(TEXT("Prime Rot before free K06 repeat"),
-        FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Rot, Holder,
-            SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow")), 1600, Error)))
+    // Advance past reaction lock on a fresh chain: cast #2 has its paid cast miss (aimed away), and its +600ms free K06
+    // auto-recast hits Rot-marked Target (re-aimed by moving Target into the +Y line) so bExemptAvailable is true on the
+    // free repeat and Y05 deterministically triggers a secondary reaction!
+    bool bSawRepeatY05Secondary = false;
+    for (int32 Seed = 1; Seed <= 16 && !bSawRepeatY05Secondary; ++Seed)
     {
-        AddError(Error);
-        return false;
+        const int64 CastAtMs = 3000 + Seed * 2000;
+        FAccess::SeedCritRandom(*F.Driver, Seed);
+        F.Place(Target, 300., 0.); // Out of +Y line during paid cast so paid cast does not consume chain Y05 exemption!
+        F.Now(CastAtMs);
+        TrackOf(F, Holder, TEXT("active_hose_down"), 0);
+        TrackOf(F, Holder, TEXT("active_elbow"), CastAtMs + 8000);
+        HolderBody.Resources.MomentumP2 = 10000;
+        FLDCombatAction AimY = CastAction;
+        AimY.Token = uint64(10 + Seed);
+        AimY.Direction = FVector(0., 1., 0.);
+        AimY.StartedAtMs = AimY.ReleaseAtMs = CastAtMs;
+        Reject = ELDCombatReject::None;
+        if (!TestTrue(TEXT("Second paid Hose releases cleanly: ") + Error,
+            FAccess::ReleaseAbility(*F.Driver, F.Actor(Holder), HolderBody, AimY, Reject, Error) && Reject == ELDCombatReject::None)
+            || !TestTrue(TEXT("Second paid Hose settles: ") + Error, FAccess::ApplyPendingHits(*F.Driver, CastAtMs, Error)))
+        {
+            return false;
+        }
+        const int64 RepeatAtMs = CastAtMs + 600;
+        const int64 HoseReadyBeforeRepeat = Record.Tracks[0].ReadyAtMs;
+        const int64 ElbowReadyBeforeRepeat = Record.Tracks[1].ReadyAtMs;
+        F.Place(Target, 0., 300.); // Step into the +Y line before the +600ms free K06 auto-recast!
+        F.Now(RepeatAtMs);
+        F.Body(Target).ReactionLockedUntilMs = 0;
+        F.Body(Target).ElementMark = FLDCombatElementMark();
+        F.Body(Target).Burn = FLDCombatBurn();
+        FAccess::GroundStates(*F.Driver).Reset();
+        FAccess::Fogs(*F.Driver).Reset();
+        if (!TestTrue(TEXT("Prime Rot before free K06 repeat"),
+            FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Rot, Holder,
+                SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow")), RepeatAtMs, Error)))
+        {
+            AddError(Error);
+            return false;
+        }
+        HolderBody.Resources.MomentumP2 = 2000;
+        FAccess::Reactions(*F.Driver).Reset();
+        const int64 HpBeforeRepeat = F.Body(Target).Resources.HpP2;
+        if (!TestTrue(TEXT("Free K06 auto-recast runs at +600ms: ") + Error, FAccess::RunAutoRecasts(*F.Driver, RepeatAtMs, Error))
+            || !TestTrue(TEXT("Free K06 auto-recast hit settles: ") + Error, FAccess::ApplyPendingHits(*F.Driver, RepeatAtMs, Error)))
+        {
+            return false;
+        }
+        const int32 RepeatReactions = FAccess::Reactions(*F.Driver).Num();
+        const int64 ReactionBaseGain = int64(RepeatReactions) * F.Catalog->Get().Parameters.Momentum.ReactionP2;
+        TestTrue(TEXT("Free K06 repeat dealt scaled damage to Target"), F.Body(Target).Resources.HpP2 < HpBeforeRepeat);
+        TestEqual(TEXT("Free K06 repeat + Y05 preserve K08 host cooldown ReadyAtMs without refunding CD"),
+            Record.Tracks[0].ReadyAtMs, HoseReadyBeforeRepeat);
+        TestEqual(TEXT("Free K06 repeat + Y05 grant zero K01/Brains cooldown cuts to cooling skills"),
+            Record.Tracks[1].ReadyAtMs, ElbowReadyBeforeRepeat);
+        TestEqual(TEXT("Free K06 repeat + Y05 grant zero unpaid K02/SkillHit/Brains-cast momentum refunds"),
+            HolderBody.Resources.MomentumP2, 2000 + ReactionBaseGain);
+        if (RepeatReactions >= 2)
+        {
+            bSawRepeatY05Secondary = true;
+        }
     }
-    HolderBody.Resources.MomentumP2 = 2000;
-    FAccess::Reactions(*F.Driver).Reset();
-    if (!TestTrue(TEXT("Free K06 auto-recast runs at +600ms: ") + Error, FAccess::RunAutoRecasts(*F.Driver, 1600, Error))
-        || !TestTrue(TEXT("Free K06 auto-recast hit settles: ") + Error, FAccess::ApplyPendingHits(*F.Driver, 1600, Error)))
-    {
-        return false;
-    }
-    const int64 ReactionBaseGain = FAccess::Reactions(*F.Driver).IsEmpty() ? 0 : F.Catalog->Get().Parameters.Momentum.ReactionP2;
-    TestTrue(TEXT("Free K06 repeat dealt scaled damage to Target"), F.Body(Target).Resources.HpP2 < TargetHpAfterPaid);
-    TestEqual(TEXT("Free K06 repeat preserves K08 host cooldown ReadyAtMs without refunding CD"), Record.Tracks[0].ReadyAtMs, PaidHoseReadyAt);
-    TestEqual(TEXT("Free K06 repeat grants zero K01/Brains cooldown cuts to other cooling skills"), Record.Tracks[1].ReadyAtMs, ElbowReadyAfterPaid);
-    TestEqual(TEXT("Free K06 repeat grants zero unpaid K02/SkillHit/Brains-cast momentum refunds"),
-        HolderBody.Resources.MomentumP2, 2000 + ReactionBaseGain);
+    TestTrue(TEXT("Free K06 repeat deterministically exercised Y05 secondary reaction without Brains refund"), bSawRepeatY05Secondary);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK08Test, "Lockdown.Rules.Combat.Cards.K08",
@@ -4396,11 +4437,12 @@ bool LDTestRunDashOrderRetention(FAutomationTestBase& Test)
         Nav.ActiveOrder.IsSet() && Nav.ActiveOrder->Request.Kind == ELDSpatialOrderKind::MoveGround
         && !Nav.AuthoritySteering(*Body).IsNearlyZero());
 
-    // 2) AttackUnit submitted mid-dash while IsDashing() is retained across the dash and starts basic attack windup upon completion!
-    Enemy->SetActorLocation(Body->GetActorLocation() + FVector(220., 0., 0.));
+    // 2) Out-of-range AttackUnit (Enemy +420cm > 250cm AttackRangeCm -> AdmitOrder Plan() maps to NoCompletePath mid-dash)
+    // submitted mid-dash while IsDashing() is retained instead of rejected, then admits & starts StartNavAttack upon landing!
+    Enemy->SetActorLocation(Body->GetActorLocation() + FVector(420., 0., 0.));
     Mode->Lives[EnemyRef.Victim.EntityId].MotionLastFoot = Enemy->GetCharacterMovement()->GetActorFeetLocation();
     FLDBuildPrimitivesAccess::Records(*Driver)[SelfRef.Victim.EntityId].NextAttackAtMs = Mode->GetAuthorityNowMs() + 180;
-    if (!Test.TestTrue(TEXT("Second voluntary dash starts"), Move->StartDemoDash(FVector(1., 0., 0.), 200., .18, StepErr) && Move->IsDashing())
+    if (!Test.TestTrue(TEXT("Second voluntary dash starts"), Move->StartDemoDash(FVector(1., 0., 0.), 260., .18, StepErr) && Move->IsDashing())
         || !Test.TestTrue(TEXT("First 30ms of second dash runs: ") + StepErr, StepAuthority(30) && Move->IsDashing()))
     {
         return false;
@@ -4411,13 +4453,13 @@ bool LDTestRunDashOrderRetention(FAutomationTestBase& Test)
     AttackReq.Observed = EnemyHandle;
     AttackReq.ObservationEpoch = EnemyEpoch;
     const FLDOrderReceipt Submitted = Nav.SubmitOrder({Mode->MatchContext, SelfRef, PC}, AttackReq);
-    Test.TestEqual(TEXT("AttackUnit submitted mid-dash queues cleanly"), Submitted.Status, ELDOrderStatus::Queued);
-    for (int32 Tick = 0; Tick < 7; ++Tick)
+    Test.TestEqual(TEXT("Out-of-range AttackUnit submitted mid-dash queues cleanly"), Submitted.Status, ELDOrderStatus::Queued);
+    for (int32 Tick = 0; Tick < 8; ++Tick)
     {
-        if (!Test.TestTrue(TEXT("Mid-dash AttackUnit step succeeds: ") + StepErr, StepAuthority(30))) { return false; }
+        if (!Test.TestTrue(TEXT("Mid-dash out-of-range AttackUnit step succeeds: ") + StepErr, StepAuthority(30))) { return false; }
     }
     Test.TestFalse(TEXT("Second dash completed"), Move->IsDashing());
-    return Test.TestTrue(TEXT("AttackUnit issued during IsDashing() is retained and starts basic attack windup upon completion"),
+    return Test.TestTrue(TEXT("Out-of-range AttackUnit retained across mid-dash NoCompletePath and starts basic attack upon landing"),
         Nav.ActiveOrder.IsSet() && Nav.ActiveOrder->Request.Kind == ELDSpatialOrderKind::AttackUnit
         && FLDBuildPrimitivesAccess::Bodies(*Driver)[Body].Action.IsSet()
         && FLDBuildPrimitivesAccess::Bodies(*Driver)[Body].Action->Entry == ELDCombatEntry::Basic);

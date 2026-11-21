@@ -1459,8 +1459,11 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
         View.Gap=FString::Printf(TEXT("-%lld"),(Input.MomentumCostP2-FMath::Max<int64>(Context.MomentumP2,0)+99)/100);
     }
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
+    const bool bPhaseLocked=!Context.bPlaying
+        ||Input.ServerReject==ELDCombatReject::NotStarted
+        ||Input.ServerReject==ELDCombatReject::MatchClosed;
     if(View.LockBadge.IsEmpty()&&bActive&&Context.bOwnContext&&Context.bAlive
-        &&!(View.ExecutionBlocks&ActionUnsynced)&&(View.ExecutionBlocks&(ActionNotPlaying|ActionServer)))
+        &&!(View.ExecutionBlocks&ActionUnsynced)&&bPhaseLocked)
     {
         View.LockBadge=TEXT("禁");
     }
@@ -3121,6 +3124,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.NextCooldownMs=Entry.NextCooldownMs;
     Input.MomentumCostP2=Entry.MomentumCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
+    Input.ServerReject=Entry.Unavailable;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
 }

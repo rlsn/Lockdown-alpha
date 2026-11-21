@@ -691,11 +691,26 @@ void ULDWorkshop::Layout(FVector2D Size)
     if(DockIconBox&&!FMath::IsNearlyEqual(DockIconBox->GetWidthOverride(),DockArtSize)){DockIconBox->SetWidthOverride(DockArtSize);DockIconBox->SetHeightOverride(DockArtSize);}
 }
 
+const FGeometry& EffectiveWorkshopGeometry(const UWidget& Widget)
+{
+    for(const UWidget* Cur=&Widget;Cur;Cur=Cur->GetParent())
+    {
+        const FGeometry& TickG=Cur->GetCachedGeometry();
+        if(TickG.GetLocalSize().X>1.f&&TickG.GetLocalSize().Y>1.f){return TickG;}
+        if(TSharedPtr<SWidget> Slate=Cur->GetCachedWidget())
+        {
+            const FGeometry& PaintG=Slate->GetPaintSpaceGeometry();
+            if(PaintG.GetLocalSize().X>1.f&&PaintG.GetLocalSize().Y>1.f){return PaintG;}
+        }
+    }
+    return Widget.GetCachedGeometry();
+}
+
 ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
 {
     ULDChoicesPanel::FWorkshopPlaces Out;
     if(Mode!=EMode::Full||!Canvas){return Out;}
-    const FGeometry& Geometry=GetCachedGeometry();
+    const FGeometry& Geometry=EffectiveWorkshopGeometry(*this);
     if(Geometry.GetLocalSize().X<=0.f){return Out;}
     const auto Absolute=[&Geometry](const FBox2D& Box)
     {
@@ -739,7 +754,7 @@ ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
 {
     ULDComponentStorage::FWorkshopLayout Out;
     if(!IsOpen()||!Canvas){return Out;}
-    const FGeometry& Geometry=GetCachedGeometry();
+    const FGeometry& Geometry=EffectiveWorkshopGeometry(*this);
     if(Geometry.GetLocalSize().X<=0.f){return Out;}
     const auto Absolute=[&Geometry](const FBox2D& Box)
     {
@@ -830,7 +845,7 @@ void ULDWorkshop::Present(const FInput& Input)
     if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
     ClosingAt=-1.;
     WorkshopShown(this,true);
-    FVector2D Size=GetCachedGeometry().GetLocalSize();
+    FVector2D Size=EffectiveWorkshopGeometry(*this).GetLocalSize();
     if(Size.X<=1.f||Size.Y<=1.f){Size=FVector2D(1920.f,1080.f);}
     LastSize=Size;
     Layout(Size);
@@ -886,6 +901,61 @@ void ULDWorkshop::Present(const FInput& Input)
         RefreshDock(FSlateApplication::Get().GetCursorPos());
         if(DockHasRight()!=bHadRight){Layout(Size);}
     }
+}
+
+void ULDWorkshop::PresentConverged(ULDWorkshop& Workshop,ULDChoicesPanel* ChoicesPanel,ULDComponentStorage* Storage,
+    FInput& In,float LayoutScale,TFunctionRef<void()> PresentChoices)
+{
+    const float PrepassScale=LayoutScale>0.f?LayoutScale:1.f;
+    const auto PrepassChoices=[ChoicesPanel,PrepassScale]()
+    {
+        if(!ChoicesPanel){return;}
+        if(TSharedPtr<SWidget> Slate=ChoicesPanel->GetCachedWidget()){Slate->SlatePrepass(PrepassScale);}
+    };
+    const ULDChoicesPanel::FWorkshopPlaces PrevPlaces=ChoicesPanel?ChoicesPanel->WorkshopPlaces():ULDChoicesPanel::FWorkshopPlaces();
+    const FVector2D PrevInset=ChoicesPanel?ChoicesPanel->CurrentTrayInset():FVector2D(-1.f,-1.f);
+    const float PrevWrap=ChoicesPanel?ChoicesPanel->CurrentTrayWrap():-1.f;
+    const float PrevLimit=ChoicesPanel?ChoicesPanel->CurrentTrayLimit():-1.f;
+    Workshop.Present(In);
+    if(ChoicesPanel&&Workshop.IsOpen())
+    {
+        const ULDChoicesPanel::FWorkshopPlaces NextPlaces=Workshop.Places();
+        const FVector2D NextInset=Workshop.TrayInset();
+        const float NextWrap=Workshop.TrayWrapWidth();
+        const float NextLimit=Workshop.TrayHeightLimit();
+        if(!NextPlaces.Equals(PrevPlaces)||!NextInset.Equals(PrevInset,.5f)
+            ||!FMath::IsNearlyEqual(NextWrap,PrevWrap,.5f)||!FMath::IsNearlyEqual(NextLimit,PrevLimit,.5f))
+        {
+            ChoicesPanel->SetWorkshopPlaces(NextPlaces);
+            ChoicesPanel->SetTrayInset(NextInset.X,NextInset.Y,NextWrap,NextLimit);
+            PresentChoices();
+            PrepassChoices();
+            if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
+            const FVector2D ConvergedTray=ChoicesPanel->TrayDesiredSize();
+            if(!ConvergedTray.Equals(In.TrayDesired,.5)||In.bStage!=ChoicesPanel->IsStageShown()
+                ||In.bFinalStage!=ChoicesPanel->IsFinalStage()||In.bShop!=ChoicesPanel->IsShopShown()
+                ||In.bServices!=(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown()))
+            {
+                In.TrayDesired=ConvergedTray;
+                In.bStage=ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel->IsFinalStage();
+                In.bServices=ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown();
+                In.bShop=ChoicesPanel->IsShopShown();
+                In.bCharacterServices=ChoicesPanel->IsServiceShown();
+                Workshop.Present(In);
+                const ULDChoicesPanel::FWorkshopPlaces FinalPlaces=Workshop.Places();
+                const FVector2D FinalInset=Workshop.TrayInset();
+                const float FinalWrap=Workshop.TrayWrapWidth();
+                const float FinalLimit=Workshop.TrayHeightLimit();
+                ChoicesPanel->SetWorkshopPlaces(FinalPlaces);
+                ChoicesPanel->SetTrayInset(FinalInset.X,FinalInset.Y,FinalWrap,FinalLimit);
+                PresentChoices();
+                PrepassChoices();
+                In.TrayDesired=ChoicesPanel->TrayDesiredSize();
+                if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
+            }
+        }
+    }
+    if(Storage){Storage->SetWorkshop(Workshop.StorageLayout());}
 }
 
 void ULDWorkshop::RefreshPhase()
@@ -1446,8 +1516,7 @@ FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerE
 {
     // The row under the wheel event itself (the band below is hidden while the workshop is open). Only while the full
     // workshop shows its character panel: a collapsed panel keeps its rows' old geometry.
-    const bool bRowsShown=Mode==EMode::Full&&CharacterPanel&&CharacterPanel->IsVisible()
-        &&!(Choices.IsValid()&&Choices->IsStageShown());
+    const bool bRowsShown=IsOpen()&&CharacterPanel&&CharacterPanel->IsVisible();
     if(bRowsShown&&StatBar.IsValid()&&Event.GetWheelDelta()!=0.f)
     {
         for(int32 Index=0;Index<StatRows.Num();++Index)

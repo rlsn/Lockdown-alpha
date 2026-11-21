@@ -1950,13 +1950,34 @@ void ULDChoicesPanel::RefreshStage()
     GrowthText(FinalLockNote,LDTerms::FinalTakenNote);
     GrowthEnabled(FinalLockButton,!PendingFinalOption.IsNone()&&Gate.bCanFinalMod&&!PendingRequest);
 }
+namespace
+{
+const FGeometry& EffectiveChoicesGeometry(const UWidget& Widget)
+{
+    for(const UWidget* Cur=&Widget;Cur;Cur=Cur->GetParent())
+    {
+        const FGeometry& TickG=Cur->GetCachedGeometry();
+        if(TickG.GetLocalSize().X>1.f&&TickG.GetLocalSize().Y>1.f){return TickG;}
+        if(TSharedPtr<SWidget> Slate=Cur->GetCachedWidget())
+        {
+            const FGeometry& PaintG=Slate->GetPaintSpaceGeometry();
+            if(PaintG.GetLocalSize().X>1.f&&PaintG.GetLocalSize().Y>1.f){return PaintG;}
+        }
+    }
+    return Widget.GetCachedGeometry();
+}
+FVector2D ChoicesAbsoluteToLayoutLocal(const FGeometry& Geometry,const FVector2D& AbsolutePoint)
+{
+    return TransformPoint(Inverse(Geometry.GetAccumulatedLayoutTransform()),AbsolutePoint);
+}
+}
 void ULDChoicesPanel::PlaceOnLayer(UWidget* Widget,const FSlateRect& Absolute,FVector2D Alignment,bool bFill)
 {
     UCanvasPanelSlot* const* Found=LayerSlots.Find(Widget);
     if(!Found||!*Found||Absolute.Right<=Absolute.Left||Absolute.Bottom<=Absolute.Top){return;}
-    const FGeometry& Geometry=GetCachedGeometry();
-    const FVector2D Min=Geometry.AbsoluteToLocal(FVector2D(Absolute.Left,Absolute.Top));
-    const FVector2D Max=Geometry.AbsoluteToLocal(FVector2D(Absolute.Right,Absolute.Bottom));
+    const FGeometry& Geometry=EffectiveChoicesGeometry(*this);
+    const FVector2D Min=ChoicesAbsoluteToLayoutLocal(Geometry,FVector2D(Absolute.Left,Absolute.Top));
+    const FVector2D Max=ChoicesAbsoluteToLayoutLocal(Geometry,FVector2D(Absolute.Right,Absolute.Bottom));
     UCanvasPanelSlot* ItemSlot=*Found;
     if(bFill)
     {
@@ -1978,13 +1999,13 @@ void ULDChoicesPanel::LayoutLayer()
         PlaceOnLayer(StageBox,Places.Stage,FVector2D::ZeroVector,true);
         // Bottom-left of the stage, clear of the phase bar above and the rest actions in the top-right corner.
         const FSlateRect& Stage=Places.Stage;
-        const FGeometry& Geometry=GetCachedGeometry();
+        const FGeometry& Geometry=EffectiveChoicesGeometry(*this);
         const float Scale=FMath::Max(.01f,Geometry.Scale);
         PlaceOnLayer(StageBack,FSlateRect(Stage.Left+16.f*Scale,Stage.Top,Stage.Right,Stage.Bottom-16.f*Scale),FVector2D(0.f,1.f));
         const FSlateRect& Dock=Places.Dock;
         const FSlateRect Description(Dock.Left+28.f*Scale,Dock.Top+16.f*Scale,Dock.Right-340.f*Scale,Dock.Bottom-16.f*Scale);
-        const float DescriptionWidth=FMath::Max(1.f,float(Geometry.AbsoluteToLocal(FVector2D(Description.Right,Description.Top)).X
-            -Geometry.AbsoluteToLocal(FVector2D(Description.Left,Description.Top)).X));
+        const float DescriptionWidth=FMath::Max(1.f,float(ChoicesAbsoluteToLayoutLocal(Geometry,FVector2D(Description.Right,Description.Top)).X
+            -ChoicesAbsoluteToLayoutLocal(Geometry,FVector2D(Description.Left,Description.Top)).X));
         for(UTextBlock* Text:{FinalDescText.Get(),FinalNumbersText.Get()})
         {if(Text&&!FMath::IsNearlyEqual(Text->GetWrapTextAt(),DescriptionWidth,.5f)){Text->SetWrapTextAt(DescriptionWidth);}}
         PlaceOnLayer(FinalDesc,Description,FVector2D::ZeroVector,true);

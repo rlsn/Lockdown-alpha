@@ -499,6 +499,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Fact.Primary=Primary;
     Fact.HitId=HitId;
     Fact.AtMs=NowMs;
+    Fact.CastLedger=Applier.CastLedger;
     OnReactionCompleted(Fact);
     // Spec §6.5: the reaction is one step of the chain it resolved in.
     ChainStep(Applier.SourceEntity,LDChain::ReactionStep(LDCombatElements::ReactionName(Reaction)),NowMs);

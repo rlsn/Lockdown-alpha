@@ -1203,8 +1203,9 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
     {
         if (GrantMomentum(*Trigger,Ref.Effect.LimitP2,ELDMomentumBook::Reaction)>0) { LedgerCardTriggered(*Trigger,Ref.Key); }
     }
-    // K25: the host skill that triggered it cuts its own remaining cooldown (once per release and copy).
-    if (Fact.TriggerSource.Kind==ELDCombatSourceKind::Learned && Fact.TriggerEffectId.IsValid() && !Reloads.IsEmpty())
+    // K25: the host skill that triggered it cuts its own remaining cooldown (once per paid release and copy).
+    if (!(Fact.CastLedger && Fact.CastLedger->bAutoRecast)
+        && Fact.TriggerSource.Kind==ELDCombatSourceKind::Learned && Fact.TriggerEffectId.IsValid() && !Reloads.IsEmpty())
     {
         if (FLDCombatEntityRecord* Record=FindRecord(Trigger->Victim.EntityId))
         {
@@ -1254,6 +1255,7 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         Applier.Source=Wave.Source;
         Applier.Level=GrowthLevelOf(*Trigger);
         Applier.SourceAPP2=FMath::Max<int64>(Trigger->AttributeProjection.Final.APP2,0);
+        Applier.CastLedger=Fact.CastLedger;
         if (!ApplyElement(*Primary,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
         if (Primary->WaveAfterExemptChainId==ChainKey) { Primary->WaveAfterExemptChainId.Invalidate(); }
         LedgerCardTriggered(*Trigger,Wave.Key);

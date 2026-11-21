@@ -87,6 +87,8 @@ public:
         bool bCharacterServices=false;
     };
     void Present(const FInput& Input);
+    static void PresentConverged(ULDWorkshop& Workshop,ULDChoicesPanel* ChoicesPanel,ULDComponentStorage* Storage,
+        FInput& In,float LayoutScale,TFunctionRef<void()> PresentChoices);
     bool IsOpen() const {return Mode!=EMode::Closed;}
     EMode GetMode() const {return Mode;}
     // Present still fades the opening in (LDHUDStyle::MotionWorkshopOpen); the HUD presents every sample meanwhile.

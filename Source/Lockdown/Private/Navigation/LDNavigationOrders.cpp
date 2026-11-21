@@ -1128,9 +1128,11 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
     {
         if (!Error.IsEmpty()) { return false; }
         const auto* Move=Cast<ULDCharacterMovementComponent>(PawnBody->GetCharacterMovement());
-        if (Failure==ELDOrderFailure::InvalidGround && Move && Move->IsDashing() && !Move->IsKnockbackMotion())
+        if ((Failure==ELDOrderFailure::InvalidGround || Failure==ELDOrderFailure::NoCompletePath)
+            && Move && Move->IsDashing() && !Move->IsKnockbackMotion())
         {
-            // Retain spatial orders issued mid-dash while traversing a ramp/step; admit as soon as the dash lands.
+            // Retain spatial orders (including out-of-range AttackUnit/CastUnit whose Plan() maps to NoCompletePath)
+            // issued mid-dash while traversing a ramp/step/obstacle; retry normal admission once the dash lands.
             FPendingOrder Retained;
             Retained.Request=Next.Request;
             Retained.Cast=Next.Cast;

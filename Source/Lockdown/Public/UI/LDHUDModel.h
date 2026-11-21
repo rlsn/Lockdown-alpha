@@ -521,6 +521,7 @@ namespace LDHUD
         int32 RangeCm=0;          // the active's current reach (the dash distance for D)
         bool bControlled=false;   // an own control status forbids this entry kind
         FString ControlLabel;     // short specific control badge when controlled (e.g. "定身", "沉默", "眩晕")
+        ELDCombatReject ServerReject=ELDCombatReject::None; // structured server unavailability reason
         FString ServerBlock;      // display text of the server's current reason; empty when none
     };
     struct FActionContext

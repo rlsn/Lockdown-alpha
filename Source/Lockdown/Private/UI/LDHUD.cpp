@@ -2186,43 +2186,12 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             In.bServices=ChoicesPanel&&(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown());
             In.bShop=ChoicesPanel&&ChoicesPanel->IsShopShown();
             In.bCharacterServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
-            const ULDChoicesPanel::FWorkshopPlaces PrevPlaces=ChoicesPanel?ChoicesPanel->WorkshopPlaces():ULDChoicesPanel::FWorkshopPlaces();
-            const FVector2D PrevInset=ChoicesPanel?ChoicesPanel->CurrentTrayInset():FVector2D(-1.f,-1.f);
-            const float PrevWrap=ChoicesPanel?ChoicesPanel->CurrentTrayWrap():-1.f;
-            const float PrevLimit=ChoicesPanel?ChoicesPanel->CurrentTrayLimit():-1.f;
-            Workshop->Present(In);
-            if(ChoicesPanel&&Workshop->IsOpen())
+            const float LayoutScale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
+            ULDWorkshop::PresentConverged(*Workshop,ChoicesPanel,Storage,In,LayoutScale,[&]()
             {
-                const ULDChoicesPanel::FWorkshopPlaces NextPlaces=Workshop->Places();
-                const FVector2D NextInset=Workshop->TrayInset();
-                const float NextWrap=Workshop->TrayWrapWidth();
-                const float NextLimit=Workshop->TrayHeightLimit();
-                if(!NextPlaces.Equals(PrevPlaces)||!NextInset.Equals(PrevInset,.5f)
-                    ||!FMath::IsNearlyEqual(NextWrap,PrevWrap,.5f)||!FMath::IsNearlyEqual(NextLimit,PrevLimit,.5f))
-                {
-                    ChoicesPanel->SetWorkshopPlaces(NextPlaces);
-                    ChoicesPanel->SetTrayInset(NextInset.X,NextInset.Y,NextWrap,NextLimit);
-                    ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC),
-                        bOwnMatch&&OwnCombat&&OwnCombat->bDormRegenActive);
-                    Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());
-                    const FVector2D ConvergedTray=ChoicesPanel->TrayDesiredSize();
-                    if(!ConvergedTray.Equals(In.TrayDesired,.5)||In.bStage!=ChoicesPanel->IsStageShown()
-                        ||In.bFinalStage!=ChoicesPanel->IsFinalStage()||In.bShop!=ChoicesPanel->IsShopShown()
-                        ||In.bServices!=(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown()))
-                    {
-                        In.TrayDesired=ConvergedTray;
-                        In.bStage=ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel->IsFinalStage();
-                        In.bServices=ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown();
-                        In.bShop=ChoicesPanel->IsShopShown();
-                        In.bCharacterServices=ChoicesPanel->IsServiceShown();
-                        Workshop->Present(In);
-                        const FVector2D FinalInset=Workshop->TrayInset();
-                        ChoicesPanel->SetWorkshopPlaces(Workshop->Places());
-                        ChoicesPanel->SetTrayInset(FinalInset.X,FinalInset.Y,Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
-                    }
-                }
-            }
-            Storage->SetWorkshop(Workshop->StorageLayout());
+                ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,
+                    ChoiceStats,HudSlotKeys(*PC),bOwnMatch&&OwnCombat&&OwnCombat->bDormRegenActive);
+            });
         }
         {
             // What each installed card did so far: its damage, else how often it triggered (the snapshot of the last rest).
