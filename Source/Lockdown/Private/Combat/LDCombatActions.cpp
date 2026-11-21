@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatCues.h"
 #include "Combat/LDGroundLanding.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -630,9 +631,8 @@ void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdenti
         FinishAction(*Body,ELDCombatReject::Cancelled,false);
         return;
     }
-    if (Body->Cues.bReleasedBasic)
+    if (LDCombatCues::CancelReleasedBasic(Body->Cues))
     {
-        Body->Cues.bReleasedBasic=false;
         ++Body->StateRevision;
         MarkViewChanged(Entity);
     }

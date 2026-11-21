@@ -27,6 +27,8 @@ namespace LDCombatCues
     // its release plus ReleaseHoldMs (a dash to its end); a winding-up action shows until it releases. Within a kind
     // the latest start wins.
     LOCKDOWN_API FCue Select(const FLDCombatCueFacts& Facts, int64 NowMs);
+    // Movement ends a released basic's recovery cue: it shows nothing more (never a Cast). Returns whether facts changed.
+    LOCKDOWN_API bool CancelReleasedBasic(FLDCombatCueFacts& Facts);
     // Whether a committed hit confirms a landed blow to its source's owner (the owner's hit receipt): real damage
     // from a direct delivery, never a damage-over-time tick, settlement, reflection or ledger payment.
     LOCKDOWN_API bool ConfirmsDealt(const FLDCombatHit& Hit, int64 DamageP2);

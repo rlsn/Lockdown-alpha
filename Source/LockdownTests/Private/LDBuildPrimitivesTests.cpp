@@ -952,6 +952,36 @@ bool FLDBasicWindupCancelRefundTest::RunTest(const FString& Parameters)
     FAccess::FinishAction(*F.Driver, F.Body(Attacker), ELDCombatReject::None, true);
     TestEqual(TEXT("A released swing keeps the cadence spent"), Record.NextAttackAtMs, int64(9000));
 
+    FLDBodyCombatState& Released = F.Body(Attacker);
+    Released.Cues.bReleasedBasic = true;
+    Released.Cues.ReleasedComboStep = 1;
+    Released.Cues.ReleasedStartedAtMs = 8000;
+    Released.Cues.ReleasedAtMs = 8300;
+    Released.ReleasedSource = {ELDCombatSourceKind::Basic, NAME_None};
+    FLDObservedPublicFacts Observed;
+    FString Error;
+    TestTrue(TEXT("The released basic is observable before its order ends"),
+        F.Driver->AppendObservedAction(F.Actor(Attacker), 8300, Observed, Error)
+        && Observed.ActionCue == ELDObservedActionCue::Attack);
+    F.Driver->CancelNavAttack(Attacker.Victim.EntityId, FLDMoveIdentity());
+    Observed = {};
+    Error.Reset();
+    const bool bObserved = F.Driver->AppendObservedAction(F.Actor(Attacker), 8300, Observed, Error);
+    TestTrue(TEXT("Ending a released basic's order does not fault its observed action"), bObserved);
+    TestTrue(TEXT("The cancelled recovery publishes no cast"),
+        bObserved && Observed.ActionCue == ELDObservedActionCue::None && Observed.ActionAbility == 0);
+    TestEqual(TEXT("Ending the order keeps the committed attack cadence"), Record.NextAttackAtMs, int64(9000));
+
+    Released.Cues.ReleasedStartedAtMs = Released.Cues.ReleasedAtMs = 8400;
+    Released.ReleasedSource = {ELDCombatSourceKind::Innate, NAME_None};
+    F.Now(8450);
+    F.Driver->CancelNavAttack(Attacker.Victim.EntityId, FLDMoveIdentity());
+    Observed = {};
+    Error.Reset();
+    TestTrue(TEXT("Ending an order leaves a real innate cast visible"),
+        F.Driver->AppendObservedAction(F.Actor(Attacker), 8450, Observed, Error)
+        && Observed.ActionCue == ELDObservedActionCue::Cast && Observed.ActionAbility == 0);
+
     // A Direct request still queued (held behind an own windup) ends with a terminal receipt when the body's effects are
     // cancelled (a training reset), never silently.
     FLDCombatActionRequest Held;

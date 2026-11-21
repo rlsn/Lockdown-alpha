@@ -35,6 +35,12 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
         Is(Select(Released,1449),Attack,1000) && Is(Select(Released,1450),None,0));
     TestEqual(TEXT("A released attack carries its actual release time"), Select(Released,1300).ImpactAtMs, int64(1250));
 
+    FLDCombatCueFacts Cancelled=Released;
+    TestTrue(TEXT("Movement cancels a released basic's recovery cue"), LDCombatCues::CancelReleasedBasic(Cancelled));
+    TestTrue(TEXT("A cancelled basic recovery never reads as a Cast"),
+        Is(Select(Cancelled,1300),None,0) && Cancelled.ReleasedAtMs==Released.ReleasedAtMs);
+    TestFalse(TEXT("Cancelling twice changes nothing"), LDCombatCues::CancelReleasedBasic(Cancelled));
+
     FLDCombatCueFacts Instant;
     Instant.ReleasedStartedAtMs=Instant.ReleasedAtMs=2000;
     TestTrue(TEXT("An instant cast is a Cast for the whole hold, longer than the 150 ms sampling minimum"),
