@@ -27,6 +27,16 @@ LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 No
     return Cast.Cue!=ELDObservedActionCue::None ? Cast : Attack;
 }
 
+bool LDCombatCues::CancelReleasedBasic(FLDCombatCueFacts& Facts)
+{
+    if (!Facts.bReleasedBasic) { return false; }
+    Facts.bReleasedBasic=false;
+    // A non-basic release with a start would read as a Cast; the release time stays for the audio release watermark.
+    Facts.ReleasedStartedAtMs=0;
+    Facts.ReleasedComboStep=0;
+    return true;
+}
+
 bool LDCombatCues::ConfirmsDealt(const FLDCombatHit& Hit, int64 DamageP2)
 {
     return DamageP2>0 && !Hit.bPeriodic && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bReflect

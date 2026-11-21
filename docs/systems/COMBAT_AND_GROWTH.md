@@ -271,6 +271,7 @@ HP/劲/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点
 公开 Root/Shield 提示同样在读取时由当前 Combat 状态派生，不另存一份可漂移的公开状态。
 动作提示由 `LDCombatCues::Select` 按 Cast > Attack 选出；被命中从不成为提示（身体保持原姿势，只叠加闪光与火花），
 `AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
+导航普攻出手后取消收招时清除收招的起手提示，保留出手时间供本人音效去重；不会将普攻投影成施法或重置已提交的普攻节拍。
 提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法技能的原生 id，
 写入公开事实的 `ActionAbility`（Q/W/E），其他提示为 0；
 D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作，不飘名称）；
