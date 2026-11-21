@@ -196,13 +196,17 @@ bool FTerrain::SweepScene(const FVector& Start, const FVector& End, const FColli
     return World && LDNativeGround::Sweep(*World, Hit, Start, End, Shape, SceneQuery);
 }
 
+bool FTerrain::TraceGround(const FVector2D& Point, FHitResult& Hit) const
+{
+    return Scene.IsValid() && TraceScene(FVector(Point, SceneBounds.Max.Z + 1), FVector(Point, SceneBounds.Min.Z - 1), Hit);
+}
+
 int32 FTerrain::Tier(const FVector2D& Point) const
 {
     if (Scene.IsValid())
     {
         FHitResult Hit;
-        if (!TraceScene(FVector(Point, SceneBounds.Max.Z + 1),
-            FVector(Point, SceneBounds.Min.Z - 1), Hit)) { return MAX_int32; }
+        if (!TraceGround(Point, Hit)) { return MAX_int32; }
         // Preserve the gameplay tier of standard terrain (a ramp is its lower level plus one half tier).
         // Its support and location still come from the current native body, even after a move or copy.
         if (const AActor* Actor = Hit.GetActor())
@@ -223,8 +227,9 @@ int32 FTerrain::Tier(const FVector2D& Point) const
     return 0;
 }
 
-bool FTerrain::GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround) const
+bool FTerrain::GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, bool bFindLowerGround, FHitResult* OutHit) const
 {
+    if (OutHit) { *OutHit = FHitResult(); }
     if (!Scene.IsValid())
     {
         FVector Normal; Ground(FVector2D(Foot),OutZ,Normal); OutTier=Tier(FVector2D(Foot)); return true;
@@ -233,6 +238,7 @@ bool FTerrain::GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, boo
     const FVector End=bFindLowerGround?FVector(Foot.X,Foot.Y,SceneBounds.Min.Z-1):Foot-FVector(0,0,StepCm+1);
     if (!LDNativeGround::Trace(*Scene.Get(),Hit,Foot+FVector(0,0,.1),End,SupportQuery)
         || Hit.bStartPenetrating || Hit.ImpactNormal.Z <= .5) { return false; }
+    if (OutHit) { *OutHit = Hit; }
     OutZ=Hit.ImpactPoint.Z;
     if (const AActor* Actor=Hit.GetActor())
     {
@@ -245,11 +251,10 @@ bool FTerrain::GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, boo
 
 void FTerrain::Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) const
 {
-    if (const UWorld* Native = Scene.Get())
+    if (Scene.IsValid())
     {
         FHitResult Hit;
-        if (TraceScene(FVector(Point, SceneBounds.Max.Z + 1),
-            FVector(Point, SceneBounds.Min.Z - 1), Hit))
+        if (TraceGround(Point, Hit))
         { OutZ = Hit.ImpactPoint.Z; OutNormal = Hit.ImpactNormal; }
         else { OutZ = std::numeric_limits<double>::quiet_NaN(); OutNormal = FVector::UpVector; }
         return;

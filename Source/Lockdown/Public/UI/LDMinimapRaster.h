@@ -19,8 +19,8 @@ namespace LDMinimapRaster
                 &&FrameSize==Other.FrameSize&&Scale==Other.Scale&&PixelScale==Other.PixelScale&&World==Other.World;
         }
     };
-    inline FLinearColor GroundColor(){return FLinearColor(.035f,.05f,.045f);}
-    inline FLinearColor CoverageColor(){return FLinearColor(.17f,.33f,.28f);}
+    inline FLinearColor GroundColor(){return FLinearColor(.16f,.23f,.18f);}
+    inline FLinearColor FogColor(){return FLinearColor(.015f,.025f,.022f,.48f);}
     struct FCoverageKey
     {
         uint64 Serial=MAX_uint64;
@@ -37,7 +37,7 @@ namespace LDMinimapRaster
     {
         if(Bits.Num()!=LDObservation::CoverageBytes){Pixels.Reset();return false;}
         Pixels.SetNumUninitialized(LDObservation::CoverageCells);
-        const FColor Hidden=GroundColor().ToFColorSRGB(),Visible=CoverageColor().ToFColorSRGB();
+        const FColor Hidden=FogColor().ToFColorSRGB(),Visible=FColor::Transparent;
         for(int32 I=0;I<Pixels.Num();++I){Pixels[I]=LDObservation::CoverageBit(Bits,I)?Visible:Hidden;}
         return true;
     }

@@ -456,12 +456,12 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     }
     FString Error;
     FLDSightGeometry Sight;
-    const auto Bind = [&]()
+    const auto Bind = [&](int32 Radius = 3000)
     {
         LDDemoWorld::FTerrain Terrain;
         if (!Terrain.Build(Geometry, Error)) { return false; }
         Terrain.BindScene(*World, FBox(FVector(-5000,-5000,-100), FVector(5000,5000,1000)));
-        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {3000,1}, Error, World, &Terrain);
+        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {Radius,1}, Error, World, &Terrain);
     };
     if (!TestTrue(TEXT("Native terrain sight binds: ") + Error, Bind())) { return false; }
     const FVector Left(-100,0,0), Right(100,0,0);
@@ -483,6 +483,55 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     Obstacle->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
     TestTrue(TEXT("Explicit sight blocker binds"), Bind());
     TestEqual(TEXT("Same-level explicit sight blocker hides units"), Sight.Trace(Left, Right), ELDSightResult::Blocked);
+
+    // A replacement ramp without an imported id spans several 25 cm half-levels in native collision.
+    auto* Ramp = Place(FVector(0,2000,160), FVector(8,4,.1));
+    Ramp->Tags.Add(LDDemoWorld::TerrainTag);
+    Ramp->SetActorRotation(FRotator(20,0,0));
+    const FVector RampLow = Ramp->GetActorTransform().TransformPosition(FVector(-40,0,50));
+    const FVector RampHigh = Ramp->GetActorTransform().TransformPosition(FVector(40,0,50));
+    const FVector FlatBesideRamp(RampLow.X, 1700, 0);
+    if (!TestTrue(TEXT("Native ramp binds"), Bind())) { return false; }
+    TestEqual(TEXT("Uphill sight crosses height bands on the ramp"), Sight.Trace(RampLow, RampHigh), ELDSightResult::Visible);
+    TestEqual(TEXT("Downhill sight crosses height bands on the ramp"), Sight.Trace(RampHigh, RampLow), ELDSightResult::Visible);
+    TestEqual(TEXT("Flat ground beside the ramp retains elevation occlusion"), Sight.Trace(FlatBesideRamp, RampHigh), ELDSightResult::Blocked);
+    constexpr int32 Side = LDObservation::CoverageSide;
+    const int32 Column = FMath::FloorToInt32((RampHigh.X + 5000.) * Side / 10000.);
+    const int32 Row = FMath::FloorToInt32((RampHigh.Y + 5000.) * Side / 10000.);
+    TArray<uint8> Coverage;
+    Sight.Coverage(RampLow, Coverage);
+    TestTrue(TEXT("Ground coverage reaches the uphill ramp surface"), LDObservation::CoverageBit(Coverage, Row * Side + Column));
+    Ramp->Tags.Add(TEXT("LDIndependentRamp"));
+    if (!TestTrue(TEXT("An independent ramp binds"), Bind())) { return false; }
+    Sight.Coverage(RampLow, Coverage);
+    TestTrue(TEXT("Ground coverage projects onto the authored ramp body"), LDObservation::CoverageBit(Coverage, Row * Side + Column));
+    if (!TestTrue(TEXT("Ramp binds with a shorter sight radius"), Bind(400))) { return false; }
+    TestEqual(TEXT("Ramp sight still obeys normal range"), Sight.Trace(RampLow, RampHigh), ELDSightResult::OutOfRange);
+    auto* RampWall = Place(FVector(0,2000,335), FVector(.2,4,2));
+    RampWall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+    if (!TestTrue(TEXT("Explicit blocker on the ramp binds"), Bind())) { return false; }
+    TestEqual(TEXT("A blocker interrupts uphill sight on the ramp"), Sight.Trace(RampLow, RampHigh), ELDSightResult::Blocked);
+
+    RampWall->Destroy();
+    const FQuat RampRotation = Ramp->GetActorQuat();
+    const double BaseZ = -RampRotation.RotateVector(FVector(-400, 0, 5)).Z;
+    Ramp->SetActorLocation(FVector(0, 2000, BaseZ));
+    const FVector GroundAtRampBase(-450, 2000, 0);
+    const FVector Uphill = Ramp->GetActorTransform().TransformPosition(FVector(40, 0, 50));
+    const FVector GroundBesideRaisedSide(Uphill.X, 1700, 0);
+    if (!TestTrue(TEXT("Ramp with a walkable entrance at ground level binds"), Bind())) { return false; }
+    TestEqual(TEXT("An observer below the ramp can see a target up its walkable entrance"),
+        Sight.Trace(GroundAtRampBase, Uphill), ELDSightResult::Visible);
+    TestEqual(TEXT("An observer below the raised side still cannot see onto the ramp"),
+        Sight.Trace(GroundBesideRaisedSide, Uphill), ELDSightResult::Blocked);
+    Sight.Coverage(GroundAtRampBase, Coverage);
+    TestTrue(TEXT("A ramp visible from its base also appears in ground coverage"), LDObservation::CoverageBit(Coverage, Row * Side + Column));
+    auto* EntranceWall = Place(FVector(-420, 2000, 150), FVector(.2, 4, 3));
+    EntranceWall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+    if (!TestTrue(TEXT("Wall across the ramp entrance binds"), Bind())) { return false; }
+    TestEqual(TEXT("A wall across the ramp entrance still blocks sight from below"),
+        Sight.Trace(GroundAtRampBase, Uphill), ELDSightResult::Blocked);
+
     auto* Guard = Place(FVector(0,1000,100), FVector(.02,4,2));
     Guard->Tags.Add(TEXT("LDDemoCliffGuard"));
     TWeakObjectPtr<AActor> RemovedGuard(Guard);
