@@ -405,7 +405,13 @@ def dash_definition(value):
 
 
 def parameter_projection(parameters):
-    result = {}
+    vision_range = {
+        "NeutralHeightCm": rational(parameters["VISION.NeutralHeightCm"]),
+        "FullHeightCm": rational(parameters["VISION.FullHeightCm"]),
+        "UphillRadiusBp": scalar(parameters["VISION.UphillRadiusScale"]),
+        "DownhillRadiusBp": scalar(parameters["VISION.DownhillRadiusScale"]),
+    }
+    result = {"VisionRange": vision_range}
     for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
         rate = stat == "HPRegen"
         result[stat] = {

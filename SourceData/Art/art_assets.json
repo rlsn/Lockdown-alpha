@@ -595,7 +595,9 @@
       "mesh": "SK_Hooper",
       "source": "Tripo/BasketballHero/Smile/BasketballHero_SmileCloth.fbx",
       "height_cm": 175,
-      "run_speed_cm_per_sec": 256.7,
+      "run_speed_cm_per_sec": 426.8,
+      "basketball_motion": "DA_HooperBasketball",
+      "basketball_source": "Animation/Hooper/motion.json",
       "hand_bone": "hand_r",
       "hip_bone": "pelvis",
       "foot_bone": "foot_l",
@@ -610,30 +612,28 @@
         {
           "state": "Idle",
           "asset": "Hooper_Idle",
-          "origin": "Quaternius Casual_2 Idle retargeted (IK Retargeter, 2026-11-11)",
+          "origin": "Basketball KB_011 Basic_Stance_Type01_RH_Loop; calibrated hooper retarget",
           "play_rate": 1.0
         },
         {
           "state": "Run",
           "asset": "Hooper_Run",
-          "origin": "Quaternius Casual_2 Run retargeted (IK Retargeter, 2026-11-11)",
+          "origin": "Basketball KB_007 Run_RH_Loop; calibrated hooper retarget",
           "play_rate": 1.0
         },
         {
           "state": "Attack",
           "asset": "Hooper_Attack",
-          "origin": "Quaternius Casual_2 Punch_Right retargeted (IK Retargeter, 2026-11-11)",
+          "origin": "Basketball KB_078 Wraparound_Pass_RH; single-hand release",
           "play_rate": 1.0,
-          "impact_sec": 0.565,
-          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+          "impact_sec": 0.76
         },
         {
           "state": "Cast",
           "asset": "Hooper_Cast",
-          "origin": "Quaternius Casual_2 Interact retargeted (IK Retargeter, 2026-11-11)",
+          "origin": "Basketball KB_148 Free_Throw_RH; two-hand gather and shot",
           "play_rate": 1.0,
-          "impact_sec": 0.736,
-          "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
+          "impact_sec": 1.466666667
         },
         {
           "state": "Hit",

@@ -1193,6 +1193,7 @@ private:
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
 #if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDCombatCancelledRecoveryCueTest;
     friend struct FLDDemoVisionReactionAccess;
     friend struct FLDDemoVisionIceAccess;
 #endif

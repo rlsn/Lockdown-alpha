@@ -419,7 +419,7 @@ bool LDMinimap::FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2
 
 namespace
 {
-// The minimap shares the registered ground bounds that observation coverage indexes.
+// Layout uses the registered ground. The coverage overlay maps its padded square-cell bounds separately.
 bool MinimapGroundBounds(const UWorld* World,FBox2D& Out)
 {
     const auto* Registry=World?World->GetSubsystem<ULDMapRegistry>():nullptr;
@@ -854,15 +854,15 @@ const FLDWorldView* MinimapAuthorizedFrame(const ALDPlayerController& PC,const F
 void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC)
 {
     const auto* Relay=PC.LocalView();
-    const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-    const FLDWorldView* Frame=MinimapAuthorizedFrame(PC,Read);
-    if(!Frame||Frame->Footprint.SourceStatus!=ELDObservationSource::ActiveBody)
+    uint64 Serial=0;
+    const TArray<uint8>* Ground=Relay?Relay->ReadGroundFog(Serial):nullptr;
+    if(!Ground)
     {Cache.CoverageKey=LDMinimapRaster::FCoverageKey();return;}
-    if(Cache.CoverageKey.Matches(Read.LocalSerial,PC.OwnerState.Match,PC.OwnerState.Life)){return;}
+    if(Cache.CoverageKey.Matches(Serial,PC.OwnerState.Match,PC.OwnerState.Life)){return;}
     if(!FApp::CanEverRender()){return;}
     TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_CoverageUpload);
     TArray<FColor> Pixels;
-    if(!ensureMsgf(LDMinimapRaster::CoveragePixels(Frame->Footprint.CurrentBits,Pixels),TEXT("Invalid authorized minimap coverage length"))){Cache.CoverageKey=LDMinimapRaster::FCoverageKey();return;}
+    if(!ensureMsgf(LDMinimapRaster::CoveragePixels(*Ground,Pixels),TEXT("Invalid ground fog coverage length"))){Cache.CoverageKey=LDMinimapRaster::FCoverageKey();return;}
     constexpr int32 Width=LDObservation::CoverageWidth,Height=LDObservation::CoverageHeight;
     if(!Cache.Coverage.IsValid())
     {
@@ -883,7 +883,7 @@ void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC
         Cache.Coverage->UpdateTextureRegions(0,1,new FUpdateTextureRegion2D(0,0,0,0,Width,Height),Width*sizeof(FColor),sizeof(FColor),Data,
             [](uint8* Bytes,const FUpdateTextureRegion2D* Regions){delete[] Bytes;delete Regions;});
     }
-    Cache.CoverageKey={Read.LocalSerial,PC.OwnerState.Match,PC.OwnerState.Life};
+    Cache.CoverageKey={Serial,PC.OwnerState.Match,PC.OwnerState.Life};
 }
 // The region the map shows: the rest room or the final arena while the owner's living body stands in it (without a body,
 // while the camera looks at it), else the field; the whole ground until the layer resolves. It is the map's own ground: the view fits it,
@@ -1086,10 +1086,15 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         const ALDWorldViewRelay* Relay=bAlive?PC->LocalView():nullptr;const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
         // Dynamic marks only come from the current authorized frame of this match and life; dead, stale or foreign frames draw none.
         const FLDWorldView* Frame=MinimapAuthorizedFrame(*PC,Read);
-        if(Frame&&Frame->Footprint.SourceStatus==ELDObservationSource::ActiveBody&&Cache.Coverage.IsValid()
-            &&Cache.CoverageKey.Matches(Read.LocalSerial,Own.Match,Own.Life))
+        const FBox2D CoverageBounds=LDObservation::MapCoverageBounds(GetWorld());
+        uint64 FogSerial=0;
+        if(CoverageBounds.bIsValid&&Relay&&Relay->ReadGroundFog(FogSerial)&&Cache.Coverage.IsValid()
+            &&Cache.CoverageKey.Match==Own.Match&&Cache.CoverageKey.Life==Own.Life)
         {
-            FSlateDrawElement::MakeBox(E,Base+4,Plane.ToPaintGeometry(),&Cache.CoverageBrush,ESlateDrawEffect::NoGamma);
+            const FVector2f CoverageAt((CoverageBounds.Min-Ground.Min)*View.Scale);
+            const FVector2f CoverageSize(CoverageBounds.GetSize()*View.Scale);
+            FSlateDrawElement::MakeBox(E,Base+4,Plane.ToPaintGeometry(CoverageSize,FSlateLayoutTransform(CoverageAt)),
+                &Cache.CoverageBrush,ESlateDrawEffect::NoGamma);
         }
         else { PlaneBox(4, RegionAt, RegionSize, LDMinimapRaster::FogColor()); }
         if(MinimapStaticReady(Cache,GetWorld(),{Region,Size,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World}))

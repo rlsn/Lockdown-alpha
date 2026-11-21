@@ -1,3 +1,4 @@
+#include "LDVisionTestParameters.h"
 #include "Combat/LDMomentum.h"
 #include "Algo/AllOf.h"
 #include "Combat/LDCombatDirector.h"
@@ -211,7 +212,7 @@ struct FLDBuildPrimitivesAccess
         ALDVisionDirector* Vision = World.SpawnActor<ALDVisionDirector>();
         if (!Registry || !Vision) { Error = TEXT("The sight world needs its map registry and observation owner."); return false; }
         Registry->WorldRevision = Revision;
-        if (!Vision->Sight.Build(Geometry, Revision, Radius, Error)) { return false; }
+        if (!Vision->Sight.Build(Geometry, Revision, Radius, LDVisionTestRange(), Error)) { return false; }
         Mode.Vision = Vision;
         return true;
     }

@@ -124,6 +124,10 @@ bool FLDCampDecisionTest::RunTest(const FString& Parameters)
             Evaluate()&&Out.Intent==ELDCampIntent::Chase&&Picked(Contender(3)));
         Candidates[0].FootCm.X+=.01;
         TestTrue(TEXT("An attacker beyond perception is not pursued"),Evaluate()&&Lost());
+        Candidates[0].FootCm=Input.FootCm+FVector(Perception*1.2,0,-120);
+        TestTrue(TEXT("A high camp member perceives farther downhill"),Evaluate()&&Picked(Contender(3)));
+        Candidates[0].FootCm=Input.FootCm+FVector(Perception*.8,0,120);
+        TestTrue(TEXT("A low camp member has shorter uphill perception"),Evaluate()&&Lost());
         Input.FootCm=Anchor-FVector(Attack,0,0);
         Candidates={Sample(Input,Contender(3),Anchor+FVector(Perception-1,0,0))};
         TestTrue(TEXT("Perception is measured from the member's current foot"),Evaluate()&&Lost());

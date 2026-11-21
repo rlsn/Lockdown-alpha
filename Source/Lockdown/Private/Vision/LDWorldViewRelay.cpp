@@ -14,6 +14,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameInstance.h"
+#include "Framework/LDGameState.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -37,6 +38,23 @@
 static_assert(LDObservedPresentation::HistorySamples * ALDVisionDirector::PublishPeriodMs
     >= LDObservedPresentation::MaxDelaySeconds * 1000 + 2 * ALDVisionDirector::PublishPeriodMs,
     "A proxy history must span the longest presentation delay plus two publish intervals.");
+
+struct FLDLocalGroundFog
+{
+    FLDSightGeometry Sight;
+    FLDWorldRevision BuildRevision;
+    FLDSightGeometry::FCoverageScan Pending;
+    TWeakObjectPtr<const ALDCharacter> Pawn;
+    uint32 Match = 0;
+    uint32 Life = 0;
+    bool bBlackout = false;
+    bool bScanning = false;
+    double NextScanAt = 0.;
+    FVector Source = FVector::ZeroVector;
+    TArray<uint8> OwnCoverage;
+    TArray<uint8> DisplayCoverage;
+    uint64 ArenaSerial = 0;
+};
 
 namespace
 {
@@ -1144,6 +1162,8 @@ bool ALDWorldViewRelay::IsShuttingDown() const
 
 void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
 {
+    if (FogMaterial) { FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), 0); }
+    GroundFog.Reset();
     FreezeForWorldTeardown();
     TArray<FLDObservedClear> Cleared;
     Receiver.Reset(ELDObservedClearReason::Disconnected, Cleared);
@@ -1280,7 +1300,6 @@ void ALDWorldViewRelay::Present(const TArray<FLDObservedClear>& Cleared)
         Proxy->Destroy();
     }
     SyncProxies();
-    UploadFog();
 }
 
 bool ALDWorldViewRelay::ReadPresentedLocation(const FGuid& Handle, uint32 ObservationEpoch, FVector& OutWorld) const
@@ -1462,17 +1481,9 @@ void ALDWorldViewRelay::SyncProxies()
 
 bool ALDWorldViewRelay::CoversPoint(const FLDWorldView& Frame, const FVector& Point) const
 {
-    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
-    FVector Min = FVector::ZeroVector, Max = FVector::ZeroVector;
-    FString Error;
-    if (!Geometry || Geometry->Surfaces.Num() != 1 || !Geometry->Surfaces[0].MinCm.ToVector(Min, Error)
-        || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error) || Max.X <= Min.X || Max.Y <= Min.Y
-        || Frame.Footprint.SourceStatus != ELDObservationSource::ActiveBody) { return false; }
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    const int32 X = FMath::FloorToInt32((Point.X - Min.X) / (Max.X - Min.X) * Width);
-    const int32 Y = FMath::FloorToInt32((Point.Y - Min.Y) / (Max.Y - Min.Y) * Height);
-    return X >= 0 && X < Width && Y >= 0 && Y < Height && LDObservation::CoverageBit(Frame.Footprint.CurrentBits, Y * Width + X);
+    if (Frame.Footprint.SourceStatus != ELDObservationSource::ActiveBody) { return false; }
+    const int32 Index=LDObservation::CoverageIndex(LDObservation::MapCoverageBounds(GetWorld()),FVector2D(Point));
+    return LDObservation::CoverageBit(Frame.Footprint.CurrentBits,Index);
 }
 
 void ALDWorldViewRelay::PresentProxies(float Delta)
@@ -1530,50 +1541,148 @@ void ALDWorldViewRelay::AttachFog()
         Camera->PostProcessSettings.AutoExposureMaxBrightness = 1.0f;
         Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
     CameraOwner = Target;
-    FogSerial = MAX_uint64;
+    FogUploadSerial = MAX_uint64;
     UploadFog();
+}
+
+const TArray<uint8>* ALDWorldViewRelay::ReadGroundFog(uint64& OutSerial) const
+{
+    OutSerial = GroundFogSerial;
+    if (!GroundFog || GroundFog->DisplayCoverage.IsEmpty()) { return nullptr; }
+    const auto* Owning = Cast<ALDPlayerController>(GetOwner());
+    return Owning && Owning->OwnerState.LifePhase == ELDLifePhase::Alive
+        && Owning->OwnerState.Match == GroundFog->Match && Owning->OwnerState.Life == GroundFog->Life
+        && Owning->GetPawn() == GroundFog->Pawn.Get() ? &GroundFog->DisplayCoverage : nullptr;
+}
+
+void ALDWorldViewRelay::UpdateGroundFog(const ALDPlayerController& Owning, double Now)
+{
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDLocalGroundFog);
+    UWorld* World = GetWorld();
+    const auto* Registry = World->GetSubsystem<ULDMapRegistry>();
+    const auto* Game = World->GetGameState<ALDGameState>();
+    const auto* Pawn = Cast<ALDCharacter>(Owning.GetPawn());
+    const FLDOwnerState& Own = Owning.OwnerState;
+    const FLDPublicMatchView* Public = Game && Game->PublicMatch.Generation == Own.Match ? &Game->PublicMatch : nullptr;
+    const auto Clear = [this]()
+    {
+        if (!GroundFog) { return; }
+        auto& Fog = *GroundFog;
+        Fog.bScanning = false;
+        Fog.NextScanAt = 0.;
+        Fog.OwnCoverage.Reset();
+        Fog.ArenaSerial = 0;
+        if (Fog.DisplayCoverage.IsEmpty()) { return; }
+        Fog.DisplayCoverage.Reset();
+        ++GroundFogSerial;
+    };
+    if (!Registry || !Registry->Enabled() || !Public || !Pawn || !Own.BodyRef.IsValid()
+        || Own.LifePhase != ELDLifePhase::Alive || Own.Life == 0
+        || (Public->Phase != ELDMatchPhase::Rest && Public->Phase != ELDMatchPhase::Development
+            && Public->Phase != ELDMatchPhase::CaptureOpen))
+    { Clear(); return; }
+
+    if (!GroundFog) { GroundFog = MakeShared<FLDLocalGroundFog>(); }
+    auto& Fog = *GroundFog;
+    if (Fog.Match != Own.Match || Fog.Life != Own.Life || Fog.Pawn.Get() != Pawn)
+    {
+        Clear();
+        Fog.Match = Own.Match;
+        Fog.Life = Own.Life;
+        Fog.Pawn = Pawn;
+    }
+    const bool bBlackout = Public->DailyModifiers.Contains(ELDDailyModifier::Blackout);
+    if (Fog.BuildRevision != Registry->Revision() || Fog.bBlackout != bBlackout)
+    {
+        Clear();
+        Fog.Sight = FLDSightGeometry();
+        Fog.BuildRevision = Registry->Revision();
+        Fog.bBlackout = bBlackout;
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        FString Error;
+        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content)
+        { UE_LOG(LogLDWorld, Warning, TEXT("Local ground fog: %s"), *Error); return; }
+        const auto& Parameters = Content->Get().Parameters;
+        FLDDemoRational Radius = Parameters.VisionRadiusCm;
+        if (bBlackout)
+        {
+            Radius.Numerator *= 10000 - Parameters.Daily.BlackoutVisionCutBp;
+            Radius.Denominator *= 10000;
+        }
+        if (!Fog.Sight.Build(*Registry->GetGeometry(), Fog.BuildRevision, Radius, Parameters.VisionRange,
+            Error, World, &Registry->GetTerrain(), true))
+        { UE_LOG(LogLDWorld, Warning, TEXT("Local ground fog: %s"), *Error); return; }
+    }
+    if (!Fog.Sight.IsValid()) { return; }
+
+    const FVector Source = Pawn->GetActorLocation() - FVector(0, 0, Pawn->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+    if (!Fog.Sight.InBounds(Source)) { Clear(); return; }
+    if ((Fog.bScanning || !Fog.OwnCoverage.IsEmpty()) && FVector::Dist2D(Source, Fog.Source) > Fog.Sight.MaximumRadius())
+    { Clear(); }
+
+    const double QuarterCell = Fog.Sight.CoverageBounds().GetSize().X / LDObservation::CoverageWidth * .25;
+    if (!Fog.bScanning && Now >= Fog.NextScanAt
+        && (Fog.OwnCoverage.IsEmpty() || !Source.Equals(Fog.Source, QuarterCell)))
+    {
+        Fog.Source = Source;
+        Fog.NextScanAt = Now + .05;
+        Fog.bScanning = Fog.Sight.BeginCoverage(Source, Fog.Pending);
+    }
+    const bool bCompleted = Fog.bScanning && Fog.Sight.ContinueCoverage(Fog.Pending, FPlatformTime::Seconds() + .002);
+    if (bCompleted)
+    {
+        Fog.bScanning = false;
+        Swap(Fog.OwnCoverage, Fog.Pending.Bits);
+    }
+
+    // Arena teammate/spectator coverage remains a server grant. A stale grant never replaces the local ground result.
+    const auto Step = Public->Timeline.Step;
+    const bool bArena = Public->Phase == ELDMatchPhase::Rest && Public->PK.Serial != 0
+        && (Step == ELDRestStep::PKReady || Step == ELDRestStep::PK);
+    const FLDObservedFrameRead Snapshot = bArena ? Receiver.Read() : FLDObservedFrameRead();
+    const bool bArenaGrant = Snapshot.Status == ELDObservedViewStatus::Current && Snapshot.Frame
+        && Snapshot.Frame->MatchGeneration == Own.Match && Snapshot.Frame->ObserverLife == Own.Life
+        && Snapshot.Frame->Footprint.CurrentBits.Num() == LDObservation::CoverageBytes;
+    const uint64 ArenaSerial = bArenaGrant ? Snapshot.LocalSerial : 0;
+    if (!bCompleted && Fog.ArenaSerial == ArenaSerial) { return; }
+    Fog.ArenaSerial = ArenaSerial;
+    TArray<uint8> Next = Fog.OwnCoverage;
+    if (bArenaGrant)
+    {
+        if (Next.IsEmpty()) { Next.Init(0, LDObservation::CoverageBytes); }
+        const auto& Grant = Snapshot.Frame->Footprint.CurrentBits;
+        for (int32 Index = 0; Index < Next.Num(); ++Index) { Next[Index] |= Grant[Index]; }
+    }
+    if (Next != Fog.DisplayCoverage)
+    {
+        Fog.DisplayCoverage = MoveTemp(Next);
+        ++GroundFogSerial;
+    }
 }
 
 void ALDWorldViewRelay::UploadFog()
 {
     if (!FogTexture || !FogTexture->GetResource() || !FogMaterial) { return; }
-    const FLDObservedFrameRead Snapshot = Receiver.Read();
-    if (Snapshot.LocalSerial == FogSerial) { return; }
-    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
-    FVector GroundMin = FVector::ZeroVector, GroundMax = FVector::ZeroVector;
-    FString Error;
-    const bool bGeometry = Geometry && Geometry->Surfaces.Num() == 1
-        && Geometry->Surfaces[0].MinCm.ToVector(GroundMin, Error)
-        && Geometry->Surfaces[0].MaxCm.ToVector(GroundMax, Error)
-        && GroundMax.X > GroundMin.X && GroundMax.Y > GroundMin.Y;
-    const bool bCurrent = bGeometry && Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
-        && Snapshot.Frame->Footprint.SourceStatus == ELDObservationSource::ActiveBody;
-    // A stale/dead/bodiless viewer loses the old appearance immediately. Unit authorization stays in Receiver.
+    uint64 Serial;
+    const TArray<uint8>* Bits = ReadGroundFog(Serial);
+    if (Serial == FogUploadSerial) { return; }
+    FogUploadSerial = Serial;
+    const bool bCurrent = Bits != nullptr;
     FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), bCurrent ? 1.f : 0.f);
     if (!bCurrent)
     {
-        FogTarget.Init(0.f, LDObservation::CoverageCells);
-        FogShown = FogTarget;
-        FogBits.Reset();
-        bFogBlending = true;
-        FogSerial = Snapshot.LocalSerial;
+        FogShown.Reset();
+        FogTarget.Reset();
+        bFogBlending = false;
         return;
     }
-    const FVector2D Span(GroundMax.X - GroundMin.X, GroundMax.Y - GroundMin.Y);
-    FogMaterial->SetVectorParameterValue(TEXT("FieldWorldMin"), FLinearColor(GroundMin.X, GroundMin.Y, 0, 0));
+    const FBox2D& Bounds = GroundFog->Sight.CoverageBounds();
+    const FVector2D Span=Bounds.GetSize();
+    FogMaterial->SetVectorParameterValue(TEXT("FieldWorldMin"), FLinearColor(Bounds.Min.X, Bounds.Min.Y, 0, 0));
     FogMaterial->SetVectorParameterValue(TEXT("FieldWorldSpan"), FLinearColor(Span.X, Span.Y, 0, 0));
-    const TArray<uint8>& Bits = Snapshot.Frame->Footprint.CurrentBits;
-    // Unit-only publications reuse the field; there are no local raycasts or extra network payloads.
-    if (FogBits != Bits || FogSpan != Span)
-    {
-        LDFogDistanceField::Build(Bits, Span.X / LDObservation::CoverageWidth, Span.Y / LDObservation::CoverageHeight, FogTarget);
-        if (FogBits.IsEmpty() || FogShown.Num() != FogTarget.Num()) { FogShown = FogTarget; }
-        FogBits = Bits;
-        FogSpan = Span;
-        bFogBlending = true;
-    }
-    FogSerial = Snapshot.LocalSerial;
+    LDFogDistanceField::Build(*Bits, Span.X / LDObservation::CoverageWidth, Span.Y / LDObservation::CoverageHeight, FogTarget);
+    if (FogShown.Num() != FogTarget.Num()) { FogShown = FogTarget; }
+    bFogBlending = true;
 }
 
 void ALDWorldViewRelay::BlendFog(float Delta)
@@ -1640,7 +1749,8 @@ void ALDWorldViewRelay::Tick(float Delta)
     const bool bTimedOut = Receiver.Tick(Now, Cleared);
     if (bTimedOut) { ++Timeouts; }
     if (bReset || bTimedOut || Cleared.Num() > 0) { Present(Cleared); }
-    else { UploadFog(); }
+    UpdateGroundFog(*Owning, Now);
+    UploadFog();
     PresentProxies(Delta);
     BlendFog(Delta);
     FadeOccludingProps(*Owning, Delta);

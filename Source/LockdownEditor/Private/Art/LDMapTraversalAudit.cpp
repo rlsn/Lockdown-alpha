@@ -475,7 +475,8 @@ FString ULDSceneAuthoringLibrary::GameplayTraversalAudit(UWorld* World, int32 Pa
     FLDSightGeometry Sight;
     FRows CoastalFailures,CoastalSamples;
     int32 NegativeCells=0,CoastalPairs=0;
-    if(Sight.Build(*Registry->GetGeometry(),Registry->Revision(),Content->Get().Parameters.VisionRadiusCm,Error,World))
+    if(Sight.Build(*Registry->GetGeometry(),Registry->Revision(),Content->Get().Parameters.VisionRadiusCm,
+        Content->Get().Parameters.VisionRange,Error,World))
     {
         TArray<FLDLegalGround> Coast;
         for(int32 Cell=0;Cell<LDObservation::CoverageCells;++Cell)

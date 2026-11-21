@@ -4,7 +4,53 @@
 #include "Development/LDDemoContentIds.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCancelledRecoveryCueTest, "Lockdown.Rules.DemoCombatCues.CancelledRecovery",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatCancelledRecoveryCueTest::RunTest(const FString& Parameters)
+{
+    const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+    if (!TestNotNull(TEXT("An isolated combat world"),World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Director=World->SpawnActor<ALDCombatDirector>();
+    auto* Actor=World->SpawnActor<ALDCharacter>();
+    if (!TestNotNull(TEXT("Combat director"),Director) || !TestNotNull(TEXT("Attacker"),Actor)) { return false; }
+
+    auto& Body=Director->Bodies.Add(Actor);
+    Body.Victim={ELDVictimKind::Contender,FGuid::NewGuid(),1};
+    Body.Cues.bReleasedBasic=true;
+    Body.Cues.ReleasedStartedAtMs=1000;
+    Body.Cues.ReleasedAtMs=1200;
+    Body.Cues.ReleasedComboStep=1;
+    Body.ReleasedSource.Kind=ELDCombatSourceKind::Basic;
+
+    constexpr int64 NowMs=1225;
+    TestEqual(TEXT("The landed basic is showing its recovery cue"),
+        LDCombatCues::Select(Director->CueFactsOf(Body),NowMs).Cue,ELDObservedActionCue::Attack);
+    Director->CancelNavAttack(Body.Victim.EntityId,FLDMoveIdentity());
+    TestEqual(TEXT("Ending the attack order clears the recovery cue"),
+        LDCombatCues::Select(Director->CueFactsOf(Body),NowMs).Cue,ELDObservedActionCue::None);
+    uint8 ObservedAbility=255;
+    TestTrue(TEXT("The observer still accepts the attacker after the order ends"),
+        Director->ObservedCastSource(*Actor,NowMs,ObservedAbility));
+    TestEqual(TEXT("A cancelled recovery carries no visible ability"),ObservedAbility,uint8(0));
+
+    Body.Cues.ReleasedStartedAtMs=1100;
+    Body.Cues.ReleasedAtMs=1200;
+    Body.ReleasedSource.Kind=ELDCombatSourceKind::Innate;
+    Director->CancelNavAttack(Body.Victim.EntityId,FLDMoveIdentity());
+    TestEqual(TEXT("The same order ending leaves a genuine cast cue intact"),
+        LDCombatCues::Select(Director->CueFactsOf(Body),NowMs).Cue,ELDObservedActionCue::Cast);
+    return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCueSelectionTest, "Lockdown.Rules.DemoCombatCues.Selection",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

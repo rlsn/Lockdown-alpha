@@ -34,6 +34,14 @@
 
 namespace
 {
+inline FLDDemoVisionRangeParameters LDVisionTestRange()
+{
+    FLDDemoVisionRangeParameters Range;
+    Range.NeutralHeightCm = {35,1}; Range.FullHeightCm = {120,1};
+    Range.UphillRadiusBp = 7500; Range.DownhillRadiusBp = 12500;
+    return Range;
+}
+
 struct FSceneFixture
 {
     UWorld* World = nullptr;
@@ -171,7 +179,7 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     TestTrue(TEXT("The physics edit invalidates the world revision"),Registry->Revision()!=Revision);
     FLDSightGeometry Sight;
     const auto Bind=[&]() {return Registry->Rebuild(F.Error)&&Sight.Build(*Registry->GetGeometry(),Registry->Revision(),
-        F.Content->Get().Parameters.VisionRadiusCm,F.Error,F.World);};
+        F.Content->Get().Parameters.VisionRadiusCm,F.Content->Get().Parameters.VisionRange,F.Error,F.World);};
     const FVector Left=Centre+Delta-FVector(100,0,0),Right=Centre+Delta+FVector(100,0,0);
     TestTrue(TEXT("Moved native sight binds"),Bind());
     TestEqual(TEXT("The moved native mesh blocks its actual sight location"),Sight.Trace(Left,Right),ELDSightResult::Blocked);
@@ -194,7 +202,7 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     TestTrue(TEXT("Reloaded collision blocks at its edited position"),Hit(Before+Delta));
     Registry=F.World->GetSubsystem<ULDMapRegistry>();Model->Destroy();
     TestTrue(TEXT("Deleting the model rebinds"),Registry->Rebuild(F.Error));
-    Sight.Build(*Registry->GetGeometry(),Registry->Revision(),F.Content->Get().Parameters.VisionRadiusCm,F.Error,F.World);
+    Sight.Build(*Registry->GetGeometry(),Registry->Revision(),F.Content->Get().Parameters.VisionRadiusCm,F.Content->Get().Parameters.VisionRange,F.Error,F.World);
     TestEqual(TEXT("Deleted geometry leaves no stale sight blocker"),Sight.Trace(Left,Right),ELDSightResult::Visible);
     return !HasAnyErrors();
 }
@@ -497,7 +505,7 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
             { if (LDNativeGround::IsSupport(*Part)) { Bounds += Part->GetBodyInstance()->GetBodyBounds(); } }
         }
         Terrain.BindScene(*World, Bounds);
-        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {Radius,1}, Error, World, &Terrain);
+        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {Radius,1}, LDVisionTestRange(), Error, World, &Terrain);
     };
     if (!TestTrue(TEXT("Native terrain sight binds: ") + Error, Bind())) { return false; }
     const FVector Left(-100,0,0), Right(100,0,0);
@@ -509,8 +517,8 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     auto* Wall = Place(FVector(150,0,200), FVector(.5,4,4));
     Wall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
     TestTrue(TEXT("Higher observer and lower wall bind"), Bind());
-    TestEqual(TEXT("High ground sees across a tall wall rooted on the lower level"),
-        Sight.Trace(FVector(-100,0,50), FVector(300,0,0)), ELDSightResult::Visible);
+    TestEqual(TEXT("A tall wall blocks the actual downhill eye-to-ground ray"),
+        Sight.Trace(FVector(-100,0,50), FVector(300,0,0)), ELDSightResult::Blocked);
     Wall->Destroy(); Plateau->Destroy();
     auto* Obstacle = Place(FVector(0,0,200), FVector(.5,4,4));
     Obstacle->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
@@ -530,17 +538,15 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Native ramp binds"), Bind())) { return false; }
     TestEqual(TEXT("Uphill sight crosses height bands on the ramp"), Sight.Trace(RampLow, RampHigh), ELDSightResult::Visible);
     TestEqual(TEXT("Downhill sight crosses height bands on the ramp"), Sight.Trace(RampHigh, RampLow), ELDSightResult::Visible);
-    TestEqual(TEXT("Flat ground beside the ramp retains elevation occlusion"), Sight.Trace(FlatBesideRamp, RampHigh), ELDSightResult::Blocked);
-    constexpr int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    const int32 Column = FMath::FloorToInt32((RampHigh.X + 5000.) * Width / 10000.);
-    const int32 Row = FMath::FloorToInt32((RampHigh.Y + 5000.) * Height / 10000.);
+    TestEqual(TEXT("A clear eye ray can see over the low side of a real ramp"), Sight.Trace(FlatBesideRamp, RampHigh), ELDSightResult::Visible);
+    const int32 RampCell=LDObservation::CoverageIndex(Sight.CoverageBounds(),FVector2D(RampHigh));
     TArray<uint8> Coverage;
     Sight.Coverage(RampLow, Coverage);
-    TestTrue(TEXT("Ground coverage reaches the uphill ramp surface"), LDObservation::CoverageBit(Coverage, Row * Width + Column));
+    TestTrue(TEXT("Ground coverage reaches the uphill ramp surface"), LDObservation::CoverageBit(Coverage,RampCell));
     Ramp->Tags.Add(TEXT("LDIndependentRamp"));
     if (!TestTrue(TEXT("An independent ramp binds"), Bind())) { return false; }
     Sight.Coverage(RampLow, Coverage);
-    TestTrue(TEXT("Ground coverage projects onto the authored ramp body"), LDObservation::CoverageBit(Coverage, Row * Width + Column));
+    TestTrue(TEXT("Ground coverage projects onto the authored ramp body"), LDObservation::CoverageBit(Coverage,RampCell));
     if (!TestTrue(TEXT("Ramp binds with a shorter sight radius"), Bind(400))) { return false; }
     TestEqual(TEXT("Ramp sight still obeys normal range"), Sight.Trace(RampLow, RampHigh), ELDSightResult::OutOfRange);
     auto* RampWall = Place(FVector(0,2000,335), FVector(.2,4,2));
@@ -561,7 +567,7 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     TestEqual(TEXT("An observer below the raised side still cannot see onto the ramp"),
         Sight.Trace(GroundBesideRaisedSide, Uphill), ELDSightResult::Blocked);
     Sight.Coverage(GroundAtRampBase, Coverage);
-    TestTrue(TEXT("A ramp visible from its base also appears in ground coverage"), LDObservation::CoverageBit(Coverage, Row * Width + Column));
+    TestTrue(TEXT("A ramp visible from its base also appears in ground coverage"), LDObservation::CoverageBit(Coverage,RampCell));
     auto* EntranceWall = Place(FVector(-420, 2000, 150), FVector(.2, 4, 3));
     EntranceWall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
     if (!TestTrue(TEXT("Wall across the ramp entrance binds"), Bind())) { return false; }
@@ -595,11 +601,10 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     TestEqual(TEXT("A below-zero observer sees itself"), Sight.Trace(Waterline, Waterline), ELDSightResult::Visible);
     TestEqual(TEXT("Changing-grade beach is visible uphill from negative Z"), Sight.Trace(Waterline, Coast), ELDSightResult::Visible);
     TestEqual(TEXT("The same changing-grade beach is visible downhill"), Sight.Trace(Coast, Waterline), ELDSightResult::Visible);
-    const int32 CoastColumn = FMath::FloorToInt32((Coast.X - Sight.MinCm().X) * Width / (Sight.MaxCm().X - Sight.MinCm().X));
-    const int32 CoastRow = FMath::FloorToInt32((Coast.Y - Sight.MinCm().Y) * Height / (Sight.MaxCm().Y - Sight.MinCm().Y));
+    const int32 CoastCell = LDObservation::CoverageIndex(Sight.CoverageBounds(), FVector2D(Coast));
     Sight.Coverage(Waterline, Coverage);
     TestTrue(TEXT("Beach coverage follows the target support above the observer"),
-        LDObservation::CoverageBit(Coverage, CoastRow * Width + CoastColumn));
+        LDObservation::CoverageBit(Coverage, CoastCell));
 
     auto* BeachWall = Place(FVector(6000,-2000,80), FVector(.2,4,4));
     BeachWall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
@@ -613,11 +618,11 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     BeachWall->Destroy();
 
     auto* CliffLow = Place(FVector(5500,-3000,-185), FVector(8,4,.1));
-    auto* CliffHigh = Place(FVector(6400,-3000,-45), FVector(10,4,.1));
+    auto* CliffHigh = Place(FVector(6400,-3000,-25), FVector(10,4,.1));
     CliffLow->Tags.Add(LDDemoWorld::TerrainTag); CliffHigh->Tags.Add(LDDemoWorld::TerrainTag);
     TestTrue(TEXT("A real negative-height cliff rebinds"), Bind());
-    TestEqual(TEXT("A negative-height cliff retains one-way elevation occlusion"),
-        Sight.Trace(FVector(5700,-3000,-180), FVector(6100,-3000,-40)), ELDSightResult::Blocked);
+    TestEqual(TEXT("A negative-height cliff taller than the virtual eye blocks uphill sight"),
+        Sight.Trace(FVector(5700,-3000,-180), FVector(6100,-3000,-20)), ELDSightResult::Blocked);
 
     auto* Guard = Place(FVector(0,1000,100), FVector(.02,4,2));
     Guard->Tags.Add(TEXT("LDDemoCliffGuard"));

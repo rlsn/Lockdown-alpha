@@ -1,5 +1,8 @@
 #include "Vision/LDViewTypes.h"
 #include "Development/LDDemoContentIds.h"
+#include "Engine/World.h"
+#include "Region/LDMapGeometry.h"
+#include "Region/LDMapRegistry.h"
 
 namespace
 {
@@ -314,6 +317,39 @@ bool LDObservation::DecodeCoverageRuns(TConstArrayView<uint8> Runs, TArray<uint8
         Written += Count;
     }
     return Written == Bits.Num();
+}
+
+FBox2D LDObservation::SquareCoverageBounds(const FBox2D& Ground)
+{
+    if (!Ground.bIsValid) { return FBox2D(ForceInit); }
+    const FVector2D Size=Ground.GetSize();
+    const double Cell=FMath::Max(Size.X/CoverageWidth, Size.Y/CoverageHeight);
+    const FVector2D HalfSpan=FVector2D(CoverageWidth,CoverageHeight)*(.5*Cell);
+    return FBox2D(Ground.GetCenter()-HalfSpan,Ground.GetCenter()+HalfSpan);
+}
+
+FBox2D LDObservation::MapCoverageBounds(const UWorld* World)
+{
+    const auto* Registry=World?World->GetSubsystem<ULDMapRegistry>():nullptr;
+    const auto* Geometry=Registry&&Registry->Enabled()?Registry->GetGeometry():nullptr;
+    FVector Min,Max;
+    FString Error;
+    if (!Geometry || Geometry->Surfaces.Num()!=1 || !Geometry->Surfaces[0].MinCm.ToVector(Min,Error)
+        || !Geometry->Surfaces[0].MaxCm.ToVector(Max,Error) || Max.X<=Min.X || Max.Y<=Min.Y)
+    { return FBox2D(ForceInit); }
+    FBox2D Bounds{FVector2D(Min),FVector2D(Max)};
+    const FBox& Native=Registry->GetTerrain().NativeBounds();
+    if (Native.IsValid) { Bounds+=FVector2D(Native.Min); Bounds+=FVector2D(Native.Max); }
+    return SquareCoverageBounds(Bounds);
+}
+
+int32 LDObservation::CoverageIndex(const FBox2D& Bounds,const FVector2D& Point)
+{
+    if (!Bounds.bIsValid || !Bounds.IsInsideOrOn(Point)) { return INDEX_NONE; }
+    const FVector2D Cell=(Point-Bounds.Min)/Bounds.GetSize();
+    const int32 X=FMath::Min(CoverageWidth-1,FMath::FloorToInt(Cell.X*CoverageWidth));
+    const int32 Y=FMath::Min(CoverageHeight-1,FMath::FloorToInt(Cell.Y*CoverageHeight));
+    return Y*CoverageWidth+X;
 }
 
 bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error)

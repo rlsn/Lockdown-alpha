@@ -469,9 +469,11 @@ bool ULDMapRegistry::ValidateSpawnReservation(const TSharedPtr<const FLDSpawnRes
     if (!ContentCapsule(*Content,Capsule,Error)) { return false; }
     FCollisionQueryParams Query(SCENE_QUERY_STAT(DemoSpawnCommit));
     if (PreparedBody) { Query.AddIgnoredActor(PreparedBody); }
-    if (GetWorld()->OverlapAnyTestByObjectType(Reservation->Origin,FQuat::Identity,
+    const FVector Origin=PreparedBody ? PreparedBody->GetActorLocation() : Reservation->Origin;
+    if (LDSpawnPlacement::OverlapsStatic(*GetWorld(),Origin,Capsule)
+        || GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
         FCollisionObjectQueryParams(ECC_Pawn),Capsule,Query))
-    { Error=TEXT("SpawnBlocked: a physical body entered the held placement before commit."); return false; }
+    { Error=TEXT("SpawnBlocked: the prepared capsule overlaps physical collision before commit."); return false; }
     Error.Reset();
     return true;
 }

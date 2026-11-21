@@ -4,6 +4,7 @@
 #include "Containers/ArrayView.h"
 #include "Combat/LDCombatTypes.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Development/LDDemoContentDefinitions.h"
 
 class FLDDemoContentSnapshot;
 struct FLDDemoWorldGeometry;
@@ -30,6 +31,7 @@ struct LOCKDOWN_API FLDBossRules
     int64 AppearAtMs = 0;
     int64 LeaveAtMs = 0;
     double AggroRadiusCm = 0;
+    FLDDemoVisionRangeParameters VisionRange;
     double AttackRangeCm = 0;
     int64 AttackerMemoryMs = 0;
     FName MonsterId;
