@@ -392,9 +392,11 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
-    UPROPERTY() TObjectPtr<UBorder> PromptBadge;
-    UPROPERTY() TObjectPtr<UTextBlock> PromptBadgeText;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptBadgeSlot;
+    // The counts on the 构筑 button's corner, one per kind of waiting decision: skills (an active offer and the blueprints,
+    // blue square), build cards (gold tall) and the final mod (pink round), right to left in that order.
+    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptBadges;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptBadgeTexts;
+    UPROPERTY() TArray<TObjectPtr<UCanvasPanelSlot>> PromptBadgeSlots;
     int32 PromptOffers=0;
     int32 PromptCardOffers=0;
     double PromptPulseAt=-1;
