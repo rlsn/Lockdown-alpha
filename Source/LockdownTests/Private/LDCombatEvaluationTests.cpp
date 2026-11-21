@@ -399,6 +399,8 @@ bool FLDDemoTimingDomainTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(*this, Catalog)) { return false; }
     auto Input = TimingInput(*Catalog);
+    Input.BaseAttackSpeed = Rate(3, 4);
+    Input.BaseWindupMs = int64(300);
     Input.CurrentAttackSpeed = Rate(36028797018963967LL, 18014398509481984LL);
     if (!CheckTiming(*this, TEXT("Reciprocal just above an integer must ceil"), Input, *Catalog, 501, 113)) { return false; }
     Input.CurrentAttackSpeed = Rate(2);
