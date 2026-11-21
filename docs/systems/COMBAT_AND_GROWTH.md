@@ -335,7 +335,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
 减速与限时增益的纯规则在 `LDTacticalRules`（`ApplySlow`、`StrongestSlowBp`、`DispelSlows`、`ApplyTimedBonus`、`TemporaryTerms`）；
 减速只减移速，按效果实例保存，只取最强一个。破防与灼烧见下文“构筑 v7 战斗原语”。
-伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者生命上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带生命上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/生命上限，以及按施放者当前等级成长后的数值，见“技能等级成长”）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
+伤害系数为基础值、`ad_ratio`、`ap_ratio`、`adaptive_ratio`（额外攻击力 × 1.4 ≥ 法强时按额外攻击力走物理伤害，否则按法强走魔法伤害，`LDTactical::EffectiveDamageType`）与 `max_hp_ratio`（施放者生命上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带生命上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/生命上限，以及按施放者当前等级成长后的数值，见“技能等级成长”）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
 的逐目标合法性与视线检查）各得一份；控制与减速随命中经 `CommitControl` 施加。
 施放者离局时 `CancelEntityEffects` 一并移除其减速、灼烧层、区域与路径扫掠，营地回位清空全部临时项。
 
@@ -414,9 +414,9 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   的 Bp 相加，再把各组的 (1 + ΣBp) 相乘，结果以 `DAMAGE.FactorTechCap` 为技术上限（触顶 `LD_DAMAGE_FACTOR_CAPPED`），负值、无名键或
   int64 溢出明确失败。`EvaluateDamage` 读 `DamageFactorBp`（10000 = ×1），在暴击之后、抗性之前乘一次。释放时锁定的乘区
   （K09/K12 `skill_damage_factor`、K16 闲置、K17 成长）挂在 `FLDCombatCastLedger::Factors` 上，随本次释放的每个原生直接命中生效；
-- **关键石**（单项 18 点）：体格缩短脱战与躺平角回复等待并在战斗中按间隔给最大生命份额的护盾（`RegenerateBodies`）；
-  脸皮让下一次敌方直接伤害按份额减少、按间隔一次（`KeystoneGuardCapBp`）；力道对减速、减攻速、击退中或受硬控目标加乘区；
-  脑力在触发反应（含勋章）时给固定劲并减少全部冷却中技能的冷却（`ApplyElement`）；身手缩短 D 冷却并在冲刺完成后武装强化普攻。
+- **关键石**（单项 18 点）：体格缩短脱战与躺平角回复等待，并把有效技能/吸血治疗按比例转为有上限的护盾（`HealBody`）；
+  脸皮让单次抗性后达门槛的敌方直接伤害按 `Max(Flat, 份额)` 减免并回劲、按间隔一次（`KeystoneGuardP2/CapBp`）；力道对减速、减攻速、击退中或受硬控目标加乘区，并在主普攻暴击或第 3 段命中参赛者时附加目标当前生命比例的物理伤害；
+  脑力在付费施法或零耗劲勋章触发反应时返还劲耗比例/固定劲并减少全部冷却中已学技能的冷却（`ApplyElement`，免费自动重放不触发）；身手缩短 D 冷却、冲刺起步给移速并在自愿冲刺完成后武装强化普攻与移速。
   K04 记号、Y22 蓄力、Y27 反应倍率与力道关键石在命中时加入。Y22 与 K16 只按当前交战（`MarkEngaged` 记下的 `FightStartedAtMs`，
   距上次战斗事件不超过 `MOMENTUM.IdleDelaySec`）中的闲置计时，开打前最多带入 `CARDS.IdleCarrySec`（`IdleCountFloorMs`）。`LD_HIT` 写 `factor_bp` 与 `factors=键:Bp,...`。
 - **连锁保护**（spec §3.8）：`FLDCombatHit::ChainDepth` 是派生深度；`ApplyPendingHits` 给每个派生命中记上一层，超过 `CHAIN.MaxDepth`
@@ -433,8 +433,8 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
   不触发技能本身效果）；A04 第 3 段真实击退；A06 第 3 段变成 N+1 下，各 0.8；A09 超出攻速上限的部分换成多打一下的概率；
   A11 附加法强魔法伤害（`FLDCombatHit::bRider` 骑乘命中，与主击共享暴击与乘区，不再触发）；A12 同一目标连续命中叠攻速；
   A14 主击加破防；A05 普攻变成飞行物（射程投影加长，命中即停）；A07 第 3 段扇形横扫；
-  A08 第 3 段命中按 Q 的射程以缩放效果放 Q（`QueueComboCast`，`bWholeEffectShare`：伤害、护盾、治疗的基础与系数及控制与附带控制时长都按份额缩放；不耗劲、不进冷却、不触发爆劲）；A10 低攻速换普攻乘区；
-  A13 普攻命中参赛者计数成长攻击力。
+  A08 第 3 段命中按 Q 的射程以缩放效果放 Q（`QueueComboCast`，`bWholeEffectShare`：伤害、护盾、治疗按 45% 份额缩放，硬控时长按 50% 缩放；不耗劲、不进冷却、不触发爆劲）；A10 低攻速换普攻乘区；
+  A13 普攻命中参赛者/野怪计数成长攻击力与攻速。
 - **技能牌**（宿主是 `Active` 那个已学技能）：K01/D02 命中或接触后其他技能冷却减少（`HasteOtherActives`）；K02 命中回劲；K04 记号；
   K06 释放后排程 N 次自动重放（`ScheduleAutoRecasts`，60% 效果、不耗劲，`RunAutoRecasts` 在动作阶段执行）；K08/K09 冷却与劲耗
   倍率在 `CompileCardActive` 编进 `FLDCombatActiveTerms`（同名相加）；K12 改用生命支付（`HPCostBpPerMomentum`，生命不足拒绝）；
@@ -445,11 +445,11 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴�
 - **元素勋章**（`ELDCardForm::Medal`，`skill_element`）：在技能的元素槽里，宿主的命中带该元素（烫按 `stacks` 层）；在本体的元素槽里，
   `CardsOn(SkillElement, Basic)` 只把它加到最后一段普攻主击上。勋章不占容量（`LDProgression::InstalledCards` 不计），每个宿主一枚，
   装第二枚把第一枚换回牌库（`ApplyInstallCard`）。
-- **冲刺牌**：D01 接触参赛者刷新冲刺冷却，接触野怪或 Boss 只减剩余冷却的 30%（`OnDashContact`，每次冲刺一次）；D03 冲刺结束武装强化普攻；D05 冲刺分段（`SplitSegments`，同名多份多段，
+- **冲刺牌**：D01 接触参赛者刷新冲刺冷却，接触野怪或 Boss 减剩余冷却的 50%（`OnDashContact`，每次冲刺一次）；D03 冲刺结束武装强化普攻；D05 冲刺分段（`SplitSegments`，同名多份多段，
   冷却不变）；D06 穿过敌人，对每个穿过的身体经 `MakeBasicStrike` 打一次普攻（算普攻命中，不推进连击）；D12 接触挂麻；
   D04 完美闪避后下一个技能免劲（`FreeCasts`，`OnPerfectDodgeCards`）；D07 冲刺加长并撞人（`DashRamHit`）；D08 冲刺耗劲换冷却
   （`DashMomentumCostP2`）；D09 完美闪避计数成长移速。
-- **本体牌**：Y01 直接伤害（含护盾吸收）按 25%/份反弹魔法伤害，反弹不再反弹、可吸血；Y02 击杀或助攻刷新全部技能冷却并回满劲
+- **本体牌**：Y01 直接伤害（含护盾吸收）按 25%/份反弹魔法伤害，反弹不再反弹、不暴击、不吸血；Y02 击杀或助攻刷新全部技能冷却并回满劲
   （`OnCardTakedown`）；Y03 低血 2 s 内每次伤害降为 1（每条命一次）；Y04/Y05 反应回劲/挂新元素；Y07 受伤护盾（冷却按持有者）；
   Y08 击退撞墙眩晕、撞人两人受伤；Y09 技能可暴击；Y10 吸血对技能生效；Y14 溢出治疗转护盾（`OverhealShield`，与现有护盾取强）；
   Y16 技能急速换技能命中回劲；Y17 普攻吸血；Y19/Y20/Y21 本局成长（计数乘以当前持有的成长牌，`CardGrowthTerms`；成长事件时 `RefreshCardGrowth` 重算，构筑变更的 `PrepareBuildChange` 按提议的牌重算，卸下即失去、加装即按已有计数生效）；A11/K13 的附带伤害不触发任何效果，包括受击方的技能分支效果；Y22 不造成伤害的时间转下一次伤害乘区；

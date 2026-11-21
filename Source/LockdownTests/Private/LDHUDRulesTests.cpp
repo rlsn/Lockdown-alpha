@@ -1125,6 +1125,9 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             R.Stage.bIsValid&&R.Dock.bIsValid&&R.Stage.Min.X>=0.&&R.Stage.Max.X<=Size.X
             &&R.Dock.Min.X>=0.&&R.Dock.Max.X<=Size.X&&R.Stage.Min.Y>=0.&&R.Stage.Max.Y<=R.Dock.Min.Y
             &&R.Dock.Max.Y<=Size.Y);
+        TestTrue(At+TEXT(": persistent CharacterPanel stays visible beside Stage without overlap"),
+            R.Character.bIsValid&&R.Character.GetSize().X>=200.&&R.Character.GetSize().Y>=200.
+            &&R.Character.Max.X<=R.Stage.Min.X&&R.Character.Max.X<=R.Dock.Min.X);
     }
     Input.bStage=false;Input.bFinalStage=false;Choices->LeaveStage();
     for(int32 Tick=0;Tick<30;++Tick){Frame();}
@@ -1245,6 +1248,12 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             TestTrue(At+TEXT(": full-width dock is below all three panels"),
                 R.Dock.Min.X<=R.Character.Min.X&&R.Dock.Max.X>=R.Library.Max.X&&R.Dock.Min.Y>=R.Character.Max.Y
                 &&R.Dock.Min.Y>=R.Board.Max.Y&&R.Dock.Min.Y>=R.Pending.Max.Y);
+        }
+        else
+        {
+            TestTrue(At+TEXT(": field mode keeps compact CharacterPanel visible above Dock with positive LibraryBody height"),
+                R.Character.bIsValid&&R.Character.GetSize().X>=200.&&R.Character.GetSize().Y>=100.
+                &&R.Character.Max.Y<=R.Dock.Min.Y&&R.LibraryBody.bIsValid&&R.LibraryBody.GetSize().Y>30.);
         }
         TestTrue(At+TEXT(": library has a usable page"),Workshop->LibraryFit.bFits&&!Storage->Cards.IsEmpty());
         const int32 Pages=Workshop->LibraryFit.Pages.Num();
@@ -2562,6 +2571,34 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
                     }
                 }
             }
+        }
+
+        // INPUT-05 UI: Controlled and phase-locked action slots display specific short badges ("定身", "沉默", "眩晕", "禁").
+        {
+            FLDCombatStatusView RootSt;RootSt.StatusId=uint8(ELDDemoStatusId::Root);RootSt.ControlBlocks=uint8(ELDCombatControlBlock::Displacement);
+            FLDCombatStatusView SilSt;SilSt.StatusId=uint8(ELDDemoStatusId::Silence);SilSt.ControlBlocks=uint8(ELDCombatControlBlock::Cast);
+            FLDCombatStatusView StunSt;StunSt.StatusId=uint8(ELDDemoStatusId::Stun);StunSt.ControlBlocks=uint8(ELDCombatControlBlock::Cast)|uint8(ELDCombatControlBlock::Displacement);
+            const TArray<FLDCombatStatusView> RootAndSil{RootSt,SilSt};
+            TestEqual(TEXT("Root status produces 定身 badge for displacement slots"),
+                LDHUD::ControlStatusBadge(RootAndSil,uint8(ELDCombatControlBlock::Displacement)),FString(TEXT("定身")));
+            TestEqual(TEXT("Silence status produces 沉默 badge for cast slots"),
+                LDHUD::ControlStatusBadge(RootAndSil,uint8(ELDCombatControlBlock::Cast)),FString(TEXT("沉默")));
+            TestEqual(TEXT("Stun outranks Silence/Root with 眩晕 badge"),
+                LDHUD::ControlStatusBadge({RootSt,SilSt,StunSt},uint8(ELDCombatControlBlock::Cast)),FString(TEXT("眩晕")));
+
+            LDHUD::FActionInput DashIn;DashIn.Slot=LDHUD::EActionSlot::Dash;DashIn.bProjected=true;DashIn.bHasSource=true;
+            DashIn.Name=TEXT("冲刺");DashIn.bControlled=true;
+            DashIn.ControlLabel=LDHUD::ControlStatusBadge(RootAndSil,uint8(ELDCombatControlBlock::Displacement));
+            LDHUD::FActionContext ActCtx;ActCtx.KeyLabel=TEXT("D");ActCtx.bOwnContext=true;ActCtx.bPlaying=true;ActCtx.bAlive=true;
+            ActCtx.bClock=true;ActCtx.NowMs=1000;
+            const LDHUD::FActionView DashView=LDHUD::Action(DashIn,ActCtx);
+            TestTrue(TEXT("Rooted Dash slot shows Controlled look and 定身 badge"),
+                LDHUD::ActionLook(DashView,false)==LDHUD::EActionLook::Controlled&&DashView.LockBadge==TEXT("定身"));
+
+            LDHUD::FActionInput PhaseIn;PhaseIn.Slot=LDHUD::EActionSlot::Q;PhaseIn.bProjected=true;PhaseIn.bHasSource=true;PhaseIn.Name=TEXT("肘击");
+            LDHUD::FActionContext LockedCtx=ActCtx;LockedCtx.bPlaying=false;
+            const LDHUD::FActionView LockedView=LDHUD::Action(PhaseIn,LockedCtx);
+            TestEqual(TEXT("Phase-locked slot shows 禁 badge"),LockedView.LockBadge,FString(TEXT("禁")));
         }
     }
     return true;

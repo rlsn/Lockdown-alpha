@@ -21180,7 +21180,7 @@
     },
     {
       "description_key": "card_spiky_hide.description",
-      "description_text": "受到敌人的直接伤害（含被护盾挡下的）时，把其中 [thorns.ratio]% 作为魔法伤害反弹给出手的人；反弹可以吸血，不会暴击。",
+      "description_text": "受到敌人的直接伤害（含被护盾挡下的）时，把其中 [thorns.ratio]% 作为魔法伤害反弹给出手的人；反弹不能吸血，不会暴击。",
       "icon_id": "icon_card_spiky_hide",
       "id": "card_spiky_hide",
       "name_key": "card_spiky_hide.name",

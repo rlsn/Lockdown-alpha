@@ -812,6 +812,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     TickPointer();
     TickHeldMove();
     if (!bFollowing || !Body || PC->HasAuthority()) { return; }
+    if (Body->GetCharacterMovement()->HasRootMotionSources()) { LastProgress=Now; return; }
     if (LDPathSteering::AtGoal(*Body,Destination,AcceptanceRadius)) { bFollowing=false; LDPathSteering::HaltLocomotion(Body); return; }
     FVector Input=LDPathSteering::Steering(Points,PointIndex,*Body);
     const ALDGameState* Public=GetWorld()->GetGameState<ALDGameState>();

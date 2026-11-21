@@ -30,8 +30,13 @@
 #include "UObject/StrongObjectPtr.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Framework/LDGameState.h"
+#include "Framework/LDMatchProviders.h"
 #include "Misc/AutomationTest.h"
 #include "LDTestApprovedFixture.h"
+#include "UI/LDHUDModel.h"
 #include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -121,6 +126,7 @@ struct FLDBuildPrimitivesAccess
     static bool StartChain(ALDCombatDirector& Driver, const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& Foot,
         const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error) { return Driver.StartChain(Payload, First, Foot, Bounce, NowMs, Error); }
     static TArray<FLDCombatReactionFact>& Reactions(ALDCombatDirector& Driver) { return Driver.ReactionFacts; }
+    static bool RunAutoRecasts(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.RunAutoRecasts(NowMs, Error); }
     static void SeedCritRandom(ALDCombatDirector& Driver, int32 Seed) { Driver.CritRandom.Initialize(Seed); }
     static bool AdvanceElements(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceElements(NowMs, Error); }
     static bool ReleaseBrace(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, int64 NowMs,
@@ -2675,12 +2681,109 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK06Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleK06Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_encore"), ELDDemoEffectOp::AutoRecast, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+    if (!RunCardRule(*this, {TEXT("card_encore"), ELDDemoEffectOp::AutoRecast, ELDCardTargetKind::Skill}, [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
 {
     FLDCombatActiveTerms Terms;
     return HostTerms(*this, F, Holder, Terms) && TestTrue(TEXT("K06: one repeat per copy, 0.6 s later at 60%"),
         Terms.AutoRecasts == Copies && Terms.AutoRecastDelayMs == 600 && Terms.AutoRecastScaleBp == 6000);
-});
+}))
+    {
+        return false;
+    }
+
+    // Regression (CARD-05): a free K06 auto-recast deals its 60% scaled effect without granting unpaid once-per-cast
+    // momentum or cooldown refunds (card_pay_back, card_next_up, card_again_now track CD, or keystone_brains CD/momentum).
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, 500000);
+    const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 5000000);
+    F.Place(Holder, 0., 0.);
+    F.Place(Target, 260., 0.);
+    // Install active_hose_down (DirectionLine 600cm, applies Wet) on Q + active_elbow on W, with K06/K08/K02/K01 on Q + 18 Brains.
+    const FName HoseId(TEXT("active_hose_down")), ElbowId(TEXT("active_elbow"));
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindOrAdd(Holder.Victim.EntityId);
+    Record.Kind = ELDVictimKind::Contender;
+    Record.Entity = Holder.Victim.EntityId;
+    Record.Build.Level = 16;
+    Record.Build.StatPoints = {FLDStatPointsValue(TEXT("stat_brains"), 18)};
+    Record.Build.Actives = {{HoseId, ELDCombatEntry::Q}, {ElbowId, ELDCombatEntry::W}};
+    Record.Build.Cards = {
+        {FName(TEXT("card_encore")), 1, ELDCardTargetKind::Skill, HoseId},
+        {FName(TEXT("card_again_now")), 2, ELDCardTargetKind::Skill, HoseId},
+        {FName(TEXT("card_pay_back")), 3, ELDCardTargetKind::Skill, HoseId},
+        {FName(TEXT("card_next_up")), 4, ELDCardTargetKind::Skill, HoseId}
+    };
+    FLDAttributeBuildValues BuildVals(16, Record.Build.StatPoints);
+    BuildVals.Cards = Record.Build.Cards;
+    FString Error;
+    const auto Projected = LDAttributeProjection::Project(BuildVals, *F.Catalog);
+    if (!TestTrue(TEXT("K06 + K08 + K02 + K01 + 18 Brains build projects"), Projected.IsSuccess()))
+    {
+        return false;
+    }
+    const FLDAttributeProjection Proj = Projected.Value.GetValue();
+    Record.Projection = Proj;
+    FLDBodyCombatState& HolderBody = F.Body(Holder);
+    HolderBody.BuildProjection = HolderBody.AttributeProjection = Proj;
+    HolderBody.Resources.MomentumP2 = 10000;
+    Record.Tracks.Reset();
+    TrackOf(F, Holder, TEXT("active_hose_down"), 0);
+    TrackOf(F, Holder, TEXT("active_elbow"), 9000);
+
+    // Prime Target with Rot at t=1000 so paid Hose (Wet) triggers Ferment, then re-prime Rot at t=1600 before K06 repeat!
+    F.Now(1000);
+    if (!TestTrue(TEXT("Prime Rot before paid cast"),
+        FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Rot, Holder,
+            SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow")), 1000, Error)))
+    {
+        AddError(Error);
+        return false;
+    }
+    FLDCombatAction CastAction;
+    CastAction.Kind = ELDCombatActionKind::Ability;
+    CastAction.Token = 1;
+    CastAction.Entry = ELDCombatEntry::Q;
+    CastAction.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_hose_down"));
+    CastAction.Direction = FVector(1., 0., 0.);
+    CastAction.StartedAtMs = CastAction.ReleaseAtMs = 1000;
+    ELDCombatReject Reject = ELDCombatReject::None;
+    if (!TestTrue(FString::Printf(TEXT("Paid Hose releases (reject=%d): %s"), int32(Reject), *Error),
+        FAccess::ReleaseAbility(*F.Driver, F.Actor(Holder), HolderBody, CastAction, Reject, Error) && Reject == ELDCombatReject::None)
+        || !TestTrue(TEXT("Paid Hose hit settles: ") + Error, FAccess::ApplyPendingHits(*F.Driver, 1000, Error)))
+    {
+        return false;
+    }
+    const int64 PaidHoseReadyAt = TrackOf(F, Holder, TEXT("active_hose_down"), Record.Tracks[0].ReadyAtMs).ReadyAtMs;
+    const int64 ElbowReadyAfterPaid = Record.Tracks[1].ReadyAtMs;
+    const int64 TargetHpAfterPaid = F.Body(Target).Resources.HpP2;
+    TestTrue(TEXT("Paid cast reduced cooling Elbow via K01 + Brains"), ElbowReadyAfterPaid < 9000);
+
+    // Advance past reaction lock (1600ms >= 1500ms), keep Target in line at 300cm, re-apply Rot, and run the free K06 repeat.
+    F.Place(Target, 300., 0.);
+    F.Now(1600);
+    F.Body(Target).ReactionLockedUntilMs = 0;
+    F.Body(Target).ElementMark = FLDCombatElementMark();
+    if (!TestTrue(TEXT("Prime Rot before free K06 repeat"),
+        FAccess::ApplyReactionElement(*F.Driver, F.Body(Target), ELDCombatElement::Rot, Holder,
+            SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow")), 1600, Error)))
+    {
+        AddError(Error);
+        return false;
+    }
+    HolderBody.Resources.MomentumP2 = 2000;
+    FAccess::Reactions(*F.Driver).Reset();
+    if (!TestTrue(TEXT("Free K06 auto-recast runs at +600ms: ") + Error, FAccess::RunAutoRecasts(*F.Driver, 1600, Error))
+        || !TestTrue(TEXT("Free K06 auto-recast hit settles: ") + Error, FAccess::ApplyPendingHits(*F.Driver, 1600, Error)))
+    {
+        return false;
+    }
+    const int64 ReactionBaseGain = FAccess::Reactions(*F.Driver).IsEmpty() ? 0 : F.Catalog->Get().Parameters.Momentum.ReactionP2;
+    TestTrue(TEXT("Free K06 repeat dealt scaled damage to Target"), F.Body(Target).Resources.HpP2 < TargetHpAfterPaid);
+    TestEqual(TEXT("Free K06 repeat preserves K08 host cooldown ReadyAtMs without refunding CD"), Record.Tracks[0].ReadyAtMs, PaidHoseReadyAt);
+    TestEqual(TEXT("Free K06 repeat grants zero K01/Brains cooldown cuts to other cooling skills"), Record.Tracks[1].ReadyAtMs, ElbowReadyAfterPaid);
+    TestEqual(TEXT("Free K06 repeat grants zero unpaid K02/SkillHit/Brains-cast momentum refunds"),
+        HolderBody.Resources.MomentumP2, 2000 + ReactionBaseGain);
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleK08Test, "Lockdown.Rules.Combat.Cards.K08",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -2822,6 +2925,18 @@ bool FLDCardRuleY01Test::RunTest(const FString& Parameters)
         Reflect && Reflect->Target.Victim == Attacker.Victim && Reflect->DamageType == ELDDemoDamageType::Magical
         && Reflect->BaseP2 == Dealt * 2500 * Copies / 10000);
     bGood &= TestTrue(TEXT("Y01: a reflection never lifesteals"), Reflect && !Reflect->bLifesteal && Reflect->LifestealRatioBp == 0);
+    if (Copies == 1)
+    {
+        TSharedPtr<const FLDDemoContentSnapshot> RuntimeSnap;
+        FString LoadErr;
+        if (TestTrue(TEXT("Y01 runtime content loads for display check"), LDDemoEntry::LoadRuntimeContent(RuntimeSnap, LoadErr) && RuntimeSnap.IsValid()))
+        {
+            const FLDDemoDisplayDefinition* Disp = RuntimeSnap->Get().Display.FindByPredicate(
+                [](const FLDDemoDisplayDefinition& Row) { return Row.Id == TEXT("card_spiky_hide"); });
+            bGood &= TestTrue(TEXT("Y01 display text states reflection cannot lifesteal or crit"),
+                Disp && Disp->DescriptionText.Contains(TEXT("反弹不能吸血，不会暴击")));
+        }
+    }
     // A reflection is never reflected back.
     if (Reflect)
     {
@@ -4071,6 +4186,241 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
         FAccess::HealSourced(*F.Driver, PhysiqueBody, 20000, SourceOf(ELDCombatSourceKind::Learned, TEXT("active_not_mad")), HealError)
         && PhysiqueBody.Resources.ShieldP2 == 10000 && PhysiqueBody.KeystonePhysiqueReadyAtMs == 6000);
     return true;
+}
+
+bool LDTestRunDashOrderRetention(FAutomationTestBase& Test)
+{
+    using namespace LDBuildPrimitivesTests;
+    LDMatchProviders::FScopedTestTable Providers({});
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(true)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    uint32 Instance = 600;
+    FString Short, PackageName;
+    do
+    {
+        Short = FString::Printf(TEXT("UEDPIE_%u_%s"), Instance++, *FPackageName::GetShortName(LDDemoEntry::WorldMap));
+        PackageName = FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap) / Short;
+    }
+    while (FindPackage(nullptr, *PackageName));
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, FName(*Short), CreatePackage(*PackageName), true,
+        ERHIFeatureLevel::Num, &Values);
+    if (!Test.TestNotNull(TEXT("Dash-retention world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+
+    TSharedPtr<const FLDDemoContentSnapshot> Runtime;
+    TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+    FString StepErr;
+    const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+    if (!Definition || !LDDemoEntry::LoadRuntimeContent(Runtime, StepErr) || !Definition->Read(*Runtime, Geometry, StepErr))
+    {
+        Test.AddError(TEXT("Dash-retention world geometry: ") + StepErr);
+        return false;
+    }
+    // Pick an open spawn anchor from the approved Demo world so sight between Self and Enemy is unobstructed.
+    FVector OpenOrigin(0., 0., 0.);
+    if (const FLDDemoWorldAnchor* SpawnAnchor = Geometry->Anchors.FindByPredicate(
+        [](const FLDDemoWorldAnchor& Row) { return Row.Kind == ELDDemoWorldAnchorKind::RestSpawn; }))
+    {
+        SpawnAnchor->PositionCm.ToVector(OpenOrigin, StepErr);
+    }
+
+    auto* FloorActor = World->SpawnActor<AActor>();
+    auto* FloorBox = NewObject<UBoxComponent>(FloorActor);
+    FloorActor->SetRootComponent(FloorBox);
+    FloorActor->AddInstanceComponent(FloorBox);
+    FloorBox->SetWorldLocation(FVector(OpenOrigin.X, OpenOrigin.Y, OpenOrigin.Z - 20.));
+    FloorBox->SetBoxExtent(FVector(4000., 4000., 20.));
+    FloorBox->SetMobility(EComponentMobility::Static);
+    FloorBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    FloorBox->SetCollisionObjectType(ECC_WorldStatic);
+    FloorBox->SetCollisionResponseToAllChannels(ECR_Block);
+    FloorBox->CanCharacterStepUpOn = ECB_Yes;
+    FloorBox->SetCanEverAffectNavigation(false);
+    FloorBox->RegisterComponentWithWorld(World);
+    World->InitializeActorsForPlay(FURL(), false);
+
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Public = World->SpawnActor<ALDGameState>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* PC = World->SpawnActor<ALDPlayerController>();
+    auto* Body = World->SpawnActor<ALDCharacter>();
+    auto* Enemy = World->SpawnActor<ALDCharacter>();
+    if (!Mode || !Public || !Driver || !PC || !Body || !Enemy) { return false; }
+    FLDBuildPrimitivesAccess::Bind(*Mode, *Driver, Catalog);
+    Mode->GameState = Public;
+    World->CopyGameState(Mode, Public);
+    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
+    Mode->MatchPhase = ELDMatchPhase::Development;
+
+    FLDWorldRevision Revision;
+    Revision.MapId = FName(*Geometry->MapId);
+    Revision.LayoutRevision = uint32(Geometry->LayoutRevision);
+    Revision.GeometryRevision = uint32(Geometry->GeometryRevision);
+    if (!FLDBuildPrimitivesAccess::GiveSight(*Mode, *World, *Geometry, Revision, Runtime->Get().Parameters.VisionRadiusCm, StepErr))
+    {
+        Test.AddError(TEXT("Dash-retention GiveSight: ") + StepErr);
+        return false;
+    }
+
+    const float HalfH = Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    Body->SetActorLocation(FVector(OpenOrigin.X, OpenOrigin.Y, OpenOrigin.Z + HalfH + 2.0));
+    Enemy->SetActorLocation(FVector(OpenOrigin.X + 380., OpenOrigin.Y, OpenOrigin.Z + HalfH + 2.0));
+    PC->SetPawn(Body);
+    Body->Controller = PC;
+
+    auto* Move = Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
+    if (!Test.TestNotNull(TEXT("Demo movement component"), Move)) { return false; }
+    Move->SetComponentTickEnabled(false);
+    FFindFloorResult FloorHit;
+    Move->FindFloor(Body->GetActorLocation(), FloorHit, false);
+    Move->CurrentFloor = FloorHit;
+    Move->SetMovementMode(MOVE_Walking);
+    Move->SetBaseFromFloor(Move->CurrentFloor);
+
+    const FLDCombatBodyRef SelfRef{{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
+    const FLDCombatBodyRef EnemyRef{{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
+    FGuid EnemyHandle;
+    uint32 EnemyEpoch = 0;
+    if (!FLDBuildPrimitivesAccess::BindReactionObserver(*Mode, *PC, {{SelfRef, Body}, {EnemyRef, Enemy}}, StepErr)
+        || !Mode->Vision->FindObservedHandle(*PC, EnemyRef, EnemyHandle, EnemyEpoch))
+    {
+        Test.AddError(TEXT("Dash-retention observer: ") + StepErr);
+        return false;
+    }
+    Mode->AuthorityNowMs = 0;
+    Mode->AuthorityNowSeconds = 0.;
+    Mode->LastWorldClockSample = World->GetTimeSeconds();
+    Mode->AuthorityStep = {Mode->MatchContext, 1, 0., 0.};
+
+    for (const TPair<FLDCombatBodyRef, ALDCharacter*>& Pair : TArray<TPair<FLDCombatBodyRef, ALDCharacter*>>{{SelfRef, Body}, {EnemyRef, Enemy}})
+    {
+        auto* CharMove = Pair.Value->GetCharacterMovement();
+        CharMove->SetComponentTickEnabled(false);
+        FFindFloorResult PairFloor;
+        CharMove->SetMovementMode(MOVE_Walking);
+        CharMove->FindFloor(Pair.Value->GetActorLocation(), PairFloor, false);
+        CharMove->CurrentFloor = PairFloor;
+        CharMove->SetBaseFromFloor(CharMove->CurrentFloor);
+        auto& Life = Mode->Lives.FindOrAdd(Pair.Key.Victim.EntityId);
+        Life.Kind = ELDVictimKind::Contender;
+        Life.Phase = ELDLifePhase::Alive;
+        Life.Life = 1;
+        Life.Revision = 1;
+        Life.Body = Pair.Key;
+        Life.Actor = Pair.Value;
+        Life.MotionBody = Pair.Key;
+        Life.MotionStreamId = FGuid::NewGuid();
+        Life.MotionLastFoot = CharMove->GetActorFeetLocation();
+        Life.MotionGrounded = CharMove->IsMovingOnGround() && CharMove->CurrentFloor.IsWalkableFloor();
+        Life.MotionFloor = CharMove->CurrentFloor.HitResult.GetComponent();
+        FLDBodyCombatState& BState = FLDBuildPrimitivesAccess::Bodies(*Driver).Add(Pair.Value);
+        BState.Identity = Pair.Key.BodyIdentity;
+        BState.Victim = Pair.Key.Victim;
+        BState.Resources.HpP2 = BState.Resources.MaxHpP2 = 100000;
+        BState.Resources.Revision = 1;
+        BState.AttributeProjection = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}), *Catalog).Value.GetValue();
+        FLDCombatEntityRecord& Rec = FLDBuildPrimitivesAccess::Records(*Driver).Add(Pair.Key.Victim.EntityId);
+        Rec.Kind = ELDVictimKind::Contender;
+        Rec.Entity = Pair.Key.Victim.EntityId;
+        Rec.Projection = BState.AttributeProjection;
+    }
+    auto* Registry = World->GetSubsystem<ULDMapRegistry>();
+    int64 EndMs = 0;
+    auto StepAuthority = [&](int64 DeltaMs)
+    {
+        EndMs += DeltaMs;
+        World->Tick(LEVELTICK_TimeOnly, float(DeltaMs + 5) / 1000.f);
+        const ELDCommitReject Begun = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, EndMs);
+        if (Begun != ELDCommitReject::None)
+        {
+            StepErr = FString::Printf(TEXT("BeginAuthorityStep reject=%d"), int32(Begun));
+            return false;
+        }
+        return Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [&](const FLDGameplayWritePermit& Permit)
+            {
+                Mode->Lives[SelfRef.Victim.EntityId].NativeMotion.Reset();
+                Mode->Lives[EnemyRef.Victim.EntityId].NativeMotion.Reset();
+                if (!PC->Navigation->AdvanceAuthorityMotion(Mode->AuthorityStep, SelfRef, Permit, StepErr)) { return false; }
+                auto EnemyBatch = MakeShared<FLDNativeMotionBatch>();
+                EnemyBatch->Step = Mode->AuthorityStep;
+                EnemyBatch->Body = EnemyRef;
+                EnemyBatch->StreamId = Mode->Lives[EnemyRef.Victim.EntityId].MotionStreamId;
+                EnemyBatch->World = Registry->Revision();
+                EnemyBatch->PreviousSequence = Mode->Lives[EnemyRef.Victim.EntityId].MotionThroughSequence;
+                EnemyBatch->ThroughSequence = EnemyBatch->PreviousSequence;
+                EnemyBatch->StartFootCm = EnemyBatch->EndFootCm = Enemy->GetCharacterMovement()->GetActorFeetLocation();
+                EnemyBatch->InitialSupport = EnemyBatch->FinalSupport = {
+                    Mode->Lives[EnemyRef.Victim.EntityId].MotionGrounded,
+                    Mode->Lives[EnemyRef.Victim.EntityId].MotionFloor
+                };
+                return Mode->CompleteNativeMotion(Mode->AuthorityStep, EnemyRef, Permit, EnemyBatch) == ELDCommitReject::None;
+            }, StepErr)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Actions, [&](const FLDGameplayWritePermit& Permit)
+            {
+                return PC->Navigation->ProcessAuthorityOrders(Permit, StepErr);
+            }, StepErr)
+            && Mode->FinishAuthorityStep(*Driver, StepErr);
+    };
+
+    // 1) MoveGround active while IsDashing() stays retained across the entire 0.18s EaseOutCubic dash and resumes steering immediately!
+    ULDNavigationComponent& Nav = *PC->Navigation;
+    Nav.EnsureBook({Mode->MatchContext.Generation, SelfRef.Victim.Life, 1, 0});
+    if (!Test.TestTrue(TEXT("Voluntary dash starts on server"), Move->StartDemoDash(FVector(1., 0., 0.), 450., .18, StepErr) && Move->IsDashing())
+        || !Test.TestTrue(TEXT("First 30ms dash step runs: ") + StepErr, StepAuthority(30) && Move->IsDashing()))
+    {
+        return false;
+    }
+    ULDNavigationComponent::FActiveOrder MidDashMove;
+    MidDashMove.Request.Identity = {Mode->MatchContext.Generation, SelfRef.Victim.Life, 1, 0};
+    MidDashMove.Request.Kind = ELDSpatialOrderKind::MoveGround;
+    MidDashMove.Request.GroundCm = OpenOrigin + FVector(700., 180., 0.);
+    MidDashMove.Request.SurfaceHint = TEXT("ground_main");
+    MidDashMove.Match = Mode->MatchContext;
+    MidDashMove.Body = SelfRef;
+    MidDashMove.Destination = MidDashMove.Goal = OpenOrigin + FVector(700., 180., 0.);
+    MidDashMove.Points = {Body->GetNavAgentLocation(), OpenOrigin + FVector(700., 180., 0.)};
+    MidDashMove.PointIndex = 1;
+    MidDashMove.Acceptance = 40.f;
+    MidDashMove.LastHeartbeat = Mode->GetAuthorityNowSeconds();
+    Nav.ActiveOrder = MidDashMove;
+    for (int32 Tick = 0; Tick < 7; ++Tick)
+    {
+        if (!Test.TestTrue(TEXT("Mid-dash MoveGround step succeeds: ") + StepErr, StepAuthority(30))) { return false; }
+    }
+    Test.TestFalse(TEXT("Dash completed after 0.18s"), Move->IsDashing());
+    Test.TestTrue(TEXT("MoveGround issued during IsDashing() is retained and actively steers toward destination after dash"),
+        Nav.ActiveOrder.IsSet() && Nav.ActiveOrder->Request.Kind == ELDSpatialOrderKind::MoveGround
+        && !Nav.AuthoritySteering(*Body).IsNearlyZero());
+
+    // 2) AttackUnit submitted mid-dash while IsDashing() is retained across the dash and starts basic attack windup upon completion!
+    Enemy->SetActorLocation(Body->GetActorLocation() + FVector(220., 0., 0.));
+    Mode->Lives[EnemyRef.Victim.EntityId].MotionLastFoot = Enemy->GetCharacterMovement()->GetActorFeetLocation();
+    FLDBuildPrimitivesAccess::Records(*Driver)[SelfRef.Victim.EntityId].NextAttackAtMs = Mode->GetAuthorityNowMs() + 180;
+    if (!Test.TestTrue(TEXT("Second voluntary dash starts"), Move->StartDemoDash(FVector(1., 0., 0.), 200., .18, StepErr) && Move->IsDashing())
+        || !Test.TestTrue(TEXT("First 30ms of second dash runs: ") + StepErr, StepAuthority(30) && Move->IsDashing()))
+    {
+        return false;
+    }
+    FLDSpatialOrderRequest AttackReq;
+    AttackReq.Identity = {Mode->MatchContext.Generation, SelfRef.Victim.Life, 2, 0};
+    AttackReq.Kind = ELDSpatialOrderKind::AttackUnit;
+    AttackReq.Observed = EnemyHandle;
+    AttackReq.ObservationEpoch = EnemyEpoch;
+    const FLDOrderReceipt Submitted = Nav.SubmitOrder({Mode->MatchContext, SelfRef, PC}, AttackReq);
+    Test.TestEqual(TEXT("AttackUnit submitted mid-dash queues cleanly"), Submitted.Status, ELDOrderStatus::Queued);
+    for (int32 Tick = 0; Tick < 7; ++Tick)
+    {
+        if (!Test.TestTrue(TEXT("Mid-dash AttackUnit step succeeds: ") + StepErr, StepAuthority(30))) { return false; }
+    }
+    Test.TestFalse(TEXT("Second dash completed"), Move->IsDashing());
+    return Test.TestTrue(TEXT("AttackUnit issued during IsDashing() is retained and starts basic attack windup upon completion"),
+        Nav.ActiveOrder.IsSet() && Nav.ActiveOrder->Request.Kind == ELDSpatialOrderKind::AttackUnit
+        && FLDBuildPrimitivesAccess::Bodies(*Driver)[Body].Action.IsSet()
+        && FLDBuildPrimitivesAccess::Bodies(*Driver)[Body].Action->Entry == ELDCombatEntry::Basic);
 }
 
 #endif

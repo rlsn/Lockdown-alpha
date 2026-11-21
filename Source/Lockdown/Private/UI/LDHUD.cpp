@@ -964,6 +964,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             UTextBlock* ChipText=nullptr;
             Entry.CostChip=Chip(ChipText,HudMomentumText,FLinearColor(.62f,.24f,.05f),FLinearColor(.09f,.03f,.01f,.92f));Entry.Cost=ChipText;
             auto* CostLayer=Face->AddChildToOverlay(Entry.CostChip);CostLayer->SetHorizontalAlignment(HAlign_Right);CostLayer->SetVerticalAlignment(VAlign_Bottom);CostLayer->SetPadding(FMargin(0,0,3,3));
+            UTextBlock* ControlText=nullptr;
+            Entry.ControlChip=Chip(ControlText,FLinearColor::White,HudControlEdge,FLinearColor(.22f,.05f,.03f,.94f));Entry.ControlBadge=ControlText;
+            auto* ControlLayer=Face->AddChildToOverlay(Entry.ControlChip);ControlLayer->SetHorizontalAlignment(HAlign_Center);ControlLayer->SetVerticalAlignment(VAlign_Top);ControlLayer->SetPadding(FMargin(16,2,16,0));
             // The rank dots on the lower edge and the missing momentum over a short face.
             Entry.Ranks=OneLine(TEXT(""),LDHUDStyle::TypeCaption,0);HudFace(Entry.Ranks,true,2);Entry.Ranks->SetColorAndOpacity(LDHUDStyle::TextAccent);
             auto* RanksLayer=Face->AddChildToOverlay(Entry.Ranks);RanksLayer->SetHorizontalAlignment(HAlign_Left);RanksLayer->SetVerticalAlignment(VAlign_Bottom);RanksLayer->SetPadding(FMargin(5,0,0,2));
@@ -2183,7 +2186,42 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             In.bServices=ChoicesPanel&&(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown());
             In.bShop=ChoicesPanel&&ChoicesPanel->IsShopShown();
             In.bCharacterServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
+            const ULDChoicesPanel::FWorkshopPlaces PrevPlaces=ChoicesPanel?ChoicesPanel->WorkshopPlaces():ULDChoicesPanel::FWorkshopPlaces();
+            const FVector2D PrevInset=ChoicesPanel?ChoicesPanel->CurrentTrayInset():FVector2D(-1.f,-1.f);
+            const float PrevWrap=ChoicesPanel?ChoicesPanel->CurrentTrayWrap():-1.f;
+            const float PrevLimit=ChoicesPanel?ChoicesPanel->CurrentTrayLimit():-1.f;
             Workshop->Present(In);
+            if(ChoicesPanel&&Workshop->IsOpen())
+            {
+                const ULDChoicesPanel::FWorkshopPlaces NextPlaces=Workshop->Places();
+                const FVector2D NextInset=Workshop->TrayInset();
+                const float NextWrap=Workshop->TrayWrapWidth();
+                const float NextLimit=Workshop->TrayHeightLimit();
+                if(!NextPlaces.Equals(PrevPlaces)||!NextInset.Equals(PrevInset,.5f)
+                    ||!FMath::IsNearlyEqual(NextWrap,PrevWrap,.5f)||!FMath::IsNearlyEqual(NextLimit,PrevLimit,.5f))
+                {
+                    ChoicesPanel->SetWorkshopPlaces(NextPlaces);
+                    ChoicesPanel->SetTrayInset(NextInset.X,NextInset.Y,NextWrap,NextLimit);
+                    ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC),
+                        bOwnMatch&&OwnCombat&&OwnCombat->bDormRegenActive);
+                    Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());
+                    const FVector2D ConvergedTray=ChoicesPanel->TrayDesiredSize();
+                    if(!ConvergedTray.Equals(In.TrayDesired,.5)||In.bStage!=ChoicesPanel->IsStageShown()
+                        ||In.bFinalStage!=ChoicesPanel->IsFinalStage()||In.bShop!=ChoicesPanel->IsShopShown()
+                        ||In.bServices!=(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown()))
+                    {
+                        In.TrayDesired=ConvergedTray;
+                        In.bStage=ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel->IsFinalStage();
+                        In.bServices=ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown();
+                        In.bShop=ChoicesPanel->IsShopShown();
+                        In.bCharacterServices=ChoicesPanel->IsServiceShown();
+                        Workshop->Present(In);
+                        const FVector2D FinalInset=Workshop->TrayInset();
+                        ChoicesPanel->SetWorkshopPlaces(Workshop->Places());
+                        ChoicesPanel->SetTrayInset(FinalInset.X,FinalInset.Y,Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
+                    }
+                }
+            }
             Storage->SetWorkshop(Workshop->StorageLayout());
         }
         {
@@ -2441,7 +2479,30 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         LDHUD::FActionInput Input;Input.Slot=SlotKind;
         if(const FLDCombatEntryView* Source=OwnCombat?OwnCombat->Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;}):nullptr)
         {
-            Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;
+            Input=LDHUD::ActionInput(*Source,SlotKind,Content);
+            uint8 SlotControlMask=HudActionControl[Index];
+            if(Index<3&&Content&&!Input.DefinitionId.IsNone())
+            {
+                if(const FLDDemoAbilityDefinition* Ability=Content->Abilities.FindByPredicate([&Input](const FLDDemoAbilityDefinition& Candidate)
+                    {return FName(*Candidate.Id)==Input.DefinitionId;}))
+                {
+                    const FLDDemoAbilityBranch* Branched=Ability->FindBranch(Input.Branch);
+                    const FLDDemoAbilityValues& Values=Branched?Branched->Values:Ability->Values;
+                    if(Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Eff){return Eff.GetOp()==ELDDemoEffectOp::Dash;}))
+                    {
+                        SlotControlMask|=uint8(ELDCombatControlBlock::Displacement);
+                    }
+                }
+            }
+            Input.bControlled=(ControlBits&SlotControlMask)!=0;
+            if(Input.bControlled&&OwnCombat)
+            {
+                Input.ControlLabel=LDHUD::ControlStatusBadge(OwnCombat->Statuses,SlotControlMask);
+                if(Input.ControlLabel.IsEmpty()&&(SlotControlMask&uint8(ELDCombatControlBlock::Displacement))&&OwnCombat->bRooted)
+                {
+                    Input.ControlLabel=TEXT("定身");
+                }
+            }
         }
         LDHUD::FActionContext Context;Context.KeyLabel=PC->BindingLabel(HudActionBindings[Index]);
         Context.bOwnContext=bOwnMatch&&O.Life!=0;
@@ -2489,6 +2550,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             }
         }
         HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        HudSetText(Entry.ControlBadge,View.LockBadge);HudSetShown(Entry.ControlChip,!View.LockBadge.IsEmpty(),ESlateVisibility::HitTestInvisible);
         // Skill ranks: the dots, the "+" while a point can raise this skill, the momentum gap and the overdrive hold.
         if(Index<3)
         {

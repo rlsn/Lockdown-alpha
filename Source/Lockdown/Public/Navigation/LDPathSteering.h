@@ -12,6 +12,14 @@ struct FCollisionShape;
 namespace LDPathSteering
 {
     constexpr double WaypointToleranceCm=12.;
+    constexpr double ElevationCornerDeltaZCm=15.;
+    constexpr double ElevationWaypointToleranceCm=28.;
+    constexpr double ElevationCornerMaxVerticalDiffCm=35.;
+
+    // True when an intermediate corner Path[Index] (Index < Path.Num() - 1) has been reached/passed.
+    // Approaching or leaving an elevation change (>15 cm) or standing on a sloped floor (<0.999 normal Z) requires
+    // 28 cm horizontal tolerance AND <=35 cm vertical difference without pure 2D plane-crossing corner skipping.
+    LOCKDOWN_API bool ShouldAdvanceCorner(const TArray<FVector>& Path, int32 Index, const FVector& Foot, bool bSlopedFloor);
 
     // Stops voluntary locomotion without cancelling gravity or an active root-motion source.
     LOCKDOWN_API void HaltLocomotion(ACharacter* Body);

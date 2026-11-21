@@ -483,6 +483,9 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
 }
 void ULDChoicesPanel::SetTrayInset(float Right,float Bottom,float Width,float Height)
 {
+    LastTrayInset=FVector2D(Right,Bottom);
+    LastTrayWrap=Width;
+    LastTrayLimit=Height;
     const FMargin Inset(0,0,Right,Bottom);
     if(TrayFrame&&!(TrayFrame->GetPadding()==Inset)){TrayFrame->SetPadding(Inset);}
     const float Wrap=(Width>0.f?FMath::Min(Width,TrayWidth):TrayWidth)+1.f;

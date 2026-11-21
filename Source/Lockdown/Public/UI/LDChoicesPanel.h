@@ -64,8 +64,28 @@ public:
         // Spec §3.13: the shop shelf takes the board's place while it is open; its toggle stands right of the phase bar.
         FSlateRect Shop;
         FSlateRect ShopButton;
+        bool Equals(const FWorkshopPlaces& Other,float Tolerance=.5f) const
+        {
+            const auto SameRect=[Tolerance](const FSlateRect& A,const FSlateRect& B)
+            {
+                return FMath::IsNearlyEqual(A.Left,B.Left,Tolerance)&&FMath::IsNearlyEqual(A.Top,B.Top,Tolerance)
+                    &&FMath::IsNearlyEqual(A.Right,B.Right,Tolerance)&&FMath::IsNearlyEqual(A.Bottom,B.Bottom,Tolerance);
+            };
+            if(bActive!=Other.bActive||!SameRect(Stage,Other.Stage)||!SameRect(Dock,Other.Dock)
+                ||!SameRect(CharacterFoot,Other.CharacterFoot)||!SameRect(Points,Other.Points)
+                ||!SameRect(PendingTop,Other.PendingTop)||!SameRect(Shop,Other.Shop)||!SameRect(ShopButton,Other.ShopButton))
+            {
+                return false;
+            }
+            for(int32 Index=0;Index<LDHUD::StorageColumnCount;++Index)
+            {
+                if(!SameRect(Heads[Index],Other.Heads[Index])||!SameRect(HeadIcons[Index],Other.HeadIcons[Index])){return false;}
+            }
+            return true;
+        }
     };
     void SetWorkshopPlaces(const FWorkshopPlaces& InPlaces){Places=InPlaces;}
+    const FWorkshopPlaces& WorkshopPlaces() const {return Places;}
     // The centre stage shows the active offer (and then the final mod) as big cards while the full workshop is open, until
     // the player steps back to the board for that offer.
     bool IsStageShown() const {return bStageShown;}
@@ -81,6 +101,9 @@ public:
     // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button), and the width
     // its rows wrap at (0: four cards); in the workshop the rows wrap inside the pending area.
     void SetTrayInset(float Right,float Bottom,float Width=0.f,float Height=0.f);
+    FVector2D CurrentTrayInset() const {return LastTrayInset;}
+    float CurrentTrayWrap() const {return LastTrayWrap;}
+    float CurrentTrayLimit() const {return LastTrayLimit;}
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
@@ -243,6 +266,8 @@ private:
     TArray<FTrayUnit> TrayUnits;
     TArray<FIntPoint> TrayPages;
     int32 TrayPage=0;
+    FVector2D LastTrayInset=FVector2D(-1.f,-1.f);
+    float LastTrayWrap=-1.f,LastTrayLimit=-1.f;
     float TrayAvailableWidth=0.f,TrayAvailableHeight=0.f;
     bool bTrayOverflow=false,bTrayOverflowReported=false;
     bool bCompactTray=false,bIconOnlyTray=false;

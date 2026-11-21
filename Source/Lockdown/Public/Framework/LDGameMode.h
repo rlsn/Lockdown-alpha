@@ -352,6 +352,8 @@ private:
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
     friend class FLDReconnectProtectionTest;
+    friend class FLDControlFeelElevationAimAndClipTest;
+    friend bool LDTestRunDashOrderRetention(class FAutomationTestBase&);
     friend class FLDDemoCoreProbe;
     friend class FLDRewardSettlementTest;
     friend class FLDCaptureInsideStepTest;

@@ -277,8 +277,11 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
     }
     // The brains keystone (#330 §4.4): a reaction its holder triggers refunds 30% of paid cast momentum (or grants reaction
-    // momentum on 0-cost medal triggers, once per cast) and cuts every cooling learned skill by 1.0 s.
-    if (Reaction!=ELDCombatReaction::None && !(Applier.CastLedger && Applier.CastLedger->bBrainsKeystoneRefunded))
+    // momentum on 0-cost medal triggers, once per cast) and cuts every cooling learned skill by 1.0 s. Free auto-recasts
+    // (K06 / A08) paid nothing and never grant unpaid once-per-cast momentum or cooldown refunds.
+    const bool bFreeAutoRecast=Applier.CastLedger && Applier.CastLedger->bAutoRecast;
+    if (Reaction!=ELDCombatReaction::None && !bFreeAutoRecast
+        && !(Applier.CastLedger && Applier.CastLedger->bBrainsKeystoneRefunded))
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
         if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)

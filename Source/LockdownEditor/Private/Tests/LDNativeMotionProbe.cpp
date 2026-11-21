@@ -734,6 +734,20 @@ bool FLDNativeDashProbe::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("An unblocked dash covers its distance on the ground (moved %.1fcm)"),End.X-Start.X),
             FMath::IsNearlyEqual(End.X-Start.X,DistanceCm,15.) && FMath::Abs(End.Y-Start.Y)<1. && Move->IsMovingOnGround());
         TestTrue(TEXT("The dash ends with zero velocity"),Move->Velocity.Size2D()<1.);
+
+        // Voluntary dash EaseOutCubic: early half (0..0.09s) covers >80% of 450cm and exceeds late half (0.09..0.18s), landing at exact target.
+        const FVector CurveStart=Move->GetActorFeetLocation();
+        TestTrue(TEXT("EaseOutCubic 450cm/0.18s first half starts: ")+Error,
+            Move->TraceDash(FVector(1,0,0),450.,.18,.03f,3,Error));
+        const FVector Mid=Move->GetActorFeetLocation();
+        for (int32 Step=0; Step<3; ++Step) { Move->PerformMovement(.03f); }
+        const FVector CurveEnd=Move->GetActorFeetLocation();
+        const double FirstHalf=Mid.X-CurveStart.X;
+        const double SecondHalf=CurveEnd.X-Mid.X;
+        TestTrue(FString::Printf(TEXT("Voluntary dash EaseOutCubic bursts faster in early half (%.2f cm > %.2f cm)"),FirstHalf,SecondHalf),
+            FirstHalf>SecondHalf && FirstHalf>350. && SecondHalf>20.);
+        TestTrue(FString::Printf(TEXT("Voluntary dash EaseOutCubic lands at exact 450cm target (%.2f cm)"),CurveEnd.X-CurveStart.X),
+            FMath::IsNearlyEqual(CurveEnd.X-CurveStart.X,450.,1.5));
     }
     FNativeWorld Fixture;
     if (!TestNotNull(TEXT("Native physics world"),Fixture.World)

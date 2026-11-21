@@ -1,8 +1,24 @@
 #include "Navigation/LDOrderRules.h"
+#include "Navigation/LDPathSteering.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Character/LDCharacter.h"
+#include "Character/LDCharacterMovementComponent.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatPreInput.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
+#include "Framework/LDMatchProviders.h"
 #include "Framework/LDPlayerController.h"
+#include "Region/LDMapDefinition.h"
+#include "Region/LDMapRegistry.h"
+#include "Vision/LDVisionDirector.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Misc/PackageName.h"
+#include "UObject/Package.h"
 #include "UI/LDControlSettings.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -12,6 +28,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include <limits>
+
+bool LDTestRunDashOrderRetention(FAutomationTestBase& Test);
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelHeldMoveTest, "Lockdown.Rules.DemoControlFeel.HeldMove",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -468,7 +486,32 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         LDOrderRules::ShouldCoalesceClickMove(10.02, 10.00, FVector(100., 200., 0.), FVector(120., 200., 0.), MoveId, MoveId, 0));
     TestFalse(TEXT("Click after 50ms window sends"),
         LDOrderRules::ShouldCoalesceClickMove(10.06, 10.00, FVector(100., 200., 0.), FVector(102., 200., 0.), MoveId, MoveId, 0));
-    return true;
+
+    // MAP-02: Ramp/elevation corner advancement requires <=28cm horizontal AND <=35cm vertical without pure 2D plane skipping.
+    const TArray<FVector> FlatPath{FVector(0., 0., 0.), FVector(200., 0., 0.), FVector(200., 200., 0.)};
+    TestTrue(TEXT("Flat corner still advances via 2D normal plane crossing past corner"),
+        LDPathSteering::ShouldAdvanceCorner(FlatPath, 1, FVector(205., 25., 0.), false));
+    const TArray<FVector> RampPath{FVector(0., 0., 0.), FVector(200., 0., 0.), FVector(400., 0., 120.)};
+    TestFalse(TEXT("Elevation-approach corner never skips via 2D plane crossing at 32cm lateral offset (>28cm)"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(205., 32., 0.), false));
+    TestFalse(TEXT("Elevation corner never advances when vertical difference exceeds 35cm"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(200., 10., 45.), false));
+    TestTrue(TEXT("Elevation corner advances once within 28cm horizontally and 35cm vertically"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(204., 20., 18.), false));
+    TestFalse(TEXT("Sloped floor (<0.999 normal Z) also blocks pure 2D plane skipping outside 28cm"),
+        LDPathSteering::ShouldAdvanceCorner(FlatPath, 1, FVector(205., 32., 0.), true));
+
+    // DASH-03: Deterministic EaseOutCubic (1 - (1 - t)^3) bursts faster in early half than late half and hits exact 1.0 endpoint.
+    const double EarlyDelta = LDDashCurve::EaseOutCubic(0.5) - LDDashCurve::EaseOutCubic(0.0);
+    const double LateDelta = LDDashCurve::EaseOutCubic(1.0) - LDDashCurve::EaseOutCubic(0.5);
+    TestNearlyEqual(TEXT("EaseOutCubic starts at 0"), LDDashCurve::EaseOutCubic(0.0), 0.0, 1e-9);
+    TestNearlyEqual(TEXT("EaseOutCubic reaches 87.5% at midpoint"), EarlyDelta, 0.875, 1e-9);
+    TestNearlyEqual(TEXT("EaseOutCubic decelerates smoothly over remaining 12.5% to exact 1.0"), LateDelta, 0.125, 1e-9);
+    TestTrue(TEXT("Early-half displacement exceeds late-half displacement"), EarlyDelta > LateDelta);
+    TestNearlyEqual(TEXT("Total normalized displacement equals 1.0"), EarlyDelta + LateDelta, 1.0, 1e-9);
+
+    // DASH-02: Issuing MoveGround or AttackUnit while IsDashing() retains the order across the dash and pursues/attacks upon completion.
+    return LDTestRunDashOrderRetention(*this);
 }
 
 #endif

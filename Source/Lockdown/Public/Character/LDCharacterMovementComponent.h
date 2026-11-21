@@ -1,9 +1,44 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/RootMotionSource.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "LDCharacterMovementComponent.generated.h"
+
+namespace LDDashCurve
+{
+    // Deterministic EaseOutCubic progress 1 - (1 - t)^3 on [0, 1] for voluntary dashes (#335 §3.1).
+    LOCKDOWN_API double EaseOutCubic(double NormalizedTime);
+}
+
+USTRUCT()
+struct LOCKDOWN_API FLDRootMotionSource_EaseOutDash : public FRootMotionSource_ConstantForce
+{
+    GENERATED_USTRUCT_BODY()
+
+    FLDRootMotionSource_EaseOutDash() = default;
+    virtual ~FLDRootMotionSource_EaseOutDash() = default;
+
+    virtual FRootMotionSource* Clone() const override;
+    virtual void PrepareRootMotion(
+        float SimulationTime,
+        float MovementTickTime,
+        const ACharacter& Character,
+        const UCharacterMovementComponent& MoveComponent) override;
+    virtual UScriptStruct* GetScriptStruct() const override;
+    virtual FString ToSimpleString() const override;
+};
+
+template<>
+struct TStructOpsTypeTraits<FLDRootMotionSource_EaseOutDash> : public TStructOpsTypeTraitsBase2<FLDRootMotionSource_EaseOutDash>
+{
+    enum
+    {
+        WithNetSerializer = true,
+        WithCopy = true
+    };
+};
 
 struct FLDNetworkMoveData : FCharacterNetworkMoveData
 {
@@ -94,6 +129,7 @@ public:
     bool CanStartDash(const FVector& Direction, double ProbeCm) const;
     // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
     bool IsDashing() const;
+    bool IsKnockbackMotion() const { return bKnockbackMotion; }
     void StopDemoDash();
     // A skill branch's ghost window (S11 B): this body's own moves pass through other bodies for Seconds from now, the dash
     // included; static geometry still stops them.

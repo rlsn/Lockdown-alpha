@@ -520,6 +520,7 @@ namespace LDHUD
         int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
         int32 RangeCm=0;          // the active's current reach (the dash distance for D)
         bool bControlled=false;   // an own control status forbids this entry kind
+        FString ControlLabel;     // short specific control badge when controlled (e.g. "定身", "沉默", "眩晕")
         FString ServerBlock;      // display text of the server's current reason; empty when none
     };
     struct FActionContext
@@ -552,9 +553,11 @@ namespace LDHUD
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
         FString Cost;             // the active's momentum cost rounded like the shown bar, number only, e.g. "30"; empty without one
         FString Gap;              // momentum short: the missing momentum, e.g. "-12"; empty otherwise
+        FString LockBadge;        // short slot badge when controlled or phase-locked (e.g. "定身", "沉默", "眩晕", "禁"); empty otherwise
         FString IconId;           // the icon texture id (LDUIIcons); empty without a source
         FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
     };
+    LOCKDOWN_API FString ControlStatusBadge(TConstArrayView<FLDCombatStatusView> Statuses,uint8 ControlMask);
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Skill ranks (issue #287 spec §12): the rank dots of a slot ("●●○") and the branch cards of its next rank.
     LOCKDOWN_API FString RankDots(uint8 Rank);
