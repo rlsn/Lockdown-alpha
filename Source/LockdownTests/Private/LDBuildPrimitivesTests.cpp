@@ -121,6 +121,7 @@ struct FLDBuildPrimitivesAccess
     static bool StartChain(ALDCombatDirector& Driver, const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& Foot,
         const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error) { return Driver.StartChain(Payload, First, Foot, Bounce, NowMs, Error); }
     static TArray<FLDCombatReactionFact>& Reactions(ALDCombatDirector& Driver) { return Driver.ReactionFacts; }
+    static void SeedCritRandom(ALDCombatDirector& Driver, int32 Seed) { Driver.CritRandom.Initialize(Seed); }
     static bool AdvanceElements(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceElements(NowMs, Error); }
     static bool ReleaseBrace(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, int64 NowMs,
         FString& Error)
@@ -2866,22 +2867,28 @@ bool FLDCardRuleY05Test::RunTest(const FString& Parameters)
     // Regression: when Water + Rot triggers Ferment (leaving Rot and starting the 500ms reaction lock), card_wave_after draws
     // from full Choices (excluding Water) while the chain exemption is available so a secondary reaction can actually fire.
     bool bSawSecondaryReaction = false;
+    bool bSawMethane = false;
     {
         FFixture F;
         if (!F.Init(*this, true)) { return false; }
+        FAccess::SeedCritRandom(*F.Driver, 1337);
         const FLDCombatBodyRef Holder = F.AddBody();
         F.Place(Holder, 0., 0.);
-        const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 500000);
+        const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 5000000);
         F.Place(Target, 600., 0.);
         if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_wave_after"), ELDCardTargetKind::Body}})) { return false; }
         const FLDCombatSourceRef Src = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
-        for (int32 Trial = 0; Trial < 32 && !bSawSecondaryReaction; ++Trial)
+        for (int32 Trial = 0; Trial < 32 && (!bSawSecondaryReaction || !bSawMethane); ++Trial)
         {
             const int64 AtMs = 2000 + Trial * 1000;
             FAccess::SetNow(*F.Mode, AtMs);
             FAccess::Reactions(*F.Driver).Reset();
+            FAccess::GroundStates(*F.Driver).Reset();
+            FAccess::Fogs(*F.Driver).Reset();
+            FAccess::PendingHits(*F.Driver).Reset();
             FLDBodyCombatState& TargetState = F.Body(Target);
             TargetState.ElementMark = FLDCombatElementMark();
+            TargetState.Burn = FLDCombatBurn();
             TargetState.ReactionLockedUntilMs = 0;
             TargetState.WaveAfterExemptChainId.Invalidate();
             FString Error;
@@ -2892,13 +2899,18 @@ bool FLDCardRuleY05Test::RunTest(const FString& Parameters)
                 AddError(Error);
                 return false;
             }
-            if (FAccess::Reactions(*F.Driver).Num() >= 2)
+            const TArray<FLDCombatReactionFact>& Facts = FAccess::Reactions(*F.Driver);
+            if (Facts.Num() >= 2)
             {
                 bSawSecondaryReaction = true;
+                bSawMethane |= Facts.ContainsByPredicate([](const FLDCombatReactionFact& Fact)
+                    { return Fact.Kind == ELDCombatReaction::Methane; });
             }
         }
     }
-    return TestTrue(TEXT("card_wave_after triggers an exempted secondary reaction after Ferment leaves Rot"), bSawSecondaryReaction);
+    TestTrue(TEXT("card_wave_after exercises Fire+Rot Methane AoE cleanly in sight world"), bSawMethane);
+    return TestTrue(TEXT("card_wave_after triggers an exempted secondary reaction after Ferment leaves Rot"), bSawSecondaryReaction)
+        && bSawMethane;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY07Test, "Lockdown.Rules.Combat.Cards.Y07",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
