@@ -213,6 +213,8 @@ namespace LDProgression
     {
         EMatchStage Stage = EMatchStage::Closed;
         ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
+        // On the field, resting in a dorm out of combat: a held blueprint may replace a learned skill there.
+        bool bDormRested = false;
     };
 
     // Context is inside a rest build window, where the rest-only services and rebuilds are allowed.
@@ -374,6 +376,10 @@ namespace LDProgression
     // Up to CARDS.OfferSize distinct cards: a weighted draw without replacement over every
     // definition (CARDS.VocabWeight when it shares a vocabulary key with BuildVocab, else 1), deterministic in Seed.
     // Size distinct cards (CardOfferSize of the offer's source).
+    // A card's weight in a draw for Build: 0 for a host-limited skill card no learned skill takes; else its DrawWeightBp in
+    // hundredths times VocabWeight for one shared vocabulary key, twice that for two or more.
+    LOCKDOWN_API int64 CardDrawWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        const FLDDemoCardDefinition& Card, uint32 Vocab, int32 VocabWeight);
     LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
         uint64 Seed, TArray<FName>& Out);
     // Private random material of one card offer ordinal and its Reroll-th reroll.

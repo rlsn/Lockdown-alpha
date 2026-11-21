@@ -182,12 +182,14 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     FLDKeywordTerms Keywords;
     if (!KeywordTerms(Keywords,Error)) { return false; }
     // A primary basic crits, sampled once at its release; Y09 lets a native skill hit sample its own (once per HitId).
-    if (!Hit.bCritical && Source && IsNativeDirectHit(Hit) && Hit.SourceEntity!=Body->Victim.EntityId
-        && Source->AttributeProjection.Final.CritChanceBp>0)
+    if (!Hit.bCritical && Source && IsNativeDirectHit(Hit) && Hit.SourceEntity!=Body->Victim.EntityId)
     {
         TArray<FLDPassiveEffectRef> Crits;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::SkillCrit,Crits,Error)) { return false; }
-        Hit.bCritical=!Crits.IsEmpty() && CritRandom.RandRange(0,9999)<Source->AttributeProjection.Final.CritChanceBp;
+        // Y09's own chance adds to the holder's (each copy).
+        int64 ChanceBp=Source->AttributeProjection.Final.CritChanceBp;
+        for (const FLDPassiveEffectRef& Ref : Crits) { ChanceBp+=Ref.Effect.RatioBp; }
+        Hit.bCritical=!Crits.IsEmpty() && ChanceBp>0 && CritRandom.RandRange(0,9999)<ChanceBp;
     }
     const bool bCritical=Hit.bCritical;
     FLDDamageEvaluationInput Evaluation;
@@ -240,12 +242,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp*(10000-Monster->Skill.PassiveBp)/10000;
     }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
+    // The thick-skin keystone takes its share off the next direct hostile hit of any kind (a basic or a skill), once per interval.
     const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
-        && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.HitClass==ELDCombatHitClass::BasicPrimary
-        && Hit.SourceEntity!=Body->Victim.EntityId;
+        && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.SourceEntity!=Body->Victim.EntityId
+        && !Hit.bReflect && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bStatusSettle && !Hit.bRider;
     if (bKeystoneGuardReady)
     {
-        Evaluation.KeystoneGuardP2=Content->Get().Parameters.KeystoneThickSkinGuardP2;
         Evaluation.KeystoneGuardCapBp=Content->Get().Parameters.KeystoneThickSkinGuardCapBp;
     }
     // #198 S16: the target's live stance cuts hostile damage (never its own); a due M12 debt is paid at its original amount
@@ -289,9 +291,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         if (Hit.HitClass==ELDCombatHitClass::BasicPrimary)
         {
-            // A body medal rides the last step of the basic combo only.
+            // A body medal rides every basic from the second combo step on.
             TArray<FLDPassiveEffectRef> Elements;
-            if (int32(Hit.ComboStep)==Content->Get().Parameters.Combo.StepRatiosBp.Num()
+            if (int32(Hit.ComboStep)>=2
                 && !CardsOn(Source->AttributeProjection,ELDDemoEffectOp::SkillElement,{ELDCombatSourceKind::Basic,NAME_None},Elements,Error))
             { return false; }
             for (const FLDPassiveEffectRef& Ref : Elements)
@@ -1064,8 +1066,32 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             Body.bInDorm=bInDorm;
             MarkViewChanged(Body.Victim.EntityId);
         }
-        if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &Recovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
-            Pools,Error,bInDorm ? DormRecovery : nullptr))
+        // The physique keystone: recovery starts sooner out of combat, and in combat a shield of its share of the maximum HP
+        // comes up every interval.
+        const bool bPhysique=bContender && Body.AttributeProjection.Keystones.bPhysique;
+        LDTactical::FOutOfCombatRecovery BodyRecovery=Recovery;
+        LDTactical::FOutOfCombatRecovery BodyDorm=DormRecovery ? *DormRecovery : LDTactical::FOutOfCombatRecovery();
+        if (bPhysique)
+        {
+            const FLDDemoContentSnapshot* Content=Catalog();
+            if (!Content) { Error=TEXT("The physique keystone requires the approved Demo content."); return false; }
+            const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
+            const int64 CutBp=Parameters.KeystonePhysiqueOutOfCombatCutBp;
+            BodyRecovery.DelayMs-=BodyRecovery.DelayMs/10000*CutBp+BodyRecovery.DelayMs%10000*CutBp/10000;
+            BodyDorm.DelayMs-=BodyDorm.DelayMs/10000*CutBp+BodyDorm.DelayMs%10000*CutBp/10000;
+            if (!LDTactical::OutOfCombatAt(Body.LastCombatAtMs,BodyRecovery.DelayMs,NowMs) && NowMs>=Body.KeystonePhysiqueReadyAtMs)
+            {
+                const int64 ShieldP2=Pool.MaxHpP2/10000*Parameters.KeystonePhysiqueShieldMaxHPBp
+                    +Pool.MaxHpP2%10000*Parameters.KeystonePhysiqueShieldMaxHPBp/10000;
+                int64 NextReadyAtMs=0;
+                if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,Error)) { return false; }
+                Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs;
+                if (ShieldP2>0 && !GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,FGuid::NewGuid(),
+                    Body.Victim.EntityId,NowMs,Error)) { return false; }
+            }
+        }
+        if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &BodyRecovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
+            Pools,Error,bInDorm && DormRecovery ? &BodyDorm : nullptr))
         {
             Error=FString::Printf(TEXT("Regeneration of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
             return false;

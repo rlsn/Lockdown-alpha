@@ -625,7 +625,7 @@ void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
     if(!bSkip&&SkipCard.Frame&&SkipCard.Frame->IsVisible()){OfferMotion.Others.Add(Capture(SkipCard));}
 }
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
-    const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys)
+    const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested)
 {
     if(OfferMotion.Ticket.Match!=0&&(OfferMotion.Ticket.Match!=Match||OfferMotion.Ticket.Life!=Life)){OfferMotion=FOfferMotion();}
     if(ConfirmedOffer.IsValid()&&(ConfirmedMatch!=Match||ConfirmedLife!=Life))
@@ -636,7 +636,7 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;
     LatestContent=Content;LatestStats=Stats;
     if(!Tray){return;}
-    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
+    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,bDormRested):LDHUD::FBuildGateView();
     if(bStatsChanged){bCardsStale=true;}
     // The HUD presents every frame; a collapsed panel only keeps the inputs and refreshes when it opens.
     if(!bOpen&&!bQuick&&!bQuickShown){return;}
@@ -1055,13 +1055,14 @@ void ULDChoicesPanel::RefreshBlueprints()
 {
     // The rest rebuild buttons on the Q/W/E heads for the selected blueprint; the tray shows blueprints as cards
     // (RefreshBlueprintCards).
-    const bool bShown=IsServiceShown()&&!ShownBlueprints.IsEmpty();
+    // A dorm rest on the field offers the blueprint swap as well.
+    const bool bShown=(IsServiceShown()||Gate.bDormSwap)&&!ShownBlueprints.IsEmpty();
     GrowthShown(TrainerPicks,bShown);
     if(!ShownBlueprints.IsValidIndex(TrainerBlueprint)){TrainerBlueprint=0;}
     bool bEmpty[3]={false,false,false};
     for(uint8 Key=0;Key<3;++Key){bEmpty[Key]=LDHUD::ActiveInSlot(Latest,Key).IsNone();}
     // A full Q/W/E: the blueprint replaces an occupied slot (after a confirm).
-    const FString ReplaceWhy=Gate.bInRest?ReplaceRefusal():FString(LDTerms::ReplaceAtRest);
+    const FString ReplaceWhy=Gate.bInRest||Gate.bDormSwap?ReplaceRefusal():FString(LDTerms::ReplaceAtRest);
     for(int32 Index=0;Index<FMath::Max(ShownBlueprints.Num(),BlueprintRows.Num());++Index)
     {
         const bool bRow=bShown&&ShownBlueprints.IsValidIndex(Index);
@@ -1213,7 +1214,7 @@ FString ULDChoicesPanel::RestConfirmRefusal() const
 void ULDChoicesPanel::RefreshRest()
 {
     if(!RestSection){return;}
-    const bool bShown=Usable()&&Gate.bInRest;
+    const bool bShown=Usable()&&(Gate.bInRest||Gate.bDormSwap);
     // A confirm line whose terms changed (another slot content, a used blueprint, changed components, the rest over) is
     // withdrawn, never resent.
     if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bShown||!RestConfirmHolds()))

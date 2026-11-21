@@ -128,12 +128,11 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     Input.TargetResistanceP2 = int64(20000);
     if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 83667, 0})) { return false; }
     Input = PrimaryInput(*Catalog);
-    Input.KeystoneGuardP2 = 200;
     Input.KeystoneGuardCapBp = 5000;
     const FLDDamageEvaluationResult Guarded = LDTactical::EvaluateDamage(Input, *Catalog);
     if (!TestTrue(TEXT("The keystone primary guard evaluates"), Guarded.IsSuccess())) { return false; }
-    TestEqual(TEXT("Keystone guard cuts the mitigated amount"), Guarded.Value->KeystoneGuardCutP2, int64(200));
-    TestEqual(TEXT("The guard cut precedes shields"), Guarded.Value->DamageP2, int64(5732));
+    TestEqual(TEXT("Keystone guard cuts its share of the mitigated amount"), Guarded.Value->KeystoneGuardCutP2, int64(2966));
+    TestEqual(TEXT("The guard cut precedes shields"), Guarded.Value->DamageP2, int64(2966));
     Input.bTargetProtected = true;
     const FLDDamageEvaluationResult Protected = LDTactical::EvaluateDamage(Input, *Catalog);
     if (!TestTrue(TEXT("Protection accepts the same valid guard inputs"), Protected.IsSuccess())) { return false; }

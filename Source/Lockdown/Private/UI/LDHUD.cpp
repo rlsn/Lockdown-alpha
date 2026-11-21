@@ -1710,7 +1710,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Workshop){ChoicesPanel->SetWorkshopPlaces(Workshop->Places());}
         ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
         if(Storage){Storage->SetEngaged(bEngaged);}
-        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC),
+            OwnCombat&&OwnCombat->bDormRegenActive);
         if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
     }
     if(StatBar)

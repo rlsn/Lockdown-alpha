@@ -262,6 +262,8 @@ struct FLDCombatAction
     // K06: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
     bool bAutoRecast=false;
     int64 AutoRecastScaleBp=10000;
+    // A08: the share scales the whole effect (damage, shields, heals and control durations), not only its damage.
+    bool bWholeEffectShare=false;
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
 };
@@ -912,6 +914,8 @@ public:
     void SubmitCharge(const FLDCombatCaller& Caller, const FLDCombatChargeRequest& Request);
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
+    // The body stands in a dorm and has been out of combat for DORM.RegenDelaySec (the dorm rest that allows a swap).
+    bool IsDormRested(const FLDCombatBodyRef& Body) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
     // Spec §6.5: the chain ends Entity's owner receives (its recent ones) and every contender's 本局最离谱 row.
     void ReadOwnerChains(const FGuid& Entity, TArray<FLDChainEndView>& Out) const;
@@ -1319,7 +1323,7 @@ private:
     // turns the overflow into a shield and Y19 counts what really healed. True when HP changed; OutApplied (optional) is healed.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
         int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid(), FString* OutError=nullptr);
-    // The single shield entry: live rot cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
+    // The single shield entry: live rot cuts the amount, then it applies StackToLatestExpiry; a granted shield
     // records its amount (ShieldGrantedP2).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
@@ -1452,7 +1456,7 @@ private:
     bool BagIsEnemyOf(const FLDCombatBag& Bag, const FGuid& Source) const;
     static int64 RawBagDamageP2(const FLDCombatHit& Hit);
     bool ResolveDashContacts(int64 NowMs, FString& Error);
-    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
+    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, bool bContender, int64 NowMs, FString& Error);
     // Ends the body's channelled cone (a new action, a death or a source change interrupts it).
     void CancelChannel(FLDBodyCombatState& Body);
     bool StartSkillDelivery(FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatAction& Action,

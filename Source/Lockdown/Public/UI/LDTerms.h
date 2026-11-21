@@ -159,7 +159,7 @@ inline FString StoredAsBlueprint(const FString& Name,const FString& Why)
 // 不能学习、加点或使用休息服务的原因（学习、加点与装牌随时可用，休息服务仍要活着、在配装窗口）。
 inline constexpr TCHAR DeadNoLearn[]=TEXT("阵亡中");
 inline constexpr TCHAR SlotsFull[]=TEXT("Q/W/E 已满");
-inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
+inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时或在躺平角脱战后才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
 // 牌库（HUD 右侧的牌堆）与展开后的安装列：Q/W/E、冲刺(D) 与本体（含普攻）各一列；元素勋章装在技能或本体的元素槽里。
 inline constexpr TCHAR Storage[]=TEXT("牌库");

@@ -843,15 +843,16 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.BurnAPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.BurnAPRatioBp, 0, 10000},
         {TEXT("COMBAT.BurnTickSec"), TEXT("ms"), TEXT("ms"), &P.BurnTickMs, 1, MAX_int64},
         {TEXT("COMBAT.BurnSec"), TEXT("ms"), TEXT("ms"), &P.BurnMs, 1, MAX_int64},
-        {TEXT("COMBAT.KeystonePhysiqueHealToShieldRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueHealToShieldBp, 1, 10000},
+        {TEXT("COMBAT.KeystonePhysiqueOutOfCombatCut"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueOutOfCombatCutBp, 1, 10000},
         {TEXT("COMBAT.KeystonePhysiqueShieldMaxHPRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystonePhysiqueShieldMaxHPBp, 1, 10000},
         {TEXT("COMBAT.KeystonePhysiqueShieldDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystonePhysiqueShieldDurationMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystonePhysiqueIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystonePhysiqueIntervalMs, 1, MAX_int64},
-        {TEXT("COMBAT.KeystoneThickSkinGuardPoints"), TEXT("points"), TEXT("p2"), &P.KeystoneThickSkinGuardP2, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneAgilityDashCooldownCut"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityDashCooldownCutBp, 1, 9999},
         {TEXT("COMBAT.KeystoneThickSkinGuardCapRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneThickSkinGuardCapBp, 1, 9999},
         {TEXT("COMBAT.KeystoneThickSkinIntervalSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneThickSkinIntervalMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneStrengthDamageRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneStrengthDamageBp, 1, 10000},
-        {TEXT("COMBAT.KeystoneBrainsMomentumRefundRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneBrainsMomentumRefundBp, 1, 10000},
+        {TEXT("COMBAT.KeystoneBrainsReactionMomentum"), TEXT("momentum"), TEXT("p2"), &P.KeystoneBrainsReactionMomentumP2, 1, MAX_int64},
+        {TEXT("COMBAT.KeystoneBrainsCooldownCutSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneBrainsCooldownCutMs, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneAgilityDamageBase"), TEXT("points"), TEXT("p2"), &P.KeystoneAgilityDamageBaseP2, 1, MAX_int64},
         {TEXT("COMBAT.KeystoneAgilityADRatio"), TEXT("ratio"), TEXT("bp"), &P.KeystoneAgilityADRatioBp, 1, 10000},
         {TEXT("COMBAT.KeystoneAgilityEmpowerDurationSec"), TEXT("ms"), TEXT("ms"), &P.KeystoneAgilityEmpowerDurationMs, 1, MAX_int64},
@@ -1033,7 +1034,7 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
         DEMO_POLICY(SourceLeave, CancelUnsettledNoRefund), DEMO_POLICY(InvalidAggressionProtection, BreakOnAggressiveIntent),
         DEMO_POLICY(CritSampling, OncePerAttackId), DEMO_POLICY(LifestealBasis, PrimaryBasicAttackHPLost),
         DEMO_POLICY(LifestealRecursiveTriggers, Disabled), DEMO_POLICY(BasicSecondaryTriggers, Disabled),
-        DEMO_POLICY(RegenIntegration, CarrySubP2Remainder), DEMO_POLICY(ShieldPolicy, ReplaceIfNotWeaker),
+        DEMO_POLICY(RegenIntegration, CarrySubP2Remainder), DEMO_POLICY(ShieldPolicy, StackToLatestExpiry),
         DEMO_POLICY(CampAggroTrigger, ConfirmedCombatHit), DEMO_POLICY(CampResetPolicy, ReturnThenReset),
         DEMO_POLICY(CampMomentumPolicy, NotApplicable),
     };
@@ -2033,8 +2034,11 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
     case ELDDemoEffectOp::DashPhase:
     case ELDDemoEffectOp::TakedownReset:
     case ELDDemoEffectOp::ReactionElement:
-    case ELDDemoEffectOp::SkillCrit:
     case ELDDemoEffectOp::LifestealSkills:
+        break;
+    case ELDDemoEffectOp::SkillCrit:
+        // Y09: its own crit chance for skills, on top of the holder's.
+        if (!OptionalFixed(F, TEXT("chance"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 0, 10000)) { return false; }
         break;
     case ELDDemoEffectOp::ComboKnockback:
     case ELDDemoEffectOp::DashSplit:
@@ -2520,7 +2524,8 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
             Out.HostHitTypes |= uint8(1u << Index);
         }
     }
-    if (!OptionalFlag(F, TEXT("host_control"), Out.bHostControl)) { return false; }
+    if (!OptionalFlag(F, TEXT("host_control"), Out.bHostControl)
+        || !OptionalFixed(F, TEXT("draw_weight"), TEXT("ratio"), TEXT("bp"), Out.DrawWeightBp, 1, 10000)) { return false; }
     if (!Check.Require(Out.Form == ELDCardForm::Skill || (Out.HostHitTypes == 0 && !Out.bHostControl), Path,
         TEXT("only a skill card limits its host")))
     {

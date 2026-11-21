@@ -801,6 +801,15 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     MarkViewChanged(Prepared.Contender);
 }
 
+bool ALDCombatDirector::IsDormRested(const FLDCombatBodyRef& Ref) const
+{
+    const FLDBodyCombatState* Body=FindBody(Ref);
+    const auto* Mode=Core();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    return Body && Mode && Content && Body->bInDorm && !Body->bPendingDeath
+        && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,Mode->GetAuthorityNowMs());
+}
+
 FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const
 {
     FLDCombatEntryView Refused;
@@ -987,19 +996,20 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move)
                 || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; });
             const auto& Parameters=Content->Get().Parameters;
-            const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
+            // The physique keystone starts both recoveries sooner (as the settle does).
+            const int64 CutBp=Body->AttributeProjection.Keystones.bPhysique ? Parameters.KeystonePhysiqueOutOfCombatCutBp : 0;
+            const auto Cut=[CutBp](int64 DelayMs) { return DelayMs-(DelayMs/10000*CutBp+DelayMs%10000*CutBp/10000); };
+            const LDTactical::FOutOfCombatRecovery Recovery{Cut(Parameters.OutOfCombatRegenDelayMs),
                 Parameters.OutOfCombatMaxHPRegenBp};
             // Inside a 躺平角 (D21) its term is part of the displayed rate, as it is of the settled one.
-            const LDTactical::FOutOfCombatRecovery Dorm{Parameters.DormRegenDelayMs,Parameters.DormMaxHPRegenBp};
+            const LDTactical::FOutOfCombatRecovery Dorm{Cut(Parameters.DormRegenDelayMs),Parameters.DormMaxHPRegenBp};
             const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Body->LastCombatAtMs,NowMs,
                 Body->bInDorm ? &Dorm : nullptr);
             Out.HPRegenPerSec=Regen.HP;
             // The D21 contender recovery (this view is a contender's) is running.
-            Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
-                Content->Get().Parameters.OutOfCombatRegenDelayMs,NowMs);
+            Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Recovery.DelayMs,NowMs);
             Out.bInDorm=Body->bInDorm;
-            Out.bDormRegenActive=Body->bInDorm
-                && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,NowMs);
+            Out.bDormRegenActive=Body->bInDorm && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Dorm.DelayMs,NowMs);
         }
     }
     else

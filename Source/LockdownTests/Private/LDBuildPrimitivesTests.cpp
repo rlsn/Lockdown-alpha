@@ -2797,6 +2797,7 @@ bool FLDCardRuleY01Test::RunTest(const FString& Parameters)
     bool bGood = TestTrue(FString::Printf(TEXT("Y01 x%d: one magic reflection of 25%% per copy to the attacker"), Copies),
         Reflect && Reflect->Target.Victim == Attacker.Victim && Reflect->DamageType == ELDDemoDamageType::Magical
         && Reflect->BaseP2 == Dealt * 2500 * Copies / 10000);
+    bGood &= TestTrue(TEXT("Y01: a reflection never lifesteals"), Reflect && !Reflect->bLifesteal && Reflect->LifestealRatioBp == 0);
     // A reflection is never reflected back.
     if (Reflect)
     {

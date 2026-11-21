@@ -62,15 +62,14 @@ bool FLDCombatStatusShieldTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A first barrier applies"),
         ApplyShield(Shield, ShieldP2, First, 12000, 1000) && ShieldP2 == 12000 && Shield->EffectId == First.EffectId);
     ShieldP2 = 8000;
-    TestFalse(TEXT("A weaker barrier is suppressed"), ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 9000}, 7999, 2000));
-    TestTrue(TEXT("The stronger remaining record keeps its amount, source and deadline"),
-        ShieldP2 == 8000 && Shield->EffectId == First.EffectId && Shield->ExpiresAtMs == 5000);
-    const FLDCombatShield Equal{FGuid::NewGuid(), Source, 9000};
-    TestTrue(TEXT("An equal barrier refreshes the whole record"),
-        ApplyShield(Shield, ShieldP2, Equal, 8000, 2000) && ShieldP2 == 8000 && Shield->EffectId == Equal.EffectId
+    const FLDCombatShield Second{FGuid::NewGuid(), Source, 9000};
+    TestTrue(TEXT("A second barrier stacks on the live remainder and lasts to the later deadline"),
+        ApplyShield(Shield, ShieldP2, Second, 3000, 2000) && ShieldP2 == 11000 && Shield->EffectId == Second.EffectId
         && Shield->ExpiresAtMs == 9000);
-    TestTrue(TEXT("No legacy cap limits a stronger barrier"),
-        ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 9500}, 1000000, 2000) && ShieldP2 == 1000000);
+    TestTrue(TEXT("A shorter barrier stacks without shortening the record"),
+        ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 4000}, 1000, 2000) && ShieldP2 == 12000 && Shield->ExpiresAtMs == 9000);
+    TestTrue(TEXT("No cap limits the stack"),
+        ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 9500}, 1000000, 2000) && ShieldP2 == 1012000);
     TestTrue(TEXT("An expired barrier counts as no remaining amount"),
         ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 20000}, 1, 9500) && ShieldP2 == 1);
     TestFalse(TEXT("A nonpositive amount never applies"), ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 30000}, 0, 9600));

@@ -43,7 +43,7 @@ POLICIES = (
     "None", "AddFlatThenAdditivePercent", "Allowed",
     "ContinueServerTime", "PreserveRatio", "ContinueForRemainingContender", "CancelUnsettledNoRefund",
     "BreakOnAggressiveIntent", "OncePerAttackId", "PrimaryBasicAttackHPLost", "Disabled",
-    "CarrySubP2Remainder", "ReplaceIfNotWeaker", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
+    "CarrySubP2Remainder", "StackToLatestExpiry", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
 )
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
@@ -175,6 +175,8 @@ def effect(value):
         ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
         ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
         ("burn_ratio", "RatioBp"),
+        # Y09's own skill crit chance.
+        ("chance", "RatioBp"),
     ):
         # A05/A10 rates are rationals (card_terms places them).
         if source in value and not (value.get("op") in ("speed_factor", "overcap_extra_hit") and source == "threshold"):
@@ -391,6 +393,7 @@ def card(row):
         "VocabMask": vocab_mask(row["vocab"]), "ChooseElements": [ELEMENTS.index(element) for element in row.get("choose_element", [])],
         "HostHitTypes": sum(1 << HIT_TYPES.index(kind) for kind in row.get("host_hit_types", [])),
         "bHostControl": bool(row.get("host_control", False)),
+        "DrawWeightBp": scalar(row["draw_weight"]) if "draw_weight" in row else 10000,
         "Effects": [effect(value) for value in row["effects"]],
     }
 
@@ -459,15 +462,16 @@ def parameter_projection(parameters):
         ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
         ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
         ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"),
-        ("COMBAT.KeystonePhysiqueHealToShieldRatio", "KeystonePhysiqueHealToShieldBp"),
+        ("COMBAT.KeystonePhysiqueOutOfCombatCut", "KeystonePhysiqueOutOfCombatCutBp"),
         ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "KeystonePhysiqueShieldMaxHPBp"),
         ("COMBAT.KeystonePhysiqueShieldDurationSec", "KeystonePhysiqueShieldDurationMs"),
         ("COMBAT.KeystonePhysiqueIntervalSec", "KeystonePhysiqueIntervalMs"),
-        ("COMBAT.KeystoneThickSkinGuardPoints", "KeystoneThickSkinGuardP2"),
+        ("COMBAT.KeystoneAgilityDashCooldownCut", "KeystoneAgilityDashCooldownCutBp"),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "KeystoneThickSkinGuardCapBp"),
         ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"),
         ("COMBAT.KeystoneStrengthDamageRatio", "KeystoneStrengthDamageBp"),
-        ("COMBAT.KeystoneBrainsMomentumRefundRatio", "KeystoneBrainsMomentumRefundBp"),
+        ("COMBAT.KeystoneBrainsReactionMomentum", "KeystoneBrainsReactionMomentumP2"),
+        ("COMBAT.KeystoneBrainsCooldownCutSec", "KeystoneBrainsCooldownCutMs"),
         ("COMBAT.KeystoneAgilityDamageBase", "KeystoneAgilityDamageBaseP2"),
         ("COMBAT.KeystoneAgilityADRatio", "KeystoneAgilityADRatioBp"),
         ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"),

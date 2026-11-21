@@ -565,7 +565,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -639,7 +639,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -733,7 +733,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -820,7 +820,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -898,7 +898,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -996,7 +996,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1092,7 +1092,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 5000,
+            "bp": 8000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -1168,7 +1168,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 2800,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1246,7 +1246,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1306,7 +1306,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 2800,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1384,7 +1384,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 2800,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1479,7 +1479,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1570,7 +1570,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 11250,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1632,7 +1632,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 4000,
+            "bp": 7500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -2149,7 +2149,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2238,7 +2238,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2311,7 +2311,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2404,7 +2404,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2498,7 +2498,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2571,7 +2571,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2654,7 +2654,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 10000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -2747,7 +2747,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2838,7 +2838,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 4550,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -2929,7 +2929,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3037,7 +3037,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3137,7 +3137,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 4550,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3236,7 +3236,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 4550,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -3345,7 +3345,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 3500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -4034,7 +4034,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -4093,7 +4093,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -4165,7 +4165,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -4246,7 +4246,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -4318,7 +4318,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -4391,7 +4391,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -4478,7 +4478,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 6000,
+            "bp": 10000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -5634,7 +5634,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -5716,7 +5716,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -5780,7 +5780,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -5874,7 +5874,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -5961,7 +5961,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -6029,7 +6029,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 9500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -6107,7 +6107,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 6000,
+            "bp": 9500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -8595,7 +8595,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -8654,7 +8654,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -8730,7 +8730,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -8803,7 +8803,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -8876,7 +8876,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -8960,7 +8960,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -9037,7 +9037,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 4000,
+            "bp": 7500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -9805,7 +9805,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -9887,7 +9887,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 12000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -9970,7 +9970,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -10048,7 +10048,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -10135,7 +10135,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 12000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -10231,7 +10231,7 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 12000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -10319,7 +10319,7 @@
         },
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 6000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -10863,7 +10863,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -10934,7 +10934,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11013,7 +11013,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11117,7 +11117,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11194,7 +11194,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11274,7 +11274,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 9000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11367,7 +11367,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 9000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -11442,7 +11442,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11533,7 +11533,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11641,7 +11641,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11736,7 +11736,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11837,7 +11837,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -11945,7 +11945,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12055,7 +12055,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 7500,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -12150,7 +12150,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12239,7 +12239,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12346,7 +12346,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12439,7 +12439,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12532,7 +12532,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12643,7 +12643,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -12755,7 +12755,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 7000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -13341,7 +13341,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 900,
+                "bp": 1500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13394,7 +13394,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2160,
+                "bp": 3600,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13447,7 +13447,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 900,
+                "bp": 1500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13504,7 +13504,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 900,
+                "bp": 1500,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13558,7 +13558,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2160,
+                "bp": 3600,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13615,7 +13615,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2160,
+                "bp": 3600,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13670,7 +13670,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 1200,
+            "bp": 2000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -13727,7 +13727,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13786,7 +13786,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13857,7 +13857,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -13937,7 +13937,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -14010,7 +14010,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -14081,7 +14081,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -14157,7 +14157,7 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 4500,
+            "bp": 8000,
             "unit": "ratio"
           },
           "ap_ratio": {
@@ -17020,8 +17020,8 @@
             "unit": "attacks/s"
           },
           "threshold": {
-            "denominator": 1,
-            "numerator": 2,
+            "denominator": 5,
+            "numerator": 7,
             "unit": "attacks/s"
           }
         }
@@ -17086,6 +17086,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "duration": {
@@ -17112,12 +17116,12 @@
     {
       "effects": [
         {
-          "count": 10,
+          "count": 3,
           "op": "hit_growth",
           "opcode": 247,
           "stats": {
             "ADFlat": {
-              "p2": 100,
+              "p2": 200,
               "unit": "points"
             }
           },
@@ -17252,6 +17256,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "damage_ratio": {
@@ -17500,6 +17508,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "interval": {
@@ -17523,6 +17535,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "op": "skill_growth",
@@ -17838,6 +17854,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "damage_type": "Magical",
@@ -18033,6 +18053,10 @@
     {
       "effects": [
         {
+          "chance": {
+            "bp": 1500,
+            "unit": "ratio"
+          },
           "op": "skill_crit",
           "opcode": 219
         }
@@ -18234,14 +18258,18 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "heal": {
-            "p2": 20000,
+            "p2": 10000,
             "unit": "hp"
           },
           "max_hp": {
-            "p2": 1000,
+            "p2": 1500,
             "unit": "hp"
           },
           "op": "heal_growth",
@@ -18258,6 +18286,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "assist_ratio": {
@@ -18287,6 +18319,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "op": "control_growth",
@@ -18313,6 +18349,10 @@
       ]
     },
     {
+      "draw_weight": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
       "effects": [
         {
           "interval": {
@@ -21807,51 +21847,55 @@
       "unit": "ms"
     },
     "COMBAT.KeystoneAgilityADRatio": {
-      "bp": 1250,
+      "bp": 5000,
       "unit": "ratio"
     },
     "COMBAT.KeystoneAgilityDamageBase": {
-      "p2": 1250,
+      "p2": 3500,
       "unit": "points"
+    },
+    "COMBAT.KeystoneAgilityDashCooldownCut": {
+      "bp": 4000,
+      "unit": "ratio"
     },
     "COMBAT.KeystoneAgilityEmpowerDurationSec": {
       "ms": 3000,
       "unit": "ms"
     },
-    "COMBAT.KeystoneBrainsMomentumRefundRatio": {
-      "bp": 1500,
-      "unit": "ratio"
+    "COMBAT.KeystoneBrainsCooldownCutSec": {
+      "ms": 1000,
+      "unit": "ms"
     },
-    "COMBAT.KeystonePhysiqueHealToShieldRatio": {
-      "bp": 2500,
-      "unit": "ratio"
+    "COMBAT.KeystoneBrainsReactionMomentum": {
+      "p2": 1500,
+      "unit": "momentum"
     },
     "COMBAT.KeystonePhysiqueIntervalSec": {
-      "ms": 6000,
+      "ms": 5000,
       "unit": "ms"
+    },
+    "COMBAT.KeystonePhysiqueOutOfCombatCut": {
+      "bp": 5000,
+      "unit": "ratio"
     },
     "COMBAT.KeystonePhysiqueShieldDurationSec": {
       "ms": 3000,
       "unit": "ms"
     },
     "COMBAT.KeystonePhysiqueShieldMaxHPRatio": {
-      "bp": 350,
+      "bp": 1000,
       "unit": "ratio"
     },
     "COMBAT.KeystoneStrengthDamageRatio": {
-      "bp": 600,
+      "bp": 1800,
       "unit": "ratio"
     },
     "COMBAT.KeystoneThickSkinGuardCapRatio": {
-      "bp": 1200,
+      "bp": 3000,
       "unit": "ratio"
     },
-    "COMBAT.KeystoneThickSkinGuardPoints": {
-      "p2": 600,
-      "unit": "points"
-    },
     "COMBAT.KeystoneThickSkinIntervalSec": {
-      "ms": 8000,
+      "ms": 6000,
       "unit": "ms"
     },
     "COMBAT.MeltRatio": {
@@ -21949,7 +21993,7 @@
       "unit": "ratio"
     },
     "COMBO.ResetSec": {
-      "ms": 1500,
+      "ms": 2500,
       "unit": "ms"
     },
     "COMBO.StepRatios": [
@@ -22603,9 +22647,11 @@
       "unit": "ratio"
     },
     "SKILL.PointLevels": [
-      4,
-      8,
-      12
+      3,
+      6,
+      9,
+      12,
+      15
     ],
     "SKILL.RankBaseScale": [
       {
@@ -22868,14 +22914,15 @@
       "Move",
       "Dash"
     ],
-    "ShieldPolicy": "ReplaceIfNotWeaker",
+    "ShieldPolicy": "StackToLatestExpiry",
     "SourceLeave": "CancelUnsettledNoRefund",
     "StatStacking": "AddFlatThenAdditivePercent"
   },
   "progression": {
     "active_offer_levels": [
       2,
-      6
+      6,
+      11
     ],
     "active_slots": 3,
     "max_level": 16,
@@ -22970,11 +23017,11 @@
       "native_id": 29,
       "per_point": {
         "ADFlat": {
-          "p2": 250,
+          "p2": 300,
           "unit": "points"
         },
         "CritChanceBonusRatio": {
-          "bp": 40,
+          "bp": 60,
           "unit": "ratio"
         }
       }

@@ -9,6 +9,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDSkillGrowth.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Region/LDMapRegistry.h"
@@ -1173,8 +1174,20 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
     // releases a normal cast).
     Body.bReleasedOverdrive=bOverdrive;
-    // K06: a repeat releases at its share of the damage.
-    if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
+    // A08: a combo cast releases its whole effect at its share (amounts, ratios and control durations); K06: a repeat
+    // releases at its share of the damage.
+    if (Action.bAutoRecast && Action.bWholeEffectShare)
+    {
+        const int64 ShareBp=Action.AutoRecastScaleBp;
+        if (!LDSkillGrowth::ScaleValues(Terms.Values,ShareBp,ShareBp))
+        { Error=TEXT("A combo cast's share overflows its effect."); return false; }
+        for (FLDDemoEffectDefinition& Effect : Terms.Values.Effects)
+        {
+            if (Effect.IsControl()) { Effect.DurationMs=Effect.DurationMs/10000*ShareBp+Effect.DurationMs%10000*ShareBp/10000; }
+            else if (int64* Composed=Effect.ComposedControlMs()) { *Composed=*Composed/10000*ShareBp+*Composed%10000*ShareBp/10000; }
+        }
+    }
+    else if (Action.bAutoRecast) { Terms.PackageScaleBp=Terms.PackageScaleBp/10000*Action.AutoRecastScaleBp+Terms.PackageScaleBp%10000*Action.AutoRecastScaleBp/10000; }
     const FLDDemoAbilityValues* ValuesDef=&Terms.Values;
     const FLDDemoTargetDefinition& TargetDef=Terms.Target;
     // The caster's foot before any displacement of this release (areas, zones and pushes centre here).
@@ -1301,6 +1314,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     {
         DurationMs=FMath::Max<int64>(1,DurationMs*(10000-Content->Get().Parameters.Daily.GymDashCooldownCutBp)/10000);
     }
+    // The agility keystone: the D dash recovers its share sooner.
+    if (bInnate && Body.AttributeProjection.Keystones.bAgility)
+    {
+        DurationMs=FMath::Max<int64>(1,DurationMs*(10000-Content->Get().Parameters.KeystoneAgilityDashCooldownCutBp)/10000);
+    }
     if (!bInnate && !LDTactical::CooldownDurationMs(BaseCooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
             Content->Get().Formulas.HasteScaleP2,DurationMs,Error)) { return false; }
     // SKILL.CooldownFloorSec: the technical floor of a hasted Q/W/E (animation and network), not a gameplay cap.
@@ -1405,7 +1423,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             if (Effect.APRatioBp<0 || Final.APP2<0 || (Effect.APRatioBp>0 && Final.APP2>MAX_int64/Effect.APRatioBp)
                 || Effect.MaxHPRatioBp<0 || MaxHP<0)
             { Error=TEXT("Shield scaling overflowed."); return false; }
-            // Base + AP share + own max-HP share, through the single shield entry (ReplaceIfNotWeaker).
+            // Base + AP share + own max-HP share, through the single shield entry (StackToLatestExpiry).
             const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000+MaxHP/10000*Effect.MaxHPRatioBp+MaxHP%10000*Effect.MaxHPRatioBp/10000;
             if (!GrantShieldTo(Body,Amount,Effect.DurationMs,EffectId,Body.Victim.EntityId,Now,Error,Source)) { return false; }
             break;

@@ -329,10 +329,9 @@ bool LDCombatSourceRules::CompileCardActive(const FLDAttributeProjection& Projec
     {
         for (FLDDemoEffectDefinition& Effect : Values.Effects)
         {
-            const ELDDemoEffectOp Op=Effect.GetOp();
-            if (Op==ELDDemoEffectOp::Root || Op==ELDDemoEffectOp::Stun || Op==ELDDemoEffectOp::Silence || Op==ELDDemoEffectOp::Disarm
-                || Op==ELDDemoEffectOp::Taunt)
-            { Effect.DurationMs=Share(Effect.DurationMs,10000+ControlBp); }
+            if (Effect.IsControl()) { Effect.DurationMs=Share(Effect.DurationMs,10000+ControlBp); }
+            // K11 also lengthens a control another delivery carries.
+            else if (int64* Composed=Effect.ComposedControlMs()) { *Composed=Share(*Composed,10000+ControlBp); }
         }
     }
     if (Source.Kind==ELDCombatSourceKind::Innate && !Rams.IsEmpty())
@@ -415,8 +414,9 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     if (!bHostile) { return true; }
     // A release's locked factors ride on every native hit of it.
     if (Hit.CastLedger && IsNativeDirectHit(Hit)) { Out.Append(Hit.CastLedger->Factors); }
-    // The strength keystone on a slowed or controlled target.
+    // The strength keystone on a slowed, attack-slowed, pushed or controlled target.
     const bool bControlled=LDTactical::StrongestSlowBp(Target.Slows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Roots,NowMs)
+        || LDTactical::StrongestSlowBp(Target.AttackSlows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Knockbacks,NowMs)
         || LDTactical::HasActiveRoot(Target.Stuns,NowMs) || LDTactical::HasActiveRoot(Target.Disarms,NowMs)
         || LDControl::IsTaunted(Target.Taunt,NowMs) || LDTactical::HasActiveRoot(Target.Silences,NowMs);
     if (Source && Source->AttributeProjection.Keystones.bStrength && bControlled)
@@ -962,8 +962,8 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             Reflect.BaseP2=Share(Damage.DamageP2,ReflectBp);
             Reflect.DamageType=ELDDemoDamageType::Magical;
             Reflect.bReflect=true;
-            // The reflection may heal its holder through the holder's lifesteal.
-            if (!SnapshotOnHit(Target,10000,Reflect,Error)) { return false; }
+            // Spec §4.4: a reflection never heals (no lifesteal snapshot).
+            if (!SnapshotOnHit(Target,0,Reflect,Error)) { return false; }
             PendingHits.Add(MoveTemp(Reflect));
             LedgerCardTriggered(Target,FName(TEXT("card_spiky_hide")));
         }
@@ -1021,13 +1021,6 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             { LedgerCardTriggered(*Source,Hurts[0].Key); }
             if (!HealError.IsEmpty()) { Error=MoveTemp(HealError); return false; }
         }
-    }
-    // A reflection heals its holder through the holder's lifesteal (Y01: "反弹可以吸血").
-    if (Hit.bReflect && Hit.bLifesteal && Damage.HPLostP2>0)
-    {
-        FString HealError;
-        HealBody(*Source,Share(Damage.HPLostP2,Hit.LifestealRatioBp),Hit.Source,nullptr,FGuid(),&HealError);
-        if (!HealError.IsEmpty()) { Error=MoveTemp(HealError); return false; }
     }
     // Skill-hit triggers of a native hit: the host's cards and Y16.
     const auto SkillHit=[&](const FLDCombatSourceRef& Host)
@@ -1736,6 +1729,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     int64 ShareBp=0;
     for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }
     Cast.AutoRecastScaleBp=ShareBp;
+    Cast.bWholeEffectShare=true;
     Cast.ChainId=CurrentChain;
     FLDCombatAutoRecast& Repeat=AutoRecasts.AddDefaulted_GetRef();
     Repeat.Body={Body.Victim,Body.Identity};

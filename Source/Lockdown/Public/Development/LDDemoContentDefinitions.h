@@ -537,15 +537,16 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnTickMs = 0;
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
-    UPROPERTY() int64 KeystonePhysiqueHealToShieldBp = 0;
+    UPROPERTY() int64 KeystonePhysiqueOutOfCombatCutBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldMaxHPBp = 0;
     UPROPERTY() int64 KeystonePhysiqueShieldDurationMs = 0;
     UPROPERTY() int64 KeystonePhysiqueIntervalMs = 0;
-    UPROPERTY() int64 KeystoneThickSkinGuardP2 = 0;
+    UPROPERTY() int64 KeystoneAgilityDashCooldownCutBp = 0;
     UPROPERTY() int64 KeystoneThickSkinGuardCapBp = 0;
     UPROPERTY() int64 KeystoneThickSkinIntervalMs = 0;
     UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
-    UPROPERTY() int64 KeystoneBrainsMomentumRefundBp = 0;
+    UPROPERTY() int64 KeystoneBrainsReactionMomentumP2 = 0;
+    UPROPERTY() int64 KeystoneBrainsCooldownCutMs = 0;
     UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
     UPROPERTY() int64 KeystoneAgilityADRatioBp = 0;
     UPROPERTY() int64 KeystoneAgilityEmpowerDurationMs = 0;
@@ -649,7 +650,7 @@ enum class ELDDemoPolicy : uint8
     None, AddFlatThenAdditivePercent, Allowed,
     ContinueServerTime, PreserveRatio, ContinueForRemainingContender, CancelUnsettledNoRefund,
     BreakOnAggressiveIntent, OncePerAttackId, PrimaryBasicAttackHPLost, Disabled,
-    CarrySubP2Remainder, ReplaceIfNotWeaker, ConfirmedCombatHit, ReturnThenReset, NotApplicable
+    CarrySubP2Remainder, StackToLatestExpiry, ConfirmedCombatHit, ReturnThenReset, NotApplicable
 };
 
 UENUM()
@@ -953,6 +954,30 @@ struct FLDDemoEffectDefinition
     // ground_relocate and double_stall no fields; ground_growth RatioBp (factor per interval) + IntervalMs.
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
+
+    // A hard control this effect is itself (root, stun, silence, disarm, taunt).
+    bool IsControl() const
+    {
+        const ELDDemoEffectOp Op = GetOp();
+        return Op == ELDDemoEffectOp::Root || Op == ELDDemoEffectOp::Stun || Op == ELDDemoEffectOp::Silence
+            || Op == ELDDemoEffectOp::Disarm || Op == ELDDemoEffectOp::Taunt;
+    }
+    // The duration of a control another delivery carries (a wall stun, a final-wave root, a centre stun, a last-hit stun,
+    // a blow's stun, a recast's same-target stun or replaced control); null when it carries none. K05/K11 count these.
+    int64* ComposedControlMs()
+    {
+        switch (GetOp())
+        {
+        case ELDDemoEffectOp::Knockback: case ELDDemoEffectOp::ChannelCone: case ELDDemoEffectOp::GroundImpact:
+        case ELDDemoEffectOp::EmpowerBasic: case ELDDemoEffectOp::Fan:
+            return ExtraDurationMs > 0 ? &ExtraDurationMs : nullptr;
+        case ELDDemoEffectOp::Recast:
+            return ExtraDurationMs > 0 ? &ExtraDurationMs
+                : RecastControl != ELDDemoRecastControl::Same && SecondaryDurationMs > 0 ? &SecondaryDurationMs : nullptr;
+        default: return nullptr;
+        }
+    }
+    bool HasControl() const { return IsControl() || const_cast<FLDDemoEffectDefinition*>(this)->ComposedControlMs() != nullptr; }
 };
 
 // #198: the one value set of an active (no ranks); its fixed amounts grow with the owner's level (LDSkillGrowth).
@@ -1078,6 +1103,8 @@ struct FLDDemoCardDefinition
     // that controls (root, stun, silence, disarm or taunt in its level-1 value set).
     UPROPERTY() uint8 HostHitTypes = 0;
     UPROPERTY() bool bHostControl = false;
+    // Its relative chance in a card draw (basis points of a plain card); the rare jackpot cards draw less often.
+    UPROPERTY() int64 DrawWeightBp = 10000;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 

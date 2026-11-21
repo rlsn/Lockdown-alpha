@@ -695,11 +695,13 @@ namespace LDHUD
         FString CardOfferBlocked;
         // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
         bool bInRest=false;
+        // On the field, resting in a dorm out of combat: a blueprint may replace a learned skill here.
+        bool bDormSwap=false;
         // Installing, moving and uninstalling a card, as growth gates them (LDProgression::InstallGate).
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bDormRested=false);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, a rest

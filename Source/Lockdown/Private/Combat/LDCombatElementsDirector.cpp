@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "Combat/LDCombatElements.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -266,17 +267,25 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
         { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
     }
-    if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded
-        && Applier.CastLedger->PaidMomentumP2>0)
+    // The brains keystone: a reaction its holder triggers (any source, medals included; once per cast) gives momentum and
+    // takes a fixed time off every learned skill still cooling down.
+    if (Reaction!=ELDCombatReaction::None && !(Applier.CastLedger && Applier.CastLedger->bBrainsKeystoneRefunded))
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
         if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)
         {
-            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsMomentumRefundBp;
-            const int64 PaidP2=Applier.CastLedger->PaidMomentumP2;
-            const int64 RefundP2=PaidP2/10000*RatioBp+PaidP2%10000*RatioBp/10000;
-            Applier.CastLedger->bBrainsKeystoneRefunded=true;
-            if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }
+            const FLDDemoContentParameters& Parameters=Catalog()->Get().Parameters;
+            if (Applier.CastLedger) { Applier.CastLedger->bBrainsKeystoneRefunded=true; }
+            GrantMomentum(*SourceBody,Parameters.KeystoneBrainsReactionMomentumP2,ELDMomentumBook::Reaction);
+            if (FLDCombatEntityRecord* Record=FindRecord(SourceBody->Victim.EntityId))
+            {
+                for (FLDCombatTrack& Track : Record->Tracks)
+                {
+                    if (Track.Kind==ELDCombatSourceKind::Learned && Track.ReadyAtMs>NowMs)
+                    { Track.ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track.ReadyAtMs,NowMs,Parameters.KeystoneBrainsCooldownCutMs); }
+                }
+                MarkViewChanged(SourceBody->Victim.EntityId);
+            }
         }
     }
     if (Reaction==ELDCombatReaction::None)

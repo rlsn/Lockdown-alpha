@@ -1944,11 +1944,12 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bDormRested)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
+    Context.bDormRested=bDormRested&&Stage==LDProgression::EMatchStage::Live;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
         bAllowed=Reason==ELDGrowthReason::None;
@@ -1967,6 +1968,7 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ForgetActive,Context),View.bCanForget,View.ForgetBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::PickCard,Context),View.bCanCardOffer,View.CardOfferBlocked);
     View.bInRest=Stage==LDProgression::EMatchStage::Rest||Stage==LDProgression::EMatchStage::RestLocked;
+    View.bDormSwap=Context.bDormRested&&View.bCanReplace;
     return View;
 }
 FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys)
