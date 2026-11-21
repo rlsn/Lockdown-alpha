@@ -896,6 +896,16 @@ namespace LDHUD
         uint32 SeenMatch=0;
         int32 Known=0;
     };
+    // Tells each element medal that drops once ("获得【…】"): the first valid view of a match primes, later views name the
+    // medals whose serial is past the highest one seen. Local presentation only.
+    class LOCKDOWN_API FMedalDropWatch
+    {
+    public:
+        TArray<FString> Observe(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
+    private:
+        uint32 SeenMatch=0;
+        uint16 HighestSerial=0;
+    };
     struct FAttributeRowView
     {
         FString Name;

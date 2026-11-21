@@ -37,13 +37,13 @@ constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
 constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
-constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
+constexpr float WorldBarHeight=9.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
 constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnMomentumHeight=4.f;
 // Own status icons over the own bars: squares at the reference text scale, the gap between them and how many fill a row.
 constexpr float OwnStatusSide=22.f,OwnStatusGap=3.f;constexpr int32 OwnStatusPerRow=6;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
 float WorldBarWidth(const LDWorldLabels::FLabel& Label)
-{return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?110.f
+{return Label.bContender?96.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?120.f
     :(Label.CreatureId==uint8(ELDDemoMonsterId::MonsterAdvisor)||Label.CreatureId>=uint8(ELDDemoMonsterId::MonsterAuditor))?96.f
     :(Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterAgent)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuard))?84.f:64.f;}
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
@@ -106,7 +106,12 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
     // no bar rather than an empty one.
     Label.bHealth=Unit.Health.MaxP2>0&&Unit.Health.CurrentP2>=0;
     Label.bCharging=Label.bContender&&Unit.bCharging;
-    if(Label.bHealth){Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));}
+    if(Label.bHealth)
+    {
+        Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));
+        Label.MaxHealth=float(double(Unit.Health.MaxP2)/100.);
+    }
+    Label.Handle=Unit.Handle;
     // The same parts as the target card's status line (LDHUD::ObservedCard), so both read alike.
     for(const FLDObservedStatus& Status:Unit.Statuses)
     {
@@ -171,6 +176,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
     // Nothing is drawn before the display content was tried, so a first frame never flashes fallback ids.
     if(!bDisplayContentTried||!PC||!Public||!Renderer){return Base;}
+    // A bar out of sight for a while forgets its trail.
+    {const double TrailNow=FPlatformTime::Seconds();for(auto It=Trails.CreateIterator();It;++It){if(TrailNow-It.Value().SeenAt>2.){It.RemoveCurrent();}}}
     if(PC->HUDUI){PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
     const FLDOwnerState& Own=PC->OwnerState;
     // Only the current authorized frame of this match and life, read on every paint: a dead, stale or foreign frame
@@ -495,8 +502,36 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             // The shield is a line across the top of the bar; the status line below names it too.
             if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
             Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
+            // The damage trail: what was just lost stays bright for a moment, then closes on the current fill.
+            const double PaintNow=FPlatformTime::Seconds();
+            float TrailShown=Label.HealthFraction;
+            if(Label.Handle.IsValid())
+            {
+                ULDWorldLabels::FTrail& Trail=Trails.FindOrAdd(Label.Handle);
+                if(Trail.SeenAt<=0.||Label.HealthFraction>=Trail.Shown){Trail.Shown=Label.HealthFraction;Trail.HeldUntil=PaintNow+.15;}
+                else if(PaintNow>Trail.HeldUntil)
+                {Trail.Shown=FMath::Max(Label.HealthFraction,Trail.Shown-float(FMath::Min(PaintNow-Trail.SeenAt,.1))*1.6f);}
+                Trail.SeenAt=PaintNow;
+                TrailShown=Trail.Shown;
+            }
+            if(TrailShown>Label.HealthFraction)
+            {Box(3,FVector2f(BarLeft+1.f+BarWidth*Label.HealthFraction,TrackTop),FVector2f(BarWidth*(TrailShown-Label.HealthFraction),WorldBarHeight),FLinearColor(1.f,.96f,.86f,.9f));}
             if(Label.HealthFraction>0.f)
             {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
+            // Ticks show how tanky the unit is: a thin half tick every 100 HP (when they fit), a full one every 1000 HP.
+            if(Label.MaxHealth>0.f)
+            {
+                const float PerHundred=BarWidth*100.f/Label.MaxHealth;
+                const FLinearColor Tick(0.f,0.f,0.f,.55f);
+                for(int32 Hundred=1;Hundred*100.f<Label.MaxHealth;++Hundred)
+                {
+                    const bool bThousand=Hundred%10==0;
+                    if(!bThousand&&PerHundred<3.f){continue;}
+                    const float X=BarLeft+1.f+PerHundred*float(Hundred);
+                    const float TickHeight=bThousand?WorldBarHeight:WorldBarHeight*.5f;
+                    Box(4,FVector2f(X-(bThousand?.75f:.5f),TrackTop),FVector2f(bThousand?1.5f:1.f,TickHeight),Tick);
+                }
+            }
             if(Label.bContender&&Label.Level>0)
             {
                 // The badge carries the identity tint: the name itself identifies, the colour is only an extra cue.

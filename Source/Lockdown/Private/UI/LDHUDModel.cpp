@@ -2461,6 +2461,21 @@ TArray<FLDFieldRewardView> LDHUD::FFieldRewardWatch::Observe(const FLDProgressio
     Known=Progression->FieldRewards.Num();
     return Out;
 }
+TArray<FString> LDHUD::FMedalDropWatch::Observe(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FString> Out;
+    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match||!Content){return Out;}
+    uint16 Highest=0;
+    for(const FLDCardInstanceView& Card:Progression->Cards){Highest=FMath::Max(Highest,Card.Serial);}
+    if(SeenMatch!=Match){SeenMatch=Match;HighestSerial=Highest;return Out;}
+    for(const FLDCardInstanceView& Card:Progression->Cards)
+    {
+        if(Card.Serial>HighestSerial&&LDProgression::IsMedal(*Content,Card.DefinitionId))
+        {Out.Add(FString::Printf(TEXT("获得【%s】"),*ContentName(Content,Card.DefinitionId.ToString())));}
+    }
+    HighestSerial=FMath::Max(HighestSerial,Highest);
+    return Out;
+}
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
 {
     static const FString Names[]={LDTerms::MaxHealth(),LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,

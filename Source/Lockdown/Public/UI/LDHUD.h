@@ -421,6 +421,7 @@ private:
     double AutoOpenSince=-1;
     // #198 G: each new field reward of the own view is toasted once (LDHUD::FieldRewardNotice).
     LDHUD::FFieldRewardWatch FieldRewardWatch;
+    LDHUD::FMedalDropWatch MedalDropWatch;
     // Own-body hits (the same health and shield losses the world feedback floats), which fold the growth panel.
     LDWorldFeedback::FTracker OwnHitWatch;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);

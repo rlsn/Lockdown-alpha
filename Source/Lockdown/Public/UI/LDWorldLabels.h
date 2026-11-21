@@ -34,6 +34,8 @@ namespace LDWorldLabels
         uint8 Level=0;         // contender level; 0 for camp members, which have none
         bool bHealth=false;    // false without a known maximum or with a malformed current: no bar, never an empty one
         float HealthFraction=0.f;  // current over maximum, clamped to 0..1
+        float MaxHealth=0.f;       // the maximum in whole HP, for the bar's 100/1000 HP ticks (how tanky the unit is)
+        FGuid Handle;              // this visibility interval of the unit, for the bar's damage trail
         bool bShield=false;    // the unit has the public shield status; its amount is not part of the label
         bool bCharging=false;  // a contender holding an overdrive charge: a gold halo rings its bar (never which skill)
     };
@@ -76,4 +78,12 @@ private:
     // Approved public definitions used only for display names; loaded once per widget like the HUD's.
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
     bool bDisplayContentTried=false;
+    // The damage trail of each bar in sight: the health shown a moment ago, held briefly, then closing on the current fill.
+    struct FTrail
+    {
+        float Shown=0.f;
+        double HeldUntil=0.;
+        double SeenAt=0.;
+    };
+    mutable TMap<FGuid,FTrail> Trails;
 };

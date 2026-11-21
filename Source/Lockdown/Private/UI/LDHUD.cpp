@@ -1808,6 +1808,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const FString Line=LDHUD::FieldRewardNotice(Reward,Content);
             if(!Line.IsEmpty()){Lines.Add(Line);}
         }
+        // An element medal that dropped (a level-up, a camp, an event or the Boss) is named once too.
+        Lines.Append(MedalDropWatch.Observe(Progression,O.Match,Content));
         if(!Lines.IsEmpty()){ShowToast(FString::Join(Lines,TEXT("\n")));}
     }
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
@@ -1955,6 +1957,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         Context.bInputCaptured=bInputSuppressed;
         Context.bMomentumKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMomentumP2>0;Context.MomentumP2=OwnCombat?OwnCombat->MomentumP2:0;
         Context.Card=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>());
+        // Holding Alt spells out each number's scaling (base + AD/AP/HP shares) instead of its current total.
+        Context.Card.bShowScalingFormula=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
         const LDHUD::EActionLook Look=LDHUD::ActionLook(View,bArmed&&ArmedEntry==Wanted);
