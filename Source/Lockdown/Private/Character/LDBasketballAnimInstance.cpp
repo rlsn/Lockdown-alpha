@@ -1,4 +1,5 @@
 #include "Character/LDBasketballAnimInstance.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimSequence.h"
 #include "AnimNodes/AnimNode_SequenceEvaluator.h"
@@ -131,7 +132,7 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
         }
     }
     LastAction=Action;
-    if(Ball){Ball->SetHiddenInGame(!bBallVisible);}
+    if(Ball&&!bBallVisible){Ball->SetHiddenInGame(true);}
 }
 
 void ULDBasketballAnimInstance::NativePostEvaluateAnimation()
@@ -140,8 +141,12 @@ void ULDBasketballAnimInstance::NativePostEvaluateAnimation()
     auto* Mesh=GetSkelMeshComponent();
     if(!Motion||!Ball||!Mesh||!bBallVisible||!Mesh->IsVisible()||Mesh->bHiddenInGame||!Mesh->GetOwner()||Mesh->GetOwner()->IsHidden())
     {if(Ball){Ball->SetHiddenInGame(true);}return;}
+    // The invisible collision capsule above the presentation is not a visibility gate.
     for(auto* Parent=Mesh->GetAttachParent();Parent;Parent=Parent->GetAttachParent())
-    {if(!Parent->IsVisible()||Parent->bHiddenInGame){Ball->SetHiddenInGame(true);return;}}
+    {
+        if(!Parent->IsVisible()||Parent->bHiddenInGame){Ball->SetHiddenInGame(true);return;}
+        if(Parent->IsA<ULDHumanoidVisualComponent>()){break;}
+    }
     const auto Palm=[&](bool Left)
     {return Mesh->GetSocketTransform(Left?TEXT("hand_l"):TEXT("hand_r")).TransformPosition(Left?Motion->LeftPalm:Motion->RightPalm);};
     const bool Left=GetCurveValue(TEXT("BallLeft"))>.5f;

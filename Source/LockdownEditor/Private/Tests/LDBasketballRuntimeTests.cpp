@@ -2,6 +2,7 @@
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Art/LDArtCatalog.h"
 #include "Animation/AnimSequence.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
@@ -38,8 +39,15 @@ bool FLDBasketballRuntimeTest::RunTest(const FString& Parameters)
     }}
     auto* World=UEditorLoadingAndSavingUtils::NewBlankMap(false);
     ON_SCOPE_EXIT{UEditorLoadingAndSavingUtils::NewBlankMap(false);};
-    auto* Owner=World->SpawnActor<AActor>();auto* Visual=NewObject<ULDHumanoidVisualComponent>(Owner);
-    Owner->SetRootComponent(Visual);Visual->RegisterComponent();Visual->ApplyLook(Body,FLinearColor::White,TEXT("Basketball runtime fixture"));
+    auto* Owner=World->SpawnActor<AActor>();
+    auto* Capsule=NewObject<UCapsuleComponent>(Owner);
+    Owner->SetRootComponent(Capsule);
+    Capsule->SetHiddenInGame(true);
+    Capsule->RegisterComponent();
+    auto* Visual=NewObject<ULDHumanoidVisualComponent>(Owner);
+    Visual->SetupAttachment(Capsule);
+    Visual->RegisterComponent();
+    Visual->ApplyLook(Body,FLinearColor::White,TEXT("Basketball runtime fixture"));
     auto* Mesh=Visual->Mesh.Get();auto* Ball=Visual->Basketball.Get();
     Mesh->VisibilityBasedAnimTickOption=EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
     auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance());
@@ -50,7 +58,10 @@ bool FLDBasketballRuntimeTest::RunTest(const FString& Parameters)
     const FTransform Before=Owner->GetActorTransform();
     const auto Evaluate=[&](){Mesh->TickAnimation(1.f/60,false);Mesh->RefreshBoneTransforms();};
     Animation->Prepare(1,500,0,LDBodyMotion::EAction::None,0,.2f,0,nullptr,0,false,true);Evaluate();
-    TestFalse(TEXT("A visible player's dribble prop is drawn"),Ball->bHiddenInGame);
+    TestTrue(TEXT("A visible player draws a correctly sized ball despite the hidden capsule"),
+        Ball->IsVisible()&&!Ball->bHiddenInGame&&Ball->GetStaticMesh()
+        &&FMath::IsNearlyEqual(Ball->GetComponentScale().GetAbsMax()*Ball->GetStaticMesh()->GetBoundingBox().GetExtent().GetMax(),
+            Motion->BallRadiusCm,.5));
     const FVector InitialBall=Ball->GetComponentLocation();
     Animation->Prepare(1.1,500,0,LDBodyMotion::EAction::None,0,.2f,0,nullptr,0,false,true);Evaluate();
     TestTrue(TEXT("Dribbling follows the retained pose/ball curves"),FVector::Distance(InitialBall,Ball->GetComponentLocation())>1);

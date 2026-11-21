@@ -76,7 +76,7 @@
     "STAT.AttackRange.Min": {"unit": "cm", "value": 80},
     "STAT.AttackRange.Max": {"unit": "cm", "value": 1000},
     "UNIT.BasicAttackWindupSec": {"unit": "s", "value": 0.180},
-    "VISION.RadiusCm": {"unit": "cm", "value": 1400},
+    "VISION.RadiusCm": {"unit": "cm", "value": 1120},
     "VISION.NeutralHeightCm": {"unit": "cm", "value": 35},
     "VISION.FullHeightCm": {"unit": "cm", "value": 120},
     "VISION.UphillRadiusScale": {"unit": "ratio", "value": 0.75},

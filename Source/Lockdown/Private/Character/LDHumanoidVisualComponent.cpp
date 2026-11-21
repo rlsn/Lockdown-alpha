@@ -203,6 +203,7 @@ void ULDHumanoidVisualComponent::OnRegister()
     {
         Pivot->bIsEditorOnly = true;
         Mesh->bIsEditorOnly = true;
+        Basketball->bIsEditorOnly = true;
         for (UStaticMeshComponent* Part : Parts) { Part->bIsEditorOnly = true; }
         for (UStaticMeshComponent* Edge : Edges) { Edge->bIsEditorOnly = true; }
         for (UMeshComponent* Part : Worn) { if (Part) { Part->bIsEditorOnly = true; } }

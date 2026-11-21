@@ -331,7 +331,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "250"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
-            ("UNIT.BasicAttackWindupSec", "ms", ".180"), ("VISION.RadiusCm", "cm", "1400"),
+            ("UNIT.BasicAttackWindupSec", "ms", ".180"), ("VISION.RadiusCm", "cm", "1120"),
             ("VISION.NeutralHeightCm", "cm", "35"), ("VISION.FullHeightCm", "cm", "120"),
             ("VISION.UphillRadiusScale", "ratio", ".75"), ("VISION.DownhillRadiusScale", "ratio", "1.25"),
             ("VISION.SightGraceSec", "ms", ".3"), ("CAPTURE.RadiusCm", "cm", "450"),

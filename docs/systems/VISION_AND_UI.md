@@ -38,9 +38,9 @@
 
 ## 地面迷雾与材质调节
 
-`ALDWorldViewRelay` 只把本人当前授权帧的 256×128 `CurrentBits`（`CoverageWidth`×`CoverageHeight`，在 21000×10000 cm 地面上约 82×78 cm 一格）转换为世界厘米单位的有符号距离场，不增加本地视线查询或网络字段。`LDFogDistanceField` 按两个方向的实际单元尺寸计算欧氏距离；覆盖和地图尺寸不变时复用结果，变化后在约 0.06 s 内平滑显示，失效、死亡或无身体时立即恢复不可视颜色。单位与技能显隐继续由接收端授权帧管理。
+`ALDWorldViewRelay` 只把本人当前授权帧的 256×128 `CurrentBits`（`CoverageWidth`×`CoverageHeight`，在 21000×10000 cm 地面上约 82×78 cm 一格）转换为世界厘米单位的有符号距离场，不增加本地视线查询或网络字段。`LDFogDistanceField` 按两个方向的实际单元尺寸计算欧氏距离。覆盖与地图尺寸不变时复用结果，当前覆盖变化时以 0.16 s 的时间常数融合，失效、死亡或无身体时立即恢复不可视颜色。单位与技能显隐继续由接收端授权帧管理。
 
-正式游戏和测试关卡共用 `/Game/Lockdown/Art/Fog/MI_FogMist`，父材质 `M_FogMist` 在景深前合成。`BandWidthCm`、`FadePower` 控制向视野内侧消散的渐变，`NoiseAmount`、`NoiseScaleCm`、`DetailWeight`、`FlowSpeedCmPerSec`、`SwirlStrength`、`FlowDirection` 控制世界坐标中的双层流动噪声；`OutsideBrightness`、`HiddenDesaturation`、`FogColorStrength`、`FogColor` 控制外侧颜色，外侧与不可视区域一致。运行中的动态材质只覆盖距离场与坐标参数，继续继承此材质实例的效果设置。
+正式游戏和测试关卡共用 `/Game/Lockdown/Art/Fog/MI_FogMist`，父材质 `M_FogMist` 在景深前合成。`BandWidthCm`、`FadePower` 控制向视野内侧消散的渐变，正式游戏以素材中 `BandWidthCm` 的 1.5 倍为呈现宽度。`NoiseAmount`、`NoiseScaleCm`、`DetailWeight`、`FlowSpeedCmPerSec`、`SwirlStrength`、`FlowDirection` 控制世界坐标中的双层流动噪声。`OutsideBrightness`、`HiddenDesaturation`、`FogColorStrength`、`FogColor` 控制不可视区域颜色。
 
 `/Game/FogMistPreview/L_FogMistLab` 保留独立的编辑器 Play 跑图：右键寻路、WASD 移动、滚轮缩放，加载营地怪物但不运行战斗。编辑器插件 `FogMistLab` 只在该关卡开始 PIE 前临时选择 Lab GameInstance，结束或取消后还原；正式地图仍使用原 GameInstance。Lab 的 `RadiusCm`、`ObserverPosition` 仅用于预览；正式游戏使用服务器覆盖，不从材质参数修改玩法视野。PIE 中可释放鼠标后编辑 `MI_FogMist` 实时预览，停止 Play 后保存材质。
 

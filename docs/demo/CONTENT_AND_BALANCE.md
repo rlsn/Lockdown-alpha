@@ -220,11 +220,11 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | ID | 单位/类型 | 建议初值/派生 | 依据与适用范围 |
 | --- | --- | --- | --- |
 | `VISION.SightGraceSec` | s/Sec | 0.3 | 被障碍物刚挡住的单位仍算看见的时间：擦过树干、路灯不打断锁定、追击与前摇；不跨视野半径、隔离或瞬移 |
-| `VISION.RadiusCm` | cm/Cm | 1400 | 2250cm 镜头下覆盖更多屏幕；停电日（−25%）仍有 1050cm，长于甩你一鞋 850cm 射程；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 3.93s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1400, 2×220)=440 不变 |
+| `VISION.RadiusCm` | cm/Cm | 1120 | 同高、无遮挡的基础水平视野半径；停电日为 840cm；初始 A 搜敌半径 min(1120, 2×220)=440cm |
 | `VISION.NeutralHeightCm` | cm/Cm | 35 | 双方实际脚下地面高差不超过此值时，视野半径保持原值；小台阶不改变视野资源 |
 | `VISION.FullHeightCm` | cm/Cm | 120 | 高差从中性阈值到此值时，以 smoothstep 平滑达到完整倍率；高差更大不继续叠加 |
-| `VISION.UphillRadiusScale` | ratio/bp | 0.75 | 看高处的水平半径下限；常态最短 1050cm |
-| `VISION.DownhillRadiusScale` | ratio/bp | 1.25 | 看低处的水平半径上限；常态最远 1750cm；同步修正野怪既有感知半径，攻击、技能和追击边界不因此增加 |
+| `VISION.UphillRadiusScale` | ratio/bp | 0.75 | 看高处的水平半径下限；常态最短 840cm |
+| `VISION.DownhillRadiusScale` | ratio/bp | 1.25 | 看低处的水平半径上限；常态最远 1400cm；同步修正野怪既有感知半径，攻击、技能和追击边界不因此增加 |
 
 | `TARGET.AttackMoveAcquireRadiusCm` | cm/Cm | min(VISION.RadiusCm, 2×STAT.AttackRangeCm)，初始440 | 随真实普攻射程变化；只搜合法可见目标，最高1320cm；订单/优先级归操作域 |
 | `CAPTURE.RadiusCm` | cm/Cm | 420 | 直径840cm，基速穿过约2.8s，比远程技能射程小一圈但留出圈内走位；地面装饰离旗杆的净空沿用 `camp_clearance_cm`，不随喷漆区变大；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
@@ -288,7 +288,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | --- | --- | --- |
 | 下雨 | `DAILY.RainIntervalSec` 20、`RainPuddles` 6、`RainPuddleSec` 10、`RainWetBonusSec` 2 | 每 20 s 在野外随机 6 处生成无主水洼（10 s）；湿持续 +2 s |
 | 寒潮 | `DAILY.ColdFreezeSec` 20、`ColdChillBonusSec` 2 | 水洼生成 20 s 后变冰面；冻持续 +2 s |
-| 停电 | `DAILY.BlackoutVisionCut` 0.25、`BlackoutShockScale` 2 | 参赛者视野半径 −25%（1400 cm 剩 1050 cm，不低于常规技能射程；野怪感知不变）；麻的额外伤害 ×2 |
+| 停电 | `DAILY.BlackoutVisionCut` 0.25、`BlackoutShockScale` 2 | 参赛者视野半径 −25%（同高基础半径由 1120cm 降至 840cm，野怪感知不变）；麻的额外伤害 ×2 |
 | 台风 | `DAILY.TyphoonIntervalSec` 30、`TyphoonPushCm` 150 | 每 30 s 全图向同一随机方向吹 150 cm，人和地面状态一起吹 |
 | 高温 | `DAILY.HeatBurnTickScale` 1.3 | 灼烧每跳 ×1.3；起雾不生成雾区 |
 | 打折 | `DAILY.SalePriceScale` 0.5 | 商店技能、牌、技能点与刷新价 ×0.5，向上取整，不低于 1 |

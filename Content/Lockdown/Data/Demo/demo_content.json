@@ -23242,7 +23242,7 @@
     },
     "VISION.RadiusCm": {
       "denominator": 1,
-      "numerator": 1400,
+      "numerator": 1120,
       "unit": "cm"
     },
     "VISION.SightGraceSec": {
